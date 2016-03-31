@@ -33,6 +33,5 @@ requires:
   bytes: '0'
   open: '0'
   strict: '0'
-  utf8: '0'
   warnings: '0'
-version: '5.005'
+version: '5.006'

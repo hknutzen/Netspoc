@@ -1,3 +1,9 @@
+5.006     2016-03-31 17:32:40+02:00 Europe/Berlin
+
+ - Runtime to read netspoc data was cut in half.
+ - Netspoc no longer reads data from STDIN, if no argument is given.
+ - Attribute 'security_level' is no longer supported.
+
 5.005     2016-03-23 16:05:56+01:00 Europe/Berlin
 
  - Runtime and memory performance improvement while checking for 

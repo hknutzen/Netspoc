@@ -19,7 +19,6 @@ my %WriteMakefileArgs = (
   "EXE_FILES" => [
     "bin/print-service",
     "bin/check-pathrestrictions",
-    "bin/watchers-to-json",
     "bin/export-netspoc",
     "bin/print-group",
     "bin/spoc1",
@@ -45,7 +44,6 @@ my %WriteMakefileArgs = (
     "bytes" => 0,
     "open" => 0,
     "strict" => 0,
-    "utf8" => 0,
     "warnings" => 0
   },
   "TEST_REQUIRES" => {
@@ -58,7 +56,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.005",
+  "VERSION" => "5.006",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -87,7 +85,6 @@ my %FallbackPrereqs = (
   "lib" => 0,
   "open" => 0,
   "strict" => 0,
-  "utf8" => 0,
   "warnings" => 0
 );
 

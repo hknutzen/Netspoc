@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.005'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.006'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -63,7 +63,6 @@ our @EXPORT = qw(
   @pathrestrictions
   *input
   $current_file
-  $line
   $error_counter
   init_global_vars
   abort_on_error
@@ -83,8 +82,8 @@ our @EXPORT = qw(
   skip_space_and_comment
   check
   skip
-  check_typed_name
-  read_intersection
+  read_typed_name
+  read_union
   is_network
   is_router
   is_interface
@@ -207,7 +206,6 @@ my %router_info = (
         stateless_icmp      => 1,
         can_objectgroup     => 1,
         comment_char        => '!',
-        has_interface_level => 1,
         need_identity_nat   => 1,
         no_filter_icmp_code => 1,
         need_acl            => 1,
@@ -393,9 +391,6 @@ our $private;
 # Content of current file.
 our $input;
 
-# Current line number of input file.
-our $line;
-
 # Use content and match position of current input file.
 # Return string describing current match position.
 sub context {
@@ -408,12 +403,15 @@ sub context {
           $input =~ m/([^ \t\n,;={}]*[,;={} \t]*)\G([,;={} \t]*[^ \t\n,;={}]*)/;
         $context = qq/near "$pre<--HERE-->$post"/;
     }
-    return qq/ at line $line of $current_file, $context\n/;
+    return at_line() . ", $context\n";
 }
 
 # Return current input file and line number.
 sub at_line {
-    return qq/ at line $line of $current_file\n/;
+    my $seen_lines = substr($input, 0, pos($input));
+    my $number = 1;
+    $number++ while $seen_lines =~ m/\n/g;
+    return " at line $number of $current_file";
 }
 
 # Print arguments together with current context to STDERR
@@ -445,7 +443,7 @@ sub abort_on_error {
 # Print error message with current input file and line number.
 sub error_atline {
     my (@args) = @_;
-    print STDERR "Error: ", @args, at_line();
+    print STDERR "Error: ", @args, at_line(), "\n";
     check_abort();
     return;
 }
@@ -481,16 +479,19 @@ sub internal_err {
 
 # $input is used as input buffer, it holds content of current input file.
 # Progressive matching is used. \G is used to match current position.
+
 sub skip_space_and_comment {
+    $input =~ m/ \G [ \t\n]* (?: [#].* $ [ \t\n]* )* /gcmx;
+}
 
-    # Ignore trailing white space and comments.
-    while ($input =~ m'\G[ \t]*(?:[#].*)?(?:\n|$)'gc) {
-        $line++;
-    }
+# Find next named token or separator token.
+sub read_token {
 
-    # Ignore leading white space.
-    $input =~ m/\G[ \t]*/gc;
-    return;
+    # Regex of skip_space_and_comment is inlined for performance.
+    $input =~ m/ \G [ \t\n]* (?: [#].* $ [ \t\n]* )* 
+                 ( [^ \t\n;,={}\[\]&!]+ | \S ) /gcmx or 
+        syntax_err("Unexpected end of file");
+    return $1;
 }
 
 # Optimize use of CORE:regcomp. Build regex only once for each token.
@@ -504,11 +505,33 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
+# Skip argument regex.
+# Usable for non token characters.
+# Returns matched string.
+sub skip_regex {
+    my ($expected) = @_;
+    skip_space_and_comment;
+    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
+    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
+    return $1;
+}
+
+# Skip argument regex without skipping whitespace.
+# Usable for non token characters.
+# Returns matched string.
+sub skip_direct {
+    my ($expected) = @_;
+    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
+    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
+    return $1;
+}
+
 # Skip argument token.
 # If it is not available an error is printed and the script terminates.
 sub skip {
-    my $token = shift;
-    return (check $token or syntax_err("Expected '$token'"));
+    my ($expected) = @_;
+    my $token = read_token();;
+    $token eq $expected or syntax_err("Expected '$expected'");
 }
 
 # Check, if an integer is available.
@@ -529,35 +552,32 @@ sub read_int {
     return $result;
 }
 
-# Read IP address. Internally it is stored as an integer.
-sub check_ip {
-    skip_space_and_comment;
-    if ($input =~ m/\G(\d+)\.(\d+)\.(\d+)\.(\d+)/gc) {
-        if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
-            error_atline("Invalid IP address");
-        }
-        no warnings 'pack';
-        return unpack 'N', pack 'C4', $1, $2, $3, $4;
+# Check and convert IP address to integer.
+sub convert_ip {
+    my ($token) = @_;
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)/ or 
+        syntax_err("IP address expected");
+    if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
+        error_atline("Invalid IP address");
     }
-    else {
-        return;
-    }
+    no warnings 'pack';
+    return unpack 'N', pack 'C4', $1, $2, $3, $4;
 }
 
 # Read an IP address.
 sub read_ip {
-    my $result = check_ip();
-    defined $result or syntax_err("IP address expected");
-    return $result;
+    return convert_ip(read_token());
 }
 
 # Read IP address and prefix length.
 # x.x.x.x/n
 # Return two values: IP, mask.
 sub read_ip_prefix {
-    my $ip = read_ip;
-    skip('/');
-    my $mask = prefix2mask(read_int());
+    my $token = read_token();
+    my ($part1, $part2) = $token =~ m/^(.*)\/(.*)$/ or
+        syntax_err("Expected 'IP/prefixlen'");
+    my $ip = convert_ip($part1);
+    my $mask = prefix2mask($part2);
     defined $mask or syntax_err('Invalid prefix');
     match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
 
@@ -571,6 +591,16 @@ sub read_ip_prefix {
 sub read_ip_prefix_pair {
     my ($ip, $mask) = read_ip_prefix();
     return [ $ip, $mask ];
+}
+
+# Read IP range.
+sub read_ip_range {
+    skip '=';
+    my $ip1 = convert_ip(skip_regex('[\d.]+'));
+    skip_regex('-');
+    my $ip2 = convert_ip(skip_regex('[\d.]+'));
+    skip(';');
+    return $ip1, $ip2;
 }
 
 # Generate an IP address as internal integer.
@@ -634,49 +664,51 @@ sub read_string {
 # This is only 'active' while parsing src or dst of the rule of a service.
 my $user_object = { active => 0, refcount => 0, elements => undef };
 
-# Read list of syntax elements delimited by $delimter.
+# Read comma or '&' separated list of syntax elements stopped by $stop_token.
 # Return list of read elements.
+# Sequences of '&' separated elements are stored together in one 
+# array reference marked with leading '&'.
 sub read_union {
-    my ($delimiter) = @_;
-    my @vals;
-    my $count = $user_object->{refcount};
-    push @vals, read_intersection();
-    my $has_user_ref   = $user_object->{refcount} > $count;
-    my $user_ref_error = 0;
+    my ($stop_token) = @_;
+    my @union;
+    my $token = read_token();
+    push @union, read_complement($token);
+
     while (1) {
-        last if check $delimiter;
-        my $comma_seen = check ',';
+        $token = read_token();
+        if ($token eq $stop_token) {
+            last;
+        }
+        elsif ($token eq ',') {
 
-        # Allow trailing comma.
-        last if check $delimiter;
-
-        $comma_seen or syntax_err("Comma expected in union of values");
-        $count = $user_object->{refcount};
-        push @vals, read_intersection();
-        $user_ref_error ||=
-          $has_user_ref != ($user_object->{refcount} > $count);
+            # Allow trailing comma.
+            $token = read_token();
+            last if $token eq $stop_token;
+            push @union, read_complement($token);
+        }
+        elsif ($token eq '&') {
+            $token = read_token();
+            my $value = read_complement($token);
+            my $prev = $union[-1];
+            if ($prev->[0] eq '&') {
+                push @{ $prev->[1] }, $value;
+            }
+            else {
+                $union[-1] = [ '&', [ $prev, $value ] ];
+            }
+        }
+        else {
+            syntax_err("Comma expected in union of values");
+        }
     }
-    $user_ref_error
-      and error_atline(
-        "The sub-expressions of union equally must\n",
-        " either reference 'user' or must not reference 'user'"
-      );
-    return @vals;
+    return \@union;
 }
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name {
-    skip_space_and_comment;
-    $input =~ m/ \G (\w+) : /gcx or return;
-    my $type = $1;
-    my ($name, $separator);
-    if ($input =~ m' \G ( [\w-]+ (?: ( [@/] ) [\w-]+ )? ) 'gcx) {
-        $name      = $1;
-        $separator = $2;
-    }
-    else {
-        syntax_err("Invalid token");
-    }
+    my ($token) = @_;
+    my ($type, $name, $separator) = 
+        $token =~ /^ (\w+) : ( [\w-]+ (?: ( [\@\/] ) [\w-]+ )? ) $/x or return;
 
     if ($separator) {
         if ($type eq 'router') {
@@ -693,7 +725,8 @@ sub check_typed_name {
 }
 
 sub read_typed_name {
-    return check_typed_name || syntax_err("Typed name expected");
+    my $token = read_token();
+    return (check_typed_name($token) || syntax_err("Typed name expected"));
 }
 
 {
@@ -721,8 +754,9 @@ sub read_typed_name {
 # or host:id:[@]domain.network
 #
     sub read_extended_name {
+        my ($token) = @_;
 
-        if (check 'user') {
+        if ($token eq 'user') {
 
             # Global variable for linking occurrences of 'user'.
             $user_object->{active}
@@ -730,12 +764,49 @@ sub read_typed_name {
             $user_object->{refcount}++;
             return [ 'user', $user_object ];
         }
-        $input =~ m/\G([\w-]+):/gc or syntax_err("Type expected");
-        my $type      = $1;
+
+        my ($type, $name) = $token =~ /^([\w-]+):(.*)$/ or 
+            syntax_err("Object type expected");
         my $interface = $type eq 'interface';
-        my $name;
         my $ext;
-        if ($input =~ m/ \G \[ /gcox) {
+
+        my $read_auto_all = sub {
+            skip_direct('\[');
+            my $selector = read_identifier;
+            $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
+            $ext = [ $selector, $ext ];
+            skip ']';
+        };
+
+        if ($name) {
+            if ($type eq 'host') {
+                verify_hostname($name) or 
+                    syntax_err("Name or ID-name expected");
+            }
+            elsif ($type eq 'network') {
+                $name =~ m/^ $network_regex $/xo or
+                    syntax_err("Name or bridged name expected");
+            }
+            elsif ($interface) {
+                my ($router_name, $net_name) =
+                    $name =~ m/^ ( [\w-]+ (?: \@ [\w-]+ )? ) [.] 
+                                 ( $network_regex (?: [.] [\w-]+)? )? $/x or
+                    syntax_err("Interface name expected");
+                $name = $router_name;
+                if ($net_name) {
+                    $ext = $net_name;
+                }
+                else {
+                    $read_auto_all->();
+                }
+                    
+            }
+            else {
+                $name =~ m/^ [\w-]+ $/x or syntax_err("Name expected");
+            }
+        }
+        else {
+            skip_direct('\[');
             if (($interface || $type eq 'host') && check('managed')) {
                 $ext = 1;
                 skip '&';
@@ -745,46 +816,11 @@ sub read_typed_name {
                 $ext = read_ip_prefix_pair();
                 skip '&';
             }
-            $name = [ read_union(']') ];
-        }
-        elsif ($type eq 'host') {
-            $input =~ m/ \G ( $hostname_regex ) /gcox
-              or syntax_err("Name or ID-name expected");
-            $name = $1;
-        }
-        elsif ($type eq 'network') {
-            $input =~ m/ \G ( $network_regex ) /gcox
-              or syntax_err("Name or bridged name expected");
-            $name = $1;
-        }
-        elsif ($interface && $input =~ m/ \G ( [\w-]+ (?: \@ [\w-]+ ) ) /gcx
-            || $input =~ m/ \G ( [\w-]+ ) /gcx)
-        {
-            $name = $1;
-        }
-        else {
-            syntax_err("Identifier or '[' expected");
-        }
-        if ($interface) {
-            $input =~ m/ \G \. /gcox or syntax_err("Expected '.'");
-            if ($input =~ m/ \G \[ /gcox) {
-                my $selector = read_identifier;
-                $selector =~ /^(auto|all)$/
-                  or syntax_err("Expected [auto|all]");
-                $ext = [ $selector, $ext ];
-                skip '\]';
-            }
-            else {
-                $ext and syntax_err("Keyword 'managed' not allowed");
-                $input =~ m/ \G ( $network_regex ) /gcox
-                  or syntax_err("Name or bridged name expected");
-                $ext = $1;
-
-                # ID of secondary interface.
-                if ($input =~ m/ \G \. /gcox) {
-                    $ext .= '.' . read_identifier;
-                }
-            }
+            $name = read_union(']');
+            if ($interface) {
+                skip_direct('[.]');
+                $read_auto_all->();
+            }                
         }
         return $ext ? [ $type, $name, $ext ] : [ $type, $name ];
     }
@@ -801,42 +837,28 @@ sub read_typed_name {
     }
 
 # host:xxx or host:id:user@domain or host:id:[@]domain
-    sub check_hostname {
-        skip_space_and_comment;
-        if ($input =~ m/\G host:/gcx) {
-            if ($input =~ m/\G($hostname_regex)/gco) {
-                return $1;
-            }
-            else {
-                syntax_err('Hostname expected');
-            }
-        }
-        else {
-            return;
-        }
+    sub verify_hostname {
+        my ($token) = @_;
+        $token =~ m/^$hostname_regex$/ or syntax_err('Hostname expected');
     }
+}
+
+sub verify_name {
+    my ($token) = @_;
+    $token =~ m/^[\w-]+$/ or syntax_err('Valid name expected');
 }
 
 sub read_complement {
-    if (check '!') {
-        return [ '!', read_extended_name() ];
+    my ($token) = @_;
+    my $result;
+    if ($token eq '!') {
+        $token = read_token();
+        $result = [ '!', read_extended_name($token) ];
     }
     else {
-        return read_extended_name();
+        $result = read_extended_name($token);
     }
-}
-
-sub read_intersection {
-    my @result = read_complement();
-    while (check '&') {
-        push @result, read_complement();
-    }
-    if (@result == 1) {
-        return $result[0];
-    }
-    else {
-        return [ '&', \@result ];
-    }
+    return $result;
 }
 
 # Setup standard time units with different names and plural forms.
@@ -862,34 +884,10 @@ sub add_description {
     skip '=';
 
     # Read up to end of line, but ignore ';' at EOL.
-    # We must use '$' here to match EOL,
-    # otherwise $line would be out of sync.
     if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
         $obj->{description} = $1;
     }
     return;
-}
-
-# Check if one of the keywords 'permit' or 'deny' is available.
-sub check_permit_deny {
-    skip_space_and_comment();
-    if ($input =~ m/\G(permit|deny)/gc) {
-        return $1;
-    }
-    else {
-        return;
-    }
-}
-
-# Check if 'nat:xxx' is available in input.
-sub check_nat_name {
-    skip_space_and_comment;
-    if ($input =~ m/\G nat:([\w-]+)/gcx) {
-        return $1;
-    }
-    else {
-        return;
-    }
 }
 
 # Split argument at first ':' and return the two parts.
@@ -900,99 +898,45 @@ sub split_typed_name {
     return split /[:]/, $name, 2;
 }
 
-# Check if argument token is available as input.
-# If found, a following ';' is required.
-sub check_flag {
-    my $token = shift;
-    if (check $token) {
+# Read '=' and value(s).
+# Argument function is used to read value(s).
+# Depending on calling context, one or multiple values are returned.
+sub read_assign {
+    my ($fun) = @_;
+    skip '=';
+    if (wantarray) {
+        my @val = &$fun;
         skip(';');
-        return 1;
+        return @val;
     }
     else {
-        return;
+        my $val = &$fun;
+        skip(';');
+        return $val;
     }
-}
-
-# Check if argument token is available as input.
-# If found, '=' and value(s) are required.
-# Second argument function is used to read value(s).
-# Depending on calling context, one or multiple values are returned.
-sub check_assign {
-    my ($token, $fun) = @_;
-    if (check($token)) {
-        skip '=';
-        if (wantarray) {
-            my @val = &$fun;
-            skip(';');
-            return @val;
-        }
-        else {
-            my $val = &$fun;
-            skip(';');
-            return $val;
-        }
-    }
-    return;
 }
 
 # Use the passed function to read one or more elements from global
 # input until reaching a ';'.
-# Return read elements.
-sub read_list {
-    my ($fun) = @_;
-    my @vals;
-    while (1) {
-        push @vals, &$fun;
-        last if check(';');
-        my $comma_seen = check ',';
-
-        # Allow trailing comma.
-        last if check(';');
-
-        $comma_seen or syntax_err("Comma expected in list of values");
-    }
-    return @vals;
-}
-
-# Use the passed function to read zero or more elements from global
-# input until reaching a ';'.
-# Return read elements.
-sub read_list_or_null {
-    my ($fun) = @_;
-    return () if check(';');
-    return read_list($fun);
-}
-
-# Read 'token = value, ..., value;'
+# Return array of read elements.
 sub read_assign_list {
-    my ($token, $fun) = @_;
-    skip $token;
+    my ($fun) = @_;
     skip '=';
-    return read_list($fun);
-}
+    my @result;
+    while (1) {
+        push @result, &$fun;
+        my $token = read_token();
+        last if $token eq ';';
+        if ($token eq ',') {
 
-# Check for 'token = value, ..., value;'
-sub check_assign_list {
-    my ($token, $fun) = @_;
-    if (check $token) {
-        skip '=';
-        return &read_list($fun);
+            # Allow trailing comma.
+            last if check(';');
+        }
+        else {
+            syntax_err("Comma expected in list of values");
+        }
     }
-    return ();
-}
-
-# Check for 'token = value delimiter value;'
-sub check_assign_pair {
-    my ($token, $delimiter, $fun) = @_;
-    if (check $token) {
-        skip '=';
-        my $v1 = &$fun;
-        skip $delimiter;
-        my $v2 = &$fun;
-        skip(';');
-        return $v1, $v2;
-    }
-    return ();
+    return \@result;
 }
 
 ####################################################################
@@ -1020,38 +964,40 @@ sub add_attribute {
 
 our %hosts;
 
-sub check_radius_attributes {
+sub read_radius_attributes {
     my $result = {};
-    check 'radius_attributes' or return;
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
-        last if check '\}';
-        my $key = read_identifier();
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        verify_name($token);
         my $val = check('=') ? read_string : undef;
         skip ';';
-        add_attribute($result, $key => $val);
+        add_attribute($result, $token => $val);
     }
     return $result;
 }
 
 # Uses global variable %routing_info with definition of dynamic
 # routing protocols
-sub check_routing {
-    my $protocol = check_assign('routing', \&read_identifier) or return;
+sub read_routing {
+    my $protocol = read_assign(\&read_identifier);
     my $routing = $routing_info{$protocol}
       or error_atline('Unknown routing protocol');
     return $routing;
 }
 
-sub check_managed {
-    check('managed') or return;
+sub read_managed {
     my $managed;
-    if (check ';') {
+    my $token = read_token();
+    if ($token eq ';') {
         $managed = 'standard';
     }
-    elsif (check '=') {
-        my $value = read_identifier;
+    elsif ($token eq '=') {
+        my $value = read_token();
         if (
             $value =~ /^(?:secondary|standard|full|primary|
                            local|local_secondary|routing_only)$/x
@@ -1066,7 +1012,7 @@ sub check_managed {
                 "|local|local_secondary|routing_only"
             );
         }
-        check ';';
+        skip(';');
     }
     else {
         syntax_err("Expected ';' or '='");
@@ -1074,9 +1020,9 @@ sub check_managed {
     return $managed;
 }
 
-sub check_model {
-    my ($model, @attributes) = check_assign_list('model', \&read_name)
-      or return;
+sub read_model {
+    my $names = read_assign_list(\&read_name);
+    my ($model, @attributes) = @$names;
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1163,61 +1109,72 @@ sub read_host {
     }
     $host->{name} = $name;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($host);
     while (1) {
-        last if check '\}';
-        if (my $ip = check_assign 'ip', \&read_ip) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'ip') {
+            my $ip = read_assign(\&read_ip);
             add_attribute($host, ip => $ip);
         }
-        elsif (my ($ip1, $ip2) = check_assign_pair('range', '-', \&read_ip)) {
+        elsif ($token eq 'range') {
+            my ($ip1, $ip2) = read_ip_range();
             $ip1 <= $ip2 or error_atline("Invalid IP range");
             add_attribute($host, range => [ $ip1, $ip2 ]);
         }
 
-        # Currently, only simple 'managed' attribute,
-        # because 'secondary' and 'local' isn't supported by Linux.
-        elsif (my $managed = check_managed()) {
+        elsif ($token eq 'managed') {
+            my $managed = read_managed();
+
+            # Currently, only simple 'managed' attribute,
+            # because 'secondary' and 'local' isn't supported by Linux.
             $managed eq 'standard'
               or error_atline("Only 'managed=standard' is supported");
             add_attribute($host, managed => $managed);
         }
-        elsif (my $model = check_model()) {
-            $host->{model} and error_atline("Duplicate attribute 'model'");
+        elsif ($token eq 'model') {
+            my $model = read_model();
             add_attribute($host, model => $model);
         }
-        elsif (my $hardware = check_assign('hardware', \&read_name)) {
+        elsif ($token eq 'hardware') {
+            my $hardware = read_assign(\&read_name);
             add_attribute($host, hardware => $hardware);
         }
-        elsif (my $server_name = check_assign('server_name', \&read_name)) {
+        elsif ($token eq 'server_name') {
+            my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($host, owner => $owner);
         }
-        elsif (my $radius_attributes = check_radius_attributes) {
+        elsif ($token eq 'radius_attributes') {
+            my $radius_attributes = read_radius_attributes();
             add_attribute($host, radius_attributes => $radius_attributes);
         }
-        elsif (my $pair = check_typed_name) {
-            my ($type, $name) = @$pair;
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'nat') {
+                verify_name($name2);
                 skip '=';
-                skip '\{';
+                skip '{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '\}';
-                $host->{nat}->{$name}
+                skip '}';
+                $host->{nat}->{$name2}
                   and error_atline("Duplicate NAT definition");
-                $host->{nat}->{$name} = $nat_ip;
+                $host->{nat}->{$name2} = $nat_ip;
             }
             else {
                 syntax_err("Expected NAT definition");
             }
         }
         else {
-            syntax_err("Unexpected attribute");
+            syntax_err("Unexpected token");
         }
     }
     $host->{ip} xor $host->{range}
@@ -1268,26 +1225,34 @@ sub read_nat {
     my $nat = { name => $name };
     (my $nat_tag = $name) =~ s/^nat://;
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
-        last if check '\}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'ip') {
+            my ($ip, $mask) = read_assign(\&read_ip_prefix);
             add_attribute($nat, ip   => $ip);
             add_attribute($nat, mask => $mask);
         }
-        elsif (check_flag 'hidden') {
+        elsif ($token eq 'hidden') {
+            skip(';');
             $nat->{hidden} = 1;
         }
-        elsif (check_flag 'identity') {
+        elsif ($token eq 'identity') {
+            skip(';');
             $nat->{identity} = 1;
         }
-        elsif (check_flag 'dynamic') {
+        elsif ($token eq 'dynamic') {
+            skip(';');
 
             # $nat_tag is used later to look up static translation
             # of hosts inside a dynamically translated network.
             $nat->{dynamic} = $nat_tag;
         }
-        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
+        elsif ($token eq 'subnet_of') {
+            my $pair = read_assign(\&read_typed_name);
             add_attribute($nat, subnet_of => $pair);
         }
         else {
@@ -1338,73 +1303,88 @@ sub read_network {
         $network->{bridged} = $1;
     }
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($network);
     while (1) {
-        last if check '\}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'ip') {
+            my ($ip, $mask) = read_assign(\&read_ip_prefix);
             add_attribute($network, ip   => $ip);
             add_attribute($network, mask => $mask);
         }
-        elsif (check_flag 'unnumbered') {
+        elsif ($token eq 'unnumbered') {
+            skip(';');
             defined $network->{ip} and error_atline("Duplicate IP address");
             $network->{ip} = 'unnumbered';
         }
-        elsif (check_flag 'has_subnets') {
-
-            # Duplicate use of this flag doesn't matter.
+        elsif ($token eq 'has_subnets') {
+            skip(';');
             $network->{has_subnets} = 1;
         }
-        elsif (check_flag 'crosslink') {
-
-            # Duplicate use of this flag doesn't matter.
+        elsif ($token eq 'crosslink') {
+            skip(';');
             $network->{crosslink} = 1;
         }
-        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
+        elsif ($token eq 'subnet_of') {
+            my $pair = read_assign(\&read_typed_name);
             add_attribute($network, subnet_of => $pair);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($network, owner => $owner);
         }
-        elsif (my $radius_attributes = check_radius_attributes) {
+        elsif ($token eq 'radius_attributes') {
+            my $radius_attributes = read_radius_attributes();
             add_attribute($network, radius_attributes => $radius_attributes);
         }
-        elsif (my $host_name = check_hostname()) {
-            my $host = read_host("host:$host_name", $net_name);
-            $host->{network} = $network;
-            if (is_host($host)) {
-                push @{ $network->{hosts} }, $host;
-                $host_name = (split_typed_name($host->{name}))[1];
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
+            if ($type eq 'host') {
+                verify_hostname($name2);
+                my  $host_name = $name2;
+                my $host = read_host("host:$host_name", $net_name);
+                $host->{network} = $network;
+                if (is_host($host)) {
+                    push @{ $network->{hosts} }, $host;
+                    $host_name = (split_typed_name($host->{name}))[1];
+                }
+
+                # Managed host is stored as interface internally.
+                elsif (is_interface($host)) {
+                    push @{ $network->{interfaces} }, $host;
+                    check_interface_ip($host, $network);
+
+                    # For use in expand_group.
+                    push @{ $network->{managed_hosts} }, $host;
+                }
+                else {
+                    internal_err;
+                }
+                if (my $other = $hosts{$host_name}) {
+                    my $where     = $current_file;
+                    my $other_net = $other->{network};
+                    if ($other_net ne $network) {
+                        $where .= " $other_net->{file}";
+                    }
+                    err_msg("Duplicate definition of host:$host_name",
+                            " in $where");
+                }
+                $hosts{$host_name} = $host;
             }
-
-            # Managed host is stored as interface internally.
-            elsif (is_interface($host)) {
-                push @{ $network->{interfaces} }, $host;
-                check_interface_ip($host, $network);
-
-                # For use in expand_group.
-                push @{ $network->{managed_hosts} }, $host;
+            elsif ($type eq 'nat') {
+                verify_name($name2);
+                my $nat_tag = $name2;
+                my $nat = read_nat("nat:$nat_tag");
+                ($network->{nat} && $network->{nat}->{$nat_tag})
+                    and error_atline("Duplicate NAT definition");
+                $nat->{name} .= "($name)";
+                $network->{nat}->{$nat_tag} = $nat;
             }
             else {
-                internal_err;
+                syntax_err("Expected host or nat definition");
             }
-            if (my $other = $hosts{$host_name}) {
-                my $where     = $current_file;
-                my $other_net = $other->{network};
-                if ($other_net ne $network) {
-                    $where .= " $other_net->{file}";
-                }
-                err_msg("Duplicate definition of host:$host_name in $where");
-            }
-            $hosts{$host_name} = $host;
-        }
-        elsif (my $nat_tag = check_nat_name()) {
-            my $nat = read_nat("nat:$nat_tag");
-            ($network->{nat} && $network->{nat}->{$nat_tag})
-              and error_atline("Duplicate NAT definition");
-
-            $nat->{name} .= "($name)";
-            $network->{nat}->{$nat_tag} = $nat;
         }
         else {
             syntax_err("Expected some valid attribute");
@@ -1532,101 +1512,114 @@ sub read_interface {
     my $interface = new('Interface', name => $name);
 
     # Short form of interface definition.
-    if (not check '=') {
-        skip ';';
+    if (check(';')) {
         $interface->{ip} = 'short';
         return $interface;
     }
 
     my @secondary_interfaces = ();
     my $virtual;
-    skip '\{';
+    skip '=';
+    skip '{';
     add_description($interface);
     while (1) {
-        last if check '\}';
-        if (my @ip = check_assign_list 'ip', \&read_ip) {
-            add_attribute($interface, ip => shift(@ip));
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'ip') {
+            my $ip_list = read_assign_list(\&read_ip);
+            add_attribute($interface, ip => shift(@$ip_list));
 
             # Build interface objects for secondary IP addresses.
             # These objects are named interface:router.name.2, ...
             my $counter = 2;
-            for my $ip (@ip) {
+            for my $ip (@$ip_list) {
                 push @secondary_interfaces,
                   new('Interface', name => "$name.$counter", ip => $ip);
                 $counter++;
             }
         }
-        elsif (check_flag 'unnumbered') {
+        elsif ($token eq 'unnumbered') {
+            skip(';');
             add_attribute($interface, ip => 'unnumbered');
         }
-        elsif (check_flag 'negotiated') {
+        elsif ($token eq 'negotiated') {
+            skip(';');
             add_attribute($interface, ip => 'negotiated');
         }
-        elsif (check_flag 'loopback') {
+        elsif ($token eq 'loopback') {
+            skip(';');
             $interface->{loopback} = 1;
         }
-        elsif (check_flag 'vip') {
+        elsif ($token eq 'vip') {
+            skip(';');
             $interface->{vip} = 1;
         }
-        elsif (check_flag 'no_in_acl') {
+        elsif ($token eq 'no_in_acl') {
+            skip(';');
             $interface->{no_in_acl} = 1;
         }
-        elsif (check_flag 'dhcp_server') {
+        elsif ($token eq 'dhcp_server') {
+            skip(';');
             $interface->{dhcp_server} = 1;
         }
 
         # Needed for the implicitly defined network of 'loopback'.
-        elsif (my $pair = check_assign 'subnet_of', \&read_typed_name) {
+        elsif ($token eq 'subnet_of') {
+            my $pair = read_assign(\&read_typed_name);
             add_attribute($interface, subnet_of => $pair);
         }
-        elsif (my @pairs = check_assign_list 'hub', \&read_typed_name) {
-            for my $pair (@pairs) {
+        elsif ($token eq 'hub') {
+            my $pairs = read_assign_list(\&read_typed_name);
+            for my $pair (@$pairs) {
                 my ($type, $name2) = @$pair;
                 $type eq 'crypto' or error_atline("Expected type 'crypto:'");
                 push @{ $interface->{hub} }, "$type:$name2";
             }
         }
-        elsif ($pair = check_assign 'spoke', \&read_typed_name) {
+        elsif ($token eq 'spoke') {
+            my $pair = read_assign(\&read_typed_name);
             my ($type, $name2) = @$pair;
             $type eq 'crypto' or error_atline("Expected type 'crypto:'");
             add_attribute($interface, spoke => "$type:$name2");
         }
-        elsif (my $id = check_assign 'id', \&read_user_id) {
+        elsif ($token eq 'id') {
+            my $id = read_assign(\&read_user_id);
             add_attribute($interface, id => $id);
         }
-        elsif (defined(my $level = check_assign 'security_level', \&read_int)) {
-            $level > 100
-              and error_atline("Maximum value for attribute security_level",
-                " is 100");
-            add_attribute($interface, security_level => $level);
-        }
-        elsif ($pair = check_typed_name) {
-            my ($type, $name2) = @$pair;
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'nat') {
+                verify_name($name2);
                 skip '=';
-                skip '\{';
+                skip '{';
                 skip 'ip';
                 skip '=';
                 my $nat_ip = read_ip;
                 skip ';';
-                skip '\}';
+                skip '}';
                 $interface->{nat}->{$name2}
                   and error_atline("Duplicate NAT definition");
                 $interface->{nat}->{$name2} = $nat_ip;
             }
             elsif ($type eq 'secondary') {
+                verify_name($name2);
 
                 # Build new interface for secondary IP addresses.
                 my $secondary = new('Interface', name => "$name.$name2");
                 skip '=';
-                skip '\{';
+                skip '{';
                 while (1) {
-                    last if check '\}';
-                    if (my $ip = check_assign 'ip', \&read_ip) {
+                    my $token = read_token();
+                    if ($token eq '}') {
+                        last;
+                    }
+                    elsif ($token eq 'ip') {
+                        my $ip = read_assign(\&read_ip);
                         add_attribute($secondary, ip => $ip);
                     }
                     else {
-                        syntax_err("Expected attribute IP");
+                        syntax_err("Expected attribute 'ip'");
                     }
                 }
                 if ($secondary->{ip}) {
@@ -1640,7 +1633,7 @@ sub read_interface {
                 syntax_err("Expected nat or secondary interface definition");
             }
         }
-        elsif (check 'virtual') {
+        elsif ($token eq 'virtual') {
             $virtual and error_atline("Duplicate virtual interface");
 
             # Read attributes of redundancy protocol (VRRP/HSRP).
@@ -1650,18 +1643,24 @@ sub read_interface {
                 redundant => 1
             );
             skip '=';
-            skip '\{';
+            skip '{';
             while (1) {
-                last if check '\}';
-                if (my $ip = check_assign 'ip', \&read_ip) {
+                my $token = read_token();
+                if ($token eq '}') {
+                    last;
+                }
+                elsif ($token eq 'ip') {
+                    my $ip = read_assign(\&read_ip);
                     add_attribute($virtual, ip => $ip);
                 }
-                elsif (my $type = check_assign 'type', \&read_identifier) {
+                elsif ($token eq 'type') {
+                    my $type = read_assign(\&read_identifier);
                     $xxrp_info{$type}
                       or error_atline("Unknown redundancy protocol");
                     add_attribute($virtual, redundancy_type => $type);
                 }
-                elsif (my $id = check_assign 'id', \&read_identifier) {
+                elsif ($token eq 'id') {
+                    my $id = read_assign(\&read_identifier);
                     $id =~ /^\d+$/
                       or error_atline("Redundancy ID must be numeric");
                     $id < 256 or error_atline("Redundancy ID must be < 256");
@@ -1676,30 +1675,37 @@ sub read_interface {
               and
               syntax_err("Redundancy ID is given without redundancy protocol");
         }
-        elsif (my @tags = check_assign_list 'bind_nat', \&read_identifier) {
+        elsif ($token eq 'bind_nat') {
+            my $tags = read_assign_list(\&read_identifier);
             $interface->{bind_nat} and error_atline("Duplicate NAT binding");
-            $interface->{bind_nat} = [ unique sort @tags ];
+            $interface->{bind_nat} = [ unique sort @$tags ];
         }
-        elsif (my $hardware = check_assign 'hardware', \&read_name) {
+        elsif ($token eq 'hardware') {
+            my $hardware = read_assign(\&read_name);
             add_attribute($interface, hardware => $hardware);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($interface, owner => $owner);
         }
-        elsif (my $routing = check_routing()) {
+        elsif ($token eq 'routing') {
+            my $routing = read_routing();
             add_attribute($interface, routing => $routing);
         }
-        elsif (@pairs = check_assign_list 'reroute_permit', \&read_typed_name) {
-            if (grep { $_->[0] ne 'network' || ref $_->[1] } @pairs) {
+        elsif ($token eq 'reroute_permit') {
+            my $pairs = read_assign_list(\&read_typed_name);
+            if (grep { $_->[0] ne 'network' || ref $_->[1] } @$pairs) {
                 error_atline "Must only use network names in 'reroute_permit'";
-                @pairs = ();
+                $pairs = [];
             }
-            add_attribute($interface, reroute_permit => \@pairs);
+            add_attribute($interface, reroute_permit => $pairs);
         }
-        elsif (check_flag 'disabled') {
+        elsif ($token eq 'disabled') {
+            skip(';');
             $interface->{disabled} = 1;
         }
-        elsif (check_flag 'no_check') {
+        elsif ($token eq 'no_check') {
+            skip(';');
             $interface->{no_check} = 1;
         }
         else {
@@ -1833,48 +1839,6 @@ sub read_interface {
     return $interface, @secondary_interfaces;
 }
 
-# PIX firewalls have a security level associated with each interface.
-# Use attribute 'security_level' or
-# try to derive the level from the interface name.
-sub set_pix_interface_level {
-    my ($router) = @_;
-    for my $hardware (@{ $router->{hardware} }) {
-        my $hwname = $hardware->{name};
-        my $level;
-        if (
-            my @levels = grep { defined($_) }
-            map { $_->{security_level} } @{ $hardware->{interfaces} }
-          )
-        {
-            if (@levels >= 2 && !equal(@levels)) {
-                err_msg "Must not use different values",
-                  " for attribute 'security_level'\n",
-                  " at $router->{name}, hardware $hwname: ",
-                  join(',', @levels);
-            }
-            else {
-                $level = $levels[0];
-            }
-        }
-        elsif ($hwname =~ 'inside') {
-            $level = 100;
-        }
-        elsif ($hwname =~ 'outside') {
-            $level = 0;
-        }
-
-        # It is not necessary the find the exact level; what we need to know
-        # is the relation of the security levels to each other.
-        elsif (($level) = ($hwname =~ /(\d+)$/) and $level <= 100) {
-        }
-        else {
-            $level = 50;
-        }
-        $hardware->{level} = $level;
-    }
-    return;
-}
-
 #############################################################################
 # Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because
 #            ACLs operate on hardware, not on logic. Marks hardware needing
@@ -1954,64 +1918,71 @@ sub read_router {
         $router->{vrf} = $vrf;
     }
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($router);
     while (1) {
-        last if check '\}';
-        if (my $managed = check_managed()) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'managed') {
+            my $managed = read_managed();
             $router->{managed}
               and error_atline("Redefining 'managed' attribute");
             $router->{managed} = $managed;
         }
-        elsif (my @filter_only =
-            check_assign_list('filter_only', \&read_ip_prefix_pair))
-        {
-            add_attribute($router, filter_only => \@filter_only);
+        elsif ($token eq 'filter_only') {
+            my $filter_only = read_assign_list(\&read_ip_prefix_pair);
+            add_attribute($router, filter_only => $filter_only);
         }
-        elsif (my $model = check_model()) {
+        elsif ($token eq 'model') {
+            my $model = read_model();
             add_attribute($router, model => $model);
         }
-        elsif (check_flag 'no_group_code') {
+        elsif ($token eq 'no_group_code') {
+            skip(';');
             $router->{no_group_code} = 1;
         }
-        elsif (check_flag 'no_crypto_filter') {
+        elsif ($token eq 'no_crypto_filter') {
+            skip(';');
             $router->{no_crypto_filter} = 1;
         }
-        elsif (check_flag 'no_protect_self') {
+        elsif ($token eq 'no_protect_self') {
+            skip(';');
             $router->{no_protect_self} = 1;
         }
-        elsif (check_flag 'log_deny') {
+        elsif ($token eq 'log_deny') {
+            skip(';');
             $router->{log_deny} = 1;
         }
-        elsif (check_flag 'acl_use_real_ip') {
+        elsif ($token eq 'acl_use_real_ip') {
+            skip(';');
             $router->{acl_use_real_ip} = 1;
         }
-        elsif (my $routing = check_routing()) {
+        elsif ($token eq 'routing') {
+            my $routing = read_routing();
             add_attribute($router, routing => $routing);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($router, owner => $owner);
         }
-        elsif (my $radius_attributes = check_radius_attributes) {
+        elsif ($token eq 'radius_attributes') {
+            my $radius_attributes = read_radius_attributes();
             add_attribute($router, radius_attributes => $radius_attributes);
         }
-        elsif (my $pair =
-            check_assign('policy_distribution_point', \&read_typed_name))
-        {
+        elsif ($token eq 'policy_distribution_point') {
+            my $pair = read_assign(\&read_typed_name);
             add_attribute($router, policy_distribution_point => $pair);
         }
-        elsif (
-            my @list = check_assign_list(
-                'general_permit', \&read_typed_name_or_simple_protocol
-            )
-          )
-        {
-            add_attribute($router, general_permit => \@list);
+        elsif ($token eq 'general_permit') {
+            skip('=');
+            my $list = read_typed_name_or_simple_protocol_list();
+            add_attribute($router, general_permit => $list);
         }
-        else {
-            my $pair = read_typed_name;
-            my ($type, $name2) = @$pair;
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'log') {
+                $name2 =~ /^ [\w-]+ $/x or syntax_err("Invalid log name");
                 defined($router->{log}->{$name2})
                   and error_atline("Duplicate 'log' definition");
                 my $modifier = check('=') ? read_identifier() : 0;
@@ -2023,9 +1994,12 @@ sub read_router {
                 syntax_err("Expected interface or log definition");
             }
 
+            $name2 =~ /^ [\w-]+ (?: \/ [\w-]+ ) ? $/x or 
+                syntax_err("Invalid interface name");
+
             # Derive interface name from router name.
             my $iname = "$rname.$name2";
-            for my $interface (read_interface "interface:$iname") {
+            for my $interface (read_interface("interface:$iname")) {
                 push @{ $router->{interfaces} }, $interface;
                 ($iname = $interface->{name}) =~ s/interface://;
                 if ($interfaces{$iname}) {
@@ -2044,6 +2018,9 @@ sub read_router {
                 # Set private attribute of interface.
                 $interface->{private} = $private if $private;
             }
+        }
+        else {
+            syntax_err("Unexpected token");
         }
     }
 
@@ -2246,12 +2223,6 @@ sub read_router {
         # Detailed interface processing for managed routers.
         my $has_crypto;
         for my $interface (@{ $router->{interfaces} }) {
-            if (defined $interface->{security_level}
-                && !$model->{has_interface_level})
-            {
-                warn_msg("Ignoring attribute 'security_level'",
-                    " at $interface->{name}");
-            }
             if ($interface->{hub} or $interface->{spoke}) {
                 $has_crypto = 1;
                 $model->{crypto}
@@ -2332,9 +2303,6 @@ sub read_router {
             }
             $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ]
               if $changed;
-        }
-        if ($model->{has_interface_level}) {
-            set_pix_interface_level($router);
         }
 
         check_no_in_acl($router);
@@ -2565,33 +2533,48 @@ sub read_aggregate {
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
     $aggregate->{private} = $private if $private;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($aggregate);
     while (1) {
-        last if check '\}';
-        if (my ($ip, $mask) = check_assign 'ip', \&read_ip_prefix) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'ip') {
+            my ($ip, $mask) = read_assign(\&read_ip_prefix);
             add_attribute($aggregate, ip   => $ip);
             add_attribute($aggregate, mask => $mask);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($aggregate, owner => $owner);
         }
-        elsif (my $link = check_assign 'link', \&read_typed_name) {
+        elsif ($token eq 'link') {
+            my $link = read_assign(\&read_typed_name);
             add_attribute($aggregate, link => $link);
         }
-        elsif (check_flag 'has_unenforceable') {
+        elsif ($token eq 'has_unenforceable') {
+            skip(';');
             $aggregate->{has_unenforceable} = 1;
         }
-        elsif (check_flag 'no_check_supernet_rules') {
+        elsif ($token eq 'no_check_supernet_rules') {
+            skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
         }
-        elsif (my $nat_name = check_nat_name()) {
-            my $nat = read_nat("nat:$nat_name");
-            $nat->{dynamic} or 
-                err_msg("$nat->{name} must be dynamic for $name");
-            $aggregate->{nat}->{$nat_name}
-              and error_atline("Duplicate NAT definition");
-            $aggregate->{nat}->{$nat_name} = $nat;
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
+            if ($type eq 'nat') {
+                verify_name($name2);
+                my $nat_tag = $name2;
+                my $nat = read_nat("nat:$nat_tag");
+                $nat->{dynamic} or 
+                    err_msg("$nat->{name} must be dynamic for $name");
+                $aggregate->{nat}->{$nat_tag}
+                and error_atline("Duplicate NAT definition");
+                $aggregate->{nat}->{$nat_tag} = $nat;
+            }
+            else {
+                syntax_err("Expected some valid attribute");
+            }
         }
         else {
             syntax_err("Expected some valid attribute");
@@ -2614,31 +2597,30 @@ sub read_aggregate {
     return $aggregate;
 }
 
-sub check_router_attributes {
+sub read_router_attributes {
     my ($parent) = @_;
 
     # Add name for error messages.
     my $result = { name => "router_attributes of $parent" };
-    check 'router_attributes' or return;
     skip '=';
-    skip '\{';
+    skip '{';
     while (1) {
-        last if check '\}';
-        if (my $owner = check_assign 'owner', \&read_identifier) {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($result, owner => $owner);
         }
-        elsif (my $pair =
-            check_assign('policy_distribution_point', \&read_typed_name))
-        {
+        elsif ($token eq 'policy_distribution_point') {
+            my $pair = read_assign(\&read_typed_name);
             add_attribute($result, policy_distribution_point => $pair);
         }
-        elsif (
-            my @list = check_assign_list(
-                'general_permit', \&read_typed_name_or_simple_protocol
-            )
-          )
-        {
-            add_attribute($result, general_permit => \@list);
+        elsif ($token eq 'general_permit') {
+            skip('=');
+            my $list = read_typed_name_or_simple_protocol_list();
+            add_attribute($result, general_permit => $list);
         }
         else {
             syntax_err("Unexpected attribute");
@@ -2654,49 +2636,66 @@ sub read_area {
     my $name = shift;
     my $area = new('Area', name => $name);
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($area);
     while (1) {
-        last if check '\}';
-        if (my @elements = check_assign_list('border', \&read_intersection)) {
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
-                error_atline("Must only use interface names in 'border'");
-                @elements = ();
-            }
-            add_attribute($area, border => \@elements);
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
         }
-        elsif (@elements =
-            check_assign_list('inclusive_border', \&read_intersection))
-        {
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @elements) {
+        elsif ($token eq 'border') {
+            skip '=';
+            my $elements = read_union(';');
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
+                error_atline("Must only use interface names in 'border'");
+                $elements = [];
+            }
+            add_attribute($area, border => $elements);
+        }
+        elsif ($token eq 'inclusive_border') {
+            skip '=';
+            my $elements = read_union(';');
+            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
                 error_atline("Must only use interface names in",
                              " 'inclusive_border'");
-                @elements = ();
+                $elements = [];
             }
-            add_attribute($area, inclusive_border => \@elements);
+            add_attribute($area, inclusive_border => $elements);
         }
-        elsif (check_flag 'auto_border') {
+        elsif ($token eq 'auto_border') {
+            skip(';');
             $area->{auto_border} = 1;
         }
-        elsif (my $pair = check_assign 'anchor', \&read_typed_name) {
+        elsif ($token eq  'anchor') {
+            my $pair = read_assign(\&read_typed_name);
             if ($pair->[0] ne 'network' || ref $pair->[1]) {
                 error_atline "Must only use network name in 'anchor'";
                 $pair = undef;
             }
             add_attribute($area, anchor => $pair);
         }
-        elsif (my $owner = check_assign 'owner', \&read_identifier) {
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
             add_attribute($area, owner => $owner);
         }
-        elsif (my $router_attributes = check_router_attributes($name)) {
+        elsif ($token eq 'router_attributes') {
+            my $router_attributes = read_router_attributes($name);
             add_attribute($area, router_attributes => $router_attributes);
         }
-        elsif (my $nat_name = check_nat_name()) {
-            my $nat = read_nat("nat:$nat_name");
-            $nat->{dynamic} or error_atline("$nat->{name} must be dynamic");
-            $area->{nat}->{$nat_name}
-              and error_atline("Duplicate NAT definition");
-            $area->{nat}->{$nat_name} = $nat;
+        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
+            if ($type eq 'nat') {
+                verify_name($name2);
+                my $nat_tag = $name2;
+                my $nat = read_nat("nat:$nat_tag");
+                $nat->{dynamic} or
+                    err_msg("$nat->{name} must be dynamic for $name");
+                $area->{nat}->{$nat_tag} and 
+                    error_atline("Duplicate NAT definition");
+                $area->{nat}->{$nat_tag} = $nat;
+            }
+            else {
+                syntax_err("Expected some valid attribute");
+            }
         }
         else {
             syntax_err("Expected some valid attribute");
@@ -2722,8 +2721,8 @@ sub read_group {
     my $group = new('Group', name => $name);
     $group->{private} = $private if $private;
     add_description($group);
-    my @elements = read_list_or_null \&read_intersection;
-    $group->{elements} = \@elements;
+    my $elements = check(';') ? [] : read_union(';');
+    $group->{elements} = $elements;
     return $group;
 }
 
@@ -2732,8 +2731,8 @@ our %protocolgroups;
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
-    my @pairs = read_list_or_null \&read_typed_name_or_simple_protocol;
-    return new('Protocolgroup', name => $name, elements => \@pairs);
+    my $list = check(';') ? [] : read_typed_name_or_simple_protocol_list();
+    return new('Protocolgroup', name => $name, elements => $list);
 }
 
 sub read_port_range {
@@ -2901,9 +2900,8 @@ sub cache_anonymous_protocol {
 }
 
 sub read_simple_protocol {
-    my $name     = shift;
+    my ($proto) = @_;
     my $protocol = {};
-    my $proto    = read_identifier();
     if ($proto eq 'ip') {
         $protocol->{proto} = 'ip';
     }
@@ -2928,12 +2926,6 @@ sub read_simple_protocol {
         # Prevent further errors.
         $protocol->{proto} = 'ip';
     }
-    if ($name) {
-        $protocol->{name} = $name;
-    }
-    else {
-        $protocol = cache_anonymous_protocol($protocol);
-    }
     return $protocol;
 }
 
@@ -2954,14 +2946,35 @@ sub check_protocol_modifiers {
     return;
 }
 
-sub read_typed_name_or_simple_protocol {
-    return (check_typed_name() || read_simple_protocol());
+sub read_typed_name_or_simple_protocol_list {
+    my @result;
+    my $token = read_token();
+    while (1) {
+        if (my ($type, $name) = $token =~ /^(\w+):([\w-]+)$/) {
+            push @result, [$type, $name];
+        }
+        else {
+            my $protocol = read_simple_protocol($token);
+            $protocol = cache_anonymous_protocol($protocol);
+            push @result, $protocol;
+        }
+        $token = read_token();
+        last if $token eq ';';
+        $token eq ',' or syntax_err("Comma expected in list of protocols");
+        $token = read_token();
+
+        # Allow trailing comma.
+        last if $token eq ';';
+    }
+    return \@result;
 }
 
 sub read_protocol {
-    my $name = shift;
+    my ($name) = @_;
     skip '=';
-    my $protocol = read_simple_protocol($name);
+    my $token = read_token();
+    my $protocol = read_simple_protocol($token);
+    $protocol->{name} = $name;
     check_protocol_modifiers($protocol);
     skip ';';
     return $protocol;
@@ -2970,14 +2983,53 @@ sub read_protocol {
 # Mapping from service names to service objects.
 our %services;
 
+sub has_user {
+    my ($element, $context) = @_;
+    my ($type, $name) = @$element;
+    if ($type eq 'user') {
+        return 1;
+    }
+    elsif ($type eq '!') {
+        return check_user_in_union([$name], $context);
+    }
+    elsif ($type eq  '&') {
+        return check_user_in_intersection($name, $context);
+    }
+    elsif (ref $name) {
+        return check_user_in_union($name, $context);
+    }
+    else {
+        return 0;
+    }
+}
+   
+sub check_user_in_intersection {
+    my ($elements, $context) = @_;
+    my $count = grep { has_user($_, $context) } @$elements;
+    return $count ? 1 : 0;
+}
+
+sub check_user_in_union {
+    my ($elements, $context) = @_;
+    my $count = grep { has_user($_, $context) } @$elements;
+    $count == 0 or $count == @$elements or
+        err_msg("The sub-expressions of union in $context equally must\n",
+                " either reference 'user' or must not reference 'user'");
+    return $count ? 1 : 0;    
+}
+
 sub assign_union_allow_user {
-    my ($name) = @_;
+    my ($name, $sname) = @_;
     skip $name;
     skip '=';
     local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
-    my @result = read_union ';';
-    return \@result, $user_object->{refcount};
+    my $result = read_union(';');
+    my $user_seen = $user_object->{refcount};
+    if ($user_seen) {
+        check_user_in_union($result, "$name of $sname");
+    }
+    return $result, $user_seen;
 }
 
 sub read_service {
@@ -2985,29 +3037,37 @@ sub read_service {
     my $service = { name => $name, rules => [] };
     $service->{private} = $private if $private;
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($service);
     while (1) {
-        last if check 'user';
-        if (my $sub_owner = check_assign 'sub_owner', \&read_identifier) {
+        my $token = read_token();
+        last if $token eq 'user';
+        if ($token eq 'sub_owner') {
+            my $sub_owner = read_assign(\&read_identifier);
             add_attribute($service, sub_owner => $sub_owner);
         }
-        elsif (my @other = check_assign_list 'overlaps', \&read_typed_name) {
-            add_attribute($service, overlaps => \@other);
+        elsif ($token eq 'overlaps') {
+            my $other = read_assign_list(\&read_typed_name);
+            add_attribute($service, overlaps => $other);
         }
-        elsif (my $visible = check_assign('visible', \&read_owner_pattern)) {
+        elsif ($token eq 'visible') {
+            my $visible = read_assign(\&read_owner_pattern);
             add_attribute($service, visible => $visible);
         }
-        elsif (check_flag('multi_owner')) {
+        elsif ($token eq 'multi_owner') {
+            skip(';');
             $service->{multi_owner} = 1;
         }
-        elsif (check_flag('unknown_owner')) {
+        elsif ($token eq 'unknown_owner') {
+            skip(';');
             $service->{unknown_owner} = 1;
         }
-        elsif (check_flag('has_unenforceable')) {
+        elsif ($token eq 'has_unenforceable') {
+            skip(';');
             $service->{has_unenforceable} = 1;
         }
-        elsif (check_flag('disabled')) {
+        elsif ($token eq 'disabled') {
+            skip(';');
             $service->{disabled} = 1;
         }
         else {
@@ -3017,47 +3077,41 @@ sub read_service {
 
     # 'user' has already been read above.
     skip '=';
-    if (check 'foreach') {
+    if (check('foreach')) {
         $service->{foreach} = 1;
     }
-    my @elements = read_list \&read_intersection;
-    $service->{user} = \@elements;
+    $service->{user} = read_union(';');
 
     while (1) {
-        last if check '\}';
-        if (my $action = check_permit_deny) {
-            my ($src, $src_user) = assign_union_allow_user 'src';
-            my ($dst, $dst_user) = assign_union_allow_user 'dst';
-            my $prt =
-              [ read_assign_list('prt', \&read_typed_name_or_simple_protocol) ];
-            my $log;
-            if (my @list = check_assign_list('log', \&read_identifier)) {
-                $log = \@list;
-            }
-            $src_user
-              or $dst_user
-              or error_atline("Rule must use keyword 'user'");
-            if ($service->{foreach} and not($src_user and $dst_user)) {
-                warn_msg(
-                    "Rule of $name should reference 'user'",
-                    " in 'src' and 'dst'\n",
-                    " because service has keyword 'foreach'"
-                );
-            }
-            my $rule = {
-                service  => $service,
-                action   => $action,
-                src      => $src,
-                dst      => $dst,
-                prt      => $prt,
-                has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
-            };
-            $rule->{log} = $log if $log;
-            push @{ $service->{rules} }, $rule;
-        }
-        else {
+        my $token = read_token();
+        last if $token eq '}';
+        $token eq 'permit' or $token eq 'deny' or 
             syntax_err("Expected 'permit' or 'deny'");
+        my $action = $token;
+        my ($src, $src_user) = assign_union_allow_user('src', $name);
+        my ($dst, $dst_user) = assign_union_allow_user('dst', $name);
+        skip('prt');
+        skip('=');
+        my $prt = read_typed_name_or_simple_protocol_list();
+        $src_user or $dst_user or error_atline("Rule must use keyword 'user'");
+        if ($service->{foreach} and not($src_user and $dst_user)) {
+            warn_msg(
+                "Rule of $name should reference 'user' in 'src' and 'dst'\n",
+                " because service has keyword 'foreach'");
         }
+        my $rule = {
+            service  => $service,
+            action   => $action,
+            src      => $src,
+            dst      => $dst,
+            prt      => $prt,
+            has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
+        };
+        if (check('log')) {
+            my $list = read_assign_list(\&read_identifier);
+            $rule->{log} = $list;
+        }
+        push @{ $service->{rules} }, $rule;
     }
     return $service;
 }
@@ -3070,8 +3124,7 @@ sub read_pathrestriction {
     my $restriction = new('Pathrestriction', name => $name);
     $restriction->{private} = $private if $private;
     add_description($restriction);
-    my @elements = read_list \&read_intersection;
-    $restriction->{elements} = \@elements;
+    $restriction->{elements} = read_union(';');
     return $restriction;
 }
 
@@ -3079,11 +3132,15 @@ sub read_attributed_object {
     my ($name, $attr_descr) = @_;
     my $object = { name => $name };
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($object);
     while (1) {
-        last if check '\}';
-        my $attribute = read_identifier;
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        verify_name($token);
+        my $attribute = $token;
         my $val_descr = $attr_descr->{$attribute}
           or syntax_err("Unknown attribute '$attribute'");
         skip '=';
@@ -3201,19 +3258,22 @@ our %crypto;
 sub read_crypto {
     my ($name) = @_;
     skip '=';
-    skip '\{';
+    skip '{';
     my $crypto = { name => $name };
     $crypto->{private} = $private if $private;
     add_description($crypto);
     while (1) {
-        last if check '\}';
-        if (check_flag 'detailed_crypto_acl') {
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
+        }
+        elsif ($token eq 'detailed_crypto_acl') {
+            skip(';');
             $crypto->{detailed_crypto_acl} = 1;
         }
-        elsif (my $type = check_assign 'type', \&read_typed_name) {
-            $crypto->{type}
-              and error_atline("Redefining 'type' attribute");
-            $crypto->{type} = $type;
+        elsif ($token eq 'type') {
+            my $type = read_assign(\&read_typed_name);
+            add_attribute($crypto, type => $type);
         }
         else {
             syntax_err("Expected valid attribute");
@@ -3230,35 +3290,39 @@ sub read_owner {
     my $name = shift;
     my $owner = new('Owner', name => $name);
     skip '=';
-    skip '\{';
+    skip '{';
     add_description($owner);
     while (1) {
-        last if check '\}';
-        if (my $alias = check_assign('alias', \&read_string)) {
-            $owner->{alias}
-              and error_atline("Redefining 'alias' attribute");
-            $owner->{alias} = $alias;
+        my $token = read_token();
+        if ($token eq '}') {
+            last;
         }
-        elsif (my @admins = check_assign_list('admins', \&read_name)) {
-            $owner->{admins}
-              and error_atline("Redefining 'admins' attribute");
-            $owner->{admins} = \@admins;
+        elsif ($token eq 'alias') {
+            my $alias = read_assign(\&read_string);
+            add_attribute($owner, alias => $alias);
         }
-        elsif (my @watchers = check_assign_list('watchers', \&read_name)) {
-            $owner->{watchers}
-              and error_atline("Redefining 'watchers' attribute");
-            $owner->{watchers} = \@watchers;
+        elsif ($token eq 'admins') {
+            my $admins = read_assign_list(\&read_name);
+            add_attribute($owner, admins => $admins);
         }
-        elsif (check_flag 'extend_only') {
+        elsif ($token eq 'watchers') {
+            my $watchers = read_assign_list(\&read_name);
+            add_attribute($owner, watchers => $watchers);
+        }
+        elsif ($token eq 'extend_only') {
+            skip(';');
             $owner->{extend_only} = 1;
         }
-        elsif (check_flag 'extend_unbounded') {
+        elsif ($token eq 'extend_unbounded') {
+            skip(';');
             $owner->{extend_unbounded} = 1;
         }
-        elsif (check_flag 'extend') {
+        elsif ($token eq 'extend') {
+            skip(';');
             $owner->{extend} = 1;
         }
-        elsif (check_flag 'show_all') {
+        elsif ($token eq 'show_all') {
+            skip(';');
             $owner->{show_all} = 1;
         }
         else {
@@ -3288,7 +3352,7 @@ our %global_type = (
 sub read_netspoc {
 
     # Check for global definitions.
-    my $pair = check_typed_name or syntax_err('');
+    my $pair = read_typed_name();
     my ($type, $name) = @$pair;
     my $descr = $global_type{$type}
       or syntax_err("Unknown global definition");
@@ -3314,22 +3378,15 @@ sub read_file {
 
     # Read file as one large line.
     local $/;
-    local $input;
 
-    if (defined $current_file) {
-        open(my $fh, '<', $current_file)
-          or fatal_err("Can't open $current_file: $!");
+    open(my $fh, '<', $current_file)
+        or fatal_err("Can't open $current_file: $!");
 
-        # Fill buffer with content of whole file.
-        # Content is implicitly freed when subroutine is left.
-        $input = <$fh>;
-        close $fh;
-    }
-    else {
-        $current_file = 'STDIN';
-        $input        = <>;
-    }
-    local $line = 1;
+    # Fill buffer with content of whole file.
+    # Content is implicitly freed when subroutine is left.
+    local $input = <$fh>;
+    close $fh;
+
     my $length = length $input;
     while (skip_space_and_comment, pos $input != $length) {
         &$read_syntax;
@@ -3342,7 +3399,7 @@ sub read_file_or_dir {
     $read_syntax ||= \&read_netspoc;
 
     # Handle toplevel file.
-    if (!(defined $path && -d $path)) {
+    if (not -d $path) {
         read_file($path, $read_syntax);
         return;
     }

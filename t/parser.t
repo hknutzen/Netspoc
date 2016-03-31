@@ -135,4 +135,67 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Equally reference user";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r = {
+ managed; 
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s = {
+ user = network:n1;
+ permit src = user, network:n2; dst = network:n3; prt = ip;
+}
+END
+
+$out = <<'END';
+Error: The sub-expressions of union in src of service:s equally must
+ either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Equally reference user with intersection";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r = {
+ managed; 
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = network:n3;
+        dst = interface:r.n2,
+              interface:[user].[all] &! interface:r.n2;
+        prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: The sub-expressions of union in dst of service:s1 equally must
+ either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

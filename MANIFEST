@@ -18,7 +18,6 @@ bin/remove-from-netspoc
 bin/rename-netspoc
 bin/spoc1
 bin/spoc2
-bin/watchers-to-json
 cvs-support/Makefile
 cvs-support/append-commitlog.c
 cvs-support/cvs-SETXID_SUPPORT.patch
