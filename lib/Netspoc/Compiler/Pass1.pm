@@ -706,17 +706,9 @@ sub read_union {
 
 # Check for xxx:xxx | router:xx@xx | network:xx/xx | interface:xx/xx
 sub check_typed_name {
-    skip_space_and_comment;
-    $input =~ m/ \G (\w+) : /gcx or return;
-    my $type = $1;
-    my ($name, $separator);
-    if ($input =~ m' \G ( [\w-]+ (?: ( [@/] ) [\w-]+ )? ) 'gcx) {
-        $name      = $1;
-        $separator = $2;
-    }
-    else {
-        syntax_err("Invalid token");
-    }
+    my ($token) = @_;
+    my ($type, $name, $separator) = 
+        $token =~ /^ (\w+) : ( [\w-]+ (?: ( [\@\/] ) [\w-]+ )? ) $/x or return;
 
     if ($separator) {
         if ($type eq 'router') {
@@ -733,7 +725,8 @@ sub check_typed_name {
 }
 
 sub read_typed_name {
-    return check_typed_name || syntax_err("Typed name expected");
+    my $token = read_token();
+    return (check_typed_name($token) || syntax_err("Typed name expected"));
 }
 
 {
@@ -925,12 +918,13 @@ sub read_assign {
 
 # Use the passed function to read one or more elements from global
 # input until reaching a ';'.
-# Return read elements.
-sub read_list {
+# Return array of read elements.
+sub read_assign_list {
     my ($fun) = @_;
-    my @vals;
+    skip '=';
+    my @result;
     while (1) {
-        push @vals, &$fun;
+        push @result, &$fun;
         my $token = read_token();
         last if $token eq ';';
         if ($token eq ',') {
@@ -942,14 +936,7 @@ sub read_list {
             syntax_err("Comma expected in list of values");
         }
     }
-    return @vals;
-}
-
-# Read '= value, ..., value;'
-sub read_assign_list {
-    my ($fun) = @_;
-    skip '=';
-    return read_list($fun);
+    return \@result;
 }
 
 ####################################################################
@@ -1034,7 +1021,8 @@ sub read_managed {
 }
 
 sub read_model {
-    my ($model, @attributes) = read_assign_list(\&read_name);
+    my $names = read_assign_list(\&read_name);
+    my ($model, @attributes) = @$names;
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1540,13 +1528,13 @@ sub read_interface {
             last;
         }
         elsif ($token eq 'ip') {
-            my @ip = read_assign_list(\&read_ip);
-            add_attribute($interface, ip => shift(@ip));
+            my $ip_list = read_assign_list(\&read_ip);
+            add_attribute($interface, ip => shift(@$ip_list));
 
             # Build interface objects for secondary IP addresses.
             # These objects are named interface:router.name.2, ...
             my $counter = 2;
-            for my $ip (@ip) {
+            for my $ip (@$ip_list) {
                 push @secondary_interfaces,
                   new('Interface', name => "$name.$counter", ip => $ip);
                 $counter++;
@@ -1583,8 +1571,8 @@ sub read_interface {
             add_attribute($interface, subnet_of => $pair);
         }
         elsif ($token eq 'hub') {
-            my @pairs = read_assign_list(\&read_typed_name);
-            for my $pair (@pairs) {
+            my $pairs = read_assign_list(\&read_typed_name);
+            for my $pair (@$pairs) {
                 my ($type, $name2) = @$pair;
                 $type eq 'crypto' or error_atline("Expected type 'crypto:'");
                 push @{ $interface->{hub} }, "$type:$name2";
@@ -1688,9 +1676,9 @@ sub read_interface {
               syntax_err("Redundancy ID is given without redundancy protocol");
         }
         elsif ($token eq 'bind_nat') {
-            my @tags = read_assign_list(\&read_identifier);
+            my $tags = read_assign_list(\&read_identifier);
             $interface->{bind_nat} and error_atline("Duplicate NAT binding");
-            $interface->{bind_nat} = [ unique sort @tags ];
+            $interface->{bind_nat} = [ unique sort @$tags ];
         }
         elsif ($token eq 'hardware') {
             my $hardware = read_assign(\&read_name);
@@ -1705,12 +1693,12 @@ sub read_interface {
             add_attribute($interface, routing => $routing);
         }
         elsif ($token eq 'reroute_permit') {
-            my @pairs = read_assign_list(\&read_typed_name);
-            if (grep { $_->[0] ne 'network' || ref $_->[1] } @pairs) {
+            my $pairs = read_assign_list(\&read_typed_name);
+            if (grep { $_->[0] ne 'network' || ref $_->[1] } @$pairs) {
                 error_atline "Must only use network names in 'reroute_permit'";
-                @pairs = ();
+                $pairs = [];
             }
-            add_attribute($interface, reroute_permit => \@pairs);
+            add_attribute($interface, reroute_permit => $pairs);
         }
         elsif ($token eq 'disabled') {
             skip(';');
@@ -1944,8 +1932,8 @@ sub read_router {
             $router->{managed} = $managed;
         }
         elsif ($token eq 'filter_only') {
-            my @filter_only = read_assign_list(\&read_ip_prefix_pair);
-            add_attribute($router, filter_only => \@filter_only);
+            my $filter_only = read_assign_list(\&read_ip_prefix_pair);
+            add_attribute($router, filter_only => $filter_only);
         }
         elsif ($token eq 'model') {
             my $model = read_model();
@@ -1988,8 +1976,9 @@ sub read_router {
             add_attribute($router, policy_distribution_point => $pair);
         }
         elsif ($token eq 'general_permit') {
-            my @list = read_assign_list(\&read_typed_name_or_simple_protocol);
-            add_attribute($router, general_permit => \@list);
+            skip('=');
+            my $list = read_typed_name_or_simple_protocol_list();
+            add_attribute($router, general_permit => $list);
         }
         elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'log') {
@@ -2629,8 +2618,9 @@ sub read_router_attributes {
             add_attribute($result, policy_distribution_point => $pair);
         }
         elsif ($token eq 'general_permit') {
-            my @list = read_assign_list(\&read_typed_name_or_simple_protocol);
-            add_attribute($result, general_permit => \@list);
+            skip('=');
+            my $list = read_typed_name_or_simple_protocol_list();
+            add_attribute($result, general_permit => $list);
         }
         else {
             syntax_err("Unexpected attribute");
@@ -2741,9 +2731,8 @@ our %protocolgroups;
 sub read_protocolgroup {
     my $name = shift;
     skip '=';
-    my @pairs = 
-        check(';') ? () : read_list(\&read_typed_name_or_simple_protocol);
-    return new('Protocolgroup', name => $name, elements => \@pairs);
+    my $list = check(';') ? [] : read_typed_name_or_simple_protocol_list();
+    return new('Protocolgroup', name => $name, elements => $list);
 }
 
 sub read_port_range {
@@ -2911,9 +2900,8 @@ sub cache_anonymous_protocol {
 }
 
 sub read_simple_protocol {
-    my $name     = shift;
+    my ($proto) = @_;
     my $protocol = {};
-    my $proto    = read_identifier();
     if ($proto eq 'ip') {
         $protocol->{proto} = 'ip';
     }
@@ -2938,12 +2926,6 @@ sub read_simple_protocol {
         # Prevent further errors.
         $protocol->{proto} = 'ip';
     }
-    if ($name) {
-        $protocol->{name} = $name;
-    }
-    else {
-        $protocol = cache_anonymous_protocol($protocol);
-    }
     return $protocol;
 }
 
@@ -2964,14 +2946,35 @@ sub check_protocol_modifiers {
     return;
 }
 
-sub read_typed_name_or_simple_protocol {
-    return (check_typed_name() || read_simple_protocol());
+sub read_typed_name_or_simple_protocol_list {
+    my @result;
+    my $token = read_token();
+    while (1) {
+        if (my ($type, $name) = $token =~ /^(\w+):([\w-]+)$/) {
+            push @result, [$type, $name];
+        }
+        else {
+            my $protocol = read_simple_protocol($token);
+            $protocol = cache_anonymous_protocol($protocol);
+            push @result, $protocol;
+        }
+        $token = read_token();
+        last if $token eq ';';
+        $token eq ',' or syntax_err("Comma expected in list of protocols");
+        $token = read_token();
+
+        # Allow trailing comma.
+        last if $token eq ';';
+    }
+    return \@result;
 }
 
 sub read_protocol {
-    my $name = shift;
+    my ($name) = @_;
     skip '=';
-    my $protocol = read_simple_protocol($name);
+    my $token = read_token();
+    my $protocol = read_simple_protocol($token);
+    $protocol->{name} = $name;
     check_protocol_modifiers($protocol);
     skip ';';
     return $protocol;
@@ -3044,8 +3047,8 @@ sub read_service {
             add_attribute($service, sub_owner => $sub_owner);
         }
         elsif ($token eq 'overlaps') {
-            my @other = read_assign_list(\&read_typed_name);
-            add_attribute($service, overlaps => \@other);
+            my $other = read_assign_list(\&read_typed_name);
+            add_attribute($service, overlaps => $other);
         }
         elsif ($token eq 'visible') {
             my $visible = read_assign(\&read_owner_pattern);
@@ -3088,7 +3091,8 @@ sub read_service {
         my ($src, $src_user) = assign_union_allow_user('src', $name);
         my ($dst, $dst_user) = assign_union_allow_user('dst', $name);
         skip('prt');
-        my $prt = [ read_assign_list(\&read_typed_name_or_simple_protocol) ];
+        skip('=');
+        my $prt = read_typed_name_or_simple_protocol_list();
         $src_user or $dst_user or error_atline("Rule must use keyword 'user'");
         if ($service->{foreach} and not($src_user and $dst_user)) {
             warn_msg(
@@ -3104,8 +3108,8 @@ sub read_service {
             has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
         };
         if (check('log')) {
-            my @list = read_assign_list(\&read_identifier);
-            $rule->{log} = \@list;
+            my $list = read_assign_list(\&read_identifier);
+            $rule->{log} = $list;
         }
         push @{ $service->{rules} }, $rule;
     }
@@ -3298,12 +3302,12 @@ sub read_owner {
             add_attribute($owner, alias => $alias);
         }
         elsif ($token eq 'admins') {
-            my @admins = read_assign_list(\&read_name);
-            add_attribute($owner, admins => \@admins);
+            my $admins = read_assign_list(\&read_name);
+            add_attribute($owner, admins => $admins);
         }
         elsif ($token eq 'watchers') {
-            my @watchers = read_assign_list(\&read_name);
-            add_attribute($owner, watchers => \@watchers);
+            my $watchers = read_assign_list(\&read_name);
+            add_attribute($owner, watchers => $watchers);
         }
         elsif ($token eq 'extend_only') {
             skip(';');
