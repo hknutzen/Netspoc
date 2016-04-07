@@ -7548,34 +7548,52 @@ sub remove_simple_duplicate_rules {
 ########################################################################
 
 # Build rule tree from expanded rules for efficient comparison of rules.
-# Rule tree is a hash for ordering all rules.
+# Rule tree is a nested hash for ordering all rules.
 # Put attributes with small value set first, to get a more
 # memory efficient tree with few branches at root.
 sub build_rule_tree {
     my ($rules) = @_;
     my $count = 0;
-    my $rule_tree = {};
+    my $rule_tree;
+
+    # Simpler version of rule tree. It is used for rules without attributes
+    # {deny}, {stateless} and {src_range}.
+    my $simple_tree;
+
     for my $rule (@$rules) {
         my ($stateless, $deny, $src, $dst, $src_range, $prt) =
             @{$rule}{qw(stateless deny src dst src_range prt)};
-        $stateless ||= '';
-        $deny      ||= '';
-        $src_range ||= $prt_ip;
-        my $old_rule =
-            $rule_tree->{$stateless}->{$deny}->{$src_range}
-                      ->{$src}->{$dst}->{$prt};
-        if ($old_rule) {
+        my $leaf_hash;
+
+        # General path.
+        if ($deny or $stateless or $src_range) {
+            $leaf_hash = $rule_tree->{$stateless || ''}
+                                   ->{$deny      || ''}
+                                   ->{$src_range || $prt_ip}
+                                   ->{$src}->{$dst} ||= {};
+        }
+
+        # Fast path.
+        else {
+            $leaf_hash = $simple_tree->{$src}->{$dst} ||= {};
+        }
+
+        if (my $other_rule = $leaf_hash->{$prt}) {
 
             # Found identical rule.
-            collect_duplicate_rules($rule, $old_rule);
+            collect_duplicate_rules($rule, $other_rule);
             $count++;
         }
         else {
-
-#           debug("Add:", print_rule $rule);
-            $rule_tree->{$stateless}->{$deny}->{$src_range}
-                      ->{$src}->{$dst}->{$prt} = $rule;
+                
+#            debug("Add:", print_rule $rule);
+            $leaf_hash->{$prt} = $rule;
         }
+    }
+
+    # Insert $simple_tree into $rule_tree.
+    if ($simple_tree) {
+        $rule_tree->{''}->{''}->{$prt_ip} = $simple_tree;
     }
     return($rule_tree, $count);
 }
