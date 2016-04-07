@@ -14539,7 +14539,9 @@ sub find_redundant_rules {
                        ($cmp_rule->{log} || '') eq $chg_log)
                    {
                     collect_redundant_rules($chg_rule, $cmp_rule);
-                    $count++;
+
+                    # Count each redundant rule only once.
+                    $count++ if not $chg_rule->{redundant}++;
                     last;
                    }
                   }
