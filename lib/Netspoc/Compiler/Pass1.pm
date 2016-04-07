@@ -7580,7 +7580,7 @@ sub build_rule_tree {
     return($rule_tree, $count);
 }
 
-# Derive reduced {local_up} relation from {up} reltion between protocols.
+# Derive reduced {local_up} relation from {up} relation between protocols.
 # Reduced relation has only protocols that are referenced in list of rules.
 # New relation is used in find_redundant_rules.
 # We get better performance compared to original relation, because
