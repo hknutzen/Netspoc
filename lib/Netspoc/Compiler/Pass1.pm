@@ -14542,7 +14542,6 @@ sub find_redundant_rules {
 
                     # Count each redundant rule only once.
                     $count++ if not $chg_rule->{redundant}++;
-                    last;
                    }
                   }
                   $prt = $prt->{local_up} or last;

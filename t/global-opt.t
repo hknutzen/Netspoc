@@ -139,6 +139,59 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Show all redundant rules, not only the smallest one';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp;
+}
+service:s2a = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2b = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Redundant rules in service:s2a compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2a
+< permit src=network:n1; dst=network:n2; prt=tcp; of service:s1
+Warning: Redundant rules in service:s2b compared to service:s1:
+  permit src=network:n1; dst=host:h2; prt=tcp; of service:s2b
+< permit src=network:n1; dst=network:n2; prt=tcp; of service:s1
+Warning: Redundant rules in service:s3 compared to service:s1:
+  permit src=network:n1; dst=host:h2; prt=tcp 80; of service:s3
+< permit src=network:n1; dst=network:n2; prt=tcp; of service:s1
+Warning: Redundant rules in service:s3 compared to service:s2a:
+  permit src=network:n1; dst=host:h2; prt=tcp 80; of service:s3
+< permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2a
+Warning: Redundant rules in service:s3 compared to service:s2b:
+  permit src=network:n1; dst=host:h2; prt=tcp 80; of service:s3
+< permit src=network:n1; dst=host:h2; prt=tcp; of service:s2b
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Relation between src and dst ranges';
 ############################################################
 # p1 < p2 and p1 < p3
