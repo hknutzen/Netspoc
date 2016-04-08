@@ -2477,13 +2477,13 @@ sub read_router {
 # No traffic must traverse crypto interface.
 # Hence split router into separate instances, one instance for each
 # crypto interface.
-# Splitted routers are tied by identical attribute {device_name}.
+# Split routers are tied by identical attribute {device_name}.
 sub move_locked_interfaces {
     my ($interfaces) = @_;
     for my $interface (@$interfaces) {
         my $orig_router = $interface->{router};
 
-        # Use different and uniqe name for each splitted router.
+        # Use different and uniqe name for each split router.
         (my $name       = $interface->{name}) =~ s/^interface:/router/;
         my $new_router  = new(
             'Router',
@@ -3639,7 +3639,7 @@ sub order_proto {
 # If no including range is found, link it with next larger protocol.
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
-# Set attribute {split} at original range, referencing pair of splitted ranges.
+# Set attribute {split} at original range, referencing pair of split ranges.
 # Additionally fill global variable %ref2prt.
 sub order_ranges {
     my ($range_href, $up) = @_;
@@ -3733,7 +3733,7 @@ sub order_ranges {
                         # Found identical range, return this one.
                         if ($a2 == $b2) {
 
-#                    debug("Splitted range is already defined: $b->{name}");
+#                    debug("Split range is already defined: $b->{name}");
                             return $b;
                         }
 
@@ -3791,7 +3791,7 @@ sub order_ranges {
     return;
 }
 
-sub expand_splitted_protocol {
+sub expand_split_protocol {
     my ($prt) = @_;
 
     # Handle unset src_range.
@@ -3800,8 +3800,8 @@ sub expand_splitted_protocol {
     }
     elsif (my $split = $prt->{split}) {
         my ($prt1, $prt2) = @$split;
-        return (expand_splitted_protocol($prt1),
-            expand_splitted_protocol($prt2));
+        return (expand_split_protocol($prt1),
+            expand_split_protocol($prt2));
     }
     else {
         return $prt;
@@ -4808,7 +4808,7 @@ sub check_ip_addresses {
             my $ip = $interface->{ip};
             if ($ip eq 'short') {
 
-                # Ignore short interface from splitted crypto router.
+                # Ignore short interface from split crypto router.
                 if (1 < @{ $interface->{router}->{interfaces} }) {
                     $short_intf = $interface;
                 }
@@ -6196,9 +6196,9 @@ sub check_unused_groups {
 # Result:
 # Reference to array with elements
 # - non TCP/UDP protocol
-# - dst_range of (splitted) TCP/UDP protocol
+# - dst_range of (split) TCP/UDP protocol
 # - [ src_range, dst_range, orig_prt ]
-#     of (splitted) protocol having src_range or main_prt.
+#   of (split) protocol having src_range or main_prt.
 sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
@@ -6259,18 +6259,18 @@ sub expand_protocols {
     return \@protocols;
 }
 
-# Expand splitted protocols.
+# Expand split protocols.
 sub split_protocols {
     my ($protocols, $context) = @_;
-    my @splitted_protocols;
+    my @split_protocols;
     for my $prt (@$protocols) {
         my $proto = $prt->{proto};
         if (not($proto eq 'tcp' or $proto eq 'udp')) {
-            push @splitted_protocols, $prt;
+            push @split_protocols, $prt;
             next;
         }
 
-        # Collect splitted src_range / dst_range pairs.
+        # Collect split src_range / dst_range pairs.
         my $dst_range = $prt->{dst_range};
         my $src_range = $prt->{src_range};
 
@@ -6284,22 +6284,22 @@ sub split_protocols {
         {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
-                for my $src_split (expand_splitted_protocol $src_range) {
-                    for my $dst_split (expand_splitted_protocol $dst_range) {
+                for my $src_split (expand_split_protocol $src_range) {
+                    for my $dst_split (expand_split_protocol $dst_range) {
                         push @$aref_list, [ $src_split, $dst_split, $prt ];
                     }
                 }
                 $prt->{src_dst_range_list} = $aref_list;
             }
-            push @splitted_protocols, @$aref_list;
+            push @split_protocols, @$aref_list;
         }
         else {
-            for my $dst_split (expand_splitted_protocol $dst_range) {
-                push @splitted_protocols, $dst_split;
+            for my $dst_split (expand_split_protocol $dst_range) {
+                push @split_protocols, $dst_split;
             }
         }
     }
-    return \@splitted_protocols;
+    return \@split_protocols;
 }
 
 ########################################################################
@@ -17681,7 +17681,7 @@ sub print_code {
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
 
-        # Ignore splitted part.
+        # Ignore split part of crypto router.
         next if $router->{orig_router};
 
         my $device_name = $router->{device_name};
@@ -17702,7 +17702,7 @@ sub print_code {
         my $model        = $router->{model};
         my $comment_char = $model->{comment_char};
 
-        # Restore interfaces of splitted router.
+        # Restore interfaces of split router.
         if (my $orig_interfaces = $router->{orig_interfaces}) {
             $router->{interfaces} = $orig_interfaces;
             $router->{hardware}   = $router->{orig_hardware};
