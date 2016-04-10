@@ -18021,7 +18021,7 @@ sub init_global_vars {
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
-    %prt_hash           = %ref2prt = %ref2obj = %token2regex = ();
+    %prt_hash           = %token2regex = ();
     %ref2obj            = %ref2prt = ();
     %obj2zone           = ();
     %obj2path           = ();
