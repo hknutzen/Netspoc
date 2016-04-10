@@ -14550,11 +14550,10 @@ sub find_redundant_rules {
                if (my $cmp_hash = $cmp_hash->{$dst}) {
                 for my $chg_rule (values %$chg_hash) {
                  my $prt = $chg_rule->{prt};
-                 my $chg_log = $chg_rule->{log} || '';
                  while (1) {
                   if (my $cmp_rule = $cmp_hash->{$prt}) {
                    if ($cmp_rule ne $chg_rule &&
-                       ($cmp_rule->{log} || '') eq $chg_log)
+                       ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
                    {
                     collect_redundant_rules($chg_rule, $cmp_rule);
 
