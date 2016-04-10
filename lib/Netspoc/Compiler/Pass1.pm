@@ -7759,13 +7759,13 @@ sub warn_unused_overlaps {
 # Expand path_rules to elementary rules.
 sub expand_rules {
     my ($rules) = @_;
-    my $result = [];
+    my @result;
     for my $rule (@$rules) {
         my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
         for my $src (@$src_list) {
             for my $dst (@$dst_list) {
                 for my $prt (@$prt_list) {
-                    push @$result, { %$rule, 
+                    push @result, { %$rule,
                                      src => $src, 
                                      dst => $dst, 
                                      prt => $prt };
@@ -7773,7 +7773,7 @@ sub expand_rules {
             }
         }
     }
-    return $result;
+    return \@result;
 }
 
 sub check_expanded_rules {
