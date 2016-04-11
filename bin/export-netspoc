@@ -253,11 +253,17 @@ sub setup_zones {
 # Setup services
 ######################################################################
 
+# Globally change name of owners from "owner:name" to "name".
+sub adapt_owner_names {
+    for my $owner (values %owners) {
+        $owner->{name} =~ s/^owner://;
+    }
+}
+
 sub owner_for_object {  
     my ($object) = @_;
     if (my $owner_obj = $object->{owner}) {
-        (my $name = $owner_obj->{name}) =~ s/^owner://;
-        return $name;
+        return $owner_obj->{name};
     }
     return ();
 }
@@ -265,7 +271,7 @@ sub owner_for_object {
 sub part_owners_for_object {    
     my ($object) = @_;
     if (my $aref = $object->{part_owners}) {
-        return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
+        return map { $_->{name} } @$aref;
     }
     return ();
 }
@@ -279,7 +285,7 @@ sub extended_owners_for_object {
             push(@result, grep { $_->{extend_only} } @$list);
         }
     }
-    return map { (my $name = $_->{name}) =~ s/^owner://; $name } @result;
+    return map { $_->{name} } @result;
 }
 
 sub owners_for_objects {        
@@ -572,7 +578,6 @@ sub setup_service_info {
         my $owners = owners_for_objects(\@objects); 
         if ($service->{sub_owner}) {
             $service->{sub_owner} = $service->{sub_owner}->{name};
-            $service->{sub_owner} =~ s/^owner://;
         }
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
@@ -671,7 +676,7 @@ my $master_owner;
 sub find_master_owner {
     for my $owner (values %owners) {
         if ($owner->{show_all}) {
-            (my $name = $owner->{name}) =~ s/^owner://;
+            my $name = $owner->{name};
             $master_owner = $name;
             progress("Found master owner: $name");
             last;
@@ -959,10 +964,10 @@ sub export_services {
         my %service2users;
         for my $type (qw(owner user visible)) {
             my $services = [ sort by_name values %{ $type2shash->{$type} } ];
-            my $snames = $type2snames{$type} = [];
+            my @snames;
             for my $service (@$services) { 
                 (my $sname = $service->{name}) =~ s/^\w+://;
-                push @$snames, $sname;
+                push @snames, $sname;
                 next if $type eq 'visible';
                 my @users;
                 if ($type eq 'owner') {
@@ -984,6 +989,7 @@ sub export_services {
                 @users = sort map { $_->{name} } @users;
                 $service2users{$sname} = \@users;
             }
+            $type2snames{$type} = \@snames;
         }
         create_dirs("owner/$owner");
         export("owner/$owner/service_lists", \%type2snames);
@@ -1082,7 +1088,7 @@ sub export_owners {
             for my $email ( @{ $e_owner->{admins} }, @{ $e_owner->{watchers} } ) {
                 $email2owners{$email}->{$name} = $name;
             }
-            (my $e_name = $e_owner->{name}) =~ s/^owner://;
+            my $e_name = $e_owner->{name};
             push @e_owners, $e_name;
         }
 
@@ -1136,6 +1142,7 @@ find_subnets_in_zone();
 normalize_services_for_export();
 propagate_owners();
 find_subnets_in_nat_domain();
+adapt_owner_names();
 setup_zones();
 setup_part_owners();
 setup_service_info();
