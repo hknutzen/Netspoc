@@ -17379,12 +17379,8 @@ sub print_address {
            full_prefix_code(address($obj, $no_nat_set)));
 }
 
-my %prt2code;
 sub print_prt {
     my ($prt) = @_;
-    if (my $result = $prt2code{$prt}) {
-        return $result;
-    }
     my $proto = $prt->{proto};
     my @result = ($proto);
 
@@ -17400,7 +17396,7 @@ sub print_prt {
             push @result, $code;
         }
     }
-    return($prt2code{$prt} = join(' ', @result));
+    return(join(' ', @result));
 }
 
 sub print_acls {
@@ -17578,10 +17574,11 @@ sub print_acls {
                     $new_rule->{dst} = [ map { print_address($_, 
                                                              $dst_no_nat_set) }
                                          @{ $rule->{dst} } ];
-                    $new_rule->{prt} = [ map { print_prt($_) }
+                    $new_rule->{prt} = [ map { $_->{printed} ||= print_prt($_) }
                                          @{ $rule->{prt} } ];
                     if (my $src_range = $rule->{src_range}) {
-                        $new_rule->{src_range} = print_prt($src_range);
+                        $new_rule->{src_range} = 
+                            $src_range->{printed} ||= print_prt($src_range);
                     }
                     $rule = $new_rule;
                 }
@@ -18011,7 +18008,7 @@ sub init_global_vars {
     @duplicate_rules    = @redundant_rules = ();
     %missing_supernet   = ();
     %known_log          = %key2log = ();
-    %obj2nat2address    = %prt2code = ();
+    %obj2nat2address    = ();
     init_protocols();
     return;
 }
