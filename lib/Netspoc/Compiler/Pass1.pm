@@ -8413,9 +8413,8 @@ sub distribute_nat_info {
                             " at $router->{name}"
                         );
 
-                        # Show only first error. Otherwise we
-                        # would show the same error multiple
-                        # times.
+                        # Show only first error. Otherwise we would
+                        # show the same error multiple times.
                         last NAT_TAG;
                     }
                 }
@@ -8423,7 +8422,7 @@ sub distribute_nat_info {
             for my $nat_tag (@$nat_tags) {
                 if ($nat_definitions{$nat_tag}) {
                     distribute_nat($domain, $nat_tag, \%nat_tags2multi,
-                        $router);
+                                   $router);
                     $nat_definitions{$nat_tag} = 'used';
                 }
                 else {
@@ -8436,41 +8435,40 @@ sub distribute_nat_info {
         }
     }
 
-    # Check compatibility of host/interface and network NAT.
-    # A NAT definition for a single host/interface is only allowed,
-    # if the network has a dynamic NAT definition.
-    for my $network (@networks) {
-        for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
-            if ($obj->{nat}) {
-                for my $nat_tag (keys %{ $obj->{nat} }) {
-                    my $nat_network;
-                    if (    $nat_network = $network->{nat}->{$nat_tag}
-                        and $nat_network->{dynamic})
-                    {
-                        my $obj_ip = $obj->{nat}->{$nat_tag};
-                        my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
-                        if (not(match_ip($obj_ip, $ip, $mask))) {
-                            err_msg ("nat:$nat_tag: IP of $obj->{name} doesn't",
-                                     " match IP/mask of $network->{name}");
-                        }
-                    }
-                    else {
-                        warn_msg("Ignoring nat:$nat_tag at $obj->{name}",
-                                 " because $network->{name} has static",
-                                 " NAT definition");
-                    }
-                }
-            }
-        }
-    }
-
     for my $name (keys %nat_definitions) {
         $nat_definitions{$name} eq 'used'
           or warn_msg("nat:$name is defined, but not bound to any interface");
     }
 
+    check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     invert_nat_set();
+}
+
+# Check compatibility of host/interface and network NAT.
+# A NAT definition for a single host/interface is only allowed,
+# if the network has a dynamic NAT definition.
+sub check_nat_compatibility {
+    for my $network (@networks) {
+        for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
+            my $nat = $obj->{nat} or next;
+            for my $nat_tag (keys %$nat) {
+                my $nat_network = $network->{nat}->{$nat_tag};
+                if ($nat_network and $nat_network->{dynamic}) {
+                    my $obj_ip = $nat->{$nat_tag};
+                    my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
+                    match_ip($obj_ip, $ip, $mask) or
+                        err_msg ("nat:$nat_tag: IP of $obj->{name} doesn't",
+                                 " match IP/mask of $network->{name}");
+                }
+                else {
+                    warn_msg("Ignoring nat:$nat_tag at $obj->{name}",
+                             " because $network->{name} has static",
+                             " NAT definition");
+                }
+            }
+        }
+    }
 }
 
 # Find interfaces with dynamic NAT which is applied at the same device.
