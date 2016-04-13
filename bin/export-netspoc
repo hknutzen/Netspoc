@@ -452,7 +452,7 @@ my @normalized_services;
 sub normalize_services_for_export {
     progress("Normalize services for export");
  
-    for my $service (values %services) {
+    for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
         my $context = $sname;

@@ -1366,7 +1366,6 @@ END
 
 test_run($title, $in, $out);
 
-
 ############################################################
 $title = 'Split service with "foreach"';
 ############################################################
@@ -1434,6 +1433,93 @@ $out = <<'END';
          }
       ]
    }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Reference different parts of zone cluster';
+############################################################
+
+$in = <<'END';
+owner:o = {admins = a@b.c;}
+network:n1 = {ip = 10.1.1.0/24; owner = o;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2;}	
+}
+
+router:r2 = {
+ interface:n1 = {ip = 10.1.1.2;}
+ interface:n2 = {ip = 10.1.2.2;}
+}
+
+network:n2 = { ip = 10.1.2.0/24; owner = o;}
+
+pathrestriction:p = interface:r1.n2, interface:r2.n2;
+
+service:s1 = {
+ user = any:[network:n1];
+ permit src = user; dst = interface:r1.n1; prt = tcp 80;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = interface:r1.n2; prt = tcp 22;
+}
+END
+
+# any:[network:n1] and any:[network:n2] both reference the same zone.
+# Deterministically use one of them in output.
+$out = <<'END';
+-- objects
+{
+   "any:[network:n1]" : {
+      "ip" : "0.0.0.0",
+      "is_supernet" : 1,
+      "owner" : "o",
+      "zone" : "any:[network:n1]"
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : null
+   },
+   "interface:r1.n2" : {
+      "ip" : "10.1.2.1",
+      "owner" : null
+   },
+   "interface:r2.n1" : {
+      "ip" : "10.1.1.2",
+      "owner" : "o"
+   },
+   "interface:r2.n2" : {
+      "ip" : "10.1.2.2",
+      "owner" : "o"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "o",
+      "zone" : "any:[network:n1]"
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : "o",
+      "zone" : "any:[network:n1]"
+   }
+}
+--owner/o/users
+{
+   "s1" : [
+      "any:[network:n1]",
+      "any:[network:n1]"
+   ],
+   "s2" : [
+      "any:[network:n1]",
+      "any:[network:n1]"
+   ]
 }
 END
 
