@@ -110,6 +110,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mixed routing_only and VRFs';
+############################################################
+
+$in = <<'END';
+network:m = { ip = 10.2.2.0/24; }
+router:r1@v1 = {
+ managed = routing_only;
+ model = IOS, FW;
+ interface:m = { ip = 10.2.2.1; hardware = e0; }
+ interface:t = { ip = 10.9.9.1; hardware = e1; }
+}
+network:t = { ip = 10.9.9.0/24; }
+router:r1@v2 = {
+ managed;
+ model = IOS, FW;
+ interface:t = { ip = 10.9.9.2; hardware = e2; }
+ interface:n = { ip = 10.1.1.1; hardware = e3; }
+}
+network:n = { ip = 10.1.1.0/24; }
+
+service:test = {
+ user = network:m;
+ permit src = user; dst = network:n; prt = tcp 80;
+}
+END
+
+# Code for routing_only device is generated last.
+$out = <<'END';
+--r1
+! [ Routing for router:r1@v2 ]
+ip route vrf v2 10.2.2.0 255.255.255.0 10.9.9.1
+--
+ip access-list extended e2_in
+ deny ip any host 10.1.1.1
+ permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+--
+! [ Routing for router:r1@v1 ]
+ip route vrf v1 10.1.1.0 255.255.255.0 10.9.9.2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'No admin IP found in any VRFs';
 ############################################################
 

@@ -253,11 +253,17 @@ sub setup_zones {
 # Setup services
 ######################################################################
 
+# Globally change name of owners from "owner:name" to "name".
+sub adapt_owner_names {
+    for my $owner (values %owners) {
+        $owner->{name} =~ s/^owner://;
+    }
+}
+
 sub owner_for_object {  
     my ($object) = @_;
     if (my $owner_obj = $object->{owner}) {
-        (my $name = $owner_obj->{name}) =~ s/^owner://;
-        return $name;
+        return $owner_obj->{name};
     }
     return ();
 }
@@ -265,7 +271,7 @@ sub owner_for_object {
 sub part_owners_for_object {    
     my ($object) = @_;
     if (my $aref = $object->{part_owners}) {
-        return map { (my $name = $_->{name}) =~ s/^owner://; $name } @$aref;
+        return map { $_->{name} } @$aref;
     }
     return ();
 }
@@ -279,7 +285,7 @@ sub extended_owners_for_object {
             push(@result, grep { $_->{extend_only} } @$list);
         }
     }
-    return map { (my $name = $_->{name}) =~ s/^owner://; $name } @result;
+    return map { $_->{name} } @result;
 }
 
 sub owners_for_objects {        
@@ -446,7 +452,7 @@ my @normalized_services;
 sub normalize_services_for_export {
     progress("Normalize services for export");
  
-    for my $service (values %services) {
+    for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
         my $context = $sname;
@@ -535,7 +541,6 @@ sub setup_service_info {
     progress("Setup service info");
     
     for my $service (@normalized_services) {
-        my $sname = $service->{name};
         my $users = $service->{user};
 
         # Non 'user' objects.
@@ -572,7 +577,6 @@ sub setup_service_info {
         my $owners = owners_for_objects(\@objects); 
         if ($service->{sub_owner}) {
             $service->{sub_owner} = $service->{sub_owner}->{name};
-            $service->{sub_owner} =~ s/^owner://;
         }
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
@@ -671,7 +675,7 @@ my $master_owner;
 sub find_master_owner {
     for my $owner (values %owners) {
         if ($owner->{show_all}) {
-            (my $name = $owner->{name}) =~ s/^owner://;
+            my $name = $owner->{name};
             $master_owner = $name;
             progress("Found master owner: $name");
             last;
@@ -863,6 +867,20 @@ sub export_assets {
 # Services, rules, users
 ####################################################################
 
+# Set attribute {visible_owner_hash} once for all objects.
+# When creating user and service lists for each owner,
+# we need to lookup, if an object should be visible by this owner.
+sub set_visible_owner_hash {
+    for my $object (values %all_objects) {
+        my @owner_list = (
+            owner_for_object($object),
+            part_owners_for_object($object),
+            extended_owners_for_object($object)
+        );
+        @{$object->{visible_owner_hash}}{@owner_list} = @owner_list;
+    }
+}
+
 # Calculate unique id for set of rules.
 # Take first 8 characters of base64 encoded SHA1 hash.
 # This gives 8x6=48 bits.
@@ -914,16 +932,16 @@ sub export_services {
                        @{ $service->{part_uowners} },
                        @{ $service->{extended_uowners} }) 
         {
-            if (not $owner2type2shash{$owner}->{owner}->{$service}) {
-                $owner2type2shash{$owner}->{user}->{$service} = $service;
-            }
+            next if $owner2type2shash{$owner}->{owner}->{$service};
+            $owner2type2shash{$owner}->{user}->{$service} = $service;
         }
-        for my $owner (keys %owners) {
-            if (not ($owner2type2shash{$owner}->{owner}->{$service} or 
-                     $owner2type2shash{$owner}->{user}->{$service})) 
-            {
-                if ($service->{visible} and $owner =~ /^$service->{visible}/) {
-                    $owner2type2shash{$owner}->{visible}->{$service} = $service;
+        if (my $visible = $service->{visible}) {
+            for my $owner (keys %owners) {
+                my $hash = $owner2type2shash{$owner} ||= {};
+                next if $hash->{owner}->{$service};
+                next if $hash->{user}->{$service};
+                if ($owner =~ /^$visible/) {
+                    $hash->{visible}->{$service} = $service;
                 }
             }
         }
@@ -948,42 +966,39 @@ sub export_services {
         $shash{$sname} = { details => $details, rules => \@rules };
     }
     export("services", \%shash);
+    return \%owner2type2shash;
+}
+
+sub export_users_and_service_lists {
+    my ($owner2type2shash) = @_;
 
     progress("Export users and service_lists");
+    set_visible_owner_hash();
 
     # Create file even for owner having no service at all.
-    $owner2type2shash{$_} ||= {} for keys %owners;
-    for my $owner (sort keys %owner2type2shash) {
-        my $type2shash = $owner2type2shash{$owner} || {};
+    $owner2type2shash->{$_} ||= {} for keys %owners;
+    for my $owner (sort keys %$owner2type2shash) {
+        my $type2shash = $owner2type2shash->{$owner};
         my %type2snames;
         my %service2users;
         for my $type (qw(owner user visible)) {
-            my $services = [ sort by_name values %{ $type2shash->{$type} } ];
-            my $snames = $type2snames{$type} = [];
-            for my $service (@$services) { 
+            my @snames;
+            for my $service (values %{ $type2shash->{$type} }) { 
                 (my $sname = $service->{name}) =~ s/^\w+://;
-                push @$snames, $sname;
+                push @snames, $sname;
                 next if $type eq 'visible';
                 my @users;
                 if ($type eq 'owner') {
                     @users = @{ $service->{user} };
                 }
                 elsif ($type eq 'user') {
-                    for my $user (@{ $service->{user} }) {
-                        my $uowner = owner_for_object($user);
-                        if ($uowner && $uowner eq $owner ||
-                            grep({ $_ eq $owner } 
-                                 part_owners_for_object($user)) ||
-                            grep({ $_ eq $owner } 
-                                 extended_owners_for_object($user)))
-                        {
-                            push @users, $user;
-                        }
-                    }
+                    @users = grep({ $_->{visible_owner_hash}->{$owner} }
+                                  @{ $service->{user} });
                 }
                 @users = sort map { $_->{name} } @users;
                 $service2users{$sname} = \@users;
             }
+            $type2snames{$type} = [ sort @snames ];
         }
         create_dirs("owner/$owner");
         export("owner/$owner/service_lists", \%type2snames);
@@ -1082,7 +1097,7 @@ sub export_owners {
             for my $email ( @{ $e_owner->{admins} }, @{ $e_owner->{watchers} } ) {
                 $email2owners{$email}->{$name} = $name;
             }
-            (my $e_name = $e_owner->{name}) =~ s/^owner://;
+            my $e_name = $e_owner->{name};
             push @e_owners, $e_name;
         }
 
@@ -1136,6 +1151,7 @@ find_subnets_in_zone();
 normalize_services_for_export();
 propagate_owners();
 find_subnets_in_nat_domain();
+adapt_owner_names();
 setup_zones();
 setup_part_owners();
 setup_service_info();
@@ -1147,7 +1163,8 @@ find_master_owner();
 create_dirs('');
 export_owners();
 export_assets();
-export_services();
+my $owner2type2shash = export_services();
+export_users_and_service_lists($owner2type2shash);
 export_objects();
 export_no_nat_set();
 copy_policy_file();
