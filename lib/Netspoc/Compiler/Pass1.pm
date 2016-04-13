@@ -15193,7 +15193,6 @@ sub fix_bridged_hops {
 }
 
 sub check_and_convert_routes {
-    progress('Checking for duplicate routes');
 
     # Fix routes to bridged interfaces without IP address.
     for my $router (@managed_routers, @routing_only_routers) {
@@ -15353,10 +15352,9 @@ sub check_and_convert_routes {
 
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
+            my $warn_msg;
             for my $hop (sort by_name values %{ $interface->{hopref2obj} }) {
-                for my $network (
-                    sort by_name values %{ $interface->{routes}->{$hop} })
-                {
+                for my $network (values %{ $interface->{routes}->{$hop} }) {
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
 
@@ -15366,10 +15364,10 @@ sub check_and_convert_routes {
                             if (    not $interface->{routing}
                                 and not $interface2->{routing})
                             {
-                                warn_msg(
-                                    "Two static routes for $network->{name}\n",
-                                    " via $interface->{name} and",
-                                    " $interface2->{name}"
+                                push(@$warn_msg,
+                                     "Two static routes for $network->{name}" .
+                                     "\n via $interface->{name} and" .
+                                     " $interface2->{name}"
                                 );
                             }
                         }
@@ -15396,10 +15394,10 @@ sub check_and_convert_routes {
                                 delete $interface->{routes}->{$hop}->{$network};
                             }
                             else {
-                                warn_msg(
-                                    "Two static routes for $network->{name}\n",
-                                    " at $interface->{name}",
-                                    " via $hop->{name} and $hop2->{name}"
+                                push(@$warn_msg,
+                                     "Two static routes for $network->{name}" .
+                                     "\n at $interface->{name}" .
+                                     " via $hop->{name} and $hop2->{name}"
                                 );
                             }
                         }
@@ -15408,6 +15406,9 @@ sub check_and_convert_routes {
                         }
                     }
                 }
+            }
+            if ($warn_msg) {
+                warn_msg($_) for sort @$warn_msg;
             }
             for my $net_ref (keys %net2group) {
                 my $hops = $net2group{$net_ref};
