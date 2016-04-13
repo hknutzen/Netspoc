@@ -14817,7 +14817,9 @@ sub set_routes_in_zone {
 #              reachable via next hop interface H.
 sub add_path_routes {
     my ($in_intf, $out_intf, $dst_networks) = @_;
-    return if $in_intf->{routing}; # Interface with manual routing.
+
+    # Interface with manual or dynamic routing.
+    return if $in_intf->{routing}; 
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
@@ -14836,7 +14838,6 @@ sub add_path_routes {
             @{ $in_intf->{routes}->{$hop} }{@$dst_networks} = @$dst_networks;
         }
     }
-    return;
 }
 
 
@@ -14868,7 +14869,6 @@ sub add_end_routes {
             $interface->{routes}->{$hop}->{$network} = $network;
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -14904,7 +14904,6 @@ sub get_route_path {
     else {
         push @{ $rule->{path_exits} }, $in_intf;
     }
-    return;
 }
 
 ##############################################################################
@@ -14982,15 +14981,10 @@ sub generate_routing_tree1 {
             $router->{managed} or $router->{routing_only} or next;
             $intf = $intf->{main_interface} || $intf;
             $pseudo_rule->{"${what}_interfaces"}->{$intf} = $intf;
-            for my $network ($what eq 'src' ? @$dst_networks : @$src_networks) {
-                $pseudo_rule->{"${what}_intf2nets"}
-                  ->{$intf}->{$network} = $network;
-
-#                debug "${what}_intf_net: $network->{name}";
-            }
+            my $list = $what eq 'src' ? $dst_networks : $src_networks;
+            @{ $pseudo_rule->{"${what}_intf2nets"}->{$intf} }{@$list} = @$list;
         }
     }
-    return;
 }
 
 #############################################################################
@@ -15069,8 +15063,8 @@ sub generate_routing_info {
             path_walk($pseudo_rule, \&get_route_path, 'Zone');
 
             # Extract sources and destinations from pseudo rule.
-            my $src_networks   = [ values %{ $pseudo_rule->{src_networks} } ];
-            my $dst_networks   = [ values %{ $pseudo_rule->{dst_networks} } ];
+            my @src_networks   = values %{ $pseudo_rule->{src_networks} };
+            my @dst_networks   = values %{ $pseudo_rule->{dst_networks} };
             my @src_interfaces = values %{ $pseudo_rule->{src_interfaces} };
             my @dst_interfaces = values %{ $pseudo_rule->{dst_interfaces} };
 
@@ -15078,8 +15072,8 @@ sub generate_routing_info {
             for my $tuple (@{ $pseudo_rule->{path} }) {
                 my ($in_intf, $out_intf) = @$tuple;
 #                debug "$in_intf->{name} => $out_intf->{name}";
-                add_path_routes($in_intf,  $out_intf, $dst_networks); # IFs incl
-                add_path_routes($out_intf, $in_intf,  $src_networks); # IFs incl
+                add_path_routes($in_intf, $out_intf, \@dst_networks); # IFs incl
+                add_path_routes($out_intf, $in_intf, \@src_networks); # IFs incl
             }
 
             # Determine routing information for IF of first zone on path.
@@ -15104,7 +15098,7 @@ sub generate_routing_info {
                 }
 
                 # For src networks, generate routes for zone IF only. 
-                add_end_routes($entry, $src_networks);
+                add_end_routes($entry, \@src_networks);
             }
 
             # Determine routing information for IF of last zone on path.
@@ -15129,7 +15123,7 @@ sub generate_routing_info {
                 }
 
                 # For dst networks, generate routes for zone IF only.
-                add_end_routes($exit, $dst_networks);
+                add_end_routes($exit, \@dst_networks);
             }
         }
     }
