@@ -11580,9 +11580,9 @@ sub cluster_path_mark1 {
 
     # Proceed loop path exploration with every loop interface of current node.
     for my $interface (@{ $obj->{interfaces} }) {
-        next if $interface eq $in_intf;
         my $loop = $interface->{loop} or next;
         $allowed->{$loop} or next;
+        next if $interface eq $in_intf;
         my $next = $interface->{$get_next};
 
 #        debug "Try $obj->{name} -> $next->{name}";
@@ -15851,7 +15851,6 @@ sub distribute_rule {
     else {
         push @{ $in_intf->{hardware}->{$key} }, $rule;
     }
-    return;
 }
 
 my $permit_any_rule;
