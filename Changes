@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+5.007     2016-04-13 15:40:07+02:00 Europe/Berlin
+
+ - When warning on redundant rules, show not only one, but all larger rules.
+ - In verbose output, count each redundant rule only once.
+ - Runtime of program export-netspoc was cut in half.
+ - Fixed minor non-determinism in export-netspoc.
+ - Multiple minor performance improvements.
+
 5.006     2016-03-31 17:32:40+02:00 Europe/Berlin
 
  - Runtime to read netspoc data was cut in half.
