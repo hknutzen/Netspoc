@@ -16081,12 +16081,13 @@ sub address {
     my $type = ref $obj;
     if ($type eq 'Network') {
         $obj = get_nat_network($obj, $no_nat_set);
+        my $ip = $obj->{ip};
 
-        if ($obj->{ip} eq 'unnumbered') {
+        if ($ip eq 'unnumbered') {
             internal_err("Unexpected unnumbered $obj->{name}");
         }
         else {
-            return [ $obj->{ip}, $obj->{mask} ];
+            return [ $ip, $obj->{mask} ];
         }
     }
     elsif ($type eq 'Subnet') {
@@ -16111,14 +16112,15 @@ sub address {
         }
     }
     elsif ($type eq 'Interface') {
-        if ($obj->{ip} =~ /^(unnumbered|short)$/) {
-            internal_err("Unexpected $obj->{ip} $obj->{name}");
+        my $ip = $obj->{ip};
+        if ($ip eq 'unnumbered' or $ip eq 'short') {
+            internal_err("Unexpected $ip $obj->{name}");
         }
 
         my $network = get_nat_network($obj->{network}, $no_nat_set);
 
-        if ($obj->{ip} eq 'negotiated') {
-            my ($network_ip, $network_mask) = @{$network}{ 'ip', 'mask' };
+        if ($ip eq 'negotiated') {
+            my ($network_ip, $network_mask) = @{$network}{qw(ip mask)};
             return [ $network_ip, $network_mask ];
         }
         elsif (my $nat_tag = $network->{dynamic}) {
@@ -16135,13 +16137,11 @@ sub address {
 
             # Take higher bits from network NAT, lower bits from original IP.
             # This works with and without NAT.
-            my $ip =
-              $network->{ip} | $obj->{ip} & complement_32bit $network->{mask};
+            $ip = $network->{ip} | $ip & complement_32bit $network->{mask};
             return [ $ip, 0xffffffff ];
         }
     }
     else {
-        my $type = ref $obj;
         internal_err("Unexpected object of type '$type'");
     }
 }
