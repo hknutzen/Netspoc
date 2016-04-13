@@ -8469,8 +8469,13 @@ sub distribute_nat_info {
           or warn_msg("nat:$name is defined, but not bound to any interface");
     }
 
-    # Find interfaces with dynamic NAT which is applied at the same device.
-    # This is incomatible with device with "need_protect".
+    check_interfaces_with_dynamic_nat();
+    invert_nat_set();
+}
+
+# Find interfaces with dynamic NAT which is applied at the same device.
+# This is incomatible with device with "need_protect".
+sub check_interfaces_with_dynamic_nat {
     for my $network (@networks) {
         my $nat = $network->{nat} or next;
         for my $nat_tag (keys %$nat) {
@@ -8497,8 +8502,6 @@ sub distribute_nat_info {
             }
         }
     }
-    invert_nat_set();
-    return;
 }
 
 sub invert_nat_set {
