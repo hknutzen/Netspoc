@@ -5053,7 +5053,12 @@ sub mark_disabled {
         my $router = $interface->{router};
         aref_delete($router->{interfaces}, $interface);
         if ($router->{managed} || $router->{routing_only}) {
-            aref_delete($interface->{hardware}->{interfaces}, $interface);
+            my $hardware = $interface->{hardware};
+            my $hw_interfaces = $hardware->{interfaces};
+            aref_delete($hw_interfaces, $interface);
+            if (not @$hw_interfaces) {
+                aref_delete($router->{hardware}, $hardware);
+            }
         }
     }
 
@@ -17372,13 +17377,6 @@ sub print_interface {
     return;
 }
 
-my %obj2nat2address;
-sub print_address {
-    my ($obj, $no_nat_set) = @_;
-    return($obj2nat2address{$obj}->{$no_nat_set} ||= 
-           full_prefix_code(address($obj, $no_nat_set)));
-}
-
 sub print_prt {
     my ($prt) = @_;
     my $proto = $prt->{proto};
@@ -17398,6 +17396,8 @@ sub print_prt {
     }
     return(join(' ', @result));
 }
+
+my %nat2obj2address;
 
 sub print_acls {
     my ($vrf_members, $fh) = @_;
@@ -17452,14 +17452,17 @@ sub print_acls {
             my %no_opt_addrs;
 
             my $no_nat_set = delete $acl->{no_nat_set};
+            my $addr_cache = $nat2obj2address{$no_nat_set} ||= {};
             my $dst_no_nat_set = delete $acl->{dst_no_nat_set} || $no_nat_set;
+            my $dst_addr_cache = $nat2obj2address{$dst_no_nat_set} ||= {};
             my $protect_self = delete $acl->{protect_self};
             if ($need_protect and $protect_self) {
                 $acl->{need_protect} = [
 
                     # Remove duplicate addresses from redundancy interfaces.
                     unique
-                    map({ full_prefix_code(address($_, $no_nat_set)) }
+                    map({ $addr_cache->{$_} ||= 
+                              full_prefix_code(address($_, $no_nat_set)) }
                         @$need_protect) ];
             }
 
@@ -17569,11 +17572,17 @@ sub print_acls {
                         }
                         $new_rule->{opt_secondary} = 1;
                     }
-                    $new_rule->{src} = [ map { print_address($_, $no_nat_set) } 
-                                         @{ $rule->{src} } ];
-                    $new_rule->{dst} = [ map { print_address($_, 
-                                                             $dst_no_nat_set) }
-                                         @{ $rule->{dst} } ];
+                    $new_rule->{src} = 
+                        [ map { $addr_cache->{$_} ||=
+                                    full_prefix_code(address($_, $no_nat_set)) 
+                          } 
+                          @{ $rule->{src} } ];
+                    $new_rule->{dst} = 
+                        [ map { $dst_addr_cache->{$_} ||=
+                                    full_prefix_code(address($_, 
+                                                             $dst_no_nat_set))
+                          }
+                          @{ $rule->{dst} } ];
                     $new_rule->{prt} = [ map { $_->{printed} ||= print_prt($_) }
                                          @{ $rule->{prt} } ];
                     if (my $src_range = $rule->{src_range}) {
@@ -17599,13 +17608,15 @@ sub print_acls {
             if (values %opt_addr) {
                 $acl->{opt_networks} = [ 
                     sort 
-                    map { print_address($_, $no_nat_set) } 
+                    map { $addr_cache->{$_} ||= 
+                              full_prefix_code(address($_, $no_nat_set)) } 
                     values %opt_addr ];
             }
             if (values %no_opt_addrs) {
                 $acl->{no_opt_addrs} = [ 
                     sort 
-                    map { print_address($_, $no_nat_set) } 
+                    map { $addr_cache->{$_} ||= 
+                              full_prefix_code(address($_, $no_nat_set)) }
                     values %no_opt_addrs ];
             }
             push @acl_list, $acl;
@@ -18008,7 +18019,7 @@ sub init_global_vars {
     @duplicate_rules    = @redundant_rules = ();
     %missing_supernet   = ();
     %known_log          = %key2log = ();
-    %obj2nat2address    = ();
+    %nat2obj2address    = ();
     init_protocols();
     return;
 }
