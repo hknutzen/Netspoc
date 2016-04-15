@@ -10330,6 +10330,9 @@ sub cleanup_after_inheritance {
             my $nat_network = $href->{$nat_tag};
             $nat_network->{identity} or next;
             delete $href->{$nat_tag};
+            if (not keys %$href) {
+                delete $network->{nat};
+            }
             $nat_network->{is_used}
               or warn_msg("Useless identity nat:$nat_tag at $network->{name}");
         }
