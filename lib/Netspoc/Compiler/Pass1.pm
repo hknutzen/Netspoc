@@ -14306,21 +14306,21 @@ sub mark_dynamic_host_nets {
     }
 }
 
+                
+
+# Collect managed interfaces on path.
+sub collect_path_interfaces {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $list = $rule->{interfaces};
+    push @$list, $in_intf if $in_intf;
+    push @$list, $out_intf if $out_intf;
+}
+
 # 1. Check for invalid rules accessing hidden objects.
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
     progress('Checking rules with hidden or dynamic NAT');
-
-    # Collect hidden or dynamic NAT tags.
-    my %is_dynamic_nat_tag;
-    for my $network (@networks) {
-        my $href = $network->{nat} or next;
-        for my $nat_tag (keys %$href) {
-            my $nat_network = $href->{$nat_tag};
-            $nat_network->{dynamic} and $is_dynamic_nat_tag{$nat_tag} = 1;
-        }
-    }
 
     # Collect no_nat_sets applicable in zone
     # and combine them into {multi_no_nat_set}.
@@ -14344,28 +14344,31 @@ sub check_dynamic_nat_rules {
         $zone->{multi_no_nat_set} = $result;
     }        
 
-    # Check path for inversed hidden or dynamic NAT.
-    my $check_dyn_nat = sub {
-        my ($rule, $in_intf, $out_intf) = @_;
-        my $no_nat_set1 = $in_intf  ? $in_intf->{no_nat_set}  : undef;
-        my $no_nat_set2 = $out_intf ? $out_intf->{no_nat_set} : undef;
-        for my $nat_tag (keys %is_dynamic_nat_tag) {
-            if ($no_nat_set1) {
-                $no_nat_set1->{$nat_tag}
-                  or push @{ $rule->{active_nat_at}->{$nat_tag} }, $in_intf;
-            }
-            if ($no_nat_set2) {
-                $no_nat_set2->{$nat_tag}
-                  or push @{ $rule->{active_nat_at}->{$nat_tag} }, $out_intf;
+    # For each no_nat_set, collect hidden or dynamic NAT tags that are
+    # active inside that no_nat_set.
+    my %no_nat_set2active_tags;
+    {
+        my %is_dynamic_nat_tag;
+        for my $network (@networks) {
+            my $href = $network->{nat} or next;
+            for my $nat_tag (keys %$href) {
+                my $nat_network = $href->{$nat_tag};
+                $nat_network->{dynamic} and $is_dynamic_nat_tag{$nat_tag} = 1;
             }
         }
-    };
+        for my $natdomain (@natdomains) {
+            my $no_nat_set = $natdomain->{no_nat_set};
+            my @active = 
+                grep { not $no_nat_set->{$_} } keys %is_dynamic_nat_tag;
+            @{$no_nat_set2active_tags{$no_nat_set}}{@active} = @active;
+        }
+    }
 
-    # Remember, if pair of src object and destination no_nat_set
-    # already has been processed.
+    # Remember, if pair of src object and dst network already has been
+    # processed.
     my %seen;
 
-    # Remember, if path has already been checked for inversed dynamic NAT.
+    # Remember interfaces of already checked path.
     my %cache;
 
     my $check_dyn_nat_path = sub {
@@ -14374,6 +14377,9 @@ sub check_dynamic_nat_rules {
         my $network    = $obj->{network} || $obj;
         my $nat_hash   = $network->{nat} or return;
         my $other_net  = $other->{network} || $other;
+        my $cache_obj  = $network->{has_dynamic_host} ? $obj : $network;
+        return if $seen{$cache_obj}->{$other_net}++;
+
         my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
 
         # Find $nat_tag which is effective at $other.
@@ -14383,9 +14389,6 @@ sub check_dynamic_nat_rules {
         my $no_nat_set = $nat_domain 
                        ? $nat_domain->{no_nat_set} 
                        : $other->{zone}->{multi_no_nat_set};
-
-        my $cache_obj = $network->{has_dynamic_host} ? $obj : $network;
-        return if $seen{$cache_obj}->{$no_nat_set}++;
 
         my $show_rule = sub {
             my $rule = { %$path_rule };
@@ -14406,7 +14409,7 @@ sub check_dynamic_nat_rules {
             if ($nat_network->{hidden}) {
                 $hidden_seen++
                   or err_msg("$obj->{name} is hidden by nat:$nat_tag",
-                    " in rule\n ", $show_rule->());
+                             " in rule\n ", $show_rule->());
                 next;
             }
             if (not $nat_network->{dynamic}) {
@@ -14483,40 +14486,41 @@ sub check_dynamic_nat_rules {
         for my $nat_tag (keys %$nat_hash) {
             my $nat_network = $nat_hash->{$nat_tag};
             $nat_network->{dynamic} or next;
+            my $is_hidden = $nat_network->{hidden};
+            ($is_hidden || $static_seen) or next;
             $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
         }
         $dyn_nat_hash or return;
 
         my ($src_path, $dst_path) = @{$path_rule}{qw(src_path dst_path)};
-        my $active_nat_at = $cache{$src_path}->{$dst_path}
-          || $cache{$dst_path}->{$src_path};
+        my $interfaces = 
+            $cache{$src_path}->{$dst_path} || $cache{$dst_path}->{$src_path};
 
-        if (!$active_nat_at) {
-            $path_rule->{active_nat_at} = {};
-            path_walk($path_rule, $check_dyn_nat);
-            $cache{$src_path}->{$dst_path} =
-                $active_nat_at = delete $path_rule->{active_nat_at};
+        if (not $interfaces) {
+            $path_rule->{interfaces} = [];
+            path_walk($path_rule, \&collect_path_interfaces);
+            $interfaces = $cache{$src_path}->{$dst_path} = 
+                delete $path_rule->{interfaces};
         }
 
         for my $nat_tag (sort keys %$dyn_nat_hash) {
-            my $interfaces = $active_nat_at->{$nat_tag} or next;
-            my $is_hidden = $dyn_nat_hash->{$nat_tag};
-            ($is_hidden || $static_seen) or next;
+            my @nat_interfaces = 
+                grep({ $no_nat_set2active_tags{$_->{no_nat_set}}->{$nat_tag} } 
+                     @$interfaces) or next;
             my $names =
-              join("\n - ", map({ $_->{name} } sort(by_name @$interfaces)));
+              join("\n - ", 
+                   map { $_->{name} } sort by_name unique @nat_interfaces);
+            my $is_hidden = $dyn_nat_hash->{$nat_tag};
             my $type = $is_hidden ? 'hidden' : 'dynamic';
             err_msg(
                 "Must not apply $type NAT '$nat_tag' on path\n",
                 " of",
                 $reversed ? ' reversed' : '',
                 " rule\n",
-                " ",
-                $show_rule->(),
-                "\n",
+                " ", $show_rule->(), "\n",
                 " NAT '$nat_tag' is active at\n",
                 " - $names\n",
-                " Add pathrestriction",
-                " to exclude this path"
+                " Add pathrestriction to exclude this path"
             );
         }
     };
@@ -18066,11 +18070,14 @@ sub compile {
     concurrent(
         sub {
             check_unused_groups();
+#                DB::enable_profile();
             check_dynamic_nat_rules();
+#            exit;
             check_supernet_rules();
             check_expanded_rules();
         },
         sub {
+#            return;
             %service_rules = ();
             remove_simple_duplicate_rules();
             set_policy_distribution_ip();
@@ -18080,7 +18087,6 @@ sub compile {
             mark_secondary_rules();
             if ($out_dir) {
                 rules_distribution();
-#                DB::enable_profile();
                 print_code($out_dir);
 #                DB::disable_profile();
                 copy_raw($in_path, $out_dir);
