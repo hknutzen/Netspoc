@@ -18061,9 +18061,6 @@ sub compile {
     # Abort now, if there had been syntax errors and simple semantic errors.
     abort_on_error();
 
-    # Call after {up} relation for anonymous aggregates has been set up.
-    mark_managed_local();
-
     check_service_owner();
     convert_hosts_in_rules();
     group_path_rules();
@@ -18071,6 +18068,10 @@ sub compile {
     concurrent(
         sub {
             find_subnets_in_nat_domain();
+
+            # Call after {up} relation for anonymous aggregates has
+            # been set up.
+            mark_managed_local();
         },
         sub {
             check_dynamic_nat_rules();
