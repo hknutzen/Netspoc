@@ -6490,34 +6490,18 @@ sub classify_protocols {
 
 sub check_private_service {
     my ($service, $src_list, $dst_list) = @_;
-    my $private = $service->{private};
     my $context = $service->{name};
-    for my $src (@$src_list) {
-        for my $dst (@$dst_list) {
-
-            if ($private) {
-                my $src_p = $src->{private};
-                my $dst_p = $dst->{private};
-                $src_p and $src_p eq $private
-                    or $dst_p and $dst_p eq $private
-                    or err_msg(
-                        "Rule of $private $context",
-                        " must reference at least one object",
-                        " out of $private");
-            }
-            else {
-                $src->{private}
-                and err_msg(
-                    "Rule of public $context must not",
-                    " reference $src->{name} of",
-                    " $src->{private}");
-                $dst->{private}
-                and err_msg(
-                    "Rule of public $context must not",
-                    " reference $dst->{name} of",
-                    " $dst->{private}");
-            }
-        }
+    if (my $private = $service->{private}) {
+        grep({ $_->{private} and $_->{private} eq $private } 
+             @$src_list, @$dst_list) or
+                 err_msg("Rule of $private $context must reference at least",
+                    " one object out of $private");
+    }
+    elsif (my @private = grep { $_->{private} } @$src_list, @$dst_list) {
+        my $pairs = 
+            join("\n - ", map { "$_->{name} of $_->{private}" } @private);
+        err_msg("Rule of public $context must not reference\n",
+                " - $pairs");
     }
 }
 

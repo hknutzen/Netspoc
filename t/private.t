@@ -42,10 +42,39 @@ service:s2 = {
 END
 
 $out = <<'END';
-Error: Rule of public service:s1 must not reference network:n1 of n1.private
-Error: Rule of public service:s2 must not reference host:h1 of n1.private
-Error: Rule of public service:s2 must not reference host:h2 of n1.private
-Error: Rule of public service:s2 must not reference interface:filter.n1 of n1.private
+Error: Rule of public service:s1 must not reference
+ - network:n1 of n1.private
+Error: Rule of public service:s2 must not reference
+ - host:h1 of n1.private
+ - host:h2 of n1.private
+ - interface:filter.n1 of n1.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must reference private object from private service';
+############################################################
+
+$in = <<'END';
+-- public
+network:n1 = { ip = 10.1.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- s1.private
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Rule of s1.private service:s1 must reference at least one object out of s1.private
 END
 
 test_err($title, $in, $out);
