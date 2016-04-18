@@ -5418,16 +5418,15 @@ sub combine_subnets {
     my @extra;
     while (1) {
         for my $subnet (@$subnets) {
-            my $neighbor;
-            if ($neighbor = $subnet->{neighbor} and $hash{$neighbor}) {
-                my $up = $subnet->{up};
-                unless ($hash{$up}) {
-                    $hash{$up} = $up;
-                    push @extra, $up;
-                }
-                delete $hash{$subnet};
-                delete $hash{$neighbor};
+            my $neighbor = $subnet->{neighbor} or next;
+            $hash{$neighbor} or next;
+            my $up = $subnet->{up};
+            if (not $hash{$up}) {
+                $hash{$up} = $up;
+                push @extra, $up;
             }
+            delete $hash{$subnet};
+            delete $hash{$neighbor};
         }
         if (@extra) {
 
