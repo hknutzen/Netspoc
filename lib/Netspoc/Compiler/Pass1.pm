@@ -6137,7 +6137,8 @@ sub expand_group_in_rule {
     my $changed;
     for my $object (@$aref) {
         my $ignore;
-        if (is_network $object) {
+        my $type = ref $object;
+        if ($type eq 'Network') {
             if ($object->{ip} eq 'unnumbered') {
                 $ignore = "unnumbered $object->{name}";
             }
@@ -6153,12 +6154,12 @@ sub expand_group_in_rule {
                 }
             }
         }
-        elsif (is_interface $object) {
+        elsif ($type eq 'Interface') {
             if ($object->{ip} =~ /^(short|unnumbered)$/) {
                 $ignore = "$object->{ip} $object->{name}";
             }
         }
-        elsif (is_area $object) {
+        elsif ($type eq 'Area') {
             $ignore = $object->{name};
         }
         if ($ignore) {
