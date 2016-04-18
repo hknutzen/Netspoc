@@ -282,7 +282,6 @@ Error: Must not use attribute 'vip' at router:r1
  'vip' is only allowed for model ACE
 Error: Must not use attribute 'vip' at router:r2
  'vip' is only allowed for model ACE
-Warning: Unused owner:y
 END
 
 test_err($title, $in, $out);
