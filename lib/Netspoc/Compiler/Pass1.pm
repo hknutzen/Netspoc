@@ -18055,7 +18055,8 @@ sub compile {
     mark_dynamic_host_nets();
 
     normalize_services();
-    find_subnets_in_nat_domain();
+    # Abort now, if there had been syntax errors and simple semantic errors.
+    abort_on_error();
 
     # Call after {up} relation for anonymous aggregates has been set up.
     mark_managed_local();
@@ -18064,20 +18065,21 @@ sub compile {
     convert_hosts_in_rules();
     group_path_rules();
 
-    # Abort now, if there had been syntax errors and simple semantic errors.
-    abort_on_error();
+    concurrent(
+        sub {
+            find_subnets_in_nat_domain();
+        },
+        sub {
+            check_dynamic_nat_rules();
+        });
 
     concurrent(
         sub {
             check_unused_groups();
-#                DB::enable_profile();
-            check_dynamic_nat_rules();
-#            exit;
             check_supernet_rules();
             check_expanded_rules();
         },
         sub {
-#            return;
             %service_rules = ();
             remove_simple_duplicate_rules();
             set_policy_distribution_ip();
@@ -18087,6 +18089,7 @@ sub compile {
             mark_secondary_rules();
             if ($out_dir) {
                 rules_distribution();
+#                DB::enable_profile();
                 print_code($out_dir);
 #                DB::disable_profile();
                 copy_raw($in_path, $out_dir);
