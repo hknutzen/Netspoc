@@ -11992,16 +11992,16 @@ sub cluster_path_mark {
         last BLOCK if not $success;
 
         # Convert $path_tuples: {intf->intf->node_type} to [intf,intf,node_type]
-        my $tuples_aref = [];
+        my @tuples;
+        my @rev_tuples;
         for my $in_intf_ref (keys %$path_tuples) {
-            my $in_intf = $key2obj{$in_intf_ref} 
-              or internal_err("Unknown in_intf at tuple");
+            my $in_intf = $key2obj{$in_intf_ref};
             my $hash = $path_tuples->{$in_intf_ref};
             for my $out_intf_ref (keys %$hash) {
-                my $out_intf = $key2obj{$out_intf_ref}
-                  or internal_err("Unknown out_intf at tuple");
+                my $out_intf = $key2obj{$out_intf_ref};
                 my $at_router = $hash->{$out_intf_ref};
-                push @$tuples_aref, [ $in_intf, $out_intf, $at_router ];
+                push @tuples, [ $in_intf, $out_intf, $at_router ];
+                push @rev_tuples, [ $out_intf, $in_intf, $at_router ];
 
 #		debug("Tuple: $in_intf->{name}, $out_intf->{name} $at_router");
             }
@@ -12013,13 +12013,12 @@ sub cluster_path_mark {
         # Add loop path information to start node or interface.
         $start_store->{loop_enter}->{$end_store}  = $loop_enter;
         $start_store->{loop_leave}->{$end_store}  = $loop_leave;
-        $start_store->{path_tuples}->{$end_store} = $tuples_aref;
+        $start_store->{path_tuples}->{$end_store} = \@tuples;
 
         # Add data for reverse path.
         $end_store->{loop_enter}->{$start_store} = $loop_leave;
         $end_store->{loop_leave}->{$start_store} = $loop_enter;
-        $end_store->{path_tuples}->{$start_store} =
-          [ map { [ @{$_}[ 1, 0, 2 ] ] } @$tuples_aref ];
+        $end_store->{path_tuples}->{$start_store} = \@rev_tuples;
     }
 
     # Restore temporarily moved path restrictions.
