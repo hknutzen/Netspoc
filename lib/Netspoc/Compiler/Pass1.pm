@@ -14372,14 +14372,7 @@ sub check_dynamic_nat_rules {
     my %cache;
 
     my $check_dyn_nat_path = sub {
-        my ($path_rule, $obj, $other, $reversed) = @_;
-
-        my $network    = $obj->{network} || $obj;
-        my $nat_hash   = $network->{nat} or return;
-        my $other_net  = $other->{network} || $other;
-        my $cache_obj  = $network->{has_dynamic_host} ? $obj : $network;
-        return if $seen{$cache_obj}->{$other_net}++;
-
+        my ($path_rule, $obj, $network, $other, $other_net, $reversed) = @_;
         my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
 
         # Find $nat_tag which is effective at $other.
@@ -14400,6 +14393,7 @@ sub check_dynamic_nat_rules {
         my $nat_seen;
         my $hidden_seen;
         my $static_seen;
+        my $nat_hash = $network->{nat};
         for my $nat_tag (sort keys %$nat_hash) {
             next if $no_nat_set->{$nat_tag};
             $nat_seen = 1;
@@ -14525,16 +14519,26 @@ sub check_dynamic_nat_rules {
         }
     };
 
-    for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
-        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
-        for my $src (@$src_list) {
-            for my $dst (@$dst_list) {
-                $check_dyn_nat_path->($rule, $src, $dst);
-                $check_dyn_nat_path->($rule, $dst, $src, 'reversed');
+    for my $what (qw(src dst)) {
+        my $reversed = $what eq 'dst';
+        my $other = $reversed ? 'src' : 'dst';
+        for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+            for my $from (@{ $rule->{$what} }) {
+                my $from_net = $from->{network} || $from;
+                $from_net->{nat} or next;
+                my $cache_obj  = 
+                    $from_net->{has_dynamic_host} ? $from : $from_net;
+                for my $to (@{ $rule->{$other} }) {
+                    my $to_net = $to->{network} || $to;
+                    next if $seen{$cache_obj}->{$to_net}++;
+                    $check_dyn_nat_path->($rule, 
+                                          $from, $from_net, 
+                                          $to, $to_net, 
+                                          $reversed);
+                }
             }
         }
     }
-    return;
 }
 
 ##############################################################################

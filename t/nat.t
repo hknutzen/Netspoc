@@ -519,10 +519,10 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
- permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
 Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
  permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
+Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
+ permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
 END
 
 test_err($title, $in, $out);
