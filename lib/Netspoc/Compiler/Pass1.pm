@@ -12272,12 +12272,11 @@ sub path_walk {
     my ($rule, $fun, $where) = @_;
 
     # Extract path node objects (zone/router/pathrestricted interface).
-    my $from_store = $rule->{src_path};
-    my $to_store   = $rule->{dst_path};
+    my ($from_store, $to_store) = @{$rule}{qw(src_path dst_path)};
 
     # If path node is a pathrestricted interface, extract router. 
-    my $from       = $from_store->{router} || $from_store;
-    my $to         = $to_store->{router}   || $to_store;
+    my $from = $from_store->{router} || $from_store;
+    my $to   = $to_store->{router}   || $to_store;
 
     # Get access to stored paths - for pathrestricted IFs, take IF path store
     # (allowed paths may differ from those of the associated router).
@@ -12293,10 +12292,6 @@ sub path_walk {
 #       debug(" Walk: $in_name, $out_name");
 #       $fun2->(@_);
 #    };
-
-    # Perform consistency checks.
-    $from and $to or internal_err(print_rule $rule);
-    $from eq $to and internal_err("Unenforceable:\n ", print_rule $rule);
 
     # Identify path from source to destination if not known.
     if (not exists $path_store->{path}->{$to_store}) {
@@ -12359,42 +12354,26 @@ sub path_walk {
             and my $loop_entry = $in->{loop_entry}->{$to_store}) # ...to dest.
         {
             my $loop_exit = $loop_entry->{loop_exit}->{$to_store};# exit object.
-            my $loop_out  = $in->{path}->{$to_store};# exit interface
 
             my $exit_at_router = # last node of loop is a router ? 1 : 0 
-              loop_path_walk($in, $loop_out, $loop_entry, $loop_exit,
+              loop_path_walk($in, $out, $loop_entry, $loop_exit,
                 $at_zone, $rule, $fun); # Process whole loop path.
  
-            # End of path has been reached.
-            if (not $loop_out) {
-
-#               debug("exit: path_walk: reached dst in loop");
-                return;
-            }
-
             # Prepare next iteration step.
-            $call_it = not($exit_at_router xor $at_zone);
-            $in      = $loop_out;
-            $out     = $in->{path}->{$to_store};
+            $call_it = ($exit_at_router xor $at_zone);
         }
 
         # Non-loop path continues - call function, if switch is set.
-        else {
-            if ($call_it) {
-                $fun->($rule, $in, $out);
-            }
-
-            # Return, if end of path has been reached.
-            if (not $out) {
-#               debug("exit: path_walk: reached dst");
-                return;
-            }
-            
-            # Prepare next iteration otherwise.
-            $call_it = !$call_it;
-            $in      = $out;
-            $out     = $in->{path}->{$to_store};
+        elsif ($call_it) {
+            $fun->($rule, $in, $out);
         }
+            
+        # Return, if end of path has been reached.
+        $in      = $out or return;
+
+        # Prepare next iteration otherwise.
+        $out     = $in->{path}->{$to_store};
+        $call_it = !$call_it;
     }
     return;
 }
@@ -18063,6 +18042,7 @@ sub compile {
 
     concurrent(
         sub {
+            return;
             check_unused_groups();
             check_supernet_rules();
             check_expanded_rules();
@@ -18076,10 +18056,11 @@ sub compile {
             gen_reverse_rules();
             mark_secondary_rules();
             if ($out_dir) {
-                rules_distribution();
 #                DB::enable_profile();
-                print_code($out_dir);
+                rules_distribution();
+                exit;
 #                DB::disable_profile();
+                print_code($out_dir);
                 copy_raw($in_path, $out_dir);
             }
         });
