@@ -11427,10 +11427,6 @@ sub get_path {
     return ($obj2path{$obj} = $result);
 }
 
-# When used as hash keys, Perl converts references to address strings - 
-# this  hash is used to convert them back to references. 
-my %key2obj;
-
 ##############################################################################
 # Purpose    : Recursively find path through a loop or loop cluster for a 
 #              given pair (start, end) of loop nodes, collect path information. 
@@ -11555,11 +11551,10 @@ sub cluster_path_mark1 {
         }
     }
 
-    my $get_next = is_router($obj) ? 'zone' : 'router';
-    my $success = 0;
-
-    # Fill hash for restoring references from hash key.
-    $key2obj{$in_intf} = $in_intf;
+    my $is_router   = ref $obj eq 'Router';
+    my $get_next    = $is_router ? 'zone' : 'router';
+    my $type_tuples = $path_tuples->{$is_router ? 'router' : 'zone'};
+    my $success     = 0;
 
     # Extract navigation lookup hash.
     my $allowed = $navi->{ $obj->{loop} }
@@ -11584,9 +11579,8 @@ sub cluster_path_mark1 {
         {
 
             # ...collect path information.
-            $key2obj{$interface} = $interface;
-            $path_tuples->{$in_intf}->{$interface} = is_router($obj);
 #	    debug(" loop: $in_intf->{name} -> $interface->{name}");
+            push @$type_tuples, [ $in_intf, $interface ];
             $success = 1;
         }
     }
@@ -11927,8 +11921,10 @@ sub cluster_path_mark {
 
         # Create variables to store the loop path. 
         my $loop_enter  = [];# Interfaces of $from, where path enters cluster.
-        my $path_tuples = {};# Tuples of interfaces, describing all valid paths.
         my $loop_leave  = [];# Interfaces of $to, where cluster is left.
+
+        # Tuples of interfaces, describing all valid paths.
+        my $path_tuples = { router => [], zone => [] };
         
         # Create navigation look up hash to reduce search space in loop cluster.
         my $navi = cluster_navigation($from, $to)
@@ -11975,27 +11971,22 @@ sub cluster_path_mark {
         # Don't store incomplete result.
         last BLOCK if not $success;
 
-        # Convert $path_tuples: {intf->intf->node_type} to different
-        # arrays of [intf,intf].
-        # Router interfaces, zone interfaces, and both as reversed arrays.
+        # Remove duplicates from path tuples.
+        # Create path tuples for
+        # router interfaces, zone interfaces, and both as reversed arrays.
         my (@router_tuples, @zone_tuples);
         my (@rev_router_tuples, @rev_zone_tuples);
-        for my $in_intf_ref (keys %$path_tuples) {
-            my $in_intf = $key2obj{$in_intf_ref};
-            my $hash = $path_tuples->{$in_intf_ref};
-            for my $out_intf_ref (keys %$hash) {
-                my $out_intf = $key2obj{$out_intf_ref};
-                my $at_router = $hash->{$out_intf_ref};
-                if ($at_router) {
-                    push @router_tuples, [ $in_intf, $out_intf ];
-                    push @rev_router_tuples, [ $out_intf, $in_intf ];
-                }
-                else {
-                    push @zone_tuples, [ $in_intf, $out_intf ];
-                    push @rev_zone_tuples, [ $out_intf, $in_intf ];
-                }
-
-#		debug("Tuple: $in_intf->{name}, $out_intf->{name} $at_router");
+        for my $type (keys %$path_tuples) {
+            my $tuples = $type eq 'router' ? \@router_tuples : \@zone_tuples;
+            my $rev_tuples = 
+                $type eq 'router' ? \@rev_router_tuples : \@rev_zone_tuples;
+            my %seen;
+            for my $tuple (@{ $path_tuples->{$type} }) {
+                my ($in_intf, $out_intf) = @$tuple;
+                next if $seen{$in_intf}->{$out_intf}++;
+                push @$tuples, $tuple;
+                push @$rev_tuples, [ $out_intf, $in_intf ];
+#		debug("Tuple: $in_intf->{name}, $out_intf->{name} $type");
             }
         }
 
@@ -16048,7 +16039,6 @@ sub rules_distribution {
 
     # No longer needed, free some memory.
     %obj2path       = ();
-    %key2obj        = ();
     return;
 }
 
@@ -17990,7 +17980,6 @@ sub init_global_vars {
     %ref2obj            = %ref2prt = ();
     %obj2zone           = ();
     %obj2path           = ();
-    %key2obj            = ();
     %border2obj2auto    = ();
     @duplicate_rules    = @redundant_rules = ();
     %missing_supernet   = ();
