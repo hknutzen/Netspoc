@@ -11975,17 +11975,25 @@ sub cluster_path_mark {
         # Don't store incomplete result.
         last BLOCK if not $success;
 
-        # Convert $path_tuples: {intf->intf->node_type} to [intf,intf,node_type]
-        my @tuples;
-        my @rev_tuples;
+        # Convert $path_tuples: {intf->intf->node_type} to different
+        # arrays of [intf,intf].
+        # Router interfaces, zone interfaces, and both as reversed arrays.
+        my (@router_tuples, @zone_tuples);
+        my (@rev_router_tuples, @rev_zone_tuples);
         for my $in_intf_ref (keys %$path_tuples) {
             my $in_intf = $key2obj{$in_intf_ref};
             my $hash = $path_tuples->{$in_intf_ref};
             for my $out_intf_ref (keys %$hash) {
                 my $out_intf = $key2obj{$out_intf_ref};
                 my $at_router = $hash->{$out_intf_ref};
-                push @tuples, [ $in_intf, $out_intf, $at_router ];
-                push @rev_tuples, [ $out_intf, $in_intf, $at_router ];
+                if ($at_router) {
+                    push @router_tuples, [ $in_intf, $out_intf ];
+                    push @rev_router_tuples, [ $out_intf, $in_intf ];
+                }
+                else {
+                    push @zone_tuples, [ $in_intf, $out_intf ];
+                    push @rev_zone_tuples, [ $out_intf, $in_intf ];
+                }
 
 #		debug("Tuple: $in_intf->{name}, $out_intf->{name} $at_router");
             }
@@ -11997,12 +12005,14 @@ sub cluster_path_mark {
         # Add loop path information to start node or interface.
         $start_store->{loop_enter}->{$end_store}  = $loop_enter;
         $start_store->{loop_leave}->{$end_store}  = $loop_leave;
-        $start_store->{path_tuples}->{$end_store} = \@tuples;
+        $start_store->{router_path_tuples}->{$end_store} = \@router_tuples;
+        $start_store->{zone_path_tuples}->{$end_store} = \@zone_tuples;
 
         # Add data for reverse path.
         $end_store->{loop_enter}->{$start_store} = $loop_leave;
         $end_store->{loop_leave}->{$start_store} = $loop_enter;
-        $end_store->{path_tuples}->{$start_store} = \@rev_tuples;
+        $end_store->{router_path_tuples}->{$start_store} = \@rev_router_tuples;
+        $end_store->{zone_path_tuples}->{$start_store} = \@rev_zone_tuples;
     }
 
     # Restore temporarily moved path restrictions.
@@ -12235,14 +12245,13 @@ sub loop_path_walk {
     }
 
     # Process paths inside cyclic graph.
-    my $path_tuples = $loop_entry->{path_tuples}->{$loop_exit};
+    my $path_tuples = 
+        $loop_entry
+        ->{$call_at_zone ? 'zone_path_tuples' : 'router_path_tuples'}
+        ->{$loop_exit};
 
 #    debug(" loop_tuples");
-    for my $tuple (@$path_tuples) {
-        my ($in_intf, $out_intf, $at_router) = @$tuple;
-        $fun->($rule, $in_intf, $out_intf)
-          if $at_router xor $call_at_zone;
-    }
+    $fun->($rule, @$_) for @$path_tuples;
 
     # Process paths at exit of cyclic graph.
     my $exit_type = ref $loop_exit;
@@ -18042,7 +18051,6 @@ sub compile {
 
     concurrent(
         sub {
-            return;
             check_unused_groups();
             check_supernet_rules();
             check_expanded_rules();
@@ -18058,7 +18066,6 @@ sub compile {
             if ($out_dir) {
 #                DB::enable_profile();
                 rules_distribution();
-                exit;
 #                DB::disable_profile();
                 print_code($out_dir);
                 copy_raw($in_path, $out_dir);
