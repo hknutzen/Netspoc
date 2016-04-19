@@ -2341,11 +2341,10 @@ sub pass2 {
         apply_concurrent(\&pass2_file, \@pass2_list, $concurrent);
     }
 
-    # Remove directory '.prev', if created by pass1.
-    # Don't remove if '.prev' is symlink created by newpolicy.pl.
-    if ($has_prev and not -l $prev) {
-        system("rm -rf $prev") == 0 or
-            fatal_err("Can't remove $prev: $!");
+    # Remove directory '.prev' created by pass1
+    # or remove symlink '.prev' created by newpolicy.pl.
+    if ($has_prev) {
+        system("rm -rf $prev") == 0 or fatal_err("Can't remove $prev: $!");
     }
 }
 
