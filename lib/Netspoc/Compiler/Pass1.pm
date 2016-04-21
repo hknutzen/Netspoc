@@ -11691,7 +11691,10 @@ sub cluster_path_mark {
     my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
 
     # This particular path through this sub-graph is already known.
-    return 1 if $from_in->{path}->{$to_store};
+#    debug "Try path: $from_in->{name} -> $to_store->{name}";
+    if (exists $from_in->{path}->{$to_store}) {
+        return 1;
+    }
 
     # Allow easy checks for whether source or destination are pathrestricted 
     # interfaces in or at border of current loop by setting these, if so.
@@ -12055,6 +12058,7 @@ sub cluster_path_mark {
     # If loop path was found, set path information at $from_in and $to_out IFs.
     # TODO: Needed only if paths meet in loop, otherwise path_mark sets these.
     if ($success) {
+#        debug "Cache path: $from_in->{name} -> $to_store->{name}";
         $from_in->{path}->{$to_store} = $to_out; 
     }
     return $success;
