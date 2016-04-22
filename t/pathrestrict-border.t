@@ -371,6 +371,70 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mixed start and entry at pathrestriction at border of loop';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; 
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;  }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:restrict1 = 
+ interface:r2.n1,
+ interface:r3.n2,
+;
+service:s1 = {
+ user = interface:r3.n2;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ permit tcp host 10.1.2.3 10.1.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.3.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 81
+ deny ip any any
+--r2
+ip access-list extended n2_in
+ deny ip any host 10.1.1.2
+ permit tcp host 10.1.2.3 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Valid pathrestriction at unmanged router';
 ############################################################
 
