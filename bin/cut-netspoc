@@ -208,6 +208,7 @@ sub path_unmanaged {
     my $result = 0;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
+        next if $interface->{main_interface};
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
@@ -225,6 +226,7 @@ sub mark_unmanaged {
 	next if not $network->{is_used};
 #        debug "Path unmanaged $network->{name}";
 	for my $interface (@{ $network->{interfaces} }) {
+            next if $interface->{main_interface};
 	    my $router = $interface->{router};
 #	    debug "Try $router->{name} $interface->{name}";
 	    if (path_unmanaged($router, $interface)) {

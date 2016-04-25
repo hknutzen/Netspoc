@@ -310,6 +310,57 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove interface with multiple IP addresses';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.16/28;}
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.82; hardware = t1; }
+}
+network:t1 = { ip = 10.9.1.80/28; }
+network:t2 = { ip = 10.9.2.80/28; }
+
+router:r2 = {
+ interface:t1 = { ip = 10.9.1.83; }
+ interface:t2 = { ip = 10.9.2.83, 10.9.2.85; }
+ interface:n2;
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.16/28;}
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.82; hardware = t1; }
+}
+network:t1 = { ip = 10.9.1.80/28; }
+router:r2 = {
+ interface:t1 = { ip = 10.9.1.83; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Used aggregate with owner';
 ############################################################
 
