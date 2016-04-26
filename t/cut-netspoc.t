@@ -361,6 +361,64 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mark interface, if only virtual is used';
+############################################################
+
+$in = <<'END';
+network:u = { ip = 10.9.9.0/24; }
+
+router:g = {
+ managed;
+ model = IOS, FW;
+ interface:u = {ip = 10.9.9.1; hardware = F0;}
+ interface:a = {ip = 10.1.1.9; hardware = F1;}
+}
+network:a = { ip = 10.1.1.0/24;}
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E4;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+}
+network:b  = { ip = 10.2.2.0/24; }
+pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
+service:test = {
+ user = network:u;
+ permit src = user; dst = network:b; prt = ip;
+}
+END
+
+$out = <<'END';
+network:u = { ip = 10.9.9.0/24; }
+router:g = {
+ managed;
+ model = IOS, FW;
+ interface:u = {ip = 10.9.9.1; hardware = F0;}
+ interface:a = {ip = 10.1.1.9; hardware = F1;}
+}
+network:a = { ip = 10.1.1.0/24;}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E4;}
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+}
+network:b  = { ip = 10.2.2.0/24; }
+service:test = {
+ user = network:u;
+ permit src = user; dst = network:b; prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Used aggregate with owner';
 ############################################################
 

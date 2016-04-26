@@ -463,6 +463,14 @@ for my $router (values %routers) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
+        if (my $main = 
+            $interface->{main_interface} || $interface->{orig_main})
+        {
+            $main->{is_used} = 1;
+        }
+    }
+    for my $interface (get_intf($router)) {
+        $interface->{is_used} or next;
 
 	# Remove unused networks referenced in attribute reroute_permit.
 	if (my $networks = $interface->{reroute_permit}) {
@@ -568,7 +576,7 @@ for my $router (values %routers) {
         # Ignore secondary and virtual interfaces.
         next if $name =~ s/[.]\w+$//;
 
-#        progress("- $name");
+#        progress("- $interface->{name}");
         remove_attribute_src_code($name, $router);
     }
 }
