@@ -10696,6 +10696,14 @@ sub check_virtual_interfaces {
 ####################################################################
 # Check pathrestrictions
 ####################################################################
+
+sub get_loop {
+    my ($interface) = @_;
+    return    $interface->{loop} 
+           || $interface->{router}->{loop} 
+           || $interface->{zone}->{loop};
+}
+
 # Purpose : Collect proper & effective pathrestrictions in a global array.
 #           Pathrestrictions have to fulfill following requirements:
 #           - Located inside or at the border of cycles.
@@ -10716,10 +10724,7 @@ sub check_pathrestrictions {
         for my $interface (@$elements) {
             next if $interface->{disabled};
             my $router = $interface->{router};
-            my $loop =
-                 $interface->{loop}
-              || $router->{loop}
-              || $interface->{zone}->{loop};
+            my $loop = get_loop($interface);
 
             # This router is split part of an unmanaged router.
             # It has exactly two non secondary interfaces.
@@ -10793,7 +10798,7 @@ sub check_pathrestrictions {
 
         # Pathrestrictions in loops with > 1 zone cluster have an effect.
         my $element      = $elements->[0];
-        my $loop         = $element->{loop};
+        my $loop         = get_loop($element);
         my $zone         = $element->{zone};
         my $zone_cluster = $zone->{zone_cluster} || [$zone];
 
