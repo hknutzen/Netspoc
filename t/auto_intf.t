@@ -614,7 +614,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Ignore interface with pathrestriction at border of loop';
+$title = 'Ignore interface with pathrestriction at border of loop (1)';
 ############################################################
 
 $in = <<'END';
@@ -667,6 +667,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Ignore interface with pathrestriction at border of loop (2)';
+############################################################
+
+$in = <<'END';
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3  = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+pathrestriction:p1 = interface:r1.n2, interface:r2.n2;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.[auto]; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Find auto interface with pathrestriction in loop';
 ############################################################
 
@@ -713,6 +759,59 @@ object-group network g0
 access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 object-group g0 eq 22
 access-list n3_in extended deny ip any any
 access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Find auto interface with pathrestriction at border of loop at zone';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; 
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;  }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+pathrestriction:restrict1 = 
+ interface:r2.n1,
+ interface:r3.n2,
+;
+service:s1 = {
+ user = interface:r3.[auto];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r2
+ip access-list extended n2_in
+ deny ip any host 10.1.1.2
+ permit tcp host 10.1.2.3 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
 END
 
 test_run($title, $in, $out);
@@ -844,7 +943,7 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'Multiple auto interfaces in src and dst with pathrestriction';
 ############################################################
-# pathrestriction leads to mor complicated expansion of auto interfaces,
+# pathrestriction leads to more complicated expansion of auto interfaces,
 # because result is different for different destinations.
 $in .= <<'END';
 pathrestriction:r = interface:r1.n4, interface:r3.n3;

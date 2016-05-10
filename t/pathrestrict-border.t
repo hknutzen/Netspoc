@@ -9,6 +9,174 @@ use Test_Netspoc;
 
 my ($title, $topo, $in, $out);
 
+
+############################################################
+# Shared topology for multiple tests.
+############################################################
+$topo = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+# Loop 1
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2  = {
+ routing = manual;
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; } 
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+# Loop end
+
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+# Loop 2
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r5 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+# Loop end
+
+# Pathrestriction at border of loop 1 at router.
+pathrestriction:p1 = interface:r2.n1, interface:r2.n3;
+
+# Pathrestriction at border of loop 2 at zone.
+pathrestriction:p2 = interface:r3.n4, interface:r5.n4;
+END
+
+############################################################
+$title = 'Linear path from PR interface at border of loop at router';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = interface:r2.n3;
+ permit src = user; dst = network:n4; prt = udp 514;
+}
+END
+
+$out = <<'END';
+--r3
+ip access-list extended n3_in
+ deny ip any host 10.1.4.1
+ permit udp host 10.1.3.1 10.1.4.0 0.0.0.255 eq 514
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit udp 10.1.4.0 0.0.0.255 eq 514 host 10.1.3.1
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Linear path from PR interface at border of loop at zone';
+############################################################
+
+$in = $topo . <<'END';
+service:s2 = {
+ user = interface:r3.n4;
+ permit src = user; dst = network:n3; prt = udp 514;
+}
+END
+
+$out = <<'END';
+--r3
+ip access-list extended n3_in
+ permit udp 10.1.3.0 0.0.0.255 eq 514 host 10.1.4.1
+ deny ip any any
+--
+ip access-list extended n4_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Cyclic path from PR interface at border of loop at zone';
+############################################################
+
+# Name routers in mixed order, such that zone1 is placed inside loop.
+$in = <<'END';
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {  ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = {  ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3;}
+}
+network:n3 = { ip = 10.1.3.0/24;}
+
+router:r0 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+network:n4 = {  ip = 10.1.4.0/24;}
+
+pathrestriction:p1 = interface:r4.n1, interface:r1.n2;
+pathrestriction:p2 = interface:r2.n1, interface:r0.n3;
+
+service:s1 = {
+ user = interface:r4.[auto];
+ permit src = user; dst = network:n4; prt = udp 514;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit udp host 10.1.1.1 10.1.4.0 255.255.255.0 eq 514
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r2
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+# Changed topology for multiple tests.
+############################################################
 $topo = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 
@@ -430,6 +598,65 @@ ip access-list extended n2_in
  deny ip any host 10.1.1.2
  permit tcp host 10.1.2.3 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Path ends at pathrestricted interface of zone at border of loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+}
+
+pathrestriction:restrict1 = interface:r2.n2, interface:r4.n4;
+pathrestriction:restrict2 = interface:r3.n3, interface:r3.n4;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r4.n4; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.4.3 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--r3
+! n3_in
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
 END
 
 test_run($title, $in, $out);

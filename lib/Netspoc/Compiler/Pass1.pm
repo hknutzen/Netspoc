@@ -4419,16 +4419,6 @@ sub link_pathrestrictions {
                 next;
             }
 
-            # Add pathrestriction to interface.
-            # Multiple restrictions may be applied to a single
-            # interface.
-            push @{ $obj->{path_restrict} }, $restrict;
-
-            # Unmanaged router with pathrestriction is handled specially.
-            # It is separating zones, but gets no code.
-            my $router = $obj->{router};
-            $router->{managed} or $router->{semi_managed} = 1;
-
             # Pathrestrictions must not be applied to secondary interfaces
             $obj->{main_interface}
               and err_msg "secondary $obj->{name} must not be used",
@@ -4467,6 +4457,20 @@ sub link_pathrestrictions {
         }
         elsif ($count == 0) {
             warn_msg("Ignoring $restrict->{name} without elements");
+        }
+
+        # Add pathrestriction to interface, after invalid
+        # pathrestrictions have been removed.
+        for my $obj (@{ $restrict->{elements} }) {
+            # Add pathrestriction to interface.
+            # Multiple restrictions may be applied to a single
+            # interface.
+            push @{ $obj->{path_restrict} }, $restrict;
+
+            # Unmanaged router with pathrestriction is handled specially.
+            # It is separating zones, but gets no code.
+            my $router = $obj->{router};
+            $router->{managed} or $router->{semi_managed} = 1;
         }
 
         # Add pathrestriction to tunnel interfaces,
@@ -10725,6 +10729,7 @@ sub check_pathrestrictions {
             next if $interface->{disabled};
             my $router = $interface->{router};
             my $loop = get_loop($interface);
+            my $loop_intf = $interface;
 
             # This router is split part of an unmanaged router.
             # It has exactly two non secondary interfaces.
@@ -10740,6 +10745,7 @@ sub check_pathrestrictions {
                         my $elements = $restrict->{elements};
                         aref_subst($elements, $interface, $other);
                     }
+                    $loop_intf = $other;
                 }
             }
 
@@ -10769,6 +10775,13 @@ sub check_pathrestrictions {
             else {
                 $prev_cluster   = $cluster;
                 $prev_interface = $interface;
+            }
+
+            # Mark pathrestricted interface at border of loop,
+            # where loop node is a zone.
+            # This needs special handling during path_mark and path_walk
+            if (not $loop_intf->{loop} and $loop_intf->{zone}->{loop}) {
+                $loop_intf->{loop_zone_border} = 1;
             }
         }
 
@@ -11528,10 +11541,10 @@ sub cluster_path_mark1 {
 
     # Stop exploration if optimized pathrestriction inhibits reaching end node.
     # This is not grouped with other PR checks to avoid unneccessary execution.
-    if ($reachable_at) {
+    # $end_intf has already been checked above.
+    if ($reachable_at and not $end_intf) {
         if (my $reachable = $reachable_at->{$obj}) {
-            my $end_node = $end_intf ? $end_intf->{zone} : $end;#for consistency
-            my $has_mark = $end_node->{reachable_part};
+            my $has_mark = $end->{reachable_part};
             for my $mark (@$reachable) {
                 if (!$has_mark->{$mark}) {
 #                   debug(" unreachable3: $end_node->{name}",
@@ -11677,97 +11690,86 @@ sub cluster_navigation {
 }
 
 ##############################################################################
-# Purpose    : Collect path information through a loop for a pair ($from,$to)
-#              of loop nodes, store it at the object where loop paths begins.
-# Parameters : $from - node (zone or router) loop cluster is entered at
-#              $to - node (zone or router) loop cluster is left at.
-#              $from_in - interface $from is entered at 
-#              $to_out - interface $to is left at. 
-#              $from_store - source node or interface reference, if source is a 
-#                            pathrestricted interface.  
-#              $to_store - destination node or interface reference, if 
-#                          destination is a pathrestricted interface.
-# Returns    : True if a valid path was found, False otherwise.
+# Purpose    : Collect path information through a loop for a pair of 
+#              loop nodes (zone or router).
+#              Store it at the object where loop paths begins.
+# Parameters : $start_store - source loop node or interface, if source 
+#                             is a pathrestricted interface of loop.
+#              $end_store - destination loop node or interface, if destination
+#                           is a pathrestricted interface of loop.
+# Returns    : True if a valid path was found, false otherwise.
 # Results    : Loop entering interface holds reference to where loop path 
-#              information is stored (starting at node or pathrestricted IF
-#              may lead to different paths). Referenced object holds loop path 
-#              description.
+#              information is stored.
+#              (Starting or ending at pathrestricted interface may lead
+#               to different paths than for a simple node). 
+#              Referenced object holds loop path description.
 sub cluster_path_mark {
-    my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
+    my ($start_store, $end_store) = @_;
 
-    # This particular path through this sub-graph is already known.
-#    debug "Try path: $from_in->{name} -> $to_store->{name}";
-    if (exists $from_in->{path}->{$to_store}) {
+    # Path from $start_store to $end_store has been marked already.
+    if ($start_store->{loop_enter}->{$end_store}) {
         return 1;
     }
 
-    # Allow easy checks for whether source or destination are pathrestricted 
-    # interfaces in or at border of current loop by setting these, if so.
+    # Entry and exit nodes inside loop.
+    my ($from, $to);
+
+    # Set variables, if path starts/ends at pathrestricted interface
+    # inside of loop.
     my ($start_intf, $end_intf);
 
-    # Define objects to store path information in by setting these. 
-    # Path may differ depending on whether loop entering IF is pathrestricted
-    # or not. Storing path information in different objects respects this.
-    my ($start_store, $end_store);
+    # Set variables, if path starts or enters loop at pathrestricted
+    # interface at border of loop.
+    # Corresponding loop node is always a router, because zones case
+    # has been transformed before.
+    my ($from_in, $to_out);
 
-    # Set declared variables.
-    if (is_interface($from_store) # Src is pathrestricted IF of $from loop node.
-        and ($from_store->{router} eq $from or $from_store->{zone} eq $from))
-    {
-        $start_intf  = $from_store;
-        $start_store = $from_store;
-    }
-     elsif ($from_in # Loop is entered from  pathrestricted interface.
-        and ($from_in->{path_restrict} or $from_in->{reachable_at}))
-    {
-        $start_store = $from_in;
+    if (is_interface($start_store)) {
+        if ($start_store->{loop}) {
+            $start_intf = $start_store;
+        }
+        else {
+            $from_in = $start_store;
+        }
+        $from =    $start_store->{loop_zone_border} && $start_store->{zone} 
+                || $start_store->{router};
     }
     else {
-        $start_store = $from;
+        $from = $start_store;
     }
-
-    if (is_interface($to_store) # Dst is pathrestricted IF of $to loop node.
-        and ($to_store->{router} eq $to or $to_store->{zone} eq $to))
-    {
-        $end_intf  = $to_store;
-        $end_store = $to_store;
-    }
-    elsif ($to_out # Loop is left at pathrestricted interface.
-           and ($to_out->{path_restrict} or $to_out->{reachable_at})) {
-        $end_store = $to_out;
+    if (is_interface($end_store)) {
+        if ($end_store->{loop}) {
+            $end_intf = $end_store;
+        }
+        else {
+            $to_out = $end_store;
+        }
+        $to =    $end_store->{loop_zone_border} && $end_store->{zone} 
+              || $end_store->{router};
     }
     else {
-        $end_store = $to;
+        $to = $end_store;
     }
 
+#    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
+#    debug(" $from->{name} -> $to->{name}");
     my $success         = 1;
     my $from_interfaces = $from->{interfaces};
-#    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
 
-    # Activate pathrestrictions at interface the loop is entered at.
-    if (    $from_in
-        and not $from_in->{loop} # Loop path is entered from outside loop via
-        and (my $restrictions = $from_in->{path_restrict}) # pathrestricted IF
-        and not $start_intf) # that is not source of path.
-    {
-        for my $restrict (@$restrictions) {# set flag for passed p-restrictions
-            $restrict->{active_path} = 1;
-        }
-    }
+    # Activate pathrestriction at border of loop.
+    for my $intf ($from_in, $to_out) {
+        if (    $intf
+            and (my $restrictions = $intf->{path_restrict}))
+        {
+            for my $restrict (@$restrictions) {
 
-    # Activate pathrestrictions at interface the loop is left at.
-    if (    $to_out
-        and not $to_out->{loop} # Loop path is left via
-        and (my $restrictions = $to_out->{path_restrict}) # pathrestricted IF
-        and not $end_intf) # that is not destination of path.
-    {
-        for my $restrict (@$restrictions) {
-
-            # No path possible, if restriction was activated at in_interface.
-            if ($restrict->{active_path}) {
-                $success = 0;
+                # No path possible, if restriction has been just
+                # activated at other side of loop.
+                if ($restrict->{active_path}) {
+                    $success = 0;
+                }
+                $restrict->{active_path} = 1;
             }
-            $restrict->{active_path} = 1;
         }
     }
 
@@ -11787,16 +11789,15 @@ sub cluster_path_mark {
 
         # Check, whether enter-/start-interface has optimized pathrestriction. 
         my $intf = $start_intf || $from_in;
-        my $reachable_at = $intf->{reachable_at}        or last REACHABLE;
+        my $reachable_at = $intf->{reachable_at} or last REACHABLE;
 
         # Check, whether end node is reachable from enter-/start-interface.
         # For enter-interfaces, just the direction towards loop is of interest,
         # for start-interfaces, pathrestrictions in zone direction do not hold,
         # hence check router direction only.
         # Only one direction needs to be checked in both cases.
-        my $start_node = $start_intf ? $start_intf->{router} : $from;
-        my $reachable    = $reachable_at->{$start_node} or last REACHABLE;
-        my $has_mark     = $end_node->{reachable_part};
+        my $reachable = $reachable_at->{$from} or last REACHABLE;
+        my $has_mark  = $end_node->{reachable_part};
         for my $mark (@$reachable) {
 
             # End node is not reachable via enter-/start-interface.
@@ -11847,18 +11848,18 @@ sub cluster_path_mark {
     # (VRRP, HSRP), prevent traffic through other interfaces of this group
     # by temporarily adding activated pathrestrictions at redundancy interfaces.
     for my $intf ($start_intf, $end_intf) {
-        next if !$intf;
-        if (my $interfaces = $intf->{redundancy_interfaces}) {
-            for my $interface (@$interfaces) {
-                next if $interface eq $intf;
-                push @{ $interface->{path_restrict} },
-                  $global_active_pathrestriction;
-            }
+        $intf or next;
+        my $interfaces = $intf->{redundancy_interfaces} or next;
+        for my $interface (@$interfaces) {
+            next if $interface eq $intf;
+            push(@{ $interface->{path_restrict} },
+                 $global_active_pathrestriction);
         }
     }
 
-    # For start-/end interfaces (path starts or ends at an interface
-    # with pathrestriction), pathrestrictions are required to be activated 
+    # Handle start-/end-interfaces inside a loop 
+    # (path starts or ends at an interface with pathrestriction).
+    # For these interfaces, pathrestrictions are required to be activated 
     # in router, not in zone direction. The basic algorithm starts path 
     # exploration at the router of such an interface though. Per default, 
     # path restriction activation is therefore contrary to the requirements.
@@ -11868,11 +11869,10 @@ sub cluster_path_mark {
     # deleting it from the interface? Or let exploration start at the 
     # interfaces zone in this case (would lead to a gap within the marked path)?
     for my $intf ($start_intf, $end_intf) {
-        next if !$intf;
+        $intf or next;
 
-        # Check whether from/to node is router of start-/and-interface
+        # We know, that corresponding from/to node is a router.
         my $router = $intf->{router};
-        next if !($router eq $from || $router eq $to);
 
         # Delete pathrestriction from start/end interface 
         my $removed = delete $intf->{path_restrict} or next;
@@ -11906,44 +11906,28 @@ sub cluster_path_mark {
         }
     }
 
-  # Find loop paths via DFS.
+  # Find loop paths via depth first search.
   BLOCK:
     {
         last BLOCK if not $success; # No valid path due to pathrestrictions.
         $success = 0;
 
-        # Collect path information at beginning of loop path ($start_store).
-        # Loop paths beginning at loop node can differ depending on the way
-        # the node is entered (interface with/without pathrestriction,
-        # pathrestricted src/dst interface), requirings storing path 
-        # information at different objects.
-        # {loop_entry} attribute shows, where path information can be found.
-        $from_in->{loop_entry}->{$to_store}    = $start_store;# node or IF w. PR
-        $start_store->{loop_exit}->{$to_store} = $end_store;
-
-        # Path from $start_store to $end_store has been marked already.
-        if ($start_store->{loop_enter}->{$end_store}) {
-            $success = 1;
-            last BLOCK;
-        }
-
         # Create variables to store the loop path. 
-        my $loop_enter  = [];# Interfaces of $from, where path enters cluster.
-        my $loop_leave  = [];# Interfaces of $to, where cluster is left.
+        my $loop_enter  = []; # Interfaces of $from, where path enters cluster.
+        my $loop_leave  = []; # Interfaces of $to, where cluster is left.
 
         # Tuples of interfaces, describing all valid paths.
         my $path_tuples = { router => [], zone => [] };
         
         # Create navigation look up hash to reduce search space in loop cluster.
-        my $navi = cluster_navigation($from, $to)
-          or internal_err("Empty navi");
+        my $navi = cluster_navigation($from, $to) or internal_err("Empty navi");
 
         # Mark current path for loop detection.
         local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} }
           or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
-            " with empty navi");
+                          " with empty navi");
 
         # To find paths, process every loop interface of $from node.
         for my $interface (@$from_interfaces) {
@@ -12051,7 +12035,6 @@ sub cluster_path_mark {
     # Disable pathrestriction at border of loop.
     for my $intf ($from_in, $to_out) {
         if (    $intf
-            and not $intf->{loop}
             and (my $restrictions = $intf->{path_restrict}))
         {
             for my $restrict (@$restrictions) {
@@ -12060,56 +12043,140 @@ sub cluster_path_mark {
         }
     }
 
-    # If loop path was found, set path information at $from_in and $to_out IFs.
-    # TODO: Needed only if paths meet in loop, otherwise path_mark sets these.
-    if ($success) {
-#        debug "Cache path: $from_in->{name} -> $to_store->{name}";
-        $from_in->{path}->{$to_store} = $to_out; 
+    return $success;
+}
+
+sub connect_cluster_path {
+    my ($from, $to, $from_in, $to_out, $from_store, $to_store) = @_;
+
+    # Find objects to store path information inside loop.  
+    # Path may differ depending on whether loop entering and exiting
+    # interfaces are pathrestricted or not. Storing path information
+    # in different objects respects this.
+    my ($start_store, $end_store);
+
+    # Set flag, if path starts or ends at interface of zone at border of loop.
+    my ($start_at_zone, $end_at_zone);
+
+    # Path starts at pathrestricted interface inside or at border of 
+    # current loop.
+    if (not $from_in and is_interface($from_store)) {
+
+        # Path starts at border of current loop at zone node.
+        # Pathrestriction must not be activated, hence use zone as
+        # $start_store.
+        if ($from_store->{loop_zone_border}) {
+            $start_store = $from_store->{zone};
+            $start_at_zone = 1;
+        }
+
+        # Path starts inside or at border of current loop at router node.
+        else {
+            $start_store = $from_store;
+        }
     }
+
+    # Loop is entered at pathrestricted interface.
+    elsif ($from_in and ($from_in->{path_restrict} or $from_in->{reachable_at}))
+    {
+        $start_store = $from_in;
+    }
+
+    # Loop starts or is entered at $from node; no pathrestriction is effective.
+    else {
+        $start_store = $from;
+    }
+
+    # Set $end_store with same logic that is used for $start_store.
+    if (not $to_out and is_interface($to_store)) {
+        if ($to_store->{loop_zone_border}) {
+            $end_store = $to_store->{zone};
+            $end_at_zone = 1;
+        }
+        else {
+            $end_store = $to_store;
+        }
+    }
+    elsif ($to_out and ($to_out->{path_restrict} or $to_out->{reachable_at})) {
+        $end_store = $to_out;
+    }
+    else {
+        $end_store = $to;
+    }
+
+    my $success = cluster_path_mark($start_store, $end_store);
+
+    # If loop path was found, set path information for $from_in and
+    # $to_out interfaces and connect them with loop path.
+    if ($success) {
+
+        # Path ends at interface of zone at border of loop.
+        # Continue path to router of interface outside of loop.
+        if ($end_at_zone) {
+            $to_out = $to_store;
+        }
+
+        my $path_attr  = $from_in || $start_at_zone ? 'path' : 'path1';
+        my $path_store = $from_in || $from_store;
+        $path_store->{$path_attr}->{$to_store} = $to_out; 
+
+#        debug "loop $path_attr: $path_store->{name} -> $to_store->{name}";
+        # Collect path information at beginning of loop path ($start_store).
+        # Loop paths beginning at loop node can differ depending on the way
+        # the node is entered (interface with/without pathrestriction,
+        # pathrestricted src/dst interface), requiring storing path 
+        # information at different objects.
+        # Path information is stored at {loop_entry} attribute.
+        my $entry_attr = $start_at_zone ? 'loop_entry_zone' : 'loop_entry';
+        $path_store->{$entry_attr}->{$to_store} = $start_store;
+        $start_store->{loop_exit}->{$to_store} = $end_store;
+    }
+
     return $success;
 }
 
 ##############################################################################
-# Purpose   : Find and mark path from an elementary rules source to its 
-#             destination.   
-# Parameter : $from - zone or router corresponding to elementary rules source
-#             $to - zone or router corresponding to the rules destination
-#             $from_store - $from or interface reference, if source is a 
-#                           pathrestricted interface  
-#             $to_store - $to or interface reference, if destination is a 
-#                         pathrestricted interface 
+# Purpose   : Find and mark path from source to destination.   
+# Parameter : $from_store - Object, where path starts.
+#             $to_store   - Objects, where path ends
+#             Typically both are of type zone or router.
+#             For details see description of sub path_walk.
 # Returns   : True if valid path is found, False otherwise.
-# Results   : A reference to the next interface towards destination is stored
-#             in the {path} hash attribute of the source or its corresponding 
-#             zone/router and every interface object on path.
+# Results   : The next interface towards $to_store is stored in attribute
+#             - {path1} of $from_store and
+#             - {path} of subsequent interfaces on path.
 sub path_mark {
-    my ($from, $to, $from_store, $to_store) = @_;
+    my ($from_store, $to_store) = @_;
 
-#    debug("path_mark $froma_store->{name} --> $to_store->{name}");
-
+#   debug("path_mark $from_store->{name} --> $to_store->{name}");
+    my $from = $from_store->{router} || $from_store;
+    my $to   = $to_store->{router} || $to_store;
     my $from_loop = $from->{loop};
-    my $to_loop = $to->{loop};
+    my $to_loop   = $to->{loop};
 
-    # Identify first and last object on path to hold path information.
-    # Outside a loop, path marks are always stored in the corresponding router 
-    # object. Paths beginning at pathrestricted interfaces in loops can be 
-    # different though from the paths that are found for the associated router, 
-    # as in such cases, the interface is considered to be part of the zone 
-    # to achieve equal routing for all interfaces of a network. 
-    # To distinguish the different paths, path information is stored within
-    # the interface in such cases (otherwise it is stored within router).
-    my $from_in = $from_store->{loop} ? $from_store : $from; # Src obj. to mark
-    my $to_out = undef; # No subsequent interface for last interface on path.
+    # No subsequent interface before first and behind last node on path.
+    my $from_in = undef;
+    my $to_out  = undef;
 
     # Follow paths from source and destination towards zone1 until they meet.
     while (1) {
-# debug("Dist: $from->{distance} $from->{name} ->Dist: $to->{distance} $to->{name}");
+
+        #debug("Dist: $from->{distance} $from->{name} -> ",
+        #      "Dist: $to->{distance} $to->{name}");
 
         # Paths meet outside a loop or at the edge of a loop.
         if ($from eq $to) {
 
-#            debug(" $from_in->{name} -> ".($to_out ? $to_out->{name}:''));
-            $from_in->{path}->{$to_store} = $to_out;
+            # We need to distinguish between {path1} and {path} for
+            # the case, where $from_store is a pathrestricted
+            # interface I of zone at border of loop. In this case, the
+            # next interface is interface I again.
+            if ($from_in) {
+                $from_in->{path}->{$to_store} = $to_out;
+            }
+            else {
+                $from_store->{path1}->{$to_store} = $to_out;
+            }
             return 1;
         }
 
@@ -12118,15 +12185,15 @@ sub path_mark {
             && $to_loop
             && $from_loop->{cluster_exit} eq $to_loop->{cluster_exit})
         {
-            return cluster_path_mark($from, $to, $from_in, $to_out,
-                                     $from_store, $to_store);
+            return connect_cluster_path($from, $to, $from_in, $to_out,
+                                        $from_store, $to_store);
         }
 
         # Otherwise, take a step towards zone1 from the more distant node.
         if ($from->{distance} >= $to->{distance}) { # Take step from node $from.
 
             # Return, if mark has already been set for a sub-path.
-            return 1 if $from_in->{path}->{$to_store};
+            return 1 if $from_in and $from_in->{path}->{$to_store};
  
             # Get interface towards zone1.
             my $from_out = $from->{to_zone1};
@@ -12145,23 +12212,36 @@ sub path_mark {
                 return 0 if !$from_out;
                 
                 # Mark loop path towards next interface.
-                cluster_path_mark($from, $exit, $from_in, $from_out,
-                    $from_store, $to_store)
+                connect_cluster_path($from, $exit, $from_in, $from_out,
+                                     $from_store, $to_store)
                   or return 0;
             }
 
-#         debug(" $from_in->{name} -> ".($from_out ? $from_out->{name}:''));
             # Mark path at the interface we came from (step in path direction)
-            $from_in->{path}->{$to_store} = $from_out; #ref to next path IF
+#           debug(' ', $from_in ? $from_in->{name}:'', " -> $from_out->{name}");
+            if ($from_in) {
+                $from_in->{path}->{$to_store} = $from_out;
+            }
+            else {
+                $from_store->{path1}->{$to_store} = $from_out;
+            }
+            $from      = $from_out->{to_zone1};
+            $from_loop = $from->{loop};
 
-            # Go to next node towards zone1.
-            $from_in                      = $from_out;
-            $from                         = $from_out->{to_zone1};
-            $from_loop                    = $from->{loop};
+            # Don't set $from_in if we are about to enter a loop at zone,
+            # because pathrestriction at $from_in must not be activated.
+            if ($from_in or 
+                not ($from->{loop} and $from_store->{loop_zone_border}))
+            {
+
+                # Go to next node towards zone1.
+                $from_in   = $from_out;
+            }
         }
 
         # Take step towards zone1 from node $to (backwards on path).
         else {
+
             # Get interface towards zone1.
             my $to_in = $to->{to_zone1};
 
@@ -12179,19 +12259,26 @@ sub path_mark {
                 return 0 if !$to_in;
 
                 # Mark loop path towards next interface.
-                cluster_path_mark($entry, $to, $to_in, $to_out, $from_store,
-                    $to_store)
+                connect_cluster_path($entry, $to, $to_in, $to_out, 
+                                     $from_store, $to_store)
                   or return 0;
             }
 
-#             debug(" $to_in->{name} -> ".($to_out ? $to_out->{name}:''));
             # Mark path at interface we go to (step in opposite path direction).
+#            debug("path: $to_in->{name} -> $to_store->{name}".($to_out ? $to_out->{name}:''));
             $to_in->{path}->{$to_store} = $to_out;
+            $to = $to_in->{to_zone1};
+            $to_loop = $to->{loop};
 
-            # Go to next node towards zone1.
-            $to_out                     = $to_in;
-            $to                         = $to_in->{to_zone1};
-            $to_loop                    = $to->{loop};
+            # Don't set $to_out if we are about to enter a loop at zone,
+            # because pathrestriction at $to_out must not be activated.
+            if ($to_out or 
+                not ($to->{loop} and $to_store->{loop_zone_border}))
+            {
+
+                # Go to next node towards zone1.
+                $to_out  = $to_in;
+            }
         }
     }
     return 0;    # unused; only for perlcritic
@@ -12280,19 +12367,19 @@ sub loop_path_walk {
 sub path_walk {
     my ($rule, $fun, $where) = @_;
 
-    # Extract path node objects (zone/router/pathrestricted interface).
+    # Extract path store objects (zone/router/pathrestricted interface).
+    # These are typically zone or router objects:
+    # - zone object for network or host,
+    # - router object for interface without pathrestriction.
+    # But for interface with pathrestriction, we may get different
+    # paths for interfaces of the same router.
+    # Hence we can't use the router but use interface object for
+    # interface with pathrestriction.
     my ($from_store, $to_store) = @{$rule}{qw(src_path dst_path)};
 
-    # If path node is a pathrestricted interface, extract router. 
-    my $from = $from_store->{router} || $from_store;
-    my $to   = $to_store->{router}   || $to_store;
-
-    # Get access to stored paths - for pathrestricted IFs, take IF path store
-    # (allowed paths may differ from those of the associated router).
-    my $path_store = $from_store->{loop} ? $from_store : $from;
-
 #    debug(print_rule $rule);
-#    debug(" start: $from->{name}, $to->{name}" . ($where?", at $where":''));
+#    debug(" start: $from_store->{name}, $to_store->{name}",
+#          $where?", at $where":'');
 #    my $fun2 = $fun;
 #    $fun = sub  {
 #       my($rule, $in, $out) = @_;
@@ -12303,10 +12390,10 @@ sub path_walk {
 #    };
 
     # Identify path from source to destination if not known.
-    if (not exists $path_store->{path}->{$to_store}) {
-        if (!path_mark($from, $to, $from_store, $to_store)) { # Find path.
+    if (not exists $from_store->{path1}->{$to_store}) {
+        if (!path_mark($from_store, $to_store)) {
 
-            # Break, if path does not exist.
+            # Abort, if path does not exist.
             err_msg(
                 "No valid path\n",
                 " from $from_store->{name}\n",
@@ -12316,42 +12403,56 @@ sub path_walk {
                 "\n",
                 " Check path restrictions and crypto interfaces."
             );
-            delete $path_store->{path}->{$to_store};
+            delete $from_store->{path1}->{$to_store};
             return;
         }
     }
 
-    # Set switch whether to call function at first node visited (in 1.iteration)
+    # If path store is a pathrestricted interface, extract router. 
+    my $from = $from_store->{router} || $from_store;
+
+    # Set flag whether to call function at first node visited (in 1.iteration)
     my $at_zone = $where && $where eq 'Zone'; # 1, if func is called at zones. 
     my $call_it = (is_router($from) xor $at_zone); # Set switch accordingly. 
 
     my $in = undef;
-    my $out;
+    my $out = $from_store->{path1}->{$to_store};
+    my ($entry_hash, $loop_entry);
 
-    # If Path starts inside cyclic graph or at IF of router inside cyclic graph.
-    if (    $from->{loop}
-        and $from_store->{loop_exit} # Path exists for start node, leading to...
-        and my $loop_exit = $from_store->{loop_exit}->{$to_store}) # ...dst.
-    {
-        my $loop_out = $path_store->{path}->{$to_store};
+    # Path starts inside or at border of cyclic graph.
+    #
+    # Special case: Path starts at pathrestricted interface of
+    # zone at border of loop and hence this pathrestriction will
+    # not be activated. Use attribute loop_entry_zone, to find correct
+    # path in loop.
+    if (    $entry_hash = $from_store->{loop_entry_zone}
+        and $loop_entry = $entry_hash->{$to_store}) {
 
-        # ... walk loop path first.
-        my $exit_at_router =
-          loop_path_walk($in, $loop_out, $from_store, $loop_exit, $at_zone,
-            $rule, $fun);
-
-        if (not $loop_out) {
-#           debug("exit: path_walk: dst in loop");
-            return;
-        }
-
-        # Then prepare to begin with path behind loop.
-        $call_it = not($exit_at_router xor $at_zone);
-        $in      = $loop_out;
-        $out     = $in->{path}->{$to_store};
+        # Walk path starting at router outside of loop.
+        $fun->($rule, undef, $from_store) if $call_it;
+        $in = $from_store;
+        $out = $from_store->{path}->{$to_store};
     }
-    else {
-        $out = $path_store->{path}->{$to_store};
+
+    # Otherwise use attribute loop_entry, to find possibly
+    # pathrestricted path in loop.
+    elsif ($entry_hash = $from_store->{loop_entry}) {
+        $loop_entry = $entry_hash->{$to_store};
+    }
+
+    # Walk loop path.
+    if ($loop_entry)  {
+        my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
+        my $exit_at_router =
+          loop_path_walk($in, $out, $loop_entry, $loop_exit, $at_zone,
+                         $rule, $fun);
+
+        # Return, if end of path has been reached.
+        $in      = $out or return;
+
+        # Prepare to traverse path behind loop.
+        $out     = $in->{path}->{$to_store};
+        $call_it = not($exit_at_router xor $at_zone);
     }
 
     # Start walking path. 
@@ -12359,15 +12460,14 @@ sub path_walk {
 
         # Path continues with loop: walk whole loop path in this iteration step.
         if (    $in
-            and $in->{loop_entry} # In interface is entry to a loop path...
-            and my $loop_entry = $in->{loop_entry}->{$to_store}) # ...to dest.
+            and $entry_hash = $in->{loop_entry}
+            and $loop_entry = $entry_hash->{$to_store})
         {
-            my $loop_exit = $loop_entry->{loop_exit}->{$to_store};# exit object.
-
+            my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
             my $exit_at_router = # last node of loop is a router ? 1 : 0 
               loop_path_walk($in, $out, $loop_entry, $loop_exit,
-                $at_zone, $rule, $fun); # Process whole loop path.
- 
+                             $at_zone, $rule, $fun);
+
             # Prepare next iteration step.
             $call_it = ($exit_at_router xor $at_zone);
         }
@@ -12474,63 +12574,56 @@ sub path_auto_interfaces {
     my @result;
     for my $from_store (@from_list) {
         for my $to_store (@to_list) {
-
-            my $from = $from_store->{router} || $from_store;
-            my $to   = $to_store->{router}   || $to_store;
-
-            if (!$from_store->{path}->{$to_store}) {
-                if (!path_mark($from, $to, $from_store, $to_store)) {
-                    delete $from_store->{path}->{$to_store};
+            if (!$from_store->{path1}->{$to_store}) {
+                if (!path_mark($from_store, $to_store)) {
+                    delete $from_store->{path1}->{$to_store};
                     next;
                 }
             }
-            if ($from_store->{loop_exit}
-                and my $exit = $from_store->{loop_exit}->{$to_store})
+            my $type = ref $from_store;
+            if ($from_store->{loop_entry_zone} and
+                $from_store->{loop_entry_zone}->{$to_store})
             {
-                my $enter = $from_store->{loop_enter}->{$exit};
-                if (is_interface($from_store)) {
-
-                    # Path is only ok, if it doesn't traverse
-                    # corrensponding router.
-                    my $path_ok;
-
-                    # Path starts inside loop.
-                    # Check if some path doesn't traverse current router.
-                    # Then interface is ok as [auto] interface.
-                    if ($from_store->{loop}) {
-                        if (grep { $_ eq $from_store } @$enter) {
-                            $path_ok = 1;
-                        }   
-                    }
-
-                    # Otherwise path starts at border of loop.
-                    # If node inside the loop is a zone, then node
-                    # outside the loop is a router and interface is ok
-                    # as [auto] interface.
-                    elsif(not $from->{loop}) {
-                        $path_ok = 1;
-                    }
-                    push @result, $from_store if $path_ok;
-                }
-                elsif (not is_router($from)) {
+                push @result, $from_store;
+            }
+            elsif ($from_store->{loop_entry} and
+                my $entry = $from_store->{loop_entry}->{$to_store}) 
+            {
+                my $exit  = $entry->{loop_exit}->{$to_store};
+                my $enter = $entry->{loop_enter}->{$exit};
+                if ($type eq 'Zone') {
                     push @result, map { auto_intf_in_zone($_, $src2) } @$enter;
                 }
-                else {                    
+                elsif ($type eq 'Router') {
                     push @result, @$enter;
+                }
+
+                # $type eq 'Interface'
+                # Path is only ok, if it doesn't traverse
+                # corrensponding router.
+                # Path starts inside loop.
+                # Check if some path doesn't traverse current router.
+                # Then interface is ok as [auto] interface.
+                elsif ($from_store->{loop}) {
+                    if (grep { $_ eq $from_store } @$enter) {
+                        push @result, $from_store;
+                    }   
                 }
             }
             else {
-                my $next = $from_store->{path}->{$to_store};
-                if (is_interface($from_store)) {
-                    if ($next and $next->{router} ne $from) {
-                        push @result, $from_store;
-                    }
-                }
-                elsif (not is_router($from)) {
+                my $next = $from_store->{path1}->{$to_store};
+                if ($type eq 'Zone') {
                     push @result, auto_intf_in_zone($next, $src2);
                 }
-                else {
+                elsif ($type eq 'Router') {
                     push @result, $next;
+                }
+
+                # $type eq 'Interface'
+                elsif ($next) {
+                    if($next->{router} ne $from_store->{router}) {
+                        push @result, $from_store;
+                    }
                 }
             }
         }
