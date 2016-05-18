@@ -174,7 +174,7 @@ network:customers2 = {
  radius_attributes = {
   vpn-idle-timeout = 120; 
   trust-point = ASDM_TrustPoint2;
- }
+  }
 
  host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63; 
@@ -186,7 +186,14 @@ network:customers2 = {
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } }
+  radius_attributes = { vpn-idle-timeout = 40; 
+                        trust-point = ASDM_TrustPoint3; }
+ }
+ host:id:domain.z = {
+  range = 10.99.2.128 - 10.99.2.191;
+  radius_attributes = { split-tunnel-policy = tunnelspecified;
+                        check-subject-name = ou; }
+ }
 }
 
 group:work = 
@@ -200,10 +207,13 @@ service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
  permit src = user; dst = group:work; prt = tcp 80; 
 }
-
 service:test2 = {
  user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
  permit src = user; dst = group:work; prt = tcp 81; 
+}
+service:test3 = {
+ user = host:id:domain.x.customers2, host:id:domain.z.customers2;
+ permit src = user; dst = group:work; prt = tcp 82;
 }
 END
 
@@ -233,7 +243,7 @@ tunnel-group VPN-single ipsec-attributes
 tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
---asavpn
+--
 ! vpn-filter-@domain.y
 access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any
 access-list vpn-filter-@domain.y extended deny ip any any
@@ -254,7 +264,7 @@ tunnel-group VPN-tunnel-@domain.y ipsec-attributes
 tunnel-group VPN-tunnel-@domain.y webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-@domain.y 10 VPN-tunnel-@domain.y
---asavpn
+--
 ! vpn-filter-bar@domain.x
 access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any
 access-list vpn-filter-bar@domain.x extended deny ip any any
@@ -300,6 +310,29 @@ tunnel-group VPN-tunnel-domain.x webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-domain.x 10 VPN-tunnel-domain.x
 --
+! vpn-filter-domain.z
+access-list vpn-filter-domain.z extended permit ip 10.99.2.128 255.255.255.192 any
+access-list vpn-filter-domain.z extended deny ip any any
+crypto ca certificate map ca-map-domain.z 10
+ subject-name attr ou co domain.z
+ip local pool pool-domain.z 10.99.2.128-10.99.2.191 mask 255.255.255.192
+group-policy VPN-group-domain.z internal
+group-policy VPN-group-domain.z attributes
+ address-pools value pool-domain.z
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+ vpn-filter value vpn-filter-domain.z
+ vpn-idle-timeout 120
+tunnel-group VPN-tunnel-domain.z type remote-access
+tunnel-group VPN-tunnel-domain.z general-attributes
+ default-group-policy VPN-group-domain.z
+tunnel-group VPN-tunnel-domain.z ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint2
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-domain.z webvpn-attributes
+ authentication certificate
+tunnel-group-map ca-map-domain.z 10 VPN-tunnel-domain.z
+--
 ! vpn-filter-foo@domain.x
 access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
 access-list vpn-filter-foo@domain.x extended deny ip any any
@@ -322,19 +355,19 @@ access-group inside_in in interface inside
 object-group network g0
  network-object 10.99.1.10 255.255.255.254
  network-object 10.99.2.0 255.255.255.128
+ network-object 10.99.2.128 255.255.255.192
 object-group network g1
  network-object host 10.99.1.10
  network-object 10.99.2.64 255.255.255.192
 object-group network g2
- network-object host 10.99.1.11
- network-object 10.99.2.0 255.255.255.192
-object-group network g3
  network-object 10.0.1.0 255.255.255.0
  network-object 10.0.2.0 255.255.254.0
  network-object 10.0.4.0 255.255.255.0
 access-list outside_in extended permit icmp object-group g0 any 3
-access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
-access-list outside_in extended permit tcp object-group g2 object-group g3 eq 81
+access-list outside_in extended permit tcp object-group g1 object-group g2 eq 80
+access-list outside_in extended permit tcp host 10.99.1.11 object-group g2 eq 81
+access-list outside_in extended permit tcp 10.99.2.0 255.255.255.192 object-group g2 range 81 82
+access-list outside_in extended permit tcp 10.99.2.128 255.255.255.192 object-group g2 eq 82
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
