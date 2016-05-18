@@ -11451,73 +11451,25 @@ sub get_path {
 # Parameters : $obj - current (or start) loop node (zone or router).
 #              $in_intf - interface current loop node was entered from. 
 #              $end - loop node that is to be reached.
-#              $end_intf - dst interface, if it is a pathrestricted interface
-#                          in or at border of current loop, undef otherwise.
 #              $path_tuples - hash to collect in and out interfaces of nodes on
 #                             detected path.
 #              $loop_leave - array to collect last interfaces of loop path.
 #              $navi - lookup hash to reduce search space, holds loops to enter.
 # Returns   :  1, if path is found, 0 otherwise.
 sub cluster_path_mark1 {
-    my ($obj, $in_intf, $end, $end_intf, $path_tuples, $loop_leave, $navi) = @_;
-
-    # Check if IF current node was entered at ($in_interface) is pathrestricted.
-    my $pathrestriction = $in_intf->{path_restrict};
-    my $reachable_at    = $in_intf->{reachable_at};
+    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $navi) = @_;
 
 #    debug("cluster_path_mark1: obj: $obj->{name},
 #           in_intf: $in_intf->{name} to: $end->{name}");
 
     # Stop path exploration when activated PR (2nd occurrence) was passed.
+    my $pathrestriction = $in_intf->{path_restrict};
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
             if ($restrict->{active_path}) {
-#           debug(" effective $restrict->{name} at $in_intf->{name}");
+
+#               debug(" effective $restrict->{name} at $in_intf->{name}");
                 return 0;
-            }
-        }
-    }
-
-    # Check optimized pathrestriction: is $end_intf reachable?
-    # To achieve equal routes for every IP of a network, zone of 
-    # $end_intf (instead of its router) must be reached to find a valid path.
-    # As the interfaces zone can be located behind its router, which is the 
-    # end node of the loop path, this test must be performed before checking
-    # whether end node was reached and a path was found.   
-    if ($reachable_at && $end_intf && 
-        $end_intf ne $in_intf) { # Valid path found otherwise.  
-        if (my $reachable = $reachable_at->{$obj}) {
-            my $other = $end_intf->{zone};
-
-            # If zone is located in loop, perform usual reachable check for it.
-            if ($other->{loop}) {
-                my $has_mark = $other->{reachable_part};
-                for my $mark (@$reachable) {
-                    if (!$has_mark->{$mark}) {
-
-#                        debug(" unreachable: $other->{name}",
-#                              " from $in_intf->{name} to $obj->{name}");
-                        return 0;
-                    }
-                }
-            }
-
-            # If $end_intf is at border of loop, its zone might be located
-            # outside of loop and no {reachable_part} is set at $other.
-            # If partition starting at $in_intf also starts at $end_intf,
-            # path to $other includes 2 pathrestrictions and is invalid.
-            else {
-                if (my $reachable_at2 = $end_intf->{reachable_at}) {
-                    if (my $reachable2 =
-                        $reachable_at2->{ $end_intf->{router} })
-                    {
-                        if (intersect($reachable, $reachable2)) {
-#                            debug(" unreachable2: $other->{name}",
-#                                  " from $in_intf->{name} to $obj->{name}");
-                            return 0;
-                        }
-                    }
-                }
             }
         }
     }
@@ -11541,8 +11493,7 @@ sub cluster_path_mark1 {
 
     # Stop exploration if optimized pathrestriction inhibits reaching end node.
     # This is not grouped with other PR checks to avoid unneccessary execution.
-    # $end_intf has already been checked above.
-    if ($reachable_at and not $end_intf) {
+    if (my $reachable_at = $in_intf->{reachable_at}) {
         if (my $reachable = $reachable_at->{$obj}) {
             my $has_mark = $end->{reachable_part};
             for my $mark (@$reachable) {
@@ -11560,7 +11511,7 @@ sub cluster_path_mark1 {
 
 #    debug "activated $obj->{name}";
 
-    # Activate passed path restrictions.
+    # Activate passed pathrestrictions.
     if ($pathrestriction) {
         for my $restrict (@$pathrestriction) {
 
@@ -11590,7 +11541,7 @@ sub cluster_path_mark1 {
         # If a valid path is found from next node to $end...
         if (
             cluster_path_mark1(
-                $next,        $interface,  $end, $end_intf,
+                $next,        $interface,  $end,
                 $path_tuples, $loop_leave, $navi
             )
           )
@@ -11690,6 +11641,225 @@ sub cluster_navigation {
 }
 
 ##############################################################################
+# Purpose    : Adapt path starting/ending at zone, such that the original
+#              start/end-interface is reached.
+#              First step:
+#              Remove paths, that traverse router of start/end interface,
+#              but don't terminate at that router. This would lead to 
+#              invalid paths entering the same router two times.
+#              Second step:
+#              Adjust start/end of paths from zone to router.
+# Parameters : $start_end: start or end interface of orginal path
+#              $in_out: has value 0 or 1, to access in or out interface
+#                       of paths.
+#              $loop_enter, $loop_leave: arrays of interfaces, 
+#                                        where path starts/ends.
+#              $router_tuples, $zone_tuples: arrays of path tuples. 
+# Returns    : nothing
+# Results    : Changes $loop_enter, $loop_leave, $router_tuples, $zone_tuples.
+sub fixup_zone_path {
+    my ($start_end, $in_out, 
+        $loop_enter, $loop_leave, $router_tuples, $zone_tuples) = @_;
+
+    my $router = $start_end->{router};
+    my $is_redundancy;
+
+    # Prohibt paths traversing related redundancy interfaces.
+    if (my $interfaces = $start_end->{redundancy_interfaces}) {
+        @{$is_redundancy}{@$interfaces} = @$interfaces;
+    }
+
+    my @del_tuples;
+
+    # Remove tuples traversing that router, where path should start/end.
+    for my $tuple (@$router_tuples) {
+        my $intf = $tuple->[$in_out];
+        if ($intf->{router} eq $router) {
+            if ($intf ne $start_end) {
+                push @del_tuples, $tuple;
+            }
+        }
+        elsif ($is_redundancy and $is_redundancy->{$intf}) {
+            push @del_tuples, $tuple;
+        }
+    }
+    my $tuples = $router_tuples;
+    my $changed;
+
+    # Remove dangling tuples.
+    while (@del_tuples) {
+        $changed = 1;
+        my (%del_in, %del_out);
+        for my $tuple (@del_tuples) {
+            aref_delete($tuples, $tuple);
+            my ($in, $out) = @$tuple;
+
+            # Mark interfaces of just removed tuple, because adjacent tuples
+            # could become dangling now.
+            $del_in{$out} = $out;
+            $del_out{$in} = $in;
+        }
+
+        # Remove mark, if non removed tuples are adjacent.
+        for my $tuple (@$tuples) {
+            my ($in, $out) = @$tuple;
+            delete $del_in{$out};
+            delete $del_out{$in};                
+        }
+        keys %del_in or keys %del_out or last;
+        $tuples = ($tuples eq $router_tuples) ? $zone_tuples : $router_tuples;
+        @del_tuples = ();
+        for my $tuple (@$tuples) {
+            my ($in, $out) = @$tuple;
+            if ($del_in{$in} or $del_out{$out}) {
+                push @del_tuples, $tuple;
+            }
+        }
+    }
+
+    # Remove dangling interfaces from start and end of path.
+    if ($changed) {
+        my (%has_in, %has_out);
+
+
+        # First/last tuple of path is known to be part of router,
+        # because path starts/ends at zone.
+        # But for other side of path, we don't know if it starts at
+        # router or zone; so we must check $zone_tuples also.
+        for my $tuple (@$router_tuples, @$zone_tuples) {
+            my ($in, $out) = @$tuple;
+            $has_in{$in} = $in;
+            $has_out{$out} = $out;
+        }
+        my @del_intf = grep { not $has_in{$_} } @$loop_enter;
+        aref_delete($loop_enter, $_) for @del_intf;
+        @del_intf = grep { not $has_out{$_} } @$loop_leave;
+        aref_delete($loop_leave, $_) for @del_intf;
+    }
+
+    # Change start/end of paths from zone to router of original interface.
+    my $is_start = ($in_out == 0);
+    my $out_in = $is_start ? 1 : 0;
+    my $enter_leave = $is_start ? $loop_enter : $loop_leave;
+    my (@add_intf, @del_intf);
+    my $seen_intf;
+    for my $intf (@$enter_leave) {
+        push @del_intf, $intf;
+        if ($intf eq $start_end) {
+            my @del_tuples = grep { $_->[$in_out] eq $intf } @$router_tuples;
+            for my $tuple (@del_tuples) {
+                aref_delete $router_tuples, $tuple;
+                push @add_intf, $tuple->[$out_in];
+            }
+        }
+        else {
+            push(@$zone_tuples, 
+                 $is_start ? [ $start_end, $intf ] : [ $intf, $start_end ]);
+            push @add_intf, $start_end if not $seen_intf++;
+        }
+    }
+    aref_delete $enter_leave, $_ for @del_intf;
+    push @$enter_leave, @add_intf;
+}
+
+
+##############################################################################
+# Purpose    : Mark path starting/ending at pathrestricted interface 
+#              by first marking path from/to related zone and afterwards 
+#              fixing found path.
+# Parameters : $start_store: start node or interface
+#              $end_store: end node or interface
+#              $start_intf: set if path starts at pathrestricted interface
+#              $end_intf: set if path ends at pathrestricted interface
+# Returns    : True if path was found, false otherwise.
+# Results    : Sets attributes {loop_enter}, {loop_leave}, {*_path_tuples}
+#              for found path and reversed path.
+sub intf_cluster_path_mark {
+    my ($start_store, $end_store, $start_intf, $end_intf) = @_;
+    if ($start_intf) {
+        $start_store = $start_intf->{zone};
+    }
+    if ($end_intf) {
+        $end_store = $end_intf->{zone};
+    }
+    my @loop_enter;
+    my @loop_leave;
+    my @router_tuples;
+    my @zone_tuples;
+
+    # Zones are equal. Set minimal path manually.
+    if ($start_store eq $end_store
+        or
+        $end_store->{zone} and $end_store->{zone} eq $start_store
+        or
+        $start_store->{zone} and $start_store->{zone} eq $end_store
+        ) 
+    {
+        if ($start_intf and $end_intf) {
+            @loop_enter = ($start_intf);
+            @loop_leave = ($end_intf);
+            @zone_tuples = ([ $start_intf, $end_intf ]);
+            $start_store = $start_intf;
+            $start_intf = undef;
+            $end_store = $end_intf;
+        }
+        elsif ($start_intf) {
+            @loop_enter = ($start_intf);
+            @loop_leave = ($start_intf);
+            $start_store = $start_intf;
+            $start_intf = undef;
+        }
+        else {
+            @loop_enter = ($end_intf);
+            @loop_leave = ($end_intf);
+            $end_store = $end_intf;
+        }
+    }
+
+    # Mark cluster path between different zones.
+    else {
+        cluster_path_mark($start_store, $end_store) or return;
+
+        @loop_enter    = @{ $start_store->{loop_enter}->{$end_store} };
+        @loop_leave    = @{ $start_store->{loop_leave}->{$end_store} };
+        @router_tuples = @{ $start_store->{router_path_tuples}->{$end_store} };
+        @zone_tuples   = @{ $start_store->{zone_path_tuples}->{$end_store} };
+
+        # Fixup start of path.
+        if ($start_intf) {
+            fixup_zone_path($start_intf, 0, 
+                            \@loop_enter, \@loop_leave,
+                            \@router_tuples, \@zone_tuples);
+            $start_store = $start_intf;              
+        }
+
+        # Fixup end of path.
+        if ($end_intf) {
+            fixup_zone_path($end_intf, 1, 
+                            \@loop_enter, \@loop_leave,
+                            \@router_tuples, \@zone_tuples);
+            
+            $end_store = $end_intf;
+        }
+    }
+
+    # Store found path.
+    $start_store->{loop_enter}->{$end_store}  = \@loop_enter;
+    $start_store->{loop_leave}->{$end_store}  = \@loop_leave;
+    $start_store->{router_path_tuples}->{$end_store} = \@router_tuples;
+    $start_store->{zone_path_tuples}->{$end_store} = \@zone_tuples;
+
+    # Don't store reversed path, because few path start at interface.
+#    $end_store->{loop_enter}->{$start_store} = \@loop_leave;
+#    $end_store->{loop_leave}->{$start_store} = \@loop_enter;
+#    $end_store->{router_path_tuples}->{$start_store} =
+#        [ map { [ @{$_}[1, 0] ] } @router_tuples ];
+#    $end_store->{zone_path_tuples}->{$start_store} = 
+#        [ map { [ @{$_}[1, 0] ] } @zone_tuples ];
+
+    return 1;
+}
+##############################################################################
 # Purpose    : Collect path information through a loop for a pair of 
 #              loop nodes (zone or router).
 #              Store it at the object where loop paths begins.
@@ -11720,19 +11890,20 @@ sub cluster_path_mark {
 
     # Set variables, if path starts or enters loop at pathrestricted
     # interface at border of loop.
-    # Corresponding loop node is always a router, because zones case
-    # has been transformed before.
+    # If path starts/ends, corresponding loop node is always a router,
+    # because zones case has been transformed before.
     my ($from_in, $to_out);
 
     if (is_interface($start_store)) {
         if ($start_store->{loop}) {
             $start_intf = $start_store;
+            $from       = $start_store->{router};
         }
         else {
             $from_in = $start_store;
+            $from =    $start_store->{loop_zone_border} && $start_store->{zone} 
+                    || $start_store->{router};
         }
-        $from =    $start_store->{loop_zone_border} && $start_store->{zone} 
-                || $start_store->{router};
     }
     else {
         $from = $start_store;
@@ -11740,15 +11911,21 @@ sub cluster_path_mark {
     if (is_interface($end_store)) {
         if ($end_store->{loop}) {
             $end_intf = $end_store;
+            $to       = $end_store->{router};
         }
         else {
             $to_out = $end_store;
+            $to =     $end_store->{loop_zone_border} && $end_store->{zone} 
+                   || $end_store->{router};
         }
-        $to =    $end_store->{loop_zone_border} && $end_store->{zone} 
-              || $end_store->{router};
     }
     else {
         $to = $end_store;
+    }
+
+    if ($start_intf or $end_intf) {
+        return intf_cluster_path_mark($start_store, $end_store, 
+                                      $start_intf, $end_intf);
     }
 
 #    debug("cluster_path_mark: $start_store->{name} -> $end_store->{name}");
@@ -11776,20 +11953,9 @@ sub cluster_path_mark {
   # Check whether valid paths are possible due to optimized pathrestrictions.
   REACHABLE:
     {
-        # If dst is a pathrestricted IF, consider it to be part of its zone. 
-        # This guarantees equal routes for all IP addresses of a network. 
-        my $end_node = $end_intf ? $end_intf->{zone} : $to;
 
-        # If start-interface is directly connected to an $end_node zone, use
-        # this direct path and ignore all other possible paths (=interfaces).
-        if ($start_intf && $start_intf->{zone} eq $end_node) {
-            $from_interfaces = [$start_intf];
-            last REACHABLE;
-        }
-
-        # Check, whether enter-/start-interface has optimized pathrestriction. 
-        my $intf = $start_intf || $from_in;
-        my $reachable_at = $intf->{reachable_at} or last REACHABLE;
+        # Check, whether enter-interface has optimized pathrestriction. 
+        my $reachable_at = $from_in->{reachable_at} or last REACHABLE;
 
         # Check, whether end node is reachable from enter-/start-interface.
         # For enter-interfaces, just the direction towards loop is of interest,
@@ -11797,29 +11963,14 @@ sub cluster_path_mark {
         # hence check router direction only.
         # Only one direction needs to be checked in both cases.
         my $reachable = $reachable_at->{$from} or last REACHABLE;
-        my $has_mark  = $end_node->{reachable_part};
+        my $has_mark  = $to->{reachable_part};
         for my $mark (@$reachable) {
 
-            # End node is not reachable via enter-/start-interface.
+            # End node is not reachable via enter-interface.
             if (!$has_mark->{$mark}) {
-
-                # For start-interfaces, path in zone direction might exist.
-                if ($start_intf) {                    
-                    $from_interfaces = [$start_intf];# Ignore all other IFs.
-                }
-
-                # For enter-interfaces, no valid path is possible.
-                else {
-                    $success = 0;
-                }
+                $success = 0;
                 last;
             }
-        }
-
-        # For start-IF, temporarily disable optimized PRs in direction to zone.
-        if ($success && $start_intf) {
-            my $zone = $start_intf->{zone};
-            $intf->{saved_reachable_at_zone} = delete $reachable_at->{$zone};
         }
     } # end REACHABLE
 
@@ -11844,68 +11995,6 @@ sub cluster_path_mark {
         }
     } # end REACHABLE_TO_OUT
 
-    # If start-/end- interface is part of a group of virtual interfaces 
-    # (VRRP, HSRP), prevent traffic through other interfaces of this group
-    # by temporarily adding activated pathrestrictions at redundancy interfaces.
-    for my $intf ($start_intf, $end_intf) {
-        $intf or next;
-        my $interfaces = $intf->{redundancy_interfaces} or next;
-        for my $interface (@$interfaces) {
-            next if $interface eq $intf;
-            push(@{ $interface->{path_restrict} },
-                 $global_active_pathrestriction);
-        }
-    }
-
-    # Handle start-/end-interfaces inside a loop 
-    # (path starts or ends at an interface with pathrestriction).
-    # For these interfaces, pathrestrictions are required to be activated 
-    # in router, not in zone direction. The basic algorithm starts path 
-    # exploration at the router of such an interface though. Per default, 
-    # path restriction activation is therefore contrary to the requirements.
-    # To fix this, pathrestrictions are temporarily moved from the start-/end 
-    # interface to the other interfaces of the router. 
-    # TODO: How about activating the pathrestrictions and temporarily 
-    # deleting it from the interface? Or let exploration start at the 
-    # interfaces zone in this case (would lead to a gap within the marked path)?
-    for my $intf ($start_intf, $end_intf) {
-        $intf or next;
-
-        # We know, that corresponding from/to node is a router.
-        my $router = $intf->{router};
-
-        # Delete pathrestriction from start/end interface 
-        my $removed = delete $intf->{path_restrict} or next;
-        $intf->{saved_path_restrict} = $removed;
-
-        # Move pathrestriction to other interfaces of router.
-        for my $interface (@{ $router->{interfaces} }) {
-            next if $interface eq $intf;
-
-            # Check whether pathrestrictions are defined for these IFs. 
-            my $orig = $interface->{saved_path_restrict} =
-              $interface->{path_restrict};
-            if ($orig) {
- 
-                # If pathrestrictions exist in both IF and start-/end-interface,
-                # prohibit path by adding activated global pathrestriction.
-                # TODO: what about just excluding IF from from-IFs?
-                if (intersect($orig, $removed)) {
-                    $interface->{path_restrict} =
-                      [$global_active_pathrestriction];
-                }
-
-                # Otherwise, add pathrestrictions to interface.
-                else {
-                    $interface->{path_restrict} = [ @$orig, @$removed ];
-                }
-            }
-            else {
-                $interface->{path_restrict} = $removed;
-            }
-        }
-    }
-
   # Find loop paths via depth first search.
   BLOCK:
     {
@@ -11925,9 +12014,12 @@ sub cluster_path_mark {
         # Mark current path for loop detection.
         local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
-        my $allowed = $navi->{ $from->{loop} }
-          or internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
-                          " with empty navi");
+        my $allowed = $navi->{ $from->{loop} };
+        if (not $allowed) {
+             internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
+                          " with empty navi\n",
+                          "Path: $start_store->{name} -> $end_store->{name}");
+        }
 
         # To find paths, process every loop interface of $from node.
         for my $interface (@$from_interfaces) {
@@ -11948,7 +12040,7 @@ sub cluster_path_mark {
 #           debug(" try: $from->{name} -> $interface->{name}");
             if (
                 cluster_path_mark1(
-                    $next,        $interface,  $to, $end_intf,
+                    $next,        $interface,  $to,
                     $path_tuples, $loop_leave, $navi
                 )
               )
@@ -11996,40 +12088,6 @@ sub cluster_path_mark {
         $end_store->{loop_leave}->{$start_store} = $loop_enter;
         $end_store->{router_path_tuples}->{$start_store} = \@rev_router_tuples;
         $end_store->{zone_path_tuples}->{$start_store} = \@rev_zone_tuples;
-    }
-
-    # Restore temporarily moved path restrictions.
-    for my $intf ($start_intf, $end_intf) {
-        next if !$intf;
-        next if !$intf->{saved_path_restrict};
-        my $router = $intf->{router};
-        for my $interface (@{ $router->{interfaces} }) {
-            if (my $orig = delete $interface->{saved_path_restrict}) {
-                $interface->{path_restrict} = $orig;
-            }
-            else {
-                delete $interface->{path_restrict};
-            }
-        }
-    }
-
-    # Restore temporarily deleted optimized pathrestrictions.
-    if ($start_intf) {
-        if (my $orig = delete $start_intf->{saved_reachable_at_zone}) {
-            my $zone = $start_intf->{zone};
-            $start_intf->{reachable_at}->{$zone} = $orig;
-        }
-    }
-
-    # Remove temporarily added activated pathrestrictions at redundancy IFs. 
-    for my $intf ($start_intf, $end_intf) {
-        next if !$intf;
-        if (my $interfaces = $intf->{redundancy_interfaces}) {
-            for my $interface (@$interfaces) {
-                next if $interface eq $intf;
-                pop @{ $interface->{path_restrict} };
-            }
-        }
     }
 
     # Disable pathrestriction at border of loop.
