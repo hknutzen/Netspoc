@@ -178,7 +178,10 @@ network:customers2 = {
  host:id:domain.x = {
   range = 10.99.2.0 - 10.99.2.63; 
   radius_attributes = { split-tunnel-policy = tunnelspecified; 
-                        check-subject-name = ou; }
+                        check-subject-name = ou;
+                        authorization-server-group = LDAP_1;
+                        username-from-certificate = CN;
+                        authorization-required; }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
@@ -286,6 +289,9 @@ group-policy VPN-group-domain.x attributes
 tunnel-group VPN-tunnel-domain.x type remote-access
 tunnel-group VPN-tunnel-domain.x general-attributes
  default-group-policy VPN-group-domain.x
+ authorization-required
+ authorization-server-group LDAP_1
+ username-from-certificate CN
 tunnel-group VPN-tunnel-domain.x ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint2
  ikev1 user-authentication none
