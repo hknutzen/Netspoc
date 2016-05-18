@@ -324,7 +324,7 @@ The definition of a named group can reference other groups.
 
 It is allowed to define an empty named group.
 
-##Automatic groups
+## Automatic groups
 
 Automatic groups are used to derive a set of network resources by
 graph operations directly from the topology.
@@ -389,13 +389,13 @@ inside area:x.
   `interface:[interface:x.[auto]].[auto]` is allowed.
 
 
-##Groups of protocols
+## Groups of protocols
 
 A named protocol group defines a set of simple or named protocols.  A
 Protocol group can reference other protocol groups and it can be
 empty.  Intersection and complement is not defined for protocol groups.
 
-##Areas
+## Areas
 
 An area denotes a part of the topology which is delimited by a set
 of managed interfaces. An area typically spans multiple security
@@ -437,7 +437,7 @@ Only interfaces of managed routers must be given as `border` or
 `network:[area:X]` denotes the group of all networks inside area X.
 Use `any:[area:X]` to get the group of all security zones inside area X.
 
-##Path restrictions
+## Path restrictions
 
 In a topology with cyclic subgraphs, there are multiple paths
 available between source to destination. Per default, Netspoc chooses
@@ -455,7 +455,7 @@ at the border of a cyclic subgraph of the topology.
 A path restriction is automatically added for each group of interfaces
 belonging to a VRRP or HSRP cluster.
 
-##Network address translation (NAT) {#NAT}
+## Network address translation (NAT) {#NAT}
 
 Network address translation occurs at routers.  At one side of a
 router, a network resource is visible with its original IP address; at
@@ -484,7 +484,7 @@ NAT definition
 NAT binding
 : applies a set of NAT definitions to an interface. 
 
-###Example
+### Example
 
 network:extern has improper IP addresses, which are not usable at
 network:intern. router:r_ext performs static NAT. The NAT definition
@@ -541,12 +541,12 @@ Netspoc needs to know about NAT for these reasons:
 3. For devices of type PIX Netspoc is able to actually generate the
    NAT translation rules. For other devices, NAT has to be configured manually.
 
-###Attribute acl_use_real_ip
+### Attribute acl_use_real_ip
 
 Use attribute `acl_use_real_ip` for ASA from version 8.3 or later.
 Netspoc uses real IP and not translated IP when creating ACLs.
 
-##Secondary packet filters
+## Secondary packet filters
 
 In a given topology we can get chains of managed packet filters on the
 path from source to destination. By default, each device filters the same rules
@@ -582,7 +582,7 @@ an other device.
 The default filter type for devices which are simply marked as
 "managed" is "standard".
 
-##Local packet filters
+## Local packet filters
 
 Suppose you have some local networks with IP addresses 10.11.1.0/24, 10.11.2.0/24, …,
 belonging to some larger IP address range 10.11.0.0/16.
@@ -626,7 +626,7 @@ that each source address matches “filter_only”. Hence we deny any source add
 
 
 
-##Outgoing ACL
+## Outgoing ACL
 
 By default, Netspoc generates incoming access lists at each interface
 of a managed device. Use the attribute `no_in_acl` at one
@@ -689,9 +689,9 @@ special name `disable` disables logging for a rule.
 
 Model `IOS` allows modifier `log-input`.
 
-##Routing
+## Routing
 
-###Static routing
+### Static routing
 
 From its knowledge about the topology, Netspoc generates static
 routing entries for each managed device.
@@ -711,7 +711,7 @@ there is some managed interface with static routing enabled in the same
 network. We need this requirement for getting all routing entries
 generated.
 
-###Dynamic routing
+### Dynamic routing
 
 If an interface of a device has an attribute 
 `routing=<routing protocol>`, 
@@ -728,7 +728,7 @@ Use `routing=manual` at router level to disable generation of routing
 code for the whole device. Manually defined routes are left unchanged
 by Netspoc-Approve in this case.
 
-###Default route
+### Default route
 
 Netspoc can reduce the number of static routing entries per device by
 automatically inserting a default route. For each device it finds the
@@ -742,7 +742,7 @@ This behaviour is automatically disabled for a device
 - where at least one interface has dynamic routing enabled or
 - if already a real static route to some network with IP 0.0.0.0/0 was found.
 
-##Rerouting inside a security zone {#rerouting}
+## Rerouting inside a security zone {#rerouting}
 
 Internal traffic which flows inside a security zone isn't
 filtered at all. In some cases, an interface X of a managed (filtering)
@@ -754,7 +754,7 @@ You can handle this case by defining an attribute `reroute_permit` at
 a managed interface. Value of this attribute is a list of networks,
 for which any internal traffic should be allowed.
 
-####Example
+#### Example
 router:x is managed, router:y is unmanaged.
 
     router:x -- network:a -- router:y -- network:b
@@ -765,7 +765,7 @@ routed first to router:x and then to router:y, router:x would deny
 this traffic.  Use `reroute_permit = network:b` at interface:x.a to
 permit any incoming traffic to network:b.
  
-##Virtual interfaces {#virtual_interface}
+## Virtual interfaces {#virtual_interface}
 
 A virtual interface defines a shared IP address between a group of two
 or more redundancy interfaces. The virtual interface definition is
@@ -790,7 +790,7 @@ If the protocol is declared, an optional `id` attribute with a numeric
 value can be declared. It is used for consistency checks but currently
 it is not used when generating code for managed devices.
 
-##Crosslink network
+## Crosslink network
 
 Add attribute `crosslink` to a define a  crosslink network.
 
@@ -839,7 +839,7 @@ repeatedly for each element of the definition of "user". Used together
 with automatic groups, this feature allows to define rules between
 elements and their neighbourhood.
 
-####Example
+#### Example
 
     service:ping_local = {
      description = Allow ping to my_devices from directly attached network
@@ -871,7 +871,7 @@ from the policy distribution point. This IP address is added as a
 comment to each generated device configuration. It is later used to
 reach the device when deploying the configuration by Netspoc-Approve.
 
-##Disabling part of the topology {#disabling}
+## Disabling part of the topology {#disabling}
 
 An interface can be explicitly marked as disabled.  This implicitly
 marks all network objects as disabled, that are located *behind*
