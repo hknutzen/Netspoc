@@ -365,7 +365,6 @@ sub keys_eq {
 # Print arguments as warning to STDERR..
 sub warn_msg {
     print STDERR "Warning: ", @_, "\n";
-    return;
 }
 
 ## use critic
@@ -428,7 +427,6 @@ sub abort_on_error {
     if ($error_counter) {
         die "Aborted with $error_counter error(s)\n" 
     }
-    return;
 }
 
 # Print error message with current input file and line number.
@@ -436,7 +434,6 @@ sub error_atline {
     my (@args) = @_;
     print STDERR "Error: ", @args, at_line(), "\n";
     check_abort();
-    return;
 }
 
 # Print error message.
@@ -444,7 +441,6 @@ sub err_msg {
     my (@args) = @_;
     print STDERR "Error: ", @args, "\n";
     check_abort();
-    return;
 }
 
 # Print internal error message and aborts.
@@ -867,7 +863,6 @@ sub add_description {
     if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
         $obj->{description} = $1;
     }
-    return;
 }
 
 # Split argument at first ':' and return the two parts.
@@ -939,7 +934,6 @@ sub add_attribute {
     my ($obj, $key, $value) = @_;
     defined $obj->{$key} and error_atline("Duplicate attribute '$key'");
     $obj->{$key} = $value;
-    return;
 }
 
 our %hosts;
@@ -1873,7 +1867,6 @@ sub check_no_in_acl {
         $hardware->{no_in_acl}
           or $hardware->{need_out_acl} = 1;
     }
-    return;
 }
 
 my $bind_nat0 = [];
@@ -2502,7 +2495,6 @@ sub move_locked_interfaces {
             }
         }
     }
-    return;
 }
 
 # Mapping from aggregate names to aggregate objects.
@@ -2757,7 +2749,6 @@ sub read_port_ranges {
     else {
         $prt->{dst_range} = $range;
     }
-    return;
 }
 
 sub read_icmp_type_code {
@@ -2785,7 +2776,6 @@ sub read_icmp_type_code {
 
         # No type and code given.
     }
-    return;
 }
 
 sub read_proto_nr {
@@ -2813,7 +2803,6 @@ sub read_proto_nr {
     else {
         syntax_err("Expected protocol number");
     }
-    return;
 }
 
 # Creates a readable, unique name for passed protocol,
@@ -2923,7 +2912,6 @@ sub check_protocol_modifiers {
             syntax_err("Unknown modifier '$flag'");
         }
     }
-    return;
 }
 
 sub read_typed_name_or_simple_protocol_list {
@@ -3367,7 +3355,6 @@ sub read_file {
     while (skip_space_and_comment, pos $input != $length) {
         &$read_syntax;
     }
-    return;
 }
 
 sub read_file_or_dir {
@@ -3433,7 +3420,6 @@ sub read_file_or_dir {
         my $path = "$path/$file";
         $read_nested_files->($path, $read_syntax);
     }
-    return;
 }
 
 # Prints number of read entities if in verbose mode.
@@ -3566,7 +3552,6 @@ sub prepare_prt_ordering {
         # substitute occurrences of $prt with $main_prt.
         $prt->{main} = $main_prt;
     }
-    return;
 }
 
 # Set {up} relation between all ICMP protocols and to larger 'ip' protocol.
@@ -3594,7 +3579,6 @@ sub order_icmp {
         # Set up ref2prt.
         $ref2prt{$prt} = $prt;
     }
-    return;
 }
 
 # Set {up} relation for all numeric protocols to larger 'ip' protocol.
@@ -3607,7 +3591,6 @@ sub order_proto {
         # Set up ref2prt.
         $ref2prt{$prt} = $prt;
     }
-    return;
 }
 
 # Set {up} relation from port range to the smallest port range which
@@ -3764,7 +3747,6 @@ sub order_ranges {
     # There can't be any port which isn't included by ranges "TCP any"
     # or "UDP any".
     $check_subrange->($a, $a1, $a2, 1) and internal_err();
-    return;
 }
 
 sub expand_split_protocol {
@@ -3862,7 +3844,6 @@ sub order_protocols {
 
     # Set up ref2prt.
     $ref2prt{$prt_ip} = $prt_ip;
-    return;
 }
 
 ####################################################################
@@ -4046,7 +4027,6 @@ sub link_owners {
     for my $service (values %services) {
         link_to_real_owner($service, 'sub_owner');
     }
-    return;
 }
 
 sub link_policy_distribution_point {
@@ -4071,7 +4051,6 @@ sub link_policy_distribution_point {
         return;
     }
     $obj->{policy_distribution_point} = $host;
-    return;
 }
 
 sub link_general_permit {
@@ -4116,7 +4095,6 @@ sub link_general_permit {
                 " in general_permit of $context");
         }
     }
-    return;
 }
 
 # Link areas with referenced interfaces or network.
@@ -4176,7 +4154,6 @@ sub link_areas {
             link_general_permit($router_attributes);
         }
     }
-    return;
 }
 
 # Link interfaces with networks in both directions.
@@ -4224,7 +4201,6 @@ sub link_interfaces {
         push @{ $network->{interfaces} }, $interface;
         check_interface_ip($interface, $network);
     }
-    return;
 }
 
 sub check_interface_ip {
@@ -4283,7 +4259,6 @@ sub check_interface_ip {
             }
         }
     }
-    return;
 }
 
 # Iterate over all interfaces of all routers.
@@ -4295,7 +4270,6 @@ sub link_routers {
         link_policy_distribution_point($router);
         link_general_permit($router);
     }
-    return;
 }
 
 sub link_subnet {
@@ -4362,7 +4336,6 @@ sub link_subnets {
             link_subnet($nat, $obj);
         }
     }
-    return;
 }
 
 our @pathrestrictions;
@@ -4378,7 +4351,6 @@ sub add_pathrestriction {
         $router->{managed} or $router->{semi_managed} = 1;
     }
     push @pathrestrictions, $restrict;
-    return;
 }
 
 sub link_pathrestrictions {
@@ -4470,7 +4442,6 @@ sub link_pathrestrictions {
             }
         }
     }
-    return;
 }
 
 # If a pathrestriction is added to an unmanged router, it is marked as
@@ -4704,7 +4675,6 @@ sub link_virtual_interfaces {
             }
         }
     }
-    return;
 }
 
 sub link_services {
@@ -4842,7 +4812,6 @@ sub check_ip_addresses {
             }
         }
     }
-    return;
 }
 
 sub link_ipsec;
@@ -4863,7 +4832,6 @@ sub link_topology {
     link_owners;
     link_services;
     check_ip_addresses();
-    return;
 }
 
 ####################################################################
@@ -4912,7 +4880,6 @@ sub disable_behind {
             disable_behind $out_interface ;
         }
     }
-    return;
 }
 
 # Lists of network objects which are left over after disabling.
@@ -4993,7 +4960,6 @@ sub check_bridged_networks {
               );
         }
     }
-    return;
 }
 
 sub mark_disabled {
@@ -5141,7 +5107,6 @@ sub mark_disabled {
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
     check_bridged_networks();
-    return;
 }
 
 ####################################################################
@@ -5373,7 +5338,6 @@ sub convert_hosts {
             $interface->{up} = $network;
         }
     }
-    return;
 }
 
 # Find adjacent subnets and substitute them by their enclosing subnet.
@@ -5551,7 +5515,6 @@ sub check_auto_intf {
             }
         }
     }
-    return;
 }
 
 # Get a reference to an array of network object descriptions and
@@ -6160,7 +6123,6 @@ sub check_unused_groups {
 
     # Not used any longer; free memory.
     %groups = ();
-    return;
 }
 
 # Result:
@@ -6295,7 +6257,6 @@ sub check_log {
         warn_msg("Referencing unknown '$tag' in log of $context");
         aref_delete($log, $tag);
     }
-    return;
 }
 
 # Normalize lists of log tags at different rules in such a way,
@@ -6601,7 +6562,6 @@ sub normalize_service_rules {
     }
 
     # Result is stored in global %service_rules.
-    return;
 }
 
 sub normalize_services {
@@ -6935,7 +6895,6 @@ sub propagate_owners {
             $aggregate->{owner} = $owner;
         }
     }
-    return;
 }
 
 sub check_service_owner {
@@ -7066,8 +7025,6 @@ sub check_service_owner {
     for my $obj (sort by_name values %unknown2unknown) {
         $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
     }
-
-    return;
 }
 
 ########################################################################
@@ -7306,7 +7263,6 @@ sub collect_unenforceable {
             $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
         }
     }
-    return;
 }
 
 sub show_unenforceable {
@@ -7364,7 +7320,6 @@ sub warn_useless_unenforceable {
         my $name = $agg00 ? $agg00->{name} : $zone->{name};
         warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
-    return;
 }
 
 sub remove_unenforceable_rules {
@@ -7606,7 +7561,6 @@ sub collect_duplicate_rules {
         }
     }
     push @duplicate_rules, [ $rule, $other ];
-    return;
 }
 
 sub show_duplicate_rules {
@@ -7633,7 +7587,6 @@ sub show_duplicate_rules {
             $print->($msg);
         }
     }
-    return;
 }
 
 my @redundant_rules;
@@ -7656,7 +7609,6 @@ sub collect_redundant_rules {
         }
     }
     push @redundant_rules, [ $rule, $other ];
-    return;
 }
 
 sub show_redundant_rules {
@@ -7690,7 +7642,6 @@ sub show_redundant_rules {
             $print->($msg);
         }
     }
-    return;
 }
 
 sub warn_unused_overlaps {
@@ -7707,7 +7658,6 @@ sub warn_unused_overlaps {
             }
         }
     }
-    return;
 }
 
 # Expand path_rules to elementary rules.
@@ -7776,7 +7726,6 @@ sub check_expanded_rules {
     show_redundant_rules();
     warn_unused_overlaps();
     info("Expanded rule count: $count; duplicate: $dcount; redundant: $rcount");
-    return;
 }
 
 ##############################################################################
@@ -7913,7 +7862,6 @@ sub set_policy_distribution_ip {
             $list
         );
     }
-    return;
 }
 
 ##############################################################################
@@ -7998,7 +7946,6 @@ sub set_natdomain {
                      " every interface of $router->{name}");
         }
     }
-    return;
 }
 
 my @natdomains;
@@ -8150,7 +8097,6 @@ sub distribute_nat1 {
             }
         }
     }
-    return;
 }
 
 sub distribute_nat {
@@ -8162,7 +8108,6 @@ sub distribute_nat {
         err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
             " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
     }
-    return;
 }
 
 sub distribute_nat_info {
@@ -8558,7 +8503,6 @@ sub adjust_crypto_nat {
             }
         }
     }
-    return;
 }
 
 sub get_nat_network {
@@ -8620,7 +8564,6 @@ sub check_subnets {
             $check->($range->[0], $range->[1], $host);
         }
     }
-    return;
 }
 
 # Dynamic NAT to loopback interface is OK,
@@ -8916,8 +8859,6 @@ sub find_subnets_in_zone {
     # It is valid to have an aggregate in a zone which has no matching
     # networks. This can be useful to add optimization rules at an
     # intermediate device.
-
-    return;
 }
 
 # Find networks with identical IP in different NAT domains.
@@ -9116,7 +9057,6 @@ sub find_subnets_in_nat_domain {
         }
         $network->{max_secondary_net} = $max_secondary if $max_secondary;
     }
-    return;
 }
 
 # If routers are connected by crosslink network then
@@ -9182,8 +9122,8 @@ sub cluster_crosslink_routers {
             $router2->{crosslink_interfaces} = \@crosslink_interfaces;
         }
     }
-    return;
 }
+
 ##############################################################################
 # A crosslink network combines two or more routers to one virtual router.
 # Purpose  : Assures proper usage of crosslink networks and applies the
@@ -9439,7 +9379,6 @@ sub mark_managed_local {
         # with 'managed=local'.
         $network_00->{filter_at}->{$mark} = 1;
     }
-    return;
 }
 
 # group of reroute_permit networks must be expanded late, after areas,
@@ -9478,7 +9417,6 @@ sub link_reroute_permit {
             $interface->{reroute_permit} = \@checked;
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -9510,7 +9448,6 @@ sub add_managed_hosts_to_aggregate {
             );
         }
     }
-    return;
 }
 
 ####################################################################
@@ -9551,7 +9488,6 @@ sub link_aggregate_to_zone {
     else {
         push @networks, $aggregate;    # @networks provides all srcs/dsts
     }
-    return;
 }
 
 ##############################################################################
@@ -9615,7 +9551,6 @@ sub link_implicit_aggregate_to_zone {
 
     link_aggregate_to_zone($aggregate, $zone, $key);
     add_managed_hosts_to_aggregate($aggregate);
-    return;
 }
 
 ##############################################################################
@@ -9708,8 +9643,8 @@ sub link_aggregates {
     for my $aggregate (@aggregates_in_cluster) {
         duplicate_aggregate_to_cluster($aggregate);
     }
-    return;
 }
+
 ##############################################################################
 # Parameter: $aggregate object reference, $implicit flag
 # Purpose  : Create an aggregate object for every zone inside the zones cluster
@@ -9750,7 +9685,6 @@ sub duplicate_aggregate_to_cluster {
             link_aggregate_to_zone($aggregate2, $zone, $key);
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -9891,7 +9825,6 @@ sub set_zone1 {
             }
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -9939,7 +9872,6 @@ sub set_zone_cluster {
             set_zone_cluster($next, $out_interface, $zone_aref);
         }
     }
-    return;
 }
 
 # Two zones are zone_eq, if
@@ -10021,7 +9953,6 @@ sub set_area1 {
             return $err_path;
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -10063,7 +9994,6 @@ sub inherit_router_attributes {
             }
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -10097,7 +10027,6 @@ sub check_useless_nat {
     if ($nat2->{identity}) {
         $nat2->{is_used} = 1;
     }
-    return;
 }
 
 ##############################################################################
@@ -10128,7 +10057,6 @@ sub inherit_area_nat {
 #           debug "$zone->{name}: $nat_tag from $area->{name}";
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -10141,7 +10069,6 @@ sub inherit_attributes_from_area {
         inherit_router_attributes($area);
         inherit_area_nat($area);
     }
-    return;
 }
 
 ###############################################################################
@@ -10208,7 +10135,6 @@ sub inherit_nat_to_subnets_in_zone {
             }
         }
     }
-    return;
 }
 
 sub inherit_nat_in_zone {
@@ -10230,7 +10156,6 @@ sub inherit_nat_in_zone {
             inherit_nat_to_subnets_in_zone($supernet, $zone);
         }
     }
-    return;
 }
 
 sub check_attr_no_check_supernet_rules {
@@ -10286,7 +10211,6 @@ sub cleanup_after_inheritance {
               or warn_msg("Useless identity nat:$nat_tag at $network->{name}");
         }
     }
-    return;
 }
 
 sub inherit_attributes {
@@ -10294,7 +10218,6 @@ sub inherit_attributes {
     inherit_nat_in_zone();
     check_attr_no_check_supernet_rules();
     cleanup_after_inheritance();
-    return;
 }
 
 ##############################################################################
@@ -10332,7 +10255,6 @@ sub set_zones {
             delete $zone->{private};
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -10357,7 +10279,6 @@ sub cluster_zones {
 #       debug('cluster: ', join(',',map($_->{name}, @{$zone->{zone_cluster}})))
 #           if $zone->{zone_cluster};
     }
-    return;
 }
 
 ###############################################################################
@@ -10412,7 +10333,6 @@ sub set_area {
         );
         return 1;
     }
-    return;
 }
 
 ###############################################################################s
@@ -10469,7 +10389,6 @@ sub set_areas {
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
-    return;
 }
 
 ###############################################################################
@@ -10524,7 +10443,6 @@ sub find_area_subset_relations {
             $seen{$small}->{$next} = 1;
         }
     }
-    return;
 }
 
 #############################################################################
@@ -10583,7 +10501,6 @@ sub check_routers_in_nested_areas {
             );
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -10596,7 +10513,6 @@ sub clean_areas {
             delete $interface->{is_inclusive};
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -10614,7 +10530,6 @@ sub set_zone {
     clean_areas();                                  # delete unused attributes
     link_aggregates();
     inherit_attributes();
-    return;
 }
 
 ####################################################################
@@ -10655,7 +10570,6 @@ sub check_virtual_interfaces {
             "\n must all be part of the same cyclic sub-graph"
           );
     }
-    return;
 }
 
 ####################################################################
@@ -10811,8 +10725,6 @@ sub check_pathrestrictions {
     # Collect all effective pathrestrictions.
     push @pathrestrictions, grep({ @{ $_->{elements} } } 
                                  values %pathrestrictions);
-
-    return;
 }
 
 sub remove_redundant_pathrestrictions {
@@ -10910,7 +10822,6 @@ sub traverse_loop_part {
             traverse_loop_part($next, $interface, $mark, $lookup);
         }
     }
-    return;
 }
 
 #############################################################################
@@ -10974,7 +10885,6 @@ sub apply_pathrestriction_optimization {
     else {
 #            debug "Can't opt. $restrict->{name}, has $has_interior interior";
     }
-    return;
 }
 
 #############################################################################
@@ -11026,7 +10936,6 @@ sub optimize_pathrestrictions {
             apply_pathrestriction_optimization($restrict, $elements, $lookup);
         }
     }
-    return;
 }
 
 ####################################################################
@@ -11254,8 +11163,6 @@ sub find_dists_and_loops {
                 " - ", 
                 join "\n - ", map { $_->{name} } @unconnected);
     }
-            
-    return;
 }
 
 ###############################################################################
@@ -11295,7 +11202,6 @@ sub process_loops {
             }
         }
     }
-    return;
 }
 
 ###############################################################################
@@ -11310,7 +11216,6 @@ sub setpath {
     check_virtual_interfaces();     # Consistency check, needs {loop} attribute.
     remove_redundant_pathrestrictions();
     optimize_pathrestrictions();    # Add navigation info to pathrestricted IFs.
-    return;
 }
 
 ####################################################################
@@ -12300,7 +12205,6 @@ sub path_mark {
             }
         }
     }
-    return 0;    # unused; only for perlcritic
 }
 
 ##############################################################################
@@ -12503,7 +12407,6 @@ sub path_walk {
         $out     = $in->{path}->{$to_store};
         $call_it = !$call_it;
     }
-    return;
 }
 
 sub single_path_walk {
@@ -12550,7 +12453,6 @@ sub set_auto_intf_from_border {
         $aref = [ unique @$aref ];
     }
     $border2obj2auto{$border} = $result;
-    return;
 }
 
 # Find auto interface inside zone.
@@ -12704,7 +12606,6 @@ sub link_ipsec {
             err_msg("Unknown key_exchange type '$type' for $ipsec->{name}");
         }
     }
-    return;
 }
 
 sub link_crypto {
@@ -12724,7 +12625,6 @@ sub link_crypto {
             err_msg("Unknown type '$type' for $name");
         }
     }
-    return;
 }
 
 # Generate rules to permit crypto traffic between tunnel endpoints.
@@ -12911,7 +12811,6 @@ sub link_tunnels {
             err_msg "$interface->{name} references unknown $crypto";
         }
     }
-    return;
 }
 
 sub crypto_behind {
@@ -12986,7 +12885,6 @@ sub verify_asa_vpn_attributes {
             }
         }
     }
-    return;
 }
 
 # Host with ID that doesn't contain a '@' must use attribute
@@ -13006,7 +12904,6 @@ sub verify_subject_name {
         err_msg("Missing radius_attribute 'check-subject-name'\n",
                 " for $host->{name}");
     }
-    return;
 }
 
 sub verify_asa_trustpoint {
@@ -13019,7 +12916,6 @@ sub verify_asa_trustpoint {
             " $isakmp->{name} for $router->{name}"
           );
     }
-    return;
 }
 
 sub expand_crypto {
@@ -13255,7 +13151,6 @@ sub expand_crypto {
             }
         }
     }
-    return;
 }
 
 # Hash for converting a reference of an object back to this object.
@@ -13268,7 +13163,6 @@ sub setup_ref2obj {
             $ref2obj{$obj} = $obj;
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -13461,7 +13355,6 @@ sub check_supernet_in_zone {
         " can't be effective at $interface->{name}.\n",
         " $extra as $where."
     );
-    return;
 }
 
 # Check if path between $supernet and $obj_list ist filtered by
@@ -13641,7 +13534,6 @@ sub check_supernet_src_rule {
 
     # Check if rule "supernet2 -> dst" is defined.
     check_supernet_in_zone($rule, 'src', $in_intf, $in_zone);
-    return;
 }
 
 # If such rule is defined
@@ -13736,7 +13628,6 @@ sub check_supernet_dst_rule {
         next if $intf->{main_interface};
         check_supernet_in_zone($rule, 'dst', $in_intf, $zone);
     }
-    return;
 }
 
 # Check missing supernet of each service_rule.
@@ -13985,7 +13876,6 @@ sub mark_stateful {
             mark_stateful($next_zone, $mark);
         }
     }
-    return;
 }
 
 sub check_supernet_rules {
@@ -14007,7 +13897,6 @@ sub check_supernet_rules {
 #        progress("Checking transient supernet rules");
         check_transient_supernet_rules();
     }
-    return;
 }
 
 ##############################################################################
@@ -14149,7 +14038,6 @@ sub gen_reverse_rules1 {
         }
     }
     push @$rule_aref, @extra_rules;
-    return;
 }
 
 sub gen_reverse_rules {
@@ -14157,7 +14045,6 @@ sub gen_reverse_rules {
     for my $type ('deny', 'permit') {
         gen_reverse_rules1($path_rules{$type});
     }
-    return;
 }
 
 ##############################################################################
@@ -14206,7 +14093,6 @@ sub mark_secondary {
             mark_secondary $next_zone, $mark;
         }
     }
-    return;
 }
 
 # Mark security zone $zone with $mark and
@@ -14234,7 +14120,6 @@ sub mark_primary {
             mark_primary $next_zone, $mark;
         }
     }
-    return;
 }
 
 # Set 'local_secondary_mark' for secondary optimization inside one cluster.
@@ -14262,7 +14147,6 @@ sub mark_local_secondary {
             mark_local_secondary($next_zone, $mark);
         }
     }
-    return;
 }
 
 sub get_zones {
@@ -14339,7 +14223,6 @@ sub mark_secondary_rules {
             $rule->{some_primary} = 1;
         }
     }
-    return;
 }
 
 sub get_zone_cluster_borders {
@@ -14895,7 +14778,6 @@ sub set_routes_in_zone {
             }
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -15221,7 +15103,6 @@ sub generate_routing_info {
             }
         }
     }
-    return;
 }
 
 sub check_and_convert_routes;
@@ -15243,7 +15124,6 @@ sub find_active_routes {
 
     # TODO
     check_and_convert_routes;
-    return;
 }
 
 # Parameters:
@@ -15536,7 +15416,6 @@ sub check_and_convert_routes {
               [ sort by_name values %{ $interface->{hopref2obj} } ];
         }
     }
-    return;
 }
 
 sub ios_route_code;
@@ -15549,7 +15428,6 @@ sub print_header {
     my $comment_char = $router->{model}->{comment_char};
     my $where = $router->{vrf_members} ? " for $router->{name}" : '';
     print "$comment_char [ $what$where ]\n";
-    return;
 }
 
 sub print_routes {
@@ -15788,7 +15666,6 @@ sub print_routes {
             }
         }
     }
-    return;
 }
 
 ##############################################################################
@@ -16058,7 +15935,6 @@ sub add_router_acls {
             }
         }
     }
-    return;
 }
 
 sub create_general_permit_rules {
@@ -16137,7 +16013,6 @@ sub distribute_general_permit {
             }
         }
     }
-    return;
 }
 
 sub rules_distribution {
@@ -16160,7 +16035,6 @@ sub rules_distribution {
 
     # No longer needed, free some memory.
     %obj2path       = ();
-    return;
 }
 
 ##############################################################################
@@ -16625,7 +16499,6 @@ EOF
             print " certificate-group-map $map_name 10 $tunnel_group_map\n";
         }
     }
-    return;
 }
 
 # Pre-processing for all interfaces.
@@ -16659,7 +16532,6 @@ sub print_acl_prefix {
     print "-A droplog -j LOG --log-level debug\n";
     print "-A droplog -j DROP\n";
     print "\n";
-    return;
 }
 
 sub print_acl_suffix {
@@ -16672,7 +16544,6 @@ sub print_acl_suffix {
     print "-A FORWARD -j droplog\n";
     print "COMMIT\n";
     print "EOF\n";
-    return;
 }
 
 sub print_iptables_acls {
@@ -16718,7 +16589,6 @@ sub print_iptables_acls {
         # Empty line after each chain.
         print "\n";
     }
-    return;
 }
 
 sub print_cisco_acls {
@@ -16855,7 +16725,6 @@ sub print_cisco_acls {
             print "\n";
         }
     }
-    return;
 }
 
 sub generate_acls {
@@ -16870,7 +16739,6 @@ sub generate_acls {
     else {
         print_cisco_acls($router);
     }
-    return;
 }
 
 sub gen_crypto_rules {
@@ -16956,7 +16824,6 @@ sub print_ezvpn {
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
     print " ip access-group $crypto_filter_name in\n";
-    return;
 }
 
 # Print crypto ACL.
@@ -17054,7 +16921,6 @@ sub print_crypto_map_attributes {
             );
         }
     }
-    return;
 }
 
 sub print_tunnel_group {
@@ -17080,7 +16946,6 @@ sub print_tunnel_group {
     else {
         print " peer-id-validate nocheck\n";
     }
-    return;
 }
 
 sub print_ca_and_tunnel_group_map {
@@ -17091,7 +16956,6 @@ sub print_ca_and_tunnel_group_map {
     print "crypto ca certificate map $id 10\n";
     print " subject-name attr ea eq $id\n";
     print "tunnel-group-map $id 10 $tg_name\n";
-    return;
 }
 
 sub print_static_crypto_map {
@@ -17154,7 +17018,6 @@ sub print_static_crypto_map {
             }
         }
     }
-    return;
 }
 
 sub print_dynamic_crypto_map {
@@ -17203,7 +17066,6 @@ sub print_dynamic_crypto_map {
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
     }
-    return;
 }
 
 sub print_crypto {
@@ -17392,7 +17254,6 @@ sub print_crypto {
             print "crypto map $map_name interface $hw_name\n";
         }
     }
-    return;
 }
 
 sub print_interface {
@@ -17461,7 +17322,6 @@ sub print_interface {
         }
     }
     print "\n";
-    return;
 }
 
 sub print_prt {
@@ -17759,7 +17619,6 @@ sub check_output_dir {
             }
         }
     }
-    return;
 }
 
 # Print generated code for each managed router.
@@ -17888,12 +17747,10 @@ sub copy_raw {
         system("cp -f $raw_path $copy") == 0
           or fatal_err("Can't copy $raw_path to $copy: $!");
     }
-    return;
 }
 
 sub show_version {
     progress("$program, version $version");
-    return;
 }
 
 # Start concurrent jobs.
@@ -18079,8 +17936,6 @@ sub init_protocols {
         prt => [ $prt_ip ]
     };
     $deny_any_rule = { %$permit_any_rule, deny => 1, };
-
-    return;
 }
 
 sub init_global_vars {
@@ -18107,7 +17962,6 @@ sub init_global_vars {
     %known_log          = %key2log = ();
     %nat2obj2address    = ();
     init_protocols();
-    return;
 }
 
 sub compile {
@@ -18183,8 +18037,6 @@ sub compile {
         });
 
     abort_on_error();
-
-    return;
 }
 
 1;
