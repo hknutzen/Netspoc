@@ -618,17 +618,6 @@ sub read_identifier {
     }
 }
 
-# Read pattern for attribute "visible": "*" or "name*".
-sub read_owner_pattern {
-    skip_space_and_comment;
-    if ($input =~ m/ ( \G [\w-]* [*] ) /gcx) {
-        return $1;
-    }
-    else {
-        syntax_err("Pattern '*' or 'name*' expected");
-    }
-}
-
 # Used for reading hardware name, model, admins, watchers.
 sub read_name {
     skip_space_and_comment;
@@ -3041,10 +3030,6 @@ sub read_service {
             my $other = read_assign_list(\&read_typed_name);
             add_attribute($service, overlaps => $other);
         }
-        elsif ($token eq 'visible') {
-            my $visible = read_assign(\&read_owner_pattern);
-            add_attribute($service, visible => $visible);
-        }
         elsif ($token eq 'multi_owner') {
             skip(';');
             $service->{multi_owner} = 1;
@@ -4747,21 +4732,6 @@ sub link_services {
                 }
             }
             $service->{overlaps} = \@sobjects;
-        }
-
-        # Attribute "visible" is known to have value "*" or "name*".
-        # It must match prefix of some owner name.
-        # Change value to regex to simplify tests: # name* -> /^name.*$/
-        if (my $visible = $service->{visible}) {
-            if (my ($prefix) = ($visible =~ /^ (\S*) [*] $/x)) {
-                if ($prefix) {
-                    if (not grep { /^$prefix/ } keys %owners) {
-                        warn_msg("Attribute 'visible' of $name doesn't match",
-                            " any owner");
-                    }
-                }
-                $service->{visible} = qr/^$prefix.*$/;
-            }
         }
     }
 }
