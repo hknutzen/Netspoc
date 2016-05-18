@@ -313,15 +313,6 @@ sub subset_of {
     return @$aref1 == $count;
 }
 
-# Return highest number among all arguments.
-sub max {
-    my $max = shift(@_);
-    for my $el (@_) {
-        $max = $el if $max < $el;
-    }
-    return $max;
-}
-
 # Delete an element from an array reference.
 # Return true if element was found.
 sub aref_delete {
