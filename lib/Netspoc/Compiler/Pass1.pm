@@ -17736,16 +17736,16 @@ sub copy_raw {
         my ($raw_file) = ($file =~ /^(.*)/);
         my $raw_path = "$raw_dir/$raw_file";
         if (not -f $raw_path) {
-            warn_msg("Ignoring $raw_path");
+            warn_msg("Ignoring path $raw_path");
             next;
         }
         if (not $device_names{$file}) {
-            warn_msg("Found unused $raw_path");
+            warn_msg("Found unused file $raw_path");
             next;
         }
         my $copy = "$out_dir/$raw_file.raw";
         system("cp -f $raw_path $copy") == 0
-          or fatal_err("Can't copy $raw_path to $copy: $!");
+          or fatal_err("Can't copy file $raw_path to $copy: $!");
     }
 }
 
