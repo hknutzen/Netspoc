@@ -164,7 +164,8 @@ network:customers1 = {
  }
  host:id:bar@domain.x = { 
   ip = 10.99.1.11; 
-  radius_attributes = { banner = Willkommen zu Hause; }
+  radius_attributes = { split-tunnel-policy = tunnelall;
+                        banner = Willkommen zu Hause; }
  }
 }
 
