@@ -7139,17 +7139,19 @@ sub get_zone {
     my $type = ref $obj;
     my $result;
 
-    # A router or network with [auto] interface.
-    if ($type eq 'Autointerface') {
-        $obj  = $obj->{object};
-        $type = ref $obj;
+    # Used, when called on src_path / dst_path of path_rule.
+    if ($type eq 'Zone') {
+        $result = $obj;
     }
+    elsif ($type eq 'Router') {
+        if ($obj->{managed}) {
+            $result = $obj;
+        }
+        else {
 
-    if ($type eq 'Network') {
-        $result = $obj->{zone};
-    }
-    elsif ($type eq 'Subnet') {
-        $result = $obj->{network}->{zone};
+            # Take surrounding zone from arbitrary attached network.
+            $result = $obj->{interfaces}->[0]->{network}->{zone};
+        }
     }
     elsif ($type eq 'Interface') {
         if ($obj->{router}->{managed}) {
@@ -7160,22 +7162,14 @@ sub get_zone {
         }
     }
 
-    # Used, when called on src_path / dst_path.
-    elsif ($type eq 'Router') {
-        if ($obj->{managed}) {
-            $result = $obj;
-        }
-        else {
-            $result = $obj->{interfaces}->[0]->{network}->{zone};
-        }
+    # When called on objects from src/dst of path_rule.
+    elsif ($type eq 'Network') {
+        $result = $obj->{zone};
     }
-    elsif ($type eq 'Zone') {
-        $result = $obj;
-    }
-
-    elsif ($type eq 'Host') {
+    elsif ($type eq 'Subnet') {
         $result = $obj->{network}->{zone};
     }
+
     else {
         internal_err("Unexpected $obj->{name}");
     }
