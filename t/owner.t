@@ -412,7 +412,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Inherit owner from router_attributes of area';
+$title = 'Invalid owner in area and router_attributes of area';
 ############################################################
 
 $in = <<'END';
@@ -435,6 +435,52 @@ Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Inherit owner from router_attributes of area';
+############################################################
+
+$in = <<'END';
+area:all = { 
+ anchor = network:n1; 
+ router_attributes = { owner = o1; }
+}
+area:a2 = { 
+ border = interface:r1.n2;
+ router_attributes = { owner = o2; }
+}
+
+owner:o1 = { admins = o1@b.c; }
+owner:o2 = { admins = o2@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ owner = o1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ owner = o2;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+END
+
+$out = <<'END';
+Warning: Useless owner:o2 at router:r2,
+ it was already inherited from router_attributes of area:a2
+Warning: Useless owner:o1 at router:r1,
+ it was already inherited from router_attributes of area:all
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Owner mismatch of overlapping hosts';
