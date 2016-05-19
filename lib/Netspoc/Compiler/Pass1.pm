@@ -5517,6 +5517,23 @@ sub check_auto_intf {
     }
 }
 
+# Remove and warn about duplicate values in group.
+sub remove_duplicates {
+    my ($aref, $context) = @_;
+    my %seen;
+    my @duplicates;
+    for my $obj (@$aref) {
+        if ($seen{$obj}++) {
+            push @duplicates, $obj;
+        }
+    }
+    if (@duplicates) {
+        aref_delete($aref, $_) for @duplicates;
+        warn_msg("Duplicate elements in $context:\n ",
+                 join "\n ", map { $_->{name} } @duplicates);
+    }
+}
+
 # Get a reference to an array of network object descriptions and
 # return a reference to an array of network objects.
 sub expand_group1;
@@ -5977,20 +5994,7 @@ sub expand_group1 {
                     }
 
                     # Detect and remove duplicate values in group.
-                    my %unique;
-                    my @duplicate;
-                    for my $obj (@$elements) {
-                        if ($unique{$obj}++) {
-                            push @duplicate, $obj;
-                            $obj = undef;
-                        }
-                    }
-                    if (@duplicate) {
-                        $elements = [ grep { defined $_ } @$elements ];
-                        my $msg = "Duplicate elements in $type:$name:\n "
-                          . join("\n ", map { $_->{name} } @duplicate);
-                        warn_msg($msg);
-                    }
+                    remove_duplicates($elements, "$type:$name");
 
                     # Cache result for further references to the same group
                     # in same $clean_autogrp context.
@@ -6018,30 +6022,10 @@ sub expand_group1 {
     return \@objects;
 }
 
-# Remove and warn about duplicate values in group.
-sub remove_duplicates {
-    my ($aref, $context) = @_;
-    my %seen;
-    my @duplicate;
-    for my $obj (@$aref) {
-        if ($seen{$obj}++) {
-            push @duplicate, $obj;
-            $obj = undef;
-        }
-    }
-    if (@duplicate) {
-        my $msg = "Duplicate elements in $context:\n "
-          . join("\n ", map { $_->{name} } @duplicate);
-        warn_msg($msg);
-        $aref = [ grep { defined $_ } @$aref ];
-    }
-    return $aref;
-}
-
 sub expand_group {
     my ($obref, $context) = @_;
     my $aref = expand_group1 $obref, $context, 'clean_autogrp';
-    $aref = remove_duplicates($aref, $context);
+    remove_duplicates($aref, $context);
 
     # Ignore disabled objects.
     my $changed;
@@ -6441,7 +6425,7 @@ sub add_managed_hosts {
     }
     if (@extra) {
         push @$aref, @extra;
-        $aref = remove_duplicates($aref, $context);
+        remove_duplicates($aref, $context);
     }
     return $aref;
 }

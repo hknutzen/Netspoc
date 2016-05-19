@@ -140,4 +140,61 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Recursive definition of group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = group:g2;
+group:g2 = network:n, group:g1;
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Error: Found recursion in definition of group:g2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate elements in group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+group:g1 = network:n1, network:n2, network:n2, network:n1, network:n2;
+
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Warning: Duplicate elements in group:g1:
+ network:n2
+ network:n1
+ network:n2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;
