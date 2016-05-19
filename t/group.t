@@ -17,20 +17,21 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; 
  host:h3a = { range = 10.1.3.10-10.1.3.15; } 
  host:h3b = { ip = 10.1.3.26; } 
+ host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
 
-router:asa1 = {
+router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
-router:asa2 = {
+router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 END
 
@@ -48,9 +49,41 @@ END
 $out = <<'END';
 10.1.1.10	host:h1
 10.1.3.26	host:h3b
+10.1.3.33	host:h3m
 END
 
 test_group($title, $in, 'host:[network:n1, network:n3]', $out, '-unused');
+
+############################################################
+$title = 'Automatic hosts';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.1.10	host:h1
+10.1.3.10-10.1.3.15	host:h3a
+10.1.3.33	host:h3m
+END
+
+test_group($title, $in, 'host:[network:n1, host:h3a, host:h3m]', $out);
+
+############################################################
+$title = 'Unexpected interface in automatic host';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = host:[interface:r1.n1];
+permit src = user; dst = network:n1; prt = ip;
+}
+END
+
+$out = <<'END';
+Error: Unexpected interface in host:[..] of user of service:s1
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Intersection';
@@ -80,6 +113,23 @@ $out = <<'END';
 END
 
 test_group($title, $in, 'group:g1 &! network:n2', $out);
+
+############################################################
+$title = 'Complement without intersection';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = ! network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: Complement (!) is only supported as part of intersection in user of service:s1
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Umlaut in group name';

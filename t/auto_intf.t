@@ -1423,4 +1423,83 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Must not use auto interface of host';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:test = {
+ user = interface:[host:h1].[auto] ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+Error: Unexpected type 'Host' in interface:[..] of user of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unresolvable auto interface and interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:test = {
+ user = interface:r99.[auto], interface:88.n1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+Error: Can\'t resolve interface:r99.[auto] in user of service:test
+Error: Can\'t resolve interface:88.n1 in user of service:test
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Auto interface in wrong context';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+}
+
+service:s = {
+ user = host:[interface:r1.[auto]],
+        network:[interface:r1.[auto]],
+        any:[interface:r1.[auto]],
+ ;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<"END";
+Error: Unexpected type 'Autointerface' in host:[..] of user of service:s
+Error: Unexpected type 'Autointerface' in network:[..] of user of service:s
+Error: Unexpected type 'Autointerface' in any:[..] of user of service:s
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
