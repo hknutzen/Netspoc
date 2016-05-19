@@ -53,6 +53,46 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Group references private element of other context';
+############################################################
+
+$in = <<'END';
+-- topo.private
+network:n1 = { ip = 10.1.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = group:g2;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+group:g3 = network:n1;
+service:s3 = {
+ user = group:g3;
+ permit src = user; dst = network:n2; prt = tcp 82;
+}
+-- g1.private
+group:g1 = network:n1;
+-- public
+group:g2 = network:n1;
+END
+
+$out = <<'END';
+Error: g1.private group:g1 must not reference topo.private network:n1
+Error: public group:g2 must not reference topo.private network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Must reference private object from private service';
 ############################################################
 
