@@ -10441,8 +10441,7 @@ sub check_virtual_interfaces {
         my $err;
         for my $v (@$related) {
             if (not $v->{router}->{loop}) {
-                err_msg("Virtual IP of $v->{name}\n",
-                    " must be located inside cyclic sub-graph");
+                err_msg("$v->{name} must be located inside cyclic sub-graph");
                 $err = 1;
             }
         }
