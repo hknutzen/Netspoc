@@ -1325,12 +1325,10 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Must not use interface:r.[auto] and interface:r.x together
- in intersection of user of service:test
 Warning: Useless delete of interface:r.x in user of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Interface and auto interface in union';
@@ -1362,12 +1360,10 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Must not use interface:[network:x].[auto] and interface:r.x together
- in intersection of user of service:test
 Warning: Useless delete of interface:r.x in user of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Auto interface and auto network interface';
@@ -1381,12 +1377,10 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Must not use interface:[network:x].[auto] and interface:r.[auto] together
- in intersection of user of service:test
 Warning: Useless delete of interface:r.[auto] in user of service:test
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Non conflicting auto network interfaces';
