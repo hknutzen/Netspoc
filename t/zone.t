@@ -10,6 +10,59 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Implicit group of aggregates from zone cluster';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.2; }
+}
+
+pathrestriction:p = interface:r1.n2, interface:r3.n2;
+
+service:s1 = {
+ user = network:n1;
+
+ # implicitly add any:[network:n2]
+ permit src = user; dst = any:[network:n3]; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r2
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Only one generic aggregate in zone cluster';
 ############################################################
 
