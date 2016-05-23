@@ -4580,14 +4580,15 @@ sub link_virtual_interfaces {
             my $virtual2 = $interfaces->[0];
             my $type2 = $virtual2->{redundancy_type} || '';
             if ($type1 ne $type2) {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " use different redundancy protocols";
-                next;
+                err_msg("Must use identical redundancy protocol at\n",
+                        " - $virtual2->{name}\n",
+                        " - $virtual1->{name}");
             }
-            if (not $id1 eq ($virtual2->{redundancy_id} || '')) {
-                err_msg "Virtual IP: $virtual1->{name} and $virtual2->{name}",
-                  " use different ID";
-                next;
+            my $id2 = $virtual2->{redundancy_id} || '';
+            if ($id1 ne $id2) {
+                err_msg("Must use identical ID at\n",
+                        " - $virtual2->{name}\n",
+                        " - $virtual1->{name}");
             }
 
             # This changes value of %net2ip2virtual and all attributes
@@ -4602,11 +4603,10 @@ sub link_virtual_interfaces {
             # Check for identical ID used at unrelated virtual interfaces
             # inside the same network.
             if ($id1) {
-                if (my $virtual2 = $net2id2type2virtual{$net}->{$id1}->{$type1})
-                {
-                    err_msg "Virtual IP:",
-                      " Unrelated $virtual1->{name} and $virtual2->{name}",
-                      " use identical ID";
+                if (my $other = $net2id2type2virtual{$net}->{$id1}->{$type1}) {
+                    err_msg("Must use different ID at unrelated\n",
+                        " - $other->{name}\n",
+                        " - $virtual1->{name}");
                 }
                 else {
                     $net2id2type2virtual{$net}->{$id1}->{$type1} = $virtual1;
