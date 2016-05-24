@@ -4369,8 +4369,8 @@ sub link_pathrestrictions {
 
             # Pathrestrictions must not be applied to secondary interfaces
             $obj->{main_interface}
-              and err_msg "secondary $obj->{name} must not be used",
-              " in pathrestriction";
+              and err_msg("$restrict->{name} must not reference",
+                          " secondary $obj->{name}");
 
             # Private pathrestriction must reference at least one interface
             # of its own context.
