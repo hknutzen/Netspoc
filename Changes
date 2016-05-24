@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.008     2016-05-24 17:29:35+02:00 Europe/Berlin
+
  - Fully observe pathrestriction for path starting or ending 
    at pathrestriction at border of loop.
  - No longer support undocumented attribute 'visible' of service.
