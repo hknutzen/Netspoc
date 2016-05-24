@@ -5452,7 +5452,6 @@ sub expand_group1 {
         if ($type eq '&') {
             my @non_compl;
             my @compl;
-            my %autointf_info;
             for my $element (@$name) {
                 my $element1 = $element->[0] eq '!' ? $element->[1] : $element;
                 my @elements =
