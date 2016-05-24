@@ -4354,7 +4354,7 @@ sub add_pathrestriction {
 }
 
 sub link_pathrestrictions {
-    for my $restrict (values %pathrestrictions) {
+    for my $restrict (sort by_name values %pathrestrictions) {
         $restrict->{elements} = expand_group $restrict->{elements},
           $restrict->{name};
         my $changed;
@@ -4419,27 +4419,6 @@ sub link_pathrestrictions {
             # It is separating zones, but gets no code.
             my $router = $obj->{router};
             $router->{managed} or $router->{semi_managed} = 1;
-        }
-
-        # Add pathrestriction to tunnel interfaces,
-        # which belong to real interface.
-        # Don't count them as extra elements.
-        for my $interface (@{ $restrict->{elements} }) {
-            next if not($interface->{spoke} or $interface->{hub});
-
-            # Don't add for no_check interface because traffic would
-            # pass the pathrestriction two times.
-            next if $interface->{no_check};
-            my $router = $interface->{router};
-            for my $intf (@{ $router->{interfaces} }) {
-                my $real_intf = $intf->{real_interface};
-                next if not $real_intf;
-                next if not $real_intf eq $interface;
-
-#               debug("Adding $restrict->{name} to $intf->{name}");
-                push @{ $restrict->{elements} },  $intf;
-                push @{ $intf->{path_restrict} }, $restrict;
-            }
         }
     }
 }
