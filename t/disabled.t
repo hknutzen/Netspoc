@@ -13,22 +13,37 @@ my ($title, $in, $out, $topo);
 $topo = <<END;
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+network:n3 = { ip = 10.1.3.0/24; }
 
-router:asa1 = {
+router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; disabled; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
-router:asa2 = {
+router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; disabled; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 END
+
+############################################################
+$title = 'Ignore disabled host, network, interface in rule';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+    user = host:h1, network:n2, interface:r1.n1, interface:r1.[auto];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Ignore disabled aggregate in rule';
@@ -38,41 +53,32 @@ $in = $topo . <<'END';
 any:n1 = { link = network:n1; }
 service:test = {
  user = any:n1;
- permit src = user; dst = network:n2; prt = tcp 22;
+ permit src = user; dst = network:n3; prt = tcp 22;
 }
 END
 
-$out = <<END;
---asa1
-access-list vlan2_in extended deny ip any any
-access-group vlan2_in in interface vlan2
-END
+$out = '';
 
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Ignore disabled interface in intersection';
+$title = 'Only warn on unknown network at disabled interface';
 ############################################################
 
 $in = <<'END';
 #network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 
-router:asa1 = {
+router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; disabled; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
-}
-
-service:test = {
- user = interface:asa1.[all] &! interface:asa1.n1;
- permit src = user; dst = network:n2; prt = tcp 22;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; disabled; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 END
 
 $out = <<END;
-Warning: Referencing undefined network:n1 from interface:asa1.n1
+Warning: Referencing undefined network:n1 from interface:r1.n1
 END
 
 test_warn($title, $in, $out);
@@ -100,8 +106,8 @@ service:s = {
 }
 END
 
-$out = <<END;
-Error: network:n2 isn't connected to any router
+$out = <<"END";
+Error: network:n2 isn\'t connected to any router
 END
 
 test_err($title, $in, $out);

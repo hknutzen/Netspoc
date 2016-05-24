@@ -95,6 +95,41 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'General permit with no_in_acl';
+############################################################
+
+$in = <<'END';
+network:m = { ip = 10.2.2.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ general_permit = tcp, icmp 0, icmp 3;
+ interface:m = { ip = 10.2.2.2; hardware = e0; no_in_acl; }
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+--r
+ip access-list e0_in
+ 10 permit icmp any any 0
+ 20 permit icmp any any 3
+ 30 permit tcp any any
+ 40 deny ip any 10.2.2.2/32
+ 50 deny ip any 10.1.1.2/32
+ 60 permit ip any any
+--
+ip access-list e1_in
+ 10 permit icmp any any 0
+ 20 permit icmp any any 3
+ 30 permit tcp any any
+ 40 deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'No range permitted';
 ############################################################
 

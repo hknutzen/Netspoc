@@ -42,10 +42,79 @@ service:s2 = {
 END
 
 $out = <<'END';
-Error: Rule of public service:s1 must not reference network:n1 of n1.private
-Error: Rule of public service:s2 must not reference host:h1 of n1.private
-Error: Rule of public service:s2 must not reference host:h2 of n1.private
-Error: Rule of public service:s2 must not reference interface:filter.n1 of n1.private
+Error: Rule of public service:s1 must not reference
+ - network:n1 of n1.private
+Error: Rule of public service:s2 must not reference
+ - host:h1 of n1.private
+ - host:h2 of n1.private
+ - interface:filter.n1 of n1.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Group references private element of other context';
+############################################################
+
+$in = <<'END';
+-- topo.private
+network:n1 = { ip = 10.1.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = group:g2;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+group:g3 = network:n1;
+service:s3 = {
+ user = group:g3;
+ permit src = user; dst = network:n2; prt = tcp 82;
+}
+-- g1.private
+group:g1 = network:n1;
+-- public
+group:g2 = network:n1;
+END
+
+$out = <<'END';
+Error: g1.private group:g1 must not reference topo.private network:n1
+Error: public group:g2 must not reference topo.private network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must reference private object from private service';
+############################################################
+
+$in = <<'END';
+-- public
+network:n1 = { ip = 10.1.1.0/24; }
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- s1.private
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Rule of s1.private service:s1 must reference at least one object out of s1.private
 END
 
 test_err($title, $in, $out);
@@ -151,6 +220,75 @@ $out = <<'END';
 Error: Zones connected by router:r must all have identical 'private' status
  - any:[network:n1]: a.private
  - any:[network:n2]: public
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Public pathrestriction references private interface';
+############################################################
+
+$in = <<'END';
+-- a.private
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- b.public
+pathrestriction:p = interface:r1.n1, interface:r2.n2;
+END
+
+$out = <<'END';
+Error: Public pathrestriction:p must not reference a.private interface:r1.n1
+Error: Public pathrestriction:p must not reference a.private interface:r2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Private pathrestriction must reference >= 1 private interfaces';
+############################################################
+
+$in = <<'END';
+-- a.public
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- x.private
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+}
+-- b.private
+pathrestriction:p = interface:r1.n1, interface:r3.n1;
+END
+
+$out = <<'END';
+Error: b.private pathrestriction:p must reference at least one interface out of b.private
 END
 
 test_err($title, $in, $out);

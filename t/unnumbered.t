@@ -50,6 +50,26 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered network to more than two interfaces';
+############################################################
+
+$in = <<'END';
+network:u = { unnumbered; }
+router:r1 = { interface:u = { unnumbered; } } 
+router:r2 = { interface:u = { unnumbered; } } 
+router:r3 = { interface:u = { unnumbered; } } 
+END
+
+$out = <<'END';
+Error: Unnumbered network:u is connected to more than two interfaces:
+ interface:r1.u
+ interface:r2.u
+ interface:r3.u
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Zone cluster with unnumbered network';
 ############################################################
 

@@ -137,69 +137,51 @@ $title = 'Abort in foreground job';
 ############################################################
 # Don't wait for background job, but exit immediately.
 
-# Test case copied from nat.t
-
 $in = <<'END';
-network:Test =  {
- ip = 10.0.1.0/24; 
- nat:C = { hidden; }
+network:n1 =  {
+ ip = 10.1.1.0/24; 
 }
 
 router:r1 = {
  managed;
  model = ASA;
- interface:Test = { ip = 10.0.1.2; hardware = inside; }
- interface:t1 = { ip = 10.0.2.1; hardware = outside;}
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.1.2; hardware = n2;}
 }
 
-network:t1 = { ip = 10.0.2.0/24; }
+network:n2 = { ip = 10.1.1.0/24; }
 
-router:u = {
- interface:t1 = { ip = 10.0.2.2; }
- interface:X = { ip = 10.8.3.1; bind_nat = C; }
-}
-
-network:X = { ip = 10.8.3.0/24; }
-
-router:r2 = {
- managed;
- model = ASA;
- interface:X = { ip = 10.8.3.2; hardware = inside; }
-}
-
-service:s1 = {
- user = any:[network:X];
- permit src = user; dst = network:Test; prt = tcp 80;
-}
 END
 
 $out = <<'END';
-Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:s1
+Error: network:n2 and network:n1 have identical IP/mask
+ in nat_domain:n1
 Aborted after 1 errors
 END
 
 test_err($title, $in, $out, '--max_errors=1 --concurrency_pass1=2');
 
 ############################################################
-$title = 'Pass 2';
+$title = 'Pass 2, 3 devices with up to 8 jobs';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
 
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
 }
 
 END
@@ -210,17 +192,23 @@ $out = <<'END';
 ! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
---
-! n2_in
-access-list n2_in extended deny ip any any
-access-group n2_in in interface n2
 -- asa2
-! n2_in
-access-list n2_in extended deny ip any any
-access-group n2_in in interface n2
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+-- asa3
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out, '--concurrency_pass2=8');
+
+############################################################
+$title = 'Pass 2, 3 devices with 2 jobs';
+############################################################
+
+test_run($title, $in, $out, '--concurrency_pass2=2');
 
 ############################################################
 done_testing;

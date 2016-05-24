@@ -37,7 +37,6 @@ $in =~ s/filter_only/#filter_only/;
 
 $out = <<"END";
 Error: Missing attribute 'filter_only' for router:d32
-Error: network:n1 doesn\'t match attribute 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);

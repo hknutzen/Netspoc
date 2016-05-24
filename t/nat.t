@@ -519,10 +519,10 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
- permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
 Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
  permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
+Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
+ permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
 END
 
 test_err($title, $in, $out);
@@ -1688,6 +1688,130 @@ Error: Must not apply dynamic NAT 'h' on path
  - interface:r2.t2
  Add pathrestriction to exclude this path
 END
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Mixed valid and invalid hidden NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ nat:h = { hidden; }
+ nat:d = { ip = 10.9.9.0/27; dynamic; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = d; }
+}
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = d; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h; }
+}
+
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = h; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
+pathrestriction:p = interface:r2.n3, interface:r4.n1;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Error: Must not apply hidden NAT 'h' on path
+ of rule
+ permit src=network:n1; dst=network:n3; prt=tcp 81; of service:s2
+ NAT 'h' is active at
+ - interface:r3.n4
+ - interface:r4.n4
+ Add pathrestriction to exclude this path
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Mixed valid and invalid dynamic NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ nat:d = { ip = 10.9.9.0/27; dynamic; }
+ host:h10 = { ip = 10.1.1.10; nat:d = { ip = 10.9.9.3; } } 
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = d; }
+}
+
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
+pathrestriction:p = interface:r2.n3, interface:r4.n1;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = host:h10; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = host:h10; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Error: Must not apply dynamic NAT 'd' on path
+ of reversed rule
+ permit src=network:n3; dst=host:h10; prt=tcp 81; of service:s2
+ NAT 'd' is active at
+ - interface:r3.n4
+ - interface:r4.n4
+ Add pathrestriction to exclude this path
+END
+
 test_err($title, $in, $out);
 
 ############################################################

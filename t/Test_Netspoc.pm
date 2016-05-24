@@ -137,6 +137,9 @@ sub compare_warnings_and_devices {
 
     if ($check_stderr) {
         $warnings ||= '';
+
+        # Normalize input path: remove temp. dir.
+        $stderr =~ s/\Q$in_dir\E\///g;
         eq_or_diff($stderr, $warnings, $title);
     }
     else {

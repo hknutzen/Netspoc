@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.007'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.008'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -208,6 +208,7 @@ sub path_unmanaged {
     my $result = 0;
     for my $interface (@{ $obj->{interfaces} }) {
         next if $interface eq $in_interface;
+        next if $interface->{main_interface};
         my $next = $interface->{is_network($obj) ? 'router' : 'network'};
 	if (path_unmanaged($next, $interface)) {
 	    $obj->{is_used} = 1;
@@ -225,6 +226,7 @@ sub mark_unmanaged {
 	next if not $network->{is_used};
 #        debug "Path unmanaged $network->{name}";
 	for my $interface (@{ $network->{interfaces} }) {
+            next if $interface->{main_interface};
 	    my $router = $interface->{router};
 #	    debug "Try $router->{name} $interface->{name}";
 	    if (path_unmanaged($router, $interface)) {
@@ -446,16 +448,36 @@ for my $network (values %networks) {
     }
 }
 
-# Mark fragments of marked crypto routers.
 for my $router (values %routers) {
     $router->{is_used} or next;
+
+    # Mark fragments of marked crypto routers.
     for my $interface (get_intf($router)) {
         my $fragment = $interface->{router};
         next if $fragment eq $router;
 #        debug "Fragment: $fragment->{name}";
         $fragment->{is_used} = 1;
     }
+
+    # Mark path of crypto tunnels.
+    # Mark main interface of secondary or virtual interface.
+    for my $interface (get_intf($router)) {
+        $interface->{is_used} or next;
+        if (my $main = $interface->{main_interface} || $interface->{orig_main})
+        {
+            $main->{is_used} = 1;
+        }
+	if ($interface->{ip} eq 'tunnel') {
+            my $peer = $interface->{peer};
+            my $real_intf = $interface->{real_interface};
+            mark_path($real_intf, $peer->{real_interface}); 
+        }
+    }
 }
+
+# 2. call to mark unmanaged parts of topology.
+# Needed to mark crypto path of unmanaged crypto routers.
+mark_unmanaged();
 
 for my $router (values %routers) {
     $router->{is_used} or next;
@@ -477,30 +499,14 @@ for my $router (values %routers) {
 	}
  
 	# Mark crypto definitions which are referenced by
-	# already marked interfaces.  
-	my $mark_crypto = sub {
-	    my ($crypto) = @_;
-	    $crypto->{is_used} = 1;
-	    my $type = $crypto->{type};
-	    $type->{is_used} = 1;
-	    $type->{key_exchange}->{is_used} = 1;
-	};
-	
-	if ($interface->{ip} eq 'tunnel') {
-	    $mark_crypto->($interface->{crypto});
-            my $peer = $interface->{peer};
-            my $real_intf = $interface->{real_interface};
-            mark_path($real_intf, $peer->{real_interface}); 
-
-            # Mark possibly unused crypto, referenced at hub.
-            if (my $crypto_list = $real_intf->{hub}) {
-                $mark_crypto->($_) for @$crypto_list;
-            }
-	}
-
-        # Mark crypto, referenced at hub without any tunnels.
+	# already marked interfaces.
         if (my $crypto_list = $interface->{hub}) {
-            $mark_crypto->($_) for @$crypto_list;
+            for my $crypto (@$crypto_list) {
+                $crypto->{is_used} = 1;
+                my $type = $crypto->{type};
+                $type->{is_used} = 1;
+                $type->{key_exchange}->{is_used} = 1;
+            }
         }
 
         # Mark networks referenced by interfaces 
@@ -520,10 +526,6 @@ for my $router (values %routers) {
 	}
     }
 }
-
-# 2. call to mark unmanaged parts of topology.
-# Needed to mark crypto path of unmanaged crypto routers.
-mark_unmanaged();
 
 # Remove definitions of unused hosts from networks.
 progress('Removing unused hosts');
@@ -566,7 +568,7 @@ for my $router (values %routers) {
         # Ignore secondary and virtual interfaces.
         next if $name =~ s/[.]\w+$//;
 
-#        progress("- $name");
+#        progress("- $interface->{name}");
         remove_attribute_src_code($name, $router);
     }
 }

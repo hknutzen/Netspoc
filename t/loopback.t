@@ -48,6 +48,34 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Ignore loopback of managed router in automatic group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:lb = { ip = 10.9.9.9; hardware = lb; loopback; }
+}
+
+service:s1 = {
+ user = network:[interface:r1.lb];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Loopback is subnet';
 ############################################################
 

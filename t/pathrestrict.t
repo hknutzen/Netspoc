@@ -8,9 +8,82 @@ use lib 't';
 use Test_Netspoc;
 use Test_Pathrestrictions;
 
-my ($title, $in, $out);
+my ($title, $in, $out, $topo);
 
-my $topo = <<'END';
+############################################################
+$title = 'Pathrestriction must only reference real interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { 
+  ip = 10.1.1.1;
+  secondary:s = { ip = 10.1.1.99; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+
+}
+
+group:g1 = 
+ interface:r1.n1,
+ network:n2,
+ interface:r2.[auto],
+ interface:r1.n1.s,
+;
+pathrestriction:p = network:n1, group:g1, interface:r2.n2;
+END
+
+$out = <<'END';
+Error: pathrestriction:p must not reference network:n1
+Error: pathrestriction:p must not reference network:n2
+Error: pathrestriction:p must not reference interface:r2.[auto]
+Error: pathrestriction:p must not reference secondary interface:r1.n1.s
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Pathrestriction with only 0 or 1 interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+group:g1 =;
+pathrestriction:p1 = group:g1;
+pathrestriction:p2 = interface:r1.n1;
+END
+
+$out = <<'END';
+Warning: Ignoring pathrestriction:p1 without elements
+Warning: Ignoring pathrestriction:p2 with only interface:r1.n1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+# Shared topology for multiple tests.
+############################################################
+
+$topo = <<'END';
 network:top = { ip = 10.1.1.0/24;}
 
 router:r1 = {
@@ -302,6 +375,67 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Pathrestrictions can not be optimized';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+network:n4 = { ip = 10.1.4.0/24;}
+network:n5 = { ip = 10.1.5.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = Ethernet1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = Ethernet2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = Ethernet3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = Ethernet2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = Ethernet3; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.3; hardware = Ethernet2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = Ethernet1; }
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:n3 = { ip = 10.1.3.3; hardware = Ethernet3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = Ethernet1; }
+ interface:n5 = { ip = 10.1.5.1; hardware = Ethernet2; }
+
+}
+
+pathrestriction:pr1 = 
+ interface:r1.n3, 
+ interface:r4.n3, 
+;
+
+pathrestriction:pr2 = 
+ interface:r1.n3, 
+ interface:r3.n4,
+ interface:r4.n3, 
+;
+END
+
+$out = <<'END';
+2 pathrestriction(s) defined.
+2 pathrestriction(s) applied.
+Failed to optimize 2 pathrestriction(s).
+END
+
+test_pathrestrictions($title, $in, $out);
+
+############################################################
 $title = 'Pathrestriction located in different loops';
 ############################################################
 
@@ -367,67 +501,6 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Pathrestrictions can not be optimized';
-############################################################
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24;}
-network:n2 = { ip = 10.1.2.0/24;}
-network:n3 = { ip = 10.1.3.0/24;}
-network:n4 = { ip = 10.1.4.0/24;}
-network:n5 = { ip = 10.1.5.0/24;}
-
-router:r1 = {
- managed;
- model = IOS, FW;
- interface:n1 = { ip = 10.1.1.1; hardware = Ethernet1; }
- interface:n2 = { ip = 10.1.2.1; hardware = Ethernet2; }
- interface:n3 = { ip = 10.1.3.1; hardware = Ethernet3; }
-}
-
-router:r2 = {
- managed;
- model = IOS, FW;
- interface:n2 = { ip = 10.1.2.2; hardware = Ethernet2; }
- interface:n3 = { ip = 10.1.3.2; hardware = Ethernet3; }
-}
-
-router:r3 = {
- managed;
- model = IOS, FW;
- interface:n2 = { ip = 10.1.2.3; hardware = Ethernet2; }
- interface:n4 = { ip = 10.1.4.1; hardware = Ethernet1; }
-}
-
-router:r4 = {
- managed;
- model = IOS, FW;
- interface:n3 = { ip = 10.1.3.3; hardware = Ethernet3; }
- interface:n4 = { ip = 10.1.4.2; hardware = Ethernet1; }
- interface:n5 = { ip = 10.1.5.1; hardware = Ethernet2; }
-
-}
-
-pathrestriction:pr1 = 
- interface:r1.n3, 
- interface:r4.n3, 
-;
-
-pathrestriction:pr2 = 
- interface:r1.n3, 
- interface:r3.n4,
- interface:r4.n3, 
-;
-END
-
-$out = <<'END';
-2 pathrestriction(s) defined.
-2 pathrestriction(s) applied.
-Failed to optimize 2 pathrestriction(s).
-END
-
-test_pathrestrictions($title, $in, $out);
-
-############################################################
 $title = 'Pathrestriction at non-loop node';
 ############################################################
 $in = <<'END';
@@ -470,6 +543,354 @@ Warning: Ignoring pathrestriction:p1 at interface:r3.n3
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'Pathrestricted destination in complex loop';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+
+pathrestriction:p = interface:r1.n1, interface:r1.n3;
+
+service:s = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n3; prt = tcp 22;
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n1_in
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.1 eq 22
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.1 eq 22
+ deny ip any any
+--r2
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.1 eq 22
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp host 10.1.3.1 10.1.1.0 0.0.0.255 established
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit tcp host 10.1.3.1 10.1.1.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestricted source in complex loop';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+pathrestriction:p = interface:r1.n1, interface:r1.n3;
+pathrestriction:p2 = interface:r2.n1, interface:r2.n3;
+
+service:s = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n1_in
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit udp 10.1.3.0 0.0.0.255 eq 123 host 10.1.1.1
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+--r2
+ip access-list extended n1_in
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.3.2
+ permit udp host 10.1.1.1 10.1.3.0 0.0.0.255 eq 123
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit udp 10.1.3.0 0.0.0.255 eq 123 host 10.1.1.1
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestricted src and dst in complex loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; virtual = { ip = 10.1.3.1; } }
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.4; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.4; hardware = n3; virtual = { ip = 10.1.3.1; } }
+}
+
+pathrestriction:p = interface:r1.n4, interface:r1.n1;
+
+service:s = {
+ user = network:n4;
+ permit src = user; dst = interface:r3.n3.virtual; prt = udp 123;
+}
+END
+
+$out = <<"END";
+--r1
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--
+! n4_in
+access-list n4_in extended permit udp 10.1.4.0 255.255.255.0 host 10.1.3.1 eq 123
+access-list n4_in extended deny ip any any
+access-group n4_in in interface n4
+--r2
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--r3
+ip access-list extended n2_in
+ permit udp 10.1.4.0 0.0.0.255 host 10.1.3.1 eq 123
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+--r4
+ip access-list extended n2_in
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestricted path must not enter dst router twice';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+  model = IOS;
+  managed;
+  routing = manual;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+  interface:n4 = { ip = 10.1.4.1; hardware = n4; } 
+}
+
+router:r2 = {
+  model = IOS;
+  managed;
+  routing = manual;
+  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+  interface:n5 = { ip = 10.1.5.2; hardware = n5; } 
+}
+
+router:r3 = {
+  model = IOS;
+  managed;
+  routing = manual;
+  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+  interface:n5 = { ip = 10.1.5.1; hardware = n5; } 
+}
+
+pathrestriction:p = interface:r1.n1, interface:r1.n2;
+
+service:s1 = {
+  user = network:n1;
+  permit src = user; dst = interface:r1.n2; prt = tcp 22; 
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+--
+ip access-list extended n4_in
+ deny ip any any
+--r2
+ip access-list extended n4_in
+ deny ip any any
+--
+ip access-list extended n5_in
+ deny ip any any
+--r3
+ip access-list extended n2_in
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+--
+ip access-list extended n5_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestricted src and dst in same zone';
+############################################################
+
+# Should we find additional paths through network:n2?
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+
+pathrestriction:p1 = interface:r1.n1, interface:r1.n3;
+pathrestriction:p2 = interface:r2.n1, interface:r2.n3;
+
+service:s = {
+ user = interface:r1.n1;
+ permit src = user; dst = interface:r2.n1; prt = tcp 22;
+}
+END
+
+$out = <<"END";
+--r2
+ip access-list extended n1_in
+ permit tcp host 10.1.1.1 host 10.1.1.2 eq 22
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any any
+--
+ip access-list extended n3_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
 
 ###########################################################
 done_testing;
