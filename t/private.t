@@ -225,6 +225,75 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Public pathrestriction references private interface';
+############################################################
+
+$in = <<'END';
+-- a.private
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- b.public
+pathrestriction:p = interface:r1.n1, interface:r2.n2;
+END
+
+$out = <<'END';
+Error: Public pathrestriction:p must not reference a.private interface:r1.n1
+Error: Public pathrestriction:p must not reference a.private interface:r2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Private pathrestriction must reference >= 1 private interfaces';
+############################################################
+
+$in = <<'END';
+-- a.public
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- x.private
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+}
+-- b.private
+pathrestriction:p = interface:r1.n1, interface:r3.n1;
+END
+
+$out = <<'END';
+Error: b.private pathrestriction:p must reference at least one interface out of b.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
 # Common topology for public / private tests.
 ############################################################
 $topo = <<'END';

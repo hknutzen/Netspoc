@@ -162,24 +162,26 @@ END
 test_err($title, $in, $out, '--max_errors=1 --concurrency_pass1=2');
 
 ############################################################
-$title = 'Pass 2';
+$title = 'Pass 2, 3 devices with up to 8 jobs';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
 
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
 }
 
 END
@@ -190,17 +192,23 @@ $out = <<'END';
 ! n1_in
 access-list n1_in extended deny ip any any
 access-group n1_in in interface n1
---
-! n2_in
-access-list n2_in extended deny ip any any
-access-group n2_in in interface n2
 -- asa2
-! n2_in
-access-list n2_in extended deny ip any any
-access-group n2_in in interface n2
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+-- asa3
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out, '--concurrency_pass2=8');
+
+############################################################
+$title = 'Pass 2, 3 devices with 2 jobs';
+############################################################
+
+test_run($title, $in, $out, '--concurrency_pass2=2');
 
 ############################################################
 done_testing;

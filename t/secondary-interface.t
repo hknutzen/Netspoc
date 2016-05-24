@@ -201,5 +201,65 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Move secondary interface of  internally split router';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+# r1 is split internally into two parts
+# r1 connected with n1, n2
+# r1' connected with n3
+# both connected by unnumbered network.
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; secondary:s = { ip = 10.1.3.99; } }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+pathrestriction:r = 
+ interface:r1.n3,
+ interface:r2.n3,
+;
+
+service:s = {
+ user = network:n4;
+
+ # Find secondary  interface r1.n3.s of split interface r1.n3.
+ permit src = user; dst = interface:r1.n3.s; prt = tcp 22;
+
+}
+END
+
+$out = <<'END';
+--r2
+ip access-list extended n1_in
+ permit tcp host 10.1.3.99 10.1.4.0 0.0.0.255 established
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit tcp 10.1.4.0 0.0.0.255 host 10.1.3.99 eq 22
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit tcp host 10.1.3.99 10.1.4.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;
