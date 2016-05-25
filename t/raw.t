@@ -33,18 +33,18 @@ router:r2 = {
   interface:n1 = { ip = 10.1.1.2; hardware = n1; }
   interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
+-- raw/aaa/b
+!!!
 -- raw/r1
 ! manual route
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
--- raw/xxx
+-- raw/x
 access-list n2_in extended permit udp any any eq 123
--- raw/y/z
-!!!
 END
 
 $out = <<'END';
-Warning: Found unused file raw/xxx
-Warning: Ignoring path raw/y
+Warning: Ignoring path raw/aaa
+Warning: Found unused file raw/x
 --r1.raw
 ! manual route
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
