@@ -9743,8 +9743,10 @@ sub set_zone_cluster {
 # - both belong to the same zone cluster.
 sub zone_eq {
     my ($zone1, $zone2) = @_;
-    return (($zone1->{zone_cluster} || $zone1) eq
-          ($zone2->{zone_cluster} || $zone2));
+    return 1 if $zone1 eq $zone2;
+    my $cluster1 = $zone1->{zone_cluster} or return;
+    my $cluster2 = $zone2->{zone_cluster} or return;
+    return $cluster1 eq $cluster2;
 }
 
 ###############################################################################
