@@ -207,7 +207,6 @@ Currently these router models are supported:
 - `IOS` for Cisco IOS routers,
 - `IOS, FW` for Cisco IOS routers with stateful inspection,
 - `IOS, EZVPN` for Cisco IOS routers with easy VPN,
-- `PIX` for Cisco PIX.
 
 For ASA devices the attribute `, 8.4` can be added to the model definition.
 This changes generated IPSec commands.
@@ -538,8 +537,8 @@ Netspoc needs to know about NAT for these reasons:
 1. When generating ACLs for an interface it must use those IP
    addresses which are visible in the area attached to this interface.
 2. The same is true when generating static routing entries.
-3. For devices of type PIX Netspoc is able to actually generate the
-   NAT translation rules. For other devices, NAT has to be configured manually.
+
+But the actual NAT commands have to be configured manually.
 
 ### Attribute acl_use_real_ip
 
@@ -882,9 +881,9 @@ rules are silently discarded.
 
 ## Disable generation of object-groups
 
-Netspoc generates optimized code using object-groups for Cisco ASA and
-PIX firewalls.  Use router attribute `no_group_code` to disable this
-optimization.
+Netspoc generates optimized code using object-groups for devices of
+type ASA, ACE and NX-OS.  Use router attribute `no_group_code` to
+disable this optimization.
 
 ## Private configuration context
 
