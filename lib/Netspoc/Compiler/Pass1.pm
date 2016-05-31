@@ -17651,7 +17651,9 @@ sub concurrent {
                 if (not $err_count) {
                     internal_err("Background process died with status $status");
                 }
+                debug "pre: $error_counter";
                 $error_counter += $err_count;
+                debug "post: $error_counter";
             }
         }
     }
@@ -17659,6 +17661,7 @@ sub concurrent {
 
     # Child
     elsif (defined $child_pid) {
+        my $start_error_counter = $error_counter;
 
         # Catch errors,
         eval { 
@@ -17676,7 +17679,9 @@ sub concurrent {
                 print STDOUT $@;
             }
         }
-        exit $error_counter;
+
+        # Tell parent process number of additional errors from child.
+        exit $error_counter - $start_error_counter;
     }
     else {
         internal_err("Can't start child: $!");
