@@ -720,7 +720,7 @@ sub find_objectgroups {
     $router_data->{obj_group_counter} ||= 0;
 
     # Leave 'intf_rules' untouched, because
-    # - these rules are ignored at ASA, PIX,
+    # - these rules are ignored at ASA,
     # - NX-OS needs them individually when optimizing need_protect.
     my $rules = $acl_info->{rules};
 
@@ -2065,11 +2065,11 @@ sub cisco_prt_code {
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                if ($model =~ /^(:?ASA|PIX)$/) {
+                if ($model eq 'ASA') {
 
-                    # PIX can't handle the ICMP code field.
+                    # ASA up to version 9.0(1) can't handle ICMP code field.
                     # If we try to permit e.g. "port unreachable",
-                    # "unreachable any" could pass the PIX.
+                    # "unreachable any" could pass.
                     return ($proto, undef, $type);
                 }
                 else {
@@ -2138,9 +2138,6 @@ sub print_cisco_acl {
     }
     elsif ($model eq 'ASA' || $model eq 'ACE') {
         $prefix = "access-list $name extended";
-    }
-    elsif ($model eq 'PIX') {
-        $prefix = "access-list $name";
     }
     else {
         fatal_err("Unexpected model $model");

@@ -341,7 +341,7 @@ network:Test =  { ip = 10.9.1.0/24; }
 
 router:filter1 = {
  managed;
- model = PIX;
+ model = ASA;
  routing = manual;
  interface:Test = {
   ip = 10.9.1.1;

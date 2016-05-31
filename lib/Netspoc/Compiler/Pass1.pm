@@ -200,21 +200,9 @@ my %router_info = (
         print_interface   => 1,
         comment_char      => '!',
     },
-    PIX => {
-        routing             => 'PIX',
-        filter              => 'PIX',
-        stateless_icmp      => 1,
-        can_objectgroup     => 1,
-        comment_char        => '!',
-        need_identity_nat   => 1,
-        no_filter_icmp_code => 1,
-        need_acl            => 1,
-    },
-
-    # Like PIX, but without identity NAT.
     ASA => {
-        routing       => 'PIX',
-        filter        => 'PIX',
+        routing       => 'ASA',
+        filter        => 'ASA',
         log_modifiers => {
             emergencies   => 0,
             alerts        => 1,
@@ -1184,8 +1172,7 @@ sub read_host {
         if ($host->{range}) {
 
             # Before changing this,
-            # - look at print_pix_static,
-            # - add consistency tests in convert_hosts.
+            # add consistency tests in convert_hosts.
             err_msg("No NAT supported for $name with 'range'");
         }
     }
@@ -5254,9 +5241,6 @@ sub convert_hosts {
                         # Don't combine subnets with NAT
                         # ToDo: This would be possible if all NAT addresses
                         #  match too.
-                        # But, attention for PIX firewalls:
-                        # static commands for networks / subnets block
-                        # network and broadcast address.
                         not $subnet->{nat}
 
                         # Don't combine subnets having radius-ID.
@@ -15512,7 +15496,7 @@ sub print_routes {
                     my $adr = full_prefix_code($netinfo);
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
-                elsif ($type eq 'PIX') {
+                elsif ($type eq 'ASA') {
                     my $adr = ios_route_code($netinfo);
                     print
                       "route $interface->{hardware}->{name} $adr $hop_addr\n";
@@ -15606,7 +15590,7 @@ sub distribute_rule {
     if (not $out_intf) {
 
         # No ACL generated for traffic to device itself.
-        return if $model->{filter} eq 'PIX';
+        return if $model->{filter} eq 'ASA';
 
         $key = 'intf_rules';
     }
@@ -16011,7 +15995,7 @@ sub print_acl_placeholder {
     # Add comment at start of ACL to easier find first ACL line in tests.
     my $model = $router->{model};
     my $filter = $model->{filter};
-    if ($filter =~ /^(?:PIX|ACE)$/) {
+    if ($filter =~ /^(?:ASA|ACE)$/) {
         my $comment_char = $model->{comment_char};
         print "$comment_char $acl_name\n";
     }
@@ -16581,7 +16565,7 @@ sub print_cisco_acls {
                     "access-group ${suffix}put $acl_name"
                 );
             }
-            elsif ($filter eq 'PIX') {
+            elsif ($filter eq 'ASA') {
                 print "access-group $acl_name $suffix interface",
                   " $hardware->{name}\n";
             }
