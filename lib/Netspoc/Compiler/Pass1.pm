@@ -696,7 +696,7 @@ sub read_typed_name {
 {
 
     # user@domain or @domain
-    my $domain_regex   = qr/(?:[\w-]+\.)+[\w-]+/;
+    my $domain_regex   = qr/[\w-]+(?:\.[\w-]+)*/;
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
     my $user_id_regex  = qr/$user_regex[@]$domain_regex/;
     my $id_regex       = qr/$user_id_regex|[@]?$domain_regex/;
