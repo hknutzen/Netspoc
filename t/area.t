@@ -65,7 +65,36 @@ $out = <<'END';
 ! [ IP = 10.1.3.2 ]
 END
 
-test_run($title, $in, $out);
+test_run($title, $in, $out, '-check_policy_distribution_point=warn');
+
+############################################################
+$title = 'Missing policy distribution point';
+############################################################
+
+$in = $topo . <<'END';
+area:all = { 
+ anchor = network:n1; 
+}
+area:a2 = {
+ border = interface:asa1.n2; 
+ router_attributes = { policy_distribution_point = host:h3; }
+}
+
+service:pdp1 = {
+ user = interface:[managed & area:all].[auto];
+ permit src = host:h1; dst = user; prt = tcp 22;
+}
+service:pdp3 = {
+ user = interface:[managed & area:a2].[auto];
+ permit src = host:h3; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: Missing policy_distribution_point for router:asa1
+END
+
+test_warn($title, $in, $out, '-check_policy_distribution_point=warn');
 
 ############################################################
 $title = 'Overlapping areas';

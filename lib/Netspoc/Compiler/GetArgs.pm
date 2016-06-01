@@ -42,14 +42,25 @@ our @EXPORT_OK = qw(get_args read_config combine_config);
 # User configurable options.
 ####################################################################
 
-# Valid values:
+# Valid values for config options in %config.
 # - Default: 0|1
 # - Option with name "check_*": 0,1,'warn'
-#  - 0: no check
-#  - 1: throw an error if check fails
-#  - warn: print warning if check fails
-# - Option with name "max_*": integer
-# Other: string
+#   * 0: no check
+#   * 1: throw an error if check fails
+#   * warn: print warning if check fails
+# - ...
+#
+# Key is prefix or string "_default".
+# Value is pattern for checking valid values.
+our %config_type = (
+    check_   => '0|1|warn',
+    max_     => '\d+',
+    start_   => '\d+',
+    concurr  => '\d+',
+    ignore_  => '\S+',
+    _default => '0|1',
+);
+
 our %config = (
 
 # Check for unused groups and protocolgroups.
@@ -87,6 +98,10 @@ our %config = (
 # Check for transient supernet rules.
     check_transient_supernet_rules => 'warn',
 
+# Check, that all managed routers have attribute 'policy_distribution_point',
+# either directly or from inheritance.
+    check_policy_distribution_point => 0,
+
 # Optimize the number of routing entries per router:
 # For each router find the hop, where the largest
 # number of routing entries points to
@@ -117,18 +132,6 @@ our %config = (
 
 # Use this value when printing passed time span.
     start_time => 0,
-);
-
-# Valid values for config options in %config.
-# Key is prefix or string "default".
-# Value is pattern for checking valid values.
-our %config_type = (
-    check_   => '0|1|warn',
-    max_     => '\d+',
-    start_   => '\d+',
-    concurr  => '\d+',
-    ignore_  => '\S+',
-    _default => '0|1',
 );
 
 sub get_config_keys {

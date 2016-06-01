@@ -7595,6 +7595,25 @@ sub check_expanded_rules {
 sub set_policy_distribution_ip {
     progress('Setting policy distribution IP');
 
+    my $need_all = $config->{check_policy_distribution_point};
+    my @pdp_routers;
+    for my $router (@managed_routers, @routing_only_routers) {
+        if ($router->{policy_distribution_point}) {
+            push @pdp_routers, $router;
+        }
+        elsif ($need_all and not $router->{orig_router}) {
+            my $msg = "Missing policy_distribution_point for $router->{name}";
+            if ($need_all eq 'warn') {
+                warn_msg($msg);
+            }
+            else {
+                err_msg($msg);
+            }
+        }
+    }
+
+    @pdp_routers or return;
+
     # Find all TCP ranges which include port 22 and 23.
     my @admin_tcp_keys = grep({
             my ($p1, $p2) = split(':', $_);
@@ -7633,8 +7652,8 @@ sub set_policy_distribution_ip {
         my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
         @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
     }
-    for my $router (@managed_routers, @routing_only_routers) {
-        my $pdp = $router->{policy_distribution_point} or next;
+    for my $router (@pdp_routers) {
+        my $pdp = $router->{policy_distribution_point};
         my $found_interfaces = $router2found_interfaces{$router};
         my @result;
 
@@ -7678,9 +7697,8 @@ sub set_policy_distribution_ip {
     }
     my %seen;
     my @unreachable;
-    for my $router (@managed_routers, @routing_only_routers) {
+    for my $router (@pdp_routers) {
         next if $seen{$router};
-        next if !$router->{policy_distribution_point};
         next if $router->{orig_router};
         if (my $vrf_members = $router->{vrf_members}) {
             for my $member (@$vrf_members) {
@@ -17643,9 +17661,7 @@ sub concurrent {
                 if (not $err_count) {
                     internal_err("Background process died with status $status");
                 }
-                debug "pre: $error_counter";
                 $error_counter += $err_count;
-                debug "post: $error_counter";
             }
         }
     }
