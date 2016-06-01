@@ -55,6 +55,9 @@ our %config = (
 # Check for unused groups and protocolgroups.
     check_unused_groups => 'warn',
 
+# Check for unused owners.
+    check_unused_owners => 'warn',
+
 # Check for unused protocol definitions.
     check_unused_protocols => 0,
 

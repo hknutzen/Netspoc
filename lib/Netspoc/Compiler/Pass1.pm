@@ -6864,10 +6864,18 @@ sub check_service_owner {
 
     # Show unused owners.
     # Remove attribute {is_used}, which isn't needed any longer.
-    for my $owner (sort by_name values %owners) {
-        delete $owner->{is_used} or warn_msg("Unused $owner->{name}");
+    my $unused_owners;
+    for my $owner (values %owners) {
+        delete $owner->{is_used} or push @$unused_owners, $owner
     }
-
+    if ($unused_owners and $config->{check_unused_owners}) {
+        my $print = $config->{check_unused_owners} eq 'warn'
+                  ? \&warn_msg
+                  : \&err_msg;
+        for my $name (sort map { $_->{name} } @$unused_owners) {
+            $print->("Unused $name");
+        }
+    }
 
     # Show objects with unknown owner.
     for my $names (values %unknown2services) {
