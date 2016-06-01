@@ -189,7 +189,7 @@ network:customers2 = {
   radius_attributes = { vpn-idle-timeout = 40; 
                         trust-point = ASDM_TrustPoint3; }
  }
- host:id:domain.z = {
+ host:id:zzz = {
   range = 10.99.2.128 - 10.99.2.191;
   radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou; }
@@ -212,7 +212,7 @@ service:test2 = {
  permit src = user; dst = group:work; prt = tcp 81; 
 }
 service:test3 = {
- user = host:id:domain.x.customers2, host:id:domain.z.customers2;
+ user = host:id:domain.x.customers2, host:id:zzz.customers2;
  permit src = user; dst = group:work; prt = tcp 82;
 }
 END
@@ -310,29 +310,6 @@ tunnel-group VPN-tunnel-domain.x webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-domain.x 10 VPN-tunnel-domain.x
 --
-! vpn-filter-domain.z
-access-list vpn-filter-domain.z extended permit ip 10.99.2.128 255.255.255.192 any
-access-list vpn-filter-domain.z extended deny ip any any
-crypto ca certificate map ca-map-domain.z 10
- subject-name attr ou co domain.z
-ip local pool pool-domain.z 10.99.2.128-10.99.2.191 mask 255.255.255.192
-group-policy VPN-group-domain.z internal
-group-policy VPN-group-domain.z attributes
- address-pools value pool-domain.z
- split-tunnel-network-list value split-tunnel-1
- split-tunnel-policy tunnelspecified
- vpn-filter value vpn-filter-domain.z
- vpn-idle-timeout 120
-tunnel-group VPN-tunnel-domain.z type remote-access
-tunnel-group VPN-tunnel-domain.z general-attributes
- default-group-policy VPN-group-domain.z
-tunnel-group VPN-tunnel-domain.z ipsec-attributes
- ikev1 trust-point ASDM_TrustPoint2
- ikev1 user-authentication none
-tunnel-group VPN-tunnel-domain.z webvpn-attributes
- authentication certificate
-tunnel-group-map ca-map-domain.z 10 VPN-tunnel-domain.z
---
 ! vpn-filter-foo@domain.x
 access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
 access-list vpn-filter-foo@domain.x extended deny ip any any
@@ -345,6 +322,29 @@ username foo@domain.x attributes
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
  vpn-group-policy VPN-group-foo@domain.x
+--
+! vpn-filter-zzz
+access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any
+access-list vpn-filter-zzz extended deny ip any any
+crypto ca certificate map ca-map-zzz 10
+ subject-name attr ou co zzz
+ip local pool pool-zzz 10.99.2.128-10.99.2.191 mask 255.255.255.192
+group-policy VPN-group-zzz internal
+group-policy VPN-group-zzz attributes
+ address-pools value pool-zzz
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+ vpn-filter value vpn-filter-zzz
+ vpn-idle-timeout 120
+tunnel-group VPN-tunnel-zzz type remote-access
+tunnel-group VPN-tunnel-zzz general-attributes
+ default-group-policy VPN-group-zzz
+tunnel-group VPN-tunnel-zzz ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint2
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-zzz webvpn-attributes
+ authentication certificate
+tunnel-group-map ca-map-zzz 10 VPN-tunnel-zzz
 --
 ! inside_in
 access-list inside_in extended permit icmp any any 3

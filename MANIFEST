@@ -106,7 +106,6 @@ t/private.t
 t/protect-interfaces.t
 t/protocols.t
 t/raw.t
-t/raw.t~
 t/rename.t
 t/route.t
 t/routing_only.t
@@ -118,7 +117,6 @@ t/unenforceable.t
 t/unmanaged.t
 t/unnumbered.t
 t/virtual-interface.t
-t/virtual-interface.t~
 t/virtual-pathrestrict.t
 t/vrf.t
 t/zone.t

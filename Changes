@@ -1,3 +1,15 @@
+5.009     2016-06-01 17:20:09+02:00 Europe/Berlin
+
+ - Allow name and domain-name without dot in ID-host.
+   E.g. host:id:foo and host:id:foo@bar 
+ - New config option 'check_unused_owners'.
+   Default value is 'warn'. This was the previous hard coded default.
+ - New config option 'check_policy_distribution_point'.
+   Checks that all managed routers have attribute 'policy_distribution_point',
+   either directly or from inheritance.
+   Default value is 0 (= off).
+ - Removed support for model PIX.
+
 5.008     2016-05-24 17:29:35+02:00 Europe/Berlin
 
  - Fully observe pathrestriction for path starting or ending 

@@ -79,7 +79,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Dynamic NAT for network with static nat for hosts at PIX';
+$title = 'Dynamic NAT for network with static nat for hosts at ASA';
 ############################################################
 
 $in = <<'END';
@@ -91,7 +91,7 @@ network:Test =  {
 
 router:filter = {
  managed;
- model = PIX;
+ model = ASA;
  interface:Test = {
   ip = 10.9.1.1;
   hardware = inside;
@@ -112,14 +112,14 @@ END
 $out = <<'END';
 --filter
 ! inside_in
-access-list inside_in permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
-access-list inside_in deny ip any any
+access-list inside_in extended permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
+access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 --
 ! outside_in
-access-list outside_in permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
-access-list outside_in permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
-access-list outside_in deny ip any any
+access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
+access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
+access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
 

@@ -35,7 +35,7 @@ $title = "Unknown extension for model";
 $in = <<'END';
 router:R = {
  managed; 
- model = PIX, foo, bar;
+ model = ASA, foo, bar;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
 }
 network:N = { ip = 10.1.1.0/24; }

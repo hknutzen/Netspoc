@@ -10,6 +10,39 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Unused owners';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; }
+owner:o2 = { admins = o2@b.c; }
+owner:a1 = { admins = a1@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = o2; }
+router:r1 = {
+ interface:n1;
+}
+END
+
+$out = <<'END';
+Warning: Unused owner:a1
+Warning: Unused owner:o1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Error on unused owners';
+############################################################
+
+$out = <<'END';
+Error: Unused owner:a1
+Error: Unused owner:o1
+END
+
+test_err($title, $in, $out, '-check_unused_owners=1');
+
+############################################################
 $title = 'Duplicates from other owner';
 ############################################################
 

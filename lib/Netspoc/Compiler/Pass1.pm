@@ -35,7 +35,7 @@ use open qw(:std :utf8);
 use Encode;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.008'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.009'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -200,21 +200,9 @@ my %router_info = (
         print_interface   => 1,
         comment_char      => '!',
     },
-    PIX => {
-        routing             => 'PIX',
-        filter              => 'PIX',
-        stateless_icmp      => 1,
-        can_objectgroup     => 1,
-        comment_char        => '!',
-        need_identity_nat   => 1,
-        no_filter_icmp_code => 1,
-        need_acl            => 1,
-    },
-
-    # Like PIX, but without identity NAT.
     ASA => {
-        routing       => 'PIX',
-        filter        => 'PIX',
+        routing       => 'ASA',
+        filter        => 'ASA',
         log_modifiers => {
             emergencies   => 0,
             alerts        => 1,
@@ -708,7 +696,7 @@ sub read_typed_name {
 {
 
     # user@domain or @domain
-    my $domain_regex   = qr/(?:[\w-]+\.)+[\w-]+/;
+    my $domain_regex   = qr/[\w-]+(?:\.[\w-]+)*/;
     my $user_regex     = qr/[\w-]+(?:\.[\w-]+)*/;
     my $user_id_regex  = qr/$user_regex[@]$domain_regex/;
     my $id_regex       = qr/$user_id_regex|[@]?$domain_regex/;
@@ -1184,8 +1172,7 @@ sub read_host {
         if ($host->{range}) {
 
             # Before changing this,
-            # - look at print_pix_static,
-            # - add consistency tests in convert_hosts.
+            # add consistency tests in convert_hosts.
             err_msg("No NAT supported for $name with 'range'");
         }
     }
@@ -5254,9 +5241,6 @@ sub convert_hosts {
                         # Don't combine subnets with NAT
                         # ToDo: This would be possible if all NAT addresses
                         #  match too.
-                        # But, attention for PIX firewalls:
-                        # static commands for networks / subnets block
-                        # network and broadcast address.
                         not $subnet->{nat}
 
                         # Don't combine subnets having radius-ID.
@@ -6880,10 +6864,18 @@ sub check_service_owner {
 
     # Show unused owners.
     # Remove attribute {is_used}, which isn't needed any longer.
-    for my $owner (sort by_name values %owners) {
-        delete $owner->{is_used} or warn_msg("Unused $owner->{name}");
+    my $unused_owners;
+    for my $owner (values %owners) {
+        delete $owner->{is_used} or push @$unused_owners, $owner
     }
-
+    if ($unused_owners and $config->{check_unused_owners}) {
+        my $print = $config->{check_unused_owners} eq 'warn'
+                  ? \&warn_msg
+                  : \&err_msg;
+        for my $name (sort map { $_->{name} } @$unused_owners) {
+            $print->("Unused $name");
+        }
+    }
 
     # Show objects with unknown owner.
     for my $names (values %unknown2services) {
@@ -7603,6 +7595,25 @@ sub check_expanded_rules {
 sub set_policy_distribution_ip {
     progress('Setting policy distribution IP');
 
+    my $need_all = $config->{check_policy_distribution_point};
+    my @pdp_routers;
+    for my $router (@managed_routers, @routing_only_routers) {
+        if ($router->{policy_distribution_point}) {
+            push @pdp_routers, $router;
+        }
+        elsif ($need_all and not $router->{orig_router}) {
+            my $msg = "Missing policy_distribution_point for $router->{name}";
+            if ($need_all eq 'warn') {
+                warn_msg($msg);
+            }
+            else {
+                err_msg($msg);
+            }
+        }
+    }
+
+    @pdp_routers or return;
+
     # Find all TCP ranges which include port 22 and 23.
     my @admin_tcp_keys = grep({
             my ($p1, $p2) = split(':', $_);
@@ -7641,8 +7652,8 @@ sub set_policy_distribution_ip {
         my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
         @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
     }
-    for my $router (@managed_routers, @routing_only_routers) {
-        my $pdp = $router->{policy_distribution_point} or next;
+    for my $router (@pdp_routers) {
+        my $pdp = $router->{policy_distribution_point};
         my $found_interfaces = $router2found_interfaces{$router};
         my @result;
 
@@ -7686,9 +7697,8 @@ sub set_policy_distribution_ip {
     }
     my %seen;
     my @unreachable;
-    for my $router (@managed_routers, @routing_only_routers) {
+    for my $router (@pdp_routers) {
         next if $seen{$router};
-        next if !$router->{policy_distribution_point};
         next if $router->{orig_router};
         if (my $vrf_members = $router->{vrf_members}) {
             for my $member (@$vrf_members) {
@@ -9743,8 +9753,10 @@ sub set_zone_cluster {
 # - both belong to the same zone cluster.
 sub zone_eq {
     my ($zone1, $zone2) = @_;
-    return (($zone1->{zone_cluster} || $zone1) eq
-          ($zone2->{zone_cluster} || $zone2));
+    return 1 if $zone1 eq $zone2;
+    my $cluster1 = $zone1->{zone_cluster} or return;
+    my $cluster2 = $zone2->{zone_cluster} or return;
+    return $cluster1 eq $cluster2;
 }
 
 ###############################################################################
@@ -15510,7 +15522,7 @@ sub print_routes {
                     my $adr = full_prefix_code($netinfo);
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
-                elsif ($type eq 'PIX') {
+                elsif ($type eq 'ASA') {
                     my $adr = ios_route_code($netinfo);
                     print
                       "route $interface->{hardware}->{name} $adr $hop_addr\n";
@@ -15604,7 +15616,7 @@ sub distribute_rule {
     if (not $out_intf) {
 
         # No ACL generated for traffic to device itself.
-        return if $model->{filter} eq 'PIX';
+        return if $model->{filter} eq 'ASA';
 
         $key = 'intf_rules';
     }
@@ -16009,7 +16021,7 @@ sub print_acl_placeholder {
     # Add comment at start of ACL to easier find first ACL line in tests.
     my $model = $router->{model};
     my $filter = $model->{filter};
-    if ($filter =~ /^(?:PIX|ACE)$/) {
+    if ($filter =~ /^(?:ASA|ACE)$/) {
         my $comment_char = $model->{comment_char};
         print "$comment_char $acl_name\n";
     }
@@ -16579,7 +16591,7 @@ sub print_cisco_acls {
                     "access-group ${suffix}put $acl_name"
                 );
             }
-            elsif ($filter eq 'PIX') {
+            elsif ($filter eq 'ASA') {
                 print "access-group $acl_name $suffix interface",
                   " $hardware->{name}\n";
             }
@@ -17657,6 +17669,7 @@ sub concurrent {
 
     # Child
     elsif (defined $child_pid) {
+        my $start_error_counter = $error_counter;
 
         # Catch errors,
         eval { 
@@ -17674,7 +17687,9 @@ sub concurrent {
                 print STDOUT $@;
             }
         }
-        exit $error_counter;
+
+        # Tell parent process number of additional errors from child.
+        exit $error_counter - $start_error_counter;
     }
     else {
         internal_err("Can't start child: $!");
