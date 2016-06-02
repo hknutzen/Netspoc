@@ -8737,7 +8737,9 @@ sub find_subnets_in_zone {
 
 # Find networks with identical IP in different NAT domains.
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
-# If set, this prevents secondary optimization.
+# 1. If set, this prevents secondary optimization.
+# 2. If rule has src or dst with attribute {has_other_subnet},
+#    it is later checked for missing supernets.
 sub find_subnets_in_nat_domain {
     my $count = @natdomains;
     progress("Finding subnets in $count NAT domains");
@@ -8854,6 +8856,15 @@ sub find_subnets_in_nat_domain {
 
 #                       debug "has other: $bignet->{name}";
                         $bignet->{has_other_subnet} = 1;
+
+                        # Mark aggregate that has other *supernet*.
+                        # In this situation, addresses of aggregate
+                        # are part of supernet and located in another
+                        # zone.
+                        if ($subnet->{is_aggregate}) {
+                            $subnet->{has_other_subnet} = 1;
+                        }
+
                     }
 
                     if ($seen{$nat_bignet}->{$nat_subnet}) {
