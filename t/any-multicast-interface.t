@@ -60,7 +60,9 @@ $title = "Interface with HSRP";
 
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
-router:R = {
+network:V = { ip = 10.2.2.0/24; }
+
+router:R1 = {
  managed; 
  model = ACE;
  interface:U = { 
@@ -68,11 +70,26 @@ router:R = {
   virtual = { ip = 10.1.1.1; type = HSRP; }
   hardware = e0; 
  }
+ interface:V = { ip = 10.2.2.1; hardware = e1;}
+}
+
+router:R2 = {
+ managed; 
+ model = ACE;
+ interface:U = { 
+  ip = 10.1.1.3; 
+  virtual = { ip = 10.1.1.1; type = HSRP; }
+  hardware = e0; 
+ }
+ interface:V = { ip = 10.2.2.2; hardware = e1;}
 }
 END
 
 $out = <<'END';
---R
+--R1
+access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.2 eq 1985
+access-list e0_in extended deny ip any any
+--R2
 access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.2 eq 1985
 access-list e0_in extended deny ip any any
 END
