@@ -220,6 +220,12 @@ Warning: Redundant rules in service:t1 compared to service:t1:
 < permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
   permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
 < permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:t1
+-- r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit udp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 123
+ permit udp 10.1.1.0 0.0.0.255 eq 123 10.1.2.0 0.0.0.255
+ deny ip any any
 END
 
 test_warn($title, $in, $out);
