@@ -2,6 +2,7 @@ language: perl
 perl:
     - "5.20"
     - "5.22"
+    - "5.24"
     - "dev"
     - "blead"
 matrix:
@@ -13,6 +14,7 @@ before_install:
     - source ~/travis-perl-helpers/init
     - build-perl
     - perl -V
+    - cpan-install Code::TidyAll::Plugin::PerlCritic Perl::Critic 
     - build-dist
     - cd $BUILD_DIR
 install:
