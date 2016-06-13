@@ -310,6 +310,48 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mark supernet having identity NAT';
+############################################################
+
+$in = <<'END';
+any:n1 = { 
+ nat:N = { ip = 10.9.9.0/24; dynamic; } 
+ link = network:n1;
+}
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ nat:N = { identity; } 
+}
+network:n1_sub = {
+ ip = 10.1.1.64/26; 
+ subnet_of = network:n1;
+}
+network:n1_subsub = {
+ ip = 10.1.1.96/27;
+ subnet_of = network:n1_sub; 
+}
+router:u = {
+ interface:n1;
+ interface:n1_sub;
+ interface:n1_subsub;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1_subsub = { ip = 10.1.1.97; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; } #bind_nat = N; }
+}
+service:s1 = {
+    user = network:n1_subsub;
+    permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 $title = 'Remove interface with multiple IP addresses';
 ############################################################
 

@@ -410,13 +410,36 @@ for my $area (values %areas) {
     }
 }
 
-# Mark networks having attributes that influence their subnets.
+# Mark networks having NAT attributes that influence their subnets.
 for my $network (values %networks) {
     $network->{is_used} or next;
-    my $up = $network->{up} or next;
-    $up->{nat} or next;
-    $network->{zone} eq $up->{zone} or next;
-    $up->{is_used} = 1;
+    my $up = $network;
+    my @up_chain;
+
+    # Walk chain of inheritance.
+    # Mark supernet with NAT attribute and also all supernets in between.
+    # We need to mark supernets in between, because they might have
+    # identity NAT attributes, which have been deleted already.
+    while ($up = $up->{up}) {
+        if ($up->{is_aggregate}) {
+            $up->{mask} == 0 or next;
+            my $zone = $up->{zone};
+
+            # Check if NAT attribute was inherited from zone or areas.
+            $zone->{is_used} or 
+                grep { $_->{is_used} } values %{ $zone->{areas} } or 
+                next;
+        }
+        else {
+            push @up_chain, $up;
+            $up->{nat} or next;
+        }
+        for my $supernet (@up_chain) {
+            $supernet->{is_used} = 1;
+#            debug "marked: $supernet->{name}";
+        }
+        @up_chain = ();
+    }
 }
 
 # Call this after topology has been marked.

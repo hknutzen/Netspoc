@@ -10006,6 +10006,11 @@ sub inherit_nat_to_subnets_in_zone {
 
                     # Needed for error messages.
                     name => "nat:$nat_tag($network->{name})",
+
+                    # Copy attribute {subnet_of}, to suppress warning.
+                    # Copy also if undefined, to overwrite value in
+                    # original definition.
+                    subnet_of => $network->{subnet_of},
                 };
 
                 # For static NAT from net_or_zone,

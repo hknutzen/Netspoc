@@ -223,6 +223,55 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Inherit subnet_of from inherited NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ nat:N = { ip = 10.9.9.0/24; } 
+}
+network:n1_sub = {
+ ip = 10.1.1.64/26; 
+ subnet_of = network:n1;
+}
+router:u = {
+ interface:n1;
+ interface:n1_sub;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1_sub = { ip = 10.1.1.65; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N; }
+}
+
+service:s1 = {
+    user = network:n1_sub;
+    permit src = network:n2; dst = user; prt = tcp 80;
+}
+service:s2 = {
+    user = network:n1;
+    permit src = network:n2; dst = user; prt = tcp 81;
+}
+
+END
+
+$out = <<'END';
+-- asa1
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.64 255.255.255.192 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.0 255.255.255.0 eq 81
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Must not bind multiple NAT of one network at one place';
 ############################################################
 
