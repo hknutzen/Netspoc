@@ -123,11 +123,13 @@ END
 
 # Output is indented
 $out = <<'END';
- Error: network:b1 is reached via group of redundancy interfaces:
+ Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.1.1.9:
+  network:b1 is reached via
   - interface:r1.a.virtual
   - interface:r2.a.virtual
   - interface:r3.a.virtual
   But 1 interfaces of group are missing.
+  Pathrestrictions must affect all or all-1 interfaces of redundancy group.
 END
 
 test_err($title, $in, $out, '--concurrency_pass1=2');
