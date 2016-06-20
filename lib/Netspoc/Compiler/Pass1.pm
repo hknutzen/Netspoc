@@ -17489,6 +17489,7 @@ sub print_code {
     ($dir) = ($dir =~ /(.*)/);
     check_output_dir($dir);
 
+    ## no critic (RequireBriefOpen)
     my $to_pass2;
     if ($config->{pipe}) {
         open($to_pass2, '>&', STDOUT) or
@@ -17500,6 +17501,7 @@ sub print_code {
         open($to_pass2, '>', $devlist) or 
             fatal_err("Can't open $devlist for writing: $!");
     }
+    ## use critic
 
     progress('Printing intermediate code');
     my %seen;
@@ -17523,6 +17525,7 @@ sub print_code {
         open(my $code_fd, '>', $config_file)
           or fatal_err("Can't open $config_file for writing: $!");
         select $code_fd;
+        ## use critic
 
         my $model        = $router->{model};
         my $comment_char = $model->{comment_char};
@@ -17560,7 +17563,6 @@ sub print_code {
         print "$comment_char [ END $device_name ]\n\n";
         select STDOUT;
         close $code_fd or fatal_err("Can't close $config_file: $!");
-        ## use critic
 
         # Print ACLs in machine independent format into separate file.
         # Collect ACLs from VRF parts.
