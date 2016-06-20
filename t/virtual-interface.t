@@ -194,7 +194,7 @@ test_run($title, $in, $out);
 $title = 'Virtual interfaces causing several routes on backward path';
 ############################################################
 
-$in =~ s/virtual = {ip = 10.3.3.9;}//g;
+$in =~ s/virtual = \{ip = 10.3.3.9;\}//g;
 
 $out = <<'END';
 Warning: Two static routes for network:n1

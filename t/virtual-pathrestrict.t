@@ -396,7 +396,7 @@ $title = 'Conceal non matching virtual interface groups with interconnect if
 ############################################################
 
 $in =~ s/disabled;//g;
-$in =~ s/router:g.*inside;}\s}//s;
+$in =~ s/router:g.*inside;\}\s}//s;
 $in =~ s/user = interface:g.a;/user = network:a;/s;
 
 $out = <<'END';
@@ -763,7 +763,7 @@ $title = 'Conceal invalid extra pathrestriction if routing is not required -
           no services';
 ############################################################
 
-$in =~ s/service.*}//s;
+$in =~ s/service.*\}//s;
 
 $out = <<'END';
 --r2
