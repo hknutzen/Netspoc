@@ -2239,11 +2239,33 @@ sub check_prev {
     return 1;
 }
 
-sub pass2_file {
-    my ($file) = @_;
-    my $router_data = prepare_acls("$file.rules");
-    my $config = read_file_lines("$file.config");
-    print_combined($config, $router_data, $file);
+sub get_pass2_file_worker {
+    my ($dir, $prev) = @_;
+    return
+        sub {
+            my ($basename) = @_;
+
+            # Try to reuse previously generated code files.
+            my $file = "$dir/$basename";
+            if ($prev) {
+                my $prev_file = "$prev/$basename";
+                if (check_prev($file, $prev_file) and
+                    system("cp -p $prev_file $file") == 0)
+                {
+
+                    # Use exit code != 0 and != other error code,
+                    # signalling that code has been reused.
+#                    debug "reusing $basename";
+                    return 11;
+                }
+            }
+
+#            debug "building $basename";
+            my $router_data = prepare_acls("$file.rules");
+            my $config = read_file_lines("$file.config");
+            print_combined($config, $router_data, $file);
+            return 0;
+    }
 }
 
 # Start $code in background.
@@ -2252,94 +2274,93 @@ sub background {
     my $pid = fork();
     defined $pid or die "Can't fork:$!";
     if (0 == $pid) {
-        $code->(@args);
-        exit;
+
+        # Use return value as exit code.
+        exit $code->(@args);
     }
 }
 
 sub apply_concurrent {
-    my ($code, $list, $concurrent) = @_;
+    my ($code, $device_names_fh, $concurrent) = @_;
 
-    # Process sequentially.
-    if (1 >= $concurrent) {
-        for my $arg (@$list) {
-            $code->($arg);
+    my $errors;
+    my $reused = 0;
+    my $generated = 0;
+    my $check_status = sub {
+        if (not $?) {
+            $generated++;
+            return;
         }
-    }
+        my $exit = $? >> 8;
+        if ($exit == 11) {
+            $reused++;
+        }
+        else {
+            $errors++;
+        }
+    };
 
+    # Read to be processed files either from STDIN or from file.
     # Process with $concurrent background jobs.
     # Error messages are send directly to STDERR.
-    else {
-        my $errors;
-        for my $arg (@$list) {
+    while(my $device_name = <$device_names_fh>) {
+        chomp $device_name;
 
-            # Start concurrent jobs.
-            if (0 < $concurrent) {
-                background($code, $arg);
-                $concurrent--;
-                next;
-            }
-            
-            # Start next job, after some job has finished.
+        # Start concurrent jobs.
+        if (0 < $concurrent) {
+            $concurrent--;
+        }
+
+        # Start next job, after some job has finished.
+        else {
             my $pid = wait();
             if ($pid != -1) {
-                $? and $errors++;
+                $check_status->();
             }
-            background($code, $arg);
         }
+        background($code, $device_name);
+    }
 
-        # Wait for all jobs to be finished.
-        while (1) {
-            my $pid = wait();
-            last if -1 == $pid;
-            $? and $errors++;
-        }
+    # Wait for all jobs to be finished.
+    while (1) {
+        my $pid = wait();
+        last if -1 == $pid;
+        $check_status->();
+    }
 
-        $errors and die "Failed\n";
+    $errors and die "Failed\n";
+    if ($generated) {
+        info("Generated files for $generated devices");
+    }
+    if ($reused) {
+        info("Reused $reused files from previous run");
     }
 }
 
 sub pass2 {
     my ($dir) = @_;
-    progress("Starting second pass");
-
     my $prev = "$dir/.prev";
-    my $has_prev = -d $prev;
-    my @pass1_base = map { basename($_, '.config') } glob("$dir/*.config");
-    my @pass2_list;
 
-    my $count = @pass1_base;
-    my $reused;
-
-    # Try to reuse previously generated code files.
-    for my $basename (@pass1_base) {
-        my $code_file = "$dir/$basename";
-        my $prev_file = "$prev/$basename";
-
-        if ($has_prev and check_prev($code_file, $prev_file) and
-            system("cp -p $prev_file $code_file") == 0)
-        {
-            $reused++;
-            next;
-        }
-        push @pass2_list, $code_file;
+    ## no critic (RequireBriefOpen)
+    my $from_pass1;
+    if ($config->{pipe}) {
+        open($from_pass1, '<&STDIN') or
+            fatal_err("Can't open STDIN for reading: $!");
     }
-    if ($reused) {
-        progress("Reusing $reused files from previous run");
+    else {
+        my $devlist = "$dir/.devlist";
+        open($from_pass1, '<', $devlist) or 
+            fatal_err("Can't open $devlist for reading: $!");
     }
+    ## use critic
 
-    # Generate new code files.
-    if ($count = @pass2_list) {
-        my $concurrent = $config->{concurrency_pass2};
-        $concurrent = $count if $concurrent > $count;
-        my $msg = "Generating optimized code for $count devices";
-        $msg .= " using $concurrent processes" if $concurrent > 1;
-        progress($msg);
-        apply_concurrent(\&pass2_file, \@pass2_list, $concurrent);
-    }
-
+    my $concurrent = $config->{concurrency_pass2};
+    my $worker = get_pass2_file_worker($dir, $prev);
+    apply_concurrent($worker, $from_pass1, $concurrent);
+    
     # Remove directory '.prev' created by pass1
     # or remove symlink '.prev' created by newpolicy.pl.
+    my $has_prev = -d $prev;
     if ($has_prev) {
         system("rm -rf $prev") == 0 or fatal_err("Can't remove $prev: $!");
     }

@@ -33,6 +33,7 @@ use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
+use IO::Pipe;
 my $filename_encode = 'UTF-8';
 
 # VERSION: inserted by DZP::OurPkgVersion
@@ -17488,6 +17489,18 @@ sub print_code {
     ($dir) = ($dir =~ /(.*)/);
     check_output_dir($dir);
 
+    my $to_pass2;
+    if ($config->{pipe}) {
+        open($to_pass2, '>&', STDOUT) or
+            fatal_err("Can't open STDOUT for writing: $!");
+        $to_pass2->autoflush(1);
+    }
+    else {
+        my $devlist = "$dir/.devlist";
+        open($to_pass2, '>', $devlist) or 
+            fatal_err("Can't open $devlist for writing: $!");
+    }
+
     progress('Printing intermediate code');
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
@@ -17557,6 +17570,9 @@ sub print_code {
         print_acls($vrf_members, $acl_fd);
         close $acl_fd or fatal_err("Can't close $acl_file: $!");
 
+        # Send device name to pass 2, showing that processing for this
+        # device can be started.
+        print $to_pass2 "$device_name\n";
     }
 }
 
@@ -17619,46 +17635,53 @@ sub concurrent {
     if (1 >= $config->{concurrency_pass1}) {
         $code1->();
         $code2->();
+        return;
     }
+
+
+    # Set up pipe between child and parent process.
+    my $pipe = IO::Pipe->new();
 
     # Parent.
     # Fork process and read output of child process.
-    ## no critic (RequireBriefOpen)
-    elsif (my $child_pid = open(my $child_fd, '-|')) {
+    if (my $child_pid = fork()) {
 
         $code1->();
 
         # Show child ouput.
         progress('Output of background job:');
-        while (my $line = <$child_fd>) {
+        $pipe->reader();
+        while (my $line = <$pipe>) {
 
             # Indent output of child.
             print STDERR " $line";
         }
 
         # Check exit status of child.
-        if (not close ($child_fd)) {
-            my $status = $?;
-            if ($status != 0) {
-                my $err_count = $status >> 8;
-                if (not $err_count) {
-                    internal_err("Background process died with status $status");
-                }
-                $error_counter += $err_count;
+        my $pid = wait();
+        $pid != -1 or internal_err("Can't find status of child");
+        my $status = $?;
+        if ($status != 0) {
+            my $err_count = $status >> 8;
+            if (not $err_count) {
+                internal_err("Background process died with status $status");
             }
+            $error_counter += $err_count;
         }
     }
-    ## use critic
 
     # Child
     elsif (defined $child_pid) {
+        $pipe->writer();
+        
+        # Redirect STDERR to pipe, so parent can read errors of child.
+        open (STDERR, '>&', $pipe) or 
+            internal_err("Can't dup STDERR to pipe: $!");
+
         my $start_error_counter = $error_counter;
 
         # Catch errors,
-        eval { 
-
-            # Redirect STDERR to STDOUT, so parent can read output of child.
-            open (STDERR, ">&STDOUT") or internal_err("Can't dup STDOUT: $!");
+        eval {
 
             $code2->();
             progress('Finished background job') if $config->{time_stamps};
@@ -17667,7 +17690,7 @@ sub concurrent {
 
             # Show internal errors, but not "Aborted" message.
             if ($@ !~ /^Aborted /) {
-                print STDOUT $@;
+                print STDERR $@;
             }
         }
 
