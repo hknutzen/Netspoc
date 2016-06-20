@@ -164,7 +164,7 @@ END
 test_err($title, $in, $out, '--max_errors=1 --concurrency_pass1=2');
 
 ############################################################
-$title = 'Pass 2, 3 devices with up to 8 jobs';
+$title = 'Pass 2: 3 devices with up to 8 jobs';
 ############################################################
 
 $in = <<'END';
@@ -207,7 +207,7 @@ END
 test_run($title, $in, $out, '--concurrency_pass2=8');
 
 ############################################################
-$title = 'Pass 2, 3 devices with 2 jobs';
+$title = 'Pass 2: 3 devices with 2 jobs';
 ############################################################
 
 test_run($title, $in, $out, '--concurrency_pass2=2');
