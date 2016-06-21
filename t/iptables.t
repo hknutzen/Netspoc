@@ -192,7 +192,7 @@ $title = 'Un-merged port range with sub-range';
 ############################################################
 
 # Ranges 10-49 and 50-60 can't be merged,
-# because they have three childs 30-37,40-47,51-53
+# because they have tree childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
