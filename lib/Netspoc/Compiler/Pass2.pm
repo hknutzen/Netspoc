@@ -6,7 +6,7 @@ Pass 2 of Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -2228,8 +2228,11 @@ sub print_combined {
 # Check if identical files with extension .config and .rules
 # exist in directory .prev/ .
 sub check_prev {
-    my ($code_file, $prev_file) = @_;
-    -f "$prev_file" or return;
+    my ($device_name, $dir, $prev) = @_;
+    -d $prev or return;
+    my $prev_file = "$prev/$device_name";
+    -f $prev_file or return;
+    my $code_file = "$dir/$device_name";
     for my $ext (qw(config rules)) {
         my $pass1name = "$code_file.$ext";
         my $pass1prev = "$prev_file.$ext";
@@ -2239,33 +2242,14 @@ sub check_prev {
     return 1;
 }
 
-sub get_pass2_file_worker {
-    my ($dir, $prev) = @_;
-    return
-        sub {
-            my ($basename) = @_;
+sub pass2_file {
+    my ($device_name, $dir) = @_;
+    my $file = "$dir/$device_name";
 
-            # Try to reuse previously generated code files.
-            my $file = "$dir/$basename";
-            if ($prev) {
-                my $prev_file = "$prev/$basename";
-                if (check_prev($file, $prev_file) and
-                    system("cp -p $prev_file $file") == 0)
-                {
-
-                    # Use exit code != 0 and != other error code,
-                    # signalling that code has been reused.
-#                    debug "reusing $basename";
-                    return 11;
-                }
-            }
-
-#            debug "building $basename";
-            my $router_data = prepare_acls("$file.rules");
-            my $config = read_file_lines("$file.config");
-            print_combined($config, $router_data, $file);
-            return 0;
-    }
+#   debug "building $device_name";
+    my $router_data = prepare_acls("$file.rules");
+    my $config = read_file_lines("$file.config");
+    print_combined($config, $router_data, $file);
 }
 
 # Start $code in background.
@@ -2274,41 +2258,47 @@ sub background {
     my $pid = fork();
     defined $pid or die "Can't fork:$!";
     if (0 == $pid) {
-
-        # Use return value as exit code.
-        exit $code->(@args);
+        $code->(@args);
+        exit;
     }
 }
 
 sub apply_concurrent {
-    my ($code, $device_names_fh, $concurrent) = @_;
+    my ($concurrent, $device_names_fh, $dir, $prev) = @_;
 
+    my $workers_left = $concurrent;
     my $errors;
     my $reused = 0;
     my $generated = 0;
     my $check_status = sub {
-        if (not $?) {
-            $generated++;
-            return;
-        }
-        my $exit = $? >> 8;
-        if ($exit == 11) {
-            $reused++;
+        if ($?) {
+            $errors++;
         }
         else {
-            $errors++;
+            $generated++;
         }
     };
 
     # Read to be processed files either from STDIN or from file.
     # Process with $concurrent background jobs.
-    # Error messages are send directly to STDERR.
+    # Error messages of background jobs not catched, 
+    # but send directly to STDERR.
     while(my $device_name = <$device_names_fh>) {
         chomp $device_name;
 
-        # Start concurrent jobs.
-        if (0 < $concurrent) {
-            $concurrent--;
+        if (check_prev($device_name, $dir, $prev)) {
+            $reused++;
+        }
+
+        # Process sequentially.
+        elsif (1 >= $concurrent) {
+            pass2_file($device_name, $dir);
+        }
+
+        # Start concurrent jobs at beginning.
+        elsif (0 < $workers_left) {
+            background(\&pass2_file, $device_name, $dir);
+            $workers_left--;
         }
 
         # Start next job, after some job has finished.
@@ -2317,8 +2307,8 @@ sub apply_concurrent {
             if ($pid != -1) {
                 $check_status->();
             }
+            background(\&pass2_file, $device_name, $dir);
         }
-        background($code, $device_name);
     }
 
     # Wait for all jobs to be finished.
@@ -2355,8 +2345,7 @@ sub pass2 {
     ## use critic
 
     my $concurrent = $config->{concurrency_pass2};
-    my $worker = get_pass2_file_worker($dir, $prev);
-    apply_concurrent($worker, $from_pass1, $concurrent);
+    apply_concurrent($concurrent, $from_pass1, $dir, $prev);
     
     # Remove directory '.prev' created by pass1
     # or remove symlink '.prev' created by newpolicy.pl.
