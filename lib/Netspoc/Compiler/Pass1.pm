@@ -6877,7 +6877,6 @@ sub apply_src_dst_modifier {
         else {
             internal_err("unexpected $obj->{name}");
         }
-        next if $network->{ip} eq 'unnumbered';
         push @modified, $network;
     }
     return [ @unmodified, unique(@modified) ];
