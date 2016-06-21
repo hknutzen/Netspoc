@@ -1985,7 +1985,6 @@ sub cisco_acl_addr {
             return "$ip_code $mask_code";
         }
     }
-    return;
 }
 
 sub print_object_groups {
