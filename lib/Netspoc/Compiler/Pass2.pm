@@ -1029,19 +1029,6 @@ sub add_bintree {
         $result = $tree;
     }
 
-    # Different nodes with identical IP address.
-    # This shouldn't occur.
-    elsif ($tree_mask == $node_mask && $tree_ip == $node_ip) {
-        my $sub1 = $tree->{subtree} || '';
-        my $sub2 = $node->{subtree} || '';
-        if ($sub1 ne $sub2) {
-            my $ip   = print_ip $tree_ip;
-            my $mask = print_ip $tree_mask;
-            internal_err("Inconsistent rules for iptables for $ip/$mask");
-        }
-        $result = $tree;
-    }
-
     # Create common root for tree and node.
     else {
         while (1) {
