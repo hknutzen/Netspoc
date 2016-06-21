@@ -9,6 +9,42 @@ use Test_Netspoc;
 
 my ($title, $in, $out);
 
+############################################################
+$title = 'Protocol IP';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = host:h10, host:h12;
+ permit src = user; dst = interface:r1.n1; prt = ip;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+-A c1 -j ACCEPT -s 10.1.1.12
+-A c1 -j ACCEPT -s 10.1.1.10
+--
+:n1_self -
+-A n1_self -g c1 -s 10.1.1.8/29 -d 10.1.1.1
+-A INPUT -j n1_self -i n1
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Different port ranges';
