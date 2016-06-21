@@ -222,8 +222,7 @@ test_run($title, $in, $out);
 $title = 'Optimize redundant port';
 ############################################################
 
-# Port isn't already optimized during global optimization if rule is
-# applied to different objects which got the same IP from NAT.
+# Different objects get the same IP from NAT.
 
 $in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
