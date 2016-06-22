@@ -2743,20 +2743,17 @@ sub read_icmp_type_code {
     my ($prt) = @_;
     if (defined(my $type = check_int)) {
         error_atline("Too large ICMP type $type") if $type > 255;
+        $prt->{type} = $type;
+        if ($type == 0 || $type == 3 || $type == 11) {
+            $prt->{modifiers}->{stateless_icmp} = 1;
+        }
         if (check '/') {
             if (defined(my $code = check_int)) {
                 error_atline("Too large ICMP code $code") if $code > 255;
-                $prt->{type} = $type;
                 $prt->{code} = $code;
             }
             else {
                 syntax_err("Expected ICMP code");
-            }
-        }
-        else {
-            $prt->{type} = $type;
-            if ($type == 0 || $type == 3 || $type == 11) {
-                $prt->{modifiers}->{stateless_icmp} = 1;
             }
         }
     }
