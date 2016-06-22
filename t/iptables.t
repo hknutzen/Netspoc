@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Protocol IP';
+$title = 'Protocol IP and deny rules';
 ############################################################
 
 $in = <<'END';
@@ -27,8 +27,9 @@ router:r1 =  {
 }
 
 service:s1 = {
- user = host:h10, host:h12;
- permit src = user; dst = interface:r1.n1; prt = ip;
+ user = interface:r1.n1;
+ deny src = host:h10, host:h12; dst = user; prt = ip;
+ permit src = network:n1; dst = user; prt = ip;
 }
 END
 
@@ -36,11 +37,12 @@ $out = <<'END';
 --r1
 # [ ACL ]
 :c1 -
--A c1 -j ACCEPT -s 10.1.1.12
--A c1 -j ACCEPT -s 10.1.1.10
+-A c1 -j droplog -s 10.1.1.12
+-A c1 -j droplog -s 10.1.1.10
 --
 :n1_self -
--A n1_self -g c1 -s 10.1.1.8/29 -d 10.1.1.1
+-A n1_self -j c1 -s 10.1.1.8/29 -d 10.1.1.1
+-A n1_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.1
 -A INPUT -j n1_self -i n1
 END
 
