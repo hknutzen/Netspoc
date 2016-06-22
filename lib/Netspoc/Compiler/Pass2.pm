@@ -1127,34 +1127,33 @@ sub gen_prt_bintree {
         my $proto = $prt->{proto};
         if ($proto eq 'ip') {
             $ip_prt = $prt;
+            next PRT;
         }
-        else {
-            my $up = $prt->{up};
 
-            # Check if $prt is sub protocol of any other protocol of
-            # current set. But handle direct sub protocols of 'ip' as
-            # top protocols.
-            while ($up->{up}) {
-                if (my $subtree = $tree->{$up->{name}}) {
+        my $up = $prt->{up};
 
-                    # Found sub protocol of current set.
-                    # Optimization:
-                    # Ignore the sub protocol if both protocols
-                    # have identical subtrees.
-                    # This happens for different objects having identical IP
-                    # from NAT or from redundant interfaces.
-                    if ($tree->{$prt->{name}} ne $subtree) {
-                        push @{ $sub_prt{$up} }, $prt;
-                    }
-                    next PRT;
+        # Check if $prt is sub protocol of any other protocol of
+        # current set. But handle direct sub protocols of 'ip' as top
+        # protocols.
+        while ($up->{up}) {
+            if (my $subtree = $tree->{$up->{name}}) {
+
+                # Found sub protocol of current set.
+                # Optimization:
+                # Ignore the sub protocol if both protocols have
+                # identical subtrees.
+                # In this case we found a redundant sub protocol.
+                if ($tree->{$prt->{name}} ne $subtree) {
+                    push @{ $sub_prt{$up} }, $prt;
                 }
-                $up = $up->{up};
+                next PRT;
             }
-
-            # Not a sub protocol (except possibly of IP).
-            my $key = $proto =~ /^\d+$/ ? 'proto' : $proto;
-            push @{ $top_prt{$key} }, $prt;
+            $up = $up->{up};
         }
+
+        # Not a sub protocol (except possibly of IP).
+        my $key = $proto =~ /^\d+$/ ? 'proto' : $proto;
+        push @{ $top_prt{$key} }, $prt;
     }
 
     # Collect subtrees for tcp, udp, proto and icmp.
