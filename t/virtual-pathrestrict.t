@@ -243,46 +243,71 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'No extra pathrestriction with 3 virtual interfaces';
+$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+          no router';
 ############################################################
 
 $in = <<'END';
 network:a = { ip = 10.1.1.0/24;}
+network:b = { ip = 10.2.2.0/24;}
 
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = 10.1.1.1; hardware = E1;}
- interface:b = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = E2;}
+ interface:a = {ip = 10.1.1.1;
+               virtual = {ip = 10.1.1.9; type = HSRP;} hardware = E1;}
+ interface:b = {ip = 10.2.2.1; hardware = E2;}
 }
 
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = 10.1.1.2; hardware = E4;}
- interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
+ interface:a = {ip = 10.1.1.2;
+               virtual = {ip = 10.1.1.9; type = HSRP;} hardware = E4;}
+ interface:b = {ip = 10.2.2.2; hardware = E5;}
 }
 
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:a = {ip = 10.1.1.3; hardware = E6;}
- interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E7;}
+ interface:a = {ip = 10.1.1.3;
+               virtual = {ip = 10.1.1.9; type = HSRP;} hardware = E6;}
+ interface:b = {ip = 10.2.2.3; hardware = E7;}
 }
 
-network:b  = { ip = 10.2.2.0/24; }
+pathrestriction:p =
+ interface:r1.a.virtual,
+ interface:r1.b
+;
 
-pathrestriction:p = interface:r1.a, interface:r1.b.virtual;
+service:test = {
+ user = network:a;
+ permit src = user;
+        dst = network:b;
+        prt = tcp 80;
+}
 END
 
 $out = <<'END';
-Error: Must apply pathrestriction equally to group of routers with virtual IP:
- - router:r1 has pathrestriction:p
- - router:r2
- - router:r3
+--r1
+ip access-list extended E1_in
+ permit udp 10.1.1.0 0.0.0.255 host 224.0.0.2 eq 1985
+ deny ip any any
+--r2
+ip access-list extended E4_in
+ permit udp 10.1.1.0 0.0.0.255 host 224.0.0.2 eq 1985
+ deny ip any host 10.2.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip any any
+--r3
+ip access-list extended E6_in
+ permit udp 10.1.1.0 0.0.0.255 host 224.0.0.2 eq 1985
+ deny ip any host 10.2.2.3
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip any any
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Non matching virtual interface groups with interconnect';
@@ -340,11 +365,13 @@ service:test = {
 END
 
 $out = <<'END';
-Error: network:b1 is reached via group of redundancy interfaces:
+Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.1.1.9:
+ network:b1 is reached via
  - interface:r1.a.virtual
  - interface:r2.a.virtual
  - interface:r3.a.virtual
  But 1 interfaces of group are missing.
+ Pathrestrictions must affect all or all-1 interfaces of redundancy group.
 END
 
 test_err($title, $in, $out);
@@ -362,6 +389,39 @@ Error: Virtual interfaces
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Conceal non matching virtual interface groups with interconnect if 
+          no routing required';
+############################################################
+
+$in =~ s/disabled;//g;
+$in =~ s/router:g.*inside;\}\s}//s;
+$in =~ s/user = interface:g.a;/user = network:a;/s;
+
+$out = <<'END';
+--r1
+ip access-list extended E1_in
+ deny ip any host 10.2.2.9
+ deny ip any host 10.2.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip any any
+--r2
+ip route 10.1.1.0 255.255.255.0 10.0.0.2
+--r2
+ip access-list extended E4_in
+ deny ip any host 10.2.2.9
+ deny ip any host 10.2.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ deny ip any any
+--r3
+ip route 10.2.2.0 255.255.255.0 10.0.0.1
+--r4
+ip access-list extended E8_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
@@ -421,6 +481,399 @@ ip access-list extended Ethernet2_in
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces with valid extra pathrestriction';
+############################################################
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+network:b = { ip = 10.2.2.0/24;}
+network:c = { ip = 10.3.3.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E4;}
+ interface:c = {ip = 10.3.3.1; hardware = E5;}
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E6;}
+ interface:c = {ip = 10.3.3.2; hardware = E7;}
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.4; virtual = {ip = 10.2.2.9;} hardware = E6;}
+ interface:c = {ip = 10.3.3.3; hardware = E7;}
+}
+
+router:r5 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.2; hardware = E8;}
+ interface:b = {ip = 10.2.2.5; hardware = E9;}
+}
+
+pathrestriction:p =
+ interface:r1.b,
+ interface:r2.b.virtual,
+ interface:r3.b.virtual,
+ interface:r4.b.virtual
+;
+
+service:test = {
+ user = network:a;
+ permit src = user;
+        dst = network:c;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r5
+ip route 10.3.3.0 255.255.255.0 10.2.2.9
+--r1
+ip access-list extended E1_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces with extra pathrestriction allowing 2 routes';
+############################################################
+
+$in =~ s/,\s*interface:r4.b.virtual//s;
+
+$out = <<'END';
+Warning: Two static routes for network:a
+ at interface:r4.b.virtual via interface:r5.b and interface:r1.b
+--r1
+ip route 10.3.3.0 255.255.255.0 10.2.2.4
+--r5
+ip route 10.3.3.0 255.255.255.0 10.2.2.9
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces with extra pathrestriction valid for all-1';
+############################################################
+
+$in =~ s/router:r5.*\}\s\}//s;
+
+$out = <<'END';
+--r1
+ip route 10.3.3.0 255.255.255.0 10.2.2.4
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces with invalid extra pathrestriction';
+############################################################
+
+$in =~ s/,\s*interface:r3.b.virtual//s;
+
+# es wäre schick, wenn man hier den Namen der PR hätte!
+$out = <<'END';
+Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.9:
+ network:c is reached via
+ - interface:r3.b.virtual
+ - interface:r4.b.virtual
+ But 1 interfaces of group are missing.
+ Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces, dst network directly connected to 1 only -
+          extra pathrestriction causing routing via physical interface';
+############################################################
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+network:b = { ip = 10.2.2.0/24;}
+network:c = { ip = 10.3.3.0/24;}
+network:x = { ip = 10.4.4.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E4;}
+ interface:c = {ip = 10.3.3.1; hardware = E5;}
+ interface:x = {ip = 10.4.4.1; hardware = E6;}
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E7;}
+ interface:c = {ip = 10.3.3.2; hardware = E8;}
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.4; virtual = {ip = 10.2.2.9;} hardware = E9;}
+ interface:c = {ip = 10.3.3.3; hardware = E10;}
+}
+
+pathrestriction:p =
+ interface:r2.c,
+ interface:r3.c,
+ interface:r4.c
+;
+
+service:test = {
+ user = network:a;
+ permit src = user;
+        dst = network:x;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+ip route 10.4.4.0 255.255.255.0 10.2.2.2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = '3 virtual interfaces, dst network directly connected to 1 only - 
+          invalid extra pathrestriction';
+############################################################
+
+$in =~ s/interface:r3.c,\s*//s;
+
+$out = <<'END';
+Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.9:
+ network:x is reached via
+ - interface:r2.b.virtual
+ - interface:r3.b.virtual
+ But 1 interfaces of group are missing.
+ Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+Warning: Two static routes for network:a
+ via interface:r2.c and interface:r2.b.virtual
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+          manual routing';
+############################################################
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24;}
+network:b = { ip = 10.2.2.0/24;}
+network:c = { ip = 10.3.3.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = E1;}
+ interface:b = {ip = 10.2.2.1; hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E3;}
+ interface:c = {ip = 10.3.3.1; hardware = E4;}
+}
+
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E4;}
+ interface:c = {ip = 10.3.3.2; hardware = E5;}
+}
+
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:b = {ip = 10.2.2.4; virtual = {ip = 10.2.2.9;} hardware = E6;}
+ interface:c = {ip = 10.3.3.3; hardware = E7;}
+}
+
+pathrestriction:p =
+ interface:r1.b,
+ interface:r3.c,
+;
+
+service:test = {
+ user = network:a;
+ permit src = user;
+        dst = network:c;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended E1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
+ deny ip any any
+--r2
+ip route 10.1.1.0 255.255.255.0 10.2.2.1
+--r2
+ip access-list extended E3_in
+ deny ip any host 10.3.3.1
+ permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
+ deny ip any any
+--r3
+ip access-list extended E4_in
+ deny ip any any
+--r4
+ip route 10.1.1.0 255.255.255.0 10.2.2.1
+--r4
+ip access-list extended E6_in
+ deny ip any host 10.3.3.3
+ permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+          no services';
+############################################################
+
+$in =~ s/service.*\}//s;
+
+$out = <<'END';
+--r2
+ip access-list extended E3_in
+ deny ip any any
+--r3
+ip access-list extended E4_in
+ deny ip any any
+--r4
+ip access-list extended E6_in
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Generate Error for invalid pathrestrictions although next hop count
+          equals size of redundancy group';
+############################################################
+
+$in = <<'END';
+network:n1 = {ip = 10.1.1.0/24;}
+network:n2 = {ip = 10.2.2.0/24;}
+network:n3 = {ip = 10.3.3.0/24;}
+network:n4 = {ip = 10.4.4.0/24;}
+network:n5 = {ip = 10.5.5.0/24;}
+
+router:r1 = {
+ managed;
+ model=IOS;
+ interface:n1 = {ip = 10.1.1.1;hardware = E1;}
+ interface:n2 = {ip = 10.2.2.1;hardware = E2;}
+}
+
+router:r2 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.2; virtual = {ip = 10.2.2.10;} hardware = E1;}
+ interface:n3 = {ip = 10.3.3.1; hardware = E2;}
+ interface:n5 = {ip = 10.5.5.1; hardware = E3;}
+}
+
+router:r3 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.3; virtual = {ip = 10.2.2.10;} hardware = E1;}
+ interface:n3 = {ip = 10.3.3.2; hardware = E2;}
+}
+
+router:r4 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.4; virtual = {ip = 10.2.2.10;} hardware = E1;}
+ interface:n3 = {ip = 10.3.3.3; hardware = E2;}
+}
+
+router:r5 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.5; virtual = {ip = 10.2.2.11;} hardware = E1;}
+ interface:n4 = {ip = 10.4.4.1; hardware = E2;}
+}
+
+router:r6 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.6; virtual = {ip = 10.2.2.11;} hardware = E1;}
+ interface:n4 = {ip = 10.4.4.2; hardware = E2;}
+}
+
+router:r7 = {
+ managed;
+ model=IOS;
+ interface:n2 = {ip = 10.2.2.7; virtual = {ip = 10.2.2.11;} hardware = E1;}
+ interface:n4 = {ip = 10.4.4.3; hardware = E2;}
+ interface:n5 = {ip = 10.5.5.2; hardware = E3;}
+}
+
+pathrestriction:p1 = 
+ interface:r2.n5,
+ interface:r4.n3;
+                  
+pathrestriction:p2 = 
+ interface:r5.n4,
+ interface:r6.n4,
+ interface:r7.n4;
+
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n5;
+        prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Two static routes for network:n5
+ at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
+Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.10:
+ network:n5 is reached via
+ - interface:r2.n2.virtual
+ - interface:r3.n2.virtual
+ But 1 interfaces of group are missing.
+ Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+Warning: Two static routes for network:n1
+ via interface:r2.n3 and interface:r2.n2.virtual
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

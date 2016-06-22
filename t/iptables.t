@@ -9,6 +9,44 @@ use Test_Netspoc;
 
 my ($title, $in, $out);
 
+############################################################
+$title = 'Protocol IP and deny rules';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ deny src = host:h10, host:h12; dst = user; prt = ip;
+ permit src = network:n1; dst = user; prt = ip;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+-A c1 -j droplog -s 10.1.1.12
+-A c1 -j droplog -s 10.1.1.10
+--
+:n1_self -
+-A n1_self -j c1 -s 10.1.1.8/29 -d 10.1.1.1
+-A n1_self -j ACCEPT -s 10.1.1.0/24 -d 10.1.1.1
+-A INPUT -j n1_self -i n1
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Different port ranges';
@@ -192,7 +230,7 @@ $title = 'Un-merged port range with sub-range';
 ############################################################
 
 # Ranges 10-49 and 50-60 can't be merged,
-# because they have three childs 30-37,40-47,51-53
+# because they have tree childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
 $in =~ s/(tcp 30-37,) (tcp 51-53)/$1 tcp 40-47, $2/;
 
@@ -222,8 +260,7 @@ test_run($title, $in, $out);
 $title = 'Optimize redundant port';
 ############################################################
 
-# Port isn't already optimized during global optimization if rule is
-# applied to different objects which got the same IP from NAT.
+# Different objects get the same IP from NAT.
 
 $in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -563,7 +600,7 @@ $title = 'Deterministic output of icmp codes';
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
 
 router:r1 = {
  managed;
@@ -575,13 +612,14 @@ service:test = {
  user = network:n1;
  permit src = user; 
         dst = network:n2; 
-        prt = icmp 3/2, icmp 3/1, icmp 3/0, icmp 3/13, icmp 3/3;
+        prt = icmp 5/2, icmp 5/1, icmp 5/3, icmp 5/0;
+ permit src = user; 
+        dst = host:h2;
+        prt = icmp 5;
  permit src = network:n2;
         dst =  user;
-        prt = icmp 3/0, icmp 3/1, icmp 3/2, icmp 3/3, icmp 3/13;
+        prt = icmp 5/0, icmp 5/1, icmp 5/2, icmp 5/3;
 }
-
-protocol:TCP_21_Reply = tcp 21, reversed;
 END
 
 $out = <<'END';
@@ -589,24 +627,66 @@ $out = <<'END';
 # [ ACL ]
 :c1 -
 :c2 -
+:c3 -
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/0
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/1
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/2
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/3
--A c1 -j ACCEPT -p icmp --icmp-type icmp/13
--A c2 -j ACCEPT -p icmp --icmp-type icmp/0
--A c2 -j ACCEPT -p icmp --icmp-type icmp/1
--A c2 -j ACCEPT -p icmp --icmp-type icmp/2
--A c2 -j ACCEPT -p icmp --icmp-type icmp/3
--A c2 -j ACCEPT -p icmp --icmp-type icmp/13
+-A c2 -j c1 -d 10.1.2.0/24 -p icmp --icmp-type 5
+-A c2 -j ACCEPT -d 10.1.2.2 -p icmp --icmp-type 5
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/0
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/1
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/2
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/3
 --
 :n1_n2 -
--A n1_n2 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp --icmp-type 3
+-A n1_n2 -g c2 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
 :n2_n1 -
--A n2_n1 -g c2 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 3
+-A n2_n1 -g c3 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 5
 -A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore ICMP reply messages';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h2 = { ip = 10.1.2.2; } 
+ host:h3 = { ip = 10.1.2.3; } 
+}
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = icmp 3/0, icmp 3/13, icmp 0/0, icmp 11/1;
+ permit src = user; 
+        dst = host:h2;
+        prt = icmp 11, icmp 0, icmp 3;
+ permit src = user; 
+        dst = host:h3;
+        prt = icmp;
+}
+END
+
+$out = <<'END';
+--r1
+:n1_n2 -
+-A n1_n2 -j ACCEPT -s 10.1.1.0/24 -d 10.1.2.3 -p icmp
+-A FORWARD -j n1_n2 -i n1 -o n2
 END
 
 test_run($title, $in, $out);

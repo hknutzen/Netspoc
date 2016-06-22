@@ -132,6 +132,10 @@ our %config = (
 
 # Use this value when printing passed time span.
     start_time => 0,
+
+# Pass 1 writes processed device names to STDOUT,
+# pass 2 reads to be processed device names from STDIN.
+    pipe => 0,
 );
 
 sub get_config_keys {

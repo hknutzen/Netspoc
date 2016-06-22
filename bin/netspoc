@@ -1,5 +1,8 @@
-#!/bin/sh
+#!/bin/bash
+
+# Fail, if spoc1 fails.
+set -o pipefail
 
 start_time=$(date +%s)
-spoc1 --start_time=$start_time "$@" && 
-spoc2 --start_time=$start_time "$@"
+spoc1 --pipe --start_time=$start_time "$@" |
+spoc2 --pipe --start_time=$start_time "$@"

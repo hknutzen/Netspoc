@@ -6,7 +6,7 @@ Pass 2 of Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.009'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.010'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -923,10 +923,7 @@ sub iptables_prt_code {
     my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
 
-    if ($proto eq 'ip') {
-        return '';
-    }
-    elsif ($proto eq 'tcp' or $proto eq 'udp') {
+    if ($proto eq 'tcp' or $proto eq 'udp') {
         my $port_code = sub {
             my ($range_obj) = @_;
             my ($v1, $v2) = @{ $range_obj->{range} };
@@ -1029,19 +1026,6 @@ sub add_bintree {
         $result = $tree;
     }
 
-    # Different nodes with identical IP address.
-    # This shouldn't occur.
-    elsif ($tree_mask == $node_mask && $tree_ip == $node_ip) {
-        my $sub1 = $tree->{subtree} || '';
-        my $sub2 = $node->{subtree} || '';
-        if ($sub1 ne $sub2) {
-            my $ip   = print_ip $tree_ip;
-            my $mask = print_ip $tree_mask;
-            internal_err("Inconsistent rules for iptables for $ip/$mask");
-        }
-        $result = $tree;
-    }
-
     # Create common root for tree and node.
     else {
         while (1) {
@@ -1140,34 +1124,33 @@ sub gen_prt_bintree {
         my $proto = $prt->{proto};
         if ($proto eq 'ip') {
             $ip_prt = $prt;
+            next PRT;
         }
-        else {
-            my $up = $prt->{up};
 
-            # Check if $prt is sub protocol of any other protocol of
-            # current set. But handle direct sub protocols of 'ip' as
-            # top protocols.
-            while ($up->{up}) {
-                if (my $subtree = $tree->{$up->{name}}) {
+        my $up = $prt->{up};
 
-                    # Found sub protocol of current set.
-                    # Optimization:
-                    # Ignore the sub protocol if both protocols
-                    # have identical subtrees.
-                    # This happens for different objects having identical IP
-                    # from NAT or from redundant interfaces.
-                    if ($tree->{$prt->{name}} ne $subtree) {
-                        push @{ $sub_prt{$up} }, $prt;
-                    }
-                    next PRT;
+        # Check if $prt is sub protocol of any other protocol of
+        # current set. But handle direct sub protocols of 'ip' as top
+        # protocols.
+        while ($up->{up}) {
+            if (my $subtree = $tree->{$up->{name}}) {
+
+                # Found sub protocol of current set.
+                # Optimization:
+                # Ignore the sub protocol if both protocols have
+                # identical subtrees.
+                # In this case we found a redundant sub protocol.
+                if ($tree->{$prt->{name}} ne $subtree) {
+                    push @{ $sub_prt{$up} }, $prt;
                 }
-                $up = $up->{up};
+                next PRT;
             }
-
-            # Not a sub protocol (except possibly of IP).
-            my $key = $proto =~ /^\d+$/ ? 'proto' : $proto;
-            push @{ $top_prt{$key} }, $prt;
+            $up = $up->{up};
         }
+
+        # Not a sub protocol (except possibly of IP).
+        my $key = $proto =~ /^\d+$/ ? 'proto' : $proto;
+        push @{ $top_prt{$key} }, $prt;
     }
 
     # Collect subtrees for tcp, udp, proto and icmp.
@@ -1985,7 +1968,6 @@ sub cisco_acl_addr {
             return "$ip_code $mask_code";
         }
     }
-    return;
 }
 
 sub print_object_groups {
@@ -2228,8 +2210,11 @@ sub print_combined {
 # Check if identical files with extension .config and .rules
 # exist in directory .prev/ .
 sub check_prev {
-    my ($code_file, $prev_file) = @_;
-    -f "$prev_file" or return;
+    my ($device_name, $dir, $prev) = @_;
+    -d $prev or return;
+    my $prev_file = "$prev/$device_name";
+    -f $prev_file or return;
+    my $code_file = "$dir/$device_name";
     for my $ext (qw(config rules)) {
         my $pass1name = "$code_file.$ext";
         my $pass1prev = "$prev_file.$ext";
@@ -2240,7 +2225,10 @@ sub check_prev {
 }
 
 sub pass2_file {
-    my ($file) = @_;
+    my ($device_name, $dir) = @_;
+    my $file = "$dir/$device_name";
+
+#   debug "building $device_name";
     my $router_data = prepare_acls("$file.rules");
     my $config = read_file_lines("$file.config");
     print_combined($config, $router_data, $file);
@@ -2258,88 +2246,92 @@ sub background {
 }
 
 sub apply_concurrent {
-    my ($code, $list, $concurrent) = @_;
+    my ($concurrent, $device_names_fh, $dir, $prev) = @_;
 
-    # Process sequentially.
-    if (1 >= $concurrent) {
-        for my $arg (@$list) {
-            $code->($arg);
+    my $workers_left = $concurrent;
+    my $errors;
+    my $reused = 0;
+    my $generated = 0;
+    my $check_status = sub {
+        if ($?) {
+            $errors++;
+        }
+        else {
+            $generated++;
+        }
+    };
+
+    # Read to be processed files either from STDIN or from file.
+    # Process with $concurrent background jobs.
+    # Error messages of background jobs not catched, 
+    # but send directly to STDERR.
+    while(my $device_name = <$device_names_fh>) {
+        chomp $device_name;
+
+        if (check_prev($device_name, $dir, $prev)) {
+            $reused++;
+        }
+
+        # Process sequentially.
+        elsif (1 >= $concurrent) {
+            pass2_file($device_name, $dir);
+        }
+
+        # Start concurrent jobs at beginning.
+        elsif (0 < $workers_left) {
+            background(\&pass2_file, $device_name, $dir);
+            $workers_left--;
+        }
+
+        # Start next job, after some job has finished.
+        else {
+            my $pid = wait();
+            if ($pid != -1) {
+                $check_status->();
+            }
+            background(\&pass2_file, $device_name, $dir);
         }
     }
 
-    # Process with $concurrent background jobs.
-    # Error messages are send directly to STDERR.
-    else {
-        my $errors;
-        for my $arg (@$list) {
+    # Wait for all jobs to be finished.
+    while (1) {
+        my $pid = wait();
+        last if -1 == $pid;
+        $check_status->();
+    }
 
-            # Start concurrent jobs.
-            if (0 < $concurrent) {
-                background($code, $arg);
-                $concurrent--;
-                next;
-            }
-            
-            # Start next job, after some job has finished.
-            my $pid = wait();
-            if ($pid != -1) {
-                $? and $errors++;
-            }
-            background($code, $arg);
-        }
-
-        # Wait for all jobs to be finished.
-        while (1) {
-            my $pid = wait();
-            last if -1 == $pid;
-            $? and $errors++;
-        }
-
-        $errors and die "Failed\n";
+    $errors and die "Failed\n";
+    if ($generated) {
+        info("Generated files for $generated devices");
+    }
+    if ($reused) {
+        info("Reused $reused files from previous run");
     }
 }
 
 sub pass2 {
     my ($dir) = @_;
-    progress("Starting second pass");
-
     my $prev = "$dir/.prev";
-    my $has_prev = -d $prev;
-    my @pass1_base = map { basename($_, '.config') } glob("$dir/*.config");
-    my @pass2_list;
 
-    my $count = @pass1_base;
-    my $reused;
-
-    # Try to reuse previously generated code files.
-    for my $basename (@pass1_base) {
-        my $code_file = "$dir/$basename";
-        my $prev_file = "$prev/$basename";
-
-        if ($has_prev and check_prev($code_file, $prev_file) and
-            system("cp -p $prev_file $code_file") == 0)
-        {
-            $reused++;
-            next;
-        }
-        push @pass2_list, $code_file;
+    ## no critic (RequireBriefOpen)
+    my $from_pass1;
+    if ($config->{pipe}) {
+        open($from_pass1, '<&STDIN') or
+            fatal_err("Can't open STDIN for reading: $!");
     }
-    if ($reused) {
-        progress("Reusing $reused files from previous run");
+    else {
+        my $devlist = "$dir/.devlist";
+        open($from_pass1, '<', $devlist) or 
+            fatal_err("Can't open $devlist for reading: $!");
     }
+    ## use critic
 
-    # Generate new code files.
-    if ($count = @pass2_list) {
-        my $concurrent = $config->{concurrency_pass2};
-        $concurrent = $count if $concurrent > $count;
-        my $msg = "Generating optimized code for $count devices";
-        $msg .= " using $concurrent processes" if $concurrent > 1;
-        progress($msg);
-        apply_concurrent(\&pass2_file, \@pass2_list, $concurrent);
-    }
-
+    my $concurrent = $config->{concurrency_pass2};
+    apply_concurrent($concurrent, $from_pass1, $dir, $prev);
+    
     # Remove directory '.prev' created by pass1
     # or remove symlink '.prev' created by newpolicy.pl.
+    my $has_prev = -d $prev;
     if ($has_prev) {
         system("rm -rf $prev") == 0 or fatal_err("Can't remove $prev: $!");
     }

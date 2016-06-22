@@ -52,7 +52,7 @@ use strict;
 use warnings;
 use Netspoc::Compiler::Pass2;
 
-our $VERSION = '5.009'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.010'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 

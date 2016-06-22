@@ -38,6 +38,7 @@ my %WriteMakefileArgs = (
     "File::Basename" => 0,
     "File::Path" => 0,
     "Getopt::Long" => 0,
+    "IO::Pipe" => 0,
     "JSON" => 0,
     "JSON::XS" => 0,
     "Pod::Usage" => 0,
@@ -56,7 +57,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.009",
+  "VERSION" => "5.010",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -75,6 +76,7 @@ my %FallbackPrereqs = (
   "File::Spec::Functions" => 0,
   "File::Temp" => 0,
   "Getopt::Long" => 0,
+  "IO::Pipe" => 0,
   "IPC::Run3" => 0,
   "JSON" => 0,
   "JSON::XS" => 0,

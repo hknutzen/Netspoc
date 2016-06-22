@@ -27,6 +27,54 @@ router:r1 = {
 END
 
 ############################################################
+$title = 'Invalid ports and port ranges';
+############################################################
+
+$in = <<'END';
+protocol:p1 = tcp 0 - 10;
+protocol:p2 = udp 60000 - 99999;
+protocol:p3 = udp 100100 - 100102;
+protocol:p4 = tcp 90 - 80;
+protocolgroup:g1 = udp 0, tcp 77777;
+END
+
+$out = <<'END';
+Error: Invalid port number '0' at line 1 of STDIN
+Error: Too large port number 99999 at line 2 of STDIN
+Error: Too large port number 100100 at line 3 of STDIN
+Error: Too large port number 100102 at line 3 of STDIN
+Error: Invalid port range 90-80 at line 4 of STDIN
+Error: Invalid port number '0' at line 5 of STDIN
+Error: Too large port number 77777 at line 5 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Valid port ranges';
+############################################################
+
+$in = $topo . <<'END';
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 1-1023, udp 1024-65535;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 lt 1024
+ permit udp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 gt 1023
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Different protocol modifiers';
 ############################################################
 

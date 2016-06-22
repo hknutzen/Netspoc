@@ -997,6 +997,115 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Check aggregate that is subnet of other network';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:trans = { ip = 10.3.1.17; hardware = trans; }
+ interface:sub-27 = { ip = 10.1.2.33; hardware = sub-27; }
+}
+network:sub-27 = { ip = 10.1.2.32/27; subnet_of = network:n2; }
+
+network:trans = { ip = 10.3.1.16/30; }
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:trans = { ip = 10.3.1.18; hardware = trans; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:u = {
+ interface:n2;
+ interface:sub-29;
+}
+
+any:sub-28 =     { ip = 10.1.2.48/28; link = network:n2; }
+network:sub-29 = { ip = 10.1.2.48/29; subnet_of = network:sub-27; }
+
+# Warning is shown, because some addresses of any:sub-28 are located
+# inside network:sub-27.
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:sub-28; prt = tcp 80;
+}
+
+# No warning, because we know, that addresses of network:sub-29
+# are located behind router:r2 and not inside network:sub-27.
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:sub-29; prt = tcp 81;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=network:n1; dst=any:sub-28; prt=tcp 80; of service:s1
+ can\'t be effective at interface:r1.n1.
+ Tried network:sub-27 as dst.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Don\'t check aggregate that is subnet of network in same zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:trans = { ip = 10.3.1.17; hardware = trans; }
+ interface:sub-27 = { ip = 10.1.2.33; hardware = sub-27; }
+}
+network:sub-27 = { ip = 10.1.2.32/27; subnet_of = network:n2; }
+
+network:trans = { ip = 10.3.1.16/30; }
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:trans = { ip = 10.3.1.18; hardware = trans; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:u = {
+ interface:n2;
+ interface:sub-28;
+}
+
+network:sub-28 = { ip = 10.1.2.48/28; subnet_of = network:sub-27; }
+any:sub-29 =     { ip = 10.1.2.48/29; link = network:n2; }
+
+# No warning, because we know, that addresses of any:sub-29
+# are located inside network:sub-28 and not inside network:sub-27.
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:sub-29; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing destination aggregates in loop';
 ############################################################
 

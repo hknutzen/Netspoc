@@ -27,6 +27,7 @@ requires:
   File::Basename: '0'
   File::Path: '0'
   Getopt::Long: '0'
+  IO::Pipe: '0'
   JSON: '0'
   JSON::XS: '0'
   Pod::Usage: '0'
@@ -34,4 +35,4 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
-version: '5.009'
+version: '5.010'
