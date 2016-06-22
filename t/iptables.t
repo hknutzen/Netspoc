@@ -617,8 +617,6 @@ service:test = {
         dst =  user;
         prt = icmp 3/0, icmp 3/1, icmp 3/2, icmp 3/3, icmp 3/13;
 }
-
-protocol:TCP_21_Reply = tcp 21, reversed;
 END
 
 $out = <<'END';
