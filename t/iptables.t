@@ -600,7 +600,7 @@ $title = 'Deterministic output of icmp codes';
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
 
 router:r1 = {
  managed;
@@ -612,10 +612,13 @@ service:test = {
  user = network:n1;
  permit src = user; 
         dst = network:n2; 
-        prt = icmp 3/2, icmp 3/1, icmp 3/0, icmp 3/13, icmp 3/3;
+        prt = icmp 5/2, icmp 5/1, icmp 5/3, icmp 5/0;
+ permit src = user; 
+        dst = host:h2;
+        prt = icmp 5;
  permit src = network:n2;
         dst =  user;
-        prt = icmp 3/0, icmp 3/1, icmp 3/2, icmp 3/3, icmp 3/13;
+        prt = icmp 5/0, icmp 5/1, icmp 5/2, icmp 5/3;
 }
 END
 
@@ -624,24 +627,66 @@ $out = <<'END';
 # [ ACL ]
 :c1 -
 :c2 -
+:c3 -
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/0
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/1
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/2
 -A c1 -j ACCEPT -p icmp --icmp-type icmp/3
--A c1 -j ACCEPT -p icmp --icmp-type icmp/13
--A c2 -j ACCEPT -p icmp --icmp-type icmp/0
--A c2 -j ACCEPT -p icmp --icmp-type icmp/1
--A c2 -j ACCEPT -p icmp --icmp-type icmp/2
--A c2 -j ACCEPT -p icmp --icmp-type icmp/3
--A c2 -j ACCEPT -p icmp --icmp-type icmp/13
+-A c2 -j c1 -d 10.1.2.0/24 -p icmp --icmp-type 5
+-A c2 -j ACCEPT -d 10.1.2.2 -p icmp --icmp-type 5
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/0
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/1
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/2
+-A c3 -j ACCEPT -p icmp --icmp-type icmp/3
 --
 :n1_n2 -
--A n1_n2 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp --icmp-type 3
+-A n1_n2 -g c2 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
 :n2_n1 -
--A n2_n1 -g c2 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 3
+-A n2_n1 -g c3 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 5
 -A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore ICMP reply messages';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h2 = { ip = 10.1.2.2; } 
+ host:h3 = { ip = 10.1.2.3; } 
+}
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = icmp 3/0, icmp 3/13, icmp 0/0, icmp 11/1;
+ permit src = user; 
+        dst = host:h2;
+        prt = icmp 11, icmp 0, icmp 3;
+ permit src = user; 
+        dst = host:h3;
+        prt = icmp;
+}
+END
+
+$out = <<'END';
+--r1
+:n1_n2 -
+-A n1_n2 -j ACCEPT -s 10.1.1.0/24 -d 10.1.2.3 -p icmp
+-A FORWARD -j n1_n2 -i n1 -o n2
 END
 
 test_run($title, $in, $out);
