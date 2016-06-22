@@ -923,10 +923,7 @@ sub iptables_prt_code {
     my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
 
-    if ($proto eq 'ip') {
-        return '';
-    }
-    elsif ($proto eq 'tcp' or $proto eq 'udp') {
+    if ($proto eq 'tcp' or $proto eq 'udp') {
         my $port_code = sub {
             my ($range_obj) = @_;
             my ($v1, $v2) = @{ $range_obj->{range} };
