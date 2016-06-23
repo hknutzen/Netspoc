@@ -15252,16 +15252,20 @@ sub check_and_convert_routes {
                             join("\n - ", map({ $_->{name} } 
                                               sort(by_name @$hops)));
                         err_msg(
-                            "Pathrestriction ambiguously affects interfaces",
+                            "Pathrestriction ambiguously affects generation",
+                            " of static routes\n       at interfaces",
                             " with virtual IP ",
                             print_ip($redundancy_group) . ":\n",
                             " $network->{name} is reached via\n",
                              " - $names\n",
-                            " But $missing interfaces of group are missing.\n",
-                            " Pathrestrictions must affect all or all-1",
-                            " interfaces of redundancy group."
-                            );
-                    }
+                            " But $missing interface(s) of group",
+                            " are missing.\n",
+                            " Pathrestrictions must restrict paths to either\n",
+                            " - all interfaces or\n",
+                            " - no interfaces or\n",
+                            " - all but one interface\n",
+                            " of this group.");
+                     }
                 }
             }
 

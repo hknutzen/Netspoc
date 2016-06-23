@@ -365,13 +365,18 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.1.1.9:
+Error: Pathrestriction ambiguously affects generation of static routes
+       at interfaces with virtual IP 10.1.1.9:
  network:b1 is reached via
  - interface:r1.a.virtual
  - interface:r2.a.virtual
  - interface:r3.a.virtual
- But 1 interfaces of group are missing.
- Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+ But 1 interface(s) of group are missing.
+ Pathrestrictions must restrict paths to either
+ - all interfaces or
+ - no interfaces or
+ - all but one interface
+ of this group.
 END
 
 test_err($title, $in, $out);
@@ -589,12 +594,17 @@ $in =~ s/,\s*interface:r3.b.virtual//s;
 
 # es wäre schick, wenn man hier den Namen der PR hätte!
 $out = <<'END';
-Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.9:
+Error: Pathrestriction ambiguously affects generation of static routes
+       at interfaces with virtual IP 10.2.2.9:
  network:c is reached via
  - interface:r3.b.virtual
  - interface:r4.b.virtual
- But 1 interfaces of group are missing.
- Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+ But 1 interface(s) of group are missing.
+ Pathrestrictions must restrict paths to either
+ - all interfaces or
+ - no interfaces or
+ - all but one interface
+ of this group.
 END
 
 test_err($title, $in, $out);
@@ -668,12 +678,17 @@ $title = '3 virtual interfaces, dst network directly connected to 1 only -
 $in =~ s/interface:r3.c,\s*//s;
 
 $out = <<'END';
-Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.9:
+Error: Pathrestriction ambiguously affects generation of static routes
+       at interfaces with virtual IP 10.2.2.9:
  network:x is reached via
  - interface:r2.b.virtual
  - interface:r3.b.virtual
- But 1 interfaces of group are missing.
- Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+ But 1 interface(s) of group are missing.
+ Pathrestrictions must restrict paths to either
+ - all interfaces or
+ - no interfaces or
+ - all but one interface
+ of this group.
 Warning: Two static routes for network:a
  via interface:r2.c and interface:r2.b.virtual
 END
@@ -863,12 +878,17 @@ END
 $out = <<'END';
 Warning: Two static routes for network:n5
  at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
-Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.2.2.10:
+Error: Pathrestriction ambiguously affects generation of static routes
+       at interfaces with virtual IP 10.2.2.10:
  network:n5 is reached via
  - interface:r2.n2.virtual
  - interface:r3.n2.virtual
- But 1 interfaces of group are missing.
- Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+ But 1 interface(s) of group are missing.
+ Pathrestrictions must restrict paths to either
+ - all interfaces or
+ - no interfaces or
+ - all but one interface
+ of this group.
 Warning: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2.virtual
 END

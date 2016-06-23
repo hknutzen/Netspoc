@@ -123,13 +123,18 @@ END
 
 # Output is indented
 $out = <<'END';
- Error: Pathrestriction ambiguously affects interfaces with virtual IP 10.1.1.9:
+ Error: Pathrestriction ambiguously affects generation of static routes
+        at interfaces with virtual IP 10.1.1.9:
   network:b1 is reached via
   - interface:r1.a.virtual
   - interface:r2.a.virtual
   - interface:r3.a.virtual
-  But 1 interfaces of group are missing.
-  Pathrestrictions must affect all or all-1 interfaces of redundancy group.
+  But 1 interface(s) of group are missing.
+  Pathrestrictions must restrict paths to either
+  - all interfaces or
+  - no interfaces or
+  - all but one interface
+  of this group.
 END
 
 test_err($title, $in, $out, '--concurrency_pass1=2');
