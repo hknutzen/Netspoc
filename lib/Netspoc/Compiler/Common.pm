@@ -32,11 +32,17 @@ use warnings;
 use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(
- *config fatal_err debug info
+ *config *SHOW_DIAG
+ fatal_err debug info diag_msg
  $start_time progress
  numerically *a *b
  ip2int int2ip complement_32bit mask2prefix prefix2mask match_ip
 );
+
+# Enable printing of diagnostic messages by 
+# - either declaring main::SHOW_DIAG
+# - or setting environment variable SHOW_DIAG.
+use constant SHOW_DIAG => exists &main::SHOW_DIAG || $ENV{SHOW_DIAG};
 
 our $config;
 
@@ -52,7 +58,6 @@ sub debug {
     my (@args) = @_;
     return if not $config->{verbose};
     print STDERR @args, "\n";
-    return;
 }
 
 # Print arguments to STDERR if in verbose mode.
@@ -60,7 +65,17 @@ sub info {
     my (@args) = @_;
     return if not $config->{verbose};
     print STDERR @args, "\n";
-    return;
+}
+
+# Print diagnostic message, regardless of quiet/verbose setting.
+# Should be used guarded by constant SHOW_DIAG. 
+# If SHOW_DIAG isn't enabled, the whole line will be removed at
+# compile time and won't have any performane impact.
+# Use like this:
+# diag_msg("Some message") if SHOW_DIAG;
+sub diag_msg {
+    my (@args) = @_;
+    print STDERR "DIAG: ", @args, "\n";
 }
 
 our $start_time;
@@ -75,7 +90,6 @@ sub progress {
         unshift @args, sprintf "%3ds ", $diff;
     }
     info(@args);
-    return;
 }
 
 sub numerically { return $a <=> $b }

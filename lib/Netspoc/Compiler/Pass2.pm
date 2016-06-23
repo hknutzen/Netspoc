@@ -2207,9 +2207,10 @@ sub print_combined {
     return;
 }
 
-# Check if identical files with extension .config and .rules
-# exist in directory .prev/ .
-sub check_prev {
+# Try to use pass2 file from previous run.
+# If identical files with extension .config and .rules
+# exist in directory .prev/, then use copy.
+sub try_prev {
     my ($device_name, $dir, $prev) = @_;
     -d $prev or return;
     my $prev_file = "$prev/$device_name";
@@ -2221,6 +2222,10 @@ sub check_prev {
         -f $pass1prev or return;
         system("cmp -s $pass1name $pass1prev") == 0 or return;
     }
+    system("cp -p $prev_file $code_file") == 0 or return;
+
+    # File was found and copied successfully.
+    diag_msg("Reused .prev/$device_name") if SHOW_DIAG;
     return 1;
 }
 
@@ -2268,7 +2273,7 @@ sub apply_concurrent {
     while(my $device_name = <$device_names_fh>) {
         chomp $device_name;
 
-        if (check_prev($device_name, $dir, $prev)) {
+        if (try_prev($device_name, $dir, $prev)) {
             $reused++;
         }
 
