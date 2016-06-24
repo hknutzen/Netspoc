@@ -7245,6 +7245,7 @@ sub remove_simple_duplicate_rules {
             $dst = $dst->[0];
             $prt = $prt->[0];
             if ($src2dst2prt2rule{$src}->{$dst}->{$prt}) {
+                diag_msg("Removed duplicate ", print_rule($rule)) if SHOW_DIAG;
                 $rule = undef;
                 $count++;
             }
@@ -7254,7 +7255,6 @@ sub remove_simple_duplicate_rules {
         }
         if ($count) {
             $path_rules{$action} = [ grep { $_ } @$rules ];
-#            info("Removed $count $action rules");
         }
     }
 }
