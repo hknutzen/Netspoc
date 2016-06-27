@@ -7488,6 +7488,84 @@ sub expand_rules {
     return \@result;
 }
 
+##############################################################################
+# Find redundant rules which are overlapped by some more general rule
+##############################################################################
+
+# Hash for converting a reference of an object back to this object.
+my %ref2obj;
+
+sub setup_ref2obj {
+    for my $network (@networks) {
+        $ref2obj{$network} = $network;
+        for my $obj (@{ $network->{subnets} }, @{ $network->{interfaces} }) {
+            $ref2obj{$obj} = $obj;
+        }
+    }
+}
+
+sub find_redundant_rules {
+ my ($cmp_hash, $chg_hash) = @_;
+ my $count = 0;
+ while (my ($stateless, $chg_hash) = each %$chg_hash) {
+  while (1) {
+   if (my $cmp_hash = $cmp_hash->{$stateless}) {
+    while (my ($deny, $chg_hash) = each %$chg_hash) {
+     while (1) {
+      if (my $cmp_hash = $cmp_hash->{$deny}) {
+       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
+        my $src_range = $ref2prt{$src_range_ref};
+        while (1) {
+         if (my $cmp_hash = $cmp_hash->{$src_range}) {
+          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
+           my $src = $ref2obj{$src_ref};
+           while (1) {
+            if (my $cmp_hash = $cmp_hash->{$src}) {
+             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
+              my $dst = $ref2obj{$dst_ref};
+              while (1) {
+               if (my $cmp_hash = $cmp_hash->{$dst}) {
+                for my $chg_rule (values %$chg_hash) {
+                 my $prt = $chg_rule->{prt};
+                 while (1) {
+                  if (my $cmp_rule = $cmp_hash->{$prt}) {
+                   if ($cmp_rule ne $chg_rule &&
+                       ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
+                   {
+                    collect_redundant_rules($chg_rule, $cmp_rule);
+
+                    # Count each redundant rule only once.
+                    $count++ if not $chg_rule->{redundant}++;
+                   }
+                  }
+                  $prt = $prt->{local_up} or last;
+                 }
+                }
+               }
+               $dst = $dst->{up} or last;
+              }
+             }
+            }
+            $src = $src->{up} or last;
+           }
+          }
+         }
+         $src_range = $src_range->{up} or last;
+        }
+       }
+      }
+      last if $deny;
+      $deny = 1;
+     }
+    }
+   }
+   last if !$stateless;
+   $stateless = '';
+  }
+ }
+ return $count;
+}
+
 sub check_expanded_rules {
     progress('Checking for redundant rules');
     setup_ref2obj();
@@ -13027,18 +13105,6 @@ sub expand_crypto {
     }
 }
 
-# Hash for converting a reference of an object back to this object.
-my %ref2obj;
-
-sub setup_ref2obj {
-    for my $network (@networks) {
-        $ref2obj{$network} = $network;
-        for my $obj (@{ $network->{subnets} }, @{ $network->{interfaces} }) {
-            $ref2obj{$obj} = $obj;
-        }
-    }
-}
-
 ##############################################################################
 # Check if high-level and low-level semantics of rules with an supernet
 # as source or destination are equivalent.
@@ -14379,71 +14445,6 @@ sub check_dynamic_nat_rules {
             }
         }
     }
-}
-
-##############################################################################
-# Find redundant rules which are overlapped by some more general rule
-##############################################################################
-sub find_redundant_rules {
- my ($cmp_hash, $chg_hash) = @_;
- my $count = 0;
- while (my ($stateless, $chg_hash) = each %$chg_hash) {
-  while (1) {
-   if (my $cmp_hash = $cmp_hash->{$stateless}) {
-    while (my ($deny, $chg_hash) = each %$chg_hash) {
-     while (1) {
-      if (my $cmp_hash = $cmp_hash->{$deny}) {
-       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
-        my $src_range = $ref2prt{$src_range_ref};
-        while (1) {
-         if (my $cmp_hash = $cmp_hash->{$src_range}) {
-          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
-           my $src = $ref2obj{$src_ref};
-           while (1) {
-            if (my $cmp_hash = $cmp_hash->{$src}) {
-             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
-              my $dst = $ref2obj{$dst_ref};
-              while (1) {
-               if (my $cmp_hash = $cmp_hash->{$dst}) {
-                for my $chg_rule (values %$chg_hash) {
-                 my $prt = $chg_rule->{prt};
-                 while (1) {
-                  if (my $cmp_rule = $cmp_hash->{$prt}) {
-                   if ($cmp_rule ne $chg_rule &&
-                       ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
-                   {
-                    collect_redundant_rules($chg_rule, $cmp_rule);
-
-                    # Count each redundant rule only once.
-                    $count++ if not $chg_rule->{redundant}++;
-                   }
-                  }
-                  $prt = $prt->{local_up} or last;
-                 }
-                }
-               }
-               $dst = $dst->{up} or last;
-              }
-             }
-            }
-            $src = $src->{up} or last;
-           }
-          }
-         }
-         $src_range = $src_range->{up} or last;
-        }
-       }
-      }
-      last if $deny;
-      $deny = 1;
-     }
-    }
-   }
-   last if !$stateless;
-   $stateless = '';
-  }
- }
- return $count;
 }
 
 ########################################################################
