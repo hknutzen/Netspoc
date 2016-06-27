@@ -10566,17 +10566,20 @@ sub check_pathrestrictions {
     }
 
     # Collect all effective pathrestrictions.
-    push @pathrestrictions, grep({ @{ $_->{elements} } } 
-                                 values %pathrestrictions);
+    push @pathrestrictions, sort by_name grep({ @{ $_->{elements} } } 
+                                              values %pathrestrictions);
 }
 
 sub remove_redundant_pathrestrictions {
 
+    # Calculate number of elements once for each pathrestriction.
+    my %size;
+
     # For each element E, find pathrestrictions that contain E.
     my %element2restrictions;
-    for my $restrict (@pathrestrictions) 
-    {
+    for my $restrict (@pathrestrictions) {
         my $elements = $restrict->{elements};
+        $size{$restrict} = @$elements;
         for my $element (@$elements) {
             $element2restrictions{$element}->{$restrict} = $restrict;
         }
@@ -10587,29 +10590,51 @@ sub remove_redundant_pathrestrictions {
     my %seen;
     for my $elt_ref (keys %element2restrictions) {
         my $href = $element2restrictions{$elt_ref};
-        my @list = sort({ @{ $a->{elements} } <=> @{ $b->{elements} } } 
-                        values %$href);
+
+        # Compare small pathrestriction with larger ones.
+        my @list = sort { $size{$a} <=> $size{$b} } values %$href;
         while (@list >= 2) {
             my $restrict = shift @list;
             next if $seen{$restrict}++;
+
+            # Build intersection of all pathrestrictions, that reference
+            # elements of $restrict.
+            my $intersection = $href;
+
+            # Check all elements of small pathrestriction.
             my $elements = $restrict->{elements};
             for my $element (@$elements) {
                 next if $element eq $elt_ref;
+
+                # $href2 is set of all pathrestrictions that contain $element.
                 my $href2 = $element2restrictions{$element};
-                my $intersection;
-                for my $restrict2 (values %$href) {
+
+                # Build intersection for next iteration.
+                my $next_intersection;
+                for my $restrict2 (values %$intersection) {
                     next if $restrict2 eq $restrict;
                     if ($href2->{$restrict2}) {
-                        $intersection->{$restrict2} = $restrict2;
+                        $next_intersection->{$restrict2} = $restrict2;
                     }
                 }
-                $href = $intersection or last;
+
+                # Pathrestriction isn't redundant if intersection
+                # becomes empty.
+                $intersection = $next_intersection or last;
             }
-            if ($href) {
-                $restrict->{deleted} = 1;
-                my ($other) = values %$href;
-#                debug "$restrict->{name} < $other->{name}";
-            }
+
+            # $intersection holds those pathrestrictions, that have
+            # superset of elements of $restrict.
+            $intersection or next;
+            $restrict->{deleted} = $intersection;
+        }
+    }
+    if (SHOW_DIAG) {
+        for my $restrict (@pathrestrictions) {
+            my $intersection = $restrict->{deleted} or next;
+            my $r_name = $restrict->{name};
+            my ($o_name) = sort map { $_->{name} } values %$intersection;
+            diag_msg("Removed $r_name; is subset of $o_name");
         }
     }
     @pathrestrictions = grep { not $_->{deleted} } @pathrestrictions;
@@ -10713,8 +10738,6 @@ sub apply_pathrestriction_optimization {
     # Delete pathrestriction objects, if {reachable_at} holds entire info.
     if (!$has_interior) {   # Interfaces must not be located inside a partition.
         for my $interface (@$elements) {
-
-            #debug "remove $restrict->{name} from $interface->{name}";
             aref_delete($interface->{path_restrict}, $restrict)
               or internal_err("Can't remove $restrict->{name}",
                 " from $interface->{name}");
@@ -10724,9 +10747,12 @@ sub apply_pathrestriction_optimization {
                 delete $interface->{path_restrict};
             }
         }
+        diag_msg("Optimized $restrict->{name}") if SHOW_DIAG;
     }
     else {
-#            debug "Can't opt. $restrict->{name}, has $has_interior interior";
+        diag_msg("Optimized but preserved $restrict->{name};",
+                 " has $has_interior interior")
+            if SHOW_DIAG;
     }
 }
 
@@ -10775,8 +10801,13 @@ sub optimize_pathrestrictions {
         }
 
         # Optimize pathrestriction.
-        if ($mark > $start_mark + 0) {    # Optimization needs 2 partitions min.
+        if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
             apply_pathrestriction_optimization($restrict, $elements, $lookup);
+        }
+        elsif(SHOW_DIAG) {
+            my $count = $mark - $start_mark;
+            diag_msg("Can't optimize $restrict->{name};",
+                     " has only $count partition");
         }
     }
 }
