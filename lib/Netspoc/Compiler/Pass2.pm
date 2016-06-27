@@ -1271,7 +1271,7 @@ sub gen_prt_bintree {
                 map {
                     {
                         proto   => 'icmp',
-                        type    => $_->{proto},
+                        type    => $_->{type},
                         code    => $_->{code},
                         subtree => $tree->{$_->{name}}
                     }

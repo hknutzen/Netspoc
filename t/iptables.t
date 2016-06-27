@@ -628,16 +628,16 @@ $out = <<'END';
 :c1 -
 :c2 -
 :c3 -
--A c1 -j ACCEPT -p icmp --icmp-type icmp/0
--A c1 -j ACCEPT -p icmp --icmp-type icmp/1
--A c1 -j ACCEPT -p icmp --icmp-type icmp/2
--A c1 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c1 -j ACCEPT -p icmp --icmp-type 5/0
+-A c1 -j ACCEPT -p icmp --icmp-type 5/1
+-A c1 -j ACCEPT -p icmp --icmp-type 5/2
+-A c1 -j ACCEPT -p icmp --icmp-type 5/3
 -A c2 -j c1 -d 10.1.2.0/24 -p icmp --icmp-type 5
 -A c2 -j ACCEPT -d 10.1.2.2 -p icmp --icmp-type 5
--A c3 -j ACCEPT -p icmp --icmp-type icmp/0
--A c3 -j ACCEPT -p icmp --icmp-type icmp/1
--A c3 -j ACCEPT -p icmp --icmp-type icmp/2
--A c3 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c3 -j ACCEPT -p icmp --icmp-type 5/0
+-A c3 -j ACCEPT -p icmp --icmp-type 5/1
+-A c3 -j ACCEPT -p icmp --icmp-type 5/2
+-A c3 -j ACCEPT -p icmp --icmp-type 5/3
 --
 :n1_n2 -
 -A n1_n2 -g c2 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp
