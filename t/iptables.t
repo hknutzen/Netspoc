@@ -628,16 +628,16 @@ $out = <<'END';
 :c1 -
 :c2 -
 :c3 -
--A c1 -j ACCEPT -p icmp --icmp-type icmp/0
--A c1 -j ACCEPT -p icmp --icmp-type icmp/1
--A c1 -j ACCEPT -p icmp --icmp-type icmp/2
--A c1 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c1 -j ACCEPT -p icmp --icmp-type 5/0
+-A c1 -j ACCEPT -p icmp --icmp-type 5/1
+-A c1 -j ACCEPT -p icmp --icmp-type 5/2
+-A c1 -j ACCEPT -p icmp --icmp-type 5/3
 -A c2 -j c1 -d 10.1.2.0/24 -p icmp --icmp-type 5
 -A c2 -j ACCEPT -d 10.1.2.2 -p icmp --icmp-type 5
--A c3 -j ACCEPT -p icmp --icmp-type icmp/0
--A c3 -j ACCEPT -p icmp --icmp-type icmp/1
--A c3 -j ACCEPT -p icmp --icmp-type icmp/2
--A c3 -j ACCEPT -p icmp --icmp-type icmp/3
+-A c3 -j ACCEPT -p icmp --icmp-type 5/0
+-A c3 -j ACCEPT -p icmp --icmp-type 5/1
+-A c3 -j ACCEPT -p icmp --icmp-type 5/2
+-A c3 -j ACCEPT -p icmp --icmp-type 5/3
 --
 :n1_n2 -
 -A n1_n2 -g c2 -s 10.1.1.0/24 -d 10.1.2.0/24 -p icmp
@@ -645,6 +645,45 @@ $out = <<'END';
 --
 :n2_n1 -
 -A n2_n1 -g c3 -s 10.1.2.0/24 -d 10.1.1.0/24 -p icmp --icmp-type 5
+-A FORWARD -j n2_n1 -i n2 -o n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore ICMP reply messages';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = network:n2;
+        dst = user;
+        prt = icmp 5/1;
+ permit src = host:h2;
+        dst = user;
+        prt = icmp 5;
+}
+END
+
+$out = <<'END';
+--r1
+# [ ACL ]
+:c1 -
+-A c1 -j ACCEPT -s 10.1.2.2 -p icmp --icmp-type 5
+-A c1 -j ACCEPT -s 10.1.2.0/24 -p icmp --icmp-type 5/1
+--
+:n2_n1 -
+-A n2_n1 -g c1 -d 10.1.1.0/24 -p icmp --icmp-type 5
 -A FORWARD -j n2_n1 -i n2 -o n1
 END
 

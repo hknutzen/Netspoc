@@ -32,3 +32,5 @@ sub test_group {
     eq_or_diff($output, $expected, $title);
     return;
 }
+
+1;

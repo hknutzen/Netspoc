@@ -8,7 +8,6 @@ Makefile.PL
 README
 README.md
 bin/add-to-netspoc
-bin/check-pathrestrictions
 bin/cut-netspoc
 bin/export-netspoc
 bin/netspoc
@@ -68,7 +67,6 @@ pod-links/remove-from-netspoc.pod
 pod-links/rename-netspoc.pod
 t/Test_Group.pm
 t/Test_Netspoc.pm
-t/Test_Pathrestrictions.pm
 t/add-to-netspoc.t
 t/aggregate.t
 t/any-multicast-interface.t
@@ -94,6 +92,7 @@ t/log.t
 t/loopback.t
 t/managed-host.t
 t/nat.t
+t/opt-pathrestrict.t
 t/optimize-subnet.t
 t/options.t
 t/overlaps.t
@@ -107,6 +106,7 @@ t/protect-interfaces.t
 t/protocols.t
 t/raw.t
 t/rename.t
+t/reuse-previous.t
 t/route.t
 t/routing_only.t
 t/secondary-interface.t

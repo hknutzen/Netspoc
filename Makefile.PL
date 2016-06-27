@@ -18,7 +18,6 @@ my %WriteMakefileArgs = (
   "DISTNAME" => "Netspoc",
   "EXE_FILES" => [
     "bin/print-service",
-    "bin/check-pathrestrictions",
     "bin/export-netspoc",
     "bin/print-group",
     "bin/spoc1",
@@ -43,6 +42,7 @@ my %WriteMakefileArgs = (
     "JSON::XS" => 0,
     "Pod::Usage" => 0,
     "bytes" => 0,
+    "constant" => 0,
     "open" => 0,
     "strict" => 0,
     "warnings" => 0
@@ -57,7 +57,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.010",
+  "VERSION" => "5.011",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -84,6 +84,7 @@ my %FallbackPrereqs = (
   "Test::Differences" => 0,
   "Test::More" => 0,
   "bytes" => 0,
+  "constant" => 0,
   "lib" => 0,
   "open" => 0,
   "strict" => 0,

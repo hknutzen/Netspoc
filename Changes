@@ -1,3 +1,11 @@
+5.011     2016-06-27 17:12:41+02:00 Europe/Berlin
+
+ - Fixed serious bug in version 5.010. 
+   If code for some device would be reused from previous run, no code
+   was generated for this device at all.
+ - Fixed output of icmp type/code for iptables. 
+   It is now e.g. '--icmp-type 5/1' and was previously "--icmp-type icmp/1".
+
 5.010     2016-06-22 16:44:15+02:00 Europe/Berlin
 
  - Cleaned up and simplified verification of pathrestrictions at groups 

@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(test_run test_warn test_err);
+our @EXPORT = qw(test_run test_warn test_err test_reuse_prev);
 
 use Test::More;
 use Test::Differences;
@@ -93,7 +93,7 @@ sub run {
 # Output found line and subsequent lines up to empty line or comment line.
 sub get_block {
     my ($data, @find) = @_;
-    map { chomp } @find;
+    chomp for @find;
     my @data = split /\n/, $data;
     my $out = '';
     my $match;
@@ -115,11 +115,7 @@ sub get_block {
 }
 
 sub compare_warnings_and_devices {
-    my ($title, $in, $expected, $options, $check_stderr) = @_;
-
-    # Prepare output directory.
-    my $dir = tempdir( CLEANUP => 1 );
-
+    my ($title, $in, $expected, $options, $check_stderr, $dir) = @_;
     my ($stderr, $success, $in_dir) = run($in, $options, $dir);
     if (!$success) {
         diag("Unexpected failure:\n$stderr");
@@ -200,18 +196,37 @@ sub compare_warnings_and_devices {
     }
 }
 
+# Prepare output directory.
+sub prepare_out_dir {
+    return tempdir( CLEANUP => 1 );
+}
+
+# Compile input and check for expected result.
 # $expected has multiple fields,
 # the expected output of each tested device.
 sub test_run {
     my ($title, $in, $expected, $options) = @_;
-    compare_warnings_and_devices($title, $in, $expected, $options, 0);
+    my $dir = prepare_out_dir();
+    compare_warnings_and_devices($title, $in, $expected, $options, 0, $dir);
 }
 
 # First, unnamed field of $expected is warning message,
 # next (optional) fields are expected output of tested devices.
 sub test_warn {
     my ($title, $in, $expected, $options) = @_;
-    compare_warnings_and_devices($title, $in, $expected, $options, 1);
+    my $dir = prepare_out_dir();
+    compare_warnings_and_devices($title, $in, $expected, $options, 1, $dir);
+}
+
+# Compile two times with possibly different input 
+# while reusing output directory.
+# Second run will try to reuse generated files from first run.
+# Expects diagnostic message on STDERR.
+sub test_reuse_prev {
+    my ($title, $in1, $in2, $expected, $options) = @_;
+    my $dir = prepare_out_dir();
+    my ($stderr, $success, $in_dir) = run($in1, $options, $dir);
+    compare_warnings_and_devices($title, $in2, $expected, $options, 1, $dir);
 }
 
 # $expected has one field,

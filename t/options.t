@@ -7,7 +7,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out, $topo);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Options from config file';

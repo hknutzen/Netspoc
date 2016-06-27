@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+# Enable printing of diagnostic messages.
+use constant SHOW_DIAG => 1;
+
 use strict;
 use warnings;
 use Test::More;
@@ -52,6 +55,7 @@ Warning: Duplicate rules in service:test1b and service:test1a:
 Warning: Redundant rules in service:test1a compared to service:test2:
   permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1a
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
+DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
 --filter
 access-list Vlan2_in extended permit tcp host 10.1.1.10 10.9.1.0 255.255.255.0
 access-list Vlan2_in extended deny ip any any
@@ -82,6 +86,7 @@ service:test2 = {
 END
 
 $out = <<'END';
+DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
 END
 
 test_warn($title, $in, $out);
@@ -108,6 +113,7 @@ service:test2 = {
 END
 
 $out = <<'END';
+DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=protocol:ssh; of service:test1b
 END
 
 test_warn($title, $in, $out);
@@ -138,6 +144,7 @@ Warning: Duplicate rules in service:test1b and service:test1a:
 Warning: Redundant rules in service:test1a compared to service:test2:
   permit src=host:h1; dst=network:Test; prt=protocol:ssh; of service:test1a
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
+DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
 END
 
 test_warn($title, $in, $out);
