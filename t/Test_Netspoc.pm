@@ -93,7 +93,7 @@ sub run {
 # Output found line and subsequent lines up to empty line or comment line.
 sub get_block {
     my ($data, @find) = @_;
-    map { chomp } @find;
+    chomp for @find;
     my @data = split /\n/, $data;
     my $out = '';
     my $match;
