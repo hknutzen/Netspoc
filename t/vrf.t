@@ -7,7 +7,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $topo, $in, $out);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Combine object-groups from different VRFs';

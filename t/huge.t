@@ -8,7 +8,7 @@ use lib 't';
 use Test_Netspoc;
 use Test_Group;
 
-my ($title, $in, $out, $topo);
+my ($title, $in, $out);
 
 ############################################################
 $title = 'Many nested loops';
