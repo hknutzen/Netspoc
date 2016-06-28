@@ -111,6 +111,7 @@ create a topology graph in working memory.
     determined.
 
 * **Transfer ownership information:** `check_service_owner`
+
   The policy contains information about groups or persons responsible
   for certain parts of the topology (owner). This information is now
   added to the topology objects. Ownership is primarily needed for
@@ -124,6 +125,7 @@ zone) pair. The path rule set represents every rule from service
 input.
 
 * **Normalizing rules:** `normalize_services`
+
     Rule definitions are now resolved to get a normalized rule object
     for every rule, referencing the actual topology objects the rule
     refers to.
