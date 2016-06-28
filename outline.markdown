@@ -93,7 +93,7 @@ create a topology graph in working memory.
 
 * **Prepare fast path traversal:**
     [setpath](/Netspoc/technical.html#prepare_traversal)  
-    The graph is annotated with information, that allows efficient
+    The graph is annotated with information that allows efficient
     path traversal.
 
 * **Distribute NAT information:** `distribute_nat_info`  
@@ -160,8 +160,8 @@ input.
     Routers can be defined to filter locally. Then, traffic that
     has already been filtered by other routers on the path can pass without
     further filtering, and ACLs need to be generated for traffic
-    passing no other but the managed local router. To easily
-    identify traffic that needs local filtering, networks from
+    passing no other but the managed local router only. To 
+    identify traffic that needs local filtering easily, networks from
     clusters connected by local routers are marked in this step.
 
 * **Check for rules with invalid NAT mapping:** `check_dynamic_nat_rules`     
