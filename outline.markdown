@@ -32,6 +32,7 @@ To achieve router configurations from a given input, following steps
 are conducted:
 
 **Pass 1**
+
 1. Parsing network topology and rule set.
 2. Connecting elements of the topology to form a topology graph.
 3. Perform consistency checks on the rule set, transfer rules into a path 
@@ -43,6 +44,7 @@ are conducted:
    template and rule files.
 
 **Pass 2**
+
 1. Generate ACLs and write final router configuration files for
    routers, whose configuration files can not be reused.
 
