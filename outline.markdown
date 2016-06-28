@@ -167,7 +167,7 @@ input.
     mappings on a path from source to destination.
 
 
-### 4. Distributing rule and routing information
+### 4. Distributing rules and routes
 
 For every pair in the path rule set, the topology graph is traversed
 from source to destination, collecting routing and rule information
@@ -248,7 +248,7 @@ In pass 2, a valid and complete router configuration file is written
 for every router, combining its configuration template file and
 collected rule information.
 
-### 1. Generating final configuration files
+### 1. Generating final configurations
 
 * **Reusing files:** `pass2`    
     While new config template files and rule files were written in
