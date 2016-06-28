@@ -62,14 +62,12 @@ below.
 First, input topology and rule set need to be parsed.
 
 Read files or directory: `read_file_or_dir`
+ : Netspoc parses input files and transfers the contents into formats
+   to work with. For the topology, objects are generated and made
+   accessible by name. Along the way, the input is checked for errors
+   that are already recognizeable at this stage.
 
 Order protocols: `order_protocols`
-
-: Netspoc parses input files and transfers the contents into formats
-  to work with. For the topology, objects are generated and made
-  accessible by name. Along the way, the input is checked for errors
-  that are already recognizeable at this stage.
-
 : Process protocols of the services and rules specified in the input
   to receive their contained-in relations. *(This should be moved
   into step 3!)*
