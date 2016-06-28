@@ -61,6 +61,19 @@ below.
 
 First, input topology and rule set need to be parsed.
 
+Read files or directory: `read_file_or_dir`
+
+Order protocols: `order_protocols`
+
+: Netspoc parses input files and transfers the contents into formats
+  to work with. For the topology, objects are generated and made
+  accessible by name. Along the way, the input is checked for errors
+  that are already recognizeable at this stage.
+
+: Process protocols of the services and rules specified in the input
+  to receive their contained-in relations. *(This should be moved
+  into step 3!)*
+
 * **Read files or directory:** `read_file_or_dir`  
     Netspoc parses input files and transfers the contents into formats
     to work with. For the topology, objects are generated and made
@@ -110,8 +123,7 @@ create a topology graph in working memory.
     (also contained-in relations) of networks in every single zone are
     determined.
 
-* **Transfer ownership information:** `check_service_owner`
-
+* **Transfer ownership information:** `check_service_owner`  
   The policy contains information about groups or persons responsible
   for certain parts of the topology (owner). This information is now
   added to the topology objects. Ownership is primarily needed for
@@ -124,8 +136,7 @@ so called path rules, each containing a (source zone, destination
 zone) pair. The path rule set represents every rule from service
 input.
 
-* **Normalizing rules:** `normalize_services`
-
+* **Normalizing rules:** `normalize_services`    
     Rule definitions are now resolved to get a normalized rule object
     for every rule, referencing the actual topology objects the rule
     refers to.
@@ -179,13 +190,13 @@ within the managed router objects on the path. During rule and routing
 distribution, further consistency checks are performed on the ruleset.
 
 * **Perform consistency checks:**
-  `check_unused_groups`, `check_supernet_rules`, `check_expanded_rules`
+  `check_unused_groups`, `check_supernet_rules`, `check_expanded_rules`  
   While rules are distributed within the topology, a parallel process
   performs further checks on the ruleset. These include identification
   of unused protocolgroups, detection of missing supernet rules and an
   analysis for redundant or duplicate rules.
 
-* **Removing duplicate path rules:** `remove_simple_duplicate_rules`
+* **Removing duplicate path rules:** `remove_simple_duplicate_rules`  
   To avoid multiple distribution of rules, duplicate rules are removed
   from the path rule set in this step.
 
@@ -233,14 +244,14 @@ distribution, further consistency checks are performed on the ruleset.
 Finally, pass 1 output is generated and printed to a directory
 specified by the user.
 
-* **Print config template and rules file** `print_code`
+* **Print config template and rules file** `print_code`  
     For every managed router, collected information is used to
     generate the config template file containing routing information,
     if generated. Additionally, collected rules for ACL generation are
     printed into the routers rules file, using a format independent
     from the routers machine.
 
-* **Adding raw files to program output:** `copy_raw`
+* **Adding raw files to program output:** `copy_raw`  
     Users may specify additional configuration statements for routers
     during declaration within the `/raw` subdirectory, using one file
     per router and the routers name as filename. These files are now
@@ -263,14 +274,14 @@ collected rule information.
     files from the previous run are transferred to the output
     directory and reused.
 
-* **Generating ACL configurations** `prepare_acls`
+* **Generating ACL configurations** `prepare_acls`  
     The routers rule set is now expanded to receive a set of
     elementary rules with exactly one source, destination and
     protocol. This rule set is then optimized by removing duplicate
     and redundant rules. Finally, ACL entries are generated from the
     optimized rule set.
 
-* **Writing router config files:** `print_combined`
+* **Writing router config files:** `print_combined`  
    After the routers config template file has been read, it is printed
    into the final configuration file, adding the generated ACL entries.
 
