@@ -31,8 +31,7 @@ otherwise.
 To achieve router configurations from a given input, following steps
 are conducted:
 
-
-## Pass 1
+### Pass 1
 1. Parsing network topology and rule set.
 2. Connecting elements of the topology to form a topology graph.
 3. Perform consistency checks on the rule set, transfer rules into a path 
@@ -43,10 +42,9 @@ are conducted:
 5. Converting information collected at managed routers into configuration
    template and rule files.
 
-## Pass 2
-1. Check whether file(s) can be reused. 
-2. Transform the routers rule set into router ACL.
-3. Write router config file by adding ACL to config template file.
+### Pass 2
+1. Generate ACLs and write final router configuration files for
+   routers, whose configuration files can not be reused.
 
 Each of the steps consists of several tasks and operations that will
 be described below. For more detailed information, have a look at the
@@ -55,9 +53,11 @@ the individual functions. If technical documentation is available for
 a certain step, the relevant part is linked within the descriptions
 below.
 
-# Pass 1
+## Pass 1
 
 ### 1. Parsing the input
+
+First, input topology and rule set need to be parsed.
 
 * **Read files or directory:** `read_file_or_dir`  
     Netspoc parses input files and transfers the contents into formats
@@ -100,7 +100,6 @@ create a topology graph in working memory.
     topology parts.
 
 * **Identify subnet relations:** `find_subnets_in_zone`  
-
     During pass 2, redundant rules will be removed from the rule set
     of every managed router. Rules can be redundant, because they are
     contained in other rules, for example if two rules are identical
@@ -225,6 +224,11 @@ distribution, further consistency checks are performed on the ruleset.
     topology is traversed again, adding the associated rule
     information to every managed router on the found paths.
 
+### 5. Generating output
+
+Finally, pass 1 output is generated and printed to a directory
+specified by the user.
+
 * **Print config template and rules file** `print_code`
     For every managed router, collected information is used to
     generate the config template file containing routing information,
@@ -238,11 +242,13 @@ distribution, further consistency checks are performed on the ruleset.
     per router and the routers name as filename. These files are now
     transferred to the output directory.
 
-# Pass 2 
+## Pass 2 
 
 In pass 2, a valid and complete router configuration file is written
 for every router, combining its configuration template file and
 collected rule information.
+
+### 1. Generating final configuration files
 
 * **Reusing files:** `pass2`    
     While new config template files and rule files were written in
