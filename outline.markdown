@@ -68,7 +68,7 @@ First, input topology and rule set need to be parsed.
      that are already recognizeable at this stage.
 
 
-* **Order protocols:** `order_protocols`
+**Order protocols:** `order_protocols`
  : Process protocols of the services and rules specified in the input
    to receive their contained-in relations. *(This should be moved
    into step 3!)*
