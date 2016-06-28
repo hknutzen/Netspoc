@@ -10,7 +10,7 @@ layout: default
 # Netspoc Policy Language
 {:.no_toc}
 
-##General syntax
+## General syntax
 
 `<name>` is built from one ore more alphanumerical utf8 characters together
 with hyphen and underscore.  
@@ -53,7 +53,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     )*
 
 
-##Network definition
+## Network definition
 
     <network definition> ::=
       network:<network name> = {
@@ -81,7 +81,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <ip>           ::= n.n.n.n with 0 <= n <= 255
     <prefix-len>   ::= 0 | 1 | 2 | ... | 32
 
-##Host definition
+## Host definition
 
     <host definition> ::=
       host:<name> = { 
@@ -97,7 +97,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
 
-##Router definition
+## Router definition
 
     <router definition> ::=
       router:<router name> = {
@@ -109,7 +109,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
          ( log:<name> [= (<ASA-modifier> | <IOS-modifier>)]; )*
-         [ strict_secondary; ]
+         [ acl_use_real_ip;  ]
          [ no_group_code;    ]
          [ no_crypto_filter; ]
          [ no_protect_self;  ]
@@ -123,12 +123,12 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary |
                        local | local_secondary | routing_only
-    <model>        ::= Linux | ASA | ASA,8.4 | PIX | IOS | IOS,FW | NX-OS | ACE
+    <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS | ACE
     <ASA-modifier> ::= alerts | critical | debugging | disable | emergencies |
                        errors | informational | notifications | warnings
     <IOS-modifier> ::= log-input
 
-##Interface definition
+## Interface definition
 
     <interface definition> ::= 
       interface:<network name> = {
@@ -145,7 +145,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ no_in_acl;                           ]
          [ reroute_permit = <object set>;       ]
          [ routing = ( EIGRP | OSPF | dynamic ); ]
-         [ security_level = <int>;              ]
          [ subnet_of = network:<network name>;          ]
          [ vip;                                 ]
          [ owner = <name>;                      ]
@@ -172,10 +171,11 @@ here `<object set>` must expand to networks.
       any:<name> = { 
          [ <description> ]
          link = network:<network name>; 
-         [ ip = <ip-net>;     ]
-         [ owner = <name>;    ]
+         [ ip = <ip-net>;           ]
+         [ owner = <name>;          ]
          <network NAT> *
-         [ has_unenforceable; ]
+         [ has_unenforceable;       ]
+         [ no_check_supernet_rules; ]
       }
 
 ## Area definition
@@ -201,7 +201,7 @@ here `<object set>` must expand to networks.
 
 where `<network NAT>` must be hidden or dynamic.
 
-##Set of objects
+## Set of objects
 
     <object set>   ::= <intersection> | <object set> , <intersection>
     <intersection> ::= <network object> | <intersection> & <complement> 
@@ -215,7 +215,7 @@ where `<network NAT>` must be hidden or dynamic.
                        | group:<name>
                        | <auto group>
 
-##Automatic group
+## Automatic group
 
     <auto group> ::=
       interface:<router name>."["<selector>"]"
@@ -229,7 +229,7 @@ where `<network NAT>` must be hidden or dynamic.
       but with additional area:<name> allowed in <network object>
 
 
-##Group definition
+## Group definition
 
     <group definition> ::=
       group:<name> = 
@@ -238,7 +238,7 @@ where `<network NAT>` must be hidden or dynamic.
       ;
 
 
-##Protocol definition
+## Protocol definition
 
     <protocol definition> ::=
       protocol:<name> = <simple protocol>|<modified protocol>;
@@ -256,10 +256,10 @@ where `<network NAT>` must be hidden or dynamic.
 
     <protocol modifier> ::= 
       stateless | oneway | reversed 
-      | src_net | dst_net | src_any | dst_any
+      | src_net | dst_net
       | overlaps | no_check_supernet_rules
 
-##Groups of protocols
+## Groups of protocols
 
     <protocol group definition> ::=
       protocolgroup:<name> = <protocol list>;
@@ -268,7 +268,7 @@ where `<network NAT>` must be hidden or dynamic.
     <protocol> ::= protocol:<name> | protocolgroup:<name> | <simple protocol>
 
 
-##Service definition
+## Service definition
 
     <service definition> ::=
       service:<name> = {
@@ -296,7 +296,7 @@ with
        but with additional keyword 'user' allowed in <network object>
 
 
-##Path restriction
+## Path restriction
 
     <pathrestriction definition> ::=
       pathrestriction:<name> = 
@@ -306,7 +306,7 @@ with
 
 where `<object set>` must expand to interfaces.
 
-##Owner definition
+## Owner definition
 
     <owner definition> ::=
       owner:<name> = {
@@ -324,9 +324,9 @@ where `<object set>` must expand to interfaces.
 
 `admins` are optional if `extend_only` is set.
 
-##Encryption
+## Encryption
 
-###Crypto definition
+### Crypto definition
 
     <crypto definition> ::=
       crypto:<name> = { 
@@ -411,7 +411,7 @@ in attribute `radius_attributes`.
         [ split-tunnel-policy = tunnelall | tunnelspecified; ]
       }
 
-###Software client
+### Software client
 
 Software clients are similar to hosts, but special names are used.
 
