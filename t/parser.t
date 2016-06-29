@@ -14,6 +14,20 @@ $title = "Unknown model for managed router";
 ############################################################
 
 $in = <<'END';
+network:n1 = { ip = 10.1.1.0o/24; }
+END
+
+$out = <<'END';
+Syntax error: IP address expected at line 1 of STDIN, near "10.1.1.0o/24<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unknown model for managed router";
+############################################################
+
+$in = <<'END';
 router:R = {
  managed; 
  model = foo;

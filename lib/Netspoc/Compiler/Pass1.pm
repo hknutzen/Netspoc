@@ -531,7 +531,7 @@ sub read_int {
 # Check and convert IP address to integer.
 sub convert_ip {
     my ($token) = @_;
-    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)/ or 
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or 
         syntax_err("IP address expected");
     if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
         error_atline("Invalid IP address");

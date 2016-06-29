@@ -2060,7 +2060,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
 }
 
-network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10_; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 
 service:s1 = {
     user = interface:r1.lo;
@@ -2094,7 +2094,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N; }
 }
 
-network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10_; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 
 service:s1 = {
     user = interface:r1.lo;
