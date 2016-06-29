@@ -3914,7 +3914,7 @@ sub expand_watchers {
     }
 
     # Owners, referenced in $names have already been resolved.
-    if ($owner->{watching_owners}) {
+    if ($owner->{is_expanded}) {
         return [ @{ $owner->{admins} }, @$names ];
     }
     if ($names eq 'recursive') {
@@ -3922,7 +3922,7 @@ sub expand_watchers {
         return $owner->{watchers} = [];
     }
     $owner->{watchers} = 'recursive';
-    my $watching_owners = [];
+    my $group_watchers;
     my @expanded;
     for my $name (@$names) {
         if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
@@ -3933,8 +3933,9 @@ sub expand_watchers {
                 next;
             }
             $owner_b->{is_used} = 1;
-            push @$watching_owners, $owner_b;
-            push @expanded,         @{ expand_watchers($owner_b) };
+            my $from_owner = expand_watchers($owner_b);
+            push @expanded, @$from_owner;
+            push @$group_watchers, @$from_owner;
         }
         else {
             push @expanded, $name;
@@ -3942,8 +3943,11 @@ sub expand_watchers {
     }
     $owner->{watchers} = \@expanded;
 
-    # Mark: no need to expand again and for cut-netspoc.
-    $owner->{watching_owners} = $watching_owners;
+    # Remember watchers, that come from other owner.
+    $owner->{group_watchers} = $group_watchers if $group_watchers;
+
+    # Set mark: No need to expand again.
+    $owner->{is_expanded} = 1;
 
     return [ @{ $owner->{admins} }, @expanded ];
 }
@@ -3998,6 +4002,7 @@ sub link_owners {
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
         if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
+
             for my $attr (qw(admins watchers)) {
                 if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
                     $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
@@ -4005,8 +4010,19 @@ sub link_owners {
                         join(', ', @emails));
                 }
             }
+
+            # Don't warn on watchers that come from other owner.
+            my $watchers = $owner->{watchers};
+            if (my $group_watchers = $owner->{group_watchers}) {
+                my %hash;
+                @hash{@$group_watchers} = @$group_watchers;
+                $watchers = [ grep { not $hash{$_} } @$watchers ];
+            }
+
+            # Check again, after duplicates in admins and watchers
+            # have been removed.
             if (my @duplicates =
-                find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
+                find_duplicates(@{ $owner->{admins} }, @$watchers))
             {
                 err_msg("Duplicates in admins/watchers of $owner->{name}: ",
                     join(', ', @duplicates));
