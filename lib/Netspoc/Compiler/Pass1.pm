@@ -1181,7 +1181,7 @@ sub read_host {
 }
 
 sub read_nat {
-    my $name = shift;
+    my ($name, $mask_is_optional) = @_;
 
     # Currently this needs not to be blessed.
     my $nat = { name => $name };
@@ -1194,7 +1194,9 @@ sub read_nat {
             last;
         }
         elsif ($token eq 'ip') {
-            my ($ip, $mask) = read_assign(\&read_ip_prefix);
+            my ($ip, $mask) = read_assign(  $mask_is_optional 
+                                          ? \&read_ip
+                                          : \&read_ip_prefix);
             add_attribute($nat, ip   => $ip);
             add_attribute($nat, mask => $mask);
         }
@@ -1339,7 +1341,7 @@ sub read_network {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                ($network->{nat} && $network->{nat}->{$nat_tag})
+                $network->{nat}->{$nat_tag}
                     and error_atline("Duplicate NAT definition");
                 $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag} = $nat;
@@ -1553,16 +1555,11 @@ sub read_interface {
         elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'nat') {
                 verify_name($name2);
-                skip '=';
-                skip '{';
-                skip 'ip';
-                skip '=';
-                my $nat_ip = read_ip;
-                skip ';';
-                skip '}';
-                $interface->{nat}->{$name2}
+                my $nat_tag = $name2;
+                my $nat = read_nat("nat:$nat_tag", 'mask_is_optional');
+                $interface->{nat}->{$nat_tag}
                   and error_atline("Duplicate NAT definition");
-                $interface->{nat}->{$name2} = $nat_ip;
+                $interface->{nat}->{$nat_tag} = $nat;
             }
             elsif ($type eq 'secondary') {
                 verify_name($name2);
@@ -2377,6 +2374,16 @@ sub read_router {
                     subnet_of => delete $interface->{subnet_of},
                     is_layer3 => $interface->{is_layer3},
                 );
+
+                # Move NAT definition from interface to loopback network.
+                if (my $nat = delete $interface->{nat}) {
+                    for my $nat_tag (sort keys %$nat) {
+                        my $nat_info = $nat->{$nat_tag};
+                        $nat_info->{mask} = 0xffffffff;
+                    }
+                    $network->{nat} = $nat;
+                }
+
                 if (my $private = $interface->{private}) {
                     $network->{private} = $private;
                 }
@@ -2385,8 +2392,27 @@ sub read_router {
             $interface->{network} = $net_name;
         }
 
+        # Non loopback interface must use simple NAT with single IP.
+        elsif (my $nat = $interface->{nat}) {
+            for my $nat_tag (sort keys %$nat) {
+                my $nat_info = $nat->{$nat_tag};
+                for my $what (qw(hidden identity dynamic)) {
+                    defined $nat_info->{$what} or next;
+                    err_msg("Must not use '$what' in nat:$nat_tag",
+                            " of $interface->{name}");
+                    last;
+                }
+                if (my $ip = $nat_info->{ip}) {
+                    $nat->{$nat_tag} = $ip;
+                }
+                else {
+                    delete $nat->{$nat_tag};
+                }
+            }
+        }
+
         # Generate tunnel interface.
-        elsif (my $crypto = $interface->{spoke}) {
+        if (my $crypto = $interface->{spoke}) {
             my $net_name    = "tunnel:$rname";
             my $iname       = "$rname.$net_name";
             my $tunnel_intf = new(
@@ -8261,8 +8287,8 @@ sub check_nat_compatibility {
                     my $obj_ip = $nat->{$nat_tag};
                     my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                     match_ip($obj_ip, $ip, $mask) or
-                        err_msg ("nat:$nat_tag: IP of $obj->{name} doesn't",
-                                 " match IP/mask of $network->{name}");
+                        err_msg("nat:$nat_tag: IP of $obj->{name} doesn't",
+                                " match IP/mask of $network->{name}");
                 }
                 else {
                     warn_msg("Ignoring nat:$nat_tag at $obj->{name}",
@@ -8275,13 +8301,14 @@ sub check_nat_compatibility {
 }
 
 # Find interfaces with dynamic NAT which is applied at the same device.
-# This is incomatible with device with "need_protect".
+# This is invalid for device with "need_protect".
 sub check_interfaces_with_dynamic_nat {
     for my $network (@networks) {
         my $nat = $network->{nat} or next;
         for my $nat_tag (keys %$nat) {
             my $nat_info = $nat->{$nat_tag};
             $nat_info->{dynamic} or next;
+            next if $nat_info->{identity} or $nat_info->{hidden};
             for my $interface (@{ $network->{interfaces} }) {
                 my $intf_nat = $interface->{nat};
 
@@ -8294,7 +8321,8 @@ sub check_interfaces_with_dynamic_nat {
                     my $bind = $bind_intf->{bind_nat} or next;
                     grep { $_ eq $nat_tag } @$bind or next;
                     err_msg(
-                        "Must not apply dynamic NAT to $interface->{name}",
+                        "Must not apply dynamic nat:$nat_tag",
+                        " to $interface->{name}",
                         " at $bind_intf->{name} of same device.\n",
                         " This isn't supported for model",
                         " $router->{model}->{name}."
