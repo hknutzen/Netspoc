@@ -321,27 +321,6 @@ sub extended_owners_for_objects {
     return [ sort values %owners ];
 }
 
-sub expand_auto_intf {
-    my ($src_aref, $dst_aref) = @_;
-    for (my $i = 0; $i < @$src_aref; $i++) {
-        my $src = $src_aref->[$i];
-        next if not is_autointerface($src);
-        my @new;
-        my %seen;
-        for my $dst (@$dst_aref) {
-            for my $interface (path_auto_interfaces($src, $dst)) {
-                if (not $seen{$interface}++) {
-                    push @new, $interface;
-                }
-            }
-        }
-
-        # Substitute auto interface by real interfaces.
-        splice(@$src_aref, $i, 1, @new)
-    }
-    return;
-}
-
 sub proto_descr {
     my ($protocols) = @_;
     my @result;
