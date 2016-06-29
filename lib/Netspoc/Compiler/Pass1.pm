@@ -36,7 +36,7 @@ use Encode;
 use IO::Pipe;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.011'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.012'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -531,7 +531,7 @@ sub read_int {
 # Check and convert IP address to integer.
 sub convert_ip {
     my ($token) = @_;
-    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)/ or 
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or 
         syntax_err("IP address expected");
     if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
         error_atline("Invalid IP address");
@@ -1181,7 +1181,7 @@ sub read_host {
 }
 
 sub read_nat {
-    my $name = shift;
+    my ($name, $mask_is_optional) = @_;
 
     # Currently this needs not to be blessed.
     my $nat = { name => $name };
@@ -1194,7 +1194,9 @@ sub read_nat {
             last;
         }
         elsif ($token eq 'ip') {
-            my ($ip, $mask) = read_assign(\&read_ip_prefix);
+            my ($ip, $mask) = read_assign(  $mask_is_optional 
+                                          ? \&read_ip
+                                          : \&read_ip_prefix);
             add_attribute($nat, ip   => $ip);
             add_attribute($nat, mask => $mask);
         }
@@ -1339,7 +1341,7 @@ sub read_network {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                ($network->{nat} && $network->{nat}->{$nat_tag})
+                $network->{nat}->{$nat_tag}
                     and error_atline("Duplicate NAT definition");
                 $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag} = $nat;
@@ -1553,16 +1555,11 @@ sub read_interface {
         elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
             if ($type eq 'nat') {
                 verify_name($name2);
-                skip '=';
-                skip '{';
-                skip 'ip';
-                skip '=';
-                my $nat_ip = read_ip;
-                skip ';';
-                skip '}';
-                $interface->{nat}->{$name2}
+                my $nat_tag = $name2;
+                my $nat = read_nat("nat:$nat_tag", 'mask_is_optional');
+                $interface->{nat}->{$nat_tag}
                   and error_atline("Duplicate NAT definition");
-                $interface->{nat}->{$name2} = $nat_ip;
+                $interface->{nat}->{$nat_tag} = $nat;
             }
             elsif ($type eq 'secondary') {
                 verify_name($name2);
@@ -2377,6 +2374,16 @@ sub read_router {
                     subnet_of => delete $interface->{subnet_of},
                     is_layer3 => $interface->{is_layer3},
                 );
+
+                # Move NAT definition from interface to loopback network.
+                if (my $nat = delete $interface->{nat}) {
+                    for my $nat_tag (sort keys %$nat) {
+                        my $nat_info = $nat->{$nat_tag};
+                        $nat_info->{mask} = 0xffffffff;
+                    }
+                    $network->{nat} = $nat;
+                }
+
                 if (my $private = $interface->{private}) {
                     $network->{private} = $private;
                 }
@@ -2385,8 +2392,27 @@ sub read_router {
             $interface->{network} = $net_name;
         }
 
+        # Non loopback interface must use simple NAT with single IP.
+        elsif (my $nat = $interface->{nat}) {
+            for my $nat_tag (sort keys %$nat) {
+                my $nat_info = $nat->{$nat_tag};
+                for my $what (qw(hidden identity dynamic)) {
+                    defined $nat_info->{$what} or next;
+                    err_msg("Must not use '$what' in nat:$nat_tag",
+                            " of $interface->{name}");
+                    last;
+                }
+                if (my $ip = $nat_info->{ip}) {
+                    $nat->{$nat_tag} = $ip;
+                }
+                else {
+                    delete $nat->{$nat_tag};
+                }
+            }
+        }
+
         # Generate tunnel interface.
-        elsif (my $crypto = $interface->{spoke}) {
+        if (my $crypto = $interface->{spoke}) {
             my $net_name    = "tunnel:$rname";
             my $iname       = "$rname.$net_name";
             my $tunnel_intf = new(
@@ -3888,7 +3914,7 @@ sub expand_watchers {
     }
 
     # Owners, referenced in $names have already been resolved.
-    if ($owner->{watching_owners}) {
+    if ($owner->{is_expanded}) {
         return [ @{ $owner->{admins} }, @$names ];
     }
     if ($names eq 'recursive') {
@@ -3896,7 +3922,7 @@ sub expand_watchers {
         return $owner->{watchers} = [];
     }
     $owner->{watchers} = 'recursive';
-    my $watching_owners = [];
+    my $group_watchers;
     my @expanded;
     for my $name (@$names) {
         if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
@@ -3907,8 +3933,9 @@ sub expand_watchers {
                 next;
             }
             $owner_b->{is_used} = 1;
-            push @$watching_owners, $owner_b;
-            push @expanded,         @{ expand_watchers($owner_b) };
+            my $from_owner = expand_watchers($owner_b);
+            push @expanded, @$from_owner;
+            push @$group_watchers, @$from_owner;
         }
         else {
             push @expanded, $name;
@@ -3916,8 +3943,11 @@ sub expand_watchers {
     }
     $owner->{watchers} = \@expanded;
 
-    # Mark: no need to expand again and for cut-netspoc.
-    $owner->{watching_owners} = $watching_owners;
+    # Remember watchers, that come from other owner.
+    $owner->{group_watchers} = $group_watchers if $group_watchers;
+
+    # Set mark: No need to expand again.
+    $owner->{is_expanded} = 1;
 
     return [ @{ $owner->{admins} }, @expanded ];
 }
@@ -3972,6 +4002,7 @@ sub link_owners {
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
         if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
+
             for my $attr (qw(admins watchers)) {
                 if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
                     $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
@@ -3979,8 +4010,19 @@ sub link_owners {
                         join(', ', @emails));
                 }
             }
+
+            # Don't warn on watchers that come from other owner.
+            my $watchers = $owner->{watchers};
+            if (my $group_watchers = $owner->{group_watchers}) {
+                my %hash;
+                @hash{@$group_watchers} = @$group_watchers;
+                $watchers = [ grep { not $hash{$_} } @$watchers ];
+            }
+
+            # Check again, after duplicates in admins and watchers
+            # have been removed.
             if (my @duplicates =
-                find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} }))
+                find_duplicates(@{ $owner->{admins} }, @$watchers))
             {
                 err_msg("Duplicates in admins/watchers of $owner->{name}: ",
                     join(', ', @duplicates));
@@ -7488,6 +7530,84 @@ sub expand_rules {
     return \@result;
 }
 
+##############################################################################
+# Find redundant rules which are overlapped by some more general rule
+##############################################################################
+
+# Hash for converting a reference of an object back to this object.
+my %ref2obj;
+
+sub setup_ref2obj {
+    for my $network (@networks) {
+        $ref2obj{$network} = $network;
+        for my $obj (@{ $network->{subnets} }, @{ $network->{interfaces} }) {
+            $ref2obj{$obj} = $obj;
+        }
+    }
+}
+
+sub find_redundant_rules {
+ my ($cmp_hash, $chg_hash) = @_;
+ my $count = 0;
+ while (my ($stateless, $chg_hash) = each %$chg_hash) {
+  while (1) {
+   if (my $cmp_hash = $cmp_hash->{$stateless}) {
+    while (my ($deny, $chg_hash) = each %$chg_hash) {
+     while (1) {
+      if (my $cmp_hash = $cmp_hash->{$deny}) {
+       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
+        my $src_range = $ref2prt{$src_range_ref};
+        while (1) {
+         if (my $cmp_hash = $cmp_hash->{$src_range}) {
+          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
+           my $src = $ref2obj{$src_ref};
+           while (1) {
+            if (my $cmp_hash = $cmp_hash->{$src}) {
+             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
+              my $dst = $ref2obj{$dst_ref};
+              while (1) {
+               if (my $cmp_hash = $cmp_hash->{$dst}) {
+                for my $chg_rule (values %$chg_hash) {
+                 my $prt = $chg_rule->{prt};
+                 while (1) {
+                  if (my $cmp_rule = $cmp_hash->{$prt}) {
+                   if ($cmp_rule ne $chg_rule &&
+                       ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
+                   {
+                    collect_redundant_rules($chg_rule, $cmp_rule);
+
+                    # Count each redundant rule only once.
+                    $count++ if not $chg_rule->{redundant}++;
+                   }
+                  }
+                  $prt = $prt->{local_up} or last;
+                 }
+                }
+               }
+               $dst = $dst->{up} or last;
+              }
+             }
+            }
+            $src = $src->{up} or last;
+           }
+          }
+         }
+         $src_range = $src_range->{up} or last;
+        }
+       }
+      }
+      last if $deny;
+      $deny = 1;
+     }
+    }
+   }
+   last if !$stateless;
+   $stateless = '';
+  }
+ }
+ return $count;
+}
+
 sub check_expanded_rules {
     progress('Checking for redundant rules');
     setup_ref2obj();
@@ -8183,8 +8303,8 @@ sub check_nat_compatibility {
                     my $obj_ip = $nat->{$nat_tag};
                     my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                     match_ip($obj_ip, $ip, $mask) or
-                        err_msg ("nat:$nat_tag: IP of $obj->{name} doesn't",
-                                 " match IP/mask of $network->{name}");
+                        err_msg("nat:$nat_tag: IP of $obj->{name} doesn't",
+                                " match IP/mask of $network->{name}");
                 }
                 else {
                     warn_msg("Ignoring nat:$nat_tag at $obj->{name}",
@@ -8197,13 +8317,14 @@ sub check_nat_compatibility {
 }
 
 # Find interfaces with dynamic NAT which is applied at the same device.
-# This is incomatible with device with "need_protect".
+# This is invalid for device with "need_protect".
 sub check_interfaces_with_dynamic_nat {
     for my $network (@networks) {
         my $nat = $network->{nat} or next;
         for my $nat_tag (keys %$nat) {
             my $nat_info = $nat->{$nat_tag};
             $nat_info->{dynamic} or next;
+            next if $nat_info->{identity} or $nat_info->{hidden};
             for my $interface (@{ $network->{interfaces} }) {
                 my $intf_nat = $interface->{nat};
 
@@ -8216,7 +8337,8 @@ sub check_interfaces_with_dynamic_nat {
                     my $bind = $bind_intf->{bind_nat} or next;
                     grep { $_ eq $nat_tag } @$bind or next;
                     err_msg(
-                        "Must not apply dynamic NAT to $interface->{name}",
+                        "Must not apply dynamic nat:$nat_tag",
+                        " to $interface->{name}",
                         " at $bind_intf->{name} of same device.\n",
                         " This isn't supported for model",
                         " $router->{model}->{name}."
@@ -13027,18 +13149,6 @@ sub expand_crypto {
     }
 }
 
-# Hash for converting a reference of an object back to this object.
-my %ref2obj;
-
-sub setup_ref2obj {
-    for my $network (@networks) {
-        $ref2obj{$network} = $network;
-        for my $obj (@{ $network->{subnets} }, @{ $network->{interfaces} }) {
-            $ref2obj{$obj} = $obj;
-        }
-    }
-}
-
 ##############################################################################
 # Check if high-level and low-level semantics of rules with an supernet
 # as source or destination are equivalent.
@@ -14381,71 +14491,6 @@ sub check_dynamic_nat_rules {
     }
 }
 
-##############################################################################
-# Find redundant rules which are overlapped by some more general rule
-##############################################################################
-sub find_redundant_rules {
- my ($cmp_hash, $chg_hash) = @_;
- my $count = 0;
- while (my ($stateless, $chg_hash) = each %$chg_hash) {
-  while (1) {
-   if (my $cmp_hash = $cmp_hash->{$stateless}) {
-    while (my ($deny, $chg_hash) = each %$chg_hash) {
-     while (1) {
-      if (my $cmp_hash = $cmp_hash->{$deny}) {
-       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
-        my $src_range = $ref2prt{$src_range_ref};
-        while (1) {
-         if (my $cmp_hash = $cmp_hash->{$src_range}) {
-          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
-           my $src = $ref2obj{$src_ref};
-           while (1) {
-            if (my $cmp_hash = $cmp_hash->{$src}) {
-             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
-              my $dst = $ref2obj{$dst_ref};
-              while (1) {
-               if (my $cmp_hash = $cmp_hash->{$dst}) {
-                for my $chg_rule (values %$chg_hash) {
-                 my $prt = $chg_rule->{prt};
-                 while (1) {
-                  if (my $cmp_rule = $cmp_hash->{$prt}) {
-                   if ($cmp_rule ne $chg_rule &&
-                       ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
-                   {
-                    collect_redundant_rules($chg_rule, $cmp_rule);
-
-                    # Count each redundant rule only once.
-                    $count++ if not $chg_rule->{redundant}++;
-                   }
-                  }
-                  $prt = $prt->{local_up} or last;
-                 }
-                }
-               }
-               $dst = $dst->{up} or last;
-              }
-             }
-            }
-            $src = $src->{up} or last;
-           }
-          }
-         }
-         $src_range = $src_range->{up} or last;
-        }
-       }
-      }
-      last if $deny;
-      $deny = 1;
-     }
-    }
-   }
-   last if !$stateless;
-   $stateless = '';
-  }
- }
- return $count;
-}
-
 ########################################################################
 # Routing
 ########################################################################
@@ -15283,16 +15328,20 @@ sub check_and_convert_routes {
                             join("\n - ", map({ $_->{name} } 
                                               sort(by_name @$hops)));
                         err_msg(
-                            "Pathrestriction ambiguously affects interfaces",
+                            "Pathrestriction ambiguously affects generation",
+                            " of static routes\n       at interfaces",
                             " with virtual IP ",
                             print_ip($redundancy_group) . ":\n",
                             " $network->{name} is reached via\n",
                              " - $names\n",
-                            " But $missing interfaces of group are missing.\n",
-                            " Pathrestrictions must affect all or all-1",
-                            " interfaces of redundancy group."
-                            );
-                    }
+                            " But $missing interface(s) of group",
+                            " are missing.\n",
+                            " Pathrestrictions must restrict paths to either\n",
+                            " - all interfaces or\n",
+                            " - no interfaces or\n",
+                            " - all but one interface\n",
+                            " of this group.");
+                     }
                 }
             }
 

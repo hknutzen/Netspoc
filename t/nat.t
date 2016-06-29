@@ -2039,4 +2039,95 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'NAT at loopback network';
+############################################################
+
+$in = <<'END';
+area:n1 = { inclusive_border = interface:r1.n2; nat:N = { hidden; } }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:lo = {
+  ip = 10.1.9.1;
+  hardware = Looback0;
+  loopback;
+  nat:N = { identity; }
+  nat:N2 = { ip = 10.1.9.1; }
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+
+service:s1 = {
+    user = interface:r1.lo;
+    permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n2_in
+ permit tcp 10.1.2.0 0.0.0.255 host 10.1.9.1 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Hidden NAT at loopback network';
+############################################################
+
+$in = <<'END';
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:lo = {
+  ip = 10.1.9.1;
+  hardware = Looback0;
+  loopback;
+  nat:N = { hidden; }
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+
+service:s1 = {
+    user = interface:r1.lo;
+    permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: interface:r1.lo is hidden by nat:N in rule
+ permit src=network:n2; dst=interface:r1.lo; prt=tcp 80; of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Only NAT IP at non loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat:N = { hidden; } }
+}
+END
+
+$out = <<'END';
+Error: Must not use 'hidden' in nat:N of interface:r1.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

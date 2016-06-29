@@ -43,13 +43,13 @@ END
 test_err($title, $in, $out, '-check_unused_owners=1');
 
 ############################################################
-$title = 'Duplicates from other owner';
+$title = 'Duplicates in admins/watchers';
 ############################################################
 
 $in = <<'END';
 owner:x = {
- admins = a@b.c;
- watchers = owner:y, b@b.c;
+ admins = a@b.c, b@b.c, a@b.c;
+ watchers = b@b.c, c@b.c, b@b.c;
 }
 owner:y = {
  admins = a@b.c;
@@ -58,8 +58,33 @@ owner:y = {
 END
 
 $out = <<'END';
+Error: Duplicates in admins of owner:x: a@b.c
 Error: Duplicates in watchers of owner:x: b@b.c
-Error: Duplicates in admins/watchers of owner:x: a@b.c
+Error: Duplicates in admins/watchers of owner:x: b@b.c
+Error: Topology seems to be empty
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicates from other owner';
+############################################################
+
+# Don't warn if watcher from other owner is also admin.
+$in = <<'END';
+owner:x = {
+ admins = a@b.c, c@b.c;
+ watchers = owner:y, b@b.c;
+}
+owner:y = {
+ admins = a@b.c;
+ watchers = b@b.c, c@b.c;
+}
+END
+
+$out = <<'END';
+Error: Duplicates in watchers of owner:x: b@b.c
 Error: Topology seems to be empty
 Aborted
 END

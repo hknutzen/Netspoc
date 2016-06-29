@@ -1,3 +1,11 @@
+5.012     2016-06-29 16:55:04+02:00 Europe/Berlin
+
+ - Syntax has been extended to allow full NAT commands at loopback interface.
+   Keywords 'hidden', 'identity' and 'dynamic' are usable now 
+   in this context.
+ - No warning is shown, if a watcher address is read from some other
+   owner and the same address is used as admin.
+
 5.011     2016-06-27 17:12:41+02:00 Europe/Berlin
 
  - Fixed serious bug in version 5.010. 
