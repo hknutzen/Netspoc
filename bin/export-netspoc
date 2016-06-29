@@ -369,14 +369,7 @@ sub proto_descr {
                 next if $key eq 'stateless_icmp';
                 next if $key eq 'overlaps';
                 next if $key eq 'no_check_supernet_rules';
-                if ($key eq 'src' or $key eq 'dst') {
-                    for my $part (sort keys %{$modifiers->{$key}}) {
-                        $desc .= ", ${key}_$part";
-                    }
-                }
-                else {
-                    $desc .= ", $key";
-                }
+                $desc .= ", $key";
             }
         }
         $num ||= 0;

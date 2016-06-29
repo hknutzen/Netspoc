@@ -1527,4 +1527,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Protocol modifiers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
+}
+
+network:n2  = {ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; }}
+
+protocolgroup:ping_net_both = protocol:ping_net, protocol:ping_net_reply;
+protocol:ping_net = icmp 8, src_net, dst_net, overlaps, no_check_supernet_rules;
+protocol:ping_net_reply = icmp 8, src_net, dst_net, overlaps, reversed, no_check_supernet_rules;
+
+service:ping = {
+ user = host:h1;
+ permit src = user; dst = host:h2; prt = protocolgroup:ping_net_both;
+}
+END
+
+$out = <<END;
+--services
+{
+   "ping" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "host:h2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "icmp 8, dst_net, reversed, src_net",
+               "icmp 8, dst_net, src_net"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
