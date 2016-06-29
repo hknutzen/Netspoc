@@ -136,7 +136,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
          <secondary interface definition> *
          [ <virtual interface definition>       ]
-         <host NAT> *
+         (<host NAT> | <network NAT>)*
          [ bind_nat = <name>(, <name>)*;        ]
          [ dhcp_server;                         ]
          [ disabled;                            ]
