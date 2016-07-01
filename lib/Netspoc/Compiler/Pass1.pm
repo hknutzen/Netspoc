@@ -294,14 +294,6 @@ sub intersect {
     return grep { $seen{$_} } @$aref2;
 }
 
-# Check if first list is subset of second list.
-sub subset_of {
-    my ($aref1, $aref2) = @_;
-    my %seen = map { $_ => 1 } @$aref1;
-    my $count = grep { $seen{$_} } @$aref2;
-    return @$aref1 == $count;
-}
-
 # Delete an element from an array reference.
 # Return true if element was found.
 sub aref_delete {
@@ -13691,6 +13683,24 @@ sub match_prt_list {
     return 0;
 }
 
+# Check that all elements of first list are contained in or equal to
+# some element of second list.
+sub all_contained_in {
+    my ($aref1, $aref2) = @_;
+    my %in_aref2;
+    @in_aref2{@$aref2} = @$aref2;
+  ELEMENT:
+    for my $element (@$aref1) {
+        next if $in_aref2{$element};
+        my $up = $element;
+        while ($up = $up->{up}) {
+            next ELEMENT if $in_aref2{$up};
+        }
+        return;
+    }
+    return 1;
+}
+
 sub elements_in_one_zone {
     my ($list1, $list2) = @_;
     my $obj0 = $list1->[0];
@@ -13723,6 +13733,7 @@ sub elements_in_one_zone {
 
 # Collect info about unwanted implied rules.
 sub check_transient_supernet_rules {
+#    progress("Check transient supernet rules");
     my $rules = $service_rules{permit};
 
     # Build mapping from supernet to service rules having supernet as src.
@@ -13748,8 +13759,8 @@ sub check_transient_supernet_rules {
     # Search rules having supernet as dst.
     for my $rule1 (@$rules) {
         next if $rule1->{no_check_supernet_rules};
-        my $dst_list = $rule1->{dst};
-        for my $obj (@$dst_list) {
+        my $dst_list1 = $rule1->{dst};
+        for my $obj (@$dst_list1) {
             $obj->{has_other_subnet} or next;
             $obj->{mask} == 0 or next;
 
@@ -13771,11 +13782,10 @@ sub check_transient_supernet_rules {
                 #   i.e. transient traffic back to src,
                 # - also need to ignore unenforceable $rule1 and $rule2.
                 my $src_list1 = $rule1->{src};
-                my $dst_list1 = $rule1->{dst};
                 my $src_list2 = $rule2->{src};
                 my $dst_list2 = $rule2->{dst};
-                if (not (subset_of($src_list1, $src_list2) or
-                         subset_of($dst_list2, $dst_list1))
+                if (not (all_contained_in($src_list1, $src_list2) or
+                         all_contained_in($dst_list2, $dst_list1))
                     and not elements_in_one_zone($src_list1, $dst_list2)
                     and not elements_in_one_zone($src_list1, [ $obj ])
                     and not elements_in_one_zone([ $obj ], $dst_list2))
@@ -13783,13 +13793,20 @@ sub check_transient_supernet_rules {
                     my $srv1 = $rule1->{rule}->{service}->{name};
                     my $srv2 = $rule2->{rule}->{service}->{name};
                     my $match = $obj->{name};
-                    $print->("Missing transient supernet rules\n",
-                             " between src of $srv1 and dst of $srv2,\n",
-                             " matching at $match");
+                    my $msg = ("Missing transient supernet rules\n".
+                               " between src of $srv1 and dst of $srv2,\n".
+                               " matching at $match.");
+                    if (not $srv1 eq $srv2) {
+                        $msg .= ("\n".
+                                 " Add dst elements of $srv2 to $srv1 or\n".
+                                 " add src elements of $srv1 to $srv2");
+                    }
+                    $print->($msg);
                 }
             }
         }
     }
+#    progress("Transient ready");
 }
 
 # Handling of supernet rules created by gen_reverse_rules.

@@ -1426,7 +1426,9 @@ END
 $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
- matching at any:[network:n2]
+ matching at any:[network:n2].
+ Add dst elements of service:s2 to service:s1 or
+ add src elements of service:s1 to service:s2
 END
 
 test_warn($title, $in, $out);
@@ -1467,7 +1469,9 @@ END
 $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
- matching at any:[network:n2]
+ matching at any:[network:n2].
+ Add dst elements of service:s2 to service:s1 or
+ add src elements of service:s1 to service:s2
 END
 
 test_warn($title, $in, $out);
@@ -1517,10 +1521,10 @@ END
 $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s1,
- matching at any:[network:tr]
+ matching at any:[network:tr].
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s1,
- matching at any:[network:tr]
+ matching at any:[network:tr].
 -- r1
 ! n1_in
 access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 any
@@ -1539,6 +1543,64 @@ access-group tr_in in interface tr
 access-list n2_in extended permit ip 10.1.2.0 255.255.255.0 any
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule with src/dst in subnet relation';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = any:[network:n2], 
+              any:[network:n3],
+              ;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+
+service:s3 = {
+ user = host:h1;
+ permit src = user;
+        dst = any:[network:n2],
+              ;
+        prt = tcp 81;
+}
+service:s4 = {
+ user = any:[network:n2], network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 81 - 89;
+}
+
+END
+
+$out = <<'END';
 END
 
 test_warn($title, $in, $out);
