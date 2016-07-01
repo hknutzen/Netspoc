@@ -3965,12 +3965,12 @@ sub link_owners {
             $alias2owner{$alias} = $owner;
         }
 
-        # Check and expand referenced owners in watchers.
-        expand_watchers($owner);
-
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
             for my $email (@{ $owner->{$attr} }) {
+
+                # Expand below, in next loop.
+                next if $email =~ /^owner:/;
 
                 # Check email syntax.
                 # Only 7 bit ASCII
@@ -3990,11 +3990,18 @@ sub link_owners {
                 $email = lc($email);
             }
         }
+    }
+
+    # Expand watchers and check for duplicates.
+    for my $name (sort keys %owners) {
+        my $owner = $owners{$name};
+
+        # Check and expand referenced owners in watchers.
+        expand_watchers($owner);
 
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
         if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
-
             for my $attr (qw(admins watchers)) {
                 if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
                     $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
