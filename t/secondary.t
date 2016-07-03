@@ -257,6 +257,16 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No optimization if sub-net of sub-net is outside of zone (2)';
+############################################################
+
+# Must recognize that dst has other subnet, even if subsub is
+# processed later.
+$in =~ s/router:u/router:r0/;
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "No optimization on supernet, but partly on host";
 ############################################################
 
