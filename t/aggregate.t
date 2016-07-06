@@ -1427,8 +1427,10 @@ $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
  matching at any:[network:n2].
- Add dst elements of service:s2 to service:s1 or
- add src elements of service:s1 to service:s2
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n3
 END
 
 test_warn($title, $in, $out);
@@ -1470,8 +1472,85 @@ $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
  matching at any:[network:n2].
- Add dst elements of service:s2 to service:s1 or
- add src elements of service:s1 to service:s2
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - interface:r2.n2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Missing transient rule with subnet in aggregate';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n4sub = { ip = 10.1.4.32/27; subnet_of = network:n4; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+}
+
+router:u1 = {
+ interface:n2 = { ip = 10.1.2.3; }
+ interface:n4;
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+}
+
+router:u2 = {
+ interface:n3 = { ip = 10.1.3.3; }
+ interface:n4sub;
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = ip;
+}
+service:s2 = {
+ user = any:[ip=10.0.0.0/8 & network:n2], any:[network:n3];
+ permit src = user; dst = user; prt = udp;
+}
+
+service:s3 = {
+ user = network:n4sub;
+ permit src = user; dst = any:[ip=10.1.1.0/25 & network:n2]; prt = icmp 3;
+}
+
+service:s4 = {
+ user = network:n4;
+ permit src = user; dst = network:n1; prt = icmp 3/13;
+}
+END
+
+# Show matching subnet of dst aggregate.
+$out = <<'END';
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at network:n4, any:[ip=10.0.0.0/8 & network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n4sub
+Warning: Missing transient supernet rules
+ between src of service:s3 and dst of service:s4,
+ matching at any:[ip=10.1.1.0/25 & network:n2], network:n4.
+ Add missing src elements to service:s4:
+ - network:n4sub
+ or add missing dst elements to service:s3:
+ - network:n1
 END
 
 test_warn($title, $in, $out);
@@ -1522,9 +1601,17 @@ $out = <<'END';
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s1,
  matching at any:[network:tr].
+ Add missing src elements to service:s1:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - any:[network:n1]
 Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s1,
  matching at any:[network:tr].
+ Add missing src elements to service:s1:
+ - network:n2
+ or add missing dst elements to service:s1:
+ - any:[network:n2]
 -- r1
 ! n1_in
 access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 any

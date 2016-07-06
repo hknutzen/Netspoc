@@ -13690,6 +13690,38 @@ sub match_prt_list {
     return 0;
 }
 
+# Find those elements of $list, with an IP address matching $obj.
+# If element is aggregate that is supernet of $obj,
+# than return all matching networks inside that aggregate.
+sub get_ip_matching {
+    my ($obj, $list, $no_nat_set) = @_;
+    my $nat_obj = get_nat_network($obj, $no_nat_set);
+    my ($ip, $mask) = @{$nat_obj}{ 'ip', 'mask' };
+
+    my @matching;
+    for my $src (@$list) {
+        my ($i, $m) = @{address($src, $no_nat_set)};
+
+        # Element is subnet of $obj.
+        if ($m >= $mask && match_ip($i, $ip, $mask)) {
+            push @matching, $src;
+        }
+
+        # Element is supernet of $obj.
+        elsif ($m < $mask && match_ip($ip, $i, $m)) {
+            if ($src->{is_aggregate}) {
+                my $networks = $src->{networks} or next;
+                $networks = get_ip_matching($obj, $networks, $no_nat_set);
+                push @matching, @$networks;
+            }
+            else {
+                push @matching, $src;
+            }
+        }
+    }
+    return \@matching;
+}
+
 # Check that all elements of first list are contained in or equal to
 # some element of second list.
 sub all_contained_in {
@@ -13708,6 +13740,26 @@ sub all_contained_in {
     return 1;
 }
 
+# Inversed of sub all_contained_in.
+sub get_missing {
+    my ($aref1, $aref2, $zone) = @_;
+    my %in_aref2;
+    @in_aref2{@$aref2} = @$aref2;
+    my @missing;
+  ELEMENT:
+    for my $element (@$aref1) {
+        next if $in_aref2{$element};
+        my $zone2 = $obj2zone{$element} || get_zone($element);
+        next if $zone2 eq $zone;
+        my $up = $element;
+        while ($up = $up->{up}) {
+            next ELEMENT if $in_aref2{$up};
+        }
+        push @missing, $element;
+    }
+    return @missing;
+}
+
 sub elements_in_one_zone {
     my ($list1, $list2) = @_;
     my $obj0 = $list1->[0];
@@ -13717,6 +13769,17 @@ sub elements_in_one_zone {
         zone_eq($zone0, $zone) or return;
     }
     return 1;
+}
+
+# Print abbreviated list of names in messages.
+sub short_name_list {
+    my ($obj) = @_;
+    my @names = map { $_->{name} } @$obj;
+    my $count = @names;
+    if ($count > 4) {
+        splice(@names, 3, @names - 3, '...');
+    }
+    return ' - ' . join("\n - ", @names);
 }
 
 # Example:
@@ -13734,27 +13797,29 @@ sub elements_in_one_zone {
 # which may be undesired.
 # In order to avoid this, a warning is generated if the implied rule is not
 # explicitly defined.
-#
-# Currently we only check aggregates/supernets with mask = 0.
-# Checking of other aggregates is too complicate (NAT, intersection).
-
-# Collect info about unwanted implied rules.
 sub check_transient_supernet_rules {
 #    progress("Check transient supernet rules");
     my $rules = $service_rules{permit};
 
     # Build mapping from supernet to service rules having supernet as src.
     my %supernet2rules;
+
+    # Mapping from zone to supernets found in src of rules.
+    my %zone2supernets;
+    my %seen;
     for my $rule (@$rules) {
         next if $rule->{no_check_supernet_rules};
         my $src_list = $rule->{src};
         for my $obj (@$src_list) {
             $obj->{has_other_subnet} or next;
+            my $zone = $obj->{zone};
+            next if $zone->{no_check_supernet_rules};
 
-            # Check only 0/0 aggregates.
-            $obj->{mask} == 0 or next;
-
+            # A leaf security zone has only one interface.
+            # It can't lead to unwanted rule chains.
+            next if @{ $zone->{interfaces} } == 1;
             push @{ $supernet2rules{$obj} }, $rule;
+            push @{ $zone2supernets{$zone} }, $obj if not $seen{$obj}++;
         }
     }
     keys %supernet2rules or return;
@@ -13767,53 +13832,84 @@ sub check_transient_supernet_rules {
     for my $rule1 (@$rules) {
         next if $rule1->{no_check_supernet_rules};
         my $dst_list1 = $rule1->{dst};
-        for my $obj (@$dst_list1) {
-            $obj->{has_other_subnet} or next;
-            $obj->{mask} == 0 or next;
+        for my $obj1 (@$dst_list1) {
+            $obj1->{has_other_subnet} or next;
+            my $zone = $obj1->{zone};
+            next if $zone->{no_check_supernet_rules};
+            next if @{ $zone->{interfaces} } == 1;
 
-            # A leaf security zone has only one interface.
-            # It can't lead to unwanted rule chains.
-            next if @{ $obj->{zone}->{interfaces} } <= 1;
-
-            my $other_rules = $supernet2rules{$obj} or next;
-            for my $rule2 (@$other_rules) {
-                match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
-                match_prt($rule1->{src_range} || $prt_ip,
-                          $rule2->{src_range} || $prt_ip) or next;
-
-                # Found transient rules $rule1 and $rule2.
-                # Check, that 
-                # - either src elements of $rule1 are also src of $rule2
-                # - or dst elements of $rule2 are also dst of $rule1,
-                # - but no problem if src1 and dst2 are located in same zone,
-                #   i.e. transient traffic back to src,
-                # - also need to ignore unenforceable $rule1 and $rule2.
+            # Find other rules with supernet as src starting in same zone.
+            my $supernets = $zone2supernets{$zone} or next;
+            my $no_nat_set = $zone->{no_nat_set};
+            for my $obj2 (@$supernets) {
+                
+                # Find those elements of src of $rule1 with an IP
+                # address matching $obj2.
+                # If mask of $obj2 is 0, take all elements. 
+                # Otherwise check IP addresses in NAT domain of $obj2.
                 my $src_list1 = $rule1->{src};
-                my $src_list2 = $rule2->{src};
-                my $dst_list2 = $rule2->{dst};
-                if (not (all_contained_in($src_list1, $src_list2) or
-                         all_contained_in($dst_list2, $dst_list1))
-                    and not elements_in_one_zone($src_list1, $dst_list2)
-                    and not elements_in_one_zone($src_list1, [ $obj ])
-                    and not elements_in_one_zone([ $obj ], $dst_list2))
-                {
-                    my $srv1 = $rule1->{rule}->{service}->{name};
-                    my $srv2 = $rule2->{rule}->{service}->{name};
-                    my $match = $obj->{name};
-                    my $msg = ("Missing transient supernet rules\n".
-                               " between src of $srv1 and dst of $srv2,\n".
-                               " matching at $match.");
-                    if (not $srv1 eq $srv2) {
-                        $msg .= ("\n".
-                                 " Add dst elements of $srv2 to $srv1 or\n".
-                                 " add src elements of $srv1 to $srv2");
+                if ($obj2->{mask}) {
+                    $src_list1 = get_ip_matching($obj2, $src_list1, $no_nat_set);
+                    @$src_list1 or next;
+                }
+                for my $rule2 (@{ $supernet2rules{$obj2} }) {
+                    match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
+                    match_prt($rule1->{src_range} || $prt_ip,
+                              $rule2->{src_range} || $prt_ip) or next;
+
+                    # Find elements of dst of $rule2 with an IP
+                    # address matching $obj1.
+                    my $dst_list2 = $rule2->{dst};
+                    if ($obj1->{mask}) {
+                        $dst_list2 = 
+                            get_ip_matching($obj1, $dst_list2, $no_nat_set);
+                        @$dst_list2 or next;
                     }
-                    $print->($msg);
+                    my $src_list2 = $rule2->{src};
+
+                    # Found transient rules $rule1 and $rule2.
+                    # Check, that 
+                    # - either src elements of $rule1 are also src of $rule2
+                    # - or dst elements of $rule2 are also dst of $rule1,
+                    # - but no problem if src1 and dst2 are located
+                    #   in same zone, i.e. transient traffic back to src,
+                    # - also need to ignore unenforceable $rule1 and $rule2.
+                    if (not (all_contained_in($src_list1, $src_list2) or
+                             all_contained_in($dst_list2, $dst_list1))
+                        and not elements_in_one_zone($src_list1, $dst_list2)
+                        and not elements_in_one_zone($src_list1, [ $obj2 ])
+                        and not elements_in_one_zone([ $obj1 ], $dst_list2))
+                    {
+                        my $srv1 = $rule1->{rule}->{service}->{name};
+                        my $srv2 = $rule2->{rule}->{service}->{name};
+                        my $match1 = $obj1->{name};
+                        my $match2 = $obj2->{name};
+                        my $match = 
+                            $match1 eq $match2 ? $match1 : "$match1, $match2";
+                        my $msg = ("Missing transient supernet rules\n".
+                                   " between src of $srv1 and dst of $srv2,\n".
+                                   " matching at $match.\n");
+                        my @missing_src = 
+                            get_missing($src_list1, $src_list2, $zone);
+                        my @missing_dst = 
+                            get_missing($dst_list2, $dst_list1, $zone);
+                        $msg .= " Add";
+                        if (@missing_src) {
+                            $msg .= " missing src elements to $srv2:\n";
+                            $msg .= short_name_list(\@missing_src);
+                        }
+                        $msg .= "\n or add" if @missing_src and @missing_dst;
+                        if (@missing_dst) {
+                            $msg .= " missing dst elements to $srv1:\n";
+                            $msg .= short_name_list(\@missing_dst);
+                        }
+                        $print->($msg);
+                    }
                 }
             }
         }
     }
-#    progress("Transient ready");
+#    progress("Transient check is ready");
 }
 
 # Handling of supernet rules created by gen_reverse_rules.
