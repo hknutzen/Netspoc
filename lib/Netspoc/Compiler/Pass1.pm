@@ -4625,6 +4625,7 @@ sub link_virtual_interfaces {
     # Pathrestriction would be useless if all devices are unmanaged.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
+            next if @$interfaces < 2;
             for my $interface (@$interfaces) {
                 my $router = $interface->{router};
                 if ($router->{managed} || $router->{routing_only}) {
