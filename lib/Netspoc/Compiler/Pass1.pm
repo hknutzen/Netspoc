@@ -17800,7 +17800,8 @@ sub copy_raw {
       map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
-    while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+    for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
+    {
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
 
