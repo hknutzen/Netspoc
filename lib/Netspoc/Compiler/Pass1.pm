@@ -36,7 +36,7 @@ use Encode;
 use IO::Pipe;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.012'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.013'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -292,14 +292,6 @@ sub intersect {
     my ($aref1, $aref2) = @_;
     my %seen = map { $_ => 1 } @$aref1;
     return grep { $seen{$_} } @$aref2;
-}
-
-# Check if first list is subset of second list.
-sub subset_of {
-    my ($aref1, $aref2) = @_;
-    my %seen = map { $_ => 1 } @$aref1;
-    my $count = grep { $seen{$_} } @$aref2;
-    return @$aref1 == $count;
 }
 
 # Delete an element from an array reference.
@@ -3973,12 +3965,12 @@ sub link_owners {
             $alias2owner{$alias} = $owner;
         }
 
-        # Check and expand referenced owners in watchers.
-        expand_watchers($owner);
-
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
             for my $email (@{ $owner->{$attr} }) {
+
+                # Expand below, in next loop.
+                next if $email =~ /^owner:/;
 
                 # Check email syntax.
                 # Only 7 bit ASCII
@@ -3998,11 +3990,18 @@ sub link_owners {
                 $email = lc($email);
             }
         }
+    }
+
+    # Expand watchers and check for duplicates.
+    for my $name (sort keys %owners) {
+        my $owner = $owners{$name};
+
+        # Check and expand referenced owners in watchers.
+        expand_watchers($owner);
 
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
         if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
-
             for my $attr (qw(admins watchers)) {
                 if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
                     $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
@@ -4626,6 +4625,7 @@ sub link_virtual_interfaces {
     # Pathrestriction would be useless if all devices are unmanaged.
     for my $href (values %net2ip2virtual) {
         for my $interfaces (values %$href) {
+            next if @$interfaces < 2;
             for my $interface (@$interfaces) {
                 my $router = $interface->{router};
                 if ($router->{managed} || $router->{routing_only}) {
@@ -8809,7 +8809,7 @@ sub find_subnets_in_zone {
     # intermediate device.
 }
 
-# Find networks with identical IP in different NAT domains.
+# Find subnet relation between networks in different NAT domains.
 # Mark networks, having subnet in other zone: $bignet->{has_other_subnet}
 # 1. If set, this prevents secondary optimization.
 # 2. If rule has src or dst with attribute {has_other_subnet},
@@ -8817,13 +8817,87 @@ sub find_subnets_in_zone {
 sub find_subnets_in_nat_domain {
     my $count = @natdomains;
     progress("Finding subnets in $count NAT domains");
-    my %seen;
 
+    # 1. step:
+    # Compare IP/mask of all networks and NAT networks and find relations
+    # %is_in and %identical.
+
+    # Mapping Mask -> IP -> Network|NAT Network.
+    my %mask_ip_hash;
+
+    # Mapping from network|NAT network to list of elements with
+    # identical IP address.
+    my %identical;
+
+    # List of all networks and NAT networks having an IP address.
+    # We need this in deterministic order.
+    my @nat_networks;
+
+    # Mapping from NAT network to corresponding NAT tag.
+    my %nat_tag;
+
+    # Mapping from NAT network to original network.
+    my %orig_net;
+    
+    for my $network (@networks) {
+        next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
+        push @nat_networks, $network;
+        $orig_net{$network} = $network;
+        my $nat = $network->{nat} or next;
+        for my $nat_tag (sort keys %$nat) {
+            my $nat_network = $nat->{$nat_tag};
+            $nat_tag{$nat_network} = $nat_tag;
+            $orig_net{$nat_network} = $network;
+            next if $nat_network->{hidden};
+            push @nat_networks, $nat_network;
+        }
+    }
+    
+    for my $nat_network (@nat_networks) {
+        my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
+        if (my $other = $mask_ip_hash{$mask}->{$ip}) {
+
+            # Bild lists of identical networks.
+            push @{ $identical{$other} ||= [$other] }, $nat_network;
+        }
+        else {
+            $mask_ip_hash{$mask}->{$ip} = $nat_network;
+        }
+    }
+
+    # Calculate %is_in relation from IP addresses;
+    # This includes all addresses of all networks in all NAT domains.
+    # Go from smaller to larger networks.
+    my %is_in;
+    my @mask_list = reverse sort numerically keys %mask_ip_hash;
+    while (my $mask = shift @mask_list) {
+
+        # No supernets available
+        last if not @mask_list;
+
+        my $ip_hash = $mask_ip_hash{$mask};
+        for my $ip (sort numerically keys %$ip_hash) {
+            my $subnet = $ip_hash->{$ip};
+
+            # @mask_list holds masks of potential supernets.
+            for my $m (@mask_list) {
+                my $i      = $ip & $m;
+                my $bignet = $mask_ip_hash{$m}->{$i} or next;
+                $is_in{$subnet} = $bignet;
+                last;
+            }
+        }
+    }
+
+    # 2. step:
+    # Analyze %is_in and %identical relation for different NAT domains.
+    my %seen;
+    my %todo_other_subnet;
     for my $domain (@natdomains) {
 
         # Ignore NAT domain consisting only of a single unnumbered network and
         # surrounded by unmanaged devices.
-        # A address conflict would not be observable inside this NAT domain.
+        # An address conflict would not be observable inside this NAT domain.
         my $domain_networks = $domain->{networks};
         if (1 == @$domain_networks) {
             my $network = $domain_networks->[0];
@@ -8837,22 +8911,48 @@ sub find_subnets_in_nat_domain {
 
         my $no_nat_set = $domain->{no_nat_set};
 
-#        debug("$domain->{name} ", join ',', sort keys %$no_nat_set);
-        my %mask_ip_hash;
-        my %has_identical;
-        for my $network (@networks) {
-            next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-            my $nat_network = get_nat_network($network, $no_nat_set);
-            next if $nat_network->{hidden};
-            my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
+        # Mark networks visible in current NAT domain.
+        my %visible;
+      NETWORK:
+        for my $nat_network (@nat_networks) {
 
-            # Found two different networks with identical IP/mask.
-            # in current NAT domain.
-            if (my $old_net = $mask_ip_hash{$mask}->{$ip}) {
-                my $nat_old_net = get_nat_network($old_net, $no_nat_set);
+            # NAT network
+            if (my $tag = $nat_tag{$nat_network}) {
+                next NETWORK if $no_nat_set->{$tag};
+            }
+
+            # Original network having NAT definitions.
+            elsif (my $href = $nat_network->{nat}) {
+                for my $tag (keys %$href) {
+                    next if $no_nat_set->{$tag};
+                    next NETWORK;
+                }
+            }
+            $visible{$nat_network} = 1;
+        }
+
+        # Mark and analyze networks having identical IP/mask in
+        # current NAT domain.
+        my %has_identical;
+        for my $list (values %identical) {
+            my @filtered = grep { $visible{$_} } @$list;
+            @filtered > 1 or next;
+            $has_identical{$_} = 1 for @filtered;
+
+            # If $list has been fully analyzed once, don't check it again.
+            next if $seen{$list};
+            if (@filtered == @$list) {
+                $seen{$list} = 1;
+            }
+            
+            # Compare pairs of networks with identical IP/mask.
+            my $nat_other = $filtered[0];
+            my $other = $orig_net{$nat_other};
+            for my $nat_network (@filtered[1 .. $#filtered]) {
+                my $network = $orig_net{$nat_network};
                 my $error;
-                if ($old_net->{is_aggregate} || $network->{is_aggregate}) {
-                    if ($old_net->{zone} eq $network->{zone}) {
+                if ($other->{is_aggregate} || $network->{is_aggregate}) {
+                    if ($other->{zone} eq $network->{zone}) {
                         $error = 1;
                     }
                     else {
@@ -8860,22 +8960,22 @@ sub find_subnets_in_nat_domain {
                         # Check supernet rules and prevent secondary
                         # optimization, if identical IP address
                         # occurrs in different zones.
-                        $old_net->{has_other_subnet} = 1;
+                        $other->{has_other_subnet} = 1;
                         $network->{has_other_subnet} = 1;
                     }
                 }
-                elsif ($nat_old_net->{dynamic} and $nat_network->{dynamic}) {
+                elsif ($nat_other->{dynamic} and $nat_network->{dynamic}) {
 
                     # Dynamic NAT of different networks
                     # to a single new IP/mask is OK.
                 }
-                elsif ($old_net->{loopback} and $nat_network->{dynamic}) {
-                    nat_to_loopback_ok($old_net, $nat_network) or $error = 1;
+                elsif ($other->{loopback} and $nat_network->{dynamic}) {
+                    nat_to_loopback_ok($other, $nat_network) or $error = 1;
                 }
-                elsif ($nat_old_net->{dynamic} and $network->{loopback}) {
-                    nat_to_loopback_ok($network, $nat_old_net) or $error = 1;
+                elsif ($nat_other->{dynamic} and $network->{loopback}) {
+                    nat_to_loopback_ok($network, $nat_other) or $error = 1;
                 }
-                elsif (($network->{bridged} || 0) eq ($old_net->{bridged} || 1))
+                elsif (($network->{bridged} || 0) eq ($other->{bridged} || 1))
                 {
 
                     # Parts of bridged network have identical IP by design.
@@ -8885,106 +8985,98 @@ sub find_subnets_in_nat_domain {
                 }
                 if ($error) {
                     my $name1 = $nat_network->{name};
-                    my $name2 = $nat_old_net->{name};
+                    my $name2 = $nat_other->{name};
                     err_msg("$name1 and $name2 have identical IP/mask\n",
-                        " in $domain->{name}");
+                            " in $domain->{name}");
                 }
-                else {
-
-                    # Mark duplicate aggregates / networks.
-                    $has_identical{$old_net} = 1;
-                    $has_identical{$network} = 1;
-                }
-            }
-            else {
-
-                # Store original network under NAT IP/mask.
-                $mask_ip_hash{$mask}->{$ip} = $network;
             }
         }
 
-        # Go from smaller to larger networks.
-        my @mask_list = reverse sort numerically keys %mask_ip_hash;
-        while (my $mask = shift @mask_list) {
+        # Check pairs of networks, that are in subnet relation.
+      SUBNET:
+        for my $nat_subnet (@nat_networks) {
+            $visible{$nat_subnet} or next;
+            my $nat_bignet = $is_in{$nat_subnet} or next;
+            while (not $visible{$nat_bignet}) {
+                $nat_bignet = $is_in{$nat_bignet} or next SUBNET;
+            }
+            next if $seen{$nat_bignet}->{$nat_subnet}++;
+            
+            my $subnet = $orig_net{$nat_subnet};
+            my $bignet = $orig_net{$nat_bignet};
 
-            # No supernets available
-            last if not @mask_list;
-
-            my $ip_hash = $mask_ip_hash{$mask};
-            for my $ip (sort numerically keys %$ip_hash) {
-                my $subnet = $ip_hash->{$ip};
-
-                # Find networks which include current subnet.
-                # @mask_list holds masks of potential supernets.
-                for my $m (@mask_list) {
-                    my $i          = $ip & $m;
-                    my $bignet     = $mask_ip_hash{$m}->{$i} or next;
-                    my $nat_subnet = get_nat_network($subnet, $no_nat_set);
-                    my $nat_bignet = get_nat_network($bignet, $no_nat_set);
-
-                    # Mark network having subnet in other zone.
-                    if ($bignet->{zone} ne $subnet->{zone} or
-                        $subnet->{has_other_subnet} or
-                        $has_identical{$subnet})
-                    {
-
-#                       debug "has other: $bignet->{name}";
-                        $bignet->{has_other_subnet} = 1;
-
-                        # Mark aggregate that has other *supernet*.
-                        # In this situation, addresses of aggregate
-                        # are part of supernet and located in another
-                        # zone.
-                        if ($subnet->{is_aggregate}) {
-                            $subnet->{has_other_subnet} = 1;
-                        }
-
-                    }
-
-                    if ($seen{$nat_bignet}->{$nat_subnet}) {
-                        last;
-                    }
-                    $seen{$nat_bignet}->{$nat_subnet} = 1;
-
-                    if ($config->{check_subnets}) {
-
-                        # Take original $bignet, because currently
-                        # there's no method to specify a natted network
-                        # as value of subnet_of.
-                        if (
-                            not(   $bignet->{is_aggregate}
-                                or $subnet->{is_aggregate}
-                                or $bignet->{has_subnets}
-                                or $nat_subnet->{subnet_of}
-                                and $nat_subnet->{subnet_of} eq $bignet
-                                or $nat_subnet->{is_layer3})
-                          )
-                        {
-
-                            # Prevent multiple error messages in
-                            # different NAT domains.
-                            $nat_subnet->{subnet_of} ||= $bignet;
-
-                            my $msg =
-                                "$nat_subnet->{name} is subnet of"
-                              . " $nat_bignet->{name}\n"
-                              . " in $domain->{name}.\n"
-                              . " If desired, either declare attribute"
-                              . " 'subnet_of' or attribute 'has_subnets'";
-
-                            if ($config->{check_subnets} eq 'warn') {
-                                warn_msg($msg);
-                            }
-                            else {
-                                err_msg($msg);
-                            }
-                        }
-                    }
-
-                    check_subnets($nat_bignet, $nat_subnet);
-                    last;
+            # Mark network having subnet in same zone, if subnet has
+            # subsubnet in other zone.
+            # Remember subnet relation in same zone in %todo_other_subnet,
+            # if current status of subnet is not known, 
+            # since status may change later.
+            if ($bignet->{zone} eq $subnet->{zone}) {
+                if ($subnet->{has_other_subnet} or $has_identical{$subnet}) {
+                    $bignet->{has_other_subnet} = 1;
+                }
+                else {
+                    push @{ $todo_other_subnet{$subnet} }, $bignet;
                 }
             }
+            
+            # Mark network having subnet in other zone.
+            else {
+
+#               debug "has other: $bignet->{name}";
+                $bignet->{has_other_subnet} = 1;
+                if (my $list = delete $todo_other_subnet{$bignet}) {
+                    $_->{has_other_subnet} = 1 for @$list;
+                }
+
+                # Mark aggregate that has other *supernet*.
+                # In this situation, addresses of aggregate
+                # are part of supernet and located in another
+                # zone.
+                if ($subnet->{is_aggregate}) {
+                    $subnet->{has_other_subnet} = 1;
+                    if (my $list = delete $todo_other_subnet{$subnet}) {
+                        $_->{has_other_subnet} = 1 for @$list;
+                    }
+                }
+            }
+
+
+            if ($config->{check_subnets}) {
+
+                # Take original $bignet, because currently
+                # there's no method to specify a natted network
+                # as value of subnet_of.
+                if (
+                    not(   $bignet->{is_aggregate}
+                           or $subnet->{is_aggregate}
+                           or $bignet->{has_subnets}
+                           or $nat_subnet->{subnet_of}
+                           and $nat_subnet->{subnet_of} eq $bignet
+                           or $nat_subnet->{is_layer3})
+                    )
+                {
+
+                    # Prevent multiple error messages in
+                    # different NAT domains.
+                    $nat_subnet->{subnet_of} ||= $bignet;
+
+                    my $msg =
+                        "$nat_subnet->{name} is subnet of"
+                        . " $nat_bignet->{name}\n"
+                        . " in $domain->{name}.\n"
+                        . " If desired, either declare attribute"
+                        . " 'subnet_of' or attribute 'has_subnets'";
+
+                    if ($config->{check_subnets} eq 'warn') {
+                        warn_msg($msg);
+                    }
+                    else {
+                        err_msg($msg);
+                    }
+                }
+            }
+
+            check_subnets($nat_bignet, $nat_subnet);
         }
     }
 
@@ -13691,6 +13783,76 @@ sub match_prt_list {
     return 0;
 }
 
+# Find those elements of $list, with an IP address matching $obj.
+# If element is aggregate that is supernet of $obj,
+# than return all matching networks inside that aggregate.
+sub get_ip_matching {
+    my ($obj, $list, $no_nat_set) = @_;
+    my $nat_obj = get_nat_network($obj, $no_nat_set);
+    my ($ip, $mask) = @{$nat_obj}{ 'ip', 'mask' };
+
+    my @matching;
+    for my $src (@$list) {
+        my ($i, $m) = @{address($src, $no_nat_set)};
+
+        # Element is subnet of $obj.
+        if ($m >= $mask && match_ip($i, $ip, $mask)) {
+            push @matching, $src;
+        }
+
+        # Element is supernet of $obj.
+        elsif ($m < $mask && match_ip($ip, $i, $m)) {
+            if ($src->{is_aggregate}) {
+                my $networks = $src->{networks} or next;
+                $networks = get_ip_matching($obj, $networks, $no_nat_set);
+                push @matching, @$networks;
+            }
+            else {
+                push @matching, $src;
+            }
+        }
+    }
+    return \@matching;
+}
+
+# Check that all elements of first list are contained in or equal to
+# some element of second list.
+sub all_contained_in {
+    my ($aref1, $aref2) = @_;
+    my %in_aref2;
+    @in_aref2{@$aref2} = @$aref2;
+  ELEMENT:
+    for my $element (@$aref1) {
+        next if $in_aref2{$element};
+        my $up = $element;
+        while ($up = $up->{up}) {
+            next ELEMENT if $in_aref2{$up};
+        }
+        return;
+    }
+    return 1;
+}
+
+# Inversed of sub all_contained_in.
+sub get_missing {
+    my ($aref1, $aref2, $zone) = @_;
+    my %in_aref2;
+    @in_aref2{@$aref2} = @$aref2;
+    my @missing;
+  ELEMENT:
+    for my $element (@$aref1) {
+        next if $in_aref2{$element};
+        my $zone2 = $obj2zone{$element} || get_zone($element);
+        next if $zone2 eq $zone;
+        my $up = $element;
+        while ($up = $up->{up}) {
+            next ELEMENT if $in_aref2{$up};
+        }
+        push @missing, $element;
+    }
+    return @missing;
+}
+
 sub elements_in_one_zone {
     my ($list1, $list2) = @_;
     my $obj0 = $list1->[0];
@@ -13700,6 +13862,17 @@ sub elements_in_one_zone {
         zone_eq($zone0, $zone) or return;
     }
     return 1;
+}
+
+# Print abbreviated list of names in messages.
+sub short_name_list {
+    my ($obj) = @_;
+    my @names = map { $_->{name} } @$obj;
+    my $count = @names;
+    if ($count > 4) {
+        splice(@names, 3, @names - 3, '...');
+    }
+    return ' - ' . join("\n - ", @names);
 }
 
 # Example:
@@ -13717,26 +13890,29 @@ sub elements_in_one_zone {
 # which may be undesired.
 # In order to avoid this, a warning is generated if the implied rule is not
 # explicitly defined.
-#
-# Currently we only check aggregates/supernets with mask = 0.
-# Checking of other aggregates is too complicate (NAT, intersection).
-
-# Collect info about unwanted implied rules.
 sub check_transient_supernet_rules {
+#    progress("Check transient supernet rules");
     my $rules = $service_rules{permit};
 
     # Build mapping from supernet to service rules having supernet as src.
     my %supernet2rules;
+
+    # Mapping from zone to supernets found in src of rules.
+    my %zone2supernets;
+    my %seen;
     for my $rule (@$rules) {
         next if $rule->{no_check_supernet_rules};
         my $src_list = $rule->{src};
         for my $obj (@$src_list) {
             $obj->{has_other_subnet} or next;
+            my $zone = $obj->{zone};
+            next if $zone->{no_check_supernet_rules};
 
-            # Check only 0/0 aggregates.
-            $obj->{mask} == 0 or next;
-
+            # A leaf security zone has only one interface.
+            # It can't lead to unwanted rule chains.
+            next if @{ $zone->{interfaces} } == 1;
             push @{ $supernet2rules{$obj} }, $rule;
+            push @{ $zone2supernets{$zone} }, $obj if not $seen{$obj}++;
         }
     }
     keys %supernet2rules or return;
@@ -13748,48 +13924,85 @@ sub check_transient_supernet_rules {
     # Search rules having supernet as dst.
     for my $rule1 (@$rules) {
         next if $rule1->{no_check_supernet_rules};
-        my $dst_list = $rule1->{dst};
-        for my $obj (@$dst_list) {
-            $obj->{has_other_subnet} or next;
-            $obj->{mask} == 0 or next;
+        my $dst_list1 = $rule1->{dst};
+        for my $obj1 (@$dst_list1) {
+            $obj1->{has_other_subnet} or next;
+            my $zone = $obj1->{zone};
+            next if $zone->{no_check_supernet_rules};
+            next if @{ $zone->{interfaces} } == 1;
 
-            # A leaf security zone has only one interface.
-            # It can't lead to unwanted rule chains.
-            next if @{ $obj->{zone}->{interfaces} } <= 1;
-
-            my $other_rules = $supernet2rules{$obj} or next;
-            for my $rule2 (@$other_rules) {
-                match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
-                match_prt($rule1->{src_range} || $prt_ip,
-                          $rule2->{src_range} || $prt_ip) or next;
-
-                # Found transient rules $rule1 and $rule2.
-                # Check, that 
-                # - either src elements of $rule1 are also src of $rule2
-                # - or dst elements of $rule2 are also dst of $rule1,
-                # - but no problem if src1 and dst2 are located in same zone,
-                #   i.e. transient traffic back to src,
-                # - also need to ignore unenforceable $rule1 and $rule2.
+            # Find other rules with supernet as src starting in same zone.
+            my $supernets = $zone2supernets{$zone} or next;
+            my $no_nat_set = $zone->{no_nat_set};
+            for my $obj2 (@$supernets) {
+                
+                # Find those elements of src of $rule1 with an IP
+                # address matching $obj2.
+                # If mask of $obj2 is 0, take all elements. 
+                # Otherwise check IP addresses in NAT domain of $obj2.
                 my $src_list1 = $rule1->{src};
-                my $dst_list1 = $rule1->{dst};
-                my $src_list2 = $rule2->{src};
-                my $dst_list2 = $rule2->{dst};
-                if (not (subset_of($src_list1, $src_list2) or
-                         subset_of($dst_list2, $dst_list1))
-                    and not elements_in_one_zone($src_list1, $dst_list2)
-                    and not elements_in_one_zone($src_list1, [ $obj ])
-                    and not elements_in_one_zone([ $obj ], $dst_list2))
-                {
-                    my $srv1 = $rule1->{rule}->{service}->{name};
-                    my $srv2 = $rule2->{rule}->{service}->{name};
-                    my $match = $obj->{name};
-                    $print->("Missing transient supernet rules\n",
-                             " between src of $srv1 and dst of $srv2,\n",
-                             " matching at $match");
+                if ($obj2->{mask}) {
+                    $src_list1 = get_ip_matching($obj2, $src_list1, $no_nat_set);
+                    @$src_list1 or next;
+                }
+                for my $rule2 (@{ $supernet2rules{$obj2} }) {
+                    match_prt_list($rule1->{prt}, $rule2->{prt}) or next;
+                    match_prt($rule1->{src_range} || $prt_ip,
+                              $rule2->{src_range} || $prt_ip) or next;
+
+                    # Find elements of dst of $rule2 with an IP
+                    # address matching $obj1.
+                    my $dst_list2 = $rule2->{dst};
+                    if ($obj1->{mask}) {
+                        $dst_list2 = 
+                            get_ip_matching($obj1, $dst_list2, $no_nat_set);
+                        @$dst_list2 or next;
+                    }
+                    my $src_list2 = $rule2->{src};
+
+                    # Found transient rules $rule1 and $rule2.
+                    # Check, that 
+                    # - either src elements of $rule1 are also src of $rule2
+                    # - or dst elements of $rule2 are also dst of $rule1,
+                    # - but no problem if src1 and dst2 are located
+                    #   in same zone, i.e. transient traffic back to src,
+                    # - also need to ignore unenforceable $rule1 and $rule2.
+                    if (not (all_contained_in($src_list1, $src_list2) or
+                             all_contained_in($dst_list2, $dst_list1))
+                        and not elements_in_one_zone($src_list1, $dst_list2)
+                        and not elements_in_one_zone($src_list1, [ $obj2 ])
+                        and not elements_in_one_zone([ $obj1 ], $dst_list2))
+                    {
+                        my $srv1 = $rule1->{rule}->{service}->{name};
+                        my $srv2 = $rule2->{rule}->{service}->{name};
+                        my $match1 = $obj1->{name};
+                        my $match2 = $obj2->{name};
+                        my $match = 
+                            $match1 eq $match2 ? $match1 : "$match1, $match2";
+                        my $msg = ("Missing transient supernet rules\n".
+                                   " between src of $srv1 and dst of $srv2,\n".
+                                   " matching at $match.\n");
+                        my @missing_src = 
+                            get_missing($src_list1, $src_list2, $zone);
+                        my @missing_dst = 
+                            get_missing($dst_list2, $dst_list1, $zone);
+                        $msg .= " Add";
+                        if (@missing_src) {
+                            $msg .= " missing src elements to $srv2:\n";
+                            $msg .= short_name_list(\@missing_src);
+                        }
+                        $msg .= "\n or add" if @missing_src and @missing_dst;
+                        if (@missing_dst) {
+                            $msg .= " missing dst elements to $srv1:\n";
+                            $msg .= short_name_list(\@missing_dst);
+                        }
+                        $print->($msg);
+                    }
                 }
             }
         }
     }
+#    progress("Transient check is ready");
 }
 
 # Handling of supernet rules created by gen_reverse_rules.
@@ -17680,7 +17893,8 @@ sub copy_raw {
       map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
 
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
-    while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+    for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
+    {
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
 

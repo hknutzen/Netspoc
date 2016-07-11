@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.012'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.013'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 

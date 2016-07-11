@@ -1,3 +1,17 @@
+5.013     2016-07-11 14:26:29+02:00 Europe/Berlin
+
+ - Improved check for missing transient supernet rules.
+   Previously we checked only rules a-->any:b, any:b-->c
+   for missing rule a-->c.
+   Now we check all rules a_sub-->b, a-->b_sub
+   with a_sub is subnet of a, b_sub is subnet of b and
+   both a, b located in same zone.
+ - Fixed incorrect warning on missing supernet rule.
+   For rules a-->any:b, any:b-->c, we now accept a-->any:c as transient rule.
+ - Optimized runtime for "Finding subnets in NAT domains".
+ - Fixed check for watcher from other owner.
+   Do case insensitive compare of email addresses now.
+
 5.012     2016-06-29 16:55:04+02:00 Europe/Berlin
 
  - Syntax has been extended to allow full NAT commands at loopback interface.

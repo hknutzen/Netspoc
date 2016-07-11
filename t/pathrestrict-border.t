@@ -823,4 +823,66 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Pathrestriction at virtual interface at loop zone border';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = {ip = 10.2.2.0/24;}
+network:n3 = { ip = 10.3.3.0/24;}
+network:n4 = { ip = 10.4.4.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = E1;}
+ interface:n2 = { ip = 10.2.2.3; virtual = {ip = 10.2.2.10;} hardware = E2; }
+ }
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.3.3.1; hardware = E1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = E2; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.3.3.2; hardware = E1; }
+ interface:n2 = { ip = 10.2.2.2; hardware = E2; }
+ interface:n4 = { ip = 10.4.4.1; hardware = E3; }
+}
+
+pathrestriction:p1 =
+ interface:r3.n3,
+ interface:r3.n4,
+;
+
+service:test = {
+ user = network:n1;
+ permit src =   user;
+        dst =   network:n4;
+        prt =   ip;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended E1_in
+ permit ip 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255
+ deny ip any any
+--r2
+ip access-list extended E2_in
+ deny ip any any
+--r3
+ip access-list extended E2_in
+ deny ip any host 10.4.4.1
+ permit ip 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

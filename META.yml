@@ -14,7 +14,8 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: '0'
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 5.025, CPAN::Meta::Converter version 2.142690'
+
+generated_by: 'Dist::Zilla version 6.006, CPAN::Meta::Converter version 2.150005'
 license: gpl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -36,4 +37,9 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
+<<<<<<< HEAD
 version: '5.012'
+=======
+version: '5.013'
+x_serialization_backend: 'YAML::Tiny version 1.69'
+>>>>>>> Build results of e7d3636 (on master)

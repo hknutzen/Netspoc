@@ -74,12 +74,12 @@ $title = 'Duplicates from other owner';
 # Don't warn if watcher from other owner is also admin.
 $in = <<'END';
 owner:x = {
- admins = a@b.c, c@b.c;
+ admins = a@b.c, C@b.c;
  watchers = owner:y, b@b.c;
 }
 owner:y = {
  admins = a@b.c;
- watchers = b@b.c, c@b.c;
+ watchers = b@b.c, C@b.c;
 }
 END
 
