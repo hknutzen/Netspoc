@@ -1,0 +1,45 @@
+# File: examples/optimize
+#
+# Simple optimization
+
+protocol:IP = ip;
+protocol:http = tcp 80;
+
+service:access = {
+ overlaps = service:access;
+ user = host:caesar;
+
+# (A)
+ permit src=any:north, any:east, any:ocean;
+        dst=user;
+        prt=protocol:IP;
+
+# (B) redundant, compared to (A)
+ permit src=host:asterix;
+        dst=user;
+        prt=protocol:http;
+
+# (C) identical to (B)
+ permit src=host:asterix;
+        dst=user;
+        prt=protocol:http;
+
+# (D) redundant, compared to (A)
+ permit src=network:north;
+        dst=user;
+        prt=protocol:http;
+}
+
+service:south = {
+ user = network:south;
+
+# (E) partly redundant to (F): 
+# redundant at router:rome, but not at router:paris
+ permit src=host:asterix;
+        dst=user;
+        prt=protocol:http;
+# (F)
+ permit src=any:mediteran;
+        dst=user;
+        prt=protocol:http;
+}

@@ -1,0 +1,9 @@
+*** config.h.in.orig	2007-11-01 15:52:11.164597131 +0100
+--- config.h.in	2007-11-01 15:52:05.640454736 +0100
+***************
+*** 514,516 ****
+--- 514,517 ----
+  
+  /* Define as `fork' if `vfork' does not work. */
+  #undef vfork
++ #define SETXID_SUPPORT 1

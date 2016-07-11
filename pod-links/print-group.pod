@@ -1,0 +1,297 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+print-group - Show elements of a netspoc group definition
+
+=head1 SYNOPSIS
+
+print-group [options] FILE|DIR 'group:name,...'
+
+=head1 DESCRIPTION
+
+This program prints the elements of a netspoc group definition.  By default it
+shows a line with IP/prefixlen and name for each element separated by tab
+character. Group is a simple group, some automatic group, or a union or
+intersection or complement of simpler groups.
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-nat> name
+
+Uses network:name as reference when resolving IP address in a NAT environment.
+
+=item B<-unused> 
+
+Show only elements not used in any rules.
+
+=item B<-name>
+
+Show only name of elements
+
+=item B<-ip>
+
+Show only IP address of elements
+
+=item B<-owner>
+
+Show owner of elements.
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+This program uses module Netspoc.pm,
+a Network Security Policy Compiler,
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use open qw(:std :utf8);
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
+use Getopt::Long;
+use Pod::Usage;
+
+# VERSION: inserted by DZP::OurPkgVersion
+
+# Take higher bits from network NAT, lower bits from original IP.
+# This works with and without NAT.
+sub nat {
+    my ($ip, $network) = @_;
+    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
+}
+
+# Print IP address of $obj in context of $no_nat_set.
+sub print_address {
+    my ($obj, $no_nat_set) = @_;
+    my $type = ref $obj;
+    if ($type eq 'Network') {
+        $obj = get_nat_network($obj, $no_nat_set);
+        my $ip = $obj->{ip};
+        if ($ip eq 'unnumbered') {
+            return $ip;
+        }
+        elsif ($obj->{hidden}) {
+            return 'hidden';
+        }
+        else {
+            my $prefix = mask2prefix($obj->{mask});
+            return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+        }
+    }
+    elsif ($type eq 'Host' or $type eq 'Interface') {
+        my $network = get_nat_network($obj->{network}, $no_nat_set);
+        if (my $nat_tag = $network->{dynamic}) {
+            if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
+
+                # Single static NAT IP for this object.
+                return print_ip($ip);
+            }
+            elsif ($network->{hidden}) {
+                return 'hidden';
+            }
+            else {
+                
+                # Dynamic NAT, take whole network.
+                my $ip = $network->{ip};
+                my $prefix = mask2prefix($network->{mask});
+                return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+            }
+        }
+        elsif ($network->{isolated}) {
+            
+            # NAT not allowed for isolated ports. 
+            # Take no bits from network, because secondary isolated ports 
+            # don't match network.
+            return print_ip($obj->{ip});
+        }
+        elsif (my $range = $obj->{range}) {
+            return 
+                join('-', map { print_ip(nat($_, $network)) } @$range);
+        }
+        elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
+            return $obj->{ip};
+        }
+        elsif ($obj->{ip} eq 'negotiated') {
+            
+            # Take whole network.
+            my $ip = $network->{ip};
+            my $prefix = mask2prefix($network->{mask});
+            return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+        }
+        else {
+            return print_ip(nat($obj->{ip}, $network));
+        }
+    }
+    elsif ($type eq 'Autointerface') {
+        return 'unknown';
+    }
+    else {
+        internal_err "Unexpected object $obj->{name}";
+    }
+    return; # unused; only for perlcritic
+}
+
+####################################################################
+# Argument processing
+####################################################################
+
+my $nat_net;
+my $show_unused;
+my $show_ip;
+my $show_name;
+my $show_owner;
+my $quiet;
+my $help;
+my $man;
+GetOptions ( 'nat=s'  => \$nat_net,
+	     'unused' => \$show_unused,
+	     'ip!'    => \$show_ip,
+	     'name!'  => \$show_name,
+             'owner!' => \$show_owner,
+             'quiet!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+$show_ip or $show_name or $show_ip = $show_name = 1;
+
+my $in_path = shift @ARGV or pod2usage(2);
+my $name = shift @ARGV or pod2usage(2);
+
+####################################################################
+# Main program
+####################################################################
+
+my $file_config = &read_config($in_path);
+$config = combine_config($file_config, { verbose => !$quiet });
+init_global_vars();
+
+# Parse group definition(s).
+$input = $name;
+$current_file = 'group definition';
+$line = 1;
+my @parsed;
+skip_space_and_comment();
+while (1) {
+    push @parsed, read_intersection;
+    skip_space_and_comment;
+    last if pos $input == length $input;
+    check(',');
+}
+
+# Read and process Netspoc configuration file or directory.
+&read_file_or_dir($in_path);
+&link_topology();
+&mark_disabled();
+&set_zone();
+&distribute_nat_info();
+&setpath();
+find_subnets_in_zone();
+convert_hosts();
+if ($show_owner) {
+    propagate_owners();
+}
+&abort_on_error();
+
+# Find network for resolving NAT addresses.
+my $no_nat_set;
+if($nat_net) {
+    my $net = $networks{$nat_net} or 
+	die "Unknown network:$nat_net of option '-n'\n";
+    $no_nat_set = $net->{nat_domain}->{no_nat_set};
+}
+
+# Expand group definition(s).
+my $elements = 
+    expand_group_in_rule(\@parsed, 'print-group', 0);
+
+# Find unused objects by marking used objects.
+if ($show_unused) {
+    &order_protocols();
+    &expand_services(0);
+    &abort_on_error();
+    for my $type ('deny', 'permit') {
+	for my $rule (@{ $expanded_rules{$type} }) {
+	    for my $where ('src', 'dst') {
+		my $obj = $rule->{$where};
+		if (is_host $obj) {
+		    for my $subnet (@{ $obj->{subnets} }) {
+			$subnet->{is_used} = 1;
+		    }
+                    $obj->{network}->{is_used} = 1;
+		}
+                elsif (is_interface $obj) {
+		    $obj->{is_used} = 1;
+                    $obj->{network}->{is_used} = 1;
+                }                    
+		else {
+		    $obj->{is_used} = 1;
+		}
+	    }
+	}
+    }
+    $elements = [ grep { not($_->{is_used}) } @$elements ];
+}
+
+# Collect IP address, name, owner.
+my @info = map { my $v = [ print_address($_, $no_nat_set),
+                           $_->{name} ];
+                 push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
+		 $v } @$elements;
+
+abort_on_error();
+
+# Sort by IP address and print results.
+for my $aref (sort { $a->[0] cmp $b->[0] } @info) {
+    my ($address, $name, $owner) = @$aref;
+    my @result;
+    if ($show_ip) {
+        push @result, $address;
+    }
+    if ($show_name) {
+        push @result, $name;
+    }
+    if ($show_owner) {
+        $owner ||= 'none';
+        push @result, $owner;
+    }
+    print join("\t", @result), "\n";
+}
+
+

@@ -1,0 +1,66 @@
+network:mngt = { ip = 10.1.11.0/24; }
+
+router:pixmngt = { 
+ model = PIX;
+ managed;
+ interface:mngt = { ip = 10.1.11.1; hardware = inside; }
+ interface:trans = { ip = 10.99.0.1; hardware = outside; }
+}
+
+network:trans = { ip = 10.99.0.0/30; }
+
+router:backbone = {
+ interface:trans = { ip = 10.99.0.2; }
+ interface:t1 = { ip = 10.99.1.2; }
+ interface:t2 = { ip = 10.99.2.2; }
+ interface:t3 = { ip = 10.99.3.2; }
+}
+
+network:t1 = { ip = 10.99.1.0/24; }
+network:t2 = { ip = 10.99.2.0/24; }
+network:t3 = { ip = 10.99.3.0/24; }
+
+router:r1 = {
+ model = IOS, FW;
+ managed;
+ interface:t1 = { ip = 10.99.1.1; hardware = serial0; }
+ interface:c1 = { ip = 10.20.1.1; hardware = eth0; }
+}
+
+router:r2 = {
+ model = IOS, FW;
+ managed;
+ interface:t2 = { ip = 10.99.2.1; hardware = serial0; }
+ interface:c2 = { ip = 10.20.2.1; hardware = eth0; }
+}
+
+router:r3 = {
+ model = IOS, FW;
+ managed;
+ interface:t3 = { ip = 10.99.3.1; hardware = serial0; }
+ interface:c3 = { ip = 10.20.3.1; hardware = eth0; }
+}
+
+network:c1 = { ip = 10.20.1.0/24; }
+network:c2 = { ip = 10.20.2.0/24; }
+network:c3 = { ip = 10.20.3.0/24; }
+
+protocol:telnet = tcp 23;
+
+# This group contains
+# routers r1, r2, r3, backbone.
+# It will automatically grow, if further routers 
+# are attached to the WAN side of router:backbone.
+group:customer-router =
+ interface:[managed & 
+  interface:[
+   # take all networks attached to router:backbone
+   # but without network:trans
+   network:[interface:backbone.[all]] & ! network:trans
+  ].[all]
+ ].[auto];
+
+service:admin = {
+ user = network:mngt;
+ permit src=user; dst=group:customer-router; prt=protocol:telnet;
+}

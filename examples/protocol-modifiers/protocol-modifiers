@@ -1,0 +1,54 @@
+protocol:ftp-command = tcp 21;
+protocol:ftp-passive-data = tcp 1024-65535, stateless;
+protocol:ftp-active-data = tcp 20:1024-65535, stateless, reversed;
+#protocolgroup:ftp-passive = protocol:ftp-command, protocol:ftp-passive-data;
+#protocolgroup:ftp-active = protocol:ftp-command, protocol:ftp-active-data;
+protocolgroup:ftp-all = 
+ protocol:ftp-command, protocol:ftp-passive-data, protocol:ftp-active-data;
+ 
+protocol:tftp-request= udp 69, oneway;
+protocol:tftp-server-answer = udp 1024-65535, stateless, reversed, oneway;
+protocol:tftp-client-answer = udp 1024-65535, stateless, oneway;
+protocolgroup:tftp = 
+	protocol:tftp-request, 
+	protocol:tftp-server-answer, 
+	protocol:tftp-client-answer;
+  
+protocol:netz-ping-out = icmp 8, src_net, dst_net;
+protocol:netz-pong-in = icmp 0, src_net, dst_net, reversed;
+protocol:netz-ping-in = icmp 8, src_net, dst_net, reversed;
+protocol:netz-pong-out = icmp 0, src_net, dst_net;
+protocolgroup:netz-ping-in-out = 
+	protocol:netz-ping-out, 
+	protocol:netz-pong-in, 
+	protocol:netz-ping-in, 
+	protocol:netz-pong-out;
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:stateless = { 
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = eth0; }
+ interface:n2 = { ip = 10.2.2.1; hardware = eth1; }
+}
+network:n2 = { ip = 10.2.2.0/24; }
+router:stateful = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.2.2.2,10.2.2.99; hardware = eth0; }
+ interface:nu = { unnumbered; hardware = serial0; }
+}
+network:nu = { unnumbered; }
+router:unmanaged = {
+ interface:nu;
+ interface:n3 = { ip = 10.3.3.1; hardware = outside; }
+}
+network:n3 = { ip = 10.3.3.0/24; host:server = { ip = 10.3.3.3; } }
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = host:server; prt = protocolgroup:ftp-all,
+					     protocolgroup:tftp,
+					     protocolgroup:netz-ping-in-out,
+					     ;
+}

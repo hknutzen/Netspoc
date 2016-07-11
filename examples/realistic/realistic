@@ -1,0 +1,172 @@
+# File: examples/realistic
+#
+
+network:big_customer = {
+ ip = 10.1.1.0/24;
+ host:joe = { ip = 10.1.1.21; }
+ host:bill = { ip = 10.1.1.23; }
+ host:rick = { ip = 10.1.1.25; }
+}
+
+router:big1 = {
+ managed = full;
+ model = Linux;
+ interface:big_customer = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = eth0;
+ }
+ interface:service_lan = { 
+  ip = 10.10.1.2;
+  virtual = { ip = 10.10.1.1; type = VRRP; }
+  hardware = eth1; 
+ }
+} 
+
+pathrestriction:big_customer = 
+ interface:big1.big_customer.virtual,
+ interface:big2.big_customer.virtual;
+
+pathrestriction:big_customer2 = 
+ interface:big1.service_lan.virtual,
+ interface:big2.service_lan.virtual;
+
+
+router:big2 = {
+ managed = full;
+ model = Linux;
+ interface:big_customer = {
+  ip = 10.1.1.3;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = eth0;
+ }
+ interface:service_lan = {
+  ip = 10.10.1.3;
+  virtual = { ip = 10.10.1.1; type = VRRP; }
+  hardware = eth1;
+ }
+} 
+
+network:small_customer = {
+ ip = 125.1.2.0/24;
+ nat:small = { ip = 10.1.2.0/24; }
+ host:ann =  { ip = 125.1.2.31; }
+ host:christie = { ip = 125.1.2.32; }
+ host:pamela = { ip = 125.1.2.33; }
+}
+
+router:small_extern = {
+ interface:small_customer = { ip = 125.1.2.1; hardware = eth1; }
+ interface:small_customer_trans1 =
+  { ip = 172.17.1.2; hardware = Serial0; routing=OSPF;}
+ interface:small_customer_trans2 =
+  { ip = 172.17.1.6; hardware = Serial1; routing=OSPF;}
+}
+
+network:small_customer_trans1 = { ip = 172.17.1.0/30; }
+network:small_customer_trans2 = { ip = 172.17.1.4/30; }
+
+any:small_customer = { link = network:small_customer; }
+
+# Secondary packet filter: dont't check fully, but only for src and
+# dst network, if there is another full packet filter on the path from
+# src to dst.
+router:small = {
+ managed = secondary;
+ model = IOS, FW;
+ interface:small_customer_trans1 =
+  { ip = 172.17.1.1; hardware = Serial0; routing=OSPF;}
+ interface:small_customer_trans2 =
+  { ip = 172.17.1.5; hardware = Serial1; routing=OSPF;}
+ interface:service_lan = {
+  ip = 10.10.1.4;
+  # NAT defintion nat:small is applied here and effective at all
+  # networks behind this interface. 
+  bind_nat = small;
+  hardware = FastEthernet0;
+ }
+} 
+
+network:service_lan = { ip = 10.10.1.0/24; }
+
+router:protect_web = {
+ managed = secondary;
+ model = IOS;
+ interface:service_lan = { ip = 10.10.1.5; hardware = FastEthernet0; }
+ interface:web_servers = { ip = 10.20.1.1; hardware = FastEthernet1; }
+}
+
+network:web_servers = {
+ ip = 10.20.1.0/24; 
+ host:extranet = { range = 10.20.1.10-10.20.1.19; }
+}
+
+router:mngt = {
+ managed;
+ model = PIX;
+ interface:service_lan = { ip = 10.10.1.6; hardware = outside; }
+ interface:management = { ip = 10.1.11.1; hardware = inside; }
+}
+
+network:management = {
+ ip = 10.1.11.0/24; 
+ host:netspoc = { ip = 10.1.11.111; }
+ host:logger =  { ip = 10.1.11.20; }
+}
+
+area:all = { 
+ anchor = network:service_lan;
+ router_attributes = {
+  policy_distribution_point = host:netspoc; 
+ }
+}
+
+protocol:http = tcp 80;
+protocol:telnet = tcp 23;
+protocol:syslog = udp 514;
+protocol:ping = icmp 8;
+protocol:pong = icmp 0;
+
+service:extranet = {
+ description = Access to extranet server
+ user = #host:joe,
+	#host:bill,
+	#host:rick,
+	host:pamela;
+ permit src=user;
+        dst=host:extranet;
+        prt=protocol:http;
+}
+
+service:management = {
+ description = Management services: telnet and syslog
+ overlaps = service:ping_local;
+ user = interface:big1.[auto], 
+	interface:big1.service_lan.virtual,
+        interface:big2.[auto], 
+	interface:big2.service_lan.virtual,
+	interface:small.[auto], 
+	interface:protect_web.[auto], 
+	interface:mngt.[auto],
+	interface:small_extern.[auto],	# both interfaces
+	;
+ permit src = host:netspoc;
+	dst = user;
+	prt = protocol:telnet, protocol:ping,;
+ permit src = user;
+	dst = host:netspoc;
+	prt = protocol:pong;
+ permit src = user;
+	dst = host:logger;
+	prt = protocol:syslog;
+}
+
+service:ping_local = {
+ description = Ping between router and its locally connected security domain
+
+ user = foreach interface:[managed & area:all].[all];
+ permit src = any:[user];
+	dst = user;
+	prt = protocol:ping, protocol:pong;
+}
+

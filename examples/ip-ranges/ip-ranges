@@ -1,0 +1,25 @@
+# File: examples/ip-ranges
+#
+# Optimization of IP addresses and ports.
+# Automatically summarize subsequent IP addresses
+# to an IP range.
+
+
+protocol:IP = ip;
+protocol:http = tcp 80;
+
+# (A) summarize to an existing range (host:ix_4_7)
+service:caesar_web = {
+ user = host:asterix,host:obelix,host:idefix,host:majestix;
+ permit src=user;
+	dst=host:caesar;
+	prt=protocol:http;
+}
+
+# (B) summarize to a non existing range (auto_subnet:asterix)
+service:east_access = {
+ user = host:asterix,host:obelix;
+ permit src=user;
+	dst=network:east;
+	prt=protocol:IP;
+}

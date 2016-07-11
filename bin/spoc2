@@ -1,0 +1,59 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+spoc2 - Optimizing second pass of Netspoc
+
+=head1 SYNOPSIS
+
+spoc2 [options] in-file-or-directory CODE-DIR
+
+=head1 OPTIONS
+
+See options of program 'netspoc'.
+
+=back
+
+=head1 DESCRIPTION
+
+Generate code files from intermediate files in CODE-DIR.
+Reads files X.rules and X.config and writes file X.
+
+X.rules file contains rules in device independent format.
+X.config file is incomplete device configuration.
+
+Optimize rules and generate access-lists in device specific format.
+Combine imcomplete device configuration with access-lists into complete
+device configuration.
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use Netspoc::Compiler::Pass2;
+
+our $VERSION = '5.013'; # VERSION: inserted by DZP::OurPkgVersion
+my $program = 'Netspoc';
+my $version = __PACKAGE__->VERSION || 'devel';
+
+Netspoc::Compiler::Pass2::compile(\@ARGV);

@@ -1,0 +1,52 @@
+#!/usr/local/bin/perl
+
+=head1 NAME
+
+spoc1 - First pass of Netspoc
+
+=head1 SYNOPSIS
+
+spoc1 [options] IN-DIR|IN-FILE [CODE-DIR]
+
+=head1 OPTIONS
+
+See options of program 'netspoc'.
+
+=back
+
+=head1 DESCRIPTION
+
+Compile all files from IN-DIR or from a single IN-FILE.
+Intermediate code is generated in CODE-DIR.
+If no CODE-DIR is given, no code is generated; only errors are checked.
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use Netspoc::Compiler::Pass1;
+
+our $VERSION = '5.013'; # VERSION: inserted by DZP::OurPkgVersion
+my $version = __PACKAGE__->VERSION || 'devel';
+
+Netspoc::Compiler::Pass1::compile(\@ARGV);

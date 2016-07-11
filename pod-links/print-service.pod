@@ -1,0 +1,199 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+print-service - Show info about a netspoc service definition
+
+=head1 SYNOPSIS
+
+print-service [options] FILE|DIR [SERVICE-NAME]
+
+=head1 DESCRIPTION
+
+This program prints expanded rules about all or a single netspoc
+service definition.
+Output format is
+service-name:permit|deny src-ip dst-ip protocol-description
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-nat> name
+
+Uses network:name as reference when resolving IP address in a NAT environment.
+
+=item B<-quiet>
+
+Don't print progress messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+This program uses module Netspoc.pm,
+a Network Security Policy Compiler,
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use open qw(:std :utf8);
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
+use Getopt::Long;
+use Pod::Usage;
+
+# VERSION: inserted by DZP::OurPkgVersion
+
+####################################################################
+# Argument processing
+####################################################################
+
+my $nat_net;
+my $quiet;
+my $help;
+my $man;
+GetOptions ( 'nat=s'  => \$nat_net,
+             'quiet!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $in_path = shift @ARGV or pod2usage(2);
+my $name = shift @ARGV;
+
+####################################################################
+# Subroutines
+####################################################################
+
+my $no_nat_set;
+
+sub ip_info {
+    my ($obj) = @_;
+    my ($ip, $mask) = @{ address($obj, $no_nat_set) }; 
+    my $prefix_len = mask2prefix($mask);
+    return(print_ip($ip) . ($prefix_len == 32 ? '' : "/$prefix_len"));
+}
+
+sub prt_info {
+    my ($src_range, $prt) = @_;
+    my $desc = my $ptype = $prt->{proto};
+    if ($ptype eq 'tcp' or $ptype eq 'udp') {
+        my $port_code = sub {
+            my ($range_obj) = @_;
+            my ($v1, $v2) = @{ $range_obj->{range} };
+            if ($v1 == $v2) {
+                return $v1;
+            }
+            elsif ($v1 == 1 and $v2 == 65535) {
+                return;
+            }
+            else {
+                return "$v1-$v2";
+            }
+        };
+        my $sport = $src_range && $port_code->($src_range);
+        my $dport = $port_code->($prt);
+        if ($sport) {
+            $desc .= " $sport:$dport";
+        }
+        elsif ($dport) {
+            $desc .= " $dport";
+        }
+    }
+    elsif ($ptype eq 'icmp') {
+        if (defined(my $type = $prt->{type})) {
+            if (defined(my $code = $prt->{code})) {
+                $desc .= " $type/$code";
+            }
+            else {
+                $desc .= " $type";
+            }
+        }
+    }
+    return $desc;
+}
+
+####################################################################
+# Main program
+####################################################################
+
+my $file_config = &read_config($in_path);
+$config = combine_config($file_config, { verbose => !$quiet });
+init_global_vars();
+
+# Read and process Netspoc configuration file or directory.
+&read_file_or_dir($in_path);
+
+if ($name) {
+    $name =~ s/^service://;
+    $services{$name} or die "Unknown service '$name'\n";
+}
+&link_topology();
+&mark_disabled();
+&set_zone();
+&distribute_nat_info();
+&setpath();
+find_subnets_in_zone();
+&abort_on_error();
+
+# Find network for resolving NAT addresses.
+if($nat_net) {
+    my $net = $networks{$nat_net} or 
+	die "Unknown network:$nat_net of option '-n'\n";
+    $no_nat_set = $net->{nat_domain}->{no_nat_set};
+}
+
+# Expand services
+my %service2rules;
+&order_protocols();
+&expand_services(1);
+&abort_on_error();
+for my $type ('deny', 'permit') {
+    for my $rule (@{ $expanded_rules{$type} }) {
+        my $service_name = $rule->{rule}->{service}->{name};
+        $service_name =~ s/^service://;
+        $name and $name ne $service_name and next;
+        push @{ $service2rules{$service_name} }, $rule;
+    }
+}
+for my $service_name (sort keys %service2rules) {
+    for my $rule (@{ $service2rules{$service_name} }) {
+        my ($deny, $src, $dst, $src_range, $prt) = 
+            @{$rule}{qw(deny src dst src_range prt)};
+        my $action   = $deny ? 'deny' : 'permit';
+        my $src_info = ip_info($src);
+        my $dst_info = ip_info($dst);
+        my $prt_info = prt_info($src_range, $prt);
+        print "$service_name:$action $src_info $dst_info $prt_info\n";
+    }
+}

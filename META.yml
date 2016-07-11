@@ -1,0 +1,40 @@
+---
+abstract: 'Generates rules for many firewalls from a central ruleset.'
+author:
+  - 'Heinz Knutzen <heinz.knutzen@dataport.de>'
+build_requires:
+  Capture::Tiny: '0'
+  Carp: '0'
+  File::Spec::Functions: '0'
+  File::Temp: '0'
+  IPC::Run3: '0'
+  Test::Differences: '0'
+  Test::More: '0'
+  lib: '0'
+configure_requires:
+  ExtUtils::MakeMaker: '0'
+dynamic_config: 0
+generated_by: 'Dist::Zilla version 6.006, CPAN::Meta::Converter version 2.150005'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: '1.4'
+name: Netspoc
+requires:
+  Digest::SHA: '0'
+  Encode: '0'
+  Exporter: '0'
+  File::Basename: '0'
+  File::Path: '0'
+  Getopt::Long: '0'
+  IO::Pipe: '0'
+  JSON: '0'
+  JSON::XS: '0'
+  Pod::Usage: '0'
+  bytes: '0'
+  constant: '0'
+  open: '0'
+  strict: '0'
+  warnings: '0'
+version: '5.013'
+x_serialization_backend: 'YAML::Tiny version 1.69'

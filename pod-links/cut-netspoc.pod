@@ -1,0 +1,522 @@
+#!/usr/bin/perl
+
+=head1 NAME
+
+cut-netspoc - Print parts of a netspoc configuration to stdout
+
+=head1 SYNOPSIS
+
+cut-netspoc [options] FILE|DIR [service:name] ...
+
+=head1 DESCRIPTION
+
+Reads a Netspoc configuration and prints parts of this configuration
+to STDOUT. If one or more services are given as argument, only those
+parts are printed, that are referenced by given serices. If no service
+is given, it acts as if all services are specified. This is useful to
+eliminate all disabled parts of the topology.
+
+=head1 OPTIONS
+
+=item B<-q>
+
+Quiet, don't print status messages.
+
+=item B<-help>
+
+Prints a brief help message and exits.
+
+=item B<-man>
+
+Prints the manual page and exits.
+
+=back
+
+=head1 COPYRIGHT AND DISCLAIMER
+
+(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+
+http://hknutzen.github.com/Netspoc
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+=cut
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::Common;
+use Netspoc::Compiler::Pass1;
+use locale;
+
+# VERSION: inserted by DZP::OurPkgVersion
+
+####################################################################
+# Argument processing
+####################################################################
+my $quiet;
+my $help;
+my $man;
+GetOptions ( 'quiet!' => \$quiet,
+	     'help|?' => \$help,
+	     man => \$man,
+	     ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+my $path = shift @ARGV;
+
+# Give each source part an index to preserve original order.
+my $src_index = 1;
+
+# Enhanced version of read_netspoc, which stores source code of each
+# global definition.
+sub read_netspoc_with_src {
+    my $pre    = pos $input;
+    my $object = &read_netspoc();
+    my $post   = pos $input;
+    $object->{src_code} = substr $input, $pre, $post - $pre;
+    $object->{src_index} = $src_index++;
+
+#    print STDERR "$object->{name} $pre-$post\n";
+    return $object;
+}
+
+
+# Not only networks on path, but all connected networks need to be marked
+# to get a valid topology.
+sub mark_adjacent_networks {
+    my ($router) = @_;
+    for my $interface (@{ $router->{interfaces} }) {
+#        debug "adj. $interface->{network}->{name}";
+        my $network = $interface->{network};
+        $network->{is_used} = 1;
+
+        # Mark bridge and bridged networks.
+        if ($network->{bridged}) {
+            for my $bridge_in (@{ $network->{interfaces} }) {
+                $bridge_in->{ip} eq 'bridged' or next;
+                my $bridge = $bridge_in->{router};
+                $bridge->{is_used} = 1;
+                for my $bridge_out (@{ $bridge->{interfaces} }) {
+                    $bridge_out->{ip} eq 'bridged' or next;
+                    $bridge_out->{network}->{is_used} = 1;
+                }                                           
+            }
+        }
+    }
+    return;
+}
+
+# This function is called by path_walk to mark all managed routers and
+# adjacent networks on path from src to dst of $rule with attribute {is_used}.
+sub mark_topology {
+    my ($rule, $in_intf, $out_intf) = @_;
+    my $router = ($in_intf || $out_intf)->{router};
+    $router->{is_used} = 1;
+#    debug "Used $router->{name}";
+    mark_adjacent_networks($router);
+    return;
+}
+
+# Mark unmanaged routers and adjacent networks 
+# between marked and managed parts of topology.
+sub path_unmanaged {
+    my ($obj, $in_interface) = @_;
+    return 1 if $obj->{is_used};
+    return 0 if $obj->{managed};
+    return if $obj->{active_path};
+
+    local $obj->{active_path} = 1;
+    my $result = 0;
+    for my $interface (@{ $obj->{interfaces} }) {
+        next if $interface eq $in_interface;
+        my $next = $interface->{is_network($obj) ? 'router' : 'network'};
+	if (path_unmanaged($next, $interface)) {
+	    $obj->{is_used} = 1;
+#	    debug "Marked $obj->{name}";
+	    if (is_router($obj)) {
+		mark_adjacent_networks($obj);
+	    }
+	    $result = 1;
+	}
+    }
+    return $result;
+}
+
+sub mark_unmanaged {
+    for my $network (values %networks) {
+	next if not $network->{is_used};
+	for my $interface (@{ $network->{interfaces} }) {
+	    my $router = $interface->{router};
+#	    debug "Path unmanaged $router->{name} $interface->{name}";
+	    path_unmanaged($router, $interface);
+	}
+    }
+    return;
+}	
+
+sub mark_path {
+    my ($src, $dst) = @_;
+    my $rule = {src => $src, dst => $dst, prt => {}};
+#    debug "Path $src->{name} $dst->{name}";
+    &path_walk($rule, \&mark_topology);
+    return;
+}
+
+# We can't use %aggregates from Netspoc.pm because it only holds named
+# aggregates. But we need unnamed aggregates like any:[network:XX]
+# as well.
+my @all_zones;
+sub get_zones {
+    my %all_zones;
+    for my $network (values %networks) {
+        next if $network->{disabled};
+        my $zone = $network->{zone};
+        $all_zones{$zone} = $zone;
+    }
+    @all_zones = values %all_zones;
+    return;
+}
+	
+####################################################################
+# Main program
+####################################################################
+
+my $file_config = &read_config($path);
+$config = combine_config($file_config, 
+                    {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+init_global_vars();
+&show_version();
+
+# Read and process netspoc configuration data.
+# Remember source code of each global definition.
+&read_file_or_dir($path, \&read_netspoc_with_src);
+
+my %name2var = ( service => \%services);
+
+if (@ARGV) {
+
+    # Read names of services from command line.
+    for my $arg (@ARGV) {
+        my ($type, $name) = split_typed_name $arg;
+        my $ref = $name2var{$type} or pod2usage(2);
+        my $thing = $ref->{$name} or fatal_err "Unknown $arg";
+        $thing->{is_used} = 1;
+    }
+
+    # Delete unwanted global definitions.
+    for my $ref (values %name2var) {
+        for my $name (keys %$ref) {
+            unless ($ref->{$name}->{is_used}) {
+                delete $ref->{$name};
+            }
+        }
+    }
+}
+
+# Retain all services, if no argument is given.
+# Only remove disabled parts.
+
+&order_protocols();
+&link_topology();
+&mark_disabled();
+&set_zone();
+&distribute_nat_info();
+&setpath();
+find_subnets_in_zone();
+link_reroute_permit();
+&expand_services(1);
+
+# Process rules of services.
+sub process_rules {
+    my ($expanded_rules) = @_;
+    for my $type ('deny', 'permit') {
+	for my $rule (@{ $expanded_rules->{$type} }) {
+	    for my $where ('src', 'dst') {
+
+		# path_walk only handles managed routers and adjacent networks.
+		# Mark all objects additionally here.
+		my $obj = $rule->{$where};
+		my $type = ref $obj;
+		if ($type eq 'Network') {
+#		    debug "Used $obj->{name}";
+		    $obj->{is_used} = 1;
+		}
+		elsif ($type eq 'Subnet') {
+		    $obj->{network}->{is_used} = 1;
+#		    debug "Used $obj->{network}->{name}";
+		}
+		elsif ($type eq 'Interface') {
+		    my $router = $obj->{router};
+#		    debug "Used $router->{name}";
+		    $router->{is_used} = 1;
+		    mark_adjacent_networks($router);
+		}
+		else {
+		    fatal_err "Unexpected type $type";
+		}		    
+	    }
+	    &path_walk($rule, \&mark_topology);
+	    if($rule->{orig_prt}){
+		$rule->{orig_prt}->{is_used} = 1;
+	    } else {
+		$rule->{prt}->{is_used} = 1;
+	    }
+	}
+    }
+    return;
+}
+
+# Mark parts of topology which are referenced by rules of services.
+process_rules(\%expanded_rules);
+
+# Mark networks inside marked aggregates.
+get_zones();
+for my $zone (@all_zones) {
+    for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
+        if($aggregate->{is_used}) {
+            for my $network (@{ $aggregate->{networks} }) {
+                $network->{is_used} = 1;
+            }
+        }
+    }
+}
+
+# Mark zones having attributes that influence their networks.
+for my $network (values %networks) {
+    $network->{is_used} or next;
+    my $zone = $network->{zone};
+    my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
+
+    # Simplifies test below.
+    $aggregate0->{owner} = $zone->{owner};
+
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
+    $aggregate0->{is_used} = 1;
+    $zone->{is_used} = 1;
+}
+
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    if (my $link = $zone->{link}) {
+        $link->{is_used} = 1;
+    }
+}
+
+# Mark areas having attributes that influence their networks.
+for my $zone (@all_zones) {
+    $zone->{is_used} or next;
+    for my $area (values %{ $zone->{areas} }) {
+        $area->{nat} or next;
+        $area->{is_used} = 1;
+    }
+}
+
+# Mark interfaces which are referenced by areas.
+for my $area (values %areas) {
+    if ($area->{is_used}) {
+        if (my $anchor = $area->{anchor}) {
+            $anchor->{is_used} = 1;
+        }
+        else {
+            for my $interface (@{ $area->{border} }, 
+                               @{ $area->{inclusive_border} }) 
+            {
+                mark_topology(undef, $interface, undef);
+            }
+        }
+    }
+}
+
+# Call this after topology has been marked.
+&expand_crypto();
+
+# 1. Call: Mark unmanaged parts of topology.
+mark_unmanaged();
+
+# Mark fragments of marked crypto routers.
+for my $router (values %routers) {
+    $router->{is_used} or next;
+    for my $interface (get_intf($router)) {
+        my $fragment = $interface->{router};
+        next if $fragment eq $router;
+#        debug "Fragment: $fragment->{name}";
+        $fragment->{is_used} = 1;
+    }
+}
+
+for my $router (values %routers) {
+    next unless $router->{is_used};
+    for my $interface (get_intf($router)) {
+
+	# Mark networks referenced in attribute reroute_permit.
+	if ($interface->{reroute_permit}) {
+	    for my $net (@{ $interface->{reroute_permit} }) {
+                $net->{is_used} = 1;
+	    }
+	}
+ 
+	# Mark crypto definitions which are referenced by
+	# already marked interfaces.  
+	my $mark_crypto = sub {
+	    my ($crypto) = @_;
+	    $crypto->{is_used} = 1;
+	    my $type = $crypto->{type};
+	    $type->{is_used} = 1;
+	    $type->{key_exchange}->{is_used} = 1;
+	};
+	
+	if ($interface->{ip} eq 'tunnel') {
+	    $mark_crypto->($interface->{crypto});
+            my $peers = $interface->{peers};
+            for my $peer (@$peers) {
+                mark_path($interface->{real_interface}, 
+                          $peer->{real_interface}); 
+            }
+	}
+    }
+
+    # Mark radius servers referenced in attribute radius_servers.
+    if ($router->{radius_servers}) {
+	for my $host (@{$router->{radius_servers}}) {
+
+	    # Take an arbitrary interface and get the interface 
+	    # in direction to $host.
+	    my ($src) = 
+		path_auto_interfaces($router->{interfaces}->[0], 
+					     $host);
+            mark_path($src, $host);
+	}
+    }
+}
+
+# 2. Call: Mark unmanaged parts of topology.
+# Mark paths between fragments of crypto routers now.
+mark_unmanaged();
+
+for my $obj (values %areas, values %aggregates,
+             values %networks, values %routers) 
+{
+    next if not $obj->{is_used};
+    if (my $owner = $obj->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+# Hosts are always printed, but are never marked as {is_used},
+# because only subnets are marked. Hence check network.
+for my $host (values %hosts) {
+    next if !$host->{network}->{is_used};
+    if (my $owner = $host->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+# Interfaces are always printed, but not necessarily marked as {is_used}.
+# Hence check network.
+for my $interface (values %interfaces) {
+    next if !$interface->{router}->{is_used};
+    if (my $owner = $interface->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+for my $service (values %services) {
+    if (my $owner = $service->{sub_owner}) {
+	$owner->{is_used} = 1;
+    }
+}    
+for my $area (values %areas) {
+    next if not $area->{is_used};
+    my $router_attributes = $area->{router_attributes} or next;
+    if (my $owner = $router_attributes->{owner}) {
+	$owner->{is_used} = 1;
+    }
+}
+
+sub mark_watching_owners {
+    my ($owner) = @_;
+    my $watching_owners = $owner->{watching_owners} or return;
+    for my $w_owner (@$watching_owners) {
+        $w_owner->{is_used} = 1;
+        mark_watching_owners($w_owner);
+    }
+    return;
+}
+
+sub by_index {
+    return $a->{src_index} <=> $b->{src_index}
+}
+
+for my $owner (values %owners) {
+    next if not $owner->{is_used};
+    mark_watching_owners($owner);
+}    
+
+# Print marked parts of netspoc configuration.
+# Routers and networks have been marked by mark_topology.
+# Protocols have been marked while @expanded_rules have been processed above.
+# Groups and protocolroups objects have been marked during expand_services.
+for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
+    values %routers,
+    values %networks,
+    values %aggregates,
+    values %areas,
+    values %groups,
+    values %protocols,
+    values %protocolgroups,
+    values %isakmp,
+    values %ipsec,
+    values %crypto,
+    values %owners
+  )
+{
+    if ($object->{is_used}) {
+
+        # There are some internal objects without src_code.
+        if (my $src_code = $object->{src_code}) {
+            print $src_code, "\n";
+        }
+    }
+}
+
+# Source of pathrestrictions can't be used literally,
+# but must be reconstructed from internal data structure.
+for my $restrict (sort by_index values %pathrestrictions) {
+    my $used = 0;
+    for my $interface (@{ $restrict->{elements} }) {
+        if ($interface->{router}->{is_used}) {
+            $used++;
+        }
+        else {
+            $interface = undef;
+        }
+    }
+    next if $used < 2;
+    print "$restrict->{name} =\n";
+    for my $interface (@{ $restrict->{elements} }) {
+        next unless $interface;
+        next if $interface->{ip} eq 'tunnel';
+        print " $interface->{name},\n";
+    }
+    print ";\n";
+}
+
+# All unwanted services have already been deleted above.
+for my $service (sort by_index values %services) {
+    print $service->{src_code}, "\n";
+}
