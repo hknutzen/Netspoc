@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.013     2016-07-11 14:26:29+02:00 Europe/Berlin
+
  - Improved check for missing transient supernet rules.
    Previously we checked only rules a-->any:b, any:b-->c
    for missing rule a-->c.
