@@ -26,6 +26,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 =cut
 
+use feature 'current_sub';
 use strict;
 use warnings;
 use JSON::XS;
@@ -8891,8 +8892,18 @@ sub find_subnets_in_nat_domain {
 
     # 2. step:
     # Analyze %is_in and %identical relation for different NAT domains.
+
+    # Mapping from subnet to bignet in same zone.
+    # Bignet must be marked, if subnet is marked later with {has_other_subnet}.
+    my %pending_other_subnet;
+    my $mark_network_and_pending = sub {
+        my ($network) = @_;
+        return if $network->{has_other_subnet};
+        $network->{has_other_subnet} = 1;
+        my $list = delete $pending_other_subnet{$network} or return;
+        __SUB__->($_) for @$list;
+    };
     my %seen;
-    my %todo_other_subnet;
     for my $domain (@natdomains) {
 
         # Ignore NAT domain consisting only of a single unnumbered network and
@@ -9007,7 +9018,7 @@ sub find_subnets_in_nat_domain {
 
             # Mark network having subnet in same zone, if subnet has
             # subsubnet in other zone.
-            # Remember subnet relation in same zone in %todo_other_subnet,
+            # Remember subnet relation in same zone in %pending_other_subnet,
             # if current status of subnet is not known, 
             # since status may change later.
             if ($bignet->{zone} eq $subnet->{zone}) {
@@ -9015,28 +9026,20 @@ sub find_subnets_in_nat_domain {
                     $bignet->{has_other_subnet} = 1;
                 }
                 else {
-                    push @{ $todo_other_subnet{$subnet} }, $bignet;
+                    push @{ $pending_other_subnet{$subnet} }, $bignet;
                 }
             }
             
             # Mark network having subnet in other zone.
             else {
-
-#               debug "has other: $bignet->{name}";
-                $bignet->{has_other_subnet} = 1;
-                if (my $list = delete $todo_other_subnet{$bignet}) {
-                    $_->{has_other_subnet} = 1 for @$list;
-                }
+                $mark_network_and_pending->($bignet);
 
                 # Mark aggregate that has other *supernet*.
                 # In this situation, addresses of aggregate
                 # are part of supernet and located in another
                 # zone.
                 if ($subnet->{is_aggregate}) {
-                    $subnet->{has_other_subnet} = 1;
-                    if (my $list = delete $todo_other_subnet{$subnet}) {
-                        $_->{has_other_subnet} = 1 for @$list;
-                    }
+                    $mark_network_and_pending->($subnet);
                 }
             }
 
