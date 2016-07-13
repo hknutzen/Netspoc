@@ -3372,38 +3372,31 @@ sub read_file_or_dir {
     }
 
     # Recursively read files and directories.
-    my $read_nested_files;
-    my $read_nested_files0 = sub {
+    my $read_nested_files = sub {
         my ($path, $read_syntax) = @_;
-        if (-d $path) {
-            opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-            while (my $file = Encode::decode($filename_encode, readdir $dh)) {
-                next if $file =~ /^\./;
-                next if $file =~ m/$config->{ignore_files}/o;
-                my $path = "$path/$file";
-                $read_nested_files->($path, $read_syntax);
-            }
-            closedir $dh;
-        }
-        else {
-            read_file $path, $read_syntax;
-        }
-    };
-
-    # Special handling for "*.private".
-    $read_nested_files = sub {
-        my ($path, $read_syntax) = @_;
+        my $next_private = $private;
 
         # Handle private directories and files.
         if (my ($name) = ($path =~ m'([^/]*\.private)$')) {
             if ($private) {
                 err_msg("Nested private context is not supported:\n $path");
             }
-            local $private = $name;
-            $read_nested_files0->($path, $read_syntax);
+            $next_private = $name;
+        }
+
+        local $private = $next_private;
+        if (-d $path) {
+            opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
+            while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+                next if $file =~ /^\./;
+                next if $file =~ m/$config->{ignore_files}/o;
+                my $path = "$path/$file";
+                __SUB__->($path, $read_syntax);
+            }
+            closedir $dh;
         }
         else {
-            $read_nested_files0->($path, $read_syntax);
+            read_file $path, $read_syntax;
         }
     };
 
@@ -6571,8 +6564,7 @@ sub propagate_owners {
     # upper_owner: owner object without attribute extend_only or undef
     # extend: a list of owners with attribute extend
     # extend_only: a list of owners with attribute extend_only
-    my $inherit;
-    $inherit = sub {
+    my $inherit = sub {
         my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
         my $owner = $node->{owner};
         if (not $owner) {
@@ -6618,7 +6610,7 @@ sub propagate_owners {
         }
         my $childs = $tree{$node} or return;
         for my $child (@$childs) {
-            $inherit->($child, $upper_owner, $upper_node, $extend,
+            __SUB__->($child, $upper_owner, $upper_node, $extend,
                 $extend_only);
         }
     };
@@ -8356,8 +8348,7 @@ sub invert_nat_set {
     # NAT partitions arise, if parts of the topology are strictly
     # separated by crypto interfaces.
     my %partitions;
-    my $mark_nat_partition;
-    $mark_nat_partition = sub {
+    my $mark_nat_partition = sub {
         my ($domain, $mark) = @_;
         return if $partitions{$domain};
 
@@ -8366,7 +8357,7 @@ sub invert_nat_set {
         for my $router (@{ $domain->{routers} }) {
             for my $out_domain (@{ $router->{nat_domains} }) {
                 next if $out_domain eq $domain;
-                $mark_nat_partition->($out_domain, $mark);
+                __SUB__->($out_domain, $mark);
             }
         }
     };
@@ -8712,14 +8703,13 @@ sub find_subnets_in_zone {
         # This is used to exclude subnets from $zone->{networks} below.
         # It is also used to derive attribute {max_routing_net}.
         my %max_up_net;
-        my $set_max_net;
-        $set_max_net = sub {
+        my $set_max_net = sub {
             my ($network) = @_;
             return if not $network;
             if (my $max_net = $max_up_net{$network}) {
                 return $max_net;
             }
-            if (my $max_net = $set_max_net->($network->{up})) {
+            if (my $max_net = __SUB__->($network->{up})) {
                 if (!$network->{is_aggregate}) {
                     $max_up_net{$network} = $max_net;
 
@@ -9135,10 +9125,9 @@ sub cluster_crosslink_routers {
     my ($crosslink_routers) = @_;
     my %cluster;
     my %seen;
-    my $walk;
 
     # Add routers to cluster via depth first search.
-    $walk = sub {
+    my $walk = sub {
         my ($router) = @_;
         $cluster{$router} = $router;
         $seen{$router}    = $router;
@@ -9150,7 +9139,7 @@ sub cluster_crosslink_routers {
                 next if $out_intf eq $in_intf;
                 my $router2 = $out_intf->{router};
                 next if $cluster{$router2};
-                $walk->($router2);
+                __SUB__->($router2);
             }
         }
     };
@@ -9302,8 +9291,7 @@ sub get_managed_local_clusters {
         # IP/mask pairs of current cluster matching {filter_only}.
         my %matched;
 
-        my $walk;
-        $walk = sub {
+        my $walk = sub {
             my ($router) = @_;
             $router->{local_mark} = $local_mark;
             if ($filter_only ne $router->{filter_only}) {
@@ -9361,7 +9349,7 @@ sub get_managed_local_clusters {
                         my $managed = $router2->{managed} or next;
                         next if $managed !~ /^local/;
                         next if $router2->{local_mark};
-                        $walk->($router2);
+                        __SUB__->($router2);
                     }
                 }
             }
@@ -9393,13 +9381,12 @@ sub mark_managed_local {
         my ($no_nat_set, $filter_only, $mark) =
           @{$cluster}{qw(no_nat_set filter_only mark)};
 
-        my $mark_networks;
-        $mark_networks = sub {
+        my $mark_networks = sub {
             my ($networks) = @_;
             for my $network (@$networks) {
 
                 if (my $subnetworks = $network->{networks}) {
-                    $mark_networks->($subnetworks);
+                    __SUB__->($subnetworks);
                 }
 
                 my $nat_network = get_nat_network($network, $no_nat_set);
@@ -9559,12 +9546,11 @@ sub link_implicit_aggregate_to_zone {
     # Collect all aggregates, networks and subnets of current zone.
     # Get aggregates in deterministic order.
     my @objects = @{$ipmask2aggregate}{ sort keys %$ipmask2aggregate };
-    my $add_subnets;
-    $add_subnets = sub {
+    my $add_subnets = sub {
         my ($network) = @_;
         my $subnets = $network->{networks} or return;
         push @objects, @$subnets;
-        $add_subnets->($_) for @$subnets;
+        __SUB__->($_) for @$subnets;
     };
     push @objects, @{ $zone->{networks} };
     $add_subnets->($_) for @{ $zone->{networks} };
@@ -12513,8 +12499,7 @@ my %border2obj2auto;
 
 sub set_auto_intf_from_border {
     my ($border) = @_;
-    my $reach_from_border;
-    $reach_from_border = sub {
+    my $reach_from_border = sub {
         my ($network, $in_intf, $result) = @_;
         push @{ $result->{$network} }, $in_intf;
 
@@ -12534,7 +12519,7 @@ sub set_auto_intf_from_border {
                 next if $out_intf eq $interface;
                 next if $out_intf->{orig_main};
                 my $out_net = $out_intf->{network};
-                $reach_from_border->($out_net, $out_intf, $result);
+                __SUB__->($out_net, $out_intf, $result);
             }
         }
     };
@@ -14792,8 +14777,7 @@ sub set_routes_in_zone {
     # via depth first search to accelerate later DFS runs starting at hop IFs.
     my %hop2cluster; # Store hop IFs as key and reached clusters as values.
     my %cluster2borders; # Store directly linked border networks for clusters.
-    my $set_cluster;
-    $set_cluster = sub {
+    my $set_cluster = sub {
         my ($router, $in_intf, $cluster) = @_;
         return if $router->{active_path};
         local $router->{active_path} = 1;
@@ -14820,7 +14804,7 @@ sub set_routes_in_zone {
             for my $out_intf (@{ $network->{interfaces} }) {
                 next if $out_intf eq $interface;
                 next if $out_intf->{main_interface};
-                $set_cluster->($out_intf->{router}, $out_intf, $cluster);
+                __SUB__->($out_intf->{router}, $out_intf, $cluster);
             }
         }
     };
@@ -14837,8 +14821,7 @@ sub set_routes_in_zone {
 
     # Perform depth first search to collect all networks behind a hop interface.
     my %hop2networks; # Hash to store the collected sets. 
-    my $set_networks_behind;
-    $set_networks_behind = sub {
+    my $set_networks_behind = sub {
         my ($hop, $in_border) = @_;
         return if $hop2networks{$hop}; # Hop IF network set is known already.  
 
@@ -14858,7 +14841,7 @@ sub set_routes_in_zone {
                 next if $hop2cluster{$out_hop} eq $cluster;
 
                 # Create hop2networks entry for reachable hops and add networks
-                $set_networks_behind->($out_hop, $border);
+                __SUB__->($out_hop, $border);
                 push @result, @{ $hop2networks{$out_hop} };
             }
         }
