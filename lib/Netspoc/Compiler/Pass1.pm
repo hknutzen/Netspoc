@@ -1175,10 +1175,9 @@ sub read_host {
 
 sub read_nat {
     my ($name, $mask_is_optional) = @_;
-
+    
     # Currently this needs not to be blessed.
-    my $nat = { name => $name };
-    (my $nat_tag = $name) =~ s/^nat://;
+    my $nat = { name => $name, };
     skip '=';
     skip '{';
     while (1) {
@@ -1203,10 +1202,7 @@ sub read_nat {
         }
         elsif ($token eq 'dynamic') {
             skip(';');
-
-            # $nat_tag is used later to look up static translation
-            # of hosts inside a dynamically translated network.
-            $nat->{dynamic} = $nat_tag;
+            $nat->{dynamic} = 1;
         }
         elsif ($token eq 'subnet_of') {
             my $pair = read_assign(\&read_typed_name);
@@ -1223,7 +1219,7 @@ sub read_nat {
         }
 
         # This simplifies error checks for overlapping addresses.
-        $nat->{dynamic} = $nat_tag;
+        $nat->{dynamic} = 1;
 
         # Provide an unusable address.
         # This prevents 'Use of uninitialized value' 
@@ -1237,11 +1233,17 @@ sub read_nat {
             next if grep { $key eq $_ } qw( name identity );
             error_atline("Identity NAT must not use attribute $key");
         }
-        $nat->{dynamic} = $nat_tag;
+        $nat->{dynamic} = 1;
     }
     else {
         defined($nat->{ip}) or error_atline('Missing IP address');
     }
+
+    # Attribute {nat_tag} is used later to look up static translation
+    # of hosts inside a dynamically translated network.
+    (my $nat_tag = $name) =~ s/^nat://;
+    $nat->{nat_tag} = $nat_tag;
+    
     return $nat;
 }
 
@@ -2370,8 +2372,7 @@ sub read_router {
 
                 # Move NAT definition from interface to loopback network.
                 if (my $nat = delete $interface->{nat}) {
-                    for my $nat_tag (sort keys %$nat) {
-                        my $nat_info = $nat->{$nat_tag};
+                    for my $nat_info (values %$nat) {
                         $nat_info->{mask} = 0xffffffff;
                     }
                     $network->{nat} = $nat;
@@ -2390,7 +2391,7 @@ sub read_router {
             for my $nat_tag (sort keys %$nat) {
                 my $nat_info = $nat->{$nat_tag};
                 for my $what (qw(hidden identity dynamic)) {
-                    defined $nat_info->{$what} or next;
+                    $nat_info->{$what} or next;
                     err_msg("Must not use '$what' in nat:$nat_tag",
                             " of $interface->{name}");
                     last;
@@ -8009,15 +8010,13 @@ sub distribute_nat1 {
                                 " at $router->{name}"
                             );
                         }
-                        elsif ($nat_info->{dynamic}) {
-                            if (!($next_info->{dynamic})) {
-                                err_msg(
-                                    "Must not change dynamic nat:$nat_tag",
+                        elsif ($nat_info->{dynamic} and
+                               not $next_info->{dynamic}) 
+                        {
+                            err_msg("Must not change dynamic nat:$nat_tag",
                                     " to static using nat:$nat_tag2\n",
                                     " for $nat_info->{name}",
-                                    " at $router->{name}"
-                                );
-                            }
+                                    " at $router->{name}");
                         }
                         next DOMAIN;
                     }
@@ -8290,7 +8289,7 @@ sub check_nat_compatibility {
     for my $network (@networks) {
         for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
             my $nat = $obj->{nat} or next;
-            for my $nat_tag (keys %$nat) {
+            for my $nat_tag (sort keys %$nat) {
                 my $nat_network = $network->{nat}->{$nat_tag};
                 if ($nat_network and $nat_network->{dynamic}) {
                     my $obj_ip = $nat->{$nat_tag};
@@ -8314,7 +8313,7 @@ sub check_nat_compatibility {
 sub check_interfaces_with_dynamic_nat {
     for my $network (@networks) {
         my $nat = $network->{nat} or next;
-        for my $nat_tag (keys %$nat) {
+        for my $nat_tag (sort keys %$nat) {
             my $nat_info = $nat->{$nat_tag};
             $nat_info->{dynamic} or next;
             next if $nat_info->{identity} or $nat_info->{hidden};
@@ -8435,7 +8434,7 @@ sub adjust_crypto_nat {
                 $real_set = $real_intf->{no_nat_set} = {%$real_set};
                 my $hardware = $real_intf->{hardware};
                 $hardware->{no_nat_set} = $real_set if ref $hardware;
-                for my $nat_tag (sort keys %$tunnel_set) {
+                for my $nat_tag (keys %$tunnel_set) {
 
 #                   debug "Adjust NAT of $real_intf->{name}: $nat_tag";
                     $real_set->{$nat_tag} = 1;
@@ -8511,7 +8510,7 @@ sub check_subnets {
 sub nat_to_loopback_ok {
     my ($loopback_network, $nat_network) = @_;
 
-    my $nat_tag1      = $nat_network->{dynamic};
+    my $nat_tag1      = $nat_network->{nat_tag};
     my $device_count  = 0;
     my $all_device_ok = 0;
 
@@ -8824,9 +8823,6 @@ sub find_subnets_in_nat_domain {
     # We need this in deterministic order.
     my @nat_networks;
 
-    # Mapping from NAT network to corresponding NAT tag.
-    my %nat_tag;
-
     # Mapping from NAT network to original network.
     my %orig_net;
     
@@ -8835,11 +8831,9 @@ sub find_subnets_in_nat_domain {
         push @nat_networks, $network;
         $orig_net{$network} = $network;
         my $nat = $network->{nat} or next;
-        for my $nat_tag (sort keys %$nat) {
-            my $nat_network = $nat->{$nat_tag};
-            $nat_tag{$nat_network} = $nat_tag;
-            $orig_net{$nat_network} = $network;
+        for my $nat_network (values %$nat) {
             next if $nat_network->{hidden};
+            $orig_net{$nat_network} = $network;
             push @nat_networks, $nat_network;
         }
     }
@@ -8918,7 +8912,7 @@ sub find_subnets_in_nat_domain {
         for my $nat_network (@nat_networks) {
 
             # NAT network
-            if (my $tag = $nat_tag{$nat_network}) {
+            if (my $tag = $nat_network->{nat_tag}) {
                 next NETWORK if $no_nat_set->{$tag};
             }
 
@@ -14582,10 +14576,9 @@ sub check_dynamic_nat_rules {
                 my $check_common = sub {
                     my ($nat_intf, $reversed2) = @_;
                     my $no_nat_set = $nat_intf->{no_nat_set};
-                    my $nat_network =
-                        get_nat_network($network, $no_nat_set);
-                    my $nat_tag = $nat_network->{dynamic};
-                    return if not $nat_tag;
+                    my $nat_network = get_nat_network($network, $no_nat_set);
+                    $nat_network->{dynamic} or return;
+                    my $nat_tag = $nat_network->{nat_tag};
                     return if $obj->{nat}->{$nat_tag};
                     my $intf = $reversed ? $out_intf : $in_intf;
 
@@ -16192,7 +16185,8 @@ sub address {
     }
     elsif ($type eq 'Subnet') {
         my $network = get_nat_network($obj->{network}, $no_nat_set);
-        if (my $nat_tag = $network->{dynamic}) {
+        if ($network->{dynamic}) {
+            my $nat_tag = $network->{nat_tag};
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this host.
@@ -16223,7 +16217,8 @@ sub address {
             my ($network_ip, $network_mask) = @{$network}{qw(ip mask)};
             return [ $network_ip, $network_mask ];
         }
-        elsif (my $nat_tag = $network->{dynamic}) {
+        elsif ($network->{dynamic}) {
+            my $nat_tag = $network->{nat_tag};
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this interface.
