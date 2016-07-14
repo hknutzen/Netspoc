@@ -277,7 +277,7 @@ sub equal {
 # Preserves original order.
 sub unique {
     my %seen;
-    return grep { !$seen{$_}++ } @_;
+    return grep { not $seen{$_}++ } @_;
 }
 
 # Check passed arguments for duplicates.
@@ -684,7 +684,7 @@ sub check_typed_name {
 
 sub read_typed_name {
     my $token = read_token();
-    return (check_typed_name($token) || syntax_err("Typed name expected"));
+    return (check_typed_name($token) or syntax_err("Typed name expected"));
 }
 
 {
@@ -765,11 +765,11 @@ sub read_typed_name {
         }
         else {
             skip_direct('\[');
-            if (($interface || $type eq 'host') && check('managed')) {
+            if (($interface or $type eq 'host') and check('managed')) {
                 $ext = 1;
                 skip '&';
             }
-            elsif ($type eq 'any' && check('ip')) {
+            elsif ($type eq 'any' and check('ip')) {
                 skip '=';
                 $ext = read_ip_prefix_pair();
                 skip '&';
@@ -1015,16 +1015,16 @@ sub host_as_interface {
     my $name    = $host->{name};
     my $model   = delete $host->{model};
     my $hw_name = delete $host->{hardware};
-    if (!$model) {
+    if (not $model) {
         err_msg("Missing 'model' for managed $host->{name}");
 
         # Prevent further errors.
         $model = $host->{model} = { name => 'unknown' };
     }
-    elsif (!$model->{can_managed_host}) {
+    elsif (not $model->{can_managed_host}) {
         err_msg("Must not use model $model->{name} at managed $name");
     }
-    if (!$hw_name) {
+    if (not $hw_name) {
         err_msg("Missing 'hardware' for $name");
     }
 
@@ -1625,7 +1625,7 @@ sub read_interface {
                 }
             }
             $virtual->{ip} or error_atline("Missing virtual IP");
-            ($virtual->{redundancy_id} && !$virtual->{redundancy_type})
+            $virtual->{redundancy_id} and not $virtual->{redundancy_type}
               and
               syntax_err("Redundancy ID is given without redundancy protocol");
         }
@@ -1648,7 +1648,7 @@ sub read_interface {
         }
         elsif ($token eq 'reroute_permit') {
             my $pairs = read_assign_list(\&read_typed_name);
-            if (grep { $_->[0] ne 'network' || ref $_->[1] } @$pairs) {
+            if (grep { $_->[0] ne 'network' or ref $_->[1] } @$pairs) {
                 error_atline "Must only use network names in 'reroute_permit'";
                 $pairs = [];
             }
@@ -1711,7 +1711,7 @@ sub read_interface {
           error_atline("'vip' interface must not have attribute 'hardware'");
         $interface->{hardware} = 'VIP';
     }
-    if ($interface->{owner} && !$interface->{vip}) {
+    if ($interface->{owner} and not $interface->{vip}) {
         error_atline("Must use attribute 'owner' only at 'vip' interface");
         delete $interface->{owner};
     }
@@ -1740,7 +1740,7 @@ sub read_interface {
     }
     if ($interface->{ip} eq 'bridged') {
         my %ok = (ip => 1, hardware => 1, name => 1, bind_nat => 1);
-        if (my @extra = grep { !$ok{$_} } keys %$interface) {
+        if (my @extra = grep { not $ok{$_} } keys %$interface) {
             my $attr = join ", ", map { "'$_'" } @extra;
             error_atline("Invalid attributes $attr for bridged interface");
         }
@@ -1984,7 +1984,7 @@ sub read_router {
     {
         my $error;
         for my $interface (@{ $router->{interfaces} }) {
-            if ($interface->{vip} && !($model && $model->{has_vip})) {
+            if ($interface->{vip} and not($model and $model->{has_vip})) {
                 $error = 1;
 
                 # Prevent further errors.
@@ -2041,7 +2041,7 @@ sub read_router {
 
             # Interface of managed router needs to have a hardware
             # name.
-            if (!$hw_name) {
+            if (not $hw_name) {
 
                 # Prevent duplicate error message.
                 if ($interface->{ip} ne 'short') {
@@ -2084,7 +2084,7 @@ sub read_router {
 
             # Hardware keeps attribute {loopback} only if all
             # interfaces have attribute {loopback}.
-            if (!$interface->{loopback}) {
+            if (not $interface->{loopback}) {
                 delete $hardware->{loopback};
             }
 
@@ -2111,7 +2111,7 @@ sub read_router {
                 $interface->{routing} ||= $all_routing;
             }
             if ((my $routing = $interface->{routing})
-                && $interface->{ip} eq 'unnumbered')
+                and $interface->{ip} eq 'unnumbered')
             {
                 my $rname = $routing->{name};
                 $rname =~ /^(?:manual|dynamic)$/
@@ -2170,7 +2170,7 @@ sub read_router {
           and err_msg("Must not use attribute 'no_protect_self' at $name",
             " of model $model->{name}");
         if ($model->{need_protect}) {
-            $router->{need_protect} = !delete $router->{no_protect_self};
+            $router->{need_protect} = not delete $router->{no_protect_self};
         }
 
         # Detailed interface processing for managed routers.
@@ -2443,8 +2443,8 @@ sub read_router {
             push @{ $crypto2spokes{$crypto} }, $tunnel_net;
         }
 
-        if (($interface->{spoke} || $interface->{hub})
-            && !$interface->{no_check})
+        if (($interface->{spoke} or $interface->{hub})
+            and not $interface->{no_check})
         {
             push @move_locked, $interface;
         }
@@ -2626,7 +2626,7 @@ sub read_area {
         elsif ($token eq 'border') {
             skip '=';
             my $elements = read_union(';');
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
+            if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
                 error_atline("Must only use interface names in 'border'");
                 $elements = [];
             }
@@ -2635,7 +2635,7 @@ sub read_area {
         elsif ($token eq 'inclusive_border') {
             skip '=';
             my $elements = read_union(';');
-            if (grep { $_->[0] ne 'interface' || ref $_->[1] } @$elements) {
+            if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
                 error_atline("Must only use interface names in",
                              " 'inclusive_border'");
                 $elements = [];
@@ -2648,7 +2648,7 @@ sub read_area {
         }
         elsif ($token eq  'anchor') {
             my $pair = read_assign(\&read_typed_name);
-            if ($pair->[0] ne 'network' || ref $pair->[1]) {
+            if ($pair->[0] ne 'network' or ref $pair->[1]) {
                 error_atline "Must only use network name in 'anchor'";
                 $pair = undef;
             }
@@ -2681,14 +2681,14 @@ sub read_area {
             syntax_err("Expected some valid attribute");
         }
     }
-    (($area->{border} || $area->{inclusive_border}) && $area->{anchor})
+    ($area->{border} or $area->{inclusive_border}) and $area->{anchor}
       and err_msg(
         "Attribute 'anchor' must not be defined together with",
         " 'border' or 'inclusive_border' for $name"
       );
-    ($area->{anchor} || $area->{border} || $area->{inclusive_border})
+    $area->{anchor} or $area->{border} or $area->{inclusive_border}
       or err_msg("At least one of attributes 'border', 'inclusive_border'",
-        " or 'anchor' must be defined for $name");
+                 " or 'anchor' must be defined for $name");
     return $area;
 }
 
@@ -2725,7 +2725,7 @@ sub read_port_range {
                 error_atline("Invalid port number '0'") if $port2 == 0;
                 error_atline("Invalid port range $port1-$port2")
                   if $port1 > $port2;
-                if ($port1 == 1 && $port2 == 65535) {
+                if ($port1 == 1 and $port2 == 65535) {
                     return $aref_tcp_any;
                 }
                 else {
@@ -2764,7 +2764,7 @@ sub read_icmp_type_code {
     if (defined(my $type = check_int)) {
         error_atline("Too large ICMP type $type") if $type > 255;
         $prt->{type} = $type;
-        if ($type == 0 || $type == 3 || $type == 11) {
+        if ($type == 0 or $type == 3 or $type == 11) {
             $prt->{modifiers}->{stateless_icmp} = 1;
         }
         if (check '/') {
@@ -3565,7 +3565,7 @@ sub order_icmp {
     for my $prt (values %$hash) {
 
         # 'icmp any' has been handled above.
-        if (!defined $prt->{type}) {
+        if (not defined $prt->{type}) {
         }
         elsif (defined $prt->{code}) {
             $prt->{up} = ($hash->{ $prt->{type} } or $up);
@@ -3895,8 +3895,8 @@ sub expand_watchers {
     my ($owner) = @_;
     my $names = $owner->{watchers};
 
-    # No wathers given.
-    if (!$names) {
+    # No watchers given.
+    if (not $names) {
         return $owner->{admins};
     }
 
@@ -3914,7 +3914,7 @@ sub expand_watchers {
     for my $name (@$names) {
         if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
             my $owner_b = $owners{$o_name};
-            if (!$owner_b) {
+            if (not $owner_b) {
                 err_msg("Unknown owner:$o_name referenced in watcher of",
                     " $owner->{name}");
                 next;
@@ -4063,7 +4063,7 @@ sub link_policy_distribution_point {
         return;
     }
     my $host = $hosts{$name};
-    if (!$host) {
+    if (not $host) {
         warn_msg("Ignoring undefined host:$name",
             " in 'policy_distribution_point' of $obj->{name}");
 
@@ -4107,7 +4107,7 @@ sub link_general_permit {
         if (my $modifiers = $orig_prt->{modifiers}) {
             push @reason, 'modifiers';
         }
-        if ($src_range || $range && $range ne $aref_tcp_any) {
+        if ($src_range or $range and $range ne $aref_tcp_any) {
             push @reason, 'ports';
         }
         if (@reason) {
@@ -4146,7 +4146,7 @@ sub link_areas {
         }
         else {
             for my $attr (qw(border inclusive_border)) {
-                next if !$area->{$attr};
+                $area->{$attr} or next;
                 $area->{$attr} = expand_group($area->{$attr}, $area->{name});
                 for my $obj (@{ $area->{$attr} }) {
                     if (is_interface $obj) {
@@ -4297,7 +4297,7 @@ sub link_subnet {
     my ($object, $parent) = @_;
 
     my $context = sub {
-        !$parent        ? $object->{name}
+            !$parent    ? $object->{name}
           : ref $parent ? "$object->{name} of $parent->{name}"
           :               "$parent $object->{name}";
     };
@@ -4623,7 +4623,7 @@ sub link_virtual_interfaces {
             next if @$interfaces < 2;
             for my $interface (@$interfaces) {
                 my $router = $interface->{router};
-                if ($router->{managed} || $router->{routing_only}) {
+                if ($router->{managed} or $router->{routing_only}) {
                     my $name = "auto-virtual-" . print_ip $interface->{ip};
                     add_pathrestriction($name, $interfaces);
                     last;
@@ -4645,16 +4645,16 @@ sub link_services {
             my @sobjects;
             for my $pair (@$overlaps) {
                 my ($type, $oname) = @$pair;
-                if (!$type eq 'service') {
-                    err_msg "Unexpected type '$type' in attribute 'overlaps'",
-                      " of $name";
+                if ($type ne 'service') {
+                    err_msg("Unexpected type '$type' in attribute 'overlaps'",
+                            " of $name");
                 }
                 elsif (my $other = $services{$oname}) {
                     push(@sobjects, $other);
                 }
                 else {
                     warn_msg("Unknown $type:$oname in attribute 'overlaps'",
-                        " of $name");
+                             " of $name");
                 }
             }
             $service->{overlaps} = \@sobjects;
@@ -4707,8 +4707,8 @@ sub check_ip_addresses {
             else {
                 unless ($ip =~ /^(?:unnumbered|negotiated|tunnel|bridged)$/) {
                     my $router = $interface->{router};
-                    if (($router->{managed} || $router->{routing_only})
-                        && !$interface->{routing})
+                    if (($router->{managed} or $router->{routing_only})
+                        and not$interface->{routing})
                     {
                         $route_intf = $interface;
                     }
@@ -4939,7 +4939,7 @@ sub mark_disabled {
         # Delete disabled interfaces from routers.
         my $router = $interface->{router};
         aref_delete($router->{interfaces}, $interface);
-        if ($router->{managed} || $router->{routing_only}) {
+        if ($router->{managed} or $router->{routing_only}) {
             my $hardware = $interface->{hardware};
             my $hw_interfaces = $hardware->{interfaces};
             aref_delete($hw_interfaces, $interface);
@@ -4958,7 +4958,7 @@ sub mark_disabled {
         else {
             for my $attr (qw(border inclusive_border)) {
                 my $borders = $area->{$attr} or next;
-                if (my @active_borders = grep { !$_->{disabled} } @$borders) {
+                if (my @active_borders = grep { not $_->{disabled} } @$borders) {
                     $area->{$attr} = \@active_borders;
                     $ok = 1;
                 }
@@ -5081,7 +5081,7 @@ sub split_ip_range {
   IP:
     while ($low <= $high) {
         for my $mask (@inverse_masks) {
-            if (($low & $mask) == 0 && ($low + $mask) <= $high) {
+            if (($low & $mask) == 0 and ($low + $mask) <= $high) {
                 push @result, [ $low, complement_32bit $mask ];
                 $low = $low + $mask + 1;
                 next IP;
@@ -5095,7 +5095,7 @@ sub owner_eq {
     my ($obj1, $obj2) = @_;
     my $owner1 = $obj1->{owner};
     my $owner2 = $obj2->{owner};
-    return not(($owner1 xor $owner2) || $owner1 && $owner1 ne $owner2);
+    return not(($owner1 xor $owner2) or $owner1 and $owner1 ne $owner2);
 }
 
 sub check_host_compatibility {
@@ -5530,8 +5530,8 @@ sub expand_group1 {
                     }
                     elsif ($type eq 'Interface') {
                         my $router = $object->{router};
-                        if ($managed
-                            && !($router->{managed} || $router->{routing_only}))
+                        if ($managed and
+                            not ($router->{managed} or $router->{routing_only}))
                         {
 
                             # Do nothing.
@@ -5570,7 +5570,7 @@ sub expand_group1 {
 
                             # Remove semi managed routers.
                             @routers =
-                              grep({ $_->{managed} || $_->{routing_only} }
+                              grep({ $_->{managed} or $_->{routing_only} }
                                 @routers);
                         }
                         else {
@@ -5589,8 +5589,8 @@ sub expand_group1 {
                     elsif ($type eq 'Autointerface') {
                         my $obj = $object->{object};
                         if (is_router $obj) {
-                            if ($managed
-                                && !($obj->{managed} || $obj->{routing_only}))
+                            if ($managed and
+                                not ($obj->{managed} or $obj->{routing_only}))
                             {
 
                                 # This router has no managed interfaces.
@@ -5665,7 +5665,7 @@ sub expand_group1 {
                       unique(
                         map({ get_any($_, $ip, $mask) } @{ $object->{zones} }));
                 }
-                elsif ($type eq 'Network' && $object->{is_aggregate}) {
+                elsif ($type eq 'Network' and $object->{is_aggregate}) {
                     push @objects, get_any($object->{zone}, $ip, $mask);
                 }
                 else {
@@ -5681,7 +5681,7 @@ sub expand_group1 {
                     push @objects, $object->{network};
                 }
                 elsif ($type eq 'Network') {
-                    if (!$object->{is_aggregate}) {
+                    if (not $object->{is_aggregate}) {
                         push @objects, $object;
                     }
 
@@ -5864,7 +5864,7 @@ sub expand_group1 {
             }
 
             # Substitute aggregate by aggregate set of zone cluster.
-            elsif ($object->{is_aggregate} && $object->{zone}->{zone_cluster}) {
+            elsif ($object->{is_aggregate} and $object->{zone}->{zone_cluster}) {
                 my ($ip, $mask) = @{$object}{qw(ip mask)};
                 push(@objects,
                     get_cluster_aggregates($object->{zone}, $ip, $mask));
@@ -6466,9 +6466,9 @@ sub propagate_owners {
         my @implicit_owner_zones = grep { $zone_got_net_owners{$_} } @$cluster
           or next;
         if (
-            !(
+            not (
                 @implicit_owner_zones == @$cluster
-                && equal(map { $_->{owner} } @implicit_owner_zones)
+                and equal(map { $_->{owner} } @implicit_owner_zones)
             )
           )
         {
@@ -6528,7 +6528,7 @@ sub propagate_owners {
         }
         for my $interface (@{ $network->{interfaces} }) {
             my $router = $interface->{router};
-            if (!($router->{managed} || $router->{routing_only})) {
+            if (not ($router->{managed} or $router->{routing_only})) {
                 $add_node->($network, $interface);
             }
         }
@@ -6575,7 +6575,7 @@ sub propagate_owners {
             $owner->{is_used} = 1;
             if ($upper_owner) {
                 if ($owner eq $upper_owner) {
-                    if (!$zone_got_net_owners{$upper_node}) {
+                    if (not $zone_got_net_owners{$upper_node}) {
                         warn_msg(
                             "Useless $owner->{name} at $node->{name},\n",
                             " it was already inherited from",
@@ -6594,13 +6594,13 @@ sub propagate_owners {
             push @extend_list, @$extend_only if $extend_only;
             push @{ $extended{$owner} }, \@extend_list;
         }
-        if (!$owner || !$owner->{extend_only}) {
+        if (not($owner and $owner->{extend_only})) {
             if (my $upper_extend = $extend_only->[0]) {
                 $node->{extended_owner} = $upper_extend;
             }
         }
 
-        if ($owner && $owner->{extend_only}) {
+        if ($owner and $owner->{extend_only}) {
             $extend_only = [ $owner, @$extend_only ];
             $upper_owner = undef;
             $upper_node  = undef;
@@ -6654,7 +6654,7 @@ sub propagate_owners {
                 ($node1, $ext1) = ($node, $ext);
             }
         }
-        if ($combined && @$combined) {
+        if ($combined and @$combined) {
             $owner->{extended_by} = [ unique @$combined ];
         }
         if ($owner->{show_all}) {
@@ -6732,7 +6732,7 @@ sub propagate_owners {
             next if $aggregate->{owner};
             my $up = $aggregate;
             while ($up = $up->{up}) {
-                last if !$up->{is_aggregate};
+                $up->{is_aggregate} or last;
             }
             my $owner = ($up ? $up : $zone)->{owner} or next;
             $aggregate->{owner} = $owner;
@@ -6807,7 +6807,7 @@ sub check_service_owner {
         # from @objects.
         if (my $sub_owner = $service->{sub_owner}) {
             $sub_owner->{is_used} = 1;
-            (keys %$service_owners == 1 && $service_owners->{$sub_owner})
+            keys %$service_owners == 1 and $service_owners->{$sub_owner}
               and warn_msg("Useless $sub_owner->{name} at $service->{name}");
         }
 
@@ -6901,7 +6901,7 @@ sub apply_src_dst_modifier {
             $network = $obj->{network};
         }
         elsif ($type eq 'Interface') {
-            if ($obj->{router}->{managed} || $obj->{loopback}) {
+            if ($obj->{router}->{managed} or $obj->{loopback}) {
                 push @unmodified, $obj;
                 next;
             }
@@ -7082,8 +7082,8 @@ sub collect_unenforceable {
 
                 # Different aggregates with identical IP, 
                 # inside a zone cluster must be considered as equal.
-                elsif ($src->{is_aggregate} && $dst->{is_aggregate} &&
-                       $src->{ip}   == $dst->{ip} &&
+                elsif ($src->{is_aggregate} and $dst->{is_aggregate} and
+                       $src->{ip}   == $dst->{ip} and
                        $src->{mask} == $dst->{mask})
                 {
                     next;
@@ -7091,10 +7091,10 @@ sub collect_unenforceable {
 
                 # This is a common case, which results from rules like
                 # user -> any:[user]
-                elsif ($src->{is_aggregate} && $src->{mask} == 0) {
+                elsif ($src->{is_aggregate} and $src->{mask} == 0) {
                     next;
                 }
-                elsif ($dst->{is_aggregate} && $dst->{mask} == 0) {
+                elsif ($dst->{is_aggregate} and $dst->{mask} == 0) {
                     next;
                 }
             }
@@ -7115,12 +7115,12 @@ sub show_unenforceable {
         my $context = $service->{name};
 
         if ($service->{has_unenforceable}
-            && (!$service->{seen_unenforceable} || 
-                !$service->{seen_enforceable}))
+            and (not $service->{seen_unenforceable} or
+                 not$service->{seen_enforceable}))
         {
             warn_msg("Useless attribute 'has_unenforceable' at $context");
         }
-        next if !$config->{check_unenforceable};
+        $config->{check_unenforceable} or next;
         next if $service->{disabled};
 
         my $print = 
@@ -7128,10 +7128,10 @@ sub show_unenforceable {
 
         # Warning about fully unenforceable service can't be disabled with
         # attribute has_unenforceable.
-        if (!delete $service->{seen_enforceable}) {
+        if (not delete $service->{seen_enforceable}) {
 
             # Don't warn on empty service without any expanded rules.
-            if ($service->{seen_unenforceable} || 
+            if ($service->{seen_unenforceable} or 
                 $service->{silent_unenforceable})
             {
                 $print->("$context is fully unenforceable");
@@ -7384,7 +7384,7 @@ sub collect_duplicate_rules {
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
+    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
     my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
@@ -7440,7 +7440,7 @@ sub collect_redundant_rules {
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} && $prt2->{modifiers}->{overlaps};
+    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
     my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
@@ -7565,7 +7565,7 @@ sub find_redundant_rules {
                  my $prt = $chg_rule->{prt};
                  while (1) {
                   if (my $cmp_rule = $cmp_hash->{$prt}) {
-                   if ($cmp_rule ne $chg_rule &&
+                   if ($cmp_rule ne $chg_rule and
                        ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
                    {
                     collect_redundant_rules($chg_rule, $cmp_rule);
@@ -7595,7 +7595,7 @@ sub find_redundant_rules {
      }
     }
    }
-   last if !$stateless;
+   $stateless or last;
    $stateless = '';
   }
  }
@@ -7683,7 +7683,7 @@ sub set_policy_distribution_ip {
     # Find all TCP ranges which include port 22 and 23.
     my @admin_tcp_keys = grep({
             my ($p1, $p2) = split(':', $_);
-            $p1 <= 22 && 22 <= $p2 || $p1 <= 23 && 23 <= $p2;
+            $p1 <= 22 and 22 <= $p2 or $p1 <= 23 and 23 <= $p2;
         }
         keys %{ $prt_hash{tcp} });
     my @prt_list = (@{ $prt_hash{tcp} }{@admin_tcp_keys}, $prt_hash{ip});
@@ -7742,7 +7742,7 @@ sub set_policy_distribution_ip {
 
             # Take all management interfaces.
             # Preserve original order of router interfaces.
-            if (!@result) {
+            if (not @result) {
                 @result =
                   grep { $found_interfaces->{$_} } @{ $router->{interfaces} };
             }
@@ -7768,7 +7768,7 @@ sub set_policy_distribution_ip {
         next if $router->{orig_router};
         if (my $vrf_members = $router->{vrf_members}) {
             for my $member (@$vrf_members) {
-                if (!$member->{admin_ip}) {
+                if (not $member->{admin_ip}) {
                     push(@unreachable,
                         "some VRF of router:$router->{device_name}");
                     last;
@@ -7990,7 +7990,7 @@ sub distribute_nat1 {
                 for my $href (@$aref) {
                     for my $nat_tag2 (@$out_nat_tags) {
                         next if $nat_tag2 eq $nat_tag;
-                        next if !$href->{$nat_tag2};
+                        $href->{$nat_tag2} or next;
 
 #                        debug "- $nat_tag2";
                         # Prevent transition from dynamic to
@@ -8059,7 +8059,7 @@ sub distribute_nat_info {
         my $href = $network->{nat} or next;
         for my $nat_tag (keys %$href) {
             my $nat_network = $href->{$nat_tag};
-            if (!$nat_network->{hidden}) {
+            if (not $nat_network->{hidden}) {
                 $has_non_hidden{$nat_tag} = 1;
             }
         }
@@ -8159,7 +8159,7 @@ sub distribute_nat_info {
 
                             # Hidden tag must occur in all other hrefs.
                             else {
-                                if (!$href2->{$nat_tag2}) {
+                                if (not $href2->{$nat_tag2}) {
                                     $show_err->($href, $href2);
                                     next NAT_TAG;
                                 }
@@ -8321,10 +8321,10 @@ sub check_interfaces_with_dynamic_nat {
                 my $intf_nat = $interface->{nat};
 
                 # Interface has static translation,
-                next if $intf_nat && $intf_nat->{$nat_tag};
+                next if $intf_nat and $intf_nat->{$nat_tag};
 
                 my $router = $interface->{router};
-                next if !$router->{need_protect};
+                $router->{need_protect} or next;
                 for my $bind_intf (@{ $router->{interfaces} }) {
                     my $bind = $bind_intf->{bind_nat} or next;
                     grep { $_ eq $nat_tag } @$bind or next;
@@ -8401,12 +8401,12 @@ sub invert_nat_set {
         for my $network (@{ $domain->{networks} }) {
             for my $interface (@{ $network->{interfaces} }) {
                 my $router = $interface->{router};
-                ($router->{managed} || $router->{semi_managed}) or next;
+                $router->{managed} or $router->{semi_managed} or next;
 
 #               debug("$domain->{name}: NAT $interface->{name}");
                 $interface->{no_nat_set} = $no_nat_set;
                 $interface->{hardware}->{no_nat_set} = $no_nat_set
-                  if $router->{managed} || $router->{routing_only};
+                  if $router->{managed} or $router->{routing_only};
             }
         }
     }
@@ -8464,14 +8464,13 @@ sub get_nat_network {
 # of the network which doesn't overlap with some subnet.
 sub check_subnets {
     my ($network, $subnet) = @_;
-    return if $network->{is_aggregate} || $subnet->{is_aggregate};
+    return if $network->{is_aggregate} or $subnet->{is_aggregate};
     my ($sub_ip, $sub_mask) = @{$subnet}{qw(ip mask)};
     my $check = sub {
         my ($ip1, $ip2, $object) = @_;
-        if (
-            match_ip($ip1, $sub_ip, $sub_mask)
-            || $ip2 && (match_ip($ip2, $sub_ip, $sub_mask)
-                || ($ip1 <= $sub_ip && $sub_ip <= $ip2))
+        if (match_ip($ip1, $sub_ip, $sub_mask)
+            or $ip2 and (match_ip($ip2, $sub_ip, $sub_mask)
+                         or $ip1 <= $sub_ip and $sub_ip <= $ip2)
           )
         {
 
@@ -8642,7 +8641,7 @@ sub find_subnets_in_zone {
 
                             push(
                                 @{ $bignet->{networks} },
-                                $subnet->{is_aggregate}
+                                  $subnet->{is_aggregate}
                                 ? @{ $subnet->{networks} || [] }
                                 : ($subnet)
                             );
@@ -8709,7 +8708,7 @@ sub find_subnets_in_zone {
                 return $max_net;
             }
             if (my $max_net = __SUB__->($network->{up})) {
-                if (!$network->{is_aggregate}) {
+                if (not $network->{is_aggregate}) {
                     $max_up_net{$network} = $max_net;
 
 #                    debug("$network->{name} max_up $max_net->{name}");
@@ -8772,7 +8771,7 @@ sub find_subnets_in_zone {
                         $up_nat_info->{mask} >= $mask or last UP;
                     }
                 }
-                if (!$up->{is_aggregate}) {
+                if (not $up->{is_aggregate}) {
                     $max_routing = $up;
                 }
                 $up = $up->{up};
@@ -8786,7 +8785,7 @@ sub find_subnets_in_zone {
 
         # Remove subnets of non-aggregate networks.
         $zone->{networks} =
-          [ grep { !$max_up_net{$_} } @{ $zone->{networks} } ];
+          [ grep { not $max_up_net{$_} } @{ $zone->{networks} } ];
 
         # Propagate managed hosts to aggregates.
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -8946,7 +8945,7 @@ sub find_subnets_in_nat_domain {
             for my $nat_network (@filtered[1 .. $#filtered]) {
                 my $network = $orig_net{$nat_network};
                 my $error;
-                if ($other->{is_aggregate} || $network->{is_aggregate}) {
+                if ($other->{is_aggregate} or $network->{is_aggregate}) {
                     if ($other->{zone} eq $network->{zone}) {
                         $error = 1;
                     }
@@ -9076,7 +9075,7 @@ sub find_subnets_in_nat_domain {
     # The result is stored in {max_secondary_net}.
     for my $network (@networks) {
         my $max = $network->{max_routing_net} or next;
-        if (!$max->{has_other_subnet}) {
+        if (not $max->{has_other_subnet}) {
             $network->{max_secondary_net} = $max;
             next;
         }
@@ -9087,7 +9086,7 @@ sub find_subnets_in_nat_domain {
                 last;
             }
             else {
-                if (!$up->{is_aggregate}) {
+                if (not $up->{is_aggregate}) {
                     $max_secondary = $up;
                 }
                 $up = $up->{up};
@@ -9148,7 +9147,7 @@ sub cluster_crosslink_routers {
 
         # Collect all interfaces belonging to need_protect routers of cluster...
         my @crosslink_interfaces =
-          grep { !$_->{vip} }
+          grep { not $_->{vip} }
           map  { @{ $_->{interfaces} } }
           grep { $crosslink_routers->{$_} }
           sort by_name values %cluster;    # Sort to make output deterministic.
@@ -9188,17 +9187,16 @@ sub check_crosslink {
             my $hardware = $interface->{hardware};
 
             # Assure correct usage of crosslink network.
-            if (!$router->{managed}) {
+            if (not $router->{managed}) {
                 err_msg(
                     "Crosslink $network->{name} must not be",
                     " connected to unmanged $router->{name}"
                 );
                 next;
             }
-            1 == grep({ !$_->{main_interface} } @{ $hardware->{interfaces} })
-              or err_msg
-              "Crosslink $network->{name} must be the only network\n",
-              " connected to $hardware->{name} of $router->{name}";
+            1 == grep({ not $_->{main_interface} } @{ $hardware->{interfaces} })
+              or err_msg("Crosslink $network->{name} must be the only network\n",
+                         " connected to $hardware->{name} of $router->{name}");
 
             # Fill variables.
             my $managed  = $router->{managed};
@@ -9225,8 +9223,8 @@ sub check_crosslink {
             }
 
             # Assure 'secondary' and 'local' are not mixed in crosslink network.
-            if (   $weakest == $crosslink_strength{local}
-                && $strength2intf{ $crosslink_strength{secondary} })
+            if (    $weakest == $crosslink_strength{local}
+                and $strength2intf{ $crosslink_strength{secondary} })
             {
                 err_msg(
                     "Must not use 'managed=local' and 'managed=secondary'",
@@ -9292,11 +9290,12 @@ sub get_managed_local_clusters {
 
                 # All routers of a cluster must have same values in
                 # {filter_only}.
-                $k0 ||= join(',',
-                    map({ join('/', @$_) } @{ $router0->{filter_only} }));
+                $k0 ||= 
+                    join(',',
+                         map({ join('/', @$_) } @{ $router0->{filter_only} }));
                 my $k =
-                  join(',',
-                    map({ join('/', @$_) } @{ $router->{filter_only} }));
+                    join(',',
+                         map({ join('/', @$_) } @{ $router->{filter_only} }));
                 $k eq $k0
                   or err_msg(
                     "$router0->{name} and $router->{name}",
@@ -9326,7 +9325,7 @@ sub get_managed_local_clusters {
                         my ($ip, $mask) = @{ address($network, $no_nat_set) };
                         for my $pair (@$filter_only) {
                             my ($i, $m) = @$pair;
-                            if ($mask >= $m && match_ip($ip, $i, $m)) {
+                            if ($mask >= $m and match_ip($ip, $i, $m)) {
                                 $matched{"$i/$m"} = 1;
                                 next NETWORK;
                             }
@@ -9341,7 +9340,7 @@ sub get_managed_local_clusters {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
                         my $managed = $router2->{managed} or next;
-                        next if $managed !~ /^local/;
+                        $managed =~ /^local/ or next;
                         next if $router2->{local_mark};
                         __SUB__->($router2);
                     }
@@ -9389,7 +9388,7 @@ sub mark_managed_local {
                 my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
-                    ($mask >= $m && match_ip($ip, $i, $m)) or next;
+                    $mask >= $m and match_ip($ip, $i, $m) or next;
 
                     # Mark network and enclosing aggregates.
                     my $obj = $network;
@@ -9431,7 +9430,7 @@ sub link_reroute_permit {
             for my $obj (@$group) {
                 if (is_network($obj)) {
                     my $net_zone = $obj->{zone};
-                    if (!zone_eq($net_zone, $zone)) {
+                    if (not zone_eq($net_zone, $zone)) {
                         err_msg(
                             "Invalid reroute_permit for $obj->{name} ",
                             "at $interface->{name}:",
@@ -9730,14 +9729,14 @@ sub get_any {
     my ($zone, $ip, $mask) = @_;
     my $key     = "$ip/$mask";
     my $cluster = $zone->{zone_cluster};
-    if (!$zone->{ipmask2aggregate}->{$key}) {
+    if (not $zone->{ipmask2aggregate}->{$key}) {
 
         # Check, if there is a network with same IP as the requested
         # aggregate.  If found, don't create a new aggregate in zone,
         # but use the network instead. Otherwise {up} relation
         # wouldn't be well defined.
         if (
-            my @networks = grep({ $_->{mask} == $mask && $_->{ip} == $ip }
+            my @networks = grep({ $_->{mask} == $mask and $_->{ip} == $ip }
                 map { @{ $_->{networks} } } $cluster ? @$cluster : ($zone))
           )
         {
@@ -9871,7 +9870,7 @@ sub set_zone_cluster {
     my ($zone, $in_interface, $zone_aref) = @_;
 
     # Reference zone in cluster object and vice versa
-    push @$zone_aref, $zone if !$zone->{is_tunnel};
+    push @$zone_aref, $zone if not $zone->{is_tunnel};
     $zone->{zone_cluster} = $zone_aref;
 
     my $private1 = $zone->{private} || 'public';
@@ -9938,11 +9937,11 @@ sub set_area1 {
 
     # Reference zones and managed routers in the corresponding area
     if ($is_zone) {
-        if (!$obj->{is_tunnel}) {
+        if (not $obj->{is_tunnel}) {
             push @{ $area->{zones} }, $obj;
         }
     }
-    elsif ($obj->{managed} || $obj->{routing_only}) {
+    elsif ($obj->{managed} or $obj->{routing_only}) {
         push @{ $area->{managed_routers} }, $obj;
     }
 
@@ -10012,9 +10011,9 @@ sub inherit_router_attributes {
             if (my $r_val = $router->{$key}) {
                 if (
                     $r_val eq $val      # warn, if attributes are equal
-                    || ref $r_val eq 'ARRAY'
-                    && ref $val eq 'ARRAY'
-                    && aref_eq($r_val, $val)
+                    or ref $r_val eq 'ARRAY'
+                    and ref $val eq 'ARRAY'
+                    and aref_eq($r_val, $val)
                   )
                 {
                     warn_msg(
@@ -10040,7 +10039,7 @@ sub nat_equal {
     # Check whether nat attributes are different...
     for my $attr (qw(ip mask dynamic hidden identity)) {
         return if defined $nat1->{$attr} xor defined $nat2->{$attr};
-        next if !defined $nat1->{$attr};  # none of the Nats holds the attribute
+        defined $nat1->{$attr} or next;             # both values are undefined
         return if $nat1->{$attr} ne $nat2->{$attr}; # values of attribute differ
     }
 
@@ -10279,7 +10278,7 @@ sub set_zones {
 
         # Mark zone which consists only of a loopback network.
         $zone->{loopback} = 1
-          if $network->{loopback} && @{ $zone->{networks} } == 1;
+          if $network->{loopback} and @{ $zone->{networks} } == 1;
 
         # Attribute {is_tunnel} is set only when zone has only tunnel networks.
         if (@{ $zone->{networks} }) { # tunnel networks arent referenced in zone
@@ -10292,7 +10291,7 @@ sub set_zones {
         }
 
         # Remove private status, if 'public'
-        if ($zone->{private} && $zone->{private} eq 'public') {
+        if ($zone->{private} and $zone->{private} eq 'public') {
             delete $zone->{private};
         }
     }
@@ -10444,8 +10443,8 @@ sub find_area_subset_relations {
 
         # Sort areas containing zone by ascending size
         my @areas = sort(
-            { @{ $a->{zones} } <=> @{ $b->{zones} }
-                  || $a->{name} cmp $b->{name} }    #equal size? sort by name
+            {    @{ $a->{zones} } <=> @{ $b->{zones} }
+              || $a->{name} cmp $b->{name} }        # equal size? sort by name
             values %{ $zone->{areas} }) or next;    # Skip empty hash.
 
         # Take the smallest area.
@@ -10459,7 +10458,7 @@ sub find_area_subset_relations {
             # Check that each zone of $small is part of $next.
             my $ok = 1;
             for my $zone (@{ $small->{zones} }) {
-                if (!$zone->{areas}->{$next}) {
+                if (not $zone->{areas}->{$next}) {
                     $ok = 0;
                     err_msg("Overlapping $small->{name} and $next->{name}");
                     last;
@@ -10505,9 +10504,9 @@ sub check_routers_in_nested_areas {
         # Sort all areas having this router as inclusive_border by size.
         my @areas =
           sort({
-                @{ $a->{zones} } <=> @{ $b->{zones} } ||    # ascending order
-                  $a->{name} cmp $b->{name}
-            }    # equal size? sort by name
+              @{ $a->{zones} } <=> @{ $b->{zones} } ||    # ascending order
+              $a->{name} cmp $b->{name}    # equal size? sort by name
+            }
             values %{ $router->{areas} });
 
         # Take the smallest area.
@@ -10634,7 +10633,7 @@ sub check_pathrestrictions {
     # Process every pathrestriction.
     for my $restrict (values %pathrestrictions) {
         my $elements = $restrict->{elements};    # Extract interfaces.
-        next if !@$elements;
+        @$elements or next;
 
         my $deleted; # Flags whether interfaces have been deleted.
         my $invalid; # Flags whether pathrestriction is invalid. 
@@ -10703,7 +10702,7 @@ sub check_pathrestrictions {
         # Check whether pathrestriction is still valid. 
         if ($deleted) {
             $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
-            if (1 == @$elements) { # Min. 2 interfaces/path restriction needed! 
+            if (1 == @$elements) { # Min. 2 interfaces / pathrestriction needed. 
                 $invalid = 1;
             }
         }
@@ -10716,7 +10715,7 @@ sub check_pathrestrictions {
 
         # Check for useless pathrestrictions that do not affect any ACLs...
         # Pathrestrictions at managed routers do most probably have an effect.
-        grep({ $_->{router}->{managed} || $_->{router}->{routing_only} }
+        grep({ $_->{router}->{managed} or $_->{router}->{routing_only} }
             @$elements)
           and next;
 
@@ -10882,7 +10881,7 @@ sub traverse_loop_part {
 
         # Continue path walk on loop path otherwise.
         else {
-            next if !$interface->{loop};
+            $interface->{loop} or next;
             my $next = $interface->{ $is_zone ? 'router' : 'zone' };
             traverse_loop_part($next, $interface, $mark, $lookup);
         }
@@ -10913,8 +10912,8 @@ sub apply_pathrestriction_optimization {
         my $reached = $lookup->{$interface};
 
         # Count pathrestriction interfaces inside a partition.
-        if (   $reached->{zone} eq $reached->{router}
-            && $reached->{zone} ne 'none')
+        if (    $reached->{zone} eq $reached->{router}
+            and $reached->{zone} ne 'none')
         {
             $has_interior++;
         }
@@ -10933,14 +10932,14 @@ sub apply_pathrestriction_optimization {
     }
 
     # Delete pathrestriction objects, if {reachable_at} holds entire info.
-    if (!$has_interior) {   # Interfaces must not be located inside a partition.
+    if (not $has_interior) { # Interfaces must not be located inside a partition.
         for my $interface (@$elements) {
             aref_delete($interface->{path_restrict}, $restrict)
               or internal_err("Can't remove $restrict->{name}",
                 " from $interface->{name}");
 
             # Delete empty array to speed up checks in cluster_path_mark.
-            if (!@{ $interface->{path_restrict} }) {
+            if (not @{ $interface->{path_restrict} }) {
                 delete $interface->{path_restrict};
             }
         }
@@ -10983,7 +10982,7 @@ sub optimize_pathrestrictions {
 
                 # For interfaces at loop border, skip direction leaving the loop
                 my $obj = $interface->{$direction};
-                if (!$obj->{loop}) {
+                if (not $obj->{loop}) {
                     $reached->{$direction} = 'none';
                     next;
                 }
@@ -11032,7 +11031,7 @@ sub setpath_obj;
 sub setpath_obj {
     my ($obj, $to_zone1, $distance) = @_;
 
-    #debug("--$distance: $obj->{name} --> ". ($to_zone1 && $to_zone1->{name}));
+    #debug("--$distance: $obj->{name} --> ". ($to_zone1 and $to_zone1->{name}));
 
     # Return from recursion if loop was found.
     if ($obj->{active_path}) {   # Loop found, node might be loop exit to zone1.
@@ -11164,7 +11163,7 @@ sub set_loop_cluster {
 sub find_dists_and_loops {
     @zones or fatal_err("Topology seems to be empty");
     my $path_routers = 
-        [ grep { $_->{managed} || $_->{semi_managed} } @routers ];
+        [ grep { $_->{managed} or $_->{semi_managed} } @routers ];
     my $start_distance = 0;
     my @partitions;
     my %partition2split_crypto;
@@ -11243,7 +11242,7 @@ sub find_dists_and_loops {
 sub process_loops {
 
     # Check all nodes located inside a cyclic graph.
-    my @path_routers = grep { $_->{managed} || $_->{semi_managed} } @routers;
+    my @path_routers = grep { $_->{managed} or $_->{semi_managed} } @routers;
     for my $obj (@zones, @path_routers) {
         my $loop = $obj->{loop} or next;
 
@@ -11313,7 +11312,7 @@ sub get_path {
     }
     elsif ($type eq 'Interface') {
         my $router = $obj->{router};
-        if ($router->{managed} || $router->{semi_managed}) {
+        if ($router->{managed} or $router->{semi_managed}) {
 
             # If this is a secondary interface, we can't use it to enter
             # the router, because it has an active pathrestriction attached.
@@ -11322,7 +11321,7 @@ sub get_path {
 
             # Special handling needed if $src or $dst is interface
             # which has pathrestriction attached.
-            if ($main->{path_restrict} || $main->{reachable_at}) {
+            if ($main->{path_restrict} or $main->{reachable_at}) {
                 $result = $main;
             }
             else {
@@ -11336,7 +11335,7 @@ sub get_path {
 
     # This is used, if called from path_auto_interfaces.
     elsif ($type eq 'Router') {
-        if ($obj->{managed} || $obj->{semi_managed}) {
+        if ($obj->{managed} or $obj->{semi_managed}) {
             $result = $obj;
         }
         else {
@@ -11362,7 +11361,7 @@ sub get_path {
             # This will be refined later, if real interface is known.
             $result = $object->{zone};
         }
-        elsif ($object->{managed} || $object->{semi_managed}) {
+        elsif ($object->{managed} or $object->{semi_managed}) {
 
             # This will be refined later, if real interface has pathrestriction.
             $result = $object;
@@ -11434,7 +11433,7 @@ sub cluster_path_mark1 {
         if (my $reachable = $reachable_at->{$obj}) {
             my $has_mark = $end->{reachable_part};
             for my $mark (@$reachable) {
-                if (!$has_mark->{$mark}) {
+                if (not $has_mark->{$mark}) {
 #                   debug(" unreachable3: $end_node->{name}",
 #                         " from $in_intf->{name} to $obj->{name}");
                     return 0;
@@ -11904,7 +11903,7 @@ sub cluster_path_mark {
         for my $mark (@$reachable) {
 
             # End node is not reachable via enter-interface.
-            if (!$has_mark->{$mark}) {
+            if (not $has_mark->{$mark}) {
                 $success = 0;
                 last;
             }
@@ -11925,7 +11924,7 @@ sub cluster_path_mark {
         for my $mark (@$reachable) {
 
             # Start node is not reachable via exit-interface.
-            if (!$has_mark->{$mark}) {
+            if (not $has_mark->{$mark}) {
                 $success = 0;
                 last;
             }
@@ -12176,9 +12175,9 @@ sub path_mark {
         }
 
         # Paths meet inside a loop.
-        if (   $from_loop
-            && $to_loop
-            && $from_loop->{cluster_exit} eq $to_loop->{cluster_exit})
+        if (    $from_loop
+            and $to_loop
+            and $from_loop->{cluster_exit} eq $to_loop->{cluster_exit})
         {
             return connect_cluster_path($from, $to, $from_in, $to_out,
                                         $from_store, $to_store);
@@ -12197,14 +12196,14 @@ sub path_mark {
             unless ($from_out) {
 
                 # Reached border of graph partition.
-                return 0 if !$from_loop;
+                $from_loop or return 0;
 
                 # Get next interface behind loop from loop cluster exit.
                 my $exit = $from_loop->{cluster_exit};
                 $from_out = $exit->{to_zone1};
 
                 # Reached border of graph partition.
-                return 0 if !$from_out;
+                $from_out or return 0;
                 
                 # Mark loop path towards next interface.
                 connect_cluster_path($from, $exit, $from_in, $from_out,
@@ -12244,14 +12243,14 @@ sub path_mark {
             unless ($to_in) {
 
                 # Reached border of graph partition.
-                return 0 if !$to_loop;
+                $to_loop or return 0;
 
                 # Get next interface behind loop from loop cluster exit.
                 my $entry = $to_loop->{cluster_exit};
                 $to_in = $entry->{to_zone1};
 
                 # Reached border of graph partition.
-                return 0 if !$to_in;
+                $to_in or return 0;
 
                 # Mark loop path towards next interface.
                 connect_cluster_path($entry, $to, $to_in, $to_out, 
@@ -12336,10 +12335,13 @@ sub loop_path_walk {
 
     # Process paths at exit of cyclic graph.
     my $exit_type = ref $loop_exit;
-    my $exit_at_router = $exit_type eq 'Router'
-      || ($exit_type eq 'Interface'
-        && $loop_exit->{router} eq
-        $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
+    my $exit_at_router = 
+        $exit_type eq 'Router'
+        ||
+        ($exit_type eq 'Interface'
+        &&
+         $loop_exit->{router} eq
+         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
 
 #        debug(" loop_leave");
@@ -12385,7 +12387,7 @@ sub path_walk {
 
     # Identify path from source to destination if not known.
     if (not exists $from_store->{path1}->{$to_store}) {
-        if (!path_mark($from_store, $to_store)) {
+        if (not path_mark($from_store, $to_store)) {
 
             # Abort, if path does not exist.
             err_msg(
@@ -12541,7 +12543,7 @@ sub add_pathresticted_interfaces {
     is_router($obj) or return ($path);
     my @interfaces = get_intf($obj);
     return ($path,
-            grep { $_->{path_restrict} || $_->{reachable_at} } @interfaces);
+            grep { $_->{path_restrict} or $_->{reachable_at} } @interfaces);
 }
 
 # $src is an auto_interface or router.
@@ -12565,8 +12567,8 @@ sub path_auto_interfaces {
     my @result;
     for my $from_store (@from_list) {
         for my $to_store (@to_list) {
-            if (!$from_store->{path1}->{$to_store}) {
-                if (!path_mark($from_store, $to_store)) {
+            if (not $from_store->{path1}->{$to_store}) {
+                if (not path_mark($from_store, $to_store)) {
                     delete $from_store->{path1}->{$to_store};
                     next;
                 }
@@ -12748,7 +12750,7 @@ sub link_tunnels {
             warn_msg("No hub has been defined for $name");
             next;
         }
-        $real_spokes = [ grep { !$_->{disabled} } @$real_spokes ];
+        $real_spokes = [ grep { not $_->{disabled} } @$real_spokes ];
         @$real_spokes
           or warn_msg("No spokes have been defined for $name");
 
@@ -12861,7 +12863,7 @@ sub link_tunnels {
                   join(',', map { $_->{name} } @other);
             }
 
-            if ($spoke_router->{managed} && $crypto->{detailed_crypto_acl}) {
+            if ($spoke_router->{managed} and $crypto->{detailed_crypto_acl}) {
                 err_msg(
                     "Attribute 'detailed_crypto_acl' is not",
                     " allowed for managed spoke $spoke_router->{name}"
@@ -13016,7 +13018,7 @@ sub expand_crypto {
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     if ($interface->{ip} eq 'tunnel') {
-                        if ($managed && $router->{model}->{crypto} eq 'EZVPN') {
+                        if ($managed and $router->{model}->{crypto} eq 'EZVPN') {
                             err_msg "Exactly 1 crypto tunnel expected",
                               " for $router->{name} with EZVPN";
                         }
@@ -13140,7 +13142,7 @@ sub expand_crypto {
                     }
                 }
 
-                if ($managed && $router->{model}->{crypto} eq 'ASA') {
+                if ($managed and $router->{model}->{crypto} eq 'ASA') {
                     verify_asa_trustpoint($hub_router, $crypto);
                 }
 
@@ -13306,12 +13308,12 @@ sub find_zone_network {
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
         next if $i =~ /^(?:unnumbered|tunnel)$/;
 
-        if (   $m >= $mask && match_ip($i, $ip, $mask)
-            || $m < $mask && match_ip($ip, $i, $m))
+        if (   $m >= $mask and match_ip($i, $ip, $mask)
+            or $m < $mask  and match_ip($ip, $i, $m))
         {
 
             # Found first matching network.
-            if (!$result) {
+            if (not $result) {
                 $result = $network;
                 next;
             }
@@ -13342,13 +13344,13 @@ sub find_matching_supernet {
 
     # No network or aggregate matches.
     # $other wont match in current zone.
-    if (!$net_or_count) {
+    if (not $net_or_count) {
         return;
     }
 
     # More than one network matches and no supernet exists.
     # Return names of that networks.
-    if (!ref($net_or_count)) {
+    if (not ref($net_or_count)) {
         return $net_or_count;
     }
 
@@ -13387,7 +13389,7 @@ sub check_supernet_in_zone {
     my $networks = find_matching_supernet($interface, $zone, $supernet);
     return if not $networks;
     my $extra;
-    if (!ref($networks)) {
+    if (not ref($networks)) {
         $extra = "No supernet available for $networks";
     }
     else {
@@ -13526,7 +13528,7 @@ sub check_supernet_src_rule {
         # and hence $m1 is well defined.
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
-        if (!$m2) {
+        if (not $m2) {
             if (is_router($dst_zone)) {
                 my $managed = $dst_zone->{managed};
                 $m2 = ($managed =~ /^(?:secondary|local.*)$/)
@@ -13572,7 +13574,7 @@ sub check_supernet_src_rule {
                 # Find security zones at all interfaces except the in_intf.
                 for my $intf (@{ $router->{interfaces} }) {
                     next if $intf eq $in_intf;
-                    next if $intf->{loopback} && !$intf->{vip};
+                    next if $intf->{loopback} and not $intf->{vip};
 
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
@@ -13676,7 +13678,7 @@ sub check_supernet_dst_rule {
 
         # Check each intermediate zone only once at outgoing interface.
         next if $intf eq $in_intf;
-        next if $intf->{loopback} && !$intf->{vip};
+        next if $intf->{loopback} and not $intf->{vip};
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
@@ -13778,12 +13780,12 @@ sub get_ip_matching {
         my ($i, $m) = @{address($src, $no_nat_set)};
 
         # Element is subnet of $obj.
-        if ($m >= $mask && match_ip($i, $ip, $mask)) {
+        if ($m >= $mask and match_ip($i, $ip, $mask)) {
             push @matching, $src;
         }
 
         # Element is supernet of $obj.
-        elsif ($m < $mask && match_ip($ip, $i, $m)) {
+        elsif ($m < $mask and match_ip($ip, $i, $m)) {
             if ($src->{is_aggregate}) {
                 my $networks = $src->{networks} or next;
                 $networks = get_ip_matching($obj, $networks, $no_nat_set);
@@ -14114,7 +14116,7 @@ sub gen_reverse_rules1 {
         my $src_path             = $rule->{src_path};
         my $dst_path             = $rule->{dst_path};
         my $has_stateless_router = $cache{$src_path}->{$dst_path};
-        if (!defined $has_stateless_router) {
+        if (not defined $has_stateless_router) {
           PATH_WALK:
             {
 
@@ -14584,7 +14586,7 @@ sub check_dynamic_nat_rules {
 
                     # $intf would have value 'undef' if $obj is
                     # interface of current router and src/dst of rule.
-                    if (!$intf || zone_eq($network->{zone}, $intf->{zone})) {
+                    if (not $intf or zone_eq($network->{zone}, $intf->{zone})) {
                         err_msg("$obj->{name} needs static translation",
                                 " for nat:$nat_tag at $router->{name}",
                                 " to be valid in",
@@ -14625,7 +14627,7 @@ sub check_dynamic_nat_rules {
             my $nat_network = $nat_hash->{$nat_tag};
             $nat_network->{dynamic} or next;
             my $is_hidden = $nat_network->{hidden};
-            ($is_hidden || $static_seen) or next;
+            $is_hidden or $static_seen or next;
             $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
         }
         $dyn_nat_hash or return;
@@ -15375,8 +15377,8 @@ sub check_and_convert_routes {
 
             my $hop_routes;
             if (@hops > 1
-                && equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
-                || @hops == 1)
+                and equal(map({ $_->{redundancy_interfaces} || $_ } @hops))
+                or @hops == 1)
             {
                 my $hop = shift @hops;
                 $hop_routes = $real_intf->{routes}->{$hop} ||= {};
@@ -15470,7 +15472,7 @@ sub check_and_convert_routes {
                             # prevent multiple routes to different
                             # interfaces with identical virtual IP.
                              my $group2 = $hop2->{redundancy_interfaces};
-                            if ($group && $group2 && $group eq $group2) {
+                            if ($group and $group2 and $group eq $group2) {
                                 delete $interface->{routes}->{$hop}->{$network};
                             }
                             else {
@@ -15506,7 +15508,7 @@ sub check_and_convert_routes {
                     # move hop from virtual to physical interface.
                     # It is probably a loopback interface of the same device.
                     my $network = $interface->{routes}->{$hop1}->{$net_ref};
-                    if (@$hops == 1 && (my $phys_hop = $hop1->{orig_main})) {
+                    if (@$hops == 1 and (my $phys_hop = $hop1->{orig_main})) {
                         delete $interface->{routes}->{$hop1}->{$net_ref};
                         $interface->{routes}->{$phys_hop}->{$network}
                                                                    = $network;
@@ -15581,7 +15583,7 @@ sub print_routes {
         push @interfaces, $interface;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
-        if ($asa_crypto && $interface->{hub}) {
+        if ($asa_crypto and $interface->{hub}) {
             $do_auto_default_route = 0;
         }
         my $no_nat_set = $interface->{no_nat_set};
@@ -15678,7 +15680,7 @@ sub print_routes {
             my ($interface, $hop) = @$hop_info;
 
             # ASA with site-to-site VPN needs individual routes for each peer.
-            if (!($asa_crypto && $interface->{hub})) {
+            if (not ($asa_crypto and $interface->{hub})) {
 
                 # Compare current $mask with masks of larger networks.
                 for my $m (@masks) {
@@ -15721,7 +15723,7 @@ sub print_routes {
         my $max = 1;
         for my $interface (@interfaces) {
             for my $hop (@{ $interface->{hopref2obj} }) {
-                my $count = grep({ !$net2no_opt{ $_->[2] } }
+                my $count = grep({ not $net2no_opt{ $_->[2] } }
                     @{ $intf2hop2nets{$interface}->{$hop} || [] });
                 if ($count > $max) {
                     $max_intf = $interface;
@@ -15730,7 +15732,7 @@ sub print_routes {
                 }
             }
         }
-        if ($max_intf && $max_hop) {
+        if ($max_intf and $max_hop) {
 
             # Use default route for this direction.
             # But still generate routes for small networks
@@ -15764,7 +15766,7 @@ sub print_routes {
                     print "ip route $ios_vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'NX-OS') {
-                    if ($vrf && !$nxos_prefix) {
+                    if ($vrf and not $nxos_prefix) {
 
                         # Print "vrf context" only once
                         # and indent "ip route" commands.
@@ -16523,15 +16525,15 @@ EOF
                     # Select attributes for tunnel-group general-attributes.
                     for my $key (sort keys %$attributes) {
                         my $spec = $asa_vpn_attributes{$key};
-                        if ($spec && $spec->{tg_general}) {
+                        if ($spec and $spec->{tg_general}) {
                             my $value = delete $attributes->{$key};
                             my $out = defined($value) ? "$key $value" : $key;
                             push(@tunnel_gen_att, $out);
                         }
                     }
 
-                    my $trustpoint2 = delete $attributes->{'trust-point'}
-                      || $trust_point;
+                    my $trustpoint2 = 
+                        delete $attributes->{'trust-point'} || $trust_point;
                     my @tunnel_ipsec_att =
                       (
                         "ikev1 trust-point $trustpoint2",
@@ -16733,7 +16735,7 @@ sub print_cisco_acls {
         next if $hardware->{loopback};
 
         # Ignore layer3 interface of ASA.
-        next if $hardware->{name} eq 'device' && $model->{class} eq 'ASA';
+        next if $hardware->{name} eq 'device' and $model->{class} eq 'ASA';
 
         # Force valid array reference to prevent error
         # when checking for non empty array.
@@ -16746,11 +16748,11 @@ sub print_cisco_acls {
             next if $suffix eq 'out' and not $hardware->{need_out_acl};
 
             # Don't generate single 'permit ip any any'.
-            if (!$model->{need_acl}) {
+            if (not $model->{need_acl}) {
                 if (
-                    !grep {
+                    not grep {
                         my $rules = $hardware->{$_} || [];
-                        @$rules != 1 || $rules->[0] ne $permit_any_rule
+                        @$rules != 1 or $rules->[0] ne $permit_any_rule
                     } (qw(rules intf_rules))
                   )
                 {
@@ -16801,7 +16803,7 @@ sub print_cisco_acls {
                         $zone->{zone_cluster} and last;
                         
                         # Ignore real interface of virtual interface.
-                        my @interfaces = grep({ !$_->{main_interface} } 
+                        my @interfaces = grep({ not $_->{main_interface} } 
                                               @{ $zone->{interfaces} });
                         
                         if (@interfaces > 1) {
@@ -16833,7 +16835,7 @@ sub print_cisco_acls {
             print_acl_placeholder($router, $acl_name);
 
             # Post-processing for hardware interface
-            if ($filter eq 'IOS' || $filter eq 'NX-OS') {
+            if ($filter eq 'IOS' or $filter eq 'NX-OS') {
                 push(
                     @{ $hardware->{subcmd} },
                     "ip access-group $acl_name $suffix"
@@ -17388,7 +17390,7 @@ sub print_crypto {
 sub print_interface {
     my ($router) = @_;
     my $model = $router->{model};
-    return if !$model->{print_interface};
+    $model->{print_interface} or return;
     my $class    = $model->{class};
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
@@ -17435,7 +17437,7 @@ sub print_interface {
         # Add "ip inspect" as marker, that stateful filtering is expected.
         # The command is known to be incomplete, "X" is only used as
         # placeholder.
-        if ($class eq 'IOS' && $stateful && !$hardware->{loopback}) {
+        if ($class eq 'IOS' and $stateful and not $hardware->{loopback}) {
             push @subcmd, "ip inspect X in";
         }
         if (my $other = $hardware->{subcmd}) {
@@ -17493,7 +17495,7 @@ sub print_acls {
         # Add list to each ACL separately, because IP may be changed by NAT.
         if (
             $router->{need_protect}
-            ||
+            or
 
             # ASA protects IOS router behind crosslink interface.
             $router->{crosslink_interfaces}
@@ -17504,13 +17506,13 @@ sub print_acls {
             # one large router. Protect the collected interfaces of
             # the whole cluster at each entry.
             $need_protect = $router->{crosslink_interfaces};
-            if (!$need_protect) {
+            if (not $need_protect) {
                 $need_protect = $router->{interfaces};
                 $need_protect = [ 
                     grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel|bridged)$/ } 
                          @$need_protect) ];
                 if ($model->{has_vip}) {
-                    $need_protect = [ grep { !$_->{vip} } @$need_protect ];
+                    $need_protect = [ grep { not $_->{vip} } @$need_protect ];
                 }
             }
         }
@@ -17550,7 +17552,7 @@ sub print_acls {
 
                     # Add code for logging.
                     # This code is machine specific.
-                    if ($active_log && (my $log = $rule->{log})) {
+                    if ($active_log and (my $log = $rule->{log})) {
                         my $log_code;
                         for my $tag (@$log) {
                             if (exists $active_log->{$tag}) {
@@ -17577,8 +17579,8 @@ sub print_acls {
                         }
                     }
 
-                    if (   $secondary_filter && $rule->{some_non_secondary}
-                        || $standard_filter && $rule->{some_primary})
+                    if (   $secondary_filter and $rule->{some_non_secondary}
+                        or $standard_filter and $rule->{some_primary})
                     {
                         for my $where (qw(src dst)) {
                             my $obj_list = $rule->{$where};
@@ -17852,8 +17854,8 @@ sub print_code {
 # known from topology.
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
-    return if !(defined $in_path && -d $in_path);
-    return if !defined $out_dir;
+    return if not (defined $in_path and -d $in_path);
+    return if not defined $out_dir;
 
     # Untaint $in_path, $out_dir. This is necessary if running setuid.
     # Trusted because set by setuid wrapper.

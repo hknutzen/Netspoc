@@ -92,6 +92,25 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Reference unknown service';
+############################################################
+
+$in = $topo . <<'END';
+service:test1a = {
+ overlaps = service:test2, serv:abc;
+ user = host:h1;
+ permit src = user; dst = network:Test; prt = tcp 22;
+}
+END
+
+$out = <<"END";
+Warning: Unknown service:test2 in attribute 'overlaps' of service:test1a
+Error: Unexpected type 'serv' in attribute 'overlaps' of service:test1a
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Suppressed warning by protocol modifier';
 ############################################################
 
