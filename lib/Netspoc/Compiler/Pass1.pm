@@ -7832,26 +7832,6 @@ sub set_natdomain {
         my $nat_tags = $interface->{bind_nat} || $bind_nat0;
         my $router = $interface->{router};
 
-        # Found loop.
-        # If one router is connected to the same NAT domain
-        # by different interfaces, all interfaces must have
-        # the same NAT binding.
-        if (my $entry_nat_tags = $router->{active_path}) {
-            next if aref_eq($nat_tags, $entry_nat_tags);
-            my $names1 = join(',', @$nat_tags)       || '(none)';
-            my $names2 = join(',', @$entry_nat_tags) || '(none)';
-            next if $router->{nat_err_seen}->{"$names1 $names2"}++;
-            err_msg("Inconsistent NAT in loop at $router->{name}:\n",
-                " nat:$names1 vs. nat:$names2");
-
-#            debug("LOOP $interface->{name}");
-            next;
-        }
-
-        # 'local' declaration restores previous value on block exit.
-        # Remember NAT tags at loop entry.
-        local $router->{active_path} = $nat_tags;
-
         my $useless_nat = 1;
         my $interfaces = $router->{interfaces};
         for my $out_interface (@$interfaces) {
@@ -7865,17 +7845,31 @@ sub set_natdomain {
             my $out_nat_tags = $out_interface->{bind_nat} || $bind_nat0;
             if (aref_eq($out_nat_tags, $nat_tags)) {
 
+                # Prevent deep recursion inside a single NAT domain.
+                next if $router->{active_path};
+                local $router->{active_path} = 1;
+
                 my $next_net = $out_interface->{network};
                 set_natdomain($next_net, $domain, $out_interface);
             }
 
             # New NAT domain starts at some interface of current router.
             # Remember NAT tag of current domain.
-            elsif (not $router->{nat_tags}->{$domain}) {
+            else {
                 $useless_nat = undef;
-                $router->{nat_tags}->{$domain} = $nat_tags;
-                push @{ $domain->{routers} },     $router;
-                push @{ $router->{nat_domains} }, $domain;
+                if (my $other = $router->{nat_tags}->{$domain}) {
+                    next if aref_eq($nat_tags, $other);
+                    my $names1 = join(',', @$nat_tags) || '(none)';
+                    my $names2 = join(',', @$other)    || '(none)';
+                    next if $router->{nat_err_seen}->{"$names1 $names2"}++;
+                    err_msg("Inconsistent NAT in loop at $router->{name}:\n",
+                            " nat:$names1 vs. nat:$names2");
+                }
+                else {
+                    $router->{nat_tags}->{$domain} = $nat_tags;
+                    push @{ $domain->{routers} },     $router;
+                    push @{ $router->{nat_domains} }, $domain;
+                }
             }
         }
         if ($useless_nat and @$nat_tags and

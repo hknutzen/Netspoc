@@ -1864,7 +1864,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Inconsistent NAT in loop';
+$title = 'Inconsistent NAT in loop (1)';
 ############################################################
 
 $in = <<'END';
@@ -1889,8 +1889,50 @@ END
 
 $out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
- nat:h vs. nat:(none)
-Warning: nat:h is defined, but not bound to any interface
+ nat:(none) vs. nat:h
+Error: network:a is translated by h,
+ but is located inside the translation domain of h.
+ Probably h was bound to wrong interface at router:r1.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Inconsistent NAT in loop (2)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; nat:x = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; }
+ 
+router:r1 = {
+ interface:n2;
+ interface:n4;
+}
+ 
+router:r2 = {
+ interface:n1 = { bind_nat = x; }
+ interface:n3;
+ interface:n2;
+}
+
+router:r3 = {
+ interface:n1 = { bind_nat = x; }
+ interface:n3;
+ interface:n4 = { bind_nat = x; }
+}
+END
+
+$out = <<'END';
+Error: Inconsistent NAT in loop at router:r2:
+ nat:(none) vs. nat:x
+Error: Inconsistent NAT in loop at router:r3:
+ nat:(none) vs. nat:x
+Error: network:n3 is translated by x,
+ but is located inside the translation domain of x.
+ Probably x was bound to wrong interface at router:r2.
 END
 
 test_err($title, $in, $out);
