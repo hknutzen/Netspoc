@@ -9,44 +9,48 @@ author: Meike Bruns
 {:toc}
 </div>
 
-# Netspoc: A workflow outline.
+# Netspoc: A workflow outline
 
-Netspoc is a two pass Network Security Policy Compiler. It takes a set
+Netspoc is a Network Security Policy Compiler. It takes a set
 of access rules (services) and a given network topology specified in
 Netspoc policy language and generates access lists and static routes
 for those routers of the network topology marked to be
-managed by Netspoc (called managed routers in the following). From
-input, pass 1 generates two files for every managed router: The config
-template file, containing router configurations excluding ACL
-information, and the rule file storing those rules of the given
-service input that affect ACL generation on the particular router. In
-pass 2, ACLs are derived from rule files and included in the config
-template. As ACL generation involves time consuming optimization
-processes and input modifications usually affect a small selection of
-managed routers only, pass 2 compares its input with the stored config
-template and rule files from previous runs, generating new config
-files only for affected routers and reusing configuration files
-otherwise.
+managed by Netspoc (called managed routers in the following).
 
-To achieve router configurations from a given input, following steps
+Netspoc is a two pass compiler. From input, pass 1 generates two files
+for every managed router: The configuration template file, containing
+router configurations excluding ACL information, and the rule file
+storing those rules of the given service input that affect ACL
+generation on the particular router. In pass 2, ACLs are derived from
+rule files and inserted in the configuration template. As ACL
+generation involves time consuming optimization processes and since
+input modifications usually affect a small selection of managed
+routers only, pass 2 tries to reuse configuration files generated from
+a previous run. For this purpose, pass 2 compares its current input
+with the stored input of the previous run, generating new
+configuration files only for affected routers and reusing
+configuration files otherwise.
+
+To generate router configurations from a given input, following steps
 are conducted:
 
 **Pass 1**
 
-1. Parsing network topology and rule set.
-2. Connecting elements of the topology to form a topology graph.
+1. Parse network topology and rule set.
+2. Connect elements of the topology to form a topology graph.
 3. Perform consistency checks on the rule set, transfer rules into a path 
-   rules set with (source, destination) pairs.
-4. Finding all paths in the topology graph for every source and destination
+   rules set with \[source, destination\] pairs.
+4. Find all paths in the topology graph for every source and destination
    pair, marking managed routers on the path with the corresponding rules and
    routing information.    
-5. Converting information collected at managed routers into configuration
+5. Convert information collected at managed routers into configuration
    template and rule files.
 
 **Pass 2**
 
-1. Generate ACLs and write final router configuration files for
-   routers, whose configuration files can not be reused.
+1. Check, whether reusable configuration files from a previous run exist.  
+2. Optimize ruleset for routers, whose configuration files an not be reused.
+3. Generate ACLs and write final router configuration files.
 
 Each of the steps consists of several tasks and operations that will
 be described below. For more detailed information, have a look at the
@@ -62,31 +66,19 @@ below.
 First, input topology and rule set need to be parsed.
 
 * **Read files or directory:** `read_file_or_dir`
- :  Netspoc parses input files and transfers the contents into formats
-    to work with. For the topology, objects are generated and made
-    accessible by name. Along the way, the input is checked for errors
-    that are already recognizeable at this stage.
+ :  Netspoc parses input files and transfers the contents into objects
+    to work with. Objects are generated and made accessible by name
+    for both topology and services. Along the way, the input is
+    checked for errors that are already recognizeable at this stage.
 
 * **Order protocols:** `order_protocols`
  :  Process protocols of the services and rules specified in the input
-    to receive their contained-in relations. *(This should be moved
-    into step 3!)*
-
-* **Read files or directory:** `read_file_or_dir`
- :  Netspoc parses input files and transfers the contents into formats
-    to work with. For the topology, objects are generated and made
-    accessible by name. Along the way, the input is checked for errors
-    that are already recognizeable at this stage.
-
-* **Order protocols:** `order_protocols`
- :  Process protocols of the services and rules specified in the input
-    to receive their contained-in relations. *(This should be moved
-    into step 3!)*
+    to receive their contained-in relations.
 
 ### 2. Creating the topology graph
 
 In this step, topology objects generated during parsing are used to
-create a topology graph in working memory.
+create a topology graph.
 
 * **Link topology:** `link_topology`
  :  The objects generated from topology input are linked via
@@ -97,10 +89,11 @@ create a topology graph in working memory.
 
 * **Prepare security zones and areas:**
  :  [set_zone](/Netspoc/technical.html#prepare_zones)  
-    The topology graph is now abstracted, with parts of the graph
-    being bundled to zones and areas. This allows inheritance of
-    properties to objects located inside an area as well as faster
-    path traversal on the abstracted graph.
+    The topology graph is now abstracted, with parts of the graph being
+    bundled to zones and areas. This allows inheritance of properties
+    from areas to zones and from zones to networks. Using the
+    abstracted graph of zones and routers also accelerates path
+    traversal.
 
 * **Prepare fast path traversal:**
  :  [setpath](/Netspoc/technical.html#prepare_traversal)  
@@ -108,40 +101,39 @@ create a topology graph in working memory.
     path traversal.
 
 * **Distribute NAT information:** `distribute_nat_info`
- :  If Network Address Translation (NAT) is specified in the input,
-    validity areas of IP addresses are distributed to the different
-    topology parts.
+  : If Network Address Translation (NAT) is specified in the input, NAT
+    domains are determined for the topology. NAT domains are parts of
+    the topology with a consistent network address set.
 
 * **Identify subnet relations:** `find_subnets_in_zone`
- :  During pass 2, redundant rules will be removed from the rule set
-    of every managed router. Rules can be redundant, because they are
-    contained in other rules, for example if two rules are identical
-    except for their destinations, but one destination is a subnet of
-    the other. To enable later redundancy checks, subnet relations
-    (also contained-in relations) of networks in every single zone are
-    determined.
+ :  During pass 2, redundant rules will be removed from rule sets
+    of managed routers. Rules can be redundant, because they are contained
+    in other rules, for example if two rules are identical except for
+    their destinations, but one destination is a subnet of the
+    other. To enable later redundancy checks, subnet relations of
+    networks in every single zone are determined.
 
-* **Transfer ownership information:** `check_service_owner`
- :  The policy contains information about groups or persons responsible
-   for certain parts of the topology (owner). This information is now
-   added to the topology objects. Ownership is primarily needed for
-   Netspoc-Web, but is also used to validate rules.
+
 
 ### 3. Preparing rules
 
 Rules are now checked for consistency and grouped to receive a set of
-so called path rules, each containing a (source zone, destination
-zone) pair. The path rule set represents every rule from service
-input.
+so called path rules. Path rules contain a \[source zone, destination
+zone\] pair and references to every input rule having its source within
+the source zone and its destination within the destination zone. Thus,
+the path rule set represents every rule from input.
 
 * **Normalizing rules:** `normalize_services`
- :  Rule definitions are now resolved to get a normalized rule object
-    for every rule, referencing the actual topology objects the rule
-    refers to.
+ :  Normalized rule objects are now generated for every rule by
+    resolving source and/or destination groups into specific source or
+    destination objects. These are then referenced within the
+    normalized rule object.
 
-* **Check rules for ownership:** `check_service_owner`
- :  Source and destination objects of the rules are checked to have
-    valid owners.
+* **Transfer ownership information:** `check_service_owner`
+ :  The policy contains information about groups or persons responsible
+    for certain parts of the topology (owner). This information is now
+    added to the topology objects. Ownership is primarily needed for
+    Netspoc-Web, but is also used to validate rules.
 
 * **Coverting hosts to subnets:** `convert_hosts_in_rules`
  :  Single IP addresses and IP address ranges of hosts are converted
@@ -150,22 +142,22 @@ input.
     generate ACLs, as they can refer to subnets but not to IP
     ranges.
 
-* **Extracting (source zone, destination zone) pairs for path detection:**
- :  `group_path_rules`
-    For every normalized rule, source and destination zone are
-    determined and stored. Rules with more than one source and/or
-    destination zone are split to achieve pairs with exactly one
-    source and destination zone.
+* **Grouping rules for path detection:** `group_path_rules`
+ :  Path rules are now generated by grouping rules according to their
+    source and destination zones. For every normalized rule, source
+    and destination zone have been determined and stored. Rules with more
+    than one source and/or destination zone are split to achieve pairs
+    with exactly one source and destination zone.
 
-* **Identify subnet relations that may not be optimized at secondary routers:**
+* **Identify subnet relations that must not be optimized at secondary routers:**
     `find_subnets_in_nat_domain`
  :  Within topology declaration, routers can be defined to have
-    secondary as filter type. Such routers perform general filtering
+    `secondary` as filter type. Such routers perform general filtering
     for the supernets of a rules source or destination instead of
     filtering for specific host or network addresses. Specific
     filtering is has to be realized by surrounding routers then. To avoid
     cases, where filtering for supernets leads to unintended permits,
-    networks in such constallations are identified and marked now.
+    networks in such constallation are identified and marked now.
 
 * **Mark networks that require local filtering:** `mark_managed_local`
  :  Routers can be defined to filter locally. Then, traffic that
@@ -180,7 +172,7 @@ input.
     mappings on a path from source to destination.
 
 
-### 4. Distributing rules and routes
+### 4. Distributing rules and routes 
 
 For every pair in the path rule set, the topology graph is traversed
 from source to destination, collecting routing and rule information
@@ -222,20 +214,20 @@ distribution, further consistency checks are performed on the ruleset.
     into both directions. Therefore, for rules that were found during
     path traversal to have a stateless device on a path connecting
     source and destination, a reverse rule is generated and added to
-    the path ruleset, if it has not been contained before.
+    the path ruleset.
 
 * **Identify rules that can be simplified at secondary routers:** 
     `mark_secondary_rules`
- :  If all routes between a source and destination pair of a rule
-    contain at least one managed router, simplified ACLs may be
-    generated for that rule on secondary routers. Rules that have been
-    identified to fulfill this requirement during path traversal are
-    now marked.
+:   If all paths between a source and destination pair of a rule contain
+    at least one managed router, simplified ACLs may be generated for
+    that rule on secondary routers during pass 2.  Rules that have
+    been identified to fulfill this requirement during path traversal
+    are now marked to be simplified in pass 2.
 
 * **Distribute rules to managed devices:** `rules_distribution`
  :  For every source and destination pair of the path rule set, the
-    topology is traversed again, adding the associated rule
-    information to every managed router on the found paths.
+    topology is traversed again, collecting the associated rule
+    information at every managed router on the found paths.
 
 ### 5. Generating output
 
@@ -261,10 +253,12 @@ In pass 2, a valid and complete router configuration file is written
 for every router, combining its configuration template file and
 collected rule information.
 
-### 1. Generating final configurations
+### 1. Checking for reusable files
 
-* **Reusing files:** `pass2`
- :  While new config template files and rule files were written in
+Check, whether configuration files from previous runs can be reused. 
+
+* **Reusing files:** `check_prev`
+ :  While new configuration template files and rule files were written in
     pass 1, the old ones have been stored in a hidden directory. The
     new files are now compared with the old ones, keeping track of
     those that have been altered by the latest run for further
@@ -272,12 +266,16 @@ collected rule information.
     files from the previous run are transferred to the output
     directory and reused.
 
+### 2. Optimizing router rule sets
+
 * **Generating ACL configurations** `prepare_acls`
  :  The routers rule set is now expanded to receive a set of
     elementary rules with exactly one source, destination and
     protocol. This rule set is then optimized by removing duplicate
     and redundant rules. Finally, ACL entries are generated from the
     optimized rule set.
+
+### 3. Generating final output 
 
 * **Writing router config files:** `print_combined`
  : After the routers config template file has been read, it is printed
