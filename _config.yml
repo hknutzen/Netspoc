@@ -9,3 +9,6 @@ defaults:
      layout: "default"
      author: "Heinz Knutzen"
 
+baseurl: "/Netspoc" # the subpath of your site, e.g. /blog
+url: "http://hknutzen.github.io" # the base hostname & protocol for your site
+github_username: hknutzen
