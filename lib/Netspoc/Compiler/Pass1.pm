@@ -10629,12 +10629,18 @@ sub check_pathrestrictions {
         my $elements = $restrict->{elements};    # Extract interfaces.
         @$elements or next;
 
-        my $deleted; # Flags whether interfaces have been deleted.
-        my $invalid; # Flags whether pathrestriction is invalid. 
+        # Collect interfaces to be deleted from pathrestriction.
+        my $deleted;
+
         my $prev_interface;
         my $prev_cluster;
         for my $interface (@$elements) {
-            next if $interface->{disabled};
+            
+            if ($interface->{disabled}) {
+                push @$deleted, $interface;
+                next;
+            }
+                
             my $router = $interface->{router};
             my $loop = get_loop($interface);
             my $loop_intf = $interface;
@@ -10660,11 +10666,9 @@ sub check_pathrestrictions {
             # Interfaces with pathrestriction need to be located
             # inside or at the border of cyclic graphs.
             if (not $loop) {
-                delete $interface->{path_restrict};
                 warn_msg("Ignoring $restrict->{name} at $interface->{name}\n",
                          " because it isn't located inside cyclic graph");
-                $interface = undef; # No longer reference this interface.
-                $deleted = 1;
+                push @$deleted, $interface;
                 next;
             }
 
@@ -10672,11 +10676,11 @@ sub check_pathrestrictions {
             my $cluster = $loop->{cluster_exit};
             if ($prev_cluster) {
                 if (not $cluster eq $prev_cluster) {
-                    warn_msg("$restrict->{name} must not have elements",
+                    warn_msg("Ignoring $restrict->{name} having elements",
                             " from different loops:\n",
                             " - $prev_interface->{name}\n",
                             " - $interface->{name}");
-                    $invalid = 1;
+                    $deleted = $elements;
                     last;
                 }
             }
@@ -10684,27 +10688,38 @@ sub check_pathrestrictions {
                 $prev_cluster   = $cluster;
                 $prev_interface = $interface;
             }
-
-            # Mark pathrestricted interface at border of loop,
-            # where loop node is a zone.
-            # This needs special handling during path_mark and path_walk
-            if (not $loop_intf->{loop} and $loop_intf->{zone}->{loop}) {
-                $loop_intf->{loop_zone_border} = 1;
-            }
         }
 
-        # Check whether pathrestriction is still valid. 
+        # Delete invalid elements of pathrestriction.
         if ($deleted) {
-            $elements = $restrict->{elements} = [ grep { $_ } @$elements ];
-            if (1 == @$elements) { # Min. 2 interfaces / pathrestriction needed. 
-                $invalid = 1;
+
+            # Ignore pathrestriction with only one element.
+            if (@$deleted + 1 == @$elements) {
+                $deleted = $elements;
             }
+
+            # Remove deleted elements from pathrestriction and
+            # remove pathrestriction from deleted elements.
+            # Work with copy of $elements, because we change $elements in loop.
+            $deleted = [ @$elements ] if $deleted eq $elements;
+            for my $element (@$deleted) {
+                aref_delete($elements, $element);
+                my $rlist = $element->{path_restrict};
+                aref_delete($rlist, $restrict);
+                if (not @$rlist) {
+                    delete $element->{path_restrict};
+                }
+            }
+            @$elements or next;
         }
 
-        # Remove invalid pathrestrictions. 
-        if ($invalid) {
-            $elements = $restrict->{elements} = [];
-            next;
+        # Mark pathrestricted interface at border of loop, where loop
+        # node is a zone.
+        # This needs special handling during path_mark and path_walk.
+        for my $interface (@$elements) {
+            if (not $interface->{loop} and $interface->{zone}->{loop}) {
+                $interface->{loop_zone_border} = 1;
+            }
         }
 
         # Check for useless pathrestrictions that do not affect any ACLs...

@@ -431,9 +431,81 @@ service:s1 = {
 END
 
 $out = <<'END';
-Warning: pathrestriction:p1 must not have elements from different loops:
+Warning: Ignoring pathrestriction:p1 having elements from different loops:
  - interface:r2a.n2
  - interface:r2b.n3
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Pathrestriction located in different loops (2)';
+############################################################
+# Ignored pathrestriction must be fully disabled internally.
+# Otherwise we got an non terminating program.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; } 
+}
+
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n5;
+}
+
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r4 = {
+ model = Linux;
+ managed;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n7; }
+}
+network:n6 = { ip = 10.1.6.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+
+router:r5 = {
+ interface:n6;
+ interface:n7;
+}
+
+pathrestriction:p =
+ interface:r4.n6,
+ interface:r3.n5,
+;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n5; prt = udp 500;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring pathrestriction:p having elements from different loops:
+ - interface:r4.n6
+ - interface:r3.n5
 END
 
 test_warn($title, $in, $out);
