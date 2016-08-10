@@ -4692,8 +4692,9 @@ sub check_ip_addresses {
         my %ip2obj;
 
         # 1. Check for duplicate interface addresses.
-        # 2. Short interfaces must not be used, if a managed interface
-        #    with static routing exists in the same network.
+        
+        # 2. Short or negotiated interfaces must not be used, if a managed
+        #    interface with static routing exists in the same network.
         my ($short_intf, $route_intf);
         for my $interface (@{ $network->{interfaces} }) {
             my $ip = $interface->{ip};
@@ -4704,25 +4705,23 @@ sub check_ip_addresses {
                     $short_intf = $interface;
                 }
             }
-            else {
-                unless ($ip =~ /^(?:unnumbered|negotiated|tunnel|bridged)$/) {
-                    my $router = $interface->{router};
-                    if (($router->{managed} or $router->{routing_only})
-                        and not$interface->{routing})
-                    {
-                        $route_intf = $interface;
-                    }
-                    if (my $old_intf = $ip2obj{$ip}) {
-                        unless ($old_intf->{redundant}
-                            and $interface->{redundant})
-                        {
-                            err_msg "Duplicate IP address for",
-                              " $old_intf->{name} and $interface->{name}";
-                        }
-                    }
-                    else {
-                        $ip2obj{$ip} = $interface;
-                    }
+            elsif ($ip eq 'negotiated') {
+                $short_intf = $interface;
+            }
+            elsif (not $ip =~ /^(?:unnumbered|tunnel|bridged)$/) {
+                my $router = $interface->{router};
+                if (($router->{managed} or $router->{routing_only})
+                    and not $interface->{routing})
+                {
+                    $route_intf = $interface;
+                }
+                if (my $other = $ip2obj{$ip}) {
+                    $other->{redundant} and $interface->{redundant} or
+                        err_msg("Duplicate IP address for",
+                                " $other->{name} and $interface->{name}");
+                }
+                else {
+                    $ip2obj{$ip} = $interface;
                 }
             }
             if ($short_intf and $route_intf) {
