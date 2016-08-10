@@ -885,4 +885,69 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Path starting at restricted interface without entering the loop';
+############################################################
+# Must not assume, that path enters loop.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u = {
+ interface:n1 = { ip = 10.1.1.3; }
+ interface:n3;
+ interface:n4;					
+}
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r3 = {
+ model = Linux;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+pathrestriction:p1 = interface:r1.n1, interface:r3.n4;
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n2; prt = proto 50;
+ permit src = network:n2; dst = user; prt = proto 50;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ permit 50 10.1.2.0 0.0.0.255 host 10.1.1.1
+ deny ip any any
+--r2
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit 50 host 10.1.1.1 10.1.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit 50 10.1.2.0 0.0.0.255 host 10.1.1.1
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

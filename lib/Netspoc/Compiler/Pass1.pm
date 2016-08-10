@@ -12061,6 +12061,17 @@ sub connect_cluster_path {
     # Set flag, if path starts or ends at interface of zone at border of loop.
     my ($start_at_zone, $end_at_zone);
 
+    # Don't set $from_in if we are about to enter a loop at zone,
+    # because pathrestriction at $from_in must not be activated.
+    if ($from_in and $from_in eq $from_store and 
+        $from_store->{loop_zone_border})
+    {
+        $from_in = undef;
+    }
+    if ($to_out and $to_out eq $to_store and $to_store->{loop_zone_border}) {
+        $to_out = undef;
+    }
+                
     # Path starts at pathrestricted interface inside or at border of 
     # current loop.
     if (not $from_in and is_interface($from_store)) {
@@ -12201,7 +12212,7 @@ sub path_mark {
             # Get interface towards zone1.
             my $from_out = $from->{to_zone1};
 
-            # If from is a loop node, mark whole loop path within this step. 
+            # If $from is a loop node, mark whole loop path within this step. 
             unless ($from_out) {
 
                 # Reached border of graph partition.
@@ -12221,7 +12232,7 @@ sub path_mark {
             }
 
             # Mark path at the interface we came from (step in path direction)
-#           debug(' ', $from_in ? $from_in->{name}:'', " -> $from_out->{name}");
+#           debug('pAth: ', $from_in ? $from_in->{name}:'', "$from_store->{name} -> $from_out->{name}");
             if ($from_in) {
                 $from_in->{path}->{$to_store} = $from_out;
             }
@@ -12231,15 +12242,8 @@ sub path_mark {
             $from      = $from_out->{to_zone1};
             $from_loop = $from->{loop};
 
-            # Don't set $from_in if we are about to enter a loop at zone,
-            # because pathrestriction at $from_in must not be activated.
-            if ($from_in or 
-                not ($from->{loop} and $from_store->{loop_zone_border}))
-            {
-
-                # Go to next node towards zone1.
-                $from_in   = $from_out;
-            }
+            # Go to next node towards zone1.
+            $from_in = $from_out;
         }
 
         # Take step towards zone1 from node $to (backwards on path).
@@ -12248,7 +12252,7 @@ sub path_mark {
             # Get interface towards zone1.
             my $to_in = $to->{to_zone1};
 
-            # If to is a loop node, mark whole loop path within this step.
+            # If $to is a loop node, mark whole loop path within this step.
             unless ($to_in) {
 
                 # Reached border of graph partition.
@@ -12268,20 +12272,13 @@ sub path_mark {
             }
 
             # Mark path at interface we go to (step in opposite path direction).
-#            debug("path: $to_in->{name} -> $to_store->{name}".($to_out ? $to_out->{name}:''));
+#           debug("path: $to_in->{name} -> $to_store->{name}".($to_out ? $to_out->{name}:''));
             $to_in->{path}->{$to_store} = $to_out;
             $to = $to_in->{to_zone1};
             $to_loop = $to->{loop};
 
-            # Don't set $to_out if we are about to enter a loop at zone,
-            # because pathrestriction at $to_out must not be activated.
-            if ($to_out or 
-                not ($to->{loop} and $to_store->{loop_zone_border}))
-            {
-
-                # Go to next node towards zone1.
-                $to_out  = $to_in;
-            }
+            # Go to next node towards zone1.
+            $to_out  = $to_in;
         }
     }
 }
