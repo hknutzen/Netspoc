@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+5.014     2016-08-10 15:05:06+02:00 Europe/Berlin
+
+ - Fixed wrong ACL, generated for linear path starting at interface
+   with pathrestriction at zone at border of loop, where path did not
+   enter loop.
+ - Fixed infinite loop during processing of ignored pathrestriction.
+ - Reject negotiated interface as next hop for routing.
+ - Fixed check for inconsistent NAT in loop.
+ - Check for subnet in other zone is done recursivly now. This may
+   prevent some dangerous secondary optimizattion.
+
 5.013     2016-07-11 14:26:29+02:00 Europe/Berlin
 
  - Improved check for missing transient supernet rules.
