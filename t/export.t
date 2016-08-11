@@ -31,11 +31,11 @@ sub test_run {
     }
 
     # Blocks of expected output are split by single lines of dashes,
-    # followed by a device name.
+    # followed by a file name.
     my @expected = split(/^-+[ ]*(\S+)[ ]*\n/m, $expected);
     my $first = shift @expected;
     if ($first) {
-        diag("Missing device name in first line of code specification");
+        diag("Missing file name in first line of output specification");
         fail($title);
         return;
     }
