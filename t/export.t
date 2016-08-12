@@ -1596,19 +1596,19 @@ network:n1 = {
  host:h1 = { ip = 10.1.1.10; nat:D1 = { ip = 10.9.9.10; } }
  host:h2 = { ip = 10.1.1.11; }
 }
-network:n2 = {ip = 10.1.2.0/24; }
-network:n3 = {ip = 10.1.3.0/24; }
-network:n4 = {ip = 10.1.4.0/24; }
-network:n5 = {ip = 10.1.5.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
 
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = {ip = 10.1.1.1; hardware = n1; nat:D1 = { ip = 10.9.9.1; } }
- interface:n2 = {ip = 10.1.2.1; hardware = n2; bind_nat = D1; }
- interface:n3 = {ip = 10.1.3.1; hardware = n3; bind_nat = D2; }
- interface:n4 = {ip = 10.1.4.1; hardware = n4; bind_nat = H; }
- interface:n5 = {ip = 10.1.5.1; hardware = n5; bind_nat = S; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat:D1 = { ip = 10.9.9.1; } }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = D1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = D2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = H; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = S; }
 }
 
 
@@ -1669,6 +1669,82 @@ $out = <<END;
       },
       "owner" : null,
       "zone" : "any:[network:n1]"
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : null,
+      "zone" : "any:[network:n2]"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Negotiated interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { negotiated; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<END;
+--objects
+{
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : null
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : null,
+      "zone" : "any:[network:n2]"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Host range';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { range = 10.1.1.10-10.1.1.17; } }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { negotiated; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<END;
+--objects
+{
+   "host:h1" : {
+      "ip" : "10.1.1.10-10.1.1.17",
+      "owner" : null
    },
    "network:n2" : {
       "ip" : "10.1.2.0/255.255.255.0",
