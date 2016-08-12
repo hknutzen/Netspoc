@@ -194,13 +194,6 @@ sub ip_nat_for_object {
                          print_ip($network->{ip}), print_ip($network->{mask}));
                 }
             }
-            elsif ($network->{isolated}) {
-
-                # NAT not allowed for isolated ports. 
-                # Take no bits from network, because secondary isolated ports 
-                # don't match network.
-                print_ip($obj->{ip});
-            }
             elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
                 $obj->{ip};
             }
