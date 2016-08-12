@@ -1,3 +1,8 @@
+5.015     2016-08-12 14:27:52+02:00 Europe/Berlin
+
+ - Fixed export host / interface with static NAT of network with
+   dynamic NAT to NetspocWeb.
+
 5.014     2016-08-10 15:05:06+02:00 Europe/Berlin
 
  - Fixed wrong ACL, generated for linear path starting at interface
