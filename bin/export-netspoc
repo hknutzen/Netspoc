@@ -139,7 +139,8 @@ sub ip_nat_for_object {
     elsif ($type eq 'Host') {
         my $get_ip = sub {
             my ($obj, $network) = @_;
-            if (my $nat_tag = $network->{dynamic}) {
+            if ($network->{dynamic}) {
+                my $nat_tag = $network->{nat_tag};
                 if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
                     # Single static NAT IP for this host.
@@ -176,7 +177,8 @@ sub ip_nat_for_object {
     elsif ($type eq 'Interface') {
         my $get_ip = sub {
             my ($obj, $network) = @_;
-            if (my $nat_tag = $network->{dynamic}) {
+            if ($network->{dynamic}) {
+                my $nat_tag = $network->{nat_tag};
                 if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                     # Single static NAT IP for this interface.

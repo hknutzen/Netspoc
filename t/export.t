@@ -1583,4 +1583,61 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Dynamic NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:N = { ip = 10.9.9.0/26; dynamic; }
+ host:h1 = { ip = 10.1.1.10; nat:N = { ip = 10.9.9.10; } }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; nat:N = { ip = 10.9.9.1; } }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; bind_nat = N; }
+}
+
+network:n2  = {ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = interface:r1.n1; prt = tcp 22;
+}
+END
+
+$out = <<END;
+--objects
+{
+   "host:h1" : {
+      "ip" : "10.1.1.10",
+      "nat" : {
+         "N" : "10.9.9.10"
+      },
+      "owner" : null
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "nat" : {
+         "N" : "10.9.9.1"
+      },
+      "owner" : null
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : null,
+      "zone" : "any:[network:n2]"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
