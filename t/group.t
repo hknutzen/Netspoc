@@ -146,6 +146,18 @@ END
 test_group($title, $in, 'group:Über', $out);
 
 ############################################################
+$title = 'Find unused network that is referenced in argument';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+END
+
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-unused');
+
+############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
 # Don't show warning "unused group:g2 

@@ -234,6 +234,7 @@ my $elements = expand_group_in_rule($parsed, 'print-group');
 
 # Find unused objects by marking used objects.
 if ($show_unused) {
+    my %used;
     order_protocols();
     normalize_services();
     abort_on_error();
@@ -243,15 +244,15 @@ if ($show_unused) {
             for my $what (qw(src dst)) {
                 my $group = $rule->{$what};
                 for my $obj (@$group) {
-                    $obj->{is_used} = 1;
+                    $used{$obj} = 1;
                     if (is_host($obj) or is_interface($obj)) {
-                        $obj->{network}->{is_used} = 1;
+                        $used{$obj->{network}} = 1;
                     }
                 }
 	    }
 	}
     }
-    $elements = [ grep { not($_->{is_used}) } @$elements ];
+    $elements = [ grep { not $used{$_} } @$elements ];
 }
 if ($show_owner) {
     propagate_owners();
