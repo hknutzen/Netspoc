@@ -2346,12 +2346,11 @@ sub pass2 {
 sub compile {
     my ($args) = @_;
     ($config, undef, my $dir) = get_args($args);
-    $start_time = $config->{start_time} || time();
     if ($dir) {
+        $start_time = $config->{start_time} || time();
         pass2($dir);
+        progress('Finished');
     }
-    progress('Finished');
-    return;
 }
 
 1;
