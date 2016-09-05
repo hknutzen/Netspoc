@@ -438,4 +438,48 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Redundancy in enclosed port range';
+############################################################
+# Redundance should be recognized, even if service:s3 isn not defined.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80 - 81;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+#service:s3 = {
+# user = network:n2;
+# permit src = user; dst = network:n3; prt = tcp 10 - 80;
+#}
+END
+
+$out = <<'END';
+Warning: Redundant rules in service:s1 compared to service:s2:
+  permit src=host:h1; dst=network:n3; prt=tcp 80; of service:s1
+< permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s2
+END
+
+Test::More->builder->
+    todo_start("Split port ranges before compare");
+test_warn($title, $in, $out);
+Test::More->builder->todo_end;
+
+
+############################################################
 done_testing;
