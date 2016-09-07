@@ -292,7 +292,7 @@ router:filter = {
  model = ASA;
  interface:n1 = { ip = 10.0.1.2; hardware = n1; }
  interface:n2 = { ip = 10.0.2.2; hardware = n2; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D, E; }
 }
 
 network:X = { ip = 10.8.3.0/24; }
@@ -300,8 +300,8 @@ END
 
 # Only first error is shown.
 $out = <<'END';
+Warning: Ignoring useless nat:E bound at router:filter
 Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:n1) at router:filter
-Error: Grouped NAT tags 'C' and 'D' must not both be active inside nat_domain:X
 END
 
 test_err($title, $in, $out);

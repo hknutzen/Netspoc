@@ -8225,34 +8225,8 @@ sub distribute_nat_info {
 
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
 
-            # Multiple tags are bound to interface.
-            # If some network has multiple matching NAT tags,
-            # the resulting NAT mapping would be ambiguous.
-            if (@$nat_tags >= 2) {
-              NAT_TAG:
-                for my $nat_tag (@$nat_tags) {
-                    my $aref = $nat_tags2multi{$nat_tag} or next;
-                    for my $href (@$aref) {
-                        my @tags = grep { $href->{$_} && $_ } @$nat_tags;
-                        @tags >= 2 or next;
-                        my $tags = join(',', @tags);
-                        my $nat_net = $href->{ $tags[0] };
-                        err_msg(
-                            "Must not bind multiple NAT tags",
-                            " '$tags' of $nat_net->{name}",
-                            " at $router->{name}"
-                        );
-
-                        # Show only first error. Otherwise we would
-                        # show the same error multiple times.
-                        last NAT_TAG;
-                    }
-                }
-            }
             for my $nat_tag (@$nat_tags) {
                 if ($nat_definitions{$nat_tag}) {
-                    distribute_nat($domain, $nat_tag, \%nat_tags2multi,
-                                   $router);
                     $nat_definitions{$nat_tag} = 'used';
                 }
                 else {
@@ -8261,6 +8235,33 @@ sub distribute_nat_info {
                         " bound at $router->{name}"
                     );
                 }
+            }
+            
+          NAT_TAG:
+            for my $nat_tag (@$nat_tags) {
+                
+                # Multiple tags are bound to interface.
+                # If some network has multiple matching NAT tags,
+                # the resulting NAT mapping would be ambiguous.
+                if (@$nat_tags >= 2 and 
+                    (my $aref = $nat_tags2multi{$nat_tag})) 
+                {
+                    for my $href (@$aref) {
+                        my @tags = grep { $href->{$_} } @$nat_tags;
+                        @tags >= 2 or next;
+                        my $tags = join(',', @tags);
+                        my $nat_net = $href->{ $tags[0] };
+                        err_msg(
+                            "Must not bind multiple NAT tags '$tags'",
+                            " of $nat_net->{name} at $router->{name}"
+                        );
+
+                        # Show only first error. Process only first
+                        # valid NAT tag to prevent inherited errors.
+                        last NAT_TAG;
+                    }
+                }
+                distribute_nat($domain, $nat_tag, \%nat_tags2multi, $router);
             }
         }
     }
