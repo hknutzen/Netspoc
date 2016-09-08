@@ -8091,25 +8091,6 @@ sub distribute_nat_info {
 
         # Print error message only once per network.
         my $err_shown;
-        my $show_err = sub {
-            my ($href1, $href2) = @_;
-            return if $err_shown;
-            my $tags1 = join(',', sort keys %$href1);
-            my $name1 = $network->{name};
-            my $tags2 = join(',', sort keys %$href2);
-
-            # Values are NAT entries with name of network.
-            # Take first value deterministically.
-            my ($name2) = sort map { $_->{name} } values %$href2;
-            err_msg
-              "If multiple NAT tags are used at one network,\n",
-              " these NAT tags must be used",
-              " equally grouped at other networks:\n",
-              " - $name1: $tags1\n",
-              " - $name2: $tags2";
-            $err_shown = 1;
-            return;
-        };
 
       NAT_TAG:
         for my $nat_tag (sort keys %$href) {
@@ -8120,52 +8101,23 @@ sub distribute_nat_info {
                 # then only a single href is allowed.
                 if ($has_non_hidden{$nat_tag}) {
                     my $href2 = $aref->[0];
-                    keys_eq($href, $href2) or $show_err->($href, $href2);
-                    next NAT_TAG;
-                }
-
-                # Array of hrefs has common hidden NAT tag.
-                #
-                # Ignore new href if it is identical to some previous one.
-                for my $href2 (@$aref) {
-                    keys_eq($href, $href2) and next NAT_TAG;
-                }
-
-                # Some element is non hidden, check detailed.
-                if (grep { $has_non_hidden{$_} } %$href) {
-
-                    # Check new href for consistency with previous hrefs.
-                    for my $nat_tag2 (sort keys %$href) {
-                        next if $nat_tag2 eq $nat_tag;
-                        for my $href2 (@$aref) {
-
-                            # Don't check previous href with all hidden tags.
-                            next if $all_hidden{$href2};
-
-                            # Non hidden tag must not occur in other href.
-                            if ($has_non_hidden{$nat_tag2}) {
-                                if ($href2->{$nat_tag2}) {
-                                    $show_err->($href, $href2);
-                                    next NAT_TAG;
-                                }
-                            }
-
-                            # Hidden tag must occur in all other hrefs.
-                            else {
-                                if (not $href2->{$nat_tag2}) {
-                                    $show_err->($href, $href2);
-                                    next NAT_TAG;
-                                }
-                            }
-                        }
+                    if (not keys_eq($href, $href2) and not $err_shown) {
+                        my $tags1 = join(',', sort keys %$href);
+                        my $name1 = $network->{name};
+                        my $tags2 = join(',', sort keys %$href2);
+                        
+                        # Values are NAT entries with name of network.
+                        # Take first value deterministically.
+                        my ($name2) = sort map { $_->{name} } values %$href2;
+                        err_msg(
+                            "If multiple NAT tags are used at one network,\n",
+                            " these NAT tags must be used",
+                            " equally grouped at other networks:\n",
+                            " - $name1: $tags1\n",
+                            " - $name2: $tags2");
+                        $err_shown = 1;
                     }
-                }
-
-                # All elements are hidden. Always ok.
-                else {
-
-                    # Mark this type of href for easier checks.
-                    $all_hidden{$href} = 1;
+                    next NAT_TAG;
                 }
 
                 # If current href and some previous href are in subset
