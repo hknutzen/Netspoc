@@ -8083,7 +8083,6 @@ sub distribute_nat_info {
     # This is used to check,
     # that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
-    my %all_hidden;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
 
