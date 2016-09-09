@@ -6,14 +6,20 @@ print-group - Show elements of a netspoc group definition
 
 =head1 SYNOPSIS
 
-print-group [options] FILE|DIR 'group:name,...'
+print-group [options] FILE|DIR ['group:name,...']
 
 =head1 DESCRIPTION
 
-This program prints the elements of a netspoc group definition.  By default it
-shows a line with IP/prefixlen and name for each element separated by tab
-character. Group is a simple group, some automatic group, or a union or
-intersection or complement of simpler groups.
+This program prints the elements of one or more netspoc group
+definitions.  By default it reads a group definition from command line
+and shows a line with IP/prefixlen and name for each element separated
+by tab character. Group is a simple group, some automatic group, or a
+union or intersection or complement of simpler groups.
+
+With option B<-f>, group definitions are read from a file with a
+single group definition per line. In the output, a comment line is
+prepended to elements of each group. The format of this comment line
+is a B<#> character followed by the corresponding input line.
 
 =head1 OPTIONS
 
@@ -29,15 +35,20 @@ Show only elements not used in any rules.
 
 =item B<-name>
 
-Show only name of elements
+Show only name of elements.
 
 =item B<-ip>
 
-Show only IP address of elements
+Show only IP address of elements.
 
 =item B<-owner>
 
 Show owner of elements.
+
+=item B<-f> FILE
+
+Read group definitions from FILE, one definition per line.
+If B<-> is specified, read from standard input. 
 
 =item B<-quiet>
 
@@ -176,6 +187,7 @@ my $show_unused;
 my $show_ip;
 my $show_name;
 my $show_owner;
+my $groups_file;
 my $quiet;
 my $help;
 my $man;
@@ -184,6 +196,7 @@ GetOptions ( 'nat=s'  => \$nat_net,
 	     'ip!'    => \$show_ip,
 	     'name!'  => \$show_name,
              'owner!' => \$show_owner,
+             'f=s'    => \$groups_file,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,
 	     man => \$man,
@@ -193,9 +206,22 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 $show_ip or $show_name or $show_ip = $show_name = 1;
 
 my $in_path = shift @ARGV or pod2usage(2);
-my $name = shift @ARGV or pod2usage(2);
-$name = decode_utf8($name, 1);
+my @groups;
+if ($groups_file) {
 
+    ## no critic ProhibitTwoArgOpen
+    open(my $fh, $groups_file) or die "Can't open $groups_file: $!\n";
+    @groups = <$fh>;
+    close $fh;
+}
+else {
+    my $definition = shift @ARGV or pod2usage(2);
+    $definition = decode_utf8($definition, 1);
+    push @groups, $definition;
+}
+
+@ARGV and pod2usage(2);
+    
 ####################################################################
 # Main program
 ####################################################################
@@ -205,11 +231,18 @@ $config = combine_config($file_config, { verbose => !$quiet });
 init_global_vars();
 
 # Parse group definition(s).
-$input = "$name;";
-$current_file = 'group definition';
-my $parsed = read_union(';');
-skip_space_and_comment();
-pos $input == length $input or die "Invalid group specification\n";
+for (my $i = 0; $i < @groups; $i++) {
+    my $definition = $groups[$i];
+    chomp $definition;
+    my $line = $i + 1;
+    $input = "$definition;";
+    $current_file = 
+        $groups_file ? "line $line of file $groups_file" : 'group definition';
+    my $parsed = read_union(';');
+    skip_space_and_comment();
+    pos $input == length $input or die "Invalid group specification\n";
+    $groups[$i] = [$definition, $parsed];
+}
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);
@@ -229,12 +262,9 @@ if($nat_net) {
     $no_nat_set = $net->{nat_domain}->{no_nat_set};
 }
 
-# Expand group definition(s).
-my $elements = expand_group_in_rule($parsed, 'print-group');
-
-# Find unused objects by marking used objects.
+# Prepare finding unused objects by marking used objects.
+my %used;
 if ($show_unused) {
-    my %used;
     order_protocols();
     normalize_services();
     abort_on_error();
@@ -249,38 +279,50 @@ if ($show_unused) {
                         $used{$obj->{network}} = 1;
                     }
                 }
-	    }
-	}
+            }
+        }
     }
-    $elements = [ grep { not $used{$_} } @$elements ];
 }
 if ($show_owner) {
     propagate_owners();
 }
 
-# Collect IP address, name, owner.
-my @info = map { my $v = [ print_address($_, $no_nat_set),
-                           $_->{name} ];
-                 push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
-		 $v } @$elements;
+# Expand group definition(s).
+for my $aref (@groups) {
+    my ($definition, $parsed) = @$aref;
+    my $elements = expand_group_in_rule($parsed, 'print-group');
 
-abort_on_error();
+    if ($show_unused) {
+        $elements = [ grep { not $used{$_} } @$elements ];
+    }
+    
+    # Collect IP address, name, owner.
+    my @info = map { my $v = [ print_address($_, $no_nat_set),
+                               $_->{name} ];
+                     push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
+                     $v } @$elements;
 
-# Sort by IP address and print results.
-for my $aref (sort { $a->[0] cmp $b->[0] } @info) {
-    my ($address, $name, $owner) = @$aref;
-    my @result;
-    if ($show_ip) {
-        push @result, $address;
+    abort_on_error();
+
+    # Prepend group definition as comment.
+    if ($groups_file) {
+        print "# $definition\n";
     }
-    if ($show_name) {
-        push @result, $name;
+
+    # Sort by IP address and print results.
+    for my $aref (sort { $a->[0] cmp $b->[0] } @info) {
+        my ($address, $name, $owner) = @$aref;
+        my @result;
+        if ($show_ip) {
+            push @result, $address;
+        }
+        if ($show_name) {
+            push @result, $name;
+        }
+        if ($show_owner) {
+            $owner ||= 'none';
+            push @result, $owner;
+        }
+        print join("\t", @result), "\n";
     }
-    if ($show_owner) {
-        $owner ||= 'none';
-        push @result, $owner;
-    }
-    print join("\t", @result), "\n";
 }
-
-
