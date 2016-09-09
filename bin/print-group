@@ -251,7 +251,7 @@ my $no_nat_set;
 if($nat_net) {
     $nat_net =~ s/^network://;
     my $net = $networks{$nat_net} or 
-	die "Unknown network:$nat_net of option '-n'\n";
+	die "Unknown network:$nat_net of option '-nat'\n";
     $no_nat_set = $net->{nat_domain}->{no_nat_set};
 }
 
@@ -283,7 +283,7 @@ if ($show_owner) {
 # Expand group definition(s).
 for my $aref (@groups) {
     my ($definition, $parsed) = @$aref;
-    my $elements = expand_group_in_rule($parsed, 'print-group');
+    my $elements = expand_group($parsed, 'print-group');
 
     if ($show_unused) {
         $elements = [ grep { not $used{$_} } @$elements ];

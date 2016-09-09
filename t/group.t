@@ -261,6 +261,112 @@ END
 test_group($title, $in, $groups, $out, '-name -unused');
 
 ############################################################
+$title = 'NAT, negotiated, unnumbered, short, auto';
+############################################################
+
+$in = <<'END';
+network:n1 = { 
+ ip = 10.1.1.0/24; 
+ nat:t1 = { ip = 10.9.1.0/28; dynamic; }
+ host:h1 = { ip = 10.1.1.10; nat:t1 = { ip = 10.9.1.10; } }
+}
+
+network:n2 = { 
+ ip = 10.1.2.0/24; 
+ nat:t1 = { ip = 10.9.2.0/24; }
+ host:h2 = { ip = 10.1.2.10; }
+}
+
+network:n3 = { 
+ ip = 10.1.3.0/24; 
+ nat:t1 = { hidden; }
+ host:h3 = { ip = 10.1.3.10; }
+}
+
+router:r1 =  {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; nat:t1 = { ip = 10.9.1.1; } hardware = n1; }
+ interface:n2 = { negotiated; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t1 = { unnumbered; hardware = t; bind_nat = t1; }
+}
+network:t1 = { unnumbered; }
+
+router:r2 = {
+ interface:t1;
+ interface:k1;
+}
+
+network:k1 = { ip = 10.2.2.0/24; }
+END
+
+$groups = <<'END';
+network:n1
+host:h1
+network:n2
+host:h2
+network:n3
+host:h3
+network:t1
+interface:r1.[all]
+interface:r1.[auto]
+interface:r1.t1
+interface:r2.[all]
+END
+
+$out = <<'END';
+# network:n1
+10.9.1.0/28	network:n1
+# host:h1
+10.9.1.0/28	host:h1
+# network:n2
+10.9.2.0/24	network:n2
+# host:h2
+10.9.2.10	host:h2
+# network:n3
+hidden	network:n3
+# host:h3
+hidden	host:h3
+# network:t1
+unnumbered	network:t1
+# interface:r1.[all]
+10.9.1.0/28	interface:r1.n1
+10.9.2.0/24	interface:r1.n2
+hidden	interface:r1.n3
+# interface:r1.[auto]
+unknown	interface:r1.[auto]
+# interface:r1.t1
+unnumbered	interface:r1.t1
+# interface:r2.[all]
+short	interface:r2.t1
+short	interface:r2.k1
+END
+
+test_group($title, $in, $groups, $out, '-nat k1');
+
+############################################################
+$title = 'Show owner';
+############################################################
+
+$in = <<'END';
+owner:o = { admins = o@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o; }
+router:r = {
+ interface:n1;
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1	owner:o
+10.1.2.0/24	network:n2	none
+END
+
+test_group($title, $in, 'network:n1, network:n2', $out, '-owner');
+
+############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
 # Don't show warning "unused group:g2 
