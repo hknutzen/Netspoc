@@ -144,13 +144,6 @@ sub print_address {
                 return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
             }
         }
-        elsif ($network->{isolated}) {
-            
-            # NAT not allowed for isolated ports. 
-            # Take no bits from network, because secondary isolated ports 
-            # don't match network.
-            return print_ip($obj->{ip});
-        }
         elsif (my $range = $obj->{range}) {
             return 
                 join('-', map { print_ip(nat($_, $network)) } @$range);
@@ -175,7 +168,6 @@ sub print_address {
     else {
         internal_err "Unexpected object $obj->{name}";
     }
-    return; # unused; only for perlcritic
 }
 
 ####################################################################
