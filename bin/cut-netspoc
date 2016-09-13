@@ -538,16 +538,6 @@ for my $router (values %routers) {
             $interface->{network}->{is_used} = 1;
         }
     }
-
-    # Remove unused hosts referenced in attribute radius_servers.
-    if (my $hosts = $router->{radius_servers}) {
-	for my $host (@$hosts) {
-            my $used_host_names = 
-                join ', ', map { $_->{name} } grep { $_->{is_used} } @$hosts;
-            my $new_code = "radius_servers = $used_host_names;";
-            change_attribute_src_code('radius_servers', $router, $new_code);
-	}
-    }
 }
 
 # Remove definitions of unused hosts from networks.
