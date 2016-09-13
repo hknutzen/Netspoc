@@ -7,13 +7,14 @@ use Test::Differences;
 use File::Temp qw/ tempfile tempdir /;
 
 sub test_run {
-    my ($title, $input, $expected) = @_;
+    my ($title, $input, $expected, @services) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
     my $cmd = "$^X $perl_opt -I lib bin/cut-netspoc --quiet $filename";
+    $cmd .= " @services" if @services;
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
@@ -37,8 +38,8 @@ network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
@@ -65,8 +66,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n1;
@@ -75,6 +76,45 @@ service:test = {
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Select service on command line, ignore disabled';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+    user = host:h10;
+    permit src = user; dst = network:n2; prt = tcp 81;
+}
+service:s3= {
+    disabled;
+    user = host:h10;
+    permit src = user; dst = network:n2; prt = tcp 82;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s2 = {
+    user = host:h10;
+    permit src = user; dst = network:n2; prt = tcp 81;
+}
+END
+
+test_run($title, $in, $out, 'service:s2 service:s3');
 
 ############################################################
 $title = 'Simple service, remove one host';
@@ -96,12 +136,68 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = host:h11, host:h12;
     permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Simple service, remove network and interface';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+    user = network:n1;
+    permit src = user; dst = interface:asa1.n1; prt = ip;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = interface:asa1.n1; prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Simple service, retain interface and attached network';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+    user = network:n2;
+    permit src = user; dst = interface:asa1.n1; prt = ip;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n2;
+    permit src = user; dst = interface:asa1.n1; prt = ip;
 }
 END
 
@@ -127,8 +223,8 @@ network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
  interface:n2 = { ip = 10.1.2.2; }
@@ -163,8 +259,8 @@ network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
  interface:n2 = { ip = 10.1.2.2; }
@@ -198,8 +294,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n2;
@@ -228,8 +324,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.9.9/32; dynamic; } }
 service:test = {
@@ -259,8 +355,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n2;
@@ -294,8 +390,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 any:a2 = { 
  link = network:n2; 
@@ -318,8 +414,7 @@ any:n1 = {
  nat:N = { ip = 10.9.9.0/24; dynamic; } 
  link = network:n1;
 }
-network:n1 = {
- ip = 10.1.1.0/24; 
+network:n1 = { ip = 10.1.1.0/24; 
  nat:N = { identity; } 
 }
 network:n1_sub = {
@@ -472,8 +567,8 @@ owner:o = { admins = a@example.com; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n2;
@@ -488,8 +583,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n2;
@@ -520,8 +615,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = host:h11;
@@ -538,8 +633,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = host:h11;
@@ -547,6 +642,151 @@ service:test = {
 }
 END
 
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Cleanup sub_owner';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a@example.com; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    sub_owner = o1;
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Cleanup policy_distribution_point';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h10 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ policy_distribution_point = host:h10;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Cleanup pathrestriction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+pathrestriction:p = interface:r1.n1, interface:r2.n3, interface:r3.n3;
+service:test = {
+    user = network:n1, network:n2;
+    permit src = user; dst = network:n3; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+pathrestriction:p =
+ interface:r1.n1,
+ interface:r2.n3,
+;
+service:test = {
+    user = network:n1, network:n2;
+    permit src = user; dst = network:n3; prt = tcp;
+}
+END
 
 test_run($title, $in, $out);
 
@@ -568,8 +808,8 @@ router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1a, network:n1b; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; reroute_permit = network:n1a, network:n1b; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n1b;
@@ -589,11 +829,56 @@ router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; reroute_permit = network:n1b; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; reroute_permit = network:n1b; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n1b;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove reroute_permit';
+############################################################
+
+$in = <<'END';
+network:n1a = { ip = 10.1.1.64/27; subnet_of = network:n1; }
+network:n1b = { ip = 10.1.1.96/27; subnet_of = network:n1; }
+router:u = {
+ interface:n1a;
+ interface:n1b;
+ interface:n1;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; reroute_permit = network:n1a, network:n1b; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
     permit src = user; dst = network:n2; prt = tcp;
 }
 END
@@ -677,8 +962,8 @@ router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1/right = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1/right = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
     user = network:n1/right;
@@ -754,8 +1039,8 @@ network:customers1 = {
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
  }
- host:id:bar@domain.x = { 
-  ip = 10.99.1.11; 
+ host:id:bar@domain.x = {
+  ip = 10.99.1.11;
   radius_attributes = { banner = Willkommen zu Hause; }
  }
 }
@@ -808,7 +1093,39 @@ $title = 'Take one of multiple crypto networks';
 
 my $service = <<'END';
 service:test1 = {
- user = host:id:foo@domain.x.customers1;
+ user = host:id:bar@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 80; 
+}
+END
+
+$in = $topo . $clients1 . $clients2 . $service;
+$out = $topo . <<'END'
+router:softclients1 = {
+ interface:internet = { spoke = crypto:vpn1; }
+ interface:customers1;
+}
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:bar@domain.x = {
+  ip = 10.99.1.11;
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+END
+. $service;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Network with ID hosts';
+############################################################
+# Take at least one ID host
+
+$service = <<'END';
+service:test1 = {
+ user = network:customers1;
  permit src = user; dst = network:intern; prt = tcp 80; 
 }
 END
@@ -830,6 +1147,58 @@ network:customers1 = {
 }
 END
 . $service;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'With description';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ description = network:n1; # looks like code
+ ip = 10.1.1.0/24;
+ host:h10 = {
+  description = littel host;;;
+  ip = 10.1.1.10;
+ }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ description = description = ;     
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s = {
+ description = this is really important
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-90;
+}
+END
+    
+$out = <<'END';
+network:n1 = {
+ description = network:n1; # looks like code
+ ip = 10.1.1.0/24;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ description = description = ;     
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s = {
+ description = this is really important
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80-90;
+}
+END
+
 test_run($title, $in, $out);
 
 ############################################################
