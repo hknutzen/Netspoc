@@ -269,12 +269,12 @@ router:asa2 = {
 END
 
 $out = <<'END';
+Warning: Useless owner:x at area:a3,
+ it was already inherited from area:a2
 Warning: Useless owner:x at area:a1,
  it was already inherited from area:all
 Warning: Useless owner:x at area:a2,
  it was already inherited from area:all
-Warning: Useless owner:x at area:a3,
- it was already inherited from area:a2
 END
 
 test_warn($title, $in, $out);
@@ -349,7 +349,7 @@ $title = 'Owner with only watchers';
 ############################################################
 
 $in = <<'END';
-owner:x = { watchers = x@a.b; extend_only; }
+owner:x = { watchers = x@a.b; }
 owner:y = { watchers = y@a.b; }
 area:all = { owner = x; anchor = network:n1; }
 network:n1 = { owner = y; ip = 10.1.1.0/24; }
@@ -362,13 +362,13 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Owner with extend_only only usable at area';
+$title = 'Owner with attribute only_watch only usable at area';
 ############################################################
 
 $in = <<'END';
-owner:x = { admins = a@a.b; watchers = x@a.b; extend_only; }
-owner:y = { admins = b@a.b; watchers = y@a.b; extend_only; }
-owner:z = { watchers = z@a.b; extend_only; }
+owner:x = { admins = a@a.b; watchers = x@a.b; only_watch; }
+owner:y = { admins = b@a.b; watchers = y@a.b; only_watch; }
+owner:z = { watchers = z@a.b; only_watch; }
 any:a1 = { owner = x; link = network:n1; }
 network:n1 = { 
  owner = y; ip = 10.1.1.0/24; 
@@ -377,65 +377,16 @@ network:n1 = {
 END
 
 $out = <<'END';
-Error: owner:y with attribute 'extend_only' must only be used at area,
+Error: owner:y with attribute 'only_watch' must only be used at area,
  not at network:n1
 Error: Missing attribute 'admins' in owner:z of host:h1
-Error: owner:z with attribute 'extend_only' must only be used at area,
+Error: owner:z with attribute 'only_watch' must only be used at area,
  not at host:h1
-Error: owner:x with attribute 'extend_only' must only be used at area,
+Error: owner:x with attribute 'only_watch' must only be used at area,
  not at any:a1
 END
 
 test_err($title, $in, $out);
-
-############################################################
-$title = 'Inconsistent extended owners';
-############################################################
-
-$in = <<'END';
-owner:a1 = { admins = a1@b.c; extend_only; }
-owner:a3 = { admins = a3@b.c; extend_only; }
-owner:a23 = { admins = a23@b.c; extend_only; }
-owner:n1 = { admins = n1@b.c; }
-owner:n3 = { admins = n3@b.c; }
-
-area:a1 = { owner = a1; border = interface:asa1.n1; }
-area:a3 = { owner = a3; border = interface:asa1.n3; }
-area:a23 = { owner = a23; inclusive_border = interface:asa1.n1; }
-
-network:n1 = { ip = 10.1.1.0/24; owner = n1; host:h1 = { ip = 10.1.1.9; owner = n3; } }
-network:n2 = { ip = 10.1.2.0/24; owner = n1; }
-network:n3 = { ip = 10.1.3.0/24; owner = n3; }
-
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
-}
-
-END
-
-$out = <<'END';
-Warning: owner:n1 is extended by owner:a1
- - only at network:n1
- - but not at network:n2
-Warning: owner:n1 is extended by owner:a23
- - only at network:n2
- - but not at network:n1
-Warning: owner:n3 is extended by owner:a1
- - only at host:h1
- - but not at network:n3
-Warning: owner:n3 is extended by owner:a3
- - only at network:n3
- - but not at host:h1
-Warning: owner:n3 is extended by owner:a23
- - only at network:n3
- - but not at host:h1
-END
-
-test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Missing part in owner with attribute "show_all"';
@@ -457,7 +408,6 @@ router:asa1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
  interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
 }
-
 END
 
 $out = <<"END";
@@ -465,6 +415,67 @@ Error: owner:a1 has attribute \'show_all\', but doesn\'t own whole topology.
  Missing:
  - any:[network:n2]
  - any:[network:n3]
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Owner with "show_all" must also own VPN transfer area';
+############################################################
+
+$in = <<'END';
+isakmp:ikeaes256SHA = {
+ identity = address;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+ipsec:ipsecaes256SHA = {
+ key_exchange = isakmp:ikeaes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ pfs_group = 2;
+ lifetime = 3600 sec;
+}
+crypto:vpn = { type = ipsec:ipsecaes256SHA; }
+
+owner:all = { admins = a@example.com; show_all; }
+area:all = { anchor = network:n1; owner = all; }
+
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = inside; }
+ interface:n2 = { ip = 192.168.1.2; hardware = outside; hub = crypto:vpn; }
+}
+
+network:n2 = { ip = 192.168.1.0/28;}
+
+router:dmz = {
+ interface:n2 = { ip = 192.168.1.1; }
+ interface:Internet;
+}
+
+network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:VPN1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:Internet = { ip = 1.1.1.1; spoke = crypto:vpn; hardware = Internet; }
+ interface:v1 = { ip = 10.9.1.1; hardware = v1; }
+}
+network:v1 = { ip = 10.9.1.0/24; }
+END
+
+$out = <<"END";
+Error: owner:all has attribute \'show_all\', but doesn\'t own whole topology.
+ Missing:
+ - any:[network:n2]
 END
 
 test_err($title, $in, $out);

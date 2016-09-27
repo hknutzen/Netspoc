@@ -271,16 +271,12 @@ sub part_owners_for_object {
     return ();
 }
 
-sub extended_owners_for_object {
+sub outer_owners_for_object {    
     my ($object) = @_;
-    my @result;
-    if (my $owner_obj = $object->{extended_owner}) {
-        @result = ($owner_obj);
-        if (my $list = $owner_obj->{extended_by}) {
-            push(@result, grep { $_->{extend_only} } @$list);
-        }
+    if (my $list = $object->{outer_owners}) {
+        return map { $_->{name} } @$list;
     }
-    return map { $_->{name} } @result;
+    return ();
 }
 
 sub owners_for_objects {        
@@ -305,11 +301,11 @@ sub part_owners_for_objects {
     return [ sort values %owners ];
 }
 
-sub extended_owners_for_objects {   
+sub outer_owners_for_objects {   
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
-        for my $name (extended_owners_for_object($object)) {
+        for my $name (outer_owners_for_object($object)) {
             $owners{$name} = $name;
         }
     }
@@ -547,17 +543,30 @@ sub setup_service_info {
         }
         $service->{owners} = $owners;
         $service->{part_owners} = part_owners_for_objects(\@objects);
-        $service->{extended_owners} = extended_owners_for_objects(\@objects);
+        $service->{outer_owners} = outer_owners_for_objects(\@objects);
 
         my $uowners = owners_for_objects($users);
         $service->{uowners} = $uowners;
         $service->{part_uowners} = part_owners_for_objects($users);
-        $service->{extended_uowners} = extended_owners_for_objects($users);
+        $service->{outer_uowners} = outer_owners_for_objects($users);
 
         # Für Übergangszeit aus aktueller Benutzung bestimmen.
         $service->{visible} ||= find_visibility($owners, $uowners);
         $service->{visible} and $service->{visible} =~ s/\*$/.*/;
     }
+}
+
+my $master_owner;
+
+sub find_master_owner {
+    for my $owner (values %owners) {
+        if ($owner->{show_all}) {
+            $master_owner = $owner;
+            progress("Found master owner: $owner->{name}");
+            last;
+        }
+    }
+    return;
 }
 
 ######################################################################
@@ -637,18 +646,117 @@ sub setup_part_owners {
     return;
 }
 
-my $master_owner;
+# 1. Fill attribute {outer_owners} at hosts, interfaces and networks.
+#    For network, collect owners from enclosing networks and zone,
+#    that are different from networks owner.
+#    For host, collect owners of enclosing networks and zone, 
+#    that are different from hosts owner.
+# 2. Fill attribute {extended_by} for owners, with list of other owners
+#    of enclosing objects, that are allowed to watch that owner.
+#    An outer owner is allowed to select the role of an inner owner,
+#    if all assets of the inner owner are located inside of assets
+#    that are owned by the outer owner.
+# Attribute {hide_from_outer_owners} is given at inner owner and hides
+# from outer owners.
+# Attribute {show_hidden_owners} at outer owner cancels effect of 
+# {hide_from_outer_owners}
+sub setup_outer_owners {
+    progress("Setup outer owners");
 
-sub find_master_owner {
-    for my $owner (values %owners) {
-        if ($owner->{show_all}) {
-            my $name = $owner->{name};
-            $master_owner = $name;
-            progress("Found master owner: $name");
-            last;
+    # For each owner, collect intersection of all outer owners.
+    my %owner2outer_owners;
+    my $intersect_outer_owners = sub {
+        my ($owner, $outer_owners) = @_;
+        if (my $owner_hash = $owner2outer_owners{$owner}) {
+            $outer_owners = [ grep { $owner_hash->{$_} } @$outer_owners ];
+        }
+        my %new_hash;
+        @new_hash{@$outer_owners} = @$outer_owners;
+        $owner2outer_owners{$owner} = \%new_hash;
+    };
+
+    # Collect outer owners for each zone and all objects inside zone.
+    for my $zone (@all_zones) {
+        my @zone_owners;
+        my $zone_owner = $zone->{owner};
+        if ($zone_owner) {
+            push @zone_owners, $zone_owner;
+        }
+
+        # {watching_owners} holds list of owners, with attribute
+        # {only_watch} that have been inherited from areas.
+        if (my $watching = $zone->{watching_owners}) {
+            my @outer_owners = @$watching;
+            if ($zone_owner and $zone_owner->{hide_from_outer_owners}) {
+                @outer_owners = grep { $_->{show_hidden_owners} } @outer_owners;
+            }
+            if ($zone_owner) {
+                $intersect_outer_owners->($zone_owner, \@outer_owners);
+            }
+            push @zone_owners, @outer_owners;
+            $zone->{outer_owners} = \@outer_owners;
+        }
+
+        for my $network (@{ add_subnetworks($zone->{networks}) },
+                         values %{ $zone->{ipmask2aggregate} }) 
+        {
+            my %outer_owners;
+            my $net_owner = $network->{owner} || '';
+            my $up = $network;
+            while ($up = $up->{up}) {
+                my $outer_owner = $up->{owner} or next;
+                next if $outer_owner eq $net_owner;
+                $outer_owners{$outer_owner} = $outer_owner;
+            }
+            @outer_owners{@zone_owners} = @zone_owners;
+            delete $outer_owners{$net_owner};
+            my @net_outer_owners = sort by_name values %outer_owners;
+            if ($net_owner and $net_owner->{hide_from_outer_owners}) {
+                @net_outer_owners =
+                    grep { $_->{show_hidden_owners} } @net_outer_owners;
+            }
+            if (@net_outer_owners) {
+                $network->{outer_owners} = \@net_outer_owners;
+            }
+            if ($net_owner) {
+                $intersect_outer_owners->($net_owner, \@net_outer_owners);
+                $outer_owners{$net_owner} = $net_owner;
+            }
+            for my $obj (@{ $network->{interfaces} }, @{ $network->{hosts} }) {
+                my $owner = $obj->{owner} || '';
+                my %outer_for_obj;
+                my $router = $obj->{router};
+                if ($router and ($router->{managed} or $router->{routing_only}))
+                {
+                    if ($master_owner and $master_owner ne $owner) {
+                        %outer_for_obj = ($master_owner => $master_owner);
+                    }
+                }
+                else {
+                    %outer_for_obj = %outer_owners;
+                }
+                delete $outer_for_obj{$owner};
+                my @obj_outer_owners = sort by_name values %outer_for_obj;
+                if ($owner and $owner->{hide_from_outer_owners}) {
+                    @obj_outer_owners =
+                        grep { $_->{show_hidden_owners} } @obj_outer_owners;
+                }
+                @obj_outer_owners or next;
+                $obj->{outer_owners} = \@obj_outer_owners;
+                if ($owner) {
+                    $intersect_outer_owners->($owner, \@obj_outer_owners);
+                }
+            }
         }
     }
-    return;
+
+    # Intersection of all outer owners of one owner is allowed to take
+    # role of corresponding inner owner.
+    for my $owner (values %owners) {
+        my $outer_owners = $owner2outer_owners{$owner} or next;
+        keys %$outer_owners or next;
+        $owner->{extended_by} = [ sort by_name values %$outer_owners ];
+    }
 }
 
 ######################################################################
@@ -665,7 +773,7 @@ sub export_no_nat_set {
         for my $owner_name 
             (owner_for_object($network), 
              part_owners_for_object($network),
-             extended_owners_for_object($network),
+             outer_owners_for_object($network),
             )
         {
             $owner2net{$owner_name}->{$network} = $network;
@@ -721,13 +829,19 @@ sub export_no_nat_set {
 # Add subnets recursively.
 sub add_subnetworks {
     my ($networks) = @_;
-    my @sub_networks;
+    my $result;
     for my $network (@$networks) {
-        if (my $sub = $network->{networks}) {
-            push @sub_networks, @{ add_subnetworks($sub) };
+        if (my $subnetworks = $network->{networks}) {
+            push @$result, @{ add_subnetworks($subnetworks) };
         }
     }
-    return @sub_networks ? [ @$networks, @sub_networks ] : $networks;
+    if ($result) {
+        push @$result, @$networks;
+        return $result;
+    }
+    else {
+        return $networks;
+    }
 }
 
 sub export_assets {
@@ -790,8 +904,8 @@ sub export_assets {
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
         my $networks = add_subnetworks($zone->{networks});
-        for my $owner (owner_for_object($zone), 
-                       extended_owners_for_object($zone))
+        for my $owner (owner_for_object($zone),
+                       outer_owners_for_object($zone))
         {
 #            debug "- $_->{name}" for @$own_networks;
             $add_networks_hash->(
@@ -812,12 +926,6 @@ sub export_assets {
                 $owner, 
                 $zone_name, 
                 $export_networks->($own_networks, $owner, 0));
-        }
-        if ($master_owner) {
-            $add_networks_hash->(
-                $master_owner, 
-                $zone_name,
-                $export_networks->($networks, $master_owner, 1));
         }
     }
 
@@ -842,7 +950,7 @@ sub set_visible_owner_hash {
         my @owner_list = (
             owner_for_object($object),
             part_owners_for_object($object),
-            extended_owners_for_object($object)
+            outer_owners_for_object($object)
         );
         @{$object->{visible_owner_hash}}{@owner_list} = @owner_list;
     }
@@ -885,19 +993,16 @@ sub export_services {
             $service->{name} .= "($rules_key)";
         }
 
-        if ($master_owner) {
-            $owner2type2shash{$master_owner}->{owner}->{$service} = $service;
-        }
         for my $owner ($service->{sub_owner} || (),
                        @{ $service->{owners} }, 
                        @{ $service->{part_owners} },
-                       @{ $service->{extended_owners} })
+                       @{ $service->{outer_owners} })
         {
             $owner2type2shash{$owner}->{owner}->{$service} = $service;
         }          
         for my $owner (@{ $service->{uowners} }, 
                        @{ $service->{part_uowners} },
-                       @{ $service->{extended_uowners} }) 
+                       @{ $service->{outer_uowners} }) 
         {
             next if $owner2type2shash{$owner}->{owner}->{$service};
             $owner2type2shash{$owner}->{user}->{$service} = $service;
@@ -1041,31 +1146,19 @@ sub export_owners {
             push @emails, $email;
         }
         for my $email ( @{ $owner->{watchers} } ) {
-
-            # Watchers are allowed to login, but aren't shown as owner.
             $email2owners{$email}->{$name} = $name;
             push @watchers, $email;
         }
 
         # Handle extending owners.
-        my $extended = $owner->{extended_by} || [];
-
-        # Add master owner to owners not already extended_by, 
-        # i.e. sub_owner.
-        if ($master_owner && $name ne $master_owner) {
-            my $m_owner = $owners{$master_owner};
-            if (!grep { $_ eq $m_owner } @$extended) {
-                push @$extended, $m_owner;
-            }
-        }
-        for my $e_owner (@$extended) {
+        my $outer_owners = $owner->{extended_by} || [];
+        for my $e_owner (@$outer_owners) {
 
             # Allow both, admins and watchers to look at owner.
-            for my $email ( @{ $e_owner->{admins} }, @{ $e_owner->{watchers} } ) {
+            for my $email (@{ $e_owner->{admins} }, @{ $e_owner->{watchers} }) {
                 $email2owners{$email}->{$name} = $name;
             }
-            my $e_name = $e_owner->{name};
-            push @e_owners, $e_name;
+            push @e_owners, $e_owner->{name};
         }
 
         export("owner/$name/emails", 
@@ -1120,9 +1213,10 @@ propagate_owners();
 find_subnets_in_nat_domain();
 adapt_owner_names();
 setup_zones();
-setup_part_owners();
-setup_service_info();
 find_master_owner();
+setup_part_owners();
+setup_outer_owners();
+setup_service_info();
 
 ####################################################################
 # Export data

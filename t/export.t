@@ -59,8 +59,8 @@ my ($in, $out, $title);
 
 my $topo = <<'END';
 owner:x = { admins = x@b.c; }
-owner:y = { admins = y@b.c; }
-owner:z = { admins = z@b.c; }
+owner:y = { admins = y@b.c; hide_from_outer_owners; }
+owner:z = { admins = z@b.c; hide_from_outer_owners; }
 
 area:all = { owner = x; anchor = network:Big; }
 any:Big  = { owner = y; link = network:Big; }
@@ -345,12 +345,12 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Owner with "extend" at nested areas';
+$title = 'Owner at nested areas';
 ############################################################
 
 $in = <<'END';
-owner:x = { admins = x@b.c; watchers = w@b.c; extend; extend_unbounded; }
-owner:y = { admins = y@b.c; extend; }
+owner:x = { admins = x@b.c; watchers = w@b.c; }
+owner:y = { admins = y@b.c; }
 owner:z = { admins = z@b.c; }
 
 area:all = { anchor = network:n2; }
@@ -383,11 +383,7 @@ $out = <<'END';
 --owner/x/extended_by
 []
 --owner/y/extended_by
-[
-   {
-      "name" : "x"
-   }
-]
+[]
 --owner/z/extended_by
 [
    {
@@ -401,12 +397,10 @@ $out = <<'END';
 {
    "w@b.c" : [
       "x",
-      "y",
       "z"
    ],
    "x@b.c" : [
       "x",
-      "y",
       "z"
    ],
    "y@b.c" : [
@@ -416,6 +410,129 @@ $out = <<'END';
    "z@b.c" : [
       "z"
    ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Services of nested obejcts visible for outer owners';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+owner:a2  = { admins = a2@example.com; }
+owner:n2  = { admins = n2@example.com; }
+owner:n3  = { admins = n3@example.com; }
+owner:h3  = { admins = h3@example.com; }
+
+area:all  = { anchor = network:n1; owner = all; }
+
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = inside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = outside; }
+}
+
+any:a2 = { link =  network:n2; owner = a2; }
+network:n2 = { ip = 10.1.2.0/24; owner = n2;}
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3;
+}
+network:n3 = {
+ ip = 10.1.2.128/25;
+ subnet_of = network:n2;
+ owner = n3;
+ host:h3 = { ip = 10.1.2.130; owner = h3; }
+}
+
+service:a2 = {
+ user = network:n1;
+ permit src = user; dst = any:a2; prt = tcp 80;
+}
+service:agg16 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip = 10.1.0.0/16 & network:n2]; prt = tcp 81;
+}
+service:n2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 82;
+}
+service:n3 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 83;
+}
+service:h3 = {
+ user = network:n1;
+ permit src = user; dst = host:h3; prt = tcp 84;
+}
+END
+
+$out = <<'END';
+--owner/all/service_lists
+{
+   "owner" : [
+      "a2",
+      "agg16",
+      "h3",
+      "n2",
+      "n3"
+   ],
+   "user" : [],
+   "visible" : []
+}
+--owner/a2/service_lists
+{
+   "owner" : [
+      "a2",
+      "agg16",
+      "h3",
+      "n2",
+      "n3"
+   ],
+   "user" : [],
+   "visible" : []
+}
+--owner/n2/service_lists
+{
+   "owner" : [
+      "a2",
+      "agg16",
+      "h3",
+      "n2",
+      "n3"
+   ],
+   "user" : [],
+   "visible" : []
+}
+--owner/n3/service_lists
+{
+   "owner" : [
+      "a2",
+      "agg16",
+      "h3",
+      "n2",
+      "n3"
+   ],
+   "user" : [],
+   "visible" : []
+}
+--owner/h3/service_lists
+{
+   "owner" : [
+      "a2",
+      "agg16",
+      "h3",
+      "n2",
+      "n3"
+   ],
+   "user" : [],
+   "visible" : []
 }
 END
 
@@ -527,12 +644,13 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-# Changed $topo
+$title = 'Nested only_watch';
 ############################################################
-$topo = <<'END';
-owner:all  = { admins = all@b.c; extend_only; }
-owner:a123 = { admins = a123@b.c; extend; }
-owner:a12  = { admins = a12@b.c; extend_only; }
+
+$in = <<'END';
+owner:all  = { admins = all@b.c; only_watch; }
+owner:a123 = { admins = a123@b.c; }
+owner:a12  = { admins = a12@b.c; only_watch; }
 owner:a1   = { admins = a1@b.c; }
 owner:n2   = { admins = n2@b.c; }
 
@@ -568,12 +686,6 @@ router:r2 = {
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 END
-
-############################################################
-$title = 'Nested extend_only';
-############################################################
-
-$in = $topo;
 
 $out = <<'END';
 --owner/a1/assets
@@ -626,6 +738,22 @@ $out = <<'END';
 --owner/a123/assets
 {
    "anys" : {
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      },
+      "any:[network:n2]" : {
+         "networks" : {
+            "network:n2" : [
+               "host:h10",
+               "interface:r1.n2",
+               "interface:r2.n2"
+            ]
+         }
+      },
       "any:[network:n3]" : {
          "networks" : {
             "network:n3" : [
@@ -677,14 +805,7 @@ $out = <<'END';
    }
 ]
 --owner/a12/extended_by
-[
-   {
-      "name" : "a123"
-   },
-   {
-      "name" : "all"
-   }
-]
+[]
 --owner/a1/extended_by
 [
    {
@@ -711,6 +832,92 @@ $out = <<'END';
       "name" : "all"
    }
 ]
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'only_watch part of inner owner';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@b.c; only_watch; }
+owner:a1 = { admins = a1@b.c; only_watch; }
+owner:a3 = { admins = a3@b.c; only_watch; }
+owner:a23 = { admins = a23@b.c; only_watch; }
+owner:n1 = { admins = n1@b.c; }
+owner:n3 = { admins = n3@b.c; }
+
+area:a1 = { owner = a1; border = interface:asa1.n1; }
+area:a3 = { owner = a3; border = interface:asa1.n3; }
+area:a23 = { owner = a23; inclusive_border = interface:asa1.n1; }
+area:all = { owner = all; anchor = network:n1; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = n1; host:h1 = { ip = 10.1.1.9; owner = n3; } }
+network:n2 = { ip = 10.1.2.0/24; owner = n1; }
+network:n3 = { ip = 10.1.3.0/24; owner = n3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+}
+END
+
+$out = <<'END';
+--owner/n1/extended_by
+[
+   {
+      "name" : "all"
+   }
+]
+--owner/n3/extended_by
+[
+   {
+      "name" : "all"
+   }
+]
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Managed interface inherits from area with show_all';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; only_watch; show_all; }
+owner:n1 = { admins = n1@example.com; }
+owner:r1 = { admins = r1@example.com; }
+
+area:all = {owner = all; anchor = network:n1;}
+any:n1 = { owner = n1; link = network:n1; }
+network:n1 = {ip = 10.1.1.0/24;}
+
+router:r1 = {
+ owner = r1;
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = eth0; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--owner/all/service_lists 
+{
+   "owner" : [
+      "s1"
+   ],
+   "user" : [],
+   "visible" : []
+}
 END
 
 test_run($title, $in, $out);
@@ -1751,6 +1958,109 @@ $out = <<END;
       "owner" : null,
       "zone" : "any:[network:n2]"
    }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'hide_from_outer_owners, show_hidden_owners';
+############################################################
+
+$in = <<'END';
+owner:a =  { admins = a@example.com; }
+owner:n1 = { admins = n1@example.com; hide_from_outer_owners; show_hidden_owners; }
+owner:h1 = { admins = h1@example.com; hide_from_outer_owners; }
+owner:n2 = { admins = n2@example.com; }
+owner:h2 = { admins = h2@example.com; hide_from_outer_owners; }
+
+any:a = { link = network:n1;     owner = a; }
+network:n1 = { ip = 10.1.1.0/24; owner = n1;
+ host:h1 = { ip = 10.1.1.10; owner = h1; }
+}
+network:n2 = { ip = 10.1.2.0/24; owner = n2; 
+ host:h2 = { ip = 10.1.2.10; owner = h2; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1  = { ip = 10.1.1.2; hardware = n1; }
+ interface:dst = { ip = 10.2.1.2; hardware = dst; }
+}
+network:dst = { ip = 10.2.1.0/24; }
+
+service:a = {
+ user = any:a;
+ permit src = user; dst = network:dst; prt = tcp 80;
+}
+service:n1 = {
+ user = network:n1;
+ permit src = user; dst = network:dst; prt = tcp 81;
+}
+service:h1 = {
+ user = host:h1;
+ permit src = user; dst = network:dst; prt = tcp 82;
+}
+service:n2 = {
+ user = network:n2;
+ permit src = user; dst = network:dst; prt = tcp 83;
+}
+service:h2 = {
+ user = host:h2;
+ permit src = user; dst = network:dst; prt = tcp 84;
+}
+service:n3 = {
+ user = network:n3;
+ permit src = user; dst = network:dst; prt = tcp 85;
+}
+END
+
+$out = <<END;
+--owner/a/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "a",
+      "n2",
+      "n3"
+   ],
+   "visible" : []
+}
+--owner/n1/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "a",
+      "h1",
+      "n1"
+   ],
+   "visible" : []
+}
+--owner/n2/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "a",
+      "n2"
+   ],
+   "visible" : []
+}
+--owner/h1/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "a",
+      "h1",
+      "n1"
+   ],
+   "visible" : []
 }
 END
 
