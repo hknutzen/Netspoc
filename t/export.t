@@ -843,19 +843,29 @@ $title = 'only_watch part of inner owner';
 $in = <<'END';
 owner:all = { admins = all@b.c; only_watch; }
 owner:a1 = { admins = a1@b.c; only_watch; }
+owner:a2 = { admins = a2@b.c; only_watch; }
 owner:a3 = { admins = a3@b.c; only_watch; }
-owner:a23 = { admins = a23@b.c; only_watch; }
+owner:a12 = { admins = a12@b.c; only_watch; }
 owner:n1 = { admins = n1@b.c; }
-owner:n3 = { admins = n3@b.c; }
+owner:n2 = { admins = n2@b.c; }
+owner:h3 = { admins = h3@b.c; }
 
 area:a1 = { owner = a1; border = interface:asa1.n1; }
+area:a2 = { owner = a2; border = interface:asa1.n2; }
 area:a3 = { owner = a3; border = interface:asa1.n3; }
-area:a23 = { owner = a23; inclusive_border = interface:asa1.n1; }
+area:a12 = { owner = a12; inclusive_border = interface:asa1.n3; }
 area:all = { owner = all; anchor = network:n1; }
 
-network:n1 = { ip = 10.1.1.0/24; owner = n1; host:h1 = { ip = 10.1.1.9; owner = n3; } }
-network:n2 = { ip = 10.1.2.0/24; owner = n1; }
-network:n3 = { ip = 10.1.3.0/24; owner = n3; }
+network:n1 = { ip = 10.1.1.0/24; owner = n1;
+ host:h1 = { ip = 10.1.1.9; owner = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; owner = n2;
+ host:h2 = { ip = 10.1.2.9; owner = n1; }
+}
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3 = { ip = 10.1.3.9; owner = h3; }
+ host:h3x = { ip = 10.1.3.10; }
+}
 
 router:asa1 = {
  managed;
@@ -870,11 +880,26 @@ $out = <<'END';
 --owner/n1/extended_by
 [
    {
+      "name" : "a12"
+   },
+   {
       "name" : "all"
    }
 ]
---owner/n3/extended_by
+--owner/n2/extended_by
 [
+   {
+      "name" : "a12"
+   },
+   {
+      "name" : "all"
+   }
+]
+--owner/h3/extended_by
+[
+   {
+      "name" : "a3"
+   },
    {
       "name" : "all"
    }
@@ -2061,6 +2086,619 @@ $out = <<END;
       "n1"
    ],
    "visible" : []
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'unnumbered';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+owner:a1 = { admins = a1@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+any:a1 = { link = network:n2; owner = a1; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { unnumbered; }
+network:n3 = { unnumbered; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:l1 = { ip = 10.9.9.9; loopback; hardware = Loopback0; }
+ interface:n2 = { unnumbered; hardware = n2; }
+ interface:n3 = { unnumbered; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { unnumbered; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = any:[ip = 10.1.3.0/24 & network:n3];
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<END;
+--objects
+{
+   "any:[ip=10.1.3.0/24 & network:n3]" : {
+      "ip" : "10.1.3.0/255.255.255.0",
+      "is_supernet" : 1,
+      "owner" : "all",
+      "zone" : "any:[network:n3]"
+   },
+   "any:a1" : {
+      "ip" : "0.0.0.0",
+      "is_supernet" : 1,
+      "owner" : "a1",
+      "zone" : "any:a1"
+   },
+   "interface:r1.n1" : {
+      "ip" : "short",
+      "owner" : "a1"
+   },
+   "interface:r3.n4" : {
+      "ip" : "10.1.4.1",
+      "owner" : null
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "a1",
+      "zone" : "any:a1"
+   },
+   "network:n4" : {
+      "ip" : "10.1.4.0/255.255.255.0",
+      "owner" : "all",
+      "zone" : "any:[network:n4]"
+   }
+}
+--owner/all/assets 
+{
+   "anys" : {
+      "any:[network:n4]" : {
+         "networks" : {
+            "network:n4" : [
+               "interface:r3.n4"
+            ]
+         }
+      },
+      "any:a1" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      }
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Loopback network';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:l1 = { ip = 10.9.9.1; loopback; hardware = Loopback1; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:l2 = { ip = 10.9.9.2; loopback; hardware = Loopback2; }
+}
+
+service:s1 = {
+ user = interface:r1.l1, interface:r2.l2;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<END;
+--objects
+{
+   "interface:r1.l1" : {
+      "ip" : "10.9.9.1",
+      "owner" : null,
+      "zone" : "any:[interface:r1.l1]"
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : null
+   },
+   "interface:r1.n2" : {
+      "ip" : "10.1.2.1",
+      "owner" : null
+   },
+   "interface:r2.l2" : {
+      "ip" : "10.9.9.2",
+      "owner" : "all",
+      "zone" : "any:[network:n2]"
+   },
+   "interface:r2.n2" : {
+      "ip" : "10.1.2.2",
+      "owner" : "all"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "all",
+      "zone" : "any:[network:n1]"
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : "all",
+      "zone" : "any:[network:n2]"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Loopback network';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
+
+service:s2 = {
+ user = host:h2, interface:r1.n2;
+ permit src = user; dst = network:n1; prt = tcp 82;
+}
+
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 83;
+}
+
+service:s4 = {
+ disabled;
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 84;
+}
+END
+
+$out = <<END;
+--owner/all/users 
+{
+   "s1" : [],
+   "s2" : [],
+   "s3" : [
+      "network:n1"
+   ]
+}
+--services 
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 81"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 82"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s3" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 83"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Protocols';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; 
+        dst = network:n2; 
+        prt = tcp 80-90, udp 123:123, icmp 0, icmp 3/13, proto 54;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; 
+        dst = network:n1; 
+        prt = tcp, udp, icmp;
+}
+END
+
+$out = <<END;
+--services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n2"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "54",
+               "icmp 0",
+               "icmp 3/13",
+               "tcp 80-90",
+               "udp 123:123"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s2" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            ":unknown"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "icmp",
+               "tcp",
+               "udp"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Split service with user in src and dst';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3;
+}
+
+service:s1 = {
+ user = network:n1, network:n2, network:n3;
+ permit src = user; dst = any:[user]; prt = tcp 80;
+ permit src = any:[user]; dst = user; prt = tcp 81;
+}
+
+# Internally, this is reritten to
+# "user = network:n1, network:n2, network:n3;"
+# because number of networks is larger than number of aggregates.
+service:s2 = {
+ user = any:[network:n1, network:n2];
+ permit src = user; dst = network:[user]; prt = tcp 82;
+ permit src = network:[user]; dst = user; prt = tcp 83;
+}
+
+service:s3 = {
+ user = network:n1, network:n2, network:n3;
+ permit src = user; dst = any:[user]; prt = tcp 84;
+ permit src = user &! network:n1; dst = network:n1; prt = tcp 85;
+}
+
+service:s4 = {
+ user = network:n1, network:n2, network:n3;
+ permit src = user; dst = any:[user]; prt = tcp 86;
+ permit src = network:n1; dst = user &! network:n1; prt = tcp 87;
+}
+END
+
+$out = <<END;
+--services
+{
+   "s1" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 80"
+            ],
+            "src" : []
+         },
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "dst",
+            "prt" : [
+               "tcp 81"
+            ],
+            "src" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ]
+         }
+      ]
+   },
+   "s2" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "dst",
+            "prt" : [
+               "tcp 82"
+            ],
+            "src" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ]
+         },
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 83"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s3(9S8D_GxA)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 84"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s3(POpjDd32)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n1"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 85"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s4(8QEgcJW-)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 86"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s4(avp-zO-c)" : {
+      "details" : {
+         "description" : null,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [],
+            "has_user" : "dst",
+            "prt" : [
+               "tcp 87"
+            ],
+            "src" : [
+               "network:n1"
+            ]
+         }
+      ]
+   }
+}
+--owner/all/users
+{
+   "s1" : [
+      "network:n1",
+      "network:n2",
+      "network:n3"
+   ],
+   "s2" : [
+      "network:n1",
+      "network:n2",
+      "network:n3"
+   ],
+   "s3(9S8D_GxA)" : [
+      "network:n1",
+      "network:n2",
+      "network:n3"
+   ],
+   "s3(POpjDd32)" : [
+      "network:n2",
+      "network:n3"
+   ],
+   "s4(8QEgcJW-)" : [
+      "network:n1",
+      "network:n2",
+      "network:n3"
+   ],
+   "s4(avp-zO-c)" : [
+      "network:n2",
+      "network:n3"
+   ]
 }
 END
 
