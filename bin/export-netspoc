@@ -109,9 +109,6 @@ sub ip_nat_for_object {
             if ($obj->{hidden}) {
                 'hidden';
             }
-            elsif ($obj->{ip} eq 'unnumbered') {
-                $obj->{ip}
-            }
 
             # Don't print mask for loopback network. It needs to have
             # exactly the same address as the corresponding loopback interface.
@@ -852,7 +849,6 @@ sub export_assets {
         my ($networks, $owner, $own_zone) = @_;
         my %sub_result;
         for my $net (@$networks) {
-            next if $net->{disabled};
             next if $net->{ip} eq 'tunnel';
             $all_objects{$net} = $net;
             next if $net->{loopback};
@@ -888,7 +884,6 @@ sub export_assets {
     };
 
     for my $zone (@all_zones) {
-        next if $zone->{disabled};
         next if $zone->{loopback};
 
         # All aggregates can be used in rules.
@@ -975,8 +970,6 @@ sub export_services {
     my %shash;
     my %owner2type2shash;
     for my $service (sort by_name @normalized_services) {
-        next if $service->{disabled};
-
         my @rules = map {
             { 
                 action => $_->{action},
@@ -1085,6 +1078,10 @@ sub export_users_and_service_lists {
 
 sub zone_and_subnet {
     my ($obj) = @_;
+
+    # Change loopback interface to equivalent loopback network.
+    # Network gets zone attribute added, which is needed in IP search
+    # of NetspocWeb.
     if (is_interface($obj) && $obj->{loopback}) {
         $obj = $obj->{network};
     }
