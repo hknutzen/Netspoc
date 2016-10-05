@@ -1,5 +1,28 @@
 {{$NEXT}}
 
+ - Changed syntax for owners.
+   Owners are now propagated to inner objects per default.
+   New attributes:
+   - "only_watch"
+     This owner will not be inherited by inner owners,
+     but it will still be able to watch all inner owners.
+     This attribute is only valid at areas.
+   - "hide_from_outer_owners"
+     If given at an inner owner, services of this owner will
+     not be watchable by outer owners.
+   - "show_hidden_owners"
+     This cancels the effect of 'hide_from_outer_owners'.
+     This attribute is also enabled implicitly by attribute 'show_all'.
+   Some attributes are deprecated and will be removed in next version:
+   - "extend"
+     This is default now.
+   - "extend_only"
+     This was partially replaced by only_watch.
+   - "extend_unbounded"
+     This attribute is useless now.
+ - Command "print-group" now is able to process multiple groups at once.
+   Use option "-f" to read group definitions from file.
+
 5.015     2016-08-12 14:27:52+02:00 Europe/Berlin
 
  - Fixed export host / interface with static NAT of network with
