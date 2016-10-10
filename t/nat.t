@@ -909,6 +909,110 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Inherit static NAT from area and zone';
+############################################################
+
+$in = <<'END';
+any:a1 = { link = network:n1; nat:a1 = { ip = 11.0.0.0/8; } }
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 172.17.2.1; hardware = n2; bind_nat = a1; }
+}
+network:n2 = { ip = 172.17.2.0/24; }
+router:r2 = {
+ interface:n2;
+ interface:n2a;
+}
+network:n2a = { ip = 172.17.2.64/26; subnet_of = network:n2; }
+
+area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2a; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n1_in
+ deny ip any host 192.168.2.1
+ permit tcp 10.1.1.0 0.0.0.255 192.168.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 192.168.2.64 0.0.0.63 eq 81
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp 172.17.2.0 0.0.0.255 11.1.1.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Duplicate IP from inherited static NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 172.17.2.1; hardware = n2; }
+}
+network:n2 = { ip = 172.17.2.0/24; }
+router:r2 = {
+ interface:n2;
+ interface:n2a;
+}
+network:n2a = { ip = 172.18.2.00/24; }
+
+area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
+END
+
+$out = <<'END';
+Error: nat:a2(network:n2a) and nat:a2(network:n2) have identical IP/mask
+ in nat_domain:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Inherited static NAT network must be larger';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 172.17.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 172.17.2.0/24; }
+area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.1.128/25; } }
+END
+
+$out = <<'END';
+Error: Must not inherit nat:a2(area:a2) at network:n2
+ because NAT network must be larger than translated network
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Interface with dynamic NAT as destination';
 ############################################################
 

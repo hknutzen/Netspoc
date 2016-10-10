@@ -1336,9 +1336,9 @@ sub read_network {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
+                $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag}
                     and error_atline("Duplicate NAT definition");
-                $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -2546,10 +2546,9 @@ sub read_aggregate {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                $nat->{dynamic} or 
-                    err_msg("$nat->{name} must be dynamic for $name");
+                $nat->{name} .= "($name)";
                 $aggregate->{nat}->{$nat_tag}
-                and error_atline("Duplicate NAT definition");
+                  and error_atline("Duplicate NAT definition");
                 $aggregate->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -2667,8 +2666,7 @@ sub read_area {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                $nat->{dynamic} or
-                    err_msg("$nat->{name} must be dynamic for $name");
+                $nat->{name} .= "($name)";
                 $area->{nat}->{$nat_tag} and 
                     error_atline("Duplicate NAT definition");
                 $area->{nat}->{$nat_tag} = $nat;
@@ -10019,7 +10017,8 @@ sub inherit_nat_to_subnets_in_zone {
 
 #        debug "inherit $nat_tag from $net_or_zone->{name}";
 
-        # Distribute nat definitions to every subnet of supernet, aggregate or zone.
+        # Distribute nat definitions to every subnet of supernet,
+        # aggregate or zone.
         for my $network (@{ $zone->{networks} }) {
             my ($ip2, $mask2) = @{$network}{qw(ip mask)};
 
@@ -10057,13 +10056,22 @@ sub inherit_nat_to_subnets_in_zone {
                     subnet_of => $network->{subnet_of},
                 };
 
-                # For static NAT from net_or_zone,
-                # - merge IP from supernet and subnet,
+                # For static NAT
+                # - merge IP from NAT network and subnet,
                 # - adapt mask to size of subnet
                 if (not $nat->{dynamic}) {
+                    my $nat_mask = $sub_nat->{mask};
+
+                    # Check mask of static NAT inherited from area or zone.
+                    if ($nat_mask >= $mask2) {
+                        err_msg("Must not inherit $nat->{name} at",
+                                " $network->{name}\n",
+                                " because NAT network must be larger",
+                                " than translated network");
+                    }
 
                     # Take higher bits from NAT IP, lower bits from original IP.
-                    $sub_nat->{ip} |= $ip2 & complement_32bit($mask1);
+                    $sub_nat->{ip} |= $ip2 & complement_32bit($nat_mask);
                     $sub_nat->{mask} = $mask2;
                 }
 
