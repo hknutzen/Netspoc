@@ -867,7 +867,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Warn on useless inherited NAT';
+$title = 'Warn on useless inherited NAT (1)';
 ############################################################
 
 $in = <<'END';
@@ -897,13 +897,98 @@ network:y = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: Useless nat:C at any:[network:x],
- it is already inherited from area:x
-Warning: Useless nat:C at network:x,
- it is already inherited from any:[network:x]
-Warning: Useless nat:D at network:x,
- it is already inherited from any:[network:x]
+Warning: Useless nat:C(any:x),
+ it is already inherited from nat:C(area:x)
+Warning: Useless nat:C(network:x),
+ it is already inherited from nat:C(any:x)
+Warning: Useless nat:D(network:x),
+ it is already inherited from nat:D(area:x)
 Warning: nat:D is defined, but not bound to any interface
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Warn on useless inherited NAT (2)';
+############################################################
+
+$in = <<'END';
+# Don't warn, if other NAT is intermixed.
+area:a12 = { border = interface:r2.n2; nat:n = { hidden; } }
+area:a1  = { border = interface:r1.n1; nat:n = { identity; } }
+any:n1 = { link = network:n1; nat:n = { hidden; } }
+network:n1 = { ip = 10.1.1.0/24; nat:n = { identity; } }
+network:n1a = { ip = 10.1.1.64/26; nat:n = { hidden; } subnet_of = network:n1; }
+
+router:u1 = {
+ interface:n1a;
+ interface:n1;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+# Warn on subnet.
+any:n2 = { link = network:n2; }
+network:n2 = { ip = 10.1.2.0/24; nat:n = { hidden; } }
+network:n2a = { ip = 10.1.2.64/26; nat:n = { hidden; } subnet_of = network:n2; }
+
+router:u2 = {
+ interface:n2a;
+ interface:n2;
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+END
+
+$out = <<'END';
+Warning: Useless nat:n(network:n2a),
+ it is already inherited from nat:n(network:n2)
+Warning: Useless nat:n(network:n2),
+ it is already inherited from nat:n(area:a12)
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Useless identity NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n = { identity; } }
+network:n1a = { ip = 10.1.1.64/26; nat:n = { hidden; } subnet_of = network:n1; }
+
+router:u1 = {
+ interface:n1a;
+ interface:n1;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Warning: Useless identity nat:n at network:n1
 END
 
 test_warn($title, $in, $out);

@@ -9941,21 +9941,21 @@ sub nat_equal {
     return 1;
 }
 ##############################################################################
-# Purpose : 1. Generate warning if NAT value of two objects hold the same
+# Purpose : 1. Generate warning if NAT values of two objects hold the same
 #              attributes.
-#           2. Mark occurence of identity NAT that masks inheritance.
-#              This is used later to warn on useless identity NAT.
+#           2. Mark NAT value of smaller object, so that warning is only 
+#              printed once and not again if compared with some larger object.
+#              This is also used later to warn on useless identity NAT.
 sub check_useless_nat {
-    my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
+    my ($nat1, $nat2) = @_;
+    return if $nat2->{has_been_checked};
     if (nat_equal($nat1, $nat2)) {
         warn_msg(
-            "Useless nat:$nat_tag at $obj2->{name},\n",
-            " it is already inherited from $obj1->{name}"
+            "Useless $nat2->{name},\n",
+            " it is already inherited from $nat1->{name}"
         );
     }
-    if ($nat2->{identity}) {
-        $nat2->{is_used} = 1;
-    }
+    $nat2->{has_been_checked} = 1;
 }
 
 ##############################################################################
@@ -9976,7 +9976,7 @@ sub inherit_area_nat {
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
 
                 # ... and warn if zones NAT value holds the same attributes.
-                check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
+                check_useless_nat($nat, $z_nat);
                 next;
             }
 
@@ -10008,7 +10008,7 @@ sub inherit_attributes_from_area {
 sub inherit_nat_to_subnets_in_zone {
     my ($net_or_zone, $zone) = @_;
     my ($ip1, $mask1) =
-      is_network($net_or_zone)
+        is_network($net_or_zone)
       ? @{$net_or_zone}{qw(ip mask)}
       : (0, 0);
     my $hash = $net_or_zone->{nat};
@@ -10031,8 +10031,7 @@ sub inherit_nat_to_subnets_in_zone {
 
                 # ... and warn if networks NAT value holds the
                 # same attributes.
-                check_useless_nat($nat_tag, $nat, $n_nat, $net_or_zone,
-                    $network);
+                check_useless_nat($nat, $n_nat);
             }
 
             elsif ($network->{ip} eq 'bridged' and not $nat->{identity}) {
@@ -10132,12 +10131,13 @@ sub check_attr_no_check_supernet_rules {
     }
 }
 
+# 1. Remove NAT entries from aggregates.
+#    These are only used during NAT inheritance.
+# 2. Remove identity NAT entries.
+#    These are only needed during NAT inheritance.
+# 3. Check for useless identity NAT.
+# 4. Remove no longer used attribute {has_been_checked}.
 sub cleanup_after_inheritance {
-
-    # 1. Remove NAT entries from aggregates.
-    #    These are only used during NAT inheritance.
-    # 2. Remove identity NAT entries.
-    #    These are only needed during NAT inheritance.
     for my $network (@networks) {
         my $href = $network->{nat} or next;
         if ($network->{is_aggregate}) {
@@ -10146,12 +10146,13 @@ sub cleanup_after_inheritance {
         }
         for my $nat_tag (keys %$href) {
             my $nat_network = $href->{$nat_tag};
+            my $is_used = delete $nat_network->{has_been_checked};
             $nat_network->{identity} or next;
             delete $href->{$nat_tag};
             if (not keys %$href) {
                 delete $network->{nat};
             }
-            $nat_network->{is_used}
+            $is_used
               or warn_msg("Useless identity nat:$nat_tag at $network->{name}");
         }
     }
