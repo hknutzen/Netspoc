@@ -8883,9 +8883,28 @@ sub find_subnets_in_nat_domain {
         # Check pairs of networks, that are in subnet relation.
       SUBNET:
         for my $nat_subnet (@nat_networks) {
-            $visible{$nat_subnet} or next;
             my $nat_bignet = $is_in{$nat_subnet} or next;
+
+            # If invisible, search other networks with identical IP.
+            my $nat_subnet = $nat_subnet;	# Prevent aliasing.
+            if (not $visible{$nat_subnet}) {
+                my $identical = $identical{$nat_subnet} or next;
+                if ((my $ident_net) = grep { $visible{$_} } @$identical) {
+                    $nat_subnet = $ident_net;
+                }
+                else {
+                    next;
+                }
+            }
+
+            # If invisible, search other networks with identical or larger IP.
             while (not $visible{$nat_bignet}) {
+                if (my $identical = $identical{$nat_bignet}) {
+                    if ((my $ident_net) = grep { $visible{$_} } @$identical) {
+                        $nat_bignet = $ident_net;
+                        last;
+                    }
+                }
                 $nat_bignet = $is_in{$nat_bignet} or next SUBNET;
             }
             next if $seen{$nat_bignet}->{$nat_subnet}++;

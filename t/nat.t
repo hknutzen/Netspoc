@@ -223,6 +223,60 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Detect subnet relation when having duplicate IP addresses';
+############################################################
+
+# Processing order of networks depends on lexical order of router names.
+# Choose a weird order to get n1/n2sub and n2/n1sub to be processed together.
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:h1 = { hidden; } }
+network:n1sub = { ip = 10.1.1.64/26; }
+
+router:r1 = {
+ interface:n1;
+ interface:t1;
+}
+router:r4 = {
+ interface:n1sub;
+ interface:t1;
+}
+
+network:t1 = { ip = 10.2.1.0/24; }
+
+router:fw =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.2.1.1; hardware = t1; bind_nat = h2; }
+ interface:t2 = { ip = 10.2.2.1; hardware = t2; bind_nat = h1; }
+}
+network:t2 = { ip = 10.2.2.0/24; }
+
+router:r2 = {
+ interface:n2;
+ interface:t2;
+}
+router:r3 = {
+ interface:n2sub;
+ interface:t2;
+}
+
+network:n2 = { ip = 10.1.1.0/24; nat:h2 = { hidden; } }
+network:n2sub = { ip = 10.1.1.64/26; }
+END
+
+$out = <<'END';
+Warning: network:n1sub is subnet of network:n1
+ in nat_domain:t1.
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+Warning: network:n2sub is subnet of network:n2
+ in nat_domain:t2.
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Inherit subnet_of from inherited NAT';
 ############################################################
 
