@@ -7710,17 +7710,22 @@ sub set_policy_distribution_ip {
 NetSPoC can deal with Network Address Translation (NAT) to translate
 or hide Network addresses in parts of the topology.
 
-NAT is defined by adding a NAT definition to the network or
-host definition of the element that is to be translated or hidden. To
+NAT is defined by adding a NAT definition to the network or host
+definition of the element that is to be translated or hidden. To
 determine topology parts where NAT definitions are effective, NAT tags
 referring to a nat definition are bound to interfaces within the
-topology.
+topology. This NAT binding activates NAT for every topology element
+behind the interface as seen from router, so NAT is effective in
+network direction of NAT binding.
 
 The NAT binding separates the topology into a part in front of the
-binding (as seen from the element with NAT defined) where the
-elements original address is valid and a part behind the binding,
-where NAT is effective. In topologies that are not simple and linear,
-several NAT bindings can be needed to achieve a clear separation.
+binding (as seen from the element with NAT defined) where the elements
+original address is valid and a part behind the binding, where NAT is
+effective. It is possible and sometimes neccessary to apply more than
+one NAT binding: Additional NAT bindings can be used to delimit the
+topology part where NAT is active, and for topologies with loops,
+several NAT bindings can be required to obtain clear separation into
+NAT active and inactive parts.
 
 To keep track of which NAT tags are active in which part of the
 topology, NetSpoC divides the topology into NAT domains. A NAT domain
@@ -7749,19 +7754,20 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
 }
 
 ##############################################################################
-# Returns   : $nat_tag2multinat_def: Hash with NAT tags occurring in multiple
-#                 NAT definitions (grouped) as keys and arrays of NAT hash
-#                 references containing the key NAT tag as values.
+# Returns   : $nat_tag2multinat_def: Hash with NAT tags occurring in multi
+#                 NAT definitions (several NAT definitions grouped at one
+#                 network) as keys and arrays of NAT hashes containing the
+#                 key NAT tag as values.
 #             $nat_definitions: Lookup hash with all NAT tags that are
 #                 defined somewhere as keys. It is used to check, if all
 #                 NAT definitions are bound and if all bound NAT tags are
 #                 defined somewhere.
-# Comments: Also checks consistency of grouped NAT tags at one network. If
+# Comments: Also checks consistency of multi NAT tags at one network. If
 #           non hidden NAT tags are grouped at one network, the same NAT
 #           tags must be used as group in all other occurrences to avoid
 #           ambiguities: Suppose tags A and B are both defined at network n1,
 #           but only A is defined at network n2. An occurence of
-#           bind_nat = A activates NAT:A. A successive bind_nat = B actives
+#           bind_nat = A activates NAT:A. A successive bind_nat = B activates
 #           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
@@ -7979,7 +7985,7 @@ sub check_for_multinat_errors {
 # Parameter: $domain: Actual domain.
 #            $nat_tag: NAT tag that is distributed during domain traversal.
 #            $router: Router domain was entered at during domain traversal.
-sub check_for_translation_errors {
+sub check_nat_network_location {
     my ($domain, $nat_tag, $router) = @_;
     for my $network (@{ $domain->{networks} }) {
         my $nat = $network->{nat} or next;
@@ -8032,7 +8038,7 @@ sub check_for_proper_NAT_binding {
 #            $nat_hash: NAT hash of network with both $nat_tag and $nat_tag2
 #                defined.
 #            $router - router NAT transition occurs at. 
-sub assure_proper_nat_transition {
+sub check_for_proper_nat_transition {
     my ($nat_tag, $nat_tag2, $nat_hash, $router) = @_;
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
@@ -8072,7 +8078,7 @@ sub assure_proper_nat_transition {
 #                 one NAT tag specified.
 #             $in_router: Router $domain was entered from.
 # Results:    All domains, where NAT tag is active contain $nat_tag in their
-#             $nat_set variable.
+#             {nat_set} attribute.
 # Returns:    undef on success, array reference of routers, if invalid
 #             path was found in loop.
 sub distribute_nat1 {
@@ -8086,7 +8092,7 @@ sub distribute_nat1 {
     # Perform checks before $nat_tag is added.
     check_for_multinat_errors($nat_tag2multinat_def, $nat_set,
                               $nat_tag, $domain);
-    check_for_translation_errors($domain, $nat_tag, $in_router);
+    check_nat_network_location($domain, $nat_tag, $in_router);
     $nat_set->{$nat_tag} = 1;
 
     # Activate loop detection.
@@ -8102,7 +8108,8 @@ sub distribute_nat1 {
 
         my $loop_error = check_for_proper_NAT_binding($domain, $in_router,
                                                      $router, $nat_tag);
-        # Wrong NAT binding on loop path: collect error path.
+        # Wrong NAT binding on loop path:
+        # Abort traversal and start collecting error path.
         $loop_error and return [$router];
 
       DOMAIN:
@@ -8119,8 +8126,10 @@ sub distribute_nat1 {
                      next if $nat_tag2 eq $nat_tag;
                      for my $nat_hash (@$multinat_hashes) {
                          if ($nat_hash->{$nat_tag2}) { 
-                             assure_proper_nat_transition($nat_tag, $nat_tag2,
-                                                         $nat_hash, $router);
+                             check_for_proper_nat_transition($nat_tag,
+                                                             $nat_tag2,
+                                                             $nat_hash,
+                                                             $router);
                              next DOMAIN;
                          }
                      }
@@ -10617,8 +10626,8 @@ sub set_zone {
     progress('Preparing security zones and areas');
     set_zones();
     cluster_zones();
-    my $crosslink_routers = check_crosslink();      #TODO: place somewhere else?
-    cluster_crosslink_routers($crosslink_routers);  #TODO: place somewhere else?
+    my $crosslink_routers = check_crosslink();
+    cluster_crosslink_routers($crosslink_routers);
     my $has_inclusive_borders = prepare_area_borders();
     set_areas();
     find_area_subset_relations();
@@ -14795,7 +14804,6 @@ sub check_dynamic_nat_rules {
 ########################################################################
 
 ##############################################################################
-# TODO: Add standard function comment.
 # Get networks for routing.
 # Add largest supernet inside the zone, if available.
 # This is needed, because we use the supernet in
@@ -15335,7 +15343,7 @@ sub find_active_routes {
     # Generate routing info for every pseudo rule and store it in interfaces.
     generate_routing_info $routing_tree;
 
-    # TODO
+    #
     check_and_convert_routes;
 }
 
