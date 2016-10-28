@@ -653,7 +653,9 @@ sub add_local_deny_rules {
 # Parameters : $hash - hash with IP/mask names as keys and 
 #                      IP/mask objects as values.
 #              $ip_net2obj - hash of all known IP/mask objects
-# Result     : Reference to array of sorted and combined IP/mask objects.
+# Result     : Returns reference to array of sorted and combined 
+#              IP/mask objects.
+#              Parameter $hash is changed to reflect combined IP/mask objects.
 sub combine_adjacent_ip_mask {
     my ($hash, $ip_net2obj) = @_;
 
@@ -667,7 +669,6 @@ sub combine_adjacent_ip_mask {
     # Find left and rigth part with identical mask and combine them
     # into next larger network.
     # Compare up to last but one element.
-    my $i = 0;
     for (my $i = 0 ; $i < @$elements - 1 ; $i++) {
         my $element1 = $elements->[$i];
         my $element2 = $elements->[$i+1];
@@ -688,9 +689,9 @@ sub combine_adjacent_ip_mask {
 
         # Add new element and remove left and rigth parts.
         $hash->{$up_element->{name}} = $up_element;
-        delete($hash->{$element1});
-        delete($hash->{$element2});
-        
+        delete $hash->{$element1->{name}};
+        delete $hash->{$element2->{name}};
+
         if ($i > 0) {
             my $next_bit = complement_32bit($up_mask) + 1;
 
