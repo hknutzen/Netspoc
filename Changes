@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Fixed security issue with generated object-groups.
+   If object-group G1 has element B that was combined from B1, B2,
+   and some other group G2 has same elements as G1 but with B1 instead of B,
+   then G1 was erroneously reused instead of definig a new object-group G2.
  - Changed syntax for owners.
    Owners are now propagated to inner objects per default.
    New attributes:
