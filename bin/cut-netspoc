@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.015'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.016'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -537,16 +537,6 @@ for my $router (values %routers) {
         if ($interface->{is_used}) {
             $interface->{network}->{is_used} = 1;
         }
-    }
-
-    # Remove unused hosts referenced in attribute radius_servers.
-    if (my $hosts = $router->{radius_servers}) {
-	for my $host (@$hosts) {
-            my $used_host_names = 
-                join ', ', map { $_->{name} } grep { $_->{is_used} } @$hosts;
-            my $new_code = "radius_servers = $used_host_names;";
-            change_attribute_src_code('radius_servers', $router, $new_code);
-	}
     }
 }
 

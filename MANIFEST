@@ -68,6 +68,7 @@ pod-links/rename-netspoc.pod
 t/Test_Group.pm
 t/Test_Netspoc.pm
 t/add-to-netspoc.t
+t/adjacent-net.t
 t/aggregate.t
 t/any-multicast-interface.t
 t/area.t

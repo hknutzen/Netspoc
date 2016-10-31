@@ -37,7 +37,7 @@ use Encode;
 use IO::Pipe;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.015'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.016'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3280,19 +3280,38 @@ sub read_owner {
         }
         elsif ($token eq 'extend_only') {
             skip(';');
-            $owner->{extend_only} = 1;
+            $owner->{only_watch} = 1;
+            warn_msg("'$token' is deprecated in $name.\n",
+                     " Use attribute 'only_watch' instead.");
         }
         elsif ($token eq 'extend_unbounded') {
             skip(';');
-            $owner->{extend_unbounded} = 1;
+            warn_msg("'$token' is deprecated in $name.\n",
+                     " This attribute should be removed.");
         }
         elsif ($token eq 'extend') {
             skip(';');
-            $owner->{extend} = 1;
+            warn_msg("Ignoring deprecated '$token' in $name.\n",
+                     " This is default now.\n",
+                     " Use attribute 'hide_inner_owners' to revert",
+                     " to previous behaviour.");
         }
         elsif ($token eq 'show_all') {
             skip(';');
             $owner->{show_all} = 1;
+            $owner->{show_hidden_owners} = 1;
+        }
+        elsif ($token eq 'only_watch') {
+            skip(';');
+            $owner->{only_watch} = 1;
+        }
+        elsif ($token eq 'hide_from_outer_owners') {
+            skip(';');
+            $owner->{hide_from_outer_owners} = 1;
+        }
+        elsif ($token eq 'show_hidden_owners') {
+            skip(';');
+            $owner->{show_hidden_owners} = 1;
         }
         else {
             syntax_err("Expected valid attribute");
@@ -3879,11 +3898,8 @@ sub link_to_real_owner {
                     " of $obj->{name}");
         
     }
-    if ($owner->{extend_only}) {
-        
-        # Prevent further errors.
-        delete $owner->{extend_only};
-        err_msg("$owner->{name} with attribute 'extend_only'",
+    if (delete $owner->{only_watch}) {
+        err_msg("$owner->{name} with attribute 'only_watch'",
                 " must only be used at area,\n not at $obj->{name}");
     }
 }
@@ -6478,201 +6494,136 @@ sub propagate_owners {
         }
     }
 
-    # A zone can be part of multiple areas.
-    # Find the smallest enclosing area.
-    my %zone2area;
-    for my $zone (@zones) {
-        my @areas = values %{ $zone->{areas} } or next;
-        @areas = sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas;
-        $zone2area{$zone} = $areas[0];
-    }
-
-    # Build tree from inheritance relation:
-    # area -> [area|zone, ..]
-    # zone  -> [network, ..]
-    # network -> [network, ..]
-    # network -> [host|interface, ..]
-    my %tree;
-    my %is_child;
-    my %ref2obj;
-    my $add_node = sub {
-        my ($super, $sub) = @_;
-        push @{ $tree{$super} }, $sub;
-        $is_child{$sub}  = 1;
-        $ref2obj{$sub}   = $sub;
-        $ref2obj{$super} = $super;
-    };
-
-    # Find subset relation between areas.
-    for my $area (@areas) {
-        if (my $super = $area->{subset_of}) {
-            $add_node->($super, $area);
+    {
+        my %zone2node2owner;
+        
+        # Prepare check for redundant owner of zone in respect to some area.
+        # Artificially add zone as node.
+        # This simplifies check for redundant owners.
+        for my $zone (@zones) {
+            my $hash = $zone2node2owner{$zone} = {};
+            my $owner = $zone->{owner} or next;
+            $hash->{$owner} = $zone;
         }
-    }
-
-    # Find direct subset relation between areas and zones.
-    for my $area (@areas) {
-        for my $zone (@{ $area->{zones} }) {
-            if ($zone2area{$zone} eq $area) {
-                $add_node->($area, $zone);
+            
+        # Propagate owners from areas to zones.
+        # - Zone inherits owner from smallest enclosing area having 
+        #   an owner without attribute {only_watch}.
+        # - Zone inherits watching_owners from all enclosing areas 
+        #   where owner has attribute {only_watch}.
+        # Check for redundant owners of zones and areas.
+        for my $area ( sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
+            my $owner = $area->{owner} or next;
+            $owner->{is_used} = 1;
+            my $redundant;
+            for my $zone (@{ $area->{zones} }) {
+#                debug "$area->{name} $zone->{name}";
+                my $hash = $zone2node2owner{$zone};
+                if (my $small_area = $hash->{$owner}) {
+                    $redundant->{$small_area} = $small_area;
+                }
+                $hash->{$owner} = $area;
+                if (not $owner->{only_watch} and not $zone->{owner}) {
+                    $zone->{owner} = $owner;
+                }
+            }
+            if ($redundant) {
+                for my $small_area (sort by_name values %$redundant) {
+                    warn_msg("Useless $owner->{name} at $small_area->{name},\n",
+                             " it was already inherited from $area->{name}");
+                }
             }
         }
+
+        # Convert intermediate hash to list {watching_owners}.
+        for my $zone (@zones) {
+            my $hash = $zone2node2owner{$zone};
+
+            # Remove artificially added zone from hash.
+            if (my $owner = $zone->{owner}) {
+                delete $hash->{$owner};
+            }
+            keys %$hash or next;
+            $zone->{watching_owners} = [ map { $_->{owner} } values %$hash ];
+        }
     }
 
-    # Find subset relation between networks and hosts/interfaces.
-    my $add_hosts = sub {
+    # $upper_node: directly enclosing node of current $node.
+    my $inherit = sub {
+        my ($node, $upper_node) = @_;
+        my $upper_owner = $upper_node->{owner};
+        if (my $owner = $node->{owner}) {
+            $owner->{is_used} = 1;
+            if ($upper_owner and $owner eq $upper_owner) {
+                if (not $zone_got_net_owners{$upper_node}) {
+                    warn_msg(
+                        "Useless $owner->{name} at $node->{name},\n",
+                        " it was already inherited from $upper_node->{name}"
+                    );
+                }
+            }
+        }
+        elsif ($upper_owner) {
+            $node->{owner} = $upper_owner;
+        }
+    };
+
+    # Propagate owner from network to hosts/interfaces.
+    my $owner_to_hosts = sub {
         my ($network) = @_;
         for my $host (@{ $network->{hosts} }) {
-            $add_node->($network, $host);
+            $inherit->($host, $network);
         }
         for my $interface (@{ $network->{interfaces} }) {
             my $router = $interface->{router};
             if (not ($router->{managed} or $router->{routing_only})) {
-                $add_node->($network, $interface);
+                $inherit->($interface, $network);
             }
         }
     };
 
-    # Find subset relation between networks and networks.
-    my $add_subnets;
-    $add_subnets = sub {
+    # Propagate owner recursively from network to subnetworks.
+    my $owner_to_subnets = sub {
         my ($network) = @_;
-        $add_hosts->($network);
-        my $subnets = $network->{networks} or return;
-        for my $subnet (@$subnets) {
-            $add_node->($network, $subnet);
-            $add_subnets->($subnet);
+        if (my $subnets = $network->{networks}) {
+            for my $subnet (@$subnets) {
+                $inherit->($subnet, $network);
+                __SUB__->($subnet);
+            }
         }
+        $owner_to_hosts->($network);
     };
 
-    # Find subset relation between zones and networks.
+    # Propagate owner from zone to networks.
     for my $zone (@zones) {
         for my $network (@{ $zone->{networks} }) {
-            $add_node->($zone, $network);
-            $add_subnets->($network);
+            $inherit->($network, $zone);
+            $owner_to_subnets->($network);
         }
     }
 
-    # Find root nodes.
-    my @root_nodes =
-      sort by_name map { $ref2obj{$_} } grep { not $is_child{$_} } keys %tree;
-
-    # owner is extended by e_owner at node.
-    # owner->[[node, e_owner, .. ], .. ]
-    my %extended;
-
-    # upper_owner: owner object without attribute extend_only or undef
-    # extend: a list of owners with attribute extend
-    # extend_only: a list of owners with attribute extend_only
-    my $inherit = sub {
-        my ($node, $upper_owner, $upper_node, $extend, $extend_only) = @_;
-        my $owner = $node->{owner};
-        if (not $owner) {
-            $node->{owner} = $upper_owner if $upper_owner;
-        }
-        else {
-            $owner->{is_used} = 1;
-            if ($upper_owner) {
-                if ($owner eq $upper_owner) {
-                    if (not $zone_got_net_owners{$upper_node}) {
-                        warn_msg(
-                            "Useless $owner->{name} at $node->{name},\n",
-                            " it was already inherited from",
-                            " $upper_node->{name}"
-                        );
-                    }
-                }
-                else {
-                    if ($upper_owner->{extend}) {
-                        $extend = [ $upper_owner, @$extend ];
-                    }
-                }
-            }
-            my @extend_list = ($node);
-            push @extend_list, @$extend      if $extend;
-            push @extend_list, @$extend_only if $extend_only;
-            push @{ $extended{$owner} }, \@extend_list;
-        }
-        if (not($owner and $owner->{extend_only})) {
-            if (my $upper_extend = $extend_only->[0]) {
-                $node->{extended_owner} = $upper_extend;
-            }
-        }
-
-        if ($owner and $owner->{extend_only}) {
-            $extend_only = [ $owner, @$extend_only ];
-            $upper_owner = undef;
-            $upper_node  = undef;
-        }
-        elsif ($owner) {
-            $upper_owner = $owner;
-            $upper_node  = $node;
-        }
-        my $childs = $tree{$node} or return;
-        for my $child (@$childs) {
-            __SUB__->($child, $upper_owner, $upper_node, $extend,
-                $extend_only);
-        }
-    };
-    for my $node (@root_nodes) {
-        $inherit->($node, undef, undef, [], []);
-    }
-
-    # Collect extended owners and check for inconsistent extensions.
     # Check owner with attribute {show_all}.
     for my $owner (sort by_name values %owners) {
-        my $aref = $extended{$owner} || [];
-        my $node1;
-        my $ext1;
-        my $combined;
-        for my $node_ext (@$aref) {
-            my $node = shift @$node_ext;
-            next if $zone_got_net_owners{$node};
-            my $ext = $node_ext;
-            if ($node1) {
-                for my $owner_list ($ext1, $ext) {
-                    my ($other, $owner_node, $other_node) =
-                      $owner_list eq $ext
-                      ? ($ext1, $node, $node1)
-                      : ($ext, $node1, $node);
-                    for my $e_owner (@$owner_list) {
-                        next if $e_owner->{extend_unbounded};
-                        next if grep { $e_owner eq $_ } @$other;
-                        warn_msg(
-                            "$owner->{name}",
-                            " is extended by $e_owner->{name}\n",
-                            " - only at $owner_node->{name}\n",
-                            " - but not at $other_node->{name}"
-                        );
-                    }
-                }
-                $combined = [ @$ext, @$combined ];
+        $owner->{show_all} or next;
+        my @invalid;
+        for my $zone (@zones) {
+            next if $zone->{is_tunnel};
+            if (my $zone_owner = $zone->{owner}) {
+                next if $zone_owner eq $owner;
             }
-            else {
-                $combined = $ext;
-                ($node1, $ext1) = ($node, $ext);
+            if (my $watching_owners = $zone->{watching_owners}) {
+                next if grep { $_ eq $owner } @$watching_owners;
             }
+            push @invalid, $zone;
         }
-        if ($combined and @$combined) {
-            $owner->{extended_by} = [ unique @$combined ];
-        }
-        if ($owner->{show_all}) {
-            my @invalid;
-            for my $node (@root_nodes) {
-                my $node_owner = $node->{owner} || '';
-                if ($node_owner ne $owner) {
-                    push @invalid, $node;
-                }
-            }
-            if (@invalid) {
-                my $missing = join("\n - ", map { $_->{name} } @invalid);
-                err_msg(
-                    "$owner->{name} has attribute 'show_all',",
-                    " but doesn't own whole topology.\n",
-                    " Missing:\n",
-                    " - $missing"
-                );
-            }
+        if (@invalid) {
+            my $missing = join("\n - ", map { $_->{name} } @invalid);
+            err_msg(
+                "$owner->{name} has attribute 'show_all',",
+                " but doesn't own whole topology.\n",
+                " Missing:\n",
+                " - $missing"
+            );
         }
     }
 
@@ -6725,7 +6676,7 @@ sub propagate_owners {
         }
     }
 
-    # Inherit owner from enclosing network or zone to aggregate.
+    # Propagate owner from enclosing network or zone to aggregate.
     for my $zone (@zones) {
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
             next if $aggregate->{owner};
@@ -8083,7 +8034,6 @@ sub distribute_nat_info {
     # This is used to check,
     # that NAT tags are equally used grouped or solitary.
     my %nat_tags2multi;
-    my %all_hidden;
     for my $network (@networks) {
         my $href = $network->{nat} or next;
 
@@ -8091,25 +8041,6 @@ sub distribute_nat_info {
 
         # Print error message only once per network.
         my $err_shown;
-        my $show_err = sub {
-            my ($href1, $href2) = @_;
-            return if $err_shown;
-            my $tags1 = join(',', sort keys %$href1);
-            my $name1 = $network->{name};
-            my $tags2 = join(',', sort keys %$href2);
-
-            # Values are NAT entries with name of network.
-            # Take first value deterministically.
-            my ($name2) = sort map { $_->{name} } values %$href2;
-            err_msg
-              "If multiple NAT tags are used at one network,\n",
-              " these NAT tags must be used",
-              " equally grouped at other networks:\n",
-              " - $name1: $tags1\n",
-              " - $name2: $tags2";
-            $err_shown = 1;
-            return;
-        };
 
       NAT_TAG:
         for my $nat_tag (sort keys %$href) {
@@ -8120,52 +8051,23 @@ sub distribute_nat_info {
                 # then only a single href is allowed.
                 if ($has_non_hidden{$nat_tag}) {
                     my $href2 = $aref->[0];
-                    keys_eq($href, $href2) or $show_err->($href, $href2);
-                    next NAT_TAG;
-                }
-
-                # Array of hrefs has common hidden NAT tag.
-                #
-                # Ignore new href if it is identical to some previous one.
-                for my $href2 (@$aref) {
-                    keys_eq($href, $href2) and next NAT_TAG;
-                }
-
-                # Some element is non hidden, check detailed.
-                if (grep { $has_non_hidden{$_} } %$href) {
-
-                    # Check new href for consistency with previous hrefs.
-                    for my $nat_tag2 (sort keys %$href) {
-                        next if $nat_tag2 eq $nat_tag;
-                        for my $href2 (@$aref) {
-
-                            # Don't check previous href with all hidden tags.
-                            next if $all_hidden{$href2};
-
-                            # Non hidden tag must not occur in other href.
-                            if ($has_non_hidden{$nat_tag2}) {
-                                if ($href2->{$nat_tag2}) {
-                                    $show_err->($href, $href2);
-                                    next NAT_TAG;
-                                }
-                            }
-
-                            # Hidden tag must occur in all other hrefs.
-                            else {
-                                if (not $href2->{$nat_tag2}) {
-                                    $show_err->($href, $href2);
-                                    next NAT_TAG;
-                                }
-                            }
-                        }
+                    if (not keys_eq($href, $href2) and not $err_shown) {
+                        my $tags1 = join(',', sort keys %$href);
+                        my $name1 = $network->{name};
+                        my $tags2 = join(',', sort keys %$href2);
+                        
+                        # Values are NAT entries with name of network.
+                        # Take first value deterministically.
+                        my ($name2) = sort map { $_->{name} } values %$href2;
+                        err_msg(
+                            "If multiple NAT tags are used at one network,\n",
+                            " these NAT tags must be used",
+                            " equally grouped at other networks:\n",
+                            " - $name1: $tags1\n",
+                            " - $name2: $tags2");
+                        $err_shown = 1;
                     }
-                }
-
-                # All elements are hidden. Always ok.
-                else {
-
-                    # Mark this type of href for easier checks.
-                    $all_hidden{$href} = 1;
+                    next NAT_TAG;
                 }
 
                 # If current href and some previous href are in subset
@@ -8225,34 +8127,8 @@ sub distribute_nat_info {
 
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
 
-            # Multiple tags are bound to interface.
-            # If some network has multiple matching NAT tags,
-            # the resulting NAT mapping would be ambiguous.
-            if (@$nat_tags >= 2) {
-              NAT_TAG:
-                for my $nat_tag (@$nat_tags) {
-                    my $aref = $nat_tags2multi{$nat_tag} or next;
-                    for my $href (@$aref) {
-                        my @tags = grep { $href->{$_} && $_ } @$nat_tags;
-                        @tags >= 2 or next;
-                        my $tags = join(',', @tags);
-                        my $nat_net = $href->{ $tags[0] };
-                        err_msg(
-                            "Must not bind multiple NAT tags",
-                            " '$tags' of $nat_net->{name}",
-                            " at $router->{name}"
-                        );
-
-                        # Show only first error. Otherwise we would
-                        # show the same error multiple times.
-                        last NAT_TAG;
-                    }
-                }
-            }
             for my $nat_tag (@$nat_tags) {
                 if ($nat_definitions{$nat_tag}) {
-                    distribute_nat($domain, $nat_tag, \%nat_tags2multi,
-                                   $router);
                     $nat_definitions{$nat_tag} = 'used';
                 }
                 else {
@@ -8261,6 +8137,33 @@ sub distribute_nat_info {
                         " bound at $router->{name}"
                     );
                 }
+            }
+            
+          NAT_TAG:
+            for my $nat_tag (@$nat_tags) {
+                
+                # Multiple tags are bound to interface.
+                # If some network has multiple matching NAT tags,
+                # the resulting NAT mapping would be ambiguous.
+                if (@$nat_tags >= 2 and 
+                    (my $aref = $nat_tags2multi{$nat_tag})) 
+                {
+                    for my $href (@$aref) {
+                        my @tags = grep { $href->{$_} } @$nat_tags;
+                        @tags >= 2 or next;
+                        my $tags = join(',', @tags);
+                        my $nat_net = $href->{ $tags[0] };
+                        err_msg(
+                            "Must not bind multiple NAT tags '$tags'",
+                            " of $nat_net->{name} at $router->{name}"
+                        );
+
+                        # Show only first error. Process only first
+                        # valid NAT tag to prevent inherited errors.
+                        last NAT_TAG;
+                    }
+                }
+                distribute_nat($domain, $nat_tag, \%nat_tags2multi, $router);
             }
         }
     }

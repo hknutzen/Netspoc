@@ -292,7 +292,7 @@ router:filter = {
  model = ASA;
  interface:n1 = { ip = 10.0.1.2; hardware = n1; }
  interface:n2 = { ip = 10.0.2.2; hardware = n2; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = C, D, E; }
 }
 
 network:X = { ip = 10.8.3.0/24; }
@@ -300,8 +300,8 @@ END
 
 # Only first error is shown.
 $out = <<'END';
+Warning: Ignoring useless nat:E bound at router:filter
 Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:n1) at router:filter
-Error: Grouped NAT tags 'C' and 'D' must not both be active inside nat_domain:X
 END
 
 test_err($title, $in, $out);
@@ -1021,6 +1021,10 @@ test_err($title, $in, $out);
 $title = 'Grouped NAT tags must only be used grouped';
 ############################################################
 
+# n1 and n2 are translated at interface:r1.t, thus nat1 is active in
+# network:t. At interface:r2.k only n1 is translated though, leading
+# to ambiguity on which nat tag is active in network k.
+
 $in = <<'END';
 network:n1 = { 
  ip = 10.1.1.0/24; 
@@ -1028,10 +1032,7 @@ network:n1 = {
  nat:t2 = { ip = 10.9.8.0/24; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
- nat:t2 = { ip = 10.9.9.0/24; }
-}
+network:n2 = { ip = 10.1.2.0/24; nat:t1 = { ip = 10.9.9.0/24; }}
 
 router:r1 =  {
  managed;
@@ -1049,6 +1050,27 @@ router:r2 =  {
 }
 network:k = { ip = 10.2.2.0/24; }
 END
+
+$out = <<'END';
+Error: If multiple NAT tags are used at one network,
+ these NAT tags must be used equally grouped at other networks:
+ - network:n2: t1
+ - nat:t1(network:n1): t1,t2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Grouped NAT tags must only be used grouped (2)';
+############################################################
+
+# In this case, using ungrouped NAT tags at network:n2 does not lead
+# to ambiguities. An error is generated, although in a strict sense no
+# error occurs. If a way is found to distinct such cases from real
+# error cases, NetSPoC and this test should be adapted.
+
+$in =~ s/network:n2.*\}\}//s;
+$in .= "network:n2 = { ip = 10.1.2.0/24; nat:t2 = { ip = 10.9.9.0/24; }}";
 
 $out = <<'END';
 Error: If multiple NAT tags are used at one network,
