@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.016     2016-10-31 17:30:24+01:00 Europe/Berlin
+
  - Fixed security issue with generated object-groups.
    If object-group G1 has element B that was combined from B1, B2,
    and some other group G2 has same elements as G1 but with B1 instead of B,
