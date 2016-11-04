@@ -141,7 +141,7 @@ our @EXPORT = qw(
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
-my $use_nonlocal_exit => 1;
+my $use_nonlocal_exit = 1;
 
 ####################################################################
 # Attributes of supported router models
