@@ -422,7 +422,7 @@ for my $network (values %networks) {
     # identity NAT attributes, which have been deleted already.
     while ($up = $up->{up}) {
         if ($up->{is_aggregate}) {
-            $up->{mask} == 0 or next;
+            $up->{mask} eq $zero_ip or next;
             my $zone = $up->{zone};
 
             # Check if NAT attribute was inherited from zone or areas.

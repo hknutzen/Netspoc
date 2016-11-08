@@ -104,7 +104,7 @@ use Pod::Usage;
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
+    return($network->{ip} | $ip & ~ $network->{mask});
 }
 
 # Print IP address of $obj in context of $no_nat_set.

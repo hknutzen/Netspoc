@@ -39,15 +39,39 @@ use open qw(:std :utf8);
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
+# Conversion from netmask to prefix and vice versa.
+{
+ 
+    # Initialize private variables of this block.
+    my %mask2prefix;
+    my %prefix2mask;
+    for my $prefix (0 .. 32) {
+        my $mask = 2**32 - 2**(32 - $prefix);
+        $mask2prefix{$mask}   = $prefix;
+        $prefix2mask{$prefix} = $mask;
+    }
+
+    # Convert a network mask to a prefix ranging from 0 to 32.
+    sub int_mask2prefix {
+        my $mask = shift;
+        return $mask2prefix{$mask};
+    }
+
+    sub prefix2int_mask {
+        my $prefix = shift;
+        return $prefix2mask{$prefix};
+    }
+}
+     
 sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
-    return { ip => ip2int($ip), mask => prefix2mask($prefix), name => $ip_net };
+    return { ip => ip2int($ip), mask => prefix2int_mask($prefix), name => $ip_net };
 }
 
 sub get_ip_obj {
     my ($ip, $mask, $ip_net2obj) = @_;
-    my $name = int2ip($ip) . '/' . mask2prefix($mask);
+    my $name = int2ip($ip) . '/' . int_mask2prefix($mask);
     return $ip_net2obj->{$name} ||= { ip => $ip, mask => $mask, name => $name };
 }
 
@@ -985,12 +1009,16 @@ sub iptables_prt_code {
 #    return;
 #}
 
+sub match_int_ip {
+    my ($ip1, $ip, $mask) = @_;
+    return ($ip == ($ip1 & $mask));
+}
+
 # Nodes are reverse sorted before being added to bintree.
 # Redundant nodes are discarded while inserting.
 # A node with value of sub-tree S is discarded,
 # if some parent node already has sub-tree S.
 sub add_bintree;
-
 sub add_bintree {
     my ($tree,    $node)      = @_;
     my ($tree_ip, $tree_mask) = @{$tree}{qw(ip mask)};
@@ -1000,7 +1028,7 @@ sub add_bintree {
     # The case where new node is larger than root node will never
     # occur, because nodes are sorted before being added.
 
-    if ($tree_mask < $node_mask && match_ip($node_ip, $tree_ip, $tree_mask)) {
+    if ($tree_mask < $node_mask && match_int_ip($node_ip, $tree_ip, $tree_mask)) {
 
         # Optimization for this special case:
         # Root of tree has attribute {subtree} which is identical to
@@ -1016,7 +1044,7 @@ sub add_bintree {
             or $tree->{subtree} ne $node->{subtree})
         {
             my $mask = ($tree_mask >> 1) | 0x80000000;
-            my $branch = match_ip($node_ip, $tree_ip, $mask) ? 'lo' : 'hi';
+            my $branch = match_int_ip($node_ip, $tree_ip, $mask) ? 'lo' : 'hi';
             if (my $subtree = $tree->{$branch}) {
                 $tree->{$branch} = add_bintree $subtree, $node;
             }
@@ -1680,7 +1708,7 @@ sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
     my $ip_code     = int2ip($ip);
-    my $prefix_code = mask2prefix($mask);
+    my $prefix_code = int_mask2prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
 

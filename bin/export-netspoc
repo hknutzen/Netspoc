@@ -90,7 +90,7 @@ sub by_name { return($a->{name} cmp $b->{name}) }
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
+    return($network->{ip} | $ip & ~ $network->{mask});
 }
 
 sub ip_nat_for_object {
@@ -118,7 +118,7 @@ sub ip_nat_for_object {
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
-            elsif ($obj->{is_aggregate} && $obj->{mask} == 0) {
+            elsif ($obj->{is_aggregate} && $obj->{mask} eq $zero_ip) {
                 print_ip($obj->{ip});
             }
             else {

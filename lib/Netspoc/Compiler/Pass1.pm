@@ -78,7 +78,6 @@ our @EXPORT = qw(
   read_ip
   print_ip
   mask2prefix
-  complement_32bit
   show_version
   split_typed_name
   skip_space_and_comment
@@ -531,7 +530,7 @@ sub read_int {
     return $result;
 }
 
-# Check and convert IP address to integer.
+# Check and convert IP address to bit string.
 sub convert_ip {
     my ($token) = @_;
     $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or 
@@ -540,7 +539,9 @@ sub convert_ip {
         error_atline("Invalid IP address");
     }
     no warnings 'pack';
-    return unpack 'N', pack 'C4', $1, $2, $3, $4;
+
+    # Create bit string with 32 bits.
+    return pack 'C4', $1, $2, $3, $4;
 }
 
 # Read an IP address.
@@ -582,17 +583,17 @@ sub read_ip_range {
     return $ip1, $ip2;
 }
 
-# Generate an IP address as internal integer.
+# Generate an IP address as internal bit string.
 sub gen_ip {
     my ($byte1, $byte2, $byte3, $byte4) = @_;
-    return unpack 'N', pack('C4', $byte1, $byte2, $byte3, $byte4);
+    return pack('C4', $byte1, $byte2, $byte3, $byte4);
 }
 
-# Convert IP address from internal integer representation to
+# Convert IP address from internal bit string representation to
 # readable string.
 ## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
-    sprintf "%vd", pack 'N', $_[0];
+    sprintf "%vd", $_[0];
 }
 ## use critic
 
@@ -1097,7 +1098,7 @@ sub read_host {
         }
         elsif ($token eq 'range') {
             my ($ip1, $ip2) = read_ip_range();
-            $ip1 <= $ip2 or error_atline("Invalid IP range");
+            $ip1 le $ip2 or error_atline("Invalid IP range");
             add_attribute($host, range => [ $ip1, $ip2 ]);
         }
 
@@ -1245,8 +1246,8 @@ sub read_nat {
         # This prevents 'Use of uninitialized value' 
         # if code generation is started concurrently,
         # before all error conditions are checked.
-        $nat->{ip} = 0;
-        $nat->{mask} = 0xffffffff;
+        $nat->{ip} = $zero_ip;
+        $nat->{mask} = $max_ip;
     }
     elsif ($nat->{identity}) {
         for my $key (sort keys %$nat) {
@@ -1444,7 +1445,7 @@ sub read_network {
             # Check NAT definitions.
             for my $nat (values %{ $network->{nat} }) {
                 next if $nat->{dynamic};
-                $nat->{mask} == $mask
+                $nat->{mask} eq $mask
                   or err_msg("Mask for non dynamic $nat->{name}",
                              " must be equal to mask of $name");
             }
@@ -2394,7 +2395,7 @@ sub read_router {
                     'Network',
                     name => $name,
                     ip   => $interface->{ip},
-                    mask => 0xffffffff,
+                    mask => $max_ip,
 
                     # Mark as automatically created.
                     loopback  => 1,
@@ -2405,7 +2406,7 @@ sub read_router {
                 # Move NAT definition from interface to loopback network.
                 if (my $nat = delete $interface->{nat}) {
                     for my $nat_info (values %$nat) {
-                        $nat_info->{mask} = 0xffffffff;
+                        $nat_info->{mask} = $max_ip;
                     }
                     $network->{nat} = $nat;
                 }
@@ -2606,7 +2607,7 @@ sub read_aggregate {
         }
     }
     else {
-        $aggregate->{ip} = $aggregate->{mask} = 0;
+        $aggregate->{ip} = $aggregate->{mask} = $zero_ip;
     }
     return $aggregate;
 }
@@ -4259,7 +4260,7 @@ sub check_interface_ip {
             err_msg("$interface->{name}'s IP doesn't match ",
                 "$network->{name}'s IP/mask");
         }
-        if ($mask == 0xffffffff) {
+        if ($mask eq $max_ip) {
             if (not $network->{loopback}) {
                 warn_msg(
                     "$interface->{name} has address of its network.\n",
@@ -4270,11 +4271,11 @@ sub check_interface_ip {
             }
         }
         else {
-            if ($ip == $network_ip) {
+            if ($ip eq $network_ip) {
                 err_msg("$interface->{name} has address of its network");
             }
-            my $broadcast = $network_ip + complement_32bit $mask;
-            if ($ip == $broadcast) {
+            my $broadcast = $network_ip | ~$mask;
+            if ($ip eq $broadcast) {
                 err_msg("$interface->{name} has broadcast address");
             }
         }
@@ -4745,7 +4746,8 @@ sub check_ip_addresses {
         }
         for my $host (@{ $network->{hosts} }) {
             if (my $range = $host->{range}) {
-                for (my $ip = $range->[0] ; $ip <= $range->[1] ; $ip++) {
+                my ($low, $high) = @$range;
+                for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
                     if (my $other_device = $ip2obj{$ip}) {
                         is_host($other_device)
                           or err_msg(
@@ -4871,7 +4873,7 @@ sub check_bridged_networks {
         # by a bridge as 'connected' in $href.
         while (my $network = pop(@next)) {
             my ($ip, $mask) = @{$network}{qw(ip mask)};
-            $ip == $ip1 and $mask == $mask1
+            $ip eq $ip1 and $mask eq $mask1
               or err_msg("$net1->{name} and $network->{name} must have",
                 " identical ip/mask");
             $href->{$network} = 'connected';
@@ -5061,18 +5063,18 @@ sub mark_disabled {
 ####################################################################
 
 # 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-my @inverse_masks = map { complement_32bit prefix2mask $_ } (0 .. 32);
+my @inverse_masks = map { ~ prefix2mask($_) } (0 .. 32);
 
 # Convert an IP range to a set of covering IP/mask pairs.
 sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
   IP:
-    while ($low <= $high) {
+    while ($low le $high) {
         for my $mask (@inverse_masks) {
-            if (($low & $mask) == 0 and ($low + $mask) <= $high) {
-                push @result, [ $low, complement_32bit $mask ];
-                $low = $low + $mask + 1;
+            if (($low & $mask) eq $zero_ip and ($low | $mask) le $high) {
+                push @result, [ $low, ~ $mask ];
+                $low = increment_ip($low | $mask);
                 next IP;
             }
         }
@@ -5120,7 +5122,7 @@ sub convert_hosts {
             my ($name, $nat, $id, $owner) = @{$host}{qw(name nat id owner)};
             my @ip_mask;
             if (my $ip = $host->{ip}) {
-                @ip_mask = [ $ip, 0xffffffff ];
+                @ip_mask = [ $ip, $max_ip ];
                 if ($id) {
                     if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
                         $user
@@ -5144,7 +5146,7 @@ sub convert_hosts {
                         err_msg("Range of $name with ID must expand to",
                             " exactly one subnet");
                     }
-                    elsif ($ip_mask[0]->[1] == 0xffffffff) {
+                    elsif ($ip_mask[0]->[1] eq $max_ip) {
                         err_msg("$name with ID must not have single IP");
                     }
                     elsif ($id =~ /^.+\@/) {
@@ -5207,11 +5209,16 @@ sub convert_hosts {
         }
 
         # Find adjacent subnets which build a larger subnet.
-        my $network_inv_prefix = 32 - mask2prefix $network->{mask};
+        my $network_inv_prefix = 32 - mask2prefix($network->{mask});
         for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
             if (my $ip2subnet = $inv_prefix_aref[$i]) {
-                my $next   = 2**$i;
-                my $modulo = 2 * $next;
+                my $mask = prefix2mask(32 - $i);
+                my $up_inv_prefix = $i + 1;
+                my $up_inv_mask = ~ prefix2mask(32 - $up_inv_prefix);
+
+                # A single bit, masking the lowest network bit.
+                my $next = $up_inv_mask & $mask;
+                
                 for my $ip (keys %$ip2subnet) {
                     my $subnet = $ip2subnet->{$ip};
 
@@ -5225,16 +5232,16 @@ sub convert_hosts {
                         # Don't combine subnets having radius-ID.
                         and not $subnet->{id}
 
-                        # Only take the left part of two adjacent subnets.
-                        and $ip % $modulo == 0
+                        # Only take the left part of two adjacent subnets,
+                        # where lowest network bit is zero.
+                        and ($ip & $next) eq $zero_ip
                       )
                     {
-                        my $next_ip = $ip + $next;
+                        my $next_ip = $ip | $next;
 
                         # Find the right part.
                         if (my $neighbor = $ip2subnet->{$next_ip}) {
                             $subnet->{neighbor} = $neighbor;
-                            my $up_inv_prefix = $i + 1;
                             my $up;
                             if ($up_inv_prefix >= $network_inv_prefix) {
 
@@ -5249,13 +5256,13 @@ sub convert_hosts {
                             else {
                                 (my $name = $subnet->{name}) =~
                                   s/^.*:/auto_subnet:/;
-                                my $mask = prefix2mask(32 - $up_inv_prefix);
+                                my $up_mask = ~ $up_inv_mask;
                                 $up = new(
                                     'Subnet',
                                     name    => $name,
                                     network => $network,
                                     ip      => $ip,
-                                    mask    => $mask,
+                                    mask    => $up_mask,
                                     up      => $subnet->{up},
                                 );
                                 $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
@@ -5315,7 +5322,7 @@ sub combine_subnets {
     # i.e. large subnets coming first and
     # for equal mask by IP address.
     # We need this to make the output deterministic.
-    return [ sort { $a->{mask} <=> $b->{mask} || $a->{ip} <=> $b->{ip} }
+    return [ sort { $a->{mask} cmp $b->{mask} || $a->{ip} cmp $b->{ip} }
           values %hash ];
 }
 
@@ -5488,7 +5495,7 @@ sub expand_group1 {
                                 # We can't simply take
                                 # aggregate -> networks -> interfaces,
                                 # because subnets may be missing.
-                                $object->{mask} == 0
+                                $object->{mask} eq $zero_ip
                                   or err_msg "Must not use",
                                   " interface:[..].[all]\n",
                                   " with $object->{name} having ip/mask\n",
@@ -5681,7 +5688,9 @@ sub expand_group1 {
                         push @objects, @{ $object->{networks} };
                     }
                 }
-                elsif (my $aggregates = $get_aggregates->($object, 0, 0)) {
+                elsif (my $aggregates = $get_aggregates->($object, 
+                                                          $zero_ip, $zero_ip)) 
+                {
                     push(
                         @objects,
 
@@ -5763,7 +5772,7 @@ sub expand_group1 {
                 push @objects, unique(@list);
             }
             elsif ($type eq 'any') {
-                my ($ip, $mask) = $ext ? @$ext : (0, 0);
+                my ($ip, $mask) = $ext ? @$ext : ($zero_ip, $zero_ip);
                 my @list;
                 for my $object (@$sub_objects) {
                     if (my $aggregates = $get_aggregates->($object, $ip, $mask))
@@ -6855,7 +6864,7 @@ sub convert_hosts_in_rules {
                         # Convert subnet to network, because
                         # - different objects with identical IP
                         #   can't be checked and optimized properly.
-                        if ($subnet->{mask} == $subnet->{network}->{mask}) {
+                        if ($subnet->{mask} eq $subnet->{network}->{mask}) {
                             my $network = $subnet->{network};
                             if (    not $network->{has_id_hosts}
                                 and not $subnet_warning_seen{$subnet}++)
@@ -6978,10 +6987,12 @@ sub collect_unenforceable {
                     # For most splits the resulting subnets would be
                     # adjacent. Hence we check for adjacency.
                     if ($src->{network} eq $dst->{network}) {
-                        my ($a, $b) = $src->{ip} > $dst->{ip} 
+                        my ($a, $b) = $src->{ip} gt $dst->{ip} 
                                     ? ($dst, $src) 
                                     : ($src, $dst);
-                        if ($a->{ip} + complement_32bit($a->{mask}) + 1 == 
+                        if (increment_ip(
+                                $a->{ip} | ~ ($a->{mask})) 
+                            eq 
                             $b->{ip})
                         {
                             next;
@@ -6992,18 +7003,18 @@ sub collect_unenforceable {
                 # Different aggregates with identical IP, 
                 # inside a zone cluster must be considered as equal.
                 elsif ($src->{is_aggregate} and $dst->{is_aggregate} and
-                       $src->{ip}   == $dst->{ip} and
-                       $src->{mask} == $dst->{mask})
+                       $src->{ip}   eq $dst->{ip} and
+                       $src->{mask} eq $dst->{mask})
                 {
                     next;
                 }
 
                 # This is a common case, which results from rules like
                 # user -> any:[user]
-                elsif ($src->{is_aggregate} and $src->{mask} == 0) {
+                elsif ($src->{is_aggregate} and $src->{mask} eq $zero_ip) {
                     next;
                 }
-                elsif ($dst->{is_aggregate} and $dst->{mask} == 0) {
+                elsif ($dst->{is_aggregate} and $dst->{mask} eq $zero_ip) {
                     next;
                 }
             }
@@ -8312,7 +8323,7 @@ sub check_subnets {
         my ($ip1, $ip2, $object) = @_;
         if (match_ip($ip1, $sub_ip, $sub_mask)
             or $ip2 and (match_ip($ip2, $sub_ip, $sub_mask)
-                         or $ip1 <= $sub_ip and $sub_ip <= $ip2)
+                         or $ip1 le $sub_ip and $sub_ip le $ip2)
           )
         {
 
@@ -8321,8 +8332,8 @@ sub check_subnets {
                 and (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)\(/)))
             {
                 if (    grep { $_ eq $nat_tag2 } @$nat_tags
-                    and $object->{ip} == $subnet->{ip}
-                    and $subnet->{mask} == 0xffffffff)
+                    and $object->{ip} eq $subnet->{ip}
+                    and $subnet->{mask} eq $max_ip)
                 {
                     return;
                 }
@@ -8452,7 +8463,7 @@ sub find_subnets_in_zone {
 
             # Compare networks of zone.
             # Go from smaller to larger networks.
-            my @mask_list = reverse sort numerically keys %mask_ip_hash;
+            my @mask_list = reverse sort keys %mask_ip_hash;
             while (my $mask = shift @mask_list) {
 
                 # No supernets available
@@ -8460,7 +8471,7 @@ sub find_subnets_in_zone {
 
                 my $ip_hash = $mask_ip_hash{$mask};
               SUBNET:
-                for my $ip (sort numerically keys %$ip_hash) {
+                for my $ip (sort keys %$ip_hash) {
 
                     my $subnet = $ip_hash->{$ip};
 
@@ -8672,14 +8683,14 @@ sub find_subnets_in_nat_domain {
     # This includes all addresses of all networks in all NAT domains.
     # Go from smaller to larger networks.
     my %is_in;
-    my @mask_list = reverse sort numerically keys %mask_ip_hash;
+    my @mask_list = reverse sort keys %mask_ip_hash;
     while (my $mask = shift @mask_list) {
 
         # No supernets available
         last if not @mask_list;
 
         my $ip_hash = $mask_ip_hash{$mask};
-        for my $ip (sort numerically keys %$ip_hash) {
+        for my $ip (sort keys %$ip_hash) {
             my $subnet = $ip_hash->{$ip};
 
             # @mask_list holds masks of potential supernets.
@@ -9163,8 +9174,8 @@ sub check_crosslink {
 my $network_00 = new(
     'Network',
     name             => "network:0/0",
-    ip               => 0,
-    mask             => 0,
+    ip               => $zero_ip,
+    mask             => $zero_ip,
     is_aggregate     => 1,
     has_other_subnet => 1,
 );
@@ -9232,7 +9243,7 @@ sub get_managed_local_clusters {
                         my ($ip, $mask) = @{ address($network, $no_nat_set) };
                         for my $pair (@$filter_only) {
                             my ($i, $m) = @$pair;
-                            if ($mask >= $m and match_ip($ip, $i, $m)) {
+                            if ($mask ge $m and match_ip($ip, $i, $m)) {
                                 $matched{"$i/$m"} = 1;
                                 next NETWORK;
                             }
@@ -9295,7 +9306,7 @@ sub mark_managed_local {
                 my ($ip, $mask) = @{$nat_network}{qw(ip mask)};
                 for my $pair (@$filter_only) {
                     my ($i, $m) = @$pair;
-                    $mask >= $m and match_ip($ip, $i, $m) or next;
+                    $mask ge $m and match_ip($ip, $i, $m) or next;
 
                     # Mark network and enclosing aggregates.
                     my $obj = $network;
@@ -9381,7 +9392,7 @@ sub add_managed_hosts_to_aggregate {
         my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
         my $zone = $aggregate->{zone};
         for my $network (@{ $zone->{networks} }) {
-            next if $network->{mask} > $mask;
+            next if $network->{mask} gt $mask;
             my $managed_hosts = $network->{managed_hosts} or next;
             push(
                 @{ $aggregate->{managed_hosts} },
@@ -9449,8 +9460,8 @@ sub link_implicit_aggregate_to_zone {
     $add_subnets->($_) for @{ $zone->{networks} };
 
     # Collect all objects being larger and smaller than new aggregate.
-    my @larger  = grep { $_->{mask} < $mask } @objects;
-    my @smaller = grep { $_->{mask} > $mask } @objects;
+    my @larger  = grep { $_->{mask} lt $mask } @objects;
+    my @smaller = grep { $_->{mask} gt $mask } @objects;
 
     # Find subnets of new aggregate.
     for my $obj (@smaller) {
@@ -9459,7 +9470,7 @@ sub link_implicit_aggregate_to_zone {
 
         # Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
         if (my $up = $obj->{up}) {
-            next if $up->{mask} >= $mask;
+            next if $up->{mask} ge $mask;
         }
         $obj->{up} = $aggregate;
 
@@ -9473,7 +9484,7 @@ sub link_implicit_aggregate_to_zone {
     # Find supernet of new aggregate.
     # Iterate from smaller to larger supernets.
     # Stop after smallest supernet has been found.
-    for my $obj (sort { $a->{mask} < $b->{mask} } @larger) {
+    for my $obj (sort { $a->{mask} lt $b->{mask} } @larger) {
         my ($i, $m) = @{$obj}{qw(ip mask)};
         match_ip($ip, $i, $m) or next;
         $aggregate->{up} = $obj;
@@ -9556,7 +9567,7 @@ sub link_aggregates {
         # retain NAT at other aggregates.
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
-        if ($mask == 0) {
+        if ($mask eq $zero_ip) {
             for my $attr (qw(has_unenforceable owner nat 
                              no_check_supernet_rules))
             {
@@ -9636,7 +9647,7 @@ sub get_any {
         # but use the network instead. Otherwise {up} relation
         # wouldn't be well defined.
         if (
-            my @networks = grep({ $_->{mask} == $mask and $_->{ip} == $ip }
+            my @networks = grep({ $_->{mask} eq $mask and $_->{ip} eq $ip }
                 map { @{ $_->{networks} } } $cluster ? @$cluster : ($zone))
           )
         {
@@ -10016,7 +10027,7 @@ sub inherit_nat_to_subnets_in_zone {
     my ($ip1, $mask1) =
         is_network($net_or_zone)
       ? @{$net_or_zone}{qw(ip mask)}
-      : (0, 0);
+      : ($zero_ip, $zero_ip);
     my $hash = $net_or_zone->{nat};
     for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
@@ -10029,7 +10040,7 @@ sub inherit_nat_to_subnets_in_zone {
             my ($ip2, $mask2) = @{$network}{qw(ip mask)};
 
             # Only process subnets.
-            $mask2 > $mask1 or next;
+            $mask2 gt $mask1 or next;
             match_ip($ip2, $ip1, $mask1) or next;
 
             # Skip network, if NAT tag exists in network already...
@@ -10076,7 +10087,7 @@ sub inherit_nat_to_subnets_in_zone {
                     }
 
                     # Take higher bits from NAT IP, lower bits from original IP.
-                    $sub_nat->{ip} |= $ip2 & complement_32bit($nat_mask);
+                    $sub_nat->{ip} |= $ip2 & ~ $nat_mask;
                     $sub_nat->{mask} = $mask2;
                 }
 
@@ -10099,7 +10110,7 @@ sub inherit_nat_in_zone {
         my @nat_zone = $zone->{nat} ? ($zone) : ();
 
         # Proceed from smaller to larger objects. (Bigger mask first.)
-        for my $supernet (sort({ $b->{mask} <=> $a->{mask} } @nat_supernets),
+        for my $supernet (sort({ $b->{mask} cmp $a->{mask} } @nat_supernets),
             @nat_zone)
         {
             inherit_nat_to_subnets_in_zone($supernet, $zone);
@@ -13186,9 +13197,9 @@ sub find_supernet {
     my ($net1, $net2) = @_;
 
     # Start with $net1 being the smaller network.
-    ($net1, $net2) = ($net2, $net1) if $net1->{mask} < $net2->{mask};
+    ($net1, $net2) = ($net2, $net1) if $net1->{mask} lt $net2->{mask};
     while (1) {
-        while ($net1->{mask} > $net2->{mask}) {
+        while ($net1->{mask} gt $net2->{mask}) {
             $net1 = $net1->{up} or return;
         }
         return $net1 if $net1 eq $net2;
@@ -13231,8 +13242,8 @@ sub find_zone_network {
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
         next if $i =~ /^(?:unnumbered|tunnel)$/;
 
-        if (   $m >= $mask and match_ip($i, $ip, $mask)
-            or $m < $mask  and match_ip($ip, $i, $m))
+        if (   $m ge $mask and match_ip($i, $ip, $mask)
+            or $m lt $mask and match_ip($ip, $i, $m))
         {
 
             # Found first matching network.
@@ -13700,12 +13711,12 @@ sub get_ip_matching {
         my ($i, $m) = @{address($src, $no_nat_set)};
 
         # Element is subnet of $obj.
-        if ($m >= $mask and match_ip($i, $ip, $mask)) {
+        if ($m ge $mask and match_ip($i, $ip, $mask)) {
             push @matching, $src;
         }
 
         # Element is supernet of $obj.
-        elsif ($m < $mask and match_ip($ip, $i, $m)) {
+        elsif ($m lt $mask and match_ip($ip, $i, $m)) {
             if ($src->{is_aggregate}) {
                 my $networks = $src->{networks} or next;
                 $networks = get_ip_matching($obj, $networks, $no_nat_set);
@@ -15558,7 +15569,7 @@ sub print_routes {
                 my $nat_network = get_nat_network($network, $no_nat_set);
                 next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
-                if ($ip == 0 and $mask == 0) {
+                if ($ip eq $zero_ip and $mask eq $zero_ip) {
                     $do_auto_default_route = 0;
                 }
 
@@ -15593,17 +15604,23 @@ sub print_routes {
     # Go from small to large networks. So we combine newly added
     # networks as well.
     for (my $inv_prefix = 0 ; $inv_prefix < @inv_prefix_aref ; $inv_prefix++) {
+        next if $inv_prefix >= 32;
         my $ip2net = $inv_prefix_aref[$inv_prefix] or next;
-        my $next   = 2**$inv_prefix;
-        my $modulo = 2 * $next;
+        my $part_mask = prefix2mask(32 - $inv_prefix);
+        my $combined_inv_prefix = $inv_prefix + 1;
+        my $combined_inv_mask = ~ prefix2mask(32 - $combined_inv_prefix);
+
+        # A single bit, masking the lowest network bit.
+        my $next = $combined_inv_mask & $part_mask;
+
         for my $ip (keys %$ip2net) {
 
             # Only analyze left part of two adjacent networks.
-            $ip % $modulo == 0 or next;
+            ($ip & $next) eq $zero_ip or next;
             my $left = $ip2net->{$ip};
 
             # Find right part.
-            my $next_ip = $ip + $next;
+            my $next_ip = $ip | $next;
             my $right   = $ip2net->{$next_ip} or next;
 
             # Both parts must use equal next hop.
@@ -15612,18 +15629,16 @@ sub print_routes {
             $hop_left eq $hop_right or next;
 
             # Combined network already exists.
-            my $combined_inv_prefix = $inv_prefix + 1;
             next if $inv_prefix_aref[$combined_inv_prefix]->{$ip};
 
             # Add combined route.
-            my $mask = 0xffffffff - $modulo + 1;
+            my $mask = ~ $combined_inv_mask;
             my $combined = { ip => $ip, mask => $mask };
             $inv_prefix_aref[$combined_inv_prefix]->{$ip} = $combined;
             $mask2ip2net{$mask}->{$ip} = $combined;
             $net2hop_info{$combined} = $hop_left;
 
             # Left and right part are no longer used.
-            my $part_mask = 0xffffffff - $next + 1;
             delete $mask2ip2net{$part_mask}->{$ip};
             delete $mask2ip2net{$part_mask}->{$next_ip};
         }
@@ -15631,10 +15646,10 @@ sub print_routes {
 
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
-    my @masks = reverse sort numerically keys %mask2ip2net;
+    my @masks = reverse sort keys %mask2ip2net;
     while (defined(my $mask = shift @masks)) {
       NETWORK:
-        for my $ip (sort numerically keys %{ $mask2ip2net{$mask} }) {
+        for my $ip (sort keys %{ $mask2ip2net{$mask} }) {
             my $small    = $mask2ip2net{$mask}->{$ip};
             my $hop_info = $net2hop_info{$small};
             my ($interface, $hop) = @$hop_info;
@@ -15698,7 +15713,7 @@ sub print_routes {
             # But still generate routes for small networks
             # with supernet behind other hop.
             $intf2hop2nets{$max_intf}->{$max_hop} = [
-                [ 0, 0 ],
+                [ $zero_ip, $zero_ip ],
                 grep({ $net2no_opt{ $_->[2] } }
                     @{ $intf2hop2nets{$max_intf}->{$max_hop} })
             ];
@@ -16143,7 +16158,7 @@ sub address {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this host.
-                return [ $ip, 0xffffffff ];
+                return [ $ip, $max_ip ];
             }
             else {
                 return [ $network->{ip}, $network->{mask} ];
@@ -16154,7 +16169,7 @@ sub address {
             # Take higher bits from network NAT, lower bits from original IP.
             # This works with and without NAT.
             my $ip =
-              $network->{ip} | $obj->{ip} & complement_32bit $network->{mask};
+              $network->{ip} | $obj->{ip} & ~ $network->{mask};
             return [ $ip, $obj->{mask} ];
         }
     }
@@ -16172,7 +16187,7 @@ sub address {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this interface.
-                return [ $ip, 0xffffffff ];
+                return [ $ip, $max_ip ];
             }
             else {
                 return [ $network->{ip}, $network->{mask} ];
@@ -16182,8 +16197,8 @@ sub address {
 
             # Take higher bits from network NAT, lower bits from original IP.
             # This works with and without NAT.
-            $ip = $network->{ip} | $ip & complement_32bit $network->{mask};
-            return [ $ip, 0xffffffff ];
+            $ip = $network->{ip} | $ip & ~ $network->{mask};
+            return [ $ip, $max_ip ];
         }
     }
 }
@@ -16247,11 +16262,11 @@ sub get_split_tunnel_nets {
 
             # Don't add 'any' (resulting from global:permit)
             # to split_tunnel networks.
-            next if $dst_network->{mask} == 0;
+            next if $dst_network->{mask} eq $zero_ip;
             $split_tunnel_nets{$dst_network} = $dst_network;
         }
     }
-    return [ sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+    return [ sort { $a->{ip} cmp $b->{ip} || $a->{mask} cmp $b->{mask} }
           values %split_tunnel_nets ];
 }
 
@@ -16426,7 +16441,7 @@ EOF
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
-                if ($src->{mask} == 0xffffffff) {
+                if ($src->{mask} eq $max_ip) {
 
                     # For anyconnect clients.
                     my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
@@ -16451,7 +16466,7 @@ EOF
                     $pool_name = "pool-$id_name";
                     my $mask = print_ip $src->{mask};
                     my $max =
-                      print_ip($src->{ip} | complement_32bit $src->{mask});
+                      print_ip($src->{ip} | ~ $src->{mask});
                     my $subject_name =
                       delete $attributes->{'check-subject-name'};
                     if ($id =~ /^@/) {
@@ -17049,7 +17064,7 @@ sub print_static_crypto_map {
     # Sort crypto maps by peer IP to get deterministic output.
     my @sorted = sort(
         { $a->{peer}->{real_interface}->{ip}
-              <=> $b->{peer}->{real_interface}->{ip} } @$interfaces);
+              cmp $b->{peer}->{real_interface}->{ip} } @$interfaces);
 
     # Build crypto map for each tunnel interface.
     for my $interface (@sorted) {
@@ -17572,7 +17587,7 @@ sub print_acls {
                                     }
 
                                     # Ignore loopback network.
-                                    next if $subst->{mask} == 0xffffffff;
+                                    next if $subst->{mask} eq $max_ip;
                                 }
 
                                 # Network or aggregate.
