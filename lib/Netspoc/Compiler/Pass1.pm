@@ -9244,7 +9244,7 @@ sub get_managed_local_clusters {
                         for my $pair (@$filter_only) {
                             my ($i, $m) = @$pair;
                             if ($mask ge $m and match_ip($ip, $i, $m)) {
-                                $matched{"$i/$m"} = 1;
+                                $matched{"$i$m"} = 1;
                                 next NETWORK;
                             }
                         }
@@ -9272,7 +9272,7 @@ sub get_managed_local_clusters {
 
         for my $pair (@{ $router0->{filter_only} }) {
             my ($i, $m) = @$pair;
-            $matched{"$i/$m"} and next;
+            $matched{"$i$m"} and next;
             my $ip     = print_ip($i);
             my $prefix = mask2prefix($m);
             warn_msg("Useless $ip/$prefix in attribute 'filter_only'",
@@ -9444,7 +9444,10 @@ sub link_aggregate_to_zone {
 #            but value is list of networks.
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
-    my ($ip, $mask) = split '/', $key;
+
+    # $key is concatenation of two bit strings of length 32 bit, i.e. 4 bytes.
+    # Split it into original bit strings.
+    my ($ip, $mask) = unpack "a4a4", $key;
     my $ipmask2aggregate = $zone->{ipmask2aggregate};
 
     # Collect all aggregates, networks and subnets of current zone.
@@ -9547,7 +9550,7 @@ sub link_aggregates {
 
         # Assure that no other aggregate with same IP and mask exists in cluster
         my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-        my $key     = "$ip/$mask";
+        my $key     = "$ip$mask";
         my $cluster = $zone->{zone_cluster};
         for my $zone2 ($cluster ? @$cluster : ($zone)) {
             if (my $other = $zone2->{ipmask2aggregate}->{$key}) {
@@ -9604,7 +9607,7 @@ sub duplicate_aggregate_to_cluster {
     my ($aggregate, $implicit) = @_;
     my $cluster = $aggregate->{zone}->{zone_cluster};
     my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-    my $key = "$ip/$mask";
+    my $key = "$ip$mask";
 
     # Process every zone of the zone cluster
     for my $zone (@$cluster) {
@@ -9638,7 +9641,7 @@ sub duplicate_aggregate_to_cluster {
 # return aggregates for each zone of the cluster.
 sub get_any {
     my ($zone, $ip, $mask) = @_;
-    my $key     = "$ip/$mask";
+    my $key     = "$ip$mask";
     my $cluster = $zone->{zone_cluster};
     if (not $zone->{ipmask2aggregate}->{$key}) {
 
@@ -9694,7 +9697,7 @@ sub get_any {
 # Ignore zone having no aggregate from unnumbered network.
 sub get_cluster_aggregates {
     my ($zone, $ip, $mask) = @_;
-    my $key = "$ip/$mask";
+    my $key = "$ip$mask";
     return
       map { $_->{ipmask2aggregate}->{$key} || () } @{ $zone->{zone_cluster} };
 }
@@ -13225,7 +13228,7 @@ sub find_zone_network {
     my $nat_other = get_nat_network($other, $no_nat_set);
     return 0 if $nat_other->{hidden};
     my ($ip, $mask) = @{$nat_other}{qw(ip mask)};
-    my $key = "$ip/$mask";
+    my $key = "$ip$mask";
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
         return $aggregate;
     }
