@@ -5175,8 +5175,8 @@ sub convert_hosts {
                         ip      => $ip,
                         mask    => $mask,
                     );
-                    $subnet->{nat}     = $nat     if $nat;
-                    $subnet->{owner}   = $owner   if $owner;
+                    $subnet->{nat}   = $nat   if $nat;
+                    $subnet->{owner} = $owner if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
                         $subnet->{radius_attributes} =
@@ -5190,7 +5190,7 @@ sub convert_hosts {
         }
 
         # Set {up} relation and 
-        # check compatibility of hosts in subnet relation
+        # check compatibility of hosts in subnet relation.
         for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
             my $ip2subnet = $inv_prefix_aref[$i] or next;
             for my $ip (keys %$ip2subnet) {
@@ -5215,71 +5215,60 @@ sub convert_hosts {
         # Find adjacent subnets which build a larger subnet.
         my $network_inv_prefix = 32 - mask2prefix($network->{mask});
         for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
-            if (my $ip2subnet = $inv_prefix_aref[$i]) {
-                my $mask = prefix2mask(32 - $i);
-                my $up_inv_prefix = $i + 1;
-                my $up_inv_mask = ~ prefix2mask(32 - $up_inv_prefix);
+            my $ip2subnet = $inv_prefix_aref[$i] or next;
+            my $mask = prefix2mask(32 - $i);
+            my $up_inv_prefix = $i + 1;
+            my $up_inv_mask = ~ prefix2mask(32 - $up_inv_prefix);
 
-                # A single bit, masking the lowest network bit.
-                my $next = $up_inv_mask & $mask;
+            # A single bit, masking the lowest network bit.
+            my $next = $up_inv_mask & $mask;
                 
-                for my $ip (keys %$ip2subnet) {
-                    my $subnet = $ip2subnet->{$ip};
+            for my $ip (keys %$ip2subnet) {
+                my $subnet = $ip2subnet->{$ip};
 
-                    if (
+                # Don't combine subnets with NAT
+                # ToDo: This would be possible if all NAT addresses
+                # match too.
+                next if $subnet->{nat};
 
-                        # Don't combine subnets with NAT
-                        # ToDo: This would be possible if all NAT addresses
-                        #  match too.
-                        not $subnet->{nat}
+                # Don't combine subnets having radius-ID.
+                next if $subnet->{id};
 
-                        # Don't combine subnets having radius-ID.
-                        and not $subnet->{id}
+                # Only take the left part of two adjacent subnets,
+                # where lowest network bit is zero.
+                next if ($ip & $next) ne $zero_ip;
 
-                        # Only take the left part of two adjacent subnets,
-                        # where lowest network bit is zero.
-                        and ($ip & $next) eq $zero_ip
-                      )
-                    {
-                        my $next_ip = $ip | $next;
+                my $next_ip = $ip | $next;
 
-                        # Find the right part.
-                        if (my $neighbor = $ip2subnet->{$next_ip}) {
-                            $subnet->{neighbor} = $neighbor;
-                            my $up;
-                            if ($up_inv_prefix >= $network_inv_prefix) {
+                # Find corresponding right part
+                my $neighbor = $ip2subnet->{$next_ip} or next;
+                $subnet->{neighbor} = $neighbor;
+                my $up;
+                if ($up_inv_prefix >= $network_inv_prefix) {
 
-                                # Larger subnet is whole network.
-                                $up = $network;
-                            }
-                            elsif ( $up_inv_prefix < @inv_prefix_aref
-                                and $up =
-                                $inv_prefix_aref[$up_inv_prefix]->{$ip})
-                            {
-                            }
-                            else {
-                                (my $name = $subnet->{name}) =~
-                                  s/^.*:/auto_subnet:/;
-                                my $up_mask = ~ $up_inv_mask;
-                                $up = new(
-                                    'Subnet',
-                                    name    => $name,
-                                    network => $network,
-                                    ip      => $ip,
-                                    mask    => $up_mask,
-                                    up      => $subnet->{up},
-                                );
-                                $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
-                                push @{ $network->{subnets} }, $up;
-                            }
-                            $subnet->{up}   = $up;
-                            $neighbor->{up} = $up;
-
-                            # Don't search for enclosing subnet below.
-                            next;
-                        }
-                    }
+                    # Larger subnet is whole network.
+                    $up = $network;
                 }
+                elsif ( $up_inv_prefix < @inv_prefix_aref and 
+                        $up = $inv_prefix_aref[$up_inv_prefix]->{$ip})
+                {
+                }
+                else {
+                    (my $name = $subnet->{name}) =~ s/^.*:/auto_subnet:/;
+                    my $up_mask = ~ $up_inv_mask;
+                    $up = new(
+                        'Subnet',
+                        name    => $name,
+                        network => $network,
+                        ip      => $ip,
+                        mask    => $up_mask,
+                        up      => $subnet->{up},
+                        );
+                    $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
+                    push @{ $network->{subnets} }, $up;
+                }
+                $subnet->{up}   = $up;
+                $neighbor->{up} = $up;
             }
         }
 
@@ -15626,7 +15615,7 @@ sub print_routes {
             ($ip & $next) eq $zero_ip or next;
             my $left = $ip2net->{$ip};
 
-            # Find right part.
+            # Find corresponding right part.
             my $next_ip = $ip | $next;
             my $right   = $ip2net->{$next_ip} or next;
 
