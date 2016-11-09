@@ -2419,21 +2419,25 @@ sub read_router {
             $interface->{network} = $net_name;
         }
 
-        # Non loopback interface must use simple NAT with single IP.
+        # Non loopback interface must use simple NAT with single IP
+        # and without any NAT attributes.
         elsif (my $nat = $interface->{nat}) {
             for my $nat_tag (sort keys %$nat) {
                 my $nat_info = $nat->{$nat_tag};
-                for my $what (qw(hidden identity dynamic)) {
-                    $nat_info->{$what} or next;
+
+                # Reject all non IP NAT attributes.
+                if (my ($what) = 
+                    grep { $nat_info->{$_} } qw(hidden identity dynamic))
+                {
+                    delete $nat->{$nat_tag};
                     err_msg("Must not use '$what' in nat:$nat_tag",
                             " of $interface->{name}");
                     last;
                 }
-                if (my $ip = $nat_info->{ip}) {
-                    $nat->{$nat_tag} = $ip;
-                }
+                
+                # Convert general NAT info to single NAT IP.
                 else {
-                    delete $nat->{$nat_tag};
+                    $nat->{$nat_tag} = $nat_info->{ip};
                 }
             }
         }
