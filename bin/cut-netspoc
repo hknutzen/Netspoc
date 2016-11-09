@@ -368,7 +368,7 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
-    my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
+    my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
 
     # Simplifies test below.
     $aggregate0->{owner} = $zone->{owner};

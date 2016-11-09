@@ -895,7 +895,7 @@ sub export_assets {
         next if not @{ $zone->{networks} };
 
         # Zone with network 0/0 doesn't have an aggregate 0/0.
-        my $any = $zone->{ipmask2aggregate}->{'0/0'};
+        my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
         my $networks = add_subnetworks($zone->{networks});
@@ -1090,12 +1090,12 @@ sub zone_and_subnet {
     if ($obj->{is_aggregate}) {
         if (my $cluster = $zone->{zone_cluster}) {
 
-            # Get derterministic zone for multiple aggregates with
+            # Get deterministic zone for multiple aggregates with
             # identical name from zone cluster.
             ($zone) = @$cluster;
         }
     }
-    my $any = $zone->{ipmask2aggregate}->{'0/0'};
+    my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
     my $zone_name = $any ? $any->{name} : $zone->{name};
 
     # Netspoc-Web only needs info about subnets in other zone.

@@ -7083,7 +7083,7 @@ sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
         $zone->{seen_unenforceable} and next;
-        my $agg00 = $zone->{ipmask2aggregate}->{'0/0'};
+        my $agg00 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $name = $agg00 ? $agg00->{name} : $zone->{name};
         warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
