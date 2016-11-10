@@ -1,3 +1,17 @@
+5.017     2016-11-10 15:04:08+01:00 Europe/Berlin
+
+ - A check has been added, that subnet relation remains stable with NAT.
+   If networks inside one zone are in subnet relation, and if there
+   exists a NAT domain, where this subnet relation no longer holds,
+   then the supernet must not be used in any rule, where the path
+   crosses such a NAT domain.
+   This property is needed, because generated ACL for supernet would
+   not permit traffic for subnets that are no longer in subnet relation.
+ - Static NAT can be inherited from area or zone now.
+   This allows to define static NAT for multiple networks in one statement.
+   E.g. 172.17.x.0/24 to 192.168.x.0/24
+   with area:a = { nat:n = { ip = 192.168.0.0/16; } ... }
+
 5.016     2016-10-31 17:30:24+01:00 Europe/Berlin
 
  - Fixed security issue with generated object-groups.

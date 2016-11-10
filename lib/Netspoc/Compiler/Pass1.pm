@@ -37,7 +37,7 @@ use Encode;
 use IO::Pipe;
 my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.016'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.017'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -141,7 +141,7 @@ our @EXPORT = qw(
 
 # Use non-local function exit for efficiency.
 # Perl profiler doesn't work if this is active.
-my $use_nonlocal_exit => 1;
+my $use_nonlocal_exit = 1;
 
 ####################################################################
 # Attributes of supported router models
@@ -1336,9 +1336,9 @@ sub read_network {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
+                $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag}
                     and error_atline("Duplicate NAT definition");
-                $nat->{name} .= "($name)";
                 $network->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -2546,10 +2546,9 @@ sub read_aggregate {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                $nat->{dynamic} or 
-                    err_msg("$nat->{name} must be dynamic for $name");
+                $nat->{name} .= "($name)";
                 $aggregate->{nat}->{$nat_tag}
-                and error_atline("Duplicate NAT definition");
+                  and error_atline("Duplicate NAT definition");
                 $aggregate->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -2667,8 +2666,7 @@ sub read_area {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
-                $nat->{dynamic} or
-                    err_msg("$nat->{name} must be dynamic for $name");
+                $nat->{name} .= "($name)";
                 $area->{nat}->{$nat_tag} and 
                     error_atline("Duplicate NAT definition");
                 $area->{nat}->{$nat_tag} = $nat;
@@ -8449,9 +8447,6 @@ sub find_subnets_in_zone {
         my $first_intf = $zone->{interfaces}->[0];
         my %seen;
 
-        # Collect NAT tags, that are defined and applied inside the zone.
-        my %net2zone_nat_tags;
-
         # Handle different no_nat_sets visible at border of zone.
         # For a zone without NAT, this loop is executed only once.
         for my $interface (@{ $zone->{interfaces} }) {
@@ -8473,7 +8468,6 @@ sub find_subnets_in_zone {
                 if (my $href = $network->{nat}) {
                     for my $tag (keys %$href) {
                         next if $no_nat_set->{$tag};
-                        push @{ $net2zone_nat_tags{$network} }, $tag;
                         $nat_network = $href->{$tag};
                         last;
                     }
@@ -8619,52 +8613,33 @@ sub find_subnets_in_zone {
         $set_max_net->($_) for @{ $zone->{networks} };
 
         # For each subnet N find the largest non-aggregate network
-        # which encloses N and which has the same NAT settings as N.
+        # inside the same zone which encloses N.
         # If one exists, store it in {max_routing_net}. This is used
         # for generating static routes.
+        # We later check, that subnet relation remains stable even if
+        # NAT is applied.
         for my $network (@{ $zone->{networks} }) {
-            my $max = $max_up_net{$network} or next;
+            $max_up_net{$network} or next;
 
-#            debug "Check $network->{name} $max->{name}";
-
-            my $get_zone_nat = sub {
-                my ($network) = @_;
-                my $nat = $network->{nat} || {};
-
-                # Special case:
-                # NAT is applied to $network inside the zone.
-                # Ignore NAT tag when comparing with NAT of $up.
-                if (my $aref = $net2zone_nat_tags{$network}) {
-                    $nat = {%$nat};
-                    for my $nat_tag (@$aref) {
-                        delete $nat->{$nat_tag};
-                    }
-                }
-                return $nat;
-            };
-            my $nat = $get_zone_nat->($network);
+#            debug "Check $network->{name}";
             my $max_routing;
             my $up = $network->{up};
           UP:
             while ($up) {
 
-                # Check if NAT settings are identical.
-                my $up_nat = $get_zone_nat->($up);
-                keys %$nat == keys %$up_nat or last UP;
-                for my $tag (keys %$nat) {
-                    my $up_nat_info = $up_nat->{$tag} or last UP;
-                    my $nat_info = $nat->{$tag};
-                    if ($nat_info->{hidden}) {
-                        $up_nat_info->{hidden} or last UP;
-                    }
-                    else {
-
-                        # Check if subnet relation is maintained
-                        # for NAT addresses.
-                        $up_nat_info->{hidden} and last UP;
-                        my ($ip, $mask) = @{$nat_info}{qw(ip mask)};
-                        match_ip($up_nat_info->{ip}, $ip, $mask) or last UP;
-                        $up_nat_info->{mask} >= $mask or last UP;
+                # If larger network is hidden at some place, only use
+                # it for routing, if original network is hidden there
+                # as well.
+                # We don't need to check here that subnet relation is
+                # maintained for NAT addresses.
+                # That is enforced below in find_subnets_in_nat_domain.
+                if (my $up_nat_hash = $up->{nat}) {
+                    for my $up_nat_info (values %$up_nat_hash) {
+                        $up_nat_info->{hidden} or next;
+                        my $nat_hash = $network->{nat} or last UP;
+                        my $nat_tag = $up_nat_info->{nat_tag};
+                        my $nat_info = $nat_hash->{$nat_tag} or last UP;
+                        $nat_info->{hidden} or last UP;
                     }
                 }
                 if (not $up->{is_aggregate}) {
@@ -8782,6 +8757,7 @@ sub find_subnets_in_nat_domain {
         my $list = delete $pending_other_subnet{$network} or return;
         __SUB__->($_) for @$list;
     };
+    my %subnet_in_zone;
     my %seen;
     for my $domain (@natdomains) {
 
@@ -8885,14 +8861,47 @@ sub find_subnets_in_nat_domain {
         # Check pairs of networks, that are in subnet relation.
       SUBNET:
         for my $nat_subnet (@nat_networks) {
-            $visible{$nat_subnet} or next;
             my $nat_bignet = $is_in{$nat_subnet} or next;
+
+            # If invisible, search other networks with identical IP.
+            my $nat_subnet = $nat_subnet;	# Prevent aliasing.
+            if (not $visible{$nat_subnet}) {
+                my $identical = $identical{$nat_subnet} or next;
+                if ((my $ident_net) = grep { $visible{$_} } @$identical) {
+                    $nat_subnet = $ident_net;
+                }
+                else {
+                    next;
+                }
+            }
+
+            # If invisible, search other networks with identical or larger IP.
             while (not $visible{$nat_bignet}) {
+                if (my $identical = $identical{$nat_bignet}) {
+                    if ((my $ident_net) = grep { $visible{$_} } @$identical) {
+                        $nat_bignet = $ident_net;
+                        last;
+                    }
+                }
                 $nat_bignet = $is_in{$nat_bignet} or next SUBNET;
             }
-            next if $seen{$nat_bignet}->{$nat_subnet}++;
-            
             my $subnet = $orig_net{$nat_subnet};
+
+            # Collect subnet/supernet pairs in same zone for later check.
+            {
+                my $zone = $subnet->{zone};
+                my $nat_bignet = $nat_bignet;
+                while(1) {
+                    my $bignet = $orig_net{$nat_bignet};
+                    if ($visible{$nat_bignet} and $bignet->{zone} eq $zone) {
+                        $subnet_in_zone{$subnet}->{$bignet}->{$domain} = 1;
+                        last;
+                    }
+                    $nat_bignet = $is_in{$nat_bignet} or last;
+                }
+            }
+
+            next if $seen{$nat_bignet}->{$nat_subnet}++;
             my $bignet = $orig_net{$nat_bignet};
 
             # Mark network having subnet in same zone, if subnet has
@@ -8959,6 +8968,67 @@ sub find_subnets_in_nat_domain {
             }
 
             check_subnets($nat_bignet, $nat_subnet);
+        }
+    }
+
+    # Check networks in same zone for stable subnet relation over all
+    # NAT domains. If networks are in relation at one NAT domain, they
+    # must also be in relation in all other domains.
+    my %net2dom2hidden;
+    for my $network (@networks) {
+        my $nat_hash = $network->{nat} or next;
+        my @hidden_tags = grep { $nat_hash->{$_}->{hidden} } keys %$nat_hash 
+            or next;
+        for my $domain (@natdomains) {
+            my $no_nat_set = $domain->{no_nat_set};
+            if (grep { not $no_nat_set->{$_} } @hidden_tags) {
+                $net2dom2hidden{$network}->{$domain} = 1;
+            }
+        }
+    }
+                
+    for my $subref (keys %subnet_in_zone) {
+        my $net2dom2is_subnet = $subnet_in_zone{$subref};
+        my $sub_dom2hidden = $net2dom2hidden{$subref};
+        for my $bigref (keys %$net2dom2is_subnet) {
+            my $dom2is_subnet = $net2dom2is_subnet->{$bigref};
+            my $big_dom2hidden = $net2dom2hidden{$bigref};
+
+            # Subnet is subnet of bignet in at least one NAT domain.
+            # Check that in each NAT domain
+            # - subnet relation holds or
+            # - at least one of both networks is hidden.
+          DOMAIN:
+            for my $domain (@natdomains) {
+
+                # Ok, is subnet in current NAT domain.
+                next if $dom2is_subnet->{$domain};
+
+                # If one or both networks are hidden, this does
+                # not count as changed subnet relation.
+                next if $big_dom2hidden and $big_dom2hidden->{$domain};
+                next if $sub_dom2hidden and $sub_dom2hidden->{$domain};
+
+                my $subnet = $orig_net{$subref};
+                my $bignet = $orig_net{$bigref};
+
+                # Ignore relation, if both are aggregates,
+                # because IP addresses of aggregates can't be changed by NAT.
+                next if $subnet->{is_aggregate} and $bignet->{is_aggregate};
+                
+                # Also check transient subnet relation.
+                my $up = $subnet;
+                while (my $up2 = $up->{up}) {
+                    $subnet_in_zone{$up}->{$up2}->{$domain} or last;
+                    next DOMAIN if $up2 eq $bigref;
+                    $up = $up2;
+                }
+
+                # Found NAT domain, where networks are not in subnet relation.
+                # Remember at attribute {unstable_nat} for later check.
+                my $no_nat_set = $domain->{no_nat_set};
+                push @{ $bignet->{unstable_nat}->{$no_nat_set}}, $subnet;
+            }
         }
     }
 
@@ -9943,21 +10013,21 @@ sub nat_equal {
     return 1;
 }
 ##############################################################################
-# Purpose : 1. Generate warning if NAT value of two objects hold the same
+# Purpose : 1. Generate warning if NAT values of two objects hold the same
 #              attributes.
-#           2. Mark occurence of identity NAT that masks inheritance.
-#              This is used later to warn on useless identity NAT.
+#           2. Mark NAT value of smaller object, so that warning is only 
+#              printed once and not again if compared with some larger object.
+#              This is also used later to warn on useless identity NAT.
 sub check_useless_nat {
-    my ($nat_tag, $nat1, $nat2, $obj1, $obj2) = @_;
+    my ($nat1, $nat2) = @_;
+    return if $nat2->{has_been_checked};
     if (nat_equal($nat1, $nat2)) {
         warn_msg(
-            "Useless nat:$nat_tag at $obj2->{name},\n",
-            " it is already inherited from $obj1->{name}"
+            "Useless $nat2->{name},\n",
+            " it is already inherited from $nat1->{name}"
         );
     }
-    if ($nat2->{identity}) {
-        $nat2->{is_used} = 1;
-    }
+    $nat2->{has_been_checked} = 1;
 }
 
 ##############################################################################
@@ -9978,7 +10048,7 @@ sub inherit_area_nat {
             if (my $z_nat = $zone->{nat}->{$nat_tag}) {
 
                 # ... and warn if zones NAT value holds the same attributes.
-                check_useless_nat($nat_tag, $nat, $z_nat, $area, $zone);
+                check_useless_nat($nat, $z_nat);
                 next;
             }
 
@@ -10010,7 +10080,7 @@ sub inherit_attributes_from_area {
 sub inherit_nat_to_subnets_in_zone {
     my ($net_or_zone, $zone) = @_;
     my ($ip1, $mask1) =
-      is_network($net_or_zone)
+        is_network($net_or_zone)
       ? @{$net_or_zone}{qw(ip mask)}
       : (0, 0);
     my $hash = $net_or_zone->{nat};
@@ -10019,7 +10089,8 @@ sub inherit_nat_to_subnets_in_zone {
 
 #        debug "inherit $nat_tag from $net_or_zone->{name}";
 
-        # Distribute nat definitions to every subnet of supernet, aggregate or zone.
+        # Distribute nat definitions to every subnet of supernet,
+        # aggregate or zone.
         for my $network (@{ $zone->{networks} }) {
             my ($ip2, $mask2) = @{$network}{qw(ip mask)};
 
@@ -10032,8 +10103,7 @@ sub inherit_nat_to_subnets_in_zone {
 
                 # ... and warn if networks NAT value holds the
                 # same attributes.
-                check_useless_nat($nat_tag, $nat, $n_nat, $net_or_zone,
-                    $network);
+                check_useless_nat($nat, $n_nat);
             }
 
             elsif ($network->{ip} eq 'bridged' and not $nat->{identity}) {
@@ -10057,13 +10127,22 @@ sub inherit_nat_to_subnets_in_zone {
                     subnet_of => $network->{subnet_of},
                 };
 
-                # For static NAT from net_or_zone,
-                # - merge IP from supernet and subnet,
+                # For static NAT
+                # - merge IP from NAT network and subnet,
                 # - adapt mask to size of subnet
                 if (not $nat->{dynamic}) {
+                    my $nat_mask = $sub_nat->{mask};
+
+                    # Check mask of static NAT inherited from area or zone.
+                    if ($nat_mask >= $mask2) {
+                        err_msg("Must not inherit $nat->{name} at",
+                                " $network->{name}\n",
+                                " because NAT network must be larger",
+                                " than translated network");
+                    }
 
                     # Take higher bits from NAT IP, lower bits from original IP.
-                    $sub_nat->{ip} |= $ip2 & complement_32bit($mask1);
+                    $sub_nat->{ip} |= $ip2 & complement_32bit($nat_mask);
                     $sub_nat->{mask} = $mask2;
                 }
 
@@ -10124,12 +10203,13 @@ sub check_attr_no_check_supernet_rules {
     }
 }
 
+# 1. Remove NAT entries from aggregates.
+#    These are only used during NAT inheritance.
+# 2. Remove identity NAT entries.
+#    These are only needed during NAT inheritance.
+# 3. Check for useless identity NAT.
+# 4. Remove no longer used attribute {has_been_checked}.
 sub cleanup_after_inheritance {
-
-    # 1. Remove NAT entries from aggregates.
-    #    These are only used during NAT inheritance.
-    # 2. Remove identity NAT entries.
-    #    These are only needed during NAT inheritance.
     for my $network (@networks) {
         my $href = $network->{nat} or next;
         if ($network->{is_aggregate}) {
@@ -10138,12 +10218,13 @@ sub cleanup_after_inheritance {
         }
         for my $nat_tag (keys %$href) {
             my $nat_network = $href->{$nat_tag};
+            my $is_used = delete $nat_network->{has_been_checked};
             $nat_network->{identity} or next;
             delete $href->{$nat_tag};
             if (not keys %$href) {
                 delete $network->{nat};
             }
-            $nat_network->{is_used}
+            $is_used
               or warn_msg("Useless identity nat:$nat_tag at $network->{name}");
         }
     }
@@ -14314,6 +14395,50 @@ sub mark_secondary_rules {
     }
 }
 
+sub check_unstable_nat_rules {
+    progress('Checking rules for unstable subnet relation');
+    for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
+        my $unstable_src = grep { $_->{unstable_nat} } @$src_list;
+        my $unstable_dst = grep { $_->{unstable_nat} } @$dst_list;
+        $unstable_src or $unstable_dst or next;
+        my $check = sub {
+            my ($obj_list, $intf) = @_;
+            my $no_nat_set = $intf->{no_nat_set};
+            for my $obj (@$obj_list) {
+                my $unstable_nat = $obj->{unstable_nat} or next;
+                my $subnets = $unstable_nat->{$no_nat_set} or next;
+                my $rule = { %$rule };
+                for my $what (qw(src dst)) {
+                    $rule->{$what} = [ $obj ] if $rule->{$what} eq $obj_list;
+                }
+                err_msg("Must not use $obj->{name} in rule\n",
+                        " ", print_rule($rule), ",\n",
+                        " because it is no longer supernet of\n",
+                        " - ",
+                        join("\n - ", map { $_->{name} } @$subnets), 
+                        "\n",
+                        " at $intf->{name}");
+            }
+        };
+        my $walk = sub {
+            my ($rule, $in_intf, $out_intf) = @_;
+            if ($in_intf) {
+                $check->($src_list, $in_intf) if $unstable_src;
+                $check->($dst_list, $in_intf) if $unstable_dst;
+            }
+            if ($out_intf and $out_intf->{router}->{model}->{stateless}) {
+                my $prt_list = $rule->{prt};
+                if (grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @$prt_list) {
+                    $check->($src_list, $out_intf) if $unstable_src;
+                    $check->($dst_list, $out_intf) if $unstable_dst;
+                }
+            }
+        };
+        path_walk($rule, $walk);
+    }
+}
+
 sub get_zone_cluster_borders {
     my ($zone) = @_;
     my $zone_cluster = $zone->{zone_cluster} || [$zone];
@@ -14577,12 +14702,13 @@ sub check_dynamic_nat_rules {
         my $reversed = $what eq 'dst';
         my $other = $reversed ? 'src' : 'dst';
         for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
-            for my $from (@{ $rule->{$what} }) {
+            my ($from_list, $to_list) = @{$rule}{$what, $other};
+            for my $from (@$from_list) {
                 my $from_net = $from->{network} || $from;
                 $from_net->{nat} or next;
-                my $cache_obj  = 
+                my $cache_obj = 
                     $from_net->{has_dynamic_host} ? $from : $from_net;
-                for my $to (@{ $rule->{$other} }) {
+                for my $to (@$to_list) {
                     my $to_net = $to->{network} || $to;
                     next if $seen{$cache_obj}->{$to_net}++;
                     $check_dyn_nat_path->($rule, 
@@ -18071,6 +18197,7 @@ sub compile {
     concurrent(
         sub {
             find_subnets_in_nat_domain();
+            check_unstable_nat_rules();
 
             # Call after {up} relation for anonymous aggregates has
             # been set up.

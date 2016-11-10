@@ -447,7 +447,7 @@ router:trahza01 = {
 network:super = {
  has_subnets;
  ip = 192.168.0.0/16;
- nat:nat = { ip = 10.255.0.0/16; }
+ nat:nat = { hidden; }
 }
 network:sub1 = {
  ip = 192.168.1.0/24;
