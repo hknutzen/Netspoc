@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.017     2016-11-10 15:04:08+01:00 Europe/Berlin
+
  - A check has been added, that subnet relation remains stable with NAT.
    If networks inside one zone are in subnet relation, and if there
    exists a NAT domain, where this subnet relation no longer holds,
