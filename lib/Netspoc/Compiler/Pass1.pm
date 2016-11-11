@@ -3458,11 +3458,13 @@ sub is_router        { ref($_[0]) eq 'Router'; }
 sub is_interface     { ref($_[0]) eq 'Interface'; }
 sub is_host          { ref($_[0]) eq 'Host'; }
 sub is_subnet        { ref($_[0]) eq 'Subnet'; }
-sub is_area          { ref($_[0]) eq 'Area'; }
 sub is_zone          { ref($_[0]) eq 'Zone'; }
 sub is_group         { ref($_[0]) eq 'Group'; }
-sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
 sub is_autointerface { ref($_[0]) eq 'Autointerface'; }
+
+# Currently unused: 
+# sub is_area          { ref($_[0]) eq 'Area'; }
+# sub is_protocolgroup { ref($_[0]) eq 'Protocolgroup'; }
 
 ## use critic
 
