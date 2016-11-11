@@ -40,6 +40,7 @@ our @EXPORT = qw(
  $zero_ip $max_ip
  complement_32bit increment_ip
  mask2prefix prefix2mask match_ip
+ add_ip_bitstrings
 );
 
 # Enable printing of diagnostic messages by 
@@ -95,18 +96,22 @@ sub progress {
     info(@args);
 }
 
-sub numerically { return $a <=> $b }
+sub numerically { return $a cmp $b }
 
 sub ip2int {
     my ($ip) = @_;
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;
-    return ((((($i1<<8)+$i2)<<8)+$i3)<<8)+$i4;
+
+    # Create bit string with 32 bits.
+    return pack 'C4', $i1, $i2, $i3, $i4;
 }
 
 ## no critic (RequireArgUnpacking)
 sub int2ip {
-    return sprintf "%vd", pack 'N', $_[0];
+    #return sprintf "%vd", pack 'N', $_[0];
+    return sprintf "%vd", $_[0];
 }
+
 ## use critic
 
 our $zero_ip = pack('N', 0);

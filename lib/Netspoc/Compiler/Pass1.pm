@@ -10072,7 +10072,7 @@ sub inherit_nat_to_subnets_in_zone {
                     my $nat_mask = $sub_nat->{mask};
 
                     # Check mask of static NAT inherited from area or zone.
-                    if ($nat_mask >= $mask2) {
+                    if ($nat_mask ge $mask2) {
                         err_msg("Must not inherit $nat->{name} at",
                                 " $network->{name}\n",
                                 " because NAT network must be larger",
