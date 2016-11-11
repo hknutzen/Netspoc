@@ -130,6 +130,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Bad typed name as attribute of interface";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { ip = 10.1.1.1; primary:p = {} }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Expected nat or secondary interface definition at line 2 of STDIN, near "primary:p<--HERE--> = {} }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Short interface at managed router";
 ############################################################
 
@@ -144,6 +161,40 @@ END
 
 $out = <<'END';
 Error: Short definition of interface:R.N not allowed
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Secondary interface without IP";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { ip = 10.1.1.1; secondary:second = {} }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Missing IP address at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Secondary interface with bad attribute";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { ip = 10.1.1.1; secondary:second = { foo; } }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Expected attribute 'ip' at line 2 of STDIN, near "foo<--HERE-->; } }"
 END
 
 test_err($title, $in, $out);
@@ -207,6 +258,67 @@ END
 $out = <<'END';
 Error: The sub-expressions of union in dst of service:s1 equally must
  either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unknown global definition";
+############################################################
+
+$in = <<'END';
+networkX:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unknown global definition at line 1 of STDIN, near "networkX:n1<--HERE--> = { ip"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Duplicate network definition";
+############################################################
+
+$in = <<'END';
+-- file1
+network:n1 = { ip = 10.1.1.0/24; }
+-- file2
+network:n1 = { ip = 10.1.2.0/24; }
+
+router:r = {
+ interface:n1;
+}
+END
+
+$out = <<'END';
+Error: Duplicate definition of network:n1 in file1 and file2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Duplicate host definition";
+############################################################
+
+$in = <<'END';
+-- file1
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+-- file2
+network:n2 = { ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; }
+ host:h1 = { ip = 10.1.2.11; } 
+}
+
+router:r = {
+ interface:n1;
+ interface:n2;
+}
+END
+
+$out = <<'END';
+Error: Duplicate definition of host:h1 in file2
+Error: Duplicate definition of host:h1 in file1 and file2
 END
 
 test_err($title, $in, $out);

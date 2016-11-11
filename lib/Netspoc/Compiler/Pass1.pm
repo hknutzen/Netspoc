@@ -1325,7 +1325,10 @@ sub read_network {
                     my $where     = $current_file;
                     my $other_net = $other->{network};
                     if ($other_net ne $network) {
-                        $where .= " $other_net->{file}";
+                        my $other_file = $other_net->{file};
+                        if ($where ne $other_file) {
+                            $where .= " and $other_file";
+                        }
                     }
                     err_msg("Duplicate definition of host:$host_name",
                             " in $where");
@@ -3346,10 +3349,11 @@ sub read_netspoc {
     my $result = $fun->("$type:$name");
     $result->{file} = $current_file;
     if (my $other = $hash->{$name}) {
-        err_msg(
-            "Duplicate definition of $type:$name in",
-            " $current_file and $other->{file}"
-        );
+        my $file = $other->{file};
+        if ($current_file ne $file) {
+            $file = "$current_file and $file";
+        }
+        err_msg("Duplicate definition of $type:$name in $file");
     }
 
     # Result is not used in this module but can be useful
