@@ -160,6 +160,37 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Split part of TCP range is larger than other at same position';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 70 - 89;
+ permit src = user; dst = network:n3; prt = tcp 80 - 85;
+# is split to 80 - 89, 90 - 95 and joined in pass2.
+ permit src = user; dst = network:n4; prt = tcp 80 - 95;
+# is joined in pass2.
+ permit src = user; dst = network:n2; prt = tcp 90 - 94;
+}
+END
+
+$out = <<'END';
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 80 85
+ permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 95
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 range 70 94
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'icmp type with different codes';
 ############################################################
 
