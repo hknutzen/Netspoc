@@ -106,6 +106,7 @@ $in = $topo . <<'END';
 service:test = {
  user = host:x7, host:y;
  permit src = user; dst = any:[user]; prt = tcp 80;
+ permit src = any:[user]; dst = user; prt = tcp 25;
 }
 END
 

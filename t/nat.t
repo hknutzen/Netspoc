@@ -126,6 +126,48 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Masquerading';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.2.1/32; dynamic; subnet_of = network:n2; }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+-- r2
+! n2_in
+access-list n2_in extended permit tcp host 10.1.2.1 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Check rule with any to hidden NAT';
 ############################################################
 
