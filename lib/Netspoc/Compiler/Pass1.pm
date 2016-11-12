@@ -9284,7 +9284,6 @@ sub get_managed_local_clusters {
                 my $zone0        = $in_intf->{zone};
                 my $zone_cluster = $zone0->{zone_cluster};
                 for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
-                    next if $zone->{disabled};
                     next if $zone->{local_mark};
 
                     # Needed for local_secondary optimization.
@@ -9485,14 +9484,8 @@ sub link_aggregate_to_zone {
     $zone->{is_tunnel}    and $aggregate->{is_tunnel}    = 1;
     $zone->{has_id_hosts} and $aggregate->{has_id_hosts} = 1;
 
-    if ($zone->{disabled}) {
-        $aggregate->{disabled} = 1;
-    }
-
-    # Store aggregate reference in global network hash
-    else {
-        push @networks, $aggregate;    # @networks provides all srcs/dsts
-    }
+    # Store aggregate in global list of networks. 
+    push @networks, $aggregate;
 }
 
 ##############################################################################
