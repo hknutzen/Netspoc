@@ -459,12 +459,16 @@ network:customers1 = {
  }
 }
 
+# Protocol modifiers src_net, dst_net must leave id-hosts unchanged.
+protocol:ping_net = icmp 8, src_net, dst_net;
 
 service:test1 = {
  user = host:id:foo@domain.x.customers1,
         host:id:long-first-name.long-second-name@long-domain.xyz.customers1;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80, protocol:ping_net; 
+ permit src = network:intern; dst = user; prt = protocol:ping_net; 
 }
+
 END
 
 $out = <<'END';
@@ -524,6 +528,8 @@ webvpn
 ! outside_in
 access-list outside_in extended permit icmp any any 3
 access-list outside_in extended permit tcp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 eq 80
+access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 8
+access-list outside_in extended permit icmp 10.1.2.0 255.255.255.0 10.99.1.10 255.255.255.254 8
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END
