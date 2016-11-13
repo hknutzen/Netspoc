@@ -447,6 +447,49 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unexpected type in group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = foo:bar;
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Error: Can't resolve foo:bar in group:g1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected type of automatic group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = area:[network:n], foo:[network:n];
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Error: Unexpected area:[..] in group:g1
+Error: Unexpected foo:[..] in group:g1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Duplicate elements in group';
 ############################################################
 
