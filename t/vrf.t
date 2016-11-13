@@ -10,6 +10,45 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'VRF sanity checks';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+# Unmanaged device is ignored.
+router:r@v1 = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; } # Hardware is ignored.
+}
+
+router:r@v2 = {
+ managed;
+ model = NX-OS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r@v3 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+END
+
+$out = <<'END';
+Error: All VRF instances of router:r must have identical model
+Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Combine object-groups from different VRFs';
 ############################################################
 
