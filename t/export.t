@@ -353,10 +353,11 @@ owner:x = { admins = x@b.c; watchers = w@b.c; }
 owner:y = { admins = y@b.c; }
 owner:z = { admins = z@b.c; }
 
-area:all = { anchor = network:n2; }
-area:a1 = { border = interface:asa2.n2; owner = x; }
+area:all = { anchor = network:n2; router_attributes = { owner = x; } }
+area:a1 = { border = interface:asa2.n2; owner = x;
+ router_attributes = { owner = y; }
+}
 area:a2 = { border = interface:asa1.n1; owner = y; }
-
 
 network:n1 = {  ip = 10.1.1.0/24; owner = z; }
 
@@ -411,12 +412,46 @@ $out = <<'END';
       "z"
    ]
 }
+--objects
+{
+   "interface:asa1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : "y"
+   },
+   "interface:asa1.n2" : {
+      "ip" : "10.2.2.1",
+      "owner" : "y"
+   },
+   "interface:asa2.n2" : {
+      "ip" : "10.2.2.2",
+      "owner" : "x"
+   },
+   "interface:asa2.n3" : {
+      "ip" : "10.3.3.1",
+      "owner" : "x"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "z",
+      "zone" : "any:[network:n1]"
+   },
+   "network:n2" : {
+      "ip" : "10.2.2.0/255.255.255.0",
+      "owner" : "x",
+      "zone" : "any:[network:n2]"
+   },
+   "network:n3" : {
+      "ip" : "10.3.3.0/255.255.255.0",
+      "owner" : "y",
+      "zone" : "any:[network:n3]"
+   }
+}
 END
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Services of nested obejcts visible for outer owners';
+$title = 'Services of nested objects visible for outer owners';
 ############################################################
 
 $in = <<'END';
