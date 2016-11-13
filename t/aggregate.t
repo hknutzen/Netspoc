@@ -1419,7 +1419,7 @@ service:s1 = {
 }
 service:s2 = {
  user = any:[network:n2];
- permit src = user; dst = network:n3; prt = icmp 4/4, tcp 80-90;
+ permit src = user; dst = host:h3; prt = icmp 4/4, tcp 80-90;
 }
 END
 
@@ -1430,7 +1430,7 @@ Warning: Missing transient supernet rules
  Add missing src elements to service:s2:
  - network:n1
  or add missing dst elements to service:s1:
- - network:n3
+ - host:h3
 END
 
 test_warn($title, $in, $out);
@@ -1442,7 +1442,6 @@ $title = 'Missing transient rule with managed interface';
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 
 router:r1 = {
  managed;
@@ -1455,11 +1454,10 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
 }
 
 service:s1 = {
- user = network:n1;
+ user = host:h1;
  permit src = user; dst = any:[network:n2]; prt = ip;
 }
 service:s2 = {
@@ -1473,7 +1471,7 @@ Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
  matching at any:[network:n2].
  Add missing src elements to service:s2:
- - network:n1
+ - host:h1
  or add missing dst elements to service:s1:
  - interface:r2.n2
 END
