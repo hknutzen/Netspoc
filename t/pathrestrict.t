@@ -902,5 +902,67 @@ END
 
 test_run($title, $in, $out);
 
+############################################################
+$title = 'Find all networks in zone split by pathrestriction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n2;
+
+service:s1 = {
+ user = network:[any:[network:n1]];
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s2 = {
+ user = network:[any:[network:n2]];
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ deny ip any any
+--r2
+ip access-list extended n3_in
+ deny ip any host 10.1.4.2
+ permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
 ###########################################################
 done_testing;
