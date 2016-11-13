@@ -348,6 +348,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Unused protocol';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+protocol:http = tcp 80;
+protocol:ping = icmp 8;
+END
+
+$out = <<'END';
+Warning: unused protocol:http
+Warning: unused protocol:ping
+END
+
+test_warn($title, $in, $out, '-check_unused_protocols=warn');
+
+############################################################
+$title = 'Unknown protocol and protocolgroup';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }	
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+protocolgroup:g1 = protocol:p1, protocolgroup:g2, foo:bar;
+service:s1 = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = protocolgroup:g1;
+}
+END
+
+$out = <<'END';
+Error: Can't resolve reference to protocol:p1 in protocolgroup:g1
+Error: Can't resolve reference to protocolgroup:g2 in protocolgroup:g1
+Error: Unknown type of foo:bar in protocolgroup:g1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Recursive protocolgroup';
 ############################################################
 
