@@ -461,4 +461,19 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Must not use area directly in rule';
+############################################################
+
+$in = $topo . <<'END';
+area:a1 = {border = interface:asa1.n1;}
+service:s1 = { user = area:a1; permit src = user; dst = network:n2; prt = tcp; }
+END
+
+$out = <<'END';
+Warning: Ignoring area:a1 in src of rule in service:s1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;
