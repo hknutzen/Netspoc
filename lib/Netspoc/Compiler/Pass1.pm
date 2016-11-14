@@ -738,8 +738,7 @@ sub read_typed_name {
 
         if ($name) {
             if ($type eq 'host') {
-                verify_hostname($name) or 
-                    syntax_err("Name or ID-name expected");
+                verify_hostname($name);
             }
             elsif ($type eq 'network') {
                 $name =~ m/^ $network_regex $/xo or
