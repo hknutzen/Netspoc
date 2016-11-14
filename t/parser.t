@@ -571,8 +571,8 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Duplicate definition of host:h1 in file2
 Error: Duplicate definition of host:h1 in file1 and file2
+Error: Duplicate definition of host:h1 in file2
 END
 
 test_err($title, $in, $out);

@@ -1326,7 +1326,7 @@ sub read_network {
                     if ($other_net ne $network) {
                         my $other_file = $other_net->{file};
                         if ($where ne $other_file) {
-                            $where .= " and $other_file";
+                            $where = "$other_file and $where";
                         }
                     }
                     err_msg("Duplicate definition of host:$host_name",
@@ -3350,7 +3350,7 @@ sub read_netspoc {
     if (my $other = $hash->{$name}) {
         my $file = $other->{file};
         if ($current_file ne $file) {
-            $file = "$current_file and $file";
+            $file = "$file and $current_file";
         }
         err_msg("Duplicate definition of $type:$name in $file");
     }
@@ -3408,7 +3408,9 @@ sub read_file_or_dir {
         local $private = $next_private;
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-            while (my $file = Encode::decode($filename_encode, readdir $dh)) {
+            for my $file (sort map { Encode::decode($filename_encode, $_) } 
+                          readdir $dh) 
+            {
                 next if $file =~ /^\./;
                 next if $file =~ m/$config->{ignore_files}/o;
                 my $path = "$path/$file";
@@ -3424,10 +3426,8 @@ sub read_file_or_dir {
     # Handle toplevel directory.
     # Special handling for "config" and "raw".
     opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-    my @files = map({ Encode::decode($filename_encode, $_) } readdir $dh);
-    closedir $dh;
-
-    for my $file (@files) {
+    for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
+    {
 
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
@@ -3438,6 +3438,7 @@ sub read_file_or_dir {
         my $path = "$path/$file";
         $read_nested_files->($path, $read_syntax);
     }
+    closedir $dh;
 }
 
 # Prints number of read entities if in verbose mode.
