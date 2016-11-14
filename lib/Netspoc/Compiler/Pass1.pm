@@ -789,7 +789,7 @@ sub read_typed_name {
             return $1;
         }
         else {
-            syntax_err("Id expected ('user\@domain' or 'user')");
+            syntax_err("Id expected (a\@b.c)");
         }
     }
 
