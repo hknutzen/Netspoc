@@ -724,7 +724,7 @@ sub read_typed_name {
         }
 
         my ($type, $name) = $token =~ /^([\w-]+):(.*)$/ or 
-            syntax_err("Object type expected");
+            syntax_err("Typed name expected");
         my $interface = $type eq 'interface';
         my $ext;
 
