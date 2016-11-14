@@ -263,15 +263,269 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Typed name expected";
+############################################################
+
+$in = <<'END';
+network = {
+END
+
+$out = <<'END';
+Syntax error: Typed name expected at line 1 of STDIN, near "network<--HERE--> = {"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Unknown global definition";
 ############################################################
 
 $in = <<'END';
-networkX:n1 = { ip = 10.1.1.0/24; }
+networkX:n1 = {
 END
 
 $out = <<'END';
-Syntax error: Unknown global definition at line 1 of STDIN, near "networkX:n1<--HERE--> = { ip"
+Syntax error: Unknown global definition at line 1 of STDIN, near "networkX:n1<--HERE--> = {"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid separator in network";
+############################################################
+
+$in = <<'END';
+network:n1@vrf123 = {
+END
+
+$out = <<'END';
+Syntax error: Invalid token at line 1 of STDIN, near "network:n1@vrf123<--HERE--> = {"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid separator in router";
+############################################################
+
+$in = <<'END';
+router:r1/bridged-part = {
+END
+
+$out = <<'END';
+Syntax error: Invalid token at line 1 of STDIN, near "router:r1/bridged-part<--HERE--> = {"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid separator in area";
+############################################################
+
+$in = <<'END';
+area:a1@vrf123 = {
+END
+
+$out = <<'END';
+Syntax error: Invalid token at line 1 of STDIN, near "area:a1@vrf123<--HERE--> = {"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unexpected end of file";
+############################################################
+
+$in = <<'END';
+network:n1
+END
+
+$out = <<'END';
+Syntax error: Unexpected end of file at line 1 of STDIN, near "network:n1<--HERE-->"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Identifier expected";
+############################################################
+
+$in = <<'END';
+network:n1 = { owner = }
+END
+
+$out = <<'END';
+Syntax error: Identifier expected at line 1 of STDIN, near "owner = <--HERE-->}"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "String expected";
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = ; }
+END
+
+$out = <<'END';
+Syntax error: String expected at line 1 of STDIN, near "admins = <--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Comma expected in union of values";
+############################################################
+
+$in = <<'END';
+group:g1 = host:h1 host:h2;
+END
+
+$out = <<'END';
+Syntax error: Comma expected in union of values at line 1 of STDIN, near "host:h2<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Comma expected in list of values";
+############################################################
+
+$in = <<'END';
+owner:o = { admins = a@b.c x@y.z; }
+END
+
+$out = <<'END';
+Syntax error: Comma expected in list of values at line 1 of STDIN, near "x@y.z<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Typed name expected";
+############################################################
+
+$in = <<'END';
+group:g1 = host;
+END
+
+$out = <<'END';
+Syntax error: Typed name expected at line 1 of STDIN, near "host<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad hostname";
+############################################################
+
+$in = <<'END';
+group:g1 = host:id:;
+END
+
+$out = <<'END';
+Syntax error: Hostname expected at line 1 of STDIN, near "host:id:<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad network name";
+############################################################
+
+$in = <<'END';
+group:g1 = network:n1@vrf;
+END
+
+$out = <<'END';
+Syntax error: Name or bridged name expected at line 1 of STDIN, near "network:n1@vrf<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad interface name";
+############################################################
+
+$in = <<'END';
+group:g1 = interface:r;
+END
+
+$out = <<'END';
+Syntax error: Interface name expected at line 1 of STDIN, near "interface:r<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad auto interface";
+############################################################
+
+$in = <<'END';
+group:g1 = interface:r.[foo];
+END
+
+$out = <<'END';
+Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[foo<--HERE-->]"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad group name";
+############################################################
+
+$in = <<'END';
+group:g1 = group:a@b;
+END
+
+$out = <<'END';
+Syntax error: Name expected at line 1 of STDIN, near "group:a@b<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad NAT name";
+############################################################
+
+$in = <<'END';
+network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Valid name expected at line 1 of STDIN, near "nat:a+b<--HERE--> = { ip"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad VPN id";
+############################################################
+
+$in = <<'END';
+router:r = {
+ interface:x = { id = a.b.c; }
+}
+END
+
+$out = <<'END';
+Syntax error: Id expected (a@b.c) at line 2 of STDIN, near "id = <--HERE-->a.b.c"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Must not use 'user' outside of rule";
+############################################################
+
+$in = <<'END';
+group:g1 = user;
+END
+
+$out = <<'END';
+Syntax error: Unexpected reference to 'user' at line 1 of STDIN, near "user<--HERE-->;"
 END
 
 test_err($title, $in, $out);

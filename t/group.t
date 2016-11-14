@@ -115,6 +115,20 @@ END
 test_group($title, $in, 'group:g1 &! network:n2', $out);
 
 ############################################################
+$title = 'Multiple intersection with complement';
+############################################################
+
+$in = $topo . <<'END';
+group:g1 = host:h1, network:n2, network:n3;
+END
+
+$out = <<'END';
+10.1.2.0/24	network:n2
+END
+
+test_group($title, $in, 'group:g1 &! network:n3 &! host:h1', $out);
+
+############################################################
 $title = 'Complement without intersection';
 ############################################################
 
