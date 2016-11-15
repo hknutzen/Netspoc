@@ -1120,8 +1120,8 @@ sub read_host {
                 my $nat_ip = read_ip;
                 skip ';';
                 skip '}';
-                $host->{nat}->{$name2}
-                  and error_atline("Duplicate NAT definition");
+                $host->{nat}->{$name2} and 
+                    err_msg("Duplicate NAT definition nat:$name2 at $name");
                 $host->{nat}->{$name2} = $nat_ip;
             }
             else {
@@ -1339,8 +1339,8 @@ sub read_network {
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
                 $nat->{name} .= "($name)";
-                $network->{nat}->{$nat_tag}
-                    and error_atline("Duplicate NAT definition");
+                $network->{nat}->{$nat_tag} and
+                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $network->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -1554,8 +1554,8 @@ sub read_interface {
                 verify_name($name2);
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag", 'mask_is_optional');
-                $interface->{nat}->{$nat_tag}
-                  and error_atline("Duplicate NAT definition");
+                $interface->{nat}->{$nat_tag} and
+                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $interface->{nat}->{$nat_tag} = $nat;
             }
             elsif ($type eq 'secondary') {
@@ -2549,8 +2549,8 @@ sub read_aggregate {
                 my $nat_tag = $name2;
                 my $nat = read_nat("nat:$nat_tag");
                 $nat->{name} .= "($name)";
-                $aggregate->{nat}->{$nat_tag}
-                  and error_atline("Duplicate NAT definition");
+                $aggregate->{nat}->{$nat_tag} and
+                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $aggregate->{nat}->{$nat_tag} = $nat;
             }
             else {
@@ -2670,7 +2670,7 @@ sub read_area {
                 my $nat = read_nat("nat:$nat_tag");
                 $nat->{name} .= "($name)";
                 $area->{nat}->{$nat_tag} and 
-                    error_atline("Duplicate NAT definition");
+                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $area->{nat}->{$nat_tag} = $nat;
             }
             else {

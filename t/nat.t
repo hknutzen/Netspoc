@@ -10,6 +10,54 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = "Duplicate NAT definition";
+############################################################
+
+$in = <<'END';
+area:n1 = {
+ border = interface:r.n1;
+ nat:n = { ip = 10.7.0.0/16; }
+ nat:n = { ip = 10.6.0.0/16; }
+}
+any:n1 = {
+ link = network:n1;
+ nat:n = { ip = 10.9.0.0/16; }
+ nat:n = { ip = 10.8.0.0/16; }
+}
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; }
+ nat:n = { ip = 10.8.8.0/24; dynamic;}
+ host:h1 = {
+  ip = 10.1.1.10;
+  nat:n = { ip = 10.9.9.9; }
+  nat:n = { ip = 10.8.8.8; }
+ }
+}
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = {
+  ip = 10.1.1.1; hardware = n1; 
+  nat:n = { ip = 10.9.9.1; }
+  nat:n = { ip = 10.8.8.1; }
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Duplicate NAT definition nat:n at area:n1
+Error: Duplicate NAT definition nat:n at any:n1
+Error: Duplicate NAT definition nat:n at network:n1
+Error: Duplicate NAT definition nat:n at host:h1
+Error: Duplicate NAT definition nat:n at interface:r.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Duplicate IP address';
 ############################################################
 
