@@ -1374,10 +1374,7 @@ sub read_network {
     }
 
     # Network needs at least IP and mask to be defined.
-    my $ip = $network->{ip};
-
-    # Use 'defined' here because IP may have value '0'.
-    defined $ip or syntax_err("Missing network IP");
+    my $ip = $network->{ip} or syntax_err("Missing network IP");
 
     if ($ip eq 'unnumbered') {
         my %ok = (ip => 1, name => 1, crosslink => 1, private => 1);
