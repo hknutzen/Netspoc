@@ -291,7 +291,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in network";
+$title = "Invalid separator in network name";
 ############################################################
 
 $in = <<'END';
@@ -305,7 +305,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in router";
+$title = "Invalid separator in router name";
 ############################################################
 
 $in = <<'END';
@@ -319,7 +319,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in area";
+$title = "Invalid separator in area name";
 ############################################################
 
 $in = <<'END';
@@ -512,6 +512,42 @@ END
 
 $out = <<'END';
 Syntax error: Id expected (a@b.c) at line 2 of STDIN, near "id = <--HERE-->a.b.c"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad managed attribute";
+############################################################
+
+$in = <<'END';
+router:r = {
+ managed xxx;
+ interface:n;
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Expected ';' or '=' at line 2 of STDIN, near "xxx<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unexpected managed type";
+############################################################
+
+$in = <<'END';
+router:r = {
+ managed = xxx;
+ interface:n;
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Expected value: secondary|standard|full|primary|local|local_secondary|routing_only at line 2 of STDIN
 END
 
 test_err($title, $in, $out);
