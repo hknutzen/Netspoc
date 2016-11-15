@@ -1680,7 +1680,7 @@ sub read_interface {
     # Subsequent code becomes simpler if virtual interface is main interface.
     if ($virtual) {
         if (my $ip = $interface->{ip}) {
-            if ($ip =~ /^(unnumbered|negotiated|short|bridged)$/) {
+            if ($ip =~ /^(unnumbered|negotiated|bridged)$/) {
                 error_atline("No virtual IP supported for $ip interface");
             }
 
@@ -1692,6 +1692,11 @@ sub read_interface {
             # But we need the original main interface
             # when handling auto interfaces.
             $interface->{orig_main} = $secondary;
+        }
+        for my $attr (qw(nat hub spoke)) {
+            $interface->{$attr} or next;
+            err_msg("$name with virtual interface must not use",
+                    " attribute '$attr'");
         }
         @{$interface}{qw(name ip redundant redundancy_type redundancy_id)} =
           @{$virtual}{qw(name ip redundant redundancy_type redundancy_id)};

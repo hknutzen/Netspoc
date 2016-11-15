@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Virtual interface with unsupported attribute';
+$title = 'Virtual interface with negotiated IP';
 ############################################################
 
 $in = <<'END';
@@ -26,6 +26,45 @@ END
 
 $out = <<'END';
 Error: No virtual IP supported for negotiated interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Virtual interface with NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/25; dynamic; }}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { 
+  ip = 10.1.1.1;
+  nat:n = { ip = 10.9.9.1; }
+  virtual = { ip = 10.1.1.11; } 
+  hardware = n1; 
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+}
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  nat:n = { ip = 10.9.9.2; }
+  virtual = { ip = 10.1.1.11; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n; }
+}
+END
+
+$out = <<'END';
+Error: interface:r1.n1 with virtual interface must not use attribute 'nat'
+Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 END
 
 test_err($title, $in, $out);
