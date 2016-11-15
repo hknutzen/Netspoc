@@ -1212,9 +1212,10 @@ sub read_nat {
         }
     }
     if ($nat->{hidden}) {
-        for my $key (keys %$nat) {
+        for my $key (sort keys %$nat) {
             next if grep { $key eq $_ } qw( name hidden );
             error_atline("Hidden NAT must not use attribute $key");
+            delete $nat->{$key};
         }
 
         # This simplifies error checks for overlapping addresses.
@@ -1228,9 +1229,10 @@ sub read_nat {
         $nat->{mask} = 0xffffffff;
     }
     elsif ($nat->{identity}) {
-        for my $key (keys %$nat) {
+        for my $key (sort keys %$nat) {
             next if grep { $key eq $_ } qw( name identity );
             error_atline("Identity NAT must not use attribute $key");
+            delete $nat->{$key};
         }
         $nat->{dynamic} = 1;
     }
