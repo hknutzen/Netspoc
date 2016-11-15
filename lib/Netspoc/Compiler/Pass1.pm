@@ -1312,16 +1312,14 @@ sub read_network {
                 }
 
                 # Managed host is stored as interface internally.
-                elsif (is_interface($host)) {
+                else {
                     push @{ $network->{interfaces} }, $host;
                     check_interface_ip($host, $network);
 
                     # For use in expand_group.
                     push @{ $network->{managed_hosts} }, $host;
                 }
-                else {
-                    internal_err;
-                }
+                
                 if (my $other = $hosts{$host_name}) {
                     my $where     = $current_file;
                     my $other_net = $other->{network};
@@ -1401,7 +1399,9 @@ sub read_network {
                             " IP/mask of $name");
                 }
             }
-            elsif ($host->{range}) {
+
+            # Check range.
+            else {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 if (
                     not(    match_ip($ip1, $ip, $mask)
@@ -1411,9 +1411,6 @@ sub read_network {
                     err_msg("IP range of $host->{name} doesn't match",
                             " IP/mask of $name");
                 }
-            }
-            else {
-                internal_err();
             }
 
             # Compatibility of host and network NAT will be checked later,
@@ -5166,7 +5163,9 @@ sub convert_hosts {
                     }
                 }
             }
-            elsif ($host->{range}) {
+
+            # Convert range.
+            else {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 @ip_mask = split_ip_range $ip1, $ip2;
                 if ($id) {
@@ -5183,9 +5182,7 @@ sub convert_hosts {
                     }
                 }
             }
-            else {
-                internal_err("unexpected host type");
-            }
+            
             for my $ip_mask (@ip_mask) {
                 my ($ip, $mask) = @$ip_mask;
                 my $inv_prefix = 32 - mask2prefix $mask;
@@ -6845,11 +6842,7 @@ sub apply_src_dst_modifier {
     for my $obj (@$group) {
         my $type = ref $obj;
         my $network;
-        if ($type eq 'Network') {
-            push @unmodified, $obj;
-            next;
-        }
-        elsif ($type eq 'Host') {
+        if ($type eq 'Host') {
             if ($obj->{id}) {
                 push @unmodified, $obj;
                 next;
@@ -6863,8 +6856,11 @@ sub apply_src_dst_modifier {
             }
             $network = $obj->{network};
         }
+
+        # Network
         else {
-            internal_err("unexpected $obj->{name}");
+            push @unmodified, $obj;
+            next;
         }
         push @modified, $network;
     }
@@ -14177,12 +14173,12 @@ sub gen_reverse_rules1 {
                     $new_prt = $prt_udp->{dst_range};
                 }
             }
-            elsif ($proto eq 'ip') {
+
+            # $proto eq 'ip'
+            else {
                 $new_prt = $prt;
             }
-            else {
-                internal_err();
-            }
+            
             $index2src_range{$index} = $new_src_range;
             my $key = $src_range2index{$new_src_range} ||= $index++;
             push @{ $key2prt_group{$key} }, $new_prt;
@@ -14761,9 +14757,6 @@ sub get_route_networks {
             else {
                 push @result, $net;
             }
-        }
-        else {
-            internal_err("unexpected $obj->{name}");
         }
     }
     return \@result;
@@ -15824,9 +15817,6 @@ sub print_routes {
 
                     # Do nothing.
                 }
-                else {
-                    internal_err("unexpected routing type '$type'");
-                }
             }
         }
     }
@@ -16212,13 +16202,7 @@ sub address {
     if ($type eq 'Network') {
         $obj = get_nat_network($obj, $no_nat_set);
         my $ip = $obj->{ip};
-
-        if ($ip eq 'unnumbered') {
-            internal_err("Unexpected unnumbered $obj->{name}");
-        }
-        else {
-            return [ $ip, $obj->{mask} ];
-        }
+        return [ $ip, $obj->{mask} ];
     }
     elsif ($type eq 'Subnet') {
         my $network = get_nat_network($obj->{network}, $no_nat_set);
@@ -16244,9 +16228,6 @@ sub address {
     }
     elsif ($type eq 'Interface') {
         my $ip = $obj->{ip};
-        if ($ip eq 'unnumbered' or $ip eq 'short') {
-            internal_err("Unexpected $ip $obj->{name}");
-        }
 
         my $network = get_nat_network($obj->{network}, $no_nat_set);
 
@@ -16272,9 +16253,6 @@ sub address {
             $ip = $network->{ip} | $ip & complement_32bit $network->{mask};
             return [ $ip, 0xffffffff ];
         }
-    }
-    else {
-        internal_err("Unexpected object of type '$type'");
     }
 }
 
