@@ -58,6 +58,57 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Other NAT attribute together with hidden";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; hidden; dynamic; identity; }
+}
+router:r = {
+ interface:n1;
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Hidden NAT must not use attribute dynamic at line 3 of STDIN
+Error: Hidden NAT must not use attribute identity at line 3 of STDIN
+Error: Hidden NAT must not use attribute ip at line 3 of STDIN
+Error: Hidden NAT must not use attribute mask at line 3 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Other NAT attribute together with identity";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; dynamic; identity; }
+}
+router:r = {
+ interface:n1;
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Identity NAT must not use attribute dynamic at line 3 of STDIN
+Error: Identity NAT must not use attribute ip at line 3 of STDIN
+Error: Identity NAT must not use attribute mask at line 3 of STDIN
+Warning: Useless identity nat:n at network:n1
+Warning: Ignoring useless nat:n bound at router:r
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Duplicate IP address';
 ############################################################
 

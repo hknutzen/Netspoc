@@ -130,6 +130,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Unexpected attribute at interface";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { ip = 10.1.1.1; foo }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 2 of STDIN, near "foo<--HERE--> }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Bad typed name as attribute of interface";
 ############################################################
 
@@ -195,6 +212,23 @@ END
 
 $out = <<'END';
 Syntax error: Expected attribute 'ip' at line 2 of STDIN, near "foo<--HERE-->; } }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Virtual interface with bad attribute";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { ip = 10.1.1.1; virtual = { foo; } }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 2 of STDIN, near "foo<--HERE-->; } }"
 END
 
 test_err($title, $in, $out);
@@ -548,6 +582,126 @@ END
 
 $out = <<'END';
 Error: Expected value: secondary|standard|full|primary|local|local_secondary|routing_only at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad typed name as attribute of host";
+############################################################
+
+$in = <<'END';
+network:n = {
+ host:h = { ip = 10.1.1.1; xy:z; }
+}
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 2 of STDIN, near "xy:z<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad token as attribute of host";
+############################################################
+
+$in = <<'END';
+network:n = {
+ host:h = { ip = 10.1.1.1; ; }
+}
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 2 of STDIN, near "10.1.1.1; ;<--HERE--> }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad typed name as attribute of network";
+############################################################
+
+$in = <<'END';
+network:n = { xy:z; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "xy:z<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad token as attribute of network";
+############################################################
+
+$in = <<'END';
+network:n = { ; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "network:n = { ;<--HERE--> }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Network without IP";
+############################################################
+
+$in = <<'END';
+network:n = { }
+END
+
+$out = <<'END';
+Syntax error: Missing network IP at line 1 of STDIN, near "network:n = { }<--HERE-->"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Duplicate IP in network";
+############################################################
+
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; unnumbered; ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Duplicate IP address at line 1 of STDIN
+Error: Duplicate attribute 'ip' at line 1 of STDIN
+Error: Duplicate attribute 'mask' at line 1 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "NAT without IP";
+############################################################
+
+$in = <<'END';
+network:n1 = { nat:n = { } }
+END
+
+$out = <<'END';
+Syntax error: Missing IP address at line 1 of STDIN, near "nat:n = { }<--HERE--> }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unexpected NAT attribute";
+############################################################
+
+$in = <<'END';
+network:n = {
+ nat:n = { ip = 10.1.1.0/24; xyz; }
+}
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 2 of STDIN, near "xyz<--HERE-->; }"
 END
 
 test_err($title, $in, $out);

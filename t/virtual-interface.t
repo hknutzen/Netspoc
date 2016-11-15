@@ -10,6 +10,27 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Virtual interface with unsupported attribute';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = {
+  negotiated;
+  virtual = { ip = 10.1.1.1; }
+ }
+}
+END
+
+$out = <<'END';
+Error: No virtual IP supported for negotiated interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Virtual interface in non cyclic sub-graph';
 ############################################################
 
