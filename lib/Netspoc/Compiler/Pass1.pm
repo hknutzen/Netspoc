@@ -3282,24 +3282,6 @@ sub read_owner {
             my $watchers = read_assign_list(\&read_name);
             add_attribute($owner, watchers => $watchers);
         }
-        elsif ($token eq 'extend_only') {
-            skip(';');
-            $owner->{only_watch} = 1;
-            warn_msg("'$token' is deprecated in $name.\n",
-                     " Use attribute 'only_watch' instead.");
-        }
-        elsif ($token eq 'extend_unbounded') {
-            skip(';');
-            warn_msg("'$token' is deprecated in $name.\n",
-                     " This attribute should be removed.");
-        }
-        elsif ($token eq 'extend') {
-            skip(';');
-            warn_msg("Ignoring deprecated '$token' in $name.\n",
-                     " This is default now.\n",
-                     " Use attribute 'hide_inner_owners' to revert",
-                     " to previous behaviour.");
-        }
         elsif ($token eq 'show_all') {
             skip(';');
             $owner->{show_all} = 1;
