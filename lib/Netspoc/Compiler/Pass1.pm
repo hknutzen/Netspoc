@@ -1648,12 +1648,9 @@ sub read_interface {
             add_attribute($interface, routing => $routing);
         }
         elsif ($token eq 'reroute_permit') {
-            my $pairs = read_assign_list(\&read_typed_name);
-            if (grep { $_->[0] ne 'network' or ref $_->[1] } @$pairs) {
-                error_atline "Must only use network names in 'reroute_permit'";
-                $pairs = [];
-            }
-            add_attribute($interface, reroute_permit => $pairs);
+            skip '=';
+            my $elements = read_union(';');
+            add_attribute($interface, reroute_permit => $elements);
         }
         elsif ($token eq 'disabled') {
             skip(';');
@@ -9384,7 +9381,7 @@ sub link_reroute_permit {
               expand_group($group, "'reroute_permit' of $interface->{name}");
             my @checked;
             for my $obj (@$group) {
-                if (is_network($obj)) {
+                if (is_network($obj) and not $obj->{is_aggregate}) {
                     my $net_zone = $obj->{zone};
                     if (not zone_eq($net_zone, $zone)) {
                         err_msg(
