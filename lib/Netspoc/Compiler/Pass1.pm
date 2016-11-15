@@ -830,7 +830,7 @@ for my $key (keys %timeunits) {
 sub read_time_val {
     my $int    = read_int();
     my $unit   = read_identifier();
-    my $factor = $timeunits{$unit} or syntax_err("Invalid time unit");
+    my $factor = $timeunits{$unit} or syntax_err("Time unit expected");
     return $int * $factor;
 }
 
@@ -1125,11 +1125,11 @@ sub read_host {
                 $host->{nat}->{$name2} = $nat_ip;
             }
             else {
-                syntax_err("Expected NAT definition");
+                syntax_err('Unexpected token');
             }
         }
         else {
-            syntax_err("Unexpected token");
+            syntax_err('Unexpected token');
         }
     }
     $host->{ip} xor $host->{range}
@@ -1208,7 +1208,7 @@ sub read_nat {
             add_attribute($nat, subnet_of => $pair);
         }
         else {
-            syntax_err("Expected some valid NAT attribute");
+            syntax_err('Unexpected token');
         }
     }
     if ($nat->{hidden}) {
@@ -1344,11 +1344,11 @@ sub read_network {
                 $network->{nat}->{$nat_tag} = $nat;
             }
             else {
-                syntax_err("Expected host or nat definition");
+                syntax_err('Unexpected token');
             }
         }
         else {
-            syntax_err("Expected some valid attribute");
+            syntax_err('Unexpected token');
         }
     }
 
@@ -1586,7 +1586,7 @@ sub read_interface {
                 }
             }
             else {
-                syntax_err("Expected nat or secondary interface definition");
+                syntax_err('Unexpected token');
             }
         }
         elsif ($token eq 'virtual') {
@@ -1623,7 +1623,7 @@ sub read_interface {
                     add_attribute($virtual, redundancy_id => $id);
                 }
                 else {
-                    syntax_err("Expected valid attribute for virtual IP");
+                    syntax_err('Unexpected token');
                 }
             }
             $virtual->{ip} or error_atline("Missing virtual IP");
@@ -1665,7 +1665,7 @@ sub read_interface {
             $interface->{no_check} = 1;
         }
         else {
-            syntax_err('Expected some valid attribute');
+            syntax_err('Unexpected token');
         }
     }
 
@@ -1946,7 +1946,7 @@ sub read_router {
                 next;
             }
             elsif ($type ne 'interface') {
-                syntax_err("Expected interface or log definition");
+                syntax_err('Unexpected token');
             }
 
             $name2 =~ /^ [\w-]+ (?: \/ [\w-]+ ) ? $/x or 
@@ -1975,7 +1975,7 @@ sub read_router {
             }
         }
         else {
-            syntax_err("Unexpected token");
+            syntax_err('Unexpected token');
         }
     }
 
@@ -2554,11 +2554,11 @@ sub read_aggregate {
                 $aggregate->{nat}->{$nat_tag} = $nat;
             }
             else {
-                syntax_err("Expected some valid attribute");
+                syntax_err('Unexpected token');
             }
         }
         else {
-            syntax_err("Expected some valid attribute");
+            syntax_err('Unexpected token');
         }
     }
     $aggregate->{link} or err_msg("Attribute 'link' must be defined for $name");
@@ -2674,11 +2674,11 @@ sub read_area {
                 $area->{nat}->{$nat_tag} = $nat;
             }
             else {
-                syntax_err("Expected some valid attribute");
+                syntax_err('Unexpected token');
             }
         }
         else {
-            syntax_err("Expected some valid attribute");
+            syntax_err('Unexpected token');
         }
     }
     ($area->{border} or $area->{inclusive_border}) and $area->{anchor}
@@ -3245,7 +3245,7 @@ sub read_crypto {
             add_attribute($crypto, type => $type);
         }
         else {
-            syntax_err("Expected valid attribute");
+            syntax_err('Unexpected token');
         }
     }
     $crypto->{type} or err_msg("Missing 'type' for $name");
@@ -3314,7 +3314,7 @@ sub read_owner {
             $owner->{show_hidden_owners} = 1;
         }
         else {
-            syntax_err("Expected valid attribute");
+            syntax_err('Unexpected token');
         }
     }
     $owner->{admins} ||= [];

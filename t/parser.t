@@ -141,7 +141,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected nat or secondary interface definition at line 2 of STDIN, near "primary:p<--HERE--> = {} }"
+Syntax error: Unexpected token at line 2 of STDIN, near "primary:p<--HERE--> = {} }"
 END
 
 test_err($title, $in, $out);
