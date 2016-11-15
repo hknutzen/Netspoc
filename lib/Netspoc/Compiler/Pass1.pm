@@ -1237,7 +1237,7 @@ sub read_nat {
         $nat->{dynamic} = 1;
     }
     else {
-        defined($nat->{ip}) or error_atline('Missing IP address');
+        defined($nat->{ip}) or syntax_err('Missing IP address');
     }
 
     # Attribute {nat_tag} is used later to look up static translation
