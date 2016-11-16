@@ -768,4 +768,22 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Reference non network in subnet_of';
+############################################################
+
+$in = <<'END';
+any:n1 = { link = network:n1; }
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ subnet_of = any:n1;
+}
+END
+
+$out = <<"END";
+Error: Must only use network name in 'subnet_of' at line 4 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

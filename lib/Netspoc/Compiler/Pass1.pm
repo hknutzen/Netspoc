@@ -919,6 +919,16 @@ sub add_attribute {
 
 our %hosts;
 
+sub read_network_assign {
+    my ($context) = @_;
+    my $pair = read_assign(\&read_typed_name);
+    if ($pair->[0] ne 'network' or ref $pair->[1]) {
+        error_atline "Must only use network name in '$context'";
+        $pair = undef;
+    }
+    return $pair;
+}
+
 sub read_radius_attributes {
     my $result = {};
     skip '=';
@@ -1204,7 +1214,7 @@ sub read_nat {
             $nat->{dynamic} = 1;
         }
         elsif ($token eq 'subnet_of') {
-            my $pair = read_assign(\&read_typed_name);
+            my $pair = read_network_assign($token);
             add_attribute($nat, subnet_of => $pair);
         }
         else {
@@ -1289,7 +1299,7 @@ sub read_network {
             $network->{crosslink} = 1;
         }
         elsif ($token eq 'subnet_of') {
-            my $pair = read_assign(\&read_typed_name);
+            my $pair = read_network_assign($token);
             add_attribute($network, subnet_of => $pair);
         }
         elsif ($token eq 'owner') {
@@ -1527,7 +1537,7 @@ sub read_interface {
 
         # Needed for the implicitly defined network of 'loopback'.
         elsif ($token eq 'subnet_of') {
-            my $pair = read_assign(\&read_typed_name);
+            my $pair = read_network_assign($token);
             add_attribute($interface, subnet_of => $pair);
         }
         elsif ($token eq 'hub') {
@@ -2638,12 +2648,8 @@ sub read_area {
             skip(';');
             $area->{auto_border} = 1;
         }
-        elsif ($token eq  'anchor') {
-            my $pair = read_assign(\&read_typed_name);
-            if ($pair->[0] ne 'network' or ref $pair->[1]) {
-                error_atline "Must only use network name in 'anchor'";
-                $pair = undef;
-            }
+        elsif ($token eq 'anchor') {
+            my $pair = read_network_assign($token);
             add_attribute($area, anchor => $pair);
         }
         elsif ($token eq 'owner') {
@@ -4272,14 +4278,6 @@ sub link_subnet {
     };
     return if not $object->{subnet_of};
     my ($type, $name) = @{ $object->{subnet_of} };
-    if ($type ne 'network') {
-        err_msg "Attribute 'subnet_of' of ", $context->(), "\n",
-          " must not be linked to $type:$name";
-
-        # Prevent further errors;
-        delete $object->{subnet_of};
-        return;
-    }
     my $network = $networks{$name};
     if (not $network) {
         warn_msg(
