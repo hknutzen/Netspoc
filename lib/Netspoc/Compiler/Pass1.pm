@@ -4147,29 +4147,27 @@ sub link_areas {
             }
 
         }
-        else {
-            for my $attr (qw(border inclusive_border)) {
-                $area->{$attr} or next;
-                $area->{$attr} = expand_group($area->{$attr}, $area->{name});
-                for my $obj (@{ $area->{$attr} }) {
-                    if (is_interface $obj) {
-                        my $router = $obj->{router};
-                        $router->{managed}
-                          or err_msg "Referencing unmanaged $obj->{name} ",
-                          "from $area->{name}";
+        for my $attr (qw(border inclusive_border)) {
+            $area->{$attr} or next;
+            $area->{$attr} = expand_group($area->{$attr}, $area->{name});
+            for my $obj (@{ $area->{$attr} }) {
+                if (is_interface $obj) {
+                    my $router = $obj->{router};
+                    $router->{managed}
+                    or err_msg "Referencing unmanaged $obj->{name} ",
+                    "from $area->{name}";
 
-                        # Reverse swapped main and virtual interface.
-                        if (my $main_interface = $obj->{main_interface}) {
-                            $obj = $main_interface;
-                        }
+                    # Reverse swapped main and virtual interface.
+                    if (my $main_interface = $obj->{main_interface}) {
+                        $obj = $main_interface;
                     }
-                    else {
-                        err_msg
-                          "Unexpected $obj->{name} in $attr of $area->{name}";
+                }
+                else {
+                    err_msg
+                        "Unexpected $obj->{name} in $attr of $area->{name}";
 
-                        # Prevent further errors.
-                        delete $area->{$attr};
-                    }
+                    # Prevent further errors.
+                    delete $area->{$attr};
                 }
             }
         }

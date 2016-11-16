@@ -32,6 +32,38 @@ router:asa2 = {
 END
 
 ############################################################
+$title = 'Must not define anchor together with border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { 
+ anchor = network:n1; 
+ border = interface:asa2.n2;
+ inclusive_border = interface:asa2.n3;
+}
+END
+
+$out = <<'END';
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must define either anchor or  border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = {}
+END
+
+$out = <<'END';
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Policy distribution point from nested areas';
 ############################################################
 
