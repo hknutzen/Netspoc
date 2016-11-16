@@ -13,7 +13,6 @@ my ($title, $in, $out);
 $title = 'Invalid IP addresses';
 ############################################################
 
-
 $in = <<'END';
 network:n1 = { ip = 999.1.1.0/24; }
 network:n2 = { ip = 10.888.1.0/24; }
@@ -33,6 +32,60 @@ Error: Invalid IP address at line 1 of STDIN
 Error: Invalid IP address at line 2 of STDIN
 Error: Invalid IP address at line 3 of STDIN
 Error: Invalid IP address at line 4 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Interface IP doesn't match network IP/mask";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.2.3; }
+}
+END
+
+$out = <<'END';
+Error: interface:r1.n1's IP doesn't match network:n1's IP/mask
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Interface IP has address of its network";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.0; }
+}
+END
+
+$out = <<'END';
+Error: interface:r1.n1 has address of its network
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Interface IP has broadcast address";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.255; }
+}
+END
+
+$out = <<'END';
+Error: interface:r1.n1 has broadcast address
 END
 
 test_err($title, $in, $out);
@@ -250,6 +303,24 @@ $out = <<"END";
 Warning: IP of interface:r1.n2 overlaps with subnet network:n1
 Warning: IP of host:h1 overlaps with subnet network:n1
 Warning: IP of host:h2 overlaps with subnet network:n1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Reference unknown network in subnet_of';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; 
+ subnet_of = network:n2;
+}
+END
+
+$out = <<"END";
+Warning: Ignoring undefined network:n2 from attribute 'subnet_of'
+ of network:n1
 END
 
 test_warn($title, $in, $out);

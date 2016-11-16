@@ -129,6 +129,25 @@ END
 test_group($title, $in, 'group:g1 &! network:n3 &! host:h1', $out);
 
 ############################################################
+$title = 'Intersection of complement';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = ! network:n1 & ! network:n2;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: Intersection needs at least one element which is not complement in user of service:s1
+Warning: Useless delete of network:n1 in user of service:s1
+Warning: Useless delete of network:n2 in user of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Complement without intersection';
 ############################################################
 

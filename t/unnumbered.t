@@ -50,6 +50,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered interface to network with IP';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+  interface:n1 = { unnumbered; }
+} 
+END
+
+$out = <<'END';
+Error: Unnumbered interface:r1.n1 must not be linked to network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unnumbered network to more than two interfaces';
 ############################################################
 

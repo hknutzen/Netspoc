@@ -62,6 +62,53 @@ $out = '';
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Ignore disabled area in rule';
+############################################################
+
+$in = $topo . <<'END';
+area:a2 = { border = interface:r1.n2, interface:r2.n2;  }
+service:test = {
+ user = network:[area:a2];
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Must not disable single interface inside loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; disabled; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+END
+
+$out = <<END;
+Error: interface:r1.n1 must not be disabled,
+ since it is part of a loop
+Error: Topology seems to be empty
+Aborted
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Only warn on unknown network at disabled interface';
 ############################################################
 
