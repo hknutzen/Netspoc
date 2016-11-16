@@ -2625,24 +2625,14 @@ sub read_area {
         if ($token eq '}') {
             last;
         }
-        elsif ($token eq 'border') {
+        elsif ($token eq 'border' or $token eq 'inclusive_border') {
             skip '=';
             my $elements = read_union(';');
             if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
-                error_atline("Must only use interface names in 'border'");
+                error_atline("Must only use interface names in '$token'");
                 $elements = [];
             }
-            add_attribute($area, border => $elements);
-        }
-        elsif ($token eq 'inclusive_border') {
-            skip '=';
-            my $elements = read_union(';');
-            if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
-                error_atline("Must only use interface names in",
-                             " 'inclusive_border'");
-                $elements = [];
-            }
-            add_attribute($area, inclusive_border => $elements);
+            add_attribute($area, $token => $elements);
         }
         elsif ($token eq 'auto_border') {
             skip(';');
@@ -4125,49 +4115,27 @@ sub link_general_permit {
 sub link_areas {
     for my $area (values %areas) {
         if ($area->{anchor}) {
-            my @elements =
-              @{ expand_group([ $area->{anchor} ], $area->{name}) };
-            if (@elements == 1) {
-                my $obj = $elements[0];
-                if (is_network $obj) {
-                    $area->{anchor} = $obj;
-                }
-                else {
-                    err_msg
-                      "Unexpected $obj->{name} in anchor of $area->{name}";
 
-                    # Prevent further errors.
-                    delete $area->{anchor};
-                }
-            }
-            else {
-                err_msg
-                  "Expected exactly one element in anchor of $area->{name}";
-                delete $area->{anchor};
-            }
-
+            # Input has already been checked by parser, so we are sure
+            # to get exactly one network as result.
+            my ($obj) = @{ expand_group([ $area->{anchor} ], $area->{name}) };
+            $area->{anchor} = $obj;
         }
         for my $attr (qw(border inclusive_border)) {
             $area->{$attr} or next;
+            
+            # Input has already been checked by parser, so we are sure
+            # to get list of interfaces as result.
             $area->{$attr} = expand_group($area->{$attr}, $area->{name});
             for my $obj (@{ $area->{$attr} }) {
-                if (is_interface $obj) {
-                    my $router = $obj->{router};
-                    $router->{managed}
-                    or err_msg "Referencing unmanaged $obj->{name} ",
-                    "from $area->{name}";
+                my $router = $obj->{router};
+                $router->{managed} or 
+                    err_msg("Referencing unmanaged $obj->{name} ",
+                            "from $area->{name}");
 
-                    # Reverse swapped main and virtual interface.
-                    if (my $main_interface = $obj->{main_interface}) {
-                        $obj = $main_interface;
-                    }
-                }
-                else {
-                    err_msg
-                        "Unexpected $obj->{name} in $attr of $area->{name}";
-
-                    # Prevent further errors.
-                    delete $area->{$attr};
+                # Reverse swapped main and virtual interface.
+                if (my $main_interface = $obj->{main_interface}) {
+                    $obj = $main_interface;
                 }
             }
         }

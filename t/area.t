@@ -64,6 +64,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unmanaged interface can\'t be border';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = { interface:n1; }
+area:a = { border = interface:r1.n1; }
+END
+
+$out = <<'END';
+Error: Referencing unmanaged interface:r1.n1 from area:a
+Warning: area:a is empty
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Policy distribution point from nested areas';
 ############################################################
 
