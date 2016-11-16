@@ -4836,8 +4836,8 @@ sub check_bridged_networks {
         }
     }
     for my $href (values %prefix2net) {
-        my @group = values %$href;
-        my $net1  = pop(@group);
+        my @group = sort by_name values %$href;
+        my $net1  = shift @group;
         @group or warn_msg("Bridged $net1->{name} must not be used solitary");
         my %seen;
         my @next = ($net1);
@@ -4854,11 +4854,10 @@ sub check_bridged_networks {
             for my $in_intf (@{ $network->{interfaces} }) {
                 next if $in_intf->{ip} ne 'bridged';
                 my $router = $in_intf->{router};
-                next if $seen{$router};
+                next if $seen{$router}++;
                 my $count = 1;
-                $seen{$router} = $router;
                 if (my $layer3_intf = $in_intf->{layer3_interface}) {
-                    match_ip($layer3_intf->{ip}, $ip, $mask)
+                    match_ip($layer3_intf->{ip}, $ip1, $mask1)
                       or err_msg("$layer3_intf->{name}'s IP doesn't match",
                         " IP/mask of bridged networks");
                 }

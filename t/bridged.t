@@ -39,6 +39,146 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Other network must not use prefix name of bridged networks';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1/right;
+ interface:n1;
+}
+network:n1 = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: Must not define network:n1 together with bridged networks of same name
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridged networks must use identical IP addresses';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.2.2.0/24; }
+END
+
+$out = <<'END';
+Error: network:n1/left and network:n1/right must have identical ip/mask
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Layer 3 IP must match bridged network IP/mask';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.2.2.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: interface:bridge.n1's IP doesn't match IP/mask of bridged networks
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Brdged networks must be connected by bridge';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1/left = { ip = 10.1.1.1; hardware = inside; }
+ interface:n1/right = { ip = 10.1.1.2; hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: network:n1/right and network:n1/left must be connected by bridge
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridge must connect at least two networks';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+}
+router:bridge2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: router:bridge1 can't bridge a single network
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridged must not be used solitary';
+############################################################
+
+$in = <<'END';
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: Bridged network:n1/right must not be used solitary
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Bridged network must not be unnumbered';
 ############################################################
 
