@@ -287,6 +287,7 @@ sub find_duplicates {
     $dupl{$_}++ for @_;
     return grep { $dupl{$_} > 1 } keys %dupl;
 }
+## use critic
 
 # Return the intersecting elements of two array references.
 sub intersect {
@@ -344,12 +345,21 @@ sub keys_eq {
     return 1;
 }
 
-# Print arguments as warning to STDERR..
+# Print arguments as warning to STDERR.
 sub warn_msg {
-    print STDERR "Warning: ", @_, "\n";
+    my (@args) = @_;
+    print STDERR "Warning: ", @args, "\n";
 }
 
-## use critic
+sub warn_or_err_msg {
+    my ($type, @args) = @_;
+    if ($type eq 'warn') {
+        warn_msg(@args);
+    }
+    else {
+        err_msg(@args);
+    }
+}
 
 # Name of current input file.
 our $current_file;
@@ -5912,11 +5922,10 @@ sub expand_group_in_rule {
 sub check_unused_groups {
     my $check = sub {
         my ($hash, $print_type) = @_;
-        my $print = $print_type eq 'warn' ? \&warn_msg : \&err_msg;
         for my $name (sort keys %$hash) {
             my $value = $hash->{$name};
             next if $value->{is_used};
-            $print->("unused $value->{name}");
+            warn_or_err_msg($print_type, "unused $value->{name}");
         }
     };
     if (my $conf = $config->{check_unused_groups}) {
@@ -6719,17 +6728,12 @@ sub check_service_owner {
             if ($service->{multi_owner}) {
                 warn_msg("Useless use of attribute 'multi_owner' at $sname");
             }
-            else {
-                my $print =
-                    $config->{check_service_multi_owner}
-                  ? $config->{check_service_multi_owner} eq 'warn'
-                      ? \&warn_msg
-                      : \&err_msg
-                  : sub { };
-                my @names =
-                  sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
-                      values %$service_owners);
-                $print->("$sname has multiple owners:\n " . join(', ', @names));
+            elsif (my $print_type = $config->{check_service_multi_owner}) {
+                my @names = sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
+                                 values %$service_owners);
+                warn_or_err_msg($print_type, 
+                                "$sname has multiple owners:\n ",
+                                join(', ', @names));
             }
         }
 
@@ -6757,12 +6761,9 @@ sub check_service_owner {
     for my $owner (values %owners) {
         delete $owner->{is_used} or push @$unused_owners, $owner
     }
-    if ($unused_owners and $config->{check_unused_owners}) {
-        my $print = $config->{check_unused_owners} eq 'warn'
-                  ? \&warn_msg
-                  : \&err_msg;
+    if ($unused_owners and (my $type = $config->{check_unused_owners})) {
         for my $name (sort map { $_->{name} } @$unused_owners) {
-            $print->("Unused $name");
+            warn_or_err_msg($type, "Unused $name");
         }
     }
 
@@ -6770,11 +6771,10 @@ sub check_service_owner {
     for my $names (values %unknown2services) {
         $names = join(', ', sort @$names);
     }
-    my $print = $config->{check_service_unknown_owner} eq 'warn'
-              ? \&warn_msg
-              : \&err_msg;
     for my $obj (sort by_name values %unknown2unknown) {
-        $print->("Unknown owner for $obj->{name} in $unknown2services{$obj}");
+        warn_or_err_msg($config->{check_service_unknown_owner},
+                        "Unknown owner for $obj->{name}",
+                        " in $unknown2services{$obj}");
     }
 }
 
@@ -7022,9 +7022,6 @@ sub show_unenforceable {
         $config->{check_unenforceable} or next;
         next if $service->{disabled};
 
-        my $print = 
-            $config->{check_unenforceable} eq 'warn' ? \&warn_msg : \&err_msg;
-
         # Warning about fully unenforceable service can't be disabled with
         # attribute has_unenforceable.
         if (not delete $service->{seen_enforceable}) {
@@ -7033,7 +7030,8 @@ sub show_unenforceable {
             if ($service->{seen_unenforceable} or 
                 $service->{silent_unenforceable})
             {
-                $print->("$context is fully unenforceable");
+                warn_or_err_msg($config->{check_unenforceable},
+                                "$context is fully unenforceable");
             }
             next;
         }
@@ -7047,9 +7045,10 @@ sub show_unenforceable {
                     push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
             }
-            $print->(join "\n ", 
-                     "$context has unenforceable rules:",
-                     sort @list);
+            warn_or_err_msg($config->{check_unenforceable},
+                            join "\n ", 
+                            "$context has unenforceable rules:",
+                            sort @list);
         }
         delete $service->{silent_unenforceable};
     }
@@ -7319,15 +7318,13 @@ sub show_duplicate_rules {
     }
     @duplicate_rules = ();
 
-    my $action = $config->{check_duplicate_rules} or return;
-    my $print  = $action eq 'warn' ? \&warn_msg : \&err_msg;
     for my $sname (sort keys %sname2oname2duplicate) {
         my $hash = $sname2oname2duplicate{$sname};
         for my $oname (sort keys %$hash) {
             my $aref = $hash->{$oname};
             my $msg  = "Duplicate rules in $sname and $oname:\n  ";
             $msg .= join("\n  ", map { print_rule $_ } @$aref);
-            $print->($msg);
+            warn_or_err_msg($config->{check_duplicate_rules}, $msg);
         }
     }
 }
@@ -7369,7 +7366,6 @@ sub show_redundant_rules {
     @redundant_rules = ();
 
     my $action = $config->{check_redundant_rules} or return;
-    my $print = $action eq 'warn' ? \&warn_msg : \&err_msg;
     for my $sname (sort keys %sname2oname2redundant) {
         my $hash = $sname2oname2redundant{$sname};
         for my $oname (sort keys %$hash) {
@@ -7382,7 +7378,7 @@ sub show_redundant_rules {
                     print_rule($r) . "\n< " . print_rule($o);
                 } @$aref
                 );
-            $print->($msg);
+            warn_or_err_msg($action, $msg);
         }
     }
 }
@@ -7567,13 +7563,9 @@ sub set_policy_distribution_ip {
             push @pdp_routers, $router;
         }
         elsif ($need_all and not $router->{orig_router}) {
-            my $msg = "Missing policy_distribution_point for $router->{name}";
-            if ($need_all eq 'warn') {
-                warn_msg($msg);
-            }
-            else {
-                err_msg($msg);
-            }
+            warn_or_err_msg($need_all,
+                            "Missing policy_distribution_point",
+                            " for $router->{name}");
         }
     }
 
@@ -8883,7 +8875,7 @@ sub find_subnets_in_nat_domain {
             }
 
 
-            if ($config->{check_subnets}) {
+            if (my $print_type = $config->{check_subnets}) {
 
                 # Take original $bignet, because currently
                 # there's no method to specify a natted network
@@ -8902,19 +8894,13 @@ sub find_subnets_in_nat_domain {
                     # different NAT domains.
                     $nat_subnet->{subnet_of} ||= $bignet;
 
-                    my $msg =
-                        "$nat_subnet->{name} is subnet of"
-                        . " $nat_bignet->{name}\n"
-                        . " in $domain->{name}.\n"
-                        . " If desired, either declare attribute"
-                        . " 'subnet_of' or attribute 'has_subnets'";
-
-                    if ($config->{check_subnets} eq 'warn') {
-                        warn_msg($msg);
-                    }
-                    else {
-                        err_msg($msg);
-                    }
+                    warn_or_err_msg(
+                        $print_type,
+                        "$nat_subnet->{name} is subnet of",
+                        " $nat_bignet->{name}\n",
+                        " in $domain->{name}.\n",
+                        " If desired, either declare attribute",
+                        " 'subnet_of' or attribute 'has_subnets'");
                 }
             }
 
@@ -13340,14 +13326,11 @@ sub check_supernet_in_zone {
 
     $rule = print_rule $rule;
     $reversed = $reversed ? 'reversed ' : '';
-    my $print =
-      $config->{check_supernet_rules} eq 'warn' ? \&warn_msg : \&err_msg;
-    $print->(
-        "Missing rule for ${reversed}supernet rule.\n",
-        " $rule\n",
-        " can't be effective at $interface->{name}.\n",
-        " $extra as $where."
-    );
+    warn_or_err_msg($config->{check_supernet_rules},
+                    "Missing rule for ${reversed}supernet rule.\n",
+                    " $rule\n",
+                    " can't be effective at $interface->{name}.\n",
+                    " $extra as $where.");
 }
 
 # Check if path between $supernet and $obj_list ist filtered by
@@ -13834,9 +13817,7 @@ sub check_transient_supernet_rules {
     }
     keys %supernet2rules or return;
 
-    my $print = $config->{check_transient_supernet_rules} eq 'warn'
-              ? \&warn_msg
-              : \&err_msg;
+    my $print_type = $config->{check_transient_supernet_rules};
 
     # Search rules having supernet as dst.
     for my $rule1 (@$rules) {
@@ -13913,7 +13894,7 @@ sub check_transient_supernet_rules {
                             $msg .= " missing dst elements to $srv1:\n";
                             $msg .= short_name_list(\@missing_dst);
                         }
-                        $print->($msg);
+                        warn_or_err_msg($print_type, $msg);
                     }
                 }
             }
