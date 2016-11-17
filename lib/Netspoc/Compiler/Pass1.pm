@@ -1739,6 +1739,13 @@ sub read_interface {
         delete $interface->{owner};
     }
     if ($interface->{loopback}) {
+        if (@secondary_interfaces) {
+            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
+            error_atline("$type interface must not have secondary IP address");
+            @secondary_interfaces = ();
+            delete $interface->{orig_main};	# From virtual interface
+        }
+        
         my %copy = %$interface;
 
         # Only these attributes are valid.
@@ -1769,11 +1776,11 @@ sub read_interface {
         }
     }
     if (my $crypto = $interface->{spoke}) {
-        @secondary_interfaces
-          and error_atline(
-            "Interface with attribute 'spoke'",
-            " must not have secondary interfaces"
-          );
+        if (@secondary_interfaces) {
+            error_atline("Interface with attribute 'spoke'",
+                         " must not have secondary interfaces");
+            @secondary_interfaces = ();
+        }
         $interface->{hub}
           and error_atline(
             "Interface with attribute 'spoke'",
