@@ -1799,7 +1799,7 @@ sub read_interface {
         }
         for my $crypto (@$crypto_list) {
             if (my $other = $crypto2hub{$crypto}) {
-                err_msg("Must use $crypto exactly once, not at both\n",
+                err_msg("Must use hub = $crypto exactly once, not at both\n",
                         " - $other->{name}\n",
                         " - $interface->{name}");
             }
@@ -1809,7 +1809,7 @@ sub read_interface {
         }
     }
     if (@secondary_interfaces) {
-        if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
+        if ($interface->{ip} =~ /^(negotiated|short|bridged)$/) {
             error_atline("\u$interface->{ip} interface must not have",
                 " secondary IP address");
             @secondary_interfaces = ();
