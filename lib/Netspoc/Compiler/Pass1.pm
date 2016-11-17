@@ -1747,7 +1747,7 @@ sub read_interface {
               owner redundant redundancy_type redundancy_id vip)
         };
         if (keys %copy) {
-            my $attr = join ", ", map { "'$_'" } keys %copy;
+            my $attr = join ", ", map { "'$_'" } sort keys %copy;
             my $type = $interface->{vip} ? "'vip'" : 'loopback';
             error_atline("Invalid attributes $attr for $type interface");
         }
