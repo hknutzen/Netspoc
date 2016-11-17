@@ -1769,9 +1769,10 @@ sub read_interface {
             " for loopback interface");
     }
     if ($interface->{ip} eq 'bridged') {
-        my %ok = (ip => 1, hardware => 1, name => 1, bind_nat => 1);
+        my %ok = map({ $_ => 1 }
+                     qw(ip hardware name bind_nat disabled loopback));
         if (my @extra = grep { not $ok{$_} } keys %$interface) {
-            my $attr = join ", ", map { "'$_'" } @extra;
+            my $attr = join ", ", map { "'$_'" } sort @extra;
             error_atline("Invalid attributes $attr for bridged interface");
         }
     }
