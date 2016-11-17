@@ -43,6 +43,24 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Missing model for managed router";
+############################################################
+
+$in = <<'END';
+router:R = {
+ managed; 
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Missing 'model' for managed router:R
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Unknown extension for model";
 ############################################################
 
@@ -58,6 +76,46 @@ END
 $out = <<'END';
 Error: Unknown extension foo at line 3 of STDIN
 Error: Unknown extension bar at line 3 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unknown attribute in router";
+############################################################
+
+$in = <<'END';
+router:R = {
+ managed; 
+ model = ASA;
+ xyz;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 4 of STDIN, near "xyz<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unknown typed name in router";
+############################################################
+
+$in = <<'END';
+router:R = {
+ managed; 
+ model = ASA;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+ x:y;
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 5 of STDIN, near "x:y<--HERE-->;"
 END
 
 test_err($title, $in, $out);
@@ -212,6 +270,57 @@ END
 
 $out = <<'END';
 Syntax error: Expected attribute 'ip' at line 2 of STDIN, near "foo<--HERE-->; } }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unnumbered with secondary interface";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { unnumbered; secondary:second = { ip = 10.1.1.1; } }
+}
+network:N = { unnumbered; }
+END
+
+$out = <<'END';
+Error: interface:R.N.second must not be linked to unnumbered network:N
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Negotiated with secondary interface";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { negotiated; secondary:second = { ip = 10.1.1.1; } }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Negotiated interface must not have secondary IP address at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Single secondary interface";
+############################################################
+
+$in = <<'END';
+router:R = {
+ interface:N = { secondary:second = { ip = 10.1.1.1; } }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Short interface must not have secondary IP address at line 2 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -691,6 +800,20 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Bad radius attribute";
+############################################################
+
+$in = <<'END';
+network:n1 = { radius_attributes = { a = ; } }
+END
+
+$out = <<'END';
+Syntax error: String expected at line 1 of STDIN, near "a = <--HERE-->; } }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Unexpected NAT attribute";
 ############################################################
 
@@ -781,6 +904,26 @@ END
 
 $out = <<"END";
 Error: Must only use network name in 'subnet_of' at line 4 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Attribute subnet_of at non loopback interface';
+############################################################
+
+$in = <<'END';
+network:n = {
+ ip = 10.1.1.0/24;
+}
+
+router:r = {
+ interface:n = { ip = 10.1.1.1; subnet_of = network:n; }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'subnet_of' is only valid for loopback interface at line 6 of STDIN
 END
 
 test_err($title, $in, $out);

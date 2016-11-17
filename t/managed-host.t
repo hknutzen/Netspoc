@@ -319,6 +319,40 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Missing hardware at managed host";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.11; }
+}
+END
+
+$out = <<'END';
+Error: Missing 'hardware' for host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unsupported model at managed host";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = IOS; ip = 10.1.1.11; hardware = eth0; }
+}
+END
+
+$out = <<'END';
+Error: Must not use model IOS at managed host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Missing IP address";
 ############################################################
 

@@ -109,6 +109,28 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "NAT at short interface";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; dynamic; }
+}
+router:r = {
+ interface:n1 = { nat:n = { ip = 10.9.9.1; } }
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: No NAT supported for short interface at line 6 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Duplicate IP address';
 ############################################################
 

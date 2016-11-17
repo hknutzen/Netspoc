@@ -136,6 +136,26 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No logging for Linux';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1 = {
+ managed;
+ model = Linux;
+ log:a;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+Error: Must not use attribute 'log:a' at router:r1 of model Linux
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unknown log tag';
 ############################################################
 

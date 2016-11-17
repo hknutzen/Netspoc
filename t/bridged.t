@@ -10,15 +10,62 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Bridged network must not have hosts or NAT';
+$title = 'Unexptected attribute at bridged interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside;  no_in_acl; dhcp_server; routing = OSPF; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Invalid attributes 'dhcp_server', 'no_in_acl', 'routing' for bridged interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridged network must not have NAT';
 ############################################################
 
 $in = <<'END';
 network:n1/left = {
  ip = 10.1.1.0/24;
- nat:x = { ip = 10.1.2.0/24; }
+ nat:x = { ip = 10.1.2.0/26; dynamic; }
+}
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Only identity NAT allowed for bridged network:n1/left
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Bridged network must not have hosts';
+############################################################
+
+$in = <<'END';
+network:n1/left = {
+ ip = 10.1.1.0/24;
  host:h = { ip = 10.1.1.10; }
- has_subnets;
 }
 
 router:bridge = {
@@ -33,7 +80,6 @@ END
 
 $out = <<'END';
 Error: Bridged network:n1/left must not have host definition (not implemented)
-Error: Only identity NAT allowed for bridged network:n1/left
 END
 
 test_err($title, $in, $out);

@@ -10,6 +10,221 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered crypto interface';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { unnumbered; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  unnumbered; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Crypto hub must not be unnumbered interface at line 35 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'no_in_acl at crypto interface';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  ip = 10.1.1.1; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_in_acl;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Don't use attribute 'no_in_acl' together with crypto tunnel at router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate crypto hub';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern = { ip = 10.1.2.0/24; }
+
+router:r = {
+ model = IOS;
+ managed = routing_only;
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.1; hardware = e1; }
+}
+network:trans = { ip = 10.9.9.0/24; }
+router:gw = {
+ interface:trans = { ip = 10.9.9.2; }
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+router:asavpn2 = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.102; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:id:long-first-name.long-second-name@long-domain.xyz = {
+  ip = 10.99.1.11;
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+END
+
+$out = <<'END';
+Error: Must use hub = crypto:vpn exactly once, not at both
+ - interface:asavpn1.dmz
+ - interface:asavpn2.dmz
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'ID of host must match ip/range';
 ############################################################
 
