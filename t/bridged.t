@@ -137,6 +137,51 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing layer 3 interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Must define interface:bridge.n1 for corresponding bridge interfaces
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Layer 3 interface must not have secondary IP';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.2; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Layer3 interface:bridge.n1 must not have secondary interface:bridge.n1.2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Layer 3 IP must match bridged network IP/mask';
 ############################################################
 

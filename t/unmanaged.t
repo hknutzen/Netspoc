@@ -10,6 +10,24 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = "Owner at unmanaged router";
+############################################################
+
+$in = <<'END';
+router:r = {
+ owner = o; 
+ interface:n1 = { ip = 10.1.1.1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: Ignoring attribute 'owner' at unmanaged router:r
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = "Unmanaged interfaces inside area";
 ############################################################
 

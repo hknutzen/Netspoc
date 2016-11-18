@@ -81,6 +81,25 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Unexptected attribute no_check";
+############################################################
+
+$in = <<'END';
+router:R = {
+ managed; 
+ model = IOS;
+ interface:N = { ip = 10.1.1.1; hardware = e0; no_check; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: Ignoring attribute 'no_check' at interface:R.N
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = "Unknown attribute in router";
 ############################################################
 
