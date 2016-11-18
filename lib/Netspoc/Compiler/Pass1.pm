@@ -2591,7 +2591,8 @@ sub read_aggregate {
             syntax_err('Unexpected token');
         }
     }
-    $aggregate->{link} or err_msg("Attribute 'link' must be defined for $name");
+    $aggregate->{link} or 
+        syntax_err("Attribute 'link' must be defined for $name");
     my $ip   = $aggregate->{ip};
     my $mask = $aggregate->{mask};
     if ($ip) {
