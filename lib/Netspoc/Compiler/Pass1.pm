@@ -2339,9 +2339,10 @@ sub read_router {
             warn_msg("Ignoring attribute 'owner' at unmanaged $name");
         }
         for my $interface (@{ $router->{interfaces} }) {
-            if ($interface->{hub}) {
-                err_msg("$interface->{name} with attribute 'hub'",
-                          " must not be used at unmanaged $name");
+            if (my $crypto_list = delete $interface->{hub}) {
+                delete $crypto2hub{$_} for @$crypto_list;
+                err_msg("Unmanaged $interface->{name} must not",
+                        " use attribute 'hub'");
             }
             if (delete $interface->{reroute_permit}) {
                 warn_msg(

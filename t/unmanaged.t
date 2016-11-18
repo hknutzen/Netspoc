@@ -28,6 +28,23 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = "Crypto hub at unmanaged router";
+############################################################
+
+$in = <<'END';
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hub = crypto:c; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Unmanaged interface:r.n1 must not use attribute 'hub'
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Unmanaged interfaces inside area";
 ############################################################
 
