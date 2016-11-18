@@ -2596,7 +2596,7 @@ sub read_aggregate {
     my $ip   = $aggregate->{ip};
     my $mask = $aggregate->{mask};
     if ($ip) {
-        for my $key (keys %$aggregate) {
+        for my $key (sort keys %$aggregate) {
             next
               if grep({ $key eq $_ }
                 qw( name ip mask link is_aggregate private nat));
