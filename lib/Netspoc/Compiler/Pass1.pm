@@ -2802,28 +2802,24 @@ sub read_icmp_type_code {
 
 sub read_proto_nr {
     my ($prt) = @_;
-    if (defined(my $nr = check_int)) {
-        error_atline("Too large protocol number $nr") if $nr > 255;
-        error_atline("Invalid protocol number '0'")   if $nr == 0;
-        if ($nr == 1) {
-            $prt->{proto} = 'icmp';
-
-            # No ICMP type and code given.
-        }
-        elsif ($nr == 4) {
-            $prt->{proto}     = 'tcp';
-            $prt->{dst_range} = $aref_tcp_any;
-        }
-        elsif ($nr == 17) {
-            $prt->{proto}     = 'udp';
-            $prt->{dst_range} = $aref_tcp_any;
-        }
-        else {
-            $prt->{proto} = $nr;
-        }
+    defined (my $nr = check_int) or syntax_err("Expected protocol number");
+    error_atline("Too large protocol number $nr") if $nr > 255;
+    error_atline("Invalid protocol number '0'")   if $nr == 0;
+    if ($nr == 1) {
+        $prt->{proto} = 'icmp';
+        
+        # No ICMP type and code given.
+    }
+    elsif ($nr == 4) {
+        $prt->{proto}     = 'tcp';
+        $prt->{dst_range} = $aref_tcp_any;
+    }
+    elsif ($nr == 17) {
+        $prt->{proto}     = 'udp';
+        $prt->{dst_range} = $aref_tcp_any;
     }
     else {
-        syntax_err("Expected protocol number");
+        $prt->{proto} = $nr;
     }
 }
 
@@ -2931,7 +2927,7 @@ sub check_protocol_modifiers {
             $protocol->{modifiers}->{$flag} = 1;
         }
         else {
-            syntax_err("Unknown modifier '$flag'");
+            error_atline("Unknown modifier '$flag'");
         }
     }
 }
