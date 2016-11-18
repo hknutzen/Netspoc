@@ -160,6 +160,36 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Private loopback interface';
+############################################################
+
+$in = <<'END';
+-- a.private
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { ip = 10.9.9.9; hardware = l; loopback; }
+}
+-- b
+network:n1 = { ip = 10.1.1.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[interface:r1.l]; prt = tcp 22;
+ permit src = user; dst = interface:r1.l; prt = tcp 23;
+}
+END
+
+$out = <<'END';
+Error: Rule of public service:s1 must not reference
+ - any:[interface:r1.l] of a.private
+Error: Rule of public service:s1 must not reference
+ - interface:r1.l of a.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Public aggregate linked to private network';
 ############################################################
 

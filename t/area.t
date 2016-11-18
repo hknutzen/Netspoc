@@ -64,6 +64,20 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Only interface as border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { inclusive_border = network:n1; }
+END
+
+$out = <<'END';
+Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unmanaged interface can\'t be border';
 ############################################################
 

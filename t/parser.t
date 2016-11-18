@@ -7,7 +7,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out);
+my ($title, $in, $out, $topo);
 
 ############################################################
 $title = "Unknown model for managed router";
@@ -357,69 +357,6 @@ END
 
 $out = <<'END';
 Syntax error: Unexpected token at line 2 of STDIN, near "foo<--HERE-->; } }"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = "Equally reference user";
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-
-router:r = {
- managed; 
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-}
-
-service:s = {
- user = network:n1;
- permit src = user, network:n2; dst = network:n3; prt = ip;
-}
-END
-
-$out = <<'END';
-Error: The sub-expressions of union in src of service:s equally must
- either reference 'user' or must not reference 'user'
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = "Equally reference user with intersection";
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-
-router:r = {
- managed; 
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-}
-
-service:s1 = {
- user = network:n1, network:n2;
- permit src = network:n3;
-        dst = interface:r.n2,
-              interface:[user].[all] &! interface:r.n2;
-        prt = tcp 22;
-}
-END
-
-$out = <<'END';
-Error: The sub-expressions of union in dst of service:s1 equally must
- either reference 'user' or must not reference 'user'
 END
 
 test_err($title, $in, $out);
@@ -946,6 +883,238 @@ Error: Attribute 'subnet_of' is only valid for loopback interface at line 6 of S
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected token in aggregate';
+############################################################
+
+$in = <<'END';
+any:n = { xyz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected typed name in aggregate';
+############################################################
+
+$in = <<'END';
+any:n = { x:yz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "x:yz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Aggregate without attribute 'link'";
+############################################################
+
+$in = <<'END';
+any:n = { }
+END
+
+$out = <<'END';
+Syntax error: Attribute 'link' must be defined for any:n at line 1 of STDIN, near "any:n = { }<--HERE-->"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Aggregate without attribute 'link'";
+############################################################
+
+$in = <<'END';
+owner:o = { admins = a@b.c; }
+any:n = { 
+ link = network:n;ip = 10.0.0.0/16; 
+ owner = o; has_unenforceable;
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Must not use attribute 'has_unenforceable' if mask is set for any:n
+Error: Must not use attribute 'owner' if mask is set for any:n
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid attribute in router_attributes";
+############################################################
+
+$in = <<'END';
+area:n = { 
+ anchor = network:n;
+ router_attributes = { xyz; }
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected attribute at line 3 of STDIN, near "xyz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected token in area';
+############################################################
+
+$in = <<'END';
+area:n = { xyz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected typed name in area';
+############################################################
+
+$in = <<'END';
+area:n = { x:yz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "x:yz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Shared topology";
+############################################################
+
+$topo = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r = {
+ managed; 
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+END
+
+############################################################
+$title = "Equally reference user";
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = network:n1;
+ permit src = user, network:n2; dst = network:n3; prt = ip;
+}
+END
+
+$out = <<'END';
+Error: The sub-expressions of union in src of service:s equally must
+ either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Equally reference user with intersection";
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = network:n3;
+        dst = interface:r.n2,
+              interface:[user].[all] &! interface:r.n2;
+        prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: The sub-expressions of union in dst of service:s1 equally must
+ either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid attribute at service";
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ xyz;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Syntax error: Expected some valid attribute or definition of 'user' at line 2 of STDIN, near "xyz<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid rule at service";
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ user = network:n1;
+ allow src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Syntax error: Expected 'permit' or 'deny' at line 3 of STDIN, near "allow<--HERE--> src"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid rule with 'foreach'";
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = foreach network:n1, network:n2;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: Rule of service:s1 should reference 'user' in 'src' and 'dst'
+ because service has keyword 'foreach'
+-- r
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;
