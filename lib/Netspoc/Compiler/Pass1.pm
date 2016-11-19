@@ -3143,7 +3143,7 @@ sub read_attributed_object {
         skip ';';
         add_attribute($object, $attribute => $val);
     }
-    for my $attribute (keys %$attr_descr) {
+    for my $attribute (sort keys %$attr_descr) {
         my $description = $attr_descr->{$attribute};
         unless (defined $object->{$attribute}) {
             if (my $default = $description->{default}) {
@@ -3200,7 +3200,11 @@ sub read_isakmp {
 }
 
 my %ipsec_attributes = (
-    key_exchange   => { function => \&read_typed_name, },
+    key_exchange   => {
+        function => \&read_typed_name, 
+        default => 'none',		# Error is checked elsewhere.
+        map     => { none => undef }
+    },
     esp_encryption => {
         values  => [qw( none aes aes192 aes256 des 3des )],
         default => 'none',
@@ -3234,7 +3238,9 @@ our %ipsec;
 
 sub read_ipsec {
     my ($name) = @_;
-    return read_attributed_object $name, \%ipsec_attributes;
+    my $ipsec = read_attributed_object $name, \%ipsec_attributes;
+    $ipsec->{key_exchange} or syntax_err("Missing 'key_exchange' for $name");
+    return $ipsec;
 }
 
 our %crypto;
@@ -3263,7 +3269,7 @@ sub read_crypto {
             syntax_err('Unexpected token');
         }
     }
-    $crypto->{type} or err_msg("Missing 'type' for $name");
+    $crypto->{type} or syntax_err("Missing 'type' for $name");
     return $crypto;
 }
 

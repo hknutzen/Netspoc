@@ -9,6 +9,58 @@ use Test_Netspoc;
 
 my ($title, $in, $out);
 
+
+############################################################
+$title = 'Missing ISAKMP attributes';
+############################################################
+
+$in = <<'END';
+isakmp:aes256SHA = {
+ group = 2;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Missing 'authentication' for isakmp:aes256SHA
+Error: Missing 'encryption' for isakmp:aes256SHA
+Error: Missing 'hash' for isakmp:aes256SHA
+Error: Missing 'lifetime' for isakmp:aes256SHA
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Missing IPSec attributes';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+}
+END
+
+$out = <<'END';
+Error: Missing 'lifetime' for ipsec:aes256SHA
+Syntax error: Missing 'key_exchange' for ipsec:aes256SHA at line 3 of STDIN, near "}<--HERE-->"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Missing type of crypto definition';
+############################################################
+
+$in = <<'END';
+crypto:c = {}
+END
+
+$out = <<'END';
+Syntax error: Missing 'type' for crypto:c at line 1 of STDIN, near "crypto:c = {}<--HERE-->"
+END
+
+test_err($title, $in, $out);
+
 ############################################################
 $title = 'Unnumbered crypto interface';
 ############################################################
