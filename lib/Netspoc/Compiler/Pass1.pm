@@ -2457,22 +2457,24 @@ sub read_router {
             if ($interfaces{$iname}) {
                 error_atline("Redefining $tunnel_intf->{name}");
             }
-            $interfaces{$iname} = $tunnel_intf;
-            push @{ $router->{interfaces} }, $tunnel_intf;
+            else {
+                $interfaces{$iname} = $tunnel_intf;
+                push @{ $router->{interfaces} }, $tunnel_intf;
 
-            # Create tunnel network.
-            my $tunnel_net = new(
-                'Network',
-                name => "network:$net_name",
-                ip   => 'tunnel'
-            );
-            if (my $private = $interface->{private}) {
-                $tunnel_net->{private} = $private;
+                # Create tunnel network.
+                my $tunnel_net = new(
+                    'Network',
+                    name => "network:$net_name",
+                    ip   => 'tunnel'
+                    );
+                if (my $private = $interface->{private}) {
+                    $tunnel_net->{private} = $private;
+                }
+                $networks{$net_name} = $tunnel_net;
+
+                # Tunnel network will later be attached to crypto hub.
+                push @{ $crypto2spokes{$crypto} }, $tunnel_net;
             }
-            $networks{$net_name} = $tunnel_net;
-
-            # Tunnel network will later be attached to crypto hub.
-            push @{ $crypto2spokes{$crypto} }, $tunnel_net;
         }
 
         if (($interface->{spoke} or $interface->{hub})

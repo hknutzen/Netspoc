@@ -225,6 +225,157 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Crypto spoke with secondary IP';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern = { ip = 10.1.2.0/24; }
+
+router:r = {
+ model = IOS;
+ managed = routing_only;
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.1; hardware = e1; }
+}
+network:trans = { ip = 10.9.9.0/24; }
+router:gw = {
+ interface:trans = { ip = 10.9.9.2; }
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3, 10.9.9.9; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:id:long-first-name.long-second-name@long-domain.xyz = {
+  ip = 10.99.1.11;
+  radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+END
+
+$out = <<'END';
+Error: Interface with attribute 'spoke' must not have secondary interfaces at line 55 of STDIN
+END
+
+test_err($title, $in, $out);
+
+
+############################################################
+$title = 'Duplicate crypto spoke';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern1 = { ip = 10.1.1.0/24;}
+network:intern2 = { ip = 10.1.2.0/24;}
+
+router:gw = {
+ interface:intern1;
+ interface:intern2;
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:intern1 = { spoke = crypto:vpn; }
+ interface:intern2 = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Redefining interface:softclients.tunnel:softclients at line 53 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'ID of host must match ip/range';
 ############################################################
 
