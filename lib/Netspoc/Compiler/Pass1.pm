@@ -2784,7 +2784,7 @@ sub read_icmp_type_code {
         error_atline("Too large ICMP type $type") if $type > 255;
         $prt->{type} = $type;
         if ($type == 0 or $type == 3 or $type == 11) {
-            $prt->{modifiers}->{stateless_icmp} = 1;
+            $prt->{stateless_icmp} = 1;
         }
         if (check '/') {
             if (defined(my $code = check_int)) {
@@ -4123,7 +4123,7 @@ sub link_general_permit {
             $range = $dst_range->{range};
         }
         else {
-            $range = $prt->{range} or next;
+            $range = $prt->{range};
             $orig_prt = $prt;
         }
         my @reason;
@@ -6236,7 +6236,7 @@ sub classify_protocols {
                 $service->{prt2orig_prt}->{$prt} = $orig_prt;
             }
         }
-        if (keys %$modifiers or $src_range) {
+        if (keys %$modifiers or $src_range or $prt->{stateless_icmp}) {
             push @$complex_prt_list, [ $prt, $src_range, $modifiers ];
         }
         else {
@@ -6379,10 +6379,9 @@ sub normalize_service_rules {
                     $rule->{oneway}    = 1          if $modifiers->{oneway};
                     $rule->{no_check_supernet_rules} = 1
                         if $modifiers->{no_check_supernet_rules};
-                    $rule->{stateless_icmp} = 1
-                        if $modifiers->{stateless_icmp};
                     $rule->{src_net}   = 1          if $modifiers->{src_net};
                     $rule->{dst_net}   = 1          if $modifiers->{dst_net};
+                    $rule->{stateless_icmp} = 1     if $prt->{stateless_icmp};
 
                     # Only used in check_service_owner.
                     $rule->{reversed}  = 1          if $modifiers->{reversed};
@@ -7186,7 +7185,7 @@ sub remove_simple_duplicate_rules {
             @$dst == 1 or next;
             my $prt = $rule->{prt};
             @$prt == 1 or next;
-            for my $attr (qw(src_range log oneway stateless stateless_icmp)) {
+            for my $attr (qw(src_range log oneway stateless)) {
                 next RULE if $rule->{$attr};
             }
             $src = $src->[0];
