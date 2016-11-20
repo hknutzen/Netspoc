@@ -1514,6 +1514,32 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Owner with only admins as watcher';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; watchers = owner:o2; }
+owner:o2 = { admins = o2a@b.b; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+END
+
+$out = <<'END';
+-- email
+{
+   "o1@b.c" : [
+      "o1"
+   ],
+   "o2a@b.b" : [
+      "o1",
+      "o2"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Remove auto interface in rule';
 ############################################################
 # Auto interface of group and auto interface of rule must be

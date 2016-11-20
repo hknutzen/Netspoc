@@ -993,6 +993,34 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unexpected token in crypto';
+############################################################
+
+$in = <<'END';
+crypto:c = { xyz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected token in owner';
+############################################################
+
+$in = <<'END';
+owner:o = { xyz; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Shared topology";
 ############################################################
 
@@ -1112,6 +1140,48 @@ access-group n2_in in interface n2
 ! n3_in
 access-list n3_in extended deny ip any any
 access-group n3_in in interface n3
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Non host as policy_distribution_point";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ managed; 
+ model = ASA;
+ policy_distribution_point = network:n1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+Error: Must only use 'host' in 'policy_distribution_point' of router:r
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unknown host as policy_distribution_point";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ managed; 
+ model = ASA;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+Warning: Ignoring undefined host:h1 in 'policy_distribution_point' of router:r
 END
 
 test_warn($title, $in, $out);
