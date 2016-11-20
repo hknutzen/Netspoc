@@ -59,6 +59,30 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Bridged network must not inherit NAT';
+############################################################
+
+$in = <<'END';
+any:a = { link = network:n1/left; nat:x = { ip = 10.1.2.0/26; dynamic; } }
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Must not inherit nat:x at bridged network:n1/left from any:[network:n1/left]
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Bridged network must not have hosts';
 ############################################################
 

@@ -10049,7 +10049,7 @@ sub inherit_nat_to_subnets_in_zone {
                 check_useless_nat($nat, $n_nat);
             }
 
-            elsif ($network->{ip} eq 'bridged' and not $nat->{identity}) {
+            elsif ($network->{bridged} and not $nat->{identity}) {
                 err_msg(
                     "Must not inherit nat:$nat_tag at bridged",
                     " $network->{name} from $net_or_zone->{name}"
