@@ -7671,7 +7671,8 @@ sub set_policy_distribution_ip {
             for my $member (@$vrf_members) {
                 if (not $member->{admin_ip}) {
                     push(@unreachable,
-                        "some VRF of router:$router->{device_name}");
+                         { name => "some VRF of router:$router->{device_name}" }
+                        );
                     last;
                 }
             }
@@ -7687,20 +7688,14 @@ sub set_policy_distribution_ip {
         }
         else {
             $router->{admin_ip}
-              or push @unreachable, $router->{name};
+              or push @unreachable, $router;
             $seen{$router} = 1;
         }
     }
-    if (@unreachable) {
-        my $count = @unreachable;
-        if ($count > 4) {
-            splice(@unreachable, 3, @unreachable - 3, '...');
-        }
-        my $list = join("\n - ", @unreachable);
+    if (my $count = @unreachable) {
         warn_msg("Missing rules to reach $count devices from",
                  " policy_distribution_point:\n",
-                 " - ",
-            $list
+                 short_name_list(\@unreachable)
         );
     }
 }
