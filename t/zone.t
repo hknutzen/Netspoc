@@ -63,46 +63,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Only one generic aggregate in zone cluster';
-############################################################
-
-$in = <<'END';
-network:Test =  { ip = 10.9.1.0/24; }
-router:filter1 = {
- managed;
- model = ASA;
- routing = manual;
- interface:Test = { ip = 10.9.1.1; hardware = Vlan20; }
- interface:Trans1 = { ip = 10.5.6.1; hardware = VLAN1; }
-}
-router:filter2 = {
- managed;
- model = ASA;
- routing = manual;
- interface:Test = { ip = 10.9.1.2; hardware = Vlan20; }
- interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; }
-}
-network:Trans1 = { ip = 10.5.6.0/24; }
-network:Trans2 = { ip = 10.5.7.0/24; }
-
-router:Kunde = {
- interface:Trans1 = { ip = 10.5.6.2; }
- interface:Trans2 = { ip = 10.5.7.2; }
-}
-
-pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
-
-any:Trans1 = { link = network:Trans1; }
-any:Trans2 = { link = network:Trans2; }
-END
-
-$out = <<'END';
-Error: Duplicate any:Trans1 and any:Trans2 in any:[network:Trans2]
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = 'Inherit owner from all zones of zone cluster';
 ############################################################
 

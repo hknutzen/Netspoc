@@ -1922,4 +1922,147 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate named aggregate in zone';
+############################################################
+
+$in = <<'END';
+any:a1 = { link = network:n1; }
+any:a2 = { link = network:n2; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r = {
+ interface:n1;
+ interface:n2;
+}
+END
+
+$out = <<'END';
+Error: Duplicate any:a1 and any:a2 in any:[network:n1]
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate named aggregate in zone cluster';
+############################################################
+
+$in = <<'END';
+any:a1 = { ip = 10.0.0.0/8; link = network:n1; }
+any:a2 = { ip = 10.0.0.0/8; link = network:n2; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+END
+
+$out = <<'END';
+Error: Duplicate any:a1 and any:a2 in any:[network:n2]
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Network and aggregate have same address in zone (1)';
+############################################################
+
+$in = <<'END';
+any:a1 = { ip = 10.0.0.0/8; link = network:n1; }
+network:n1 = { ip = 10.0.0.0/8; }
+END
+
+$out = <<'END';
+Error: any:a1 and network:n1 have identical IP/mask
+ in nat_domain:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Network and aggregate have same address in zone (2)';
+############################################################
+
+$in = <<'END';
+any:a1 = { ip = 10.0.0.0/8; link = network:n1; }
+network:n1 = { ip = 10.0.0.0/8; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+Error: any:a1 and network:n1 have identical IP/mask at interface:r1.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Network and aggregate have same address in zone cluster';
+############################################################
+
+$in = <<'END';
+any:a1 = { ip = 10.1.2.0/24; link = network:n1; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+END
+
+$out = <<'END';
+Error: any:a1 and network:n2 have identical IP/mask at interface:r2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

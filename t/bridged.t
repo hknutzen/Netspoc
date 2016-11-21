@@ -449,4 +449,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate auto interface';
+############################################################
+
+# Two auto interfaces are found in topology,
+# but are combined into a single layer 3 interface.
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1/left = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1/right = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s = {
+ user = interface:bridge.[auto];
+ permit src = network:n2; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 22
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

@@ -43,6 +43,7 @@ END
 $in = $topo . <<'END';
 service:test1 = {
  user = interface:[network:b1].[auto],
+        interface:[managed & network:b2].[auto],
         interface:[network:b3].[auto];
  permit src = network:a; dst = user; prt = tcp 22;
 }
@@ -55,10 +56,12 @@ ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
  deny ip any any
 --r2
 ! [ ACL ]
 ip access-list extended f1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
