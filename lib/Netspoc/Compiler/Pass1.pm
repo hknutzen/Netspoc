@@ -5907,10 +5907,7 @@ sub expand_group_in_rule {
                 $ignore = "crosslink $object->{name}";
             }
             elsif ($object->{is_aggregate}) {
-                if ($object->{is_tunnel}) {
-                    $ignore = "$object->{name} with tunnel";
-                }
-                elsif ($object->{has_id_hosts}) {
+                if ($object->{has_id_hosts}) {
                     $ignore = "$object->{name} with software clients";
                 }
             }
@@ -9426,7 +9423,6 @@ sub link_aggregate_to_zone {
     $aggregate->{networks} ||= [];  # Has to be initialized, even if it is empty
 
     # Set aggregate properties
-    $zone->{is_tunnel}    and $aggregate->{is_tunnel}    = 1;
     $zone->{has_id_hosts} and $aggregate->{has_id_hosts} = 1;
 
     # Store aggregate in global list of networks. 
