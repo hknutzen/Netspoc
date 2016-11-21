@@ -458,6 +458,84 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No inversed inheritance for zone cluster';
+############################################################
+
+$in = <<'END';
+any:a = { link = network:n1; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+network:n2 = { ip = 10.1.2.0/24; owner = b; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+owner:a = { admins = a@example.com; }
+owner:b = { admins = b@example.com; }
+END
+
+$out = <<END;
+-- objects
+{
+   "any:a" : {
+      "ip" : "0.0.0.0",
+      "is_supernet" : 1,
+      "owner" : null,
+      "zone" : "any:a"
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : null
+   },
+   "interface:r2.n2" : {
+      "ip" : "10.1.2.2",
+      "owner" : null
+   },
+   "interface:u.n1" : {
+      "ip" : "short",
+      "owner" : "a"
+   },
+   "interface:u.n2" : {
+      "ip" : "short",
+      "owner" : "b"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "a",
+      "zone" : "any:a"
+   },
+   "network:n2" : {
+      "ip" : "10.1.2.0/255.255.255.0",
+      "owner" : "b",
+      "zone" : "any:a"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Owner at nested areas';
 ############################################################
 
@@ -1627,12 +1705,12 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Owner with only admins as watcher';
+$title = 'Owner without admins as watcher';
 ############################################################
 
 $in = <<'END';
 owner:o1 = { admins = o1@b.c; watchers = owner:o2; }
-owner:o2 = { admins = o2a@b.b; }
+owner:o2 = { watchers = o2w@b.c; }
 
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 END
@@ -1643,7 +1721,7 @@ $out = <<'END';
    "o1@b.c" : [
       "o1"
    ],
-   "o2a@b.b" : [
+   "o2w@b.c" : [
       "o1",
       "o2"
    ]

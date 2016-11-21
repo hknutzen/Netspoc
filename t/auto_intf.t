@@ -47,24 +47,41 @@ service:test1 = {
         interface:[network:b3].[auto];
  permit src = network:a; dst = user; prt = tcp 22;
 }
+
+service:test2 = {
+ user = interface:[network:b3].[auto];
+ permit src = user; dst = interface:[network:a].[auto]; prt = tcp 23;
+}
 END
 
 $out = <<'END';
 --r1
-! [ ACL ]
 ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
+ permit tcp host 10.1.3.1 host 10.0.0.1 eq 23
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
  deny ip any any
+--
+ip access-list extended e0_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
+ permit tcp host 10.1.3.1 host 10.0.0.1 eq 23
+ permit tcp host 10.1.3.1 host 10.0.0.2 eq 23
+ deny ip any any
 --r2
-! [ ACL ]
 ip access-list extended f1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp host 10.1.3.1 host 10.0.0.2 eq 23
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
+ deny ip any any
+--
+ip access-list extended f0_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp host 10.1.3.1 host 10.0.0.2 eq 23
+ permit tcp host 10.1.3.1 host 10.0.0.1 eq 23
  deny ip any any
 END
 
