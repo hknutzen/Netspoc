@@ -1087,6 +1087,86 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No secondary optimization for ID hosts';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed = secondary;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n2 = { 
+  ip = 10.1.2.2; 
+  hub = crypto:vpn;
+  hardware = n2; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n2 = { 
+  spoke = crypto:vpn; 
+  ip = 10.1.2.3; 
+ }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+service:s1 = {
+ user = host:id:foo@domain.x.clients;
+ permit src = user; dst = host:h1; prt = tcp 80; 
+}
+END
+
+$out = <<END;
+-- asavpn
+! n2_in
+access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Must not use aggregate with software clients';
 ############################################################
 
@@ -1283,7 +1363,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha;
+ esp_authentication = sha384;
  pfs_group = 15;
  lifetime = 3600 sec;
 }
@@ -1400,7 +1480,7 @@ $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha-hmac
+crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha384-hmac
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
@@ -1446,15 +1526,17 @@ test_run($title, $in, $out);
 $title = 'ASA with two crypto spokes and NAT (IKEv2)';
 ############################################################
 
-$in =~ s/ike_version = 1/ike_version = 2/;
+$in =~ s/ike_version = 1/ike_version = 2/g;
 
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
+crypto ipsec ikev2 ipsec-proposal Trans1
+ protocol esp encryption 3des
+ protocol esp integrity sha
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
- protocol esp integrity sha
+ protocol esp integrity sha-384
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
@@ -1476,7 +1558,7 @@ access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 10.99.2.
 access-list crypto-172.16.2.2 extended permit ip 10.1.1.0 255.255.255.0 192.168.22.0 255.255.255.0
 crypto map crypto-outside 2 set peer 172.16.2.2
 crypto map crypto-outside 2 match address crypto-172.16.2.2
-crypto map crypto-outside 2 set ikev1 transform-set Trans1
+crypto map crypto-outside 2 set ikev2 ipsec-proposal Trans1
 crypto map crypto-outside 2 set pfs group2
 crypto map crypto-outside 2 set security-association lifetime seconds 600
 tunnel-group 172.16.2.2 type ipsec-l2l
@@ -2005,6 +2087,141 @@ Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'IOS router as VPN hub';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 15;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ ike_version = 1;
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 15;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+
+ipsec:3desSHA = {
+ key_exchange = isakmp:3desSHA;
+ esp_encryption = 3des;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:3desSHA = {
+ ike_version = 1;
+ identity = address;
+ authentication = preshare;
+ encryption = 3des;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:sts1 = {
+ type = ipsec:aes256SHA;
+}
+
+network:intern = { 
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
+
+router:vpn = {
+ model = IOS;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = intern;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:sts1;
+  hardware = dmz; 
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = { 
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+  ip = 172.16.1.2;
+  id = cert@example.com;
+  spoke = crypto:sts1;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+ }
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80; 
+}
+END
+
+$out = <<"END";
+--vpn
+crypto isakmp policy 1
+ encryption aes 256
+ hash sha
+ group 15
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes 256 esp-sha-hmac
+ip access-list extended crypto-172.16.1.2
+ permit ip any 10.99.1.0 0.0.0.255
+ip access-list extended crypto-filter-172.16.1.2
+ permit tcp 10.99.1.0 0.0.0.255 host 10.1.1.111 eq 80
+ deny ip any any
+crypto map crypto-dmz 1 ipsec-isakmp
+ set peer 172.16.1.2
+ match address crypto-172.16.1.2
+ set ip access-group crypto-filter-172.16.1.2 in
+ set transform-set Trans1
+ set pfs group15
+--
+ip access-list extended intern_in
+ permit tcp host 10.1.1.111 10.99.1.0 0.0.0.255 established
+ deny ip any any
+--
+ip access-list extended dmz_in
+ permit 50 host 172.16.1.2 host 192.168.0.101
+ permit udp host 172.16.1.2 eq 500 host 192.168.0.101 eq 500
+ permit udp host 172.16.1.2 eq 4500 host 192.168.0.101 eq 4500
+ deny ip any any
+--
+interface intern
+ ip address 10.1.1.101 255.255.255.0
+ ip access-group intern_in in
+interface dmz
+ ip address 192.168.0.101 255.255.255.0
+ crypto map crypto-dmz
+ ip access-group dmz_in in
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Unmanaged VPN spoke with unknown ID';
