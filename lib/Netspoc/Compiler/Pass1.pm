@@ -4369,11 +4369,11 @@ sub add_pathrestriction {
 
 sub link_pathrestrictions {
     for my $restrict (sort by_name values %pathrestrictions) {
-        $restrict->{elements} = expand_group $restrict->{elements},
-          $restrict->{name};
+        my $elements =
+            expand_group($restrict->{elements}, $restrict->{name});
         my $changed;
         my $private = my $no_private = $restrict->{private};
-        for my $obj (@{ $restrict->{elements} }) {
+        for my $obj (@$elements) {
             if (not is_interface($obj)) {
                 err_msg("$restrict->{name} must not reference $obj->{name}");
                 $obj     = undef;
@@ -4407,15 +4407,15 @@ sub link_pathrestrictions {
               " at least one interface out of $private";
         }
         if ($changed) {
-            $restrict->{elements} = [ grep { $_ } @{ $restrict->{elements} } ];
+            $elements = [ grep { $_ } @$elements ];
         }
-        my $count = @{ $restrict->{elements} };
+        my $count = @$elements;
         if ($count == 1) {
             warn_msg(
                 "Ignoring $restrict->{name} with only",
-                " $restrict->{elements}->[0]->{name}"
+                " $elements->[0]->{name}"
             );
-            $restrict->{elements} = [];
+            $elements = [];
         }
         elsif ($count == 0) {
             warn_msg("Ignoring $restrict->{name} without elements");
@@ -4423,7 +4423,7 @@ sub link_pathrestrictions {
 
         # Add pathrestriction to interface, after invalid
         # pathrestrictions have been removed.
-        for my $obj (@{ $restrict->{elements} }) {
+        for my $obj (@$elements) {
             # Add pathrestriction to interface.
             # Multiple restrictions may be applied to a single
             # interface.
@@ -4434,6 +4434,7 @@ sub link_pathrestrictions {
             my $router = $obj->{router};
             $router->{managed} or $router->{semi_managed} = 1;
         }
+        $restrict->{elements} = $elements;
     }
 }
 
@@ -10555,13 +10556,7 @@ sub check_pathrestrictions {
 
         my $prev_interface;
         my $prev_cluster;
-        for my $interface (@$elements) {
-            
-            if ($interface->{disabled}) {
-                push @$deleted, $interface;
-                next;
-            }
-                
+        for my $interface (@$elements) {                
             my $router = $interface->{router};
             my $loop = get_loop($interface);
             my $loop_intf = $interface;
