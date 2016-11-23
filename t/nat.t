@@ -649,7 +649,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must not define NAT for host range.';
+$title = 'Inconsistent NAT for host vs. host range.';
 ############################################################
 
 $in = <<'END';
@@ -2802,6 +2802,49 @@ ip access-list extended e1_in
  deny ip any host 10.2.2.1
  permit tcp 10.2.2.0 0.0.0.255 any eq 80
  deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Identical subnets invisible to supernet';
+############################################################
+
+# No subnet relation should be found.
+# Test is only relevant to increase test coverage.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:x  = { ip = 193.1.1.0/24; nat:extern = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:x;
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = extern; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
