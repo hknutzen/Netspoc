@@ -11815,7 +11815,8 @@ sub cluster_path_mark {
   REACHABLE:
     {
 
-        # Check, whether enter-interface has optimized pathrestriction. 
+        # Check, whether enter-interface has optimized pathrestriction.
+        $from_in or last REACHABLE;
         my $reachable_at = $from_in->{reachable_at} or last REACHABLE;
 
         # Check, whether end node is reachable from enter-/start-interface.
