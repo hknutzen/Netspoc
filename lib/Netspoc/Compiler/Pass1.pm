@@ -6169,7 +6169,7 @@ sub expand_auto_intf_with_dst_list {
              map { @$_ ? $_ : () }
 
              map { $index2result{$_} } 
-             sort numerically keys %index2result ];
+             sort { $a cmp $b } keys %index2result ];
 }
 
 sub substitute_auto_intf {
@@ -7125,7 +7125,7 @@ sub split_rules_by_path {
                 my $key  = $path2index{$path} ||= $index++;
                 push @{ $key2group{$key}}, $element;
             }
-            for my $key (sort numerically keys %key2group) {
+            for my $key (sort { $a cmp $b } keys %key2group) {
                 my $path_group = $key2group{$key};
                 my $path = $obj2path{$path_group->[0]};
                 my $new_rule = { %$rule,
@@ -7527,7 +7527,7 @@ sub check_expanded_rules {
         my $key  = $path2index{$path} ||= $index++;
         push @{ $key2rules{$key} }, $rule;
     }
-    for my $key (sort numerically keys %key2rules) {
+    for my $key (sort { $a cmp $b } keys %key2rules) {
         my $rules = $key2rules{$key};
 
         my $index = 1;
@@ -7538,7 +7538,7 @@ sub check_expanded_rules {
             my $key  = $path2index{$path} ||= $index++;
             push @{ $key2rules{$key} }, $rule;
         }
-        for my $key (sort numerically keys %key2rules) {
+        for my $key (sort { $a cmp $b } keys %key2rules) {
             my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
@@ -9126,7 +9126,7 @@ sub check_crosslink {
         }
 
         # Apply attribute {crosslink} to the networks weakest interfaces.
-        if (my ($weakest) = sort numerically keys %strength2intf) {
+        if (my ($weakest) = sort { $a cmp $b } keys %strength2intf) {
             for my $interface (@{ $strength2intf{$weakest} }) {
                 $interface->{hardware}->{crosslink} = 1;
             }
@@ -14120,7 +14120,7 @@ sub gen_reverse_rules1 {
             push @{ $key2prt_group{$key} }, $new_prt;
         }
        
-        for my $key (sort numerically keys %key2prt_group) {
+        for my $key (sort { $a cmp $b } keys %key2prt_group) {
             my $prt_group = $key2prt_group{$key};
             my $src_range = $index2src_range{$key};
             my $new_rule = {

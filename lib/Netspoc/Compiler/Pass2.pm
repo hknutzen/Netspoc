@@ -84,7 +84,7 @@ sub setup_ip_net_relation {
 
     # Compare networks.
     # Go from smaller to larger networks.
-    my @mask_list = reverse sort numerically keys %mask_ip_hash;
+    my @mask_list = reverse sort { $a cmp $b } keys %mask_ip_hash;
     while (my $mask = shift @mask_list) {
 
         # No supernets available
@@ -92,7 +92,7 @@ sub setup_ip_net_relation {
         
         my $ip_hash = $mask_ip_hash{$mask};
       SUBNET:
-        for my $ip (sort numerically keys %$ip_hash) {
+        for my $ip (sort { $a cmp $b } keys %$ip_hash) {
             
             my $subnet = $ip_hash->{$ip};
             

@@ -38,7 +38,7 @@ our @EXPORT = qw(
  numerically *a *b
  ip2int int2ip 
  $zero_ip $max_ip
- complement_32bit increment_ip
+ increment_ip
  mask2prefix prefix2mask match_ip
  add_ip_bitstrings
 );
@@ -96,8 +96,6 @@ sub progress {
     info(@args);
 }
 
-sub numerically { return $a cmp $b }
-
 sub ip2int {
     my ($ip) = @_;
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;
@@ -108,7 +106,6 @@ sub ip2int {
 
 ## no critic (RequireArgUnpacking)
 sub int2ip {
-    #return sprintf "%vd", pack 'N', $_[0];
     return sprintf "%vd", $_[0];
 }
 
@@ -116,11 +113,6 @@ sub int2ip {
 
 our $zero_ip = pack('N', 0);
 our $max_ip = pack('N', 0xffffffff);
-
-sub complement_32bit {
-    my ($ip) = @_;
-    return ~$ip & 0xffffffff;
-}
 
 sub increment_ip  {
     my ($ip) = @_;
