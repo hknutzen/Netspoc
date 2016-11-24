@@ -13122,7 +13122,7 @@ sub expand_crypto {
                             my $id = $host->{id};
 
                             # ID host has already been checked to have
-                            # exacly one subnet.
+                            # exactly one subnet.
                             my $subnet = $host->{subnets}->[0];
                             push @verify_radius_attributes, $host;
                             my $no_nat_set = $peer->{no_nat_set};
