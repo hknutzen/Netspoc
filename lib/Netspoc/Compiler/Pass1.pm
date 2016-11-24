@@ -2599,18 +2599,17 @@ sub read_aggregate {
     }
     $aggregate->{link} or 
         syntax_err("Attribute 'link' must be defined for $name");
-    my $ip   = $aggregate->{ip};
-    my $mask = $aggregate->{mask};
-    if ($ip) {
+    my $ip = $aggregate->{ip};
+    if (not $ip) {
+        $ip = $aggregate->{ip} = $aggregate->{mask} = $zero_ip;
+    }
+    if ($ip ne $zero_ip) {
         for my $key (sort keys %$aggregate) {
             next
               if grep({ $key eq $_ }
                 qw( name ip mask link is_aggregate private nat));
-            err_msg("Must not use attribute '$key' if mask is set for $name");
+            err_msg("Must not use attribute '$key' if IP is set for $name");
         }
-    }
-    else {
-        $aggregate->{ip} = $aggregate->{mask} = $zero_ip;
     }
     return $aggregate;
 }

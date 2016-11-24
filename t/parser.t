@@ -927,7 +927,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Aggregate without attribute 'link'";
+$title = "Invalid atttribute at aggregate with IP";
 ############################################################
 
 $in = <<'END';
@@ -940,11 +940,33 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Must not use attribute 'has_unenforceable' if mask is set for any:n
-Error: Must not use attribute 'owner' if mask is set for any:n
+Error: Must not use attribute 'has_unenforceable' if IP is set for any:n
+Error: Must not use attribute 'owner' if IP is set for any:n
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = "Valid atttribute at aggregate with IP 0.0.0.0";
+############################################################
+
+$in = <<'END';
+owner:o = { admins = a@b.c; }
+any:n = { 
+ link = network:n;
+ ip = 0.0.0.0/0; 
+ owner = o;
+ has_unenforceable;
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: Unused owner:o
+Warning: Useless attribute 'has_unenforceable' at any:n
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = "Invalid attribute in router_attributes";
