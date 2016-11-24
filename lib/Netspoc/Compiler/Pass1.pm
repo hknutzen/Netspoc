@@ -12683,12 +12683,10 @@ sub path_auto_interfaces {
                     push @result, $next;
                 }
 
+                # else
                 # $type eq 'Interface'
-                elsif ($next) {
-                    if($next->{router} ne $from_store->{router}) {
-                        push @result, $from_store;
-                    }
-                }
+                # Interface with pathrestriction at border of loop,
+                # wont get additional path.
             }
         }
     }
