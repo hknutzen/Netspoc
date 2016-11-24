@@ -42,12 +42,13 @@ my $version = __PACKAGE__->VERSION || 'devel';
 sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
-    return { ip => ip2int($ip), mask => prefix2mask($prefix), name => $ip_net };
+    return { ip => ip2bitstr($ip), mask => prefix2mask($prefix),
+             name => $ip_net };
 }
 
 sub get_ip_obj {
     my ($ip, $mask, $ip_net2obj) = @_;
-    my $name = int2ip($ip) . '/' . mask2prefix($mask);
+    my $name = bitstr2ip($ip) . '/' . mask2prefix($mask);
     return $ip_net2obj->{$name} ||= { ip => $ip, mask => $mask, name => $name };
 }
 
@@ -974,7 +975,7 @@ sub iptables_prt_code {
 #sub debug_bintree {
 #    my ($tree, $depth) = @_;
 #    $depth ||= '';
-#    my $ip      = int2ip($tree->{ip});
+#    my $ip      = bitstr($tree->{ip});
 #    my $mask    = mask2prefix($tree->{mask});
 #    my $subtree = $tree->{subtree} ? 'subtree' : '';
 #
@@ -1680,7 +1681,7 @@ sub find_chains {
 sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
-    my $ip_code     = int2ip($ip);
+    my $ip_code     = bitstr2ip($ip);
     my $prefix_code = mask2prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
@@ -1958,7 +1959,7 @@ sub cisco_acl_addr {
         return $obj->{name};
     }
     else {
-        my $ip_code = int2ip($ip);
+        my $ip_code = bitstr2ip($ip);
         if ($max_ip eq $mask) {
             return "host $ip_code";
         }
@@ -1966,7 +1967,7 @@ sub cisco_acl_addr {
 
             # Inverse mask bits.
             $mask = ~$mask if $model =~ /^(:?NX-OS|IOS)$/;
-            my $mask_code = int2ip($mask);
+            my $mask_code = bitstr2ip($mask);
             return "$ip_code $mask_code";
         }
     }

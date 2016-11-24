@@ -35,12 +35,11 @@ our @EXPORT = qw(
  *config *SHOW_DIAG
  fatal_err debug info diag_msg
  $start_time progress
- numerically *a *b
- ip2int int2ip 
+ *a *b
+ ip2bitstr bitstr2ip
  $zero_ip $max_ip
  increment_ip
  mask2prefix prefix2mask match_ip
- add_ip_bitstrings
 );
 
 # Enable printing of diagnostic messages by 
@@ -96,7 +95,8 @@ sub progress {
     info(@args);
 }
 
-sub ip2int {
+#meike:umbenennen!!
+sub ip2bitstr {
     my ($ip) = @_;
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;
 
@@ -105,7 +105,7 @@ sub ip2int {
 }
 
 ## no critic (RequireArgUnpacking)
-sub int2ip {
+sub bitstr2ip {
     return sprintf "%vd", $_[0];
 }
 
