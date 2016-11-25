@@ -69,8 +69,10 @@ use Encode qw(decode_utf8);
 ####################################################################
 # Argument processing
 ####################################################################
-my ($quiet, $help, $man);
+my ($quiet, $help, $man, $ipv6);
+
 GetOptions ( 'quiet!' => \$quiet,
+             'ipv6'   => \$ipv6,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
@@ -261,7 +263,8 @@ sub get_zones {
 
 my $file_config = read_config($path);
 $config = combine_config($file_config,
-                    {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+                    {time_stamps => 1, max_errors => 9999, verbose => !$quiet,
+                     ipv6 => $ipv6? 1 : 0 });
 init_global_vars();
 show_version();
 
@@ -329,7 +332,7 @@ sub process_rules {
 #	        debug "Used $obj->{name}";
                 $obj->{router}->{is_used} = 1;
                 $obj->{network}->{is_used} = 1;
-            }
+            }		    
         }
         &path_walk($rule, \&mark_topology);
         for my $prt (@$prt_list) {

@@ -39,9 +39,10 @@ sub usage {
     die "Usage: $0 [-q] netspoc-data out-directory\n";
 }
 my $quiet;
+my $ipv6;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet) or usage();
+GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6 ) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -404,7 +405,7 @@ my %all_objects;
 # Split service, if 'user' has different values in normalized rules.
 sub normalize_services_for_export {
     progress("Normalize services for export");
-    my @result;
+    my @result; 
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
@@ -494,7 +495,7 @@ sub normalize_services_for_export {
 sub setup_service_info {
     my ($normalized_services) = @_;
     progress("Setup service info");
-
+    
     for my $service (@$normalized_services) {
         my $users = $service->{user};
 
@@ -1185,7 +1186,8 @@ sub copy_policy_file {
 # Initialize Netspoc data
 ####################################################################
 $config =
-    combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+    combine_config({time_stamps => 1, max_errors => 9999,
+                    verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
 init_global_vars();
 read_file_or_dir($netspoc_data);
 order_protocols();

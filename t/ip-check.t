@@ -10,33 +10,6 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
-$title = 'Invalid IP addresses';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 999.1.1.0/24; }
-network:n2 = { ip = 10.888.1.0/24; }
-network:n3 = { ip = 10.1.777.0/24; }
-network:n4 = { ip = 10.1.1.666/32; }
-
-router:r1 = {
- interface:n1;
- interface:n2;
- interface:n3;
- interface:n4;
-}
-END
-
-$out = <<'END';
-Error: Invalid IP address at line 1 of STDIN
-Error: Invalid IP address at line 2 of STDIN
-Error: Invalid IP address at line 3 of STDIN
-Error: Invalid IP address at line 4 of STDIN
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = "Interface IP doesn't match network IP/mask";
 ############################################################
 

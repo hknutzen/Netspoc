@@ -546,4 +546,41 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Do not print full length prefixes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/32; }
+network:n4 = { ip = 10.1.4.0/32; }
+network:n5 = { ip = 10.1.5.0/32;
+ nat:nat1 = { ip = 10.7.7.0/32; dynamic; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = nat1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ }
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n1; }
+ interface:n3 = { negotiated; hardware = n2; }
+ interface:n4;
+ interface:n5;
+}
+
+group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
+END
+
+$out = <<'END';
+10.1.3.0	interface:r2.n3
+10.1.4.0	network:n4
+10.7.7.0	interface:r2.n5
+END
+
+test_group($title, $in, 'group:g1', $out, '-nat n1');
+############################################################
 done_testing;

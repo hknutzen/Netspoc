@@ -39,6 +39,8 @@ our @EXPORT = qw(
  $zero_ip $max_ip
  increment_ip
  mask2prefix prefix2mask match_ip
+ init_mask_prefix_lookups
+ init_zero_and_max_ip
 );
 
 # Enable printing of diagnostic messages by
@@ -98,25 +100,88 @@ sub progress {
 
 sub ip2bitstr {
     my ($ip) = @_;
+    if ($config->{ipv6} == 1) {
+        return NetAddr::IP::Util::ipv6_aton($ip);
+    }
+    else {
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;
 
     # Create bit string with 32 bits.
     return pack 'C4', $i1, $i2, $i3, $i4;
+    }
 }
 
 ## no critic (RequireArgUnpacking)
 sub bitstr2ip {
+    if ($config->{ipv6} == 1) {
+        return NetAddr::IP::Util::ipv6_ntoa($_[0]);
+    }
+    else {
     return sprintf "%vd", $_[0];
+    }
 }
 
 ## use critic
 
-our $zero_ip = pack('N', 0);
-our $max_ip = pack('N', 0xffffffff);
+our $zero_ip;
+our $max_ip;
+sub init_zero_and_max_ip {
+    if ($config->{ipv6} == 1) {
+        $zero_ip = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
+        $max_ip = NetAddr::IP::Util::ipv6_aton(
+            'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff');
+    }
+    else {
+        $zero_ip = pack('N', 0);
+        $max_ip = pack('N', 0xffffffff);
+
+    }
+}
+
+# Bitwise functions use vec() to access single bits. vec() has a
+# mixed-endian behaviour tough: While it is little-endian regarding a
+# sequence of bytes (lowest byte first/left), it is big-endian within
+# the byte (biggest bit first/left). Tis array is used to transform
+# the big-endianness within bytes to little-endianness. Thus,
+# positions 0..x in the following functions refer to the position from
+# left to right, with leftmost bit is position 0, rightmost bit
+# position x.
+my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
+
+sub check_bit {
+    my ($bitstring, $position) = @_;
+    my $bitpos = $position + $big_to_little_endian[$position % 8];
+    return vec($bitstring, $bitpos, 1);
+}
+
+sub set_bit {
+    my ($bitstring, $position) = @_;
+    my $bitpos = $position + $big_to_little_endian[$position % 8];
+    vec($bitstring, $bitpos, 1) = 1;
+    return $bitstring;
+}
+
+sub unset_bit {
+    my ($bitstring, $position) = @_;
+    my $bitpos = $position + $big_to_little_endian[$position % 8];
+    vec($bitstring, $bitpos, 1) = 0;
+    return $bitstring;
+}
 
 sub increment_ip  {
-    my ($ip) = @_;
-    pack('N', 1 + unpack('N', $ip));
+    my ($bitstring) = @_;
+    my $prefix = $config->{ipv6} == 1? 128 : 32;
+    while(1) {
+        last if $prefix == 0;
+        $prefix--;
+        if (check_bit($bitstring, $prefix) == 0) {
+            $bitstring = set_bit($bitstring, $prefix);
+            return $bitstring;
+        }
+        else {
+            $bitstring = unset_bit($bitstring, $prefix);
+        }
+    }
 }
 
 # Conversion from netmask to prefix and vice versa.
@@ -125,16 +190,22 @@ sub increment_ip  {
     # Initialize private variables of this block.
     my %mask2prefix;
     my %prefix2mask;
-    my $mask = pack('N', 0x00000000);
-    my $bit = 0x80000000;
+
+    sub init_mask_prefix_lookups {
     my $prefix = 0;
-    while(1) {
+        my $prefixlen = $config->{ipv6} == 1? 128 : 32;
+        my $mask = $config->{ipv6} == 1
+            ? NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0')
+            : pack('N', 0x00000000);
+
+        while (1) {
         $mask2prefix{$mask}   = $prefix;
         $prefix2mask{$prefix} = $mask;
-        last if $prefix == 32;
+            last if $prefix == $prefixlen;
+            my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
+            vec($mask, $bitpos, 1) = 1;
         $prefix++;
-        $mask |= pack('N', $bit);
-        $bit /= 2;
+        }
     }
 
     # Convert a network mask to a prefix ranging from 0 to 32.
