@@ -1544,6 +1544,10 @@ sub read_interface {
             skip(';');
             $interface->{dhcp_server} = 1;
         }
+        elsif ($token eq 'dhcp_client') {
+            skip(';');
+            $interface->{dhcp_client} = 1;
+        }
 
         # Needed for the implicitly defined network of 'loopback'.
         elsif ($token eq 'subnet_of') {
@@ -3809,6 +3813,9 @@ my $prt_udp;
 # DHCP server.
 my $prt_bootps;
 
+# DHCP client.
+my $prt_bootpc;
+
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
 my $prt_ike;
@@ -3843,7 +3850,7 @@ sub order_protocols {
         $prt_ip,
         $prt_icmp,
         $prt_tcp, $prt_udp,
-        $prt_bootps,
+        $prt_bootps, $prt_bootpc,
         $prt_ike,
         $prt_natt,
         $prt_esp, $prt_ah,
@@ -16167,6 +16174,16 @@ sub add_router_acls {
                         prt => [ $prt_bootps->{dst_range} ]
                       };
                 }
+                
+                # Handle DHCP answer.
+                if ($interface->{dhcp_client}) {
+                    push @{ $hardware->{intf_rules} },
+                      {
+                        src => [ $network_00 ],
+                        dst => [ $network_00 ],
+                        prt => [ $prt_bootpc->{dst_range} ]
+                      };
+                }
             }
         }
     }
@@ -18168,6 +18185,11 @@ sub init_protocols {
         name      => 'auto_prt:bootps',
         proto     => 'udp',
         dst_range => [ 67, 67 ]
+    };
+    $prt_bootpc = {
+        name      => 'auto_prt:bootpc',
+        proto     => 'udp',
+        dst_range => [ 68, 68 ]
     };
     $prt_ike = {
         name      => 'auto_prt:IPSec_IKE',
