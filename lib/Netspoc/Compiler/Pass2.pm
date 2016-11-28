@@ -588,8 +588,8 @@ sub move_rules_esp_ah {
             sort({ my ($s_a, $d_a) = @{$a}{qw(src dst)};
                    my ($s_b, $d_b) = @{$b}{qw(src dst)};
                    $a->{prt}->{proto} <=> $b->{prt}->{proto} ||
-                   $s_a->{ip} <=> $s_b->{ip} || $s_a->{mask} <=> $s_b->{mask} ||
-                   $d_a->{ip} <=> $d_b->{ip} || $d_a->{mask} <=> $d_b->{mask} } 
+                   $s_a->{ip} cmp $s_b->{ip} || $s_a->{mask} cmp $s_b->{mask} ||
+                   $d_a->{ip} cmp $d_b->{ip} || $d_a->{mask} cmp $d_b->{mask} } 
                  @crypto_rules);
         $acl_info->{$what} = [ @deny_rules, @crypto_rules, @permit_rules ];
     }

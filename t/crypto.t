@@ -2693,4 +2693,70 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Sort crypto rules in ACL';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+network:n0-sub = { ip = 10.1.0.0/26; subnet_of = network:n0; }
+network:n2-sub = { ip = 10.1.2.0/25; subnet_of = network:n2; }
+
+router:u1 = {
+ interface:n0-sub;
+ interface:n0;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n0 = { ip = 10.1.0.65;  hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1;   hardware = n1; }
+ interface:n2 = { ip = 10.1.2.129; hardware = n2; }
+}
+router:u2 = {
+ interface:n2;
+ interface:n2-sub;
+}
+
+service:s1 = {
+ user = network:n0, network:n1;
+ permit src = user; 
+        dst = network:n2-sub; 
+        prt = proto 51, tcp 22, proto 50;
+}
+service:s2 = {
+ user = network:n0-sub;
+ permit src = user; 
+        dst = network:n2, network:n1; 
+        prt = proto 50, proto 51;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n0_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.129
+ permit 50 10.1.0.0 0.0.0.255 10.1.2.0 0.0.0.127
+ permit 50 10.1.0.0 0.0.0.63 10.1.1.0 0.0.0.255
+ permit 50 10.1.0.0 0.0.0.63 10.1.2.0 0.0.0.255
+ permit 51 10.1.0.0 0.0.0.255 10.1.2.0 0.0.0.127
+ permit 51 10.1.0.0 0.0.0.63 10.1.1.0 0.0.0.255
+ permit 51 10.1.0.0 0.0.0.63 10.1.2.0 0.0.0.255
+ permit tcp 10.1.0.0 0.0.0.255 10.1.2.0 0.0.0.127 eq 22
+ deny ip any any
+--
+ip access-list extended n1_in
+ permit 50 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127
+ permit 51 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
