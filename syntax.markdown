@@ -138,6 +138,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <virtual interface definition>       ]
          (<host NAT> | <network NAT>)*
          [ bind_nat = <name>(, <name>)*;        ]
+         [ dhcp_client;                         ]
          [ dhcp_server;                         ]
          [ disabled;                            ]
          [ hardware = <external name>;          ]
