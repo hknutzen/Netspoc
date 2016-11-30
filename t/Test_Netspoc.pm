@@ -58,10 +58,6 @@ sub run {
         close $in_fh;
     }
 
-    # Propagate options to perl process.
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    $perl_opt .= ' -I lib';
-
     # Prepare arguments for pass 1.
     my $args = [ split(' ', $default_options),
                  split(' ', $options),
