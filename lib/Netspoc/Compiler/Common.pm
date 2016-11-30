@@ -35,7 +35,6 @@ our @EXPORT = qw(
  *config *SHOW_DIAG
  fatal_err debug info diag_msg
  $start_time progress
- *a *b
  ip2bitstr bitstr2ip
  $zero_ip $max_ip
  increment_ip
