@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+5.018     2016-12-05 12:37:08+01:00 Europe/Berlin
+
+ - Added new attribute 'disable_at = yyyy-mm-dd' at service.
+   Service is disabled, if the given date has been reached.
+ - Support new attribute 'dhcp_client' at interface.
+   This permits traffic to this interface at UDP port 68.
+ - Deprecated attributes have been removed:
+   'extend_only', 'extend_unbounded', 'extend'.
+ - IP addresses are stored internally as bitstrings and no longer as
+   integers. This will make it easier to support IPv6 addresses.
+
 5.017     2016-11-10 15:04:08+01:00 Europe/Berlin
 
  - A check has been added, that subnet relation remains stable with NAT.
