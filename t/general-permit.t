@@ -147,6 +147,22 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No modifiers permitted';
+############################################################
+
+$in = <<'END';
+area:all = { anchor = network:n; router_attributes = { general_permit = protocol:ping-net; } }
+network:n = { ip = 10.1.1.0/24; }
+protocol:ping-net = icmp 8, src_net, dst_net;
+END
+
+$out = <<'END';
+Error: Must not use 'protocol:ping-net' with modifiers in general_permit of router_attributes of area:all
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Check for useless inheritance';
 ############################################################
 

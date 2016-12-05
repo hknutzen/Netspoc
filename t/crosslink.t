@@ -355,4 +355,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Must not use crosslink network in rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; crosslink; }
+
+router:r = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; } 
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; crosslink; }
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring crosslink network:n1 in src of rule in service:test
+Warning: Ignoring crosslink network:n2 in dst of rule in service:test
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;

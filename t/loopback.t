@@ -10,6 +10,92 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = 'Unexpected attribute at loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { 
+  ip = 10.1.1.2; loopback; no_in_acl; dhcp_server; routing = OSPF; disabled;
+ }
+}
+
+END
+
+$out =  <<"END";
+Error: Invalid attributes 'dhcp_server', 'disabled', 'no_in_acl', 'routing' for loopback interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unnumbered loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { 
+  unnumbered; loopback;
+ }
+}
+
+END
+
+$out =  <<"END";
+Error: Loopback interface must not be unnumbered at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Secondary IP at loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { 
+  ip = 10.1.1.2, 10.1.1.3; loopback; virtual = { ip = 10.1.1.9; }
+ }
+}
+END
+
+$out =  <<"END";
+Error: Loopback interface must not have secondary IP address at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Virtual IP at loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { 
+  ip = 10.1.1.2; loopback; virtual = { ip = 10.1.1.9; }
+ }
+}
+END
+
+$out =  <<"END";
+Error: Loopback interface must not have secondary IP address at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Network connected to loopback interface';
 ############################################################
 
@@ -203,6 +289,83 @@ access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Dynamic NAT to loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:lo = { ip = 193.1.1.2; hardware = lo; loopback; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = extern; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3;}
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r2
+! n2_in
+access-list n2_in extended permit tcp host 193.1.1.2 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Illegal NAT to loopback interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = extern; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:lo = { ip = 193.1.1.2; hardware = lo; loopback; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3;}
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: interface:r2.lo and nat:extern(network:n1) have identical IP/mask
+ in nat_domain:n2
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Routing via managed virtual interfaces to loopback';

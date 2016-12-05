@@ -35,8 +35,10 @@ our @EXPORT = qw(
  *config *SHOW_DIAG
  fatal_err debug info diag_msg
  $start_time progress
- numerically *a *b
- ip2int int2ip complement_32bit mask2prefix prefix2mask match_ip
+ ip2bitstr bitstr2ip
+ $zero_ip $max_ip
+ increment_ip
+ mask2prefix prefix2mask match_ip
 );
 
 # Enable printing of diagnostic messages by 
@@ -92,23 +94,28 @@ sub progress {
     info(@args);
 }
 
-sub numerically { return $a <=> $b }
-
-sub ip2int {
+#meike:umbenennen!!
+sub ip2bitstr {
     my ($ip) = @_;
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;
-    return ((((($i1<<8)+$i2)<<8)+$i3)<<8)+$i4;
+
+    # Create bit string with 32 bits.
+    return pack 'C4', $i1, $i2, $i3, $i4;
 }
 
 ## no critic (RequireArgUnpacking)
-sub int2ip {
-    return sprintf "%vd", pack 'N', $_[0];
+sub bitstr2ip {
+    return sprintf "%vd", $_[0];
 }
+
 ## use critic
 
-sub complement_32bit {
+our $zero_ip = pack('N', 0);
+our $max_ip = pack('N', 0xffffffff);
+
+sub increment_ip  {
     my ($ip) = @_;
-    return ~$ip & 0xffffffff;
+    pack('N', 1 + unpack('N', $ip));
 }
 
 # Conversion from netmask to prefix and vice versa.
@@ -117,10 +124,16 @@ sub complement_32bit {
     # Initialize private variables of this block.
     my %mask2prefix;
     my %prefix2mask;
-    for my $prefix (0 .. 32) {
-        my $mask = 2**32 - 2**(32 - $prefix);
+    my $mask = pack('N', 0x00000000);
+    my $bit = 0x80000000;
+    my $prefix = 0;
+    while(1) {
         $mask2prefix{$mask}   = $prefix;
         $prefix2mask{$prefix} = $mask;
+        last if $prefix == 32;
+        $prefix++;
+        $mask |= pack('N', $bit);
+        $bit /= 2;
     }
 
     # Convert a network mask to a prefix ranging from 0 to 32.
@@ -138,7 +151,7 @@ sub complement_32bit {
 # Check if $ip1 is located inside network $ip/$mask.
 sub match_ip {
     my ($ip1, $ip, $mask) = @_;
-    return ($ip == ($ip1 & $mask));
+    return ($ip eq ($ip1 & $mask));
 }
 
 1;

@@ -90,7 +90,7 @@ sub by_name { return($a->{name} cmp $b->{name}) }
 # This works with and without NAT.
 sub nat {
     my ($ip, $network) = @_;
-    return($network->{ip} | $ip & complement_32bit ($network->{mask}));
+    return($network->{ip} | $ip & ~ $network->{mask});
 }
 
 sub ip_nat_for_object {
@@ -118,7 +118,7 @@ sub ip_nat_for_object {
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
-            elsif ($obj->{is_aggregate} && $obj->{mask} == 0) {
+            elsif ($obj->{is_aggregate} && $obj->{mask} eq $zero_ip) {
                 print_ip($obj->{ip});
             }
             else {
@@ -895,7 +895,7 @@ sub export_assets {
         next if not @{ $zone->{networks} };
 
         # Zone with network 0/0 doesn't have an aggregate 0/0.
-        my $any = $zone->{ipmask2aggregate}->{'0/0'};
+        my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
         my $networks = add_subnetworks($zone->{networks});
@@ -1090,12 +1090,12 @@ sub zone_and_subnet {
     if ($obj->{is_aggregate}) {
         if (my $cluster = $zone->{zone_cluster}) {
 
-            # Get derterministic zone for multiple aggregates with
+            # Get deterministic zone for multiple aggregates with
             # identical name from zone cluster.
             ($zone) = @$cluster;
         }
     }
-    my $any = $zone->{ipmask2aggregate}->{'0/0'};
+    my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
     my $zone_name = $any ? $any->{name} : $zone->{name};
 
     # Netspoc-Web only needs info about subnets in other zone.

@@ -15,7 +15,7 @@ $title = 'Combine adjacent ranges to whole network';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:range1 = { range = 10.1.1.0 - 10.1.1.127; }
  host:range2 = { range = 10.1.1.128 - 10.1.1.255; }
 }
@@ -142,16 +142,16 @@ router:u2 = {
 }
 
 service:t = {
- user = network:n0, 
-        network:n2, 
-        network:n1, 
+ user = network:n0,
+        network:n2,
+        network:n1,
         interface:u1.l0,
         interface:u1.l1,
         network:n3b,
         network:n3a,
         ;
- permit src = user; 
-        dst = network:n4, network:n5; 
+ permit src = user;
+        dst = network:n4, network:n5;
         prt = tcp 80;
 }
 END
@@ -222,6 +222,47 @@ access-list n3_in extended permit tcp object-group g0 host 10.1.4.10 eq 80
 access-list n3_in extended permit tcp object-group g1 host 10.1.4.12 eq 80
 access-list n3_in extended deny ip any any
 access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Don't use object-groups";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h20 = { ip = 10.1.1.20; }
+ host:h30 = { ip = 10.1.1.30; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ no_group_code;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+group:g1 = host:h10, host:h20, host:h30;
+
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended permit tcp host 10.1.1.20 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended permit tcp host 10.1.1.30 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);

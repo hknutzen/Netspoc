@@ -78,6 +78,7 @@ t/concurrency.t
 t/crosslink.t
 t/crypto.t
 t/cut-netspoc.t
+t/deterministic.t
 t/disabled.t
 t/export.t
 t/general-permit.t
@@ -107,6 +108,7 @@ t/protocols.t
 t/raw.t
 t/redundant-rules.t
 t/rename.t
+t/reroute_permit.t
 t/reuse-previous.t
 t/route.t
 t/routing_only.t

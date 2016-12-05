@@ -75,6 +75,7 @@ service:test1a = {
  permit src = user; dst = network:Test; prt = tcp 22;
 }
 service:test1b = {
+ # Mark second of duplicate services
  overlaps = service:test1a;
  user = host:h1;
  permit src = user; dst = network:Test; prt = tcp 22;
@@ -83,10 +84,21 @@ service:test2 = {
  user = host:h1;
  permit src = user; dst = network:Test; prt = tcp;
 }
+service:test3a = {
+ # Mark first of duplicate services
+ overlaps = service:test3b;
+ user = host:h1;
+ permit src = user; dst = network:Test; prt = udp 123;
+}
+service:test3b = {
+ user = host:h1;
+ permit src = user; dst = network:Test; prt = udp 123;
+}
 END
 
 $out = <<'END';
 DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
+DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=udp 123; of service:test3b
 END
 
 test_warn($title, $in, $out);

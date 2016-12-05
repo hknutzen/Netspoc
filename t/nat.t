@@ -10,6 +10,127 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = "Duplicate NAT definition";
+############################################################
+
+$in = <<'END';
+area:n1 = {
+ border = interface:r.n1;
+ nat:n = { ip = 10.7.0.0/16; }
+ nat:n = { ip = 10.6.0.0/16; }
+}
+any:n1 = {
+ link = network:n1;
+ nat:n = { ip = 10.9.0.0/16; }
+ nat:n = { ip = 10.8.0.0/16; }
+}
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; }
+ nat:n = { ip = 10.8.8.0/24; dynamic;}
+ host:h1 = {
+  ip = 10.1.1.10;
+  nat:n = { ip = 10.9.9.9; }
+  nat:n = { ip = 10.8.8.8; }
+ }
+}
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = {
+  ip = 10.1.1.1; hardware = n1; 
+  nat:n = { ip = 10.9.9.1; }
+  nat:n = { ip = 10.8.8.1; }
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Duplicate NAT definition nat:n at area:n1
+Error: Duplicate NAT definition nat:n at any:n1
+Error: Duplicate NAT definition nat:n at network:n1
+Error: Duplicate NAT definition nat:n at host:h1
+Error: Duplicate NAT definition nat:n at interface:r.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Other NAT attribute together with hidden";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; hidden; dynamic; identity; }
+}
+router:r = {
+ interface:n1;
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Hidden NAT must not use attribute dynamic at line 3 of STDIN
+Error: Hidden NAT must not use attribute identity at line 3 of STDIN
+Error: Hidden NAT must not use attribute ip at line 3 of STDIN
+Error: Hidden NAT must not use attribute mask at line 3 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Other NAT attribute together with identity";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; dynamic; identity; }
+}
+router:r = {
+ interface:n1;
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Identity NAT must not use attribute dynamic at line 3 of STDIN
+Error: Identity NAT must not use attribute ip at line 3 of STDIN
+Error: Identity NAT must not use attribute mask at line 3 of STDIN
+Warning: Useless identity nat:n at network:n1
+Warning: Ignoring useless nat:n bound at router:r
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "NAT at short interface";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; dynamic; }
+}
+router:r = {
+ interface:n1 = { nat:n = { ip = 10.9.9.1; } }
+ interface:n2 = { bind_nat = n; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: No NAT supported for short interface at line 6 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Duplicate IP address';
 ############################################################
 
@@ -121,6 +242,48 @@ access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Masquerading';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.2.1/32; dynamic; subnet_of = network:n2; }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+-- r2
+! n2_in
+access-list n2_in extended permit tcp host 10.1.2.1 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -486,7 +649,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must not define NAT for host range.';
+$title = 'Inconsistent NAT for host vs. host range.';
 ############################################################
 
 $in = <<'END';
@@ -2639,6 +2802,49 @@ ip access-list extended e1_in
  deny ip any host 10.2.2.1
  permit tcp 10.2.2.0 0.0.0.255 any eq 80
  deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Identical subnets invisible to supernet';
+############################################################
+
+# No subnet relation should be found.
+# Test is only relevant to increase test coverage.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
+network:x  = { ip = 193.1.1.0/24; nat:extern = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:x;
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = extern; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);

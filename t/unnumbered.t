@@ -50,6 +50,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unnumbered interface to network with IP';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+  interface:n1 = { unnumbered; }
+} 
+END
+
+$out = <<'END';
+Error: Unnumbered interface:r1.n1 must not be linked to network:n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unnumbered network to more than two interfaces';
 ############################################################
 
@@ -68,6 +85,34 @@ Error: Unnumbered network:u is connected to more than two interfaces:
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use unnumbered network in rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; } 
+ interface:un = { unnumbered; hardware = un; }
+}
+
+network:un = { unnumbered; }
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:un; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring unnumbered network:un in dst of rule in service:test
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Zone cluster with unnumbered network';

@@ -130,15 +130,22 @@ service:test2 = {
  user = any:[ip=10.1.0.0/16 & network:N];
  permit src = user; dst = user; prt = tcp 81;
 }
+
+# Test also with non user-user rule
+service:test3 = {
+ user = any:[ip=10.1.0.0/16 & network:N];
+ permit src = network:N; dst = user; prt = tcp 82;
+}
 END
 
 $out = <<'END';
 --host:h1
+-A c1 -j ACCEPT -s 10.1.1.0/24 -p tcp --dport 82
 -A c1 -j ACCEPT -s 10.1.0.0/16 -p tcp --dport 81
 -A c1 -j ACCEPT -s 10.0.0.0/8 -p tcp --dport 80
 --
 :eth0_self -
--A eth0_self -g c1 -d 10.1.1.10 -p tcp --dport 80:81
+-A eth0_self -g c1 -d 10.1.1.10 -p tcp --dport 80:82
 -A INPUT -j eth0_self -i eth0
 END
 
@@ -314,6 +321,40 @@ END
 
 $out = <<'END';
 Error: Missing 'model' for managed host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Missing hardware at managed host";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = Linux; ip = 10.1.1.11; }
+}
+END
+
+$out = <<'END';
+Error: Missing 'hardware' for host:h1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Unsupported model at managed host";
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = 10.1.1.0/24; 
+ host:h1 = { managed; model = IOS; ip = 10.1.1.11; hardware = eth0; }
+}
+END
+
+$out = <<'END';
+Error: Must not use model IOS at managed host:h1
 END
 
 test_err($title, $in, $out);

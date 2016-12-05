@@ -32,6 +32,69 @@ router:asa2 = {
 END
 
 ############################################################
+$title = 'Must not define anchor together with border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { 
+ anchor = network:n1; 
+ border = interface:asa2.n2;
+ inclusive_border = interface:asa2.n3;
+}
+END
+
+$out = <<'END';
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must define either anchor or  border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = {}
+END
+
+$out = <<'END';
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Only interface as border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { inclusive_border = network:n1; }
+END
+
+$out = <<'END';
+Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unmanaged interface can\'t be border';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = { interface:n1; }
+area:a = { border = interface:r1.n1; }
+END
+
+$out = <<'END';
+Error: Referencing unmanaged interface:r1.n1 from area:a
+Warning: area:a is empty
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Policy distribution point from nested areas';
 ############################################################
 
@@ -459,6 +522,21 @@ Error: Invalid border of area:a1:
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use area directly in rule';
+############################################################
+
+$in = $topo . <<'END';
+area:a1 = {border = interface:asa1.n1;}
+service:s1 = { user = area:a1; permit src = user; dst = network:n2; prt = tcp; }
+END
+
+$out = <<'END';
+Warning: Ignoring area:a1 in src of rule in service:s1
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

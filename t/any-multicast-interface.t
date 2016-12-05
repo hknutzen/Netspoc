@@ -32,6 +32,28 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Interface as DHCP client";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed; 
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; dhcp_client; }
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ permit udp any any eq 68
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Interface with OSPF";
 ############################################################
 

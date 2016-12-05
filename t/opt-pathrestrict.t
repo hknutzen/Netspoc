@@ -41,11 +41,32 @@ pathrestriction:p2 =
  interface:r1.n1,
  interface:r1.n2,
 ;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}     
+service:s2 = {
+ user = interface:r1.n2;
+ permit src = user; dst = interface:r2.n2; prt = tcp 22;
+}     
 END
 
 $out = <<"END";
 DIAG: Optimized pathrestriction:p1
 DIAG: Optimized pathrestriction:p2
+--r1
+ip access-list extended n1_in
+ deny ip any any
+--r2
+ip access-list extended n1_in
+ deny ip any host 10.1.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp host 10.1.2.1 host 10.1.2.2 eq 22
+ deny ip any any
 END
 
 test_warn($title, $in, $out);
@@ -126,6 +147,11 @@ pathrestriction:p6 =
  interface:r3.n2,
 ;
 
+service:s1 = {
+ user = interface:r4.n5;
+ permit src = user; dst = network:n4; prt = tcp 80;
+ permit src = network:n4; dst = user; prt = tcp 81;
+}
 END
 
 $out = <<"END";
@@ -135,9 +161,24 @@ DIAG: Can\'t optimize pathrestriction:p3; has only 1 partition
 DIAG: Optimized but preserved pathrestriction:p4; has 1 interior
 DIAG: Optimized but preserved pathrestriction:p5; has 1 interior
 DIAG: Optimized pathrestriction:p6
+Error: No valid path
+ from any:[network:n5]
+ to any:[network:n4]
+ for rule permit src=interface:r4.n5; dst=network:n4; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from interface:r4.n5
+ to any:[network:n4]
+ for rule permit src=interface:r4.n5; dst=network:n4; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n4]
+ to interface:r4.n5
+ for rule permit src=network:n4; dst=interface:r4.n5; prt=tcp 81; of service:s1
+ Check path restrictions and crypto interfaces.
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ###########################################################
 done_testing;

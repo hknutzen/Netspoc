@@ -63,7 +63,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.017'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.018'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -368,7 +368,7 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
-    my $aggregate0 = $zone->{ipmask2aggregate}->{'0/0'};
+    my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
 
     # Simplifies test below.
     $aggregate0->{owner} = $zone->{owner};
@@ -422,7 +422,7 @@ for my $network (values %networks) {
     # identity NAT attributes, which have been deleted already.
     while ($up = $up->{up}) {
         if ($up->{is_aggregate}) {
-            $up->{mask} == 0 or next;
+            $up->{mask} eq $zero_ip or next;
             my $zone = $up->{zone};
 
             # Check if NAT attribute was inherited from zone or areas.

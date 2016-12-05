@@ -35,19 +35,20 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.017'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.018'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
 sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
-    return { ip => ip2int($ip), mask => prefix2mask($prefix), name => $ip_net };
+    return { ip => ip2bitstr($ip), mask => prefix2mask($prefix),
+             name => $ip_net };
 }
 
 sub get_ip_obj {
     my ($ip, $mask, $ip_net2obj) = @_;
-    my $name = int2ip($ip) . '/' . mask2prefix($mask);
+    my $name = bitstr2ip($ip) . '/' . mask2prefix($mask);
     return $ip_net2obj->{$name} ||= { ip => $ip, mask => $mask, name => $name };
 }
 
@@ -84,7 +85,7 @@ sub setup_ip_net_relation {
 
     # Compare networks.
     # Go from smaller to larger networks.
-    my @mask_list = reverse sort numerically keys %mask_ip_hash;
+    my @mask_list = reverse sort keys %mask_ip_hash;
     while (my $mask = shift @mask_list) {
 
         # No supernets available
@@ -92,7 +93,7 @@ sub setup_ip_net_relation {
         
         my $ip_hash = $mask_ip_hash{$mask};
       SUBNET:
-        for my $ip (sort numerically keys %$ip_hash) {
+        for my $ip (sort keys %$ip_hash) {
             
             my $subnet = $ip_hash->{$ip};
             
@@ -112,7 +113,7 @@ sub setup_ip_net_relation {
 
     # Propagate content of attributes {opt_networks} to all subnets.
     # Go from large to smaller networks.
-    for my $obj (sort { $a->{mask} <=> $b->{mask} } values %$ip_net2obj) {
+    for my $obj (sort { $a->{mask} cmp $b->{mask} } values %$ip_net2obj) {
         my $up = $obj->{up} or next;
         if (my $opt_networks = $up->{opt_networks}) {
             $obj->{opt_networks} = $opt_networks;
@@ -587,8 +588,8 @@ sub move_rules_esp_ah {
             sort({ my ($s_a, $d_a) = @{$a}{qw(src dst)};
                    my ($s_b, $d_b) = @{$b}{qw(src dst)};
                    $a->{prt}->{proto} <=> $b->{prt}->{proto} ||
-                   $s_a->{ip} <=> $s_b->{ip} || $s_a->{mask} <=> $s_b->{mask} ||
-                   $d_a->{ip} <=> $d_b->{ip} || $d_a->{mask} <=> $d_b->{mask} } 
+                   $s_a->{ip} cmp $s_b->{ip} || $s_a->{mask} cmp $s_b->{mask} ||
+                   $d_a->{ip} cmp $d_b->{ip} || $d_a->{mask} cmp $d_b->{mask} } 
                  @crypto_rules);
         $acl_info->{$what} = [ @deny_rules, @crypto_rules, @permit_rules ];
     }
@@ -662,7 +663,7 @@ sub combine_adjacent_ip_mask {
     # Convert names to objects.
     # Sort by mask. Adjacent networks will be adjacent elements then.
     my $elements = [
-        sort { $a->{ip} <=> $b->{ip} || $a->{mask} <=> $b->{mask} }
+        sort { $a->{ip} cmp $b->{ip} || $a->{mask} cmp $b->{mask} }
         map { $ip_net2obj->{$_} }
         keys %$hash ];
 
@@ -673,12 +674,11 @@ sub combine_adjacent_ip_mask {
         my $element1 = $elements->[$i];
         my $element2 = $elements->[$i+1];
         my $mask = $element1->{mask};
-        $mask == $element2->{mask} or next;
-        my $up_bit = complement_32bit($mask) + 1;
+        $mask eq $element2->{mask} or next;
+        my $prefix = mask2prefix($mask);
+        my $up_mask = prefix2mask($prefix-1);
         my $ip = $element1->{ip};
-        0 == ($ip & $up_bit) or next;
-        $ip + $up_bit == $element2->{ip} or next;
-        my $up_mask = $mask & complement_32bit($up_bit);
+        ($ip & $up_mask) eq ($element2->{ip} & $up_mask) or next;
         my $up_element = get_ip_obj($ip, $up_mask, $ip_net2obj);
 
         # Substitute left part by combined network.
@@ -693,7 +693,7 @@ sub combine_adjacent_ip_mask {
         delete $hash->{$element2->{name}};
 
         if ($i > 0) {
-            my $next_bit = complement_32bit($up_mask) + 1;
+            my $next_bit = increment_ip(~$up_mask);
 
             # Check previous network again, if newly created network
             # is left part.
@@ -975,7 +975,7 @@ sub iptables_prt_code {
 #sub debug_bintree {
 #    my ($tree, $depth) = @_;
 #    $depth ||= '';
-#    my $ip      = int2ip($tree->{ip});
+#    my $ip      = bitstr($tree->{ip});
 #    my $mask    = mask2prefix($tree->{mask});
 #    my $subtree = $tree->{subtree} ? 'subtree' : '';
 #
@@ -990,7 +990,6 @@ sub iptables_prt_code {
 # A node with value of sub-tree S is discarded,
 # if some parent node already has sub-tree S.
 sub add_bintree;
-
 sub add_bintree {
     my ($tree,    $node)      = @_;
     my ($tree_ip, $tree_mask) = @{$tree}{qw(ip mask)};
@@ -1000,7 +999,7 @@ sub add_bintree {
     # The case where new node is larger than root node will never
     # occur, because nodes are sorted before being added.
 
-    if ($tree_mask < $node_mask && match_ip($node_ip, $tree_ip, $tree_mask)) {
+    if ($tree_mask lt $node_mask && match_ip($node_ip, $tree_ip, $tree_mask)) {
 
         # Optimization for this special case:
         # Root of tree has attribute {subtree} which is identical to
@@ -1015,7 +1014,8 @@ sub add_bintree {
             or not $node->{subtree}
             or $tree->{subtree} ne $node->{subtree})
         {
-            my $mask = ($tree_mask >> 1) | 0x80000000;
+            my $prefix = mask2prefix($tree_mask);
+            my $mask = prefix2mask($prefix+1);
             my $branch = match_ip($node_ip, $tree_ip, $mask) ? 'lo' : 'hi';
             if (my $subtree = $tree->{$branch}) {
                 $tree->{$branch} = add_bintree $subtree, $node;
@@ -1030,15 +1030,16 @@ sub add_bintree {
     # Create common root for tree and node.
     else {
         while (1) {
-            $tree_mask = ($tree_mask & 0x7fffffff) << 1;
-            last if ($node_ip & $tree_mask) == ($tree_ip & $tree_mask);
+            my $prefix = mask2prefix($tree_mask);
+            $tree_mask = prefix2mask($prefix-1);
+            last if ($node_ip & $tree_mask) eq ($tree_ip & $tree_mask);
         }
         $result = {
             ip   => ($node_ip & $tree_mask),
             mask => $tree_mask
         };
         @{$result}{qw(lo hi)} =
-          $node_ip < $tree_ip ? ($node, $tree) : ($tree, $node);
+          $node_ip lt $tree_ip ? ($node, $tree) : ($tree, $node);
     }
 
     # Merge adjacent sub-networks.
@@ -1047,9 +1048,10 @@ sub add_bintree {
         $result->{subtree} and last;
         my $lo = $result->{lo} or last;
         my $hi = $result->{hi} or last;
-        my $mask = ($result->{mask} >> 1) | 0x80000000;
-        $lo->{mask} == $mask or last;
-        $hi->{mask} == $mask or last;
+        my $prefix = mask2prefix($result->{mask});
+        my $mask = prefix2mask($prefix+1);
+        $lo->{mask} eq $mask or last;
+        $hi->{mask} eq $mask or last;
         $lo->{subtree} and $hi->{subtree} or last;
         $lo->{subtree} eq $hi->{subtree} or last;
 
@@ -1073,7 +1075,7 @@ sub gen_addr_bintree {
 
     # Sort in reverse order by mask and then by IP.
     my @nodes =
-      sort { $b->{mask} <=> $a->{mask} || $b->{ip} <=> $a->{ip} }
+      sort { $b->{mask} cmp $a->{mask} || $b->{ip} cmp $a->{ip} }
       map {
         my ($ip, $mask) = @{$_}{qw(ip mask)};
 
@@ -1091,7 +1093,7 @@ sub gen_addr_bintree {
 
     # Add attribute {noop} to node which doesn't add any test to
     # generated rule.
-    $bintree->{noop} = 1 if $bintree->{mask} == 0;
+    $bintree->{noop} = 1 if $bintree->{mask} eq $zero_ip;
 
 #    debug_bintree($bintree);
     return $bintree;
@@ -1679,7 +1681,7 @@ sub find_chains {
 sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
-    my $ip_code     = int2ip($ip);
+    my $ip_code     = bitstr2ip($ip);
     my $prefix_code = mask2prefix($mask);
     return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
 }
@@ -1739,12 +1741,12 @@ sub print_chains {
             my $jump = $rule->{goto} ? '-g' : '-j';
             my $result = "$jump $action_code";
             if (my $src = $rule->{src}) {
-                if ($src->{mask}) {
+                if ($src->{mask} ne $zero_ip) {
                     $result .= ' -s ' . prefix_code($src);
                 }
             }
             if (my $dst = $rule->{dst}) {
-                if ($dst->{mask}) {
+                if ($dst->{mask} ne $zero_ip) {
                     $result .= ' -d ' . prefix_code($dst);
                 }
             }
@@ -1790,10 +1792,10 @@ sub iptables_acl_line {
       :                       'droplog';
     my $jump = $rule->{goto} ? '-g' : '-j';
     my $result = "$prefix $jump $action_code";
-    if ($src->{mask}) {
+    if ($src->{mask} ne $zero_ip) {
         $result .= ' -s ' . prefix_code($src);
     }
-    if ($dst->{mask}) {
+    if ($dst->{mask} ne $zero_ip) {
         $result .= ' -d ' . prefix_code($dst);
     }
     if ($prt->{proto} ne 'ip') {
@@ -1950,22 +1952,22 @@ sub cisco_acl_addr {
         my $keyword = $model eq 'NX-OS' ? 'addrgroup' : 'object-group';
         return "$keyword $obj->{name}";
     }
-    elsif ($mask == 0) {
+    elsif ($mask eq $zero_ip) {
         return "any";
     }
     elsif ($model eq 'NX-OS') {
         return $obj->{name};
     }
     else {
-        my $ip_code = int2ip($ip);
-        if (0xffffffff == $mask) {
+        my $ip_code = bitstr2ip($ip);
+        if ($max_ip eq $mask) {
             return "host $ip_code";
         }
         else {
 
             # Inverse mask bits.
-            $mask = complement_32bit($mask) if $model =~ /^(:?NX-OS|IOS)$/;
-            my $mask_code = int2ip($mask);
+            $mask = ~$mask if $model =~ /^(:?NX-OS|IOS)$/;
+            my $mask_code = bitstr2ip($mask);
             return "$ip_code $mask_code";
         }
     }
@@ -1985,7 +1987,7 @@ sub print_object_groups {
 
             # Reject network with mask = 0 in group.
             # This occurs if optimization didn't work correctly.
-            0 == $element->{mask} 
+            $zero_ip eq $element->{mask} 
                 and fatal_err(
                     "Unexpected network with mask 0 in object-group"
                 );

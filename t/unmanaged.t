@@ -10,6 +10,61 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 ############################################################
+$title = "Owner at unmanaged router";
+############################################################
+
+$in = <<'END';
+router:r = {
+ owner = o; 
+ interface:n1 = { ip = 10.1.1.1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: Ignoring attribute 'owner' at unmanaged router:r
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Crypto hub at unmanaged router";
+############################################################
+
+$in = <<'END';
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hub = crypto:c; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Unmanaged interface:r.n1 must not use attribute 'hub'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unmanaged bridge interfaces';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ interface:n1/left = { hardware = inside; }
+ interface:n1/right = { hardware = outside; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Bridged interfaces must not be used at unmanged router:bridge
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Unmanaged interfaces inside area";
 ############################################################
 

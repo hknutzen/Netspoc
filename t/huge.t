@@ -61,6 +61,12 @@ $in .= <<"END";
 router:r = {
 $hub
 }
+
+# Should only try 2 direct paths to dst and not all other loops.
+service:s-hub = {
+ user = interface:r.n1a;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
 END
 
 $out = <<'END';
@@ -74,6 +80,7 @@ access-list n_in extended deny ip any any
 access-group n_in in interface n
 --
 ! a_in
+access-list a_in extended permit tcp host 10.0.1.129 10.0.1.0 255.255.255.128 eq 81
 access-list a_in extended permit tcp 10.0.100.0 255.255.255.128 10.0.1.0 255.255.255.128 eq 80
 access-list a_in extended deny ip any any
 access-group a_in in interface a

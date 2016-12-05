@@ -312,6 +312,31 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Owner only at vip interface';
+############################################################
+
+$in = <<'END';
+owner:y = { admins = y@a.b; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; owner = y; }
+ interface:V = { ip = 10.3.3.3; loopback; hardware = lo1; owner = y; }
+}
+
+END
+
+$out = <<'END';
+Error: Must use attribute 'owner' only at 'vip' interface at line 8 of STDIN
+Error: Must use attribute 'owner' only at 'vip' interface at line 9 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Owner at invalid vip interface';
 ############################################################
 

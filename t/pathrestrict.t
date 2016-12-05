@@ -20,7 +20,7 @@ router:r1 = {
  model = IOS;
  managed;
  routing = manual;
- interface:n1 = { 
+ interface:n1 = {
   ip = 10.1.1.1;
   secondary:s = { ip = 10.1.1.99; }
   hardware = n1;
@@ -36,7 +36,7 @@ router:r2 = {
 
 }
 
-group:g1 = 
+group:g1 =
  interface:r1.n1,
  network:n2,
  interface:r2.[auto],
@@ -113,14 +113,14 @@ $title = 'Simple duplicate pathrestriction';
 ############################################################
 
 $in = $topo . <<'END';
-pathrestriction:top = 
- interface:r1.top, 
- interface:r2.top, 
+pathrestriction:top =
+ interface:r1.top,
+ interface:r2.top,
 ;
 
-pathrestriction:dst = 
- interface:r1.dst, 
- interface:r2.dst, 
+pathrestriction:dst =
+ interface:r1.dst,
+ interface:r2.dst,
 ;
 
 service:test = {
@@ -151,9 +151,9 @@ $title = 'Path starts at pathrestriction inside loop';
 ############################################################
 
 $in = $topo . <<'END';
-pathrestriction:p = 
- interface:r1.top, 
- interface:r2.dst, 
+pathrestriction:p =
+ interface:r1.top,
+ interface:r2.dst,
 ;
 
 service:test = {
@@ -197,9 +197,9 @@ $title = 'Path starts at pathrestriction inside loop (2)';
 # Must not use path r1.top-r1-r2-top
 
 $in = $topo . <<'END';
-pathrestriction:p = 
- interface:r1.top, 
- interface:r2.top, 
+pathrestriction:p =
+ interface:r1.top,
+ interface:r2.top,
 ;
 
 service:test = {
@@ -282,9 +282,9 @@ $title = 'Path ends at pathrestriction inside loop';
 # when temporary moving pathrestriction of r1.dst to r1.top.
 
 $in = $topo . <<'END';
-pathrestriction:p = 
- interface:r1.top, 
- interface:r1.dst, 
+pathrestriction:p =
+ interface:r1.top,
+ interface:r1.dst,
 ;
 
 service:test = {
@@ -463,7 +463,7 @@ router:r2 = {
  routing = manual;
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; } 
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 router:r3 = {
@@ -787,7 +787,7 @@ router:r1 = {
   interface:n1 = { ip = 10.1.1.1; hardware = n1; }
   interface:n2 = { ip = 10.1.2.1; hardware = n2; }
   interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-  interface:n4 = { ip = 10.1.4.1; hardware = n4; } 
+  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 router:r2 = {
@@ -795,7 +795,7 @@ router:r2 = {
   managed;
   routing = manual;
   interface:n4 = { ip = 10.1.4.2; hardware = n4; }
-  interface:n5 = { ip = 10.1.5.2; hardware = n5; } 
+  interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
 
 router:r3 = {
@@ -804,14 +804,14 @@ router:r3 = {
   routing = manual;
   interface:n2 = { ip = 10.1.2.2; hardware = n2; }
   interface:n3 = { ip = 10.1.3.2; hardware = n3; }
-  interface:n5 = { ip = 10.1.5.1; hardware = n5; } 
+  interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 }
 
 pathrestriction:p = interface:r1.n1, interface:r1.n2;
 
 service:s1 = {
   user = network:n1;
-  permit src = user; dst = interface:r1.n2; prt = tcp 22; 
+  permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
 END
 
@@ -901,6 +901,217 @@ ip access-list extended n3_in
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Find all networks in zone split by pathrestriction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n2;
+
+service:s1 = {
+ user = network:[any:[network:n1]];
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s2 = {
+ user = network:[any:[network:n2]];
+ permit src = user; dst = network:n4; prt = tcp 81;
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ deny ip any any
+--r2
+ip access-list extended n3_in
+ deny ip any host 10.1.4.2
+ permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Use all parts of aggregate in zone split by pathrestriction';
+############################################################
+
+# Aggregate must be permitted at both r1 and r2, although n1 only passes r2.
+
+$in = <<'END';
+any:n1-10-1-1 = { link = network:n1; ip = 10.1.0.0/23; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p = interface:u.n1, interface:r1.n2;
+
+service:s1 = {
+ user = any:n1-10-1-1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.4.1
+ permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 80
+ deny ip any any
+--r2
+ip access-list extended n3_in
+ deny ip any host 10.1.4.2
+ permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Pathrestriction at both borders of loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+pathrestriction:p = interface:u.n1, interface:r3.n4;
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+router:r3 = {
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+ interface:n5= { ip = 10.1.5.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n5; prt = ip;
+}
+END
+
+$out = <<"END";
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Pathrestriction at disabled interface';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; disabled; }
+}
+
+pathrestriction:p1 =
+ interface:r1.n2,
+ interface:r2.n3,
+;
+END
+
+$out = <<"END";
+Warning: Ignoring pathrestriction:p1 with only interface:r1.n2
+END
+
+test_warn($title, $in, $out);
 
 ###########################################################
 done_testing;

@@ -115,6 +115,39 @@ END
 test_group($title, $in, 'group:g1 &! network:n2', $out);
 
 ############################################################
+$title = 'Multiple intersection with complement';
+############################################################
+
+$in = $topo . <<'END';
+group:g1 = host:h1, network:n2, network:n3;
+END
+
+$out = <<'END';
+10.1.2.0/24	network:n2
+END
+
+test_group($title, $in, 'group:g1 &! network:n3 &! host:h1', $out);
+
+############################################################
+$title = 'Intersection of complement';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = ! network:n1 & ! network:n2;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: Intersection needs at least one element which is not complement in user of service:s1
+Warning: Useless delete of network:n1 in user of service:s1
+Warning: Useless delete of network:n2 in user of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Complement without intersection';
 ############################################################
 
@@ -428,6 +461,49 @@ END
 
 $out = <<'END';
 Error: Found recursion in definition of group:g2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected type in group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = foo:bar;
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Error: Can't resolve foo:bar in group:g1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unexpected type of automatic group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = area:[network:n], foo:[network:n];
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 22;
+}
+
+END
+
+$out = <<'END';
+Error: Unexpected area:[..] in group:g1
+Error: Unexpected foo:[..] in group:g1
 END
 
 test_err($title, $in, $out);
