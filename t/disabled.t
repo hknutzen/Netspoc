@@ -160,4 +160,75 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Reached time limit at service';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+protocol:Ping_Netz = icmp 8, src_net, dst_net;
+
+service:s = {
+ disable_at = yyyy-mm-dd;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+--r1
+! n1_in
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+sub displace_date {
+    my($add_days) = @_;
+    my $time = time;
+    $time += 60 * 60 * 24 * $add_days;
+    my ($sec, $min, $hour, $mday, $mon, $year) = localtime($time);
+    $mon += 1;
+    $year += 1900;
+    my $date = sprintf "%04d-%02d-%02d", $year, $mon, $mday;
+    $in =~ s/disable_at =.*/disable_at = $date;/;
+}
+
+displace_date(-365);
+test_run($title, $in, $out);
+displace_date(-30);
+test_run($title, $in, $out);
+displace_date(-1);
+test_run($title, $in, $out);
+displace_date(0);
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Unreached time limit at service';
+############################################################
+
+$out = <<"END";
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+displace_date(1);
+test_run($title, $in, $out);
+displace_date(10);
+test_run($title, $in, $out);
+displace_date(1000);
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

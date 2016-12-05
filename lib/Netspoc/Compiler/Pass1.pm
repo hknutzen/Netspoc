@@ -3031,6 +3031,19 @@ sub assign_union_allow_user {
     return $result, $user_seen;
 }
 
+# Check if day of given date is today or has been reached already.
+sub date_is_reached {
+    my ($date) = @_;
+    my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/
+        or syntax_err("Date expected as yyyy-mm-dd");
+    my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time);
+    $mon += 1;
+    $year += 1900;
+    return ($y < $year || 
+            $y == $year && ($m < $mon || 
+                            $m == $mon && $d <= $mday));
+}
+
 sub read_service {
     my ($name) = @_;
     my $service = { name => $name, rules => [] };
@@ -3065,6 +3078,13 @@ sub read_service {
             skip(';');
             $service->{disabled} = 1;
         }
+        elsif ($token eq 'disable_at') {
+            my $date = read_assign(\&read_token);
+            if (date_is_reached($date)) {
+                $service->{disabled} = 1;
+            }
+        }
+
         else {
             syntax_err("Expected some valid attribute or definition of 'user'");
         }
