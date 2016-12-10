@@ -302,7 +302,6 @@ sub intersect {
 }
 
 # Delete an element from an array reference.
-# Return true if element was found.
 sub aref_delete {
     my ($aref, $elt) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
@@ -310,23 +309,20 @@ sub aref_delete {
             splice @$aref, $i, 1;
 
 #debug("aref_delete: $elt->{name}");
-            return 1;
+            return;
         }
     }
-    return;
 }
 
 # Substitute an element in an array reference.
-# Return true if element was found.
 sub aref_subst {
     my ($aref, $elt, $new) = @_;
     for (my $i = 0 ; $i < @$aref ; $i++) {
         if ($aref->[$i] eq $elt) {
             splice @$aref, $i, 1, $new;
-            return 1;
+            return;
         }
     }
-    return;
 }
 
 # Compare two array references element wise.
@@ -11036,9 +11032,7 @@ sub apply_pathrestriction_optimization {
     # Delete pathrestriction objects, if {reachable_at} holds entire info.
     if (not $has_interior) { # Interfaces must not be located inside a partition.
         for my $interface (@$elements) {
-            aref_delete($interface->{path_restrict}, $restrict)
-              or internal_err("Can't remove $restrict->{name}",
-                " from $interface->{name}");
+            aref_delete($interface->{path_restrict}, $restrict);
 
             # Delete empty array to speed up checks in cluster_path_mark.
             if (not @{ $interface->{path_restrict} }) {
