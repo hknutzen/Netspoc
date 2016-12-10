@@ -7,7 +7,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $out);
+my ($title, $in, $copy, $out);
 
 
 ############################################################
@@ -2332,13 +2332,25 @@ test_run($title, $in, $out);
 $title = 'Missing trust_point in isakmp definition';
 ############################################################
 
-$in =~ s/trust_point/#trust_point/;
+($copy = $in) =~ s/trust_point/#trust_point/;
 
 $out = <<"END";
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 END
 
-test_err($title, $in, $out);
+test_err($title, $copy, $out);
+
+############################################################
+$title = 'detailed_crypto_acl at managed spoke';
+############################################################
+
+($copy = $in) =~ s/(crypto:sts .*)/$1 detailed_crypto_acl;/;
+
+$out = <<"END";
+Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:vpn1
+END
+
+test_err($title, $copy, $out);
 
 ############################################################
 $title = 'IOS router as VPN hub';
