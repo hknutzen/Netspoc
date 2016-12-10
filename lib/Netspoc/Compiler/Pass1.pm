@@ -12869,6 +12869,11 @@ sub link_tunnels {
             err_msg("$router->{name} needs authentication=rsasig",
                     " in $isakmp->{name}");
         }
+
+        if ($model->{crypto} eq 'EZVPN') {
+            err_msg("Must not use $router->{name} of model '$model->{name}'",
+                    " as crypto hub");
+        }
         
         push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
 
@@ -17052,9 +17057,6 @@ sub print_ezvpn {
     push(@{ $wan_hw->{subcmd} }, "crypto ipsec client ezvpn $ezvpn_name");
 
     # Crypto ACL controls which traffic needs to be encrypted.
-    $tunnel_intf->{crypto}->{detailed_crypto_acl}
-      and internal_err("Unexpected attribute 'detailed_crypto_acl'",
-        " at $router->{name}");
     my $crypto_rules =
       gen_crypto_rules($tunnel_intf->{peer}->{peer_networks},
         [$network_00]);

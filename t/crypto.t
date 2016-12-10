@@ -2488,6 +2488,18 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Must not use EZVPN as hub';
+############################################################
+
+($copy = $in) =~ s/IOS/IOS, EZVPN/;
+
+$out = <<"END";
+Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
+END
+
+test_err($title, $copy, $out);
+
+############################################################
 $title = 'Unmanaged VPN spoke with unknown ID';
 ############################################################
 
