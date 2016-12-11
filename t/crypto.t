@@ -1996,6 +1996,87 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'ASA as managed VPN spoke';
+############################################################
+
+$in = $crypto_sts . <<'END';
+network:intern = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101; 
+  hardware = inside;
+ }
+ interface:dmz = { 
+  ip = 192.168.1.1; 
+  hub = crypto:sts;
+  hardware = outside; 
+ }
+}
+
+network:dmz = { ip = 192.168.1.0/24; }
+
+router:vpn1 = {
+ managed;
+ model = ASA;
+ interface:dmz = {
+  ip = 192.168.1.2;
+  id = cert@example.com;
+  spoke = crypto:sts;
+  hardware = GigabitEthernet0;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+  hardware = Fastethernet8;
+ }
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+ permit src = network:intern; dst = user; prt = udp 123;
+}
+END
+
+$out = <<'END';
+--vpn1
+! [ Routing ]
+route GigabitEthernet0 10.1.1.0 255.255.255.0 192.168.1.1
+--
+no sysopt connection permit-vpn
+crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
+--
+! crypto-192.168.1.1
+access-list crypto-192.168.1.1 extended permit ip 10.99.1.0 255.255.255.0 any
+crypto map crypto-GigabitEthernet0 1 set peer 192.168.1.1
+crypto map crypto-GigabitEthernet0 1 match address crypto-192.168.1.1
+crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
+crypto map crypto-GigabitEthernet0 1 set pfs group2
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600
+tunnel-group 192.168.1.1 type ipsec-l2l
+tunnel-group 192.168.1.1 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto map crypto-GigabitEthernet0 interface GigabitEthernet0
+--
+! GigabitEthernet0_in
+access-list GigabitEthernet0_in extended permit udp 10.1.1.0 255.255.255.0 10.99.1.0 255.255.255.0 eq 123
+access-list GigabitEthernet0_in extended deny ip any any
+access-group GigabitEthernet0_in in interface GigabitEthernet0
+--
+! Fastethernet8_in
+access-list Fastethernet8_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list Fastethernet8_in extended deny ip any any
+access-group Fastethernet8_in in interface Fastethernet8
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
 ############################################################
 
