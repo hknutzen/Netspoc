@@ -226,6 +226,42 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing ID hosts at software client';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  ip = 10.1.1.1; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:other;
+}
+
+network:other = { ip = 10.99.9.0/24; }
+END
+
+$out = <<'END';
+Error: Networks need to have ID hosts because router:asavpn has attribute 'do_auth':
+ - network:other
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Mixed ID hosts and non ID hosts at software client';
 ############################################################
 
