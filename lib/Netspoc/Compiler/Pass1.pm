@@ -4478,7 +4478,7 @@ sub link_pathrestrictions {
 # without pathrestriction:
 # - original part having only interfaces without pathrestrictions,
 # - one split part for each interface with pathrestrictions.
-# All parts are connected by an freshly created unnumbered network.
+# All parts are connected by a freshly created unnumbered network.
 sub split_semi_managed_router {
     for my $router (values %routers) {
 
