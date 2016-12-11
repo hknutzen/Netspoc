@@ -7,8 +7,60 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $in, $copy, $out);
+my ($title, $crypto_vpn, $crypto_sts, $in, $copy, $out);
 
+
+############################################################
+# Shared crypto definitions
+############################################################
+
+$crypto_vpn = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+END
+
+$crypto_sts = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 3600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point =  ASDM_TrustPoint3;
+}
+
+crypto:sts = {
+ type = ipsec:aes256SHA;
+}
+END
 
 ############################################################
 $title = 'Missing ISAKMP attributes';
@@ -100,28 +152,7 @@ test_err($title, $in, $out);
 $title = 'Unnumbered crypto interface';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:n1 = { unnumbered; }
 
 router:asavpn = {
@@ -150,7 +181,7 @@ network:clients = {
 END
 
 $out = <<'END';
-Error: Crypto hub must not be unnumbered interface at line 35 of STDIN
+Error: Crypto hub must not be unnumbered interface at line 34 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -159,28 +190,8 @@ test_err($title, $in, $out);
 $title = 'Need authentication rsasig';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = preshare;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+($in = $crypto_vpn) =~ s/rsasig/preshare/;
+$in .=  <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
@@ -218,28 +229,7 @@ test_err($title, $in, $out);
 $title = 'Mixed ID hosts and non ID hosts at software client';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
@@ -280,28 +270,7 @@ test_err($title, $in, $out);
 $title = 'no_in_acl at crypto interface';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
@@ -339,28 +308,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate crypto hub';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.2.0/24; }
 
 router:r = {
@@ -436,28 +384,7 @@ test_err($title, $in, $out);
 $title = 'Crypto spoke with secondary IP';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.2.0/24; }
 
 router:r = {
@@ -506,7 +433,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Interface with attribute 'spoke' must not have secondary interfaces at line 55 of STDIN
+Error: Interface with attribute 'spoke' must not have secondary interfaces at line 54 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -516,28 +443,7 @@ test_err($title, $in, $out);
 $title = 'Duplicate crypto spoke';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern1 = { ip = 10.1.1.0/24;}
 network:intern2 = { ip = 10.1.2.0/24;}
 
@@ -578,7 +484,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Redefining interface:softclients.tunnel:softclients at line 53 of STDIN
+Error: Redefining interface:softclients.tunnel:softclients at line 52 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -657,28 +563,7 @@ test_err($title, $in, $out);
 $title = 'VPN ASA with software clients';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:work1 = { ip = 10.0.1.0/24; }
 network:work2 = { ip = 10.0.2.0/24; }
 network:work3 = { ip = 10.0.3.0/24; }
@@ -965,28 +850,7 @@ test_err($title, $in, $out);
 $title = 'VPN ASA with internal software clients';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.2.0/24; }
 
 router:r = {
@@ -1141,28 +1005,7 @@ test_err($title, $in, $out);
 $title = 'Directly connected software clients';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
@@ -1246,28 +1089,7 @@ test_run($title, $in, $out);
 $title = 'No secondary optimization for ID hosts';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 
 router:r1 = {
@@ -1326,28 +1148,7 @@ test_run($title, $in, $out);
 $title = 'Must not use aggregate with software clients';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.2.0/24;}
 
 router:gw = {
@@ -1399,28 +1200,7 @@ test_warn($title, $in, $out);
 $title = 'Duplicate ID-hosts';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn1 = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
@@ -1441,7 +1221,7 @@ router:asavpn = {
  }
  interface:dmz1 = { 
   ip = 192.168.1.1; 
-  hub = crypto:vpn1;
+  hub = crypto:vpn;
   hardware = dmz1; 
  }
  interface:dmz2 = { 
@@ -1461,7 +1241,7 @@ router:extern = {
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 router:softclients1 = {
- interface:internet = { spoke = crypto:vpn1; }
+ interface:internet = { spoke = crypto:vpn; }
  interface:customers1;
  interface:customers2;
 }
@@ -1911,50 +1691,7 @@ test_run($title, $in, $out);
 $title = 'Unexpected dynamic crypto spoke';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha384;
- pfs_group = 15;
- lifetime = 3600 sec;
-}
-
-isakmp:aes256SHA = {
- ike_version = 2;
- identity = address;
- nat_traversal = additional;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 15;
- lifetime = 43200 sec;
- trust_point = ASDM_TrustPoint3;
-}
-
-ipsec:3desSHA = {
- key_exchange = isakmp:3desSHA;
- esp_encryption = 3des;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:3desSHA = {
- ike_version = 1;
- identity = address;
- authentication = rsasig;
- encryption = 3des;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
- trust_point = ASDM_TrustPoint1;
-}
-
-crypto:sts1 = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_sts . <<'END';
 network:intern = { 
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -1969,7 +1706,7 @@ router:asavpn = {
  }
  interface:dmz = { 
   ip = 192.168.0.101; 
-  hub = crypto:sts1;
+  hub = crypto:sts;
   hardware = outside; 
  }
 }
@@ -1986,7 +1723,7 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
   negotiated;
-  spoke = crypto:sts1;
+  spoke = crypto:sts;
   id = vpn1@example.com;
  }
  interface:lan1 = {
@@ -2007,28 +1744,7 @@ test_err($title, $in, $out);
 $title = 'VPN ASA to EZVPN router with two local networks';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.1.0/24;}
 
 router:asavpn = {
@@ -2170,30 +1886,7 @@ test_run($title, $in, $out);
 $title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 3600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- nat_traversal = additional;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
-}
-
-crypto:sts = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_sts . <<'END';
 network:intern = { 
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -2356,49 +2049,10 @@ test_err($title, $copy, $out);
 $title = 'IOS router as VPN hub';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 15;
- lifetime = 3600 sec;
-}
+# Run this test with some other group.
+($in = $crypto_sts) =~ s/group = 2/group = 15/g;
 
-isakmp:aes256SHA = {
- ike_version = 1;
- identity = address;
- nat_traversal = additional;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 15;
- lifetime = 43200 sec;
- trust_point = ASDM_TrustPoint3;
-}
-
-ipsec:3desSHA = {
- key_exchange = isakmp:3desSHA;
- esp_encryption = 3des;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:3desSHA = {
- ike_version = 1;
- identity = address;
- authentication = preshare;
- encryption = 3des;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:sts1 = {
- type = ipsec:aes256SHA;
-}
-
+$in .= <<'END';
 network:intern = { 
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -2413,7 +2067,7 @@ router:vpn = {
  }
  interface:dmz = { 
   ip = 192.168.0.101; 
-  hub = crypto:sts1;
+  hub = crypto:sts;
   hardware = dmz; 
  }
 }
@@ -2431,7 +2085,7 @@ router:vpn1 = {
  interface:internet = {
   ip = 172.16.1.2;
   id = cert@example.com;
-  spoke = crypto:sts1;
+  spoke = crypto:sts;
  }
  interface:lan1 = {
   ip = 10.99.1.1;
@@ -2503,30 +2157,7 @@ test_err($title, $copy, $out);
 $title = 'Unmanaged VPN spoke with unknown ID';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 3600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- nat_traversal = additional;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
-}
-
-crypto:sts = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_sts . <<'END';
 network:intern = { ip = 10.1.1.0/24; }
 
 router:asavpn = {
@@ -2635,28 +2266,7 @@ test_err($title, $in, $out);
 $title = 'Silently ignore auto interface at crypto tunnel';
 ############################################################
 
-$in = <<'END';
-ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
- esp_encryption = aes256;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-
-isakmp:aes256SHA = {
- identity = address;
- authentication = rsasig;
- encryption = aes256;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
-}
-
-crypto:vpn = {
- type = ipsec:aes256SHA;
-}
-
+$in = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.1.0/24;}
 
 router:asavpn = {
