@@ -1277,6 +1277,73 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Supernet rule to pathrestricted interface and no_in_acl';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; no_in_acl; }
+}
+
+router:u = {
+ interface:n2 = { ip = 10.1.2.3; }
+}
+
+pathrestriction:p =
+ interface:r1.n2,
+ interface:u.n2,
+;
+
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = interface:u.n2; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r3.n4.
+ Tried network:n4 as src.
+Warning: Missing rule for supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r3.n3.
+ Tried network:n3 as src.
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing aggregate for reverse rule in loop';
 ############################################################
 
@@ -1300,6 +1367,9 @@ router:r = {
 network:t1 = { ip = 10.7.1.0/24; }
 network:t2 = { ip = 10.7.2.0/24; }
 
+# router:u is split internally and hence interface:u.n4
+# no longer has pathrestriction.
+# We have this extra test case for this special situation.
 router:u = {
  interface:t1;
  interface:t2;
