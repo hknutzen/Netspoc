@@ -13090,8 +13090,6 @@ sub verify_asa_trustpoint {
 sub expand_crypto {
     progress('Expanding crypto rules');
 
-    my %id2interface;
-
     for my $crypto (values %crypto) {
         my $name    = $crypto->{name};
         my $isakmp  = $crypto->{type}->{key_exchange};
@@ -13114,20 +13112,11 @@ sub expand_crypto {
                 # Analyze cleartext networks behind spoke router.
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
+                    next if $interface->{spoke};
                     if ($interface->{ip} eq 'tunnel') {
                         if ($managed and $router->{model}->{crypto} eq 'EZVPN') {
                             err_msg "Exactly 1 crypto tunnel expected",
                               " for $router->{name} with EZVPN";
-                        }
-                        next;
-                    }
-                    if ($interface->{spoke}) {
-                        if (my $id = $interface->{id}) {
-                            if (my $intf2 = $id2interface{$id}) {
-                                err_msg "Same ID '$id' is used at",
-                                  " $interface->{name} and $intf2->{name}";
-                            }
-                            $id2interface{$id} = $interface;
                         }
                         next;
                     }
