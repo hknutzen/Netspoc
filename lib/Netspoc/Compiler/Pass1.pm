@@ -2463,7 +2463,8 @@ sub read_router {
                 }
             }
             if ($interfaces{$iname}) {
-                error_atline("Redefining $tunnel_intf->{name}");
+                err_msg("Only 1 crypto spoke allowed.\n",
+                        " Ignoring spoke at $iname.");
             }
             else {
                 $interfaces{$iname} = $tunnel_intf;
@@ -13113,13 +13114,6 @@ sub expand_crypto {
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
                     next if $interface->{spoke};
-                    if ($interface->{ip} eq 'tunnel') {
-                        if ($managed and $router->{model}->{crypto} eq 'EZVPN') {
-                            err_msg "Exactly 1 crypto tunnel expected",
-                              " for $router->{name} with EZVPN";
-                        }
-                        next;
-                    }
                     my $network = $interface->{network};
                     my @all_networks = crypto_behind($interface, $managed);
                     if ($network->{has_id_hosts}) {

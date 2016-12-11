@@ -445,6 +445,82 @@ $title = 'Duplicate crypto spoke';
 
 $in = $crypto_vpn . <<'END';
 network:intern1 = { ip = 10.1.1.0/24;}
+
+router:gw1 = {
+ interface:intern1;
+ interface:dmz = { ip = 192.168.0.1; }
+}
+
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.101; 
+  hub = crypto:vpn;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+crypto:vpn2 = {
+ type = ipsec:aes256SHA;
+}
+network:intern2 = { ip = 10.1.2.0/24;}
+
+router:gw2 = {
+ interface:intern2;
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn2 = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint2;
+ }
+ interface:dmz = { 
+  ip = 192.168.0.102; 
+  hub = crypto:vpn2;
+  hardware = outside; 
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:intern1 = { spoke = crypto:vpn; }
+ interface:intern2 = { spoke = crypto:vpn2; }
+ interface:customers1;
+}
+
+network:customers1 = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Only 1 crypto spoke allowed.
+ Ignoring spoke at softclients.tunnel:softclients.
+Warning: No spokes have been defined for crypto:vpn2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate crypto spoke to same device';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern1 = { ip = 10.1.1.0/24;}
 network:intern2 = { ip = 10.1.2.0/24;}
 
 router:gw = {
@@ -484,7 +560,8 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Redefining interface:softclients.tunnel:softclients at line 52 of STDIN
+Error: Only 1 crypto spoke allowed.
+ Ignoring spoke at softclients.tunnel:softclients.
 END
 
 test_err($title, $in, $out);
