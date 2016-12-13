@@ -1277,6 +1277,57 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Managed router will not exploit reverse rule';
+############################################################
+
+# Reverse rule at router:r1 would allow router:r2 to access network:n2.
+# But since r2 is managed, we assume it will not exploit this permission.
+# Hence no warning is printed.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed = secondary;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ],
+        network:n3,
+ ;
+ permit src = user; dst = interface:r2.n3; prt = udp 123;
+}
+END
+
+$out = <<"END";
+-- r1
+ip access-list extended n3_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ permit udp host 10.1.3.2 eq 123 10.0.0.0 0.255.255.255
+ deny ip any any
+-- r2
+ip access-list extended n3_in
+ permit udp 10.0.0.0 0.255.255.255 host 10.1.3.2 eq 123
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Supernet rule to pathrestricted interface and no_in_acl';
 ############################################################
 

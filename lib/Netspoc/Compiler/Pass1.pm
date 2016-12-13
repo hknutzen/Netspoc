@@ -13597,30 +13597,19 @@ sub check_supernet_src_rule {
         # secondary stateful device filters between current device and dst.
         # This is true if $out_zone and $dst_zone have different
         # {stateful_mark}.
-        # If dst is interface or router, {stateful_mark} is undef
-        # - if device is semi_managed or secondary managed, 
-        #   take mark of attached network
-        # - else take value -1, different from all marks.
-        # $src is supernet (not an interface) by definition
-        # and hence $m1 is well defined.
+        #
+        # $src is supernet (not an interface) by definition and hence
+        # $m1 is well defined.
+        #
+        # If $dst is interface or router, $m2 undefined.
+        # Corresponding router is known to be managed, because
+        # unmanaged $dst_zone has already been converted to zone
+        # above. Managed routers are assumed to send answer packet
+        # correctly back to source address.
+        # Hence reverse rules need not to be checked.
         my $m1 = $out_zone->{stateful_mark};
         my $m2 = $dst_zone->{stateful_mark};
-        if (not $m2) {
-            if (is_router($dst_zone)) {
-                my $managed = $dst_zone->{managed};
-                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
-                    ? $dst_zone->{interfaces}->[0]->{network}->{zone}
-                               ->{stateful_mark}
-                    : -1;
-            }
-            else {
-                my $managed = $dst_zone->{router}->{managed};
-                $m2 = ($managed =~ /^(?:secondary|local.*)$/)
-                    ? $dst_zone->{network}->{zone}->{stateful_mark}
-                    : -1;
-            }
-        }
-        if ($m1 == $m2) {
+        if ($m2 and $m1 == $m2) {
 
             # Check case II, outgoing ACL, (B), interface Y without ACL.
             if (my $no_acl_intf = $router->{no_in_acl}) {
