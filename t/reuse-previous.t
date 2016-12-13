@@ -55,6 +55,21 @@ $out = <<'END';
 DIAG: Reused .prev/r1
 DIAG: Reused .prev/r2
 DIAG: Reused .prev/r3
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+--r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
+--r3
+! n3_in
+access-list n3_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
 END
 
 test_reuse_prev($title, $in, $in, $out);
@@ -73,6 +88,12 @@ END
 $out = <<'END';
 DIAG: Reused .prev/r1
 DIAG: Reused .prev/r3
+--r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any any
+access-group n2_in in interface n2
 END
 
 test_reuse_prev($title, $in, $in2, $out);

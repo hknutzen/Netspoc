@@ -112,21 +112,24 @@ sub get_block {
 
 sub compare_warnings_and_devices {
     my ($title, $in, $expected, $options, $check_stderr, $dir) = @_;
-    my ($stderr, $success, $in_dir) = run($in, $options, $dir);
-    if (!$success) {
-        diag("Unexpected failure:\n$stderr");
-        fail($title);
-        return;
-    }
 
     # Blocks of expected output are split by single lines of dashes,
     # followed by an optional device name.
     my $delim = qr/^-+[ ]*(\S*)[ ]*\n/m;
 
     # warnings_or_empty, name1, expected1, name2_or_empty, expected2, ...
-    my @expected = split($delim, $expected);
-    my $warnings = shift @expected;
+    my ($warnings, @expected) = split($delim, $expected);
 
+    # Only generate code if some expected output has been specified.
+    # Otherwise we would unintentionally increase test coverage.
+    $dir = undef if not @expected;
+    
+    my ($stderr, $success, $in_dir) = run($in, $options, $dir);
+    if (!$success) {
+        diag("Unexpected failure:\n$stderr");
+        fail($title);
+        return;
+    }
     if ($check_stderr) {
         $warnings ||= '';
 
