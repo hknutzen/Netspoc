@@ -13532,10 +13532,6 @@ sub is_filtered_at {
 sub check_supernet_src_rule {
     my ($rule, $in_intf, $out_intf) = @_;
 
-    # Destination is interface of current router and therefore there is
-    # nothing to be checked.
-    return unless $out_intf;
-
     # Ignore semi_managed router.
     my $router  = $in_intf->{router};
     my $managed = $router->{managed} or return;
@@ -13584,14 +13580,15 @@ sub check_supernet_src_rule {
     }
 
     my $src_zone = $src->{zone};
-    my $out_zone = $out_intf->{zone};
 
     # Check if reverse rule would be created and would need additional rules.
-    if ($router->{model}->{stateless} 
+    if ($out_intf
+        and $router->{model}->{stateless} 
         and not $rule->{oneway}
         and grep { $_->{proto} =~ /^(?:tcp|udp|ip)$/ } @{ $rule->{prt} })
 
     {
+        my $out_zone = $out_intf->{zone};
 
         # Reverse rule wouldn't allow too much traffic, if a non
         # secondary stateful device filters between current device and dst.

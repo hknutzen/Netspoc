@@ -1183,6 +1183,44 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Missing aggregate at destination interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = interface:r2.n3; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:r2.n3; prt=udp 123; of service:test
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing aggregates for reverse rule';
 ############################################################
 
