@@ -1697,7 +1697,7 @@ router:r2 = {
 
 service:s1 = {
  user = host:h1;
- permit src = user; dst = any:[network:n2]; prt = proto 50
+ permit src = user; dst = any:[network:n2]; prt = proto 50;
 }
 service:s2 = {
  user = interface:r2.n2;
