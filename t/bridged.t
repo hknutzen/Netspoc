@@ -439,11 +439,15 @@ service:test = {
 }
 END
 
+# Must not use bridged interface as next hop in static route.
 $out = <<'END';
 --bridge
 access-list outside_in extended permit tcp 10.9.9.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
+--asa
+! [ Routing ]
+ip route 10.9.9.0 255.255.255.0 192.168.0.1
 END
 
 test_run($title, $in, $out);
