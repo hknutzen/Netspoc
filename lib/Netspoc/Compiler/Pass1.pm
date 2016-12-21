@@ -15524,6 +15524,13 @@ sub check_and_convert_routes {
 
         for my $interface (@{ $router->{interfaces} }) {
 
+            # Routing info not needed, because dynamic routing is in use.
+            if ($interface->{routing} or $interface->{ip} eq 'bridged') {
+                delete $interface->{hopref2obj};
+                delete $interface->{routes};
+                next;
+            }
+
             # Remember, via which remote interface a network is reached.
             my %net2hop;
 
@@ -15532,9 +15539,6 @@ sub check_and_convert_routes {
             # of redundancy interfaces are used to reach the network.
             # Otherwise it would be wrong to route to the virtual interface.
             my %net2group;
-
-            next if $interface->{loop} and $interface->{routing};
-            next if $interface->{ip} eq 'bridged';
 
             # Abort, if more than one static route exists per network.
             my $errors;
