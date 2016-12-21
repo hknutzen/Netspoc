@@ -257,11 +257,11 @@ $title = 'Virtual interfaces causing several routes on backward path';
 $in =~ s/virtual = \{ip = 10.3.3.9;\}//g;
 
 $out = <<'END';
-Warning: Two static routes for network:n1
+Error: Two static routes for network:n1
  at interface:r4.n3 via interface:r3.n3 and interface:r2.n3
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 

@@ -1104,11 +1104,11 @@ Error: Can\'t determine next hop to reach network:trans while moving routes
  Exactly one route is needed, but 2 candidates were found:
  - interface:gw.dmz
  - interface:gw2.dmz
-Warning: Two static routes for network:intern
+Error: Two static routes for network:intern
  at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
-Warning: Two static routes for network:trans
+Error: Two static routes for network:trans
  at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
-Warning: Two static routes for network:customers1
+Error: Two static routes for network:customers1
  at interface:r.trans via interface:gw2.trans and interface:gw.trans
 END
 

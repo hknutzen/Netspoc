@@ -15536,25 +15536,23 @@ sub check_and_convert_routes {
             next if $interface->{loop} and $interface->{routing};
             next if $interface->{ip} eq 'bridged';
 
-            # Generate warning, if more than one route exists.
-            my $warn_msg;
+            # Abort, if more than one static route exists per network.
+            my $errors;
             for my $hop (sort by_name values %{ $interface->{hopref2obj} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
- 
-                    # Show warning if network is reached via two different
-                    # local interfaces and static routing is enabled for both
-                    # interfaces
+
+                    # Check if network is reached via two different
+                    # local interfaces and static routing is enabled
+                    # on both interfaces
                     if (my $interface2 = $net2intf{$network}) {
-                        if ($interface2 ne $interface) {
-                              if (    not $interface->{routing}
-                                and not $interface2->{routing})
-                            {
-                                push(@$warn_msg,
-                                     "Two static routes for $network->{name}" .
-                                     "\n via $interface->{name} and" .
-                                     " $interface2->{name}"
-                                );
-                            }
+                        if ($interface2 ne $interface and
+                            not $interface->{routing} and
+                            not $interface2->{routing})
+                        {
+                            push(@$errors,
+                                 "Two static routes for $network->{name}\n" .
+                                 " via $interface->{name} and" .
+                                 " $interface2->{name}");
                         }
                     }
                     else {
@@ -15562,37 +15560,37 @@ sub check_and_convert_routes {
                     }
 
                     # Check whether network is reached via different hops.
-                    # Warn, if these do not belong to the same redundancy group.
-                    unless ($interface->{routing}) {
-                        my $group = $hop->{redundancy_interfaces};
-                        if ($group) {
-                            push @{ $net2group{$network}{$hop->{ip}} }, $hop;
-                        }
-                        if (my $hop2 = $net2hop{$network}) {
+                    # Abort, if these do not belong to the same
+                    # redundancy group.
+                    next if $interface->{routing};
+                    
+                    my $group = $hop->{redundancy_interfaces};
+                    if ($group) {
+                        push @{ $net2group{$network}{$hop->{ip}} }, $hop;
+                    }
+                    if (my $hop2 = $net2hop{$network}) {
 
-                            # If next hops belong to same redundancy group,
-                            # prevent multiple routes to different
-                            # interfaces with identical virtual IP.
-                             my $group2 = $hop2->{redundancy_interfaces};
-                            if ($group and $group2 and $group eq $group2) {
-                                delete $interface->{routes}->{$hop}->{$network};
-                            }
-                            else {
-                                push(@$warn_msg,
-                                     "Two static routes for $network->{name}" .
-                                     "\n at $interface->{name}" .
-                                     " via $hop->{name} and $hop2->{name}"
-                                );
-                            }
+                        # If next hops belong to same redundancy group,
+                        # prevent multiple routes to different
+                        # interfaces with identical virtual IP.
+                        my $group2 = $hop2->{redundancy_interfaces};
+                        if ($group and $group2 and $group eq $group2) {
+                            delete $interface->{routes}->{$hop}->{$network};
                         }
                         else {
-                            $net2hop{$network} = $hop;
+                            push(@$errors,
+                                 "Two static routes for $network->{name}\n" .
+                                 " at $interface->{name}" .
+                                 " via $hop->{name} and $hop2->{name}");
                         }
+                    }
+                    else {
+                        $net2hop{$network} = $hop;
                     }
                 }
             }
-            if ($warn_msg) {
-                warn_msg($_) for sort @$warn_msg;
+            if ($errors) {
+                err_msg($_) for sort @$errors;
             }
             
             # Ensure correct routing at virtual interfaces.
@@ -15706,6 +15704,9 @@ sub print_routes {
 
                 # Implicitly overwrite duplicate networks.
                 $mask2ip2net{$mask}->{$ip} = $nat_network;
+
+                # This is unambiguous, because only a single static
+                # route is allowed for each network.
                 $net2hop_info{$nat_network} = $hop_info;
             }
         }

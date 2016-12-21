@@ -151,11 +151,11 @@ service:test = {
 END
 
 $out = <<'END';
-Warning: Two static routes for network:n2
+Error: Two static routes for network:n2
  at interface:r.t1 via interface:h2.t1 and interface:h1.t1
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Static route to network in unmanaged loop';
