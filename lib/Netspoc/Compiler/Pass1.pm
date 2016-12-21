@@ -15377,9 +15377,11 @@ sub fix_bridged_hops {
 
 sub check_and_convert_routes {
 
-    # Fix routes to bridged interfaces without IP address.
+    # Fix routes where bridged interface without IP address is used as
+    # next hop.
     for my $router (@managed_routers, @routing_only_routers) {
         for my $interface (@{ $router->{interfaces} }) {
+            next if $interface->{routing};
             next if not $interface->{network}->{bridged};
             for my $hop (values %{ $interface->{hopref2obj} }) {
                 next if $hop->{ip} ne 'bridged';
@@ -15401,10 +15403,10 @@ sub check_and_convert_routes {
         # Adjust routes through VPN tunnel to cleartext interface.
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'tunnel';
-            my $tunnel_routes = $interface->{routes};
-            $interface->{routes} = $interface->{hopref2obj} = {};
             my $real_intf = $interface->{real_interface};
             next if $real_intf->{routing};
+            my $tunnel_routes = $interface->{routes};
+            $interface->{routes} = $interface->{hopref2obj} = {};
             my $real_net  = $real_intf->{network};
             my $peer      = $interface->{peer};
             my $real_peer = $peer->{real_interface};
