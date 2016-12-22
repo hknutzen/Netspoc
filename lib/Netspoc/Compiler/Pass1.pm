@@ -2228,8 +2228,10 @@ sub read_router {
         # Collect bridged interfaces of this device and check
         # existence of corresponding layer3 device.
         my %layer3_seen;
+        my $bridged;
         for my $interface (@{ $router->{interfaces} }) {
             next if not $interface->{ip} eq 'bridged';
+            $bridged = 1;
             (my $layer3_name = $interface->{name}) =~ s/^interface:(.*)\/.*/$1/;
             my $layer3_intf;
             if (exists $layer3_seen{$layer3_name}) {
@@ -2291,6 +2293,10 @@ sub read_router {
             }
             $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ]
               if $changed;
+        }
+
+        if ($bridged and (my $routing = $router->{routing})) {
+            err_msg("Must not apply attribute 'routing' to bridge $name");
         }
 
         check_no_in_acl($router);

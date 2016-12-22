@@ -33,6 +33,53 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No dynamic routing bridge interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; routing = OSPF; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Invalid attributes 'routing' for bridged interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'No routing = manual at bridge';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Must not apply attribute 'routing' to bridge router:bridge
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Bridged network must not have NAT';
 ############################################################
 
