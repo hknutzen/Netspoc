@@ -12909,6 +12909,7 @@ sub link_tunnels {
                 network        => $spoke_net
             );
             $hub->{bind_nat} = $real_hub->{bind_nat} if $real_hub->{bind_nat};
+            $hub->{routing}  = $real_hub->{routing}  if $real_hub->{routing};
             $hub->{peer}     = $spoke;
             $spoke->{peer}   = $hub;
             push @{ $router->{interfaces} },    $hub;
@@ -15016,7 +15017,7 @@ sub add_path_routes {
     my ($in_intf, $out_intf, $dst_networks) = @_;
 
     # Interface with manual or dynamic routing.
-    return if $in_intf->{routing}; 
+    return if $in_intf->{routing};
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
@@ -15048,7 +15049,10 @@ sub add_path_routes {
 #              reach the networks specified in $dst_networks. 
 sub add_end_routes {
     my ($interface, $dst_networks) = @_;
-    return if $interface->{routing}; # Interface with manual routing.
+
+    # Interface with manual or dynamic routing.
+    return if $interface->{routing};
+
     my $intf_net      = $interface->{network};
     my $route_in_zone = $interface->{route_in_zone};
 
@@ -15331,6 +15335,14 @@ sub check_and_convert_routes;
 # Purpose  : Generate and store routing information for all managed interfaces.
 sub find_active_routes {
     progress('Finding routes');
+
+    # Mark interfaces of unmanaged routers such that no routes are collected.
+    for my $router (values %routers) {
+        $router->{semi_managed} and not $router->{routing_only} or next;
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{routing} = 'dynamic';
+        }
+    }
 
     # Generate navigation information for routing inside zones.
     for my $zone (@zones) {
