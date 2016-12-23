@@ -372,7 +372,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Internal / extrnal network exactly match filter_only";
+$title = "Internal / external network exactly match filter_only";
 
 ############################################################
 
