@@ -19,7 +19,7 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/8;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
 }
 END
 
@@ -51,16 +51,16 @@ router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.1.0/24;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:n2 = { ip = 10.62.2.33; hardware = vlan2; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+ interface:n2 = { ip = 10.62.2.33; hardware = n2; }
 }
 network:n2 = { ip = 10.62.2.32/27; }
 router:r2 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.1.0/24;
- interface:n2 = { ip = 10.62.2.34; hardware = vlan2; }
- interface:n3 = { ip = 10.62.1.1; hardware = vlan3; }
+ interface:n2 = { ip = 10.62.2.34; hardware = n2; }
+ interface:n3 = { ip = 10.62.1.1; hardware = n3; }
 }
 network:n3 = { ip = 10.62.1.0/27; }
 END
@@ -82,8 +82,8 @@ router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.1.0/24, 10.62.2.0/24, 10.62.3.0/24;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:n2 = { ip = 10.62.2.33; hardware = vlan2; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+ interface:n2 = { ip = 10.62.2.33; hardware = n2; }
 }
 network:n2 = { ip = 10.62.2.32/27; }
 END
@@ -104,8 +104,8 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/19;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:n2 = { ip = 10.62.2.1; hardware = vlan2; bind_nat = n1;}
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; bind_nat = n1;}
 }
 network:n2 = { ip = 10.62.2.0/27; }
 END
@@ -127,18 +127,18 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.240.0/22, 10.62.0.0/19;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:vlan14 = { ip = 10.62.242.1; hardware = outside; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+ interface:n14 = { ip = 10.62.242.1; hardware = outside; }
 }
 
-network:vlan14 = { ip = 10.62.242.0/29; }
+network:n14 = { ip = 10.62.242.0/29; }
 
 router:d12 = {
  model = NX-OS;
  managed = local;
  filter_only =  10.62.240.0/21, 10.62.0.0/19,;
- interface:vlan14 = { ip = 10.62.242.2; hardware = vlan14; }
-  interface:n2 = { ip = 10.62.2.1; hardware = vlan2; }
+ interface:n14 = { ip = 10.62.242.2; hardware = n14; }
+  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.62.2.0/27; }
@@ -151,7 +151,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Reuse object groups for deny rules';
+# Shared topology
 ############################################################
 
 $topo = <<'END';
@@ -161,38 +161,123 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only = 10.62.0.0/21, 10.62.241.0/24;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
- interface:trans = { ip = 10.62.241.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+ interface:n2 = { ip = 10.62.241.1; hardware = n2; }
 }
 
-network:trans = { ip = 10.62.241.0/29; }
+network:n2 = { ip = 10.62.241.0/29; }
 
 router:d31 = {
  model = ASA;
  managed;
- interface:trans = { ip = 10.62.241.2; hardware = inside; }
+ interface:n2 = { ip = 10.62.241.2; hardware = inside; }
  interface:extern = { ip = 10.125.3.1; hardware = outside; }
 }
 
 network:extern = { ip = 10.125.3.0/24; }
+
+router:r1 = {
+ interface:extern = { ip = 10.125.3.2; }
+ interface:ex_match;
+}
+
+network:ex_match = { ip = 10.62.7.0/24; }
 END
+
+############################################################
+$title = 'Reuse object groups for deny rules';
+############################################################
 
 $in = $topo;
 
 $out = <<'END';
 --d32
-! vlan1_in
+! n1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
-access-list vlan1_in extended deny ip any object-group g0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 --
-! vlan2_in
-access-list vlan2_in extended deny ip object-group g0 object-group g0
-access-list vlan2_in extended permit ip any any
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended deny ip object-group g0 object-group g0
+access-list n2_in extended permit ip any any
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "External rules are not filtered";
+############################################################
+
+$in = $topo . <<'END';
+service:Test = {
+ user = network:n1;
+ permit src = user; dst = network:extern; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
+--d31
+! inside_in
+access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 10.125.3.0 255.255.255.0 eq 80
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Mixed matching and non matching external rules";
+############################################################
+
+$in = $topo . <<'END';
+service:Test = {
+ user = network:extern, network:ex_match;
+ permit src = network:n1; dst = user; prt = tcp 80;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended permit tcp 10.62.1.32 255.255.255.224 10.62.7.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.62.7.0 255.255.255.0 10.62.1.32 255.255.255.224 eq 81
+access-list n2_in extended deny ip object-group g0 object-group g0
+access-list n2_in extended permit ip any any
+access-group n2_in in interface n2
+--d31
+! inside_in
+object-group network g0
+ network-object 10.62.7.0 255.255.255.0
+ network-object 10.125.3.0 255.255.255.0
+access-list inside_in extended permit tcp 10.62.1.32 255.255.255.224 object-group g0 eq 80
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+--
+! outside_in
+access-list outside_in extended permit tcp object-group g0 10.62.1.32 255.255.255.224 eq 81
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
@@ -203,7 +288,7 @@ $title = "Aggregate to extern";
 
 $in = $topo . <<'END';
 service:Test = {
- user = any:[ip = 10.60.0.0/14 & network:n1, network:trans];
+ user = any:[ip = 10.60.0.0/14 & network:n1, network:n2];
  permit src = user;
         dst = network:extern;
         prt = tcp 80;
@@ -212,13 +297,13 @@ END
 
 $out = <<'END';
 --d32
-! vlan1_in
+! n1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
-access-list vlan1_in extended deny ip any object-group g0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
@@ -231,21 +316,21 @@ $in = $topo . <<'END';
 service:Test = { 
  user = any:[ip = 10.60.0.0/14 & network:n1];
  permit src = user;
-        dst = network:trans;
+        dst = network:n2;
         prt = tcp 80;
 }
 END
 
 $out = <<'END';
 --d32
-! vlan1_in
+! n1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
-access-list vlan1_in extended permit tcp 10.60.0.0 255.252.0.0 10.62.241.0 255.255.255.248 eq 80
-access-list vlan1_in extended deny ip any object-group g0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+access-list n1_in extended permit tcp 10.60.0.0 255.252.0.0 10.62.241.0 255.255.255.248 eq 80
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
@@ -258,20 +343,20 @@ $in = $topo . <<'END';
 service:Test = { 
  user = any:[ip = 10.99.0.0/16 & network:n1];
  permit src = user;
-        dst = network:trans;
+        dst = network:n2;
         prt = tcp 80;
 }
 END
 
 $out = <<'END';
 --d32
-! vlan1_in
+! n1_in
 object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
-access-list vlan1_in extended deny ip any object-group g0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+access-list n1_in extended deny ip any object-group g0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
@@ -287,16 +372,16 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/16, 10.9.0.0/16;
- interface:n1 = { ip = 10.62.1.1; hardware = vlan1; }
- interface:trans = { ip = 10.9.1.1; hardware = trans; }
+ interface:n1 = { ip = 10.62.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.9.1.1; hardware = n2; }
 }
 
-network:trans = { ip = 10.9.1.0/29; }
+network:n2 = { ip = 10.9.1.0/29; }
 
 router:d31 = {
  model = ASA;
  managed = secondary;
- interface:trans = { ip = 10.9.1.2; hardware = inside; }
+ interface:n2 = { ip = 10.9.1.2; hardware = inside; }
  interface:extern = { ip = 10.62.0.1; hardware = outside; }
 }
 
@@ -312,11 +397,11 @@ END
 
 $out = <<'END';
 --d32
-! trans_in
-access-list trans_in extended permit tcp 10.62.0.0 255.255.128.0 10.62.1.0 255.255.255.0 eq 80
-access-list trans_in extended deny ip object-group g0 object-group g0
-access-list trans_in extended permit ip any any
-access-group trans_in in interface trans
+! n2_in
+access-list n2_in extended permit tcp 10.62.0.0 255.255.128.0 10.62.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip object-group g0 object-group g0
+access-list n2_in extended permit ip any any
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -332,16 +417,16 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/16, 10.9.0.0/16;
- interface:n1 = { ip = 10.62.1.1; hardware = vlan1; }
- interface:trans = { ip = 10.9.1.1; hardware = trans; }
+ interface:n1 = { ip = 10.62.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.9.1.1; hardware = n2; }
 }
 
-network:trans = { ip = 10.9.1.0/29; }
+network:n2 = { ip = 10.9.1.0/29; }
 
 router:d31 = {
  model = ASA;
  managed = secondary;
- interface:trans = { ip = 10.9.1.2; hardware = inside; }
+ interface:n2 = { ip = 10.9.1.2; hardware = inside; }
  interface:extern = { ip = 10.62.0.1; hardware = outside; }
 }
 
@@ -362,18 +447,17 @@ END
 
 $out = <<'END';
 --d32
-! trans_in
-access-list trans_in extended permit tcp 10.62.2.0 255.255.255.0 10.62.1.0 255.255.255.0 eq 80
-access-list trans_in extended deny ip object-group g0 object-group g0
-access-list trans_in extended permit ip any any
-access-group trans_in in interface trans
+! n2_in
+access-list n2_in extended permit tcp 10.62.2.0 255.255.255.0 10.62.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip object-group g0 object-group g0
+access-list n2_in extended permit ip any any
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
 
 ############################################################
 $title = "Internal / external network exactly match filter_only";
-
 ############################################################
 
 $in = <<'END';
@@ -436,7 +520,7 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/16;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
  interface:trans = { ip = 10.62.241.1; hardware = trans; }
 }
 
@@ -477,10 +561,10 @@ $title = "Different deny rules";
 
 $out = <<'END';
 --d32
-! vlan1_in
-access-list vlan1_in extended deny ip any 10.62.0.0 255.255.0.0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended deny ip any 10.62.0.0 255.255.0.0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 --
 ! trans_in
 access-list trans_in extended deny ip 10.62.0.0 255.255.0.0 10.62.0.0 255.255.0.0
@@ -500,8 +584,8 @@ router:d32 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.0.0/19;
- interface:n1 = { ip = 10.62.1.33; hardware = vlan1; no_in_acl;}
- interface:n2 = { ip = 10.62.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; no_in_acl;}
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 network:n2 = { ip = 10.62.2.0/27; }
 
@@ -514,21 +598,21 @@ END
 
 $out = <<'END';
 --d32
-! vlan1_in
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 --
-! vlan2_in
-access-list vlan2_in extended permit tcp 10.62.2.0 255.255.255.224 10.62.1.32 255.255.255.224 eq 22
-access-list vlan2_in extended deny ip any 10.62.0.0 255.255.224.0
-access-list vlan2_in extended permit ip any any
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp 10.62.2.0 255.255.255.224 10.62.1.32 255.255.255.224 eq 22
+access-list n2_in extended deny ip any 10.62.0.0 255.255.224.0
+access-list n2_in extended permit ip any any
+access-group n2_in in interface n2
 --
-! vlan2_out
-access-list vlan2_out extended permit tcp 10.62.1.32 255.255.255.224 10.62.2.0 255.255.255.224 eq 80
-access-list vlan2_out extended deny ip 10.62.0.0 255.255.224.0 10.62.0.0 255.255.224.0
-access-list vlan2_out extended permit ip any any
-access-group vlan2_out out interface vlan2
+! n2_out
+access-list n2_out extended permit tcp 10.62.1.32 255.255.255.224 10.62.2.0 255.255.255.224 eq 80
+access-list n2_out extended deny ip 10.62.0.0 255.255.224.0 10.62.0.0 255.255.224.0
+access-list n2_out extended permit ip any any
+access-group n2_out out interface n2
 END
 
 test_run($title, $in, $out);
@@ -550,9 +634,9 @@ router:d1 = {
  interface:n1 = { 
   ip = 10.62.1.34; 
   virtual = { ip = 10.62.1.33; } 
-  hardware = vlan1; 
+  hardware = n1; 
  }
- interface:n2 = { ip = 10.62.2.1; hardware = vlan2; }
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
 router:d2 = {
  model = IOS;
@@ -561,9 +645,9 @@ router:d2 = {
  interface:n1 = { 
   ip = 10.62.1.35; 
   virtual = { ip = 10.62.1.33; } 
-  hardware = vlan21; 
+  hardware = n21; 
  }
- interface:trans = { ip = 10.62.3.1; hardware = vlan22; }
+ interface:trans = { ip = 10.62.3.1; hardware = n22; }
 }
 network:trans = { ip = 10.62.3.0/27; }
 router:loop = {
@@ -583,14 +667,14 @@ END
 
 $out = <<'END';
 --d1
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  deny ip any host 10.62.2.1
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 eq 80
  permit tcp 10.62.1.32 0.0.0.31 10.62.2.0 0.0.0.31 established
  deny ip any 10.62.0.0 0.0.31.255
  permit ip any any
 --d1
-ip access-list extended vlan2_in
+ip access-list extended n2_in
  deny ip any host 10.62.1.33
  deny ip any host 10.62.1.34
  permit tcp 10.62.2.0 0.0.0.31 10.62.1.32 0.0.0.31 eq 22
@@ -613,8 +697,8 @@ router:r1 = {
  managed = local;
  filter_only =  10.2.0.0/16;
  routing = manual;
- interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
- interface:n3 = { ip = 10.2.3.2; hardware = vlan2; }
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.2.3.2; hardware = n2; }
  interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
 }
 
@@ -698,7 +782,7 @@ router:r1 = {
  managed = local_secondary;
  filter_only =  10.2.0.0/16;
  routing = manual;
- interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
  interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
 }
 
@@ -735,11 +819,11 @@ END
 
 $out = <<'END';
 --r1
-! vlan1_in
-access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
-access-list vlan1_in extended deny ip any 10.2.0.0 255.255.0.0
-access-list vlan1_in extended permit ip any any
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip any 10.2.0.0 255.255.0.0
+access-list n1_in extended permit ip any any
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
