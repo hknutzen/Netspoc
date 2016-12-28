@@ -303,6 +303,51 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Non ID hosts behind ID hosts';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = { 
+  ip = 10.1.1.1; 
+  hub = crypto:vpn;
+  hardware = n1; 
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = { 
+ ip = 10.99.1.0/24; 
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+
+router:u = {
+ interface:clients;
+ interface:other;
+}
+
+network:other = { ip = 10.99.9.0/24; }
+END
+
+$out = <<'END';
+Error: Exactly one network must be located behind unmanaged crypto interface:softclients.clients
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'no_in_acl at crypto interface';
 ############################################################
 
@@ -1854,7 +1899,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'VPN ASA to EZVPN router with two local networks';
+$title = 'Missing ID at EZVPN router to VPN ASA ';
 ############################################################
 
 $in = $crypto_vpn . <<'END';
@@ -1894,7 +1939,7 @@ router:vpn = {
  interface:internet = {
   negotiated;
   spoke = crypto:vpn;
-  id = abc@123.45;
+  #id = abc@123.45;
   hardware = e1;
  }
  interface:lan2 = {
@@ -1916,6 +1961,18 @@ service:test = {
  permit src = network:intern; dst = user; prt = udp 123;
 }
 END
+
+$out = <<'END';
+Error: interface:vpn.tunnel:vpn needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'VPN ASA to EZVPN router with two local networks';
+############################################################
+
+$in =~ s/#id/id/;
 
 $out = <<'END';
 --asavpn

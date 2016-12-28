@@ -2214,8 +2214,8 @@ sub read_router {
             if ($interface->{hub} or $interface->{spoke}) {
                 $has_crypto = 1;
                 $model->{crypto}
-                  or err_msg "Crypto not supported for $name",
-                  " of model $model->{name}";
+                  or err_msg("Crypto not supported for $name",
+                             " of model $model->{name}");
             }
             if ($interface->{no_check}
                 and not($interface->{hub} and $model->{do_auth}))
@@ -3168,11 +3168,9 @@ sub read_attributed_object {
             grep { $_ eq $val } @$values
               or syntax_err("Invalid value");
         }
-        elsif (my $fun = $val_descr->{function}) {
-            $val = &$fun;
-        }
         else {
-            internal_err();
+            my $fun = $val_descr->{function};
+            $val = &$fun;
         }
         skip ';';
         add_attribute($object, $attribute => $val);
@@ -3791,20 +3789,12 @@ sub order_ranges {
     };
 
     # Array wont be empty because $prt_tcp and $prt_udp are defined internally.
-    @sorted or internal_err("Unexpected empty array");
+    @sorted or return;
 
     my $a = $sorted[0];
     $a->{up} = $up;
     my ($a1, $a2) = @{ $a->{range} };
-
-    # Ranges "TCP any" and "UDP any" 1..65535 are defined internally,
-    # they include all other ranges.
-    $a1 == 1 and $a2 == 65535
-      or internal_err("Expected $a->{name} to have range 1..65535");
-
-    # There can't be any port which isn't included by ranges "TCP any"
-    # or "UDP any".
-    $check_subrange->($a, $a1, $a2, 1) and internal_err();
+    $check_subrange->($a, $a1, $a2, 1);
 }
 
 sub expand_split_protocol {
@@ -5131,17 +5121,10 @@ sub check_host_compatibility {
     my $nat  = $host->{nat};
     my $nat2 = $other_subnet->{nat};
     my $nat_error;
-    if ($nat xor $nat2) {
-        $nat_error = 1;
+    if ($nat xor $nat2 or $nat and $nat ne $nat2) {
+        err_msg("Inconsistent NAT definition for",
+                " $other_subnet->{name} and $host->{name}");
     }
-    elsif ($nat and $nat2) {
-        internal_err("Unexpected NAT at host range",
-                     " $host->{name} or $other_subnet->{name}");
-    }
-    $nat_error
-        and err_msg("Inconsistent NAT definition for",
-                    " $other_subnet->{name} and $host->{name}");
-
     owner_eq($host, $other_subnet) or
         warn_msg("Inconsistent owner definition for",
                 " $other_subnet->{name} and $host->{name}");
@@ -5638,11 +5621,8 @@ sub expand_group1 {
 
             # interface:name.[xxx]
             elsif (ref $ext) {
-                my ($selector, $managed) = @$ext;
+                my ($selector) = @$ext;
                 if (my $router = $routers{$name}) {
-
-                    # Syntactically impossible.
-                    $managed and internal_err();
                     if ($selector eq 'all') {
                         push @check, get_intf($router);
                     }
@@ -5768,7 +5748,6 @@ sub expand_group1 {
                 push @objects, @hosts;
             }
             elsif ($type eq 'network') {
-                $ext and internal_err;
                 my @list;
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
@@ -6963,10 +6942,6 @@ sub get_zone {
     elsif ($type eq 'Subnet') {
         $result = $obj->{network}->{zone};
     }
-
-    else {
-        internal_err("Unexpected $obj->{name}");
-    }
     return ($obj2zone{$obj} = $result);
 }
 
@@ -7148,7 +7123,6 @@ sub split_rules_by_path {
     for my $rule (@$rules) {
         my $group = $rule->{$where};
         my $element0 = $group->[0];
-        $element0 or internal_err print_rule $rule;
         my $path0 = $obj2path{$element0} || get_path($element0);
 
         # Group has elements from different zones and must be split.
@@ -9290,8 +9264,7 @@ sub check_crosslink {
 
             # Fill variables.
             my $managed  = $router->{managed};
-            my $strength = $crosslink_strength{$managed}
-              or internal_err("Unexptected managed=$managed");
+            my $strength = $crosslink_strength{$managed};
             push @{ $strength2intf{$strength} }, $interface;
 
             if ($router->{need_protect}) {
@@ -9825,7 +9798,18 @@ sub get_any {
                 map { @{ $_->{networks} } } $cluster ? @$cluster : ($zone))
           )
         {
-            @networks > 1 and internal_err;
+            for my $network (@networks) {
+                my $nat = $network->{nat} or next;
+                grep { not $_->{hidden} } values %$nat or next;
+                my $p_ip    = print_ip($ip);
+                my $prefix  = mask2prefix($mask);
+                err_msg("Must not use aggregate with IP $p_ip/$prefix",
+                        " in $zone->{name}\n",
+                        " because $network->{name} has identical IP",
+                        " but is also translated by NAT");
+            }
+
+            # Duplicate networks have already been sorted out.
             my ($network) = @networks;
             my $zone2 = $network->{zone};
 
@@ -11474,10 +11458,6 @@ sub get_path {
             # Take arbitrary interface to find zone.
             $result = $object->{interfaces}->[0]->{network}->{zone};
         }
-    }
-
-    else {
-        internal_err("unexpected $obj->{name}");
     }
 
     #debug("get_path: $obj->{name} -> $result->{name}");
@@ -13131,9 +13111,6 @@ sub expand_crypto {
                           " be located behind managed $router->{name}";
                         push @verify_radius_attributes, $network;
 
-                        # Must not have multiple networks.
-                        @all_networks > 1 and internal_err();
-
                         # Rules for single software clients are stored
                         # individually at crypto hub interface.
                         for my $host (@{ $network->{hosts} }) {
@@ -13203,7 +13180,7 @@ sub expand_crypto {
                         " of $encrypted[0]->{name}"
                       );
                 }
-                elsif ($do_auth) {
+                elsif ($do_auth and not $managed) {
                     err_msg(
                         "Networks need to have ID hosts because",
                         " $hub_router->{name} has attribute 'do_auth':",
@@ -16023,21 +16000,13 @@ sub distribute_rule {
             my %id2src_list;
             for my $src (@$src_list) {
                 if (is_subnet $src) {
-                    my $id = $src->{id} or 
-                        internal_err("$src->{name} must have ID");
+                    my $id = $src->{id};
                     push @{ $id2src_list{$id} }, $src;
                 }
                 elsif (is_network $src) {
-                    $src->{has_id_hosts} or 
-                        internal_err("$src->{name} must have ID-hosts");
                     for my $id (map { $_->{id} } @{ $src->{hosts} }) {
                         push @{ $id2src_list{$id} }, $src;
                     }
-                }
-                else {
-                    internal_err(
-                        "Unexpected $src->{name} without ID\n ",
-                        print_rule $rule);
                 }
             }
             for my $id (keys %id2src_list) {
@@ -16711,8 +16680,7 @@ EOF
                             dst => [ $network_00 ], 
 
                             prt => [ $prt_ip ] } ];
-            my $id = $interface->{peer}->{id}
-              or internal_err("Missing ID at $interface->{peer}->{name}");
+            my $id = $interface->{peer}->{id};
             my $id_name = $gen_id_name->($id);
             my $filter_name = "vpn-filter-$id_name";
             my $acl_info = {
@@ -17007,9 +16975,7 @@ sub print_ezvpn {
     my ($router)   = @_;
     my $model      = $router->{model};
     my @interfaces = @{ $router->{interfaces} };
-    my @tunnel_intf = grep { $_->{ip} eq 'tunnel' } @interfaces;
-    @tunnel_intf == 1 or internal_err();
-    my ($tunnel_intf) = @tunnel_intf;
+    my ($tunnel_intf) = grep { $_->{ip} eq 'tunnel' } @interfaces;
     my $wan_intf      = $tunnel_intf->{real_interface};
     my $wan_hw        = $wan_intf->{hardware};
     my $no_nat_set    = $wan_hw->{no_nat_set};
@@ -17278,8 +17244,7 @@ sub print_dynamic_crypto_map {
     my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
     my $model       = $router->{model};
     my $crypto_type = $model->{crypto};
-    $crypto_type eq 'ASA' or internal_err();
-    my $hw_name = $hardware->{name};
+    my $hw_name     = $hardware->{name};
 
     # Sequence number for parts of crypto map with different certificates.
     my $seq_num = 65536;
@@ -17366,9 +17331,6 @@ sub print_crypto {
     if ($crypto_type eq 'ASA_EZVPN') {
         return;
     }
-
-    $crypto_type =~ /^(:?IOS|ASA)$/
-      or internal_err("Unexptected crypto type $crypto_type");
 
     my $isakmp_count = 0;
     for my $isakmp (@isakmp) {

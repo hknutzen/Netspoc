@@ -2850,4 +2850,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregate has IP of network with NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.1.8.0/24; } }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = any:[ ip = 10.1.1.0/24 & network:n1 ];
+ permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+Error: Must not use aggregate with IP 10.1.1.0/24 in any:[network:n1]
+ because network:n1 has identical IP but is also translated by NAT
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
