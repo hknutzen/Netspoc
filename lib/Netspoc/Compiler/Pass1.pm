@@ -5120,7 +5120,6 @@ sub check_host_compatibility {
     my ($host, $other_subnet) = @_;
     my $nat  = $host->{nat};
     my $nat2 = $other_subnet->{nat};
-    my $nat_error;
     if ($nat xor $nat2 or $nat and $nat ne $nat2) {
         err_msg("Inconsistent NAT definition for",
                 " $other_subnet->{name} and $host->{name}");
