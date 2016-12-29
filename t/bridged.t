@@ -276,7 +276,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Brdged networks must be connected by bridge';
+$title = 'Bridged networks must be connected by bridge';
 ############################################################
 
 $in = <<'END';
