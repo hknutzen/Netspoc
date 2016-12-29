@@ -4012,7 +4012,8 @@ sub link_owners {
 
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
-            for my $email (@{ $owner->{$attr} }) {
+            my $list = $owner->{$attr} or next;
+            for my $email (@$list) {
 
                 # Expand below, in next loop.
                 next if $email =~ /^owner:/;
@@ -4046,31 +4047,30 @@ sub link_owners {
 
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
-        if (find_duplicates(@{ $owner->{admins} }, @{ $owner->{watchers} })) {
-            for my $attr (qw(admins watchers)) {
-                if (my @emails = find_duplicates(@{ $owner->{$attr} })) {
-                    $owner->{$attr} = [ unique(@{ $owner->{$attr} }) ];
-                    err_msg("Duplicates in $attr of $owner->{name}: ",
-                        join(', ', @emails));
-                }
-            }
+        my $admins   = $owner->{admins};
+        my $watchers = $owner->{watchers};
+        find_duplicates(@$admins, @$watchers) or next;
+        for my $ref (\$admins, \$watchers) {
+            my $list = $$ref;
+            my @emails = find_duplicates(@$list) or next;
+            $$ref = [ unique(@$list) ];
+            my $type = $$ref eq $admins ? 'admins' : 'watchers';
+            err_msg("Duplicates in $type of $owner->{name}: ",
+                    join(', ', @emails));
+        }
 
-            # Don't warn on watchers that come from other owner.
-            my $watchers = $owner->{watchers};
-            if (my $group_watchers = $owner->{group_watchers}) {
-                my %hash;
-                @hash{@$group_watchers} = @$group_watchers;
-                $watchers = [ grep { not $hash{$_} } @$watchers ];
-            }
+        # Don't warn on watchers that come from other owner.
+        if (my $group_watchers = delete $owner->{group_watchers}) {
+            my %hash;
+            @hash{@$group_watchers} = @$group_watchers;
+            $watchers = [ grep { not $hash{$_} } @$watchers ];
+        }
 
-            # Check again, after duplicates in admins and watchers
-            # have been removed.
-            if (my @duplicates =
-                find_duplicates(@{ $owner->{admins} }, @$watchers))
-            {
-                err_msg("Duplicates in admins/watchers of $owner->{name}: ",
+        # Check again, after duplicates in admins and watchers
+        # have been removed.
+        if (my @duplicates = find_duplicates(@$admins, @$watchers)) {
+            err_msg("Duplicates in admins/watchers of $owner->{name}: ",
                     join(', ', @duplicates));
-            }
         }
     }
     for my $network (values %networks) {
