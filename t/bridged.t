@@ -618,7 +618,7 @@ $title = 'Route behind chained bridges';
 $in = <<'END';
 network:n0 = { ip = 10.1.0.0/24; }
 
-router:r0 = {
+router:r1 = {
  managed;
  model = ASA;
  interface:n0 = { ip = 10.1.0.1; hardware = n0; }
@@ -627,7 +627,9 @@ router:r0 = {
 
 network:n1/left = { ip = 10.1.1.0/24; }
 
-router:bridge1 = {
+# Use name, that is sorted behind r1, r2,
+# so that we actually test recursion when searching hop with IP address.
+router:zbridge1 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
@@ -637,7 +639,7 @@ router:bridge1 = {
 
 network:n1/center = { ip = 10.1.1.0/24; }
 
-router:bridge2 = {
+router:zbridge2 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = device; }
@@ -663,7 +665,7 @@ service:s = {
 END
 
 $out = <<'END';
---r0
+--r1
 ! [ Routing ]
 route left 10.1.2.0 255.255.255.0 10.1.1.2
 END
