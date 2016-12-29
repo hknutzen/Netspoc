@@ -4142,9 +4142,7 @@ sub link_general_permit {
     # Don't allow port ranges. This wouldn't work, because
     # gen_reverse_rules doesn't handle generally permitted protocols.
     for my $prt (@$list) {
-        my $orig_prt;
-        my $src_range;
-        my $range;
+        my ($src_range, $range, $orig_prt);
         if (ref $prt eq 'ARRAY') {
             ($src_range, my $dst_range, $orig_prt) = @$prt;
             $range = $dst_range->{range};
@@ -6677,9 +6675,7 @@ sub check_service_owner {
 
     propagate_owners();
 
-    my %sname2info;
-    my %unknown2services;
-    my %unknown2unknown;
+    my (%sname2info, %unknown2services, %unknown2unknown);
 
     for my $action (qw(permit deny)) {
         my $rules = $service_rules{$action} or next;
@@ -6850,9 +6846,7 @@ sub convert_hosts_in_rules {
             }
             for my $what (qw(src dst)) {
                 my $group = $rule->{$what};
-                my @subnets;
-                my %subnet2host;
-                my @other;
+                my (@other, @subnets, %subnet2host);
                 for my $obj (@$group) {
 
 #                    debug("convert $obj->{name}");
@@ -10717,8 +10711,7 @@ sub check_pathrestrictions {
         # Collect interfaces to be deleted from pathrestriction.
         my $deleted;
 
-        my $prev_interface;
-        my $prev_cluster;
+        my ($prev_interface, $prev_cluster);
         for my $interface (@$elements) {                
             my $router = $interface->{router};
             my $loop = get_loop($interface);
@@ -11759,8 +11752,7 @@ sub fixup_zone_path {
     my $is_start = ($in_out == 0);
     my $out_in = $is_start ? 1 : 0;
     my $enter_leave = $is_start ? $loop_enter : $loop_leave;
-    my (@add_intf, @del_intf);
-    my $seen_intf;
+    my (@add_intf, @del_intf, $seen_intf);
     for my $intf (@$enter_leave) {
         push @del_intf, $intf;
         if ($intf eq $start_end) {
@@ -11800,10 +11792,7 @@ sub intf_cluster_path_mark {
     if ($end_intf) {
         $end_store = $end_intf->{zone};
     }
-    my @loop_enter;
-    my @loop_leave;
-    my @router_tuples;
-    my @zone_tuples;
+    my (@loop_enter, @loop_leave, @router_tuples, @zone_tuples);
 
     # Zones are equal. Set minimal path manually.
     if ($start_store eq $end_store
@@ -12077,8 +12066,8 @@ sub cluster_path_mark {
         # Remove duplicates from path tuples.
         # Create path tuples for
         # router interfaces, zone interfaces, and both as reversed arrays.
-        my (@router_tuples, @zone_tuples);
-        my (@rev_router_tuples, @rev_zone_tuples);
+        my (@router_tuples, @zone_tuples, 
+            @rev_router_tuples, @rev_zone_tuples);
         for my $type (keys %$path_tuples) {
             my $tuples = $type eq 'router' ? \@router_tuples : \@zone_tuples;
             my $rev_tuples = 
@@ -14625,9 +14614,7 @@ sub check_dynamic_nat_rules {
             return print_rule($rule);
         };
 
-        my $nat_seen;
-        my $hidden_seen;
-        my $static_seen;
+        my ($nat_seen, $hidden_seen, $static_seen);
         my $nat_hash = $network->{nat};
         for my $nat_tag (sort keys %$nat_hash) {
             next if $no_nat_set->{$nat_tag};
