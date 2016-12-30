@@ -17691,7 +17691,7 @@ sub print_acls {
 
                                     # Network with ID-hosts must not
                                     # be optimized at all.
-                                    if ($obj->{has_id_hosts}) {
+                                    elsif ($obj->{has_id_hosts}) {
                                         $no_opt_addrs{$obj} = $obj;
                                         next;
                                     }
