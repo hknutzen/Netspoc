@@ -161,10 +161,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  unnumbered; 
+ interface:n1 = {
+  unnumbered;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -174,8 +174,8 @@ router:softclients = {
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
 }
 END
@@ -200,10 +200,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -213,8 +213,8 @@ router:softclients = {
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 END
@@ -238,10 +238,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -274,10 +274,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -288,8 +288,8 @@ router:softclients = {
  interface:other;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 
@@ -315,10 +315,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -328,8 +328,8 @@ router:softclients = {
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 
@@ -360,10 +360,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_in_acl;
  }
 }
@@ -373,8 +373,8 @@ router:softclients = {
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 END
@@ -412,10 +412,10 @@ router:asavpn1 = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -428,10 +428,10 @@ router:asavpn2 = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.102; 
+ interface:dmz = {
+  ip = 192.168.0.102;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -443,8 +443,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
@@ -488,10 +488,10 @@ router:asavpn1 = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -503,8 +503,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
@@ -540,10 +540,10 @@ router:asavpn1 = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -566,10 +566,10 @@ router:asavpn2 = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint2;
  }
- interface:dmz = { 
-  ip = 192.168.0.102; 
+ interface:dmz = {
+  ip = 192.168.0.102;
   hub = crypto:vpn2;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -582,8 +582,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 END
@@ -618,10 +618,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -634,8 +634,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 END
@@ -652,8 +652,8 @@ $title = 'ID of host must match ip/range';
 ############################################################
 
 $in = <<'END';
-network:n = { 
- ip = 10.99.1.0/24; 
+network:n = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:@domain.x    = { ip = 10.99.1.11; }
  host:id:domain.x     = { ip = 10.99.1.12; }
@@ -688,10 +688,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
@@ -701,8 +701,8 @@ router:softclients = {
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 END
@@ -746,19 +746,19 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -771,31 +771,31 @@ router:softclients = {
  interface:customers2;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  radius_attributes = {
   banner = Willkommen;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
  }
- host:id:bar@domain.x = { 
-  ip = 10.99.1.11; 
+ host:id:bar@domain.x = {
+  ip = 10.99.1.11;
   radius_attributes = { split-tunnel-policy = tunnelall;
                         banner = Willkommen zu Hause; }
  }
 }
 
-network:customers2 = { 
- ip = 10.99.2.0/24; 
+network:customers2 = {
+ ip = 10.99.2.0/24;
  radius_attributes = {
-  vpn-idle-timeout = 120; 
+  vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
   }
 
  host:id:domain.x = {
-  range = 10.99.2.0 - 10.99.2.63; 
-  radius_attributes = { split-tunnel-policy = tunnelspecified; 
+  range = 10.99.2.0 - 10.99.2.63;
+  radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou;
                         authorization-server-group = LDAP_1;
                         username-from-certificate = CN;
@@ -803,7 +803,7 @@ network:customers2 = {
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40; 
+  radius_attributes = { vpn-idle-timeout = 40;
                         trust-point = ASDM_TrustPoint3; }
  }
  host:id:zzz = {
@@ -813,7 +813,7 @@ network:customers2 = {
  }
 }
 
-group:work = 
+group:work =
  network:work1,
  network:work2,
  network:work3,
@@ -822,11 +822,11 @@ group:work =
 
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
- permit src = user; dst = group:work; prt = tcp 80; 
+ permit src = user; dst = group:work; prt = tcp 80;
 }
 service:test2 = {
  user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
- permit src = user; dst = group:work; prt = tcp 81; 
+ permit src = user; dst = group:work; prt = tcp 81;
 }
 service:test3 = {
  user = host:id:domain.x.customers2, host:id:zzz.customers2;
@@ -1005,6 +1005,122 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Permit all ID hosts in network';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+ }
+ host:id:bar@domain.x = {
+  ip = 10.99.1.11;
+  radius_attributes = { split-tunnel-policy = tunnelall;
+                        banner = Willkommen zu Hause; }
+ }
+}
+
+service:s1 = {
+ user = network:customers1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+service:s2 = {
+ user = host:id:bar@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+--asavpn
+! VPN traffic is filtered at interface ACL
+no sysopt connection permit-vpn
+group-policy global internal
+group-policy global attributes
+ pfs enable
+--
+tunnel-group VPN-single type remote-access
+tunnel-group VPN-single general-attributes
+ authorization-server-group LOCAL
+ default-group-policy global
+ authorization-required
+ username-from-certificate EA
+tunnel-group VPN-single ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
+tunnel-group-map default-group VPN-single
+--
+! vpn-filter-bar@domain.x
+access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any
+access-list vpn-filter-bar@domain.x extended deny ip any any
+group-policy VPN-group-bar@domain.x internal
+group-policy VPN-group-bar@domain.x attributes
+ banner value Willkommen zu Hause
+username bar@domain.x nopassword
+username bar@domain.x attributes
+ vpn-framed-ip-address 10.99.1.11 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-bar@domain.x
+ vpn-group-policy VPN-group-bar@domain.x
+--
+! vpn-filter-foo@domain.x
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
+access-list vpn-filter-foo@domain.x extended deny ip any any
+username foo@domain.x nopassword
+username foo@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-foo@domain.x
+--
+! outside_in
+access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 any 3
+access-list outside_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'VPN ASA with internal software clients';
 ############################################################
 
@@ -1031,10 +1147,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -1046,8 +1162,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
@@ -1061,8 +1177,8 @@ protocol:ping_net = icmp 8, src_net, dst_net;
 service:test1 = {
  user = host:id:foo@domain.x.customers1,
         host:id:long-first-name.long-second-name@long-domain.xyz.customers1;
- permit src = user; dst = network:intern; prt = tcp 80, protocol:ping_net; 
- permit src = network:intern; dst = user; prt = protocol:ping_net; 
+ permit src = user; dst = network:intern; prt = tcp 80, protocol:ping_net;
+ permit src = network:intern; dst = user; prt = protocol:ping_net;
 }
 
 END
@@ -1173,30 +1289,30 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n1 = { 
-  ip = 10.1.1.1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
   hub = crypto:vpn;
-  hardware = n1; 
+  hardware = n1;
   no_check;
  }
 }
 
 router:softclients = {
- interface:n1 = { 
-  spoke = crypto:vpn; 
-  ip = 10.1.1.2; 
+ interface:n1 = {
+  spoke = crypto:vpn;
+  ip = 10.1.1.2;
  }
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 
 service:s1 = {
  user = host:id:foo@domain.x.clients;
- permit src = user; dst = network:n1; prt = tcp 80; 
+ permit src = user; dst = network:n1; prt = tcp 80;
 }
 END
 
@@ -1244,7 +1360,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'No secondary optimization for ID hosts';
+$title = 'No secondary optimization for incoming ID host';
 ############################################################
 
 $in = $crypto_vpn . <<'END';
@@ -1265,30 +1381,31 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:n2 = { 
-  ip = 10.1.2.2; 
+ interface:n2 = {
+  ip = 10.1.2.2;
   hub = crypto:vpn;
-  hardware = n2; 
+  hardware = n2;
   no_check;
  }
 }
 
 router:softclients = {
- interface:n2 = { 
-  spoke = crypto:vpn; 
-  ip = 10.1.2.3; 
+ interface:n2 = {
+  spoke = crypto:vpn;
+  ip = 10.1.2.3;
  }
  interface:clients;
 }
 
-network:clients = { 
- ip = 10.99.1.0/24; 
+network:clients = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 
 service:s1 = {
  user = host:id:foo@domain.x.clients;
- permit src = user; dst = host:h1; prt = tcp 80; 
+ permit src = user; dst = host:h1; prt = tcp 80;
+ permit src = host:h1; dst = user; prt = tcp 22;
 }
 END
 
@@ -1296,6 +1413,7 @@ $out = <<END;
 -- asavpn
 ! n2_in
 access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
+access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 host 10.99.1.10
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
 END
@@ -1322,10 +1440,10 @@ router:asavpn = {
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
   no_check;
  }
 }
@@ -1337,14 +1455,14 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = {  ip = 10.99.1.10; }
 }
 
 service:test1 = {
  user = any:[network:customers1];
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
 }
 END
 
@@ -1374,24 +1492,24 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz1 = { 
-  ip = 192.168.1.1; 
+ interface:dmz1 = {
+  ip = 192.168.1.1;
   hub = crypto:vpn;
-  hardware = dmz1; 
+  hardware = dmz1;
  }
- interface:dmz2 = { 
-  ip = 192.168.2.1; 
+ interface:dmz2 = {
+  ip = 192.168.2.1;
   hub = crypto:vpn2;
-  hardware = dmz2; 
+  hardware = dmz2;
  }
 }
 
 network:dmz1 = { ip = 192.168.1.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz1 = { ip = 192.168.1.2; }
  interface:internet;
 }
@@ -1404,13 +1522,13 @@ router:softclients1 = {
  interface:customers2;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  host:id:foo@domain.x = { ip = 10.99.1.10; }
 }
 
-network:customers2 = { 
- ip = 10.99.2.0/24; 
+network:customers2 = {
+ ip = 10.99.2.0/24;
  host:id:foo@domain.x = { ip = 10.99.2.10; }
 }
 
@@ -1428,8 +1546,8 @@ router:softclients2 = {
  interface:customers3;
 }
 
-network:customers3 = { 
- ip = 10.99.3.0/24; 
+network:customers3 = {
+ ip = 10.99.3.0/24;
  host:id:foo@domain.x = { ip = 10.99.3.10; }
 }
 
@@ -1438,7 +1556,7 @@ service:test1 = {
         host:id:foo@domain.x.customers2,
         host:id:foo@domain.x.customers3,
  ;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
 }
 END
 
@@ -1501,7 +1619,7 @@ crypto:sts2 = {
  detailed_crypto_acl;
 }
 
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -1510,20 +1628,20 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   bind_nat = lan2a;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:sts1, crypto:sts2;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -1558,7 +1676,7 @@ router:vpn2 = {
 
 network:lan2 = { ip = 10.99.2.0/24; }
 
-network:lan2a = { 
+network:lan2a = {
  ip = 192.168.22.0/24;
  nat:lan2a = { ip = 10.99.22.0/24;}
 }
@@ -1566,7 +1684,7 @@ network:lan2a = {
 protocol:http = tcp 80;
 service:test = {
  user = network:lan1, network:lan2, network:lan2a;
- permit src = user; dst = host:netspoc; prt = protocol:http; 
+ permit src = user; dst = host:netspoc; prt = protocol:http;
 }
 END
 
@@ -1725,7 +1843,7 @@ crypto:sts2 = {
  detailed_crypto_acl;
 }
 
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -1734,20 +1852,20 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   bind_nat = lan2a;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:sts1, crypto:sts2;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -1783,7 +1901,7 @@ router:vpn2 = {
 
 network:lan2 = { ip = 10.99.3.0/24; }
 
-network:lan2a = { 
+network:lan2a = {
  ip = 192.168.22.0/24;
  nat:lan2a = { ip = 10.99.22.0/24;}
 }
@@ -1791,7 +1909,7 @@ network:lan2a = {
 protocol:http = tcp 80;
 service:test = {
  user = network:lan1, network:lan2, network:lan2a;
- permit src = user; dst = host:netspoc; prt = protocol:http; 
+ permit src = user; dst = host:netspoc; prt = protocol:http;
 }
 END
 
@@ -1850,7 +1968,7 @@ $title = 'Unexpected dynamic crypto spoke';
 ############################################################
 
 $in = $crypto_sts . <<'END';
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -1859,19 +1977,19 @@ router:asavpn = {
  model = IOS;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:sts;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -1914,19 +2032,19 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint3;
  }
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -2063,13 +2181,13 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.1.1; 
+ interface:dmz = {
+  ip = 192.168.1.1;
   hub = crypto:sts;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
@@ -2138,7 +2256,7 @@ $title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
 ############################################################
 
 $in = $crypto_sts . <<'END';
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -2147,19 +2265,19 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 1.2.3.2; 
+ interface:dmz = {
+  ip = 1.2.3.2;
   hub = crypto:sts;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 1.2.3.0/25; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 1.2.3.1; }
  interface:internet;
 }
@@ -2169,17 +2287,17 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 router:firewall = {
  managed;
  model = ASA;
- interface:internet = { 
+ interface:internet = {
   ip = 1.1.1.1;
   bind_nat = vpn1;
   routing = dynamic;
-  hardware = outside; 
+  hardware = outside;
  }
  interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
 }
 
 network:dmz1 = {
- ip = 10.254.254.0/24; 
+ ip = 10.254.254.0/24;
  nat:vpn1 = { ip = 1.2.3.129/32; dynamic; }
 }
 
@@ -2200,8 +2318,8 @@ id = cert@example.com;
  }
 }
 
-network:lan1 = { 
- ip = 10.99.1.0/24; 
+network:lan1 = {
+ ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
 }
 
@@ -2304,7 +2422,7 @@ $title = 'IOS router as VPN hub';
 ($in = $crypto_sts) =~ s/group = 2/group = 15/g;
 
 $in .= <<'END';
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -2313,19 +2431,19 @@ router:vpn = {
  model = IOS;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = intern;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:sts;
-  hardware = dmz; 
+  hardware = dmz;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -2347,7 +2465,7 @@ network:lan1 = { ip = 10.99.1.0/24; }
 
 service:test = {
  user = network:lan1;
- permit src = user; dst = host:netspoc; prt = tcp 80; 
+ permit src = user; dst = host:netspoc; prt = tcp 80;
 }
 END
 
@@ -2415,19 +2533,19 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 1.2.3.2; 
+ interface:dmz = {
+  ip = 1.2.3.2;
   hub = crypto:sts;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 1.2.3.0/25; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 1.2.3.1; }
  interface:internet;
 }
@@ -2528,19 +2646,19 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = 10.1.1.102; 
+  ip = 10.1.1.102;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 
 network:dmz = { ip = 192.168.0.0/24; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -2552,8 +2670,8 @@ router:softclients = {
  interface:customers1;
 }
 
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  radius_attributes = {
   banner = Willkommen;
  }
@@ -2608,14 +2726,14 @@ router:u2 = {
 
 service:s1 = {
  user = network:n0, network:n1;
- permit src = user; 
-        dst = network:n2-sub; 
+ permit src = user;
+        dst = network:n2-sub;
         prt = proto 51, tcp 22, proto 50;
 }
 service:s2 = {
  user = network:n0-sub;
- permit src = user; 
-        dst = network:n2, network:n1; 
+ permit src = user;
+        dst = network:n2, network:n1;
         prt = proto 50, proto 51;
 }
 END

@@ -15985,17 +15985,26 @@ sub distribute_rule {
         # regardless of $router->{no_crypto_filter} value.
         if (my $id2rules = $in_intf->{id_rules}) {
             my $src_list = $rule->{src};
-            my %id2src_list;
-            for my $src (@$src_list) {
-                if (is_subnet $src) {
-                    my $id = $src->{id};
-                    push @{ $id2src_list{$id} }, $src;
-                }
-                elsif (is_network $src) {
-                    for my $id (map { $_->{id} } @{ $src->{hosts} }) {
-                        push @{ $id2src_list{$id} }, $src;
+
+            # Check individual ID hosts of network at authenticating router.
+            if (grep { $_->{has_id_hosts} } @$src_list) {
+                my @host_list;
+                for my $src (@$src_list) {
+                    if ($src->{has_id_hosts}) {
+                        push @host_list, @{ $src->{subnets} };
+                    }
+                    else {
+                        push @host_list, $src;
                     }
                 }
+                $src_list = \@host_list;
+                $rule = { %$rule, src => $src_list };
+            }
+
+            my %id2src_list;
+            for my $src (@$src_list) {
+                my $id = $src->{id};
+                push @{ $id2src_list{$id} }, $src;
             }
             for my $id (keys %id2src_list) {
                 my $id_src_list = $id2src_list{$id};
@@ -17666,6 +17675,12 @@ sub print_acls {
                                 # authenticating router to prevent
                                 # unauthorized access with spoofed IP
                                 # address.
+                                # It would be sufficient to disable
+                                # optimization only for incoming
+                                # traffic. But for a VPN router with
+                                # only a single interface, incoming
+                                # and outgoing traffic is mixed at
+                                # this interface.
                                 if ($do_auth) {
 
                                     # Single ID-hosts must not be
