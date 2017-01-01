@@ -7,7 +7,7 @@ use Test::Differences;
 use lib 't';
 use Test_Netspoc;
 
-my ($title, $crypto_vpn, $crypto_sts, $in, $copy, $out);
+my ($title, $crypto_vpn, $crypto_sts, $topo, $in, $out);
 
 
 ############################################################
@@ -718,23 +718,10 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'VPN ASA with software clients';
+# Shared topology
 ############################################################
 
-$in = $crypto_vpn . <<'END';
-network:work1 = { ip = 10.0.1.0/24; }
-network:work2 = { ip = 10.0.2.0/24; }
-network:work3 = { ip = 10.0.3.0/24; }
-network:work4 = { ip = 10.0.4.0/24; }
-
-router:u = {
- interface:work1;
- interface:work2;
- interface:work3;
- interface:work4;
- interface:intern = { ip = 10.1.1.1; }
-}
-
+$topo = $crypto_vpn . <<'END';
 network:intern = { ip = 10.1.1.0/24;}
 
 router:asavpn = {
@@ -811,6 +798,25 @@ network:customers2 = {
   radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou; }
  }
+}
+END
+
+############################################################
+$title = 'VPN ASA with software clients';
+############################################################
+
+$in = $topo . <<'END';
+network:work1 = { ip = 10.0.1.0/24; }
+network:work2 = { ip = 10.0.2.0/24; }
+network:work3 = { ip = 10.0.3.0/24; }
+network:work4 = { ip = 10.0.4.0/24; }
+
+router:u = {
+ interface:work1;
+ interface:work2;
+ interface:work3;
+ interface:work4;
+ interface:intern = { ip = 10.1.1.1; }
 }
 
 group:work =
@@ -1008,60 +1014,13 @@ test_err($title, $in, $out);
 $title = 'Permit all ID hosts in network';
 ############################################################
 
-$in = $crypto_vpn . <<'END';
-network:intern = { ip = 10.1.1.0/24;}
-
-router:asavpn = {
- model = ASA, VPN;
- managed;
- general_permit = icmp 3;
- no_crypto_filter;
- radius_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:intern = {
-  ip = 10.1.1.101;
-  hardware = inside;
- }
- interface:dmz = {
-  ip = 192.168.0.101;
-  hub = crypto:vpn;
-  hardware = outside;
- }
-}
-
-network:dmz = { ip = 192.168.0.0/24; }
-
-router:extern = {
- interface:dmz = { ip = 192.168.0.1; }
- interface:internet;
-}
-
-network:internet = { ip = 0.0.0.0/0; has_subnets; }
-
-router:softclients = {
- interface:internet = { spoke = crypto:vpn; }
- interface:customers1;
-}
-
-network:customers1 = {
- ip = 10.99.1.0/24;
- host:id:foo@domain.x = {
-  ip = 10.99.1.10;
- }
- host:id:bar@domain.x = {
-  ip = 10.99.1.11;
-  radius_attributes = { split-tunnel-policy = tunnelall;
-                        banner = Willkommen zu Hause; }
- }
-}
-
+$in = $topo . <<'END';
 service:s1 = {
  user = network:customers1;
  permit src = user; dst = network:intern; prt = tcp 80;
 }
 service:s2 = {
- user = host:id:bar@domain.x.customers1;
+ user = host:id:bar@domain.x.customers1, network:customers2;
  permit src = user; dst = network:intern; prt = tcp 81;
 }
 END
@@ -1104,15 +1063,27 @@ username bar@domain.x attributes
 ! vpn-filter-foo@domain.x
 access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
 access-list vpn-filter-foo@domain.x extended deny ip any any
+group-policy VPN-group-foo@domain.x internal
+group-policy VPN-group-foo@domain.x attributes
+ banner value Willkommen
 username foo@domain.x nopassword
 username foo@domain.x attributes
  vpn-framed-ip-address 10.99.1.10 255.255.255.0
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
+ vpn-group-policy VPN-group-foo@domain.x
 --
 ! outside_in
-access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 any 3
+object-group network g0
+ network-object 10.99.1.10 255.255.255.254
+ network-object 10.99.2.0 255.255.255.128
+ network-object 10.99.2.128 255.255.255.192
+object-group network g1
+ network-object 10.99.2.0 255.255.255.128
+ network-object 10.99.2.128 255.255.255.192
+access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 81
 access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
@@ -2252,10 +2223,10 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
+# Shared topology for multiple tests.
 ############################################################
 
-$in = $crypto_sts . <<'END';
+$topo = $crypto_sts . <<'END';
 network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -2322,7 +2293,13 @@ network:lan1 = {
  ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
 }
+END
 
+############################################################
+$title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
+############################################################
+
+$in = $topo . <<'END';
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
@@ -2394,34 +2371,34 @@ test_run($title, $in, $out);
 $title = 'Missing trust_point in isakmp definition';
 ############################################################
 
-($copy = $in) =~ s/trust_point/#trust_point/;
+($in = $topo) =~ s/trust_point/#trust_point/;
 
 $out = <<"END";
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 END
 
-test_err($title, $copy, $out);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'detailed_crypto_acl at managed spoke';
 ############################################################
 
-($copy = $in) =~ s/(crypto:sts .*)/$1 detailed_crypto_acl;/;
+($in = $topo) =~ s/(crypto:sts .*)/$1 detailed_crypto_acl;/;
 
 $out = <<"END";
 Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:vpn1
 END
 
-test_err($title, $copy, $out);
+test_err($title, $in, $out);
 
 ############################################################
-$title = 'IOS router as VPN hub';
+# Changed topology
 ############################################################
 
-# Run this test with some other group.
-($in = $crypto_sts) =~ s/group = 2/group = 15/g;
+# Run next tests with some other group.
+($topo = $crypto_sts) =~ s/group = 2/group = 15/g;
 
-$in .= <<'END';
+$topo .= <<'END';
 network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -2462,7 +2439,13 @@ router:vpn1 = {
 }
 
 network:lan1 = { ip = 10.99.1.0/24; }
+END
 
+############################################################
+$title = 'IOS router as VPN hub';
+############################################################
+
+$in = $topo . <<END;
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
@@ -2514,13 +2497,13 @@ test_run($title, $in, $out);
 $title = 'Must not use EZVPN as hub';
 ############################################################
 
-($copy = $in) =~ s/IOS/IOS, EZVPN/;
+($in = $topo) =~ s/IOS/IOS, EZVPN/;
 
 $out = <<"END";
 Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
 END
 
-test_err($title, $copy, $out);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Unmanaged VPN spoke with unknown ID';
