@@ -16047,7 +16047,8 @@ my $permit_any_rule;
 sub add_router_acls {
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
-        for my $hardware (@{ $router->{hardware} }) {
+        my $hardware_list = $router->{hardware};
+        for my $hardware (@$hardware_list) {
 
             # Some managed devices are connected by a crosslink network.
             # Permit any traffic at the internal crosslink interface.
@@ -16057,10 +16058,12 @@ sub add_router_acls {
                 # because it has been checked that no other logical
                 # networks are attached to the same hardware.
                 #
-                # Substitute rules for each outgoing interface.
+                # Substitute or set rules for each outgoing interface.
                 if ($has_io_acl) {
-                    for my $rules (values %{ $hardware->{io_rules} }) {
-                        $rules = [$permit_any_rule];
+                    for my $out_hardware (@$hardware_list) {
+                        next if $hardware eq $out_hardware;
+                        $hardware->{io_rules}->{ $out_hardware->{name} } = 
+                            [$permit_any_rule];
                     }
                 }
                 else {
