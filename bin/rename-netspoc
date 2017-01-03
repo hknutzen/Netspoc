@@ -57,7 +57,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -108,66 +108,73 @@ owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
 
 # NAT is applied with bind_nat.
 # Owner is optionally referenced as sub_owner.
+# Interface definition uses network name.
 my %aliases = ( nat   => ['bind_nat'],
-                owner => ['sub_owner'], );
+                owner => ['sub_owner'],
+                network => [ 'interface'],
+    );
 
 my %subst;
 
-# Fill %subst with arrays of search/replace pairs for given type.
+# Fill %subst with mapping from search to replace for given type.
 sub setup_subst {
     my ($type, $search, $replace) = @_;
     $global_type{$type} or fatal_err("Unknown type $type");
 
-    # Quote pattern metacharacters.
-    $search = qr/\Q$search\E/;
+    $subst{$type}->{$search} = $replace;
 
-    # Escape perl sigils in replace string, because we apply eval on it.
-    $replace =~ s/([@%\$])/\\$1/g;
-
-    # Standard for all types.
-    push @{ $subst{$type} }, [qr/$search/, $replace];
-
-    # Network name occurs in interface name and in id: hosts.
-    if ($type eq 'network') {
-
-        # Definition of interface inside definition of router.
-        push(@{ $subst{interface} }, [ qr/$search/, $replace ]);
-
-        # Reference to interface ouside of definition of router.
-        push(@{ $subst{interface} },
-             [ qr/([\w@-]+\.)$search((?:\..*)?)/, '${1}'.$replace.'${2}' ]);
-        push(@{ $subst{host} },
-             [ qr/(id:.*\.)$search/, '${1}'.$replace ]);
-    }
-
-    # Router name occurs in interface name.
-    elsif ($type eq 'router') {
-        push(@{ $subst{interface} }, [ qr/$search([.@].*)/, $replace.'${1}' ]);
-    }
-
-    # Name of id: host is extended with some network name.
-    elsif ($type eq 'host') {
-        push(@{ $subst{host} }, [ qr/$search([.][\w-]+)/, $replace.'${1}' ]);
-    }
-
-    elsif (my $list = $aliases{$type}) {
+    if (my $list = $aliases{$type}) {
         for my $other (@$list) {
-            push @{ $subst{$other} }, [qr/$search/, $replace];
+            $subst{$other}->{$search} = $replace;
         }
     }
-    return;
+
+    # Mark additinal types as valid for substitution.
+    if ($type eq 'network') {
+        $subst{interface} ||= {};
+        $subst{host} ||= {};
+    }
+    if ($type eq 'router') {
+        $subst{interface} ||= {};
+    }
 }
  
 sub subst {
     my ($type, $name) = @_;
     my $aref = $subst{$type} or return $name;
-    for my $pair (@$aref) {
-        my ($search, $replace) = @$pair;
 
-        # 1. eval gives double quoted string.
-        # 2. eval interpolates $1, $2 inside quoted string.
-        $name =~ s/^$search$/"qq($replace)"/ee;
+    # ID host is extended by network name.
+    if ($type eq 'host' and
+        my ($host, $network) = ($name =~ /^(id:.*)[.]([\w-]+)$/)) 
+    {
+        if (my $replace = $subst{host}->{$host}) {
+            $host = $replace;
+            $name = "$host.$network";
+        }
+        if (my $replace = $subst{network}->{$network}) {
+            $network = $replace;
+            $name = "$host.$network";
+        }
     }
+
+    # Reference to interface ouside the definition of router.
+    elsif ($type eq 'interface' and
+           (my $router, $network, my $ext) = 
+           ($name =~ /^([\w@-]+)[.]([\w-]+)((?:[.].*)?)$/))
+    {
+        if (my $replace = $subst{router}->{$router}) {
+            $router = $replace;
+            $name = "$router.$network$ext";
+        }
+        if (my $replace = $subst{network}->{$network}) {
+            $network = $replace;
+            $name = "$router.$network$ext";
+        }
+    }
+    elsif (my $replace = $subst{$type}->{$name}) {
+        $name = $replace;
+    }
+    
     return $name;
 }
 
