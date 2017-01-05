@@ -77,6 +77,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Interface with EIGRP";
+############################################################
+
+$in = <<'END';
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed; 
+ model = ACE;
+ interface:U = { ip = 10.1.1.1; hardware = e0; routing = EIGRP; }
+}
+END
+
+$out = <<'END';
+--R
+access-list e0_in extended permit 88 10.1.1.0 255.255.255.0 host 224.0.0.10
+access-list e0_in extended permit 88 10.1.1.0 255.255.255.0 10.1.1.0 255.255.255.0
+access-list e0_in extended deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Interface with RIPv2";
+############################################################
+
+$in = <<'END';
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed; 
+ model = ACE;
+ interface:U = { ip = 10.1.1.1; hardware = e0; routing = RIPv2; }
+}
+END
+
+$out = <<'END';
+--R
+access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 host 224.0.0.9 eq 520
+access-list e0_in extended permit udp 10.1.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 520
+access-list e0_in extended deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Interface with HSRP";
 ############################################################
 

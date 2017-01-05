@@ -18103,6 +18103,21 @@ sub init_protocols {
                 )
             ]
         },
+        RIPv2 => {
+            name  => 'RIP',
+            prt   => { name => 'auto_prt:RIPv2', 
+                       proto => 'udp',
+                       dst_range => [ 520, 520 ],
+            },
+            mcast => [
+                new(
+                    'Network',
+                    name => "auto_network:RIPv2_multicast",
+                    ip   => gen_ip(224, 0, 0, 9),
+                    mask => gen_ip(255, 255, 255, 255)
+                )
+            ]
+        },
         dynamic => { name => 'dynamic' },
 
         # Identical to 'dynamic', but must only be applied to router.
