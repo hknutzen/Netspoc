@@ -4,31 +4,90 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
+use IPC::Run3;
 use File::Temp qw/ tempfile tempdir /;
+
+sub run {
+    my ($input, $args) = @_;
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q - $args";
+    my ($stdout, $stderr);
+    run3($cmd, \$input, \$stdout, \$stderr);
+    my $status = $? >> 8;
+    return($status, $stdout, $stderr);
+}
 
 sub test_run {
     my ($title, $input, $args, $expected) = @_;
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-
-    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q - $args < $filename";
-    open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
-
-    # Undef input record separator to read all output at once.
-    local $/ = undef;
-    my $output = <$out_fh>;
-    close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
-    eq_or_diff($output, $expected, $title);
-    return;
+    my ($status, $stdout, $stderr) = run($input, $args);
+    if ($status != 0) {
+        $stderr ||= '';
+        BAIL_OUT "Unexpected error\n$stderr\n";
+    }
+    eq_or_diff($stdout, $expected, $title);
 }
 
+sub test_err {
+    my ($title, $input, $args, $expected) = @_;
+    my ($status, $stdout, $stderr) = run($input, $args);
+    if ($status == 0) {
+        BAIL_OUT "Unexpected success\n";
+    }
+    $stderr =~ s/Aborted\n$//;
+    eq_or_diff($stderr, $expected, $title);
+}
+
+my ($title, $in, $out);
+
 ############################################################
-my $title = 'Rename network';
+$title = 'Unknown type in substitution';
 ############################################################
 
-my $in = <<'END';
+$out = <<'END';
+Error: Unknown type foo
+END
+
+test_err($title, '', 'foo:Test foo:Toast', $out);
+
+############################################################
+$title = 'Missing type in substitution';
+############################################################
+
+$out = <<'END';
+Error: Missing type in 'Test'
+END
+
+test_err($title, '', 'Test Toast', $out);
+
+############################################################
+$title = 'Missing replace string';
+############################################################
+
+$out = <<'END';
+Error: Missing replace string for 'host:z'
+END
+
+test_err($title, '', 'host:x host:y host:z', $out);
+
+############################################################
+$title = 'Types must be indentical';
+############################################################
+
+$in = '';
+
+$out = <<'END';
+Error: Types must be identical in
+ - host:x
+ - network:y
+END
+
+test_err($title, '', 'host:x network:y ', $out);
+
+############################################################
+$title = 'Rename network';
+############################################################
+
+$in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test, # comment
     host:id:h@dom.top.Test,
@@ -36,7 +95,7 @@ group:G = interface:r.Test, # comment
     ;
 END
 
-my $out = <<'END';
+$out = <<'END';
 network:Toast =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Toast, # comment
     host:id:h@dom.top.Toast,
@@ -47,6 +106,51 @@ END
 test_run($title, $in, 'network:Test network:Toast', $out);
 
 ############################################################
+$title = 'Rename both, ID host and network';
+############################################################
+
+$in = <<'END';
+group:G =
+    host:id:h@dom.top.Test,
+    host:id:h@dom.top.top,
+    ;
+END
+
+$out = <<'END';
+group:G =
+    host:id:xx@yy.zz.Toast,
+    host:id:xx@yy.zz.top,
+    ;
+END
+
+test_run($title, $in, 
+         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast', 
+         $out);
+
+############################################################
+$title = 'Rename ID host';
+############################################################
+
+$in = <<'END';
+group:G =
+    host:id:h@dom.top.Test,
+    host:id:h@dom.top.top,
+    host:id:dom.top.Test,
+    ;
+END
+
+$out = <<'END';
+group:G =
+    host:id:xx@yy.zz.Test,
+    host:id:xx@yy.zz.top,
+    host:id:a.b.c.Test,
+    ;
+END
+
+test_run($title, $in, 
+         'host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c', 
+         $out);
+###################################################
 $title = 'Rename network to name with leading digit';
 ############################################################
 
@@ -192,6 +296,16 @@ network:xxxx = { owner = büro;
 END
 
 test_run($title, $in, "-f $filename", $out);
+
+############################################################
+$title = 'Unknown file for substitutions';
+############################################################
+
+$out = <<'END';
+Error: Can't open missing.file: No such file or directory
+END
+
+test_err($title, '', "-f missing.file", $out);
 
 ############################################################
 done_testing;
