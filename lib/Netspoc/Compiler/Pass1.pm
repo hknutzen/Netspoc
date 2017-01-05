@@ -17675,7 +17675,6 @@ sub print_acls {
                             for my $obj (@$obj_list) {
 
                                 # Prepare secondary optimization.
-                                my $type = ref($obj);
 
                                 # Restrict secondary optimization at
                                 # authenticating router to prevent
@@ -17687,22 +17686,12 @@ sub print_acls {
                                 # only a single interface, incoming
                                 # and outgoing traffic is mixed at
                                 # this interface.
-                                if ($do_auth) {
+                                # At this stage, network with
+                                # {has_id_hosts} has already been
+                                # converted to single ID hosts.
+                                next if $do_auth and $obj->{id};
 
-                                    # Single ID-hosts must not be
-                                    # converted to network.
-                                    if ($type eq 'Subnet') {
-                                        next if $obj->{id};
-                                    }
-
-                                    # Network with ID-hosts must not
-                                    # be optimized at all.
-                                    elsif ($obj->{has_id_hosts}) {
-                                        $no_opt_addrs{$obj} = $obj;
-                                        next;
-                                    }
-                                }
-
+                                my $type = ref($obj);
                                 my $subst;
                                 if ($type eq 'Subnet' or $type eq 'Interface') {
                                     my $net = $obj->{network};
