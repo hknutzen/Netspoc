@@ -91,7 +91,6 @@ my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
 my $quiet;
 
 ## no critic (RequireArgUnpacking)
-sub debug { print STDERR @_, "\n"; return; }
 sub info  { print STDERR @_, "\n"; return; }
  
 sub fatal_err {
@@ -254,7 +253,7 @@ sub process {
  
 sub process_file {
     my ($path) = @_;
-#    debug "File $path";
+
     ## no critic ProhibitTwoArgOpen
     open(my $in, $path) or fatal_err "Can't open $path: $!";
     my @input = <$in>;
