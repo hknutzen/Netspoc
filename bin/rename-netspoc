@@ -268,7 +268,6 @@ sub process_file {
         close $out;
     }
     ## use critic
-    return;
 }
  
 sub process_file_or_dir {
@@ -290,7 +289,6 @@ sub process_file_or_dir {
     else {
         process_file($path);
     }
-    return;
 }
 
 sub setup_pattern {
@@ -321,7 +319,6 @@ sub read_pattern {
     my @pattern = split(' ', $input) or
         fatal_err "Missing pattern in $path";
     setup_pattern(@pattern);
-    return;
 }
     
 ####################################################################
