@@ -13183,6 +13183,9 @@ sub expand_crypto {
                         " because $isakmp->{name}",
                         " has authentication=rsasig"
                     );
+
+                    # Prevent further errors.
+                    $tunnel_intf->{id} = '';
                 }
 
                 if ($peer->{router}->{model}->{crypto} eq 'ASA_VPN') {
