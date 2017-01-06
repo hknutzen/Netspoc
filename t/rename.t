@@ -116,28 +116,6 @@ END
 test_run($title, $in, '--noquiet network:Test network:Toast', $out);
 
 ############################################################
-$title = 'Rename both, ID host and network';
-############################################################
-
-$in = <<'END';
-group:G =
-    host:id:h@dom.top.Test,
-    host:id:h@dom.top.top,
-    ;
-END
-
-$out = <<'END';
-group:G =
-    host:id:xx@yy.zz.Toast,
-    host:id:xx@yy.zz.top,
-    ;
-END
-
-test_run($title, $in, 
-         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast', 
-         $out);
-
-############################################################
 $title = 'Rename ID host';
 ############################################################
 
@@ -160,6 +138,29 @@ END
 test_run($title, $in, 
          'host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c', 
          $out);
+
+############################################################
+$title = 'Rename both, ID host and network';
+############################################################
+
+$in = <<'END';
+group:G =
+    host:id:h@dom.top.Test,
+    host:id:h@dom.top.top,
+    ;
+END
+
+$out = <<'END';
+group:G =
+    host:id:xx@yy.zz.Toast,
+    host:id:xx@yy.zz.top,
+    ;
+END
+
+test_run($title, $in, 
+         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast', 
+         $out);
+
 ###################################################
 $title = 'Rename network to name with leading digit';
 ############################################################
@@ -187,7 +188,7 @@ $title = 'Rename router';
 ############################################################
 
 $in = <<'END';
-router:Test = { interface:N = { ip = 10.9.1.0/24; }
+router:Test = { interface:N = { ip = 10.9.1.0; }
  interface:M;
 }
 group:G = interface:Test.N, # comment
@@ -196,7 +197,7 @@ group:G = interface:Test.N, # comment
 END
 
 $out = <<'END';
-router:Toast = { interface:N = { ip = 10.9.1.0/24; }
+router:Toast = { interface:N = { ip = 10.9.1.0; }
  interface:M;
 }
 group:G = interface:Toast.N, # comment
@@ -211,13 +212,13 @@ $title = 'Rename router then network';
 ############################################################
 
 $in = <<'END';
-router:R = { interface:NN = { ip = 10.9.1.0/24; } }
+router:R = { interface:NN = { ip = 10.9.1.0; } }
 network:NN
 interface:R.NN;
 END
 
 $out = <<'END';
-router:RR = { interface:N = { ip = 10.9.1.0/24; } }
+router:RR = { interface:N = { ip = 10.9.1.0; } }
 network:N
 interface:RR.N;
 END
