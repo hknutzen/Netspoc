@@ -20,11 +20,11 @@ sub run {
 sub test_run {
     my ($title, $input, $args, $expected) = @_;
     my ($status, $stdout, $stderr) = run($input, $args);
+    $stderr ||= '';
     if ($status != 0) {
-        $stderr ||= '';
         BAIL_OUT "Unexpected error\n$stderr\n";
     }
-    eq_or_diff($stdout, $expected, $title);
+    eq_or_diff("$stderr$stdout", $expected, $title);
 }
 
 sub test_err {
@@ -104,6 +104,16 @@ group:G = interface:r.Toast, # comment
 END
 
 test_run($title, $in, 'network:Test network:Toast', $out);
+
+############################################################
+$title = 'Rename verbosely';
+############################################################
+
+$out = <<'END' . $out;
+4 changes in -
+END
+
+test_run($title, $in, '--noquiet network:Test network:Toast', $out);
 
 ############################################################
 $title = 'Rename both, ID host and network';
