@@ -116,6 +116,32 @@ END
 test_run($title, $in, '--noquiet network:Test network:Toast', $out);
 
 ############################################################
+$title = 'Rename bridged network';
+############################################################
+
+$in = <<'END';
+network:Test/a = { ip = 10.9.1.0/24; }
+network:Test/b = { ip = 10.9.1.0/24; }
+group:G = interface:r.Test,
+    network:Test/a,
+    network:Test/b,
+    interface:r.Test/b,
+    ;
+END
+
+$out = <<'END';
+network:Toast/a = { ip = 10.9.1.0/24; }
+network:Toast/b = { ip = 10.9.1.0/24; }
+group:G = interface:r.Toast,
+    network:Toast/a,
+    network:Toast/b,
+    interface:r.Toast/b,
+    ;
+END
+
+test_run($title, $in, 'network:Test network:Toast', $out);
+
+############################################################
 $title = 'Rename ID host';
 ############################################################
 
@@ -188,13 +214,13 @@ $title = 'Rename router then network';
 ############################################################
 
 $in = <<'END';
-router:R = { interface:NN = { ip = 10.9.1.0; } }
+router:R = { interface:NN = { ip = 10.9.1.1; } }
 network:NN
 interface:R.NN;
 END
 
 $out = <<'END';
-router:RR = { interface:N = { ip = 10.9.1.0; } }
+router:RR = { interface:N = { ip = 10.9.1.1; } }
 network:N
 interface:RR.N;
 END
@@ -202,6 +228,28 @@ END
 test_run($title, $in, 'router:R router:RR network:NN network:N', $out);
 $title = 'Rename network then router';
 test_run($title, $in, 'network:NN network:N router:R router:RR', $out);
+
+############################################################
+$title = 'Rename VRF router';
+############################################################
+
+$in = <<'END';
+router:R = { interface:n = { ip = 10.9.1.1; } }
+router:R@vrf = { interface:n = { ip = 10.9.1.2; } }
+group:G =
+interface:R.n;
+interface:R@vrf.n;
+END
+
+$out = <<'END';
+router:RR = { interface:n = { ip = 10.9.1.1; } }
+router:r@vrf = { interface:n = { ip = 10.9.1.2; } }
+group:G =
+interface:RR.n;
+interface:r@vrf.n;
+END
+
+test_run($title, $in, 'router:R router:RR router:R@vrf router:r@vrf', $out);
 
 ############################################################
 $title = 'Rename nat';
@@ -214,6 +262,8 @@ bind_nat = x, # comment
     y,NAT-1, z;
 bind_nat =NAT-1#comment
     ;
+bind_nat
+= NAT-1;
 END
 
 $out = <<'END';
@@ -223,6 +273,8 @@ bind_nat = x, # comment
     y,NAT-2, z;
 bind_nat =NAT-2#comment
     ;
+bind_nat
+= NAT-2;
 END
 
 test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
