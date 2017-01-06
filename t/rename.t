@@ -184,30 +184,6 @@ END
 test_run($title, $in, 'network:Test network:1_2_3_0_Test', $out);
 
 ############################################################
-$title = 'Rename router';
-############################################################
-
-$in = <<'END';
-router:Test = { interface:N = { ip = 10.9.1.0; }
- interface:M;
-}
-group:G = interface:Test.N, # comment
-  interface:Test.M
-    ;
-END
-
-$out = <<'END';
-router:Toast = { interface:N = { ip = 10.9.1.0; }
- interface:M;
-}
-group:G = interface:Toast.N, # comment
-  interface:Toast.M
-    ;
-END
-
-test_run($title, $in, 'router:Test router:Toast', $out);
-
-############################################################
 $title = 'Rename router then network';
 ############################################################
 
@@ -250,6 +226,28 @@ bind_nat =NAT-2#comment
 END
 
 test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
+
+############################################################
+$title = 'Rename loopback interface';
+############################################################
+
+$in = <<'END';
+router:r1 = { interface:Loopback_4 = { ip = 10.9.1.1; loopback; } }
+router:r2 = { interface:Loopback_4 = { ip = 10.9.1.2; loopback; } }
+group:G = interface:r1.Loopback_4,
+          interface:r2.Loopback_4,
+    ;
+END
+
+$out = <<'END';
+router:r1 = { interface:Loopback = { ip = 10.9.1.1; loopback; } }
+router:r2 = { interface:Loopback = { ip = 10.9.1.2; loopback; } }
+group:G = interface:r1.Loopback,
+          interface:r2.Loopback,
+    ;
+END
+
+test_run($title, $in, 'network:Loopback_4 network:Loopback', $out);
 
 ############################################################
 $title = 'Rename umlauts';
