@@ -52,11 +52,6 @@ $out_dir =~ s,/$,,;
 # take modification date for all newly created files.
 my $policy_file = "$netspoc_data/POLICY";
 
-sub abort {
-    my ($msg) = @_;
-    die "$msg\n";
-}
-
 sub create_dirs {
     my ($path) = @_;
     $path = "$out_dir/$path";
@@ -1186,7 +1181,7 @@ sub copy_policy_file {
     if ( -f $policy_file) {
         system("find $out_dir -type f -exec touch -r $policy_file {} \\;");
         system("cp -pf $policy_file $out_dir") == 0 or
-            abort "Can't copy $policy_file";
+            die "Can't copy $policy_file\n";
     }
     return;
 }
