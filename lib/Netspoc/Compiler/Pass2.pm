@@ -2033,7 +2033,7 @@ sub cisco_prt_code {
             }
         };
         my $dst_prt = $port_code->($prt);
-        if (my $established = $prt->{established}) {
+        if ($prt->{established}) {
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
             }
