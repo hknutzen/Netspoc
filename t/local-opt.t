@@ -370,7 +370,7 @@ router:u = {
 network:t = { ip = 10.9.1.0/24; }
 
 router:r = {
- model = ASA;
+ model = ACE;
  managed;
  interface:t = { ip = 10.9.1.2; hardware = t; }
  interface:B = { ip = 10.2.1.1; hardware = B; }
@@ -394,11 +394,21 @@ $out = <<'END';
 -- r
 ! t_in
 object-group network g0
- network-object 10.1.1.0 255.255.255.0
- network-object 10.1.2.0 255.255.255.0
+ 10.1.1.0 255.255.255.0
+ 10.1.2.0 255.255.255.0
+access-list t_in extended deny ip any host 10.2.1.1
 access-list t_in extended permit tcp object-group g0 10.2.1.0 255.255.255.0 range 80 86
 access-list t_in extended deny ip any any
-access-group t_in in interface t
+--
+! B_in
+access-list B_in extended deny ip any any
+--
+interface t
+ ip address 10.9.1.2 255.255.255.0
+ access-group input t_in
+interface B
+ ip address 10.2.1.1 255.255.255.0
+ access-group input B_in
 END
 
 test_run($title, $in, $out);

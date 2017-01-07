@@ -2854,6 +2854,9 @@ service:s2 = {
  permit src = user;
         dst = network:n2, network:n1;
         prt = proto 50, proto 51;
+ deny   src = user;
+        dst = network:n2-sub;
+        prt = ip;
 }
 END
 
@@ -2862,6 +2865,7 @@ $out = <<'END';
 ip access-list extended n0_in
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.129
+ deny ip 10.1.0.0 0.0.0.63 10.1.2.0 0.0.0.127
  permit 50 10.1.0.0 0.0.0.255 10.1.2.0 0.0.0.127
  permit 50 10.1.0.0 0.0.0.63 10.1.1.0 0.0.0.255
  permit 50 10.1.0.0 0.0.0.63 10.1.2.0 0.0.0.255
