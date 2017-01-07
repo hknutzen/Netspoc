@@ -337,6 +337,39 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Area defined by anchor';
+############################################################
+
+$in = $topo . <<'END';
+area:all = { anchor = network:n1; }
+service:test = {
+    has_unenforceable;
+    user = network:[area:all];
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:all = { anchor = network:n1; }
+service:test = {
+    has_unenforceable;
+    user = network:[area:all];
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Useless aggregate';
 ############################################################
 
