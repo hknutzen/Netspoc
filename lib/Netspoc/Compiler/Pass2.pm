@@ -565,9 +565,7 @@ sub move_rules_esp_ah {
     $prt_esp or $prt_ah or return;
     for my $what (qw(intf_rules rules)) {
         my $rules = $acl_info->{$what} or next;
-        my @deny_rules;
-        my @crypto_rules;
-        my @permit_rules;
+        my (@deny_rules, @crypto_rules, @permit_rules);
         for my $rule (@$rules) {
             if ($rule->{deny}) {
                 push @deny_rules, $rule;
@@ -1163,8 +1161,7 @@ sub gen_prt_bintree {
     #
     # We need not to handle 'tcp established' because it is only used
     # for stateless routers, but iptables is stateful.
-    my $gen_lohitrees;
-    my $gen_rangetree;
+    my ($gen_lohitrees, $gen_rangetree);
     $gen_lohitrees = sub {
         my ($prt_aref) = @_;
         if (not $prt_aref) {
