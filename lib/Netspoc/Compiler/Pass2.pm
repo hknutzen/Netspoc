@@ -2076,11 +2076,7 @@ sub print_cisco_std_acl {
     my $rules = $acl_info->{rules};
     my $name = $acl_info->{name};
     my $prefix;
-    if ($model eq 'IOS') {
-        $prefix = '';
-        print "ip access-list $name\n";
-    }
-    elsif ($model eq 'ASA') {
+    if ($model eq 'ASA') {
         $prefix = "access-list $name standard";
     }
     else {
