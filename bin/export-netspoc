@@ -93,7 +93,7 @@ sub ip_nat_for_object {
     my $ip;
     my $nat;
 
-# This code is a modified copy of address.
+# This code is a modified copy of sub address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
 # - Handles dynamic NAT for hosts.
 # - It returns strings of textual ip/mask, not pairs of numbers.
@@ -207,9 +207,6 @@ sub ip_nat_for_object {
                 $nat->{$tag} = $get_ip->($obj, $nat_obj);
             }
         }
-    }
-    else {
-        internal_err "Unexpected object $obj->{name}";
     }
     return $nat ? ( ip => $ip, nat => $nat ) : ( ip => $ip );
 }
