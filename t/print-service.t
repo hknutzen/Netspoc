@@ -28,7 +28,11 @@ my ($topo, $title, $in, $out);
 
 ############################################################
 $topo = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:N = { ip = 10.1.9.0/24; }
+ host:h1 = { ip = 10.1.1.10; }
+}
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:range3 = { range = 10.1.3.9-10.1.3.10; } }
 
@@ -43,7 +47,7 @@ router:asa2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = N; }
 }
 END
 
@@ -62,6 +66,7 @@ service:s1 = {
     user = host:h1, network:n2;
     permit src = user; dst = network:n3; prt = protocolgroup:ftp-all;
     permit src = user; dst = host:range3; prt = udp 123;
+    permit src = user; dst = interface:asa2.n3; prt = icmp 3/3;
     deny   src = user; dst = interface:asa2.n3; prt = icmp 5;
     permit src = user; dst = interface:asa2.n3; prt = icmp;
 }
@@ -69,22 +74,24 @@ END
 
 $out = <<'END';
 s1:deny 10.1.2.0/24 10.1.3.2 icmp 5
-s1:deny 10.1.1.10 10.1.3.2 icmp 5
+s1:deny 10.1.9.10 10.1.3.2 icmp 5
 s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 21
-s1:permit 10.1.1.10 10.1.3.0/24 tcp 21
+s1:permit 10.1.9.10 10.1.3.0/24 tcp 21
 s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 1024-65535
-s1:permit 10.1.1.10 10.1.3.0/24 tcp 1024-65535
+s1:permit 10.1.9.10 10.1.3.0/24 tcp 1024-65535
 s1:permit 10.1.3.0/24 10.1.2.0/24 tcp 20:1024-65535
-s1:permit 10.1.3.0/24 10.1.1.10 tcp 20:1024-65535
+s1:permit 10.1.3.0/24 10.1.9.10 tcp 20:1024-65535
 s1:permit 10.1.2.0/24 10.1.3.9 udp 123
 s1:permit 10.1.2.0/24 10.1.3.10 udp 123
-s1:permit 10.1.1.10 10.1.3.9 udp 123
-s1:permit 10.1.1.10 10.1.3.10 udp 123
+s1:permit 10.1.9.10 10.1.3.9 udp 123
+s1:permit 10.1.9.10 10.1.3.10 udp 123
+s1:permit 10.1.2.0/24 10.1.3.2 icmp 3/3
+s1:permit 10.1.9.10 10.1.3.2 icmp 3/3
 s1:permit 10.1.2.0/24 10.1.3.2 icmp
-s1:permit 10.1.1.10 10.1.3.2 icmp
+s1:permit 10.1.9.10 10.1.3.2 icmp
 END
 
-test_run($title, $in, 'service:s1 service:s2', $out);
+test_run($title, $in, '-nat n3 service:s1 service:s2', $out);
 
 ############################################################
 $title = 'All services';
