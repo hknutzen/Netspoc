@@ -2071,17 +2071,11 @@ sub cisco_prt_code {
     }
 }
 
-sub print_cisco_std_acl {
+sub print_asa_std_acl {
     my ($acl_info, $model) = @_;
-    my $rules = $acl_info->{rules};
-    my $name = $acl_info->{name};
-    my $prefix;
-    if ($model eq 'ASA') {
-        $prefix = "access-list $name standard";
-    }
-    else {
-        fatal_err("Unexpected model $model");
-    }
+    my $rules  = $acl_info->{rules};
+    my $name   = $acl_info->{name};
+    my $prefix = "access-list $name standard";
     for my $rule (@$rules) {
         my ($deny, $src) = @{$rule}{qw(deny src)};
         my $action = $deny ? 'deny' : 'permit';
@@ -2089,7 +2083,6 @@ sub print_cisco_std_acl {
         $result .= ' ' .  cisco_acl_addr($src, $model);
         print "$result\n";
     }
-    return;
 }
 
 sub print_cisco_acl {
@@ -2097,7 +2090,7 @@ sub print_cisco_acl {
     my $model = $router_data->{model};
 
     if ($acl_info->{is_std_acl}) {
-        print_cisco_std_acl($acl_info, $model);
+        print_asa_std_acl($acl_info, $model);
         return;
     }
 
@@ -2116,9 +2109,6 @@ sub print_cisco_acl {
     }
     elsif ($model eq 'ASA' || $model eq 'ACE') {
         $prefix = "access-list $name extended";
-    }
-    else {
-        fatal_err("Unexpected model $model");
     }
 
     for my $rule (@$intf_rules, @$rules) {
