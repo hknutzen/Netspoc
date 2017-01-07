@@ -385,11 +385,11 @@ sub find_visibility {
     # Restricted visibility
     elsif (@other_extra <= 2) {
         if (@DA_extra >= 3) {
-            $visibility = 'DA_*';
+            $visibility = qr/^DA_/;
         }
     }
     else {
-        $visibility = '*';
+        $visibility = qr/^.*/;
     }
     return $visibility;
 }
@@ -539,9 +539,7 @@ sub setup_service_info {
         $service->{part_uowners} = part_owners_for_objects($users);
         $service->{outer_uowners} = outer_owners_for_objects($users);
 
-        # Für Übergangszeit aus aktueller Benutzung bestimmen.
-        $service->{visible} ||= find_visibility($owners, $uowners);
-        $service->{visible} and $service->{visible} =~ s/\*$/.*/;
+        $service->{visible} = find_visibility($owners, $uowners);
     }
 }
 
@@ -997,7 +995,7 @@ sub export_services {
                 my $hash = $owner2type2shash{$owner} ||= {};
                 next if $hash->{owner}->{$service};
                 next if $hash->{user}->{$service};
-                if ($owner =~ /^$visible/) {
+                if ($owner =~ $visible) {
                     $hash->{visible}->{$service} = $service;
                 }
             }
