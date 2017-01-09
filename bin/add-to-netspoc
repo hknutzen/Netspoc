@@ -142,11 +142,12 @@ sub process {
                     
                     # Find next "type:name".
                     if ($line =~ /\G (\s*) (\w+ : [-\w.:\@\/]+)/gcx) {
-                        $copy .= "$1$2";
+                        $copy .= $1;
                         my $old = $2;
                         if ($line =~ /\G ( \[ (?: auto | all ) \] )/gcx) {
                             $old .= $1;
                         }
+                        $copy .= $old;
                         my $new = $add_to{$old} or next;
                         $line_changed++;
 
@@ -154,14 +155,11 @@ sub process {
                         # add new entry to separate line.
                         if ($line =~ /^ ((?:\s*[\w:]+\s*=)?\s*) 
                                         \Q$old\E 
-                                        (\s* ([,;]?) \s* ([#].*)?) $/xs)
+                                        \s* ([,;]?) \s* ([#].*)? $/xs)
                         {
                             my $prefix = $1;
-                            my $tail = $2;
                             (my $indent = $prefix) =~ s/[^\s]/ /g;
-                            $copy = "$prefix$old,\n$indent$new$tail";
-                            $in_list = 0 if $tail =~ /^ \s* ;/x;
-                            last TOKEN;
+                            $copy .= ",\n$indent$new";
                         }
                         else {
                             $copy .= ", $new";
