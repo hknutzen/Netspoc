@@ -1,5 +1,18 @@
 {{$NEXT}}
 
+ - If network with ID hosts is used in source of rule, the ACL at
+   authenticating router now checks for IP addresses of individual ID
+   hosts instead of IP of whole network.
+ - Abort now, if multiple static routes to one network would be
+   generated. Previously, a warning was given and only one of
+   multiple routes had been printed.
+ - Fixed static route pointing to network behind chain of bridges.
+ - Only one crypto spoke is allowed per device now.
+ - Better checks for missing aggregate rules.
+ - Improved performance of 'rename-netspoc' if many substitutions are
+   applied at once.
+ - Added script to convert text export of Barracuda rules to Netspoc rules.
+ 
 5.018     2016-12-05 12:37:08+01:00 Europe/Berlin
 
  - Added new attribute 'disable_at = yyyy-mm-dd' at service.
