@@ -6,7 +6,7 @@ Pass 2 of Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
