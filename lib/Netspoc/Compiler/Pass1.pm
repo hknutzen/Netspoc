@@ -436,7 +436,7 @@ sub err_msg {
     check_abort();
 }
 
-# Print internal error message and aborts.
+# Print internal error message and abort.
 sub internal_err {
     my (@args) = @_;
 
@@ -15663,7 +15663,6 @@ sub print_routes {
     my @interfaces;
     my %mask2ip2net;
     my %net2hop_info;
-    my %net2no_opt;
 
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
@@ -15771,6 +15770,7 @@ sub print_routes {
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
     my @masks = reverse sort keys %mask2ip2net;
+    my %net2no_opt;
     while (defined(my $mask = shift @masks)) {
       NETWORK:
         for my $ip (sort keys %{ $mask2ip2net{$mask} }) {
@@ -17486,8 +17486,8 @@ sub print_interface {
         next if $name eq 'VIP' and $model->{has_vip};
         my @subcmd;
         my $secondary;
-        my $addr_cmd;
         for my $intf (@{ $hardware->{interfaces} }) {
+            my $addr_cmd;
             my $ip = $intf->{ip};
             if ($ip eq 'tunnel') {
                 next;
