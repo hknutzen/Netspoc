@@ -15345,7 +15345,6 @@ sub fix_bridged_hops {
         for my $hop2 (values %{ $interface->{hopref2obj} }) {
             for my $network2 (values %{ $interface->{routes}->{$hop2} }) {
                 if ($network eq $network2) {
-                    debug "$hop->{name} -> $network->{name} -> $hop2->{name}";
                     if ($hop2->{ip} eq 'bridged') {
                         push @result, fix_bridged_hops($hop2, $network);
                     }
@@ -15368,7 +15367,6 @@ sub check_and_convert_routes {
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{routing};
             next if not $interface->{network}->{bridged};
-            debug $interface->{name};
             for my $hop (values %{ $interface->{hopref2obj} }) {
                 next if $hop->{ip} ne 'bridged';
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
