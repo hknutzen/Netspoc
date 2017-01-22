@@ -256,13 +256,7 @@ sub process {
             last;
         }
     }
-
-    if ($changed) {
-        return ($changed, $copy);
-    }
-    else {
-        return ();
-    }
+    return ($changed, $copy);
 }
 
 sub process_file {
@@ -275,7 +269,8 @@ sub process_file {
     # Undef input record separator to read all output at once.
     { local $/ = undef; $input = <$in>; }
     close $in;
-    if (my ($count, $copy) = process($input)) {
+    my ($count, $copy) = process($input);
+    if ($count or $path eq '-') {
         info "$count changes in $path" if not $quiet;
         if ($path ne '-') {
             unlink($path) or fatal_err "Can't remove $path: $!\n";
