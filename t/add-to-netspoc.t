@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
-use File::Temp qw/ tempfile tempdir /;
+use File::Temp qw/ tempfile /;
 
 sub test_run {
     my ($what, $title, $input, $args, $expected) = @_;

@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
-use File::Temp qw/ tempfile tempdir /;
+use File::Temp qw/ tempfile /;
 
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(test_group);

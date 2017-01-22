@@ -5,7 +5,7 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use IPC::Run3;
-use File::Temp qw/ tempfile tempdir /;
+use File::Temp qw/ tempfile /;
 
 sub run {
     my ($input, $args) = @_;
