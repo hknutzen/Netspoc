@@ -237,8 +237,8 @@ group:x =
   host:d,
   host:d1
   ,
-  host:e,
-  host:e1 ###
+  host:e, ###
+  host:e1
   , host:f, host:f1,
   host:g,
   host:g1;
@@ -255,10 +255,9 @@ group:x =
   host:b, host:c,
   host:d,
 
-  host:e,
-host:f,
-  host:g,
-  ;
+  host:e, ###
+ host:f,
+  host:g;
 END
 
 test_rmv($title, $out, 'host:a1 host:b1 host:d1 host:e1 host:f1 host:g1', $in);
@@ -307,8 +306,7 @@ END
 
 $out = <<'END';
 service:s1 = {
- user =
-        ;
+ user = ;
  permit src = host:c,
               host:d;
         dst = user;
@@ -378,8 +376,7 @@ $in = <<'END';;
 group:g = 
 interface:r.n.sec,
 any:aaa, network:xyz,
-host:abc,
-;
+host:abc;
 END
 
 test_rmv($title, $out, "-f $filename", $in);
