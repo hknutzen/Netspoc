@@ -11168,7 +11168,7 @@ sub optimize_pathrestrictions {
 # Comments : Loop markers store following information:
 #            - exit: node of the loop where zone1 is reached
 #            - distance: distance of loop exit node + 1. It is needed, as the
-#            nodes own distance values are later reset zo the value of the
+#            nodes own distance values are later reset to the value of the
 #            cluster exit object. The intermediate value is required by
 #            cluster_navigation to work.
 sub setpath_obj;
