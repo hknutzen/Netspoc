@@ -7773,7 +7773,7 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
 #           (n1) in the same NAT domain, this restriction is needed.
 
 sub generate_multinat_def_lookup {
-    my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags;
+    my ($has_non_hidden) = @_;
     my %nat_tag2multinat_def;
     my %nat_definitions;
 
@@ -8176,7 +8176,7 @@ sub distribute_nat {
 #          Check every NAT tag is both bound and defined somewhere.
 #          Assure unambiguous NAT for networks with multi NAT definitions.
 sub distribute_nat_tags_to_nat_domains {
-    my ($nat_tag2multinat_def, $nat_definitions) = generate_multinat_def_lookup;
+    my ($nat_tag2multinat_def, $nat_definitions) = @_;
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
@@ -8376,7 +8376,7 @@ sub invert_nat_sets {
 #          managed and semi managed routers.
 # Comment: Neccessary at semi_managed routers to calculate {up} relation
 #          between subnets.
-sub distribute_inverted_sets_to_interfaces {
+sub distribute_no_nat_sets_to_interfaces {
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
         for my $network (@{ $domain->{networks} }) {
@@ -8386,8 +8386,101 @@ sub distribute_inverted_sets_to_interfaces {
 
 #               debug("$domain->{name}: NAT $interface->{name}");
                 $interface->{no_nat_set} = $no_nat_set;
-                $interface->{hardware}->{no_nat_set} = $no_nat_set
-                  if $router->{managed} or $router->{routing_only};
+                if (($router->{managed} or $router->{routing_only})
+                    and
+                    $interface->{ip} ne 'tunnel')
+                {
+                    $interface->{hardware}->{no_nat_set} = $no_nat_set
+                }
+            }
+        }
+    }
+}
+
+# Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
+# where encrypted traffic passes. But real interface gets ACL that filter
+# both encrypted and unencrypted traffic. Hence a new {crypto_no_nat_set}
+# is created by combining no_nat_set of real interface and some 
+# corresponding tunnel. 
+# (All tunnels are known to have identical no_nat_set.)
+sub add_crypto_no_nat_set {
+    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    my %seen;
+    for my $crypto (values %crypto) {
+        for my $tunnel (@{ $crypto->{tunnels} }) {
+            next if $tunnel->{disabled};
+            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
+                my $real_intf = $tunnel_intf->{real_interface};
+                next if $seen{$real_intf}++;
+                $real_intf->{router}->{managed} or next;
+                my $real_set = $real_intf->{no_nat_set};
+                my $tunnel_set = $tunnel_intf->{no_nat_set};
+
+                # Take no_nat_set of tunnel and add tags from real
+                # interface.
+                my $crypto_no_nat_set = { %$tunnel_set };
+              NAT_TAG:
+                for my $nat_tag (keys %$real_set) {
+                    next if $tunnel_set->{$nat_tag};
+                    
+                    my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
+
+                    # Add non multi NAT tag.
+                    if (not $multinat_hashes) {
+                        $crypto_no_nat_set->{$nat_tag} = 1;
+                        next;
+                    }
+
+                    # Must not combine different multi NAT tags from
+                    # both, real and tunnel interface. This would
+                    # disturb NAT lookup.
+                    # Note: We are working on inverted NAT sets.
+                    
+                    # Hidden tag is element of $real_set, hence
+                    # this tag is not active at real interface.
+                    # But it is known to be not element of
+                    # $tunnel_set, hence this tag is active at tunnel.
+                    # Hidden NAT isn't needed for address calculation,
+                    # hence add hidden tag and remove tag X, that is
+                    # from same multi NAT group and is element of
+                    # $tunnel_set, but not element of $real_set
+                    if (not $has_non_hidden->{$nat_tag}) {
+                        for my $multinat_hash (@$multinat_hashes) {
+                            for my $nat_tag2 (keys %$multinat_hash) {
+                                $tunnel_set->{$nat_tag2} or next;
+                                next if $real_set->{$nat_tag2};
+                                delete $crypto_no_nat_set->{$nat_tag2};
+                                $crypto_no_nat_set->{$nat_tag} = 1;
+                                next NAT_TAG;
+                            }
+                        }
+                    }
+
+                    # Check non hidden tag of $real_set.
+                    for my $multinat_hash (@$multinat_hashes) {
+                        for my $nat_tag2 (sort keys %$multinat_hash) {
+                            $tunnel_set->{$nat_tag2} or next;
+
+                            # Only check NAT tags, that are not set,
+                            # because we operate on inverted NAT set.
+                            next if $real_set->{$nat_tag2};
+
+                            # Silently ignore tag of real interface.
+                            # If inverted, it stands for hidden tag.
+                            # Hidden tag isn't needed for address
+                            # calculation.
+                            next if not $has_non_hidden->{$nat_tag2};
+                            
+                            err_msg(
+                                "Grouped NAT tags '$nat_tag2' and '$nat_tag'\n",
+                                " would both be active at $real_intf->{name}\n",
+                                " for combined crypto and cleartext traffic");
+                            next NAT_TAG;
+                        }
+                    }
+                }
+                $real_intf->{hardware}->{crypto_no_nat_set} = 
+                    $crypto_no_nat_set;
             }
         }
     }
@@ -8399,42 +8492,15 @@ sub distribute_inverted_sets_to_interfaces {
 sub distribute_nat_info {
     progress('Distributing NAT');
     find_nat_domains();
-    distribute_nat_tags_to_nat_domains();
+    my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
+    my ($nat_tag2multinat_def, $nat_definitions) 
+        = generate_multinat_def_lookup($has_non_hidden);
+    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $nat_definitions);
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     invert_nat_sets();
-    distribute_inverted_sets_to_interfaces();
-}
-
-# Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
-# where encrypted traffic passes. But real interface gets ACL that filter
-# both encrypted and unencrypted traffic. Hence no_nat_set must be extended by
-# no_nat_set of some corresponding tunnel interface.
-sub adjust_crypto_nat {
-    my %seen;
-    for my $crypto (values %crypto) {
-        for my $tunnel (@{ $crypto->{tunnels} }) {
-            next if $tunnel->{disabled};
-            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                my $real_intf = $tunnel_intf->{real_interface};
-                next if $seen{$real_intf}++;
-                $real_intf->{router}->{managed} or next;
-                my $tunnel_set = $tunnel_intf->{no_nat_set};
-                keys %$tunnel_set or next;
-
-                # Copy hash, because it is shared with other interfaces.
-                my $real_set = $real_intf->{no_nat_set};
-                $real_set = $real_intf->{no_nat_set} = {%$real_set};
-                my $hardware = $real_intf->{hardware};
-                $hardware->{no_nat_set} = $real_set if ref $hardware;
-                for my $nat_tag (keys %$tunnel_set) {
-
-#                   debug "Adjust NAT of $real_intf->{name}: $nat_tag";
-                    $real_set->{$nat_tag} = 1;
-                }
-            }
-        }
-    }
+    distribute_no_nat_sets_to_interfaces();
+    add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -15675,7 +15741,9 @@ sub print_routes {
         if ($asa_crypto and $interface->{hub}) {
             $do_auto_default_route = 0;
         }
-        my $no_nat_set = $interface->{no_nat_set};
+        my $hardware = $interface->{hardware};
+        my $no_nat_set = 
+            $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
 
         for my $hop (@{ $interface->{hopref2obj} }) {
             my $hop_info = [ $interface, $hop ];
@@ -16412,9 +16480,8 @@ my %asa_vpn_attr_need_value =
   split-tunnel-network-list vpn-filter);
 
 sub print_asavpn {
-    my ($router)   = @_;
-    my $model      = $router->{model};
-    my $no_nat_set = $router->{hardware}->[0]->{no_nat_set};
+    my ($router) = @_;
+    my $model = $router->{model};
 
     my $global_group_name = 'global';
     print <<"EOF";
@@ -16482,6 +16549,7 @@ EOF
     my $acl_counter = 1;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
+        my $no_nat_set = $interface->{no_nat_set};
         my %split_t_cache;
 
         if (my $hash = $interface->{id_rules}) {
@@ -16836,7 +16904,8 @@ sub print_cisco_acls {
         # when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        my $no_nat_set = $hardware->{no_nat_set};
+        my $no_nat_set = 
+            $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
@@ -16973,13 +17042,14 @@ sub gen_crypto_rules {
 }
 
 sub print_ezvpn {
-    my ($router)   = @_;
-    my $model      = $router->{model};
-    my @interfaces = @{ $router->{interfaces} };
-    my ($tunnel_intf) = grep { $_->{ip} eq 'tunnel' } @interfaces;
-    my $wan_intf      = $tunnel_intf->{real_interface};
-    my $wan_hw        = $wan_intf->{hardware};
-    my $no_nat_set    = $wan_hw->{no_nat_set};
+    my ($router) = @_;
+    my $model          = $router->{model};
+    my @interfaces     = @{ $router->{interfaces} };
+    my ($tunnel_intf)  = grep { $_->{ip} eq 'tunnel' } @interfaces;
+    my $tun_no_nat_set = $tunnel_intf->{no_nat_set};
+    my $wan_intf       = $tunnel_intf->{real_interface};
+    my $wan_hw         = $wan_intf->{hardware};
+    my $wan_no_nat_set = $wan_hw->{no_nat_set};
     my @lan_intf = grep { $_ ne $wan_intf and $_ ne $tunnel_intf } @interfaces;
 
     # Ezvpn configuration.
@@ -16994,7 +17064,8 @@ sub print_ezvpn {
     # Unnumbered, negotiated and short interfaces have been
     # rejected already.
     my $peer = $tunnel_intf->{peer};
-    my $peer_ip = prefix_code(address($peer->{real_interface}, $no_nat_set));
+    my $peer_ip = 
+        prefix_code(address($peer->{real_interface}, $wan_no_nat_set));
     print " peer $peer_ip\n";
 
     # Bind split tunnel ACL.
@@ -17024,7 +17095,7 @@ sub print_ezvpn {
     my $acl_info = {
         name => $crypto_acl_name,
         rules => $crypto_rules,
-        no_nat_set => $no_nat_set,
+        no_nat_set => $tun_no_nat_set,
         is_crypto_acl => 1,
     };
     push @{ $router->{acl_list} }, $acl_info;
@@ -17037,7 +17108,7 @@ sub print_ezvpn {
         intf_rules   => delete $tunnel_intf->{intf_rules},
         add_deny     => 1,
         protect_self => 1,
-        no_nat_set   => $no_nat_set,
+        no_nat_set   => $tun_no_nat_set,
     };
     push @{ $router->{acl_list} }, $acl_info;
     print_acl_placeholder($router, $crypto_filter_name);
@@ -17188,7 +17259,7 @@ sub print_static_crypto_map {
     # Sequence number for parts of crypto map with different peers.
     my $seq_num = 0;
 
-    # Crypto ACLs and peer IP must obey NAT.
+    # Peer IP must obey NAT.
     my $no_nat_set = $hardware->{no_nat_set};
 
     # Sort crypto maps by peer IP to get deterministic output.
@@ -18240,10 +18311,6 @@ sub compile {
     &setpath();
     &distribute_nat_info();
     find_subnets_in_zone();
-
-    # Call after find_subnets_in_zone, because original no_nat_set was
-    # needed there.
-    adjust_crypto_nat();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
     # been set up.

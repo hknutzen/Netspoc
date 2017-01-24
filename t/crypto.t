@@ -1292,6 +1292,251 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Mixed NAT at ASA crypto interface (1)';
+############################################################
+
+# Must use NAT ip of internal network, not NAT ip of internet
+# at crypto interface for network:n2.
+# Ignore hidden NAT tag from internet.
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; host:X = { ip = 1.2.3.4; } }
+
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:soft1;
+}
+
+network:soft1 = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+}
+
+router:Firewall = {
+ managed;
+ model = Linux;
+ interface:internet = { negotiated; hardware = internet; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24;}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; bind_nat = n2; }
+ interface:n3 = { ip = 10.1.3.2; bind_nat = x; }
+ interface:n2 = { ip = 172.17.0.1; }
+}
+
+network:n2 = {
+ ip = 172.17.0.0/16;
+ nat:n2 = { ip = 10.1.2.0/24; dynamic; }
+ nat:x = { ip = 10.1.99.0/24; dynamic; }
+ nat:h = { hidden; }
+}
+
+service:s1 = {
+ user = host:id:foo@domain.x.soft1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- asavpn
+! [ Routing ]
+route inside 10.1.2.0 255.255.255.0 10.1.1.2
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
+--
+! split-tunnel-1
+access-list split-tunnel-1 standard permit 10.1.2.0 255.255.255.0
+--
+! vpn-filter-foo@domain.x
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
+access-list vpn-filter-foo@domain.x extended deny ip any any
+group-policy VPN-group-foo@domain.x internal
+group-policy VPN-group-foo@domain.x attributes
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username foo@domain.x nopassword
+username foo@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-foo@domain.x
+ vpn-group-policy VPN-group-foo@domain.x
+--
+! outside_in
+access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 22
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (1)';
+############################################################
+
+$in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
+
+$out = <<'END';
+Error: Grouped NAT tags 'h' and 'n2'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Mixed NAT at ASA crypto interface (2)';
+############################################################
+
+# Must use NAT ip of internal network, not NAT ip of internet
+# at crypto interface for network:n2.
+# IIgnore hidden NAT tag from internal network.
+
+$in = $crypto_sts . <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ no_crypto_filter;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; bind_nat = n; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+
+router:fw-extern = {
+ managed;
+ model = ASA;
+ interface:internet = {
+  ip = 1.1.1.1;
+  bind_nat = x;
+  routing = dynamic;
+  hardware = outside;
+ }
+ interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
+}
+
+network:dmz1 = {
+ ip = 10.254.254.0/24;
+ nat:x = { ip = 1.2.3.129/32; dynamic; }
+ nat:n = { ip = 1.2.3.4/32; dynamic; }
+ nat:h = { hidden; }
+}
+
+router:vpn1 = {
+ interface:dmz1 = {
+  ip = 10.254.254.6;
+  id = cert@example.com;
+  spoke = crypto:sts;
+  bind_nat = lan1;
+ }
+ interface:lan1;
+}
+
+network:lan1 = {
+ ip = 10.99.1.0/24;
+ nat:lan1 = { ip = 10.10.10.0/24; }
+}
+
+
+router:Firewall = {
+ managed;
+ model = Linux;
+ interface:internet = { negotiated; hardware = internet; bind_nat = x; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h; }
+}
+
+network:n3 = { ip = 10.1.3.0/24;}
+network:n4 = { ip = 10.1.4.0/24;}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.2; bind_nat = h; }
+ interface:n2 = { ip = 172.17.0.1; }
+ interface:n3 = { ip = 10.1.3.2; bind_nat = n; } 
+}
+
+network:n2 = {
+ ip = 172.17.0.0/16;
+ nat:h = { hidden; }
+ nat:n = { ip = 10.1.2.0/24; dynamic; }
+ nat:x = { ip = 99.99.99.0/24; dynamic; }
+}
+END
+
+$out = <<'END';
+-- asavpn
+! [ Routing ]
+route outside 1.2.3.4 255.255.255.255 192.168.0.1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (2)';
+############################################################
+
+$in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
+
+$out = <<'END';
+Error: Grouped NAT tags 'n' and 'h'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Directly connected software clients';
 ############################################################
 
