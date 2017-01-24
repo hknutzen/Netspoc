@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Fixed NAT at crypto router for topology where internet and internal
+   network are connected by some firewall.
  - If network with ID hosts is used in source of rule, the ACL at
    authenticating router now checks for IP addresses of individual ID
    hosts instead of IP of whole network.
