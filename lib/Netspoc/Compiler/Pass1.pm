@@ -14024,11 +14024,12 @@ sub check_transient_supernet_rules {
                 
                 # Find those elements of src of $rule1 with an IP
                 # address matching $obj2.
-                # If mask of $obj2 is 0, take all elements. 
+                # If mask of $obj2 is 0.0.0.0, take all elements. 
                 # Otherwise check IP addresses in NAT domain of $obj2.
                 my $src_list1 = $rule1->{src};
-                if ($obj2->{mask}) {
-                    $src_list1 = get_ip_matching($obj2, $src_list1, $no_nat_set);
+                if ($obj2->{mask} ne $zero_ip) {
+                    $src_list1 =
+                        get_ip_matching($obj2, $src_list1, $no_nat_set);
                     @$src_list1 or next;
                 }
                 for my $rule2 (@{ $supernet2rules{$obj2} }) {
@@ -14039,7 +14040,7 @@ sub check_transient_supernet_rules {
                     # Find elements of dst of $rule2 with an IP
                     # address matching $obj1.
                     my $dst_list2 = $rule2->{dst};
-                    if ($obj1->{mask}) {
+                    if ($obj1->{mask} ne $zero_ip) {
                         $dst_list2 = 
                             get_ip_matching($obj1, $dst_list2, $no_nat_set);
                         @$dst_list2 or next;
