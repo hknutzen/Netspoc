@@ -1994,10 +1994,16 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'No missing transient rule for leaf zone';
 ############################################################
-# A leaf security zone has only one interface.
+# A leaf security zone has only one connection.
 # It can't lead to unwanted rule chains.
 
 $in = <<'END';
+router:r0 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {

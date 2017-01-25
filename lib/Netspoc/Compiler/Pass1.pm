@@ -13952,6 +13952,22 @@ sub elements_in_one_zone {
     return 1;
 }
 
+# Mark zones, that are connected by only one router.
+# Ignore routers with only one interface occuring from split crypto routers.
+sub mark_leaf_zones {
+    my %leaf_zones;
+    for my $zone (@zones) {
+        if (1 
+            >= 
+            grep { @{ $_->{router}->{interfaces} } > 1 } 
+            @{ $zone->{interfaces} })
+        {
+            $leaf_zones{$zone} = 1;
+        }
+    }
+    return \%leaf_zones;
+}
+
 # Print abbreviated list of names in messages.
 sub short_name_list {
     my ($obj) = @_;
@@ -13982,6 +13998,8 @@ sub check_transient_supernet_rules {
 #    progress("Check transient supernet rules");
     my $rules = $service_rules{permit};
 
+    my $is_leaf_zone = mark_leaf_zones();
+    
     # Build mapping from supernet to service rules having supernet as src.
     my %supernet2rules;
 
@@ -13996,9 +14014,27 @@ sub check_transient_supernet_rules {
             my $zone = $obj->{zone};
             next if $zone->{no_check_supernet_rules};
 
-            # A leaf security zone has only one interface.
-            # It can't lead to unwanted rule chains.
-            next if @{ $zone->{interfaces} } == 1;
+            # A leaf security zone has only one exit.
+            if ($is_leaf_zone->{$zone}) {
+
+                # Check, if a managed router with only one interface
+                # inside the zone is used as destination.
+                my $found;
+                for my $dst (@{ $rule->{dst} }) {
+                    is_interface($dst) or next;
+                    my $router = $dst->{router};
+                    $router->{managed} or next;
+                    $dst->{zone} eq $zone or next;
+                    @{ $router->{interfaces} } < 2 or next;
+
+                    # Then this zone must still be checked.
+                    delete $is_leaf_zone->{$zone};
+                    $found = 1;
+                }
+
+                # This leaf zone can't lead to unwanted rule chains.
+                next if not $found;
+            }
             push @{ $supernet2rules{$obj} }, $rule;
             push @{ $zone2supernets{$zone} }, $obj if not $seen{$obj}++;
         }
@@ -14015,7 +14051,7 @@ sub check_transient_supernet_rules {
             $obj1->{has_other_subnet} or next;
             my $zone = $obj1->{zone};
             next if $zone->{no_check_supernet_rules};
-            next if @{ $zone->{interfaces} } == 1;
+            next if $is_leaf_zone->{$zone};
 
             # Find other rules with supernet as src starting in same zone.
             my $supernets = $zone2supernets{$zone} or next;
