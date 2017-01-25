@@ -1,7 +1,12 @@
 {{$NEXT}}
 
+5.019     2017-01-25 16:03:48+01:00 Europe/Berlin
+
  - Fixed NAT at crypto router for topology where internet and internal
    network are connected by some firewall.
+ - Fixed check for transient aggregate rules with leave zone.
+   Ignore routers with only one interface, occuring from split crypto
+   routers, when finding leave zone.
  - If network with ID hosts is used in source of rule, the ACL at
    authenticating router now checks for IP addresses of individual ID
    hosts instead of IP of whole network.
