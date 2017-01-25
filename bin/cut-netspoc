@@ -34,7 +34,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -63,14 +63,12 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.018'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
 ####################################################################
-my $quiet;
-my $help;
-my $man;
+my ($quiet, $help, $man);
 GetOptions ( 'quiet!' => \$quiet,
 	     'help|?' => \$help,
 	     man => \$man,
@@ -101,12 +99,7 @@ sub change_attribute_src_code {
     my $code = $object->{src_code};
 
     # Find attribute outside of comment.
-    if (not $code =~ m/ ^[^#]* \Q$attr\E (?=[\s;=#]) /gmx) {
-
-        # Don't try to change unknown attribute.
-        info("Can't find '$attr' in $object->{name}");
-        return;
-    }
+    $code =~ m/ ^[^#]* \Q$attr\E (?=[\s;=#]) /gmx;
     my $start = pos($code) - length($attr);
 
     # Helper functions to parse attribute value.
@@ -335,9 +328,6 @@ sub process_rules {
 #	        debug "Used $obj->{name}";
                 $obj->{router}->{is_used} = 1;
                 $obj->{network}->{is_used} = 1;
-            }
-            else {
-                fatal_err "Unexpected type $type";
             }		    
         }
         &path_walk($rule, \&mark_topology);

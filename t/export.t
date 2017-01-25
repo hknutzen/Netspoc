@@ -765,6 +765,98 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Visible services';
+############################################################
+
+$in = <<'END';
+owner:x1 = { admins = x1@example.com; }
+owner:x2 = { admins = x2@example.com; }
+owner:x3 = { admins = x3@example.com; }
+owner:x4 = { admins = x4@example.com; }
+
+owner:DA_1 = { admins = DA_1@example.com; }
+owner:DA_2 = { admins = DA_2@example.com; }
+owner:DA_3 = { admins = DA_3@example.com; }
+owner:DA_4 = { admins = DA_4@example.com; }
+
+network:n1 = { ip = 10.1.1.0/24;
+ host:x1 = { ip = 10.1.1.1; owner = x1; }
+ host:x2 = { ip = 10.1.1.2; owner = x2; }
+ host:x3 = { ip = 10.1.1.3; owner = x3; }
+ host:x4 = { ip = 10.1.1.4; owner = x4; }
+}
+network:n2 = { ip = 10.1.2.0/24;
+ host:DA_1 = { ip = 10.1.2.1; owner = DA_1; }
+ host:DA_2 = { ip = 10.1.2.2; owner = DA_2; }
+ host:DA_3 = { ip = 10.1.2.3; owner = DA_3; }
+ host:DA_4 = { ip = 10.1.2.4; owner = DA_4; }
+}
+router:r = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.99; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.99; hardware = n2; }
+}
+
+service:s1 = {
+ user = host:x1, host:x2, host:x3;
+ permit src = user; dst = host:DA_1; prt = tcp 80;
+}
+service:s2 = {
+ user = host:DA_1, host:DA_2, host:DA_3;
+ permit src = user; dst = host:x1; prt = tcp 80;
+}
+service:s3 = {
+ user = host:DA_1, host:DA_2, host:x3;
+ permit src = user; dst = host:x1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--owner/x1/service_lists
+{
+   "owner" : [
+      "s2",
+      "s3"
+   ],
+   "user" : [
+      "s1"
+   ],
+   "visible" : []
+}
+--owner/x4/service_lists
+{
+   "owner" : [],
+   "user" : [],
+   "visible" : [
+      "s1"
+   ]
+}
+--owner/DA_1/service_lists
+{
+   "owner" : [
+      "s1"
+   ],
+   "user" : [
+      "s2",
+      "s3"
+   ],
+   "visible" : []
+}
+--owner/DA_4/service_lists
+{
+   "owner" : [],
+   "user" : [],
+   "visible" : [
+      "s1",
+      "s2"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Aggregates and networks in zone cluster';
 ############################################################
 
@@ -1722,6 +1814,32 @@ $out = <<'END';
       "o1"
    ],
    "o2w@b.c" : [
+      "o1",
+      "o2"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Owner with only admins as watcher';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; watchers = owner:o2; }
+owner:o2 = { admins = o2a@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+END
+
+$out = <<'END';
+-- email
+{
+   "o1@b.c" : [
+      "o1"
+   ],
+   "o2a@b.c" : [
       "o1",
       "o2"
    ]

@@ -6,7 +6,7 @@ export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2016 by Heinz Knutzen <heinz.knutzen@gmail.com>
+(c) 2017 by Heinz Knutzen <heinz.knutzen@gmail.com>
 (c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -52,11 +52,6 @@ $out_dir =~ s,/$,,;
 # take modification date for all newly created files.
 my $policy_file = "$netspoc_data/POLICY";
 
-sub abort {
-    my ($msg) = @_;
-    die "$msg\n";
-}
-
 sub create_dirs {
     my ($path) = @_;
     $path = "$out_dir/$path";
@@ -98,7 +93,7 @@ sub ip_nat_for_object {
     my $ip;
     my $nat;
 
-# This code is a modified copy of address.
+# This code is a modified copy of sub address.
 # - It needs to handle objects of type 'Host' instead of 'Subnet'.
 # - Handles dynamic NAT for hosts.
 # - It returns strings of textual ip/mask, not pairs of numbers.
@@ -212,9 +207,6 @@ sub ip_nat_for_object {
                 $nat->{$tag} = $get_ip->($obj, $nat_obj);
             }
         }
-    }
-    else {
-        internal_err "Unexpected object $obj->{name}";
     }
     return $nat ? ( ip => $ip, nat => $nat ) : ( ip => $ip );
 }
@@ -393,11 +385,11 @@ sub find_visibility {
     # Restricted visibility
     elsif (@other_extra <= 2) {
         if (@DA_extra >= 3) {
-            $visibility = 'DA_*';
+            $visibility = qr/^DA_/;
         }
     }
     else {
-        $visibility = '*';
+        $visibility = qr/^.*/;
     }
     return $visibility;
 }
@@ -547,9 +539,7 @@ sub setup_service_info {
         $service->{part_uowners} = part_owners_for_objects($users);
         $service->{outer_uowners} = outer_owners_for_objects($users);
 
-        # Für Übergangszeit aus aktueller Benutzung bestimmen.
-        $service->{visible} ||= find_visibility($owners, $uowners);
-        $service->{visible} and $service->{visible} =~ s/\*$/.*/;
+        $service->{visible} = find_visibility($owners, $uowners);
     }
 }
 
@@ -1005,7 +995,7 @@ sub export_services {
                 my $hash = $owner2type2shash{$owner} ||= {};
                 next if $hash->{owner}->{$service};
                 next if $hash->{user}->{$service};
-                if ($owner =~ /^$visible/) {
+                if ($owner =~ $visible) {
                     $hash->{visible}->{$service} = $service;
                 }
             }
@@ -1186,7 +1176,7 @@ sub copy_policy_file {
     if ( -f $policy_file) {
         system("find $out_dir -type f -exec touch -r $policy_file {} \\;");
         system("cp -pf $policy_file $out_dir") == 0 or
-            abort "Can't copy $policy_file";
+            die "Can't copy $policy_file\n";
     }
     return;
 }

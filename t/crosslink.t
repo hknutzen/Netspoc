@@ -355,6 +355,65 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'crosslink between Linux routers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = Linux;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = Linux;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_cr -
+-A n1_cr -j ACCEPT -s 10.1.1.0/27 -d 10.2.2.0/27 -p tcp --dport 80
+-A FORWARD -j n1_cr -i n1 -o cr
+--
+:cr_self -
+-A cr_self -j ACCEPT
+-A INPUT -j cr_self -i cr
+:cr_n1 -
+-A cr_n1 -j ACCEPT
+-A FORWARD -j cr_n1 -i cr -o n1
+-- r2
+:cr_self -
+-A cr_self -j ACCEPT
+-A INPUT -j cr_self -i cr
+:cr_n2 -
+-A cr_n2 -j ACCEPT
+-A FORWARD -j cr_n2 -i cr -o n2
+--
+:n2_self -
+-A INPUT -j n2_self -i n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Must not use crosslink network in rule';
 ############################################################
 

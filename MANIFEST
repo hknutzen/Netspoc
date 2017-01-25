@@ -51,6 +51,7 @@ lib/Netspoc/Compiler/Pass1.pm
 lib/Netspoc/Compiler/Pass2.pm
 misc/anonymize
 misc/conv_owner.pl
+misc/convert_barracuda.pl
 misc/perltidyrc
 old-doc/CSPM.pod
 old-doc/ChangeLog

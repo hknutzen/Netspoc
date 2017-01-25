@@ -33,6 +33,53 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No dynamic routing bridge interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; routing = OSPF; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Invalid attributes 'routing' for bridged interface at line 7 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'No routing = manual at bridge';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Must not apply attribute 'routing' to bridge router:bridge
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Bridged network must not have NAT';
 ############################################################
 
@@ -229,7 +276,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Brdged networks must be connected by bridge';
+$title = 'Bridged networks must be connected by bridge';
 ############################################################
 
 $in = <<'END';
@@ -439,11 +486,15 @@ service:test = {
 }
 END
 
+# Must not use bridged interface as next hop in static route.
 $out = <<'END';
 --bridge
 access-list outside_in extended permit tcp 10.9.9.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
+--asa
+! [ Routing ]
+ip route 10.9.9.0 255.255.255.0 192.168.0.1
 END
 
 test_run($title, $in, $out);
@@ -500,6 +551,123 @@ access-group n2_in in interface n2
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 22
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Duplicate static routes behind bridge';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+
+router:r0 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1/center = { ip = 10.1.1.4; hardware = center; }
+}
+
+network:n1/center = { ip = 10.1.1.0/24; }
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left    = { hardware = left; }
+ interface:n1/center  = { hardware = center; }
+ interface:n1/right   = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1/left = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1/right = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s = {
+ user = network:n0;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Error: Two static routes for network:n2
+ at interface:r0.n1/center via interface:r2.n1/right and interface:r1.n1/left
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Route behind chained bridges';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1/left = { ip = 10.1.1.4; hardware = left; }
+}
+
+network:n1/left = { ip = 10.1.1.0/24; }
+
+# Use name, that is sorted behind r1, r2,
+# so that we actually test recursion when searching hop with IP address.
+router:zbridge1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left    = { hardware = left; }
+ interface:n1/center  = { hardware = center; }
+}
+
+network:n1/center = { ip = 10.1.1.0/24; }
+
+router:zbridge2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = device; }
+ interface:n1/center  = { hardware = center; }
+ interface:n1/right   = { hardware = right; }
+}
+
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1/right = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s = {
+ user = network:n0;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+route left 10.1.2.0 255.255.255.0 10.1.1.2
 END
 
 test_run($title, $in, $out);

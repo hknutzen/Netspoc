@@ -151,11 +151,11 @@ service:test = {
 END
 
 $out = <<'END';
-Warning: Two static routes for network:n2
+Error: Two static routes for network:n2
  at interface:r.t1 via interface:h2.t1 and interface:h1.t1
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Static route to network in unmanaged loop';
@@ -527,6 +527,66 @@ Error: interface:r1.n2 must be defined in more detail, since there is
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'No route between pair of virtual interfaces';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u1 = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.4; }
+}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; virtual = { ip = 10.1.2.3; } }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; virtual = { ip = 10.1.3.3; } }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; virtual = { ip = 10.1.2.3; } }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; virtual = { ip = 10.1.3.3; } }
+}
+
+router:u2 = {
+ interface:n3 = { ip = 10.1.3.4; }
+ interface:n4;
+}
+
+# Must not find route for path n1 -> u1.n2 -> r2.n2 -> r2.n3 -> r1.n3
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n3.virtual; prt = tcp 80;
+}
+
+# Must not find route for path r1.n2 -> r2.n2 -> r2.n3 -> u2.n3 -> n3
+service:s2 = {
+ user = interface:r1.n2.virtual;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ Routing ]
+ip route 10.1.1.0 255.255.255.0 10.1.2.4
+ip route 10.1.4.0 255.255.255.0 10.1.3.4
+-- r2
+! [ Routing ]
+ip route 10.1.1.0 255.255.255.0 10.1.2.4
+ip route 10.1.4.0 255.255.255.0 10.1.3.4
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

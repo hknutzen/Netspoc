@@ -563,15 +563,11 @@ $title = '3 virtual interfaces with extra pathrestriction allowing 2 routes';
 $in =~ s/,\s*interface:r4.b.virtual//s;
 
 $out = <<'END';
-Warning: Two static routes for network:a
+Error: Two static routes for network:a
  at interface:r4.b.virtual via interface:r5.b and interface:r1.b
---r1
-ip route 10.3.3.0 255.255.255.0 10.2.2.4
---r5
-ip route 10.3.3.0 255.255.255.0 10.2.2.9
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 $title = '3 virtual interfaces with extra pathrestriction valid for all-1';
@@ -689,7 +685,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - no interfaces or
  - all but one interface
  of this group.
-Warning: Two static routes for network:a
+Error: Two static routes for network:a
  via interface:r2.c and interface:r2.b.virtual
 END
 
@@ -876,7 +872,7 @@ service:test1 = {
 END
 
 $out = <<'END';
-Warning: Two static routes for network:n5
+Error: Two static routes for network:n5
  at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
 Error: Pathrestriction ambiguously affects generation of static routes
        at interfaces with virtual IP 10.2.2.10:
@@ -889,7 +885,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - no interfaces or
  - all but one interface
  of this group.
-Warning: Two static routes for network:n1
+Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2.virtual
 END
 

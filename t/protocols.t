@@ -66,6 +66,7 @@ protocol:p3 = udp 100100 - 100102;
 protocol:p4 = tcp 90 - 80;
 protocol:p5 = tcp 0 - 0;
 protocolgroup:g1 = tcp 77777, udp 0;
+network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';

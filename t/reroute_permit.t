@@ -179,4 +179,25 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple networks from automatic group (Linux)';
+############################################################
+
+$in =~ s/ASA/Linux/;
+
+$out = <<'END';
+-- r1
+:c1 -
+-A c1 -j ACCEPT -d 10.1.2.0/23
+-A c1 -j ACCEPT -d 10.1.1.0/24
+--
+:n3_self -
+-A INPUT -j n3_self -i n3
+:n3_n3 -
+-A n3_n3 -g c1 -d 10.1.0.0/22
+-A FORWARD -j n3_n3 -i n3 -o n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

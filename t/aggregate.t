@@ -292,7 +292,7 @@ $title = 'Warn on missing src aggregate';
 $in .= <<'END';
 router:T = {
  interface:Trans = { ip = 192.168.1.3; }
- interface:N1; 
+ interface:N1;
 }
 
 network:N1 = { ip = 10.192.0.0/24; }
@@ -1183,6 +1183,124 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Missing aggregate from unmanaged interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:u = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p = interface:u.n2, interface:r2.n4;
+
+service:s1 = {
+ user = interface:u.n2;
+ permit src = user; dst = any:[network:n1]; prt = tcp 22;
+}
+
+service:s2 = {
+ user = interface:u.n3;
+ permit src = user; dst = any:[network:n1]; prt = tcp 23;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=interface:u.n3; dst=any:[network:n1]; prt=tcp 23; of service:s2
+ can\'t be effective at interface:r3.n3.
+ Tried network:n4 as dst.
+--r1
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ permit tcp host 10.1.2.2 any eq 22
+ permit tcp host 10.1.3.1 any eq 23
+ deny ip any any
+--r2
+ip access-list extended n4_in
+ deny ip any host 10.1.1.2
+ deny ip any host 10.1.4.1
+ permit tcp host 10.1.3.1 any eq 23
+ deny ip any any
+--r3
+ip access-list extended n3_in
+ deny ip any host 10.1.3.2
+ deny ip any host 10.1.4.2
+ permit tcp host 10.1.3.1 any eq 23
+ deny ip any any
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Missing aggregate at destination interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = interface:r2.n3; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:r2.n3; prt=udp 123; of service:test
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing aggregates for reverse rule';
 ############################################################
 
@@ -1277,6 +1395,124 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Managed router will not exploit reverse rule';
+############################################################
+
+# Reverse rule at router:r1 would allow router:r2 to access network:n2.
+# But since r2 is managed, we assume it will not exploit this permission.
+# Hence no warning is printed.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed = secondary;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ],
+        network:n3,
+ ;
+ permit src = user; dst = interface:r2.n3; prt = udp 123;
+}
+END
+
+$out = <<"END";
+-- r1
+ip access-list extended n3_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ permit udp host 10.1.3.2 eq 123 10.0.0.0 0.255.255.255
+ deny ip any any
+-- r2
+ip access-list extended n3_in
+ permit udp 10.0.0.0 0.255.255.255 host 10.1.3.2 eq 123
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Supernet rule to pathrestricted interface and no_in_acl';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; no_in_acl; }
+}
+
+router:u = {
+ interface:n2 = { ip = 10.1.2.3; }
+}
+
+pathrestriction:p =
+ interface:r1.n2,
+ interface:u.n2,
+;
+
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = interface:u.n2; prt = udp 123;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r3.n4.
+ Tried network:n4 as src.
+Warning: Missing rule for supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r3.n3.
+ Tried network:n3 as src.
+Warning: Missing rule for reversed supernet rule.
+ permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing aggregate for reverse rule in loop';
 ############################################################
 
@@ -1300,6 +1536,9 @@ router:r = {
 network:t1 = { ip = 10.7.1.0/24; }
 network:t2 = { ip = 10.7.2.0/24; }
 
+# router:u is split internally and hence interface:u.n4
+# no longer has pathrestriction.
+# We have this extra test case for this special situation.
 router:u = {
  interface:t1;
  interface:t2;
@@ -1336,7 +1575,7 @@ $title = 'Suppress warning about missing aggregate rule';
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
-network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1; 
+network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1;
 # host:h = { ip = 10.1.1.130; }
 }
 
@@ -1415,7 +1654,7 @@ router:r2 = {
 
 service:s1 = {
  user = network:n1;
- permit src = user; dst = any:[network:n2]; prt = tcp 80, icmp 3;
+ permit src = user; dst = any:[network:n2]; prt = icmp 3, tcp 81-85;
 }
 service:s2 = {
  user = any:[network:n2];
@@ -1458,7 +1697,7 @@ router:r2 = {
 
 service:s1 = {
  user = host:h1;
- permit src = user; dst = any:[network:n2]; prt = ip;
+ permit src = user; dst = any:[network:n2]; prt = proto 50;
 }
 service:s2 = {
  user = interface:r2.n2;
@@ -1483,7 +1722,14 @@ $title = 'Missing transient rule with subnet in aggregate';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.3; }
+ host:h2 = { ip = 10.1.1.5; }
+ host:h3 = { ip = 10.1.1.7; }
+ host:h4 = { ip = 10.1.1.9; }
+ host:h5 = { ip = 10.1.1.11; }
+}
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
@@ -1514,7 +1760,7 @@ router:u2 = {
 }
 
 service:s1 = {
- user = network:n1;
+ user = host:h1, host:h2, host:h3, host:h4, host:h5;
  permit src = user; dst = network:n4; prt = ip;
 }
 service:s2 = {
@@ -1524,12 +1770,12 @@ service:s2 = {
 
 service:s3 = {
  user = network:n4sub;
- permit src = user; dst = any:[ip=10.1.1.0/25 & network:n2]; prt = icmp 3;
+ permit src = user; dst = any:[ip=10.1.1.0/25 & network:n2]; prt = icmp 4/4, icmp 3;
 }
 
 service:s4 = {
  user = network:n4;
- permit src = user; dst = network:n1; prt = icmp 3/13;
+ permit src = user; dst = network:n1; prt = icmp 3/13, icmp 4/5;
 }
 END
 
@@ -1539,7 +1785,10 @@ Warning: Missing transient supernet rules
  between src of service:s1 and dst of service:s2,
  matching at network:n4, any:[ip=10.0.0.0/8 & network:n2].
  Add missing src elements to service:s2:
- - network:n1
+ - host:h1
+ - host:h2
+ - host:h3
+ - ...
  or add missing dst elements to service:s1:
  - network:n4sub
 Warning: Missing transient supernet rules
@@ -1585,7 +1834,7 @@ protocol:oneway_IP = ip, oneway;
 # Allow unfiltered communication,
 # but check src IP of each incoming network:n_i.
 service:s1 = {
- user = foreach 
+ user = foreach
         any:[network:tr],
 	network:[area:a1] & ! network:tr;
 
@@ -1657,7 +1906,7 @@ router:r2 = {
 service:s1 = {
  user = network:n1;
  permit src = user;
-        dst = any:[network:n2], 
+        dst = any:[network:n2],
               any:[network:n3],
               ;
         prt = tcp 80;
@@ -1745,10 +1994,16 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'No missing transient rule for leaf zone';
 ############################################################
-# A leaf security zone has only one interface.
+# A leaf security zone has only one connection.
 # It can't lead to unwanted rule chains.
 
 $in = <<'END';
+router:r0 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
@@ -1830,7 +2085,7 @@ service:s1 = {
 }
 service:s2 = {
  user = any:n1;
- permit src = user; dst = network:n2; prt = tcp 445; 
+ permit src = user; dst = network:n2; prt = tcp 445;
 }
 END
 
@@ -1852,11 +2107,11 @@ router:asa = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 1.2.3.2; 
+ interface:dmz = {
+  ip = 1.2.3.2;
   hardware = outside;
  }
 }
@@ -1865,7 +2120,7 @@ area:internet = { border = interface:asa.dmz; }
 
 network:dmz = { ip = 1.2.3.0/25; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 1.2.3.1; }
  interface:internet;
 }

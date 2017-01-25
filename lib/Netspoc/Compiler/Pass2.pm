@@ -6,7 +6,7 @@ Pass 2 of Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -35,7 +35,7 @@ use Netspoc::Compiler::File;
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.018'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -565,9 +565,7 @@ sub move_rules_esp_ah {
     $prt_esp or $prt_ah or return;
     for my $what (qw(intf_rules rules)) {
         my $rules = $acl_info->{$what} or next;
-        my @deny_rules;
-        my @crypto_rules;
-        my @permit_rules;
+        my (@deny_rules, @crypto_rules, @permit_rules);
         for my $rule (@$rules) {
             if ($rule->{deny}) {
                 push @deny_rules, $rule;
@@ -1163,8 +1161,7 @@ sub gen_prt_bintree {
     #
     # We need not to handle 'tcp established' because it is only used
     # for stateless routers, but iptables is stateful.
-    my $gen_lohitrees;
-    my $gen_rangetree;
+    my ($gen_lohitrees, $gen_rangetree);
     $gen_lohitrees = sub {
         my ($prt_aref) = @_;
         if (not $prt_aref) {
@@ -2036,7 +2033,7 @@ sub cisco_prt_code {
             }
         };
         my $dst_prt = $port_code->($prt);
-        if (my $established = $prt->{established}) {
+        if ($prt->{established}) {
             if (defined $dst_prt) {
                 $dst_prt .= ' established';
             }
@@ -2074,21 +2071,11 @@ sub cisco_prt_code {
     }
 }
 
-sub print_cisco_std_acl {
+sub print_asa_std_acl {
     my ($acl_info, $model) = @_;
-    my $rules = $acl_info->{rules};
-    my $name = $acl_info->{name};
-    my $prefix;
-    if ($model eq 'IOS') {
-        $prefix = '';
-        print "ip access-list $name\n";
-    }
-    elsif ($model eq 'ASA') {
-        $prefix = "access-list $name standard";
-    }
-    else {
-        fatal_err("Unexpected model $model");
-    }
+    my $rules  = $acl_info->{rules};
+    my $name   = $acl_info->{name};
+    my $prefix = "access-list $name standard";
     for my $rule (@$rules) {
         my ($deny, $src) = @{$rule}{qw(deny src)};
         my $action = $deny ? 'deny' : 'permit';
@@ -2096,7 +2083,6 @@ sub print_cisco_std_acl {
         $result .= ' ' .  cisco_acl_addr($src, $model);
         print "$result\n";
     }
-    return;
 }
 
 sub print_cisco_acl {
@@ -2104,7 +2090,7 @@ sub print_cisco_acl {
     my $model = $router_data->{model};
 
     if ($acl_info->{is_std_acl}) {
-        print_cisco_std_acl($acl_info, $model);
+        print_asa_std_acl($acl_info, $model);
         return;
     }
 
@@ -2123,9 +2109,6 @@ sub print_cisco_acl {
     }
     elsif ($model eq 'ASA' || $model eq 'ACE') {
         $prefix = "access-list $name extended";
-    }
-    else {
-        fatal_err("Unexpected model $model");
     }
 
     for my $rule (@$intf_rules, @$rules) {
