@@ -5,7 +5,10 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use IPC::Run3;
-use File::Temp qw/ tempfile /;
+use File::Temp qw(tempfile);
+
+# Disable locale, so we get non translated error message.
+delete $ENV{LANG} ;
 
 sub run {
     my ($input, $args) = @_;
