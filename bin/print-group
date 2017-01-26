@@ -165,9 +165,6 @@ sub print_address {
     elsif ($type eq 'Autointerface') {
         return 'unknown';
     }
-    else {
-        internal_err "Unexpected object $obj->{name}";
-    }
 }
 
 ####################################################################
