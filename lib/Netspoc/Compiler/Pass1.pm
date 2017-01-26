@@ -438,19 +438,20 @@ sub err_msg {
 
 # Print internal error message and abort.
 sub internal_err {
-    my (@args) = @_;
+    # uncoverable subroutine
+    my (@args) = @_;				# uncoverable statement
 
     # Don't show inherited error.
     # Abort immediately, if other errors have already occured.
-    abort_on_error();
+    abort_on_error();				# uncoverable statement
 
-    $error_counter++;
-    my (undef, $file, $line) = caller;
-    my $sub = (caller 1)[3];
-    my $msg = "Internal error in $sub";
-    $msg .= ": @args" if @args;
-    $msg = "$msg\n at $file line $line\n";
-    die $msg;
+    $error_counter++;				# uncoverable statement
+    my (undef, $file, $line) = caller;		# uncoverable statement
+    my $sub = (caller 1)[3];			# uncoverable statement
+    my $msg = "Internal error in $sub";		# uncoverable statement
+    $msg .= ": @args" if @args;			# uncoverable statement
+    $msg = "$msg\n at $file line $line\n";	# uncoverable statement
+    die $msg;					# uncoverable statement
 }
 
 ####################################################################
@@ -12089,10 +12090,12 @@ sub cluster_path_mark {
         local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} };
+        # uncoverable branch true
         if (not $allowed) {
-             internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
-                          " with empty navi\n",
-                          "Path: $start_store->{name} -> $end_store->{name}");
+            # uncoverable statement
+            internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
+                         " with empty navi\n",
+                         "Path: $start_store->{name} -> $end_store->{name}");
         }
 
         # To find paths, process every loop interface of $from node.
@@ -15130,7 +15133,7 @@ sub add_end_routes {
         next if $network eq $intf_net;
         my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
           or internal_err("Missing route for $network->{name}",
-            " at $interface->{name}");
+                          " at $interface->{name}");
 
         # Store the used hops and routes within the interface object. 
         for my $hop (@$hops) {
@@ -15525,7 +15528,7 @@ sub check_and_convert_routes {
                 my $hops =
                   ($route_in_zone->{default} || $route_in_zone->{$peer_net})
                   or internal_err("Missing route for $peer_net->{name}",
-                    " at $real_intf->{name} ");
+                                  " at $real_intf->{name} ");
                 push @hops, @$hops;
             }
 
@@ -18127,7 +18130,9 @@ sub concurrent {
         my $status = $?;
         if ($status != 0) {
             my $err_count = $status >> 8;
+            # uncoverable branch true
             if (not $err_count) {
+                # uncoverable statement
                 internal_err("Background process died with status $status");
             }
             $error_counter += $err_count;
@@ -18162,7 +18167,7 @@ sub concurrent {
         exit $error_counter - $start_error_counter;
     }
     else {
-        internal_err("Can't start child: $!");
+        internal_err("Can't start child: $!");	# uncoverable statement
     }
 }
 
