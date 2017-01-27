@@ -57,9 +57,10 @@ sub fatal_err {
 
 # Print arguments to STDERR if in verbose mode.
 sub debug {
-    my (@args) = @_;
-    return if not $config->{verbose};
-    print STDERR @args, "\n";
+    # uncoverable subroutine
+    my (@args) = @_;			# uncoverable statement
+    return if not $config->{verbose};	# uncoverable statement
+    print STDERR @args, "\n";		# uncoverable statement
 }
 
 # Print arguments to STDERR if in verbose mode.
@@ -87,14 +88,14 @@ our $start_time;
 sub progress {
     my (@args) = @_;
     return if not $config->{verbose};
+    # uncoverable branch true
     if ($config->{time_stamps}) {
-        my $diff = time() - $start_time;
-        unshift @args, sprintf "%3ds ", $diff;
+        my $diff = time() - $start_time;	# uncoverable statement
+        unshift @args, sprintf "%3ds ", $diff;	# uncoverable statement
     }
     info(@args);
 }
 
-#meike:umbenennen!!
 sub ip2bitstr {
     my ($ip) = @_;
     my ($i1,$i2,$i3,$i4) = split '\.', $ip;

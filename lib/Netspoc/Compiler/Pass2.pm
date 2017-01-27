@@ -211,6 +211,7 @@ sub order_ranges {
             # $a and $b are overlapping.
             # aaaaa
             #   bbbbbb
+            # uncoverable statement
             fatal_err("Unexpected overlapping ranges [$a1-$a2] [$b1-$b2]");
         }
     };

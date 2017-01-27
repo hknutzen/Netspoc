@@ -56,14 +56,17 @@ sub create_dirs {
     my ($path) = @_;
     $path = "$out_dir/$path";
     make_path($path, {error => \my $err} );
+    # uncoverable branch true
     if (@$err) {
-        for my $diag (@$err) {
-            my ($file, $message) = %$diag;
+        for my $diag (@$err) {				# uncoverable statement
+            my ($file, $msg) = %$diag;			# uncoverable statement
+            # uncoverable branch true
+            # uncoverable branch false
             if ($file eq '') {
-                die "General error: $message\n";
+                die "General error: $msg\n";		# uncoverable statement
             }
             else {
-                die "Problem creating $file: $message\n";
+                die "Problem creating $file: $msg\n";	# uncoverable statement
             }
         }
     }

@@ -18158,8 +18158,9 @@ sub concurrent {
         if ($@) {
 
             # Show internal errors, but not "Aborted" message.
+            # uncoverable branch true
             if ($@ !~ /^Aborted /) {
-                print STDERR $@;
+                print STDERR $@;	# uncoverable statement
             }
         }
 
