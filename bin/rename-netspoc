@@ -302,10 +302,7 @@ sub read_pattern {
 # Make @ARGV utf-8.
 $_ = Encode::decode('UTF-8' , $_) for @ARGV;
 
-# Read search / replace pairs from this file.
-my $from_file;
-my $help;
-my $man;
+my ($from_file, $help, $man);
 GetOptions ( 'f=s' => \$from_file,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,

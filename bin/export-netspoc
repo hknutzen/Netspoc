@@ -1127,9 +1127,7 @@ sub export_owners {
     my %email2owners;
     for my $name ( keys %owners ) {
         my $owner = $owners{$name};
-        my @emails;
-        my @watchers;
-        my @e_owners;
+        my (@emails, @watchers, @e_owners);
         create_dirs("owner/$name");
         for my $email ( @{ $owner->{admins} } ) {
             $email2owners{$email}->{$name} = $name;
