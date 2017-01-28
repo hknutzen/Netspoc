@@ -4,7 +4,8 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
-use File::Temp qw/ tempfile /;
+use IPC::Run3;
+use File::Temp qw(tempfile);
 
 sub test_run {
     my ($what, $title, $input, $args, $expected) = @_;
@@ -13,29 +14,33 @@ sub test_run {
     close $in_fh;
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "$^X $perl_opt -I lib $what -q - $args < $filename";
-    open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
+    my $cmd = "$^X $perl_opt -I lib $what -q $filename $args";
+    my $stderr;
+    run3($cmd, \undef, \undef, \$stderr);
+    my $status = $? >> 8;
+    $stderr ||= '';
+    if ($status != 0) {
+        diag("Unexpected failure:\n$stderr");
+        fail($title);
+    }
 
-    # Undef input record separator to read all output at once.
+    open(my $fh, '<', $filename) or die("Can't open $filename: $!\n");
     local $/ = undef;
-    my $output = <$out_fh>;
-    close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
-    eq_or_diff($output, $expected, $title);
-    return;
+    my $output = <$fh>;
+    close($fh);
+    eq_or_diff("$stderr$output", $expected, $title);
 }
 
 sub test_add {
     my ($title, $input, $args, $expected) = @_;
     $title = "Add: $title";
     test_run('bin/add-to-netspoc', $title, $input, $args, $expected);
-    return;
 }
 
 sub test_rmv {
     my ($title, $input, $args, $expected) = @_;
     $title = "Remove: $title";
     test_run('bin/remove-from-netspoc',  $title, $input, $args, $expected);
-    return;
 }
 
 my ($title, $in, $out);
