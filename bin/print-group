@@ -172,15 +172,8 @@ sub print_address {
 # Argument processing
 ####################################################################
 
-my $nat_net;
-my $show_unused;
-my $show_ip;
-my $show_name;
-my $show_owner;
-my $groups_file;
-my $quiet;
-my $help;
-my $man;
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file, 
+    $quiet, $help, $man);
 GetOptions ( 'nat=s'  => \$nat_net,
 	     'unused' => \$show_unused,
 	     'ip!'    => \$show_ip,
