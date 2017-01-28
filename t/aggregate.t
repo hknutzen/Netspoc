@@ -1956,12 +1956,15 @@ router:r1 = {
 
 network:n2 = { ip = 10.1.2.0/24; }
 
+# Add other zone, that any:[network:n2] is no leaf zone
 router:r2 = {
  managed;
  model = IOS, FW;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
+network:n3 = { ip = 10.1.3.0/24; }
 
 service:s1 = {
  user = any:[network:n2];
