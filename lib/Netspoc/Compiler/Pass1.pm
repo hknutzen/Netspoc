@@ -33,11 +33,13 @@ use strict;
 use warnings;
 use JSON::XS;
 use Netspoc::Compiler::GetArgs qw(get_args);
+use Netspoc::Compiler::File qw(
+ process_file_or_dir 
+ *current_file *input *private $filename_encode);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
 use IO::Pipe;
-my $filename_encode = 'UTF-8';
 
 # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
@@ -65,8 +67,6 @@ our @EXPORT = qw(
   %service_rules
   %path_rules
   @pathrestrictions
-  *input
-  $current_file
   $error_counter
   init_global_vars
   abort_on_error
@@ -96,8 +96,7 @@ our @EXPORT = qw(
   is_protocolgroup
   is_autointerface
   get_intf
-  read_netspoc
-  read_file
+  parse_toplevel
   read_file_or_dir
   show_read_statistics
   order_protocols
@@ -361,18 +360,6 @@ sub warn_or_err_msg {
         err_msg(@args);
     }
 }
-
-# Name of current input file.
-our $current_file;
-
-# Rules and objects read from directories and files with
-# special name 'xxx.private' are marked with attribute {private} = 'xxx'.
-# This variable is used to propagate the value from directories to its
-# files and sub-directories.
-our $private;
-
-# Content of current file.
-our $input;
 
 # Use content and match position of current input file.
 # Return string describing current match position.
@@ -3373,7 +3360,7 @@ our %global_type = (
     crypto          => [ \&read_crypto,          \%crypto ],
 );
 
-sub read_netspoc {
+sub parse_toplevel {
 
     # Check for global definitions.
     my $pair = read_typed_name();
@@ -3396,85 +3383,16 @@ sub read_netspoc {
     return $hash->{$name} = $result;
 }
 
-# Read input from file and process it by function which is given as argument.
-sub read_file {
-    local $current_file = shift;
-    my $read_syntax = shift;
-
-    # Read file as one large line.
-    local $/;
-
-    open(my $fh, '<', $current_file)
-        or fatal_err("Can't open $current_file: $!");
-
-    # Fill buffer with content of whole file.
-    # Content is implicitly freed when subroutine is left.
-    local $input = <$fh>;
-    close $fh;
-
+sub parse_input {
     my $length = length $input;
     while (skip_space_and_comment, pos $input != $length) {
-        &$read_syntax;
+        parse_toplevel();
     }
 }
 
 sub read_file_or_dir {
-    my ($path, $read_syntax) = @_;
-    $read_syntax ||= \&read_netspoc;
-
-    # Handle toplevel file.
-    if (not -d $path) {
-        read_file($path, $read_syntax);
-        return;
-    }
-
-    # Recursively read files and directories.
-    my $read_nested_files = sub {
-        my ($path, $read_syntax) = @_;
-        my $next_private = $private;
-
-        # Handle private directories and files.
-        if (my ($name) = ($path =~ m'([^/]*\.private)$')) {
-            if ($private) {
-                err_msg("Nested private context is not supported:\n $path");
-            }
-            $next_private = $name;
-        }
-
-        local $private = $next_private;
-        if (-d $path) {
-            opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-            for my $file (sort map { Encode::decode($filename_encode, $_) } 
-                          readdir $dh) 
-            {
-                next if $file =~ /^\./;
-                next if $file =~ m/$config->{ignore_files}/o;
-                my $path = "$path/$file";
-                __SUB__->($path, $read_syntax);
-            }
-            closedir $dh;
-        }
-        else {
-            read_file $path, $read_syntax;
-        }
-    };
-
-    # Handle toplevel directory.
-    # Special handling for "config" and "raw".
-    opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-    for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
-    {
-
-        next if $file =~ /^\./;
-        next if $file =~ m/$config->{ignore_files}/o;
-
-        # Ignore special files/directories.
-        next if $file =~ /^(config|raw)$/;
-
-        my $path = "$path/$file";
-        $read_nested_files->($path, $read_syntax);
-    }
-    closedir $dh;
+    my ($path) = @_;
+    process_file_or_dir($path, \&parse_input);
 }
 
 # Prints number of read entities if in verbose mode.

@@ -66,7 +66,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -93,6 +93,7 @@ use warnings;
 use open qw(:std :utf8);
 use Encode qw(decode_utf8);
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::File qw(*current_file *input);
 use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Getopt::Long;

@@ -31,7 +31,7 @@ use warnings;
 use JSON;
 use File::Basename;
 use Netspoc::Compiler::GetArgs qw(get_args);
-use Netspoc::Compiler::File;
+use Netspoc::Compiler::File qw(read_file read_file_lines);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 

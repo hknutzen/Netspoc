@@ -6,7 +6,7 @@ Get arguments and options from command line and config file.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -29,7 +29,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use Netspoc::Compiler::Common;
-use Netspoc::Compiler::File;
+use Netspoc::Compiler::File qw(read_file_lines);
 use Getopt::Long qw(GetOptionsFromArray);
 use Pod::Usage;
 use open qw(:std :utf8);

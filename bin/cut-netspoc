@@ -59,6 +59,7 @@ use warnings;
 use Getopt::Long;
 use Pod::Usage;
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::File qw(process_file_or_dir *input);
 use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
@@ -81,17 +82,17 @@ my $path = shift @ARGV;
 # Give each source part an index to preserve original order.
 my $src_index = 1;
 
-# Enhanced version of read_netspoc, which stores source code of each
+# Enhanced version of parse_input, which stores source code of each
 # global definition.
-sub read_netspoc_with_src {
-    my $pre    = pos $input;
-    my $object = &read_netspoc();
-    my $post   = pos $input;
-    $object->{src_code} = substr $input, $pre, $post - $pre;
-    $object->{src_index} = $src_index++;
-
-#    print STDERR "$object->{name} $pre-$post\n";
-    return $object;
+sub parse_input_with_src {
+    my $length = length $input;
+    while (skip_space_and_comment, pos $input != $length) {
+        my $pre    = pos $input;
+        my $object = parse_toplevel();
+        my $post   = pos $input;
+        $object->{src_code} = substr $input, $pre, $post - $pre;
+        $object->{src_index} = $src_index++;
+    }
 }
 
 sub change_attribute_src_code {
@@ -258,15 +259,15 @@ sub get_zones {
 # Main program
 ####################################################################
 
-my $file_config = &read_config($path);
+my $file_config = read_config($path);
 $config = combine_config($file_config, 
                     {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 init_global_vars();
-&show_version();
+show_version();
 
 # Read and process netspoc configuration data.
 # Remember source code of each global definition.
-&read_file_or_dir($path, \&read_netspoc_with_src);
+process_file_or_dir($path, \&parse_input_with_src);
 
 my %name2var = ( service => \%services);
 
