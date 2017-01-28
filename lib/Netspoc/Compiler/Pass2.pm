@@ -2246,7 +2246,7 @@ sub apply_concurrent {
     my $generated = 0;
     my $check_status = sub {
         if ($?) {
-            $errors++;
+            $errors++;			# uncoverable statement
         }
         else {
             $generated++;

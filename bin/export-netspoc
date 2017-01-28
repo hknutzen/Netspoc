@@ -62,7 +62,7 @@ sub create_dirs {
             my ($file, $msg) = %$diag;			# uncoverable statement
             # uncoverable branch true
             # uncoverable branch false
-            if ($file eq '') {
+            if ($file eq '') {				# uncoverable statemen
                 die "General error: $msg\n";		# uncoverable statement
             }
             else {
