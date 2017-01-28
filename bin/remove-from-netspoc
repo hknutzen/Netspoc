@@ -12,8 +12,7 @@ remove-from-netspoc [options] FILE|DIR OBJECT ...
 
 This program reads a netspoc configuration and one or more OBJECTS. It
 removes specified objects in each file. Changes are done in place, no
-backup files are created. But only changed files are touched. If FILE
-is `-', read standard input and write to standard output.
+backup files are created. But only changed files are touched.
 
 =head1 OBJECT
 
@@ -33,7 +32,6 @@ B<network host interface any group>.
 =item B<-f> file
 
 Read OBJECTS from file.
-If - is specified, read from standard input.
 
 =item B<-q>
 

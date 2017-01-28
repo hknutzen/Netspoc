@@ -13,8 +13,7 @@ add-to-netspoc [options] FILE|DIR PAIR ...
 This program reads a netspoc configuration and one or more
 PAIRS. It augments given object by specified new object in
 each file. Changes are done in place, no backup files are created. But
-only changed files are touched. If FILE is `-', read standard input
-and write to standard output.
+only changed files are touched.
 
 =head1 PAIR
 
@@ -35,7 +34,6 @@ B<network host interface any group>.
 =item B<-f> file
 
 Read PAIRS from file.
-If - is specified, read from standard input.
 
 =item B<-q>
 

@@ -13,8 +13,7 @@ rename-netspoc [options] FILE|DIR SUBSTITUTION ...
 This program reads a netspoc configuration and one or more
 SUBSTITUTIONS. It substitutes found objects with its replacement in
 each file. Changes are done in place, no backup files are created. But
-only changed files are touched. If FILE is `-', read standard input
-and write to standard output.
+only changed files are touched.
 
 =head1 SUBSTITUTION
 
@@ -39,7 +38,6 @@ A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
 =item B<-f> file
 
 Read SUBSTITUTIONS from file.
-If - is specified, read from standard input. 
 
 =item B<-q>
 
