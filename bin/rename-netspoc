@@ -166,102 +166,81 @@ sub subst {
     return $name;
 }
 
+# Reads from global variable $input.
 sub process {
-    my ($lines) = @_;
-    my $changed;
+    my $changed = 0;
     my $type_list;
-    my $search_eq;
-    for my $line (@$lines) {
-        my $copy = '';
-        my $line_changed = 0;
-      TOKEN:
-        while(1) {
+    my $copy = '';
+    while(1) {
 
-            # Handle list of names 
-            # - after "name = "
-            # - and on new line.
-            if ($type_list) {
-              LIST:
-                while (1) {
+        # Ignore comment.
+        if ($input =~ /\G (\s* [#] .* \n) /gcx) {
+            $copy .= $1;
+        }
 
-                    # Read list element.
-                    if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
-                        $copy .= $1;
-                        my $name = $2;
-                        my $new = subst($type_list, $name);
-                        $copy .= $new;
-                        $line_changed++ if $name ne $new;
-                    }
+        # Handle list of names after "name = "
+        elsif ($type_list) {
 
-                    # Read comma.
-                    elsif ($line =~ /\G (\s*,\s*) /gcx) {
-                        $copy .= $1;
-                    }
-                    else {
-                        last LIST;
-                    }                    
-                }
-
-                # Whitespace or comment at end of line doesn't terminate list.
-                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcsx) {
-                    $copy .= $1;
-                    last TOKEN;
-                }
-
-                # Everything else terminates list.
-                else {
-                    $type_list = undef;
-                }
-            }
-
-            # Find next "type:name".
-            elsif ($line =~ /\G (.*?) (\w+) (:) /gcx) {
-                $copy .= "$1$2$3";
-                my $type = $2;
-                next if not $subst{$type};
-                $line =~ /\G  ([-\w.\@:]+) /gcx or next;
-                my $name = $1;
-                my $new = subst($type, $name);
-                $copy .= $new;
-                $line_changed++ if $name ne $new;
-            }
-            
-            # Find "=" behind "type = name".
-            elsif ($search_eq and $line =~ /\G (\s*=\s*) /gcsx) {
+            # Read list element.
+            if ($input =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
                 $copy .= $1;
-                $type_list = $search_eq;
-                $search_eq = undef;
+                my $name = $2;
+                my $new = subst($type_list, $name);
+                $copy .= $new;
+                $changed++ if $name ne $new;
             }
 
-            # Find start of "type = name".
-            elsif ($line =~ /\G (.*?) ([-\w]+) /gcx) {
-                $copy .= "$1$2";
-                my $type = $2;
-                $search_eq = $subst{$type} && $type;
+            # Read comma.
+            elsif ($input =~ /\G (\s*,\s*) /gcx) {
+                $copy .= $1;
             }
 
-            # Ignore rest of line if nothing matches.
+            # Everything else terminates list.
             else {
-                $line =~ /\G (.+) /gcsx and $copy .= $1;
-                last TOKEN;
+                $type_list = undef;
             }
         }
-        if ($line_changed) {
-            $line = $copy;
-            $changed += $line_changed;
+
+        # Find next "type:name".
+        elsif ($input =~ /\G (.*?) (\w+) (:) ([-\w.\@:]+) /gcx) {
+            $copy .= "$1$2$3";
+            my $type = $2;
+            my $name = $4;
+            my $new = subst($type, $name);
+            $copy .= $new;
+            $changed++ if $name ne $new;
+        }
+            
+        # Find "type = name".
+        elsif ($input =~ /\G (.*?) ([-\w]+) (\s* = [ \t]*) /gcx) {
+            $copy .= "$1$2$3";
+            my $type = $2;
+            if ($subst{$type}) {
+                $type_list = $type;
+            }
+        }
+
+        # Ignore rest of line if nothing matches.
+        elsif($input =~ /\G (.* \n) /gcx) {
+            $copy .= $1;
+        }
+
+        # Terminate, if everything has been processed.
+        else {
+            last;
         }
     }
-    return $changed;
+    return ($changed, $copy);
 }
 
 sub process_input {
-    my @input = split(/^/, $input);
-    my $count = process(\@input) or return;
+    my ($count, $copy) = process();
+    $count or return;
     my $path = $current_file;
     info "$count changes in $path" if not $quiet;
     unlink($path) or fatal_err("Can't remove $path: $!");
     open(my $out, '>', $path) or fatal_err("Can't create $path: $!");
-    print $out @input;
+    print $out $copy;
     close $out;
 }
  
