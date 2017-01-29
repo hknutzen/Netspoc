@@ -132,4 +132,64 @@ END
 test_err($title, $in, $out, '-foo=foo');
 
 ############################################################
+$title = 'Verbose output with progress messages';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ overlaps = service:s1;
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp;
+ permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+$out = <<'END';
+Netspoc, version TESTING
+Read 1 routers, 2 networks, 1 hosts, 1 services
+Arranging protocols
+Linking topology
+Preparing security zones and areas
+Preparing fast path traversal
+Distributing NAT
+Finding subnets in zone
+Normalizing services
+Checking service owner
+Converting hosts to subnets
+Grouping rules
+Grouped rule count: 2
+Finding subnets in 1 NAT domains
+Checking rules for unstable subnet relation
+Checking rules with hidden or dynamic NAT
+Checking supernet rules
+Checking for redundant rules
+Expanded rule count: 2; duplicate: 0; redundant: 1
+Removing simple duplicate rules
+Setting policy distribution IP
+Expanding crypto rules
+Finding routes
+Generating reverse rules for stateless routers
+Marking rules for secondary optimization
+Distributing rules
+Moving 3 old files in '' to subdirectory '.prev'
+Printing intermediate code
+Reused 1 files from previous run
+Finished
+-- r1
+! [ Routing ]
+END
+
+test_reuse_prev($title, $in, $in, $out, '-verbose');
+
+############################################################
 done_testing;

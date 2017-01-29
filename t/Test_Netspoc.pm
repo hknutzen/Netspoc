@@ -133,8 +133,15 @@ sub compare_warnings_and_devices {
     if ($check_stderr) {
         $warnings ||= '';
 
-        # Normalize input path: remove temp. dir.
+        # Normalize input path: remove temp. directory.
         $stderr =~ s/\Q$in_dir\E\///g;
+
+        # Normalize version number and output directory.
+        if ($options and $options =~ /verbose/) {
+            $stderr =~ s/(?<=^Netspoc, version ).*/TESTING/;
+            $stderr =~ s/\Q$dir\E//g;
+        }
+        
         eq_or_diff($stderr, $warnings, $title);
     }
     else {
