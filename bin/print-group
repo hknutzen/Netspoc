@@ -128,7 +128,8 @@ sub print_address {
     }
     elsif ($type eq 'Host' or $type eq 'Interface') {
         my $network = get_nat_network($obj->{network}, $no_nat_set);
-        if (my $nat_tag = $network->{dynamic}) {
+        if ($network->{dynamic}) {
+            my $nat_tag = $network->{nat_tag};
             if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
                 # Single static NAT IP for this object.

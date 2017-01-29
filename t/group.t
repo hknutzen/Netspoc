@@ -352,7 +352,7 @@ $out = <<'END';
 # network:n1
 10.9.1.0/28	network:n1
 # host:h1
-10.9.1.0/28	host:h1
+10.9.1.10	host:h1
 # network:n2
 10.9.2.0/24	network:n2
 # host:h2
@@ -364,7 +364,7 @@ hidden	host:h3
 # network:t1
 unnumbered	network:t1
 # interface:r1.[all]
-10.9.1.0/28	interface:r1.n1
+10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
 hidden	interface:r1.n3
 # interface:r1.[auto]
