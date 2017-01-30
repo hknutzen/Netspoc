@@ -2035,8 +2035,9 @@ sub cisco_prt_code {
         };
         my $dst_prt = $port_code->($prt);
         if ($prt->{established}) {
+            # uncoverable branch true
             if (defined $dst_prt) {
-                $dst_prt .= ' established';
+                $dst_prt .= ' established';	# uncoverable statement
             }
             else {
                 $dst_prt = 'established';
