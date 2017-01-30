@@ -7,7 +7,7 @@ use Test::Differences;
 use IPC::Run3;
 use File::Temp qw/ tempdir /;
 use lib 't';
-use Test_Netspoc;
+use Test_Netspoc qw(prepare_in_dir);
 
 sub test_run {
     my ($title, $input, $expected) = @_;
