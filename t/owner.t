@@ -135,57 +135,6 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Check for owners with duplicate alias names';
-############################################################
-
-$in = <<'END';
-owner:xx = {
- alias = X Quadrat;
- admins = a@b.c;
-}
-
-owner:x2 = {
- alias = X Quadrat;
- admins = a@b.c;
-}
-END
-
-$out = <<'END';
-Error: Name conflict between owners
- - owner:xx with alias 'X Quadrat'
- - owner:x2 with alias 'X Quadrat'
-Error: Topology seems to be empty
-Aborted
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Check for owners with conflicting name and alias name';
-############################################################
-
-$in = <<'END';
-owner:yy = {
- alias = z;
- admins = a@b.c;
-}
-
-owner:z = {
- admins = a@b.c;
-}
-END
-
-$out = <<'END';
-Error: Name conflict between owners
- - owner:z
- - owner:yy with alias 'z'
-Error: Topology seems to be empty
-Aborted
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = 'Owner at bridged network';
 ############################################################
 

@@ -1162,13 +1162,9 @@ sub export_owners {
 
     export("email", \%email2owners);
 
+    # Is no longer used and is always empty.
+    # Only exported for compatibility with older version of Netspoc-Web.
     my %owner2alias;
-    for my $name (keys %owners) {
-        my $owner = $owners{$name};
-        if (my $alias = $owner->{alias}) {
-            $owner2alias{$name} = $alias;
-        }
-    }
     export('owner2alias', \%owner2alias);
     return;
 }

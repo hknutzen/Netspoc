@@ -608,7 +608,7 @@ sub read_name {
     }
 }
 
-# Used for reading alias name or radius attributes.
+# Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
@@ -3307,10 +3307,6 @@ sub read_owner {
         if ($token eq '}') {
             last;
         }
-        elsif ($token eq 'alias') {
-            my $alias = read_assign(\&read_string);
-            add_attribute($owner, alias => $alias);
-        }
         elsif ($token eq 'admins') {
             my $admins = read_assign_list(\&read_name);
             add_attribute($owner, admins => $admins);
@@ -3910,24 +3906,9 @@ sub expand_watchers {
 
 sub link_owners {
 
-    my %alias2owner;
-
     # Use sort to get deterministic error messages.
     for my $name (sort keys %owners) {
         my $owner = $owners{$name};
-
-        # Check for unique alias names.
-        my $alias = $owner->{alias} || $name;
-        if (my $other = $alias2owner{$alias}) {
-            my $descr1 = $owner->{name};
-            $owner->{alias} and $descr1 .= " with alias '$owner->{alias}'";
-            my $descr2 = $other->{name};
-            $other->{alias} and $descr2 .= " with alias '$other->{alias}'";
-            err_msg("Name conflict between owners\n - $descr1\n - $descr2");
-        }
-        else {
-            $alias2owner{$alias} = $owner;
-        }
 
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
