@@ -15,8 +15,8 @@ sub test_run {
     my $out_dir = tempdir( CLEANUP => 1 );
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
     my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -quiet $in_dir $out_dir";
-    my ($stdout, $stderr);
-    run3($cmd, \undef, \$stdout, \$stderr);
+    my $stderr;
+    run3($cmd, \undef, \undef, \$stderr);
     my $status = $?;
     if ($status != 0) {
         diag("Failed:\n$stderr");
@@ -3092,6 +3092,34 @@ $out = <<END;
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Invalid options and arguments';
+############################################################
+
+$out = <<'END';
+Usage: bin/export-netspoc [-q] netspoc-data out-directory
+END
+
+my %in2out = (
+    ''      => $out,
+    '-foo'  => "Unknown option: foo\n$out",
+    'a'     => $out,
+    'a b c' => $out
+);
+
+for my $args (sort keys %in2out) {
+    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc $args";
+    my $stderr;
+    run3($cmd, \undef, \undef, \$stderr);
+    my $status = $?;
+    if ($status == 0) {
+        diag("Unexpected success\n");
+        fail($title);
+    }
+    eq_or_diff($stderr, $in2out{$args}, qq/$title: "$args"/);
+}
 
 ############################################################
 done_testing;

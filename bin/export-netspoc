@@ -44,6 +44,7 @@ my $quiet;
 GetOptions ('quiet!' => \$quiet) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
+@ARGV and usage();
 
 # Remove trailing slash.
 $out_dir =~ s,/$,,;
