@@ -5,17 +5,16 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use IPC::Run3;
-use File::Temp qw/ tempfile tempdir /;
+use File::Temp qw/ tempdir /;
+use lib 't';
+use Test_Netspoc;
 
 sub test_run {
     my ($title, $input, $expected) = @_;
-    my $dir = tempdir( CLEANUP => 1 );
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
+    my $in_dir = prepare_in_dir($input);
+    my $out_dir = tempdir( CLEANUP => 1 );
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -quiet $filename $dir";
+    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -quiet $in_dir $out_dir";
     my ($stdout, $stderr);
     run3($cmd, \undef, \$stdout, \$stderr);
     my $status = $?;
@@ -47,7 +46,7 @@ sub test_run {
         my $fname = shift @expected;
         my $block = shift @expected;
 
-        open(my $out_fh, '<', "$dir/$fname") or die "Can't open $fname";
+        open(my $out_fh, '<', "$out_dir/$fname") or die "Can't open $fname";
         my $output = <$out_fh>;
         close($out_fh);
         eq_or_diff($output, $block, "$title: $fname");
@@ -3070,6 +3069,26 @@ $out = <<END;
       "network:n3"
    ]
 }
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Copy POLICY file';
+############################################################
+
+$in = <<'END';
+-- POLICY
+# p1234
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<END;
+--objects
+{}
+-- POLICY
+# p1234
 END
 
 test_run($title, $in, $out);
