@@ -2007,7 +2007,7 @@ sub print_object_groups {
 # Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code {
-    my ($src_range, $prt, $model) = @_;
+    my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
 
     if ($proto eq 'ip') {
@@ -2049,16 +2049,7 @@ sub cisco_prt_code {
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                if ($model eq 'ASA') {
-
-                    # ASA up to version 9.0(1) can't handle ICMP code field.
-                    # If we try to permit e.g. "port unreachable",
-                    # "unreachable any" could pass.
-                    return ($proto, undef, $type);
-                }
-                else {
-                    return ($proto, undef, "$type $code");
-                }
+                return ($proto, undef, "$type $code");
             }
             else {
                 return ($proto, undef, $type);
@@ -2118,7 +2109,7 @@ sub print_cisco_acl {
           @{$rule}{qw(deny src dst src_range prt)};
         my $action = $deny ? 'deny' : 'permit';
         my ($proto_code, $src_port_code, $dst_port_code) =
-          cisco_prt_code($src_range, $prt, $model);
+          cisco_prt_code($src_range, $prt);
         my $result = "$prefix $action $proto_code";
         $result .= ' ' . cisco_acl_addr($src, $model);
         $result .= " $src_port_code" if defined $src_port_code;
