@@ -1115,8 +1115,7 @@ sub gen_prt_bintree {
     my ($elements, $tree) = @_;
 
     my $ip_prt;
-    my %top_prt;
-    my %sub_prt;
+    my (%top_prt, %sub_prt);
 
     # Add all protocols directly below protocol 'ip' into hash %top_prt
     # grouped by protocol. Add protocols below top protocols or below
