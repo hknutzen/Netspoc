@@ -572,7 +572,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Non matching NAT IP of host and interaface';
+$title = 'Non matching NAT IP of host and interface';
 ############################################################
 
 $in = <<'END';
