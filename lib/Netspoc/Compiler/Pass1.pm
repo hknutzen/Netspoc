@@ -1461,11 +1461,6 @@ sub read_network {
 our %interfaces;
 
 my @virtual_interfaces;
-my $global_active_pathrestriction = new(
-    'Pathrestriction',
-    name        => 'global_pathrestriction',
-    active_path => 1
-);
 
 # Tunnel networks which are already attached to tunnel interfaces
 # at spoke devices. Key is crypto name, not crypto object.
