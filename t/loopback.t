@@ -361,7 +361,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: interface:r2.lo and nat:extern(network:n1) have identical IP/mask
+Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
  in nat_domain:n2
 END
 

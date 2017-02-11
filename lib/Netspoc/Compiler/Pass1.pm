@@ -1184,10 +1184,10 @@ sub read_host {
 }
 
 sub read_nat {
-    my ($name, $mask_is_optional) = @_;
+    my ($nat_tag, $obj_name, $mask_is_optional) = @_;
     
     # Currently this needs not to be blessed.
-    my $nat = { name => $name, };
+    my $nat = {};
     skip '=';
     skip '{';
     while (1) {
@@ -1224,7 +1224,7 @@ sub read_nat {
     }
     if ($nat->{hidden}) {
         for my $key (sort keys %$nat) {
-            next if grep { $key eq $_ } qw( name hidden );
+            next if $key eq 'hidden';
             error_atline("Hidden NAT must not use attribute $key");
             delete $nat->{$key};
         }
@@ -1241,7 +1241,7 @@ sub read_nat {
     }
     elsif ($nat->{identity}) {
         for my $key (sort keys %$nat) {
-            next if grep { $key eq $_ } qw( name identity );
+            next if $key eq 'identity';
             error_atline("Identity NAT must not use attribute $key");
             delete $nat->{$key};
         }
@@ -1253,9 +1253,9 @@ sub read_nat {
 
     # Attribute {nat_tag} is used later to look up static translation
     # of hosts inside a dynamically translated network.
-    (my $nat_tag = $name) =~ s/^nat://;
     $nat->{nat_tag} = $nat_tag;
-    
+
+    $nat->{descr} = "nat:$nat_tag of $obj_name";
     return $nat;
 }
 
@@ -1348,8 +1348,8 @@ sub read_network {
             elsif ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
+                $nat->{name}  = $name;
                 $network->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $network->{nat}->{$nat_tag} = $nat;
@@ -1427,13 +1427,14 @@ sub read_network {
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             err_msg("Crosslink $name must not have host definitions");
         }
-        if ($network->{nat}) {
 
-            # Check NAT definitions.
-            for my $nat (values %{ $network->{nat} }) {
+        # Check NAT definitions.
+        if (my $href = $network->{nat}) {
+            for my $nat_tag (sort keys %$href) {
+                my $nat = $href->{$nat_tag};
                 next if $nat->{dynamic};
                 $nat->{mask} eq $mask
-                  or err_msg("Mask for non dynamic $nat->{name}",
+                  or err_msg("Mask for non dynamic nat:$nat_tag",
                              " must be equal to mask of $name");
             }
         }
@@ -1559,7 +1560,7 @@ sub read_interface {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag", 'mask_is_optional');
+                my $nat = read_nat($nat_tag, $name, 'mask_is_optional');
                 $interface->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $interface->{nat}->{$nat_tag} = $nat;
@@ -2577,8 +2578,7 @@ sub read_aggregate {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
                 $aggregate->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $aggregate->{nat}->{$nat_tag} = $nat;
@@ -2683,8 +2683,7 @@ sub read_area {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
                 $area->{nat}->{$nat_tag} and 
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $area->{nat}->{$nat_tag} = $nat;
@@ -4213,22 +4212,15 @@ sub link_routers {
 }
 
 sub link_subnet {
-    my ($object, $parent) = @_;
-
-    my $context = sub {
-            !$parent    ? $object->{name}
-          : ref $parent ? "$object->{name} of $parent->{name}"
-          :               "$parent $object->{name}";
-    };
-    return if not $object->{subnet_of};
-    my ($type, $name) = @{ $object->{subnet_of} };
+    my ($object) = @_;
+    my $pair = $object->{subnet_of} or return;
+    my ($type, $name) = @$pair;
+    my $context = $object->{descr} || $object->{name};
     my $network = $networks{$name};
     if (not $network) {
-        warn_msg(
-            "Ignoring undefined network:$name",
-            " from attribute 'subnet_of'\n of ",
-            $context->()
-        );
+        warn_msg("Ignoring undefined network:$name",
+                 " from attribute 'subnet_of'\n",
+                 " of $context");
 
         # Prevent further errors;
         delete $object->{subnet_of};
@@ -4241,8 +4233,8 @@ sub link_subnet {
 
 #    debug($network->{name}) if not defined $ip;
     if ($ip eq 'unnumbered') {
-        err_msg "Unnumbered $network->{name} must not be referenced from",
-          " attribute 'subnet_of'\n of ", $context->();
+        err_msg("Unnumbered $network->{name} must not be referenced from",
+                " attribute 'subnet_of'\n of $context");
 
         # Prevent further errors;
         delete $object->{subnet_of};
@@ -4252,20 +4244,21 @@ sub link_subnet {
     # $sub_mask needs not to be tested here,
     # because it has already been checked for $object.
     if (not(match_ip($sub_ip, $ip, $mask))) {
-        err_msg $context->(), " is subnet_of $network->{name}",
-          " but its IP doesn't match that's IP/mask";
+        err_msg("$context is subnet_of $network->{name}",
+                " but its IP doesn't match that's IP/mask");
     }
     return;
 }
 
 sub link_subnets {
     for my $network (values %networks) {
-        link_subnet($network, undef);
+        link_subnet($network);
     }
     for my $obj (values %networks, values %aggregates, values %areas) {
-        my $nat = $obj->{nat} or next;
-        for my $nat (values %{ $obj->{nat} }) {
-            link_subnet($nat, $obj);
+        my $href = $obj->{nat} or next;
+        for my $nat_tag (sort keys %$href) {
+            my $nat_info = $href->{$nat_tag};
+            link_subnet($nat_info);
         }
     }
 }
@@ -7688,15 +7681,15 @@ sub generate_multinat_def_lookup {
                     my $nat_hash2 = $previous_nat_hashes->[0];
                     if (not keys_eq($nat_hash, $nat_hash2) and not $err_shown) {
 
-                        # Generate unequal nat hash error.
+                        # Show error on unequal NAT hash.
                         my $tags1 = join(',', sort keys %$nat_hash);
                         my $name1 = $network->{name};
                         my $tags2 = join(',', sort keys %$nat_hash2);
                         
                         # Values are NAT entries with name of network.
                         # Take first value deterministically.
-                        my ($name2) = sort
-                            map { $_->{name} } values %$nat_hash2;
+                        my ($name2) = 
+                            sort map { $_->{name} } values %$nat_hash2;
                         err_msg(
                             "If multiple NAT tags are used at one network,\n",
                             " these NAT tags must be used",
@@ -7937,19 +7930,16 @@ sub check_for_proper_nat_transition {
     my ($nat_tag, $nat_tag2, $nat_hash, $router) = @_;
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
-    
-    # Use $next_info->{name} and not $nat_info->{name} because
-    # $nat_info may show wrong network, because we combined different
-    # hidden networks into $nat_tag2multinat_def.
-    
+
     # Tranistion from hidden NAT to any other NAT is invalid.
     if ($nat_info->{hidden}) {
-        err_msg(
-            "Must not change hidden nat:$nat_tag",
-            " using nat:$nat_tag2\n",
-            " for $next_info->{name}",
-            " at $router->{name}"
-            );
+    
+        # Use $next_info->{name} and not $nat_info->{name} because
+        # $nat_info may show wrong network, because we combined
+        # different hidden networks into $nat_tag2multinat_def.
+        err_msg("Must not change hidden nat:$nat_tag",
+                " using nat:$nat_tag2\n",
+                " for $next_info->{name} at $router->{name}");
     }
     
     # Transition from dynamic to static NAT is invalid.
@@ -7958,8 +7948,7 @@ sub check_for_proper_nat_transition {
     {
         err_msg("Must not change dynamic nat:$nat_tag",
                 " to static using nat:$nat_tag2\n",
-                " for $nat_info->{name}",
-                " at $router->{name}");
+                " for $nat_info->{name} at $router->{name}");
     }
 }
 
@@ -8430,7 +8419,7 @@ sub check_subnets {
 
             # NAT to an interface address (masquerading) is allowed.
             if (    (my $nat_tags = $object->{bind_nat})
-                and (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)\(/)))
+                and (my $nat_tag2 = $subnet->{nat_tag}))
             {
                 if (    grep { $_ eq $nat_tag2 } @$nat_tags
                     and $object->{ip} eq $subnet->{ip}
@@ -8440,7 +8429,7 @@ sub check_subnets {
                 }
             }
             warn_msg("IP of $object->{name} overlaps with subnet",
-                " $subnet->{name}");
+                     " $subnet->{name}");
         }
     };
     for my $interface (@{ $network->{interfaces} }) {
@@ -8539,7 +8528,7 @@ sub find_subnets_in_zone {
                         " $network->{name} is subnet of\n",
                         " - $other->{name} at",
                         " $first_intf->{name}\n",
-                        " - but it is hidden $nat_network->{name} at",
+                        " - but it is hidden by nat:$nat_network->{nat_tag} at",
                         " $interface->{name}"
                     );
                     next;
@@ -8908,8 +8897,8 @@ sub find_subnets_in_nat_domain {
                     $error = 1;
                 }
                 if ($error) {
-                    my $name1 = $nat_network->{name};
-                    my $name2 = $nat_other->{name};
+                    my $name1 = $nat_network->{descr} || $nat_network->{name};
+                    my $name2 = $nat_other->{descr} || $nat_other->{name};
                     err_msg("$name1 and $name2 have identical IP/mask\n",
                             " in $domain->{name}");
                 }
@@ -9009,10 +8998,11 @@ sub find_subnets_in_nat_domain {
                     # different NAT domains.
                     $nat_subnet->{subnet_of} ||= $bignet;
 
+                    my $name1 = $nat_subnet->{descr} || $nat_subnet->{name};
+                    my $name2 = $nat_bignet->{descr} || $nat_bignet->{name};
                     warn_or_err_msg(
                         $print_type,
-                        "$nat_subnet->{name} is subnet of",
-                        " $nat_bignet->{name}\n",
+                        "$name1 is subnet of $name2\n",
                         " in $domain->{name}.\n",
                         " If desired, either declare attribute",
                         " 'subnet_of' or attribute 'has_subnets'");
@@ -10077,14 +10067,13 @@ sub nat_equal {
 #              This is also used later to warn on useless identity NAT.
 sub check_useless_nat {
     my ($nat1, $nat2) = @_;
-    return if $nat2->{has_been_checked};
+    return if $nat2->{has_been_checked}++;
     if (nat_equal($nat1, $nat2)) {
         warn_msg(
-            "Useless $nat2->{name},\n",
-            " it is already inherited from $nat1->{name}"
+            "Useless $nat2->{descr},\n",
+            " it is already inherited from $nat1->{descr}"
         );
     }
-    $nat2->{has_been_checked} = 1;
 }
 
 ##############################################################################
@@ -10170,13 +10159,13 @@ sub inherit_nat_to_subnets_in_zone {
                 );
             }
 
-            # Copy NAT defintion; append name of network.
+            # Copy NAT defintion; add description and name of original network.
             else {
-                my $sub_nat = {
-                    %$nat,
-
-                    # Needed for error messages.
-                    name => "nat:$nat_tag($network->{name})",
+                my $net_name = $network->{name};
+                my $sub_nat = { 
+                    %$nat, 
+                    name  => $net_name, 
+                    descr => "nat:$nat_tag of $net_name",
 
                     # Copy attribute {subnet_of}, to suppress warning.
                     # Copy also if undefined, to overwrite value in
@@ -10192,7 +10181,7 @@ sub inherit_nat_to_subnets_in_zone {
 
                     # Check mask of static NAT inherited from area or zone.
                     if ($nat_mask ge $mask2) {
-                        err_msg("Must not inherit $nat->{name} at",
+                        err_msg("Must not inherit $nat->{descr} at",
                                 " $network->{name}\n",
                                 " because NAT network must be larger",
                                 " than translated network");
