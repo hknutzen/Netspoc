@@ -748,7 +748,7 @@ sub read_typed_name {
             elsif ($interface) {
                 my ($router_name, $net_name) =
                     $name =~ m/^ ( [\w-]+ (?: \@ [\w-]+ )? ) [.] 
-                                 ( $network_regex (?: [.] [\w-]+)? )? $/x or
+                                 ( $network_regex (?: [.] [\w-]+)? )? $/xo or
                     syntax_err("Interface name expected");
                 $name = $router_name;
                 if ($net_name) {
@@ -797,7 +797,7 @@ sub read_typed_name {
 # host:xxx or host:id:user@domain or host:id:[@]domain
     sub verify_hostname {
         my ($token) = @_;
-        $token =~ m/^$hostname_regex$/ or syntax_err('Hostname expected');
+        $token =~ m/^$hostname_regex$/o or syntax_err('Hostname expected');
     }
 }
 
