@@ -484,21 +484,19 @@ sub skip_regex {
     return $1;
 }
 
-# Skip argument regex without skipping whitespace.
+# Skip argument character without skipping whitespace.
 # Usable for non token characters.
-# Returns matched string.
-sub skip_direct {
+sub skip_char_direct {
     my ($expected) = @_;
-    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
-    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
-    return $1;
+    $input =~ /\G(.)/gc and $1 eq $expected or 
+        syntax_err("Expected '$expected'");
 }
 
 # Skip argument token.
 # If it is not available an error is printed and the script terminates.
 sub skip {
     my ($expected) = @_;
-    my $token = read_token();;
+    my $token = read_token();
     $token eq $expected or syntax_err("Expected '$expected'");
 }
 
@@ -730,7 +728,7 @@ sub read_typed_name {
         my $ext;
 
         my $read_auto_all = sub {
-            skip_direct('\[');
+            skip_char_direct('[');
             my $selector = read_identifier;
             $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
             $ext = [ $selector, $ext ];
@@ -764,7 +762,7 @@ sub read_typed_name {
             }
         }
         else {
-            skip_direct('\[');
+            skip_char_direct('[');
             if (($interface or $type eq 'host') and check('managed')) {
                 $ext = 1;
                 skip '&';
@@ -776,7 +774,7 @@ sub read_typed_name {
             }
             $name = read_union(']');
             if ($interface) {
-                skip_direct('[.]');
+                skip_char_direct('.');
                 $read_auto_all->();
             }                
         }
