@@ -473,17 +473,6 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
-# Skip argument regex.
-# Usable for non token characters.
-# Returns matched string.
-sub skip_regex {
-    my ($expected) = @_;
-    skip_space_and_comment;
-    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
-    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
-    return $1;
-}
-
 # Skip argument character without skipping whitespace.
 # Usable for non token characters.
 sub skip_char_direct {
@@ -561,12 +550,25 @@ sub read_ip_prefix_pair {
     return [ $ip, $mask ];
 }
 
-# Read IP range.
+# Read IP range. Remember: '-' may be part of token.
+# ip1 - ip2
+# ip1-ip2
+# ip1- ip2
+# ip1 -ip2
 sub read_ip_range {
-    skip '=';
-    my $ip1 = convert_ip(skip_regex('[\d.]+'));
-    skip_regex('-');
-    my $ip2 = convert_ip(skip_regex('[\d.]+'));
+    skip('=');
+    my ($ip1, $ip2);
+    my $token = read_token();
+    if (($ip1, $ip2) = $token =~ /^(.*)-(.*)$/) {
+        $ip1 = convert_ip($ip1);
+    }
+    else {
+        $ip1 = convert_ip($token);
+        my $token2 = read_token();
+        ($ip2) = $token2 =~ /^-(.*)$/ or syntax_err("Expected '-'");
+    }
+    $ip2 = read_token() if not length($ip2);
+    $ip2 = convert_ip($ip2);
     skip(';');
     return $ip1, $ip2;
 }
