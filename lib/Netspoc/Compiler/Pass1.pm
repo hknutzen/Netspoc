@@ -1091,6 +1091,10 @@ sub read_host {
             $ip1 le $ip2 or error_atline("Invalid IP range");
             add_attribute($host, range => [ $ip1, $ip2 ]);
         }
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
+            add_attribute($host, owner => $owner);
+        }
 
         elsif ($token eq 'managed') {
             my $managed = read_managed();
@@ -1112,10 +1116,6 @@ sub read_host {
         elsif ($token eq 'server_name') {
             my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
-        }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($host, owner => $owner);
         }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
@@ -1504,6 +1504,14 @@ sub read_interface {
                 $counter++;
             }
         }
+        elsif ($token eq 'hardware') {
+            my $hardware = read_assign(\&read_name);
+            add_attribute($interface, hardware => $hardware);
+        }
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
+            add_attribute($interface, owner => $owner);
+        }
         elsif ($token eq 'unnumbered') {
             skip(';');
             add_attribute($interface, ip => 'unnumbered');
@@ -1642,14 +1650,6 @@ sub read_interface {
             my $tags = read_assign_list(\&read_identifier);
             $interface->{bind_nat} and error_atline("Duplicate NAT binding");
             $interface->{bind_nat} = [ unique sort @$tags ];
-        }
-        elsif ($token eq 'hardware') {
-            my $hardware = read_assign(\&read_name);
-            add_attribute($interface, hardware => $hardware);
-        }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($interface, owner => $owner);
         }
         elsif ($token eq 'routing') {
             my $routing = read_routing();
