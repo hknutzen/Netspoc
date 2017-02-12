@@ -2915,8 +2915,8 @@ sub read_simple_protocol {
 }
 
 sub check_protocol_modifiers {
-    my ($protocol) = @_;
-    while (check ',') {
+    my ($token, $protocol) = @_;
+    while ($token eq ',') {
         my $flag = read_identifier;
         if ($flag =~ /^(?:reversed | stateless | oneway |
                           src_net | dst_net |
@@ -2927,7 +2927,9 @@ sub check_protocol_modifiers {
         else {
             error_atline("Unknown modifier '$flag'");
         }
+        $token = read_token();
     }
+    return $token;
 }
 
 sub read_typed_name_or_simple_protocol_list {
@@ -2959,8 +2961,9 @@ sub read_protocol {
     my $token = read_token();
     my $protocol = read_simple_protocol($token);
     $protocol->{name} = $name;
-    check_protocol_modifiers($protocol);
-    skip ';';
+    $token = read_token();
+    $token = check_protocol_modifiers($token, $protocol);
+    $token eq ';' or syntax_err("Expected ';'");
     return $protocol;
 }
 
