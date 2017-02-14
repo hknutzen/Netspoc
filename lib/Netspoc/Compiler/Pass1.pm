@@ -2886,21 +2886,14 @@ sub cache_anonymous_protocol {
 
 sub read_simple_protocol {
     my ($proto) = @_;
-    my $protocol = {};
-    if ($proto eq 'ip') {
-        $protocol->{proto} = 'ip';
-    }
-    elsif ($proto eq 'tcp') {
-        $protocol->{proto} = 'tcp';
+    my $protocol = { proto => $proto };
+    if ($proto eq 'tcp'or $proto eq 'udp') {
         read_port_ranges($protocol);
     }
-    elsif ($proto eq 'udp') {
-        $protocol->{proto} = 'udp';
-        read_port_ranges $protocol;
-    }
     elsif ($proto eq 'icmp') {
-        $protocol->{proto} = 'icmp';
         read_icmp_type_code $protocol;
+    }
+    elsif ($proto eq 'ip') {
     }
     elsif ($proto eq 'proto') {
         read_proto_nr $protocol;
