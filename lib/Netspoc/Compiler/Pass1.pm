@@ -5172,7 +5172,8 @@ sub convert_hosts {
 # Find adjacent subnets and substitute them by their enclosing subnet.
 sub combine_subnets {
     my ($subnets) = @_;
-    my %hash = map { $_ => $_ } @$subnets;
+    my %hash;
+    @hash{@$subnets} = @$subnets;
     my @extra;
     while (1) {
         for my $subnet (@$subnets) {
@@ -5198,12 +5199,7 @@ sub combine_subnets {
         }
     }
 
-    # Sort networks by size of mask,
-    # i.e. large subnets coming first and
-    # for equal mask by IP address.
-    # We need this to make the output deterministic.
-    return [ sort { $a->{mask} cmp $b->{mask} || $a->{ip} cmp $b->{ip} }
-          values %hash ];
+    return [ grep { $hash{$_} } @$subnets ];
 }
 
 ####################################################################
