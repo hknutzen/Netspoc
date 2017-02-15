@@ -64,7 +64,7 @@ network:n = {
 END
 
 $out = <<'END';
-Error: Duplicate IP range for host:a and host:b
+Error: Duplicate IP address for host:a and host:b
 END
 
 test_err($title, $in, $out);

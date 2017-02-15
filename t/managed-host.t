@@ -411,8 +411,8 @@ network:N = {
 END
 $out = <<'END';
 Error: Duplicate IP address for host:h1 and interface:R.N
-Error: Duplicate IP address for host:h1 and host:h2
 Error: Duplicate IP address for host:h1 and host:h3
+Error: Duplicate IP address for host:h1 and host:h2
 END
 
 test_err($title, $in, $out);

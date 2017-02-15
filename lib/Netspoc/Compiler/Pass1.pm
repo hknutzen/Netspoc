@@ -4638,41 +4638,24 @@ sub check_ip_addresses {
                   " a managed $route_intf->{name} with static routing enabled.";
             }
         }
-        my %range2obj;
         for my $host (@{ $network->{hosts} }) {
-            if (my $ip = $host->{ip}) {
+            my $range = $host->{range} or next;
+            my ($low, $high) = @$range;
+            for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
                 if (my $other_device = $ip2obj{$ip}) {
-                    err_msg "Duplicate IP address for $other_device->{name}",
-                      " and $host->{name}";
-                }
-                else {
-                    $ip2obj{$ip} = $host;
-                }
-            }
-            elsif (my $range = $host->{range}) {
-                my ($from, $to) = @$range;
-                if (my $other_device = $range2obj{$from}->{$to}) {
-                    err_msg "Duplicate IP range for $other_device->{name}",
-                      " and $host->{name}";
-                }
-                else {
-                    $range2obj{$from}->{$to} = $host;
+                    err_msg("Duplicate IP address for $other_device->{name}",
+                            " and $host->{name}");
                 }
             }
         }
         for my $host (@{ $network->{hosts} }) {
-            if (my $range = $host->{range}) {
-                my ($low, $high) = @$range;
-                for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
-                    if (my $other_device = $ip2obj{$ip}) {
-                        is_host($other_device)
-                          or err_msg(
-                            "Duplicate IP address for",
-                            " $other_device->{name}",
-                            " and $host->{name}"
-                          );
-                    }
-                }
+            my $key = $host->{ip} || join '-', @{ $host->{range} };
+            if (my $other_device = $ip2obj{$key}) {
+                err_msg("Duplicate IP address for $other_device->{name}",
+                        " and $host->{name}");
+            }
+            else {
+                $ip2obj{$key} = $host;
             }
         }
     }
