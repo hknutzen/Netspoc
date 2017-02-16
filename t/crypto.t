@@ -1128,8 +1128,8 @@ object-group network g2
  network-object 10.99.2.128 255.255.255.192
 access-list outside_in extended permit icmp object-group g0 any 3
 access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
 access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
+access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
 access-list outside_in extended deny ip any any
 access-group outside_in in interface outside
 END

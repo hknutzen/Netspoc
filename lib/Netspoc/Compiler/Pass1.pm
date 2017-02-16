@@ -5123,6 +5123,7 @@ sub convert_hosts {
                 # Find corresponding right part
                 my $neighbor = $ip2subnet->{$next_ip} or next;
                 $subnet->{neighbor} = $neighbor;
+                $neighbor->{has_neighbor} = 1;
                 my $up;
                 if ($up_inv_prefix >= $network_inv_prefix) {
 
@@ -5173,10 +5174,8 @@ sub combine_subnets {
             my $neighbor = $subnet->{neighbor} or next;
             $hash{$neighbor} or next;
             my $up = $subnet->{up};
-            if (not $hash{$up}) {
-                $hash{$up} = $up;
-                push @extra, $up;
-            }
+            $hash{$up} = $up;
+            push @extra, $up;
             delete $hash{$subnet};
             delete $hash{$neighbor};
         }
@@ -6746,7 +6745,15 @@ sub convert_hosts_in_rules {
                         }
                         else {
                             $subnet2host{$subnet} = $obj;
-                            push @subnets, $subnet;
+                            if ($subnet->{neighbor} or $subnet->{has_neighbor}) 
+                            {
+                                push @subnets, $subnet;
+                            }
+
+                            # Subnet can't be combined.
+                            else {
+                                push @other, $subnet;
+                            }
                         }
                     }
                 }
