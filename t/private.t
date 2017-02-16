@@ -135,6 +135,7 @@ END
 $out = <<'END';
 Error: Nested private context is not supported:
  a.private/b.private
+Aborted
 END
 
 test_err($title, $in, $out);

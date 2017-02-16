@@ -1,3 +1,10 @@
+5.020     2017-02-16 16:40:43+01:00 Europe/Berlin
+
+ - Combined host ranges are checked for duplicates now.
+ - Combining of adjacent host ranges runs faster now.
+ - Attribute 'alias' of owners is no longer supported.
+ - Increased test coverage to 99.84%.
+
 5.019     2017-01-25 16:03:48+01:00 Europe/Berlin
 
  - Fixed NAT at crypto router for topology where internet and internal

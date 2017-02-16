@@ -5,7 +5,7 @@ use warnings;
 use Carp;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(test_run test_warn test_err test_reuse_prev);
+our @EXPORT = qw(test_run test_warn test_err test_reuse_prev prepare_in_dir);
 
 use Test::More;
 use Test::Differences;
@@ -20,9 +20,8 @@ use Netspoc::Compiler::Pass2;
 
 my $default_options = '-quiet';
 
-sub run {
-    my($input, $options, $out_dir) = @_;
-    $options ||= '';
+sub prepare_in_dir {
+    my($input) = @_;
 
     # Prepare input directory and file(s).
     # Input is optionally preceeded by single lines of dashes
@@ -57,6 +56,13 @@ sub run {
         print $in_fh $data;
         close $in_fh;
     }
+    return $in_dir;
+}
+
+sub run {
+    my($input, $options, $out_dir) = @_;
+    $options ||= '';
+    my $in_dir = prepare_in_dir($input);
 
     # Prepare arguments for pass 1.
     my $args = [ split(' ', $default_options),
@@ -133,8 +139,15 @@ sub compare_warnings_and_devices {
     if ($check_stderr) {
         $warnings ||= '';
 
-        # Normalize input path: remove temp. dir.
+        # Normalize input path: remove temp. directory.
         $stderr =~ s/\Q$in_dir\E\///g;
+
+        # Normalize version number and output directory.
+        if ($options and $options =~ /verbose/) {
+            $stderr =~ s/(?<=^Netspoc, version ).*/TESTING/;
+            $stderr =~ s/\Q$dir\E//g;
+        }
+        
         eq_or_diff($stderr, $warnings, $title);
     }
     else {

@@ -5,33 +5,46 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use IPC::Run3;
-use File::Temp qw/ tempfile /;
+use File::Temp qw(tempfile);
+
+# Disable locale, so we get non translated error message.
+delete $ENV{LANG} ;
 
 sub run {
     my ($input, $args) = @_;
+    my ($in_fh, $filename) = tempfile(UNLINK => 1);
+    print $in_fh $input;
+    close $in_fh;
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q - $args";
-    my ($stdout, $stderr);
-    run3($cmd, \$input, \$stdout, \$stderr);
+    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q $filename $args";
+    my $stderr;
+    run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
-    return($status, $stdout, $stderr);
+    $stderr ||= '';
+    $stderr =~ s/\Q$filename\E/INPUT/g;
+    open(my $fh, '<', $filename) or die("Can't open $filename: $!\n");
+    local $/ = undef;
+    my $output = <$fh>;
+    close($fh);
+    return($status, $output, $stderr);
 }
 
 sub test_run {
     my ($title, $input, $args, $expected) = @_;
-    my ($status, $stdout, $stderr) = run($input, $args);
-    $stderr ||= '';
+    my ($status, $output, $stderr) = run($input, $args);
     if ($status != 0) {
-        BAIL_OUT "Unexpected error\n$stderr\n";
+        diag("Unexpected failure:\n$stderr");
+        fail($title);
     }
-    eq_or_diff("$stderr$stdout", $expected, $title);
+    eq_or_diff("$stderr$output", $expected, $title);
 }
 
 sub test_err {
     my ($title, $input, $args, $expected) = @_;
-    my ($status, $stdout, $stderr) = run($input, $args);
+    my ($status, $output, $stderr) = run($input, $args);
     if ($status == 0) {
-        BAIL_OUT "Unexpected success\n";
+        diag("Unexpected success\n");
+        fail($title);
     }
     $stderr =~ s/Aborted\n$//;
     eq_or_diff($stderr, $expected, $title);
@@ -110,7 +123,7 @@ $title = 'Rename verbosely';
 ############################################################
 
 $out = <<'END' . $out;
-4 changes in -
+4 changes in INPUT
 END
 
 test_run($title, $in, '--noquiet network:Test network:Toast', $out);

@@ -14,7 +14,6 @@ $title = 'Split and combine host ranges';
 ############################################################
 
 $in = <<'END';
-
 network:n = {
  ip = 10.1.1.0/24;
  host:a = { range = 10.1.1.15-10.1.1.19; }
@@ -41,13 +40,52 @@ $out = <<'END';
 --r
 ip access-list extended ethernet0_in
  deny ip any host 192.168.1.1
- permit tcp 10.1.1.16 0.0.0.15 192.168.1.0 0.0.0.255 eq 80
- permit tcp 10.1.1.32 0.0.0.3 192.168.1.0 0.0.0.255 eq 80
  permit tcp host 10.1.1.15 192.168.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.32 0.0.0.3 192.168.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.16 0.0.0.15 192.168.1.0 0.0.0.255 eq 80
  deny ip any any
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Duplicate rule from host range and combined ip hosts';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h4 = { ip = 10.1.1.4; }
+ host:h5 = { ip = 10.1.1.5; }
+ host:r4-5 = { range = 10.1.1.4-10.1.1.5; }
+}
+
+router:r = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:test = {
+ user = host:h4, host:h5, host:r4-5;
+ permit src = user; dst = network:n2; prt = tcp 80; 
+}
+END
+
+$out = <<'END';
+Warning: Duplicate rules in service:test and service:test:
+  permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
+--r
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.4 0.0.0.1 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Duplicate host ranges';
@@ -64,7 +102,7 @@ network:n = {
 END
 
 $out = <<'END';
-Error: Duplicate IP range for host:a and host:b
+Error: Duplicate IP address for host:a and host:b
 END
 
 test_err($title, $in, $out);

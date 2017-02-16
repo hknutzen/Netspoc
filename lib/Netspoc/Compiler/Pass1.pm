@@ -33,13 +33,15 @@ use strict;
 use warnings;
 use JSON::XS;
 use Netspoc::Compiler::GetArgs qw(get_args);
+use Netspoc::Compiler::File qw(
+ process_file_or_dir 
+ *current_file *input *private $filename_encode);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
 use IO::Pipe;
-my $filename_encode = 'UTF-8';
 
-our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.020'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -65,8 +67,6 @@ our @EXPORT = qw(
   %service_rules
   %path_rules
   @pathrestrictions
-  *input
-  $current_file
   $error_counter
   init_global_vars
   abort_on_error
@@ -96,8 +96,7 @@ our @EXPORT = qw(
   is_protocolgroup
   is_autointerface
   get_intf
-  read_netspoc
-  read_file
+  parse_toplevel
   read_file_or_dir
   show_read_statistics
   order_protocols
@@ -362,18 +361,6 @@ sub warn_or_err_msg {
     }
 }
 
-# Name of current input file.
-our $current_file;
-
-# Rules and objects read from directories and files with
-# special name 'xxx.private' are marked with attribute {private} = 'xxx'.
-# This variable is used to propagate the value from directories to its
-# files and sub-directories.
-our $private;
-
-# Content of current file.
-our $input;
-
 # Use content and match position of current input file.
 # Return string describing current match position.
 sub context {
@@ -438,19 +425,20 @@ sub err_msg {
 
 # Print internal error message and abort.
 sub internal_err {
-    my (@args) = @_;
+    # uncoverable subroutine
+    my (@args) = @_;				# uncoverable statement
 
     # Don't show inherited error.
     # Abort immediately, if other errors have already occured.
-    abort_on_error();
+    abort_on_error();				# uncoverable statement
 
-    $error_counter++;
-    my (undef, $file, $line) = caller;
-    my $sub = (caller 1)[3];
-    my $msg = "Internal error in $sub";
-    $msg .= ": @args" if @args;
-    $msg = "$msg\n at $file line $line\n";
-    die $msg;
+    $error_counter++;				# uncoverable statement
+    my (undef, $file, $line) = caller;		# uncoverable statement
+    my $sub = (caller 1)[3];			# uncoverable statement
+    my $msg = "Internal error in $sub";		# uncoverable statement
+    $msg .= ": @args" if @args;			# uncoverable statement
+    $msg = "$msg\n at $file line $line\n";	# uncoverable statement
+    die $msg;					# uncoverable statement
 }
 
 ####################################################################
@@ -485,32 +473,19 @@ sub check {
     return $input =~ /$regex/gc;
 }
 
-# Skip argument regex.
+# Skip argument character without skipping whitespace.
 # Usable for non token characters.
-# Returns matched string.
-sub skip_regex {
+sub skip_char_direct {
     my ($expected) = @_;
-    skip_space_and_comment;
-    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
-    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
-    return $1;
-}
-
-# Skip argument regex without skipping whitespace.
-# Usable for non token characters.
-# Returns matched string.
-sub skip_direct {
-    my ($expected) = @_;
-    my $regex = $token2regex{$expected} ||= qr/\G($expected)/;
-    $input =~ /$regex/gc or syntax_err("Expected '$expected'");
-    return $1;
+    $input =~ /\G(.)/gc and $1 eq $expected or 
+        syntax_err("Expected '$expected'");
 }
 
 # Skip argument token.
 # If it is not available an error is printed and the script terminates.
 sub skip {
     my ($expected) = @_;
-    my $token = read_token();;
+    my $token = read_token();
     $token eq $expected or syntax_err("Expected '$expected'");
 }
 
@@ -575,12 +550,25 @@ sub read_ip_prefix_pair {
     return [ $ip, $mask ];
 }
 
-# Read IP range.
+# Read IP range. Remember: '-' may be part of token.
+# ip1 - ip2
+# ip1-ip2
+# ip1- ip2
+# ip1 -ip2
 sub read_ip_range {
-    skip '=';
-    my $ip1 = convert_ip(skip_regex('[\d.]+'));
-    skip_regex('-');
-    my $ip2 = convert_ip(skip_regex('[\d.]+'));
+    skip('=');
+    my ($ip1, $ip2);
+    my $token = read_token();
+    if (($ip1, $ip2) = $token =~ /^(.*)-(.*)$/) {
+        $ip1 = convert_ip($ip1);
+    }
+    else {
+        $ip1 = convert_ip($token);
+        my $token2 = read_token();
+        ($ip2) = $token2 =~ /^-(.*)$/ or syntax_err("Expected '-'");
+    }
+    $ip2 = read_token() if not length($ip2);
+    $ip2 = convert_ip($ip2);
     skip(';');
     return $ip1, $ip2;
 }
@@ -620,7 +608,7 @@ sub read_name {
     }
 }
 
-# Used for reading alias name or radius attributes.
+# Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
     if ($input =~ m/\G([^;,""''\n]+)/gc) {
@@ -742,7 +730,7 @@ sub read_typed_name {
         my $ext;
 
         my $read_auto_all = sub {
-            skip_direct('\[');
+            skip_char_direct('[');
             my $selector = read_identifier;
             $selector =~ /^(auto|all)$/ or syntax_err("Expected [auto|all]");
             $ext = [ $selector, $ext ];
@@ -760,7 +748,7 @@ sub read_typed_name {
             elsif ($interface) {
                 my ($router_name, $net_name) =
                     $name =~ m/^ ( [\w-]+ (?: \@ [\w-]+ )? ) [.] 
-                                 ( $network_regex (?: [.] [\w-]+)? )? $/x or
+                                 ( $network_regex (?: [.] [\w-]+)? )? $/xo or
                     syntax_err("Interface name expected");
                 $name = $router_name;
                 if ($net_name) {
@@ -776,7 +764,7 @@ sub read_typed_name {
             }
         }
         else {
-            skip_direct('\[');
+            skip_char_direct('[');
             if (($interface or $type eq 'host') and check('managed')) {
                 $ext = 1;
                 skip '&';
@@ -788,7 +776,7 @@ sub read_typed_name {
             }
             $name = read_union(']');
             if ($interface) {
-                skip_direct('[.]');
+                skip_char_direct('.');
                 $read_auto_all->();
             }                
         }
@@ -809,7 +797,7 @@ sub read_typed_name {
 # host:xxx or host:id:user@domain or host:id:[@]domain
     sub verify_hostname {
         my ($token) = @_;
-        $token =~ m/^$hostname_regex$/ or syntax_err('Hostname expected');
+        $token =~ m/^$hostname_regex$/o or syntax_err('Hostname expected');
     }
 }
 
@@ -1103,6 +1091,10 @@ sub read_host {
             $ip1 le $ip2 or error_atline("Invalid IP range");
             add_attribute($host, range => [ $ip1, $ip2 ]);
         }
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
+            add_attribute($host, owner => $owner);
+        }
 
         elsif ($token eq 'managed') {
             my $managed = read_managed();
@@ -1124,10 +1116,6 @@ sub read_host {
         elsif ($token eq 'server_name') {
             my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
-        }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($host, owner => $owner);
         }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
@@ -1196,10 +1184,10 @@ sub read_host {
 }
 
 sub read_nat {
-    my ($name, $mask_is_optional) = @_;
+    my ($nat_tag, $obj_name, $mask_is_optional) = @_;
     
     # Currently this needs not to be blessed.
-    my $nat = { name => $name, };
+    my $nat = {};
     skip '=';
     skip '{';
     while (1) {
@@ -1236,7 +1224,7 @@ sub read_nat {
     }
     if ($nat->{hidden}) {
         for my $key (sort keys %$nat) {
-            next if grep { $key eq $_ } qw( name hidden );
+            next if $key eq 'hidden';
             error_atline("Hidden NAT must not use attribute $key");
             delete $nat->{$key};
         }
@@ -1253,7 +1241,7 @@ sub read_nat {
     }
     elsif ($nat->{identity}) {
         for my $key (sort keys %$nat) {
-            next if grep { $key eq $_ } qw( name identity );
+            next if $key eq 'identity';
             error_atline("Identity NAT must not use attribute $key");
             delete $nat->{$key};
         }
@@ -1265,9 +1253,9 @@ sub read_nat {
 
     # Attribute {nat_tag} is used later to look up static translation
     # of hosts inside a dynamically translated network.
-    (my $nat_tag = $name) =~ s/^nat://;
     $nat->{nat_tag} = $nat_tag;
-    
+
+    $nat->{descr} = "nat:$nat_tag of $obj_name";
     return $nat;
 }
 
@@ -1360,8 +1348,8 @@ sub read_network {
             elsif ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
+                $nat->{name}  = $name;
                 $network->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $network->{nat}->{$nat_tag} = $nat;
@@ -1439,13 +1427,14 @@ sub read_network {
         if (@{ $network->{hosts} } and $network->{crosslink}) {
             err_msg("Crosslink $name must not have host definitions");
         }
-        if ($network->{nat}) {
 
-            # Check NAT definitions.
-            for my $nat (values %{ $network->{nat} }) {
+        # Check NAT definitions.
+        if (my $href = $network->{nat}) {
+            for my $nat_tag (sort keys %$href) {
+                my $nat = $href->{$nat_tag};
                 next if $nat->{dynamic};
                 $nat->{mask} eq $mask
-                  or err_msg("Mask for non dynamic $nat->{name}",
+                  or err_msg("Mask for non dynamic nat:$nat_tag",
                              " must be equal to mask of $name");
             }
         }
@@ -1473,11 +1462,6 @@ sub read_network {
 our %interfaces;
 
 my @virtual_interfaces;
-my $global_active_pathrestriction = new(
-    'Pathrestriction',
-    name        => 'global_pathrestriction',
-    active_path => 1
-);
 
 # Tunnel networks which are already attached to tunnel interfaces
 # at spoke devices. Key is crypto name, not crypto object.
@@ -1519,6 +1503,14 @@ sub read_interface {
                   new('Interface', name => "$name.$counter", ip => $ip);
                 $counter++;
             }
+        }
+        elsif ($token eq 'hardware') {
+            my $hardware = read_assign(\&read_name);
+            add_attribute($interface, hardware => $hardware);
+        }
+        elsif ($token eq 'owner') {
+            my $owner = read_assign(\&read_identifier);
+            add_attribute($interface, owner => $owner);
         }
         elsif ($token eq 'unnumbered') {
             skip(';');
@@ -1576,7 +1568,7 @@ sub read_interface {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag", 'mask_is_optional');
+                my $nat = read_nat($nat_tag, $name, 'mask_is_optional');
                 $interface->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $interface->{nat}->{$nat_tag} = $nat;
@@ -1658,14 +1650,6 @@ sub read_interface {
             my $tags = read_assign_list(\&read_identifier);
             $interface->{bind_nat} and error_atline("Duplicate NAT binding");
             $interface->{bind_nat} = [ unique sort @$tags ];
-        }
-        elsif ($token eq 'hardware') {
-            my $hardware = read_assign(\&read_name);
-            add_attribute($interface, hardware => $hardware);
-        }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($interface, owner => $owner);
         }
         elsif ($token eq 'routing') {
             my $routing = read_routing();
@@ -2594,8 +2578,7 @@ sub read_aggregate {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
                 $aggregate->{nat}->{$nat_tag} and
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $aggregate->{nat}->{$nat_tag} = $nat;
@@ -2700,8 +2683,7 @@ sub read_area {
             if ($type eq 'nat') {
                 verify_name($name2);
                 my $nat_tag = $name2;
-                my $nat = read_nat("nat:$nat_tag");
-                $nat->{name} .= "($name)";
+                my $nat = read_nat($nat_tag, $name);
                 $area->{nat}->{$nat_tag} and 
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $area->{nat}->{$nat_tag} = $nat;
@@ -2904,21 +2886,14 @@ sub cache_anonymous_protocol {
 
 sub read_simple_protocol {
     my ($proto) = @_;
-    my $protocol = {};
-    if ($proto eq 'ip') {
-        $protocol->{proto} = 'ip';
-    }
-    elsif ($proto eq 'tcp') {
-        $protocol->{proto} = 'tcp';
+    my $protocol = { proto => $proto };
+    if ($proto eq 'tcp'or $proto eq 'udp') {
         read_port_ranges($protocol);
     }
-    elsif ($proto eq 'udp') {
-        $protocol->{proto} = 'udp';
-        read_port_ranges $protocol;
-    }
     elsif ($proto eq 'icmp') {
-        $protocol->{proto} = 'icmp';
         read_icmp_type_code $protocol;
+    }
+    elsif ($proto eq 'ip') {
     }
     elsif ($proto eq 'proto') {
         read_proto_nr $protocol;
@@ -2933,8 +2908,8 @@ sub read_simple_protocol {
 }
 
 sub check_protocol_modifiers {
-    my ($protocol) = @_;
-    while (check ',') {
+    my ($token, $protocol) = @_;
+    while ($token eq ',') {
         my $flag = read_identifier;
         if ($flag =~ /^(?:reversed | stateless | oneway |
                           src_net | dst_net |
@@ -2945,7 +2920,9 @@ sub check_protocol_modifiers {
         else {
             error_atline("Unknown modifier '$flag'");
         }
+        $token = read_token();
     }
+    return $token;
 }
 
 sub read_typed_name_or_simple_protocol_list {
@@ -2977,8 +2954,9 @@ sub read_protocol {
     my $token = read_token();
     my $protocol = read_simple_protocol($token);
     $protocol->{name} = $name;
-    check_protocol_modifiers($protocol);
-    skip ';';
+    $token = read_token();
+    $token = check_protocol_modifiers($token, $protocol);
+    $token eq ';' or syntax_err("Expected ';'");
     return $protocol;
 }
 
@@ -3319,10 +3297,6 @@ sub read_owner {
         if ($token eq '}') {
             last;
         }
-        elsif ($token eq 'alias') {
-            my $alias = read_assign(\&read_string);
-            add_attribute($owner, alias => $alias);
-        }
         elsif ($token eq 'admins') {
             my $admins = read_assign_list(\&read_name);
             add_attribute($owner, admins => $admins);
@@ -3372,7 +3346,7 @@ our %global_type = (
     crypto          => [ \&read_crypto,          \%crypto ],
 );
 
-sub read_netspoc {
+sub parse_toplevel {
 
     # Check for global definitions.
     my $pair = read_typed_name();
@@ -3395,85 +3369,16 @@ sub read_netspoc {
     return $hash->{$name} = $result;
 }
 
-# Read input from file and process it by function which is given as argument.
-sub read_file {
-    local $current_file = shift;
-    my $read_syntax = shift;
-
-    # Read file as one large line.
-    local $/;
-
-    open(my $fh, '<', $current_file)
-        or fatal_err("Can't open $current_file: $!");
-
-    # Fill buffer with content of whole file.
-    # Content is implicitly freed when subroutine is left.
-    local $input = <$fh>;
-    close $fh;
-
+sub parse_input {
     my $length = length $input;
     while (skip_space_and_comment, pos $input != $length) {
-        &$read_syntax;
+        parse_toplevel();
     }
 }
 
 sub read_file_or_dir {
-    my ($path, $read_syntax) = @_;
-    $read_syntax ||= \&read_netspoc;
-
-    # Handle toplevel file.
-    if (not -d $path) {
-        read_file($path, $read_syntax);
-        return;
-    }
-
-    # Recursively read files and directories.
-    my $read_nested_files = sub {
-        my ($path, $read_syntax) = @_;
-        my $next_private = $private;
-
-        # Handle private directories and files.
-        if (my ($name) = ($path =~ m'([^/]*\.private)$')) {
-            if ($private) {
-                err_msg("Nested private context is not supported:\n $path");
-            }
-            $next_private = $name;
-        }
-
-        local $private = $next_private;
-        if (-d $path) {
-            opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-            for my $file (sort map { Encode::decode($filename_encode, $_) } 
-                          readdir $dh) 
-            {
-                next if $file =~ /^\./;
-                next if $file =~ m/$config->{ignore_files}/o;
-                my $path = "$path/$file";
-                __SUB__->($path, $read_syntax);
-            }
-            closedir $dh;
-        }
-        else {
-            read_file $path, $read_syntax;
-        }
-    };
-
-    # Handle toplevel directory.
-    # Special handling for "config" and "raw".
-    opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-    for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
-    {
-
-        next if $file =~ /^\./;
-        next if $file =~ m/$config->{ignore_files}/o;
-
-        # Ignore special files/directories.
-        next if $file =~ /^(config|raw)$/;
-
-        my $path = "$path/$file";
-        $read_nested_files->($path, $read_syntax);
-    }
-    closedir $dh;
+    my ($path) = @_;
+    process_file_or_dir($path, \&parse_input);
 }
 
 # Prints number of read entities if in verbose mode.
@@ -3991,24 +3896,9 @@ sub expand_watchers {
 
 sub link_owners {
 
-    my %alias2owner;
-
     # Use sort to get deterministic error messages.
     for my $name (sort keys %owners) {
         my $owner = $owners{$name};
-
-        # Check for unique alias names.
-        my $alias = $owner->{alias} || $name;
-        if (my $other = $alias2owner{$alias}) {
-            my $descr1 = $owner->{name};
-            $owner->{alias} and $descr1 .= " with alias '$owner->{alias}'";
-            my $descr2 = $other->{name};
-            $other->{alias} and $descr2 .= " with alias '$other->{alias}'";
-            err_msg("Name conflict between owners\n - $descr1\n - $descr2");
-        }
-        else {
-            $alias2owner{$alias} = $owner;
-        }
 
         # Check email addresses in admins and watchers.
         for my $attr (qw( admins watchers )) {
@@ -4318,22 +4208,15 @@ sub link_routers {
 }
 
 sub link_subnet {
-    my ($object, $parent) = @_;
-
-    my $context = sub {
-            !$parent    ? $object->{name}
-          : ref $parent ? "$object->{name} of $parent->{name}"
-          :               "$parent $object->{name}";
-    };
-    return if not $object->{subnet_of};
-    my ($type, $name) = @{ $object->{subnet_of} };
+    my ($object) = @_;
+    my $pair = $object->{subnet_of} or return;
+    my ($type, $name) = @$pair;
+    my $context = $object->{descr} || $object->{name};
     my $network = $networks{$name};
     if (not $network) {
-        warn_msg(
-            "Ignoring undefined network:$name",
-            " from attribute 'subnet_of'\n of ",
-            $context->()
-        );
+        warn_msg("Ignoring undefined network:$name",
+                 " from attribute 'subnet_of'\n",
+                 " of $context");
 
         # Prevent further errors;
         delete $object->{subnet_of};
@@ -4346,8 +4229,8 @@ sub link_subnet {
 
 #    debug($network->{name}) if not defined $ip;
     if ($ip eq 'unnumbered') {
-        err_msg "Unnumbered $network->{name} must not be referenced from",
-          " attribute 'subnet_of'\n of ", $context->();
+        err_msg("Unnumbered $network->{name} must not be referenced from",
+                " attribute 'subnet_of'\n of $context");
 
         # Prevent further errors;
         delete $object->{subnet_of};
@@ -4357,20 +4240,21 @@ sub link_subnet {
     # $sub_mask needs not to be tested here,
     # because it has already been checked for $object.
     if (not(match_ip($sub_ip, $ip, $mask))) {
-        err_msg $context->(), " is subnet_of $network->{name}",
-          " but its IP doesn't match that's IP/mask";
+        err_msg("$context is subnet_of $network->{name}",
+                " but its IP doesn't match that's IP/mask");
     }
     return;
 }
 
 sub link_subnets {
     for my $network (values %networks) {
-        link_subnet($network, undef);
+        link_subnet($network);
     }
     for my $obj (values %networks, values %aggregates, values %areas) {
-        my $nat = $obj->{nat} or next;
-        for my $nat (values %{ $obj->{nat} }) {
-            link_subnet($nat, $obj);
+        my $href = $obj->{nat} or next;
+        for my $nat_tag (sort keys %$href) {
+            my $nat_info = $href->{$nat_tag};
+            link_subnet($nat_info);
         }
     }
 }
@@ -4747,41 +4631,24 @@ sub check_ip_addresses {
                   " a managed $route_intf->{name} with static routing enabled.";
             }
         }
-        my %range2obj;
         for my $host (@{ $network->{hosts} }) {
-            if (my $ip = $host->{ip}) {
+            my $range = $host->{range} or next;
+            my ($low, $high) = @$range;
+            for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
                 if (my $other_device = $ip2obj{$ip}) {
-                    err_msg "Duplicate IP address for $other_device->{name}",
-                      " and $host->{name}";
-                }
-                else {
-                    $ip2obj{$ip} = $host;
-                }
-            }
-            elsif (my $range = $host->{range}) {
-                my ($from, $to) = @$range;
-                if (my $other_device = $range2obj{$from}->{$to}) {
-                    err_msg "Duplicate IP range for $other_device->{name}",
-                      " and $host->{name}";
-                }
-                else {
-                    $range2obj{$from}->{$to} = $host;
+                    err_msg("Duplicate IP address for $other_device->{name}",
+                            " and $host->{name}");
                 }
             }
         }
         for my $host (@{ $network->{hosts} }) {
-            if (my $range = $host->{range}) {
-                my ($low, $high) = @$range;
-                for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
-                    if (my $other_device = $ip2obj{$ip}) {
-                        is_host($other_device)
-                          or err_msg(
-                            "Duplicate IP address for",
-                            " $other_device->{name}",
-                            " and $host->{name}"
-                          );
-                    }
-                }
+            my $key = $host->{ip} || join '-', @{ $host->{range} };
+            if (my $other_device = $ip2obj{$key}) {
+                err_msg("Duplicate IP address for $other_device->{name}",
+                        " and $host->{name}");
+            }
+            else {
+                $ip2obj{$key} = $host;
             }
         }
     }
@@ -5256,6 +5123,7 @@ sub convert_hosts {
                 # Find corresponding right part
                 my $neighbor = $ip2subnet->{$next_ip} or next;
                 $subnet->{neighbor} = $neighbor;
+                $neighbor->{has_neighbor} = 1;
                 my $up;
                 if ($up_inv_prefix >= $network_inv_prefix) {
 
@@ -5298,17 +5166,16 @@ sub convert_hosts {
 # Find adjacent subnets and substitute them by their enclosing subnet.
 sub combine_subnets {
     my ($subnets) = @_;
-    my %hash = map { $_ => $_ } @$subnets;
+    my %hash;
+    @hash{@$subnets} = @$subnets;
     my @extra;
     while (1) {
         for my $subnet (@$subnets) {
             my $neighbor = $subnet->{neighbor} or next;
             $hash{$neighbor} or next;
             my $up = $subnet->{up};
-            if (not $hash{$up}) {
-                $hash{$up} = $up;
-                push @extra, $up;
-            }
+            $hash{$up} = $up;
+            push @extra, $up;
             delete $hash{$subnet};
             delete $hash{$neighbor};
         }
@@ -5324,12 +5191,7 @@ sub combine_subnets {
         }
     }
 
-    # Sort networks by size of mask,
-    # i.e. large subnets coming first and
-    # for equal mask by IP address.
-    # We need this to make the output deterministic.
-    return [ sort { $a->{mask} cmp $b->{mask} || $a->{ip} cmp $b->{ip} }
-          values %hash ];
+    return [ grep { $hash{$_} } @$subnets ];
 }
 
 ####################################################################
@@ -6883,7 +6745,15 @@ sub convert_hosts_in_rules {
                         }
                         else {
                             $subnet2host{$subnet} = $obj;
-                            push @subnets, $subnet;
+                            if ($subnet->{neighbor} or $subnet->{has_neighbor}) 
+                            {
+                                push @subnets, $subnet;
+                            }
+
+                            # Subnet can't be combined.
+                            else {
+                                push @other, $subnet;
+                            }
                         }
                     }
                 }
@@ -7793,15 +7663,15 @@ sub generate_multinat_def_lookup {
                     my $nat_hash2 = $previous_nat_hashes->[0];
                     if (not keys_eq($nat_hash, $nat_hash2) and not $err_shown) {
 
-                        # Generate unequal nat hash error.
+                        # Show error on unequal NAT hash.
                         my $tags1 = join(',', sort keys %$nat_hash);
                         my $name1 = $network->{name};
                         my $tags2 = join(',', sort keys %$nat_hash2);
                         
                         # Values are NAT entries with name of network.
                         # Take first value deterministically.
-                        my ($name2) = sort
-                            map { $_->{name} } values %$nat_hash2;
+                        my ($name2) = 
+                            sort map { $_->{name} } values %$nat_hash2;
                         err_msg(
                             "If multiple NAT tags are used at one network,\n",
                             " these NAT tags must be used",
@@ -8042,19 +7912,16 @@ sub check_for_proper_nat_transition {
     my ($nat_tag, $nat_tag2, $nat_hash, $router) = @_;
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
-    
-    # Use $next_info->{name} and not $nat_info->{name} because
-    # $nat_info may show wrong network, because we combined different
-    # hidden networks into $nat_tag2multinat_def.
-    
+
     # Tranistion from hidden NAT to any other NAT is invalid.
     if ($nat_info->{hidden}) {
-        err_msg(
-            "Must not change hidden nat:$nat_tag",
-            " using nat:$nat_tag2\n",
-            " for $next_info->{name}",
-            " at $router->{name}"
-            );
+    
+        # Use $next_info->{name} and not $nat_info->{name} because
+        # $nat_info may show wrong network, because we combined
+        # different hidden networks into $nat_tag2multinat_def.
+        err_msg("Must not change hidden nat:$nat_tag",
+                " using nat:$nat_tag2\n",
+                " for $next_info->{name} at $router->{name}");
     }
     
     # Transition from dynamic to static NAT is invalid.
@@ -8063,8 +7930,7 @@ sub check_for_proper_nat_transition {
     {
         err_msg("Must not change dynamic nat:$nat_tag",
                 " to static using nat:$nat_tag2\n",
-                " for $nat_info->{name}",
-                " at $router->{name}");
+                " for $nat_info->{name} at $router->{name}");
     }
 }
 
@@ -8535,7 +8401,7 @@ sub check_subnets {
 
             # NAT to an interface address (masquerading) is allowed.
             if (    (my $nat_tags = $object->{bind_nat})
-                and (my ($nat_tag2) = ($subnet->{name} =~ /^nat:(.*)\(/)))
+                and (my $nat_tag2 = $subnet->{nat_tag}))
             {
                 if (    grep { $_ eq $nat_tag2 } @$nat_tags
                     and $object->{ip} eq $subnet->{ip}
@@ -8545,7 +8411,7 @@ sub check_subnets {
                 }
             }
             warn_msg("IP of $object->{name} overlaps with subnet",
-                " $subnet->{name}");
+                     " $subnet->{name}");
         }
     };
     for my $interface (@{ $network->{interfaces} }) {
@@ -8644,7 +8510,7 @@ sub find_subnets_in_zone {
                         " $network->{name} is subnet of\n",
                         " - $other->{name} at",
                         " $first_intf->{name}\n",
-                        " - but it is hidden $nat_network->{name} at",
+                        " - but it is hidden by nat:$nat_network->{nat_tag} at",
                         " $interface->{name}"
                     );
                     next;
@@ -9013,8 +8879,8 @@ sub find_subnets_in_nat_domain {
                     $error = 1;
                 }
                 if ($error) {
-                    my $name1 = $nat_network->{name};
-                    my $name2 = $nat_other->{name};
+                    my $name1 = $nat_network->{descr} || $nat_network->{name};
+                    my $name2 = $nat_other->{descr} || $nat_other->{name};
                     err_msg("$name1 and $name2 have identical IP/mask\n",
                             " in $domain->{name}");
                 }
@@ -9114,10 +8980,11 @@ sub find_subnets_in_nat_domain {
                     # different NAT domains.
                     $nat_subnet->{subnet_of} ||= $bignet;
 
+                    my $name1 = $nat_subnet->{descr} || $nat_subnet->{name};
+                    my $name2 = $nat_bignet->{descr} || $nat_bignet->{name};
                     warn_or_err_msg(
                         $print_type,
-                        "$nat_subnet->{name} is subnet of",
-                        " $nat_bignet->{name}\n",
+                        "$name1 is subnet of $name2\n",
                         " in $domain->{name}.\n",
                         " If desired, either declare attribute",
                         " 'subnet_of' or attribute 'has_subnets'");
@@ -10182,14 +10049,13 @@ sub nat_equal {
 #              This is also used later to warn on useless identity NAT.
 sub check_useless_nat {
     my ($nat1, $nat2) = @_;
-    return if $nat2->{has_been_checked};
+    return if $nat2->{has_been_checked}++;
     if (nat_equal($nat1, $nat2)) {
         warn_msg(
-            "Useless $nat2->{name},\n",
-            " it is already inherited from $nat1->{name}"
+            "Useless $nat2->{descr},\n",
+            " it is already inherited from $nat1->{descr}"
         );
     }
-    $nat2->{has_been_checked} = 1;
 }
 
 ##############################################################################
@@ -10275,13 +10141,13 @@ sub inherit_nat_to_subnets_in_zone {
                 );
             }
 
-            # Copy NAT defintion; append name of network.
+            # Copy NAT defintion; add description and name of original network.
             else {
-                my $sub_nat = {
-                    %$nat,
-
-                    # Needed for error messages.
-                    name => "nat:$nat_tag($network->{name})",
+                my $net_name = $network->{name};
+                my $sub_nat = { 
+                    %$nat, 
+                    name  => $net_name, 
+                    descr => "nat:$nat_tag of $net_name",
 
                     # Copy attribute {subnet_of}, to suppress warning.
                     # Copy also if undefined, to overwrite value in
@@ -10297,7 +10163,7 @@ sub inherit_nat_to_subnets_in_zone {
 
                     # Check mask of static NAT inherited from area or zone.
                     if ($nat_mask ge $mask2) {
-                        err_msg("Must not inherit $nat->{name} at",
+                        err_msg("Must not inherit $nat->{descr} at",
                                 " $network->{name}\n",
                                 " because NAT network must be larger",
                                 " than translated network");
@@ -12089,10 +11955,12 @@ sub cluster_path_mark {
         local $from->{active_path} = 1;
         my $get_next = is_router($from) ? 'zone' : 'router';
         my $allowed = $navi->{ $from->{loop} };
+        # uncoverable branch true
         if (not $allowed) {
-             internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
-                          " with empty navi\n",
-                          "Path: $start_store->{name} -> $end_store->{name}");
+            # uncoverable statement
+            internal_err("Loop $from->{loop}->{exit}->{name}$from->{loop}",
+                         " with empty navi\n",
+                         "Path: $start_store->{name} -> $end_store->{name}");
         }
 
         # To find paths, process every loop interface of $from node.
@@ -15130,7 +14998,7 @@ sub add_end_routes {
         next if $network eq $intf_net;
         my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
           or internal_err("Missing route for $network->{name}",
-            " at $interface->{name}");
+                          " at $interface->{name}");
 
         # Store the used hops and routes within the interface object. 
         for my $hop (@$hops) {
@@ -15525,7 +15393,7 @@ sub check_and_convert_routes {
                 my $hops =
                   ($route_in_zone->{default} || $route_in_zone->{$peer_net})
                   or internal_err("Missing route for $peer_net->{name}",
-                    " at $real_intf->{name} ");
+                                  " at $real_intf->{name} ");
                 push @hops, @$hops;
             }
 
@@ -18127,7 +17995,9 @@ sub concurrent {
         my $status = $?;
         if ($status != 0) {
             my $err_count = $status >> 8;
+            # uncoverable branch true
             if (not $err_count) {
+                # uncoverable statement
                 internal_err("Background process died with status $status");
             }
             $error_counter += $err_count;
@@ -18153,8 +18023,9 @@ sub concurrent {
         if ($@) {
 
             # Show internal errors, but not "Aborted" message.
-            if ($@ !~ /^Aborted /) {
-                print STDERR $@;
+            # uncoverable branch true
+            if ($@ !~ /^Aborted /) {	# uncoverable statement
+                print STDERR $@;	# uncoverable statement
             }
         }
 
@@ -18162,7 +18033,7 @@ sub concurrent {
         exit $error_counter - $start_error_counter;
     }
     else {
-        internal_err("Can't start child: $!");
+        internal_err("Can't start child: $!");	# uncoverable statement
     }
 }
 

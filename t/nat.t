@@ -360,7 +360,7 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: nat:C(network:Test) is subnet of network:X
+Warning: nat:C of network:Test is subnet of network:X
  in nat_domain:X.
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
@@ -381,7 +381,7 @@ $title = 'Declared NAT network subnet doesn\'t match';
 
 $in =~ s/10.8.3.240/10.8.4.240/;
 $out = <<'END';
-Error: nat:C(network:Test) of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
+Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
 END
 test_err($title, $in, $out);
 
@@ -518,7 +518,7 @@ END
 # Only first error is shown.
 $out = <<'END';
 Warning: Ignoring useless nat:E bound at router:filter
-Error: Must not bind multiple NAT tags 'C,D' of nat:C(network:n1) at router:filter
+Error: Must not bind multiple NAT tags 'C,D' of network:n1 at router:filter
 END
 
 test_err($title, $in, $out);
@@ -566,13 +566,13 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Mask for non dynamic nat:x(network:n1) must be equal to mask of network:n1
+Error: Mask for non dynamic nat:x must be equal to mask of network:n1
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Non matching NAT IP of host and interaface';
+$title = 'Non matching NAT IP of host and interface';
 ############################################################
 
 $in = <<'END';
@@ -1147,12 +1147,12 @@ network:y = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: Useless nat:C(any:x),
- it is already inherited from nat:C(area:x)
-Warning: Useless nat:C(network:x),
- it is already inherited from nat:C(any:x)
-Warning: Useless nat:D(network:x),
- it is already inherited from nat:D(area:x)
+Warning: Useless nat:C of any:x,
+ it is already inherited from nat:C of area:x
+Warning: Useless nat:C of network:x,
+ it is already inherited from nat:C of any:x
+Warning: Useless nat:D of network:x,
+ it is already inherited from nat:D of area:x
 Warning: nat:D is defined, but not bound to any interface
 END
 
@@ -1205,10 +1205,10 @@ network:n3 = { ip = 10.1.3.0/24; }
 END
 
 $out = <<'END';
-Warning: Useless nat:n(network:n2a),
- it is already inherited from nat:n(network:n2)
-Warning: Useless nat:n(network:n2),
- it is already inherited from nat:n(area:a12)
+Warning: Useless nat:n of network:n2a,
+ it is already inherited from nat:n of network:n2
+Warning: Useless nat:n of network:n2,
+ it is already inherited from nat:n of area:a12
 END
 
 test_warn($title, $in, $out);
@@ -1316,7 +1316,7 @@ area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
 END
 
 $out = <<'END';
-Error: nat:a2(network:n2a) and nat:a2(network:n2) have identical IP/mask
+Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical IP/mask
  in nat_domain:n1
 END
 
@@ -1341,7 +1341,7 @@ area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.1.128/25; } }
 END
 
 $out = <<'END';
-Error: Must not inherit nat:a2(area:a2) at network:n2
+Error: Must not inherit nat:a2 of area:a2 at network:n2
  because NAT network must be larger than translated network
 END
 
@@ -1494,7 +1494,7 @@ $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t1
- - nat:t1(network:n1): t1,t2
+ - network:n1: t1,t2
 END
 
 test_err($title, $in, $out);
@@ -1515,7 +1515,7 @@ $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t2
- - nat:t1(network:n1): t1,t2
+ - network:n1: t1,t2
 END
 
 test_err($title, $in, $out);
@@ -1676,7 +1676,7 @@ $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n2: t1
- - nat:h1(network:n1): h1,h2,t1
+ - network:n1: h1,h2,t1
 END
 
 test_err($title, $in, $out);
@@ -1734,7 +1734,7 @@ $out = <<'END';
 Error: If multiple NAT tags are used at one network,
  these NAT tags must be used equally grouped at other networks:
  - network:n3: h,t1,t2
- - nat:h(network:n1): h,t1
+ - network:n1: h,t1
 END
 
 test_err($title, $in, $out);
@@ -1840,7 +1840,7 @@ END
 
 $out = <<'END';
 Error: Must not change dynamic nat:t1 to static using nat:t2
- for nat:t1(network:U1) at router:R2
+ for network:U1 at router:R2
 END
 
 test_err($title, $in, $out);
@@ -1874,7 +1874,7 @@ END
 
 $out = <<'END';
 Error: Must not change hidden nat:t1 using nat:t2
- for nat:t2(network:U1) at router:R2
+ for network:U1 at router:R2
 END
 
 test_err($title, $in, $out);
@@ -1908,7 +1908,7 @@ END
 
 $out = <<'END';
 Error: Must not change hidden nat:t1 using nat:t2
- for nat:t2(network:U1) at router:R2
+ for network:U1 at router:R2
 END
 
 test_err($title, $in, $out);
@@ -1955,7 +1955,7 @@ END
 
 $out = <<'END';
 Error: Must not change hidden nat:h using nat:F
- for nat:F(network:n4) at router:r1
+ for network:n4 at router:r1
 END
 
 test_err($title, $in, $out);

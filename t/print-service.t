@@ -73,22 +73,22 @@ service:s1 = {
 END
 
 $out = <<'END';
-s1:deny 10.1.2.0/24 10.1.3.2 icmp 5
 s1:deny 10.1.9.10 10.1.3.2 icmp 5
-s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 21
+s1:deny 10.1.2.0/24 10.1.3.2 icmp 5
 s1:permit 10.1.9.10 10.1.3.0/24 tcp 21
-s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 1024-65535
+s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 21
 s1:permit 10.1.9.10 10.1.3.0/24 tcp 1024-65535
-s1:permit 10.1.3.0/24 10.1.2.0/24 tcp 20:1024-65535
+s1:permit 10.1.2.0/24 10.1.3.0/24 tcp 1024-65535
 s1:permit 10.1.3.0/24 10.1.9.10 tcp 20:1024-65535
-s1:permit 10.1.2.0/24 10.1.3.9 udp 123
-s1:permit 10.1.2.0/24 10.1.3.10 udp 123
+s1:permit 10.1.3.0/24 10.1.2.0/24 tcp 20:1024-65535
 s1:permit 10.1.9.10 10.1.3.9 udp 123
 s1:permit 10.1.9.10 10.1.3.10 udp 123
-s1:permit 10.1.2.0/24 10.1.3.2 icmp 3/3
+s1:permit 10.1.2.0/24 10.1.3.9 udp 123
+s1:permit 10.1.2.0/24 10.1.3.10 udp 123
 s1:permit 10.1.9.10 10.1.3.2 icmp 3/3
-s1:permit 10.1.2.0/24 10.1.3.2 icmp
+s1:permit 10.1.2.0/24 10.1.3.2 icmp 3/3
 s1:permit 10.1.9.10 10.1.3.2 icmp
+s1:permit 10.1.2.0/24 10.1.3.2 icmp
 END
 
 test_run($title, $in, '-nat n3 service:s1 service:s2', $out);

@@ -13,8 +13,7 @@ rename-netspoc [options] FILE|DIR SUBSTITUTION ...
 This program reads a netspoc configuration and one or more
 SUBSTITUTIONS. It substitutes found objects with its replacement in
 each file. Changes are done in place, no backup files are created. But
-only changed files are touched. If FILE is `-', read standard input
-and write to standard output.
+only changed files are touched.
 
 =head1 SUBSTITUTION
 
@@ -39,7 +38,6 @@ A SUBSTITUTION of type B<owner> also changes the corresponding B<sub_owner>.
 =item B<-f> file
 
 Read SUBSTITUTIONS from file.
-If - is specified, read from standard input. 
 
 =item B<-q>
 
@@ -80,24 +78,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use open qw(:std :utf8);
+use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::File qw(process_file_or_dir *current_file *input);
+use Netspoc::Compiler::Common;
 use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
-my $filename_encode = 'UTF-8';
- 
-my $ignore_files = '^(raw|config|CVS|RCS|\.#.*|.*~)$';
+our $VERSION = '5.020'; # VERSION: inserted by DZP::OurPkgVersion
 my $quiet;
-
-## no critic (RequireArgUnpacking)
-sub info  { print STDERR @_, "\n"; return; }
- 
-sub fatal_err {
-    print STDERR "Error: ", @_, "\n";
-    die "Aborted\n";
-}
-## use critic
 
 my %global_type = 
     map { $_ => 1 } qw( 
@@ -177,134 +166,84 @@ sub subst {
     return $name;
 }
 
+# Reads from global variable $input.
 sub process {
-    my ($lines) = @_;
-    my $changed;
+    my $changed = 0;
     my $type_list;
-    my $search_eq;
-    for my $line (@$lines) {
-        my $copy = '';
-        my $line_changed = 0;
-      TOKEN:
-        while(1) {
+    my $copy = '';
+    while(1) {
 
-            # Handle list of names 
-            # - after "name = "
-            # - and on new line.
-            if ($type_list) {
-              LIST:
-                while (1) {
+        # Ignore comment.
+        if ($input =~ /\G (\s* [#] .* \n) /gcx) {
+            $copy .= $1;
+        }
 
-                    # Read list element.
-                    if ($line =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
-                        $copy .= $1;
-                        my $name = $2;
-                        my $new = subst($type_list, $name);
-                        $copy .= $new;
-                        $line_changed++ if $name ne $new;
-                    }
+        # Handle list of names after "name = "
+        elsif ($type_list) {
 
-                    # Read comma.
-                    elsif ($line =~ /\G (\s*,\s*) /gcx) {
-                        $copy .= $1;
-                    }
-                    else {
-                        last LIST;
-                    }                    
-                }
-
-                # Whitespace or comment at end of line doesn't terminate list.
-                if ($line =~ /\G (\s* (?:[#].*)? ) $/gcsx) {
-                    $copy .= $1;
-                    last TOKEN;
-                }
-
-                # Everything else terminates list.
-                else {
-                    $type_list = undef;
-                }
-            }
-
-            # Find next "type:name".
-            elsif ($line =~ /\G (.*?) (\w+) (:) /gcx) {
-                $copy .= "$1$2$3";
-                my $type = $2;
-                next if not $subst{$type};
-                $line =~ /\G  ([-\w.\@:]+) /gcx or next;
-                my $name = $1;
-                my $new = subst($type, $name);
-                $copy .= $new;
-                $line_changed++ if $name ne $new;
-            }
-            
-            # Find "=" behind "type = name".
-            elsif ($search_eq and $line =~ /\G (\s*=\s*) /gcsx) {
+            # Read list element.
+            if ($input =~ /\G (\s*) ([-\w.\@:]+) /gcx) {
                 $copy .= $1;
-                $type_list = $search_eq;
-                $search_eq = undef;
+                my $name = $2;
+                my $new = subst($type_list, $name);
+                $copy .= $new;
+                $changed++ if $name ne $new;
             }
 
-            # Find start of "type = name".
-            elsif ($line =~ /\G (.*?) ([-\w]+) /gcx) {
-                $copy .= "$1$2";
-                my $type = $2;
-                $search_eq = $subst{$type} && $type;
+            # Read comma.
+            elsif ($input =~ /\G (\s*,\s*) /gcx) {
+                $copy .= $1;
             }
 
-            # Ignore rest of line if nothing matches.
+            # Everything else terminates list.
             else {
-                $line =~ /\G (.+) /gcsx and $copy .= $1;
-                last TOKEN;
+                $type_list = undef;
             }
         }
-        if ($line_changed) {
-            $line = $copy;
-            $changed += $line_changed;
-        }
-    }
-    return $changed;
-}
- 
-sub process_file {
-    my ($path) = @_;
 
-    ## no critic ProhibitTwoArgOpen
-    open(my $in, $path) or fatal_err "Can't open $path: $!";
-    my @input = <$in>;
-    close $in;
-    if (my $count = process(\@input) or $path eq '-') {
-        info "$count changes in $path" if not $quiet;
-        if ($path ne '-') {
-            unlink($path) or fatal_err "Can't remove $path: $!\n";
+        # Find next "type:name".
+        elsif ($input =~ /\G (.*?) (\w+) (:) ([-\w.\@:]+) /gcx) {
+            $copy .= "$1$2$3";
+            my $type = $2;
+            my $name = $4;
+            my $new = subst($type, $name);
+            $copy .= $new;
+            $changed++ if $name ne $new;
         }
-        open(my $out, ">$path") or fatal_err "Can't create $path: $!";
-        print $out @input;
-        close $out;
-    }
-    ## use critic
-}
- 
-sub process_file_or_dir {
-    my ($path) = @_;
-    if (-d $path) {
-        local (*DIR);
- 
-        # Strip trailing slash.
-        $path =~ s</$><>;
-        opendir DIR, $path or fatal_err "Can't opendir $path: $!";
-        while (my $file = Encode::decode($filename_encode, readdir DIR)) {
-            next if $file =~ /^\./;
-            next if $file =~ m/$ignore_files/;
-            $file = "$path/$file";
-            process_file_or_dir($file);
+            
+        # Find "type = name".
+        elsif ($input =~ /\G (.*?) ([-\w]+) (\s* = [ \t]*) /gcx) {
+            $copy .= "$1$2$3";
+            my $type = $2;
+            if ($subst{$type}) {
+                $type_list = $type;
+            }
         }
-        closedir DIR;
+
+        # Ignore rest of line if nothing matches.
+        elsif($input =~ /\G (.* \n) /gcx) {
+            $copy .= $1;
+        }
+
+        # Terminate, if everything has been processed.
+        else {
+            last;
+        }
     }
-    else {
-        process_file($path);
-    }
+    return ($changed, $copy);
 }
 
+sub process_input {
+    my ($count, $copy) = process();
+    $count or return;
+    my $path = $current_file;
+    info "$count changes in $path" if not $quiet;
+    unlink($path) or fatal_err("Can't remove $path: $!");
+    open(my $out, '>', $path) or fatal_err("Can't create $path: $!");
+    print $out $copy;
+    close $out;
+}
+ 
 sub setup_pattern {
     my (@pattern) = @_;
     while (@pattern) {
@@ -342,10 +281,7 @@ sub read_pattern {
 # Make @ARGV utf-8.
 $_ = Encode::decode('UTF-8' , $_) for @ARGV;
 
-# Read search / replace pairs from this file.
-my $from_file;
-my $help;
-my $man;
+my ($from_file, $help, $man);
 GetOptions ( 'f=s' => \$from_file,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,
@@ -365,5 +301,9 @@ $from_file or @ARGV or pod2usage(2);
 read_pattern($from_file) if $from_file;
 setup_pattern(@ARGV) if @ARGV;
 
+# Initialize $config, especially 'ignore_files'.
+my $file_config = read_config($path);
+$config = combine_config($file_config, {verbose => !$quiet});
+
 # Do substitution.
-process_file_or_dir($path);
+process_file_or_dir($path, \&process_input);

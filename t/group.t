@@ -301,7 +301,8 @@ $in = <<'END';
 network:n1 = { 
  ip = 10.1.1.0/24; 
  nat:t1 = { ip = 10.9.1.0/28; dynamic; }
- host:h1 = { ip = 10.1.1.10; nat:t1 = { ip = 10.9.1.10; } }
+ host:h1s = { ip = 10.1.1.10; nat:t1 = { ip = 10.9.1.10; } }
+ host:h1d = { ip = 10.1.1.11; }
 }
 
 network:n2 = { 
@@ -336,7 +337,7 @@ END
 
 $groups = <<'END';
 network:n1
-host:h1
+host:h1s, host:h1d
 network:n2
 host:h2
 network:n3
@@ -351,8 +352,9 @@ END
 $out = <<'END';
 # network:n1
 10.9.1.0/28	network:n1
-# host:h1
-10.9.1.0/28	host:h1
+# host:h1s, host:h1d
+10.9.1.0/28	host:h1d
+10.9.1.10	host:h1s
 # network:n2
 10.9.2.0/24	network:n2
 # host:h2
@@ -364,7 +366,7 @@ hidden	host:h3
 # network:t1
 unnumbered	network:t1
 # interface:r1.[all]
-10.9.1.0/28	interface:r1.n1
+10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
 hidden	interface:r1.n3
 # interface:r1.[auto]

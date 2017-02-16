@@ -66,7 +66,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2016 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -93,12 +93,13 @@ use warnings;
 use open qw(:std :utf8);
 use Encode qw(decode_utf8);
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
+use Netspoc::Compiler::File qw(*current_file *input);
 use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.020'; # VERSION: inserted by DZP::OurPkgVersion
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
@@ -127,7 +128,8 @@ sub print_address {
     }
     elsif ($type eq 'Host' or $type eq 'Interface') {
         my $network = get_nat_network($obj->{network}, $no_nat_set);
-        if (my $nat_tag = $network->{dynamic}) {
+        if ($network->{dynamic}) {
+            my $nat_tag = $network->{nat_tag};
             if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
 
                 # Single static NAT IP for this object.
@@ -165,24 +167,14 @@ sub print_address {
     elsif ($type eq 'Autointerface') {
         return 'unknown';
     }
-    else {
-        internal_err "Unexpected object $obj->{name}";
-    }
 }
 
 ####################################################################
 # Argument processing
 ####################################################################
 
-my $nat_net;
-my $show_unused;
-my $show_ip;
-my $show_name;
-my $show_owner;
-my $groups_file;
-my $quiet;
-my $help;
-my $man;
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file, 
+    $quiet, $help, $man);
 GetOptions ( 'nat=s'  => \$nat_net,
 	     'unused' => \$show_unused,
 	     'ip!'    => \$show_ip,

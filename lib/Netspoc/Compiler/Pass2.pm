@@ -31,11 +31,11 @@ use warnings;
 use JSON;
 use File::Basename;
 use Netspoc::Compiler::GetArgs qw(get_args);
-use Netspoc::Compiler::File;
+use Netspoc::Compiler::File qw(read_file read_file_lines);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 
-our $VERSION = '5.019'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.020'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -211,6 +211,7 @@ sub order_ranges {
             # $a and $b are overlapping.
             # aaaaa
             #   bbbbbb
+            # uncoverable statement
             fatal_err("Unexpected overlapping ranges [$a1-$a2] [$b1-$b2]");
         }
     };
@@ -1114,8 +1115,7 @@ sub gen_prt_bintree {
     my ($elements, $tree) = @_;
 
     my $ip_prt;
-    my %top_prt;
-    my %sub_prt;
+    my (%top_prt, %sub_prt);
 
     # Add all protocols directly below protocol 'ip' into hash %top_prt
     # grouped by protocol. Add protocols below top protocols or below
@@ -2006,7 +2006,7 @@ sub print_object_groups {
 # Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code {
-    my ($src_range, $prt, $model) = @_;
+    my ($src_range, $prt) = @_;
     my $proto = $prt->{proto};
 
     if ($proto eq 'ip') {
@@ -2034,8 +2034,9 @@ sub cisco_prt_code {
         };
         my $dst_prt = $port_code->($prt);
         if ($prt->{established}) {
+            # uncoverable branch true
             if (defined $dst_prt) {
-                $dst_prt .= ' established';
+                $dst_prt .= ' established';	# uncoverable statement
             }
             else {
                 $dst_prt = 'established';
@@ -2047,16 +2048,7 @@ sub cisco_prt_code {
     elsif ($proto eq 'icmp') {
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                if ($model eq 'ASA') {
-
-                    # ASA up to version 9.0(1) can't handle ICMP code field.
-                    # If we try to permit e.g. "port unreachable",
-                    # "unreachable any" could pass.
-                    return ($proto, undef, $type);
-                }
-                else {
-                    return ($proto, undef, "$type $code");
-                }
+                return ($proto, undef, "$type $code");
             }
             else {
                 return ($proto, undef, $type);
@@ -2116,7 +2108,7 @@ sub print_cisco_acl {
           @{$rule}{qw(deny src dst src_range prt)};
         my $action = $deny ? 'deny' : 'permit';
         my ($proto_code, $src_port_code, $dst_port_code) =
-          cisco_prt_code($src_range, $prt, $model);
+          cisco_prt_code($src_range, $prt);
         my $result = "$prefix $action $proto_code";
         $result .= ' ' . cisco_acl_addr($src, $model);
         $result .= " $src_port_code" if defined $src_port_code;
@@ -2245,7 +2237,7 @@ sub apply_concurrent {
     my $generated = 0;
     my $check_status = sub {
         if ($?) {
-            $errors++;
+            $errors++;			# uncoverable statement
         }
         else {
             $generated++;

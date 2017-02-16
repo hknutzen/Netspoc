@@ -44,6 +44,7 @@ my $quiet;
 GetOptions ('quiet!' => \$quiet) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
+@ARGV and usage();
 
 # Remove trailing slash.
 $out_dir =~ s,/$,,;
@@ -56,14 +57,17 @@ sub create_dirs {
     my ($path) = @_;
     $path = "$out_dir/$path";
     make_path($path, {error => \my $err} );
+    # uncoverable branch true
     if (@$err) {
-        for my $diag (@$err) {
-            my ($file, $message) = %$diag;
-            if ($file eq '') {
-                die "General error: $message\n";
+        for my $diag (@$err) {				# uncoverable statement
+            my ($file, $msg) = %$diag;			# uncoverable statement
+            # uncoverable branch true
+            # uncoverable branch false
+            if ($file eq '') {				# uncoverable statement
+                die "General error: $msg\n";		# uncoverable statement
             }
             else {
-                die "Problem creating $file: $message\n";
+                die "Problem creating $file: $msg\n";	# uncoverable statement
             }
         }
     }
@@ -397,13 +401,10 @@ sub find_visibility {
 # All objects referenced in rules and in networks and hosts of owners.
 my %all_objects;
 
-# Copy of %services with those services split, that have different 'user'.
-my @normalized_services;
-
 # Split service, if 'user' has different values in normalized rules.
 sub normalize_services_for_export {
     progress("Normalize services for export");
- 
+    my @result; 
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
@@ -484,15 +485,17 @@ sub normalize_services_for_export {
                                 rules => $rules, 
             };
             $new_service->{is_split} = 1 if $is_split;
-            push @normalized_services, $new_service;
+            push @result, $new_service;
         }
     }
+    return \@result;
 }
       
 sub setup_service_info {
+    my ($normalized_services) = @_;
     progress("Setup service info");
     
-    for my $service (@normalized_services) {
+    for my $service (@$normalized_services) {
         my $users = $service->{user};
 
         # Non 'user' objects.
@@ -543,14 +546,11 @@ sub setup_service_info {
     }
 }
 
-my $master_owner;
-
 sub find_master_owner {
     for my $owner (values %owners) {
         if ($owner->{show_all}) {
-            $master_owner = $owner;
             progress("Found master owner: $owner->{name}");
-            last;
+            return $owner;
         }
     }
     return;
@@ -648,6 +648,7 @@ sub setup_part_owners {
 # Attribute {show_hidden_owners} at outer owner cancels effect of 
 # {hide_from_outer_owners}
 sub setup_outer_owners {
+    my ($master_owner) = @_;
     progress("Setup outer owners");
 
     # For each owner, collect intersection of all outer owners.
@@ -956,10 +957,11 @@ sub calc_rules_key {
 }
 
 sub export_services {
+    my ($normalized_services) = @_;
     progress("Export services");
     my %shash;
     my %owner2type2shash;
-    for my $service (sort by_name @normalized_services) {
+    for my $service (@$normalized_services) {
         my @rules = map {
             { 
                 action => $_->{action},
@@ -1124,9 +1126,7 @@ sub export_owners {
     my %email2owners;
     for my $name ( keys %owners ) {
         my $owner = $owners{$name};
-        my @emails;
-        my @watchers;
-        my @e_owners;
+        my (@emails, @watchers, @e_owners);
         create_dirs("owner/$name");
         for my $email ( @{ $owner->{admins} } ) {
             $email2owners{$email}->{$name} = $name;
@@ -1161,13 +1161,9 @@ sub export_owners {
 
     export("email", \%email2owners);
 
+    # Is no longer used and is always empty.
+    # Only exported for compatibility with older version of Netspoc-Web.
     my %owner2alias;
-    for my $name (keys %owners) {
-        my $owner = $owners{$name};
-        if (my $alias = $owner->{alias}) {
-            $owner2alias{$name} = $alias;
-        }
-    }
     export('owner2alias', \%owner2alias);
     return;
 }
@@ -1195,15 +1191,17 @@ set_zone();
 setpath();
 distribute_nat_info();
 find_subnets_in_zone();
-normalize_services_for_export();
+
+# Copy of %services with those services split, that have different 'user'.
+my $normalized_services = normalize_services_for_export();
 propagate_owners();
 find_subnets_in_nat_domain();
 adapt_owner_names();
 setup_zones();
-find_master_owner();
+my $master_owner = find_master_owner();
 setup_part_owners();
-setup_outer_owners();
-setup_service_info();
+setup_outer_owners($master_owner);
+setup_service_info($normalized_services);
 
 ####################################################################
 # Export data
@@ -1211,7 +1209,7 @@ setup_service_info();
 create_dirs('');
 export_owners();
 export_assets();
-my $owner2type2shash = export_services();
+my $owner2type2shash = export_services($normalized_services);
 export_users_and_service_lists($owner2type2shash);
 export_objects();
 export_no_nat_set();
