@@ -5989,20 +5989,14 @@ my %obj2path; # lookup hash, keys: source/destination objects,
 # Note       : Different destination objects may lead to different result lists.
 # Parameters : $auto_intf - an auto interface
 #              $dst_list  - list of destination objects
-# Result     : An array of tuples:
+# Result     : An array of pairs:
 #              1. List of real interfaces.
 #              2. Those objects from $dst_list that lead to result in 1.
 sub expand_auto_intf_with_dst_list {
     my ($auto_intf, $dst_list, $context) = @_;
     my %path2result;
-    my %result2sub_list;
-
-    # Make result deterministic and mostly preserve original order.
-    my %index2result;
-    my $index = 1;
+    my (@result_list, %result2sub_list);
     for my $dst (@$dst_list) {
-
-        # Destination objects with different path lead to same result.
         my $path = $obj2path{$dst} || get_path($dst);
         my $result = $path2result{$path};
 
@@ -6030,20 +6024,16 @@ sub expand_auto_intf_with_dst_list {
             {
                 $result = $result0;
             }
-            else {
-                $index2result{$index++} = $result;
+
+            # Don't add empty list of interfaces to $result_list.
+            elsif (@$result) {
+                push @result_list, $result;
             }
             $path2result{$path} = $result;
         }
         push @{$result2sub_list{$result}}, $dst;
     }
-    return [ map { [ $_, $result2sub_list{$_} ] }
-
-             # Ignore empty list of real interfaces.
-             map { @$_ ? $_ : () }
-
-             map { $index2result{$_} } 
-             sort numerically keys %index2result ];
+    return [ map { [ $_, $result2sub_list{$_} ] } @result_list ];
 }
 
 sub substitute_auto_intf {
