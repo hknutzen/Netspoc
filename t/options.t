@@ -136,16 +136,21 @@ test_err($title, $in, $out, '-foo=foo');
 $title = 'Non existent out directory';
 ############################################################
 
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
 $out = <<'END';
-Error: Can't open foo/bar: No such file or directory
+Error: Can't create output directory foo/bar: No such file or directory
 Aborted
 END
 
-my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-my $cmd = "$^X $perl_opt -I lib bin/spoc1 -q foo/bar";
-my $stderr;
-run3($cmd, \undef, \undef, \$stderr);
-eq_or_diff($stderr, $out, $title);
+test_err($title, $in, $out, undef, 'foo/bar');
 
 ############################################################
 $title = 'Verbose output with progress messages';
