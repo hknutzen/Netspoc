@@ -14159,10 +14159,9 @@ sub gen_reverse_rules1 {
 
         # Create reverse rule.
         # Create new rule for different values of src_range.
-        my %key2prt_group;
-        my $index = 1;
-        my %src_range2index;
-        my %index2src_range;
+        # Preserver original order of protocols mostly, 
+        # but order by src_range.
+        my (%src_range_seen, @src_range_list, %src_range2prt_group);
         my $tcp_seen;
         for my $prt (@new_prt_group) {
             my $proto = $prt->{proto};
@@ -14171,36 +14170,29 @@ sub gen_reverse_rules1 {
             if ($proto eq 'tcp') {
 
                 # Create tcp established only once.
-                next if $tcp_seen;
+                next if $tcp_seen++;
                 $new_prt = $range_tcp_established;
-                $tcp_seen = 1;
             }
             elsif ($proto eq 'udp') {
 
                 # Swap src and dst range.
-                $new_src_range = $prt;
-                if ($new_src_range->{range} eq $aref_tcp_any) {
-                    $new_src_range = $prt_ip;
+                if ($prt->{range} ne $aref_tcp_any) {
+                    $new_src_range = $prt;
                 }
-                $new_prt = $rule->{src_range};
-                if (not $new_prt) {
-                    $new_prt = $prt_udp->{dst_range};
-                }
+                $new_prt = $rule->{src_range} || $prt_udp->{dst_range};
             }
 
             # $proto eq 'ip'
             else {
                 $new_prt = $prt;
             }
-            
-            $index2src_range{$index} = $new_src_range;
-            my $key = $src_range2index{$new_src_range} ||= $index++;
-            push @{ $key2prt_group{$key} }, $new_prt;
+            push @src_range_list, $new_src_range 
+                if not $src_range_seen{$new_src_range}++;
+            push @{ $src_range2prt_group{$new_src_range} }, $new_prt;
         }
        
-        for my $key (sort numerically keys %key2prt_group) {
-            my $prt_group = $key2prt_group{$key};
-            my $src_range = $index2src_range{$key};
+        for my $src_range (@src_range_list) {
+            my $prt_group = $src_range2prt_group{$src_range};
             my $new_rule = {
 
                 # This rule must only be applied to stateless routers.
