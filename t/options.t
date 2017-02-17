@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
+use IPC::Run3;
 use lib 't';
 use Test_Netspoc;
 
@@ -130,6 +131,21 @@ Unknown option: foo
 END
 
 test_err($title, $in, $out, '-foo=foo');
+
+############################################################
+$title = 'Non existent out directory';
+############################################################
+
+$out = <<'END';
+Error: Can't open foo/bar: No such file or directory
+Aborted
+END
+
+my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
+my $cmd = "$^X $perl_opt -I lib bin/spoc1 -q foo/bar";
+my $stderr;
+run3($cmd, \undef, \undef, \$stderr);
+eq_or_diff($stderr, $out, $title);
 
 ############################################################
 $title = 'Verbose output with progress messages';
