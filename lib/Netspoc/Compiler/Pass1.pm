@@ -9255,12 +9255,15 @@ sub get_managed_local_clusters {
         $router0->{managed} =~ /^local/ or next;
         next if $router0->{local_mark};
         my $filter_only = $router0->{filter_only};
-        my $info = { mark => $local_mark, filter_only => $filter_only };
-        my $no_nat_set;
+
+        # Key from list of filter_only addresses.
         my $k0;
 
         # IP/mask pairs of current cluster matching {filter_only}.
         my %matched;
+        
+        my $info = { mark => $local_mark, filter_only => $filter_only };
+        my $no_nat_set;
 
         my $walk = sub {
             my ($router) = @_;
