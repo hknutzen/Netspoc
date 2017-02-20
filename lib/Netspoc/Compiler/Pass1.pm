@@ -6980,17 +6980,16 @@ sub split_rules_by_path {
 
         # Group has elements from different zones and must be split.
         if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group) {
-            my $index = 1;
-            my %path2index;
-            my %key2group;
+            my %seen;
+            my @path_list;
+            my %path2group;
             for my $element (@$group) {
                 my $path = $obj2path{$element};
-                my $key  = $path2index{$path} ||= $index++;
-                push @{ $key2group{$key}}, $element;
+                $seen{$path}++ or push @path_list, $path;
+                push @{ $path2group{$path}}, $element;
             }
-            for my $key (sort numerically keys %key2group) {
-                my $path_group = $key2group{$key};
-                my $path = $obj2path{$path_group->[0]};
+            for my $path (@path_list) {
+                my $path_group = $path2group{$path};
                 my $new_rule = { %$rule,
                                  $where      => $path_group,
                                  $where_path => $path };
