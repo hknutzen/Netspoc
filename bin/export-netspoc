@@ -1106,6 +1106,7 @@ sub export_objects {
             # Add key 'ip' and optionally key 'nat'.
             ip_nat_for_object($_),
 
+            # Change loopback interface to loopback netwok, but leave name unchanged.
             # Add key 'zone' for network and aggregate.
             # Optionally add key 'is_supernet' for network and aggregate.
             zone_and_subnet($_),
