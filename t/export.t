@@ -2626,7 +2626,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Loopback network';
+$title = 'Disabled user, disabled in rule, disabled service';
 ############################################################
 
 $in = <<'END';
