@@ -6327,13 +6327,13 @@ sub propagate_owners {
     }
 
     {
-        my %zone2node2owner;
+        my %zone2owner2node;
         
         # Prepare check for redundant owner of zone in respect to some area.
-        # Artificially add zone as node.
+        # Artificially add zone owner.
         # This simplifies check for redundant owners.
         for my $zone (@zones) {
-            my $hash = $zone2node2owner{$zone} = {};
+            my $hash = $zone2owner2node{$zone} = {};
             my $owner = $zone->{owner} or next;
             $hash->{$owner} = $zone;
         }
@@ -6350,12 +6350,19 @@ sub propagate_owners {
             my $redundant;
             for my $zone (@{ $area->{zones} }) {
 #                debug "$area->{name} $zone->{name}";
-                my $hash = $zone2node2owner{$zone};
+                my $hash = $zone2owner2node{$zone};
                 if (my $small_area = $hash->{$owner}) {
                     $redundant->{$small_area} = $small_area;
                 }
                 $hash->{$owner} = $area;
-                if (not $owner->{only_watch} and not $zone->{owner}) {
+                if (not ($owner->{only_watch} or 
+                         $zone->{owner} or
+
+                         # Owner of loopback zone will be fixed below.
+                         # Don't add it here, so owner will get added
+                         # to {watching_owners}.
+                         $zone->{loopback}))
+                {
                     $zone->{owner} = $owner;
                 }
             }
@@ -6369,9 +6376,9 @@ sub propagate_owners {
 
         # Convert intermediate hash to list {watching_owners}.
         for my $zone (@zones) {
-            my $hash = $zone2node2owner{$zone};
+            my $hash = $zone2owner2node{$zone};
 
-            # Remove artificially added zone from hash.
+            # Remove artificially added zone owner from hash.
             if (my $owner = $zone->{owner}) {
                 delete $hash->{$owner};
             }
@@ -6491,13 +6498,14 @@ sub propagate_owners {
         }
     }
 
-    # Propagate owner of loopback interface to loopback network
-    # and loopback zone.
+    # Propagate owner of loopback interface to loopback network and
+    # loopback zone. Even reset owners to undef, if loopback interface
+    # has no owner.
     for my $router (@routers) {
         my $managed = $router->{managed} || $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
-            my $owner = $interface->{owner} or next;
+            my $owner = $interface->{owner};
             my $network = $interface->{network};
             $network->{owner} = $owner;
             $network->{zone}->{owner} = $owner if $managed;
