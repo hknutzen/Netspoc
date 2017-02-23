@@ -671,8 +671,8 @@ sub setup_outer_owners {
             push @zone_owners, $zone_owner;
         }
 
-        # {watching_owners} holds list of owners, with attribute
-        # {only_watch} that have been inherited from areas.
+        # {watching_owners} holds list of owners, that have been
+        # inherited from areas.
         if (my $watching = $zone->{watching_owners}) {
             my @outer_owners = @$watching;
             if ($zone_owner and $zone_owner->{hide_from_outer_owners}) {

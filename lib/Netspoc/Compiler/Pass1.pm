@@ -6341,8 +6341,7 @@ sub propagate_owners {
         # Propagate owners from areas to zones.
         # - Zone inherits owner from smallest enclosing area having 
         #   an owner without attribute {only_watch}.
-        # - Zone inherits watching_owners from all enclosing areas 
-        #   where owner has attribute {only_watch}.
+        # - Zone inherits {watching_owners} from all enclosing areas.
         # Check for redundant owners of zones and areas.
         for my $area ( sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
             my $owner = $area->{owner} or next;
