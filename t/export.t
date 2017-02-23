@@ -1260,6 +1260,35 @@ $out = <<'END';
    "user" : [],
    "visible" : []
 }
+--owner/all/assets
+{
+   "anys" : {
+      "any:n1" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      }
+   }
+}
+--objects
+{
+   "any:n1" : {
+      "ip" : "0.0.0.0",
+      "owner" : "n1",
+      "zone" : "any:n1"
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : "r1"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "n1",
+      "zone" : "any:n1"
+   }
+}
 END
 
 test_run($title, $in, $out);
@@ -2596,6 +2625,32 @@ service:s1 = {
 END
 
 $out = <<END;
+--owner/all/assets
+{
+   "anys" : {
+      "any:[interface:r1.l1]" : {
+         "networks" : {
+            "interface:r1.l1" : []
+         }
+      },
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1"
+            ]
+         }
+      },
+      "any:[network:n2]" : {
+         "networks" : {
+            "interface:r2.l2" : [],
+            "network:n2" : [
+               "interface:r1.n2",
+               "interface:r2.n2"
+            ]
+         }
+      }
+   }
+}
 --objects
 {
    "interface:r1.l1" : {
