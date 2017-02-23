@@ -546,16 +546,6 @@ sub setup_service_info {
     }
 }
 
-sub find_master_owner {
-    for my $owner (values %owners) {
-        if ($owner->{show_all}) {
-            progress("Found master owner: $owner->{name}");
-            return $owner;
-        }
-    }
-    return;
-}
-
 ######################################################################
 # Fill attribute part_owners at objects which contain objects
 # belonging to other owners.
@@ -648,8 +638,13 @@ sub setup_part_owners {
 # Attribute {show_hidden_owners} at outer owner cancels effect of 
 # {hide_from_outer_owners}
 sub setup_outer_owners {
-    my ($master_owner) = @_;
     progress("Setup outer owners");
+
+    # Find master owner.
+    my $master_owner;
+    if (($master_owner) = grep { $_->{show_all} } values %owners) {
+        progress("Found master owner: $master_owner->{name}");
+    }
 
     # For each owner, collect intersection of all outer owners.
     my %owner2outer_owners;
@@ -716,7 +711,7 @@ sub setup_outer_owners {
                 my $router = $obj->{router};
                 if ($router and ($router->{managed} or $router->{routing_only}))
                 {
-                    if ($master_owner and $master_owner ne $owner) {
+                    if ($master_owner) {
                         %outer_for_obj = ($master_owner => $master_owner);
                     }
                 }
@@ -1207,9 +1202,8 @@ propagate_owners();
 find_subnets_in_nat_domain();
 adapt_owner_names();
 setup_zones();
-my $master_owner = find_master_owner();
 setup_part_owners();
-setup_outer_owners($master_owner);
+setup_outer_owners();
 setup_service_info($normalized_services);
 
 ####################################################################
