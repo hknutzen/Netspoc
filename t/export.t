@@ -2518,6 +2518,11 @@ $out = <<END;
       "ip" : "short",
       "owner" : "a1"
    },
+   "interface:r2.l1" : {
+      "ip" : "10.9.9.9",
+      "owner" : null,
+      "zone" : "any:[interface:r2.l1]"
+   },
    "interface:r3.n4" : {
       "ip" : "10.1.4.1",
       "owner" : null
@@ -2536,6 +2541,11 @@ $out = <<END;
 --owner/all/assets
 {
    "anys" : {
+      "any:[interface:r2.l1]" : {
+         "networks" : {
+            "interface:r2.l1" : []
+         }
+      },
       "any:[network:n4]" : {
          "networks" : {
             "network:n4" : [
@@ -2557,7 +2567,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Loopback network';
+$title = 'Managed and unmanaged loopback interface';
 ############################################################
 
 $in = <<'END';
@@ -2619,6 +2629,99 @@ $out = <<END;
       "ip" : "10.1.2.0/255.255.255.0",
       "owner" : "all",
       "zone" : "any:[network:n2]"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Redundant loopback interfaces';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+owner:nms = { admins = nms@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ owner = nms;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l1 = { virtual = { ip = 10.9.9.1; } loopback; hardware = Loopback1; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ owner = nms;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:l1 = { virtual = { ip = 10.9.9.1; } loopback; hardware = Loopback1; }
+}
+
+service:s1 = {
+ user = interface:r1.l1.virtual, interface:r2.l1.virtual;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<END;
+--owner/all/assets
+{
+   "anys" : {
+      "any:[network:n1]" : {
+         "networks" : {
+            "network:n1" : [
+               "interface:r1.n1",
+               "interface:r2.n1"
+            ]
+         }
+      },
+      "any:[network:virtual:l1]" : {
+         "networks" : {
+            "interface:r1.l1.virtual" : [],
+            "interface:r2.l1.virtual" : []
+         }
+      }
+   }
+}
+--owner/nms/assets
+{
+   "anys" : {
+      "any:[network:virtual:l1]" : {
+         "networks" : {
+            "interface:r1.l1.virtual" : [],
+            "interface:r2.l1.virtual" : []
+         }
+      }
+   }
+}
+--objects
+{
+   "interface:r1.l1.virtual" : {
+      "ip" : "10.9.9.1",
+      "owner" : "nms",
+      "zone" : "any:[network:virtual:l1]"
+   },
+   "interface:r1.n1" : {
+      "ip" : "10.1.1.1",
+      "owner" : "nms"
+   },
+   "interface:r2.l1.virtual" : {
+      "ip" : "10.9.9.1",
+      "owner" : "nms",
+      "zone" : "any:[network:virtual:l1]"
+   },
+   "interface:r2.n1" : {
+      "ip" : "10.1.1.2",
+      "owner" : "nms"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "all",
+      "zone" : "any:[network:n1]"
    }
 }
 END

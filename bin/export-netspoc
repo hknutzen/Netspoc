@@ -841,8 +841,17 @@ sub export_assets {
         my %sub_result;
         for my $net (@$networks) {
             next if $net->{ip} eq 'tunnel';
+            if ($net->{loopback}) {
+
+                # Show loopback interface as network in assets.
+                for my $interface (@{ $net->{interfaces} }) {
+                    $all_objects{$interface} = $interface;
+                    my $intf_name = $interface->{name};
+                    $sub_result{$intf_name} = [];
+                }
+                next;
+            }
             $all_objects{$net} = $net;
-            next if $net->{loopback};
             my $net_name = $net->{name};
 
             # Export hosts and interfaces.
@@ -875,7 +884,6 @@ sub export_assets {
     };
 
     for my $zone (@all_zones) {
-        next if $zone->{loopback};
 
         # All aggregates can be used in rules.
         for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
@@ -893,7 +901,7 @@ sub export_assets {
         for my $owner (owner_for_object($zone),
                        outer_owners_for_object($zone))
         {
-#            debug "- $_->{name}" for @$own_networks;
+#            debug "- $owner";
             $add_networks_hash->(
                 $owner, 
                 $zone_name, 
