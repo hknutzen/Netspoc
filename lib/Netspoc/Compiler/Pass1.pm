@@ -63,38 +63,24 @@ our @EXPORT = qw(
   %isakmp
   %ipsec
   %crypto
-  %global_type
   %service_rules
   %path_rules
-  @pathrestrictions
-  $error_counter
   init_global_vars
   abort_on_error
-  syntax_err
   internal_err
   err_msg
   fatal_err
   unique
   equal
   aref_eq
-  read_ip
   print_ip
-  mask2prefix
   show_version
   split_typed_name
   skip_space_and_comment
-  check
-  skip
-  read_typed_name
   read_union
   is_network
-  is_router
   is_interface
   is_host
-  is_subnet
-  is_group
-  is_protocolgroup
-  is_autointerface
   get_intf
   parse_toplevel
   read_file_or_dir
@@ -105,37 +91,22 @@ our @EXPORT = qw(
   set_zone
   link_reroute_permit
   expand_protocols
-  get_orig_prt
   expand_group
-  expand_group_in_rule
   normalize_src_dst_list
+  get_orig_prt
   normalize_services
   group_path_rules
   expand_crypto
-  check_unused_groups
   setpath
+  distribute_nat_info
   find_subnets_in_zone
   find_subnets_in_nat_domain
-  convert_hosts
   convert_hosts_in_rules
   propagate_owners
-  find_dists_and_loops
-  process_loops
-  check_pathrestrictions
-  optimize_pathrestrictions
   path_walk
   single_path_walk
-  path_auto_interfaces
-  check_supernet_rules
-  optimize_and_warn_deleted
-  distribute_nat_info
   get_nat_network
-  gen_reverse_rules
-  mark_secondary_rules
-  rules_distribution
-  check_output_dir
   address
-  print_code
 );
 
 
