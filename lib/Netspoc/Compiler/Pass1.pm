@@ -14159,7 +14159,7 @@ sub gen_reverse_rules1 {
 
         # Create reverse rule.
         # Create new rule for different values of src_range.
-        # Preserver original order of protocols mostly, 
+        # Preserve original order of protocols mostly, 
         # but order by src_range.
         my (%src_range_seen, @src_range_list, %src_range2prt_group);
         my $tcp_seen;
