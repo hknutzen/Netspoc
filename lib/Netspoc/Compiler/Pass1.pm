@@ -15316,17 +15316,27 @@ sub check_and_convert_routes {
         for my $interface (@{ $router->{interfaces} }) {
             next if $interface->{routing};
             next if not $interface->{network}->{bridged};
+            my $add_hops;
             for my $hop (values %{ $interface->{hopref2obj} }) {
                 next if $hop->{ip} ne 'bridged';
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
-                    my @real_hop = fix_bridged_hops($hop, $network);
-                    for my $rhop (@real_hop) {
-                        $interface->{hopref2obj}->{$rhop} = $rhop;
-                        $interface->{routes}->{$rhop}->{$network} = $network;
-                    }
+                    my @real_hops = fix_bridged_hops($hop, $network);
+
+                    # Add real hops later, after loop over {hopref2obj}
+                    # has been finished.
+                    push @$add_hops, @real_hops;
+
+                    # Add network now, because real hops are known to
+                    # be different from $hop.
+                    $interface->{routes}->{$_}->{$network} = $network
+                        for @real_hops;
                 }
                 delete $interface->{hopref2obj}->{$hop};
                 delete $interface->{routes}->{$hop};
+            }
+            $add_hops or next;
+            for my $rhop (@$add_hops) {
+                $interface->{hopref2obj}->{$rhop} = $rhop;
             }
         }
     }
