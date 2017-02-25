@@ -15484,10 +15484,7 @@ sub check_and_convert_routes {
                     # local interfaces and static routing is enabled
                     # on both interfaces
                     if (my $interface2 = $net2intf{$network}) {
-                        if ($interface2 ne $interface and
-                            not $interface->{routing} and
-                            not $interface2->{routing})
-                        {
+                        if ($interface2 ne $interface) {
                             push(@$errors,
                                  "Two static routes for $network->{name}\n" .
                                  " via $interface->{name} and" .
@@ -15501,8 +15498,6 @@ sub check_and_convert_routes {
                     # Check whether network is reached via different hops.
                     # Abort, if these do not belong to the same
                     # redundancy group.
-                    next if $interface->{routing};
-                    
                     my $group = $hop->{redundancy_interfaces};
                     if ($group) {
                         push @{ $net2group{$network}{$hop->{ip}} }, $hop;
