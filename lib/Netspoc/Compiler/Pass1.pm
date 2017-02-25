@@ -13005,9 +13005,11 @@ sub expand_crypto {
                 my $router  = $tunnel_intf->{router};
                 my $peer    = $tunnel_intf->{peer};
                 my $managed = $router->{managed};
+                my $hub_router     = $peer->{router};
+                my $hub_model      = $hub_router->{model};
+                my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
                 my @encrypted;
                 my ($has_id_hosts, $has_other_network);
-                my @verify_radius_attributes;
 
                 # Analyze cleartext networks behind spoke router.
                 for my $interface (@{ $router->{interfaces} }) {
@@ -13021,7 +13023,9 @@ sub expand_crypto {
                           and err_msg
                           "$network->{name} having ID hosts must not",
                           " be located behind managed $router->{name}";
-                        push @verify_radius_attributes, $network;
+                        if ($hub_is_asa_vpn) {
+                            verify_asa_vpn_attributes($network);
+                        }
 
                         # Rules for single software clients are stored
                         # individually at crypto hub interface.
@@ -13031,7 +13035,10 @@ sub expand_crypto {
                             # ID host has already been checked to have
                             # exactly one subnet.
                             my $subnet = $host->{subnets}->[0];
-                            push @verify_radius_attributes, $host;
+                            if ($hub_is_asa_vpn) {
+                                verify_asa_vpn_attributes($host);
+                                verify_subject_name($host, $peer);
+                            }
                             my $no_nat_set = $peer->{no_nat_set};
                             if (my $other = $peer->{id_rules}->{$id}) {
                                 my $src = $other->{src};
@@ -13074,8 +13081,7 @@ sub expand_crypto {
 
                 my $real_spoke = $tunnel_intf->{real_interface};
                 $peer->{peer_networks} = \@encrypted;
-                my $hub_router = $peer->{router};
-                my $do_auth = $hub_router->{model}->{do_auth};
+                my $do_auth = $hub_model->{do_auth};
                 if ($tunnel_intf->{id}) {
                     $need_id
                       or err_msg(
@@ -13110,15 +13116,6 @@ sub expand_crypto {
 
                     # Prevent further errors.
                     $tunnel_intf->{id} = '';
-                }
-
-                if ($peer->{router}->{model}->{crypto} eq 'ASA_VPN') {
-                    for my $obj (@verify_radius_attributes) {
-                        verify_asa_vpn_attributes($obj);
-                        if (is_host($obj)) {
-                            verify_subject_name($obj, $peer);
-                        }
-                    }
                 }
 
                 if ($managed and $router->{model}->{crypto} eq 'ASA') {
