@@ -8697,17 +8697,6 @@ sub find_subnets_in_nat_domain {
     my $count = @natdomains;
     progress("Finding subnets in $count NAT domains");
 
-    # 1. step:
-    # Compare IP/mask of all networks and NAT networks and find relations
-    # %is_in and %identical.
-
-    # Mapping Mask -> IP -> Network|NAT Network.
-    my %mask_ip_hash;
-
-    # Mapping from network|NAT network to list of elements with
-    # identical IP address.
-    my %identical;
-
     # List of all networks and NAT networks having an IP address.
     # We need this in deterministic order.
     my @nat_networks;
@@ -8727,6 +8716,16 @@ sub find_subnets_in_nat_domain {
         }
     }
     
+    # 1. step:
+    # Compare IP/mask of all networks and NAT networks and find relations
+    # %is_in and %identical.
+
+    # Mapping Mask -> IP -> Network|NAT Network.
+    my %mask_ip_hash;
+
+    # Mapping from network|NAT network to list of elements with
+    # identical IP address.
+    my %identical;
     for my $nat_network (@nat_networks) {
         my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
         if (my $other = $mask_ip_hash{$mask}->{$ip}) {
