@@ -13866,7 +13866,6 @@ sub check_transient_supernet_rules {
 
     # Mapping from zone to supernets found in src of rules.
     my %zone2supernets;
-    my %seen;
     for my $rule (@$rules) {
         next if $rule->{no_check_supernet_rules};
         my $src_list = $rule->{src};
@@ -13896,8 +13895,8 @@ sub check_transient_supernet_rules {
                 # This leaf zone can't lead to unwanted rule chains.
                 next if not $found;
             }
+            $supernet2rules{$obj} or push @{ $zone2supernets{$zone} }, $obj;
             push @{ $supernet2rules{$obj} }, $rule;
-            push @{ $zone2supernets{$zone} }, $obj if not $seen{$obj}++;
         }
     }
     keys %supernet2rules or return;
