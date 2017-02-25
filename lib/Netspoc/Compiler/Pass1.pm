@@ -11170,8 +11170,7 @@ sub find_dists_and_loops {
         [ grep { $_->{managed} or $_->{semi_managed} } @routers ];
     my $start_distance = 0;
     my @partitions;
-    my %partition2split_crypto;
-    my %router2partition;
+    my (%partition2split_crypto, %router2partition);
 
     # Find one or more connected partitions in whole topology.
     # Only iterate zones, because unconnected routers have been
@@ -13008,8 +13007,7 @@ sub expand_crypto {
                 my $peer    = $tunnel_intf->{peer};
                 my $managed = $router->{managed};
                 my @encrypted;
-                my $has_id_hosts;
-                my $has_other_network;
+                my ($has_id_hosts, $has_other_network);
                 my @verify_radius_attributes;
 
                 # Analyze cleartext networks behind spoke router.
@@ -15612,10 +15610,8 @@ sub print_routes {
     my $do_auto_default_route = $config->{auto_default_route};
     my $crypto_type = $model->{crypto} || '';
     my $asa_crypto = $crypto_type eq 'ASA';
-    my %intf2hop2nets;
+    my (%intf2hop2nets, %mask2ip2net, %net2hop_info);
     my @interfaces;
-    my %mask2ip2net;
-    my %net2hop_info;
 
     for my $interface (@{ $router->{interfaces} }) {
         next if $interface->{ip} eq 'bridged';
