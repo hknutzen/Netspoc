@@ -14154,7 +14154,7 @@ sub gen_reverse_rules1 {
         # Create new rule for different values of src_range.
         # Preserve original order of protocols mostly, 
         # but order by src_range.
-        my (%src_range_seen, @src_range_list, %src_range2prt_group);
+        my (@src_range_list, %src_range2prt_group);
         my $tcp_seen;
         for my $prt (@new_prt_group) {
             my $proto = $prt->{proto};
@@ -14180,7 +14180,7 @@ sub gen_reverse_rules1 {
                 $new_prt = $prt;
             }
             push @src_range_list, $new_src_range 
-                if not $src_range_seen{$new_src_range}++;
+                if not $src_range2prt_group{$new_src_range};
             push @{ $src_range2prt_group{$new_src_range} }, $new_prt;
         }
        
