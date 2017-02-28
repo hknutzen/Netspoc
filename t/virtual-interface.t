@@ -74,8 +74,8 @@ $title = 'Virtual interface in non cyclic sub-graph';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
 
+# Virtual interface outside of loop, but at border of other loop.
 router:r1 = {
  managed;
  model = ASA;
@@ -85,6 +85,30 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.3; virtual = { ip = 10.1.1.1; } hardware = n1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+
+# Add loop. This isn't needed to get the error messages.
+# But the virtual interfaces are located at border of this loop.
+# With this test we also check, that automatically created
+# pathrestrictions at virtual interfaces are removed correctly in this
+# situation.
+network:n2 = { ip = 10.1.2.0/24; }
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.4; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.4; hardware = n2; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.5; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.5; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = user; dst = network:n2; prt = udp 123;
 }
 END
 

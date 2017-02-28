@@ -10573,7 +10573,12 @@ sub check_virtual_interfaces {
                 $err = 1;
             }
         }
-        next if $err;
+        if ($err) {
+
+            # Remove invalid pathrestriction to prevent inherited errors.
+            delete $_->{path_restrict} for @$related;
+            next;
+        }
 
         # Check whether all virtual interfaces are part of the same loop.
         equal(map { $_->{loop} } @$related)
