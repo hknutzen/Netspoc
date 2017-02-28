@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Looback interfaces are exported now to Netspoc-Web.
+
 5.020     2017-02-16 16:40:43+01:00 Europe/Berlin
 
  - Combined host ranges are checked for duplicates now.
