@@ -6958,9 +6958,7 @@ sub split_rules_by_path {
 
         # Group has elements from different zones and must be split.
         if (grep { $path0 ne ($obj2path{$_} || get_path($_)) } @$group) {
-            my %seen;
-            my @path_list;
-            my %path2group;
+            my (%seen, @path_list, %path2group);
             for my $element (@$group) {
                 my $path = $obj2path{$element};
                 $seen{$path}++ or push @path_list, $path;
