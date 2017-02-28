@@ -2612,14 +2612,20 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:l1 = { ip = 10.9.9.1; loopback; hardware = Loopback1; }
+ interface:l2 = { ip = 10.9.9.2; loopback; hardware = Loopback2; }
 }
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
- interface:l2 = { ip = 10.9.9.2; loopback; hardware = Loopback2; }
+ interface:l3 = { ip = 10.9.9.3; loopback; hardware = Loopback3; }
+ interface:l4 = { ip = 10.9.9.4; loopback; hardware = Loopback4; }
 }
 
 service:s1 = {
- user = interface:r1.l1, interface:r2.l2;
+ user = interface:r1.l1, 
+        interface:r2.l3,
+        network:[interface:r1.l2],
+        network:[interface:r2.l4],
+        ;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
 END
@@ -2633,6 +2639,11 @@ $out = <<END;
             "interface:r1.l1" : []
          }
       },
+      "any:[interface:r1.l2]" : {
+         "networks" : {
+            "interface:r1.l2" : []
+         }
+      },
       "any:[network:n1]" : {
          "networks" : {
             "network:n1" : [
@@ -2642,7 +2653,8 @@ $out = <<END;
       },
       "any:[network:n2]" : {
          "networks" : {
-            "interface:r2.l2" : [],
+            "interface:r2.l3" : [],
+            "interface:r2.l4" : [],
             "network:n2" : [
                "interface:r1.n2",
                "interface:r2.n2"
@@ -2658,6 +2670,11 @@ $out = <<END;
       "owner" : null,
       "zone" : "any:[interface:r1.l1]"
    },
+   "interface:r1.l2" : {
+      "ip" : "10.9.9.2",
+      "owner" : null,
+      "zone" : "any:[interface:r1.l2]"
+   },
    "interface:r1.n1" : {
       "ip" : "10.1.1.1",
       "owner" : null
@@ -2666,8 +2683,13 @@ $out = <<END;
       "ip" : "10.1.2.1",
       "owner" : null
    },
-   "interface:r2.l2" : {
-      "ip" : "10.9.9.2",
+   "interface:r2.l3" : {
+      "ip" : "10.9.9.3",
+      "owner" : "all",
+      "zone" : "any:[network:n2]"
+   },
+   "interface:r2.l4" : {
+      "ip" : "10.9.9.4",
       "owner" : "all",
       "zone" : "any:[network:n2]"
    },
