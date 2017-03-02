@@ -244,8 +244,8 @@ sub test_reuse_prev {
 # $expected has one field,
 # the expected error message
 sub test_err {
-    my ($title, $in, $expected, $options) = @_;
-    my ($stderr, $success, $in_dir) = run($in, $options);
+    my ($title, $in, $expected, $options, $out_dir) = @_;
+    my ($stderr, $success, $in_dir) = run($in, $options, $out_dir);
     if ($success) {
         diag("Unexpected success");
         diag($stderr) if $stderr;

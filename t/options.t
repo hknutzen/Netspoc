@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
+use IPC::Run3;
 use lib 't';
 use Test_Netspoc;
 
@@ -130,6 +131,26 @@ Unknown option: foo
 END
 
 test_err($title, $in, $out, '-foo=foo');
+
+############################################################
+$title = 'Non existent out directory';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+Error: Can't create output directory foo/bar: No such file or directory
+Aborted
+END
+
+test_err($title, $in, $out, undef, 'foo/bar');
 
 ############################################################
 $title = 'Verbose output with progress messages';
