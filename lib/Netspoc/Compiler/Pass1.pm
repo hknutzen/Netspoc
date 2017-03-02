@@ -14067,20 +14067,28 @@ sub gen_reverse_rules1 {
     my %cache;
     for my $rule (@$rule_aref) {
         next if $rule->{oneway};
-        my $deny = $rule->{deny};
-
+        my $deny      = $rule->{deny};
         my $prt_group = $rule->{prt};
         my @new_prt_group;
+        my $tcp_seen;
         for my $prt (@$prt_group) {
             my $proto = $prt->{proto};
-            next unless $proto eq 'tcp' or $proto eq 'udp' or $proto eq 'ip';
+            if ($proto eq 'tcp') {
+                
+                # Create tcp established only once.
+                next if $tcp_seen++;
 
-            # No reverse rules will be generated for denied TCP packets, 
-            # because
-            # - there can't be an answer if the request is already denied and
-            # - the 'established' optimization for TCP below would produce
-            #   wrong results.
-            next if $proto eq 'tcp' and $deny;
+                # No reverse rules will be generated for denied TCP
+                # packets, because
+                # - there can't be an answer if the request is already
+                #   denied and
+                # - the 'established' optimization for TCP below would
+                #   produce wrong results.
+                next if $deny;
+            }
+            else {
+                $proto eq 'udp' or $proto eq 'ip' or next;
+            }
             push @new_prt_group, $prt;
         }
         @new_prt_group or next;
@@ -14135,15 +14143,11 @@ sub gen_reverse_rules1 {
         # Preserve original order of protocols mostly, 
         # but order by src_range.
         my (@src_range_list, %src_range2prt_group);
-        my $tcp_seen;
         for my $prt (@new_prt_group) {
             my $proto = $prt->{proto};
             my $new_src_range = $prt_ip;
             my $new_prt;
             if ($proto eq 'tcp') {
-
-                # Create tcp established only once.
-                next if $tcp_seen++;
                 $new_prt = $range_tcp_established;
             }
             elsif ($proto eq 'udp') {
