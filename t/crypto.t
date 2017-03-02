@@ -2278,6 +2278,78 @@ test_run($title, $in, $out);
 $title = 'Unexpected dynamic crypto spoke';
 ############################################################
 
+$in = <<'END';
+crypto:psk-detailed = {
+ type = ipsec:aes256_sha256_ikev2_psk;
+ detailed_crypto_acl;
+}
+ipsec:aes256_sha256_ikev2_psk = {
+ key_exchange = isakmp:aes256_sha256_ikev2_psk;
+ esp_encryption = aes256;
+ esp_authentication = sha256;
+ pfs_group = 19;
+ lifetime = 3600 sec;
+}
+isakmp:aes256_sha256_ikev2_psk = {
+ ike_version = 2;
+ identity = address;
+ nat_traversal = additional;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha256;
+ group = 19;
+ lifetime = 86400 sec;
+}
+
+network:n1 = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:dmz = { ip = 192.168.1.4; hardware = dmz;
+                   hub = crypto:psk-detailed; }
+}
+network:dmz = { ip = 192.168.1.0/27;}
+
+router:r1 = {
+ interface:dmz = { ip = 192.168.1.2; spoke = crypto:psk-detailed; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24;}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--asavpn
+! crypto-192.168.1.2
+access-list crypto-192.168.1.2 extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
+crypto map crypto-dmz 1 set peer 192.168.1.2
+crypto map crypto-dmz 1 match address crypto-192.168.1.2
+crypto map crypto-dmz 1 set ikev2 ipsec-proposal Trans1
+crypto map crypto-dmz 1 set pfs group19
+crypto map crypto-dmz 1 set security-association lifetime seconds 3600
+tunnel-group 192.168.1.2 type ipsec-l2l
+tunnel-group 192.168.1.2 ipsec-attributes
+ peer-id-validate nocheck
+crypto map crypto-dmz interface dmz
+--
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Unexpected dynamic crypto spoke';
+############################################################
+
 $in = $crypto_sts . <<'END';
 network:intern = {
  ip = 10.1.1.0/24;

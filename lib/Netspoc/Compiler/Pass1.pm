@@ -15902,13 +15902,20 @@ sub distribute_rule {
 
         $key = 'intf_rules';
     }
-    elsif ($out_intf->{hardware}->{need_out_acl}) {
-        $key = 'out_rules';
-        if (not $in_intf->{hardware}->{no_in_acl}) {
-            push @{ $in_intf->{hardware}->{rules} }, $rule;
-        }
-    }
     else {
+        if ($out_intf->{hardware}->{need_out_acl}) {
+            push @{ $out_intf->{hardware}->{out_rules} }, $rule;
+            return if $in_intf->{hardware}->{no_in_acl};
+        }
+
+        # Outgoing rules are needed at tunnel for generating
+        # detailed_crypto_acl.
+        if ($out_intf->{ip} eq 'tunnel' and 
+            $out_intf->{crypto}->{detailed_crypto_acl} and
+            not $out_intf->{id_rules}) 
+        {
+            push @{ $out_intf->{out_rules} }, $rule;
+        }
         $key = 'rules';
     }
 
@@ -15953,17 +15960,17 @@ sub distribute_rule {
             }
         }
 
+        # Rules are needed at tunnel for generating 
+        # detailed_crypto_acl or crypto_filter ACL.
+        elsif (not $router->{no_crypto_filter} or
+               $in_intf->{crypto}->{detailed_crypto_acl}) 
+        {
+            push @{ $in_intf->{$key} }, $rule;
+        }
+
         if ($router->{no_crypto_filter}) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
-
-        # Rules are needed at tunnel for generating detailed_crypto_acl.
-        if (not $in_intf->{id_rules}) {
-            push @{ $in_intf->{$key} }, $rule;
-        }
-    }
-    elsif ($key eq 'out_rules') {
-        push @{ $out_intf->{hardware}->{$key} }, $rule;
     }
 
     # Remember outgoing interface.
@@ -16316,24 +16323,28 @@ sub print_acl_placeholder {
 }
 
 # Parameter: Interface
-# Analyzes dst_list of all rules collected at this interface.
+# Analyzes dst/src_list of all rules collected at this interface.
 # Result:
-# Array reference to sorted list of all networks which are allowed
-# to pass this interface.
+# List of all networks which are reachable when entering this interface.
 sub get_split_tunnel_nets {
     my ($interface) = @_;
 
     my %split_tunnel_nets;
-    for my $rule (@{ $interface->{rules} }, @{ $interface->{intf_rules} }) {
-        next if $rule->{deny};
-        my $dst_list = $rule->{dst};
-        for my $dst (@$dst_list) {
-            my $dst_network = $dst->{network} || $dst;
+    for my $what (qw(rules intf_rules out_rules)) {
+        my $rules = $interface->{$what} or next;
+        my $where = $what eq 'out_rules' ? 'src' : 'dst';
+        for my $rule (@$rules) {
+            next if $rule->{deny};
+            my $obj_list = $rule->{$where};
+            for my $obj (@$obj_list) {
+                my $network = $obj->{network} || $obj;
 
-            # Don't add 'any' (resulting from global:permit)
-            # to split_tunnel networks.
-            next if $dst_network->{mask} eq $zero_ip;
-            $split_tunnel_nets{$dst_network} = $dst_network;
+                # Don't add 'any' (resulting from global:permit)
+                # to split_tunnel networks.
+                next if $network->{mask} eq $zero_ip;
+                
+                $split_tunnel_nets{$network} = $network;
+            }
         }
     }
     return [ sort { $a->{ip} cmp $b->{ip} || $a->{mask} cmp $b->{mask} }
