@@ -8,6 +8,10 @@ use IPC::Run3;
 use lib 't';
 use Test_Netspoc;
 
+# Change to "C" locale, so we get non translated error message.
+use POSIX 'locale_h';
+setlocale(LC_MESSAGES, 'C');
+
 my ($title, $in, $out);
 
 ############################################################
@@ -146,11 +150,11 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Can't create output directory foo/bar: No such file or directory
+Error: Can't create output directory missing.dir/file: No such file or directory
 Aborted
 END
 
-test_err($title, $in, $out, undef, 'foo/bar');
+test_err($title, $in, $out, undef, 'missing.dir/file');
 
 ############################################################
 $title = 'Verbose output with progress messages';
