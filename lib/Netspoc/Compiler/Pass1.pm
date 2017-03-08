@@ -15517,9 +15517,6 @@ sub check_and_convert_routes {
                     }
                 }
             }
-            if ($errors) {
-                err_msg($_) for sort @$errors;
-            }
             
             # Ensure correct routing at virtual interfaces.
             for my $net_ref (keys %net2ip2hops) {
@@ -15543,30 +15540,34 @@ sub check_and_convert_routes {
                         $interface->{routes}->{$phys_hop}->{$network}
                                                                    = $network;
                         $interface->{hopref2obj}->{$phys_hop} = $phys_hop;
+                        next;
                     }
 
                     # Show error message if dst network is reached by
                     # more than one but not by all redundancy interfaces.
-                    else {
-                        my $names =
-                            join("\n - ", map({ $_->{name} } 
-                                              sort(by_name @$hops)));
-                        err_msg(
-                            "Pathrestriction ambiguously affects generation",
-                            " of static routes\n       at interfaces",
-                            " with virtual IP ",
-                            print_ip($redundancy_ip) . ":\n",
-                            " $network->{name} is reached via\n",
-                             " - $names\n",
-                            " But $missing interface(s) of group",
-                            " are missing.\n",
-                            " Pathrestrictions must restrict paths to either\n",
-                            " - all interfaces or\n",
-                            " - no interfaces or\n",
-                            " - exactly one interface\n",
-                            " of this group.");
-                     }
+                    my $names =
+                        join("\n - ", map({ $_->{name} } 
+                                          sort(by_name @$hops)));
+                    push(@$errors,
+                         "Pathrestriction ambiguously affects generation" .
+                         " of static routes\n       at interfaces" .
+                         " with virtual IP " .
+                         print_ip($redundancy_ip) . ":\n" .
+                         " $network->{name} is reached via\n" .
+                         " - $names\n" .
+                         " But $missing interface(s) of group" .
+                         " are missing.\n" .
+                         " Pathrestrictions must restrict paths to either\n" .
+                         " - all interfaces or\n" .
+                         " - no interfaces or\n" .
+                         " - exactly one interface\n" .
+                         " of this group.");
                 }
+            }
+
+            # Show error messages of both tests above.
+            if ($errors) {
+                err_msg($_) for sort @$errors;
             }
 
             # Convert to array, because hash isn't needed any longer.

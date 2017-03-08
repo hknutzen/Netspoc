@@ -358,9 +358,13 @@ router:r4 = {
 network:b1 = { ip = 10.2.2.0/24; }
 network:b2 = { ip = 10.3.3.0/24; }
 
-service:test = {
+service:test1 = {
  user = interface:g.a;
  permit src = user; dst = network:b1; prt = tcp 80;
+}
+service:test2 = {
+ user = interface:g.a;
+ permit src = user; dst = network:b2; prt = tcp 80;
 }
 END
 
@@ -371,6 +375,18 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r1.a.virtual
  - interface:r2.a.virtual
  - interface:r3.a.virtual
+ But 1 interface(s) of group are missing.
+ Pathrestrictions must restrict paths to either
+ - all interfaces or
+ - no interfaces or
+ - exactly one interface
+ of this group.
+Error: Pathrestriction ambiguously affects generation of static routes
+       at interfaces with virtual IP 10.1.1.9:
+ network:b2 is reached via
+ - interface:r2.a.virtual
+ - interface:r3.a.virtual
+ - interface:r4.a.virtual
  But 1 interface(s) of group are missing.
  Pathrestrictions must restrict paths to either
  - all interfaces or
@@ -402,7 +418,7 @@ $title = 'Conceal non matching virtual interface groups with interconnect if
 
 $in =~ s/disabled;//g;
 $in =~ s/router:g.*inside;\}\s}//s;
-$in =~ s/user = interface:g.a;/user = network:a;/s;
+$in =~ s/user = interface:g.a;/user = network:a;/g;
 
 $out = <<'END';
 --r1
@@ -412,21 +428,29 @@ ip access-list extended E1_in
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
  deny ip any any
 --r2
+! [ Routing ]
 ip route 10.1.1.0 255.255.255.0 10.0.0.2
+ip route 10.3.3.0 255.255.255.0 10.0.0.2
 --r2
 ip access-list extended E4_in
  deny ip any host 10.2.2.9
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
  deny ip any any
 --r3
+! [ Routing ]
+ip route 10.1.1.0 255.255.255.0 10.0.0.1
 ip route 10.2.2.0 255.255.255.0 10.0.0.1
 --r4
 ip access-list extended E8_in
+ deny ip any host 10.3.3.9
+ deny ip any host 10.3.3.4
+ permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
  deny ip any any
 END
 
-test_run($title, $in, $out);
+test_run($title, $in, $out, '-noauto_default_route');
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';
@@ -872,8 +896,6 @@ service:test1 = {
 END
 
 $out = <<'END';
-Error: Two static routes for network:n5
- at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
 Error: Pathrestriction ambiguously affects generation of static routes
        at interfaces with virtual IP 10.2.2.10:
  network:n5 is reached via
@@ -885,6 +907,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - no interfaces or
  - exactly one interface
  of this group.
+Error: Two static routes for network:n5
+ at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2.virtual
 END
