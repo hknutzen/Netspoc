@@ -135,7 +135,7 @@ $out = <<'END';
   Pathrestrictions must restrict paths to either
   - all interfaces or
   - no interfaces or
-  - all but one interface
+  - exactly one interface
   of this group.
 END
 

@@ -15464,10 +15464,10 @@ sub check_and_convert_routes {
             my %net2hop;
 
             # Remember, via which remote redundancy interfaces a network
-            # is reached. We use this to check, if alle members of a group
+            # is reached. We use this to check, that all members of a group
             # of redundancy interfaces are used to reach the network.
             # Otherwise it would be wrong to route to the virtual interface.
-            my %net2group;
+            my %net2ip2hops;
 
             # Abort, if more than one static route exists per network.
             my $errors;
@@ -15494,7 +15494,7 @@ sub check_and_convert_routes {
                     # redundancy group.
                     my $group = $hop->{redundancy_interfaces};
                     if ($group) {
-                        push @{ $net2group{$network}{$hop->{ip}} }, $hop;
+                        push @{ $net2ip2hops{$network}{$hop->{ip}} }, $hop;
                     }
                     if (my $hop2 = $net2hop{$network}) {
 
@@ -15522,19 +15522,21 @@ sub check_and_convert_routes {
             }
             
             # Ensure correct routing at virtual interfaces.
-            for my $net_ref (keys %net2group) {
-                for my $redundancy_group (keys %{$net2group{$net_ref}}) {
+            for my $net_ref (keys %net2ip2hops) {
+                my $ip2hops = $net2ip2hops{$net_ref};
+                for my $redundancy_ip (keys %$ip2hops) {
 
                     # Check whether dst network is reached via all 
                     # redundancy interfaces.
-                    my $hops = $net2group{$net_ref}{$redundancy_group};
+                    my $hops = $ip2hops->{$redundancy_ip};
                     my $hop1 = $hops->[0];
                     my $missing = @{ $hop1->{redundancy_interfaces} } - @$hops;
                     next if not $missing;
                     
-                    # If dst network is reached via 1 interface only,
-                    # move hop from virtual to physical interface.
-                    # It is probably a loopback interface of the same device.
+                    # If destination network is reached via exactly
+                    # only interface, move hop from virtual to
+                    # physical interface. Destination is probably a
+                    # loopback interface of the same device.
                     my $network = $interface->{routes}->{$hop1}->{$net_ref};
                     if (@$hops == 1 and (my $phys_hop = $hop1->{orig_main})) {
                         delete $interface->{routes}->{$hop1}->{$net_ref};
@@ -15543,7 +15545,7 @@ sub check_and_convert_routes {
                         $interface->{hopref2obj}->{$phys_hop} = $phys_hop;
                     }
 
-                    # Print Error message if dst network is reached by
+                    # Show error message if dst network is reached by
                     # more than one but not by all redundancy interfaces.
                     else {
                         my $names =
@@ -15553,7 +15555,7 @@ sub check_and_convert_routes {
                             "Pathrestriction ambiguously affects generation",
                             " of static routes\n       at interfaces",
                             " with virtual IP ",
-                            print_ip($redundancy_group) . ":\n",
+                            print_ip($redundancy_ip) . ":\n",
                             " $network->{name} is reached via\n",
                              " - $names\n",
                             " But $missing interface(s) of group",
@@ -15561,7 +15563,7 @@ sub check_and_convert_routes {
                             " Pathrestrictions must restrict paths to either\n",
                             " - all interfaces or\n",
                             " - no interfaces or\n",
-                            " - all but one interface\n",
+                            " - exactly one interface\n",
                             " of this group.");
                      }
                 }

@@ -375,7 +375,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  Pathrestrictions must restrict paths to either
  - all interfaces or
  - no interfaces or
- - all but one interface
+ - exactly one interface
  of this group.
 END
 
@@ -599,7 +599,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  Pathrestrictions must restrict paths to either
  - all interfaces or
  - no interfaces or
- - all but one interface
+ - exactly one interface
  of this group.
 END
 
@@ -683,7 +683,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  Pathrestrictions must restrict paths to either
  - all interfaces or
  - no interfaces or
- - all but one interface
+ - exactly one interface
  of this group.
 Error: Two static routes for network:a
  via interface:r2.c and interface:r2.b.virtual
@@ -883,7 +883,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  Pathrestrictions must restrict paths to either
  - all interfaces or
  - no interfaces or
- - all but one interface
+ - exactly one interface
  of this group.
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2.virtual
