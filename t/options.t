@@ -207,7 +207,10 @@ Printing intermediate code
 Reused 1 files from previous run
 Finished
 -- r1
-! [ Routing ]
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
 END
 
 test_reuse_prev($title, $in, $in, $out, '-verbose');

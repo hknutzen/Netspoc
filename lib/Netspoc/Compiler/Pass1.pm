@@ -15595,17 +15595,16 @@ sub print_routes {
     my $do_auto_default_route = $config->{auto_default_route};
     my $crypto_type = $model->{crypto} || '';
     my $asa_crypto = $crypto_type eq 'ASA';
-    my (%intf2hop2nets, %mask2ip2net, %net2hop_info);
-    my @interfaces;
+    my (%mask2ip2net, %net2hop_info);
 
     for my $interface (@{ $router->{interfaces} }) {
-        next if $interface->{ip} eq 'bridged';
+
+        # Must not combine static routes to default route if any
+        # interface has dynamic routing enabled.
         if ($interface->{routing}) {
             $do_auto_default_route = 0;
             next;
         }
-
-        push @interfaces, $interface;
 
         # ASA with site-to-site VPN needs individual routes for each peer.
         if ($asa_crypto and $interface->{hub}) {
@@ -15638,7 +15637,7 @@ sub print_routes {
             }
         }
     }
-    return if not @interfaces;
+    return if not keys %net2hop_info;
  
     # Combine adjacent networks, if both use same hop and 
     # if combined network doesn't already exist.
@@ -15706,7 +15705,7 @@ sub print_routes {
     # Find and remove duplicate networks.
     # Go from smaller to larger networks.
     my @masks = reverse sort keys %mask2ip2net;
-    my %net2no_opt;
+    my (%intf2hop2nets, %net2no_opt);
     while (defined(my $mask = shift @masks)) {
       NETWORK:
         for my $ip (sort keys %{ $mask2ip2net{$mask} }) {
@@ -15756,7 +15755,7 @@ sub print_routes {
         # Substitute routes to one hop with a default route,
         # if there are at least two entries.
         my $max = 1;
-        for my $interface (@interfaces) {
+        for my $interface (@{ $router->{interfaces} }) {
             for my $hop (@{ $interface->{hopref2obj} }) {
                 my $count = grep({ not $net2no_opt{ $_->[2] } }
                     @{ $intf2hop2nets{$interface}->{$hop} || [] });
@@ -15785,7 +15784,7 @@ sub print_routes {
     $ios_vrf = $vrf ? "vrf $vrf " : '' if $type eq 'IOS';
     my $nxos_prefix = '';
 
-    for my $interface (@interfaces) {
+    for my $interface (@{ $router->{interfaces} }) {
         for my $hop (@{ $interface->{hopref2obj} }) {
 
             # For unnumbered and negotiated interfaces use interface name
