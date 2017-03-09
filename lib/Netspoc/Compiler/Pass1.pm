@@ -9029,6 +9029,15 @@ sub find_subnets_in_nat_domain {
     # The result is stored in {max_secondary_net}.
     for my $network (@networks) {
         my $max = $network->{max_routing_net} or next;
+
+        # Disable {max_routing_net} if it has unstable NAT relation with
+        # current subnet.
+        # This test is only a rough estimation and should be refined
+        # if to many valid optimizations would be disabled.
+        if ($max->{unstable_nat} and $network->{nat}) {
+            delete $network->{max_routing_net};
+            next;
+        }
         if (not $max->{has_other_subnet}) {
             $network->{max_secondary_net} = $max;
             next;

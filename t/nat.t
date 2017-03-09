@@ -906,6 +906,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No route for supernet for unstable subnet relation';
+############################################################
+
+$in = <<'END';
+network:n1 = {ip = 10.1.1.0/24;}
+router:r1 = {
+ interface:n1;
+ interface:n1sub = { ip = 10.1.1.130; }
+}
+
+network:n1sub = {
+ ip = 10.1.1.128/25;
+ nat:N = { ip = 10.9.9.9/32; dynamic; }
+ subnet_of = network:n1;
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1sub = { ip = 10.1.1.129; hardware = outside; }
+ interface:n2    = { ip = 10.1.2.1;   hardware = inside; bind_nat = N; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r3 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = inside; }
+ interface:n3 = { ip = 10.1.3.2; hardware = outside; routing = dynamic; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n1sub;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r3
+! [ Routing ]
+route inside 10.9.9.9 255.255.255.255 10.1.2.1
+--
+! inside_in
+access-list inside_in extended permit ip host 10.9.9.9 10.1.3.0 255.255.255.0
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Inherit NAT from overlapping areas and zones';
 ############################################################
 
