@@ -15348,7 +15348,7 @@ sub check_and_convert_routes {
             my $real_peer = $peer->{real_interface};
             my $peer_net  = $real_peer->{network};
 
-            # Find hop to peer network and add tunnel networks to this hop.
+            # Find hop to peer network and add tunneled networks to this hop.
             my @hops;
 
             # Peer network is directly connected.
@@ -15540,9 +15540,9 @@ sub check_and_convert_routes {
                     next if not $missing;
                     
                     # If destination network is reached via exactly
-                    # only interface, move hop from virtual to
-                    # physical interface. Destination is probably a
-                    # loopback interface of the same device.
+                    # one interface, move hop from virtual to physical
+                    # interface. Destination is probably a loopback
+                    # interface of same device.
                     my $network = $interface->{routes}->{$hop1}->{$net_ref};
                     if (@$hops == 1 and (my $phys_hop = $hop1->{orig_main})) {
                         delete $interface->{routes}->{$hop1}->{$net_ref};
