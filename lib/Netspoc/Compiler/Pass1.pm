@@ -15462,6 +15462,9 @@ sub check_and_convert_routes {
 
         for my $interface (@{ $router->{interfaces} }) {
 
+            # Collect error messages for sorted / deterministic output.
+            my $errors;
+
             # Routing info not needed, because dynamic routing is in use.
             if ($interface->{routing} or $interface->{ip} eq 'bridged') {
                 delete $interface->{hopref2obj};
@@ -15472,20 +15475,18 @@ sub check_and_convert_routes {
             # Remember, via which remote interface a network is reached.
             my %net2hop;
 
-            # Remember, via which remote redundancy interfaces a network
-            # is reached. We use this to check, that all members of a group
-            # of redundancy interfaces are used to reach the network.
-            # Otherwise it would be wrong to route to the virtual interface.
-            my %net2ip2hops;
+            # Remember, via which extra remote redundancy interfaces network2
+            # are reached. We use this to check, that all members of a group
+            # of redundancy interfaces are used to reach a network.
+            # Otherwise it would be wrong to route to virtual interface.
+            my (@net_behind_virt_hop, %net2extra_hops);
 
             # Abort, if more than one static route exists per network.
-            my $errors;
             for my $hop (sort by_name values %{ $interface->{hopref2obj} }) {
                 for my $network (values %{ $interface->{routes}->{$hop} }) {
 
                     # Check if network is reached via two different
-                    # local interfaces and static routing is enabled
-                    # on both interfaces
+                    # local interfaces.
                     if (my $interface2 = $net2intf{$network}) {
                         if ($interface2 ne $interface) {
                             push(@$errors,
@@ -15499,20 +15500,17 @@ sub check_and_convert_routes {
                     }
 
                     # Check whether network is reached via different hops.
-                    # Abort, if these do not belong to the same
-                    # redundancy group.
+                    # Abort, if these do not belong to same  redundancy group.
                     my $group = $hop->{redundancy_interfaces};
-                    if ($group) {
-                        push @{ $net2ip2hops{$network}{$hop->{ip}} }, $hop;
-                    }
                     if (my $hop2 = $net2hop{$network}) {
 
-                        # If next hops belong to same redundancy group,
-                        # prevent multiple routes to different
-                        # interfaces with identical virtual IP.
+                        # If next hop belongs to same redundancy group,
+                        # collect hops for detailed check below.
                         my $group2 = $hop2->{redundancy_interfaces};
                         if ($group and $group2 and $group eq $group2) {
                             delete $interface->{routes}->{$hop}->{$network};
+                            push @{ $net2extra_hops{$network} }, $hop;
+
                         }
                         else {
                             push(@$errors,
@@ -15523,55 +15521,50 @@ sub check_and_convert_routes {
                     }
                     else {
                         $net2hop{$network} = $hop;
+                        push @net_behind_virt_hop, $network if $group;
                     }
                 }
             }
             
             # Ensure correct routing at virtual interfaces.
-            for my $net_ref (keys %net2ip2hops) {
-                my $ip2hops = $net2ip2hops{$net_ref};
-                for my $redundancy_ip (keys %$ip2hops) {
+            # Check whether dst network is reached via all
+            # redundancy interfaces.
+            for my $network (@net_behind_virt_hop) {
+                my $hop1 = $net2hop{$network};
+                my $extra_hops = $net2extra_hops{$network} || [];
+                my $missing =
+                    @{ $hop1->{redundancy_interfaces} } - @$extra_hops - 1;
+                next if not $missing;
 
-                    # Check whether dst network is reached via all 
-                    # redundancy interfaces.
-                    my $hops = $ip2hops->{$redundancy_ip};
-                    my $hop1 = $hops->[0];
-                    my $missing = @{ $hop1->{redundancy_interfaces} } - @$hops;
-                    next if not $missing;
-                    
-                    # If destination network is reached via exactly
-                    # one interface, move hop from virtual to physical
-                    # interface. Destination is probably a loopback
-                    # interface of same device.
-                    my $network = $interface->{routes}->{$hop1}->{$net_ref};
-                    if (@$hops == 1 and (my $phys_hop = $hop1->{orig_main})) {
-                        delete $interface->{routes}->{$hop1}->{$net_ref};
-                        $interface->{routes}->{$phys_hop}->{$network}
-                                                                   = $network;
-                        $interface->{hopref2obj}->{$phys_hop} = $phys_hop;
-                        next;
-                    }
-
-                    # Show error message if dst network is reached by
-                    # more than one but not by all redundancy interfaces.
-                    my $names =
-                        join("\n - ", map({ $_->{name} } 
-                                          sort(by_name @$hops)));
-                    push(@$errors,
-                         "Pathrestriction ambiguously affects generation" .
-                         " of static routes\n       at interfaces" .
-                         " with virtual IP " .
-                         print_ip($redundancy_ip) . ":\n" .
-                         " $network->{name} is reached via\n" .
-                         " - $names\n" .
-                         " But $missing interface(s) of group" .
-                         " are missing.\n" .
-                         " Pathrestrictions must restrict paths to either\n" .
-                         " - all interfaces or\n" .
-                         " - no interfaces or\n" .
-                         " - exactly one interface\n" .
-                         " of this group.");
+                # If dst network is reached via exactly one interface,
+                # move hop from virtual to physical interface.
+                # Destination is probably a loopback interface of same
+                # device.
+                if (not @$extra_hops and (my $phys_hop = $hop1->{orig_main})) {
+                    delete $interface->{routes}->{$hop1}->{$network};
+                    $interface->{routes}->{$phys_hop}->{$network} = $network;
+                    $interface->{hopref2obj}->{$phys_hop} = $phys_hop;
+                    next;
                 }
+
+                # Show error message if dst network is reached by
+                # more than one but not by all redundancy interfaces.
+                my $names =
+                    join "\n - ", sort map { $_->{name} } $hop1, @$extra_hops;
+                push(@$errors,
+                     "Pathrestriction ambiguously affects generation" .
+                     " of static routes\n       at interfaces" .
+                     " with virtual IP " .
+                     print_ip($hop1->{ip}) . ":\n" .
+                     " $network->{name} is reached via\n" .
+                     " - $names\n" .
+                     " But $missing interface(s) of group" .
+                     " are missing.\n" .
+                     " Pathrestrictions must restrict paths to either\n" .
+                     " - all interfaces or\n" .
+                     " - no interfaces or\n" .
+                     " - exactly one interface\n" .
+                     " of this group.");
             }
 
             # Show error messages of both tests above.
