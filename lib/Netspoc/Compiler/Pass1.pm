@@ -15615,12 +15615,13 @@ sub print_routes {
         my $no_nat_set = 
             $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
 
+        my $routes = $interface->{routes};
         for my $hop (@{ $interface->{hopref2obj} }) {
             my $hop_info = [ $interface, $hop ];
 
             # A hash having all networks reachable via current hop
             # both as key and as value.
-            my $net_hash = $interface->{routes}->{$hop};
+            my $net_hash = $routes->{$hop};
             for my $network (values %$net_hash) {
                 my $nat_network = get_nat_network($network, $no_nat_set);
                 next if $nat_network->{hidden};
@@ -15757,9 +15758,10 @@ sub print_routes {
         # if there are at least two entries.
         my $max = 1;
         for my $interface (@{ $router->{interfaces} }) {
+            my $hop2nets = $intf2hop2nets{$interface};
             for my $hop (@{ $interface->{hopref2obj} }) {
                 my $count = grep({ not $net2no_opt{ $_->[2] } }
-                    @{ $intf2hop2nets{$interface}->{$hop} || [] });
+                                 @{ $hop2nets->{$hop} || [] });
                 if ($count > $max) {
                     $max_intf = $interface;
                     $max_hop  = $hop;
@@ -15786,6 +15788,7 @@ sub print_routes {
     my $nxos_prefix = '';
 
     for my $interface (@{ $router->{interfaces} }) {
+        my $hop2nets = $intf2hop2nets{$interface};
         for my $hop (@{ $interface->{hopref2obj} }) {
 
             # For unnumbered and negotiated interfaces use interface name
@@ -15795,7 +15798,7 @@ sub print_routes {
               ? $interface->{hardware}->{name}
               : print_ip $hop->{ip};
 
-            for my $netinfo (@{ $intf2hop2nets{$interface}->{$hop} }) {
+            for my $netinfo (@{ $hop2nets->{$hop} }) {
                 if ($type eq 'IOS') {
                     my $adr = ios_route_code($netinfo);
                     print "ip route $ios_vrf$adr $hop_addr\n";
