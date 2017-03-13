@@ -12035,9 +12035,6 @@ sub connect_cluster_path {
     # in different objects respects this.
     my ($start_store, $end_store);
 
-    # Set flag, if path starts or ends at interface of zone at border of loop.
-    my ($start_at_zone, $end_at_zone);
-
     # Don't set $from_in if we are about to enter a loop at zone,
     # because pathrestriction at $from_in must not be activated.
     if ($from_in and $from_in eq $from_store and 
@@ -12051,6 +12048,8 @@ sub connect_cluster_path {
                 
     # Path starts at pathrestricted interface inside or at border of 
     # current loop.
+    # Set flag, if path starts at interface of zone at border of loop.
+    my $start_at_zone;
     if (not $from_in and is_interface($from_store)) {
 
         # Path starts at border of current loop at zone node.
@@ -12082,7 +12081,10 @@ sub connect_cluster_path {
     if (not $to_out and is_interface($to_store)) {
         if ($to_store->{loop_zone_border}) {
             $end_store = $to_store->{zone};
-            $end_at_zone = 1;
+
+            # Path ends at interface of zone at border of loop.
+            # Continue path to router of interface outside of loop.
+            $to_out = $to_store;
         }
         else {
             $end_store = $to_store;
@@ -12100,12 +12102,6 @@ sub connect_cluster_path {
     # If loop path was found, set path information for $from_in and
     # $to_out interfaces and connect them with loop path.
     if ($success) {
-
-        # Path ends at interface of zone at border of loop.
-        # Continue path to router of interface outside of loop.
-        if ($end_at_zone) {
-            $to_out = $to_store;
-        }
 
         my $path_attr  = $from_in || $start_at_zone ? 'path' : 'path1';
         my $path_store = $from_in || $from_store;
