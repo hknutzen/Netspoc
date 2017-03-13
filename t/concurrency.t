@@ -132,9 +132,8 @@ $out = <<'END';
   - interface:r2.a.virtual
   - interface:r3.a.virtual
   But 1 interface(s) of group are missing.
-  Pathrestrictions must restrict paths to either
+  Remaining paths must traverse
   - all interfaces or
-  - no interfaces or
   - exactly one interface
   of this group.
 END

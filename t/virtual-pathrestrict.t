@@ -376,9 +376,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r2.a.virtual
  - interface:r3.a.virtual
  But 1 interface(s) of group are missing.
- Pathrestrictions must restrict paths to either
+ Remaining paths must traverse
  - all interfaces or
- - no interfaces or
  - exactly one interface
  of this group.
 Error: Pathrestriction ambiguously affects generation of static routes
@@ -388,9 +387,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r3.a.virtual
  - interface:r4.a.virtual
  But 1 interface(s) of group are missing.
- Pathrestrictions must restrict paths to either
+ Remaining paths must traverse
  - all interfaces or
- - no interfaces or
  - exactly one interface
  of this group.
 END
@@ -620,9 +618,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r3.b.virtual
  - interface:r4.b.virtual
  But 1 interface(s) of group are missing.
- Pathrestrictions must restrict paths to either
+ Remaining paths must traverse
  - all interfaces or
- - no interfaces or
  - exactly one interface
  of this group.
 END
@@ -704,9 +701,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r2.b.virtual
  - interface:r3.b.virtual
  But 1 interface(s) of group are missing.
- Pathrestrictions must restrict paths to either
+ Remaining paths must traverse
  - all interfaces or
- - no interfaces or
  - exactly one interface
  of this group.
 Error: Two static routes for network:a
@@ -902,9 +898,8 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - interface:r2.n2.virtual
  - interface:r3.n2.virtual
  But 1 interface(s) of group are missing.
- Pathrestrictions must restrict paths to either
+ Remaining paths must traverse
  - all interfaces or
- - no interfaces or
  - exactly one interface
  of this group.
 Error: Two static routes for network:n5

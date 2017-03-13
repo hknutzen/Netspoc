@@ -15547,16 +15547,15 @@ sub check_and_convert_routes {
                     join "\n - ", sort map { $_->{name} } $hop1, @$extra_hops;
                 push(@$errors,
                      "Pathrestriction ambiguously affects generation" .
-                     " of static routes\n       at interfaces" .
+                     " of static routes\n       to interfaces" .
                      " with virtual IP " .
                      print_ip($hop1->{ip}) . ":\n" .
                      " $network->{name} is reached via\n" .
                      " - $names\n" .
                      " But $missing interface(s) of group" .
                      " are missing.\n" .
-                     " Pathrestrictions must restrict paths to either\n" .
+                     " Remaining paths must traverse\n" .
                      " - all interfaces or\n" .
-                     " - no interfaces or\n" .
                      " - exactly one interface\n" .
                      " of this group.");
             }
