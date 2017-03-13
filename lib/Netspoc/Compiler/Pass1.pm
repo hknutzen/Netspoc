@@ -11813,29 +11813,29 @@ sub cluster_path_mark {
     # because zones case has been transformed before.
     my ($from_in, $to_out);
 
-    if (is_interface($start_store)) {
+    if (my $router = $start_store->{router}) {
         if ($start_store->{loop}) {
             $start_intf = $start_store;
-            $from       = $start_store->{router};
+            $from       = $router;
         }
         else {
             $from_in = $start_store;
             $from =    $start_store->{loop_zone_border} && $start_store->{zone} 
-                    || $start_store->{router};
+                    || $router;
         }
     }
     else {
         $from = $start_store;
     }
-    if (is_interface($end_store)) {
+    if (my $router = $end_store->{router}) {
         if ($end_store->{loop}) {
             $end_intf = $end_store;
-            $to       = $end_store->{router};
+            $to       = $router;
         }
         else {
             $to_out = $end_store;
             $to =     $end_store->{loop_zone_border} && $end_store->{zone} 
-                   || $end_store->{router};
+                   || $router;
         }
     }
     else {
