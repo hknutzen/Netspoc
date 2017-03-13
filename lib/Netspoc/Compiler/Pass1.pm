@@ -13116,19 +13116,17 @@ sub expand_crypto {
                 {
                     my $hub = $tunnel_intf->{peer};
                     my $real_hub = $hub->{real_interface};
-                    for my $pair (
-                        [ $real_spoke, $real_hub ],
-                        [ $real_hub,   $real_spoke ]
-                      )
+                    for my $intf1 ($real_spoke, $real_hub)
                     {
-                        my ($intf1, $intf2) = @$pair;
-
                         # Don't generate incoming ACL from unknown
                         # address.
                         next if $intf1->{ip} eq 'negotiated';
-                        my $rules_ref =
+
+                        my $intf2 = 
+                            $intf1 eq $real_hub ? $real_spoke : $real_hub;
+                        my $rules =
                           gen_tunnel_rules($intf1, $intf2, $crypto->{type});
-                        push @{ $path_rules{permit} }, @$rules_ref;
+                        push @{ $path_rules{permit} }, @$rules;
                     }
                 }
             }
