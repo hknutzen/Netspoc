@@ -1503,7 +1503,7 @@ network:n4 = { ip = 10.1.4.0/24;}
 router:r1 = {
  interface:n1 = { ip = 10.1.1.2; bind_nat = h; }
  interface:n2 = { ip = 172.17.0.1; }
- interface:n3 = { ip = 10.1.3.2; bind_nat = n; } 
+ interface:n3 = { ip = 10.1.3.2; bind_nat = n; }
 }
 
 network:n2 = {
@@ -3278,7 +3278,7 @@ END
 $out = <<'END';
 --asavpn
 no sysopt connection permit-vpn
-crypto ipsec ikev1 transform-set Trans1 ah-sha256-hmac esp-null 
+crypto ipsec ikev1 transform-set Trans1 ah-sha256-hmac esp-null
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
