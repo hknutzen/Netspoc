@@ -129,7 +129,7 @@ sub change_attribute_src_code {
                 if ($check->('description')) {
                     $check->('=');
                     $code =~ /\G .* \n/gcx;
-                }                    
+                }
                 while (1) {
                     last if $check->('}');
                     $read_token->();
@@ -226,11 +226,11 @@ sub mark_unmanaged {
 	    if (path_unmanaged($router, $interface)) {
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
-            }                
+            }
 	}
     }
     return;
-}	
+}
 
 sub mark_path {
     my ($src, $dst) = @_;
@@ -254,13 +254,13 @@ sub get_zones {
     @all_zones = values %all_zones;
     return;
 }
-	
+
 ####################################################################
 # Main program
 ####################################################################
 
 my $file_config = read_config($path);
-$config = combine_config($file_config, 
+$config = combine_config($file_config,
                     {time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 init_global_vars();
 show_version();
@@ -329,7 +329,7 @@ sub process_rules {
 #	        debug "Used $obj->{name}";
                 $obj->{router}->{is_used} = 1;
                 $obj->{network}->{is_used} = 1;
-            }		    
+            }
         }
         &path_walk($rule, \&mark_topology);
         for my $prt (@$prt_list) {
@@ -392,7 +392,7 @@ for my $area (values %areas) {
         $anchor->{is_used} = 1;
     }
     else {
-        for my $interface (@{ $area->{border} }, @{ $area->{inclusive_border} }) 
+        for my $interface (@{ $area->{border} }, @{ $area->{inclusive_border} })
         {
             $interface->{is_used} = 1;
             $interface->{router}->{is_used} = 1;
@@ -417,8 +417,8 @@ for my $network (values %networks) {
             my $zone = $up->{zone};
 
             # Check if NAT attribute was inherited from zone or areas.
-            $zone->{is_used} or 
-                grep { $_->{is_used} } values %{ $zone->{areas} } or 
+            $zone->{is_used} or
+                grep { $_->{is_used} } values %{ $zone->{areas} } or
                 next;
         }
         else {
@@ -450,7 +450,7 @@ for my $network (values %networks) {
         my $bridge = $bridge_in->{router};
         $bridge->{is_used} = 1;
         for my $bridge_out (@{ $bridge->{interfaces} }) {
-            if ($bridge_out->{hardware}->{name} eq 'device' && 
+            if ($bridge_out->{hardware}->{name} eq 'device' &&
                 $bridge->{model}->{class} eq 'ASA') {
                 $bridge_out->{is_used} = 1;
             }
@@ -458,7 +458,7 @@ for my $network (values %networks) {
                 $bridge_out->{is_used} = 1;
                 $bridge_out->{network}->{is_used} = 1;
             }
-        }                                           
+        }
     }
 }
 
@@ -484,7 +484,7 @@ for my $router (values %routers) {
 	if ($interface->{ip} eq 'tunnel') {
             my $peer = $interface->{peer};
             my $real_intf = $interface->{real_interface};
-            mark_path($real_intf, $peer->{real_interface}); 
+            mark_path($real_intf, $peer->{real_interface});
         }
     }
 }
@@ -505,13 +505,13 @@ for my $router (values %routers) {
                 remove_attribute_src_code('reroute_permit', $router);
             }
             elsif(@$networks != @used_networks) {
-                my $used_net_names = 
+                my $used_net_names =
                     join ', ', map { $_->{name} } @used_networks;
                 my $new_code = "reroute_permit = $used_net_names;";
                 change_attribute_src_code('reroute_permit', $router, $new_code);
             }
 	}
- 
+
 	# Mark crypto definitions which are referenced by
 	# already marked interfaces.
         if (my $crypto_list = $interface->{hub}) {
@@ -523,7 +523,7 @@ for my $router (values %routers) {
             }
         }
 
-        # Mark networks referenced by interfaces 
+        # Mark networks referenced by interfaces
         # implictly marked by expand_group.
         if ($interface->{is_used}) {
             $interface->{network}->{is_used} = 1;
@@ -596,9 +596,9 @@ progress('Removing referenced sub_owners');
 for my $service (values %services) {
     $service->{sub_owner} or next;
     remove_attribute_src_code('sub_owner', $service);
-}    
+}
 
-# Remove attribute 'router_attributes' 
+# Remove attribute 'router_attributes'
 # with 'owner', 'policy_distribution_point' and 'general_permit'.
 for my $area (values %areas) {
     $area->{is_used} or next;

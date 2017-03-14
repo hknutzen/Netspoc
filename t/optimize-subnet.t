@@ -100,14 +100,14 @@ $title = 'Optimize subnet of NAT network in zone';
 ############################################################
 
 $in = <<'END';
-network:customer = { 
- ip = 10.9.9.0/24; 
- nat:N = { ip = 10.1.7.0/24; } 
- has_subnets; 
+network:customer = {
+ ip = 10.9.9.0/24;
+ nat:N = { ip = 10.1.7.0/24; }
+ has_subnets;
 }
 
-router:r = { 
- interface:customer = { bind_nat = SUB; } 
+router:r = {
+ interface:customer = { bind_nat = SUB; }
  interface:sub = { ip = 10.1.7.34; bind_nat = N; }
 }
 

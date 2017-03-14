@@ -56,7 +56,7 @@ $title = 'Range, source port, deny, host, range, interface';
 ############################################################
 
 $in = $topo . <<'END';
-protocolgroup:ftp-all = tcp 21, 
+protocolgroup:ftp-all = tcp 21,
 			protocol:ftp-passive-data, protocol:ftp-active-data;
 protocolgroup:ftp-passive = tcp 21, protocol:ftp-passive-data;
 protocol:ftp-passive-data = tcp 1024-65535, stateless;

@@ -404,8 +404,8 @@ $title = 'Aggregate with NAT and owner';
 ############################################################
 
 $in = $topo . <<'END';
-any:a2 = { 
- link = network:n2; 
+any:a2 = {
+ link = network:n2;
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
  owner = foo;
 }
@@ -426,8 +426,8 @@ router:asa1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-any:a2 = { 
- link = network:n2; 
+any:a2 = {
+ link = network:n2;
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
 }
 service:test = {
@@ -443,20 +443,20 @@ $title = 'Mark supernet having identity NAT';
 ############################################################
 
 $in = <<'END';
-any:n1 = { 
- nat:N = { ip = 10.9.9.0/24; dynamic; } 
+any:n1 = {
+ nat:N = { ip = 10.9.9.0/24; dynamic; }
  link = network:n1;
 }
-network:n1 = { ip = 10.1.1.0/24; 
- nat:N = { identity; } 
+network:n1 = { ip = 10.1.1.0/24;
+ nat:N = { identity; }
 }
 network:n1_sub = {
- ip = 10.1.1.64/26; 
+ ip = 10.1.1.64/26;
  subnet_of = network:n1;
 }
 network:n1_subsub = {
  ip = 10.1.1.96/27;
- subnet_of = network:n1_sub; 
+ subnet_of = network:n1_sub;
 }
 router:u = {
  interface:n1;
@@ -1042,17 +1042,17 @@ router:asavpn = {
   trust-point = ASDM_TrustPoint1;
  }
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
+ interface:dmz = {
+  ip = 192.168.0.101;
   hub = crypto:vpn1, crypto:vpn2;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 network:dmz = { ip = 192.168.0.0/24; }
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
 }
@@ -1064,8 +1064,8 @@ router:softclients1 = {
  interface:internet = { spoke = crypto:vpn1; }
  interface:customers1;
 }
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  radius_attributes = {
   banner = Willkommen;
  }
@@ -1084,21 +1084,21 @@ router:softclients2 = {
  interface:internet = { spoke = crypto:vpn2; }
  interface:customers2;
 }
-network:customers2 = { 
- ip = 10.99.2.0/24; 
+network:customers2 = {
+ ip = 10.99.2.0/24;
  radius_attributes = {
-  vpn-idle-timeout = 120; 
+  vpn-idle-timeout = 120;
   trust-point = ASDM_TrustPoint2;
  }
 
  host:id:domain.x = {
-  range = 10.99.2.0 - 10.99.2.63; 
-  radius_attributes = { split-tunnel-policy = tunnelspecified; 
+  range = 10.99.2.0 - 10.99.2.63;
+  radius_attributes = { split-tunnel-policy = tunnelspecified;
                         check-subject-name = ou; }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
-  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; } 
+  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; }
  }
 }
 END
@@ -1110,11 +1110,11 @@ $title = 'Crypto definitions with router fragments';
 $in = $topo . $clients1 . $clients2 . <<'END';
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
 }
 service:test2 = {
  user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
- permit src = user; dst = network:intern; prt = tcp 81; 
+ permit src = user; dst = network:intern; prt = tcp 81;
 }
 END
 
@@ -1127,7 +1127,7 @@ $title = 'Take one of multiple crypto networks';
 my $service = <<'END';
 service:test1 = {
  user = host:id:bar@domain.x.customers1;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
 }
 END
 
@@ -1137,8 +1137,8 @@ router:softclients1 = {
  interface:internet = { spoke = crypto:vpn1; }
  interface:customers1;
 }
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  radius_attributes = {
   banner = Willkommen;
  }
@@ -1159,7 +1159,7 @@ $title = 'Network with ID hosts';
 $service = <<'END';
 service:test1 = {
  user = network:customers1;
- permit src = user; dst = network:intern; prt = tcp 80; 
+ permit src = user; dst = network:intern; prt = tcp 80;
 }
 END
 
@@ -1169,8 +1169,8 @@ router:softclients1 = {
  interface:internet = { spoke = crypto:vpn1; }
  interface:customers1;
 }
-network:customers1 = { 
- ip = 10.99.1.0/24; 
+network:customers1 = {
+ ip = 10.99.1.0/24;
  radius_attributes = {
   banner = Willkommen;
  }
@@ -1198,7 +1198,7 @@ network:n1 = {
 network:n2 = { ip = 10.1.2.0/24; }
 
 router:asa1 = {
- description = description = ;     
+ description = description = ;
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
@@ -1211,7 +1211,7 @@ service:s = {
  permit src = user; dst = network:n2; prt = tcp 80-90;
 }
 END
-    
+
 $out = <<'END';
 network:n1 = {
  description = network:n1; # looks like code
@@ -1219,7 +1219,7 @@ network:n1 = {
 }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
- description = description = ;     
+ description = description = ;
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }

@@ -36,8 +36,8 @@ $title = 'Must not define anchor together with border';
 ############################################################
 
 $in = $topo . <<'END';
-area:a = { 
- anchor = network:n1; 
+area:a = {
+ anchor = network:n1;
  border = interface:asa2.n2;
  inclusive_border = interface:asa2.n3;
 }
@@ -100,13 +100,13 @@ $title = 'Policy distribution point from nested areas';
 
 $in = $topo . <<'END';
 # a3 < a2 < all, a1 < all
-area:all = { 
- anchor = network:n1; 
+area:all = {
+ anchor = network:n1;
  router_attributes = { policy_distribution_point = host:h1; }
 }
 area:a1 = { border = interface:asa1.n1; }
 area:a2 = {
- border = interface:asa1.n2; 
+ border = interface:asa1.n2;
  router_attributes = { policy_distribution_point = host:h3; }
 }
 area:a3 = { border = interface:asa2.n3; }
@@ -135,11 +135,11 @@ $title = 'Missing policy distribution point';
 ############################################################
 
 $in = $topo . <<'END';
-area:all = { 
- anchor = network:n1; 
+area:all = {
+ anchor = network:n1;
 }
 area:a2 = {
- border = interface:asa1.n2; 
+ border = interface:asa1.n2;
  router_attributes = { policy_distribution_point = host:h3; }
 }
 
@@ -218,7 +218,7 @@ router:asa4 = {
 }
 
 area:a1 = { border = interface:asa3.n4;
-            inclusive_border = interface:asa2.n2; 
+            inclusive_border = interface:asa2.n2;
 }
 area:a2 = {anchor = network:n1; auto_border; }
 group:g1 = network:[area:a2];
@@ -241,7 +241,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { 
+ interface:n2 = {
   ip = 10.1.2.3; secondary:2 = { ip = 10.1.2.4; } hardware = vlan2; }
  interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
 }
@@ -268,7 +268,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { 
+ interface:n2 = {
   ip = 10.1.2.3; secondary:virtual = { ip = 10.1.2.4; } hardware = vlan2; }
  interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
 }
@@ -295,7 +295,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { 
+ interface:n2 = {
    ip = 10.1.2.3; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
  interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
 }
@@ -303,12 +303,12 @@ router:asa3 = {
 router:asa4 = {
  managed;
  model = ASA;
- interface:n2 = { 
+ interface:n2 = {
    ip = 10.1.2.4; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
  interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
 }
 
-area:a1 = { 
+area:a1 = {
   border = interface:asa3.n2.virtual,
            interface:asa4.n2.virtual;
 }
@@ -359,11 +359,11 @@ $title = 'inclusive_border at areas without subset relation';
 ############################################################
 
 $in = $topo . <<'END';
-area:a1 = { 
+area:a1 = {
  inclusive_border = interface:asa1.n1;
 }
-area:a2 = { 
- inclusive_border = interface:asa1.n2, interface:asa1.n3; 
+area:a2 = {
+ inclusive_border = interface:asa1.n2, interface:asa1.n3;
 }
 END
 
@@ -382,7 +382,7 @@ $in = $topo . <<'END';
 area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa2.n5;
 }
-area:a2 = { 
+area:a2 = {
  border = interface:asa1.n2, interface:asa1.n3;
 }
 
@@ -402,7 +402,7 @@ $title = 'Empty area';
 ############################################################
 
 $in = $topo . <<'END';
-area:a1 = { 
+area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa1.n2, interface:asa1.n3;
 }
 END
@@ -418,11 +418,11 @@ $title = 'Inconsistent definition of area in loop';
 ############################################################
 
 $in = $topo . <<'END';
-area:a1 = { 
+area:a1 = {
  border = interface:asa2.n2;
  inclusive_border = interface:asa1.n2;
 }
-area:a2 = { 
+area:a2 = {
  border = interface:asa2.n2;
 }
 END
@@ -450,7 +450,7 @@ $title = 'ACL from inclusive area';
 # border and inclusive_border can contact at an interface.
 
 $in = $topo . <<'END';
-area:a1 = { 
+area:a1 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
 }
 area:a2 = {
@@ -487,7 +487,7 @@ $title = 'Router attributes from inclusive area';
 ############################################################
 
 $in = $topo . <<'END';
-area:a1 = { 
+area:a1 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
  router_attributes = { general_permit = icmp; }
 }

@@ -15,7 +15,7 @@ $title = 'Access managed host from enclosing network';
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.11; hardware = eth0; }
 }
 
@@ -40,7 +40,7 @@ $title = 'Access from managed host to managed host';
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
  host:h2 = { managed; model = Linux; ip = 10.1.1.11; hardware = eth1; }
 }
@@ -69,7 +69,7 @@ $title = 'Automatically add managed host to destination network';
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
 }
 
@@ -94,7 +94,7 @@ $title = 'Detect duplicate automatic and manual managed host';
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
 }
 
@@ -118,7 +118,7 @@ $title = 'Automatically add managed host to destination aggregate ';
 $in = <<'END';
 any:10 = { ip=10.0.0.0/8; link = network:N; }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
 }
 
@@ -157,7 +157,7 @@ $title = 'Filter managed host in destination aggregate ';
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10;  hardware = eth0; }
  host:h2 = { managed; model = Linux; ip = 10.1.1.222; hardware = eth1; }
 }
@@ -190,10 +190,10 @@ router:filter = {
  interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  nat:dyn = { ip = 10.99.99.64/28; dynamic; }
- host:h1 = { 
-  ip = 10.1.1.10; 
+ host:h1 = {
+  ip = 10.1.1.10;
   nat:dyn = { ip = 10.99.99.69; }
   managed; model = Linux; hardware = eth0; }
 }
@@ -229,7 +229,7 @@ router:filter = {
  interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
  host:h2 = {          model = Linux; ip = 10.1.1.11; hardware = eth0; }
 }
@@ -271,7 +271,7 @@ router:filter = {
  interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
  host:h2 = { managed; model = Linux; ip = 10.1.1.11; hardware = eth0; }
 }
@@ -297,7 +297,7 @@ $title = "Managed host must use standard filter";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed = secondary; model = Linux; ip = 10.1.1.11; hardware = eth0; }
 }
 END
@@ -314,7 +314,7 @@ $title = "Missing model at managed host";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; ip = 10.1.1.11; hardware = eth0; }
 }
 END
@@ -331,7 +331,7 @@ $title = "Missing hardware at managed host";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.11; }
 }
 END
@@ -348,7 +348,7 @@ $title = "Unsupported model at managed host";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = IOS; ip = 10.1.1.11; hardware = eth0; }
 }
 END
@@ -365,7 +365,7 @@ $title = "Missing IP address";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; hardware = eth0; }
 }
 END
@@ -382,8 +382,8 @@ $title = "Unexpected IP range";
 
 $in = <<'END';
 network:N = {
- ip = 10.1.1.0/24; 
- host:h1 = { range = 10.1.1.7-10.1.1.17; 
+ ip = 10.1.1.0/24;
+ host:h1 = { range = 10.1.1.7-10.1.1.17;
              managed; model = Linux; hardware = eth0; }
 }
 END
@@ -403,7 +403,7 @@ router:R = {
  interface:N = { ip = 10.1.1.10; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = { managed; model = Linux; ip = 10.1.1.10; hardware = eth0; }
  host:h2 = { ip = 10.1.1.10; }
  host:h3 = { range = 10.1.1.8 - 10.1.1.15; }
@@ -438,9 +438,9 @@ router:filter = {
  interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
- host:h1 = { 
-  ip = 10.1.1.10; 
+ ip = 10.1.1.0/24;
+ host:h1 = {
+  ip = 10.1.1.10;
   managed; model = Linux; hardware = eth1; server_name = hugo; }
 }
 service:test = {

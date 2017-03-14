@@ -289,10 +289,10 @@ $title = 'Must not join rules with and without logging into object-group';
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24;
- host:h1 = { ip = 10.1.2.11; } 
- host:h2 = { ip = 10.1.2.12; } 
- host:h3 = { ip = 10.1.2.13; } 
- host:h4 = { ip = 10.1.2.14; } 
+ host:h1 = { ip = 10.1.2.11; }
+ host:h2 = { ip = 10.1.2.12; }
+ host:h3 = { ip = 10.1.2.13; }
+ host:h4 = { ip = 10.1.2.14; }
 }
 
 router:asa = {

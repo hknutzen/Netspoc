@@ -10,8 +10,8 @@ use Test_Netspoc;
 my ($title, $in, $out);
 
 my $topo =  <<'END';
-network:x = { ip = 10.1.1.0/24; 
- host:x7 = { ip = 10.1.1.7; } 
+network:x = { ip = 10.1.1.0/24;
+ host:x7 = { ip = 10.1.1.7; }
  host:x9 = { ip = 10.1.1.9; }
  host:range = { range = 10.1.1.6-10.1.1.11; }
 }
@@ -21,8 +21,8 @@ router:r = {
  interface:x = { ip = 10.1.1.1; hardware = e0; }
  interface:y = { ip = 10.2.2.2; hardware = e1; }
 }
-network:y = { ip = 10.2.2.0/24; 
- host:y = { ip = 10.2.2.9; } 
+network:y = { ip = 10.2.2.0/24;
+ host:y = { ip = 10.2.2.9; }
 }
 END
 
@@ -185,7 +185,7 @@ $title = 'Fully unenforceable rule';
 ############################################################
 
 $in = <<'END';
-any:x = { 
+any:x = {
  link = network:x;
 }
 
@@ -227,7 +227,7 @@ $title = 'Useless attribute "has_unenforceable" at zone';
 ############################################################
 
 $in = <<'END';
-any:x = { 
+any:x = {
  has_unenforceable;
  link = network:x;
 }

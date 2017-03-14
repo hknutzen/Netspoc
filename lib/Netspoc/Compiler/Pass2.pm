@@ -56,7 +56,7 @@ sub create_prt_obj {
     my ($descr) = @_;
     my ($proto, $i1, $i2, $established) = split ' ', $descr;
     my $prt = { proto => $proto, name => $descr };
-    
+
     if ($proto eq 'tcp' or $proto eq 'udp') {
         $prt->{range} = [ $i1, $i2 ];
         $prt->{established} = 1 if $established;
@@ -80,7 +80,7 @@ sub setup_ip_net_relation {
     # Collect networks into %mask_ip_hash.
     for my $network (values %$ip_net2obj) {
         my ($ip, $mask) = @{$network}{qw(ip mask)};
-        $mask_ip_hash{$mask}->{$ip} = $network;        
+        $mask_ip_hash{$mask}->{$ip} = $network;
     }
 
     # Compare networks.
@@ -90,17 +90,17 @@ sub setup_ip_net_relation {
 
         # No supernets available
         last if not @mask_list;
-        
+
         my $ip_hash = $mask_ip_hash{$mask};
       SUBNET:
         for my $ip (sort keys %$ip_hash) {
-            
+
             my $subnet = $ip_hash->{$ip};
-            
+
             # Find networks which include current subnet.
             # @mask_list holds masks of potential supernets.
             for my $m (@mask_list) {
-                
+
                 my $i = $ip & $m;
                 my $bignet = $mask_ip_hash{$m}->{$i} or next;
                 $subnet->{up} = $bignet;
@@ -156,8 +156,8 @@ sub order_ranges {
       sort {
              $a->{range}->[0] <=> $b->{range}->[0]
           || $b->{range}->[1] <=> $a->{range}->[1]
-      } 
-      grep { $_->{proto} eq $proto and not $_->{established} } 
+      }
+      grep { $_->{proto} eq $proto and not $_->{established} }
       values %$prt2obj;
 
     # Check current range [a1, a2] for sub-ranges, starting at position $i.
@@ -189,7 +189,7 @@ sub order_ranges {
                     $a2 + 1 == $c1 or last;
                     $c->{has_neighbor} = 1;
                     $j++;
-                }                    
+                }
             }
 
             # Not related.
@@ -248,7 +248,7 @@ sub setup_prt_relation {
                 $prt->{up} = $prt_ip;
             }
         }
-            
+
         # Numeric protocol.
         elsif ($proto =~ /^\d+$/) {
             $prt->{up} = $prt_ip;
@@ -333,7 +333,7 @@ sub optimize_redundant_rules {
 sub optimize_rules {
     my ($rules, $acl_info) = @_;
     my $prt_ip = $acl_info->{prt2obj}->{ip};
-    
+
     # For comparing redundant rules.
     my %rule_tree;
 
@@ -400,16 +400,16 @@ sub optimize_rules {
         else {
 
 #           debug("sec: ", print_rule $rule);
-            $secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key} = 
+            $secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key} =
                 $rule;
         }
     }
 
     if (keys %secondary_tree) {
-        $changed2 = optimize_redundant_rules(\%secondary_tree, 
+        $changed2 = optimize_redundant_rules(\%secondary_tree,
                                              \%secondary_tree, $acl_info);
         $changed ||= $changed2;
-        $changed2 = optimize_redundant_rules(\%secondary_tree, 
+        $changed2 = optimize_redundant_rules(\%secondary_tree,
                                              \%rule_tree, $acl_info);
         $changed ||= $changed2;
     }
@@ -490,21 +490,21 @@ sub join_ranges {
                             my $rule_b = $sorted[$i];
                             my ($b1, $b2) = @{ $rule_b->{prt}->{range} };
                             if ($a2 + 1 == $b1) {
-                                
+
                                 # Found adjacent port ranges.
                                 if (my $range = delete $rule_a->{range}) {
-                                    
+
                                     # Extend range of previous two or
                                     # more elements.
                                     $range->[1] = $b2;
                                     $rule_b->{range} = $range;
                                 }
                                 else {
-                                    
+
                                     # Combine ranges of $rule_a and $rule_b.
                                     $rule_b->{range} = [ $a1, $b2 ];
                                 }
-                                
+
                                 # Mark previous rule as deleted.
                                 $rule_a->{deleted} = 1;
                                 $changed = 1;
@@ -588,7 +588,7 @@ sub move_rules_esp_ah {
                    my ($s_b, $d_b) = @{$b}{qw(src dst)};
                    $a->{prt}->{proto} <=> $b->{prt}->{proto} ||
                    $s_a->{ip} cmp $s_b->{ip} || $s_a->{mask} cmp $s_b->{mask} ||
-                   $d_a->{ip} cmp $d_b->{ip} || $d_a->{mask} cmp $d_b->{mask} } 
+                   $d_a->{ip} cmp $d_b->{ip} || $d_a->{mask} cmp $d_b->{mask} }
                  @crypto_rules);
         $acl_info->{$what} = [ @deny_rules, @crypto_rules, @permit_rules ];
     }
@@ -602,8 +602,8 @@ sub add_local_deny_rules {
     my ($network_00, $prt_ip) = @{$acl_info}{qw(network_00 prt_ip)};
     my $filter_only = $acl_info->{filter_only};
     my $rules       = $acl_info->{rules};
-    
-    my $src_networks = 
+
+    my $src_networks =
         $acl_info->{filter_any_src} ? [$network_00] : $filter_only;
 
     if ($do_objectgroup) {
@@ -627,10 +627,10 @@ sub add_local_deny_rules {
                 return $group;
             }
         };
-        push(@$rules, 
-             { deny => 1, 
-               src => $group_or_single->($src_networks), 
-               dst => $group_or_single->($filter_only), 
+        push(@$rules,
+             { deny => 1,
+               src => $group_or_single->($src_networks),
+               dst => $group_or_single->($filter_only),
                prt => $prt_ip });
     }
     else {
@@ -650,10 +650,10 @@ sub add_local_deny_rules {
 #              Adjacent IP/mask objects are combined to larger objects.
 #              It is assumed, that no duplicate or redundant IP/mask objects
 #              are given.
-# Parameters : $hash - hash with IP/mask names as keys and 
+# Parameters : $hash - hash with IP/mask names as keys and
 #                      IP/mask objects as values.
 #              $ip_net2obj - hash of all known IP/mask objects
-# Result     : Returns reference to array of sorted and combined 
+# Result     : Returns reference to array of sorted and combined
 #              IP/mask objects.
 #              Parameter $hash is changed to reflect combined IP/mask objects.
 sub combine_adjacent_ip_mask {
@@ -800,7 +800,7 @@ sub find_objectgroups {
             }
 
             # No group found, build new group.
-            my $group = { name     => "g$router_data->{obj_group_counter}", 
+            my $group = { name     => "g$router_data->{obj_group_counter}",
                           elements => $elements,
                           hash     => $hash, };
             $router_data->{obj_group_counter}++;
@@ -1618,7 +1618,7 @@ sub find_chains {
                     my $rule = $rules->[$j];
                     my ($action, $t1, $t2, $t3, $t4) =
                       @{$rule}{ 'action', @test_order };
-                    ($t1, $t2, $t3, $t4) = 
+                    ($t1, $t2, $t3, $t4) =
                         map { $_->{name} } ($t1, $t2, $t3, $t4);
                     $rule_tree->{$t1}->{$t2}->{$t3}->{$t4} = $action;
                 }
@@ -1822,12 +1822,12 @@ sub expand_rule {
     for my $src (@$src_list) {
         for my $dst (@$dst_list) {
             for my $prt (@$prt_list) {
-                push @expanded, { %$rule, 
+                push @expanded, { %$rule,
                                   src => $src, dst => $dst, prt => $prt };
             }
         }
     }
-    return \@expanded;    
+    return \@expanded;
 }
 
 sub convert_rule_objects {
@@ -1852,7 +1852,7 @@ sub convert_rule_objects {
                 $prt = $prt2obj->{$prt} ||= create_prt_obj($prt);
             }
             if (my $prt = $rule->{src_range}) {
-                $rule->{src_range} = 
+                $rule->{src_range} =
                     $prt2obj->{$prt} ||= create_prt_obj($prt);
             }
             push @expanded, @{ expand_rule($rule) };
@@ -1866,7 +1866,7 @@ sub prepare_acls {
     my $router_data = from_json(read_file($path));
     my ($model, $acls, $filter_only, $do_objectgroup) =
         @{$router_data}{qw(model acls filter_only do_objectgroup)};
-    
+
     for my $acl_info (@$acls) {
 
         # Process networks and protocols of each interface individually,
@@ -1894,17 +1894,17 @@ sub prepare_acls {
 
         setup_ip_net_relation($ip_net2obj);
         $acl_info->{network_00} = $ip_net2obj->{'0.0.0.0/0'};
-    
+
         if (my $need_protect = $acl_info->{need_protect}) {
             mark_supernets_of_need_protect($need_protect);
         }
         if ($model eq 'Linux') {
             add_tcp_udp_icmp($prt2obj);
         }
-        
+
         setup_prt_relation($prt2obj);
         $acl_info->{prt_ip} = $prt2obj->{ip};
-        
+
         if ($model eq 'Linux') {
             find_chains($acl_info, $router_data);
         }
@@ -1912,7 +1912,7 @@ sub prepare_acls {
             for my $what (qw(intf_rules rules)) {
                 my $rules = $acl_info->{$what} or next;
                 $rules = optimize_rules($rules, $acl_info);
-    
+
                 # Join adjacent port ranges. This must be called after
                 # local optimization, because protocols will be
                 # overlapping again after joining.
@@ -1923,7 +1923,7 @@ sub prepare_acls {
 
             my $has_final_permit = check_final_permit($acl_info, $router_data);
             my $add_permit       = $acl_info->{add_permit};
-            add_protect_rules($acl_info, $router_data, 
+            add_protect_rules($acl_info, $router_data,
                               $has_final_permit || $add_permit);
             if ($do_objectgroup and not $acl_info->{is_crypto_acl}) {
                 find_objectgroups($acl_info, $router_data);
@@ -1984,7 +1984,7 @@ sub print_object_groups {
 
             # Reject network with mask = 0 in group.
             # This occurs if optimization didn't work correctly.
-            $zero_ip eq $element->{mask} 
+            $zero_ip eq $element->{mask}
                 and fatal_err(
                     "Unexpected network with mask 0 in object-group"
                 );
@@ -2145,7 +2145,7 @@ sub print_acl {
     else {
         if (my $groups = $acl_info->{object_groups}) {
             print_object_groups($groups, $acl_info, $model);
-        }    
+        }
         print_cisco_acl($acl_info, $router_data);
     }
 }
@@ -2167,7 +2167,7 @@ sub print_combined {
 
         # Print ACL.
         if (my ($acl_name) = ($line =~ /^#insert (.*)\n$/)) {
-            my $acl_info = $acl_hash{$acl_name} or 
+            my $acl_info = $acl_hash{$acl_name} or
                 fatal_err("Unexpected ACL $acl_name");
             print_acl($acl_info, $router_data);
         }
@@ -2176,7 +2176,7 @@ sub print_combined {
         else {
             print $line;
         }
-    }   
+    }
 
     select STDOUT;
     close $out_fd or fatal_err("Can't close $out_path: $!");
@@ -2246,7 +2246,7 @@ sub apply_concurrent {
 
     # Read to be processed files either from STDIN or from file.
     # Process with $concurrent background jobs.
-    # Error messages of background jobs not catched, 
+    # Error messages of background jobs not catched,
     # but send directly to STDERR.
     while(my $device_name = <$device_names_fh>) {
         chomp $device_name;
@@ -2304,14 +2304,14 @@ sub pass2 {
     }
     else {
         my $devlist = "$dir/.devlist";
-        open($from_pass1, '<', $devlist) or 
+        open($from_pass1, '<', $devlist) or
             fatal_err("Can't open $devlist for reading: $!");
     }
     ## use critic
 
     my $concurrent = $config->{concurrency_pass2};
     apply_concurrent($concurrent, $from_pass1, $dir, $prev);
-    
+
     # Remove directory '.prev' created by pass1
     # or remove symlink '.prev' created by newpolicy.pl.
     my $has_prev = -d $prev;

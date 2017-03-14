@@ -18,7 +18,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:l = { 
+ interface:l = {
   ip = 10.1.1.2; loopback; no_in_acl; dhcp_server; routing = OSPF; disabled;
  }
 }
@@ -40,7 +40,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:l = { 
+ interface:l = {
   unnumbered; loopback;
  }
 }
@@ -62,7 +62,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:l = { 
+ interface:l = {
   ip = 10.1.1.2, 10.1.1.3; loopback; virtual = { ip = 10.1.1.9; }
  }
 }
@@ -83,7 +83,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:l = { 
+ interface:l = {
   ip = 10.1.1.2; loopback; virtual = { ip = 10.1.1.9; }
  }
 }
@@ -213,7 +213,7 @@ router:b1 = {
   bind_nat = extern;
   hardware = eth0;
  }
- interface:extern = { 
+ interface:extern = {
   virtual = { ip = 193.1.1.2; type = VRRP; }
   loopback;
   hardware = eth1;
@@ -233,7 +233,7 @@ router:b2 = {
   bind_nat = extern;
   hardware = eth0;
  }
- interface:extern = { 
+ interface:extern = {
   virtual = { ip = 193.1.1.2; type = VRRP; }
   loopback;
   hardware = eth1;
@@ -381,12 +381,12 @@ router:asa = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 192.168.0.101; 
-  hardware = outside; 
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hardware = outside;
  }
 }
 
@@ -395,13 +395,13 @@ network:dmz = { ip = 192.168.0.0/24; }
 router:extern1 = {
  model = IOS,FW;
  managed; #remove
- interface:dmz = { 
+ interface:dmz = {
   ip = 192.168.0.11;
   virtual = { ip = 192.168.0.1; }
   hardware = Eth0;
  }
  interface:sync = { ip = 172.17.1.11; hardware = Loopback0; loopback; }
- interface:internet = { 
+ interface:internet = {
   ip = 1.2.3.11;
   virtual = { ip = 1.2.3.1; }
   hardware = Eth1;
@@ -411,8 +411,8 @@ router:extern1 = {
 router:extern2 = {
  model = IOS,FW;
  managed; #remove
- interface:dmz = { 
-  ip = 192.168.0.12; 
+ interface:dmz = {
+  ip = 192.168.0.12;
   virtual = { ip = 192.168.0.1; }
   hardware = Eth2;
  }
@@ -428,7 +428,7 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
 service:test = {
  user = network:intern;
- permit src = user; dst = interface:extern1.sync; prt = tcp 22; 
+ permit src = user; dst = interface:extern1.sync; prt = tcp 22;
 }
 END
 

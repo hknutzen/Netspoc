@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($topo, $title, $in, $out);
 
 $topo = <<'END';
-network:x = { ip = 10.1.1.0/24; 
+network:x = { ip = 10.1.1.0/24;
 }
 router:r = {
  model = IOS;
@@ -18,8 +18,8 @@ router:r = {
  interface:x = { ip = 10.1.1.1; hardware = e0; }
  interface:y = { ip = 10.2.2.2; hardware = e1; }
 }
-network:y = { ip = 10.2.2.0/24; 
- host:y = { ip = 10.2.2.9; } 
+network:y = { ip = 10.2.2.0/24;
+ host:y = { ip = 10.2.2.9; }
 }
 END
 
@@ -179,7 +179,7 @@ service:s = {
  user = network:x;
  permit src =   user;
         dst =   network:y;
-        prt =   protocol:ftp-passive-data, 
+        prt =   protocol:ftp-passive-data,
                 tcp 3389,
                 ;
 }

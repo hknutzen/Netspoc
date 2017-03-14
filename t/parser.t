@@ -29,7 +29,7 @@ $title = "Unknown model for managed router";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = foo;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
 }
@@ -48,7 +48,7 @@ $title = "Missing model for managed router";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
 }
 network:N = { ip = 10.1.1.0/24; }
@@ -66,7 +66,7 @@ $title = "Unknown extension for model";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = ASA, foo, bar;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
 }
@@ -86,7 +86,7 @@ $title = "Unexptected attribute no_check";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:N = { ip = 10.1.1.1; hardware = e0; no_check; }
 }
@@ -105,7 +105,7 @@ $title = "Unknown attribute in router";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = ASA;
  xyz;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
@@ -125,7 +125,7 @@ $title = "Unknown typed name in router";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = ASA;
  interface:N = { ip = 10.1.1.1; hardware = e0; }
  x:y;
@@ -148,7 +148,7 @@ $title = "Missing hardware at interface";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = ASA;
  interface:N = { ip = 10.1.1.1; no_in_acl; }
 }
@@ -170,7 +170,7 @@ network:N1 = { ip = 10.1.1.0/24; }
 network:N2 = { ip = 10.1.2.0/24; }
 
 router:R = {
- managed; 
+ managed;
  model = ASA;
  interface:N1 = { ip = 10.1.1.1; no_in_acl; hardware = n1; }
  interface:N2 = { ip = 10.1.2.1; no_in_acl; hardware = n2; }
@@ -192,7 +192,7 @@ network:N1 = { ip = 10.1.1.0/24; }
 network:N2 = { ip = 10.1.2.0/24; }
 
 router:R = {
- managed; 
+ managed;
  model = ASA;
  interface:N1 = { ip = 10.1.1.1; no_in_acl; hardware = x; }
  interface:N2 = { ip = 10.1.2.1; no_in_acl; hardware = x; }
@@ -246,7 +246,7 @@ $title = "Short interface at managed router";
 
 $in = <<'END';
 router:R = {
- managed; 
+ managed;
  model = ASA;
  interface:N = { hardware = inside; }
 }
@@ -830,7 +830,7 @@ network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 -- file2
 network:n2 = { ip = 10.1.2.0/24;
  host:h1 = { ip = 10.1.2.10; }
- host:h1 = { ip = 10.1.2.11; } 
+ host:h1 = { ip = 10.1.2.11; }
 }
 
 router:r = {
@@ -853,7 +853,7 @@ $title = 'Reference non network in subnet_of';
 $in = <<'END';
 any:n1 = { link = network:n1; }
 network:n1 = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  subnet_of = any:n1;
 }
 END
@@ -932,8 +932,8 @@ $title = "Invalid atttribute at aggregate with IP";
 
 $in = <<'END';
 owner:o = { admins = a@b.c; }
-any:n = { 
- link = network:n;ip = 10.0.0.0/16; 
+any:n = {
+ link = network:n;ip = 10.0.0.0/16;
  owner = o; has_unenforceable;
 }
 network:n = { ip = 10.1.1.0/24; }
@@ -952,9 +952,9 @@ $title = "Valid atttribute at aggregate with IP 0.0.0.0";
 
 $in = <<'END';
 owner:o = { admins = a@b.c; }
-any:n = { 
+any:n = {
  link = network:n;
- ip = 0.0.0.0/0; 
+ ip = 0.0.0.0/0;
  owner = o;
  has_unenforceable;
 }
@@ -973,7 +973,7 @@ $title = "Invalid attribute in router_attributes";
 ############################################################
 
 $in = <<'END';
-area:n = { 
+area:n = {
  anchor = network:n;
  router_attributes = { xyz; }
 }
@@ -1052,7 +1052,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 
 router:r = {
- managed; 
+ managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
@@ -1174,7 +1174,7 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
- managed; 
+ managed;
  model = ASA;
  policy_distribution_point = network:n1;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
@@ -1195,7 +1195,7 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r = {
- managed; 
+ managed;
  model = ASA;
  policy_distribution_point = host:h1;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }

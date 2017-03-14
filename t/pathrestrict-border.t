@@ -30,7 +30,7 @@ router:r2  = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; } 
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 # Loop end
@@ -188,14 +188,14 @@ router:filter = {
   ip = 10.9.1.1;
   hardware = Vlan20;
  }
- interface:Trans = { 
-  ip = 10.5.6.69; 
-  hardware = GigabitEthernet0/1; 
+ interface:Trans = {
+  ip = 10.5.6.69;
+  hardware = GigabitEthernet0/1;
  }
  interface:GRE = {
-  ip = 10.5.6.81; 
+  ip = 10.5.6.81;
   hardware = Tunnel1;
- } 
+ }
 }
 
 network:Trans = { ip = 10.5.6.68/30; }
@@ -203,7 +203,7 @@ network:GRE =   { ip = 10.5.6.80/30; }
 
 router:Kunde = {
  interface:Trans = { ip = 10.5.6.70; }
- interface:GRE =   { ip = 10.5.6.82; } 
+ interface:GRE =   { ip = 10.5.6.82; }
  interface:X =     { ip = 10.9.3.1; }
  interface:Schulung = { ip = 10.9.2.1; }
 }
@@ -216,11 +216,11 @@ END
 $title = 'Pathrestriction at border of loop (at router)';
 ############################################################
 
-# Soll an router:filter für Interfaces GRE und Trans unterschiedliche 
+# Soll an router:filter für Interfaces GRE und Trans unterschiedliche
 # ACLs generieren.
 
 $in = $topo . <<'END';
-pathrestriction:restrict = 
+pathrestriction:restrict =
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
  interface:Kunde.Schulung,
@@ -230,7 +230,7 @@ protocol:IP = ip;
 
 service:test = {
  user = network:Schulung, network:X;
- permit src = user; 
+ permit src = user;
 	dst = network:Test;
 	prt = protocol:IP;
 }
@@ -257,12 +257,12 @@ $title = 'Two pathrestrictions at border of loop (at router)';
 ############################################################
 
 $in = $topo . <<'END';
-pathrestriction:restrict1 = 
+pathrestriction:restrict1 =
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
  interface:Kunde.Schulung,
 ;
-pathrestriction:restrict2 = 
+pathrestriction:restrict2 =
  description = network:X nur über GRE-Tunnel.
  interface:filter.Trans,
  interface:Kunde.X,
@@ -272,7 +272,7 @@ protocol:IP = ip;
 
 service:test = {
  user = network:Schulung, network:X;
- permit src = user; 
+ permit src = user;
 	dst = network:Test;
 	prt = protocol:IP;
 }
@@ -297,18 +297,18 @@ test_run($title, $in, $out);
 $title = 'Pathrestriction at border of loop (at router / at dst.)';
 ############################################################
 
-# Soll Ausgang der Loop als Router erkennen, obwohl intern 
+# Soll Ausgang der Loop als Router erkennen, obwohl intern
 # ein Interface verwendet wird.
 
 $in = $topo . <<'END';
-pathrestriction:restrict = 
+pathrestriction:restrict =
  interface:filter.Test,
  interface:filter.Trans,
 ;
 
 service:test = {
  user = network:Schulung;
- permit src = user; 
+ permit src = user;
 	dst = any:[network:Test];
 	prt = tcp 80;
 }
@@ -347,9 +347,9 @@ router:filter1 = {
   ip = 10.9.1.1;
   hardware = Vlan20;
  }
- interface:Trans = { 
-  ip = 10.5.6.1; 
-  hardware = GigabitEthernet0/1; 
+ interface:Trans = {
+  ip = 10.5.6.1;
+  hardware = GigabitEthernet0/1;
  }
 }
 router:filter2 = {
@@ -359,9 +359,9 @@ router:filter2 = {
   ip = 10.9.1.2;
   hardware = Vlan20;
  }
- interface:Trans = { 
-  ip = 10.5.6.2; 
-  hardware = GigabitEthernet0/1; 
+ interface:Trans = {
+  ip = 10.5.6.2;
+  hardware = GigabitEthernet0/1;
  }
 }
 network:Trans = { ip = 10.5.6.0/24; }
@@ -377,7 +377,7 @@ router:Kunde = {
 
 network:Schulung = { ip = 10.9.2.0/24; }
 
-pathrestriction:restrict = 
+pathrestriction:restrict =
  description = Nur über filter1
  interface:filter2.Trans,
  interface:Kunde.Trans,
@@ -387,7 +387,7 @@ protocol:IP = ip;
 
 service:test = {
  user = network:Schulung;
- permit src = user; 
+ permit src = user;
 	dst = network:Test;
 	prt = protocol:IP;
 }
@@ -488,7 +488,7 @@ router:r1 = {
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = Vlan20; }
- interface:n2 = { ip = 10.1.2.1; hardware = G0/1; 
+ interface:n2 = { ip = 10.1.2.1; hardware = G0/1;
  }
 }
 router:r2 = {
@@ -509,11 +509,11 @@ router:r3 = {
 }
 network:n3 = { ip = 10.1.3.0/24; }
 
-pathrestriction:restrict1 = 
+pathrestriction:restrict1 =
  interface:r1.n1,
  interface:r3.n2,
 ;
-pathrestriction:restrict2 = 
+pathrestriction:restrict2 =
  interface:r2.n1,
  interface:r3.n2,
 ;
@@ -550,7 +550,7 @@ router:r1 = {
  model = IOS, FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; 
+ interface:n2 = { ip = 10.1.2.1; hardware = n2;
  }
 }
 router:r2 = {
@@ -571,7 +571,7 @@ router:r3 = {
 }
 network:n3 = { ip = 10.1.3.0/24; }
 
-pathrestriction:restrict1 = 
+pathrestriction:restrict1 =
  interface:r2.n1,
  interface:r3.n2,
 ;

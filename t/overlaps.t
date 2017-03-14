@@ -25,7 +25,7 @@ router:filter = {
  interface:N = { ip = 10.1.1.1; hardware = Vlan2; }
 }
 network:N = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:h1 = {   ip = 10.1.1.10;  }
 }
 END

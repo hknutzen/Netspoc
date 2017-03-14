@@ -38,7 +38,7 @@ sub test_group {
     else {
         $cmd .= " '$group'";
     }
-    
+
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.

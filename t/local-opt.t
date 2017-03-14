@@ -96,7 +96,7 @@ network:Hosting = { ip = 10.4.4.0/24; }
 
 service:A = {
  user = network:A;
- permit src = user; 
+ permit src = user;
 	dst = network:Hosting;
 	prt = tcp 55;
 }

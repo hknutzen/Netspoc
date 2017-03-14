@@ -69,7 +69,7 @@ service:s1 = {
         prt = tcp 80, udp 53;
 }
 END
- 
+
 $out = <<'END';
 -- sec
 ! n1_in
@@ -176,7 +176,7 @@ router:r2 = {
  interface:loop = { ip = 10.0.0.1; hardware = Loopback1; loopback; }
 }
 
-network:dst = { 
+network:dst = {
  ip = 10.9.9.0/24;
  subnet_of = network:dst_super;
  host:server = { ip = 10.9.9.9; }
@@ -235,8 +235,8 @@ router:r2 = {
  interface:dst = { ip = 10.9.9.1; hardware = Ethernet4; }
 }
 
-network:dst = { 
- ip = 10.9.9.0/24; 
+network:dst = {
+ ip = 10.9.9.0/24;
  host:server = { ip = 10.9.9.9; }
 }
 

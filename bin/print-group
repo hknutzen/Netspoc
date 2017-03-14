@@ -29,7 +29,7 @@ is a B<#> character followed by the corresponding input line.
 
 Uses network:name as reference when resolving IP address in a NAT environment.
 
-=item B<-unused> 
+=item B<-unused>
 
 Show only elements not used in any rules.
 
@@ -48,7 +48,7 @@ Show owner of elements.
 =item B<-f> FILE
 
 Read group definitions from FILE, one definition per line.
-If B<-> is specified, read from standard input. 
+If B<-> is specified, read from standard input.
 
 =item B<-quiet>
 
@@ -139,7 +139,7 @@ sub print_address {
                 return 'hidden';
             }
             else {
-                
+
                 # Dynamic NAT, take whole network.
                 my $ip = $network->{ip};
                 my $prefix = mask2prefix($network->{mask});
@@ -147,14 +147,14 @@ sub print_address {
             }
         }
         elsif (my $range = $obj->{range}) {
-            return 
+            return
                 join('-', map { print_ip(nat($_, $network)) } @$range);
         }
         elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
             return $obj->{ip};
         }
         elsif ($obj->{ip} eq 'negotiated') {
-            
+
             # Take whole network.
             my $ip = $network->{ip};
             my $prefix = mask2prefix($network->{mask});
@@ -173,7 +173,7 @@ sub print_address {
 # Argument processing
 ####################################################################
 
-my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file, 
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file,
     $quiet, $help, $man);
 GetOptions ( 'nat=s'  => \$nat_net,
 	     'unused' => \$show_unused,
@@ -205,7 +205,7 @@ else {
 }
 
 @ARGV and pod2usage(2);
-    
+
 ####################################################################
 # Main program
 ####################################################################
@@ -220,7 +220,7 @@ for (my $i = 0; $i < @groups; $i++) {
     chomp $definition;
     my $line = $i + 1;
     $input = "$definition;";
-    $current_file = 
+    $current_file =
         $groups_file ? "line $line of file $groups_file" : 'group definition';
     my $parsed = read_union(';');
     skip_space_and_comment();
@@ -242,7 +242,7 @@ find_subnets_in_zone();
 my $no_nat_set;
 if($nat_net) {
     $nat_net =~ s/^network://;
-    my $net = $networks{$nat_net} or 
+    my $net = $networks{$nat_net} or
 	die "Unknown network:$nat_net of option '-nat'\n";
     $no_nat_set = $net->{nat_domain}->{no_nat_set};
 }
@@ -280,7 +280,7 @@ for my $aref (@groups) {
     if ($show_unused) {
         $elements = [ grep { not $used{$_} } @$elements ];
     }
-    
+
     # Collect IP address, name, owner.
     my @info = map { my $v = [ print_address($_, $no_nat_set),
                                $_->{name} ];

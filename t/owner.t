@@ -160,8 +160,8 @@ network:VLAN_40_41/41 = { ip = 10.2.1.96/28; }
 
 service:test = {
  user = network:VLAN_40_41/40;
- permit src = user; 
-        dst = interface:asa.VLAN_40_41; 
+ permit src = user;
+        dst = interface:asa.VLAN_40_41;
         prt = ip;
 }
 END
@@ -238,7 +238,7 @@ owner:y = { admins = y@a.b; }
 
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
  owner = x;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
@@ -344,8 +344,8 @@ owner:x = { admins = a@a.b; watchers = x@a.b; only_watch; }
 owner:y = { admins = b@a.b; watchers = y@a.b; only_watch; }
 owner:z = { watchers = z@a.b; only_watch; }
 any:a1 = { owner = x; link = network:n1; }
-network:n1 = { 
- owner = y; ip = 10.1.1.0/24; 
+network:n1 = {
+ owner = y; ip = 10.1.1.0/24;
  host:h1 = { owner = z; ip = 10.1.1.1; }
 }
 END
@@ -459,7 +459,7 @@ $title = 'Invalid owner in area and router_attributes of area';
 ############################################################
 
 $in = <<'END';
-area:a1 = { 
+area:a1 = {
  border = interface:asa1.n1;
  owner = xx;
  router_attributes = { owner = xx; }
@@ -484,11 +484,11 @@ $title = 'Inherit owner from router_attributes of area';
 ############################################################
 
 $in = <<'END';
-area:all = { 
- anchor = network:n1; 
+area:all = {
+ anchor = network:n1;
  router_attributes = { owner = o1; }
 }
-area:a2 = { 
+area:a2 = {
  border = interface:r1.n2;
  router_attributes = { owner = o2; }
 }
@@ -653,7 +653,7 @@ router:asa1 = {
 }
 
 network:n2 = {
- ip = 10.1.2.0/24; 
+ ip = 10.1.2.0/24;
  host:h1 = { ip = 10.1.2.10; owner = o1; }
  host:h2 = { ip = 10.1.2.11; owner = o2; }
 }

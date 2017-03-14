@@ -14,9 +14,9 @@ my ($title, $in, $out, $topo, $groups);
 $topo = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; 
- host:h3a = { range = 10.1.3.10-10.1.3.15; } 
- host:h3b = { ip = 10.1.3.26; } 
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3a = { range = 10.1.3.10-10.1.3.15; }
+ host:h3b = { ip = 10.1.3.26; }
  host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
 
@@ -250,9 +250,9 @@ $title = 'Unused elements of multiple groups';
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; 
- host:h3a = { range = 10.1.3.10-10.1.3.15; } 
- host:h3b = { ip = 10.1.3.26; } 
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3a = { range = 10.1.3.10-10.1.3.15; }
+ host:h3b = { ip = 10.1.3.26; }
  host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
 
@@ -298,21 +298,21 @@ $title = 'NAT, negotiated, unnumbered, short, auto';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/28; dynamic; }
  host:h1s = { ip = 10.1.1.10; nat:t1 = { ip = 10.9.1.10; } }
  host:h1d = { ip = 10.1.1.11; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
+network:n2 = {
+ ip = 10.1.2.0/24;
  nat:t1 = { ip = 10.9.2.0/24; }
  host:h2 = { ip = 10.1.2.10; }
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
+network:n3 = {
+ ip = 10.1.3.0/24;
  nat:t1 = { hidden; }
  host:h3 = { ip = 10.1.3.10; }
 }
@@ -404,7 +404,7 @@ test_group($title, $in, 'network:n1, network:n2', $out, '-owner');
 ############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
-# Don't show warning "unused group:g2 
+# Don't show warning "unused group:g2
 $in = <<'END';
 network:n = { ip = 10.1.1.0/24; }
 
@@ -425,7 +425,7 @@ test_warn($title, $in, $out);
 ############################################################
 $title = 'Mark group in disabled rule as used';
 ############################################################
-# Don't show warning "unused group:g2 
+# Don't show warning "unused group:g2
 $in = <<'END';
 network:n = { ip = 10.1.1.0/24; }
 

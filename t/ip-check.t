@@ -96,7 +96,7 @@ $title = "Host IP/range don't match network IP/mask";
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  host:h1 = { ip = 10.1.2.3; }
  host:r1 = { range = 10.1.1.3-10.1.1.29; }
 }
@@ -115,7 +115,7 @@ $title = 'Invalid range';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  host:r1 = { range = 10.1.1.9-10.1.1.3; }
 }
 END
@@ -132,7 +132,7 @@ $title = 'Range has size of network';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  host:r1 = { range = 10.1.1.0-10.1.1.15; }
 }
 
@@ -199,7 +199,7 @@ $title = 'Overlapping ranges used in rule';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  host:r1 = { range = 10.1.1.4-10.1.1.11; }
  host:r2 = { range = 10.1.1.8-10.1.1.11; }
 }
@@ -231,7 +231,7 @@ $title = 'Non matching subnet';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  subnet_of = network:n2;
 }
 
@@ -256,7 +256,7 @@ $title = 'Subnet of unnumbered network';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  subnet_of = network:n2;
 }
 
@@ -282,7 +282,7 @@ $title = 'Overlapping hosts with subnet';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/28; 
+ ip = 10.1.1.0/28;
  subnet_of = network:n2;
 }
 
@@ -313,7 +313,7 @@ $title = 'Reference unknown network in subnet_of';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  subnet_of = network:n2;
 }
 END

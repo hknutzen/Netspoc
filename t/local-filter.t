@@ -313,7 +313,7 @@ $title = "Aggregate to local";
 ############################################################
 
 $in = $topo . <<'END';
-service:Test = { 
+service:Test = {
  user = any:[ip = 10.60.0.0/14 & network:n1];
  permit src = user;
         dst = network:n2;
@@ -340,7 +340,7 @@ $title = "Ignore non matching local aggregate";
 ############################################################
 
 $in = $topo . <<'END';
-service:Test = { 
+service:Test = {
  user = any:[ip = 10.99.0.0/16 & network:n1];
  permit src = user;
         dst = network:n2;
@@ -622,7 +622,7 @@ $title = "Loop, virtual interfaces (1)";
 ############################################################
 
 # Zone with virtual interfaces is recognized as leaf zone.
-# Zone with other loop is handled as intermediate zone with 
+# Zone with other loop is handled as intermediate zone with
 # possible connection to extern.
 
 $in = <<'END';
@@ -631,10 +631,10 @@ router:d1 = {
  model = IOS;
  managed = local;
  filter_only =  10.62.0.0/19;
- interface:n1 = { 
-  ip = 10.62.1.34; 
-  virtual = { ip = 10.62.1.33; } 
-  hardware = n1; 
+ interface:n1 = {
+  ip = 10.62.1.34;
+  virtual = { ip = 10.62.1.33; }
+  hardware = n1;
  }
  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
@@ -642,10 +642,10 @@ router:d2 = {
  model = IOS;
  managed = local;
  filter_only =  10.62.0.0/19;
- interface:n1 = { 
-  ip = 10.62.1.35; 
-  virtual = { ip = 10.62.1.33; } 
-  hardware = n21; 
+ interface:n1 = {
+  ip = 10.62.1.35;
+  virtual = { ip = 10.62.1.33; }
+  hardware = n21;
  }
  interface:trans = { ip = 10.62.3.1; hardware = n22; }
 }

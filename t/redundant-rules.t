@@ -14,10 +14,10 @@ $title = 'Find redundant rules';
 ############################################################
 
 $in = <<'END';
-network:n1-sub = { 
- ip = 10.1.1.128/25; 
+network:n1-sub = {
+ ip = 10.1.1.128/25;
  subnet_of = network:n1;
- host:h1 = { ip = 10.1.1.130; } 
+ host:h1 = { ip = 10.1.1.130; }
 }
 
 router:u = {
@@ -38,15 +38,15 @@ router:filter = {
  interface:n3 = { ip = 10.3.3.1; hardware = VLAN3; }
 }
 
-network:n2 = { 
- ip = 10.2.2.0/24; 
+network:n2 = {
+ ip = 10.2.2.0/24;
  host:h2 = { ip = 10.2.2.10; }
 }
 
 any:a2 = { link = network:n2; }
 
-network:n3 = { 
- ip = 10.3.3.0/24; 
+network:n3 = {
+ ip = 10.3.3.0/24;
  host:h3 = { ip = 10.3.3.10; }
 }
 
@@ -65,46 +65,46 @@ any:a3 = { link = network:n3; }
 # 1a < 1b
 service:1a = {
  user = host:h1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = ip;
 }
 
 # non redundant
 service:1b = {
  user = any:a1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = ip;
 }
 
 # non redundant
 service:1c = {
  user = host:h1;
- permit src = user; 
-        dst = any:a2; 
+ permit src = user;
+        dst = any:a2;
         prt = tcp 80;
 }
 
 # 1d < 1b
 service:1d = {
  user = network:n1;
- permit src = user; 
-        dst = host:h2; 
+ permit src = user;
+        dst = host:h2;
         prt = tcp;
 }
 
 # 2a < 2b < 2c
 service:2a = {
  user = host:h1;
- permit src = user; 
+ permit src = user;
         dst = host:h3;
         prt = tcp 80;
 }
 
 service:2b = {
  user = network:n1-sub;
- permit src = user; 
+ permit src = user;
         dst = network:n3;
         prt = tcp 80-90;
 }
@@ -112,7 +112,7 @@ service:2b = {
 # non redundant
 service:2c = {
  user = network:n1;
- permit src = user; 
+ permit src = user;
         dst = any:a3;
         prt = tcp;
 }
@@ -236,7 +236,7 @@ $title = 'Range spans whole network';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
  host:range  = { range = 10.1.1.0 - 10.1.1.255; }
 }
 

@@ -79,7 +79,7 @@ $title = 'VRFs';
 ############################################################
 
 $in = <<'END';
-network:m = { ip = 10.2.2.0/24; 
+network:m = { ip = 10.2.2.0/24;
 }
 router:r1@v1 = {
  managed = routing_only;

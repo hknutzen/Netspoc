@@ -174,8 +174,8 @@ group:G =
     ;
 END
 
-test_run($title, $in, 
-         'host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c', 
+test_run($title, $in,
+         'host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c',
          $out);
 
 ############################################################
@@ -196,8 +196,8 @@ group:G =
     ;
 END
 
-test_run($title, $in, 
-         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast', 
+test_run($title, $in,
+         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast',
          $out);
 
 ###################################################
@@ -330,7 +330,7 @@ owner:Wittmüß
 owner = Maass, Wittmüß
 END
 
-test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß', 
+test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß',
 	 $out);
 
 ############################################################
@@ -354,7 +354,7 @@ nat:ticks nat:ick
 nat:tick
 interface:net = { bind_nat = ick,
  ticks, tick;}
-network:net = { owner = foo; 
+network:net = { owner = foo;
  host:abc;
 }
 END
@@ -364,7 +364,7 @@ nat:t2 nat:_
 nat:t1
 interface:xxxx = { bind_nat = _,
  t2, t1;}
-network:xxxx = { owner = büro; 
+network:xxxx = { owner = büro;
  host:a1;
 }
 END

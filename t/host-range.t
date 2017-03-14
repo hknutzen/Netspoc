@@ -32,7 +32,7 @@ network:x = { ip = 192.168.1.0/24; }
 
 service:test = {
  user = host:a, host:b, host:c;
- permit src = user; dst = network:x; prt = tcp 80; 
+ permit src = user; dst = network:x; prt = tcp 80;
 }
 END
 
@@ -71,7 +71,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 
 service:test = {
  user = host:h4, host:h5, host:r4-5;
- permit src = user; dst = network:n2; prt = tcp 80; 
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
 END
 
