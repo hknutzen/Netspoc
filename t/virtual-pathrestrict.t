@@ -243,7 +243,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+$title = 'Conceal invalid extra pathrestriction if routing is not required -
           no router';
 ############################################################
 
@@ -370,7 +370,7 @@ END
 
 $out = <<'END';
 Error: Pathrestriction ambiguously affects generation of static routes
-       at interfaces with virtual IP 10.1.1.9:
+       to interfaces with virtual IP 10.1.1.9:
  network:b1 is reached via
  - interface:r1.a.virtual
  - interface:r2.a.virtual
@@ -381,7 +381,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
  - exactly one interface
  of this group.
 Error: Pathrestriction ambiguously affects generation of static routes
-       at interfaces with virtual IP 10.1.1.9:
+       to interfaces with virtual IP 10.1.1.9:
  network:b2 is reached via
  - interface:r2.a.virtual
  - interface:r3.a.virtual
@@ -410,7 +410,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Conceal non matching virtual interface groups with interconnect if 
+$title = 'Conceal non matching virtual interface groups with interconnect if
           no routing required';
 ############################################################
 
@@ -477,15 +477,15 @@ router:Z = {
  interface:K = {ip = 10.9.32.3; virtual = {ip = 10.9.32.1;}}
 }
 
-network:B = {ip = 10.2.1.16/30;} 
+network:B = {ip = 10.2.1.16/30;}
 
 router:L = {
  managed;
  model = IOS;
- interface:B = {ip = 10.2.1.17; hardware = Ethernet1; 
+ interface:B = {ip = 10.2.1.17; hardware = Ethernet1;
                 no_in_acl; routing = dynamic;}
  interface:c  = {ip = 10.2.6.165; hardware = Ethernet2;}
- interface:K = {ip = 10.9.32.2; virtual = {ip = 10.9.32.1;} 
+ interface:K = {ip = 10.9.32.2; virtual = {ip = 10.9.32.1;}
                 hardware = Ethernet0;}
 }
 
@@ -613,7 +613,7 @@ $in =~ s/,\s*interface:r3.b.virtual//s;
 # es wäre schick, wenn man hier den Namen der PR hätte!
 $out = <<'END';
 Error: Pathrestriction ambiguously affects generation of static routes
-       at interfaces with virtual IP 10.2.2.9:
+       to interfaces with virtual IP 10.2.2.9:
  network:c is reached via
  - interface:r3.b.virtual
  - interface:r4.b.virtual
@@ -688,7 +688,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = '3 virtual interfaces, dst network directly connected to 1 only - 
+$title = '3 virtual interfaces, dst network directly connected to 1 only -
           invalid extra pathrestriction';
 ############################################################
 
@@ -696,7 +696,7 @@ $in =~ s/interface:r3.c,\s*//s;
 
 $out = <<'END';
 Error: Pathrestriction ambiguously affects generation of static routes
-       at interfaces with virtual IP 10.2.2.9:
+       to interfaces with virtual IP 10.2.2.9:
  network:x is reached via
  - interface:r2.b.virtual
  - interface:r3.b.virtual
@@ -712,7 +712,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+$title = 'Conceal invalid extra pathrestriction if routing is not required -
           manual routing';
 ############################################################
 
@@ -790,7 +790,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Conceal invalid extra pathrestriction if routing is not required - 
+$title = 'Conceal invalid extra pathrestriction if routing is not required -
           no services';
 ############################################################
 
@@ -873,11 +873,11 @@ router:r7 = {
  interface:n5 = {ip = 10.5.5.2; hardware = E3;}
 }
 
-pathrestriction:p1 = 
+pathrestriction:p1 =
  interface:r2.n5,
  interface:r4.n3;
-                  
-pathrestriction:p2 = 
+
+pathrestriction:p2 =
  interface:r5.n4,
  interface:r6.n4,
  interface:r7.n4;
@@ -893,7 +893,7 @@ END
 
 $out = <<'END';
 Error: Pathrestriction ambiguously affects generation of static routes
-       at interfaces with virtual IP 10.2.2.10:
+       to interfaces with virtual IP 10.2.2.10:
  network:n5 is reached via
  - interface:r2.n2.virtual
  - interface:r3.n2.virtual
