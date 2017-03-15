@@ -332,7 +332,7 @@ sub process_rules {
 #	        debug "Used $obj->{name}";
                 $obj->{router}->{is_used} = 1;
                 $obj->{network}->{is_used} = 1;
-            }		    
+            }
         }
         &path_walk($rule, \&mark_topology);
         for my $prt (@$prt_list) {

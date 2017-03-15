@@ -177,7 +177,7 @@ sub print_address {
 # Argument processing
 ####################################################################
 
-my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file, 
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file,
     $quiet, $help, $ipv6, $man);
 
 GetOptions ( 'nat=s'  => \$nat_net,

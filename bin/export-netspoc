@@ -405,7 +405,7 @@ my %all_objects;
 # Split service, if 'user' has different values in normalized rules.
 sub normalize_services_for_export {
     progress("Normalize services for export");
-    my @result; 
+    my @result;
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
@@ -495,7 +495,7 @@ sub normalize_services_for_export {
 sub setup_service_info {
     my ($normalized_services) = @_;
     progress("Setup service info");
-    
+
     for my $service (@$normalized_services) {
         my $users = $service->{user};
 
