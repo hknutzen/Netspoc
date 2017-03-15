@@ -2621,7 +2621,7 @@ router:r2 = {
 }
 
 service:s1 = {
- user = interface:r1.l1, 
+ user = interface:r1.l1,
         interface:r2.l3,
         network:[interface:r1.l2],
         network:[interface:r2.l4],
