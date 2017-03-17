@@ -5341,13 +5341,16 @@ sub expand_group1 {
                                   " in $context";
                                 push @check, @{ $object->{zone}->{interfaces} };
                             }
+
+                            # Find managed interfaces of non aggregate network.
                             elsif ($managed) {
                                 push @check,
-                                  grep(
-                                    {        $_->{router}->{managed}
-                                          || $_->{router}->{routing_only} }
-                                    @{ $object->{interfaces} });
+                                  grep({    $_->{router}->{managed}
+                                         || $_->{router}->{routing_only} }
+                                       @{ $object->{interfaces} });
                             }
+
+                            # Find all interfaces of non aggregate network.
                             else {
                                 push @check, @{ $object->{interfaces} };
                             }
