@@ -440,4 +440,23 @@ END
 test_rmv($title, $out, "-f $filename", $in);
 
 ############################################################
+$title = 'Element to remove does not exist';
+############################################################
+
+$in = <<'END';
+group:g1 =
+ host:a,
+ host:b,
+;
+END
+
+$out = <<'END';
+group:g1 =
+ host:a,
+ host:b,
+;
+END
+
+test_rmv($title, $in, 'host:c', $out);
+############################################################
 done_testing;

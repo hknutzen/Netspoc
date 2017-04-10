@@ -250,7 +250,7 @@ sub process {
 
 sub process_input {
     my ($count, $copy) = process();
-    $count or next;
+    $count or return;
     my $path = $current_file;
     info "$count changes in $path" if not $quiet;
     unlink($path) or fatal_err("Can't remove $path: $!");
