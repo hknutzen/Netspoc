@@ -1877,6 +1877,35 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Owner without any assets';
+############################################################
+
+$in = <<'END';
+owner:o = { admins = o@example.com; }
+
+owner:all = { admins = all@example.com; only_watch; show_all; }
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+-- email
+{
+   "all@example.com" : [
+      "all",
+      "o"
+   ],
+   "o@example.com" : [
+      "o"
+   ]
+}
+-- owner/o/assets
+{}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Remove auto interface in rule';
 ############################################################
 # Auto interface of group and auto interface of rule must be

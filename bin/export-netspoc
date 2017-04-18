@@ -736,8 +736,11 @@ sub setup_outer_owners {
     # Intersection of all outer owners of one owner is allowed to take
     # role of corresponding inner owner.
     for my $owner (values %owners) {
-        my $outer_owners = $owner2outer_owners{$owner} or next;
-        keys %$outer_owners or next;
+        my $outer_owners = $owner2outer_owners{$owner};
+        if ($master_owner) {
+            $outer_owners->{$master_owner} = $master_owner;
+        }
+        $outer_owners and keys %$outer_owners or next;
         $owner->{extended_by} = [ sort by_name values %$outer_owners ];
     }
 }
