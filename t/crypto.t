@@ -1292,6 +1292,95 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'NAT with VPN ASA';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.2.0/24; nat:E = { ip = 192.168.2.0/24; } }
+
+network:trans = { ip = 10.9.9.0/24; }
+router:gw = {
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.2; }
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ no_crypto_filter;
+ radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+  bind_nat = I;
+  no_check;
+ }
+ interface:extern = {
+  ip = 192.168.1.1;
+  hardware = extern;
+  bind_nat = E;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
+ interface:customers1;
+}
+
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ nat:E = { ip = 192.168.99.0/24; }
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+}
+
+network:extern = { ip = 192.168.1.0/24; nat:I = { ip = 10.7.7.0/24; }}
+
+service:test1 = {
+ user = host:id:foo@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+ permit src = user; dst = network:extern; prt = tcp 81;
+}
+
+service:test2 = {
+ user = network:extern;
+ permit src = user; dst = network:intern; prt = tcp 82;
+ permit src = user; dst = network:customers1; prt = tcp 83;
+ permit src = network:intern; dst = user; prt = tcp 84;
+}
+END
+
+$out = <<'END';
+-- asavpn
+! vpn-filter-foo@domain.x
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
+access-list vpn-filter-foo@domain.x extended deny ip any any
+username foo@domain.x nopassword
+username foo@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-foo@domain.x
+--
+! outside_in
+access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
+access-list outside_in extended permit tcp host 10.99.1.10 10.7.7.0 255.255.255.0 eq 81
+access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
+--
+! extern_in
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.2.0 255.255.255.0 eq 82
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.99.0 255.255.255.0 eq 83
+access-list extern_in extended deny ip any any
+access-group extern_in in interface extern
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Mixed NAT at ASA crypto interface (1)';
 ############################################################
 

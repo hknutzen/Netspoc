@@ -2280,12 +2280,6 @@ sub read_router {
               or err_msg("Attribute 'hub' needs to be defined",
                          " at an interface of $name of model $model->{name}");
 
-            # Don't support NAT for VPN, otherwise code generation for VPN
-            # devices will become more difficult.
-            $has_bind_nat and
-              err_msg("Attribute 'bind_nat' is not allowed",
-                      " at interface of $name of model $model->{name}");
-
             $router->{radius_attributes} ||= {};
         }
         else {
