@@ -45,11 +45,11 @@ pathrestriction:p2 =
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
-}     
+}
 service:s2 = {
  user = interface:r1.n2;
  permit src = user; dst = interface:r2.n2; prt = tcp 22;
-}     
+}
 END
 
 $out = <<"END";

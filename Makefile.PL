@@ -51,11 +51,12 @@ my %WriteMakefileArgs = (
     "File::Spec::Functions" => 0,
     "File::Temp" => 0,
     "IPC::Run3" => 0,
+    "POSIX" => 0,
     "Test::Differences" => 0,
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.021",
+  "VERSION" => "5.022",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -77,6 +78,7 @@ my %FallbackPrereqs = (
   "IPC::Run3" => 0,
   "JSON" => 0,
   "JSON::XS" => 0,
+  "POSIX" => 0,
   "Pod::Usage" => 0,
   "Test::Differences" => 0,
   "Test::More" => 0,

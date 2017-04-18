@@ -16,7 +16,7 @@ $title = "Protect interface if network behind is accessed";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
@@ -50,7 +50,7 @@ $title = "Disable protection with attribute 'no_protect_self'";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  no_protect_self;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
@@ -84,7 +84,7 @@ $title = "Protect all interfaces";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
@@ -115,7 +115,7 @@ $title = "Protect interfaces matching object group";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = NX-OS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:l4 = { ip = 10.2.2.4; loopback; subnet_of = network:N2; hardware = lo4; }
@@ -160,7 +160,7 @@ $title = "Protect interfaces matching aggregate";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
@@ -190,7 +190,7 @@ $title = "Skip protection if permit any to interface";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
@@ -257,7 +257,7 @@ $title = "VIP doesn't need protection";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:V = { ip = 10.3.3.3; vip; }
@@ -288,14 +288,14 @@ $title = "Protect interfaces of crosslink cluster";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R1 = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:C = { ip = 10.9.9.1; hardware = e1; }
 }
 network:C = { ip = 10.9.9.0/29; crosslink; }
 router:R2 = {
- managed; 
+ managed;
  model = IOS;
  interface:C = { ip = 10.9.9.2; hardware = e2; }
  interface:N = { ip = 10.2.2.1; hardware = e3; }
@@ -304,8 +304,8 @@ network:N = { ip = 10.2.2.0/24; }
 
 service:test = {
     user = network:U;
-    permit src = user; 
-           dst = any:[network:N], any:[network:C]; 
+    permit src = user;
+           dst = any:[network:N], any:[network:C];
            prt = tcp 80;
 }
 END
@@ -330,7 +330,7 @@ $title = "Protect interfaces of mixed crosslink cluster";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R1 = {
- managed; 
+ managed;
  model = ASA;
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:C = { ip = 10.9.9.1; hardware = e1; }
@@ -338,7 +338,7 @@ router:R1 = {
 area:CVN = { border = interface:R1.C; }
 network:C = { ip = 10.9.9.0/29; crosslink; }
 router:R2 = {
- managed; 
+ managed;
  model = ACE;
  interface:C = { ip = 10.9.9.2; hardware = e2; }
  interface:V = { ip = 10.3.3.3; vip; }
@@ -348,7 +348,7 @@ network:N = { ip = 10.2.2.0/24; }
 
 service:test = {
     user = network:U;
-    permit src = user; 
+    permit src = user;
     dst = any:[area:CVN];
            prt = tcp 80;
 }
@@ -374,7 +374,7 @@ $title = "Protect NAT interface";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; bind_nat = N; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
@@ -406,14 +406,14 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
- managed; 
+ managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = d; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 network:n2 = {
- ip = 10.1.2.0/24; 
+ ip = 10.1.2.0/24;
  nat:d = { ip = 10.9.9.0/25; dynamic; }
 }
 

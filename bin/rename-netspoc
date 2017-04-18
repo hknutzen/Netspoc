@@ -85,11 +85,11 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '5.021'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.022'; # VERSION: inserted by DZP::OurPkgVersion
 my $quiet;
 
-my %global_type = 
-    map { $_ => 1 } qw( 
+my %global_type =
+    map { $_ => 1 } qw(
 router network host any group area service
 owner protocol protocolgroup pathrestriction nat isakmp ipsec crypto
 );
@@ -126,14 +126,14 @@ sub setup_subst {
         $subst{interface} ||= {};
     }
 }
- 
+
 sub subst {
     my ($type, $name) = @_;
     my $aref = $subst{$type} or return $name;
 
     # ID host is extended by network name.
     if ($type eq 'host' and
-        my ($host, $network) = ($name =~ /^(id:.*)[.]([\w-]+)$/)) 
+        my ($host, $network) = ($name =~ /^(id:.*)[.]([\w-]+)$/))
     {
         if (my $replace = $subst{host}->{$host}) {
             $host = $replace;
@@ -147,7 +147,7 @@ sub subst {
 
     # Reference to interface ouside the definition of router.
     elsif ($type eq 'interface' and
-           (my $router, $network, my $ext) = 
+           (my $router, $network, my $ext) =
            ($name =~ /^([\w@-]+)[.]([\w-]+)((?:[.].*)?)$/))
     {
         if (my $replace = $subst{router}->{$router}) {
@@ -162,7 +162,7 @@ sub subst {
     elsif (my $replace = $subst{$type}->{$name}) {
         $name = $replace;
     }
-    
+
     return $name;
 }
 
@@ -210,7 +210,7 @@ sub process {
             $copy .= $new;
             $changed++ if $name ne $new;
         }
-            
+
         # Find "type = name".
         elsif ($input =~ /\G (.*?) ([-\w]+) (\s* = [ \t]*) /gcx) {
             $copy .= "$1$2$3";
@@ -243,18 +243,18 @@ sub process_input {
     print $out $copy;
     close $out;
 }
- 
+
 sub setup_pattern {
     my (@pattern) = @_;
     while (@pattern) {
         my $old = shift @pattern;
-        my $new = shift @pattern or 
+        my $new = shift @pattern or
             fatal_err "Missing replace string for '$old'";
-        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or 
+        my ($type, $old_name) = ($old =~ /^(\w+):(.*)$/) or
             fatal_err "Missing type in '$old'";
-        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or 
+        my ($n_type, $new_name) = ($new =~ /^(\w+):(.*)$/) or
             fatal_err "Missing type in '$new'";
-        $type eq $n_type or 
+        $type eq $n_type or
             fatal_err "Types must be identical in\n - $old\n - $new";
         setup_subst($type, $old_name, $new_name);
     }
@@ -273,7 +273,7 @@ sub read_pattern {
         fatal_err "Missing pattern in $path";
     setup_pattern(@pattern);
 }
-    
+
 ####################################################################
 # Argument processing
 ####################################################################

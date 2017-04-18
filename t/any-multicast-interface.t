@@ -16,7 +16,7 @@ $title = "Interface with DHCP server";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = IOS;
  interface:U = { ip = 10.1.1.1; hardware = e0; dhcp_server; }
 }
@@ -38,7 +38,7 @@ $title = "Interface as DHCP client";
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- managed; 
+ managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; dhcp_client; }
 }
@@ -60,7 +60,7 @@ $title = "Interface with OSPF";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = OSPF; }
 }
@@ -83,7 +83,7 @@ $title = "Interface with EIGRP";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = EIGRP; }
 }
@@ -105,7 +105,7 @@ $title = "Interface with RIPv2";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
  interface:U = { ip = 10.1.1.1; hardware = e0; routing = RIPv2; }
 }
@@ -129,23 +129,23 @@ network:U = { ip = 10.1.1.0/24; }
 network:V = { ip = 10.2.2.0/24; }
 
 router:R1 = {
- managed; 
+ managed;
  model = ACE;
- interface:U = { 
-  ip = 10.1.1.2; 
+ interface:U = {
+  ip = 10.1.1.2;
   virtual = { ip = 10.1.1.1; type = HSRP; }
-  hardware = e0; 
+  hardware = e0;
  }
  interface:V = { ip = 10.2.2.1; hardware = e1;}
 }
 
 router:R2 = {
- managed; 
+ managed;
  model = ACE;
- interface:U = { 
-  ip = 10.1.1.3; 
+ interface:U = {
+  ip = 10.1.1.3;
   virtual = { ip = 10.1.1.1; type = HSRP; }
-  hardware = e0; 
+  hardware = e0;
  }
  interface:V = { ip = 10.2.2.2; hardware = e1;}
 }
@@ -169,12 +169,12 @@ $title = "Interface with HSRPv2";
 $in = <<'END';
 network:U = { ip = 10.1.1.0/24; }
 router:R = {
- managed; 
+ managed;
  model = ACE;
- interface:U = { 
-  ip = 10.1.1.2; 
+ interface:U = {
+  ip = 10.1.1.2;
   virtual = { ip = 10.1.1.1; type = HSRPv2; }
-  hardware = e0; 
+  hardware = e0;
  }
 }
 END

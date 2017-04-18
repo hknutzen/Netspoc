@@ -374,7 +374,7 @@ $title = 'Admin access to bridge';
 
 my $topology = <<'END';
 
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -383,11 +383,11 @@ router:asa = {
  model = IOS;
  #managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = Ethernet0;
  }
- interface:dmz/left = { 
-  ip = 192.168.0.101; 
+ interface:dmz/left = {
+  ip = 192.168.0.101;
   hardware = Ethernet1;
  }
 }
@@ -405,7 +405,7 @@ router:bridge = {
 
 network:dmz/right = { ip = 192.168.0.0/24;}
 
-router:extern = { 
+router:extern = {
  interface:dmz/right = { ip = 192.168.0.1; }
  interface:extern;
 }
@@ -416,7 +416,7 @@ END
 $in = $topology . <<'END';
 service:admin = {
  user =  interface:bridge.dmz;
- permit src = network:intern; dst = user; prt = tcp 22; 
+ permit src = network:intern; dst = user; prt = tcp 22;
 }
 END
 
@@ -433,7 +433,7 @@ $title = 'Admin access to bridge auto interface';
 $in = $topology . <<'END';
 service:admin = {
  user =  interface:bridge.[auto];
- permit src = network:intern; dst = user; prt = tcp 22; 
+ permit src = network:intern; dst = user; prt = tcp 22;
 }
 END
 
@@ -446,7 +446,7 @@ $title = 'Admin access to bridge all interfaces';
 $in = $topology . <<'END';
 service:admin = {
  user =  interface:bridge.[all];
- permit src = network:intern; dst = user; prt = tcp 22; 
+ permit src = network:intern; dst = user; prt = tcp 22;
 }
 END
 
@@ -462,7 +462,7 @@ $topology =~ s/#managed/managed/;
 $in = $topology . <<'END';
 service:test = {
  user = network:dmz/left, network:dmz/right;
- permit src = user; dst = host:[network:intern]; prt = tcp 80; 
+ permit src = user; dst = host:[network:intern]; prt = tcp 80;
 }
 END
 
@@ -482,7 +482,7 @@ $title = 'Access through bridged ASA';
 $in = $topology . <<'END';
 service:test = {
  user = network:extern;
- permit src = user; dst = host:[network:intern]; prt = tcp 80; 
+ permit src = user; dst = host:[network:intern]; prt = tcp 80;
 }
 END
 

@@ -352,7 +352,7 @@ crypto:sts = {
  type = ipsec:aes256SHA;
 }
 -- intra
-network:intern = { 
+network:intern = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
@@ -361,19 +361,19 @@ router:asavpn = {
  model = ASA;
  managed;
  interface:intern = {
-  ip = 10.1.1.101; 
+  ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { 
-  ip = 1.2.3.2; 
+ interface:dmz = {
+  ip = 1.2.3.2;
   hub = crypto:sts;
-  hardware = outside; 
+  hardware = outside;
  }
 }
 -- internet
 network:dmz = { ip = 1.2.3.0/25; }
 
-router:extern = { 
+router:extern = {
  interface:dmz = { ip = 1.2.3.1; }
  interface:internet;
 }
@@ -386,7 +386,7 @@ router:firewall = {
 }
 
 network:dmz1 = {
- ip = 10.254.254.0/24; 
+ ip = 10.254.254.0/24;
  nat:vpn1 = { ip = 1.2.3.129/32; dynamic; }
 }
 -- spoke
@@ -407,8 +407,8 @@ id = cert@example.com;
  }
 }
 
-network:lan1 = { 
- ip = 10.99.1.0/24; 
+network:lan1 = {
+ ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
 }
 END

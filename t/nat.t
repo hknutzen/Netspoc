@@ -38,7 +38,7 @@ router:r = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = 10.1.1.1; hardware = n1; 
+  ip = 10.1.1.1; hardware = n1;
   nat:n = { ip = 10.9.9.1; }
   nat:n = { ip = 10.8.8.1; }
  }
@@ -135,8 +135,8 @@ $title = 'Duplicate IP address';
 ############################################################
 
 $in = <<'END';
-network:n1a = { 
- ip = 10.1.1.0/24; 
+network:n1a = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
 }
 
@@ -152,8 +152,8 @@ router:r2 = {
  interface:n1b = { bind_nat = t1; }
 }
 
-network:n1b = { 
- ip = 10.1.1.0/24; 
+network:n1b = {
+ ip = 10.1.1.0/24;
  nat:t2 = { ip = 10.9.2.0/24; }
 }
 END
@@ -205,7 +205,7 @@ $title = 'Dynamic NAT for network with static nat for hosts at ASA';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.9.1.0/24; 
+ ip = 10.9.1.0/24;
  nat:C = { ip = 1.1.1.16/28; dynamic;}
  host:H = { ip = 10.9.1.33; nat:C = { ip = 1.1.1.23; } }
 }
@@ -294,7 +294,7 @@ $title = 'Check rule with any to hidden NAT';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.0.1.0/24; 
+ ip = 10.0.1.0/24;
  nat:C = { hidden; }
 }
 
@@ -345,7 +345,7 @@ $title = 'NAT network is undeclared subnet';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.0.0.0/28; 
+ ip = 10.0.0.0/28;
  nat:C = { ip = 10.8.3.240/28; } #subnet_of = network:X; }
 }
 
@@ -445,11 +445,11 @@ $title = 'Inherit subnet_of from inherited NAT';
 
 $in = <<'END';
 network:n1 = {
- ip = 10.1.1.0/24; 
- nat:N = { ip = 10.9.9.0/24; } 
+ ip = 10.1.1.0/24;
+ nat:N = { ip = 10.9.9.0/24; }
 }
 network:n1_sub = {
- ip = 10.1.1.64/26; 
+ ip = 10.1.1.64/26;
  subnet_of = network:n1;
 }
 router:u = {
@@ -494,12 +494,12 @@ $title = 'Must not bind multiple NAT of one network at one place';
 
 $in = <<'END';
 network:n1 =  {
- ip = 10.0.1.0/24; 
+ ip = 10.0.1.0/24;
  nat:C = { ip = 10.8.1.0/24; }
  nat:D = { hidden; }
 }
 network:n2 =  {
- ip = 10.0.2.0/24; 
+ ip = 10.0.2.0/24;
  nat:C = { ip = 10.8.2.0/24; }
  nat:D = { hidden; }
 }
@@ -529,7 +529,7 @@ $title = 'Unused / undefined NAT tag';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.0.0.0/24; 
+ ip = 10.0.0.0/24;
  nat:C = { ip = 10.8.8.0/24; }
 }
 
@@ -578,7 +578,7 @@ $title = 'Non matching NAT IP of host and interface';
 $in = <<'END';
 network:n1 =  {
  ip = 10.1.1.0/24;
- nat:x = { ip = 10.8.8.0/23; dynamic; } 
+ nat:x = { ip = 10.8.8.0/23; dynamic; }
  host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.7.7.7; } }
 }
 
@@ -604,7 +604,7 @@ $title = 'Useless NAT IP of host and interface with static NAT';
 $in = <<'END';
 network:n1 =  {
  ip = 10.1.1.0/24;
- nat:x = { ip = 10.8.8.0/24; } 
+ nat:x = { ip = 10.8.8.0/24; }
  host:h1 = { ip = 10.1.1.10; nat:x = { ip = 10.8.8.12; } }
 }
 
@@ -630,7 +630,7 @@ $title = 'Must not define NAT for host range.';
 $in = <<'END';
 network:n1 =  {
  ip = 10.1.1.0/24;
- nat:x = { ip = 10.8.8.0/24; dynamic; } 
+ nat:x = { ip = 10.8.8.0/24; dynamic; }
  host:h1 = { range = 10.1.1.10-10.1.1.15; nat:x = { ip = 10.8.8.12; } }
 }
 
@@ -653,8 +653,8 @@ $title = 'Inconsistent NAT for host vs. host range.';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:d = { ip = 10.9.1.0/28; dynamic; }
  host:h1 = { ip = 10.1.1.10; nat:d = { ip = 10.9.1.10; } }
  host:h2 = { range = 10.1.1.9 - 10.1.1.10; }
@@ -683,7 +683,7 @@ $title = 'NAT for interface with multiple IP addresses';
 $in = <<'END';
 network:n1 =  {
  ip = 10.1.1.0/24;
- nat:x = { ip = 10.8.8.0/28; dynamic; } 
+ nat:x = { ip = 10.8.8.0/28; dynamic; }
 }
 
 router:r1 = {
@@ -743,7 +743,7 @@ $title = 'Check rule with host and dynamic NAT';
 
 $in = <<'END';
 network:Test =  {
- ip = 10.9.1.0/24; 
+ ip = 10.9.1.0/24;
  nat:C = { ip = 1.9.2.0/24; dynamic;}
  host:h3 = { ip = 10.9.1.3; }
  host:h4 = { ip = 10.9.1.4; }
@@ -801,7 +801,7 @@ $title = 'No secondary optimization with host and dynamic NAT (1)';
 # because router:R can't distinguish between h33 and h34.
 $in = <<'END';
 network:Test =  {
- ip = 10.9.1.0/24; 
+ ip = 10.9.1.0/24;
  nat:C = { ip = 1.9.9.9/32; dynamic;}
  host:h33 = { ip = 10.9.1.33; }
  host:h34 = { ip = 10.9.1.34; }
@@ -876,7 +876,7 @@ router:r2 = {
 
 network:b  = {
  ip = 10.2.2.0/24;
- nat:b = { ip = 10.9.9.4/30; dynamic; } 
+ nat:b = { ip = 10.9.9.4/30; dynamic; }
  host:b10 = { ip = 10.2.2.10; }
 }
 
@@ -906,6 +906,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No route for supernet for unstable subnet relation';
+############################################################
+
+$in = <<'END';
+network:n1 = {ip = 10.1.1.0/24;}
+router:r1 = {
+ interface:n1;
+ interface:n1sub = { ip = 10.1.1.130; }
+}
+
+network:n1sub = {
+ ip = 10.1.1.128/25;
+ nat:N = { ip = 10.9.9.9/32; dynamic; }
+ subnet_of = network:n1;
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1sub = { ip = 10.1.1.129; hardware = outside; }
+ interface:n2    = { ip = 10.1.2.1;   hardware = inside; bind_nat = N; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r3 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.2; hardware = inside; }
+ interface:n3 = { ip = 10.1.3.2; hardware = outside; routing = dynamic; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n1sub;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r3
+! [ Routing ]
+route inside 10.9.9.9 255.255.255.255 10.1.2.1
+--
+! inside_in
+access-list inside_in extended permit ip host 10.9.9.9 10.1.3.0 255.255.255.0
+access-list inside_in extended deny ip any any
+access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Inherit NAT from overlapping areas and zones';
 ############################################################
 
@@ -918,8 +972,8 @@ area:B = {
  border = interface:r2.b1;
  nat:d = { ip = 10.77.77.0/30; dynamic; }
 }
-any:a2 = { 
- link = network:a2; 
+any:a2 = {
+ link = network:a2;
  nat:d = { identity; }
 }
 
@@ -997,15 +1051,15 @@ $in = <<'END';
 network:n   = {
  ip = 10.0.0.0/8;
  nat:d = { ip = 11.0.0.0/8; }
- has_subnets; 
+ has_subnets;
 }
 
-# NAT is enabled for this network and 
+# NAT is enabled for this network and
 # inherited to 10.1.1.0/24 and 10.1.2.0/24
 network:n1 = {
  ip = 10.1.0.0/16;
  nat:d = { ip = 11.17.0.0/16; }
- has_subnets; 
+ has_subnets;
 }
 
 network:n0 = { ip = 10.0.0.0/16; }
@@ -1071,14 +1125,14 @@ $title = 'Inherit NAT from aggregates inside zone';
 $in = <<'END';
 
 # NAT is inherited to 10.1.1.0/24;
-any:a1-23 = { 
+any:a1-23 = {
  ip = 10.1.0.0/23;
- link = network:n1; 
+ link = network:n1;
  nat:n = { ip = 10.8.8.0/23; }
 }
-any:a1-24 = { 
+any:a1-24 = {
  ip = 10.1.1.0/24;
- link = network:n1; 
+ link = network:n1;
  nat:n = { ip = 10.9.9.0/24; }
 }
 network:n0 = { ip = 10.1.0.0/24; }
@@ -1126,12 +1180,12 @@ area:x = {
  nat:C = { ip = 10.8.8.0/24; dynamic; }
  nat:D = { hidden; }
 }
-any:x = { 
- link = network:x; 
+any:x = {
+ link = network:x;
  nat:C = { ip = 10.8.8.0/24; dynamic; }
 }
 network:x =  {
- ip = 10.0.0.0/24; 
+ ip = 10.0.0.0/24;
  nat:C = { ip = 10.8.8.0/24; dynamic; }
  nat:D = { hidden; }
 }
@@ -1465,8 +1519,8 @@ $title = 'Grouped NAT tags must only be used grouped';
 # to ambiguity on which nat tag is active in network k.
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:t2 = { ip = 10.9.8.0/24; }
 }
@@ -1525,28 +1579,28 @@ $title = 'Grouped NAT tags with additional hidden allowed';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:h1 = { hidden; }
  nat:h2 = { hidden; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
+network:n2 = {
+ ip = 10.1.2.0/24;
  nat:h1 = { hidden; }
  nat:h3 = { hidden; }
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
+network:n3 = {
+ ip = 10.1.3.0/24;
  nat:t3 = { ip = 10.9.3.0/24; }
  nat:h1 = { hidden; }
  nat:h2 = { hidden; }
 }
 
-network:n4 = { 
- ip = 10.1.4.0/24; 
+network:n4 = {
+ ip = 10.1.4.0/24;
  nat:t4a = { ip = 10.8.1.0/24; }
  nat:t4b = { ip = 10.8.2.0/24; }
  nat:h1 = { hidden; }
@@ -1583,20 +1637,20 @@ $title = 'Combined single hidden allowed';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:h1 = { hidden; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
+network:n2 = {
+ ip = 10.1.2.0/24;
  nat:h1 = { hidden; }
  nat:h2 = { hidden; }
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
+network:n3 = {
+ ip = 10.1.3.0/24;
  nat:t3 = { ip = 10.9.3.0/24; }
  nat:h2 = { hidden; }
 }
@@ -1630,20 +1684,20 @@ $title = 'Grouped NAT tags with invalid hidden';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:h1 = { hidden; }
  nat:h2 = { hidden; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
+network:n2 = {
+ ip = 10.1.2.0/24;
  nat:t1 = { ip = 10.9.2.0/24; }
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
+network:n3 = {
+ ip = 10.1.3.0/24;
  nat:h1 = { hidden; }
 }
 
@@ -1686,20 +1740,20 @@ $title = 'Grouped NAT tags with invalid hidden (2)';
 ############################################################
 
 $in = <<'END';
-network:n1 = { 
- ip = 10.1.1.0/24; 
+network:n1 = {
+ ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:h  = { hidden; }
 }
 
-network:n2 = { 
- ip = 10.1.2.0/24; 
+network:n2 = {
+ ip = 10.1.2.0/24;
  nat:t2 = { ip = 10.9.2.0/24; }
  nat:h  = { hidden; }
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
+network:n3 = {
+ ip = 10.1.3.0/24;
  nat:t1 = { ip = 10.9.3.0/24; }
  nat:t2 = { ip = 10.9.4.0/24; }
  nat:h  = { hidden; }
@@ -1745,8 +1799,8 @@ $title = 'Grouped NAT tags from different paths';
 
 $in = <<'END';
 network:a = {
- ip = 10.1.1.0/24; 
- nat:a1 = { ip = 10.2.1.0/24; } 
+ ip = 10.1.1.0/24;
+ nat:a1 = { ip = 10.2.1.0/24; }
  nat:a2 = { ip = 10.2.2.0/24; }
 }
 
@@ -1941,15 +1995,15 @@ router:r2 = {
  interface:n4;
 }
 
-network:n3 = { 
- ip = 10.1.3.0/24; 
- nat:h = { hidden; } 
- nat:P = { ip = 10.2.3.0/24; } 
+network:n3 = {
+ ip = 10.1.3.0/24;
+ nat:h = { hidden; }
+ nat:P = { ip = 10.2.3.0/24; }
 }
 network:n4 = {
  ip = 10.1.4.0/24;
  nat:h = { hidden; }
- nat:F = { ip = 10.2.4.0/24; } 
+ nat:F = { ip = 10.2.4.0/24; }
 }
 END
 
@@ -2269,7 +2323,7 @@ $title = 'Mixed valid and invalid dynamic NAT';
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24;
  nat:d = { ip = 10.9.9.0/27; dynamic; }
- host:h10 = { ip = 10.1.1.10; nat:d = { ip = 10.9.9.3; } } 
+ host:h10 = { ip = 10.1.1.10; nat:d = { ip = 10.9.9.3; } }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2367,12 +2421,12 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; nat:x = { ip = 10.9.3.0/24; } }
 network:n4 = { ip = 10.1.4.0/24; }
- 
+
 router:r1 = {
  interface:n2;
  interface:n4;
 }
- 
+
 router:r2 = {
  interface:n1 = { bind_nat = x; }
  interface:n3;
@@ -2511,7 +2565,7 @@ router:filter = {
   bind_nat = extern;
  }
  interface:extern = {
-  ip = 2.2.2.1; 
+  ip = 2.2.2.1;
   hardware = outside;
   bind_nat = intern;
  }
@@ -2727,9 +2781,9 @@ network:n1 = {
  nat:d = { ip = 10.9.9.0/24; }
 }
 
-any:a1x = { 
+any:a1x = {
  ip = 10.1.1.64/26;
- link = network:n1; 
+ link = network:n1;
 }
 
 router:r1 = {
@@ -2771,9 +2825,9 @@ network:n1 = {
  nat:d = { ip = 10.9.9.0/24; }
  subnet_of = network:n;
 }
-any:a = { 
+any:a = {
  ip = 0.0.0.0/0;
- link = network:n1; 
+ link = network:n1;
 }
 
 router:u = {

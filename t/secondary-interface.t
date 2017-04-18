@@ -103,9 +103,9 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
  interface:n1 = {
-  ip = 10.1.1.1; 
-  secondary:5th = { ip = 10.1.1.5; } 
-  secondary:5th = { ip = 10.1.1.6; } 
+  ip = 10.1.1.1;
+  secondary:5th = { ip = 10.1.1.5; }
+  secondary:5th = { ip = 10.1.1.6; }
  }
 }
 END
@@ -125,8 +125,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
  interface:n1 = {
-  ip = 10.1.1.1, 10.1.1.4; 
-  secondary:2 = { ip = 10.1.1.6; } 
+  ip = 10.1.1.1, 10.1.1.4;
+  secondary:2 = { ip = 10.1.1.6; }
  }
 }
 END
@@ -146,7 +146,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
  interface:n1 = {
-  ip = 10.1.1.1; 
+  ip = 10.1.1.1;
   secondary:virtual = { ip = 10.1.1.6; }
   virtual = { ip = 10.1.1.9; }
  }
@@ -168,7 +168,7 @@ network:n1 = { ip = 10.1.1.0/24; host:h = { ip = 10.1.1.2; } }
 
 router:r1 = {
  interface:n1 = {
-  ip = 10.1.1.1, 10.1.1.2; 
+  ip = 10.1.1.1, 10.1.1.2;
  }
 }
 END
@@ -188,8 +188,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 
 router:r1 = {
  interface:n1 = {
-  ip = 10.1.1.1, 10.1.1.2; 
-  secondary:s = { ip = 10.1.1.2; } 
+  ip = 10.1.1.1, 10.1.1.2;
+  secondary:s = { ip = 10.1.1.2; }
  }
 }
 END
@@ -229,7 +229,7 @@ router:r2 = {
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 
-pathrestriction:r = 
+pathrestriction:r =
  interface:r1.n3,
  interface:r2.n3,
 ;

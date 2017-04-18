@@ -52,15 +52,15 @@ router:r2 = {
 }
 
 service:s1 = {
- user = network:n1, 
-        network:n2, 
-        network:n3, 
-        network:n4, 
-        network:n5, 
+ user = network:n1,
+        network:n2,
+        network:n3,
+        network:n4,
+        network:n5,
         network:n9,
-        network:n8, 
-        network:n7, 
-        network:n6, 
+        network:n8,
+        network:n7,
+        network:n6,
         network:n10,
         ;
  permit src = user; dst = network:n0; prt = ip;

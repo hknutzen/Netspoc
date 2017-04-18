@@ -40,7 +40,7 @@ network:u = {
 }
 router:r1 = {
   interface:u = { ip = 10.1.1.1; }
-} 
+}
 END
 
 $out = <<'END';
@@ -57,7 +57,7 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
   interface:n1 = { unnumbered; }
-} 
+}
 END
 
 $out = <<'END';
@@ -72,9 +72,9 @@ $title = 'Unnumbered network to more than two interfaces';
 
 $in = <<'END';
 network:u = { unnumbered; }
-router:r1 = { interface:u = { unnumbered; } } 
-router:r2 = { interface:u = { unnumbered; } } 
-router:r3 = { interface:u = { unnumbered; } } 
+router:r1 = { interface:u = { unnumbered; } }
+router:r2 = { interface:u = { unnumbered; } }
+router:r3 = { interface:u = { unnumbered; } }
 END
 
 $out = <<'END';
@@ -96,7 +96,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; } 
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:un = { unnumbered; hardware = un; }
 }
 
@@ -124,7 +124,7 @@ network:servers = { ip = 10.1.7.32/27; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:servers = { ip = 10.1.7.33; hardware = e0; } 
+ interface:servers = { ip = 10.1.7.33; hardware = e0; }
  interface:clients = { ip = 10.1.2.1; hardware = eth1; }
  interface:unn = { unnumbered; hardware = eth2; }
 }

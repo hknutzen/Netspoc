@@ -197,7 +197,7 @@ $title = 'No admin IP found in any VRFs';
 ############################################################
 
 $in = <<'END';
-network:m = { ip = 10.2.2.0/24; 
+network:m = { ip = 10.2.2.0/24;
  host:netspoc = { ip = 10.2.2.222; }
 }
 router:r1@v1 = {

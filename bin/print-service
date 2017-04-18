@@ -39,7 +39,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -71,7 +71,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.021'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.022'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -97,7 +97,7 @@ my $no_nat_set;
 
 sub ip_info {
     my ($obj) = @_;
-    my ($ip, $mask) = @{ address($obj, $no_nat_set) }; 
+    my ($ip, $mask) = @{ address($obj, $no_nat_set) };
     my $prefix_len = mask2prefix($mask);
     return(print_ip($ip) . ($prefix_len == 32 ? '' : "/$prefix_len"));
 }
@@ -168,7 +168,7 @@ find_subnets_in_zone();
 
 # Find network for resolving NAT addresses.
 if($nat_net) {
-    my $net = $networks{$nat_net} or 
+    my $net = $networks{$nat_net} or
 	die "Unknown network:$nat_net of option '-n'\n";
     $no_nat_set = $net->{nat_domain}->{no_nat_set};
 }
@@ -188,9 +188,9 @@ for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
     for my $src (@$src_list) {
         for my $dst (@$dst_list) {
             for my $prt (@$prt_list) {
-                    push @$aref, { %$rule, 
-                                   src => $src, 
-                                   dst => $dst, 
+                    push @$aref, { %$rule,
+                                   src => $src,
+                                   dst => $dst,
                                    prt => $prt };
             }
         }
@@ -198,7 +198,7 @@ for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
 }
 for my $service_name (sort keys %service2rules) {
     for my $rule (@{ $service2rules{$service_name} }) {
-        my ($deny, $src, $dst, $src_range, $prt) = 
+        my ($deny, $src, $dst, $src_range, $prt) =
             @{$rule}{qw(deny src dst src_range prt)};
         my $action   = $deny ? 'deny' : 'permit';
         my $src_info = ip_info($src);

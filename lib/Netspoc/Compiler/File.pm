@@ -35,7 +35,7 @@ use Netspoc::Compiler::Common;
 use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT_OK = qw(
- read_file read_file_lines process_file_or_dir 
+ read_file read_file_lines process_file_or_dir
  *current_file *input *private $filename_encode
 );
 
@@ -116,8 +116,8 @@ sub process_file_or_dir {
         local $private = $next_private;
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
-            for my $file (sort map { Encode::decode($filename_encode, $_) } 
-                          readdir $dh) 
+            for my $file (sort map { Encode::decode($filename_encode, $_) }
+                          readdir $dh)
             {
                 next if $file =~ /^\./;
                 next if $file =~ m/$config->{ignore_files}/o;

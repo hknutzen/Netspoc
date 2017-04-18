@@ -220,7 +220,7 @@ sub parse_options {
     return \%result;
 }
 
-# Read names of input file/directory and output directory from 
+# Read names of input file/directory and output directory from
 # passed command line arguments.
 sub parse_args {
     my ($args) = @_;
@@ -254,9 +254,9 @@ sub read_config {
         chomp $line;
         $line =~ /^\s*#/ and next;
         $line =~ /^\s*$/ and next;
-        if (my ($key, $val) = 
+        if (my ($key, $val) =
             ($line =~ /\s* (\w+) \s* = \s* (\S+) ;/x)) {
-            valid_config_key($key) or 
+            valid_config_key($key) or
                 fatal_err("Invalid keyword in $file: $key");
             if (my $expected = check_config_pair($key, $val)) {
                 fatal_err("Invalid value for $key in $file,",

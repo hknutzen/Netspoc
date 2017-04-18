@@ -148,7 +148,7 @@ sub ip_nat_for_object {
                 else {
 
                     # Dynamic NAT, take whole network.
-                    join('/', 
+                    join('/',
                          print_ip($network->{ip}), print_ip($network->{mask}));
                 }
             }
@@ -184,9 +184,9 @@ sub ip_nat_for_object {
                     'hidden';
                 }
                 else {
-                    
+
                     # Dynamic NAT, take whole network.
-                    join('/', 
+                    join('/',
                          print_ip($network->{ip}), print_ip($network->{mask}));
                 }
             }
@@ -196,7 +196,7 @@ sub ip_nat_for_object {
             elsif ($obj->{ip} eq 'negotiated') {
 
                 # Take whole network.
-                join('/', 
+                join('/',
                      print_ip($network->{ip}), print_ip($network->{mask}));
             }
             else {
@@ -248,7 +248,7 @@ sub adapt_owner_names {
     }
 }
 
-sub owner_for_object {  
+sub owner_for_object {
     my ($object) = @_;
     if (my $owner_obj = $object->{owner}) {
         return $owner_obj->{name};
@@ -256,7 +256,7 @@ sub owner_for_object {
     return ();
 }
 
-sub part_owners_for_object {    
+sub part_owners_for_object {
     my ($object) = @_;
     if (my $aref = $object->{part_owners}) {
         return map { $_->{name} } @$aref;
@@ -264,7 +264,7 @@ sub part_owners_for_object {
     return ();
 }
 
-sub outer_owners_for_object {    
+sub outer_owners_for_object {
     my ($object) = @_;
     if (my $list = $object->{outer_owners}) {
         return map { $_->{name} } @$list;
@@ -272,7 +272,7 @@ sub outer_owners_for_object {
     return ();
 }
 
-sub owners_for_objects {        
+sub owners_for_objects {
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
@@ -283,7 +283,7 @@ sub owners_for_objects {
     return [ sort values %owners ];
 }
 
-sub part_owners_for_objects {   
+sub part_owners_for_objects {
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
@@ -294,7 +294,7 @@ sub part_owners_for_objects {
     return [ sort values %owners ];
 }
 
-sub outer_owners_for_objects {   
+sub outer_owners_for_objects {
     my ($objects) = @_;
     my %owners;
     for my $object (@$objects) {
@@ -359,12 +359,12 @@ sub proto_descr {
         $num ||= 0;
         push @result, [ $desc, $ptype, $num ];
     }
-    @result = 
+    @result =
         map { $_->[0] }
 
         # Sort by protocol, port/type, all (if proto and num are equal)
-        sort { $a->[1] cmp $b->[1] || 
-               $a->[2] <=> $b->[2] || 
+        sort { $a->[1] cmp $b->[1] ||
+               $a->[2] <=> $b->[2] ||
                $a->[0] cmp $b->[0] }
         @result;
     return \@result;
@@ -377,7 +377,7 @@ sub find_visibility {
     my @extra_uowners = grep { not $hash{$_} } @$uowners;
     my @DA_extra = grep({ $_ =~ /^DA_/ } @extra_uowners);
     my @other_extra = grep({ $_ !~ /^DA_/ } @extra_uowners);
-                           
+
     # No known owner or owner of users.
     if (not @$owners and not @$uowners) {
         # Default: private
@@ -404,7 +404,7 @@ my %all_objects;
 # Split service, if 'user' has different values in normalized rules.
 sub normalize_services_for_export {
     progress("Normalize services for export");
-    my @result; 
+    my @result;
     for my $service (sort by_name values %services) {
         next if $service->{disabled};
         my $sname   = $service->{name};
@@ -424,12 +424,12 @@ sub normalize_services_for_export {
 
         for my $unexpanded (@$rules) {
             my $action   = $unexpanded->{action};
-            my $prt_list = proto_descr(expand_protocols($unexpanded->{prt}, 
+            my $prt_list = proto_descr(expand_protocols($unexpanded->{prt},
                                                         "rule in $context"));
             my $has_user = $unexpanded->{has_user};
-        
+
             for my $element ($foreach ? @$user : ($user)) {
-                my $src_dst_list_pairs = 
+                my $src_dst_list_pairs =
                     normalize_src_dst_list($unexpanded, $element, $context);
                 for my $src_dst_list (@$src_dst_list_pairs) {
                     my ($src_list, $dst_list) = @$src_dst_list;
@@ -438,7 +438,7 @@ sub normalize_services_for_export {
                     # for case like
                     # src = user; dst = any:[user];
                     if ($has_user eq 'both' and
-                        not aref_eq($src_list, $dst_list)) 
+                        not aref_eq($src_list, $dst_list))
                     {
                         if ($seen_as_user->($src_list)) {
                             $has_user = 'src';
@@ -449,7 +449,7 @@ sub normalize_services_for_export {
                         elsif(@$src_list >= @$dst_list) {
                             $has_user = 'src';
                         }
-                        else {                                
+                        else {
                             $has_user = 'dst';
                         }
                     }
@@ -482,7 +482,7 @@ sub normalize_services_for_export {
             my $rules     = $key2rules{$user_key};
             my $new_service = { %$service,
                                 user  => $user_list,
-                                rules => $rules, 
+                                rules => $rules,
             };
             $new_service->{is_split} = 1 if $is_split;
             push @result, $new_service;
@@ -490,11 +490,11 @@ sub normalize_services_for_export {
     }
     return \@result;
 }
-      
+
 sub setup_service_info {
     my ($normalized_services) = @_;
     progress("Setup service info");
-    
+
     for my $service (@$normalized_services) {
         my $users = $service->{user};
 
@@ -529,7 +529,7 @@ sub setup_service_info {
         @all_objects{@objects, @$users} = (@objects, @$users);
 
         # Input: owner objects, output: owner names
-        my $owners = owners_for_objects(\@objects); 
+        my $owners = owners_for_objects(\@objects);
         if ($service->{sub_owner}) {
             $service->{sub_owner} = $service->{sub_owner}->{name};
         }
@@ -590,13 +590,13 @@ sub setup_part_owners {
 #                   debug "$obj->{name} : $owner->{name}";
                 }
             }
-        };            
+        };
         my $up = $network->{up};
         while($up) {
             $add_part_owner->($up);
             $up = $up->{up};
         }
-        $add_part_owner->($network->{zone});   
+        $add_part_owner->($network->{zone});
     }
 
     # Substitute hash by array in attribute {part_owners}.
@@ -626,7 +626,7 @@ sub setup_part_owners {
 # 1. Fill attribute {outer_owners} at hosts, interfaces and networks.
 #    For network, collect owners from enclosing networks and zone,
 #    that are different from networks owner.
-#    For host, collect owners of enclosing networks and zone, 
+#    For host, collect owners of enclosing networks and zone,
 #    that are different from hosts owner.
 # 2. Fill attribute {extended_by} for owners, with list of other owners
 #    of enclosing objects, that are allowed to watch that owner.
@@ -635,7 +635,7 @@ sub setup_part_owners {
 #    that are owned by the outer owner.
 # Attribute {hide_from_outer_owners} is given at inner owner and hides
 # from outer owners.
-# Attribute {show_hidden_owners} at outer owner cancels effect of 
+# Attribute {show_hidden_owners} at outer owner cancels effect of
 # {hide_from_outer_owners}
 sub setup_outer_owners {
     progress("Setup outer owners");
@@ -681,7 +681,7 @@ sub setup_outer_owners {
         }
 
         for my $network (@{ add_subnetworks($zone->{networks}) },
-                         values %{ $zone->{ipmask2aggregate} }) 
+                         values %{ $zone->{ipmask2aggregate} })
         {
             my %outer_owners;
             my $net_owner = $network->{owner} || '';
@@ -736,8 +736,11 @@ sub setup_outer_owners {
     # Intersection of all outer owners of one owner is allowed to take
     # role of corresponding inner owner.
     for my $owner (values %owners) {
-        my $outer_owners = $owner2outer_owners{$owner} or next;
-        keys %$outer_owners or next;
+        my $outer_owners = $owner2outer_owners{$owner};
+        if ($master_owner) {
+            $outer_owners->{$master_owner} = $master_owner;
+        }
+        $outer_owners and keys %$outer_owners or next;
         $owner->{extended_by} = [ sort by_name values %$outer_owners ];
     }
 }
@@ -753,8 +756,8 @@ sub export_no_nat_set {
     my %owner2net;
     for my $network (values %networks) {
         $network->{disabled} and next;
-        for my $owner_name 
-            (owner_for_object($network), 
+        for my $owner_name
+            (owner_for_object($network),
              part_owners_for_object($network),
              outer_owners_for_object($network),
             )
@@ -788,7 +791,7 @@ sub export_no_nat_set {
 #       }
 
         # Build union of no_nat_sets
-        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) } 
+        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) }
                                            @nat_domains)) ];
 #       debug "$owner_name: ", join(',', sort @$no_nat_set);
         $owner2no_nat_set{$owner_name} = $no_nat_set;
@@ -856,8 +859,8 @@ sub export_assets {
             if (!$own_zone) {
                 my $net_owner = owner_for_object($net) || '';
                 if ($net_owner ne $owner) {
-                    @childs = 
-                        grep({ my $o = owner_for_object($_); $o and $o eq $owner } 
+                    @childs =
+                        grep({ my $o = owner_for_object($_); $o and $o eq $owner }
                              @childs);
                 }
             }
@@ -870,7 +873,7 @@ sub export_assets {
     };
 
     # Different zones can use the same name from ipmask2aggregate
-    # '0/0' if they belong to the same zone_cluster. 
+    # '0/0' if they belong to the same zone_cluster.
     # Hence augment existing hash.
     my $add_networks_hash = sub {
         my ($owner, $name, $hash) = @_;
@@ -898,22 +901,22 @@ sub export_assets {
         {
 #            debug "- $owner";
             $add_networks_hash->(
-                $owner, 
-                $zone_name, 
+                $owner,
+                $zone_name,
                 $export_networks->($networks, $owner, 1));
         }
         for my $owner (part_owners_for_object($zone)) {
 
             # Show only own or part_owned networks in foreign zone.
-            my $own_networks = 
-                [ grep 
-                  { grep({ $owner eq $_ } 
+            my $own_networks =
+                [ grep
+                  { grep({ $owner eq $_ }
                          owner_for_object($_), part_owners_for_object($_)) }
                   @$networks ];
 #            debug "- $_->{name}" for @$own_networks;
             $add_networks_hash->(
-                $owner, 
-                $zone_name, 
+                $owner,
+                $zone_name,
                 $export_networks->($own_networks, $owner, 0));
         }
     }
@@ -966,7 +969,7 @@ sub export_services {
     my %owner2type2shash;
     for my $service (@$normalized_services) {
         my @rules = map {
-            { 
+            {
                 action => $_->{action},
                 has_user => $_->{has_user},
                 src => [ sort map { $_->{name} } @{ $_->{src} } ],
@@ -982,15 +985,15 @@ sub export_services {
         }
 
         for my $owner ($service->{sub_owner} || (),
-                       @{ $service->{owners} }, 
+                       @{ $service->{owners} },
                        @{ $service->{part_owners} },
                        @{ $service->{outer_owners} })
         {
             $owner2type2shash{$owner}->{owner}->{$service} = $service;
-        }          
-        for my $owner (@{ $service->{uowners} }, 
+        }
+        for my $owner (@{ $service->{uowners} },
                        @{ $service->{part_uowners} },
-                       @{ $service->{outer_uowners} }) 
+                       @{ $service->{outer_uowners} })
         {
             next if $owner2type2shash{$owner}->{owner}->{$service};
             $owner2type2shash{$owner}->{user}->{$service} = $service;
@@ -1043,7 +1046,7 @@ sub export_users_and_service_lists {
         my %service2users;
         for my $type (qw(owner user visible)) {
             my @snames;
-            for my $service (values %{ $type2shash->{$type} }) { 
+            for my $service (values %{ $type2shash->{$type} }) {
                 (my $sname = $service->{name}) =~ s/^\w+://;
                 push @snames, $sname;
                 next if $type eq 'visible';
@@ -1102,8 +1105,8 @@ sub zone_and_subnet {
 
 sub export_objects {
     progress("Export objects");
-    my %objects = map { 
-        $_->{name} => { 
+    my %objects = map {
+        $_->{name} => {
 
 
             # Add key 'ip' and optionally key 'nat'.
@@ -1115,7 +1118,7 @@ sub export_objects {
             zone_and_subnet($_),
 
             owner => scalar owner_for_object($_),
-        } 
+        }
     } values %all_objects;
     export("objects", \%objects);
     return;
@@ -1152,14 +1155,14 @@ sub export_owners {
             push @e_owners, $e_owner->{name};
         }
 
-        export("owner/$name/emails", 
+        export("owner/$name/emails",
                [ map { { email => $_ } } sort @emails ]);
-        export("owner/$name/watchers", 
+        export("owner/$name/watchers",
                [ map { { email => $_ } } sort @watchers ]);
-        export("owner/$name/extended_by", 
+        export("owner/$name/extended_by",
                [ map { { name => $_ } } sort @e_owners ]);
     }
-        
+
     # Substitute hash by array.
     $_ = [ sort values(%$_) ] for values %email2owners;
 
@@ -1184,7 +1187,7 @@ sub copy_policy_file {
 ####################################################################
 # Initialize Netspoc data
 ####################################################################
-$config = 
+$config =
     combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
 init_global_vars();
 read_file_or_dir($netspoc_data);

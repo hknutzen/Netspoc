@@ -148,8 +148,8 @@ router:filter1 = {
 }
 
 network:A = { ip = 10.3.3.0/24; has_subnets; }
-network:B = { 
- ip = 10.3.3.8/29; 
+network:B = {
+ ip = 10.3.3.8/29;
  nat:C = { ip = 10.1.1.8/29; }
 }
 
@@ -216,13 +216,13 @@ router:filter1 = {
  interface:B = { ip = 10.3.3.10; hardware = VLAN1; }
 }
 
-network:A = { ip = 10.3.3.0/24; 
+network:A = { ip = 10.3.3.0/24;
  has_subnets;
- nat:C = { ip = 10.3.3.12/30; dynamic; } 
+ nat:C = { ip = 10.3.3.12/30; dynamic; }
 }
 network:B = {
  has_subnets;
- ip = 10.3.3.8/29; 
+ ip = 10.3.3.8/29;
  nat:C = { identity; }
 }
 
@@ -275,7 +275,7 @@ $title = 'No secondary optimization for network with subnet in other zone';
 ############################################################
 
 $in = <<'END';
-network:A = { 
+network:A = {
  ip = 10.3.3.0/25;
  host:h = { ip = 10.3.3.5; }
 }

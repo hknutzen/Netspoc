@@ -224,7 +224,7 @@ $title = 'with indentation';
 ############################################################
 
 $in = <<'END';
-group:x = 
+group:x =
  host:a,
   host:b, host:c,
   host:d
@@ -235,7 +235,7 @@ group:x =
 END
 
 $out = <<'END';
-group:x = 
+group:x =
  host:a,
  host:a1,
   host:b, host:b1, host:c,
@@ -249,13 +249,13 @@ group:x =
   host:g1;
 END
 
-test_add($title, $in, 
+test_add($title, $in,
          'host:a host:a1 host:b host:b1 host:d host:d1'.
-         ' host:e host:e1 host:f host:f1 host:g host:g1', 
+         ' host:e host:e1 host:f host:f1 host:g host:g1',
          $out);
 
 $in = <<'END';
-group:x = 
+group:x =
  host:a,
   host:b, host:c,
   host:d,
@@ -279,7 +279,7 @@ $in = <<'END';
 group:g2 =
  host:a,
  host:b,
-; 
+;
 END
 
 $out = <<'END';
@@ -289,7 +289,7 @@ $out = <<'END';
 
 group:g2 =
  host:b,
-; 
+;
 END
 
 test_rmv($title, $in, 'host:a', $out);
@@ -304,11 +304,11 @@ group:g1 =
  host:b #b
  #c
 ,
-; 
+;
 group:g2 =
  host:b
  #c
-  ,; 
+  ,;
 END
 
 $out = <<'END';
@@ -316,10 +316,10 @@ group:g1 =
  host:a,
  #c
 
-; 
+;
 group:g2 =
  #c
-; 
+;
 END
 
 test_rmv($title, $in, 'host:b', $out);
@@ -404,14 +404,14 @@ print $in_fh $add_to;
 close $in_fh;
 
 $in = <<'END';;
-group:g = 
+group:g =
 interface:r.n, interface:r.n.sec,
 any:aaa, network:xyz,
 host:abc;
 END
 
 $out = <<'END';;
-group:g = 
+group:g =
 interface:r.n, interface:r.n.sec, interface:r.n,
 any:aaa, group:bbb, network:xyz, host:id:xyz@dom,
 host:abc,
@@ -431,7 +431,7 @@ print $in_fh $remove_from;
 close $in_fh;
 
 $in = <<'END';;
-group:g = 
+group:g =
 interface:r.n.sec,
 any:aaa, network:xyz,
 host:abc;
@@ -439,5 +439,24 @@ END
 
 test_rmv($title, $out, "-f $filename", $in);
 
+############################################################
+$title = 'Element to remove does not exist';
+############################################################
+
+$in = <<'END';
+group:g1 =
+ host:a,
+ host:b,
+;
+END
+
+$out = <<'END';
+group:g1 =
+ host:a,
+ host:b,
+;
+END
+
+test_rmv($title, $in, 'host:c', $out);
 ############################################################
 done_testing;

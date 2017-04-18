@@ -65,8 +65,8 @@ router:r1 =  {
 
 service:s1 = {
  user = network:n1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = tcp 1-1023,
               udp 1024-65535,
               tcp 4080-4090,
@@ -121,8 +121,8 @@ router:r1 =  {
 
 service:s1 = {
  user = network:n1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = tcp 4080-4090:1-1023,
               tcp 1-1023:4080-4090,
               tcp 1024-65535:4080-4085,
@@ -193,7 +193,7 @@ network:Hosting = { ip = 10.4.4.0/24; }
 
 service:p40-47 = {
  user = network:Firewall, network:RAS;
- permit src = user; 
+ permit src = user;
 	dst = network:Hosting;
 	prt = tcp 30-37, tcp 51-53;
 }
@@ -287,7 +287,7 @@ network:Hosting = { ip = 10.4.4.0/24; }
 
 service:A = {
  user = network:A;
- permit src = user; 
+ permit src = user;
 	dst = network:Hosting;
 	prt = tcp 55;
 }
@@ -317,7 +317,7 @@ $title = 'Loopback at Linux passes other managed device';
 # Linux would abort when generating binary trees of IP addresses,
 # where the same IP address comes from two different objects:
 # loopback ip vs.loopback network.
-# This test case would fail, if the loopback interface is 
+# This test case would fail, if the loopback interface is
 # changed to loopback network at r1, but left unchanged at r2
 # or vice versa.
 
@@ -610,10 +610,10 @@ router:r1 = {
 }
 service:test = {
  user = network:n1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = icmp 5/2, icmp 5/1, icmp 5/3, icmp 5/0;
- permit src = user; 
+ permit src = user;
         dst = host:h2;
         prt = icmp 5;
  permit src = network:n2;
@@ -697,8 +697,8 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = {
  ip = 10.1.2.0/24;
- host:h2 = { ip = 10.1.2.2; } 
- host:h3 = { ip = 10.1.2.3; } 
+ host:h2 = { ip = 10.1.2.2; }
+ host:h3 = { ip = 10.1.2.3; }
 }
 
 router:r1 = {
@@ -709,13 +709,13 @@ router:r1 = {
 }
 service:test = {
  user = network:n1;
- permit src = user; 
-        dst = network:n2; 
+ permit src = user;
+        dst = network:n2;
         prt = icmp 3/0, icmp 3/13, icmp 0/0, icmp 11/1;
- permit src = user; 
+ permit src = user;
         dst = host:h2;
         prt = icmp 11, icmp 0, icmp 3;
- permit src = user; 
+ permit src = user;
         dst = host:h3;
         prt = icmp;
 }

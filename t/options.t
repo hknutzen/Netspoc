@@ -8,6 +8,10 @@ use IPC::Run3;
 use lib 't';
 use Test_Netspoc;
 
+# Change to "C" locale, so we get non translated error message.
+use POSIX 'locale_h';
+setlocale(LC_MESSAGES, 'C');
+
 my ($title, $in, $out);
 
 ############################################################
@@ -146,11 +150,11 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Can't create output directory foo/bar: No such file or directory
+Error: Can't create output directory missing.dir/file: No such file or directory
 Aborted
 END
 
-test_err($title, $in, $out, undef, 'foo/bar');
+test_err($title, $in, $out, undef, 'missing.dir/file');
 
 ############################################################
 $title = 'Verbose output with progress messages';
@@ -207,7 +211,10 @@ Printing intermediate code
 Reused 1 files from previous run
 Finished
 -- r1
-! [ Routing ]
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
+access-list n1_in extended deny ip any any
+access-group n1_in in interface n1
 END
 
 test_reuse_prev($title, $in, $in, $out, '-verbose');

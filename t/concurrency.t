@@ -126,16 +126,15 @@ END
 # Output is indented
 $out = <<'END';
  Error: Pathrestriction ambiguously affects generation of static routes
-        at interfaces with virtual IP 10.1.1.9:
+        to interfaces with virtual IP 10.1.1.9:
   network:b1 is reached via
   - interface:r1.a.virtual
   - interface:r2.a.virtual
   - interface:r3.a.virtual
   But 1 interface(s) of group are missing.
-  Pathrestrictions must restrict paths to either
+  Remaining paths must traverse
   - all interfaces or
-  - no interfaces or
-  - all but one interface
+  - exactly one interface
   of this group.
 END
 
@@ -148,7 +147,7 @@ $title = 'Abort in foreground job';
 
 $in = <<'END';
 network:n1 =  {
- ip = 10.1.1.0/24; 
+ ip = 10.1.1.0/24;
 }
 
 router:r1 = {

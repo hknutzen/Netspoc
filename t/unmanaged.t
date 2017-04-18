@@ -15,7 +15,7 @@ $title = "Owner at unmanaged router";
 
 $in = <<'END';
 router:r = {
- owner = o; 
+ owner = o;
  interface:n1 = { ip = 10.1.1.1; }
 }
 network:n1 = { ip = 10.1.1.0/24; }

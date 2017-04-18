@@ -1,7 +1,7 @@
 Netspoc
 =======
 
-A network security policy compiler. 
+A network security policy compiler.
 
 [![Build Status](https://travis-ci.org/hknutzen/Netspoc.svg?branch=master)](https://travis-ci.org/hknutzen/Netspoc)
 [![Coverage Status](https://coveralls.io/repos/github/hknutzen/Netspoc/badge.svg?branch=master)](https://coveralls.io/github/hknutzen/Netspoc?branch=master)
@@ -12,7 +12,7 @@ Netspoc is free software to manage all the packet filter devices inside your net
   - Chains for iptables.
   - Access lists for ASA, NX-OS, ACE-module
   - Access lists for IOS with and without Firewall Feature Set.
-- Rules are optimized globally 
+- Rules are optimized globally
   - Adjacent IP ranges and port ranges are joined.
   - Redundant rules are removed and optionally warned about.
 - Highly optimized chains for iptables are generated.
@@ -22,12 +22,12 @@ Netspoc is free software to manage all the packet filter devices inside your net
 - Network address translation (NAT) is supported.
 - HSRP / VRRP clusters are supported.
 - Multicast traffic for OSPF, EIGRP, HSRP, VRRP is supported.
-- Powerful rules language 
+- Powerful rules language
    - Groups can be defined and reused in different rules.
    - Automatic groups utilize relationships of the topology.
-- Allows to define a secondary packet filter which gets simpler rules 
+- Allows to define a secondary packet filter which gets simpler rules
   if a data stream has already been filtered at some other device.
 - Complex topologies with redundant paths are supported.
 - Pathrestrictions allow to restrict paths inside a redundant topology.
-- Supports network with isolated ports where traffic is entered and exited 
+- Supports network with isolated ports where traffic is entered and exited
   at the same interface of the packet filter.

@@ -35,7 +35,7 @@ END
 $title = 'Crosslink primary and full';
 ############################################################
 
-$in = $topo; 
+$in = $topo;
 $in =~ s/_1/primary/;
 $in =~ s/_2/full/;
 
@@ -51,7 +51,7 @@ test_run($title, $in, $out);
 $title = 'Crosslink standard and secondary';
 ############################################################
 
-$in = $topo; 
+$in = $topo;
 $in =~ s/_1/standard/;
 $in =~ s/_2/secondary/;
 
@@ -67,7 +67,7 @@ test_run($title, $in, $out);
 $title = 'Crosslink secondary and local_secondary';
 ############################################################
 
-$in = $topo; 
+$in = $topo;
 $in =~ s/_1/secondary/;
 $in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/15;|;
 
@@ -83,7 +83,7 @@ test_run($title, $in, $out);
 $title = 'Crosslink secondary and local';
 ############################################################
 
-$in = $topo; 
+$in = $topo;
 $in =~ s/_1/secondary/;
 $in =~ s|_2;|local; filter_only =  10.2.0.0/15;|;
 
@@ -173,9 +173,9 @@ test_run($title, $in, $out);
 $title = 'Crosslink network must not have hosts';
 ############################################################
 $in = <<'END';
-network:cr = { 
- ip = 10.3.3.0/29; 
- crosslink; 
+network:cr = {
+ ip = 10.3.3.0/29;
+ crosslink;
  host:h = { ip = 10.3.3.3; }
 }
 END
@@ -423,7 +423,7 @@ network:n1 = { ip = 10.1.1.0/24; crosslink; }
 router:r = {
  managed;
  model = IOS, FW;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; } 
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 

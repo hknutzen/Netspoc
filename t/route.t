@@ -59,7 +59,7 @@ service:test = {
         network:n2c,
         network:n3a,
         network:n3b,
-        network:n4a, 
+        network:n4a,
         network:n4b,
         interface:u2.l5a,
         interface:u2.l5b,
@@ -90,9 +90,9 @@ $title = 'Missing next hop';
 
 $in = <<'END';
 network:N = { ip = 10.1.1.0/24; }
-router:u = { 
+router:u = {
  interface:N;
- interface:Trans; 
+ interface:Trans;
 }
 network:Trans = { ip = 10.9.9.0/24; }
 
@@ -107,7 +107,7 @@ network:Kunde = { ip = 10.2.2.0/24; }
 
 service:test = {
  user = network:N;
- permit src = user; dst = network:Kunde; prt = tcp 80; 
+ permit src = user; dst = network:Kunde; prt = tcp 80;
 }
 END
 
@@ -163,17 +163,17 @@ $title = 'Static route to network in unmanaged loop';
 
 $in = <<'END';
 network:N = { ip = 10.1.1.0/24; }
-router:u1 = { 
+router:u1 = {
  interface:N;
  interface:T1;
 }
-router:u2 = { 
+router:u2 = {
  interface:N;
  interface:T2;
 }
 network:T1 = { unnumbered; }
 network:T2 = { unnumbered; }
-router:u3 = { 
+router:u3 = {
  interface:T1;
  interface:T2;
  interface:Trans = { ip = 10.9.9.2; }
@@ -191,7 +191,7 @@ network:Kunde = { ip = 10.2.2.0/24; }
 
 service:test = {
  user = network:N;
- permit src = user; dst = network:Kunde; prt = tcp 80; 
+ permit src = user; dst = network:Kunde; prt = tcp 80;
 }
 END
 
@@ -315,18 +315,18 @@ router:u = {
  interface:n3;
 }
 
-network:n1 = { 
+network:n1 = {
  ip = 10.2.1.0/28;
- subnet_of = network:n2; 
+ subnet_of = network:n2;
 }
 network:n2 = {
  ip = 10.2.1.0/24;
  nat:h = { identity; }
- subnet_of = network:n3; 
+ subnet_of = network:n3;
 }
 network:n3 = {
  ip = 10.2.0.0/16;
- nat:h = { hidden; } 
+ nat:h = { hidden; }
 }
 
 service:test = {

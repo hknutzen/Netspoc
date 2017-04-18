@@ -31,10 +31,10 @@ router:r2 =  {
 }
 network:b1 = { ip = 10.1.1.0/24; }
 network:b2 = { ip = 10.1.2.0/24; }
-router:u = { 
+router:u = {
  interface:b1 = { ip = 10.1.1.2; }
- interface:b2 = { ip = 10.1.2.2; } 
- interface:b3 = { ip = 10.1.3.1; } 
+ interface:b2 = { ip = 10.1.2.2; }
+ interface:b3 = { ip = 10.1.3.1; }
 }
 network:b3 = { ip = 10.1.3.0/24; }
 any:b = { link = network:b1; }
@@ -435,7 +435,7 @@ service:IPSEC = {
  user = interface:R5.[auto],
         interface:Base.[auto],
         interface:Plus.[auto],
-        interface:ZT21.[auto], 
+        interface:ZT21.[auto],
         interface:LV96.[auto],
         interface:ZT45.[auto],
         interface:LV41.[auto],
@@ -577,7 +577,7 @@ router:r1 = {
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = Vlan20; }
- interface:n2 = { ip = 10.1.2.1; hardware = G0/1; 
+ interface:n2 = { ip = 10.1.2.1; hardware = G0/1;
  }
 }
 router:r2 = {
@@ -598,11 +598,11 @@ router:r3 = {
 }
 network:n3 = { ip = 10.1.3.0/24; }
 
-pathrestriction:restrict1 = 
+pathrestriction:restrict1 =
  interface:r1.n1,
  interface:r3.n2,
 ;
-pathrestriction:restrict2 = 
+pathrestriction:restrict2 =
  interface:r2.n1,
  interface:r3.n2,
 ;
@@ -795,7 +795,7 @@ router:r1 = {
  model = IOS, FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; 
+ interface:n2 = { ip = 10.1.2.1; hardware = n2;
  }
 }
 router:r2 = {
@@ -816,7 +816,7 @@ router:r3 = {
 }
 network:n3 = { ip = 10.1.3.0/24; }
 
-pathrestriction:restrict1 = 
+pathrestriction:restrict1 =
  interface:r2.n1,
  interface:r3.n2,
 ;
@@ -880,8 +880,8 @@ router:r4 = {
 
 service:s = {
  user = interface:r1.[auto], interface:r2.[auto];
- permit src = user; 
-        dst = interface:r3.[auto], interface:r4.[auto]; 
+ permit src = user;
+        dst = interface:r3.[auto], interface:r4.[auto];
         prt = tcp 22;
 }
 END
@@ -1065,7 +1065,7 @@ router:r2 = {
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 
-pathrestriction:r = 
+pathrestriction:r =
  interface:r1.n3,
  interface:r2.n3,
 ;
@@ -1142,7 +1142,7 @@ router:r3 = {
 
 network:n5 = { ip = 10.1.5.0/24; }
 
-pathrestriction:r = 
+pathrestriction:r =
  interface:r1.n2,
  interface:r2.n3,
 ;
@@ -1153,7 +1153,7 @@ service:s = {
 }
 END
 
-# Don't accidently assume, that interface:r2.n3 is located in zone of 
+# Don't accidently assume, that interface:r2.n3 is located in zone of
 # original unmanaged router:r2.
 # In this case we would get a path to interface:r2.n3 through router:r1.
 $out = <<'END';
@@ -1210,7 +1210,7 @@ router:r4 = {
 
 network:n6 = { ip = 10.1.6.0/24; }
 
-pathrestriction:r = 
+pathrestriction:r =
  interface:r1.n2,
  interface:r2.n3,
 ;

@@ -6,7 +6,7 @@ Common code of Pass1 and Pass2
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -41,7 +41,7 @@ our @EXPORT = qw(
  mask2prefix prefix2mask match_ip
 );
 
-# Enable printing of diagnostic messages by 
+# Enable printing of diagnostic messages by
 # - either declaring main::SHOW_DIAG
 # - or setting environment variable SHOW_DIAG.
 use constant SHOW_DIAG => exists &main::SHOW_DIAG || $ENV{SHOW_DIAG};
@@ -71,7 +71,7 @@ sub info {
 }
 
 # Print diagnostic message, regardless of quiet/verbose setting.
-# Should be used guarded by constant SHOW_DIAG. 
+# Should be used guarded by constant SHOW_DIAG.
 # If SHOW_DIAG isn't enabled, the whole line will be removed at
 # compile time and won't have any performane impact.
 # Use like this:

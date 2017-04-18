@@ -71,7 +71,7 @@ sub run {
     push @$args, $out_dir if $out_dir;
 
     # Compile, capture STDERR, catch errors.
-    my ($stderr, $success) = 
+    my ($stderr, $success) =
         capture_stderr {
             my $result;
             eval {
@@ -83,7 +83,7 @@ sub run {
                 $result = 1;
             };
             if($@) {
-                warn $@; 
+                warn $@;
             };
             $result;
     };
@@ -129,7 +129,7 @@ sub compare_warnings_and_devices {
     # Only generate code if some expected output has been specified.
     # Otherwise we would unintentionally increase test coverage.
     $dir = undef if not @expected;
-    
+
     my ($stderr, $success, $in_dir) = run($in, $options, $dir);
     if (!$success) {
         diag("Unexpected failure:\n$stderr");
@@ -147,7 +147,7 @@ sub compare_warnings_and_devices {
             $stderr =~ s/(?<=^Netspoc, version ).*/TESTING/;
             $stderr =~ s/\Q$dir\E//g;
         }
-        
+
         eq_or_diff($stderr, $warnings, $title);
     }
     else {
@@ -202,7 +202,7 @@ sub compare_warnings_and_devices {
 
         # Get first line of each block
         my @head = map { (split /\n/, $_)[0] } @$blocks;
-    
+
         my $t = $multi ? "$title: $device" : $title;
         eq_or_diff(get_block($output, @head), join('', @$blocks), $t);
     }
@@ -230,7 +230,7 @@ sub test_warn {
     compare_warnings_and_devices($title, $in, $expected, $options, 1, $dir);
 }
 
-# Compile two times with possibly different input 
+# Compile two times with possibly different input
 # while reusing output directory.
 # Second run will try to reuse generated files from first run.
 # Expects diagnostic message on STDERR.

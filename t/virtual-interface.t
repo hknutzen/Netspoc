@@ -41,11 +41,11 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = Linux;
- interface:n1 = { 
+ interface:n1 = {
   ip = 10.1.1.1;
   nat:n = { ip = 10.9.9.1; }
-  virtual = { ip = 10.1.1.11; } 
-  hardware = n1; 
+  virtual = { ip = 10.1.1.11; }
+  hardware = n1;
  }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n; }
 }
@@ -130,10 +130,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { 
-  ip = 10.1.1.2; 
-  virtual = { ip = 10.1.1.1; type = HSRP; } 
-  hardware = n1; 
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = HSRP; }
+  hardware = n1;
  }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
@@ -171,10 +171,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { 
-  ip = 10.1.1.1; 
-  virtual = { ip = 10.1.1.11; type = HSRP; id = 11;} 
-  hardware = n1; 
+ interface:n1 = {
+  ip = 10.1.1.1;
+  virtual = { ip = 10.1.1.11; type = HSRP; id = 11;}
+  hardware = n1;
  }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
@@ -192,10 +192,10 @@ router:r2 = {
 router:r3 = {
  managed;
  model = ASA;
- interface:n1 = { 
-  ip = 10.1.1.3; 
-  virtual = { ip = 10.1.1.31; type = HSRP; id = 11; } 
-  hardware = n1; 
+ interface:n1 = {
+  ip = 10.1.1.3;
+  virtual = { ip = 10.1.1.31; type = HSRP; id = 11; }
+  hardware = n1;
  }
  interface:n2 = { ip = 10.1.2.3; hardware = n2; }
 }
