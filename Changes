@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.022     2017-04-18 18:11:48+02:00 Europe/Berlin
+
  - Allow bind_nat at device of model 'ASA,VPN'.
  - export-netspoc: Make owner without any assets visible for owner with
    attribute 'show_all'.
