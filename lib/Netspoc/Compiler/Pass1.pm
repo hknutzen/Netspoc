@@ -12838,9 +12838,9 @@ sub link_tunnels {
                 }
             }
             if ($has_id_hosts and @other) {
-                err_msg "Must not use $has_id_hosts->{name} with ID hosts",
-                  " together with networks having no ID host: ",
-                  join(',', map { $_->{name} } @other);
+                err_msg("Must not use $has_id_hosts->{name} with ID hosts",
+                        " together with networks having no ID host:\n",
+                        name_list(\@other));
             }
 
             if ($spoke_router->{managed} and $crypto->{detailed_crypto_acl}) {
@@ -13050,19 +13050,19 @@ sub expand_crypto {
                   and $has_other_network
                   and err_msg(
                     "Must not use host with ID and network",
-                    " together at $tunnel_intf->{name}: ",
-                    join(', ', map { $_->{name} } @encrypted)
+                    " together at $tunnel_intf->{name}:\n",
+                    name_list(\@encrypted)
                   );
-                $has_id_hosts
-                  or $has_other_network
-                  or err_msg(
-                    "Must use network or host with ID",
-                    " at $tunnel_intf->{name}: ",
-                    join(', ', map { $_->{name} } @encrypted)
-                  );
+                if (@encrypted) {
+                    $has_id_hosts
+                      or $has_other_network
+                      or err_msg(
+                        "Must use network or host with ID",
+                        " at $tunnel_intf->{name}:\n",
+                        name_list(\@encrypted)
+                      );
+                }
 
-                my $real_spoke = $tunnel_intf->{real_interface};
-                $peer->{peer_networks} = \@encrypted;
                 my $do_auth = $hub_model->{do_auth};
                 if ($tunnel_intf->{id}) {
                     $need_id
@@ -13073,32 +13073,34 @@ sub expand_crypto {
                         " $isakmp->{name}"
                       );
                 }
-                elsif ($encrypted[0]->{has_id_hosts}) {
+                elsif ($has_id_hosts) {
                     $do_auth
                       or err_msg(
                         "$hub_router->{name} can't check IDs",
                         " of $encrypted[0]->{name}"
                       );
                 }
-                elsif ($do_auth and not $managed) {
-                    err_msg(
-                        "Networks need to have ID hosts because",
-                        " $hub_router->{name} has attribute 'do_auth':",
-                        "\n - ",
-                        join("\n - ", map { $_->{name} } @encrypted)
-                    );
-                }
-                elsif ($need_id) {
-                    err_msg(
-                        "$tunnel_intf->{name}",
-                        " needs attribute 'id',",
-                        " because $isakmp->{name}",
-                        " has authentication=rsasig"
-                    );
+                elsif (@encrypted) {
+                    if ($do_auth and not $managed) {
+                        err_msg(
+                            "Networks need to have ID hosts because",
+                            " $hub_router->{name} has attribute 'do_auth':\n",
+                            name_list(\@encrypted)
+                        );
+                    }
+                    elsif ($need_id) {
+                        err_msg(
+                            "$tunnel_intf->{name}",
+                            " needs attribute 'id',",
+                            " because $isakmp->{name}",
+                            " has authentication=rsasig"
+                        );
 
-                    # Prevent further errors.
-                    $tunnel_intf->{id} = '';
+                        # Prevent further errors.
+                        $tunnel_intf->{id} = '';
+                    }
                 }
+                $peer->{peer_networks} = \@encrypted;
 
                 if ($managed and $router->{model}->{crypto} eq 'ASA') {
                     verify_asa_trustpoint($hub_router, $crypto);
@@ -13108,6 +13110,7 @@ sub expand_crypto {
                 # tunnel endpoints.
                 # If one tunnel endpoint has no known IP address,
                 # some rules have to be added manually.
+                my $real_spoke = $tunnel_intf->{real_interface};
                 if (    $real_spoke
                     and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
                 {
@@ -13801,6 +13804,13 @@ sub mark_leaf_zones {
         }
     }
     return \%leaf_zones;
+}
+
+# Print list of names in messages.
+sub name_list {
+    my ($obj) = @_;
+    my @names = map { $_->{name} } @$obj;
+    return ' - ' . join("\n - ", @names);
 }
 
 # Print abbreviated list of names in messages.
@@ -16617,7 +16627,7 @@ EOF
         }
 
         # A VPN network.
-        else {
+        elsif (my $id = $interface->{peer}->{id}) {
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
@@ -16627,7 +16637,6 @@ EOF
                             dst => [ $network_00 ],
 
                             prt => [ $prt_ip ] } ];
-            my $id = $interface->{peer}->{id};
             my $id_name = $gen_id_name->($id);
             my $filter_name = "vpn-filter-$id_name";
             my $acl_info = {
@@ -16655,6 +16664,8 @@ EOF
             print "\n";
         }
     }
+
+    # Do nothing for unmanaged VPN router without any networks.
 
     # Generate certificate-group-map for anyconnect/ikev2 clients.
     if (keys %cert_group_map or keys %single_cert_map) {

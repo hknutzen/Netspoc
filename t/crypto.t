@@ -297,7 +297,8 @@ network:other = { ip = 10.99.9.0/24; }
 END
 
 $out = <<'END';
-Error: Must not use network:clients with ID hosts together with networks having no ID host: interface:softclients.other
+Error: Must not use network:clients with ID hosts together with networks having no ID host:
+ - interface:softclients.other
 END
 
 test_err($title, $in, $out);
@@ -1766,6 +1767,49 @@ access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
 access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 host 10.99.1.10
 access-list n2_in extended deny ip any any
 access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Empty software clients';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.2.0/24; }
+
+network:trans = { ip = 10.9.9.0/24; }
+router:gw = {
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.2; }
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ no_crypto_filter;
+ radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
+}
+END
+
+$out = <<END;
+-- asavpn
+! outside_in
+access-list outside_in extended deny ip any any
+access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
