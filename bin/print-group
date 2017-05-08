@@ -123,7 +123,7 @@ sub print_address {
         }
         else {
             my $prefix = mask2prefix($obj->{mask});
-            return print_ip($ip) . ($prefix == ($config->{ipv6} == 1? 128 : 32)
+            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
                                     ? '' : "/$prefix");
         }
     }
@@ -145,7 +145,7 @@ sub print_address {
                 my $ip = $network->{ip};
                 my $prefix = mask2prefix($network->{mask});
                 return print_ip($ip) . ($prefix ==
-                                        ($config->{ipv6} == 1? 128 : 32)
+                                        ($config->{ipv6} ? 128 : 32)
                                         ? '' : "/$prefix");
             }
         }
@@ -161,7 +161,7 @@ sub print_address {
             # Take whole network.
             my $ip = $network->{ip};
             my $prefix = mask2prefix($network->{mask});
-            return print_ip($ip) . ($prefix == ($config->{ipv6} == 1? 128 : 32)
+            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
                                     ? '' : "/$prefix");
         }
         else {

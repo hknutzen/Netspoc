@@ -483,7 +483,7 @@ sub read_int {
 # Check and convert IP address to bit string.
 sub convert_ip {
     my ($token) = @_;
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         # $ipv6_re does not match "::"
         $token =~ /^$IPv6_re$|^::$/ or syntax_err("IPv6 address expected");
         return ip2bitstr($token);
@@ -548,21 +548,8 @@ sub read_ip_range {
     }
     $ip2 = read_token() if not length($ip2);
     $ip2 = convert_ip($ip2);
-
-#meike: so wars vorher, nur falls gleich kracht...
-#    my $ip1 = $config->{ipv6}? convert_ip(skip_regex($IPv6_re))
-#        : convert_ip(skip_regex('[\d.]+'));
-#    skip_regex('-');
-#    my $ip2 = $config->{ipv6}? convert_ip(skip_regex($IPv6_re))
-#        : convert_ip(skip_regex('[\d.]+'));
     skip(';');
     return $ip1, $ip2;
-}
-
-# Generate an IP address as internal bit string.
-sub gen_ip {
-    my ($byte1, $byte2, $byte3, $byte4) = @_;
-    return pack('C4', $byte1, $byte2, $byte3, $byte4);
 }
 
 # Convert IP address from internal bit string representation to
@@ -570,7 +557,7 @@ sub gen_ip {
 ## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
     my ($ip) = @_;
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         sprintf "%s", NetAddr::IP::Util::ipv6_ntoa($ip);
     }
     else {
@@ -4951,10 +4938,6 @@ sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
 
-    # 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-    my $bitstr_len = $config->{ipv6}? 128 : 32;
-    my @inverse_masks = map { ~ prefix2mask($_) } (0 .. $bitstr_len);
-
   IP:
     while ($low le $high) {
         for my $mask (@inverse_masks) {
@@ -4990,7 +4973,7 @@ sub check_host_compatibility {
 
 sub convert_hosts {
     progress('Converting hosts to subnets');
-    my $bitstr_len = $config->{ipv6} == 1? 128 : 32;
+    my $bitstr_len = $config->{ipv6} ? 128 : 32;
     for my $network (@networks) {
         next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
         my @subnet_aref;
@@ -5096,10 +5079,18 @@ sub convert_hosts {
         for (my $i = 0 ; $i < @subnet_aref ; $i++) {
             my $ip2subnet = $subnet_aref[$i] or next;
             my $mask = prefix2mask($bitstr_len - $i);
+
+            # Identify next supernet.
             my $up_subnet_size = $i + 1;
             my $up_mask = prefix2mask($bitstr_len - $up_subnet_size);
 
-            # A single bit, masking the lowest network bit.
+            # Network mask and supernet mask differ in one bit.
+            # This bit distinguishes left and right subnet of supernet:
+            # mask (/30)                   255.255.255.11111100
+            # xor upmask (/29)            ^255.255.255.11111000
+            # equals next bit             =  0.  0.  0.00000100
+            # left subnet  10.0.0.16/30 ->  10.  0.  0.00010000
+            # right subnet 10.0.0.20/30 ->  10.  0.  0.00010100
             my $next = $up_mask ^ $mask;
 
             for my $ip (keys %$ip2subnet) {
@@ -9524,9 +9515,9 @@ sub link_implicit_aggregate_to_zone {
     # $key is concatenation of two bit strings, split it into original
     # bit strings. Bitstring length is 32 bit (4 bytes) for IPv4, and
     # 128 bit (16 bytes) for IPv6.
-    my ($ip, $mask) = $config->{ipv6} == 1
-        ? unpack "a16a16", $key
-        : unpack "a4a4", $key;
+    my $size = length($key)/2;
+    my ($ip, $mask) = unpack"a${size}a${size}", $key;
+
     my $ipmask2aggregate = $zone->{ipmask2aggregate};
 
     # Collect all aggregates, networks and subnets of current zone.
@@ -18061,11 +18052,9 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:EIGRP_multicast",
-                    ip   => ip2bitstr($config->{ipv6} == 1 ?
+                    ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::a' : '224.0.0.10'),
-                    mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                    mask => $max_ip
                 )
             ]
         },
@@ -18076,20 +18065,16 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:OSPF_multicast5",
-                    ip   => ip2bitstr($config->{ipv6} == 1 ?
+                    ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::5' : '224.0.0.5'),
-                    mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                    mask => $max_ip
                 ),
                 new(
                     'Network',
                     name => "auto_network:OSPF_multicast6",
-                    ip   => ip2bitstr($config->{ipv6} == 1 ?
+                    ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::6' : '224.0.0.6'),
-                    mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                    mask => $max_ip
                 )
             ]
         },
@@ -18103,11 +18088,9 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:RIPv2_multicast",
-                    ip   => ip2bitstr($config->{ipv6} == 1 ?
+                    ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::9' : '224.0.0.9'),
-                    mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                    mask => $max_ip
                 )
             ]
         },
@@ -18122,11 +18105,9 @@ sub init_protocols {
             mcast => new(
                 'Network',
                 name => "auto_network:VRRP_multicast",
-                ip   => ip2bitstr($config->{ipv6} == 1 ?
+                ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::12' : '224.0.0.18'),
-                mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                mask => $max_ip
             )
         },
         HSRP => {
@@ -18140,11 +18121,9 @@ sub init_protocols {
                 name => "auto_network:HSRP_multicast",
                 # No official IPv6 multicast address for HSRP available,
                 # therefore using IPv4 equivalent.
-                ip   => ip2bitstr($config->{ipv6} == 1 ?
+                ip   => ip2bitstr($config->{ipv6}?
                                       '::e000:2' : '224.0.0.2'),
-                mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                mask => $max_ip
             )
         },
         HSRPv2 => {
@@ -18156,11 +18135,9 @@ sub init_protocols {
             mcast => new(
                 'Network',
                 name => "auto_network:HSRPv2_multicast",
-                ip   => ip2bitstr($config->{ipv6} == 1 ?
+                ip   => ip2bitstr($config->{ipv6}?
                                       'ff02::66' : '224.0.0.102'),
-                mask => ip2bitstr($config->{ipv6} == 1
-                                      ?'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff'
-                                      :'255.255.255.255')
+                mask => $max_ip
             )
         },
     );
@@ -18213,8 +18190,10 @@ sub init_protocols {
 }
 
 sub init_global_vars {
+    init_prefix_len;
     init_mask_prefix_lookups;
     init_zero_and_max_ip;
+    init_inverse_masks;
     initialize_network_0_0;
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
@@ -18246,12 +18225,6 @@ sub compile {
 
     my ($in_path, $out_dir);
     ($config, $in_path, $out_dir) = get_args($args);
-    if ($config->{ipv6}) {
-#        print STDERR "\tIPv6!\n";
-    }
-    else {
-#        print STDERR "\tIPv4!\n";
-    }
     init_global_vars();
     &show_version();
     &read_file_or_dir($in_path);

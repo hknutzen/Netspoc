@@ -36,11 +36,13 @@ our @EXPORT = qw(
  fatal_err debug info diag_msg
  $start_time progress
  ip2bitstr bitstr2ip
- $zero_ip $max_ip
+ $zero_ip $max_ip $prefix_len @inverse_masks
  increment_ip
  mask2prefix prefix2mask match_ip
  init_mask_prefix_lookups
  init_zero_and_max_ip
+ init_inverse_masks
+ init_prefix_len
 );
 
 # Enable printing of diagnostic messages by
@@ -100,7 +102,7 @@ sub progress {
 
 sub ip2bitstr {
     my ($ip) = @_;
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         return NetAddr::IP::Util::ipv6_aton($ip);
     }
     else {
@@ -113,7 +115,7 @@ sub ip2bitstr {
 
 ## no critic (RequireArgUnpacking)
 sub bitstr2ip {
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         return NetAddr::IP::Util::ipv6_ntoa($_[0]);
     }
     else {
@@ -125,8 +127,9 @@ sub bitstr2ip {
 
 our $zero_ip;
 our $max_ip;
+
 sub init_zero_and_max_ip {
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         $zero_ip = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
         $max_ip = NetAddr::IP::Util::ipv6_aton(
             'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff');
@@ -134,7 +137,51 @@ sub init_zero_and_max_ip {
     else {
         $zero_ip = pack('N', 0);
         $max_ip = pack('N', 0xffffffff);
+    }
+}
 
+our $prefix_len;
+
+sub init_prefix_len {
+    $prefix_len = $config->{ipv6} ? 128 : 32;
+}
+
+# 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
+our @inverse_masks;
+
+sub init_inverse_masks {
+    @inverse_masks = map { ~ prefix2mask($_) } (0 .. $prefix_len);
+}
+
+sub increment_ip  {
+    my ($bitstring) = @_;
+
+    if ($config->{ipv6}) {
+        my ($s1, $s2, $s3, $s4) = unpack('N4', $bitstring);
+        if ($s4 eq 0xffffffff) {
+            $s4 = 0;
+            if ($s3 eq 0xffffffff) {
+                $s3 = 0;
+                if ($s2 eq 0xffffffff) {
+                    $s2 = 0;
+                    $s1++;
+                }
+                else {
+                    $s2++;
+                }
+            }
+            else {
+                $s3++;
+            }
+        }
+        else {
+            $s4++;
+        }
+        pack 'N4', $s1, $s2, $s3, $s4;
+    }
+
+    else {
+        pack('N', 1 + unpack( 'N', $bitstring));
     }
 }
 
@@ -143,46 +190,11 @@ sub init_zero_and_max_ip {
 # sequence of bytes (lowest byte first/left), it is big-endian within
 # the byte (biggest bit first/left). Tis array is used to transform
 # the big-endianness within bytes to little-endianness. Thus,
-# positions 0..x in the following functions refer to the position from
+# positions 0..x in the function below refer to the position from
 # left to right, with leftmost bit is position 0, rightmost bit
 # position x.
+
 my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
-
-sub check_bit {
-    my ($bitstring, $position) = @_;
-    my $bitpos = $position + $big_to_little_endian[$position % 8];
-    return vec($bitstring, $bitpos, 1);
-}
-
-sub set_bit {
-    my ($bitstring, $position) = @_;
-    my $bitpos = $position + $big_to_little_endian[$position % 8];
-    vec($bitstring, $bitpos, 1) = 1;
-    return $bitstring;
-}
-
-sub unset_bit {
-    my ($bitstring, $position) = @_;
-    my $bitpos = $position + $big_to_little_endian[$position % 8];
-    vec($bitstring, $bitpos, 1) = 0;
-    return $bitstring;
-}
-
-sub increment_ip  {
-    my ($bitstring) = @_;
-    my $prefix = $config->{ipv6} == 1? 128 : 32;
-    while(1) {
-        last if $prefix == 0;
-        $prefix--;
-        if (check_bit($bitstring, $prefix) == 0) {
-            $bitstring = set_bit($bitstring, $prefix);
-            return $bitstring;
-        }
-        else {
-            $bitstring = unset_bit($bitstring, $prefix);
-        }
-    }
-}
 
 # Conversion from netmask to prefix and vice versa.
 {
@@ -192,19 +204,18 @@ sub increment_ip  {
     my %prefix2mask;
 
     sub init_mask_prefix_lookups {
-    my $prefix = 0;
-        my $prefixlen = $config->{ipv6} == 1? 128 : 32;
-        my $mask = $config->{ipv6} == 1
+        my $prefix = 0;
+        my $mask = $config->{ipv6}
             ? NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0')
             : pack('N', 0x00000000);
 
         while (1) {
-        $mask2prefix{$mask}   = $prefix;
-        $prefix2mask{$prefix} = $mask;
-            last if $prefix == $prefixlen;
+            $mask2prefix{$mask}   = $prefix;
+            $prefix2mask{$prefix} = $mask;
+            last if $prefix == $prefix_len;
             my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
             vec($mask, $bitpos, 1) = 1;
-        $prefix++;
+            $prefix++;
         }
     }
 

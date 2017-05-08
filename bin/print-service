@@ -101,7 +101,7 @@ sub ip_info {
     my ($obj) = @_;
     my ($ip, $mask) = @{ address($obj, $no_nat_set) };
     my $prefix_len = mask2prefix($mask);
-    return(print_ip($ip) . ($prefix_len == ($config->{ipv6} == 1? 128 : 32 )?
+    return(print_ip($ip) . ($prefix_len == ($config->{ipv6} ? 128 : 32 )?
                             '' : "/$prefix_len"));
 }
 

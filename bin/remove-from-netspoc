@@ -293,7 +293,7 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
 my $path = shift @ARGV or pod2usage(2);
 $from_file or @ARGV or pod2usage(2);
-$ip_pattern = $ipv6? "[a-f:\/0-9]+" : "[0-9.\/]+";
+$ip_pattern = "[a-f:.\/0-9]+";
 ####################################################################
 # Main program
 ####################################################################

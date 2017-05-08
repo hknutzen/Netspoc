@@ -75,7 +75,7 @@ sub create_prt_obj {
 
 sub setup_ip_net_relation {
     my ($ip_net2obj) = @_;
-    if ($config->{ipv6} == 1) {
+    if ($config->{ipv6}) {
         $ip_net2obj->{'::/0'} ||=  create_ip_obj('::/0');
     }
     else {
@@ -1378,8 +1378,8 @@ sub find_chains {
     my $prt_icmp   = $prt2obj->{icmp};
     my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
     my $prt_udp    = $prt2obj->{'udp 1 65535'};
-    my $network_00 = $config->{ipv6} == 1 ? $ip_net2obj->{'::/0'}
-                                          : $ip_net2obj->{'0.0.0.0/0'};
+    my $network_00 = $config->{ipv6} ? $ip_net2obj->{'::/0'}
+                                     : $ip_net2obj->{'0.0.0.0/0'};
 
     # For generating names of chains.
     # Initialize if called first time.
@@ -1686,9 +1686,13 @@ sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
     my $ip_code     = bitstr2ip($ip);
-    my $prefix_code = mask2prefix($mask);
-    return $prefix_code == ($config->{ipv6} == 1 ? 128 : 32)
-        ? $ip_code : "$ip_code/$prefix_code";
+    if ($mask eq $max_ip) {
+        return $ip_code;
+    }
+    else {
+        my $prefix_code = mask2prefix($mask);
+        return "$ip_code/$prefix_code";
+    }
 }
 
 # Print chains of iptables.
@@ -1901,7 +1905,7 @@ sub prepare_acls {
         }
 
         setup_ip_net_relation($ip_net2obj);
-        if ($config->{ipv6} == 1) {
+        if ($config->{ipv6}) {
             $acl_info->{network_00} = $ip_net2obj->{'::/0'};
         }
         else {
@@ -2337,6 +2341,7 @@ sub pass2 {
 sub compile {
     my ($args) = @_;
     ($config, undef, my $dir) = get_args($args);
+    init_prefix_len;
     init_mask_prefix_lookups;
     init_zero_and_max_ip;
     if ($dir) {
