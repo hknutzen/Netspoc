@@ -158,11 +158,11 @@ sub increment_ip  {
 
     if ($config->{ipv6}) {
         my ($s1, $s2, $s3, $s4) = unpack('N4', $bitstring);
-        if ($s4 eq 0xffffffff) {
+        if ($s4 == 0xffffffff) {
             $s4 = 0;
-            if ($s3 eq 0xffffffff) {
+            if ($s3 == 0xffffffff) {
                 $s3 = 0;
-                if ($s2 eq 0xffffffff) {
+                if ($s2 == 0xffffffff) {
                     $s2 = 0;
                     $s1++;
                 }
