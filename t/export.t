@@ -1422,7 +1422,6 @@ $out = <<'END';
 {
    "Test" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -1504,7 +1503,6 @@ $out = <<'END';
 {
    "s1(OlWkR_nb)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "c"
          ]
@@ -1525,7 +1523,6 @@ $out = <<'END';
    },
    "s1(Wq2IaGjr)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -1544,7 +1541,6 @@ $out = <<'END';
    },
    "s1(aZ1_3Qf8)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "b"
          ]
@@ -1565,7 +1561,6 @@ $out = <<'END';
    },
    "s2(6J6zzaOm)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "d"
          ]
@@ -1586,7 +1581,6 @@ $out = <<'END';
    },
    "s2(6w6A9_c5)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "a"
          ]
@@ -1607,7 +1601,6 @@ $out = <<'END';
    },
    "s2(VzSrSJ63)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "a",
             "d"
@@ -1627,7 +1620,6 @@ $out = <<'END';
    },
    "s2(en0TO5Ls)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "b"
          ]
@@ -1648,7 +1640,6 @@ $out = <<'END';
    },
    "s2(fOSUGYLe)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "c"
          ]
@@ -1769,7 +1760,6 @@ $out = <<'END';
 {
    "s1" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "o2"
          ]
@@ -1938,7 +1928,6 @@ $out = <<'END';
 {
    "s1" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -1980,6 +1969,7 @@ owner:a = { admins = a@example.com; }
 group:g = ;
 
 service:s1 = {
+ description = test; test, test;
  user = network:n1;
  permit src = user; dst = group:g; prt = udp 162;
 }
@@ -2004,7 +1994,7 @@ $out = <<'END';
 {
    "s1" : {
       "details" : {
-         "description" : null,
+         "description" : "test; test, test",
          "owner" : [
             ":unknown"
          ]
@@ -2053,7 +2043,6 @@ $out = <<'END';
 {
    "ping_local(82hHHn8T)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -2074,7 +2063,6 @@ $out = <<'END';
    },
    "ping_local(x8vMymBh)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -2216,7 +2204,6 @@ $out = <<END;
 {
    "ping" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -2898,7 +2885,6 @@ $out = <<END;
 {
    "s1" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -2919,7 +2905,6 @@ $out = <<END;
    },
    "s2" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -2940,7 +2925,6 @@ $out = <<END;
    },
    "s3" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -2959,7 +2943,6 @@ $out = <<END;
    },
    "s5" : {
       "details" : {
-         "description" : null,
          "disable_at" : "3000-12-31",
          "owner" : [
             "all"
@@ -3018,7 +3001,6 @@ $out = <<END;
 {
    "s1" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -3043,7 +3025,6 @@ $out = <<END;
    },
    "s2" : {
       "details" : {
-         "description" : null,
          "owner" : [
             ":unknown"
          ]
@@ -3125,7 +3106,6 @@ $out = <<END;
 {
    "s1" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -3159,7 +3139,6 @@ $out = <<END;
    },
    "s2" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -3193,7 +3172,6 @@ $out = <<END;
    },
    "s3(9S8D_GxA)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -3215,7 +3193,6 @@ $out = <<END;
    },
    "s3(POpjDd32)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -3236,7 +3213,6 @@ $out = <<END;
    },
    "s4(8QEgcJW-)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]
@@ -3258,7 +3234,6 @@ $out = <<END;
    },
    "s4(avp-zO-c)" : {
       "details" : {
-         "description" : null,
          "owner" : [
             "all"
          ]

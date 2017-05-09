@@ -1013,10 +1013,9 @@ sub export_services {
         my $exported_owners = $service->{owners};
         push @$exported_owners, ':unknown' if !@$exported_owners;
         my $details = {
-            description => $service->{description},
             owner => $exported_owners,
         };
-        for my $attr (qw(sub_owner disable_at disabled)) {
+        for my $attr (qw(description sub_owner disable_at disabled)) {
             my $value = $service->{$attr} or next;
             $details->{$attr} = $value;
         }
