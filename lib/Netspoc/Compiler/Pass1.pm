@@ -3025,7 +3025,7 @@ sub read_service {
             $service->{disabled} = 1;
         }
         elsif ($token eq 'disable_at') {
-            my $date = read_assign(\&read_token);
+            my $date = $service->{disable_at} = read_assign(\&read_token);
             if (date_is_reached($date)) {
                 $service->{disabled} = 1;
             }

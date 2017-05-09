@@ -2874,6 +2874,12 @@ service:s4 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 84;
 }
+
+service:s5 = {
+ disable_at = 3000-12-31;
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 84;
+}
 END
 
 $out = <<END;
@@ -2882,6 +2888,9 @@ $out = <<END;
    "s1" : [],
    "s2" : [],
    "s3" : [
+      "network:n1"
+   ],
+   "s5" : [
       "network:n1"
    ]
 }
@@ -2943,6 +2952,28 @@ $out = <<END;
             "has_user" : "src",
             "prt" : [
                "tcp 83"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s5" : {
+      "details" : {
+         "description" : null,
+         "disable_at" : "3000-12-31",
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 84"
             ],
             "src" : []
          }

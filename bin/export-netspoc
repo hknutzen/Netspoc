@@ -1016,14 +1016,10 @@ sub export_services {
             description => $service->{description},
             owner => $exported_owners,
         };
-        if ($service->{sub_owner}) {
-            $details->{sub_owner} = $service->{sub_owner};
+        for my $attr (qw(sub_owner disable_at disabled)) {
+            my $value = $service->{$attr} or next;
+            $details->{$attr} = $value;
         }
-
-# Currently not used in backend.
-#       if (@{ $service->{part_owners} }) {
-#           $details->{part_owners} = $service->{part_owners};
-#       }
 
         (my $sname = $service->{name}) =~ s/^\w+://;
         $shash{$sname} = { details => $details, rules => \@rules };
