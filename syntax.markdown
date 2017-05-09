@@ -13,9 +13,9 @@ layout: default
 ## General syntax
 
 `<name>` is built from one ore more alphanumerical utf8 characters together
-with hyphen and underscore.  
-`<external name>` is built from any characters, 
-but not whitespace, no delimiters `;,=` and no quotes `"'`.  
+with hyphen and underscore.
+`<external name>` is built from any characters,
+but not whitespace, no delimiters `;,=` and no quotes `"'`.
 `<string>` is like `<external name>`, but with space characters included.
 
 `... *   `
@@ -68,7 +68,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       }
 
     <network NAT> ::=
-      nat:<name> = { 
+      nat:<name> = {
          ip = <ip-net>; |  hidden; | identity;
          [ dynamic;                    ]
          [ subnet_of = network:<network name>; ]
@@ -84,7 +84,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 ## Host definition
 
     <host definition> ::=
-      host:<name> = { 
+      host:<name> = {
          [ <description> ]
          ip = <ip>; | range = <ip>-<ip>;
          [ owner = <name>;            ]
@@ -118,7 +118,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          <interface definition> *
          <short interface definition> *
       }
-    
+
     <router name>  ::= <name>[@<VRF-name>]
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary |
@@ -130,7 +130,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
 ## Interface definition
 
-    <interface definition> ::= 
+    <interface definition> ::=
       interface:<network name> = {
          [ <description> ]
          [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
@@ -157,7 +157,7 @@ here `<object set>` must expand to networks.
       secondary:<name> = { ip = <ip>; }
 
     <virtual interface definition> ::=
-      virtual = { 
+      virtual = {
            ip = <ip>;
            [ type = ( VRRP | HSRP | HSRPv2 ); ]
            [ id = <int>;             ]
@@ -169,9 +169,9 @@ here `<object set>` must expand to networks.
 ## Aggregate definition
 
     <aggregate defintion> ::=
-      any:<name> = { 
+      any:<name> = {
          [ <description> ]
-         link = network:<network name>; 
+         link = network:<network name>;
          [ ip = <ip-net>;           ]
          [ owner = <name>;          ]
          <network NAT> *
@@ -185,7 +185,7 @@ here `<object set>` must expand to networks.
       area:<name> = {
          [ <description> ]
          ( [ border = <object set>; ]
-           [ inclusive_border = <object set>; ] 
+           [ inclusive_border = <object set>; ]
          ) | anchor = network:<network name>;
          [ auto_border;    ]
          [ owner = <name>; ]
@@ -193,7 +193,7 @@ here `<object set>` must expand to networks.
          [ <default router attributes> ]
       }
 
-    <default router attributes> ::= 
+    <default router attributes> ::=
       router_attributes = {
         [ owner = <name>; ]
         [ policy_distribution_point = host:<name>; ]
@@ -205,7 +205,7 @@ where `<network NAT>` must be hidden or dynamic.
 ## Set of objects
 
     <object set>   ::= <intersection> | <object set> , <intersection>
-    <intersection> ::= <network object> | <intersection> & <complement> 
+    <intersection> ::= <network object> | <intersection> & <complement>
                                         | <complement> & <intersection>
     <complement>   ::= <network object> | ! <network object>
 
@@ -226,14 +226,14 @@ where `<network NAT>` must be hidden or dynamic.
     | host:"[" [ managed & ] <object set with area>"]"
 
     <selector> ::= auto | all
-    <object set with area> is like <object set> 
+    <object set with area> is like <object set>
       but with additional area:<name> allowed in <network object>
 
 
 ## Group definition
 
     <group definition> ::=
-      group:<name> = 
+      group:<name> =
         [ <description> ]
         <object set>
       ;
@@ -244,19 +244,19 @@ where `<network NAT>` must be hidden or dynamic.
     <protocol definition> ::=
       protocol:<name> = <simple protocol>|<modified protocol>;
 
-    <simple protocol> ::= 
-      ip 
+    <simple protocol> ::=
+      ip
     | tcp [[<range> :] <range>]
     | udp [[<range> :] <range>]
     | icmp [<int>[/<int>]]
-    | proto <int> 
+    | proto <int>
 
     <range> ::= <int> | <int>-<int>
 
     <modified protocol> ::= <simple protocol> | <modified protocol>,<protocol modifier>
 
-    <protocol modifier> ::= 
-      stateless | oneway | reversed 
+    <protocol modifier> ::=
+      stateless | oneway | reversed
       | src_net | dst_net
       | overlaps | no_check_supernet_rules
 
@@ -274,6 +274,7 @@ where `<network NAT>` must be hidden or dynamic.
     <service definition> ::=
       service:<name> = {
          [ <description>              ]
+         [ disable_at = <date>;       ]
          [ disabled;                  ]
          [ multi_owner;               ]
          [ unknown_owner;             ]
@@ -281,28 +282,29 @@ where `<network NAT>` must be hidden or dynamic.
          [ has_unenforceable;         ]
          [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
-         <rule> * 
+         <rule> *
       }
 
 with
 
     <rule> ::=
-      permit|deny 
+      permit|deny
             src = <object set with 'user'>;
             dst = <object set with 'user'>;
             prt = <protocol list>;
           [ log = <name>(, <name>)*; ]
 
-      <object set with 'user'> is like <object set> 
+      <object set with 'user'> is like <object set>
        but with additional keyword 'user' allowed in <network object>
 
+      <date> ::= a date with format YYYY-MM-DD
 
 ## Path restriction
 
     <pathrestriction definition> ::=
-      pathrestriction:<name> = 
+      pathrestriction:<name> =
         [ <description> ]
-        <object set> 
+        <object set>
       ;
 
 where `<object set>` must expand to interfaces.
@@ -311,7 +313,6 @@ where `<object set>` must expand to interfaces.
 
     <owner definition> ::=
       owner:<name> = {
-        [ alias = <string>; ]
         admins = <email>(, <email>)*;
         [ watchers = <owner_or_email>(, <owner_or_email>)*; ]
         [ extend;           ]
@@ -319,7 +320,7 @@ where `<object set>` must expand to interfaces.
         [ extend_unbounded; ]
         [ show_all;         ]
       }
-    
+
     <email> ::= some valid email address or 'guest'
     <owner_or_email> ::= <email> | owner:<name>
 
@@ -330,7 +331,7 @@ where `<object set>` must expand to interfaces.
 ### Crypto definition
 
     <crypto definition> ::=
-      crypto:<name> = { 
+      crypto:<name> = {
         [ <description> ]
         type = ipsec:<name>;
         [ detailed_crypto_acl; ]
@@ -379,10 +380,10 @@ Crypto is supported for model 'ASA' and 'IOS'.
 
 Model `ASA,VPN` switches to VPN concentrator mode. Default is site-to-site mode.
 
-Model `IOS,EZVPN` generates EasyVPN configuration for 
+Model `IOS,EZVPN` generates EasyVPN configuration for
 IOS router connected to VPN concentrator.
 
-Additional attributes need to be defined for model `ASA,VPN` 
+Additional attributes need to be defined for model `ASA,VPN`
 in attribute `radius_attributes`.
 
     router:<name> = {
