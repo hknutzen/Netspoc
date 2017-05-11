@@ -39,9 +39,10 @@ sub usage {
     die "Usage: $0 [-q] netspoc-data out-directory\n";
 }
 my $quiet;
+my $ipv6;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet) or usage();
+GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6 ) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -1183,7 +1184,8 @@ sub copy_policy_file {
 # Initialize Netspoc data
 ####################################################################
 $config =
-    combine_config({time_stamps => 1, max_errors => 9999, verbose => !$quiet});
+    combine_config({time_stamps => 1, max_errors => 9999,
+                    verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
 init_global_vars();
 read_file_or_dir($netspoc_data);
 order_protocols();

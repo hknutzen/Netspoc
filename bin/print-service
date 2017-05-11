@@ -77,8 +77,10 @@ use Pod::Usage;
 # Argument processing
 ####################################################################
 
-my ($nat_net, $quiet, $help, $man);
+my ($nat_net, $ipv6, $quiet, $help, $man);
+
 GetOptions ( 'nat=s'  => \$nat_net,
+             'ipv6'   => \$ipv6,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,
 	     man => \$man,
@@ -99,7 +101,8 @@ sub ip_info {
     my ($obj) = @_;
     my ($ip, $mask) = @{ address($obj, $no_nat_set) };
     my $prefix_len = mask2prefix($mask);
-    return(print_ip($ip) . ($prefix_len == 32 ? '' : "/$prefix_len"));
+    return(print_ip($ip) . ($prefix_len == ($config->{ipv6} ? 128 : 32 )?
+                            '' : "/$prefix_len"));
 }
 
 sub prt_info {
@@ -146,7 +149,8 @@ sub prt_info {
 ####################################################################
 
 my $file_config = &read_config($in_path);
-$config = combine_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet,
+                                         ipv6 => $ipv6? 1 : 0 });
 init_global_vars();
 
 # Read and process Netspoc configuration file or directory.

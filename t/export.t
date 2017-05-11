@@ -14,7 +14,7 @@ sub test_run {
     my $in_dir = prepare_in_dir($input);
     my $out_dir = tempdir( CLEANUP => 1 );
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -quiet $in_dir $out_dir";
+    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -q $in_dir $out_dir";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $?;

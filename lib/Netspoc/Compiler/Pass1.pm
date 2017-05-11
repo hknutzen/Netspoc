@@ -40,6 +40,8 @@ use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
 use IO::Pipe;
+use NetAddr::IP::Util;
+use Regexp::IPv6 qw($IPv6_re);
 
 # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
@@ -481,6 +483,12 @@ sub read_int {
 # Check and convert IP address to bit string.
 sub convert_ip {
     my ($token) = @_;
+    if ($config->{ipv6}) {
+        # $ipv6_re does not match "::"
+        $token =~ /^$IPv6_re$|^::$/ or syntax_err("IPv6 address expected");
+        return ip2bitstr($token);
+
+    }
     $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or
         syntax_err("IP address expected");
     if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
@@ -544,17 +552,17 @@ sub read_ip_range {
     return $ip1, $ip2;
 }
 
-# Generate an IP address as internal bit string.
-sub gen_ip {
-    my ($byte1, $byte2, $byte3, $byte4) = @_;
-    return pack('C4', $byte1, $byte2, $byte3, $byte4);
-}
-
 # Convert IP address from internal bit string representation to
 # readable string.
 ## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
-    sprintf "%vd", $_[0];
+    my ($ip) = @_;
+    if ($config->{ipv6}) {
+        sprintf "%s", NetAddr::IP::Util::ipv6_ntoa($ip);
+    }
+    else {
+        sprintf "%vd", $ip;
+    }
 }
 ## use critic
 
@@ -4919,13 +4927,11 @@ sub mark_disabled {
 # Mark subnet relation of subnets.
 ####################################################################
 
-# 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-my @inverse_masks = map { ~ prefix2mask($_) } (0 .. 32);
-
 # Convert an IP range to a set of covering IP/mask pairs.
 sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
+
   IP:
     while ($low le $high) {
         for my $mask (@inverse_masks) {
@@ -4961,15 +4967,17 @@ sub check_host_compatibility {
 
 sub convert_hosts {
     progress('Converting hosts to subnets');
+    my $bitstr_len = $config->{ipv6} ? 128 : 32;
     for my $network (@networks) {
         next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-        my @inv_prefix_aref;
+        my @subnet_aref;
 
         # Converts hosts and ranges to subnets.
         # Eliminate duplicate subnets.
         for my $host (@{ $network->{hosts} }) {
             my ($name, $nat, $id, $owner) = @{$host}{qw(name nat id owner)};
             my @ip_mask;
+
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, $max_ip ];
                 if ($id) {
@@ -4990,6 +4998,7 @@ sub convert_hosts {
             else {
                 my ($ip1, $ip2) = @{ $host->{range} };
                 @ip_mask = split_ip_range $ip1, $ip2;
+
                 if ($id) {
                     if (@ip_mask > 1) {
                         err_msg("Range of $name with ID must expand to",
@@ -5007,8 +5016,9 @@ sub convert_hosts {
 
             for my $ip_mask (@ip_mask) {
                 my ($ip, $mask) = @$ip_mask;
-                my $inv_prefix = 32 - mask2prefix $mask;
-                if (my $other_subnet = $inv_prefix_aref[$inv_prefix]->{$ip}) {
+                my $subnet_size = $bitstr_len - mask2prefix $mask;
+
+                if (my $other_subnet = $subnet_aref[$subnet_size]->{$ip}) {
                     check_host_compatibility($host, $other_subnet);
                     push @{ $host->{subnets} }, $other_subnet;
                 }
@@ -5027,7 +5037,7 @@ sub convert_hosts {
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
                     }
-                    $inv_prefix_aref[$inv_prefix]->{$ip} = $subnet;
+                    $subnet_aref[$subnet_size]->{$ip} = $subnet;
                     push @{ $host->{subnets} },    $subnet;
                     push @{ $network->{subnets} }, $subnet;
                 }
@@ -5036,16 +5046,17 @@ sub convert_hosts {
 
         # Set {up} relation and
         # check compatibility of hosts in subnet relation.
-        for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
-            my $ip2subnet = $inv_prefix_aref[$i] or next;
+        for (my $i = 0 ; $i < @subnet_aref ; $i++) {
+            my $ip2subnet = $subnet_aref[$i] or next;
+
             for my $ip (keys %$ip2subnet) {
                 my $subnet = $ip2subnet->{$ip};
 
                 # Search for enclosing subnet.
-                for (my $j = $i + 1 ; $j < @inv_prefix_aref ; $j++) {
-                    my $mask = prefix2mask(32 - $j);
+                for (my $j = $i + 1 ; $j < @subnet_aref ; $j++) {
+                    my $mask = prefix2mask($bitstr_len - $j);
                     $ip &= $mask;
-                    if (my $up = $inv_prefix_aref[$j]->{$ip}) {
+                    if (my $up = $subnet_aref[$j]->{$ip}) {
                         $subnet->{up} = $up;
                         check_host_compatibility($subnet, $up);
                         last;
@@ -5058,15 +5069,23 @@ sub convert_hosts {
         }
 
         # Find adjacent subnets which build a larger subnet.
-        my $network_inv_prefix = 32 - mask2prefix($network->{mask});
-        for (my $i = 0 ; $i < @inv_prefix_aref ; $i++) {
-            my $ip2subnet = $inv_prefix_aref[$i] or next;
-            my $mask = prefix2mask(32 - $i);
-            my $up_inv_prefix = $i + 1;
-            my $up_inv_mask = ~ prefix2mask(32 - $up_inv_prefix);
+        my $network_size = $bitstr_len - mask2prefix($network->{mask});
+        for (my $i = 0 ; $i < @subnet_aref ; $i++) {
+            my $ip2subnet = $subnet_aref[$i] or next;
+            my $mask = prefix2mask($bitstr_len - $i);
 
-            # A single bit, masking the lowest network bit.
-            my $next = $up_inv_mask & $mask;
+            # Identify next supernet.
+            my $up_subnet_size = $i + 1;
+            my $up_mask = prefix2mask($bitstr_len - $up_subnet_size);
+
+            # Network mask and supernet mask differ in one bit.
+            # This bit distinguishes left and right subnet of supernet:
+            # mask (/30)                   255.255.255.11111100
+            # xor upmask (/29)            ^255.255.255.11111000
+            # equals next bit             =  0.  0.  0.00000100
+            # left subnet  10.0.0.16/30 ->  10.  0.  0.00010000
+            # right subnet 10.0.0.20/30 ->  10.  0.  0.00010100
+            my $next = $up_mask ^ $mask;
 
             for my $ip (keys %$ip2subnet) {
                 my $subnet = $ip2subnet->{$ip};
@@ -5087,21 +5106,22 @@ sub convert_hosts {
 
                 # Find corresponding right part
                 my $neighbor = $ip2subnet->{$next_ip} or next;
+
                 $subnet->{neighbor} = $neighbor;
                 $neighbor->{has_neighbor} = 1;
                 my $up;
-                if ($up_inv_prefix >= $network_inv_prefix) {
+
+                if ($up_subnet_size >= $network_size) {
 
                     # Larger subnet is whole network.
                     $up = $network;
                 }
-                elsif ( $up_inv_prefix < @inv_prefix_aref and
-                        $up = $inv_prefix_aref[$up_inv_prefix]->{$ip})
+                elsif ( $up_subnet_size < @subnet_aref and
+                        $up = $subnet_aref[$up_subnet_size]->{$ip})
                 {
                 }
                 else {
                     (my $name = $subnet->{name}) =~ s/^.*:/auto_subnet:/;
-                    my $up_mask = ~ $up_inv_mask;
                     $up = new(
                         'Subnet',
                         name    => $name,
@@ -5110,7 +5130,7 @@ sub convert_hosts {
                         mask    => $up_mask,
                         up      => $subnet->{up},
                         );
-                    $inv_prefix_aref[$up_inv_prefix]->{$ip} = $up;
+                    $subnet_aref[$up_subnet_size]->{$ip} = $up;
                     push @{ $network->{subnets} }, $up;
                 }
                 $subnet->{up}   = $up;
@@ -7082,7 +7102,6 @@ sub build_rule_tree {
             $count++;
         }
         else {
-
 #            debug("Add:", print_rule $rule);
             $leaf_hash->{$prt} = $rule;
         }
@@ -7362,9 +7381,9 @@ sub check_expanded_rules {
         my $key  = $path2index{$path} ||= $index++;
         push @{ $key2rules{$key} }, $rule;
     }
+
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
-
         my $index = 1;
         my %path2index;
         my %key2rules;
@@ -7382,7 +7401,6 @@ sub check_expanded_rules {
             $dcount += $deleted;
             set_local_prt_relation($rules);
             $rcount += find_redundant_rules($rule_tree, $rule_tree);
-
         }
     }
     show_duplicate_rules();
@@ -9211,14 +9229,17 @@ sub check_crosslink {
 # - for default route optimization,
 # - while generating chains of iptables and
 # - in local optimization.
-my $network_00 = new(
+my $network_00;
+sub initialize_network_0_0 {
+    $network_00 = new(
     'Network',
     name             => "network:0/0",
     ip               => $zero_ip,
     mask             => $zero_ip,
     is_aggregate     => 1,
     has_other_subnet => 1,
-);
+        );
+}
 
 # Find cluster of zones connected by 'local' or 'local_secondary' routers.
 # - Check consistency of attributes.
@@ -9488,9 +9509,12 @@ sub link_aggregate_to_zone {
 sub link_implicit_aggregate_to_zone {
     my ($aggregate, $zone, $key) = @_;
 
-    # $key is concatenation of two bit strings of length 32 bit, i.e. 4 bytes.
-    # Split it into original bit strings.
-    my ($ip, $mask) = unpack "a4a4", $key;
+    # $key is concatenation of two bit strings, split it into original
+    # bit strings. Bitstring length is 32 bit (4 bytes) for IPv4, and
+    # 128 bit (16 bytes) for IPv6.
+    my $size = length($key)/2;
+    my ($ip, $mask) = unpack"a${size}a${size}", $key;
+
     my $ipmask2aggregate = $zone->{ipmask2aggregate};
 
     # Collect all aggregates, networks and subnets of current zone.
@@ -9554,7 +9578,6 @@ sub link_implicit_aggregate_to_zone {
 sub link_aggregates {
 
     my @aggregates_in_cluster;    # Collect all aggregates inside clusters
-
     for my $name (sort keys %aggregates) {
         my $aggregate = $aggregates{$name};
         my ($type, $name) = @{ $aggregate->{link} };
@@ -9798,8 +9821,7 @@ sub set_zone1 {
     }
 
     # Set zone private status (attribute will be removed if value is 'public')
-    $zone->{private} =
-      $private1;    # TODO: is set in every iteration. else clause?
+    $zone->{private} = $private1;
 
     # Proceed with adjacent elements...
     for my $interface (@{ $network->{interfaces} }) {
@@ -11523,7 +11545,7 @@ sub cluster_navigation {
             last if $from eq $to; # Same node, no loop path to detect.
 
             # Add loops that may be entered from loop during path traversal.
-            $navi->{$from_loop}->{$from_loop} = 1; # TODO: Why not include exit?
+            $navi->{$from_loop}->{$from_loop} = 1;
 #	    debug("- Eq: $from_loop->{exit}->{name}$from_loop to itself");
 
             # Path $from -> $to traverses $from_loop and $exit_loop.
@@ -11538,7 +11560,7 @@ sub cluster_navigation {
 
         # Different loops, take next step from loop with higher distance.
         elsif ($from_loop->{distance} >= $to_loop->{distance}) {
-            $navi->{$from_loop}->{$from_loop} = 1;# TODO: Why not include exit?
+            $navi->{$from_loop}->{$from_loop} = 1;
 
 #	    debug("- Fr: $from_loop->{exit}->{name}$from_loop to itself");
             $from      = $from_loop->{exit};
@@ -14099,6 +14121,7 @@ sub gen_reverse_rules1 {
             else {
                 $proto eq 'udp' or $proto eq 'ip' or next;
             }
+
             push @new_prt_group, $prt;
         }
         @new_prt_group or next;
@@ -15649,8 +15672,9 @@ sub print_routes {
     # if combined network doesn't already exist.
     # Prepare @inv_prefix_aref.
     my @inv_prefix_aref;
+    my $bitstr_len = $config->{ipv6}? 128 : 32;
     for my $mask (keys %mask2ip2net) {
-        my $inv_prefix  = 32 - mask2prefix($mask);
+        my $inv_prefix  = $bitstr_len - mask2prefix($mask);
         my $ip2net = $mask2ip2net{$mask};
         for my $ip (keys %$ip2net) {
             my $network = $ip2net->{$ip};
@@ -15668,11 +15692,12 @@ sub print_routes {
     # Go from small to large networks. So we combine newly added
     # networks as well.
     for (my $inv_prefix = 0 ; $inv_prefix < @inv_prefix_aref ; $inv_prefix++) {
-        next if $inv_prefix >= 32;
+        next if $inv_prefix >= $bitstr_len;
         my $ip2net = $inv_prefix_aref[$inv_prefix] or next;
-        my $part_mask = prefix2mask(32 - $inv_prefix);
+        my $part_mask = prefix2mask($bitstr_len - $inv_prefix);
         my $combined_inv_prefix = $inv_prefix + 1;
-        my $combined_inv_mask = ~ prefix2mask(32 - $combined_inv_prefix);
+        my $combined_inv_mask =
+            ~ prefix2mask($bitstr_len - $combined_inv_prefix);
 
         # A single bit, masking the lowest network bit.
         my $next = $combined_inv_mask & $part_mask;
@@ -16306,7 +16331,8 @@ sub prefix_code {
     my ($ip, $mask) = @$pair;
     my $ip_code     = print_ip($ip);
     my $prefix_code = mask2prefix($mask);
-    return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
+    my $bitstr_len = $config->{ipv6}? 128 : 32;
+    return $prefix_code == $bitstr_len ? $ip_code : "$ip_code/$prefix_code";
 }
 
 sub full_prefix_code {
@@ -18034,8 +18060,9 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:EIGRP_multicast",
-                    ip   => gen_ip(224, 0, 0, 10),
-                    mask => gen_ip(255, 255, 255, 255)
+                    ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::a' : '224.0.0.10'),
+                    mask => $max_ip
                 )
             ]
         },
@@ -18046,14 +18073,16 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:OSPF_multicast5",
-                    ip   => gen_ip(224, 0, 0, 5),
-                    mask => gen_ip(255, 255, 255, 255),
+                    ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::5' : '224.0.0.5'),
+                    mask => $max_ip
                 ),
                 new(
                     'Network',
                     name => "auto_network:OSPF_multicast6",
-                    ip   => gen_ip(224, 0, 0, 6),
-                    mask => gen_ip(255, 255, 255, 255)
+                    ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::6' : '224.0.0.6'),
+                    mask => $max_ip
                 )
             ]
         },
@@ -18067,8 +18096,9 @@ sub init_protocols {
                 new(
                     'Network',
                     name => "auto_network:RIPv2_multicast",
-                    ip   => gen_ip(224, 0, 0, 9),
-                    mask => gen_ip(255, 255, 255, 255)
+                    ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::9' : '224.0.0.9'),
+                    mask => $max_ip
                 )
             ]
         },
@@ -18083,8 +18113,9 @@ sub init_protocols {
             mcast => new(
                 'Network',
                 name => "auto_network:VRRP_multicast",
-                ip   => gen_ip(224, 0, 0, 18),
-                mask => gen_ip(255, 255, 255, 255)
+                ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::12' : '224.0.0.18'),
+                mask => $max_ip
             )
         },
         HSRP => {
@@ -18096,8 +18127,11 @@ sub init_protocols {
             mcast => new(
                 'Network',
                 name => "auto_network:HSRP_multicast",
-                ip   => gen_ip(224, 0, 0, 2),
-                mask => gen_ip(255, 255, 255, 255)
+                # No official IPv6 multicast address for HSRP available,
+                # therefore using IPv4 equivalent.
+                ip   => ip2bitstr($config->{ipv6}?
+                                      '::e000:2' : '224.0.0.2'),
+                mask => $max_ip
             )
         },
         HSRPv2 => {
@@ -18109,8 +18143,9 @@ sub init_protocols {
             mcast => new(
                 'Network',
                 name => "auto_network:HSRPv2_multicast",
-                ip   => gen_ip(224, 0, 0, 102),
-                mask => gen_ip(255, 255, 255, 255)
+                ip   => ip2bitstr($config->{ipv6}?
+                                      'ff02::66' : '224.0.0.102'),
+                mask => $max_ip
             )
         },
     );
@@ -18163,6 +18198,11 @@ sub init_protocols {
 }
 
 sub init_global_vars {
+    init_prefix_len;
+    init_mask_prefix_lookups;
+    init_zero_and_max_ip;
+    init_inverse_masks;
+    initialize_network_0_0;
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
     for my $pair (values %global_type) {

@@ -34,6 +34,7 @@ use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::File qw(read_file read_file_lines);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
+use NetAddr::IP::Util;
 
 # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
@@ -74,7 +75,12 @@ sub create_prt_obj {
 
 sub setup_ip_net_relation {
     my ($ip_net2obj) = @_;
-    $ip_net2obj->{'0.0.0.0/0'} ||= create_ip_obj('0.0.0.0/0');
+    if ($config->{ipv6}) {
+        $ip_net2obj->{'::/0'} ||=  create_ip_obj('::/0');
+    }
+    else {
+        $ip_net2obj->{'0.0.0.0/0'} ||= create_ip_obj('0.0.0.0/0');
+    }
     my %mask_ip_hash;
 
     # Collect networks into %mask_ip_hash.
@@ -974,7 +980,7 @@ sub iptables_prt_code {
 #sub debug_bintree {
 #    my ($tree, $depth) = @_;
 #    $depth ||= '';
-#    my $ip      = bitstr($tree->{ip});
+#    my $ip      = bitstr2ip($tree->{ip});
 #    my $mask    = mask2prefix($tree->{mask});
 #    my $subtree = $tree->{subtree} ? 'subtree' : '';
 #
@@ -1372,7 +1378,8 @@ sub find_chains {
     my $prt_icmp   = $prt2obj->{icmp};
     my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
     my $prt_udp    = $prt2obj->{'udp 1 65535'};
-    my $network_00 = $ip_net2obj->{'0.0.0.0/0'};
+    my $network_00 = $config->{ipv6} ? $ip_net2obj->{'::/0'}
+                                     : $ip_net2obj->{'0.0.0.0/0'};
 
     # For generating names of chains.
     # Initialize if called first time.
@@ -1674,13 +1681,18 @@ sub find_chains {
 }
 
 # Given an IP and mask, return its address
-# as "x.x.x.x/x" or "x.x.x.x" if prefix == 32.
+# as "x.x.x.x/x" or "x.x.x.x" if prefix == 32 (128, if IPv6 option set).
 sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
     my $ip_code     = bitstr2ip($ip);
-    my $prefix_code = mask2prefix($mask);
-    return $prefix_code == 32 ? $ip_code : "$ip_code/$prefix_code";
+    if ($mask eq $max_ip) {
+        return $ip_code;
+    }
+    else {
+        my $prefix_code = mask2prefix($mask);
+        return "$ip_code/$prefix_code";
+    }
 }
 
 # Print chains of iptables.
@@ -1893,7 +1905,12 @@ sub prepare_acls {
         }
 
         setup_ip_net_relation($ip_net2obj);
-        $acl_info->{network_00} = $ip_net2obj->{'0.0.0.0/0'};
+        if ($config->{ipv6}) {
+            $acl_info->{network_00} = $ip_net2obj->{'::/0'};
+        }
+        else {
+            $acl_info->{network_00} = $ip_net2obj->{'0.0.0.0/0'};
+        }
 
         if (my $need_protect = $acl_info->{need_protect}) {
             mark_supernets_of_need_protect($need_protect);
@@ -2324,6 +2341,9 @@ sub pass2 {
 sub compile {
     my ($args) = @_;
     ($config, undef, my $dir) = get_args($args);
+    init_prefix_len;
+    init_mask_prefix_lookups;
+    init_zero_and_max_ip;
     if ($dir) {
         $start_time = $config->{start_time} || time();
         pass2($dir);

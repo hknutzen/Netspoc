@@ -13,7 +13,7 @@ sub test_run {
     close $in_fh;
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "$^X $perl_opt -I lib bin/cut-netspoc --quiet $filename";
+    my $cmd = "$^X $perl_opt -I lib bin/cut-netspoc -q $filename";
     $cmd .= " @services" if @services;
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
