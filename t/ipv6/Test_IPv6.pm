@@ -87,7 +87,7 @@ sub adjust_testfile {
 
         # Convert addresses.
         # Several addresses might occur in one line, alter one at a time.
-        @matchcount = $line =~ /(\d+)\.\d+\.\d+\.\d+/;
+        @matchcount = $line =~ /\d+\.\d+\.\d+\.\d+/g;
         if (@matchcount > 0){
             my @words = split(/(\s+)/, $line);
             for my $word (@words) {

@@ -43,6 +43,55 @@ END
 test_run($title, $in, $out, '-ipv6');
 
 #############################################################
+$title = 'Check IPv6 increment_ip';
+#############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::0/16;
+ host:host1 = {
+  range = 1000::FFFF:FFFF:FFFF:FFFF:FFFF:FFF0 - 1000:0001::0;
+ }
+}
+
+network:n2 = { ip = 2000::0/48;
+ host:host2 = {
+  range = 2000::FFFF:FFFF:FFFF:FFF0 - 2000::0001:0000:0000:0000:0000;
+ }
+}
+
+network:n3 = { ip = 3000::0/80;
+ host:host3 = {
+  range = 3000::FFFF:FFF0 - 3000::0001:0000:0000;
+ }
+}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::0001; hardware = E1;}
+ interface:n2 = {ip = 2000::0001; hardware = E2;}
+ interface:n3 = {ip = 3000::0001; hardware = E3;}
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+ dst = network:n2;
+ prt = tcp 80-90;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended E1_in
+ deny ip any host 2000::1
+ permit tcp 1000:: 0:ffff:ffff:ffff:ffff:ffff:ffff:ffff 2000:: ::ffff:ffff:ffff:ffff:ffff range 80 90
+ deny ip any any
+END
+
+test_run($title, $in, $out, '-ipv6');
+
+#############################################################
 $title = 'IPv6 with host ranges';
 #############################################################
 
