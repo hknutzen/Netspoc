@@ -88,6 +88,11 @@ t/host-range.t
 t/huge.t
 t/ip-check.t
 t/iptables.t
+t/ipv4.t
+t/ipv6/Test_IPv6.pm
+t/ipv6/convert.pl
+t/ipv6/ipv6.t
+t/ipv6/makefile
 t/local-filter.t
 t/local-opt.t
 t/log.t

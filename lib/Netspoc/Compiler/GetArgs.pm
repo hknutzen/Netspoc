@@ -63,6 +63,9 @@ our %config_type = (
 
 our %config = (
 
+# Use IPv4 version as default
+    ipv6 => 0,
+
 # Check for unused groups and protocolgroups.
     check_unused_groups => 'warn',
 
@@ -203,6 +206,7 @@ sub parse_options {
         $options{"$key$opt"} = $setopt;
     }
     $options{quiet} = sub { $result{verbose} = 0 };
+    $options{ipv6} = sub { $result{ipv6} = 1 };
     $options{'help|?'} = sub { pod2usage(1) };
     $options{man} = sub { pod2usage(-exitstatus => 0, -verbose => 2) };
 

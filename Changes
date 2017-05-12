@@ -1,3 +1,10 @@
+5.023     2017-05-12 11:07:07+02:00 Europe/Berlin
+
+ - Netspoc is IPV6 ready now.
+   New config option 'ipv6 = 1' switches from IPv4 to IPv6 addresses.
+ - export-netspoc: export disabled services.
+   Export new attributes 'disabled' and 'disable_at'.
+
 5.022     2017-04-18 18:11:48+02:00 Europe/Berlin
 
  - Allow bind_nat at device of model 'ASA,VPN'.

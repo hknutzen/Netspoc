@@ -693,7 +693,9 @@ router:Kunde = {
 pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
 END
 
-test_warn($title, $in, '');
+$out = '';
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Useless pathrestriction at unmanged router';
@@ -898,7 +900,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:u = {
  interface:n1 = { ip = 10.1.1.3; }
  interface:n3;
- interface:n4;					
+ interface:n4;
 }
 
 router:r1 = {

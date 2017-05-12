@@ -37,7 +37,9 @@ my %WriteMakefileArgs = (
     "IO::Pipe" => 0,
     "JSON" => 0,
     "JSON::XS" => 0,
+    "NetAddr::IP::Util" => 0,
     "Pod::Usage" => 0,
+    "Regexp::IPv6" => 0,
     "bytes" => 0,
     "constant" => 0,
     "feature" => 0,
@@ -56,9 +58,9 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.022",
+  "VERSION" => "5.023",
   "test" => {
-    "TESTS" => "t/*.t"
+    "TESTS" => "t/*.t t/ipv6/*.t"
   }
 );
 
@@ -78,8 +80,10 @@ my %FallbackPrereqs = (
   "IPC::Run3" => 0,
   "JSON" => 0,
   "JSON::XS" => 0,
+  "NetAddr::IP::Util" => 0,
   "POSIX" => 0,
   "Pod::Usage" => 0,
+  "Regexp::IPv6" => 0,
   "Test::Differences" => 0,
   "Test::More" => 0,
   "bytes" => 0,

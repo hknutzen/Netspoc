@@ -99,7 +99,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.022'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.023'; # VERSION: inserted by DZP::OurPkgVersion
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.
@@ -123,7 +123,8 @@ sub print_address {
         }
         else {
             my $prefix = mask2prefix($obj->{mask});
-            return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
+                                    ? '' : "/$prefix");
         }
     }
     elsif ($type eq 'Host' or $type eq 'Interface') {
@@ -143,7 +144,9 @@ sub print_address {
                 # Dynamic NAT, take whole network.
                 my $ip = $network->{ip};
                 my $prefix = mask2prefix($network->{mask});
-                return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+                return print_ip($ip) . ($prefix ==
+                                        ($config->{ipv6} ? 128 : 32)
+                                        ? '' : "/$prefix");
             }
         }
         elsif (my $range = $obj->{range}) {
@@ -158,7 +161,8 @@ sub print_address {
             # Take whole network.
             my $ip = $network->{ip};
             my $prefix = mask2prefix($network->{mask});
-            return print_ip($ip) . ($prefix == 32 ? '' : "/$prefix");
+            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
+                                    ? '' : "/$prefix");
         }
         else {
             return print_ip(nat($obj->{ip}, $network));
@@ -174,7 +178,8 @@ sub print_address {
 ####################################################################
 
 my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file,
-    $quiet, $help, $man);
+    $quiet, $help, $ipv6, $man);
+
 GetOptions ( 'nat=s'  => \$nat_net,
 	     'unused' => \$show_unused,
 	     'ip!'    => \$show_ip,
@@ -183,6 +188,7 @@ GetOptions ( 'nat=s'  => \$nat_net,
              'f=s'    => \$groups_file,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,
+             'ipv6'   => \$ipv6,
 	     man => \$man,
 	     ) or pod2usage(2);
 pod2usage(1) if $help;
@@ -211,7 +217,8 @@ else {
 ####################################################################
 
 my $file_config = &read_config($in_path);
-$config = combine_config($file_config, { verbose => !$quiet });
+$config = combine_config($file_config, { verbose => !$quiet,
+                                         ipv6 => $ipv6? 1 : 0 });
 init_global_vars();
 
 # Parse group definition(s).

@@ -81,7 +81,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '5.022'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.023'; # VERSION: inserted by DZP::OurPkgVersion
 my $quiet;
 
 ## use critic
@@ -109,6 +109,8 @@ sub setup_add_to {
     $add_to{$old} = $new;
     return;
 }
+
+my $ip_pattern;
 
 # Find occurence of typed name in list of objects:
 # - group:<name> = <typed name>, ... <typed name>;
@@ -173,7 +175,7 @@ sub process {
                 $input =~ /\G ( \s* managed \s* & )/gcx or
 
                 # IP for automatic group.
-                $input =~ /\G ( \s* ip \s* = \s* [0-9.\/]+ \s* & )/gcx or
+                $input =~ /\G ( \s* ip \s* = \s* $ip_pattern \s* & )/gcx or
 
                 # End of automatic group.
                 $input =~ /\G (\s* \])/gcx or
@@ -261,9 +263,10 @@ sub read_pairs {
 # Make @ARGV utf-8.
 $_ = Encode::decode('UTF-8' , $_) for @ARGV;
 
-my ($from_file, $help, $man);
+my ($from_file, $help, $man, $ipv6);
 GetOptions ( 'f=s' => \$from_file,
              'q!' => \$quiet,
+             'ipv6' => \$ipv6,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
@@ -272,6 +275,7 @@ pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
 my $path = shift @ARGV or pod2usage(2);
 $from_file or @ARGV or pod2usage(2);
+$ip_pattern = "[a-f:\/0-9.]+";
 
 ####################################################################
 # Main program
