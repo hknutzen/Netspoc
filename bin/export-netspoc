@@ -407,7 +407,6 @@ sub normalize_services_for_export {
     progress("Normalize services for export");
     my @result;
     for my $service (sort by_name values %services) {
-        next if $service->{disabled};
         my $sname   = $service->{name};
         my $context = $sname;
         my $user    = expand_group($service->{user}, "user of $context");

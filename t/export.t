@@ -2845,27 +2845,28 @@ service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n1; prt = tcp 81;
 }
-
 service:s2 = {
  user = host:h2, interface:r1.n2;
  permit src = user; dst = network:n1; prt = tcp 82;
 }
-
 service:s3 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 83;
 }
-
 service:s4 = {
  disabled;
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 84;
 }
-
 service:s5 = {
  disable_at = 3000-12-31;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 84;
+ permit src = user; dst = network:n3; prt = tcp 85;
+}
+service:s6 = {
+ disable_at = 1999-12-31;
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 86;
 }
 END
 
@@ -2877,7 +2878,13 @@ $out = <<END;
    "s3" : [
       "network:n1"
    ],
+   "s4" : [
+      "network:n1"
+   ],
    "s5" : [
+      "network:n1"
+   ],
+   "s6" : [
       "network:n1"
    ]
 }
@@ -2941,6 +2948,27 @@ $out = <<END;
          }
       ]
    },
+   "s4" : {
+      "details" : {
+         "disabled" : 1,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 84"
+            ],
+            "src" : []
+         }
+      ]
+   },
    "s5" : {
       "details" : {
          "disable_at" : "3000-12-31",
@@ -2956,7 +2984,29 @@ $out = <<END;
             ],
             "has_user" : "src",
             "prt" : [
-               "tcp 84"
+               "tcp 85"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s6" : {
+      "details" : {
+         "disable_at" : "1999-12-31",
+         "disabled" : 1,
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 86"
             ],
             "src" : []
          }
