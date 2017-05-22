@@ -10415,7 +10415,7 @@ sub set_areas {
                 my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
                   or next;
                 err_msg(
-                    "Invalid $attr of $area->{name}:\n - ",
+                    "Unreachable $attr of $area->{name}:\n - ",
                     join("\n - ", map { $_->{name} } @bad_intf)
                 );
                 $area->{$attr} =

@@ -508,7 +508,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Invalid border definition';
+$title = 'Unreachable border';
 ############################################################
 
 $in = $topo . <<'END';
@@ -517,7 +517,7 @@ area:a1 = {border = interface:asa1.n1,
 END
 
 $out = <<'END';
-Error: Invalid border of area:a1:
+Error: Unreachable border of area:a1:
  - interface:asa2.n2
 END
 
