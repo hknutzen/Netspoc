@@ -465,7 +465,7 @@ sub skip {
 # Check, if an integer is available.
 sub check_int {
     skip_space_and_comment;
-    if ($input =~ m/\G(\d+)/gc) {
+    if ($input =~ m/\G(\d+)/agc) {
         return $1;
     }
     else {
@@ -489,7 +489,7 @@ sub convert_ip {
         return ip2bitstr($token);
 
     }
-    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/a or
         syntax_err("IP address expected");
     if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
         error_atline("Invalid IP address");
@@ -1611,7 +1611,7 @@ sub read_interface {
                 }
                 elsif ($token eq 'id') {
                     my $id = read_assign(\&read_identifier);
-                    $id =~ /^\d+$/
+                    $id =~ /^\d+$/a
                       or error_atline("Redundancy ID must be numeric");
                     $id < 256 or error_atline("Redundancy ID must be < 256");
                     add_attribute($virtual, redundancy_id => $id);
@@ -2988,7 +2988,7 @@ sub assign_union_allow_user {
 # Check if day of given date is today or has been reached already.
 sub date_is_reached {
     my ($date) = @_;
-    my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/
+    my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/a
         or syntax_err("Date expected as yyyy-mm-dd");
     my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time);
     $mon += 1;
@@ -17338,7 +17338,7 @@ sub print_crypto {
         }
 
         my $encryption = $isakmp->{encryption};
-        if ($encryption =~ /^aes(\d+)$/) {
+        if ($encryption =~ /^aes(\d+)$/a) {
             my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
             $encryption = "aes$len";
         }
