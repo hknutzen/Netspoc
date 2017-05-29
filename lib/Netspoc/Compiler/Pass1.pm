@@ -7522,22 +7522,12 @@ sub set_policy_distribution_ip {
         next if $seen{$router};
         next if $router->{orig_router};
         if (my $vrf_members = $router->{vrf_members}) {
-            for my $member (@$vrf_members) {
-                if (not $member->{admin_ip}) {
-                    push(@unreachable,
-                         { name => "some VRF of router:$router->{device_name}" }
-                        );
-                    last;
-                }
+            if (not grep { $_->{admin_ip} } @$vrf_members) {
+                push(@unreachable,
+                     { name =>
+                           "at least one VRF of router:$router->{device_name}" }
+                    );
             }
-
-            # Print VRF instance with known admin_ip first.
-            $router->{vrf_members} = [
-                sort {
-                        !$a->{admin_ip} <=> !$b->{admin_ip}
-                      || $a->{name} cmp $b->{name}
-                } @$vrf_members
-            ];
             $seen{$_} = 1 for @$vrf_members;
         }
         else {
