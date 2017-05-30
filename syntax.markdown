@@ -121,8 +121,8 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <router name>  ::= <name>[@<VRF-name>]
     <VRF-name>     ::= <name>
-    <filter type>  ::= primary | full | standard | secondary |
-                       local | local_secondary | routing_only
+    <filter type>  ::= primary | full | standard | secondary | local |
+                       routing_only
     <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS | ACE
     <ASA-modifier> ::= alerts | critical | debugging | disable | emergencies |
                        errors | informational | notifications | warnings
