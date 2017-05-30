@@ -14249,7 +14249,6 @@ sub gen_reverse_rules {
 # additionally mark all security zones
 # which are connected with $zone by secondary packet filters.
 sub mark_secondary;
-
 sub mark_secondary {
     my ($zone, $mark) = @_;
     $zone->{secondary_mark} = $mark;
@@ -14276,9 +14275,7 @@ sub mark_secondary {
 # Mark security zone $zone with $mark and
 # additionally mark all security zones
 # which are connected with $zone by non-primary packet filters.
-# Test for {active_path} has been added to prevent deep recursion.
 sub mark_primary;
-
 sub mark_primary {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
@@ -14303,7 +14300,6 @@ sub mark_primary {
 # Set 'local_secondary_mark' for secondary optimization inside one cluster.
 # Two zones get the same mark if they are connected by local_secondary router.
 sub mark_local_secondary;
-
 sub mark_local_secondary {
     my ($zone, $mark) = @_;
     $zone->{local_secondary_mark} = $mark;
@@ -14353,9 +14349,9 @@ sub have_different_marks {
 
 sub have_set_and_equal_marks {
     my ($src_zones, $dst_zones, $mark) = @_;
-    my $src_marks = [ map { $_->{$mark} or return; } @$src_zones ];
-    my $dst_marks = [ map { $_->{$mark} or return; } @$dst_zones ];
-    return equal(@$src_marks, @$dst_marks);
+    my @src_marks = map { $_->{$mark} or return; } @$src_zones;
+    my @dst_marks = map { $_->{$mark} or return; } @$dst_zones;
+    return equal(@src_marks, @dst_marks);
 }
 
 sub mark_secondary_rules {
