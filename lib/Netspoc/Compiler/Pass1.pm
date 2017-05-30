@@ -944,8 +944,8 @@ sub read_managed {
     elsif ($token eq '=') {
         my $value = read_token();
         if (
-            $value =~ /^(?:secondary|standard|full|primary|
-                           local|local_secondary|routing_only)$/x
+            $value =~ /^(?:secondary|standard|full|primary|local
+                           |routing_only)$/x
           )
         {
             $managed = $value;
@@ -953,8 +953,8 @@ sub read_managed {
         else {
             error_atline(
                 "Expected value:",
-                " secondary|standard|full|primary",
-                "|local|local_secondary|routing_only"
+                " secondary|standard|full|primary|local",
+                "|routing_only"
             );
         }
         skip(';');
@@ -9074,7 +9074,6 @@ my %crosslink_strength = (
     standard        => 9,
     secondary       => 8,
     local           => 7,
-    local_secondary => 6,
 );
 ##############################################################################
 # Purpose   : Find clusters of routers connected directly or indirectly by
@@ -9231,9 +9230,9 @@ sub initialize_network_0_0 {
         );
 }
 
-# Find cluster of zones connected by 'local' or 'local_secondary' routers.
+# Find cluster of zones connected by 'local' routers.
 # - Check consistency of attributes.
-# - Set unique 'local_mark' for all zones and managed routers
+# - Set unique 'local_mark' for all managed routers
 #   belonging to one cluster.
 # Returns array of cluster infos, a hash with attributes
 # - no_nat_set
@@ -9242,8 +9241,9 @@ sub initialize_network_0_0 {
 sub get_managed_local_clusters {
     my $local_mark = 1;
     my @result;
+    my %seen;
     for my $router0 (@managed_routers) {
-        $router0->{managed} =~ /^local/ or next;
+        $router0->{managed} eq 'local' or next;
         next if $router0->{local_mark};
         my $filter_only = $router0->{filter_only};
 
@@ -9286,10 +9286,7 @@ sub get_managed_local_clusters {
                 my $zone0        = $in_intf->{zone};
                 my $zone_cluster = $zone0->{zone_cluster};
                 for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
-                    next if $zone->{local_mark};
-
-                    # Needed for local_secondary optimization.
-                    $zone->{local_mark} = $local_mark;
+                    next if $seen{$zone}++;
 
                     # All networks in local zone must match {filter_only}.
                   NETWORK:
@@ -9312,7 +9309,7 @@ sub get_managed_local_clusters {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
                         my $managed = $router2->{managed} or next;
-                        $managed =~ /^local/ or next;
+                        $managed eq 'local' or next;
                         next if $router2->{local_mark};
                         __SUB__->($router2);
                     }
@@ -14297,32 +14294,6 @@ sub mark_primary {
     }
 }
 
-# Set 'local_secondary_mark' for secondary optimization inside one cluster.
-# Two zones get the same mark if they are connected by local_secondary router.
-sub mark_local_secondary;
-sub mark_local_secondary {
-    my ($zone, $mark) = @_;
-    $zone->{local_secondary_mark} = $mark;
-
-#    debug "local_secondary $zone->{name} : $mark";
-    for my $in_interface (@{ $zone->{interfaces} }) {
-        next if $in_interface->{main_interface};
-        my $router = $in_interface->{router};
-        if (my $managed = $router->{managed}) {
-            next if $managed ne 'local_secondary';
-        }
-        next if $router->{local_secondary_mark};
-        $router->{local_secondary_mark} = $mark;
-        for my $out_interface (@{ $router->{interfaces} }) {
-            next if $out_interface eq $in_interface;
-            next if $out_interface->{main_interface};
-            my $next_zone = $out_interface->{zone};
-            next if $next_zone->{local_secondary_mark};
-            mark_local_secondary($next_zone, $mark);
-        }
-    }
-}
-
 sub get_zones {
     my ($path, $group) = @_;
     my $type = ref $path;
@@ -14359,16 +14330,12 @@ sub mark_secondary_rules {
 
     my $secondary_mark        = 1;
     my $primary_mark          = 1;
-    my $local_secondary_mark  = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
             mark_secondary $zone, $secondary_mark++;
         }
         if (not $zone->{primary_mark}) {
             mark_primary $zone, $primary_mark++;
-        }
-        if (not $zone->{local_secondary_mark}) {
-            mark_local_secondary($zone, $local_secondary_mark++);
         }
     }
 
@@ -14385,12 +14352,6 @@ sub mark_secondary_rules {
         my $src_zones = get_zones($src_path, $src);
         my $dst_zones = get_zones($dst_path, $dst);
         if (have_different_marks($src_zones, $dst_zones, 'secondary_mark')) {
-            $rule->{some_non_secondary} = 1;
-        }
-        elsif (have_set_and_equal_marks($src_zones, $dst_zones, 'local_mark') and
-               have_different_marks($src_zones, $dst_zones,
-                                    'local_secondary_mark'))
-        {
             $rule->{some_non_secondary} = 1;
         }
         if (have_different_marks($src_zones, $dst_zones, 'primary_mark')) {

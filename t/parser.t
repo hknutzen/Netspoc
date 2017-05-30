@@ -646,7 +646,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Expected value: secondary|standard|full|primary|local|local_secondary|routing_only at line 2 of STDIN
+Error: Expected value: secondary|standard|full|primary|local|routing_only at line 2 of STDIN
 END
 
 test_err($title, $in, $out);
