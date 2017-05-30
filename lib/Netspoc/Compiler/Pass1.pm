@@ -13867,6 +13867,11 @@ sub check_transient_supernet_rules {
         my $src_list = $rule->{src};
         for my $obj (@$src_list) {
             $obj->{has_other_subnet} or next;
+
+            # Ignore the internet. If the internet is used as src and dst
+            # then the implicit transient rule is assumed to be ok.
+            next if not $obj->{is_aggregate} and $obj->{mask} eq $zero_ip;
+
             my $zone = $obj->{zone};
             next if $zone->{no_check_supernet_rules};
 
