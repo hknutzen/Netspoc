@@ -106,7 +106,7 @@ Save both, service and topology into a file named [example](example) and call Ne
     netspoc example code
 
 This generates configuration files for [device X](code/X),
-[device Y](code/Y) and [device WWW](code/WWW) 
+[device Y](code/Y) and [device WWW](code/WWW)
 in a newly created directory named `code`.
 
 The generated files contain commands to configure packet filters rules
@@ -186,7 +186,7 @@ match the address of the surrounding network.
 ## Routers
 
 Routers are connected to networks by interfaces. A router can
-correspond 
+correspond
 
 - to some physical or virtual router or packet filter
 - or to some backbone which simply connects networks.
@@ -196,7 +196,7 @@ An unmanaged router is simply defined to connect some networks.
 
 Netspoc generates access-lists for managed routers. Hence, managed routers
 need to be defined more accurately since this information is needed for
-code generation.  
+code generation.
 
 Currently these router models are supported:
 
@@ -231,12 +231,12 @@ with negotiated IP is used in a rule, the address range of the
 attached network is taken.
 
 Additional IP addresses can be defined using a secondary
-interface. 
+interface.
 Another method to define secondary interfaces is by giving two or more IP
 addresses to the primary interface. This implicitly defines secondary
 interfaces with a name which is derived from the name of the primary
 interface by adding an incrementing number beginning with "2".
-This is equivalent to define 
+This is equivalent to define
 `secondary:2 = {...}, secondary:3 = {...}, ...`.
 
 A virtual interface defines a shared IP address between two or more
@@ -276,7 +276,7 @@ network or unmanaged router inside a security zone.
 ### Matching aggregates
 
 A named aggregate can optionally be restricted to a network match.
-This is best be explained by an example.  
+This is best be explained by an example.
 Suppose, a security zone has a large number of networks.  A part of
 these networks has IP addresses 10.42.x.0/24.  You can create wildcard
 ACLs matching 10.42.0.0/16 by defining a named aggregate with attribute
@@ -285,7 +285,7 @@ corresponding security zone with matching IP addresses.
 
 ## Referencing network resources
 
-Network resources can be used as source or destination in rules. 
+Network resources can be used as source or destination in rules.
 Network resources are:
 
 1. networks
@@ -331,7 +331,7 @@ graph operations directly from the topology.
 Selectors \[auto\] and \[all\] can be used as network part when
 referencing an interface.
 
-- \[all\] denotes *all* interfaces of a router.  
+- \[all\] denotes *all* interfaces of a router.
 - \[auto\] denotes the interface which points to the
   other object in a rule.  If a router is part of a cyclic subgraph
   then there can be multiple paths to the other object.  In this
@@ -361,7 +361,7 @@ area:x.
 - `any:[area:x]` takes all security zone located
 inside area:x.
 
-- `interface:[network:x].[<selector>]` 
+- `interface:[network:x].[<selector>]`
   results in all | auto interfaces attached to  network:x.
 
 - `interface:[interface:x.y].[<selector>]` is
@@ -371,7 +371,7 @@ inside area:x.
   zone any:x.
 
 - `interface:[area:x].[<selector>]` results in
-  interfaces which are located *inside* area:x.  
+  interfaces which are located *inside* area:x.
   Note: Border interfaces are left out.
 
 - `host:[network:x]` results in all host defined inside network:x.
@@ -379,12 +379,12 @@ inside area:x.
 - `network:[...]`, `any:[...]`, `interface:[...]` or `host:[...]`
   applied to a set of objects is equivalent to applying these to
   the single elements and taking the union of results. E.g.
-  `network:[host:a, host:b]` is equivalent to 
+  `network:[host:a, host:b]` is equivalent to
   `network:[host:a], network:[host:b]`.
 
 - Auto interfaces, i.e. with selector `[auto]` must only be
   used at top-level and not as inner object of other automatic
-  groups. There is one exception from this rule: 
+  groups. There is one exception from this rule:
   `interface:[interface:x.[auto]].[auto]` is allowed.
 
 
@@ -422,7 +422,7 @@ area. Then define X as `inclusive_border` of this area.
 Alternatively use attribute `anchor` to define a starting point
 from where the area extends. Typically `anchor` is used together
 with attribute `auto_border` which restricts the area to the border
-of other areas. 
+of other areas.
 
 Use attribute `anchor` without `auto_border` to
 define an area which stretches across the whole topology.
@@ -477,11 +477,11 @@ this network.
 
 Syntax for NAT is divided into two parts:
 
-NAT definition 
+NAT definition
 : specifies the translated IP address of a network resource.
 
 NAT binding
-: applies a set of NAT definitions to an interface. 
+: applies a set of NAT definitions to an interface.
 
 ### Example
 
@@ -576,7 +576,7 @@ If a device is marked as `managed = primary`, all rules which pass
 this device, are implemented as secondary filters on other devices
 which are marked either as "standard" or as "secondary".  The effect
 of "primary" can be overridden by choosing the filter type "full" at
-an other device.  
+an other device.
 
 The default filter type for devices which are simply marked as
 "managed" is "standard".
@@ -589,9 +589,9 @@ All these networks are supposed to be connected by one or more local packet filt
 There are external networks with other IP addresses.
 Standard packet filters connect the external networks with some local networks.
 
-In this topology, the local packet filter needs only to check packets, 
-where source and destination address match 10.11.0.0/16. 
-All other packages from or to external IP addresses can pass unfiltered, 
+In this topology, the local packet filter needs only to check packets,
+where source and destination address match 10.11.0.0/16.
+All other packages from or to external IP addresses can pass unfiltered,
 because these packets have already been filtered by standard packet filters.
 
 A local packet filter is declared with attribute "managed = local".
@@ -600,7 +600,7 @@ An additional attribute "filter_only" defines the list of the to be filtered IP 
 For a local packet filter with "filter_only = 10.11.0.0/16;", Netspoc generates reduced ACLs:
 
 - standard deny rules (if used)
-- permit traffic between local networks 
+- permit traffic between local networks
 - deny ip 10.11.0.0/16 10.11.0.0/16
 - permit ip any any
 
@@ -609,16 +609,16 @@ A packet filter is declared as "local" for two purposes:
 1. Get a reduced number of ACL entries for devices not capable to handle many ACL entries.
 2. Allow external traffic, which enters through some other packet-filter not managed by Netspoc.
 
-All networks located inside a security zone connected to a local packet filter must match "filter_only". 
-But other security zones are allowed to contain networks matching "filter_only". 
-In this case, the optimization becomes less effective. Multiple local packet filters connected directly, 
+All networks located inside a security zone connected to a local packet filter must match "filter_only".
+But other security zones are allowed to contain networks matching "filter_only".
+In this case, the optimization becomes less effective. Multiple local packet filters connected directly,
 without a standard packet filter in between, must use the same values for "filter_only".
 
-If traffic is filtered only by one secondary and one local packet filter 
+If traffic is filtered only by one secondary and one local packet filter
 then the secondary filter does standard filtering.
 
-If attribute "filter_only" has N values, then we would get NxN deny rules for each source/destination pair. 
-But for a leaf security zone, only connected to one local packet filter, we already know 
+If attribute "filter_only" has N values, then we would get NxN deny rules for each source/destination pair.
+But for a leaf security zone, only connected to one local packet filter, we already know
 that each source address matches “filter_only”. Hence we deny any source address in this case:
 
 - deny ip any 10.11.0.0/16
@@ -664,7 +664,7 @@ These restrictions apply:
   connected by a [crosslink network](#crosslink_network) must be
   border of the same security zone.
 
-Outgoing ACLs are supported for model NX-OS, IOS and ASA. 
+Outgoing ACLs are supported for model NX-OS, IOS and ASA.
 
 ## Logging
 
@@ -678,7 +678,7 @@ Define attribute `log = <tag1>, ...;` at each rule that needs logging.
 A rule with logging for `<tag1>` is logged at each device, where a
 matching `log:<tag1>` is defined.
 
-Some devices allow extended log definition with a device specific modifier 
+Some devices allow extended log definition with a device specific modifier
 `log:<tag> = <modifier>`.
 
 For model `ASA` we have modifiers `alerts | critical | debugging | disable |
@@ -712,8 +712,8 @@ generated.
 
 ### Dynamic routing
 
-If an interface of a device has an attribute 
-`routing=<routing protocol>`, 
+If an interface of a device has an attribute
+`routing=<routing protocol>`,
 no static routing entries are generated for networks
 reachable by that interface. Access control lists for this interface
 are automatically augmented to permit incoming packets of the routing
@@ -763,7 +763,7 @@ router:y isn't managed. If traffic from network:a to network:b is
 routed first to router:x and then to router:y, router:x would deny
 this traffic.  Use `reroute_permit = network:b` at interface:x.a to
 permit any incoming traffic to network:b.
- 
+
 ## Virtual interfaces {#virtual_interface}
 
 A virtual interface defines a shared IP address between a group of two
@@ -814,14 +814,14 @@ protocol definition. A protocol modifier modifies the rule in which
 the corresponding protocol is used as follows:
 
 stateless
-: The rule is only applied to stateless devices. 
+: The rule is only applied to stateless devices.
 
 oneway
-: At stateless devices, don't automatically generate rules to permit 
-answer packets. 
+: At stateless devices, don't automatically generate rules to permit
+answer packets.
 
 reversed
-: Source and destination are swapped. 
+: Source and destination are swapped.
 
 dst_net
 : If destination of rule is a host or interface, find the enclosing
@@ -829,7 +829,7 @@ network N and replace destination by N. Exception: hosts having a
 VPN id and interfaces of manged routers are left unchanged.
 
 src_net
-: Equivalent to dst_net modifier but applied to source of rule. 
+: Equivalent to dst_net modifier but applied to source of rule.
 
 ## Keyword "foreach" in services
 
@@ -882,7 +882,7 @@ rules are silently discarded.
 ## Disable generation of object-groups
 
 Netspoc generates optimized code using object-groups for devices of
-type ASA, ACE and NX-OS.  Use router attribute `no_group_code` to
+type ASA and NX-OS.  Use router attribute `no_group_code` to
 disable this optimization.
 
 ## Private configuration context
@@ -890,7 +890,7 @@ disable this optimization.
 The configuration for Netspoc is typically spread to multiple files
 located inside a directory. For a large topology we might have
 multiple administrators with responsibility for only part of the
-topology. 
+topology.
 
 The concept of 'private' configuration contexts allows to partition
 the configuration files into different areas of responsibility.  All
@@ -913,7 +913,7 @@ interface with attribute `hub` and the other one with attribute
 type. This name is used for two purposes:
 
 1. Hub and spoke definitions using the same crypto type are linked together.
-2. Technical details of the crypto tunnel are defined in the 
+2. Technical details of the crypto tunnel are defined in the
    corresponding crypto defintion.
 
 A large number of crypto tunnels of a hub and spoke topology can be
@@ -944,12 +944,12 @@ crypto traffic is filtered by access-lists of interfaces.
 
 ## Changing default values of command line switches
 
-The behavior of Netspoc can be adjusted using command line switches. 
+The behavior of Netspoc can be adjusted using command line switches.
 See `man netspoc` for details.
 
 You can change values for command line switches permanently for a
 project by adding a file named "config" in the toplevel directory of
-the Netspoc configuration. 
+the Netspoc configuration.
 
 Format of the "config" file:
 
