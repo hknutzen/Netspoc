@@ -157,24 +157,6 @@ my %router_info = (
         print_interface   => 1,
         comment_char      => '!',
     },
-    'ACE' => {
-        routing           => 'IOS',
-        filter            => 'ACE',
-        stateless         => 0,
-        stateless_self    => 0,
-        stateless_icmp    => 1,
-        can_objectgroup   => 1,
-        inversed_acl_mask => 0,
-        use_prefix        => 0,
-        can_vrf           => 0,
-        can_log_deny      => 0,
-        log_modifiers     => {},
-        has_vip           => 1,
-        has_out_acl       => 1,
-        need_protect      => 1,
-        print_interface   => 1,
-        comment_char      => '!',
-    },
     ASA => {
         routing       => 'ASA',
         filter        => 'ASA',
@@ -968,6 +950,9 @@ sub read_managed {
 sub read_model {
     my $names = read_assign_list(\&read_name);
     my ($model, @attributes) = @$names;
+    if ($model eq 'ACE' and not @attributes) {
+        return 'ACE';
+    }
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1694,21 +1679,15 @@ sub read_interface {
             error_atline("No NAT supported for $interface->{ip} interface");
         }
     }
+
+    # Attribute 'vip' is an alias for 'loopback'.
     if ($interface->{vip}) {
         $interface->{loopback} = 1;
-        $interface->{hardware}
-          and
-          error_atline("'vip' interface must not have attribute 'hardware'");
-        $interface->{hardware} = 'VIP';
-    }
-    if ($interface->{owner} and not $interface->{vip}) {
-        error_atline("Must use attribute 'owner' only at 'vip' interface");
-        delete $interface->{owner};
     }
     if ($interface->{loopback}) {
+        my $type = $interface->{vip} ? "'vip'" : 'loopback';
         if (@secondary_interfaces) {
-            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
-            error_atline("$type interface must not have secondary IP address");
+            error_atline("\u$type interface must not have secondary IP address");
             @secondary_interfaces = ();
             delete $interface->{orig_main};	# From virtual interface
         }
@@ -1722,12 +1701,10 @@ sub read_interface {
         };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } sort keys %copy;
-            my $type = $interface->{vip} ? "'vip'" : 'loopback';
             error_atline("Invalid attributes $attr for $type interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
-            error_atline("$type interface must not be $interface->{ip}");
+            error_atline("\u$type interface must not be $interface->{ip}");
             $interface->{disabled} = 1;
         }
     }
@@ -1977,39 +1954,15 @@ sub read_router {
 
     my $model = $router->{model};
 
-    # Owner at vip interfaces is allowed for managed and unmanaged
-    # devices and hence must be checked for both.
-    {
-        my $error;
-        for my $interface (@{ $router->{interfaces} }) {
-            if ($interface->{vip} and not($model and $model->{has_vip})) {
-                $error = 1;
-
-                # Prevent further errors.
-                delete $interface->{vip};
-                delete $interface->{owner};
-            }
-        }
-        if ($error) {
-            my $valid = join(
-                ', ',
-                grep({ $router_info{$_}->{has_vip} }
-                    sort keys %router_info)
-            );
-            err_msg(
-                "Must not use attribute 'vip' at $name\n",
-                " 'vip' is only allowed for model $valid"
-            );
-        }
-    }
-
     if (my $managed = $router->{managed}) {
-        my $all_routing = $router->{routing};
-
-        unless ($model) {
+        if (not $model) {
             err_msg("Missing 'model' for managed $name");
 
             # Prevent further errors.
+            $router->{model} = { name => 'unknown' };
+        }
+        elsif ($model eq 'ACE') {
+            err_msg("model = ACE no longer supported for managed $name");
             $router->{model} = { name => 'unknown' };
         }
 
@@ -2070,13 +2023,6 @@ sub read_router {
                 if (my $nat = $interface->{bind_nat}) {
                     $hardware->{bind_nat} = $nat;
                 }
-
-                # Hardware name 'VIP' is used internally at loadbalancers.
-                      $hw_name eq 'VIP'
-                  and $model->{has_vip}
-                  and not $interface->{vip}
-                  and err_msg("Must not use hardware 'VIP' at",
-                    " $interface->{name}");
             }
             $interface->{hardware} = $hardware;
 
@@ -2105,7 +2051,7 @@ sub read_router {
             }
 
             # Interface inherits routing attribute from router.
-            if ($all_routing) {
+            if (my $all_routing = $router->{routing}) {
                 $interface->{routing} ||= $all_routing;
             }
             if ((my $routing = $interface->{routing})
@@ -2115,6 +2061,18 @@ sub read_router {
                 $rname =~ /^(?:manual|dynamic)$/
                   or err_msg("Routing $rname not supported",
                              " for unnumbered $interface->{name}");
+            }
+
+            # Interface of managed router must not have individual owner,
+            # because whole device is managed from one place.
+            if (delete $interface->{owner}) {
+                warn_msg("Ignoring attribute 'owner' at managed ",
+                         $interface->{name});
+            }
+
+            # Attribute 'vip' only supported at unmanaged router.
+            if (delete $interface->{vip}) {
+                err_msg("Must not use attribute 'vip' at managed $name");
             }
         }
     }
@@ -3953,7 +3911,7 @@ sub link_owners {
     }
     for my $router (values %routers, @router_fragments) {
         link_to_real_owner($router);
-        $router->{model}->{has_vip} or next;
+        next if $router->{managed} or $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
             link_to_real_owner($interface);
         }
@@ -6478,10 +6436,9 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
+        # Interface of managed router is not allowed to have individual owner.
         for my $interface (get_intf($router)) {
-
-            # Loadbalancer interface with {vip} can have dedicated owner.
-            $interface->{owner} ||= $owner;
+            $interface->{owner} = $owner;
         }
     }
 
@@ -6493,13 +6450,10 @@ sub propagate_owners {
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
             my $owner = $interface->{owner};
+            $owner and $owner->{is_used} = 1;
             my $network = $interface->{network};
             $network->{owner} = $owner;
             $network->{zone}->{owner} = $owner if $managed;
-
-            # Mark dedicated owner of {vip} interface, which is also a
-            # loopback interface.
-            $owner->{is_used} = 1;
         }
     }
 
@@ -7470,8 +7424,8 @@ sub set_policy_distribution_ip {
         grep { $is_admin_prt{$_} } @{ $rule->{prt} } or next;
         my $is_pdp_src = $get_pdp_src->($pdp);
         grep { $is_pdp_src->{$_} } @{ $rule->{src} } or next;
-        my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
-        @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
+        my $dst_list = $rule->{dst};
+        @{$router2found_interfaces{$router}}{@$dst_list} = @$dst_list;
     }
     for my $router (@pdp_routers) {
         my $pdp = $router->{policy_distribution_point};
@@ -9114,7 +9068,6 @@ sub cluster_crosslink_routers {
 
         # Collect all interfaces belonging to need_protect routers of cluster...
         my @crosslink_interfaces =
-          grep { not $_->{vip} }
           map  { @{ $_->{interfaces} } }
           grep { $crosslink_routers->{$_} }
           sort by_name values %cluster;    # Sort to make output deterministic.
@@ -13525,7 +13478,7 @@ sub check_supernet_src_rule {
                 # Find security zones at all interfaces except the in_intf.
                 for my $intf (@{ $router->{interfaces} }) {
                     next if $intf eq $in_intf;
-                    next if $intf->{loopback} and not $intf->{vip};
+                    next if $intf->{loopback};
 
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
@@ -13629,7 +13582,7 @@ sub check_supernet_dst_rule {
 
         # Check each intermediate zone only once at outgoing interface.
         next if $intf eq $in_intf;
-        next if $intf->{loopback} and not $intf->{vip};
+        next if $intf->{loopback};
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
@@ -16303,7 +16256,7 @@ sub print_acl_placeholder {
     # Add comment at start of ACL to easier find first ACL line in tests.
     my $model = $router->{model};
     my $filter = $model->{filter};
-    if ($filter =~ /^(?:ASA|ACE)$/) {
+    if ($filter eq 'ASA') {
         my $comment_char = $model->{comment_char};
         print "$comment_char $acl_name\n";
     }
@@ -16872,12 +16825,6 @@ sub print_cisco_acls {
                     "ip access-group $acl_name $suffix"
                 );
             }
-            elsif ($filter eq 'ACE') {
-                push(
-                    @{ $hardware->{subcmd} },
-                    "access-group ${suffix}put $acl_name"
-                );
-            }
             elsif ($filter eq 'ASA') {
                 print "access-group $acl_name $suffix interface",
                   " $hardware->{name}\n";
@@ -17420,7 +17367,6 @@ sub print_interface {
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
         my $name = $hardware->{name};
-        next if $name eq 'VIP' and $model->{has_vip};
         my @subcmd;
         my $secondary;
         for my $intf (@{ $hardware->{interfaces} }) {
@@ -17465,13 +17411,10 @@ sub print_interface {
         if ($class eq 'IOS' and $stateful and not $hardware->{loopback}) {
             push @subcmd, "ip inspect X in";
         }
+
         if (my $other = $hardware->{subcmd}) {
             push @subcmd, @$other;
         }
-
-        # Split name for ACE: "vlan3029" -> "vlan 3029"
-        $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');
-
         print "interface $name\n";
         for my $cmd (@subcmd) {
             print " $cmd\n";
@@ -17534,11 +17477,9 @@ sub print_acls {
             if (not $need_protect) {
                 $need_protect = $router->{interfaces};
                 $need_protect = [
-                    grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
+                    grep({ $_->{ip} !~
+                               /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
                          @$need_protect) ];
-                if ($model->{has_vip}) {
-                    $need_protect = [ grep { not $_->{vip} } @$need_protect ];
-                }
             }
         }
 

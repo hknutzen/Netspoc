@@ -331,7 +331,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Logging at NX-OS and ACE board';
+$title = 'Logging at NX-OS';
 ############################################################
 
 $in = <<'END';
@@ -349,7 +349,7 @@ router:r1 = {
 
 router:r2 = {
  managed;
- model = ACE;
+ model = NX-OS;
  log:a;
  log:b;
  interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
@@ -370,10 +370,11 @@ ip access-list vlan1_in
  20 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 81
  30 deny ip any any
 -- r2
-! vlan2_in
-access-list vlan2_in extended deny ip any host 10.1.3.2
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 80 81 log
-access-list vlan2_in extended deny ip any any
+! [ ACL ]
+ip access-list vlan2_in
+ 10 deny ip any 10.1.3.2/32
+ 20 permit tcp 10.1.1.0/24 10.1.3.0/24 range 80 81 log
+ 30 deny ip any any
 END
 
 test_run($title, $in, $out);

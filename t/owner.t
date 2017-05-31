@@ -236,20 +236,24 @@ $in = <<'END';
 owner:x = { admins = x@a.b; }
 owner:y = { admins = y@a.b; }
 
-network:U = { ip = 10.1.1.0/24; }
-router:R = {
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
  managed;
- model = ACE;
- owner = x;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
- interface:V = { ip = 10.3.3.3; vip; owner = y; }
- interface:N = { ip = 10.2.2.1; hardware = e1; }
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-network:N = { ip = 10.2.2.0/24; }
+
+network:n2 = { ip = 10.1.2.0/24; }
+router:R = {
+ interface:n2 = { ip = 10.1.2.2; owner = x; }
+ interface:V = { ip = 10.3.3.3; vip; owner = y; }
+}
 
 service:test = {
-    user = network:U;
-    permit src = user; dst = interface:R.V, interface:R.U; prt = tcp 80;
+    user = network:n1;
+    permit src = user; dst = interface:R.V, interface:R.n2; prt = tcp 80;
 }
 END
 
@@ -261,7 +265,7 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Owner only at vip interface';
+$title = 'Owner at interface of managed router';
 ############################################################
 
 $in = <<'END';
@@ -279,41 +283,33 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Must use attribute 'owner' only at 'vip' interface at line 8 of STDIN
-Error: Must use attribute 'owner' only at 'vip' interface at line 9 of STDIN
+Warning: Ignoring attribute 'owner' at managed interface:r1.n1
+Warning: Ignoring attribute 'owner' at managed interface:r1.V
+Warning: Unused owner:y
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Owner at invalid vip interface';
+$title = 'vip interface at managed router';
 ############################################################
-
-# Must not access unprocessed owner.
 
 $in = <<'END';
 owner:y = { admins = y@a.b; }
 
-network:U = { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
- interface:V = { ip = 10.3.3.3; vip; owner = y; }
-}
-router:r2 = {
- interface:U;
- interface:V = { ip = 10.3.3.4; vip; owner = y; }
+ interface:n1 = { ip = 10.1.1.1; hardware = e0; }
+ interface:V  = { ip = 10.3.3.3; hardware = lo; vip; }
 }
 
 END
 
 $out = <<'END';
-Error: Must not use attribute 'vip' at router:r1
- 'vip' is only allowed for model ACE
-Error: Must not use attribute 'vip' at router:r2
- 'vip' is only allowed for model ACE
+Error: Must not use attribute 'vip' at managed router:r1
 END
 
 test_err($title, $in, $out);

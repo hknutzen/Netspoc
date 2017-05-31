@@ -2010,9 +2010,6 @@ sub print_object_groups {
                 print " $numbered $adr\n";
                 $numbered += 10;
             }
-            elsif ($model eq 'ACE') {
-                print " $adr\n";
-            }
             else {
                 print " network-object $adr\n";
             }
@@ -2116,7 +2113,7 @@ sub print_cisco_acl {
         $prefix = '';
         print "ip access-list $name\n";
     }
-    elsif ($model eq 'ASA' || $model eq 'ACE') {
+    elsif ($model eq 'ASA') {
         $prefix = "access-list $name extended";
     }
 
