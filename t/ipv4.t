@@ -37,6 +37,20 @@ END
 
 test_err($title, $in, $out);
 
+############################################################
+$title = 'Unicode digits in IPv4 address';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = १.२.३.४/32; } # 1.2.3.4 in DEVANAGARI
+END
+
+$out = <<"END";
+Syntax error: IP address expected at line 1 of STDIN, near \"\x{967}.\x{968}.\x{969}.\x{96a}/32<--HERE-->; } #\"
+END
+
+test_err($title, $in, $out);
+
 #############################################################
 $title = 'Simple topology IPv4';
 #############################################################

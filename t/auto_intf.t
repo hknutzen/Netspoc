@@ -307,29 +307,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'All interfaces from auto interface of router';
-############################################################
-
-$in = $topo . <<'END';
-service:s = {
- user = interface:[interface:u.[auto]].[all];
- permit src = network:a; dst = user; prt = tcp 23;
-}
-END
-
-$out = <<"END";
--- r1
-! [ ACL ]
-ip access-list extended e1_in
- permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 23
- permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.2 eq 23
- permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 23
- deny ip any any
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Auto interface from auto interface of router';
 ############################################################
 

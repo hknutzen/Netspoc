@@ -36,7 +36,7 @@ use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use NetAddr::IP::Util;
 
-our $VERSION = '5.023'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.024'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2010,9 +2010,6 @@ sub print_object_groups {
                 print " $numbered $adr\n";
                 $numbered += 10;
             }
-            elsif ($model eq 'ACE') {
-                print " $adr\n";
-            }
             else {
                 print " network-object $adr\n";
             }
@@ -2116,7 +2113,7 @@ sub print_cisco_acl {
         $prefix = '';
         print "ip access-list $name\n";
     }
-    elsif ($model eq 'ASA' || $model eq 'ACE') {
+    elsif ($model eq 'ASA') {
         $prefix = "access-list $name extended";
     }
 

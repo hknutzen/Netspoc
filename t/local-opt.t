@@ -42,7 +42,7 @@ any:ANY_G27 = {ip = 0.0.0.0/0; link = network:T1;}
 
 service:Test = {
  user = network:N1;
- permit src = user;	
+ permit src = user;
 	dst = any:ANY_G27, any:[ip = 0.0.0.0/0 & network:N2];
 	prt = tcp 80;
 }
@@ -370,7 +370,7 @@ router:u = {
 network:t = { ip = 10.9.1.0/24; }
 
 router:r = {
- model = ACE;
+ model = ASA;
  managed;
  interface:t = { ip = 10.9.1.2; hardware = t; }
  interface:B = { ip = 10.2.1.1; hardware = B; }
@@ -394,21 +394,15 @@ $out = <<'END';
 -- r
 ! t_in
 object-group network g0
- 10.1.1.0 255.255.255.0
- 10.1.2.0 255.255.255.0
-access-list t_in extended deny ip any host 10.2.1.1
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
 access-list t_in extended permit tcp object-group g0 10.2.1.0 255.255.255.0 range 80 86
 access-list t_in extended deny ip any any
+access-group t_in in interface t
 --
 ! B_in
 access-list B_in extended deny ip any any
---
-interface t
- ip address 10.9.1.2 255.255.255.0
- access-group input t_in
-interface B
- ip address 10.2.1.1 255.255.255.0
- access-group input B_in
+access-group B_in in interface B
 END
 
 test_run($title, $in, $out);

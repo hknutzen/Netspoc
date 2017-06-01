@@ -686,11 +686,11 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Loop, virtual interfaces (2)";
+$title = "Loop, secondary at border";
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
+network:n1 = { ip = 10.2.1.0/27; }
 
 router:r1 = {
  model = ASA;
@@ -698,7 +698,6 @@ router:r1 = {
  filter_only =  10.2.0.0/16;
  routing = manual;
  interface:n1 = { ip = 10.2.1.1; hardware = n1; }
- interface:n3 = { ip = 10.2.3.2; hardware = n2; }
  interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
 }
 
@@ -706,21 +705,11 @@ network:n2 = { ip = 10.2.2.0/27;}
 
 router:r2 = {
  model = ASA;
- managed = local_secondary;
+ managed = local;
  filter_only =  10.2.0.0/16;
  routing = manual;
  interface:n2 = { ip = 10.2.2.1; hardware = vlan5; }
  interface:tr = { ip = 10.2.9.2; hardware = vlan6; }
-}
-
-network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
-
-router:r3 = {
- model = ASA;
- managed = local_secondary;
- filter_only =  10.2.0.0/16;
- interface:n3 = { ip = 10.2.3.1; hardware = vlan7; }
- interface:tr = { ip = 10.2.9.3; hardware = vlan8; }
 }
 
 network:tr = { ip = 10.2.9.0/29; }
@@ -737,7 +726,7 @@ network:extern = { ip = 10.5.3.0/24; }
 service:Mail = {
  user = network:n2;
  permit src = user;
-        dst = network:extern, host:h1, host:h3;
+        dst = network:extern, network:n1;
         prt = tcp 25;
 }
 END
@@ -750,80 +739,16 @@ access-list inside_in extended deny ip any any
 access-group inside_in in interface inside
 --r1
 ! vlan4_in
-object-group network g0
- network-object host 10.2.1.4
- network-object host 10.2.3.4
-access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 object-group g0 eq 25
+access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
 access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
 access-list vlan4_in extended permit ip any any
 access-group vlan4_in in interface vlan4
---r3
-! vlan8_in
-access-list vlan8_in extended permit ip 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224
-access-list vlan8_in extended permit tcp 10.2.2.0 255.255.255.224 host 10.2.3.4 eq 25
-access-list vlan8_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
-access-list vlan8_in extended permit ip any any
-access-group vlan8_in in interface vlan8
-END
-
-test_run($title, $in, $out);
-
-
-############################################################
-$title = "Multiple local_secondary with unrelated local filter";
-############################################################
-# Must not assume, that n2 is located beween n1 and n3.
-
-$in = <<'END';
-network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
-
-router:r1 = {
- model = ASA;
- managed = local_secondary;
- filter_only =  10.2.0.0/16;
- routing = manual;
- interface:n1 = { ip = 10.2.1.1; hardware = n1; }
- interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
-}
-
-network:n2 = { ip = 10.2.2.0/27;}
-
-router:r2 = {
- model = ASA;
- managed = local;
- filter_only =  10.2.0.0/16;
- routing = manual;
- interface:n2 = { ip = 10.2.2.1; hardware = vlan5; }
- interface:tr = { ip = 10.2.9.2; hardware = vlan6; }
-}
-
-network:tr = { ip = 10.2.9.0/29; }
-
-router:r3 = {
- model = ASA;
- managed = local_secondary;
- filter_only =  10.2.0.0/16;
- interface:tr = { ip = 10.2.9.6; hardware = inside; }
- interface:n3 = { ip = 10.2.8.1; hardware = outside; }
-}
-
-network:n3 = { ip = 10.2.8.0/24; }
-
-service:Mail = {
- user = network:n1;
- permit src = user;
-        dst = network:n3;
-        prt = tcp 25;
-}
-END
-
-$out = <<'END';
---r1
-! n1_in
-access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.8.0 255.255.255.0 eq 25
-access-list n1_in extended deny ip any 10.2.0.0 255.255.0.0
-access-list n1_in extended permit ip any any
-access-group n1_in in interface n1
+--r2
+! vlan5_in
+access-list vlan5_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
+access-list vlan5_in extended deny ip any 10.2.0.0 255.255.0.0
+access-list vlan5_in extended permit ip any any
+access-group vlan5_in in interface vlan5
 END
 
 test_run($title, $in, $out);

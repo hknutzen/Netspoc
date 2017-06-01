@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.023'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.024'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -152,24 +152,6 @@ my %router_info = (
         can_vrf           => 1,
         can_log_deny      => 1,
         log_modifiers     => {},
-        has_out_acl       => 1,
-        need_protect      => 1,
-        print_interface   => 1,
-        comment_char      => '!',
-    },
-    'ACE' => {
-        routing           => 'IOS',
-        filter            => 'ACE',
-        stateless         => 0,
-        stateless_self    => 0,
-        stateless_icmp    => 1,
-        can_objectgroup   => 1,
-        inversed_acl_mask => 0,
-        use_prefix        => 0,
-        can_vrf           => 0,
-        can_log_deny      => 0,
-        log_modifiers     => {},
-        has_vip           => 1,
         has_out_acl       => 1,
         need_protect      => 1,
         print_interface   => 1,
@@ -465,7 +447,7 @@ sub skip {
 # Check, if an integer is available.
 sub check_int {
     skip_space_and_comment;
-    if ($input =~ m/\G(\d+)/gc) {
+    if ($input =~ m/\G(\d+)/agc) {
         return $1;
     }
     else {
@@ -489,7 +471,7 @@ sub convert_ip {
         return ip2bitstr($token);
 
     }
-    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/ or
+    $token =~ m/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/a or
         syntax_err("IP address expected");
     if ($1 > 255 or $2 > 255 or $3 > 255 or $4 > 255) {
         error_atline("Invalid IP address");
@@ -944,8 +926,8 @@ sub read_managed {
     elsif ($token eq '=') {
         my $value = read_token();
         if (
-            $value =~ /^(?:secondary|standard|full|primary|
-                           local|local_secondary|routing_only)$/x
+            $value =~ /^(?:secondary|standard|full|primary|local
+                           |routing_only)$/x
           )
         {
             $managed = $value;
@@ -953,8 +935,8 @@ sub read_managed {
         else {
             error_atline(
                 "Expected value:",
-                " secondary|standard|full|primary",
-                "|local|local_secondary|routing_only"
+                " secondary|standard|full|primary|local",
+                "|routing_only"
             );
         }
         skip(';');
@@ -968,6 +950,9 @@ sub read_managed {
 sub read_model {
     my $names = read_assign_list(\&read_name);
     my ($model, @attributes) = @$names;
+    if ($model eq 'ACE' and not @attributes) {
+        return 'ACE';
+    }
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1611,7 +1596,7 @@ sub read_interface {
                 }
                 elsif ($token eq 'id') {
                     my $id = read_assign(\&read_identifier);
-                    $id =~ /^\d+$/
+                    $id =~ /^\d+$/a
                       or error_atline("Redundancy ID must be numeric");
                     $id < 256 or error_atline("Redundancy ID must be < 256");
                     add_attribute($virtual, redundancy_id => $id);
@@ -1694,21 +1679,15 @@ sub read_interface {
             error_atline("No NAT supported for $interface->{ip} interface");
         }
     }
+
+    # Attribute 'vip' is an alias for 'loopback'.
     if ($interface->{vip}) {
         $interface->{loopback} = 1;
-        $interface->{hardware}
-          and
-          error_atline("'vip' interface must not have attribute 'hardware'");
-        $interface->{hardware} = 'VIP';
-    }
-    if ($interface->{owner} and not $interface->{vip}) {
-        error_atline("Must use attribute 'owner' only at 'vip' interface");
-        delete $interface->{owner};
     }
     if ($interface->{loopback}) {
+        my $type = $interface->{vip} ? "'vip'" : 'loopback';
         if (@secondary_interfaces) {
-            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
-            error_atline("$type interface must not have secondary IP address");
+            error_atline("\u$type interface must not have secondary IP address");
             @secondary_interfaces = ();
             delete $interface->{orig_main};	# From virtual interface
         }
@@ -1722,12 +1701,10 @@ sub read_interface {
         };
         if (keys %copy) {
             my $attr = join ", ", map { "'$_'" } sort keys %copy;
-            my $type = $interface->{vip} ? "'vip'" : 'loopback';
             error_atline("Invalid attributes $attr for $type interface");
         }
         if ($interface->{ip} =~ /^(unnumbered|negotiated|short|bridged)$/) {
-            my $type = $interface->{vip} ? "'vip'" : 'Loopback';
-            error_atline("$type interface must not be $interface->{ip}");
+            error_atline("\u$type interface must not be $interface->{ip}");
             $interface->{disabled} = 1;
         }
     }
@@ -1977,39 +1954,15 @@ sub read_router {
 
     my $model = $router->{model};
 
-    # Owner at vip interfaces is allowed for managed and unmanaged
-    # devices and hence must be checked for both.
-    {
-        my $error;
-        for my $interface (@{ $router->{interfaces} }) {
-            if ($interface->{vip} and not($model and $model->{has_vip})) {
-                $error = 1;
-
-                # Prevent further errors.
-                delete $interface->{vip};
-                delete $interface->{owner};
-            }
-        }
-        if ($error) {
-            my $valid = join(
-                ', ',
-                grep({ $router_info{$_}->{has_vip} }
-                    sort keys %router_info)
-            );
-            err_msg(
-                "Must not use attribute 'vip' at $name\n",
-                " 'vip' is only allowed for model $valid"
-            );
-        }
-    }
-
     if (my $managed = $router->{managed}) {
-        my $all_routing = $router->{routing};
-
-        unless ($model) {
+        if (not $model) {
             err_msg("Missing 'model' for managed $name");
 
             # Prevent further errors.
+            $router->{model} = { name => 'unknown' };
+        }
+        elsif ($model eq 'ACE') {
+            err_msg("model = ACE no longer supported for managed $name");
             $router->{model} = { name => 'unknown' };
         }
 
@@ -2070,13 +2023,6 @@ sub read_router {
                 if (my $nat = $interface->{bind_nat}) {
                     $hardware->{bind_nat} = $nat;
                 }
-
-                # Hardware name 'VIP' is used internally at loadbalancers.
-                      $hw_name eq 'VIP'
-                  and $model->{has_vip}
-                  and not $interface->{vip}
-                  and err_msg("Must not use hardware 'VIP' at",
-                    " $interface->{name}");
             }
             $interface->{hardware} = $hardware;
 
@@ -2105,7 +2051,7 @@ sub read_router {
             }
 
             # Interface inherits routing attribute from router.
-            if ($all_routing) {
+            if (my $all_routing = $router->{routing}) {
                 $interface->{routing} ||= $all_routing;
             }
             if ((my $routing = $interface->{routing})
@@ -2115,6 +2061,18 @@ sub read_router {
                 $rname =~ /^(?:manual|dynamic)$/
                   or err_msg("Routing $rname not supported",
                              " for unnumbered $interface->{name}");
+            }
+
+            # Interface of managed router must not have individual owner,
+            # because whole device is managed from one place.
+            if (delete $interface->{owner}) {
+                warn_msg("Ignoring attribute 'owner' at managed ",
+                         $interface->{name});
+            }
+
+            # Attribute 'vip' only supported at unmanaged router.
+            if (delete $interface->{vip}) {
+                err_msg("Must not use attribute 'vip' at managed $name");
             }
         }
     }
@@ -2988,7 +2946,7 @@ sub assign_union_allow_user {
 # Check if day of given date is today or has been reached already.
 sub date_is_reached {
     my ($date) = @_;
-    my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/
+    my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/a
         or syntax_err("Date expected as yyyy-mm-dd");
     my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time);
     $mon += 1;
@@ -3953,7 +3911,7 @@ sub link_owners {
     }
     for my $router (values %routers, @router_fragments) {
         link_to_real_owner($router);
-        $router->{model}->{has_vip} or next;
+        next if $router->{managed} or $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
             link_to_real_owner($interface);
         }
@@ -6478,10 +6436,9 @@ sub propagate_owners {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
 
+        # Interface of managed router is not allowed to have individual owner.
         for my $interface (get_intf($router)) {
-
-            # Loadbalancer interface with {vip} can have dedicated owner.
-            $interface->{owner} ||= $owner;
+            $interface->{owner} = $owner;
         }
     }
 
@@ -6493,13 +6450,10 @@ sub propagate_owners {
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{loopback} or next;
             my $owner = $interface->{owner};
+            $owner and $owner->{is_used} = 1;
             my $network = $interface->{network};
             $network->{owner} = $owner;
             $network->{zone}->{owner} = $owner if $managed;
-
-            # Mark dedicated owner of {vip} interface, which is also a
-            # loopback interface.
-            $owner->{is_used} = 1;
         }
     }
 
@@ -7470,8 +7424,8 @@ sub set_policy_distribution_ip {
         grep { $is_admin_prt{$_} } @{ $rule->{prt} } or next;
         my $is_pdp_src = $get_pdp_src->($pdp);
         grep { $is_pdp_src->{$_} } @{ $rule->{src} } or next;
-        my @dst_list = grep { not $_->{vip} } @{ $rule->{dst} };
-        @{$router2found_interfaces{$router}}{@dst_list} = @dst_list;
+        my $dst_list = $rule->{dst};
+        @{$router2found_interfaces{$router}}{@$dst_list} = @$dst_list;
     }
     for my $router (@pdp_routers) {
         my $pdp = $router->{policy_distribution_point};
@@ -7522,22 +7476,12 @@ sub set_policy_distribution_ip {
         next if $seen{$router};
         next if $router->{orig_router};
         if (my $vrf_members = $router->{vrf_members}) {
-            for my $member (@$vrf_members) {
-                if (not $member->{admin_ip}) {
-                    push(@unreachable,
-                         { name => "some VRF of router:$router->{device_name}" }
-                        );
-                    last;
-                }
+            if (not grep { $_->{admin_ip} } @$vrf_members) {
+                push(@unreachable,
+                     { name =>
+                           "at least one VRF of router:$router->{device_name}" }
+                    );
             }
-
-            # Print VRF instance with known admin_ip first.
-            $router->{vrf_members} = [
-                sort {
-                        !$a->{admin_ip} <=> !$b->{admin_ip}
-                      || $a->{name} cmp $b->{name}
-                } @$vrf_members
-            ];
             $seen{$_} = 1 for @$vrf_members;
         }
         else {
@@ -9084,7 +9028,6 @@ my %crosslink_strength = (
     standard        => 9,
     secondary       => 8,
     local           => 7,
-    local_secondary => 6,
 );
 ##############################################################################
 # Purpose   : Find clusters of routers connected directly or indirectly by
@@ -9125,7 +9068,6 @@ sub cluster_crosslink_routers {
 
         # Collect all interfaces belonging to need_protect routers of cluster...
         my @crosslink_interfaces =
-          grep { not $_->{vip} }
           map  { @{ $_->{interfaces} } }
           grep { $crosslink_routers->{$_} }
           sort by_name values %cluster;    # Sort to make output deterministic.
@@ -9241,9 +9183,9 @@ sub initialize_network_0_0 {
         );
 }
 
-# Find cluster of zones connected by 'local' or 'local_secondary' routers.
+# Find cluster of zones connected by 'local' routers.
 # - Check consistency of attributes.
-# - Set unique 'local_mark' for all zones and managed routers
+# - Set unique 'local_mark' for all managed routers
 #   belonging to one cluster.
 # Returns array of cluster infos, a hash with attributes
 # - no_nat_set
@@ -9252,8 +9194,9 @@ sub initialize_network_0_0 {
 sub get_managed_local_clusters {
     my $local_mark = 1;
     my @result;
+    my %seen;
     for my $router0 (@managed_routers) {
-        $router0->{managed} =~ /^local/ or next;
+        $router0->{managed} eq 'local' or next;
         next if $router0->{local_mark};
         my $filter_only = $router0->{filter_only};
 
@@ -9296,10 +9239,7 @@ sub get_managed_local_clusters {
                 my $zone0        = $in_intf->{zone};
                 my $zone_cluster = $zone0->{zone_cluster};
                 for my $zone ($zone_cluster ? @$zone_cluster : ($zone0)) {
-                    next if $zone->{local_mark};
-
-                    # Needed for local_secondary optimization.
-                    $zone->{local_mark} = $local_mark;
+                    next if $seen{$zone}++;
 
                     # All networks in local zone must match {filter_only}.
                   NETWORK:
@@ -9322,7 +9262,7 @@ sub get_managed_local_clusters {
                         next if $out_intf eq $in_intf;
                         my $router2 = $out_intf->{router};
                         my $managed = $router2->{managed} or next;
-                        $managed =~ /^local/ or next;
+                        $managed eq 'local' or next;
                         next if $router2->{local_mark};
                         __SUB__->($router2);
                     }
@@ -10415,7 +10355,7 @@ sub set_areas {
                 my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
                   or next;
                 err_msg(
-                    "Invalid $attr of $area->{name}:\n - ",
+                    "Unreachable $attr of $area->{name}:\n - ",
                     join("\n - ", map { $_->{name} } @bad_intf)
                 );
                 $area->{$attr} =
@@ -13538,7 +13478,7 @@ sub check_supernet_src_rule {
                 # Find security zones at all interfaces except the in_intf.
                 for my $intf (@{ $router->{interfaces} }) {
                     next if $intf eq $in_intf;
-                    next if $intf->{loopback} and not $intf->{vip};
+                    next if $intf->{loopback};
 
                     # Nothing to be checked for an interface directly
                     # connected to src or dst.
@@ -13642,7 +13582,7 @@ sub check_supernet_dst_rule {
 
         # Check each intermediate zone only once at outgoing interface.
         next if $intf eq $in_intf;
-        next if $intf->{loopback} and not $intf->{vip};
+        next if $intf->{loopback};
 
         # Don't check interface where src or dst is attached.
         my $zone = $intf->{zone};
@@ -13877,6 +13817,11 @@ sub check_transient_supernet_rules {
         my $src_list = $rule->{src};
         for my $obj (@$src_list) {
             $obj->{has_other_subnet} or next;
+
+            # Ignore the internet. If the internet is used as src and dst
+            # then the implicit transient rule is assumed to be ok.
+            next if not $obj->{is_aggregate} and $obj->{mask} eq $zero_ip;
+
             my $zone = $obj->{zone};
             next if $zone->{no_check_supernet_rules};
 
@@ -14254,7 +14199,6 @@ sub gen_reverse_rules {
 # additionally mark all security zones
 # which are connected with $zone by secondary packet filters.
 sub mark_secondary;
-
 sub mark_secondary {
     my ($zone, $mark) = @_;
     $zone->{secondary_mark} = $mark;
@@ -14281,9 +14225,7 @@ sub mark_secondary {
 # Mark security zone $zone with $mark and
 # additionally mark all security zones
 # which are connected with $zone by non-primary packet filters.
-# Test for {active_path} has been added to prevent deep recursion.
 sub mark_primary;
-
 sub mark_primary {
     my ($zone, $mark) = @_;
     $zone->{primary_mark} = $mark;
@@ -14301,33 +14243,6 @@ sub mark_primary {
             my $next_zone = $out_interface->{zone};
             next if $next_zone->{primary_mark};
             mark_primary $next_zone, $mark;
-        }
-    }
-}
-
-# Set 'local_secondary_mark' for secondary optimization inside one cluster.
-# Two zones get the same mark if they are connected by local_secondary router.
-sub mark_local_secondary;
-
-sub mark_local_secondary {
-    my ($zone, $mark) = @_;
-    $zone->{local_secondary_mark} = $mark;
-
-#    debug "local_secondary $zone->{name} : $mark";
-    for my $in_interface (@{ $zone->{interfaces} }) {
-        next if $in_interface->{main_interface};
-        my $router = $in_interface->{router};
-        if (my $managed = $router->{managed}) {
-            next if $managed ne 'local_secondary';
-        }
-        next if $router->{local_secondary_mark};
-        $router->{local_secondary_mark} = $mark;
-        for my $out_interface (@{ $router->{interfaces} }) {
-            next if $out_interface eq $in_interface;
-            next if $out_interface->{main_interface};
-            my $next_zone = $out_interface->{zone};
-            next if $next_zone->{local_secondary_mark};
-            mark_local_secondary($next_zone, $mark);
         }
     }
 }
@@ -14358,9 +14273,9 @@ sub have_different_marks {
 
 sub have_set_and_equal_marks {
     my ($src_zones, $dst_zones, $mark) = @_;
-    my $src_marks = [ map { $_->{$mark} or return; } @$src_zones ];
-    my $dst_marks = [ map { $_->{$mark} or return; } @$dst_zones ];
-    return equal(@$src_marks, @$dst_marks);
+    my @src_marks = map { $_->{$mark} or return; } @$src_zones;
+    my @dst_marks = map { $_->{$mark} or return; } @$dst_zones;
+    return equal(@src_marks, @dst_marks);
 }
 
 sub mark_secondary_rules {
@@ -14368,16 +14283,12 @@ sub mark_secondary_rules {
 
     my $secondary_mark        = 1;
     my $primary_mark          = 1;
-    my $local_secondary_mark  = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
             mark_secondary $zone, $secondary_mark++;
         }
         if (not $zone->{primary_mark}) {
             mark_primary $zone, $primary_mark++;
-        }
-        if (not $zone->{local_secondary_mark}) {
-            mark_local_secondary($zone, $local_secondary_mark++);
         }
     }
 
@@ -14394,12 +14305,6 @@ sub mark_secondary_rules {
         my $src_zones = get_zones($src_path, $src);
         my $dst_zones = get_zones($dst_path, $dst);
         if (have_different_marks($src_zones, $dst_zones, 'secondary_mark')) {
-            $rule->{some_non_secondary} = 1;
-        }
-        elsif (have_set_and_equal_marks($src_zones, $dst_zones, 'local_mark') and
-               have_different_marks($src_zones, $dst_zones,
-                                    'local_secondary_mark'))
-        {
             $rule->{some_non_secondary} = 1;
         }
         if (have_different_marks($src_zones, $dst_zones, 'primary_mark')) {
@@ -16351,7 +16256,7 @@ sub print_acl_placeholder {
     # Add comment at start of ACL to easier find first ACL line in tests.
     my $model = $router->{model};
     my $filter = $model->{filter};
-    if ($filter =~ /^(?:ASA|ACE)$/) {
+    if ($filter eq 'ASA') {
         my $comment_char = $model->{comment_char};
         print "$comment_char $acl_name\n";
     }
@@ -16920,12 +16825,6 @@ sub print_cisco_acls {
                     "ip access-group $acl_name $suffix"
                 );
             }
-            elsif ($filter eq 'ACE') {
-                push(
-                    @{ $hardware->{subcmd} },
-                    "access-group ${suffix}put $acl_name"
-                );
-            }
             elsif ($filter eq 'ASA') {
                 print "access-group $acl_name $suffix interface",
                   " $hardware->{name}\n";
@@ -17338,7 +17237,7 @@ sub print_crypto {
         }
 
         my $encryption = $isakmp->{encryption};
-        if ($encryption =~ /^aes(\d+)$/) {
+        if ($encryption =~ /^aes(\d+)$/a) {
             my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
             $encryption = "aes$len";
         }
@@ -17468,7 +17367,6 @@ sub print_interface {
     my $stateful = not $model->{stateless};
     for my $hardware (@{ $router->{hardware} }) {
         my $name = $hardware->{name};
-        next if $name eq 'VIP' and $model->{has_vip};
         my @subcmd;
         my $secondary;
         for my $intf (@{ $hardware->{interfaces} }) {
@@ -17513,13 +17411,10 @@ sub print_interface {
         if ($class eq 'IOS' and $stateful and not $hardware->{loopback}) {
             push @subcmd, "ip inspect X in";
         }
+
         if (my $other = $hardware->{subcmd}) {
             push @subcmd, @$other;
         }
-
-        # Split name for ACE: "vlan3029" -> "vlan 3029"
-        $name =~ s/(\d+)/ $1/ if ($class eq 'ACE');
-
         print "interface $name\n";
         for my $cmd (@subcmd) {
             print " $cmd\n";
@@ -17582,11 +17477,9 @@ sub print_acls {
             if (not $need_protect) {
                 $need_protect = $router->{interfaces};
                 $need_protect = [
-                    grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
+                    grep({ $_->{ip} !~
+                               /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
                          @$need_protect) ];
-                if ($model->{has_vip}) {
-                    $need_protect = [ grep { not $_->{vip} } @$need_protect ];
-                }
             }
         }
 

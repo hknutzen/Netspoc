@@ -193,37 +193,101 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'No admin IP found in any VRFs';
+$title = 'No admin IP found in any VRF';
 ############################################################
 
 $in = <<'END';
-network:m = { ip = 10.2.2.0/24;
- host:netspoc = { ip = 10.2.2.222; }
+network:n1 = { ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.9; }
 }
 router:r1@v1 = {
  managed;
  model = NX-OS;
  policy_distribution_point = host:netspoc;
- interface:m = { ip = 10.2.2.1; hardware = e0; }
- interface:t = { ip = 10.9.9.1; hardware = e1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
-network:t = { ip = 10.9.9.0/24; }
 router:r1@v2 = {
  managed;
  model = NX-OS;
  policy_distribution_point = host:netspoc;
- interface:t = { ip = 10.9.9.2; hardware = e2; }
- interface:n = { ip = 10.1.1.1; hardware = e3; }
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
 }
-network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
 Warning: Missing rules to reach 1 devices from policy_distribution_point:
- - some VRF of router:r1
+ - at least one VRF of router:r1
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'One admin IP found in multiple VRFs';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.9; }
+}
+router:r1@v1 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+router:r1@v2 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
+}
+
+service:admin = {
+ user = interface:r1@v2.[auto];
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ IP = 10.1.1.2 ]
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Multiple admin IPs found in VRFs';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.9; }
+}
+router:r1@v1 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+router:r1@v2 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
+}
+
+service:admin = {
+ user = interface:r1@v1.[auto], interface:r1@v2.[auto];
+ permit src = host:netspoc; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! [ IP = 10.1.1.1,10.1.1.2 ]
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 

@@ -64,22 +64,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Crosslink secondary and local_secondary';
-############################################################
-
-$in = $topo;
-$in =~ s/_1/secondary/;
-$in =~ s|_2;|local_secondary; filter_only =  10.2.0.0/15;|;
-
-$out = <<'END';
--r1
-access-list vlan2_in extended deny ip any any
-access-group vlan2_in in interface vlan2
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Crosslink secondary and local';
 ############################################################
 

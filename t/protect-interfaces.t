@@ -251,37 +251,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "VIP doesn't need protection";
-############################################################
-
-$in = <<'END';
-network:U = { ip = 10.1.1.0/24; }
-router:R = {
- managed;
- model = ACE;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
- interface:V = { ip = 10.3.3.3; vip; }
- interface:N = { ip = 10.2.2.1; hardware = e1; }
-}
-network:N = { ip = 10.2.2.0/24; }
-
-service:test = {
-    user = any:[network:N], any:[interface:R.V];
-    permit src = network:U; dst = user; prt = tcp 80;
-}
-END
-
-$out = <<'END';
---R
-access-list e0_in extended deny ip any host 10.1.1.1
-access-list e0_in extended deny ip any host 10.2.2.1
-access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
-access-list e0_in extended deny ip any any
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = "Protect interfaces of crosslink cluster";
 ############################################################
 
@@ -335,13 +304,13 @@ router:R1 = {
  interface:U = { ip = 10.1.1.1; hardware = e0; }
  interface:C = { ip = 10.9.9.1; hardware = e1; }
 }
-area:CVN = { border = interface:R1.C; }
+area:CLN = { border = interface:R1.C; }
 network:C = { ip = 10.9.9.0/29; crosslink; }
 router:R2 = {
  managed;
- model = ACE;
+ model = IOS;
  interface:C = { ip = 10.9.9.2; hardware = e2; }
- interface:V = { ip = 10.3.3.3; vip; }
+ interface:L = { ip = 10.3.3.3; hardware = lo; loopback; }
  interface:N = { ip = 10.2.2.1; hardware = e3; }
 }
 network:N = { ip = 10.2.2.0/24; }
@@ -349,7 +318,7 @@ network:N = { ip = 10.2.2.0/24; }
 service:test = {
     user = network:U;
     permit src = user;
-    dst = any:[area:CVN];
+    dst = any:[area:CLN];
            prt = tcp 80;
 }
 END
@@ -357,12 +326,15 @@ END
 $out = <<'END';
 --R1
 access-list e0_in extended deny ip any host 10.9.9.2
+access-list e0_in extended deny ip any host 10.3.3.3
 access-list e0_in extended deny ip any host 10.2.2.1
 access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
 access-list e0_in extended deny ip any any
 access-group e0_in in interface e0
 --R2
-access-list e3_in extended deny ip any any
+ip access-list extended e3_in
+ permit tcp any 10.1.1.0 0.0.0.255 established
+ deny ip any any
 END
 
 test_run($title, $in, $out);
