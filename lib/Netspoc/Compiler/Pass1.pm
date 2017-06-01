@@ -14271,13 +14271,6 @@ sub have_different_marks {
     return not intersect($src_marks, $dst_marks);
 }
 
-sub have_set_and_equal_marks {
-    my ($src_zones, $dst_zones, $mark) = @_;
-    my @src_marks = map { $_->{$mark} or return; } @$src_zones;
-    my @dst_marks = map { $_->{$mark} or return; } @$dst_zones;
-    return equal(@src_marks, @dst_marks);
-}
-
 sub mark_secondary_rules {
     progress('Marking rules for secondary optimization');
 
