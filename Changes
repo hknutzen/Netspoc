@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+5.024     2017-06-01 11:00:49+02:00 Europe/Berlin
+
+ - Network 0.0.0.0/0 (the internet) is ignored when checking for
+   transient supernet rules.
+ - Only one VRF instance of a multi VRF router needs to be
+   reachable by policy distribution point.
+ - Dropped support for "managed = local_secondary".
+ - Dropped support for model "ACE".
+
 5.023     2017-05-12 11:07:07+02:00 Europe/Berlin
 
  - Netspoc is IPV6 ready now.
