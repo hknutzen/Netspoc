@@ -950,9 +950,6 @@ sub read_managed {
 sub read_model {
     my $names = read_assign_list(\&read_name);
     my ($model, @attributes) = @$names;
-    if ($model eq 'ACE' and not @attributes) {
-        return 'ACE';
-    }
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1959,10 +1956,6 @@ sub read_router {
             err_msg("Missing 'model' for managed $name");
 
             # Prevent further errors.
-            $router->{model} = { name => 'unknown' };
-        }
-        elsif ($model eq 'ACE') {
-            err_msg("model = ACE no longer supported for managed $name");
             $router->{model} = { name => 'unknown' };
         }
 
