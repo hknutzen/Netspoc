@@ -1896,6 +1896,43 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'only_watch owner visible by show_all';
+############################################################
+
+$in = <<'END';
+owner:all = { watchers = all@example.com; only_watch; show_all; }
+owner:n1 = { admins = n1@example.com; only_watch; }
+
+area:all = { anchor = network:n1; owner = all; }
+area:n1 = { border = interface:r1.n1; owner = n1; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+END
+
+$out = <<'END';
+-- email
+{
+   "all@example.com" : [
+      "all",
+      "n1"
+   ],
+   "n1@example.com" : [
+      "n1"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Remove auto interface in rule';
 ############################################################
 # Auto interface of group and auto interface of rule must be
