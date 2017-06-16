@@ -1162,11 +1162,6 @@ sub export_owners {
     $_ = [ sort values(%$_) ] for values %email2owners;
 
     export("email", \%email2owners);
-
-    # Is no longer used and is always empty.
-    # Only exported for compatibility with older version of Netspoc-Web.
-    my %owner2alias;
-    export('owner2alias', \%owner2alias);
     return;
 }
 
