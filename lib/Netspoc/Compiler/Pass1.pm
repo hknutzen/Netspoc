@@ -13778,7 +13778,6 @@ sub all_equal_path {
     # Check interfaces where zone is left.
     # Stop if more than one interface is found.
     my $same_intf;
-    my $loop_entry = $zone->{loop_entry};
     for my $to (@path_list) {
         if (not $zone->{path1}->{$to}) {
             if (not path_mark($zone, $to)) {
@@ -13787,7 +13786,7 @@ sub all_equal_path {
             }
         }
         my $next_intf;
-        if ($loop_entry and my $entry = $loop_entry->{$to}) {
+        if ($zone->{loop_entry} and my $entry = $zone->{loop_entry}->{$to}) {
             my $exit  = $entry->{loop_exit}->{$to};
             my $enter = $entry->{loop_enter}->{$exit};
             return if @$enter > 1;
