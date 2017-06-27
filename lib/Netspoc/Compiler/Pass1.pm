@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.024'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.025'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -950,9 +950,6 @@ sub read_managed {
 sub read_model {
     my $names = read_assign_list(\&read_name);
     my ($model, @attributes) = @$names;
-    if ($model eq 'ACE' and not @attributes) {
-        return 'ACE';
-    }
     my $info = $router_info{$model};
     if (not $info) {
         error_atline("Unknown router model");
@@ -1959,10 +1956,6 @@ sub read_router {
             err_msg("Missing 'model' for managed $name");
 
             # Prevent further errors.
-            $router->{model} = { name => 'unknown' };
-        }
-        elsif ($model eq 'ACE') {
-            err_msg("model = ACE no longer supported for managed $name");
             $router->{model} = { name => 'unknown' };
         }
 
@@ -13768,6 +13761,51 @@ sub mark_leaf_zones {
     return \%leaf_zones;
 }
 
+# Check if $zone reaches elements of $src_list and $dst_list
+# all via the same interface.
+sub all_equal_path {
+    my ($zone, $src_list, $dst_list) = @_;
+
+    # Collect all zones and routers, where elements are located.
+    my @path_list;
+    my %seen;
+    for my $element (@$src_list, @$dst_list) {
+        my $path = $obj2path{$element} || get_path($element);
+        next if $path eq $zone;
+        $seen{$path}++ or push @path_list, $path;
+    }
+
+    # Check interfaces where zone is left.
+    # Stop if more than one interface is found.
+    my $same_intf;
+    for my $to (@path_list) {
+        if (not $zone->{path1}->{$to}) {
+            if (not path_mark($zone, $to)) {
+                delete $zone->{path1}->{$to};
+                next;
+            }
+        }
+        my $next_intf;
+        if ($zone->{loop_entry} and my $entry = $zone->{loop_entry}->{$to}) {
+            my $exit  = $entry->{loop_exit}->{$to};
+            my $enter = $entry->{loop_enter}->{$exit};
+            return if @$enter > 1;
+            ($next_intf) = @$enter;
+
+        }
+        else {
+            $next_intf = $zone->{path1}->{$to};
+        }
+        if ($same_intf) {
+            return if $same_intf ne $next_intf;
+        }
+        else {
+            $same_intf = $next_intf;
+        }
+    }
+    return 1;
+}
+
 # Print list of names in messages.
 sub name_list {
     my ($obj) = @_;
@@ -13802,7 +13840,7 @@ sub short_name_list {
 # In order to avoid this, a warning is generated if the implied rule is not
 # explicitly defined.
 sub check_transient_supernet_rules {
-#    progress("Check transient supernet rules");
+    progress("Checking transient supernet rules");
     my $rules = $service_rules{permit};
 
     my $is_leaf_zone = mark_leaf_zones();
@@ -13905,7 +13943,8 @@ sub check_transient_supernet_rules {
                              all_contained_in($dst_list2, $dst_list1))
                         and not elements_in_one_zone($src_list1, $dst_list2)
                         and not elements_in_one_zone($src_list1, [ $obj2 ])
-                        and not elements_in_one_zone([ $obj1 ], $dst_list2))
+                        and not elements_in_one_zone([ $obj1 ], $dst_list2)
+                        and not all_equal_path($zone, $src_list1, $dst_list2))
                     {
                         my $srv1 = $rule1->{rule}->{service}->{name};
                         my $srv2 = $rule2->{rule}->{service}->{name};
@@ -14269,13 +14308,6 @@ sub have_different_marks {
     my $src_marks = [ map { $_->{$mark} } @$src_zones ];
     my $dst_marks = [ map { $_->{$mark} } @$dst_zones ];
     return not intersect($src_marks, $dst_marks);
-}
-
-sub have_set_and_equal_marks {
-    my ($src_zones, $dst_zones, $mark) = @_;
-    my @src_marks = map { $_->{$mark} or return; } @$src_zones;
-    my @dst_marks = map { $_->{$mark} or return; } @$dst_zones;
-    return equal(@src_marks, @dst_marks);
 }
 
 sub mark_secondary_rules {

@@ -1,3 +1,8 @@
+5.025     2017-06-27 14:53:36+02:00 Europe/Berlin
+
+ - More accurate check for transient supernet rules.
+   Warning is only generated, if a zone is actually crossed.
+
 5.024     2017-06-01 11:00:49+02:00 Europe/Berlin
 
  - Network 0.0.0.0/0 (the internet) is ignored when checking for

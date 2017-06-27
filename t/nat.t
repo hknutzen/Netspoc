@@ -2596,7 +2596,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'NAT at loopback network';
+$title = 'NAT at loopback network (1)';
 ############################################################
 
 $in = <<'END';
@@ -2612,7 +2612,7 @@ router:r1 = {
   hardware = Looback0;
   loopback;
   nat:N = { identity; }
-  nat:N2 = { ip = 10.1.9.1; }
+  nat:N2 = { ip = 10.1.99.99; }
  }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
 }
@@ -2628,9 +2628,19 @@ END
 $out = <<'END';
 -- r1
 ip access-list extended n2_in
- permit tcp 10.1.2.0 0.0.0.255 host 10.1.9.1 eq 80
+ permit tcp 10.1.2.0 0.0.0.255 host 10.1.99.99 eq 80
  deny ip any any
 END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'NAT at loopback network (2)';
+############################################################
+
+# NAT to original address.
+$in =~ s/\Q10.1.99.99/10.1.9.1/;
+$out =~ s/\Q10.1.99.99/10.1.9.1/;
 
 test_run($title, $in, $out);
 
