@@ -2054,6 +2054,93 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No missing transient rule if zone isn\'t crossed';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+# Add other zone, that any:[network:n2] is no leaf zone
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = ip;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = udp;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule if zone in loop isn\'t crossed';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p =
+ interface:r1.n4,
+ interface:r2.n4,
+;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = ip;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = udp;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'No missing transient rule for unenforceable rule';
 ############################################################
 

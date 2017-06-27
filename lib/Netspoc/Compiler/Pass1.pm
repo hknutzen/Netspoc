@@ -13761,6 +13761,52 @@ sub mark_leaf_zones {
     return \%leaf_zones;
 }
 
+# Check if $zone reaches elements of $src_list and $dst_list
+# all via the same interface.
+sub all_equal_path {
+    my ($zone, $src_list, $dst_list) = @_;
+
+    # Collect all zones and routers, where elements are located.
+    my @path_list;
+    my %seen;
+    for my $element (@$src_list, @$dst_list) {
+        my $path = $obj2path{$element} || get_path($element);
+        next if $path eq $zone;
+        $seen{$path}++ or push @path_list, $path;
+    }
+
+    # Check interfaces where zone is left.
+    # Stop if more than one interface is found.
+    my $same_intf;
+    my $loop_entry = $zone->{loop_entry};
+    for my $to (@path_list) {
+        if (not $zone->{path1}->{$to}) {
+            if (not path_mark($zone, $to)) {
+                delete $zone->{path1}->{$to};
+                next;
+            }
+        }
+        my $next_intf;
+        if ($loop_entry and my $entry = $loop_entry->{$to}) {
+            my $exit  = $entry->{loop_exit}->{$to};
+            my $enter = $entry->{loop_enter}->{$exit};
+            return if @$enter > 1;
+            ($next_intf) = @$enter;
+
+        }
+        else {
+            $next_intf = $zone->{path1}->{$to};
+        }
+        if ($same_intf) {
+            return if $same_intf ne $next_intf;
+        }
+        else {
+            $same_intf = $next_intf;
+        }
+    }
+    return 1;
+}
+
 # Print list of names in messages.
 sub name_list {
     my ($obj) = @_;
@@ -13795,7 +13841,7 @@ sub short_name_list {
 # In order to avoid this, a warning is generated if the implied rule is not
 # explicitly defined.
 sub check_transient_supernet_rules {
-#    progress("Check transient supernet rules");
+    progress("Checking transient supernet rules");
     my $rules = $service_rules{permit};
 
     my $is_leaf_zone = mark_leaf_zones();
@@ -13898,7 +13944,8 @@ sub check_transient_supernet_rules {
                              all_contained_in($dst_list2, $dst_list1))
                         and not elements_in_one_zone($src_list1, $dst_list2)
                         and not elements_in_one_zone($src_list1, [ $obj2 ])
-                        and not elements_in_one_zone([ $obj1 ], $dst_list2))
+                        and not elements_in_one_zone([ $obj1 ], $dst_list2)
+                        and not all_equal_path($zone, $src_list1, $dst_list2))
                     {
                         my $srv1 = $rule1->{rule}->{service}->{name};
                         my $srv2 = $rule2->{rule}->{service}->{name};
