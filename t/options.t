@@ -197,6 +197,7 @@ Finding subnets in 1 NAT domains
 Checking rules for unstable subnet relation
 Checking rules with hidden or dynamic NAT
 Checking supernet rules
+Checking transient supernet rules
 Checking for redundant rules
 Expanded rule count: 2; duplicate: 0; redundant: 1
 Removing simple duplicate rules
