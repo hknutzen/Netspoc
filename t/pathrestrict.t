@@ -573,7 +573,7 @@ router:r1 = {
 # r2 is split internally into two parts
 # r2 with n3, n4
 # r2' with n2
-# both connected internally by unneeded network.
+# both connected internally by unnumbered network.
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3;
