@@ -10587,8 +10587,8 @@ sub check_pathrestrictions {
             # Move pathrestriction to other interface, if that one is
             # located at border of loop.
             if (my $other = $interface->{split_other} and not $loop) {
-                my $rlist = delete $interface->{path_restrict};
                 if ($loop = $other->{zone}->{loop}) {
+                    my $rlist = delete $interface->{path_restrict};
 #                   debug("Move $restrict->{name}",
 #                         " from $interface->{name} to $other->{name}");
                     $other->{path_restrict} = $rlist;
