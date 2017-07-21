@@ -190,8 +190,8 @@ END
 
 $out = <<'END';
 Warning: Redundant rules in service:t1 compared to service:t2:
-  permit src=network:n1; dst=network:n3; prt=tcp 80; of service:t1
-< permit src=any:[network:n1]; dst=network:n3; prt=tcp 80; of service:t2
+  permit src=network:n1; dst=network:n3; prt=tcp 80; log=a; of service:t1
+< permit src=any:[network:n1]; dst=network:n3; prt=tcp 80; log=a; of service:t2
 END
 
 test_warn($title, $in, $out);
@@ -228,6 +228,31 @@ access-group vlan2_in in interface vlan2
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Duplicate rules with different log tag';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ overlaps = service:s2;
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80; log = a;
+}
+END
+
+$out = <<'END';
+Error: Duplicate rules must have identical log attribute:
+ permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
+ permit src=network:n2; dst=network:n3; prt=tcp 80; log=a; of service:s2
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Local optimization with log tag';

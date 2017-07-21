@@ -3337,9 +3337,13 @@ sub print_rule {
     my ($rule) = @_;
 
     my $extra = '';
-    my $service = $rule->{rule} && $rule->{rule}->{service};
+    if (my $log = $rule->{log}) {
+        my $names = join(',', @$log);
+        $extra .= " log=$names;";
+    }
     $extra .= " stateless"           if $rule->{stateless};
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
+    my $service = $rule->{rule} && $rule->{rule}->{service};
     $extra .= " of $service->{name}" if $service;
     my $action = $rule->{deny} ? 'deny' : 'permit';
     my $src = $rule->{src};
@@ -7043,6 +7047,10 @@ sub build_rule_tree {
         }
 
         if (my $other_rule = $leaf_hash->{$prt}) {
+            ($rule->{log} || '') eq ($other_rule->{log} || '') or
+                err_msg("Duplicate rules must have identical log attribute:\n",
+                        " ", print_rule($other_rule), "\n",
+                        " ", print_rule($rule));
 
             # Found identical rule.
             collect_duplicate_rules($rule, $other_rule);
