@@ -2054,7 +2054,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'No missing transient rule if zone isn\'t crossed';
+$title = 'No missing transient rule if zone isn\'t traversed';
 ############################################################
 
 $in = <<'END';
@@ -2095,7 +2095,67 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'No missing transient rule if zone in loop isn\'t crossed';
+$title = 'No missing transient rule if zone in loop isn\'t traversed (1)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
+# Traffic between n2 and n4 must not traverse n3.
+pathrestriction:n3 = interface:r2.n2, interface:r3.n3;
+
+# must not traverse n2 and n4.
+pathrestriction:n2 = interface:r1.n2, interface:r2.n2;
+pathrestriction:n4 = interface:r3.n4, interface:r4.n4;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = any:[network:n3]; prt = ip;
+}
+service:s2 = {
+ user = any:[network:n3];
+ permit src = user; dst = network:n4; prt = udp;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule if zone in loop isn\'t traversed (2)';
 ############################################################
 
 $in = <<'END';

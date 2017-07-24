@@ -13761,49 +13761,56 @@ sub mark_leaf_zones {
     return \%leaf_zones;
 }
 
-# Check if $zone reaches elements of $src_list and $dst_list
-# all via the same interface.
-sub all_equal_path {
+# Check if paths from elements of $src_list to $dst_list pass $zone.
+sub paths_reach_zone {
     my ($zone, $src_list, $dst_list) = @_;
 
     # Collect all zones and routers, where elements are located.
-    my @path_list;
+    my @from_list;
+    my @to_list;
     my %seen;
-    for my $element (@$src_list, @$dst_list) {
+    for my $element (@$src_list) {
         my $path = $obj2path{$element} || get_path($element);
         next if $path eq $zone;
-        $seen{$path}++ or push @path_list, $path;
+        $seen{$path}++ or push @from_list, $path;
+    }
+    for my $element (@$dst_list) {
+        my $path = $obj2path{$element} || get_path($element);
+        next if $path eq $zone;
+        $seen{$path}++ or push @to_list, $path;
     }
 
-    # Check interfaces where zone is left.
-    # Stop if more than one interface is found.
-    my $same_intf;
-    for my $to (@path_list) {
-        if (not $zone->{path1}->{$to}) {
-            if (not path_mark($zone, $to)) {
-                delete $zone->{path1}->{$to};
-                next;
+    my $zone_reached;
+    my $check_zone = sub {
+        my ($rule, $in_intf, $out_intf) = @_;
+
+        # Packets traverse $zone.
+        if ($in_intf and $out_intf and $in_intf->{zone} eq $zone) {
+            $zone_reached = 1;
+        }
+    };
+
+    for my $from (@from_list) {
+        for my $to (@to_list) {
+
+            # Check if path from $from to $to is available.
+            if (not $from->{path1}->{$to}) {
+                if (not path_mark($from, $to)) {
+                    delete $from->{path1}->{$to};
+
+                    # No path found, check next pair.
+                    next;
+                }
             }
-        }
-        my $next_intf;
-        if ($zone->{loop_entry} and my $entry = $zone->{loop_entry}->{$to}) {
-            my $exit  = $entry->{loop_exit}->{$to};
-            my $enter = $entry->{loop_enter}->{$exit};
-            return if @$enter > 1;
-            ($next_intf) = @$enter;
-
-        }
-        else {
-            $next_intf = $zone->{path1}->{$to};
-        }
-        if ($same_intf) {
-            return if $same_intf ne $next_intf;
-        }
-        else {
-            $same_intf = $next_intf;
+            my $pseudo_rule = {
+                src_path => $from,
+                dst_path => $to,
+            };
+            path_walk($pseudo_rule, $check_zone, 'Zone');
+            return 1 if $zone_reached;
         }
     }
-    return 1;
+    return;
 }
 
 # Print list of names in messages.
@@ -13944,7 +13951,7 @@ sub check_transient_supernet_rules {
                         and not elements_in_one_zone($src_list1, $dst_list2)
                         and not elements_in_one_zone($src_list1, [ $obj2 ])
                         and not elements_in_one_zone([ $obj1 ], $dst_list2)
-                        and not all_equal_path($zone, $src_list1, $dst_list2))
+                        and paths_reach_zone($zone, $src_list1, $dst_list2))
                     {
                         my $srv1 = $rule1->{rule}->{service}->{name};
                         my $srv2 = $rule2->{rule}->{service}->{name};
