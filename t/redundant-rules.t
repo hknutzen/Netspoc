@@ -251,7 +251,6 @@ $title = 'Fully redundant rule (2)';
 ############################################################
 
 $in = <<'END';
-any:n1 = { link = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 
@@ -284,11 +283,10 @@ END
 test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
-$title = 'Fully redundant rule without overlaps';
+$title = 'Fully redundant rule with reversed overlaps';
 ############################################################
 
 $in = <<'END';
-any:n1 = { link = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 
@@ -312,16 +310,49 @@ service:s2 = {
  permit src = user; dst = network:n2; prt = tcp 80;
  permit src = user; dst = network:n2; prt = tcp 90;
 }
-
 END
 
 $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-Test::More->builder->todo_start($title);
 test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
-Test::More->builder->todo_end;
+
+############################################################
+$title = 'Fully redundant rule without overlaps';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+Warning: Duplicate rules in service:s2 and service:s1:
+  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
+Warning: service:s2 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Relation between src and dst ranges';

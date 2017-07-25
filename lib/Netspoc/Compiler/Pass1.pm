@@ -7102,11 +7102,14 @@ sub collect_duplicate_rules {
     my $service  = $rule->{rule}->{service};
     $service->{redundant_count}++;
 
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
-
+    # Mark duplicate rules in both services.
+    # This is used later to find fully redundant services,
+    # - consisting solely of duplicate rules
+    # - without having an 'overlaps' attribute.
+    $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
+    $oservice->{duplicate_count}++;
+
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7123,6 +7126,14 @@ sub collect_duplicate_rules {
             }
         }
     }
+    my $prt1 = get_orig_prt($rule);
+    my $prt2 = get_orig_prt($other);
+    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+
+    # Mark other service, so we don't show it if both services are
+    # fully redundant compared to each other.
+    $service->{keep_duplicate} or $oservice->{keep_duplicate} = 1;
+
     push @duplicate_rules, [ $rule, $other ];
 }
 
@@ -7206,12 +7217,31 @@ sub show_redundant_rules {
 
 sub show_fully_redundant_rules {
     my $action = $config->{check_fully_redundant_rules} or return;
+    my @duplicate_services;
+    my %keep;
     for my $key (sort keys %services) {
         my $service = $services{$key};
-        my $redundant = $service->{redundant_count} or next;
-        if ($redundant == $service->{rule_count}) {
-            warn_or_err_msg($action, "$service->{name} is fully redundant");
+        my $rule_count = $service->{rule_count};
+        my $duplicates = $service->{duplicate_count};
+        if ($duplicates and $duplicates == $rule_count) {
+            push @duplicate_services, $service;
+            if (my $overlaps = $service->{overlaps}) {
+                $keep{$_} = 1 for @$overlaps;
+            }
+            elsif ($service->{keep_duplicate}) {
+                $keep{$service} = 1;
+            }
         }
+        else {
+            my $redundant = $service->{redundant_count} or next;
+            if ($redundant == $rule_count) {
+                warn_or_err_msg($action, "$service->{name} is fully redundant");
+            }
+        }
+    }
+    for my $service (@duplicate_services) {
+        next if $keep{$service};
+        warn_or_err_msg($action, "$service->{name} is fully redundant");
     }
 }
 
