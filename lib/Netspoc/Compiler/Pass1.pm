@@ -7099,12 +7099,13 @@ my @duplicate_rules;
 
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
+    my $service  = $rule->{rule}->{service};
+    $service->{redundant_count}++;
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
-    my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7203,6 +7204,17 @@ sub show_redundant_rules {
     }
 }
 
+sub show_fully_redundant_rules {
+    my $action = $config->{check_fully_redundant_rules} or return;
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        my $redundant = $service->{redundant_count} or next;
+        if ($redundant == $service->{rule_count}) {
+            warn_or_err_msg($action, "$service->{name} is fully redundant");
+        }
+    }
+}
+
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
@@ -7224,6 +7236,7 @@ sub expand_rules {
     my ($rules) = @_;
     my @result;
     for my $rule (@$rules) {
+        my $service  = $rule->{rule}->{service};
         my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
         for my $src (@$src_list) {
             for my $dst (@$dst_list) {
@@ -7232,6 +7245,7 @@ sub expand_rules {
                                      src => $src,
                                      dst => $dst,
                                      prt => $prt };
+                    $service->{rule_count}++;
                 }
             }
         }
@@ -7286,7 +7300,11 @@ sub find_redundant_rules {
                     collect_redundant_rules($chg_rule, $cmp_rule);
 
                     # Count each redundant rule only once.
-                    $count++ if not $chg_rule->{redundant}++;
+                    if (not $chg_rule->{redundant}++) {
+                        $count++;
+                        $chg_rule->{rule}->{service}->{redundant_count}++;
+                    }
+
                    }
                   }
                   $prt = $prt->{local_up} or last;
@@ -7361,6 +7379,7 @@ sub check_expanded_rules {
     show_duplicate_rules();
     show_redundant_rules();
     warn_unused_overlaps();
+    show_fully_redundant_rules();
     info("Expanded rule count: $count; duplicate: $dcount; redundant: $rcount");
 }
 

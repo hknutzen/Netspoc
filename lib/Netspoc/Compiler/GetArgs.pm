@@ -88,6 +88,7 @@ our %config = (
 
 # Check for redundant rules.
     check_redundant_rules => 'warn',
+    check_fully_redundant_rules => 0,
 
 # Check for services where owner can't be derived.
     check_service_unknown_owner => 0,
