@@ -2208,56 +2208,62 @@ $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
-network:n4 = { ip = 10.1.4.0/24; }
 
 router:r1 = {
  managed;
  model = Linux;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 router:r2 = {
  managed;
  model = Linux;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = Linux;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 
 pathrestriction:p1 =
+ interface:r2.n1,
+ interface:r2.n3,
+;
+pathrestriction:p2 =
  interface:r1.n1,
  interface:r1.n2,
- interface:r1.n4,
- interface:r2.n4,
 ;
 
 service:s1 = {
  user = network:n1;
- permit src = user; dst = any:[network:n2]; prt = ip;
+ permit src = user; dst = any:[network:n3]; prt = ip;
 }
 service:s2 = {
- user = any:[network:n2];
- permit src = user; dst = network:n3; prt = udp;
+ user = any:[network:n3];
+ permit src = user; dst = network:n2; prt = ip;
 }
 END
 
 $out = <<'END';
 Error: No valid path
  from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=any:[network:n2]; prt=ip; of service:s1
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=any:[network:n3]; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=any:[network:n2]; prt=ip; of service:s1
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=any:[network:n3]; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=any:[network:n2]; prt=ip; of service:s1
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=any:[network:n3]; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
 END
 
@@ -2267,16 +2273,55 @@ test_err($title, $in, $out);
 $title = 'No missing transient rule without valid path (2)';
 ############################################################
 
-# Also no direct path from n1 to n3.
-$in .= <<'END';
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = Linux;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+pathrestriction:p1 =
+ interface:r2.n3,
+ interface:r3.n3,
+;
 pathrestriction:p2 =
  interface:r1.n1,
- interface:r1.n3,
+ interface:r1.n2,
 ;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = ip;
+}
+service:s2 = {
+ user = any:[network:n3];
+ permit src = user; dst = network:n2; prt = ip;
+}
 END
 
-# Output remains unchanged.
-test_err($title, $in, $out);
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'No missing transient rule for unenforceable rule';
