@@ -2201,7 +2201,7 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'No missing transient rule without valid path';
+$title = 'No missing transient rule without valid path (1)';
 ############################################################
 
 $in = <<'END';
@@ -2226,7 +2226,7 @@ router:r2 = {
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
-pathrestriction:p =
+pathrestriction:p1 =
  interface:r1.n1,
  interface:r1.n2,
  interface:r1.n4,
@@ -2261,6 +2261,21 @@ Error: No valid path
  Check path restrictions and crypto interfaces.
 END
 
+test_err($title, $in, $out);
+
+############################################################
+$title = 'No missing transient rule without valid path (2)';
+############################################################
+
+# Also no direct path from n1 to n3.
+$in .= <<'END';
+pathrestriction:p2 =
+ interface:r1.n1,
+ interface:r1.n3,
+;
+END
+
+# Output remains unchanged.
 test_err($title, $in, $out);
 
 ############################################################
