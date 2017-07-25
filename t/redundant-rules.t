@@ -134,9 +134,13 @@ Warning: Redundant rules in service:2a compared to service:2c:
 Warning: Redundant rules in service:2b compared to service:2c:
   permit src=network:n1-sub; dst=network:n3; prt=tcp 80-90; of service:2b
 < permit src=network:n1; dst=any:a3; prt=tcp; of service:2c
+Warning: service:1a is fully redundant
+Warning: service:1d is fully redundant
+Warning: service:2a is fully redundant
+Warning: service:2b is fully redundant
 END
 
-test_warn($title, $in, $out);
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Show all redundant rules, not only the smallest one';
@@ -187,9 +191,168 @@ Warning: Redundant rules in service:s3 compared to service:s2a:
 Warning: Redundant rules in service:s3 compared to service:s2b:
   permit src=network:n1; dst=host:h2; prt=tcp 80; of service:s3
 < permit src=network:n1; dst=host:h2; prt=tcp; of service:s2b
+Warning: service:s2a is fully redundant
+Warning: service:s2b is fully redundant
+Warning: service:s3 is fully redundant
 END
 
-test_warn($title, $in, $out);
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'Fully redundant rule';
+############################################################
+
+$in = <<'END';
+any:n1 = { link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ # duplicate
+ permit src = user; dst = network:n2; prt = tcp 80;
+ # redundant
+ permit src = user; dst = network:n2; prt = tcp 81;
+ # redundant with log
+ permit src = user; dst = network:n2; prt = tcp 82; log = a;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 90;
+}
+
+service:s3 = {
+ user = any:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 81;
+ permit src = user; dst = network:n2; prt = tcp 82; log = a;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'Fully redundant rule (2)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:s2 = {
+ overlaps = service:s1;
+ user = network:n1;
+ # duplicate, but not found first
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+Warning: service:s2 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'Fully redundant rule with reversed overlaps';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:s2 = {
+ overlaps = service:s1;
+ user = network:n1;
+ # duplicate, but not found first
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 90;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'Fully redundant rule without overlaps';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+Warning: Duplicate rules in service:s2 and service:s1:
+  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
+Warning: service:s2 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Relation between src and dst ranges';
@@ -273,9 +436,10 @@ Warning: Use network:n1 instead of host:range
 Warning: Redundant rules in service:test1 compared to service:test2:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test1
 < permit src=network:n1; dst=network:n2; prt=tcp 80-90; of service:test2
+Warning: service:test1 is fully redundant
 END
 
-test_warn($title, $in, $out);
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Redundancy in enclosed port range';

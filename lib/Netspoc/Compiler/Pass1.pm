@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.025'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.026'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3337,9 +3337,13 @@ sub print_rule {
     my ($rule) = @_;
 
     my $extra = '';
-    my $service = $rule->{rule} && $rule->{rule}->{service};
+    if (my $log = $rule->{log}) {
+        my $names = join(',', @$log);
+        $extra .= " log=$names;";
+    }
     $extra .= " stateless"           if $rule->{stateless};
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
+    my $service = $rule->{rule} && $rule->{rule}->{service};
     $extra .= " of $service->{name}" if $service;
     my $action = $rule->{deny} ? 'deny' : 'permit';
     my $src = $rule->{src};
@@ -7043,6 +7047,10 @@ sub build_rule_tree {
         }
 
         if (my $other_rule = $leaf_hash->{$prt}) {
+            ($rule->{log} || '') eq ($other_rule->{log} || '') or
+                err_msg("Duplicate rules must have identical log attribute:\n",
+                        " ", print_rule($other_rule), "\n",
+                        " ", print_rule($rule));
 
             # Found identical rule.
             collect_duplicate_rules($rule, $other_rule);
@@ -7091,13 +7099,17 @@ my @duplicate_rules;
 
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
-
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
-
     my $service  = $rule->{rule}->{service};
+    $service->{redundant_count}++;
+
+    # Mark duplicate rules in both services.
+    # This is used later to find fully redundant services,
+    # - consisting solely of duplicate rules
+    # - without having an 'overlaps' attribute.
+    $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
+    $oservice->{duplicate_count}++;
+
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7114,6 +7126,14 @@ sub collect_duplicate_rules {
             }
         }
     }
+    my $prt1 = get_orig_prt($rule);
+    my $prt2 = get_orig_prt($other);
+    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+
+    # Mark other service, so we don't show it if both services are
+    # fully redundant compared to each other.
+    $service->{keep_duplicate} or $oservice->{keep_duplicate} = 1;
+
     push @duplicate_rules, [ $rule, $other ];
 }
 
@@ -7195,6 +7215,36 @@ sub show_redundant_rules {
     }
 }
 
+sub show_fully_redundant_rules {
+    my $action = $config->{check_fully_redundant_rules} or return;
+    my @duplicate_services;
+    my %keep;
+    for my $key (sort keys %services) {
+        my $service = $services{$key};
+        my $rule_count = $service->{rule_count};
+        my $duplicates = $service->{duplicate_count};
+        if ($duplicates and $duplicates == $rule_count) {
+            push @duplicate_services, $service;
+            if (my $overlaps = $service->{overlaps}) {
+                $keep{$_} = 1 for @$overlaps;
+            }
+            elsif ($service->{keep_duplicate}) {
+                $keep{$service} = 1;
+            }
+        }
+        else {
+            my $redundant = $service->{redundant_count} or next;
+            if ($redundant == $rule_count) {
+                warn_or_err_msg($action, "$service->{name} is fully redundant");
+            }
+        }
+    }
+    for my $service (@duplicate_services) {
+        next if $keep{$service};
+        warn_or_err_msg($action, "$service->{name} is fully redundant");
+    }
+}
+
 sub warn_unused_overlaps {
     for my $key (sort keys %services) {
         my $service = $services{$key};
@@ -7216,6 +7266,7 @@ sub expand_rules {
     my ($rules) = @_;
     my @result;
     for my $rule (@$rules) {
+        my $service  = $rule->{rule}->{service};
         my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
         for my $src (@$src_list) {
             for my $dst (@$dst_list) {
@@ -7224,6 +7275,7 @@ sub expand_rules {
                                      src => $src,
                                      dst => $dst,
                                      prt => $prt };
+                    $service->{rule_count}++;
                 }
             }
         }
@@ -7278,7 +7330,11 @@ sub find_redundant_rules {
                     collect_redundant_rules($chg_rule, $cmp_rule);
 
                     # Count each redundant rule only once.
-                    $count++ if not $chg_rule->{redundant}++;
+                    if (not $chg_rule->{redundant}++) {
+                        $count++;
+                        $chg_rule->{rule}->{service}->{redundant_count}++;
+                    }
+
                    }
                   }
                   $prt = $prt->{local_up} or last;
@@ -7353,6 +7409,7 @@ sub check_expanded_rules {
     show_duplicate_rules();
     show_redundant_rules();
     warn_unused_overlaps();
+    show_fully_redundant_rules();
     info("Expanded rule count: $count; duplicate: $dcount; redundant: $rcount");
 }
 
@@ -10587,8 +10644,8 @@ sub check_pathrestrictions {
             # Move pathrestriction to other interface, if that one is
             # located at border of loop.
             if (my $other = $interface->{split_other} and not $loop) {
-                my $rlist = delete $interface->{path_restrict};
                 if ($loop = $other->{zone}->{loop}) {
+                    my $rlist = delete $interface->{path_restrict};
 #                   debug("Move $restrict->{name}",
 #                         " from $interface->{name} to $other->{name}");
                     $other->{path_restrict} = $rlist;
@@ -13761,49 +13818,56 @@ sub mark_leaf_zones {
     return \%leaf_zones;
 }
 
-# Check if $zone reaches elements of $src_list and $dst_list
-# all via the same interface.
-sub all_equal_path {
+# Check if paths from elements of $src_list to $dst_list pass $zone.
+sub paths_reach_zone {
     my ($zone, $src_list, $dst_list) = @_;
 
     # Collect all zones and routers, where elements are located.
-    my @path_list;
+    my @from_list;
+    my @to_list;
     my %seen;
-    for my $element (@$src_list, @$dst_list) {
+    for my $element (@$src_list) {
         my $path = $obj2path{$element} || get_path($element);
         next if $path eq $zone;
-        $seen{$path}++ or push @path_list, $path;
+        $seen{$path}++ or push @from_list, $path;
+    }
+    for my $element (@$dst_list) {
+        my $path = $obj2path{$element} || get_path($element);
+        next if $path eq $zone;
+        $seen{$path}++ or push @to_list, $path;
     }
 
-    # Check interfaces where zone is left.
-    # Stop if more than one interface is found.
-    my $same_intf;
-    for my $to (@path_list) {
-        if (not $zone->{path1}->{$to}) {
-            if (not path_mark($zone, $to)) {
-                delete $zone->{path1}->{$to};
-                next;
+    my $zone_reached;
+    my $check_zone = sub {
+        my ($rule, $in_intf, $out_intf) = @_;
+
+        # Packets traverse $zone.
+        if ($in_intf and $out_intf and $in_intf->{zone} eq $zone) {
+            $zone_reached = 1;
+        }
+    };
+
+    for my $from (@from_list) {
+        for my $to (@to_list) {
+
+            # Check if path from $from to $to is available.
+            if (not $from->{path1}->{$to}) {
+                if (not path_mark($from, $to)) {
+                    delete $from->{path1}->{$to};
+
+                    # No path found, check next pair.
+                    next;
+                }
             }
-        }
-        my $next_intf;
-        if ($zone->{loop_entry} and my $entry = $zone->{loop_entry}->{$to}) {
-            my $exit  = $entry->{loop_exit}->{$to};
-            my $enter = $entry->{loop_enter}->{$exit};
-            return if @$enter > 1;
-            ($next_intf) = @$enter;
-
-        }
-        else {
-            $next_intf = $zone->{path1}->{$to};
-        }
-        if ($same_intf) {
-            return if $same_intf ne $next_intf;
-        }
-        else {
-            $same_intf = $next_intf;
+            my $pseudo_rule = {
+                src_path => $from,
+                dst_path => $to,
+            };
+            path_walk($pseudo_rule, $check_zone, 'Zone');
+            return 1 if $zone_reached;
         }
     }
-    return 1;
+    return;
 }
 
 # Print list of names in messages.
@@ -13944,7 +14008,7 @@ sub check_transient_supernet_rules {
                         and not elements_in_one_zone($src_list1, $dst_list2)
                         and not elements_in_one_zone($src_list1, [ $obj2 ])
                         and not elements_in_one_zone([ $obj1 ], $dst_list2)
-                        and not all_equal_path($zone, $src_list1, $dst_list2))
+                        and paths_reach_zone($zone, $src_list1, $dst_list2))
                     {
                         my $srv1 = $rule1->{rule}->{service}->{name};
                         my $srv2 = $rule2->{rule}->{service}->{name};

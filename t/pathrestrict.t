@@ -555,6 +555,51 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Pathrestriction at internally split router ouside of loop';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+# r2 is split internally into two parts
+# r2 with n3, n4
+# r2' with n2
+# both connected internally by unnumbered network.
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3;
+ interface:n4;
+}
+
+# Pathrestriction is ignored outside of cyclic graph.
+# Internally, pathrestriction is removed from both interfaces,
+# to prevent further errors.
+# We must get the rigth interface, while it is moved from r2 to r2'.
+pathrestriction:p1 =
+ interface:r1.n2,
+ interface:r2.n2,
+;
+END
+
+$out = <<"END";
+Warning: Ignoring pathrestriction:p1 at interface:r1.n2
+ because it isn't located inside cyclic graph
+Warning: Ignoring pathrestriction:p1 at interface:r2.n2
+ because it isn't located inside cyclic graph
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Pathrestricted destination in complex loop';
 ############################################################
 $in = <<'END';

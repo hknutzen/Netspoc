@@ -56,16 +56,16 @@ $out = <<'END';
 ! [ ACL ]
 ip access-list extended vlan1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
- permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 81 84
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 85 log-input
+ permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 81 84
  deny ip any any
 -- asa2
 ! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 81 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 82 83 log disable
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 84
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 85 log 3
+access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 84
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -190,8 +190,8 @@ END
 
 $out = <<'END';
 Warning: Redundant rules in service:t1 compared to service:t2:
-  permit src=network:n1; dst=network:n3; prt=tcp 80; of service:t1
-< permit src=any:[network:n1]; dst=network:n3; prt=tcp 80; of service:t2
+  permit src=network:n1; dst=network:n3; prt=tcp 80; log=a; of service:t1
+< permit src=any:[network:n1]; dst=network:n3; prt=tcp 80; log=a; of service:t2
 END
 
 test_warn($title, $in, $out);
@@ -221,8 +221,60 @@ ip access-list extended vlan1_in
  deny ip any any
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list vlan2_in extended deny ip any any
+access-group vlan2_in in interface vlan2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Duplicate rules with different log tag';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ overlaps = service:s2;
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80; log = a;
+}
+END
+
+$out = <<'END';
+Error: Duplicate rules must have identical log attribute:
+ permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
+ permit src=network:n2; dst=network:n3; prt=tcp 80; log=a; of service:s2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Place line with logging first';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80; log = a;
+}
+END
+
+$out = <<'END';
+-- asa2
+! vlan2_in
+access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END
@@ -274,8 +326,8 @@ END
 $out = <<'END';
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
 access-list vlan2_in extended deny ip any any
 access-group vlan2_in in interface vlan2
 END

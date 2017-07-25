@@ -36,7 +36,7 @@ use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use NetAddr::IP::Util;
 
-our $VERSION = '5.025'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.026'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -558,10 +558,13 @@ sub join_ranges {
     return $rules;
 }
 
-# Protocols ESP and AH are be placed first in Cisco ACL
-# for performance reasons.
-# These rules need to have a fixed order.
-# Otherwise the connection may be lost,
+# Place those rules first in Cisco ACL that have
+# - attribute 'log'
+#   because larger rule must not be placed before them,
+# - protocols ESP or AH
+#   for performance reasons.
+# Crypto rules need to have a fixed order,
+# otherwise the connection may be lost,
 # - if the device is accessed over an IPSec tunnel
 # - and we change the ACL incrementally.
 sub move_rules_esp_ah {
@@ -569,7 +572,7 @@ sub move_rules_esp_ah {
     my $prt2obj = $acl_info->{prt2obj};
     my $prt_esp = $prt2obj->{50};
     my $prt_ah  = $prt2obj->{51};
-    $prt_esp or $prt_ah or return;
+    $prt_esp or $prt_ah or $acl_info->{has_log} or return;
     for my $what (qw(intf_rules rules)) {
         my $rules = $acl_info->{$what} or next;
         my (@deny_rules, @crypto_rules, @permit_rules);
@@ -577,10 +580,12 @@ sub move_rules_esp_ah {
             if ($rule->{deny}) {
                 push @deny_rules, $rule;
             }
-            elsif ($prt_esp and $rule->{prt} eq $prt_esp) {
-                push @crypto_rules, $rule;
-            }
-            elsif ($prt_ah and $rule->{prt} eq $prt_ah) {
+            elsif ($prt_esp and $rule->{prt} eq $prt_esp
+                   or
+                   $prt_ah and $rule->{prt} eq $prt_ah
+                   or
+                   $rule->{log})
+            {
                 push @crypto_rules, $rule;
             }
             else {
@@ -592,7 +597,8 @@ sub move_rules_esp_ah {
         @crypto_rules =
             sort({ my ($s_a, $d_a) = @{$a}{qw(src dst)};
                    my ($s_b, $d_b) = @{$b}{qw(src dst)};
-                   $a->{prt}->{proto} <=> $b->{prt}->{proto} ||
+                   !$b->{log} cmp !$a->{log} ||
+                   $a->{prt}->{proto} cmp $b->{prt}->{proto} ||
                    $s_a->{ip} cmp $s_b->{ip} || $s_a->{mask} cmp $s_b->{mask} ||
                    $d_a->{ip} cmp $d_b->{ip} || $d_a->{mask} cmp $d_b->{mask} }
                  @crypto_rules);
@@ -1851,6 +1857,9 @@ sub convert_rule_objects {
         my $rules = $acl_info->{$what} or next;
         my @expanded;
         for my $rule (@$rules) {
+            if ($rule->{log}) {
+                $acl_info->{has_log} = 1;
+            }
             my $src_list = $rule->{src};
             for my $ip_net (@$src_list) {
                 $ip_net = $ip_net2obj->{$ip_net} ||= create_ip_obj($ip_net);
