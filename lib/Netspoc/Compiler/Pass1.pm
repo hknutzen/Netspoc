@@ -7106,9 +7106,11 @@ sub collect_duplicate_rules {
     # This is used later to find fully redundant services,
     # - consisting solely of duplicate rules
     # - without having an 'overlaps' attribute.
+    # But count each rule only once. This can only occur for rule $other,
+    # beacuse all identical rules are compared with $other.
     $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
-    $oservice->{duplicate_count}++;
+    $oservice->{duplicate_count}++ if not $other->{duplicate_count}++;
 
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7126,13 +7128,14 @@ sub collect_duplicate_rules {
             }
         }
     }
+
+    # Mark other service, so we don't show it as redundant if both
+    # services are fully redundant compared to each other.
+    $oservice->{keep_duplicate} = 1;
+
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
-
-    # Mark other service, so we don't show it if both services are
-    # fully redundant compared to each other.
-    $service->{keep_duplicate} or $oservice->{keep_duplicate} = 1;
 
     push @duplicate_rules, [ $rule, $other ];
 }

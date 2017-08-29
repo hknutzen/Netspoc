@@ -355,6 +355,49 @@ END
 test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Fully redundant rule with multiple duplicates';
+############################################################
+# Must not count duplicate rule multple times at s1,
+# otherwise s1 would accidently be marked as redundant.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 81, icmp 8;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 82, icmp 8;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 83, icmp 8;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
 $title = 'Relation between src and dst ranges';
 ############################################################
 # p1 < p2 and p1 < p3
