@@ -2822,7 +2822,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Broken NAT for aggregate as subnet';
+$title = 'Direct subnet relation changed by NAT';
 ############################################################
 # network:n2 is direct subnet of any:a in NAT domain of network:n2,
 # but is only indirect subnet at its own NAT domain.
