@@ -8894,15 +8894,25 @@ sub find_subnets_in_nat_domain {
 
             # Collect subnet/supernet pairs in same zone for later check.
             {
-                my $zone = $subnet->{zone};
-                my $nat_bignet = $nat_bignet;
-                while(1) {
-                    my $bignet = $orig_net{$nat_bignet};
-                    if ($visible{$nat_bignet} and $bignet->{zone} eq $zone) {
-                        $subnet_in_zone{$subnet}->{$bignet}->{$domain} = 1;
-                        last;
+                my $id_subnets;
+                if (my $identical = $identical{$nat_subnet}) {
+                    $id_subnets = [ map { $orig_net{$_} }
+                                    grep { $visible{$_} } @$identical ];
+                }
+                else {
+                    $id_subnets = [ $subnet ];
+                }
+                for my $subnet (@$id_subnets) {
+                    my $zone = $subnet->{zone};
+                    my $nat_bignet = $nat_bignet;
+                    while(1) {
+                        my $bignet = $orig_net{$nat_bignet};
+                        if ($visible{$nat_bignet} and $bignet->{zone} eq $zone) {
+                            $subnet_in_zone{$subnet}->{$bignet}->{$domain} = 1;
+                            last;
+                        }
+                        $nat_bignet = $is_in{$nat_bignet} or last;
                     }
-                    $nat_bignet = $is_in{$nat_bignet} or last;
                 }
             }
 

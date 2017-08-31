@@ -2871,6 +2871,45 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Multiple subnets with identical NAT IP';
+############################################################
+# Must not show warning for network:n2.
+# Both subnets must be marked as subnet although they have identical
+# IP addresses in NAT domain n4.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:a = { ip = 10.127.8.0/24; dynamic; } }
+
+router:u = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = a; }
+}
+
+network:n4 = { ip = 10.1.4.0/24; }
+
+service:s1 = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = network:n4; prt = tcp;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Identical subnets invisible to supernet';
 ############################################################
 
