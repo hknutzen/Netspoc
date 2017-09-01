@@ -3118,7 +3118,6 @@ my %isakmp_attributes = (
     ike_version    => { values   => [ 1, 2 ], default => 1, },
     lifetime       => { function => \&read_time_val, },
     group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 21, 24 ], },
-    lifetime       => { function => \&read_time_val, },
     trust_point => {
         function => \&read_identifier,
         default  => 'none',
