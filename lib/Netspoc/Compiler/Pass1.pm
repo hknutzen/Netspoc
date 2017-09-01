@@ -3837,15 +3837,19 @@ sub link_owners {
                 next if $email =~ /^owner:/;
 
                 # Check email syntax.
-                # Only 7 bit ASCII
                 # Local part definition from wikipedia,
-                # without space and other quoted characters
-                do {
-                    use bytes;
-                    $email =~ m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/x
-                      || $email eq 'guest';
-                  }
-                  or err_msg(
+                # without space and other quoted characters.
+                # Only 7 bit ASCII.
+                $email =~ m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/xa
+                or
+
+                # Wildcard: All addresses of email domain.
+                # Only allowed as watcher.
+                $attr eq 'watchers' and
+                $email =~ m/^ \[all\] \@ [\w.-]+ $/xa
+                or
+                $email eq 'guest'
+                or err_msg(
                     "Invalid email address (ASCII only)",
                     " in $attr of $owner->{name}: $email"
                   );

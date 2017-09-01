@@ -1158,6 +1158,20 @@ sub export_owners {
                [ map { { name => $_ } } sort @e_owners ]);
     }
 
+    # Add owners of wildcard addresses '[all]@domain' to all emails
+    # 'user@domain' matching that wildcard.
+    my %domain2owners;
+    for my $email (keys %email2owners) {
+        my ($domain) = $email =~ /^\[all\]\@(.*)$/ or next;
+        $domain2owners{$domain} = $email2owners{$email};
+    }
+    for my $email (keys %email2owners) {
+        my ($user, $domain) = $email =~ /^(.*)\@(.*)$/ or next;
+        next if $user eq '[all]';
+        my $owner_hash = $domain2owners{$domain} or next;
+        @{ $email2owners{$email} }{keys %$owner_hash} = values %$owner_hash;
+    }
+
     # Substitute hash by array.
     $_ = [ sort values(%$_) ] for values %email2owners;
 
