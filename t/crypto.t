@@ -100,6 +100,24 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Bad IPSec lifetime type';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 100 foo;
+}
+}
+END
+
+$out = <<'END';
+Syntax error: Time unit or 'kilobytes' expected at line 3 of STDIN, near "foo<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Bad key_exchange attribute';
 ############################################################
 
@@ -3344,7 +3362,7 @@ $in = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  ah = sha256;
- lifetime = 3600 sec;
+ lifetime = 20000 kilobytes;
 }
 
 isakmp:aes256SHA = {
@@ -3420,7 +3438,7 @@ access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
-crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 20000
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -3456,7 +3474,7 @@ access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans1
-crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime kilobytes 20000
 tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
  ikev2 local-authentication certificate ASDM_TrustPoint3
