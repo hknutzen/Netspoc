@@ -796,6 +796,26 @@ sub read_time_val {
     return $int * $factor;
 }
 
+sub read_time_kilobytes_pair {
+    my $int    = read_int();
+    my $unit   = read_identifier();
+    my ($seconds, $kbytes);
+    if (my $factor = $timeunits{$unit}) {
+        $seconds = $int * $factor;
+        $kbytes = check_int();
+        if (defined $kbytes) {
+            skip('kilobytes');
+        }
+    }
+    elsif ($unit eq 'kilobytes') {
+        $kbytes = $int;
+    }
+    else {
+        syntax_err("Time unit or 'kilobytes' expected");
+    }
+    return [ $seconds, $kbytes ];
+}
+
 # Set description for passed object if next input is a description.
 sub add_description {
     my ($obj) = @_;
@@ -3164,7 +3184,7 @@ my %ipsec_attributes = (
         default => 'none',
         map     => { none => undef }
     },
-    lifetime => { function => \&read_time_val, },
+    lifetime => { function => \&read_time_kilobytes_pair }
 );
 
 our %ipsec;
@@ -17129,14 +17149,19 @@ sub print_crypto_map_attributes {
         print "$prefix set pfs group$pfs_group\n";
     }
 
-    if (my $lifetime = $ipsec->{lifetime}) {
+    if (my $pair = $ipsec->{lifetime}) {
+        my ($sec, $kb) = @$pair;
+        my $args = '';
 
-        # Don't print default value for backend IOS.
-        if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
-            print(
-                "$prefix set security-association",
-                " lifetime seconds $lifetime\n"
-            );
+        # Don't print default values for backend IOS.
+        if (defined $sec and not ($sec == 3600 and $crypto_type eq 'IOS')) {
+            $args .= " seconds $sec";
+        }
+        if (defined $kb and not ($kb == 4608000 and $crypto_type eq 'IOS')) {
+            $args .= " kilobytes $kb";
+        }
+        if ($args) {
+            print "$prefix set security-association lifetime$args\n";
         }
     }
 }

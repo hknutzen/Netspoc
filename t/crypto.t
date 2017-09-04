@@ -43,7 +43,7 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  esp_authentication = sha;
  pfs_group = 2;
- lifetime = 3600 sec;
+ lifetime = 1 hour 100000 kilobytes;
 }
 
 isakmp:aes256SHA = {
@@ -2788,7 +2788,7 @@ crypto map crypto-GigabitEthernet0 1 set peer 192.168.1.1
 crypto map crypto-GigabitEthernet0 1 match address crypto-192.168.1.1
 crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
 crypto map crypto-GigabitEthernet0 1 set pfs group2
-crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600
+crypto map crypto-GigabitEthernet0 1 set security-association lifetime seconds 3600 kilobytes 100000
 tunnel-group 192.168.1.1 type ipsec-l2l
 tunnel-group 192.168.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -2901,7 +2901,7 @@ crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
 tunnel-group 1.2.3.129 type ipsec-l2l
 tunnel-group 1.2.3.129 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
@@ -2929,6 +2929,7 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
  set ip access-group crypto-filter-1.2.3.2 in
  set transform-set Trans1
  set pfs group2
+ set security-association lifetime kilobytes 100000
 --
 ip access-list extended GigabitEthernet0_in
  permit 50 host 1.2.3.2 host 10.254.254.6
@@ -2981,8 +2982,9 @@ test_err($title, $in, $out);
 # Changed topology
 ############################################################
 
-# Run next tests with some other group.
+# Run next tests with changed group and default SA lifetime.
 ($topo = $crypto_sts) =~ s/group = 2/group = 15/g;
+$topo =~ s/100000 kilobytes/4608000 kilobytes/;
 
 $topo .= <<'END';
 network:intern = {
@@ -3157,7 +3159,7 @@ crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
 crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
 tunnel-group 1.1.1.1 type ipsec-l2l
 tunnel-group 1.1.1.1 ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint3
