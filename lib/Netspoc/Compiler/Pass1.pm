@@ -2514,6 +2514,10 @@ sub read_aggregate {
             skip(';');
             $aggregate->{has_unenforceable} = 1;
         }
+        elsif ($token eq 'has_fully_redundant') {
+            skip(';');
+            $aggregate->{has_fully_redundant} = 1;
+        }
         elsif ($token eq 'no_check_supernet_rules') {
             skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
@@ -7118,22 +7122,38 @@ sub set_local_prt_relation {
     }
 }
 
+sub set_ignore_fully_redundant {
+    my ($rule) = @_;
+    for my $obj ($rule->{src}, $rule->{dst}) {
+        my $net = $obj->{network} || $obj;
+        my $zone = $net->{zone};
+        if ($zone->{has_fully_redundant}) {
+            $rule->{rule}->{service}->{ignore_fully_redundant}++;
+            last;
+        }
+    }
+}
+
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
     $service->{redundant_count}++;
+    set_ignore_fully_redundant($rule);
 
     # Mark duplicate rules in both services.
     # This is used later to find fully redundant services,
     # - consisting solely of duplicate rules
     # - without having an 'overlaps' attribute.
     # But count each rule only once. This can only occur for rule $other,
-    # beacuse all identical rules are compared with $other.
+    # because all identical rules are compared with $other.
     $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
-    $oservice->{duplicate_count}++ if not $other->{duplicate_count}++;
+    if (not $other->{duplicate_count}++) {
+        $oservice->{duplicate_count}++;
+        set_ignore_fully_redundant($other);
+    }
 
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7190,13 +7210,20 @@ sub show_duplicate_rules {
 my @redundant_rules;
 
 sub collect_redundant_rules {
-    my ($rule, $other) = @_;
+    my ($rule, $other, $count_ref) = @_;
+    my $service  = $rule->{rule}->{service};
+
+    # Count each redundant rule only once.
+    if (not $rule->{redundant}++) {
+        $$count_ref++;
+        $service->{redundant_count}++;
+        set_ignore_fully_redundant($rule);
+    }
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
-    my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7248,6 +7275,9 @@ sub show_fully_redundant_rules {
     for my $key (sort keys %services) {
         my $service = $services{$key};
         my $rule_count = $service->{rule_count};
+        if (my $ignore_fully_redundant = $service->{ignore_fully_redundant}) {
+            next if $ignore_fully_redundant == $rule_count;
+        }
         my $duplicates = $service->{duplicate_count};
         if ($duplicates and $duplicates == $rule_count) {
             push @duplicate_services, $service;
@@ -7353,14 +7383,7 @@ sub find_redundant_rules {
                    if ($cmp_rule ne $chg_rule and
                        ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
                    {
-                    collect_redundant_rules($chg_rule, $cmp_rule);
-
-                    # Count each redundant rule only once.
-                    if (not $chg_rule->{redundant}++) {
-                        $count++;
-                        $chg_rule->{rule}->{service}->{redundant_count}++;
-                    }
-
+                    collect_redundant_rules($chg_rule, $cmp_rule, \$count);
                    }
                   }
                   $prt = $prt->{local_up} or last;
@@ -9663,7 +9686,8 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if ($mask eq $zero_ip) {
-            for my $attr (qw(has_unenforceable owner nat
+            for my $attr (qw(has_unenforceable has_fully_redundant
+                             owner nat
                              no_check_supernet_rules))
             {
                 if (my $v = delete $aggregate->{$attr}) {

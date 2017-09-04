@@ -398,6 +398,115 @@ END
 test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Warn on first of multiple redundant services';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+#any:n1 = { link = network:n1; has_fully_redundant; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+
+service:s2 = {
+ overlaps = service:s3;
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+
+service:s3 = {
+ user = network:n1, network:n2, network:n3;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'Warn on second service if first warning is suppressed';
+############################################################
+
+$in =~ s/#any:n1/any:n1/;
+
+$out = <<'END';
+Warning: service:s2 is fully redundant
+END
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
+$title = 'has_fully_redundant at only src and only dst';
+############################################################
+# First rule with has_fully_redundant only at src zone,
+# second rule with has_fully_redundant only at dst zone.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+any:n1 = { link = network:n1; has_fully_redundant; }
+any:n3 = { link = network:n3; has_fully_redundant; }
+
+router:R1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:R2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:R3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ overlaps = service:s2;
+ user = network:n1, network:n4;
+ permit src = user; dst = interface:R2.[auto]; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1, network:n4;
+ permit src = user; dst = interface:R2.[auto]; prt = ip;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
 $title = 'Relation between src and dst ranges';
 ############################################################
 # p1 < p2 and p1 < p3
