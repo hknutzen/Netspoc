@@ -2139,7 +2139,7 @@ $out = <<'END';
 no sysopt connection permit-vpn
 crypto ipsec ikev2 ipsec-proposal Trans1
  protocol esp encryption 3des
- protocol esp integrity sha
+ protocol esp integrity sha-1
 crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp encryption aes-256
  protocol esp integrity sha-384
