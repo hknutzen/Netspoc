@@ -176,6 +176,7 @@ here `<object set>` must expand to networks.
          [ owner = <name>;          ]
          <network NAT> *
          [ has_unenforceable;       ]
+         [ has_fully_redundant;       ]
          [ no_check_supernet_rules; ]
       }
 
@@ -314,7 +315,7 @@ where `<object set>` must expand to interfaces.
     <owner definition> ::=
       owner:<name> = {
         admins = <email>(, <email>)*;
-        [ watchers = <owner_or_email>(, <owner_or_email>)*; ]
+        [ watchers = <owner_email_wildcard>(, <owner_email_wildcard>)*; ]
         [ extend;           ]
         [ extend_only;      ]
         [ extend_unbounded; ]
@@ -322,7 +323,9 @@ where `<object set>` must expand to interfaces.
       }
 
     <email> ::= some valid email address or 'guest'
-    <owner_or_email> ::= <email> | owner:<name>
+    <domain> ::= some valid email domain part
+    <wildcard> ::= "["all"]"@<domain>
+    <owner_email_wildcard> ::= <email> | owner:<name> | <wildcard>
 
 `admins` are optional if `extend_only` is set.
 
@@ -344,7 +347,7 @@ where `<object set>` must expand to interfaces.
          esp_authentication = ( md5 | sha | sha256 | sha384 | sha512 | none );
          ah = ( md5 | sha |sha256 | sha384 | sha512 | none );
          pfs_group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 | none );
-         lifetime = <int> <timeunit>;
+         lifetime = [ <int> <timeunit> ] [ <int> kilobytes ];
       }
 
     <isakmp definition> ::=
