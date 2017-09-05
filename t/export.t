@@ -9,20 +9,20 @@ use File::Temp qw/ tempdir /;
 use lib 't';
 use Test_Netspoc qw(prepare_in_dir);
 
-sub test_run {
-    my ($title, $input, $expected) = @_;
+sub run {
+    my ($input) = @_;
     my $in_dir = prepare_in_dir($input);
     my $out_dir = tempdir( CLEANUP => 1 );
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
     my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -q $in_dir $out_dir";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
-    my $status = $?;
-    if ($status != 0) {
-        diag("Failed:\n$stderr");
-        fail($title);
-        return;
-    }
+    return($stderr, $out_dir);
+}
+
+sub test_run {
+    my ($title, $input, $expected) = @_;
+    my ($stderr, $out_dir) = run($input);
     if ($stderr) {
         diag("Unexpected output on STDERR:\n$stderr");
         fail($title);
@@ -53,6 +53,8 @@ sub test_run {
     }
     return;
 }
+
+# Errors should not be tested during export but e.g. in owner.t
 
 my ($in, $out, $title);
 
@@ -1926,6 +1928,112 @@ $out = <<'END';
    ],
    "n1@example.com" : [
       "n1"
+   ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Wildcard address as watcher';
+############################################################
+
+$in = <<'END';
+owner:all_ex = { only_watch; watchers = [all]@example.com; }
+owner:o1 = { admins = o1@example.com; }
+owner:o2 = { admins = o2@example.com; }
+owner:o2s1 = { admins = o2s1@example.com; }
+owner:o2s2 = { admins = o2s2@other; }
+owner:o3 = { admins = o3@sub.example.com; }
+owner:o4 = { admins = o4@example.com; }
+owner:all = { admins = all@example.com; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n2s1 = { ip = 10.1.2.64/26; owner = o2s1; subnet_of = network:n2; }
+network:n2s2 = { ip = 10.1.2.128/26; owner = o2s2; subnet_of = network:n2; }
+network:n3 = { ip = 10.1.3.0/24; owner = o3; }
+network:n4 = { ip = 10.1.4.0/24; owner = o4; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:u = {
+ interface:n2;
+ interface:n2s1;
+ interface:n2s2;
+}
+
+area:all = { anchor = network:n1; owner = all; }
+area:a12 = { inclusive_border = interface:r1.n3; owner = all_ex; }
+area:a1 = { border = interface:r1.n1; owner = o1; }
+END
+
+$out = <<'END';
+-- email
+{
+   "[all]@example.com" : [
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o4"
+   ],
+   "all@example.com" : [
+      "all",
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o3",
+      "o4"
+   ],
+   "o1@example.com" : [
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o4"
+   ],
+   "o2@example.com" : [
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o4"
+   ],
+   "o2s1@example.com" : [
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o4"
+   ],
+   "o2s2@other" : [
+      "o2s2"
+   ],
+   "o3@sub.example.com" : [
+      "o3"
+   ],
+   "o4@example.com" : [
+      "all_ex",
+      "o1",
+      "o2",
+      "o2s1",
+      "o2s2",
+      "o4"
    ]
 }
 END

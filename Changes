@@ -1,3 +1,12 @@
+5.027     2017-09-05 13:14:47+02:00 Europe/Berlin
+
+ - Support 'kilobytes' in ipsec lifetime attribute.
+ - Generate 'sha' as 'sha-1' for IKEv2.
+ - '[all]@domain' as watcher authorizes all emails of 'domain'.
+ - New attribute 'has_fully_redundant' at zone suppresses warning about
+   fully redundant service, if either src or dst is located in marked zone.
+ - Fixed -check_fully_redundant_rules in case of multiple duplicate rules.
+
 5.026     2017-07-25 17:39:01+02:00 Europe/Berlin
 
  - New option '-check_fully_redundant_rules=0|1|warn'.

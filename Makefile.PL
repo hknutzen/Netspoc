@@ -40,7 +40,6 @@ my %WriteMakefileArgs = (
     "NetAddr::IP::Util" => 0,
     "Pod::Usage" => 0,
     "Regexp::IPv6" => 0,
-    "bytes" => 0,
     "constant" => 0,
     "feature" => 0,
     "open" => 0,
@@ -58,7 +57,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.026",
+  "VERSION" => "5.027",
   "test" => {
     "TESTS" => "t/*.t t/ipv6/*.t"
   }
@@ -86,7 +85,6 @@ my %FallbackPrereqs = (
   "Regexp::IPv6" => 0,
   "Test::Differences" => 0,
   "Test::More" => 0,
-  "bytes" => 0,
   "constant" => 0,
   "feature" => 0,
   "lib" => 0,

@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.026'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.027'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -794,6 +794,26 @@ sub read_time_val {
     my $unit   = read_identifier();
     my $factor = $timeunits{$unit} or syntax_err("Time unit expected");
     return $int * $factor;
+}
+
+sub read_time_kilobytes_pair {
+    my $int    = read_int();
+    my $unit   = read_identifier();
+    my ($seconds, $kbytes);
+    if (my $factor = $timeunits{$unit}) {
+        $seconds = $int * $factor;
+        $kbytes = check_int();
+        if (defined $kbytes) {
+            skip('kilobytes');
+        }
+    }
+    elsif ($unit eq 'kilobytes') {
+        $kbytes = $int;
+    }
+    else {
+        syntax_err("Time unit or 'kilobytes' expected");
+    }
+    return [ $seconds, $kbytes ];
 }
 
 # Set description for passed object if next input is a description.
@@ -2494,6 +2514,10 @@ sub read_aggregate {
             skip(';');
             $aggregate->{has_unenforceable} = 1;
         }
+        elsif ($token eq 'has_fully_redundant') {
+            skip(';');
+            $aggregate->{has_fully_redundant} = 1;
+        }
         elsif ($token eq 'no_check_supernet_rules') {
             skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
@@ -3118,7 +3142,6 @@ my %isakmp_attributes = (
     ike_version    => { values   => [ 1, 2 ], default => 1, },
     lifetime       => { function => \&read_time_val, },
     group          => { values   => [ 1, 2, 5, 14, 15, 16, 19, 20, 21, 24 ], },
-    lifetime       => { function => \&read_time_val, },
     trust_point => {
         function => \&read_identifier,
         default  => 'none',
@@ -3165,7 +3188,7 @@ my %ipsec_attributes = (
         default => 'none',
         map     => { none => undef }
     },
-    lifetime => { function => \&read_time_val, },
+    lifetime => { function => \&read_time_kilobytes_pair }
 );
 
 our %ipsec;
@@ -3837,15 +3860,19 @@ sub link_owners {
                 next if $email =~ /^owner:/;
 
                 # Check email syntax.
-                # Only 7 bit ASCII
                 # Local part definition from wikipedia,
-                # without space and other quoted characters
-                do {
-                    use bytes;
-                    $email =~ m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/x
-                      || $email eq 'guest';
-                  }
-                  or err_msg(
+                # without space and other quoted characters.
+                # Only 7 bit ASCII.
+                $email =~ m/^ [\w.!\#$%&''*+\/=?^_``{|}~-]+ \@ [\w.-]+ $/xa
+                or
+
+                # Wildcard: All addresses of email domain.
+                # Only allowed as watcher.
+                $attr eq 'watchers' and
+                $email =~ m/^ \[all\] \@ [\w.-]+ $/xa
+                or
+                $email eq 'guest'
+                or err_msg(
                     "Invalid email address (ASCII only)",
                     " in $attr of $owner->{name}: $email"
                   );
@@ -7095,20 +7122,38 @@ sub set_local_prt_relation {
     }
 }
 
+sub set_ignore_fully_redundant {
+    my ($rule) = @_;
+    for my $obj ($rule->{src}, $rule->{dst}) {
+        my $net = $obj->{network} || $obj;
+        my $zone = $net->{zone};
+        if ($zone->{has_fully_redundant}) {
+            $rule->{rule}->{service}->{ignore_fully_redundant}++;
+            last;
+        }
+    }
+}
+
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
     $service->{redundant_count}++;
+    set_ignore_fully_redundant($rule);
 
     # Mark duplicate rules in both services.
     # This is used later to find fully redundant services,
     # - consisting solely of duplicate rules
     # - without having an 'overlaps' attribute.
+    # But count each rule only once. This can only occur for rule $other,
+    # because all identical rules are compared with $other.
     $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
-    $oservice->{duplicate_count}++;
+    if (not $other->{duplicate_count}++) {
+        $oservice->{duplicate_count}++;
+        set_ignore_fully_redundant($other);
+    }
 
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7126,13 +7171,14 @@ sub collect_duplicate_rules {
             }
         }
     }
+
+    # Mark other service, so we don't show it as redundant if both
+    # services are fully redundant compared to each other.
+    $oservice->{keep_duplicate} = 1;
+
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
-
-    # Mark other service, so we don't show it if both services are
-    # fully redundant compared to each other.
-    $service->{keep_duplicate} or $oservice->{keep_duplicate} = 1;
 
     push @duplicate_rules, [ $rule, $other ];
 }
@@ -7164,13 +7210,20 @@ sub show_duplicate_rules {
 my @redundant_rules;
 
 sub collect_redundant_rules {
-    my ($rule, $other) = @_;
+    my ($rule, $other, $count_ref) = @_;
+    my $service  = $rule->{rule}->{service};
+
+    # Count each redundant rule only once.
+    if (not $rule->{redundant}++) {
+        $$count_ref++;
+        $service->{redundant_count}++;
+        set_ignore_fully_redundant($rule);
+    }
 
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
-    my $service  = $rule->{rule}->{service};
     my $oservice = $other->{rule}->{service};
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7222,6 +7275,9 @@ sub show_fully_redundant_rules {
     for my $key (sort keys %services) {
         my $service = $services{$key};
         my $rule_count = $service->{rule_count};
+        if (my $ignore_fully_redundant = $service->{ignore_fully_redundant}) {
+            next if $ignore_fully_redundant == $rule_count;
+        }
         my $duplicates = $service->{duplicate_count};
         if ($duplicates and $duplicates == $rule_count) {
             push @duplicate_services, $service;
@@ -7327,14 +7383,7 @@ sub find_redundant_rules {
                    if ($cmp_rule ne $chg_rule and
                        ($cmp_rule->{log} || '') eq ($chg_rule->{log} || ''))
                    {
-                    collect_redundant_rules($chg_rule, $cmp_rule);
-
-                    # Count each redundant rule only once.
-                    if (not $chg_rule->{redundant}++) {
-                        $count++;
-                        $chg_rule->{rule}->{service}->{redundant_count}++;
-                    }
-
+                    collect_redundant_rules($chg_rule, $cmp_rule, \$count);
                    }
                   }
                   $prt = $prt->{local_up} or last;
@@ -8891,15 +8940,25 @@ sub find_subnets_in_nat_domain {
 
             # Collect subnet/supernet pairs in same zone for later check.
             {
-                my $zone = $subnet->{zone};
-                my $nat_bignet = $nat_bignet;
-                while(1) {
-                    my $bignet = $orig_net{$nat_bignet};
-                    if ($visible{$nat_bignet} and $bignet->{zone} eq $zone) {
-                        $subnet_in_zone{$subnet}->{$bignet}->{$domain} = 1;
-                        last;
+                my $id_subnets;
+                if (my $identical = $identical{$nat_subnet}) {
+                    $id_subnets = [ map { $orig_net{$_} }
+                                    grep { $visible{$_} } @$identical ];
+                }
+                else {
+                    $id_subnets = [ $subnet ];
+                }
+                for my $subnet (@$id_subnets) {
+                    my $zone = $subnet->{zone};
+                    my $nat_bignet = $nat_bignet;
+                    while(1) {
+                        my $bignet = $orig_net{$nat_bignet};
+                        if ($visible{$nat_bignet} and $bignet->{zone} eq $zone) {
+                            $subnet_in_zone{$subnet}->{$bignet}->{$domain} = 1;
+                            last;
+                        }
+                        $nat_bignet = $is_in{$nat_bignet} or last;
                     }
-                    $nat_bignet = $is_in{$nat_bignet} or last;
                 }
             }
 
@@ -9627,7 +9686,8 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if ($mask eq $zero_ip) {
-            for my $attr (qw(has_unenforceable owner nat
+            for my $attr (qw(has_unenforceable has_fully_redundant
+                             owner nat
                              no_check_supernet_rules))
             {
                 if (my $v = delete $aggregate->{$attr}) {
@@ -17113,14 +17173,19 @@ sub print_crypto_map_attributes {
         print "$prefix set pfs group$pfs_group\n";
     }
 
-    if (my $lifetime = $ipsec->{lifetime}) {
+    if (my $pair = $ipsec->{lifetime}) {
+        my ($sec, $kb) = @$pair;
+        my $args = '';
 
-        # Don't print default value for backend IOS.
-        if (not($lifetime == 3600 and $crypto_type eq 'IOS')) {
-            print(
-                "$prefix set security-association",
-                " lifetime seconds $lifetime\n"
-            );
+        # Don't print default values for backend IOS.
+        if (defined $sec and not ($sec == 3600 and $crypto_type eq 'IOS')) {
+            $args .= " seconds $sec";
+        }
+        if (defined $kb and not ($kb == 4608000 and $crypto_type eq 'IOS')) {
+            $args .= " kilobytes $kb";
+        }
+        if ($args) {
+            print "$prefix set security-association lifetime$args\n";
         }
     }
 }
@@ -17379,6 +17444,7 @@ sub print_crypto {
             print " protocol esp encryption $esp_encr\n";
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $esp_ah =~ s/^(.+?)(\d+)/$1-$2/;
+                $esp_ah =~ s/^sha$/sha-1/;
                 print " protocol esp integrity $esp_ah\n";
             }
         }

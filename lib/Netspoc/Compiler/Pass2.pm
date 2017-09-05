@@ -36,7 +36,7 @@ use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use NetAddr::IP::Util;
 
-our $VERSION = '5.026'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.027'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
