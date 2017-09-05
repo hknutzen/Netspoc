@@ -54,11 +54,7 @@ sub test_run {
     return;
 }
 
-sub test_err {
-    my ($title, $input, $expected) = @_;
-    my ($stderr, $out_dir) = run($input);
-    eq_or_diff($stderr, $expected, $title);
-}
+# Errors should not be tested during export but e.g. in owner.t
 
 my ($in, $out, $title);
 
@@ -1937,23 +1933,6 @@ $out = <<'END';
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Wildcard address not valid as admin';
-############################################################
-
-$in = <<'END';
-owner:o1 = { admins = [all]@example.com; }
-network:n1 = { ip = 10.1.1.0/24; owner = o1; }
-END
-
-$out = <<'END';
-Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.com
-END
-
-test_err($title, $in, $out);
-
-
 
 ############################################################
 $title = 'Wildcard address as watcher';

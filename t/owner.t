@@ -332,6 +332,21 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Wildcard address not valid as admin';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = [all]@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+END
+
+$out = <<'END';
+Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.com
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Owner with attribute only_watch only usable at area';
 ############################################################
 
