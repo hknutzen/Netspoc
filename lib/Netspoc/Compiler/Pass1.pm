@@ -7128,7 +7128,8 @@ sub set_ignore_fully_redundant {
         my $net = $obj->{network} || $obj;
         my $zone = $net->{zone};
         if ($zone->{has_fully_redundant}) {
-            $rule->{rule}->{service}->{ignore_fully_redundant}++;
+            $rule->{ignore_fully_redundant}++ or
+                $rule->{rule}->{service}->{ignore_fully_redundant}++;
             last;
         }
     }

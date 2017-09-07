@@ -455,6 +455,49 @@ END
 test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Suppress warning even if duplicate and redundant';
+############################################################
+# Must not count rule of s1 two times in {ignore_fully_redundant}.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+any:n1 = { link = network:n1; has_fully_redundant; }
+
+service:s1 = {
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+
+############################################################
 $title = 'has_fully_redundant at only src and only dst';
 ############################################################
 # First rule with has_fully_redundant only at src zone,
