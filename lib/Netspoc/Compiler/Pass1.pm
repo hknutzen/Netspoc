@@ -7140,21 +7140,27 @@ my @duplicate_rules;
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
-    $service->{redundant_count}++;
     set_ignore_fully_redundant($rule);
 
     # Mark duplicate rules in both services.
-    # This is used later to find fully redundant services,
-    # - consisting solely of duplicate rules
-    # - without having an 'overlaps' attribute.
-    # But count each rule only once. This can only occur for rule $other,
-    # because all identical rules are compared with $other.
+
+    # But count each rule only once. For duplicate rules, this can
+    # only occur for rule $other, because all identical rules are
+    # compared with $other. But we need to mark $rule as well, because
+    # it must only be counted once, if it is both duplicate and
+    # redundandant.
+    $rule->{redundant}++;
     $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
-    if (not $other->{duplicate_count}++) {
+    if (not $other->{redundant}++) {
         $oservice->{duplicate_count}++;
         set_ignore_fully_redundant($other);
     }
+
+    # Link both services, so we later show only one of both service as
+    # redundant.
+    $service->{has_same_dupl}->{$oservice} = $oservice;
+    $oservice->{has_same_dupl}->{$service} = $service;
 
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7172,11 +7178,6 @@ sub collect_duplicate_rules {
             }
         }
     }
-
-    # Mark other service, so we don't show it as redundant if both
-    # services are fully redundant compared to each other.
-    $oservice->{keep_duplicate} = 1;
-
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
@@ -7271,33 +7272,20 @@ sub show_redundant_rules {
 
 sub show_fully_redundant_rules {
     my $action = $config->{check_fully_redundant_rules} or return;
-    my @duplicate_services;
     my %keep;
     for my $key (sort keys %services) {
         my $service = $services{$key};
-        my $rule_count = $service->{rule_count};
+        next if $keep{$service};
+        my $rule_count = $service->{rule_count} or next;
         if (my $ignore_fully_redundant = $service->{ignore_fully_redundant}) {
             next if $ignore_fully_redundant == $rule_count;
         }
-        my $duplicates = $service->{duplicate_count};
-        if ($duplicates and $duplicates == $rule_count) {
-            push @duplicate_services, $service;
-            if (my $overlaps = $service->{overlaps}) {
-                $keep{$_} = 1 for @$overlaps;
-            }
-            elsif ($service->{keep_duplicate}) {
-                $keep{$service} = 1;
-            }
+        my $duplicates = $service->{duplicate_count} || 0;
+        my $redundants = $service->{redundant_count} || 0;
+        $duplicates + $redundants == $rule_count or next;
+        if (my $has_same_dupl = delete $service->{has_same_dupl}) {
+            $keep{$_} = 1 for values %$has_same_dupl;
         }
-        else {
-            my $redundant = $service->{redundant_count} or next;
-            if ($redundant == $rule_count) {
-                warn_or_err_msg($action, "$service->{name} is fully redundant");
-            }
-        }
-    }
-    for my $service (@duplicate_services) {
-        next if $keep{$service};
         warn_or_err_msg($action, "$service->{name} is fully redundant");
     }
 }
