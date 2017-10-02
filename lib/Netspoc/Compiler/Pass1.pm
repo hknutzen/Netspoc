@@ -2946,13 +2946,26 @@ sub check_user_in_union {
     return $count ? 1 : 0;
 }
 
+sub read_union_warn_empty {
+    my ($what, $sname) = @_;
+    my $result;
+    if (check(';')) {
+        warn_msg("$what of $sname is empty");
+        $result = [];
+    }
+    else {
+        $result = read_union(';');
+    }
+    return $result;
+}
+
 sub assign_union_allow_user {
     my ($name, $sname) = @_;
     skip $name;
     skip '=';
     local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
-    my $result = read_union(';');
+    my $result = read_union_warn_empty($name, $sname);
     my $user_seen = $user_object->{refcount};
     if ($user_seen) {
         check_user_in_union($result, "$name of $sname");
@@ -3024,7 +3037,7 @@ sub read_service {
     if (check('foreach')) {
         $service->{foreach} = 1;
     }
-    $service->{user} = read_union(';');
+    $service->{user} = read_union_warn_empty('user', $name);
 
     while (1) {
         my $token = read_token();
@@ -3057,6 +3070,7 @@ sub read_service {
         }
         push @{ $service->{rules} }, $rule;
     }
+    my $rules = $service->{rules};
     return $service;
 }
 
