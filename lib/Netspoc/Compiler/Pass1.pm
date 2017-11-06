@@ -9606,7 +9606,7 @@ sub link_implicit_aggregate_to_zone {
     # Find supernet of new aggregate.
     # Iterate from smaller to larger supernets.
     # Stop after smallest supernet has been found.
-    for my $obj (sort { $a->{mask} lt $b->{mask} } @larger) {
+    for my $obj (sort { $b->{mask} cmp $a->{mask} } @larger) {
         my ($i, $m) = @{$obj}{qw(ip mask)};
         match_ip($ip, $i, $m) or next;
         $aggregate->{up} = $obj;
