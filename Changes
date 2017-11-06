@@ -1,5 +1,20 @@
 {{$NEXT}}
 
+5.028     2017-11-06 11:56:19+01:00 Europe/Berlin
+
+ - Fixed subnet relation for implicit aggregates in case of multiple
+   larger supernets. This led to
+   - unrecognized warnings about redundant rules and
+   - in rare cases to errors about unstable NAT.
+ - Fixed option '-check_fully_redundant_rules'
+   - in case of mixed duplicate and redundant rules.
+   - In some rare case, a non redundant service was shown as redundant.
+ - Parser no longer aborts but warns on empty list in user, src, dst.
+ - New option '-name' for command 'print-service'.
+   With with this option names, not IP of elements are shown.
+ - 'print-service' allows multiple services to be requested now.
+   Without any arguments, still all services are printed.
+
 5.027     2017-09-05 13:14:47+02:00 Europe/Berlin
 
  - Support 'kilobytes' in ipsec lifetime attribute.
