@@ -91,7 +91,7 @@ s1:permit 10.1.9.10 10.1.3.2 icmp
 s1:permit 10.1.2.0/24 10.1.3.2 icmp
 END
 
-test_run($title, $in, '-nat n3 service:s1 service:s2', $out);
+test_run($title, $in, '-nat n3 service:s1', $out);
 
 ############################################################
 $title = 'All services';
@@ -114,6 +114,23 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 END
 
 test_run($title, $in, '', $out);
+
+############################################################
+$title = 'Missing "service:" keyword';
+############################################################
+
+test_run($title, $in, 's1 service:s2', $out);
+
+############################################################
+$title = 'Multiple services, show names of objects';
+############################################################
+
+$out = <<'END';
+s1:permit network:n1 network:n3 ip
+s2:permit network:n2 network:n3 tcp
+END
+
+test_run($title, $in, '-name service:s1 service:s2', $out);
 
 ############################################################
 done_testing;

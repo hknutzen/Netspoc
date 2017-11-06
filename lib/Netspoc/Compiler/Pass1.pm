@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.027'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.028'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2946,13 +2946,26 @@ sub check_user_in_union {
     return $count ? 1 : 0;
 }
 
+sub read_union_warn_empty {
+    my ($what, $sname) = @_;
+    my $result;
+    if (check(';')) {
+        warn_msg("$what of $sname is empty");
+        $result = [];
+    }
+    else {
+        $result = read_union(';');
+    }
+    return $result;
+}
+
 sub assign_union_allow_user {
     my ($name, $sname) = @_;
     skip $name;
     skip '=';
     local $user_object->{active} = 1;
     $user_object->{refcount} = 0;
-    my $result = read_union(';');
+    my $result = read_union_warn_empty($name, $sname);
     my $user_seen = $user_object->{refcount};
     if ($user_seen) {
         check_user_in_union($result, "$name of $sname");
@@ -3024,7 +3037,7 @@ sub read_service {
     if (check('foreach')) {
         $service->{foreach} = 1;
     }
-    $service->{user} = read_union(';');
+    $service->{user} = read_union_warn_empty('user', $name);
 
     while (1) {
         my $token = read_token();
@@ -3057,6 +3070,7 @@ sub read_service {
         }
         push @{ $service->{rules} }, $rule;
     }
+    my $rules = $service->{rules};
     return $service;
 }
 
@@ -7128,7 +7142,8 @@ sub set_ignore_fully_redundant {
         my $net = $obj->{network} || $obj;
         my $zone = $net->{zone};
         if ($zone->{has_fully_redundant}) {
-            $rule->{rule}->{service}->{ignore_fully_redundant}++;
+            $rule->{ignore_fully_redundant}++ or
+                $rule->{rule}->{service}->{ignore_fully_redundant}++;
             last;
         }
     }
@@ -7139,21 +7154,27 @@ my @duplicate_rules;
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
-    $service->{redundant_count}++;
     set_ignore_fully_redundant($rule);
 
     # Mark duplicate rules in both services.
-    # This is used later to find fully redundant services,
-    # - consisting solely of duplicate rules
-    # - without having an 'overlaps' attribute.
-    # But count each rule only once. This can only occur for rule $other,
-    # because all identical rules are compared with $other.
+
+    # But count each rule only once. For duplicate rules, this can
+    # only occur for rule $other, because all identical rules are
+    # compared with $other. But we need to mark $rule as well, because
+    # it must only be counted once, if it is both duplicate and
+    # redundandant.
+    $rule->{redundant}++;
     $service->{duplicate_count}++;
     my $oservice = $other->{rule}->{service};
-    if (not $other->{duplicate_count}++) {
+    if (not $other->{redundant}++) {
         $oservice->{duplicate_count}++;
         set_ignore_fully_redundant($other);
     }
+
+    # Link both services, so we later show only one of both service as
+    # redundant.
+    $service->{has_same_dupl}->{$oservice} = $oservice;
+    $oservice->{has_same_dupl}->{$service} = $service;
 
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
@@ -7171,11 +7192,6 @@ sub collect_duplicate_rules {
             }
         }
     }
-
-    # Mark other service, so we don't show it as redundant if both
-    # services are fully redundant compared to each other.
-    $oservice->{keep_duplicate} = 1;
-
     my $prt1 = get_orig_prt($rule);
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
@@ -7270,33 +7286,20 @@ sub show_redundant_rules {
 
 sub show_fully_redundant_rules {
     my $action = $config->{check_fully_redundant_rules} or return;
-    my @duplicate_services;
     my %keep;
     for my $key (sort keys %services) {
         my $service = $services{$key};
-        my $rule_count = $service->{rule_count};
+        next if $keep{$service};
+        my $rule_count = $service->{rule_count} or next;
         if (my $ignore_fully_redundant = $service->{ignore_fully_redundant}) {
             next if $ignore_fully_redundant == $rule_count;
         }
-        my $duplicates = $service->{duplicate_count};
-        if ($duplicates and $duplicates == $rule_count) {
-            push @duplicate_services, $service;
-            if (my $overlaps = $service->{overlaps}) {
-                $keep{$_} = 1 for @$overlaps;
-            }
-            elsif ($service->{keep_duplicate}) {
-                $keep{$service} = 1;
-            }
+        my $duplicates = $service->{duplicate_count} || 0;
+        my $redundants = $service->{redundant_count} || 0;
+        $duplicates + $redundants == $rule_count or next;
+        if (my $has_same_dupl = delete $service->{has_same_dupl}) {
+            $keep{$_} = 1 for values %$has_same_dupl;
         }
-        else {
-            my $redundant = $service->{redundant_count} or next;
-            if ($redundant == $rule_count) {
-                warn_or_err_msg($action, "$service->{name} is fully redundant");
-            }
-        }
-    }
-    for my $service (@duplicate_services) {
-        next if $keep{$service};
         warn_or_err_msg($action, "$service->{name} is fully redundant");
     }
 }
@@ -9603,7 +9606,7 @@ sub link_implicit_aggregate_to_zone {
     # Find supernet of new aggregate.
     # Iterate from smaller to larger supernets.
     # Stop after smallest supernet has been found.
-    for my $obj (sort { $a->{mask} lt $b->{mask} } @larger) {
+    for my $obj (sort { $b->{mask} cmp $a->{mask} } @larger) {
         my ($i, $m) = @{$obj}{qw(ip mask)};
         match_ip($ip, $i, $m) or next;
         $aggregate->{up} = $obj;

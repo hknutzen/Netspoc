@@ -23,6 +23,10 @@ service-name:permit|deny src-ip dst-ip protocol-description
 
 Uses network:name as reference when resolving IP address in a NAT environment.
 
+=item B<-name>
+
+Show name, not IP of elements.
+
 =item B<-quiet>
 
 Don't print progress messages.
@@ -71,16 +75,17 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.027'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.028'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
 ####################################################################
 
-my ($nat_net, $ipv6, $quiet, $help, $man);
+my ($nat_net, $ipv6, $show_name, $quiet, $help, $man);
 
 GetOptions ( 'nat=s'  => \$nat_net,
              'ipv6'   => \$ipv6,
+             'name'   => \$show_name,
              'quiet!' => \$quiet,
 	     'help|?' => \$help,
 	     man => \$man,
@@ -89,7 +94,7 @@ pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 
 my $in_path = shift @ARGV or pod2usage(2);
-my $name = shift @ARGV;
+my @names = @ARGV;
 
 ####################################################################
 # Subroutines
@@ -97,8 +102,11 @@ my $name = shift @ARGV;
 
 my $no_nat_set;
 
-sub ip_info {
+sub obj_info {
     my ($obj) = @_;
+    if ($show_name) {
+        return $obj->{name};
+    }
     my ($ip, $mask) = @{ address($obj, $no_nat_set) };
     my $prefix_len = mask2prefix($mask);
     return(print_ip($ip) . ($prefix_len == ($config->{ipv6} ? 128 : 32 )?
@@ -156,10 +164,14 @@ init_global_vars();
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);
 
-if ($name) {
-    $name = decode_utf8($name, 1);
-    $name =~ s/^service://;
-    $services{$name} or die "Unknown service '$name'\n";
+my %names;
+if (@names) {
+    for my $name (@names) {
+        $name = decode_utf8($name, 1);
+        $name =~ s/^service://;
+        $services{$name} or die "Unknown service '$name'\n";
+        $names{$name} = 1;
+    }
 }
 &order_protocols();
 &link_topology();
@@ -186,7 +198,9 @@ group_path_rules();
 for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
     my $service_name = $rule->{rule}->{service}->{name};
     $service_name =~ s/^service://;
-    $name and $name ne $service_name and next;
+    if (keys %names) {
+        $names{$service_name} or next;
+    }
     my $aref = $service2rules{$service_name} ||= [];
     my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
     for my $src (@$src_list) {
@@ -205,8 +219,8 @@ for my $service_name (sort keys %service2rules) {
         my ($deny, $src, $dst, $src_range, $prt) =
             @{$rule}{qw(deny src dst src_range prt)};
         my $action   = $deny ? 'deny' : 'permit';
-        my $src_info = ip_info($src);
-        my $dst_info = ip_info($dst);
+        my $src_info = obj_info($src);
+        my $dst_info = obj_info($dst);
         my $prt_info = prt_info($src_range, $prt);
         print "$service_name:$action $src_info $dst_info $prt_info\n";
     }

@@ -203,6 +203,49 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Correctly insert implicit aggregate';
+############################################################
+
+$in = <<'END';
+router:a = {
+ interface:n1_20_16;
+ interface:n1_20_00;
+ interface:n1_16;
+}
+
+network:n1_20_16 = { ip = 10.1.16.0/21; subnet_of = network:n1_16; }
+network:n1_20_00 = { ip = 10.1.0.0/20; subnet_of = network:n1_16; }
+network:n1_16 = { ip = 10.1.0.0/16; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1_16 = { ip = 10.1.99.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+  user = any:[ip=10.1.0.0/22 & network:n1_16];
+  permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+  user = network:n1_20_00;
+  permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+Warning: Redundant rules in service:s1 compared to service:s2:
+  permit src=any:[ip=10.1.0.0/22 & network:n1_20_16]; dst=network:n2; prt=tcp 80; of service:s1
+< permit src=network:n1_20_00; dst=network:n2; prt=tcp 80; of service:s2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Check aggregate at unnumbered interface';
 ############################################################
 

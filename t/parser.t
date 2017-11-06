@@ -1167,6 +1167,33 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = "Empty list of elements after 'user', 'src', 'dst'";
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+service:s2= {
+ user = network:n1;
+ permit src = ; dst = user; prt = tcp 80;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = ; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: user of service:s1 is empty
+Warning: src of service:s2 is empty
+Warning: dst of service:s3 is empty
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = "Non host as policy_distribution_point";
 ############################################################
 
