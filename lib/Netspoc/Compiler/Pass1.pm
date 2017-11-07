@@ -904,11 +904,12 @@ our %hosts;
 sub read_network_assign {
     my ($context) = @_;
     my $pair = read_assign(\&read_typed_name);
-    if ($pair->[0] ne 'network' or ref $pair->[1]) {
+    my ($type, $name) = @$pair;
+    if ($type ne 'network' or ref $name) {
         error_atline "Must only use network name in '$context'";
-        $pair = undef;
+        $name = undef;
     }
-    return $pair;
+    return $name;
 }
 
 sub read_radius_attributes {
@@ -1196,8 +1197,8 @@ sub read_nat {
             $nat->{dynamic} = 1;
         }
         elsif ($token eq 'subnet_of') {
-            my $pair = read_network_assign($token);
-            add_attribute($nat, subnet_of => $pair);
+            my $net_name = read_network_assign($token);
+            add_attribute($nat, subnet_of => $net_name);
         }
         else {
             syntax_err('Unexpected token');
@@ -1281,8 +1282,8 @@ sub read_network {
             $network->{crosslink} = 1;
         }
         elsif ($token eq 'subnet_of') {
-            my $pair = read_network_assign($token);
-            add_attribute($network, subnet_of => $pair);
+            my $net_name = read_network_assign($token);
+            add_attribute($network, subnet_of => $net_name);
         }
         elsif ($token eq 'owner') {
             my $owner = read_assign(\&read_identifier);
@@ -1524,8 +1525,8 @@ sub read_interface {
 
         # Needed for the implicitly defined network of 'loopback'.
         elsif ($token eq 'subnet_of') {
-            my $pair = read_network_assign($token);
-            add_attribute($interface, subnet_of => $pair);
+            my $net_name = read_network_assign($token);
+            add_attribute($interface, subnet_of => $net_name);
         }
         elsif ($token eq 'hub') {
             my $pairs = read_assign_list(\&read_typed_name);
@@ -1737,7 +1738,7 @@ sub read_interface {
             error_atline("Invalid attributes $attr for bridged interface");
         }
     }
-    if (my $crypto = $interface->{spoke}) {
+    if ($interface->{spoke}) {
         if (@secondary_interfaces) {
             error_atline("Interface with attribute 'spoke'",
                          " must not have secondary interfaces");
@@ -2229,7 +2230,7 @@ sub read_router {
               if $changed;
         }
 
-        if ($bridged and (my $routing = $router->{routing})) {
+        if ($bridged and $router->{routing}) {
             err_msg("Must not apply attribute 'routing' to bridge $name");
         }
 
@@ -2616,8 +2617,8 @@ sub read_area {
             $area->{auto_border} = 1;
         }
         elsif ($token eq 'anchor') {
-            my $pair = read_network_assign($token);
-            add_attribute($area, anchor => $pair);
+            my $net_name = read_network_assign($token);
+            add_attribute($area, anchor => $net_name);
         }
         elsif ($token eq 'owner') {
             my $owner = read_assign(\&read_identifier);
@@ -2978,7 +2979,7 @@ sub date_is_reached {
     my ($date) = @_;
     my ($y, $m, $d) = $date =~ /^(\d\d\d\d)-(\d\d)-(\d\d)$/a
         or syntax_err("Date expected as yyyy-mm-dd");
-    my ($sec, $min, $hour, $mday, $mon, $year) = localtime(time);
+    my (undef, undef, undef, $mday, $mon, $year) = localtime(time);
     $mon += 1;
     $year += 1900;
     return ($y < $year ||
@@ -3070,7 +3071,6 @@ sub read_service {
         }
         push @{ $service->{rules} }, $rule;
     }
-    my $rules = $service->{rules};
     return $service;
 }
 
@@ -4011,7 +4011,7 @@ sub link_general_permit {
             $orig_prt = $prt;
         }
         my @reason;
-        if (my $modifiers = $orig_prt->{modifiers}) {
+        if ($orig_prt->{modifiers}) {
             push @reason, 'modifiers';
         }
         if ($src_range or $range and $range ne $aref_tcp_any) {
@@ -4028,11 +4028,12 @@ sub link_general_permit {
 # Link areas with referenced interfaces or network.
 sub link_areas {
     for my $area (values %areas) {
-        if ($area->{anchor}) {
+        if (my $net_name = $area->{anchor}) {
 
             # Input has already been checked by parser, so we are sure
             # to get exactly one network as result.
-            my ($obj) = @{ expand_group([ $area->{anchor} ], $area->{name}) };
+            my ($obj) =
+                @{ expand_group([['network', $net_name]], $area->{name}) };
             $area->{anchor} = $obj;
         }
         for my $attr (qw(border inclusive_border)) {
@@ -4178,8 +4179,7 @@ sub link_routers {
 
 sub link_subnet {
     my ($object) = @_;
-    my $pair = $object->{subnet_of} or return;
-    my ($type, $name) = @$pair;
+    my $name = $object->{subnet_of} or return;
     my $context = $object->{descr} || $object->{name};
     my $network = $networks{$name};
     if (not $network) {
@@ -4977,7 +4977,7 @@ sub convert_hosts {
             if (my $ip = $host->{ip}) {
                 @ip_mask = [ $ip, $max_ip ];
                 if ($id) {
-                    if (my ($user, $dom) = ($id =~ /^(.*?)(\@.*)$/)) {
+                    if (my ($user) = ($id =~ /^(.*?)\@/)) {
                         $user
                           or err_msg(
                             "ID of $name must not start",
@@ -5879,7 +5879,7 @@ sub expand_protocols {
 
 # Expand split protocols.
 sub split_protocols {
-    my ($protocols, $context) = @_;
+    my ($protocols) = @_;
     my @split_protocols;
     for my $prt (@$protocols) {
         my $proto = $prt->{proto};
@@ -6175,8 +6175,7 @@ sub normalize_service_rules {
             }
         }
         my $prt_list =
-          split_protocols(
-            expand_protocols($unexpanded->{prt}, "rule in $context"));
+          split_protocols(expand_protocols($unexpanded->{prt}));
         @$prt_list or next;
         my $prt_list_pair = classify_protocols($prt_list, $service);
 
@@ -6807,7 +6806,6 @@ sub collect_unenforceable {
         return;
     }
 
-    my $context = $service->{name};
     my $is_coupling = $rule->{rule}->{has_user} eq 'both';
     $service->{silent_unenforceable} = 1;
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
@@ -9587,7 +9585,7 @@ sub link_implicit_aggregate_to_zone {
 
     # Find subnets of new aggregate.
     for my $obj (@smaller) {
-        my ($i, $m) = @{$obj}{qw(ip mask)};
+        my $i = $obj->{ip};
         match_ip($i, $ip, $mask) or next;
 
         # Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
@@ -10698,7 +10696,6 @@ sub check_pathrestrictions {
 
         my ($prev_interface, $prev_cluster);
         for my $interface (@$elements) {
-            my $router = $interface->{router};
             my $loop = get_loop($interface);
             my $loop_intf = $interface;
 
@@ -13049,7 +13046,6 @@ sub expand_crypto {
     progress('Expanding crypto rules');
 
     for my $crypto (values %crypto) {
-        my $name    = $crypto->{name};
         my $isakmp  = $crypto->{type}->{key_exchange};
         my $need_id = $isakmp->{authentication} eq 'rsasig';
 
@@ -13488,7 +13484,7 @@ sub check_supernet_src_rule {
 
     # Ignore semi_managed router.
     my $router  = $in_intf->{router};
-    my $managed = $router->{managed} or return;
+    $router->{managed} or return;
 
     my $src     = $rule->{src}->[0];
 
@@ -13902,7 +13898,7 @@ sub paths_reach_zone {
 
     my $zone_reached;
     my $check_zone = sub {
-        my ($rule, $in_intf, $out_intf) = @_;
+        my (undef, $in_intf, $out_intf) = @_;
 
         # Packets traverse $zone.
         if ($in_intf and $out_intf and $in_intf->{zone} eq $zone) {
@@ -14248,7 +14244,7 @@ sub gen_reverse_rules1 {
                 # Local function called by path_walk.
                 # It uses free variable $has_stateless_router.
                 my $mark_reverse_rule = sub {
-                    my ($rule, $in_intf, $out_intf) = @_;
+                    my (undef, $in_intf, $out_intf) = @_;
 
                     # Destination of current rule is current router.
                     # Outgoing packets from a router itself are never filtered.
@@ -15476,7 +15472,7 @@ sub check_and_convert_routes {
                 };
                 my @zone_hops;
                 my $walk = sub {
-                    my ($rule, $in_intf, $out_intf) = @_;
+                    my (undef,  $in_intf, $out_intf) = @_;
                     $in_intf               or internal_err("No in_intf");
                     $in_intf eq $real_intf or return;
                     $out_intf              or internal_err("No out_intf");
@@ -15939,7 +15935,7 @@ sub distribute_rule {
     # Outgoing packets from a router itself are never filtered.
     return unless $in_intf;
     my $router  = $in_intf->{router};
-    my $managed = $router->{managed} or return;
+    $router->{managed} or return;
     my $model   = $router->{model};
 
     # Rules of type stateless must only be processed at
@@ -16459,7 +16455,6 @@ my %asa_vpn_attr_need_value =
 
 sub print_asavpn {
     my ($router) = @_;
-    my $model = $router->{model};
 
     my $global_group_name = 'global';
     print <<"EOF";
@@ -16626,7 +16621,7 @@ EOF
                 if ($src->{mask} eq $max_ip) {
 
                     # For anyconnect clients.
-                    my ($name, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                    my (undef, $domain) = ($id =~ /^(.*?)(\@.*)$/);
                     $single_cert_map{$domain} = 1;
 
                     my $mask = print_ip $network->{mask};
@@ -17016,7 +17011,6 @@ sub gen_crypto_rules {
 
 sub print_ezvpn {
     my ($router) = @_;
-    my $model          = $router->{model};
     my @interfaces     = @{ $router->{interfaces} };
     my ($tunnel_intf)  = grep { $_->{ip} eq 'tunnel' } @interfaces;
     my $tun_no_nat_set = $tunnel_intf->{no_nat_set};
@@ -17094,7 +17088,7 @@ sub print_ezvpn {
 # Print crypto ACL.
 # It controls which traffic needs to be encrypted.
 sub print_crypto_acl {
-    my ($interface, $suffix, $crypto, $crypto_type) = @_;
+    my ($interface, $suffix, $crypto) = @_;
     my $crypto_acl_name = "crypto-$suffix";
 
     # Generate crypto ACL entries.
@@ -17124,13 +17118,12 @@ sub print_crypto_acl {
 # Print filter ACL. It controls which traffic is allowed to leave from
 # crypto tunnel. This may be needed, if we don't fully trust our peer.
 sub print_crypto_filter_acl {
-    my ($interface, $suffix, $crypto_type) = @_;
+    my ($interface, $suffix) = @_;
     my $router = $interface->{router};
 
     return if $router->{no_crypto_filter};
 
     my $crypto_filter_name = "crypto-filter-$suffix";
-    my $model      = $router->{model};
     my $no_nat_set = $interface->{no_nat_set};
     my $acl_info = {
         name         => $crypto_filter_name,
@@ -17147,7 +17140,7 @@ sub print_crypto_filter_acl {
 
 # Called for static and dynamic crypto maps.
 sub print_crypto_map_attributes {
-    my ($prefix, $model, $crypto_type, $crypto_acl_name, $crypto_filter_name,
+    my ($prefix, $crypto_type, $crypto_acl_name, $crypto_filter_name,
         $isakmp, $ipsec, $ipsec2trans_name)
       = @_;
 
@@ -17194,9 +17187,7 @@ sub print_crypto_map_attributes {
 }
 
 sub print_tunnel_group {
-    my ($name, $interface, $isakmp) = @_;
-    my $model          = $interface->{router}->{model};
-    my $no_nat_set     = $interface->{no_nat_set};
+    my ($name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
@@ -17232,7 +17223,6 @@ sub print_static_crypto_map {
     my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
     my $model       = $router->{model};
     my $crypto_type = $model->{crypto};
-    my $hw_name     = $hardware->{name};
 
     # Sequence number for parts of crypto map with different peers.
     my $seq_num = 0;
@@ -17258,9 +17248,9 @@ sub print_static_crypto_map {
         my $isakmp = $ipsec->{key_exchange};
 
         my $crypto_acl_name =
-          print_crypto_acl($interface, $suffix, $crypto, $crypto_type);
+          print_crypto_acl($interface, $suffix, $crypto);
         my $crypto_filter_name =
-          print_crypto_filter_acl($interface, $suffix, $crypto_type);
+          print_crypto_filter_acl($interface, $suffix);
 
         # Define crypto map.
         my $prefix;
@@ -17275,12 +17265,12 @@ sub print_static_crypto_map {
         # Set crypto peer.
         print "$prefix set peer $peer_ip\n";
 
-        print_crypto_map_attributes($prefix, $model, $crypto_type,
-            $crypto_acl_name, $crypto_filter_name,
-            $isakmp, $ipsec, $ipsec2trans_name);
+        print_crypto_map_attributes($prefix, $crypto_type,
+            $crypto_acl_name, $crypto_filter_name, $isakmp, $ipsec,
+            $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($peer_ip, $interface, $isakmp);
+            print_tunnel_group($peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17291,10 +17281,9 @@ sub print_static_crypto_map {
 }
 
 sub print_dynamic_crypto_map {
-    my ($router, $hardware, $map_name, $interfaces, $ipsec2trans_name) = @_;
+    my ($router, $map_name, $interfaces, $ipsec2trans_name) = @_;
     my $model       = $router->{model};
     my $crypto_type = $model->{crypto};
-    my $hw_name     = $hardware->{name};
 
     # Sequence number for parts of crypto map with different certificates.
     my $seq_num = 65536;
@@ -17313,24 +17302,24 @@ sub print_dynamic_crypto_map {
         my $isakmp = $ipsec->{key_exchange};
 
         my $crypto_acl_name =
-          print_crypto_acl($interface, $suffix, $crypto, $crypto_type);
+          print_crypto_acl($interface, $suffix, $crypto);
         my $crypto_filter_name =
-          print_crypto_filter_acl($interface, $suffix, $crypto_type);
+          print_crypto_filter_acl($interface, $suffix);
 
         # Define dynamic crypto map.
         # Use certificate as name.
         my $prefix = "crypto dynamic-map $id 10";
 
-        print_crypto_map_attributes($prefix, $model, $crypto_type,
-            $crypto_acl_name, $crypto_filter_name,
-            $isakmp, $ipsec, $ipsec2trans_name);
+        print_crypto_map_attributes($prefix, $crypto_type,
+            $crypto_acl_name, $crypto_filter_name, $isakmp, $ipsec,
+            $ipsec2trans_name);
 
         # Bind dynamic crypto map to crypto map.
         $prefix = "crypto map $map_name $seq_num";
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($id, $interface, $isakmp);
+        print_tunnel_group($id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
@@ -17508,8 +17497,8 @@ sub print_crypto {
             $have_crypto_map = 1;
         }
         if (my $interfaces = $hardware2dyn_crypto{$hardware}) {
-            print_dynamic_crypto_map($router, $hardware, $map_name,
-                $interfaces, \%ipsec2trans_name);
+            print_dynamic_crypto_map(
+                $router, $map_name, $interfaces, \%ipsec2trans_name);
             $have_crypto_map = 1;
         }
 

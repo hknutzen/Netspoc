@@ -36,10 +36,6 @@ use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use NetAddr::IP::Util;
 
-# VERSION: inserted by DZP::OurPkgVersion
-my $program = 'Netspoc';
-my $version = __PACKAGE__->VERSION || 'devel';
-
 sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
@@ -241,7 +237,7 @@ sub setup_prt_relation {
     for my $prt (values %$prt2obj) {
         my $proto = $prt->{proto};
         if ($proto eq 'icmp') {
-            my ($type, $code) = @{$prt}{qw(type code)};
+            my $type = $prt->{type};
             if (defined $type) {
                 if (defined $prt->{code}) {
                     $prt->{up} = $prt2obj->{"icmp $type"} || $icmp_up;
@@ -377,7 +373,7 @@ sub optimize_rules {
         $rule->{opt_secondary} or next;
         next if $rule->{deleted};
 
-        my ($src, $dst, $prt) = @{$rule}{qw(src dst prt)};
+        my ($src, $dst) = @{$rule}{qw(src dst)};
         next if $src->{no_opt_addrs};
         next if $dst->{no_opt_addrs};
 
@@ -841,7 +837,7 @@ sub find_objectgroups {
 }
 
 sub add_protect_rules {
-    my ($acl_info, $router_data, $has_final_permit) = @_;
+    my ($acl_info, $has_final_permit) = @_;
     my $need_protect = $acl_info->{need_protect} or return;
     my ($network_00, $prt_ip) = @{$acl_info}{qw(network_00 prt_ip)};
 
@@ -906,7 +902,7 @@ sub add_protect_rules {
 
 # Check if last is rule is 'permit ip any any'.
 sub check_final_permit {
-    my ($acl_info, $router_data) = @_;
+    my ($acl_info) = @_;
     my $rules = $acl_info->{rules};
     $rules and @$rules or return;
     my ($net_00, $prt_ip) = @{$acl_info}{qw(network_00 prt_ip)};
@@ -916,8 +912,7 @@ sub check_final_permit {
 
 # Add 'deny|permit ip any any' at end of ACL.
 sub add_final_permit_deny_rule {
-    my ($acl_info, $router_data) = @_;
-    my $rules = $acl_info->{rules};
+    my ($acl_info) = @_;
     $acl_info->{add_deny} or $acl_info->{add_permit} or return;
 
     my ($net_00, $prt_ip) = @{$acl_info}{qw(network_00 prt_ip)};
@@ -1603,7 +1598,6 @@ sub find_chains {
         # Special rule as marker, that end of rules has been reached.
         push @$rules, { action => 0 };
         my $start = my $i = 0;
-        my $last = $#$rules;
         my %count;
         while (1) {
             my $rule   = $rules->[$i];
@@ -1947,10 +1941,9 @@ sub prepare_acls {
             }
             move_rules_esp_ah($acl_info);
 
-            my $has_final_permit = check_final_permit($acl_info, $router_data);
+            my $has_final_permit = check_final_permit($acl_info);
             my $add_permit       = $acl_info->{add_permit};
-            add_protect_rules($acl_info, $router_data,
-                              $has_final_permit || $add_permit);
+            add_protect_rules($acl_info, $has_final_permit || $add_permit);
             if ($do_objectgroup and not $acl_info->{is_crypto_acl}) {
                 find_objectgroups($acl_info, $router_data);
             }
@@ -1958,7 +1951,7 @@ sub prepare_acls {
                 add_local_deny_rules($acl_info, $router_data);
             }
             elsif (not $has_final_permit) {
-                add_final_permit_deny_rule($acl_info, $router_data);
+                add_final_permit_deny_rule($acl_info);
             }
         }
     }
@@ -1997,8 +1990,7 @@ sub cisco_acl_addr {
 }
 
 sub print_object_groups {
-    my ($groups, $acl_info, $model) = @_;
-    my $ip_net2obj = $acl_info->{ip_net2obj};
+    my ($groups, $model) = @_;
     my $keyword = $model eq 'NX-OS'
                 ? 'object-group ip address'
                 : 'object-group network';
@@ -2167,7 +2159,7 @@ sub print_acl {
     }
     else {
         if (my $groups = $acl_info->{object_groups}) {
-            print_object_groups($groups, $acl_info, $model);
+            print_object_groups($groups, $model);
         }
         print_cisco_acl($acl_info, $router_data);
     }
