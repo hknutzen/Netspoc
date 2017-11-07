@@ -664,33 +664,40 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'Valid pathrestriction at unmanged router';
 ############################################################
+# Neighbor zones of any:[network:n2] all belong to same zone cluster.
+# Therefore we need to check neighbors of all elements of zone cluster.
 
 $in = <<'END';
-network:Test =  { ip = 10.9.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 
-router:filter1 = {
+router:u1 = {
+ interface:n1;
+ interface:n2;
+}
+router:u2 = {
+ interface:n2;
+ interface:n3;
+}
+
+router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:Test = { ip = 10.9.1.1; hardware = Vlan20; }
- interface:Trans1 = { ip = 10.5.6.1; hardware = VLAN1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-router:filter2 = {
+router:r2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:Test = { ip = 10.9.1.2; hardware = Vlan20; }
- interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; }
-}
-network:Trans1 = { ip = 10.5.6.0/24; }
-network:Trans2 = { ip = 10.5.7.0/24; }
-
-router:Kunde = {
- interface:Trans1 = { ip = 10.5.6.2; }
- interface:Trans2 = { ip = 10.5.7.2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
-pathrestriction:restrict = interface:Kunde.Trans1, interface:Kunde.Trans2;
+pathrestriction:r = interface:u1.n2, interface:u2.n2;
 END
 
 $out = '';
@@ -704,7 +711,7 @@ $title = 'Useless pathrestriction at unmanged router';
 $in =~ s/managed/#managed/;
 
 $out = <<'END';
-Warning: Useless pathrestriction:restrict.
+Warning: Useless pathrestriction:r.
  All interfaces are unmanaged and located inside the same security zone
 END
 

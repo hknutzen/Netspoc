@@ -10794,7 +10794,7 @@ sub check_pathrestrictions {
 
         # Process every zone in zone cluster...
         for my $zone1 (@$zone_cluster) {
-            for my $interface (@{ $zone->{interfaces} }) {
+            for my $interface (@{ $zone1->{interfaces} }) {
                 my $router = $interface->{router};
 
                 # ...examine its neighbour zones:
@@ -10814,13 +10814,13 @@ sub check_pathrestrictions {
                 }
             }
         }
-
-        # Empty interface array of useless pathrestrictions
         warn_msg(
             "Useless $restrict->{name}.\n",
             " All interfaces are unmanaged and",
             " located inside the same security zone"
         );
+
+        # Clear interfaces of useless pathrestriction.
         $restrict->{elements} = [];
     }
 
