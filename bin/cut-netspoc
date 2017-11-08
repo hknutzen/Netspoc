@@ -177,7 +177,7 @@ sub remove_attribute_src_code {
 # This function is called by path_walk to mark all managed routers
 # on path from src to dst of $rule with attribute {is_used}.
 sub mark_topology {
-    my ($rule, $in_intf, $out_intf) = @_;
+    my (undef, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
 #    debug "Used $router->{name}";

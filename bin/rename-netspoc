@@ -129,7 +129,7 @@ sub setup_subst {
 
 sub subst {
     my ($type, $name) = @_;
-    my $aref = $subst{$type} or return $name;
+    $subst{$type} or return $name;
 
     # ID host is extended by network name.
     if ($type eq 'host' and
