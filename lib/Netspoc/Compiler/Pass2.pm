@@ -446,20 +446,20 @@ sub join_ranges {
     }
 
     # %rule_tree is {deny => href, ...}
-    for my $href (values %rule_tree) {
+    for my $src_href (values %rule_tree) {
 
-        # $href is {src => href, ...}
-        for my $href (values %$href) {
+        # $src_href is {src => href, ...}
+        for my $dst_href (values %$src_href) {
 
-            # $href is {dst => href, ...}
-            for my $href (values %$href) {
+            # $dst_href is {dst => href, ...}
+            for my $src_range_href (values %$dst_href) {
 
-                # $href is {src_range => href, ...}
-                for my $src_range_ref (keys %$href) {
-                    my $href = $href->{$src_range_ref};
+                # $src_range_href is {src_range => href, ...}
+                for my $src_range_ref (keys %$src_range_href) {
+                    my $prt_href = $src_range_href->{$src_range_ref};
 
                     # Nothing to do if only a single rule.
-                    next if values %$href == 1;
+                    next if values %$prt_href == 1;
 
                     # Values of %$href are rules with identical
                     # deny/src/dst/src_range and a TCP or UDP protocol.
@@ -467,7 +467,7 @@ sub join_ranges {
                     # Collect rules with identical log type and
                     # identical protocol.
                     my %key2rules;
-                    for my $rule (values %$href) {
+                    for my $rule (values %$prt_href) {
                         my $key = $rule->{prt}->{proto};
                         if (my $log = $rule->{log}) {
                             $key .= ",$log";
@@ -1487,9 +1487,9 @@ sub find_chains {
         my ($tree, $order) = @_;
 
         # Process leaf nodes first.
-        for my $href (values %$tree) {
-            for my $href (values %$href) {
-                $merge_subtrees1->($href, $order, 2);
+        for my $href1 (values %$tree) {
+            for my $href2 (values %$href1) {
+                $merge_subtrees1->($href2, $order, 2);
             }
         }
 
