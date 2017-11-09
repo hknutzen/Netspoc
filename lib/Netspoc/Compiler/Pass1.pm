@@ -6896,10 +6896,10 @@ sub show_unenforceable {
         }
         next if $service->{has_unenforceable};
 
-        if (my $hash = delete $service->{seen_unenforceable}) {
+        if (my $src_hash = delete $service->{seen_unenforceable}) {
             my @list;
-            for my $hash (values %$hash) {
-                for my $aref (values %$hash) {
+            for my $dst_hash (values %$src_hash) {
+                for my $aref (values %$dst_hash) {
                     my ($src, $dst) = @$aref;
                     push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
