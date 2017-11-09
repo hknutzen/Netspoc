@@ -279,18 +279,22 @@ sub optimize_redundant_rules {
     my $ip_net2obj = $acl_info->{ip_net2obj};
     my $prt2obj    = $acl_info->{prt2obj};
     my $changed;
-    while (my ($deny, $chg_hash) = each %$chg_hash) {
+    for my $deny (keys %$chg_hash) {
+     my $chg_hash = $chg_hash->{$deny};
      while (1) {
       if (my $cmp_hash = $cmp_hash->{$deny}) {
-       while (my ($src_range_name, $chg_hash) = each %$chg_hash) {
+       for my $src_range_name (keys %$chg_hash) {
+       my $chg_hash = $chg_hash->{$src_range_name};
         my $src_range = $prt2obj->{$src_range_name};
         while (1) {
          if (my $cmp_hash = $cmp_hash->{$src_range->{name}}) {
-          while (my ($src_name, $chg_hash) = each %$chg_hash) {
+          for my $src_name (keys %$chg_hash) {
+           my $chg_hash = $chg_hash->{$src_name};
            my $src = $ip_net2obj->{$src_name};
            while (1) {
             if (my $cmp_hash = $cmp_hash->{$src->{name}}) {
-             while (my ($dst_name, $chg_hash) = each %$chg_hash) {
+             for my $dst_name (keys %$chg_hash) {
+              my $chg_hash = $chg_hash->{$dst_name};
               my $dst = $ip_net2obj->{$dst_name};
               while (1) {
                if (my $cmp_hash = $cmp_hash->{$dst->{name}}) {

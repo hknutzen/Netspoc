@@ -7358,21 +7358,26 @@ sub setup_ref2obj {
 sub find_redundant_rules {
  my ($cmp_hash, $chg_hash) = @_;
  my $count = 0;
- while (my ($stateless, $chg_hash) = each %$chg_hash) {
+ for my $stateless (keys %$chg_hash) {
+  my $chg_hash = $chg_hash->{$stateless};
   while (1) {
    if (my $cmp_hash = $cmp_hash->{$stateless}) {
-    while (my ($deny, $chg_hash) = each %$chg_hash) {
+    for my $deny (keys %$chg_hash) {
+     my $chg_hash = $chg_hash->{$deny};
      while (1) {
       if (my $cmp_hash = $cmp_hash->{$deny}) {
-       while (my ($src_range_ref, $chg_hash) = each %$chg_hash) {
+       for my $src_range_ref (keys %$chg_hash) {
+        my $chg_hash = $chg_hash->{$src_range_ref};
         my $src_range = $ref2prt{$src_range_ref};
         while (1) {
          if (my $cmp_hash = $cmp_hash->{$src_range}) {
-          while (my ($src_ref, $chg_hash) = each %$chg_hash) {
+          for my $src_ref (keys %$chg_hash) {
+           my $chg_hash = $chg_hash->{$src_ref};
            my $src = $ref2obj{$src_ref};
            while (1) {
             if (my $cmp_hash = $cmp_hash->{$src}) {
-             while (my ($dst_ref, $chg_hash) = each %$chg_hash) {
+             for my $dst_ref (keys %$chg_hash) {
+              my $chg_hash = $chg_hash->{$dst_ref};
               my $dst = $ref2obj{$dst_ref};
               while (1) {
                if (my $cmp_hash = $cmp_hash->{$dst}) {
