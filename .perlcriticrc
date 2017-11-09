@@ -1,7 +1,7 @@
 
 severity = 4
 #verbose  = 8
-include = ProhibitUnusedVariables ProhibitMismatchedOperators ProhibitCaptureWithoutTest
+include = Variables::ProhibitUnusedVarsStricter ProhibitMismatchedOperators ProhibitCaptureWithoutTest
 exclude = ProhibitAutomaticExportation ProhibitOneArgSelect RequireFinalReturn ProhibitNoWarnings ValuesAndExpressions::ProhibitConstantPragma
 
 [Subroutines::RequireFinalReturn]
