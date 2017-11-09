@@ -3541,9 +3541,8 @@ sub order_ranges {
     # Return position of range which isn't sub-range or undef
     # if end of array is reached.
     my $check_subrange;
-
     $check_subrange = sub {
-        my ($a, $a1, $a2, $i) = @_;
+        my ($a, $a2, $i) = @_;
         while (1) {
             return if $i == @sorted;
             my $b = $sorted[$i];
@@ -3568,8 +3567,8 @@ sub order_ranges {
             if ($a2 >= $b2) {
                 $b->{up} = $a;
 
-#           debug("$b->{name} [$b1-$b2] < $a->{name} [$a1-$a2]");
-                $i = $check_subrange->($b, $b1, $b2, $i + 1);
+# debug("$b->{name} [$b1-$b2] < $a->{name} [$a->{range}->[0]-$a2]");
+                $i = $check_subrange->($b, $b2, $i + 1);
 
                 # Stop at end of array.
                 $i or return;
@@ -3587,7 +3586,7 @@ sub order_ranges {
             my $y1 = $a2 + 1;
             my $y2 = $b2;
 
-#        debug("$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]");
+# debug("$b->{name} [$b1-$b2] split into [$x1-$x2] and [$y1-$y2]");
             my $find_or_insert_range = sub {
                 my ($a1, $a2, $i, $orig) = @_;
                 while (1) {
@@ -3662,8 +3661,8 @@ sub order_ranges {
 
     my $a = $sorted[0];
     $a->{up} = $up;
-    my ($a1, $a2) = @{ $a->{range} };
-    $check_subrange->($a, $a1, $a2, 1);
+    my $a2 = $a->{range}->[1];
+    $check_subrange->($a, $a2, 1);
 }
 
 sub expand_split_protocol {
