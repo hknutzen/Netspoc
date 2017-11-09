@@ -204,6 +204,47 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Retain identical protocols with different names';
+############################################################
+
+$in = $topo . <<'END';
+protocol:http = tcp 80;
+protocol:www  = tcp 80;
+
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = protocol:http;
+    permit src = user; dst = network:n3; prt = protocol:www;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3;
+}
+protocol:http = tcp 80;
+protocol:www  = tcp 80;
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = protocol:http;
+    permit src = user; dst = network:n3; prt = protocol:www;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Named aggregate behind unmanaged';
 ############################################################
 
