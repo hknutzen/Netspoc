@@ -2827,7 +2827,6 @@ sub cache_anonymous_protocol {
     }
     else {
         $protocol->{name}    = $name;
-        $protocol->{is_used} = 1;
         $protocols{$name}    = $protocol;
         return $protocol;
     }
@@ -5811,12 +5810,7 @@ sub check_unused_groups {
     %groups = ();
 }
 
-# Result:
-# Reference to array with elements
-# - non TCP/UDP protocol
-# - dst_range of (split) TCP/UDP protocol
-# - [ src_range, dst_range, orig_prt ]
-#   of (split) protocol having src_range or main_prt.
+# Result: Array of protocols.
 sub expand_protocols {
     my ($aref, $context) = @_;
     my @protocols;
@@ -5877,7 +5871,13 @@ sub expand_protocols {
     return \@protocols;
 }
 
-# Expand split protocols.
+# Split protocols.
+# Result:
+# Reference to array with elements
+# - non TCP/UDP protocol
+# - dst_range of (split) TCP/UDP protocol
+# - [ src_range, dst_range, orig_prt ]
+#   of (split) protocol having src_range or main_prt.
 sub split_protocols {
     my ($protocols) = @_;
     my @split_protocols;
@@ -5902,8 +5902,8 @@ sub split_protocols {
         {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
-                for my $src_split (expand_split_protocol $src_range) {
-                    for my $dst_split (expand_split_protocol $dst_range) {
+                for my $src_split (expand_split_protocol($src_range)) {
+                    for my $dst_split (expand_split_protocol($dst_range)) {
                         push @$aref_list, [ $src_split, $dst_split, $prt ];
                     }
                 }
@@ -5912,7 +5912,7 @@ sub split_protocols {
             push @split_protocols, @$aref_list;
         }
         else {
-            for my $dst_split (expand_split_protocol $dst_range) {
+            for my $dst_split (expand_split_protocol($dst_range)) {
                 push @split_protocols, $dst_split;
             }
         }
