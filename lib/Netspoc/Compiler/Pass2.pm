@@ -686,8 +686,8 @@ sub combine_adjacent_ip_mask {
         my $element2 = $elements->[$i+1];
         my $mask = $element1->{mask};
         $mask eq $element2->{mask} or next;
-        my $prefix = mask2prefix($mask);
-        my $up_mask = prefix2mask($prefix-1);
+        my $prefix = mask2prefix($mask)-1;
+        my $up_mask = prefix2mask($prefix);
         my $ip = $element1->{ip};
         ($ip & $up_mask) eq ($element2->{ip} & $up_mask) or next;
         my $up_element = get_ip_obj($ip, $up_mask, $ip_net2obj);
@@ -703,12 +703,12 @@ sub combine_adjacent_ip_mask {
         delete $hash->{$element1->{name}};
         delete $hash->{$element2->{name}};
 
-        if ($i > 0) {
-            my $next_bit = increment_ip(~$up_mask);
+        if ($i > 0 and $prefix) {
+            my $up2_mask = prefix2mask($prefix-1);
 
             # Check previous network again, if newly created network
-            # is left part.
-            $i-- if ($ip & $next_bit);
+            # is right part.
+            $i-- if (($ip & $up2_mask) ne $ip);
         }
 
         # Only one element left.
