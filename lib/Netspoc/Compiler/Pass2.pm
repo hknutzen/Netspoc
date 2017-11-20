@@ -430,8 +430,7 @@ sub optimize_rules {
 sub join_ranges {
     my ($rules, $prt2obj) = @_;
     my $changed;
-    my %rule_tree = ();
-  RULE:
+    my %key2rules;
     for my $rule (@$rules) {
         my ($deny, $src, $dst, $src_range, $prt) =
             @{$rule}{qw(deny src dst src_range prt)};
@@ -440,89 +439,60 @@ sub join_ranges {
         # Currently only dst_ranges are handled.
         $prt->{has_neighbor} or next;
 
+        # Collect rules with identical deny/src/dst/src_range log values
+        # and identical TCP or UDP protocol.
         $deny      ||= '';
         $src_range ||= '';
-        $rule_tree{$deny}->{$src}->{$dst}->{$src_range}->{$prt} = $rule;
+        my $key = "$deny,$src,$dst,$src_range,$prt->{proto}";
+        if (my $log = $rule->{log}) {
+            $key .= ",$log";
+        }
+        push @{ $key2rules{$key} }, $rule;
     }
 
-    # %rule_tree is {deny => href, ...}
-    for my $src_href (values %rule_tree) {
+    for my $rules (values %key2rules) {
+        @$rules >= 2 or next;
 
-        # $src_href is {src => href, ...}
-        for my $dst_href (values %$src_href) {
+        # When sorting these rules by low port number,
+        # rules with adjacent protocols will placed
+        # side by side. There can't be overlaps,
+        # because they have been split in function
+        # 'order_ranges'. There can't be sub-ranges,
+        # because they have been deleted as redundant
+        # already.
+        my @sorted = sort {
+            $a->{prt}->{range}->[0] <=> $b->{prt}->{range}->[0]
+        } @$rules;
+        my $i      = 0;
+        my $rule_a = $sorted[$i];
+        my ($a1, $a2) = @{ $rule_a->{prt}->{range} };
+        while (++$i < @sorted) {
+            my $rule_b = $sorted[$i];
+            my ($b1, $b2) = @{ $rule_b->{prt}->{range} };
+            if ($a2 + 1 == $b1) {
 
-            # $dst_href is {dst => href, ...}
-            for my $src_range_href (values %$dst_href) {
+                # Found adjacent port ranges.
+                if (my $range = delete $rule_a->{range}) {
 
-                # $src_range_href is {src_range => href, ...}
-                for my $src_range_ref (keys %$src_range_href) {
-                    my $prt_href = $src_range_href->{$src_range_ref};
-
-                    # Nothing to do if only a single rule.
-                    next if values %$prt_href == 1;
-
-                    # Values of %$href are rules with identical
-                    # deny/src/dst/src_range and a TCP or UDP protocol.
-                    #
-                    # Collect rules with identical log type and
-                    # identical protocol.
-                    my %key2rules;
-                    for my $rule (values %$prt_href) {
-                        my $key = $rule->{prt}->{proto};
-                        if (my $log = $rule->{log}) {
-                            $key .= ",$log";
-                        }
-                        push @{ $key2rules{$key} }, $rule;
-                    }
-
-                    for my $rules (values %key2rules) {
-
-                        # When sorting these rules by low port number,
-                        # rules with adjacent protocols will placed
-                        # side by side. There can't be overlaps,
-                        # because they have been split in function
-                        # 'order_ranges'. There can't be sub-ranges,
-                        # because they have been deleted as redundant
-                        # already.
-                        my @sorted = sort {
-                            $a->{prt}->{range}->[0]
-                                <=> $b->{prt}->{range}->[0]
-                        } @$rules;
-                        @sorted >= 2 or next;
-                        my $i      = 0;
-                        my $rule_a = $sorted[$i];
-                        my ($a1, $a2) = @{ $rule_a->{prt}->{range} };
-                        while (++$i < @sorted) {
-                            my $rule_b = $sorted[$i];
-                            my ($b1, $b2) = @{ $rule_b->{prt}->{range} };
-                            if ($a2 + 1 == $b1) {
-
-                                # Found adjacent port ranges.
-                                if (my $range = delete $rule_a->{range}) {
-
-                                    # Extend range of previous two or
-                                    # more elements.
-                                    $range->[1] = $b2;
-                                    $rule_b->{range} = $range;
-                                }
-                                else {
-
-                                    # Combine ranges of $rule_a and $rule_b.
-                                    $rule_b->{range} = [ $a1, $b2 ];
-                                }
-
-                                # Mark previous rule as deleted.
-                                $rule_a->{deleted} = 1;
-                                $changed = 1;
-                            }
-                            $rule_a = $rule_b;
-                            ($a1, $a2) = ($b1, $b2);
-                        }
-                    }
+                    # Extend range of previous two or more elements.
+                    $range->[1] = $b2;
+                    $rule_b->{range} = $range;
                 }
+                else {
+
+                    # Combine ranges of $rule_a and $rule_b.
+                    $rule_b->{range} = [ $a1, $b2 ];
+                }
+
+                # Mark previous rule as deleted.
+                $rule_a->{deleted} = 1;
+                $changed = 1;
             }
+            $rule_a = $rule_b;
+            ($a1, $a2) = ($b1, $b2);
         }
     }
+
     if ($changed) {
         my @rules;
         for my $rule (@$rules) {
