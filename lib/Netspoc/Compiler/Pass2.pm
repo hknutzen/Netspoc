@@ -495,7 +495,7 @@ sub join_ranges {
         for my $rule (@$rules) {
 
             # Check and remove attribute 'deleted'.
-            next if delete $rule->{deleted};
+            next if $rule->{deleted};
 
             # Process rule with joined port ranges.
             # Remove auxiliary attribute {range} from rules.
