@@ -497,7 +497,7 @@ sub join_ranges {
             # Check and remove attribute 'deleted'.
             next if delete $rule->{deleted};
 
-            # Process rules with joined port ranges.
+            # Process rule with joined port ranges.
             # Remove auxiliary attribute {range} from rules.
             if (my $range = delete $rule->{range}) {
                 my $proto = $rule->{prt}->{proto};
@@ -513,12 +513,9 @@ sub join_ranges {
                     };
                     $prt2obj->{$key} = $new_prt;
                 }
-                my $new_rule = { %$rule, prt => $new_prt };
-                push @rules, $new_rule;
+                $rule->{prt} = $new_prt;
             }
-            else {
-                push @rules, $rule;
-            }
+            push @rules, $rule;
         }
         $rules = \@rules;
     }
