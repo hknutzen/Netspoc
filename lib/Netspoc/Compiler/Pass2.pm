@@ -1974,9 +1974,7 @@ sub print_object_groups {
             # Reject network with mask = 0 in group.
             # This occurs if optimization didn't work correctly.
             $zero_ip eq $element->{mask}
-                and fatal_err(
-                    "Unexpected network with mask 0 in object-group"
-                );
+                and fatal_err("Unexpected network with mask 0 in object-group");
             my $adr = cisco_acl_addr($element, $model);
             if ($model eq 'NX-OS') {
                 print " $numbered $adr\n";
