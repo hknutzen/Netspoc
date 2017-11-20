@@ -94,7 +94,6 @@ sub setup_ip_net_relation {
         last if not @mask_list;
 
         my $ip_hash = $mask_ip_hash{$mask};
-      SUBNET:
         for my $ip (sort keys %$ip_hash) {
 
             my $subnet = $ip_hash->{$ip};
@@ -372,7 +371,6 @@ sub optimize_rules {
     # Implement rules as secondary rule, if possible.
     my %secondary_tree;
     my $ip_key = $prt_ip->{name};
-  RULE:
     for my $rule (@$rules) {
         $rule->{opt_secondary} or next;
         next if $rule->{deleted};
@@ -406,8 +404,7 @@ sub optimize_rules {
         else {
 
 #           debug("sec: ", print_rule $rule);
-            $secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key} =
-                $rule;
+            $secondary_tree{''}->{$ip_key}->{$src}->{$dst}->{$ip_key} = $rule;
         }
     }
 
