@@ -673,8 +673,8 @@ $title = 'Owner at network and host';
 ############################################################
 
 $in = <<'END';
-owner:o1 = { admins = a@example.com; watchers = owner:o2; }
-owner:o2 = { admins = b@example.com; watchers = owner:o3; }
+owner:o1 = { admins = a@example.com; watchers = b@example.com, c@example.com; }
+owner:o2 = { admins = b@example.com; }
 owner:o3 = { admins = c@example.com; }
 owner:o4 = { admins = d@example.com; watchers = e@example.com; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1;

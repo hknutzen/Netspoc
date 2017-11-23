@@ -3806,57 +3806,6 @@ sub link_to_real_owner {
     }
 }
 
-# Element of attribute 'watchers' of owner A is allowed to reference
-# some other owner B. In this case all admins and watchers of B are
-# added to watchers of A.
-sub expand_watchers {
-    my ($owner) = @_;
-    my $names = $owner->{watchers};
-
-    # No watchers given.
-    if (not $names) {
-        return $owner->{admins};
-    }
-
-    # Owners, referenced in $names have already been resolved.
-    if ($owner->{is_expanded}) {
-        return [ @{ $owner->{admins} }, @$names ];
-    }
-    if ($names eq 'recursive') {
-        err_msg("Found recursive definition of watchers in $owner->{name}");
-        return $owner->{watchers} = [];
-    }
-    $owner->{watchers} = 'recursive';
-    my $group_watchers;
-    my @expanded;
-    for my $name (@$names) {
-        if (my ($o_name) = ($name =~ /^owner:(.*)$/)) {
-            my $owner_b = $owners{$o_name};
-            if (not $owner_b) {
-                err_msg("Unknown owner:$o_name referenced in watcher of",
-                    " $owner->{name}");
-                next;
-            }
-            $owner_b->{is_used} = 1;
-            my $from_owner = expand_watchers($owner_b);
-            push @expanded, @$from_owner;
-            push @$group_watchers, @$from_owner;
-        }
-        else {
-            push @expanded, $name;
-        }
-    }
-    $owner->{watchers} = \@expanded;
-
-    # Remember watchers, that come from other owner.
-    $owner->{group_watchers} = $group_watchers if $group_watchers;
-
-    # Set mark: No need to expand again.
-    $owner->{is_expanded} = 1;
-
-    return [ @{ $owner->{admins} }, @expanded ];
-}
-
 sub link_owners {
 
     # Use sort to get deterministic error messages.
@@ -3867,9 +3816,6 @@ sub link_owners {
         for my $attr (qw( admins watchers )) {
             my $list = $owner->{$attr} or next;
             for my $email (@$list) {
-
-                # Expand below, in next loop.
-                next if $email =~ /^owner:/;
 
                 # Check email syntax.
                 # Local part definition from wikipedia,
@@ -3898,9 +3844,6 @@ sub link_owners {
     # Expand watchers and check for duplicates.
     for my $name (sort keys %owners) {
         my $owner = $owners{$name};
-
-        # Check and expand referenced owners in watchers.
-        expand_watchers($owner);
 
         # Check for duplicate email addresses
         # in admins, watchers and between admins and watchers.
