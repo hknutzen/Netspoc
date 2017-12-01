@@ -5254,7 +5254,29 @@ sub expand_group1 {
             # Put result into same order as the elements of first non
             # complemented set. This set contains all elements of resulting set,
             # because we are doing intersection here.
-            push @objects, grep { $result->{$_} } @$first_set;
+            my $len = @objects;
+            my $new_len = push @objects, grep { $result->{$_} } @$first_set;
+
+            # Warn on empty intersection of non empty parts.
+            if ($len == $new_len and @$first_set) {
+                my $printable = sub {
+                    my ($descr) = @_;
+                    my($type, $name, $ext) = @$descr;
+                    my $result = ' ';
+                    if ($type eq '!') {
+                        $result = '!';
+                        ($type, $name, $ext) = @$name;
+                    }
+                    $result .= "$type:";
+                    $result .= ref($name) ? "[..]" : $name;
+                    $result .= ref($ext) ? ".[$ext->[0]]" : ".$ext"
+                        if $ext and $type eq 'interface';
+                    return $result;
+                };
+                warn_msg("Empty intersection in $context:",
+                         "\n ",
+                         join("\n&", map {$printable->($_)} @$name));
+            }
         }
         elsif ($type eq '!') {
             err_msg("Complement (!) is only supported as part of intersection",
