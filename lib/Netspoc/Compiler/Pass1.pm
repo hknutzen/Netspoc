@@ -3859,13 +3859,6 @@ sub link_owners {
                     join(', ', @emails));
         }
 
-        # Don't warn on watchers that come from other owner.
-        if (my $group_watchers = delete $owner->{group_watchers}) {
-            my %hash;
-            @hash{@$group_watchers} = @$group_watchers;
-            $watchers = [ grep { not $hash{$_} } @$watchers ];
-        }
-
         # Check again, after duplicates in admins and watchers
         # have been removed.
         if (my @duplicates = find_duplicates(@$admins, @$watchers)) {
