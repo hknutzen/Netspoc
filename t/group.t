@@ -546,6 +546,73 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Empty intersection';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = {
+ ip = 10.1.3.0/24;
+ host:h1 = { ip = 10.1.3.10; }
+ host:h2 = { ip = 10.1.3.12; }
+}
+
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+group:g0 = ;
+
+group:g1 =
+ interface:r1.n2,
+ interface:r1.[all] &! interface:r1.n2 &! interface:r1.n3,
+ network:[any:[network:n1]] &! network:n1 &! network:n2,
+ !any:[ip= 10.0.0.0/8 & network:n1] & any:[ip= 10.0.0.0/8 & network:n2],
+
+ # No warning on intersection with empty group.
+ group:g0 &! group:g0,
+;
+
+service:s1 = {
+ user = !group:g1 & group:g1;
+ permit src = user; dst = host:[network:n3] &! host:h1 &! host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Empty intersection in group:g1:
+  interface:r1.[all]
+&!interface:r1.n2
+&!interface:r1.n3
+Warning: Empty intersection in group:g1:
+  network:[..]
+&!network:n1
+&!network:n2
+Warning: Empty intersection in group:g1:
+ !any:[..]
+& any:[..]
+Warning: Empty intersection in user of service:s1:
+ !group:g1
+& group:g1
+Warning: Empty intersection in dst of rule in service:s1:
+  host:[..]
+&!host:h1
+&!host:h2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Do not print full length prefixes';
 ############################################################
 

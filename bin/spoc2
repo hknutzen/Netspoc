@@ -28,7 +28,7 @@ device configuration.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2015 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -51,9 +51,5 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 use strict;
 use warnings;
 use Netspoc::Compiler::Pass2;
-
-our $VERSION = '5.028'; # VERSION: inserted by DZP::OurPkgVersion
-my $program = 'Netspoc';
-my $version = __PACKAGE__->VERSION || 'devel';
 
 Netspoc::Compiler::Pass2::compile(\@ARGV);

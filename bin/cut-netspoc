@@ -64,7 +64,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.028'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.029'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -177,7 +177,7 @@ sub remove_attribute_src_code {
 # This function is called by path_walk to mark all managed routers
 # on path from src to dst of $rule with attribute {is_used}.
 sub mark_topology {
-    my ($rule, $in_intf, $out_intf) = @_;
+    my (undef, $in_intf, $out_intf) = @_;
     my $router = ($in_intf || $out_intf)->{router};
     $router->{is_used} = 1;
 #    debug "Used $router->{name}";
@@ -312,7 +312,7 @@ group_path_rules();
 sub process_rules {
     my ($path_rules) = @_;
     for my $rule (@{ $path_rules->{deny} }, @{ $path_rules->{permit} }) {
-        my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
         for my $obj (@$src_list, @$dst_list) {
 
             # path_walk only handles managed routers and interfaces.
@@ -335,10 +335,6 @@ sub process_rules {
             }
         }
         &path_walk($rule, \&mark_topology);
-        for my $prt (@$prt_list) {
-            my $orig_prt = get_orig_prt(+{ %$rule, prt => $prt });
-            $prt->{is_used} = 1;
-	}
     }
     return;
 }
