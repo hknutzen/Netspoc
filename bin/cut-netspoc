@@ -312,7 +312,7 @@ group_path_rules();
 sub process_rules {
     my ($path_rules) = @_;
     for my $rule (@{ $path_rules->{deny} }, @{ $path_rules->{permit} }) {
-        my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
+        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
         for my $obj (@$src_list, @$dst_list) {
 
             # path_walk only handles managed routers and interfaces.
