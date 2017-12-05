@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+5.029     2017-12-05 15:21:35+01:00 Europe/Berlin
+
+ - A warning is generated now, if the intersection of non empty groups
+   is empty.
+ - The feature to use owner as watcher is no longer supported.
+
 5.028     2017-11-06 11:56:19+01:00 Europe/Berlin
 
  - Fixed subnet relation for implicit aggregates in case of multiple
