@@ -2019,6 +2019,10 @@ $title = 'Service with empty rule';
 ############################################################
 
 $in = <<'END';
+owner:all = { admins = all@example.com; only_watch; show_all; }
+owner:a = { admins = a@example.com; }
+
+area:all = {owner = all; anchor = network:n1;}
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 
 router:asa1 = {
@@ -2026,8 +2030,6 @@ router:asa1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-
-owner:a = { admins = a@example.com; }
 
 group:g = ;
 
@@ -2039,6 +2041,20 @@ service:s1 = {
 END
 
 $out = <<'END';
+-- owner/all/service_lists
+{
+   "owner" : [],
+   "user" : [
+      "s1"
+   ],
+   "visible" : []
+}
+-- owner/all/users
+{
+   "s1" : [
+      "network:n1"
+   ]
+}
 -- owner/a/service_lists
 {
    "owner" : [],
