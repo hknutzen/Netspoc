@@ -6117,6 +6117,7 @@ sub normalize_service_rules {
                 = expand_group($service->{user}, "user of $context");
     my $rules   = $service->{rules};
     my $foreach = $service->{foreach};
+    my $rule_count;
 
     for my $unexpanded (@$rules) {
         my $deny  = $unexpanded->{action} eq 'deny';
@@ -6139,10 +6140,11 @@ sub normalize_service_rules {
         for my $element ($foreach ? @$user : ($user)) {
             my $src_dst_list_pairs =
                 normalize_src_dst_list($unexpanded, $element, $context);
-            next if $service->{disabled};
             for my $src_dst_list (@$src_dst_list_pairs) {
                 my ($src_list, $dst_list) = @$src_dst_list;
+                $rule_count++ if @$src_list or @$dst_list;
                 @$src_list and @$dst_list or next;
+                next if $service->{disabled};
                 check_private_service($service, $src_list, $dst_list);
                 my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
                 if ($simple_prt_list) {
@@ -6190,6 +6192,9 @@ sub normalize_service_rules {
                 }
             }
         }
+    }
+    if (not $rule_count and not @$user) {
+        warn_msg("Must not define $context with empty users and empty rules");
     }
 
     # Result is stored in global %service_rules.

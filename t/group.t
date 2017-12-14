@@ -608,6 +608,7 @@ Warning: Empty intersection in dst of rule in service:s1:
   host:[..]
 &!host:h1
 &!host:h2
+Warning: Must not define service:s1 with empty users and empty rules
 END
 
 test_warn($title, $in, $out);

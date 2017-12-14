@@ -1194,6 +1194,40 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = "Empty user and empty rules";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+group:g1 = ;
+group:g2 = ;
+protocolgroup:p1 = ;
+
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = group:g2; prt = tcp 80;
+}
+service:s2 = {
+ user = group:g1;
+ permit src = user; dst = network:n1; prt = protocolgroup:p1;
+}
+service:s3 = {
+ disabled;
+ user = group:g1;
+ permit src = user; dst = group:g2; prt = protocolgroup:p1;
+}
+END
+
+$out = <<'END';
+Warning: Must not define service:s1 with empty users and empty rules
+Warning: Must not define service:s2 with empty users and empty rules
+Warning: Must not define service:s3 with empty users and empty rules
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = "Non host as policy_distribution_point";
 ############################################################
 
