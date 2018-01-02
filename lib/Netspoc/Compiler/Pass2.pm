@@ -69,14 +69,14 @@ sub create_prt_obj {
     return $prt;
 }
 
+sub get_net00_addr {
+    return $config->{ipv6} ? '::/0' : '0.0.0.0/0';
+}
+
 sub setup_ip_net_relation {
     my ($ip_net2obj) = @_;
-    if ($config->{ipv6}) {
-        $ip_net2obj->{'::/0'} ||=  create_ip_obj('::/0');
-    }
-    else {
-        $ip_net2obj->{'0.0.0.0/0'} ||= create_ip_obj('0.0.0.0/0');
-    }
+    my $net00 = get_net00_addr();
+    $ip_net2obj->{$net00} ||=  create_ip_obj($net00);
     my %mask_ip_hash;
 
     # Collect networks into %mask_ip_hash.
@@ -1347,8 +1347,7 @@ sub find_chains {
     my $prt_icmp   = $prt2obj->{icmp};
     my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
     my $prt_udp    = $prt2obj->{'udp 1 65535'};
-    my $network_00 = $config->{ipv6} ? $ip_net2obj->{'::/0'}
-                                     : $ip_net2obj->{'0.0.0.0/0'};
+    my $network_00 = $acl_info->{network_00};
 
     # For generating names of chains.
     # Initialize if called first time.
@@ -1876,12 +1875,7 @@ sub prepare_acls {
         }
 
         setup_ip_net_relation($ip_net2obj);
-        if ($config->{ipv6}) {
-            $acl_info->{network_00} = $ip_net2obj->{'::/0'};
-        }
-        else {
-            $acl_info->{network_00} = $ip_net2obj->{'0.0.0.0/0'};
-        }
+        $acl_info->{network_00} = $ip_net2obj->{get_net00_addr()};
 
         if (my $need_protect = $acl_info->{need_protect}) {
             mark_supernets_of_need_protect($need_protect);
