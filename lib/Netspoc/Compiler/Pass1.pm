@@ -13011,8 +13011,9 @@ sub verify_asa_trustpoint {
 
 sub expand_crypto {
     progress('Expanding crypto rules');
+    my %id2intf;
 
-    for my $crypto (values %crypto) {
+    for my $crypto (sort by_name values %crypto) {
         my $isakmp  = $crypto->{type}->{key_exchange};
         my $need_id = $isakmp->{authentication} eq 'rsasig';
 
@@ -13102,14 +13103,24 @@ sub expand_crypto {
                 }
 
                 my $do_auth = $hub_model->{do_auth};
-                if ($tunnel_intf->{id}) {
+                if (my $id = $tunnel_intf->{id}) {
                     $need_id
                       or err_msg(
-                        "Invalid attribute 'id' at",
-                        " $tunnel_intf->{name}.\n",
-                        " Set authentication=rsasig at",
-                        " $isakmp->{name}"
+                        "Invalid attribute 'id' at $tunnel_intf->{name}.\n",
+                        " Set authentication=rsasig at $isakmp->{name}"
                       );
+                    my $aref = $id2intf{$id} ||= [];
+                    if (my @other =
+                        grep { $_->{peer}->{router} eq $hub_router } @$aref)
+                    {
+
+                        # Id must be unique per crypto hub, because it
+                        # is used to generate ACL names and other names.
+                        err_msg("Must not reuse 'id = $id' at different",
+                                " crypto spokes of '$hub_router->{name}':\n",
+                                name_list([@other, $tunnel_intf]));
+                    }
+                    push(@$aref, $tunnel_intf);
                 }
                 elsif ($has_id_hosts) {
                     $do_auth

@@ -1529,7 +1529,7 @@ $title = 'Mixed NAT at ASA crypto interface (2)';
 
 # Must use NAT ip of internal network, not NAT ip of internet
 # at crypto interface for network:n2.
-# IIgnore hidden NAT tag from internal network.
+# Ignore hidden NAT tag from internal network.
 
 $in = $crypto_sts . <<'END';
 network:n1 = { ip = 10.1.1.0/24;}
@@ -1595,7 +1595,6 @@ network:lan1 = {
  ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
 }
-
 
 router:Firewall = {
  managed;
@@ -2424,6 +2423,20 @@ crypto map crypto-outside interface outside
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not reuse crypto id';
+############################################################
+
+$in =~ s/vpn2[@]/vpn1@/;
+
+$out = <<'END';
+Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'router:asavpn':
+ - interface:vpn1.tunnel:vpn1
+ - interface:vpn2.tunnel:vpn2
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Unexpected dynamic crypto spoke';
