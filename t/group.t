@@ -101,6 +101,53 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Automatic network with subnets';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'network:[network:n3]', $out);
+
+############################################################
+$title = 'Automatic network with subnets from any';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'network:[any:[network:n3sub]]', $out);
+
+############################################################
+$title = 'No subnets in automatic network in rule';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = network:[any:[network:n3sub]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n3_in
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any any
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Unexpected interface in automatic host';
 ############################################################
 

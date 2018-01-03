@@ -5197,7 +5197,7 @@ sub remove_duplicates {
 sub expand_group1;
 
 sub expand_group1 {
-    my ($aref, $context, $clean_autogrp) = @_;
+    my ($aref, $context, $clean_autogrp, $with_subnets) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -5211,7 +5211,7 @@ sub expand_group1 {
                   map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
-                        $clean_autogrp
+                        $clean_autogrp, $with_subnets
                     )
                   };
                 if ($element->[0] eq '!') {
@@ -5287,8 +5287,9 @@ sub expand_group1 {
                 ref $ext
                   or err_msg("Must not use interface:[..].$ext in $context");
                 my ($selector, $managed) = @$ext;
-                my $sub_objects = expand_group1 $name,
-                  "interface:[..].[$selector] of $context";
+                my $sub_objects = expand_group1(
+                    $name,
+                    "interface:[..].[$selector] of $context");
                 for my $object (@$sub_objects) {
                     next if $object->{disabled};
                     $object->{is_used} = 1;
@@ -5479,9 +5480,9 @@ sub expand_group1 {
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
-                    push @objects, $object->{network};
+                    return [$object->{network}];
                 }
-                elsif ($type eq 'Network') {
+                if ($type eq 'Network') {
                     if (not $object->{is_aggregate}) {
                         push @objects, $object;
                     }
@@ -5509,11 +5510,25 @@ sub expand_group1 {
                 else {
                     return;
                 }
+                if ($with_subnets) {
+                    my $get_subnets = sub {
+                        my ($networks) = @_;
+                        my @result;
+                        for my $network (@$networks) {
+                            my $subnets = $network->{networks} or next;
+                            push @result, @$subnets;
+                            push @result, __SUB__->($subnets);
+                        }
+                        return @result;
+                    };
+                    push @objects, $get_subnets->(\@objects);
+                }
                 return \@objects;
             };
             if ($type eq 'host') {
                 my $managed = $ext;
                 my @hosts;
+                $with_subnets = undef;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
@@ -5690,9 +5705,13 @@ sub expand_group1 {
     return \@objects;
 }
 
+# Parameter $with_subnets is set, if called from command "print-group".
+# This changes the result of network:[any|area|network:..]:
+# For each resulting network, all subnets of this network in same zone
+# are added.
 sub expand_group {
-    my ($obref, $context) = @_;
-    my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+    my ($obref, $context, $with_subnets) = @_;
+    my $aref = expand_group1($obref, $context, 'clean_autogrp', $with_subnets);
     remove_duplicates($aref, $context);
 
     # Ignore disabled objects.

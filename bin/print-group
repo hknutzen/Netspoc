@@ -282,7 +282,7 @@ if ($show_owner) {
 # Expand group definition(s).
 for my $aref (@groups) {
     my ($definition, $parsed) = @$aref;
-    my $elements = expand_group($parsed, 'print-group');
+    my $elements = expand_group($parsed, 'print-group', 'with_subnets');
 
     if ($show_unused) {
         $elements = [ grep { not $used{$_} } @$elements ];
