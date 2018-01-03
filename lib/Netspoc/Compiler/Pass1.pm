@@ -5529,11 +5529,17 @@ sub expand_group1 {
                         }
                     }
                     elsif (my $networks = $get_networks->($object)) {
-                        for my $network (@$networks) {
+                        my $add_all_hosts = sub {
+                            my ($network) = @_;
                             push @hosts, @{ $network->{hosts} };
                             if (my $managed_hosts = $network->{managed_hosts}) {
                                 push @hosts, @$managed_hosts;
                             }
+                            my $subnets = $network->{networks} or return;
+                            __SUB__->($_) for @$subnets;
+                        };
+                        for my $network (@$networks) {
+                            $add_all_hosts->($network);
                         }
                     }
                     else {
