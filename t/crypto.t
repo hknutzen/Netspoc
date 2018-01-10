@@ -896,8 +896,8 @@ tunnel-group VPN-single webvpn-attributes
 tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-@domain.y
-access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any
-access-list vpn-filter-@domain.y extended deny ip any any
+access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any4
+access-list vpn-filter-@domain.y extended deny ip any4 any4
 crypto ca certificate map ca-map-@domain.y 10
  subject-name attr ea co @domain.y
 ip local pool pool-@domain.y 10.99.2.64-10.99.2.127 mask 255.255.255.192
@@ -917,8 +917,8 @@ tunnel-group VPN-tunnel-@domain.y webvpn-attributes
 tunnel-group-map ca-map-@domain.y 10 VPN-tunnel-@domain.y
 --
 ! vpn-filter-bar@domain.x
-access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any
-access-list vpn-filter-bar@domain.x extended deny ip any any
+access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any4
+access-list vpn-filter-bar@domain.x extended deny ip any4 any4
 group-policy VPN-group-bar@domain.x internal
 group-policy VPN-group-bar@domain.x attributes
  banner value Willkommen zu Hause
@@ -935,8 +935,8 @@ access-list split-tunnel-1 standard permit 10.0.3.0 255.255.255.0
 access-list split-tunnel-1 standard permit 10.0.4.0 255.255.255.0
 --
 ! vpn-filter-domain.x
-access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any
-access-list vpn-filter-domain.x extended deny ip any any
+access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any4
+access-list vpn-filter-domain.x extended deny ip any4 any4
 crypto ca certificate map ca-map-domain.x 10
  subject-name attr ou co domain.x
 ip local pool pool-domain.x 10.99.2.0-10.99.2.63 mask 255.255.255.192
@@ -966,8 +966,8 @@ access-list split-tunnel-2 standard permit 10.0.2.0 255.255.255.0
 access-list split-tunnel-2 standard permit 10.0.3.0 255.255.255.0
 --
 ! vpn-filter-foo@domain.x
-access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
-access-list vpn-filter-foo@domain.x extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-foo@domain.x extended deny ip any4 any4
 group-policy VPN-group-foo@domain.x internal
 group-policy VPN-group-foo@domain.x attributes
  banner value Willkommen
@@ -981,11 +981,11 @@ username foo@domain.x attributes
  vpn-group-policy VPN-group-foo@domain.x
 --
 ! split-tunnel-3
-access-list split-tunnel-3 standard deny any
+access-list split-tunnel-3 standard deny any4
 --
 ! vpn-filter-unused@domain.x
-access-list vpn-filter-unused@domain.x extended permit ip host 10.99.1.254 any
-access-list vpn-filter-unused@domain.x extended deny ip any any
+access-list vpn-filter-unused@domain.x extended permit ip host 10.99.1.254 any4
+access-list vpn-filter-unused@domain.x extended deny ip any4 any4
 group-policy VPN-group-unused@domain.x internal
 group-policy VPN-group-unused@domain.x attributes
  banner value Willkommen
@@ -999,8 +999,8 @@ username unused@domain.x attributes
  vpn-group-policy VPN-group-unused@domain.x
 --
 ! vpn-filter-zzz
-access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any
-access-list vpn-filter-zzz extended deny ip any any
+access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any4
+access-list vpn-filter-zzz extended deny ip any4 any4
 crypto ca certificate map ca-map-zzz 10
  subject-name attr ou co zzz
 ip local pool pool-zzz 10.99.2.128-10.99.2.191 mask 255.255.255.192
@@ -1022,8 +1022,8 @@ tunnel-group VPN-tunnel-zzz webvpn-attributes
 tunnel-group-map ca-map-zzz 10 VPN-tunnel-zzz
 --
 ! inside_in
-access-list inside_in extended permit icmp any any 3
-access-list inside_in extended deny ip any any
+access-list inside_in extended permit icmp any4 any4 3
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --
 ! outside_in
@@ -1041,12 +1041,12 @@ object-group network g2
 object-group network g3
  network-object 10.0.2.0 255.255.254.0
  network-object 10.0.4.0 255.255.255.0
-access-list outside_in extended permit icmp object-group g0 any 3
+access-list outside_in extended permit icmp object-group g0 any4 3
 access-list outside_in extended permit tcp object-group g1 object-group g2 eq 80
 access-list outside_in extended permit tcp host 10.99.1.11 object-group g3 eq 81
 access-list outside_in extended permit tcp 10.99.2.0 255.255.255.192 object-group g3 range 81 82
 access-list outside_in extended permit tcp 10.99.2.128 255.255.255.192 object-group g3 eq 82
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -1103,8 +1103,8 @@ tunnel-group VPN-single webvpn-attributes
 tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-bar@domain.x
-access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any
-access-list vpn-filter-bar@domain.x extended deny ip any any
+access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any4
+access-list vpn-filter-bar@domain.x extended deny ip any4 any4
 group-policy VPN-group-bar@domain.x internal
 group-policy VPN-group-bar@domain.x attributes
  banner value Willkommen zu Hause
@@ -1119,8 +1119,8 @@ username bar@domain.x attributes
 access-list split-tunnel-1 standard permit 10.1.1.0 255.255.255.0
 --
 ! vpn-filter-foo@domain.x
-access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
-access-list vpn-filter-foo@domain.x extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-foo@domain.x extended deny ip any4 any4
 group-policy VPN-group-foo@domain.x internal
 group-policy VPN-group-foo@domain.x attributes
  banner value Willkommen
@@ -1145,11 +1145,11 @@ object-group network g1
 object-group network g2
  network-object 10.99.2.0 255.255.255.128
  network-object 10.99.2.128 255.255.255.192
-access-list outside_in extended permit icmp object-group g0 any 3
+access-list outside_in extended permit icmp object-group g0 any4 3
 access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
 access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -1243,8 +1243,8 @@ tunnel-group VPN-single webvpn-attributes
 tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-foo@domain.x
-access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
-access-list vpn-filter-foo@domain.x extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-foo@domain.x extended deny ip any4 any4
 username foo@domain.x nopassword
 username foo@domain.x attributes
  vpn-framed-ip-address 10.99.1.10 255.255.255.0
@@ -1252,8 +1252,8 @@ username foo@domain.x attributes
  vpn-filter value vpn-filter-foo@domain.x
 --
 ! vpn-filter-1
-access-list vpn-filter-1 extended permit ip host 10.99.1.11 any
-access-list vpn-filter-1 extended deny ip any any
+access-list vpn-filter-1 extended permit ip host 10.99.1.11 any4
+access-list vpn-filter-1 extended deny ip any4 any4
 group-policy VPN-group-1 internal
 group-policy VPN-group-1 attributes
  banner value Willkommen zu Hause
@@ -1273,11 +1273,11 @@ webvpn
  certificate-group-map ca-map-@long-domain.xyz 10 VPN-single
 --
 ! outside_in
-access-list outside_in extended permit icmp any any 3
+access-list outside_in extended permit icmp any4 any4 3
 access-list outside_in extended permit tcp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 8
 access-list outside_in extended permit icmp 10.1.2.0 255.255.255.0 10.99.1.10 255.255.255.254 8
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -1375,8 +1375,8 @@ END
 $out = <<'END';
 -- asavpn
 ! vpn-filter-foo@domain.x
-access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
-access-list vpn-filter-foo@domain.x extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-foo@domain.x extended deny ip any4 any4
 username foo@domain.x nopassword
 username foo@domain.x attributes
  vpn-framed-ip-address 10.99.1.10 255.255.255.0
@@ -1387,13 +1387,13 @@ username foo@domain.x attributes
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended permit tcp host 10.99.1.10 10.7.7.0 255.255.255.0 eq 81
 access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
 ! extern_in
 access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.2.0 255.255.255.0 eq 82
 access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.99.0 255.255.255.0 eq 83
-access-list extern_in extended deny ip any any
+access-list extern_in extended deny ip any4 any4
 access-group extern_in in interface extern
 END
 
@@ -1488,8 +1488,8 @@ route outside 0.0.0.0 0.0.0.0 192.168.0.1
 access-list split-tunnel-1 standard permit 10.1.2.0 255.255.255.0
 --
 ! vpn-filter-foo@domain.x
-access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any
-access-list vpn-filter-foo@domain.x extended deny ip any any
+access-list vpn-filter-foo@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-foo@domain.x extended deny ip any4 any4
 group-policy VPN-group-foo@domain.x internal
 group-policy VPN-group-foo@domain.x attributes
  split-tunnel-network-list value split-tunnel-1
@@ -1503,7 +1503,7 @@ username foo@domain.x attributes
 --
 ! outside_in
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 22
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -1691,7 +1691,7 @@ route n1 10.99.1.0 255.255.255.0 10.1.1.2
 --
 ! n1_in
 access-list n1_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -1721,7 +1721,7 @@ $out = <<END;
 -- asavpn
 ! n1_in
 access-list n1_in extended permit tcp host 10.99.1.10 10.1.1.0 255.255.255.0 eq 80
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -1782,7 +1782,7 @@ $out = <<END;
 ! n2_in
 access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
 access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 host 10.99.1.10
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -1825,7 +1825,7 @@ END
 $out = <<END;
 -- asavpn
 ! outside_in
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -2106,7 +2106,7 @@ crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
 crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha384-hmac
 --
 ! crypto-172.16.1.2
-access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev1 transform-set Trans2
@@ -2139,7 +2139,7 @@ object-group network g0
  network-object 10.99.2.0 255.255.255.0
  network-object 192.168.22.0 255.255.255.0
 access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -2162,7 +2162,7 @@ crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp integrity sha-384
 --
 ! crypto-172.16.1.2
-access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans2
@@ -2195,7 +2195,7 @@ object-group network g0
  network-object 10.99.2.0 255.255.255.0
  network-object 192.168.22.0 255.255.255.0
 access-list outside_in extended permit tcp object-group g0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -2390,7 +2390,7 @@ crypto ipsec ikev2 ipsec-proposal Trans2
  protocol esp integrity sha-384
 --
 ! crypto-vpn1@example.com
-access-list crypto-vpn1@example.com extended permit ip any 10.99.2.0 255.255.255.0
+access-list crypto-vpn1@example.com extended permit ip any4 10.99.2.0 255.255.255.0
 crypto dynamic-map vpn1@example.com 10 match address crypto-vpn1@example.com
 crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
 crypto dynamic-map vpn1@example.com 10 set pfs group15
@@ -2504,7 +2504,7 @@ crypto map crypto-dmz interface dmz
 --
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -2647,8 +2647,8 @@ tunnel-group VPN-single webvpn-attributes
 tunnel-group-map default-group VPN-single
 --
 ! vpn-filter-abc@123.45
-access-list vpn-filter-abc@123.45 extended permit ip 10.99.2.0 255.255.254.0 any
-access-list vpn-filter-abc@123.45 extended deny ip any any
+access-list vpn-filter-abc@123.45 extended permit ip 10.99.2.0 255.255.254.0 any4
+access-list vpn-filter-abc@123.45 extended deny ip any4 any4
 group-policy VPN-router-abc@123.45 internal
 group-policy VPN-router-abc@123.45 attributes
  banner value Welcome at VPN service
@@ -2661,9 +2661,9 @@ username abc@123.45 attributes
  vpn-group-policy VPN-router-abc@123.45
 --
 ! outside_in
-access-list outside_in extended permit icmp 10.99.2.0 255.255.254.0 any 3
+access-list outside_in extended permit icmp 10.99.2.0 255.255.254.0 any4 3
 access-list outside_in extended permit tcp 10.99.2.0 255.255.254.0 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --vpn
 crypto ipsec client ezvpn vpn
@@ -2730,17 +2730,17 @@ no sysopt connection permit-vpn
 --
 ! e1_in
 access-list e1_in extended permit udp 10.1.1.0 255.255.255.0 10.99.2.0 255.255.254.0 eq 123
-access-list e1_in extended deny ip any any
+access-list e1_in extended deny ip any4 any4
 access-group e1_in in interface e1
 --
 ! e2_in
 access-list e2_in extended permit tcp 10.99.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list e2_in extended deny ip any any
+access-list e2_in extended deny ip any4 any4
 access-group e2_in in interface e2
 --
 ! e3_in
 access-list e3_in extended permit tcp 10.99.3.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list e3_in extended deny ip any any
+access-list e3_in extended deny ip any4 any4
 access-group e3_in in interface e3
 END
 
@@ -2814,7 +2814,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
 --
 ! crypto-192.168.1.1
-access-list crypto-192.168.1.1 extended permit ip 10.99.1.0 255.255.255.0 any
+access-list crypto-192.168.1.1 extended permit ip 10.99.1.0 255.255.255.0 any4
 crypto map crypto-GigabitEthernet0 1 set peer 192.168.1.1
 crypto map crypto-GigabitEthernet0 1 match address crypto-192.168.1.1
 crypto map crypto-GigabitEthernet0 1 set ikev1 transform-set Trans1
@@ -2828,12 +2828,12 @@ crypto map crypto-GigabitEthernet0 interface GigabitEthernet0
 --
 ! GigabitEthernet0_in
 access-list GigabitEthernet0_in extended permit udp 10.1.1.0 255.255.255.0 10.99.1.0 255.255.255.0 eq 123
-access-list GigabitEthernet0_in extended deny ip any any
+access-list GigabitEthernet0_in extended deny ip any4 any4
 access-group GigabitEthernet0_in in interface GigabitEthernet0
 --
 ! Fastethernet8_in
 access-list Fastethernet8_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list Fastethernet8_in extended deny ip any any
+access-list Fastethernet8_in extended deny ip any4 any4
 access-group Fastethernet8_in in interface Fastethernet8
 END
 
@@ -2927,7 +2927,7 @@ END
 $out = <<'END';
 --asavpn
 ! crypto-1.2.3.129
-access-list crypto-1.2.3.129 extended permit ip any 10.10.10.0 255.255.255.0
+access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.2.3.129
 crypto map crypto-outside 1 match address crypto-1.2.3.129
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
@@ -2944,7 +2944,7 @@ crypto map crypto-outside interface outside
 --
 ! outside_in
 access-list outside_in extended permit tcp 10.10.10.0 255.255.255.0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --vpn1
 ip access-list extended crypto-1.2.3.2
@@ -2972,14 +2972,14 @@ ip access-list extended GigabitEthernet0_in
 access-list outside_in extended permit 50 host 1.2.3.2 host 1.2.3.129
 access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
 access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
 ! inside_in
 access-list inside_in extended permit 50 host 10.254.254.6 host 1.2.3.2
 access-list inside_in extended permit udp host 10.254.254.6 eq 500 host 1.2.3.2 eq 500
 access-list inside_in extended permit udp host 10.254.254.6 eq 4500 host 1.2.3.2 eq 4500
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 
@@ -3185,7 +3185,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-aes-256 esp-sha-hmac
 --
 ! crypto-1.1.1.1
-access-list crypto-1.1.1.1 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-1.1.1.1 extended permit ip any4 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 1.1.1.1
 crypto map crypto-outside 1 match address crypto-1.1.1.1
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
@@ -3201,7 +3201,7 @@ tunnel-group-map cert@example.com 10 1.1.1.1
 crypto map crypto-outside interface outside
 --
 ! outside_in
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -3291,7 +3291,7 @@ END
 $out = <<'END';
 --asavpn
 ! inside_in
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 
@@ -3447,7 +3447,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 ah-sha256-hmac esp-null
 --
 ! crypto-172.16.1.2
-access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev1 transform-set Trans1
@@ -3463,7 +3463,7 @@ crypto map crypto-outside interface outside
 --
 ! outside_in
 access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -3483,7 +3483,7 @@ crypto ipsec ikev2 ipsec-proposal Trans1
  protocol esp encryption null
 --
 ! crypto-172.16.1.2
-access-list crypto-172.16.1.2 extended permit ip any 10.99.1.0 255.255.255.0
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
 crypto map crypto-outside 1 set peer 172.16.1.2
 crypto map crypto-outside 1 match address crypto-172.16.1.2
 crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans1
@@ -3499,7 +3499,7 @@ crypto map crypto-outside interface outside
 --
 ! outside_in
 access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 

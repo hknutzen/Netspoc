@@ -37,7 +37,7 @@ $out = <<'END';
 -- asa1
 ! n1_in
 access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -198,15 +198,15 @@ END
 $out = <<'END';
 -- asa1
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 -- asa2
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 -- asa3
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 

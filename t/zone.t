@@ -50,13 +50,13 @@ END
 $out = <<'END';
 --r1
 ! n1_in
-access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any4 eq 22
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r2
 ! n1_in
-access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 any4 eq 22
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 

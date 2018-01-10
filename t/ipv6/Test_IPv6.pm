@@ -146,6 +146,8 @@ sub adjust_testfile {
             $line =~ s/\/128//;
         }
 
+        $line =~ s/any4/any6/g;
+
         # Convert result messages.
         $line =~ s/IP address expected/IPv6 address expected/;
 

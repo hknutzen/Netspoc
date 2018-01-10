@@ -469,7 +469,7 @@ END
 $out = <<'END';
 --bridge
 access-list outside_in extended permit tcp 192.168.0.0 255.255.255.0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -490,7 +490,7 @@ END
 $out = <<'END';
 --bridge
 access-list outside_in extended permit tcp 10.9.9.0 255.255.255.0 host 10.1.1.111 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --asa
 ! [ Routing ]
@@ -544,12 +544,12 @@ $out = <<'END';
 --r1
 ! n2_in
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --r2
 ! n2_in
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 

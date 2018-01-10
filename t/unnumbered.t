@@ -273,7 +273,7 @@ $in =~ s/interface:dummy;/interface:dummy = { unnumbered; }/;
 $out = <<'END';
 --r1
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -320,11 +320,11 @@ END
 $out = <<'END';
 --r1
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n2_in
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! n3_in
@@ -332,7 +332,7 @@ object-group network g0
  network-object 10.1.1.0 255.255.255.0
  network-object 10.1.2.0 255.255.255.0
 access-list n3_in extended permit tcp host 10.1.3.2 object-group g0 eq 49
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

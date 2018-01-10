@@ -303,12 +303,12 @@ $out = <<'END';
 -- asa
 ! vlan1_in
 access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
-access-list vlan1_in extended deny ip any any
+access-list vlan1_in extended deny ip any4 any4
 access-group vlan1_in in interface vlan1
 --
 ! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.10 range 70 85
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -347,7 +347,7 @@ $out = <<'END';
 ! vlan1_in
 access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
 access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 range 83 90
-access-list vlan1_in extended deny ip any any
+access-list vlan1_in extended deny ip any4 any4
 access-group vlan1_in in interface vlan1
 END
 
@@ -397,11 +397,11 @@ object-group network g0
  network-object 10.1.1.0 255.255.255.0
  network-object 10.1.2.0 255.255.255.0
 access-list t_in extended permit tcp object-group g0 10.2.1.0 255.255.255.0 range 80 86
-access-list t_in extended deny ip any any
+access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 --
 ! B_in
-access-list B_in extended deny ip any any
+access-list B_in extended deny ip any4 any4
 access-group B_in in interface B
 END
 
@@ -443,7 +443,7 @@ access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255
 access-list vlan1_in extended permit udp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 81
 access-list vlan1_in extended permit udp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 80
 access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 81
-access-list vlan1_in extended deny ip any any
+access-list vlan1_in extended deny ip any4 any4
 access-group vlan1_in in interface vlan1
 END
 

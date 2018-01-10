@@ -1151,16 +1151,16 @@ Warning: Rule of service:s1 should reference 'user' in 'src' and 'dst'
 -- r
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n2_in
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! n3_in
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

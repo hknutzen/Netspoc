@@ -181,7 +181,7 @@ Warning: Duplicate elements in user of service:t1:
 ! VLAN1_in
 access-list VLAN1_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
 access-list VLAN1_in extended permit tcp 10.0.0.0 255.252.0.0 10.9.1.0 255.255.255.0 eq 82
-access-list VLAN1_in extended deny ip any any
+access-list VLAN1_in extended deny ip any4 any4
 access-group VLAN1_in in interface VLAN1
 -- filter2
 ! VLAN1_in
@@ -190,13 +190,13 @@ object-group network g0
  network-object 10.5.7.0 255.255.255.0
 access-list VLAN1_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
 access-list VLAN1_in extended permit tcp object-group g0 10.9.1.0 255.255.255.0 eq 82
-access-list VLAN1_in extended deny ip any any
+access-list VLAN1_in extended deny ip any4 any4
 access-group VLAN1_in in interface VLAN1
 -- r2
 ! n2_in
 access-list n2_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
 access-list n2_in extended permit tcp 10.0.0.0 255.252.0.0 10.9.1.0 255.255.255.0 eq 82
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -318,11 +318,11 @@ END
 $out = <<'END';
 --filter1
 access-list Vlan2_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
-access-list Vlan2_in extended deny ip any any
+access-list Vlan2_in extended deny ip any4 any4
 access-group Vlan2_in in interface Vlan2
 --filter2
 access-list Vlan4_in extended permit tcp 10.0.0.0 255.0.0.0 10.9.1.0 255.255.255.0 eq 80
-access-list Vlan4_in extended deny ip any any
+access-list Vlan4_in extended deny ip any4 any4
 access-group Vlan4_in in interface Vlan4
 END
 
@@ -386,12 +386,12 @@ END
 
 $out = <<'END';
 --filter
-access-list Vlan5_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
-access-list Vlan5_in extended deny ip any any
+access-list Vlan5_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan5_in extended deny ip any4 any4
 access-group Vlan5_in in interface Vlan5
 --filter
-access-list Vlan6_out extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
-access-list Vlan6_out extended deny ip any any
+access-list Vlan6_out extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan6_out extended deny ip any4 any4
 access-group Vlan6_out out interface Vlan6
 END
 
@@ -438,7 +438,7 @@ $out = <<'END';
 --filter
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.252.0 10.9.1.0 255.255.255.0 eq 81
-access-list Vlan2_in extended deny ip any any
+access-list Vlan2_in extended deny ip any4 any4
 access-group Vlan2_in in interface Vlan2
 END
 
@@ -508,7 +508,7 @@ $out = <<'END';
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 80
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 82
 access-list Vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.1.0 255.255.255.0 range 81 82
-access-list Vlan2_in extended deny ip any any
+access-list Vlan2_in extended deny ip any4 any4
 access-group Vlan2_in in interface Vlan2
 END
 
@@ -679,8 +679,8 @@ END
 
 $out = <<'END';
 --filter
-access-list Vlan1_in extended permit tcp any 10.1.1.0 255.255.255.0 eq 80
-access-list Vlan1_in extended deny ip any any
+access-list Vlan1_in extended permit tcp any4 10.1.1.0 255.255.255.0 eq 80
+access-list Vlan1_in extended deny ip any4 any4
 access-group Vlan1_in in interface Vlan1
 END
 
@@ -710,7 +710,7 @@ END
 $out = <<'END';
 --filter
 access-list Vlan1_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.1.0 255.255.255.0 eq 80
-access-list Vlan1_in extended deny ip any any
+access-list Vlan1_in extended deny ip any4 any4
 access-group Vlan1_in in interface Vlan1
 END
 
@@ -1904,21 +1904,21 @@ Warning: Missing transient supernet rules
  - any:[network:n2]
 -- r1
 ! n1_in
-access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 any
-access-list n1_in extended deny ip any any
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 any4
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! tr_in
-access-list tr_in extended permit ip any any
+access-list tr_in extended permit ip any4 any4
 access-group tr_in in interface tr
 -- r2
 ! tr_in
-access-list tr_in extended permit ip any any
+access-list tr_in extended permit ip any4 any4
 access-group tr_in in interface tr
 --
 ! n2_in
-access-list n2_in extended permit ip 10.1.2.0 255.255.255.0 any
-access-list n2_in extended deny ip any any
+access-list n2_in extended permit ip 10.1.2.0 255.255.255.0 any4
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -2452,8 +2452,8 @@ END
 $out = <<'END';
 --asa
 ! inside_in
-access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
-access-list inside_in extended deny ip any any
+access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 any4 eq 80
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 

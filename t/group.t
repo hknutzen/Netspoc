@@ -141,7 +141,7 @@ $out = <<'END';
 -- r2
 ! n3_in
 access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

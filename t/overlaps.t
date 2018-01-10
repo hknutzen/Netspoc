@@ -58,7 +58,7 @@ Warning: Redundant rules in service:test1a compared to service:test2:
 DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
 --filter
 access-list Vlan2_in extended permit tcp host 10.1.1.10 10.9.1.0 255.255.255.0
-access-list Vlan2_in extended deny ip any any
+access-list Vlan2_in extended deny ip any4 any4
 access-group Vlan2_in in interface Vlan2
 END
 

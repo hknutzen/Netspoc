@@ -1931,7 +1931,12 @@ sub cisco_acl_addr {
         return "$keyword $obj->{name}";
     }
     elsif ($mask eq $zero_ip) {
-        return "any";
+        if ($model eq 'ASA') {
+            return length($mask) == 4 ? 'any4' : 'any6';
+        }
+        else {
+            return 'any';
+        }
     }
     elsif ($model eq 'NX-OS') {
         return $obj->{name};
