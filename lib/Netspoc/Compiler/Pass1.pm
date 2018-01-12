@@ -6158,7 +6158,7 @@ sub normalize_service_rules {
             }
         }
         my $prt_list =
-          split_protocols(expand_protocols($unexpanded->{prt}));
+          split_protocols(expand_protocols($unexpanded->{prt}, $context));
         @$prt_list or next;
         my $prt_list_pair = classify_protocols($prt_list, $service);
 
