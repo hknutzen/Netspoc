@@ -15866,9 +15866,10 @@ sub print_routes {
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'ASA') {
-                    my $adr = ios_route_code($netinfo);
-                    print
-                      "route $interface->{hardware}->{name} $adr $hop_addr\n";
+                    my $adr = $config->{ipv6} ?
+                        prefix_code($netinfo) : ios_route_code($netinfo);
+                    print $config->{ipv6} ? "ipv6 " : "";
+                    print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
                     my $adr = prefix_code($netinfo);
