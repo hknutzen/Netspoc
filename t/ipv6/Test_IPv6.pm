@@ -142,7 +142,6 @@ sub adjust_testfile {
         my $ipv6 = qr/(?:$IPv6_re|::)/;
         if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
             $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2\/\/$3 $4/;
-#            print STDERR "$1 $2 $3 $4\n";
             $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/e;
             $line =~ s/\/128//;
         }
