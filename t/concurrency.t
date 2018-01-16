@@ -244,7 +244,7 @@ $script =~ s/"\$\@"/$in_dir $out_dir/g;
 $script =~ s/(spoc[12])/$^X $perl_opt -I lib bin\/$1 -q/g;
 my $cmd = "bash -c '$script'";
 
-my ($stdout, $stderr);
+my $stderr;
 run3($cmd, \undef, \undef, \$stderr);
 my $status = $?;
 if ($status != 0) {
