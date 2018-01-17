@@ -161,6 +161,7 @@ $title = 'Verbose output with progress messages';
 ############################################################
 
 $in = <<'END';
+--ipv4
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 
@@ -177,12 +178,55 @@ service:s1 = {
  permit src = user; dst = host:h2; prt = tcp;
  permit src = user; dst = network:n2; prt = ip;
 }
+--ipv6
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+service:s1 = {
+ overlaps = service:s1;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
 END
 
 $out = <<'END';
 Netspoc, version TESTING
-Saving 3 old files of '' to subdirectory '.prev'
-Read 1 routers, 2 networks, 1 hosts, 1 services
+Saving 6 old files of '' to subdirectory '.prev'
+Read IPv6: 1 routers, 2 networks, 0 hosts, 1 services
+Arranging protocols
+Linking topology
+Preparing security zones and areas
+Preparing fast path traversal
+Distributing NAT
+Finding subnets in zone
+Normalizing services
+Checking service owner
+Converting hosts to subnets
+Grouping rules
+Grouped rule count: 2
+Finding subnets in 1 NAT domains
+Checking rules for unstable subnet relation
+Checking rules with hidden or dynamic NAT
+Checking supernet rules
+Checking transient supernet rules
+Checking for redundant rules
+Expanded rule count: 2; duplicate: 1; redundant: 0
+Removing simple duplicate rules
+Setting policy distribution IP
+Expanding crypto rules
+Finding routes
+Generating reverse rules for stateless routers
+Marking rules for secondary optimization
+Distributing rules
+Printing intermediate code
+Read IPv4: 1 routers, 2 networks, 1 hosts, 1 services
 Arranging protocols
 Linking topology
 Preparing security zones and areas
@@ -209,12 +253,17 @@ Generating reverse rules for stateless routers
 Marking rules for secondary optimization
 Distributing rules
 Printing intermediate code
-Reused 1 files from previous run
+Reused 2 files from previous run
 Finished
 -- r1
 ! n1_in
 access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
 access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit tcp 1000::abcd:1:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 1000::abcd:2:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 eq 80
+access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
 

@@ -3347,7 +3347,8 @@ sub show_read_statistics {
     my $h = keys %hosts;
     my $r = keys %routers;
     my $s = keys %services;
-    info("Read $r routers, $n networks, $h hosts, $s services");
+    my $ipv = $config->{ipv6} ? 'IPv6' : 'IPv4';
+    info("Read $ipv: $r routers, $n networks, $h hosts, $s services");
 }
 
 ## no critic (RequireArgUnpacking RequireFinalReturn)
