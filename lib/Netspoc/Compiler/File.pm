@@ -6,7 +6,7 @@ File operations
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -92,7 +92,7 @@ sub process_file {
 }
 
 sub process_file_or_dir {
-    my ($path, $parser) = @_;
+    my ($path, $parser, $ignore_dir) = @_;
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -139,6 +139,7 @@ sub process_file_or_dir {
 
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
+        next if $ignore_dir and $file eq $ignore_dir;
 
         # Ignore special files/directories.
         next if $file =~ /^(config|raw)$/;

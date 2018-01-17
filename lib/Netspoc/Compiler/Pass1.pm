@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -3337,8 +3337,8 @@ sub parse_input {
 }
 
 sub read_file_or_dir {
-    my ($path) = @_;
-    process_file_or_dir($path, \&parse_input);
+    my ($path, $ignore_dir) = @_;
+    process_file_or_dir($path, \&parse_input, $ignore_dir);
 }
 
 # Prints number of read entities if in verbose mode.
@@ -11214,7 +11214,10 @@ sub set_loop_cluster {
 #           cycle with a common loop object and distance.
 #           Check for multiple unconnected parts of topology.
 sub find_dists_and_loops {
-    @zones or fatal_err("Topology seems to be empty");
+    if (not @zones) {
+        my $type = $config->{ipv6} ? 'IPv6' : 'IPv4';
+        fatal_err("$type topology seems to be empty");
+    }
     my $path_routers =
         [ grep { $_->{managed} or $_->{semi_managed} } @routers ];
     my $start_distance = 0;
@@ -17852,12 +17855,17 @@ sub check_output_dir {
     }
     else {
         -d $dir or fatal_err("$dir isn't a directory");
+        unlink "$dir/.devlist";
 
         my $prev = "$dir/.prev";
         if (not -d $prev) {
             my @old_files = glob("$dir/*");
             if (my $count = @old_files) {
-                progress("Moving $count old files in '$dir' to",
+                if (-d "$dir/ipv6") {
+                    my @v6files = glob("$dir/ipv6/*");
+                    $count += @v6files - 1;
+                }
+                info("Saving $count old files of '$dir' to",
                          " subdirectory '.prev'");
 
                 # Try to remove file or symlink with same name.
@@ -17874,11 +17882,7 @@ sub check_output_dir {
 # Print generated code for each managed router.
 sub print_code {
     my ($dir) = @_;
-
-    # Untaint $dir. This is necessary if running setuid.
-    # We can trust value of $dir because it is set by setuid wrapper.
-    ($dir) = ($dir =~ /(.*)/);
-    check_output_dir($dir);
+    progress('Printing intermediate code');
 
     ## no critic (RequireBriefOpen)
     my $to_pass2;
@@ -17889,12 +17893,18 @@ sub print_code {
     }
     else {
         my $devlist = "$dir/.devlist";
-        open($to_pass2, '>', $devlist) or
+        open($to_pass2, '>>', $devlist) or
             fatal_err("Can't open $devlist for writing: $!");
     }
     ## use critic
 
-    progress('Printing intermediate code');
+    my $v6 = '';
+    if ($config->{ipv6}) {
+        $v6 = 'ipv6/';
+        my $v6dir = "$dir/ipv6";
+        -d $v6dir or mkdir $v6dir
+          or fatal_err("Can't create output directory $v6dir: $!");
+    }
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
@@ -17903,14 +17913,10 @@ sub print_code {
         next if $router->{orig_router};
 
         my $device_name = $router->{device_name};
-        my $file        = $device_name;
-
-        # Untaint $file. It has already been checked for word characters,
-        # but check again for the case of a weird locale setting.
-        $file =~ s/^(.*)/$1/;
+        my $path        = "$v6$device_name";
 
         # File for router config without ACLs.
-        my $config_file = "$dir/$file.config";
+        my $config_file = "$dir/$path.config";
 
         ## no critic (RequireBriefOpen)
         open(my $code_fd, '>', $config_file)
@@ -17957,7 +17963,7 @@ sub print_code {
 
         # Print ACLs in machine independent format into separate file.
         # Collect ACLs from VRF parts.
-        my $acl_file = "$dir/$file.rules";
+        my $acl_file = "$dir/$path.rules";
         open(my $acl_fd, '>', $acl_file)
           or fatal_err("Can't open $acl_file for writing: $!");
         print_acls($vrf_members, $acl_fd);
@@ -17965,7 +17971,7 @@ sub print_code {
 
         # Send device name to pass 2, showing that processing for this
         # device can be started.
-        print $to_pass2 "$device_name\n";
+        print $to_pass2 "$path\n";
     }
 }
 
@@ -17976,20 +17982,12 @@ sub copy_raw {
     return if not (defined $in_path and -d $in_path);
     return if not defined $out_dir;
 
-    # Untaint $in_path, $out_dir. This is necessary if running setuid.
-    # Trusted because set by setuid wrapper.
-    ($in_path) = ($in_path =~ /(.*)/);
-    ($out_dir) = ($out_dir =~ /(.*)/);
+    $out_dir .= '/ipv6' if $config->{ipv6};
 
     # $out_dir has already been checked / created in print_code.
 
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;
-
-    # Clean PATH if run in taint mode.
-    ## no critic (RequireLocalizedPunctuationVars)
-    $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
-    ## use critic
 
     my %device_names =
       map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
@@ -18000,9 +17998,7 @@ sub copy_raw {
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
 
-        # Untaint $file.
-        my ($raw_file) = ($file =~ /^(.*)/);
-        my $raw_path = "$raw_dir/$raw_file";
+        my $raw_path = "$raw_dir/$file";
         if (not -f $raw_path) {
             warn_msg("Ignoring path $raw_path");
             next;
@@ -18011,14 +18007,14 @@ sub copy_raw {
             warn_msg("Found unused file $raw_path");
             next;
         }
-        my $copy = "$out_dir/$raw_file.raw";
+        my $copy = "$out_dir/$file.raw";
         system("cp -f $raw_path $copy") == 0
           or fatal_err("Can't copy file $raw_path to $copy: $!");
     }
 }
 
 sub show_version {
-    progress("$program, version $version");
+    info("$program, version $version");
 }
 
 # Start concurrent jobs.
@@ -18279,14 +18275,10 @@ sub init_global_vars {
     init_protocols();
 }
 
-sub compile {
-    my ($args) = @_;
-
-    my ($in_path, $out_dir);
-    ($config, $in_path, $out_dir) = get_args($args);
+sub pass1 {
+    my ($in_path, $out_dir, $ignore_dir) = @_;
     init_global_vars();
-    &show_version();
-    &read_file_or_dir($in_path);
+    &read_file_or_dir($in_path, $ignore_dir);
     &show_read_statistics();
     &order_protocols();
     &link_topology();
@@ -18349,6 +18341,27 @@ sub compile {
         });
 
     abort_on_error();
+}
+
+sub compile {
+    my ($args) = @_;
+
+    my ($in_path, $out_dir);
+    ($config, $in_path, $out_dir) = get_args($args);
+    &show_version();
+    check_output_dir($out_dir) if $out_dir;
+    my $ignore_dir;
+    if (not $config->{ipv6} and -e (my $sub_dir = "$in_path/ipv6")) {
+        local $config->{ipv6} = 1;
+        pass1($sub_dir, $out_dir);
+        $ignore_dir = 'ipv6';
+    }
+    elsif ($config->{ipv6} and -e ($sub_dir = "$in_path/ipv4")) {
+        local $config->{ipv6} = undef;
+        pass1($sub_dir, $out_dir);
+        $ignore_dir = 'ipv4';
+    }
+    pass1($in_path, $out_dir, $ignore_dir);
 }
 
 1;

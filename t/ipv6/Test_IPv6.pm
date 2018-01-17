@@ -36,7 +36,7 @@ sub adjust_testfile {
     $file =~ /(.+)\.t/;
     my $name = $1;
 
-    open (my $outfilehandle, ">>", $dir . "/" . $name . "_ipv6.t") or
+    open (my $outfilehandle, '>', $dir . "/" . $name . "_ipv6.t") or
         die "Can not open file $filename";
 
     # mask2prefix lookup will be needed for ASA routing
@@ -146,10 +146,20 @@ sub adjust_testfile {
             $line =~ s/\/128//;
         }
 
+        # Change path of to be checked output files.
+        # IPv6 files are generated in ipv6/ subdirectory.
+        if ($line !~ m(topology|config|file|raw/| raw$|private) and
+            $filename !~ /export.t/)
+        {
+            $line =~ s/^(-+[ ]*)([^\s-]+)([ ]*)$/${1}ipv6\/$2$3/;
+        }
+
         $line =~ s/any4/any6/g;
 
         # Convert result messages.
         $line =~ s/IP address expected/IPv6 address expected/;
+        $line =~ s/IPv4 topology/IPv6 topology/;
+        $line =~ s/(DIAG: Reused [.]prev)/$1\/ipv6/;
 
         # Convert test subroutine calls
         # No IPv6 version of rename-netspoc necessary.
@@ -165,6 +175,9 @@ sub adjust_testfile {
         else {
             if ($filename =~ /concurrency.t/ and $line =~ /-q/) {
                 $line =~ s/-q/-q -ipv6/;
+            }
+            elsif ($filename =~ /concurrency.t/ and $line =~ m'my \$path') {
+                $line =~ s|out_dir|out_dir/ipv6|;
             }
             elsif ($filename =~ /options.t/ and $line =~ /undef,/) {
                 $line =~ s/undef,/'-ipv6',/;

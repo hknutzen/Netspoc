@@ -63,7 +63,7 @@ syntax error
 END
 
 $out = <<'END';
-Error: Topology seems to be empty
+Error: IPv4 topology seems to be empty
 Aborted
 END
 
@@ -72,4 +72,3 @@ test_err($title, $in, $out);
 
 ############################################################
 done_testing;
-

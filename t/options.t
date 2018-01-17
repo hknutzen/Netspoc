@@ -181,6 +181,7 @@ END
 
 $out = <<'END';
 Netspoc, version TESTING
+Saving 3 old files of '' to subdirectory '.prev'
 Read 1 routers, 2 networks, 1 hosts, 1 services
 Arranging protocols
 Linking topology
@@ -207,7 +208,6 @@ Finding routes
 Generating reverse rules for stateless routers
 Marking rules for secondary optimization
 Distributing rules
-Moving 3 old files in '' to subdirectory '.prev'
 Printing intermediate code
 Reused 1 files from previous run
 Finished
