@@ -106,4 +106,50 @@ END
 test_err($title, $in, $out, '-ipv6');
 
 ############################################################
+$title = 'Raw files for IPv4 and IPv6';
+############################################################
+
+$in = <<'END';
+-- ipv4
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+-- raw/r1
+access-list n1_in extended permit icmp any4 any4
+access-group n1_in in interface n1
+-- ipv6/topo
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+}
+-- ipv6/raw/r1
+access-list n1_in extended permit icmp6 any6 any6
+access-group n1_in in interface n1
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--r1.raw
+access-list n1_in extended permit icmp any4 any4
+access-group n1_in in interface n1
+--ipv6/r1
+! n1_in
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--ipv6/r1.raw
+access-list n1_in extended permit icmp6 any6 any6
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
