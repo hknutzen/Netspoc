@@ -10822,6 +10822,19 @@ sub check_pathrestrictions {
                                               values %pathrestrictions);
 }
 
+sub delete_pathrestriction_from_interfaces {
+    my ($restrict) = @_;
+    my $elements = $restrict->{elements};
+    for my $interface (@$elements) {
+        aref_delete($interface->{path_restrict}, $restrict);
+
+        # Delete empty array to speed up checks in cluster_path_mark.
+        if (not @{ $interface->{path_restrict} }) {
+            delete $interface->{path_restrict};
+        }
+    }
+}
+
 sub remove_redundant_pathrestrictions {
 
     # Calculate number of elements once for each pathrestriction.
@@ -10837,55 +10850,51 @@ sub remove_redundant_pathrestrictions {
         }
     }
 
-    # Check all elements that occur in two or more pathrestrictions.
-    # Check each restriction only once.
-    my %seen;
-    for my $elt_ref (keys %element2restrictions) {
-        my $href = $element2restrictions{$elt_ref};
+    for my $restrict (@pathrestrictions) {
+        my $elements = $restrict->{elements};
+        my $size = @$elements;
+        my $element1 = $elements->[0];
+        my $href = $element2restrictions{$element1};
+        my @list = grep { $size{$_} >= $size } values %$href;
+        next if @list < 2;
 
-        # Compare small pathrestriction with larger ones.
-        my @list = sort { $size{$a} <=> $size{$b} } values %$href;
-        while (@list >= 2) {
-            my $restrict = shift @list;
-            next if $seen{$restrict}++;
+        # Larger pathrestrictions, that reference elements of
+        # $restrict.
+        my $superset = \@list;
 
-            # Build intersection of all pathrestrictions, that reference
-            # elements of $restrict.
-            my $intersection = $href;
+        # Check all elements of current pathrestriction.
+        for my $element (@$elements) {
+            next if $element eq $element1;
 
-            # Check all elements of small pathrestriction.
-            my $elements = $restrict->{elements};
-            for my $element (@$elements) {
-                next if $element eq $elt_ref;
+            # $href2 is set of all pathrestrictions that contain $element.
+            my $href2 = $element2restrictions{$element};
 
-                # $href2 is set of all pathrestrictions that contain $element.
-                my $href2 = $element2restrictions{$element};
-
-                # Build intersection for next iteration.
-                my $next_intersection;
-                for my $restrict2 (values %$intersection) {
-                    next if $restrict2 eq $restrict;
-                    if ($href2->{$restrict2}) {
-                        $next_intersection->{$restrict2} = $restrict2;
-                    }
+            # Build superset for next iteration.
+            my $next_superset;
+            for my $restrict2 (@$superset) {
+                next if $restrict2 eq $restrict;
+                next if $restrict2->{deleted};
+                if ($href2->{$restrict2}) {
+                    push @$next_superset, $restrict2;
                 }
-
-                # Pathrestriction isn't redundant if intersection
-                # becomes empty.
-                $intersection = $next_intersection or last;
             }
 
-            # $intersection holds those pathrestrictions, that have
-            # superset of elements of $restrict.
-            $intersection or next;
-            $restrict->{deleted} = $intersection;
+            # Pathrestriction isn't redundant if superset becomes
+            # empty.
+            $superset = $next_superset or last;
         }
+
+        # $superset holds those pathrestrictions, that have
+        # superset of elements of $restrict.
+        $superset or next;
+        $restrict->{deleted} = $superset;
+        delete_pathrestriction_from_interfaces($restrict);
     }
     if (SHOW_DIAG) {
         for my $restrict (@pathrestrictions) {
-            my $intersection = $restrict->{deleted} or next;
+            my $superset = $restrict->{deleted} or next;
             my $r_name = $restrict->{name};
-            my ($o_name) = sort map { $_->{name} } values %$intersection;
+            my ($o_name) = sort map { $_->{name} } @$superset;
             diag_msg("Removed $r_name; is subset of $o_name");
         }
     }
@@ -10950,7 +10959,8 @@ sub traverse_loop_part {
 #              $elements - interfaces of the pathrestriction (array reference)
 #              $lookup - stores adjacent partitions for every IF in elements.
 sub apply_pathrestriction_optimization {
-    my ($restrict, $elements, $lookup) = @_;
+    my ($restrict, $lookup) = @_;
+    my $elements = $restrict->{elements};
 
     # No outgoing restriction needed for a pathrestriction surrounding a
     # single zone. A rule from zone to zone would be unenforceable anyway.
@@ -10987,16 +10997,10 @@ sub apply_pathrestriction_optimization {
         }
     }
 
-    # Delete pathrestriction objects, if {reachable_at} holds entire info.
+    # Delete pathrestriction from {path_restrict}, if {reachable_at}
+    # holds entire information.
     if (not $has_interior) { # Interfaces must not be located inside a partition.
-        for my $interface (@$elements) {
-            aref_delete($interface->{path_restrict}, $restrict);
-
-            # Delete empty array to speed up checks in cluster_path_mark.
-            if (not @{ $interface->{path_restrict} }) {
-                delete $interface->{path_restrict};
-            }
-        }
+        delete_pathrestriction_from_interfaces($restrict);
         diag_msg("Optimized $restrict->{name}") if SHOW_DIAG;
     }
     else {
@@ -11052,7 +11056,7 @@ sub optimize_pathrestrictions {
 
         # Optimize pathrestriction.
         if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
-            apply_pathrestriction_optimization($restrict, $elements, $lookup);
+            apply_pathrestriction_optimization($restrict, $lookup);
         }
         elsif(SHOW_DIAG) {
             my $count = $mark - $start_mark;
