@@ -325,11 +325,11 @@ END
 
 $out = <<'END';
 --R1
-access-list e0_in extended deny ip any host 10.9.9.2
-access-list e0_in extended deny ip any host 10.3.3.3
-access-list e0_in extended deny ip any host 10.2.2.1
-access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any eq 80
-access-list e0_in extended deny ip any any
+access-list e0_in extended deny ip any4 host 10.9.9.2
+access-list e0_in extended deny ip any4 host 10.3.3.3
+access-list e0_in extended deny ip any4 host 10.2.2.1
+access-list e0_in extended permit tcp 10.1.1.0 255.255.255.0 any4 eq 80
+access-list e0_in extended deny ip any4 any4
 access-group e0_in in interface e0
 --R2
 ip access-list extended e3_in

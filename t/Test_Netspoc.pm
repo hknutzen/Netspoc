@@ -11,7 +11,7 @@ use Test::More;
 use Test::Differences;
 use IPC::Run3;
 use Capture::Tiny 'capture_stderr';
-use File::Temp qw/ tempfile tempdir /;
+use File::Temp qw/ tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 use lib 'lib';

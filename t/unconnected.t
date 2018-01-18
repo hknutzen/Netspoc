@@ -19,7 +19,7 @@ END
 
 $out = <<"END";
 Error: router:r isn\'t connected to any network
-Error: Topology seems to be empty
+Error: IPv4 topology seems to be empty
 Aborted
 END
 
@@ -38,7 +38,7 @@ $out = <<'END';
 Error: Referencing undefined network:n2 from interface:r.n2
 Error: router:r isn't connected to any network
 Error: network:n1 isn't connected to any router
-Error: Topology seems to be empty
+Error: IPv4 topology seems to be empty
 Aborted
 END
 

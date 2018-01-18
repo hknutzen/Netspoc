@@ -164,11 +164,11 @@ $out = <<'END';
 --r1
 ! n1_in
 access-list n1_in extended permit udp host 10.1.1.1 10.1.4.0 255.255.255.0 eq 514
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r2
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -651,11 +651,11 @@ $out = <<'END';
 --r2
 ! n2_in
 access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.4.3 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --r3
 ! n3_in
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

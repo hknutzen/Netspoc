@@ -102,7 +102,7 @@ END
 $out = <<END;
 Error: interface:r1.n1 must not be disabled,
  since it is part of a loop
-Error: Topology seems to be empty
+Error: IPv4 topology seems to be empty
 Aborted
 END
 
@@ -187,7 +187,7 @@ END
 $out = <<"END";
 --r1
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -219,7 +219,7 @@ $out = <<"END";
 --r1
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 

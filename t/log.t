@@ -66,7 +66,7 @@ access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 82 83 log disable
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 85 log 3
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 84
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -221,9 +221,9 @@ ip access-list extended vlan1_in
  deny ip any any
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -274,8 +274,8 @@ $out = <<'END';
 -- asa2
 ! vlan2_in
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -300,8 +300,8 @@ ip access-list extended vlan1_in
  deny ip any any
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -326,9 +326,9 @@ END
 $out = <<'END';
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended permit tcp any 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
 access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -376,7 +376,7 @@ object-group network g0
 access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log 4
 access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.12 eq 80 log 3
 access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.14 eq 80
-access-list vlan1_in extended deny ip any any
+access-list vlan1_in extended deny ip any4 any4
 access-group vlan1_in in interface vlan1
 END
 

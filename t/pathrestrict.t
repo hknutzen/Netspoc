@@ -778,24 +778,24 @@ END
 $out = <<"END";
 --r1
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n2_in
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! n4_in
 access-list n4_in extended permit udp 10.1.4.0 255.255.255.0 host 10.1.3.1 eq 123
-access-list n4_in extended deny ip any any
+access-list n4_in extended deny ip any4 any4
 access-group n4_in in interface n4
 --r2
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n2_in
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --r3
 ip access-list extended n2_in

@@ -535,7 +535,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 protocolgroup:g1 = protocol:p1, protocolgroup:g2, foo:bar;
 service:s1 = {
     user = network:n1;
-    permit src = user; dst = network:n2; prt = protocolgroup:g1;
+    permit src = user; dst = network:n2; prt = protocolgroup:g1, protocol:p1;
 }
 END
 
@@ -543,6 +543,7 @@ $out = <<'END';
 Error: Can't resolve reference to protocol:p1 in protocolgroup:g1
 Error: Can't resolve reference to protocolgroup:g2 in protocolgroup:g1
 Error: Unknown type of foo:bar in protocolgroup:g1
+Error: Can't resolve reference to protocol:p1 in service:s1
 END
 
 test_err($title, $in, $out);

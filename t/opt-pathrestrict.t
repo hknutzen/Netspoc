@@ -180,5 +180,52 @@ END
 
 test_err($title, $in, $out);
 
+############################################################
+$title = 'Optimize duplicate pathrestrictions';
+############################################################
+# Must not remove all pathrestrictions, if redundant to each other.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+pathrestriction:p1 =
+ interface:r1.n1,
+ interface:r2.n1,
+;
+
+pathrestriction:p2 =
+ interface:r1.n1,
+ interface:r2.n1,
+;
+
+pathrestriction:p3 =
+ interface:r1.n1,
+ interface:r2.n1,
+;
+END
+
+$out = <<"END";
+DIAG: Removed pathrestriction:p1; is subset of pathrestriction:p2
+DIAG: Removed pathrestriction:p2; is subset of pathrestriction:p3
+DIAG: Optimized pathrestriction:p3
+END
+
+test_warn($title, $in, $out);
+
 ###########################################################
 done_testing;

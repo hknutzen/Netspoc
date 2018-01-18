@@ -168,13 +168,13 @@ END
 $out = <<'END';
 -- r2
 ! t1_in
-access-list t1_in extended permit tcp any any eq 80
-access-list t1_in extended deny ip any any
+access-list t1_in extended permit tcp any4 any4 eq 80
+access-list t1_in extended deny ip any4 any4
 access-group t1_in in interface t1
 --
 ! n3_in
-access-list n3_in extended permit tcp any any eq 80
-access-list n3_in extended deny ip any any
+access-list n3_in extended permit tcp any4 any4 eq 80
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

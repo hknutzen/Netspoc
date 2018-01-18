@@ -1151,16 +1151,16 @@ Warning: Rule of service:s1 should reference 'user' in 'src' and 'dst'
 -- r
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n2_in
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! n3_in
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 
@@ -1189,6 +1189,40 @@ $out = <<'END';
 Warning: user of service:s1 is empty
 Warning: src of service:s2 is empty
 Warning: dst of service:s3 is empty
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Empty user and empty rules";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+group:g1 = ;
+group:g2 = ;
+protocolgroup:p1 = ;
+
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = group:g2; prt = tcp 80;
+}
+service:s2 = {
+ user = group:g1;
+ permit src = user; dst = network:n1; prt = protocolgroup:p1;
+}
+service:s3 = {
+ disabled;
+ user = group:g1;
+ permit src = user; dst = group:g2; prt = protocolgroup:p1;
+}
+END
+
+$out = <<'END';
+Warning: Must not define service:s1 with empty users and empty rules
+Warning: Must not define service:s2 with empty users and empty rules
+Warning: Must not define service:s3 with empty users and empty rules
 END
 
 test_warn($title, $in, $out);

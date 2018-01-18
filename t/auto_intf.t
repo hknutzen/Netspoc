@@ -447,7 +447,7 @@ object-group network g0
  network-object host 10.24.2.21
  network-object host 10.24.2.22
 access-list inside_in extended permit tcp 10.11.11.0 255.255.255.0 object-group g0 eq 22
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 
@@ -594,7 +594,7 @@ $out = <<'END';
 --r1
 ! Vlan20_in
 access-list Vlan20_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.70 eq 80
-access-list Vlan20_in extended deny ip any any
+access-list Vlan20_in extended deny ip any4 any4
 access-group Vlan20_in in interface Vlan20
 --r2
 ! [ ACL ]
@@ -657,7 +657,7 @@ object-group network g0
  network-object host 10.9.1.2
  network-object host 10.9.2.2
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 object-group g0 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -754,7 +754,7 @@ object-group network g0
  network-object host 10.1.1.1
  network-object host 10.1.2.1
 access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 object-group g0 eq 22
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 
@@ -875,7 +875,7 @@ object-group network g1
  network-object host 10.1.3.2
  network-object host 10.1.4.1
 access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 -- r2
 ! n1_in
@@ -888,7 +888,7 @@ object-group network g1
  network-object host 10.1.3.2
  network-object host 10.1.4.1
 access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r3
 ! n2_in
@@ -901,7 +901,7 @@ object-group network g1
  network-object host 10.1.3.2
  network-object host 10.1.4.1
 access-list n2_in extended permit tcp object-group g0 object-group g1 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 -- r4
 ip access-list extended n3_in
@@ -957,7 +957,7 @@ object-group network g1
  network-object host 10.1.3.2
  network-object host 10.1.4.1
 access-list n1_in extended permit tcp object-group g0 object-group g1 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r2
 ! n1_in
@@ -970,7 +970,7 @@ object-group network g1
  network-object host 10.1.4.1
 access-list n1_in extended permit tcp object-group g0 host 10.1.2.2 eq 22
 access-list n1_in extended permit tcp host 10.1.1.1 object-group g1 eq 22
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r3
 ! n2_in
@@ -982,7 +982,7 @@ object-group network g1
  network-object host 10.1.3.2
  network-object host 10.1.4.1
 access-list n2_in extended permit tcp object-group g0 object-group g1 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --r4
 ! [ ACL ]
@@ -1065,7 +1065,7 @@ END
 $out = <<'END';
 --r2
 ! n1_in
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n4_in
@@ -1074,11 +1074,11 @@ object-group network g0
  network-object host 10.1.3.1
 access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 object-group g0 range 22 25
 access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 host 10.1.2.1 range 24 25
-access-list n4_in extended deny ip any any
+access-list n4_in extended deny ip any4 any4
 access-group n4_in in interface n4
 --
 ! n3_in
-access-list n3_in extended deny ip any any
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 
@@ -1137,7 +1137,7 @@ $out = <<'END';
 --r1
 ! n2_in
 access-list n2_in extended permit tcp 10.1.5.0 255.255.255.0 host 10.1.1.2 eq 22
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -1204,7 +1204,7 @@ object-group network g0
  network-object host 10.1.1.2
  network-object host 10.1.3.2
 access-list n6_in extended permit tcp 10.1.6.0 255.255.255.0 object-group g0 eq 22
-access-list n6_in extended deny ip any any
+access-list n6_in extended deny ip any4 any4
 access-group n6_in in interface n6
 END
 

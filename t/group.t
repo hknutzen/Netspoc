@@ -19,6 +19,16 @@ network:n3 = { ip = 10.1.3.0/24;
  host:h3b = { ip = 10.1.3.26; }
  host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
+network:n3sub = { ip = 10.1.3.64/27; subnet_of = network:n3;
+ host:h3c = { ip = 10.1.3.66; }
+ host:h3d = { range = 10.1.3.65 - 10.1.3.67; }
+ host:h3m2 = { managed; model = Linux; ip = 10.1.3.73; hardware = eth0; }
+}
+
+router:u = {
+ interface:n3;
+ interface:n3sub;
+}
 
 router:r1 = {
  managed;
@@ -30,6 +40,7 @@ router:r1 = {
 router:r2 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
@@ -41,7 +52,7 @@ $title = 'Find unused hosts';
 
 $in = $topo . <<'END';
 service:s = {
- user = host:h3a;
+ user = host:h3a, host:h3c;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 END
@@ -50,6 +61,8 @@ $out = <<'END';
 10.1.1.10	host:h1
 10.1.3.26	host:h3b
 10.1.3.33	host:h3m
+10.1.3.65-10.1.3.67	host:h3d
+10.1.3.73	host:h3m2
 END
 
 test_group($title, $in, 'host:[network:n1, network:n3]', $out, '-unused');
@@ -63,10 +76,76 @@ $in = $topo;
 $out = <<'END';
 10.1.1.10	host:h1
 10.1.3.10-10.1.3.15	host:h3a
-10.1.3.33	host:h3m
+10.1.3.73	host:h3m2
 END
 
-test_group($title, $in, 'host:[network:n1, host:h3a, host:h3m]', $out);
+test_group($title, $in, 'host:[network:n1, host:h3a, host:h3m2]', $out);
+
+############################################################
+$title = 'Redundant from automatic hosts';
+############################################################
+
+$in = $topo . <<'END';
+service:s = {
+ user = host:[network:n3sub];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Redundant rules in service:s compared to service:s:
+  permit src=network:n1; dst=host:h3c; prt=tcp 80; of service:s
+< permit src=network:n1; dst=host:h3d; prt=tcp 80; of service:s
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Automatic network with subnets';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'network:[network:n3]', $out);
+
+############################################################
+$title = 'Automatic network with subnets from any';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'network:[any:[network:n3sub]]', $out);
+
+############################################################
+$title = 'No subnets in automatic network in rule';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = network:[any:[network:n3sub]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n3_in
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Unexpected interface in automatic host';
@@ -608,6 +687,7 @@ Warning: Empty intersection in dst of rule in service:s1:
   host:[..]
 &!host:h1
 &!host:h2
+Warning: Must not define service:s1 with empty users and empty rules
 END
 
 test_warn($title, $in, $out);

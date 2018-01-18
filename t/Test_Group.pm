@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
+use IPC::Run3;
 use File::Temp qw/ tempfile /;
 
 our @ISA    = qw(Exporter);
@@ -39,13 +40,14 @@ sub test_group {
         $cmd .= " '$group'";
     }
 
-    open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
-
-    # Undef input record separator to read all output at once.
-    local $/ = undef;
-    my $output = <$out_fh>;
-    close($out_fh) or die "Syserr closing pipe from $cmd: $!\n";
-    eq_or_diff($output, $expected, $title);
+    my ($stdout, $stderr);
+    run3($cmd, \undef, \$stdout, \$stderr);
+    if ($stderr) {
+        diag("Unexpected output on STDERR:\n$stderr");
+        fail($title);
+        return;
+    }
+    eq_or_diff($stdout, $expected, $title);
     return;
 }
 

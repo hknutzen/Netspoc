@@ -132,8 +132,8 @@ END
 $out = <<'END';
 --r1
 ! n1_in
-access-list n1_in extended permit ip any 10.1.1.0 255.255.255.0
-access-list n1_in extended deny ip any any
+access-list n1_in extended permit ip any4 10.1.1.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -171,8 +171,8 @@ $out = <<'END';
 object-group network g0
  network-object 10.1.1.0 255.255.255.0
  network-object 10.1.2.0 255.255.254.0
-access-list n3_in extended permit ip any object-group g0
-access-list n3_in extended deny ip any any
+access-list n3_in extended permit ip any4 object-group g0
+access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 

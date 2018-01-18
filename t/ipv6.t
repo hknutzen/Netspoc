@@ -33,7 +33,7 @@ service:test1 = {
 END
 
 $out = <<'END';
--- r1
+-- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
  permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90
@@ -82,7 +82,7 @@ service:test1 = {
 END
 
 $out = <<'END';
--- r1
+-- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 2000::1
  permit tcp 1000:: 0:ffff:ffff:ffff:ffff:ffff:ffff:ffff 2000:: ::ffff:ffff:ffff:ffff:ffff range 80 90
@@ -119,7 +119,7 @@ service:test1 = {
 END
 
 $out = <<'END';
--- r1
+-- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
  permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90

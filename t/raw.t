@@ -39,7 +39,7 @@ router:r2 = {
 ! manual route
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
 -- raw/x
-access-list n2_in extended permit udp any any eq 123
+access-list n2_in extended permit udp any4 any4 eq 123
 END
 
 $out = <<'END';
@@ -63,7 +63,7 @@ syntax error
 END
 
 $out = <<'END';
-Error: Topology seems to be empty
+Error: IPv4 topology seems to be empty
 Aborted
 END
 
@@ -72,4 +72,3 @@ test_err($title, $in, $out);
 
 ############################################################
 done_testing;
-

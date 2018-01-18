@@ -6,7 +6,7 @@ Pass 2 of Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -69,14 +69,14 @@ sub create_prt_obj {
     return $prt;
 }
 
+sub get_net00_addr {
+    return $config->{ipv6} ? '::/0' : '0.0.0.0/0';
+}
+
 sub setup_ip_net_relation {
     my ($ip_net2obj) = @_;
-    if ($config->{ipv6}) {
-        $ip_net2obj->{'::/0'} ||=  create_ip_obj('::/0');
-    }
-    else {
-        $ip_net2obj->{'0.0.0.0/0'} ||= create_ip_obj('0.0.0.0/0');
-    }
+    my $net00 = get_net00_addr();
+    $ip_net2obj->{$net00} ||=  create_ip_obj($net00);
     my %mask_ip_hash;
 
     # Collect networks into %mask_ip_hash.
@@ -1347,8 +1347,7 @@ sub find_chains {
     my $prt_icmp   = $prt2obj->{icmp};
     my $prt_tcp    = $prt2obj->{'tcp 1 65535'};
     my $prt_udp    = $prt2obj->{'udp 1 65535'};
-    my $network_00 = $config->{ipv6} ? $ip_net2obj->{'::/0'}
-                                     : $ip_net2obj->{'0.0.0.0/0'};
+    my $network_00 = $acl_info->{network_00};
 
     # For generating names of chains.
     # Initialize if called first time.
@@ -1876,12 +1875,7 @@ sub prepare_acls {
         }
 
         setup_ip_net_relation($ip_net2obj);
-        if ($config->{ipv6}) {
-            $acl_info->{network_00} = $ip_net2obj->{'::/0'};
-        }
-        else {
-            $acl_info->{network_00} = $ip_net2obj->{'0.0.0.0/0'};
-        }
+        $acl_info->{network_00} = $ip_net2obj->{get_net00_addr()};
 
         if (my $need_protect = $acl_info->{need_protect}) {
             mark_supernets_of_need_protect($need_protect);
@@ -1937,7 +1931,12 @@ sub cisco_acl_addr {
         return "$keyword $obj->{name}";
     }
     elsif ($mask eq $zero_ip) {
-        return "any";
+        if ($model eq 'ASA') {
+            return length($mask) == 4 ? 'any4' : 'any6';
+        }
+        else {
+            return 'any';
+        }
     }
     elsif ($model eq 'NX-OS') {
         return $obj->{name};
@@ -2170,11 +2169,11 @@ sub print_combined {
 # If identical files with extension .config and .rules
 # exist in directory .prev/, then use copy.
 sub try_prev {
-    my ($device_name, $dir, $prev) = @_;
+    my ($device_path, $dir, $prev) = @_;
     -d $prev or return;
-    my $prev_file = "$prev/$device_name";
+    my $prev_file = "$prev/$device_path";
     -f $prev_file or return;
-    my $code_file = "$dir/$device_name";
+    my $code_file = "$dir/$device_path";
     for my $ext (qw(config rules)) {
         my $pass1name = "$code_file.$ext";
         my $pass1prev = "$prev_file.$ext";
@@ -2184,15 +2183,19 @@ sub try_prev {
     system("cp -p $prev_file $code_file") == 0 or return;
 
     # File was found and copied successfully.
-    diag_msg("Reused .prev/$device_name") if SHOW_DIAG;
+    diag_msg("Reused .prev/$device_path") if SHOW_DIAG;
     return 1;
 }
 
 sub pass2_file {
-    my ($device_name, $dir) = @_;
-    my $file = "$dir/$device_name";
+    my ($device_path, $dir) = @_;
+    my $file = "$dir/$device_path";
+    local $config->{ipv6} = $device_path =~ /^ipv6/;
+    init_prefix_len;
+    init_mask_prefix_lookups;
+    init_zero_and_max_ip;
 
-#   debug "building $device_name";
+#   debug "building $device_path";
     my $router_data = prepare_acls("$file.rules");
     my $config = read_file_lines("$file.config");
     print_combined($config, $router_data, $file);
@@ -2229,21 +2232,21 @@ sub apply_concurrent {
     # Process with $concurrent background jobs.
     # Error messages of background jobs not catched,
     # but send directly to STDERR.
-    while(my $device_name = <$device_names_fh>) {
-        chomp $device_name;
+    while(my $device_path = <$device_names_fh>) {
+        chomp $device_path;
 
-        if (try_prev($device_name, $dir, $prev)) {
+        if (try_prev($device_path, $dir, $prev)) {
             $reused++;
         }
 
         # Process sequentially.
         elsif (1 >= $concurrent) {
-            pass2_file($device_name, $dir);
+            pass2_file($device_path, $dir);
         }
 
         # Start concurrent jobs at beginning.
         elsif (0 < $workers_left) {
-            background(\&pass2_file, $device_name, $dir);
+            background(\&pass2_file, $device_path, $dir);
             $workers_left--;
         }
 
@@ -2253,7 +2256,7 @@ sub apply_concurrent {
             if ($pid != -1) {
                 $check_status->();
             }
-            background(\&pass2_file, $device_name, $dir);
+            background(\&pass2_file, $device_path, $dir);
         }
     }
 
@@ -2305,9 +2308,6 @@ sub pass2 {
 sub compile {
     my ($args) = @_;
     ($config, undef, my $dir) = get_args($args);
-    init_prefix_len;
-    init_mask_prefix_lookups;
-    init_zero_and_max_ip;
     if ($dir) {
         $start_time = $config->{start_time} || time();
         pass2($dir);

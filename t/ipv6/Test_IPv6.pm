@@ -10,6 +10,8 @@ our @EXPORT = qw(adjust_testfile add_96);
 
 use NetAddr::IP::Util qw(maskanyto6 inet_aton ipv6_ntoa add128 ipv6_aton
                          inet_any2n);
+use Regexp::IPv6 qw($IPv6_re);
+use Netspoc::Compiler::Common;
 
 # Transform IPv4 prefix to IPv6 prefix.
 sub add_96 {
@@ -34,8 +36,22 @@ sub adjust_testfile {
     $file =~ /(.+)\.t/;
     my $name = $1;
 
-    open (my $outfilehandle, ">>", $dir . "/" . $name . "_ipv6.t") or
+    open (my $outfilehandle, '>', $dir . "/" . $name . "_ipv6.t") or
         die "Can not open file $filename";
+
+    # mask2prefix lookup will be needed for ASA routing
+    my %mask2prefix;
+    my $prefix = 0;
+    my $mask = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
+    my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
+    while (1) {
+        $mask2prefix{$mask}   = $prefix;
+        last if $prefix == 128;
+        my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
+        vec($mask, $bitpos, 1) = 1;
+        $prefix++;
+    }
+
 
     # Convert IPv4 input file line by line.
     while (my $line = <$infilehandle>) {
@@ -122,8 +138,28 @@ sub adjust_testfile {
             $line = join ("", @words);
         }
 
+        # Convert ASA IPv4 routing syntax to IPv6 routing syntax.
+        my $ipv6 = qr/(?:$IPv6_re|::)/;
+        if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
+            $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2\/\/$3 $4/;
+            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/e;
+            $line =~ s/\/128//;
+        }
+
+        # Change path of to be checked output files.
+        # IPv6 files are generated in ipv6/ subdirectory.
+        if ($line !~ m(topology|config|file|raw/| raw$|private) and
+            $filename !~ /export.t/)
+        {
+            $line =~ s/^(-+[ ]*)([^\s-]+)([ ]*)$/${1}ipv6\/$2$3/;
+        }
+
+        $line =~ s/any4/any6/g;
+
         # Convert result messages.
         $line =~ s/IP address expected/IPv6 address expected/;
+        $line =~ s/IPv4 topology/IPv6 topology/;
+        $line =~ s/(DIAG: Reused [.]prev)/$1\/ipv6/;
 
         # Convert test subroutine calls
         # No IPv6 version of rename-netspoc necessary.
@@ -139,6 +175,9 @@ sub adjust_testfile {
         else {
             if ($filename =~ /concurrency.t/ and $line =~ /-q/) {
                 $line =~ s/-q/-q -ipv6/;
+            }
+            elsif ($filename =~ /concurrency.t/ and $line =~ m'my \$path') {
+                $line =~ s|out_dir|out_dir/ipv6|;
             }
             elsif ($filename =~ /options.t/ and $line =~ /undef,/) {
                 $line =~ s/undef,/'-ipv6',/;

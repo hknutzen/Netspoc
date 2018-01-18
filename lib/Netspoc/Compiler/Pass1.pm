@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.029'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.030'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3337,8 +3337,8 @@ sub parse_input {
 }
 
 sub read_file_or_dir {
-    my ($path) = @_;
-    process_file_or_dir($path, \&parse_input);
+    my ($path, $ignore_dir) = @_;
+    process_file_or_dir($path, \&parse_input, $ignore_dir);
 }
 
 # Prints number of read entities if in verbose mode.
@@ -3347,7 +3347,8 @@ sub show_read_statistics {
     my $h = keys %hosts;
     my $r = keys %routers;
     my $s = keys %services;
-    info("Read $r routers, $n networks, $h hosts, $s services");
+    my $ipv = $config->{ipv6} ? 'IPv6' : 'IPv4';
+    info("Read $ipv: $r routers, $n networks, $h hosts, $s services");
 }
 
 ## no critic (RequireArgUnpacking RequireFinalReturn)
@@ -5197,7 +5198,7 @@ sub remove_duplicates {
 sub expand_group1;
 
 sub expand_group1 {
-    my ($aref, $context, $clean_autogrp) = @_;
+    my ($aref, $context, $clean_autogrp, $with_subnets) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -5211,7 +5212,7 @@ sub expand_group1 {
                   map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
-                        $clean_autogrp
+                        $clean_autogrp, $with_subnets
                     )
                   };
                 if ($element->[0] eq '!') {
@@ -5287,8 +5288,9 @@ sub expand_group1 {
                 ref $ext
                   or err_msg("Must not use interface:[..].$ext in $context");
                 my ($selector, $managed) = @$ext;
-                my $sub_objects = expand_group1 $name,
-                  "interface:[..].[$selector] of $context";
+                my $sub_objects = expand_group1(
+                    $name,
+                    "interface:[..].[$selector] of $context");
                 for my $object (@$sub_objects) {
                     next if $object->{disabled};
                     $object->{is_used} = 1;
@@ -5479,9 +5481,9 @@ sub expand_group1 {
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
-                    push @objects, $object->{network};
+                    return [$object->{network}];
                 }
-                elsif ($type eq 'Network') {
+                if ($type eq 'Network') {
                     if (not $object->{is_aggregate}) {
                         push @objects, $object;
                     }
@@ -5509,11 +5511,25 @@ sub expand_group1 {
                 else {
                     return;
                 }
+                if ($with_subnets) {
+                    my $get_subnets = sub {
+                        my ($networks) = @_;
+                        my @result;
+                        for my $network (@$networks) {
+                            my $subnets = $network->{networks} or next;
+                            push @result, @$subnets;
+                            push @result, __SUB__->($subnets);
+                        }
+                        return @result;
+                    };
+                    push @objects, $get_subnets->(\@objects);
+                }
                 return \@objects;
             };
             if ($type eq 'host') {
                 my $managed = $ext;
                 my @hosts;
+                $with_subnets = undef;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
@@ -5529,11 +5545,17 @@ sub expand_group1 {
                         }
                     }
                     elsif (my $networks = $get_networks->($object)) {
-                        for my $network (@$networks) {
+                        my $add_all_hosts = sub {
+                            my ($network) = @_;
                             push @hosts, @{ $network->{hosts} };
                             if (my $managed_hosts = $network->{managed_hosts}) {
                                 push @hosts, @$managed_hosts;
                             }
+                            my $subnets = $network->{networks} or return;
+                            __SUB__->($_) for @$subnets;
+                        };
+                        for my $network (@$networks) {
+                            $add_all_hosts->($network);
                         }
                     }
                     else {
@@ -5684,9 +5706,13 @@ sub expand_group1 {
     return \@objects;
 }
 
+# Parameter $with_subnets is set, if called from command "print-group".
+# This changes the result of network:[any|area|network:..]:
+# For each resulting network, all subnets of this network in same zone
+# are added.
 sub expand_group {
-    my ($obref, $context) = @_;
-    my $aref = expand_group1 $obref, $context, 'clean_autogrp';
+    my ($obref, $context, $with_subnets) = @_;
+    my $aref = expand_group1($obref, $context, 'clean_autogrp', $with_subnets);
     remove_duplicates($aref, $context);
 
     # Ignore disabled objects.
@@ -6117,6 +6143,7 @@ sub normalize_service_rules {
                 = expand_group($service->{user}, "user of $context");
     my $rules   = $service->{rules};
     my $foreach = $service->{foreach};
+    my $rule_count;
 
     for my $unexpanded (@$rules) {
         my $deny  = $unexpanded->{action} eq 'deny';
@@ -6132,17 +6159,18 @@ sub normalize_service_rules {
             }
         }
         my $prt_list =
-          split_protocols(expand_protocols($unexpanded->{prt}));
+          split_protocols(expand_protocols($unexpanded->{prt}, $context));
         @$prt_list or next;
         my $prt_list_pair = classify_protocols($prt_list, $service);
 
         for my $element ($foreach ? @$user : ($user)) {
             my $src_dst_list_pairs =
                 normalize_src_dst_list($unexpanded, $element, $context);
-            next if $service->{disabled};
             for my $src_dst_list (@$src_dst_list_pairs) {
                 my ($src_list, $dst_list) = @$src_dst_list;
+                $rule_count++ if @$src_list or @$dst_list;
                 @$src_list and @$dst_list or next;
+                next if $service->{disabled};
                 check_private_service($service, $src_list, $dst_list);
                 my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
                 if ($simple_prt_list) {
@@ -6190,6 +6218,9 @@ sub normalize_service_rules {
                 }
             }
         }
+    }
+    if (not $rule_count and not @$user) {
+        warn_msg("Must not define $context with empty users and empty rules");
     }
 
     # Result is stored in global %service_rules.
@@ -10791,6 +10822,19 @@ sub check_pathrestrictions {
                                               values %pathrestrictions);
 }
 
+sub delete_pathrestriction_from_interfaces {
+    my ($restrict) = @_;
+    my $elements = $restrict->{elements};
+    for my $interface (@$elements) {
+        aref_delete($interface->{path_restrict}, $restrict);
+
+        # Delete empty array to speed up checks in cluster_path_mark.
+        if (not @{ $interface->{path_restrict} }) {
+            delete $interface->{path_restrict};
+        }
+    }
+}
+
 sub remove_redundant_pathrestrictions {
 
     # Calculate number of elements once for each pathrestriction.
@@ -10806,55 +10850,51 @@ sub remove_redundant_pathrestrictions {
         }
     }
 
-    # Check all elements that occur in two or more pathrestrictions.
-    # Check each restriction only once.
-    my %seen;
-    for my $elt_ref (keys %element2restrictions) {
-        my $href = $element2restrictions{$elt_ref};
+    for my $restrict (@pathrestrictions) {
+        my $elements = $restrict->{elements};
+        my $size = @$elements;
+        my $element1 = $elements->[0];
+        my $href = $element2restrictions{$element1};
+        my @list = grep { $size{$_} >= $size } values %$href;
+        next if @list < 2;
 
-        # Compare small pathrestriction with larger ones.
-        my @list = sort { $size{$a} <=> $size{$b} } values %$href;
-        while (@list >= 2) {
-            my $restrict = shift @list;
-            next if $seen{$restrict}++;
+        # Larger pathrestrictions, that reference elements of
+        # $restrict.
+        my $superset = \@list;
 
-            # Build intersection of all pathrestrictions, that reference
-            # elements of $restrict.
-            my $intersection = $href;
+        # Check all elements of current pathrestriction.
+        for my $element (@$elements) {
+            next if $element eq $element1;
 
-            # Check all elements of small pathrestriction.
-            my $elements = $restrict->{elements};
-            for my $element (@$elements) {
-                next if $element eq $elt_ref;
+            # $href2 is set of all pathrestrictions that contain $element.
+            my $href2 = $element2restrictions{$element};
 
-                # $href2 is set of all pathrestrictions that contain $element.
-                my $href2 = $element2restrictions{$element};
-
-                # Build intersection for next iteration.
-                my $next_intersection;
-                for my $restrict2 (values %$intersection) {
-                    next if $restrict2 eq $restrict;
-                    if ($href2->{$restrict2}) {
-                        $next_intersection->{$restrict2} = $restrict2;
-                    }
+            # Build superset for next iteration.
+            my $next_superset;
+            for my $restrict2 (@$superset) {
+                next if $restrict2 eq $restrict;
+                next if $restrict2->{deleted};
+                if ($href2->{$restrict2}) {
+                    push @$next_superset, $restrict2;
                 }
-
-                # Pathrestriction isn't redundant if intersection
-                # becomes empty.
-                $intersection = $next_intersection or last;
             }
 
-            # $intersection holds those pathrestrictions, that have
-            # superset of elements of $restrict.
-            $intersection or next;
-            $restrict->{deleted} = $intersection;
+            # Pathrestriction isn't redundant if superset becomes
+            # empty.
+            $superset = $next_superset or last;
         }
+
+        # $superset holds those pathrestrictions, that have
+        # superset of elements of $restrict.
+        $superset or next;
+        $restrict->{deleted} = $superset;
+        delete_pathrestriction_from_interfaces($restrict);
     }
     if (SHOW_DIAG) {
         for my $restrict (@pathrestrictions) {
-            my $intersection = $restrict->{deleted} or next;
+            my $superset = $restrict->{deleted} or next;
             my $r_name = $restrict->{name};
-            my ($o_name) = sort map { $_->{name} } values %$intersection;
+            my ($o_name) = sort map { $_->{name} } @$superset;
             diag_msg("Removed $r_name; is subset of $o_name");
         }
     }
@@ -10919,7 +10959,8 @@ sub traverse_loop_part {
 #              $elements - interfaces of the pathrestriction (array reference)
 #              $lookup - stores adjacent partitions for every IF in elements.
 sub apply_pathrestriction_optimization {
-    my ($restrict, $elements, $lookup) = @_;
+    my ($restrict, $lookup) = @_;
+    my $elements = $restrict->{elements};
 
     # No outgoing restriction needed for a pathrestriction surrounding a
     # single zone. A rule from zone to zone would be unenforceable anyway.
@@ -10956,16 +10997,10 @@ sub apply_pathrestriction_optimization {
         }
     }
 
-    # Delete pathrestriction objects, if {reachable_at} holds entire info.
+    # Delete pathrestriction from {path_restrict}, if {reachable_at}
+    # holds entire information.
     if (not $has_interior) { # Interfaces must not be located inside a partition.
-        for my $interface (@$elements) {
-            aref_delete($interface->{path_restrict}, $restrict);
-
-            # Delete empty array to speed up checks in cluster_path_mark.
-            if (not @{ $interface->{path_restrict} }) {
-                delete $interface->{path_restrict};
-            }
-        }
+        delete_pathrestriction_from_interfaces($restrict);
         diag_msg("Optimized $restrict->{name}") if SHOW_DIAG;
     }
     else {
@@ -11021,7 +11056,7 @@ sub optimize_pathrestrictions {
 
         # Optimize pathrestriction.
         if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
-            apply_pathrestriction_optimization($restrict, $elements, $lookup);
+            apply_pathrestriction_optimization($restrict, $lookup);
         }
         elsif(SHOW_DIAG) {
             my $count = $mark - $start_mark;
@@ -11184,7 +11219,10 @@ sub set_loop_cluster {
 #           cycle with a common loop object and distance.
 #           Check for multiple unconnected parts of topology.
 sub find_dists_and_loops {
-    @zones or fatal_err("Topology seems to be empty");
+    if (not @zones) {
+        my $type = $config->{ipv6} ? 'IPv6' : 'IPv4';
+        fatal_err("$type topology seems to be empty");
+    }
     my $path_routers =
         [ grep { $_->{managed} or $_->{semi_managed} } @routers ];
     my $start_distance = 0;
@@ -13006,8 +13044,9 @@ sub verify_asa_trustpoint {
 
 sub expand_crypto {
     progress('Expanding crypto rules');
+    my %id2intf;
 
-    for my $crypto (values %crypto) {
+    for my $crypto (sort by_name values %crypto) {
         my $isakmp  = $crypto->{type}->{key_exchange};
         my $need_id = $isakmp->{authentication} eq 'rsasig';
 
@@ -13097,14 +13136,24 @@ sub expand_crypto {
                 }
 
                 my $do_auth = $hub_model->{do_auth};
-                if ($tunnel_intf->{id}) {
+                if (my $id = $tunnel_intf->{id}) {
                     $need_id
                       or err_msg(
-                        "Invalid attribute 'id' at",
-                        " $tunnel_intf->{name}.\n",
-                        " Set authentication=rsasig at",
-                        " $isakmp->{name}"
+                        "Invalid attribute 'id' at $tunnel_intf->{name}.\n",
+                        " Set authentication=rsasig at $isakmp->{name}"
                       );
+                    my $aref = $id2intf{$id} ||= [];
+                    if (my @other =
+                        grep { $_->{peer}->{router} eq $hub_router } @$aref)
+                    {
+
+                        # Id must be unique per crypto hub, because it
+                        # is used to generate ACL names and other names.
+                        err_msg("Must not reuse 'id = $id' at different",
+                                " crypto spokes of '$hub_router->{name}':\n",
+                                name_list([@other, $tunnel_intf]));
+                    }
+                    push(@$aref, $tunnel_intf);
                 }
                 elsif ($has_id_hosts) {
                     $do_auth
@@ -15866,9 +15915,10 @@ sub print_routes {
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'ASA') {
-                    my $adr = ios_route_code($netinfo);
-                    print
-                      "route $interface->{hardware}->{name} $adr $hop_addr\n";
+                    my $adr = $config->{ipv6} ?
+                        prefix_code($netinfo) : ios_route_code($netinfo);
+                    print $config->{ipv6} ? "ipv6 " : "";
+                    print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
                     my $adr = prefix_code($netinfo);
@@ -17810,12 +17860,17 @@ sub check_output_dir {
     }
     else {
         -d $dir or fatal_err("$dir isn't a directory");
+        unlink "$dir/.devlist";
 
         my $prev = "$dir/.prev";
         if (not -d $prev) {
             my @old_files = glob("$dir/*");
             if (my $count = @old_files) {
-                progress("Moving $count old files in '$dir' to",
+                if (-d "$dir/ipv6") {
+                    my @v6files = glob("$dir/ipv6/*");
+                    $count += @v6files - 1;
+                }
+                info("Saving $count old files of '$dir' to",
                          " subdirectory '.prev'");
 
                 # Try to remove file or symlink with same name.
@@ -17832,11 +17887,7 @@ sub check_output_dir {
 # Print generated code for each managed router.
 sub print_code {
     my ($dir) = @_;
-
-    # Untaint $dir. This is necessary if running setuid.
-    # We can trust value of $dir because it is set by setuid wrapper.
-    ($dir) = ($dir =~ /(.*)/);
-    check_output_dir($dir);
+    progress('Printing intermediate code');
 
     ## no critic (RequireBriefOpen)
     my $to_pass2;
@@ -17847,12 +17898,18 @@ sub print_code {
     }
     else {
         my $devlist = "$dir/.devlist";
-        open($to_pass2, '>', $devlist) or
+        open($to_pass2, '>>', $devlist) or
             fatal_err("Can't open $devlist for writing: $!");
     }
     ## use critic
 
-    progress('Printing intermediate code');
+    my $v6 = '';
+    if ($config->{ipv6}) {
+        $v6 = 'ipv6/';
+        my $v6dir = "$dir/ipv6";
+        -d $v6dir or mkdir $v6dir
+          or fatal_err("Can't create output directory $v6dir: $!");
+    }
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
@@ -17861,14 +17918,10 @@ sub print_code {
         next if $router->{orig_router};
 
         my $device_name = $router->{device_name};
-        my $file        = $device_name;
-
-        # Untaint $file. It has already been checked for word characters,
-        # but check again for the case of a weird locale setting.
-        $file =~ s/^(.*)/$1/;
+        my $path        = "$v6$device_name";
 
         # File for router config without ACLs.
-        my $config_file = "$dir/$file.config";
+        my $config_file = "$dir/$path.config";
 
         ## no critic (RequireBriefOpen)
         open(my $code_fd, '>', $config_file)
@@ -17915,7 +17968,7 @@ sub print_code {
 
         # Print ACLs in machine independent format into separate file.
         # Collect ACLs from VRF parts.
-        my $acl_file = "$dir/$file.rules";
+        my $acl_file = "$dir/$path.rules";
         open(my $acl_fd, '>', $acl_file)
           or fatal_err("Can't open $acl_file for writing: $!");
         print_acls($vrf_members, $acl_fd);
@@ -17923,7 +17976,7 @@ sub print_code {
 
         # Send device name to pass 2, showing that processing for this
         # device can be started.
-        print $to_pass2 "$device_name\n";
+        print $to_pass2 "$path\n";
     }
 }
 
@@ -17934,20 +17987,12 @@ sub copy_raw {
     return if not (defined $in_path and -d $in_path);
     return if not defined $out_dir;
 
-    # Untaint $in_path, $out_dir. This is necessary if running setuid.
-    # Trusted because set by setuid wrapper.
-    ($in_path) = ($in_path =~ /(.*)/);
-    ($out_dir) = ($out_dir =~ /(.*)/);
+    $out_dir .= '/ipv6' if $config->{ipv6};
 
     # $out_dir has already been checked / created in print_code.
 
     my $raw_dir = "$in_path/raw";
     return if not -d $raw_dir;
-
-    # Clean PATH if run in taint mode.
-    ## no critic (RequireLocalizedPunctuationVars)
-    $ENV{PATH} = '/usr/local/bin:/usr/bin:/bin';
-    ## use critic
 
     my %device_names =
       map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
@@ -17958,9 +18003,7 @@ sub copy_raw {
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
 
-        # Untaint $file.
-        my ($raw_file) = ($file =~ /^(.*)/);
-        my $raw_path = "$raw_dir/$raw_file";
+        my $raw_path = "$raw_dir/$file";
         if (not -f $raw_path) {
             warn_msg("Ignoring path $raw_path");
             next;
@@ -17969,14 +18012,14 @@ sub copy_raw {
             warn_msg("Found unused file $raw_path");
             next;
         }
-        my $copy = "$out_dir/$raw_file.raw";
+        my $copy = "$out_dir/$file.raw";
         system("cp -f $raw_path $copy") == 0
           or fatal_err("Can't copy file $raw_path to $copy: $!");
     }
 }
 
 sub show_version {
-    progress("$program, version $version");
+    info("$program, version $version");
 }
 
 # Start concurrent jobs.
@@ -18237,14 +18280,10 @@ sub init_global_vars {
     init_protocols();
 }
 
-sub compile {
-    my ($args) = @_;
-
-    my ($in_path, $out_dir);
-    ($config, $in_path, $out_dir) = get_args($args);
+sub pass1 {
+    my ($in_path, $out_dir, $ignore_dir) = @_;
     init_global_vars();
-    &show_version();
-    &read_file_or_dir($in_path);
+    &read_file_or_dir($in_path, $ignore_dir);
     &show_read_statistics();
     &order_protocols();
     &link_topology();
@@ -18307,6 +18346,27 @@ sub compile {
         });
 
     abort_on_error();
+}
+
+sub compile {
+    my ($args) = @_;
+
+    my ($in_path, $out_dir);
+    ($config, $in_path, $out_dir) = get_args($args);
+    &show_version();
+    check_output_dir($out_dir) if $out_dir;
+    my $ignore_dir;
+    if (not $config->{ipv6} and -e (my $sub_dir = "$in_path/ipv6")) {
+        local $config->{ipv6} = 1;
+        pass1($sub_dir, $out_dir);
+        $ignore_dir = 'ipv6';
+    }
+    elsif ($config->{ipv6} and -e ($sub_dir = "$in_path/ipv4")) {
+        local $config->{ipv6} = undef;
+        pass1($sub_dir, $out_dir);
+        $ignore_dir = 'ipv4';
+    }
+    pass1($in_path, $out_dir, $ignore_dir);
 }
 
 1;

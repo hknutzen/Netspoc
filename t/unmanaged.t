@@ -145,7 +145,7 @@ object-group network g0
  network-object host 10.241.210.97
  network-object host 10.241.210.98
 access-list outside_in extended permit tcp object-group g0 10.1.11.0 255.255.255.0 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 

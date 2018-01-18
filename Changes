@@ -1,3 +1,17 @@
+5.030     2018-01-18 11:03:36+01:00 Europe/Berlin
+
+ - 'ipv6 route' command is genenerated for ASA now.
+ - Input can now hold IPv6 data in subdirectory ipv6/.
+   If option 'ipv6 = 1' is active, subdirectory ipv4/ can hold IPv4 data.
+ - Generated code for IPv6 is written to subdirecory code/ipv6/ now.
+ - Generated ACLs for ASA now use 'any4' or 'any6' instead of 'any'.
+ - Automatic group host:[..] now also shows hosts of subnets of given networks
+   in same zone.
+ - print-group of automatic group network:[area|any|network:..] now
+   also shows subnets in same zone of given networks.
+ - A warning is shown, if a service with empty user and empty rules is defined.
+ - Optimization of redundant pathrestrictions has been fixed.
+
 5.029     2017-12-05 15:21:35+01:00 Europe/Berlin
 
  - A warning is generated now, if the intersection of non empty groups

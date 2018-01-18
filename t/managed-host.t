@@ -210,7 +210,7 @@ $out = <<'END';
 -A INPUT -j eth0_self -i eth0
 --filter
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.99.99.69 eq 22
-access-list Vlan1_in extended deny ip any any
+access-list Vlan1_in extended deny ip any4 any4
 access-group Vlan1_in in interface Vlan1
 END
 
@@ -252,7 +252,7 @@ $out = <<'END';
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 81
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.10 range 81 82
 access-list Vlan1_in extended permit tcp 10.9.1.0 255.255.255.0 host 10.1.1.11 eq 83
-access-list Vlan1_in extended deny ip any any
+access-list Vlan1_in extended deny ip any4 any4
 access-group Vlan1_in in interface Vlan1
 END
 
@@ -285,7 +285,7 @@ $out = <<'END';
 --filter
 ! Vlan2_in
 access-list Vlan2_in extended permit tcp 10.1.1.10 255.255.255.254 10.9.1.0 255.255.255.0 eq 22
-access-list Vlan2_in extended deny ip any any
+access-list Vlan2_in extended deny ip any4 any4
 access-group Vlan2_in in interface Vlan2
 END
 

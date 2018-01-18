@@ -41,7 +41,7 @@ $in =~ s/_2/full/;
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended permit ip any any
+access-list vlan2_in extended permit ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -57,7 +57,7 @@ $in =~ s/_2/secondary/;
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -147,7 +147,7 @@ END
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 
@@ -276,9 +276,9 @@ END
 $out = <<'END';
 -- r1
 ! n1_in
-access-list n1_in extended deny ip any host 10.3.3.2
-access-list n1_in extended deny ip any host 10.1.1.2
-access-list n1_in extended permit ip any any
+access-list n1_in extended deny ip any4 host 10.3.3.2
+access-list n1_in extended deny ip any4 host 10.1.1.2
+access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
 END
 
@@ -318,13 +318,13 @@ END
 $out = <<'END';
 -- r1
 ! n1_in
-access-list n1_in extended deny ip any host 10.2.2.1
+access-list n1_in extended deny ip any4 host 10.2.2.1
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.224 10.2.2.0 255.255.255.224 eq 80
-access-list n1_in extended deny ip any any
+access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
 ! n1_out
-access-list n1_out extended deny ip any any
+access-list n1_out extended deny ip any4 any4
 access-group n1_out out interface n1
 -- r2
 ip access-list n2_in

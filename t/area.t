@@ -471,12 +471,12 @@ object-group network g0
  network-object 10.1.2.0 255.255.254.0
  network-object 10.1.4.0 255.255.255.0
 access-list vlan2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 --
 ! vlan3_in
 access-list vlan3_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
-access-list vlan3_in extended deny ip any any
+access-list vlan3_in extended deny ip any4 any4
 access-group vlan3_in in interface vlan3
 END
 
@@ -496,12 +496,12 @@ END
 $out = <<'END';
 -- asa1
 ! vlan1_in
-access-list vlan1_in extended permit icmp any any
-access-list vlan1_in extended deny ip any any
+access-list vlan1_in extended permit icmp any4 any4
+access-list vlan1_in extended deny ip any4 any4
 access-group vlan1_in in interface vlan1
 -- asa2
 ! vlan2_in
-access-list vlan2_in extended deny ip any any
+access-list vlan2_in extended deny ip any4 any4
 access-group vlan2_in in interface vlan2
 END
 

@@ -234,13 +234,13 @@ $out = <<'END';
 --filter
 ! inside_in
 access-list inside_in extended permit tcp host 10.9.1.33 10.9.3.0 255.255.255.0 eq 80
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --
 ! outside_in
 access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
 access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -282,7 +282,7 @@ $out = <<"END";
 -- r2
 ! n2_in
 access-list n2_in extended permit tcp host 10.1.2.1 10.1.3.0 255.255.255.0 eq 80
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -482,7 +482,7 @@ $out = <<'END';
 ! n2_in
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.64 255.255.255.192 eq 80
 access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.0 255.255.255.0 eq 81
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
@@ -838,13 +838,13 @@ $out = <<'END';
 ! inside_in
 access-list inside_in extended permit tcp host 10.9.1.33 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 10.9.1.34 10.8.3.0 255.255.255.0 eq 22
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 -- R
 ! inside_in
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 80
 access-list inside_in extended permit tcp host 1.9.9.9 10.8.3.0 255.255.255.0 eq 22
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 
@@ -899,7 +899,7 @@ ip access-list extended t_in
 -- r2
 ! t_in
 access-list t_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.2.2.10 eq 80
-access-list t_in extended deny ip any any
+access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 END
 
@@ -953,7 +953,7 @@ route inside 10.9.9.9 255.255.255.255 10.1.2.1
 --
 ! inside_in
 access-list inside_in extended permit ip host 10.9.9.9 10.1.3.0 255.255.255.0
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 END
 
@@ -1012,7 +1012,7 @@ object-group network g0
  network-object 10.4.4.0 255.255.255.0
  network-object 10.5.5.0 255.255.255.0
 access-list vlan0_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
-access-list vlan0_in extended deny ip any any
+access-list vlan0_in extended deny ip any4 any4
 access-group vlan0_in in interface vlan0
 --r2
 ip access-list extended e1_in
@@ -2134,7 +2134,7 @@ $out = <<'END';
 -- r1
 ! outside_in
 access-list outside_in extended permit 50 10.1.1.0 255.255.255.0 10.1.0.0 255.255.0.0
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -2584,12 +2584,12 @@ $out = <<'END';
 -- filter
 ! inside_in
 access-list inside_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
-access-list inside_in extended deny ip any any
+access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --
 ! outside_in
 access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended deny ip any any
+access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
@@ -2946,7 +2946,7 @@ $out = <<'END';
 -- r2
 ! n2_in
 access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
-access-list n2_in extended deny ip any any
+access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
 
