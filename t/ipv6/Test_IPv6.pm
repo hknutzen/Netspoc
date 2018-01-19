@@ -162,8 +162,8 @@ sub adjust_testfile {
         $line =~ s/(DIAG: Reused [.]prev)/$1\/ipv6/;
 
         # Convert test subroutine calls
-        # No IPv6 version of rename-netspoc necessary.
-        if ($filename =~ /rename.t/) {
+        # No IPv6 version necessary for these tests:
+        if ($filename =~ /add-to-netspoc.t|rename.t/) {
 
         }
         # Alter test subroutine, if it is defined within the testfile.

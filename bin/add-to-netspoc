@@ -17,7 +17,7 @@ only changed files are touched.
 
 =head1 PAIR
 
-A pair is a tuple of typed names "type1:NAME1" "type2:NAME2".
+A PAIR is a tuple of typed names "type1:NAME1" "type2:NAME2".
 Occurences of "type1:NAME1" are searched and
 replaced by "type1:NAME1, type2:NAME2".
 Changes are applied only in group definitions and
@@ -51,7 +51,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -263,10 +263,9 @@ sub read_pairs {
 # Make @ARGV utf-8.
 $_ = Encode::decode('UTF-8' , $_) for @ARGV;
 
-my ($from_file, $help, $man, $ipv6);
+my ($from_file, $help, $man);
 GetOptions ( 'f=s' => \$from_file,
              'q!' => \$quiet,
-             'ipv6' => \$ipv6,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
