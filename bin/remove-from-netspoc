@@ -16,8 +16,8 @@ backup files are created. But only changed files are touched.
 
 =head1 OBJECT
 
-An objects is a typed names "type1:NAME1". Occurences of
-"type1:NAME1" are removed. Changes are applied only in group
+An OBJECT is a typed name "type:NAME". Occurences of
+"type:NAME" are removed. Changes are applied only in group
 definitions and in implicit groups inside rules, i.e. after "user =",
 "src =", "dst = ".  Multiple OBJECTS can be removed in a single run of
 remove-from-netspoc.
@@ -49,7 +49,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
