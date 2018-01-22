@@ -1761,6 +1761,66 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Missing transient rule with zone cluster';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2a = { ip = 10.1.2.0/25; }
+network:n2b = { ip = 10.1.2.128/25; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2a = { ip = 10.1.2.1; hardware = n2a; }
+}
+
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2a = { ip = 10.1.2.2; hardware = n2a; }
+ interface:n2b = { ip = 10.1.2.129; hardware = n2b; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2b = { ip = 10.1.2.130; hardware = n2b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2a]; prt = proto 80;
+}
+service:s2 = {
+ user = any:[network:n2b];
+ permit src = user; dst = network:n3; prt = proto 80;
+}
+END
+
+$out = <<'END';
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2a].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n3
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2a].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n3
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing transient rule with subnet in aggregate';
 ############################################################
 
