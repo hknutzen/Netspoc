@@ -13841,7 +13841,8 @@ sub all_contained_in {
     return 1;
 }
 
-# Inversed of sub all_contained_in.
+# Get elements that were missing
+# from all_contained_in and elements_in_one_zone.
 sub get_missing {
     my ($aref1, $aref2, $zone) = @_;
     my %in_aref2;
@@ -13872,8 +13873,8 @@ sub elements_in_one_zone {
     return 1;
 }
 
-# Mark zones, that are connected by only one router.
-# Ignore routers with only one interface occuring from split crypto routers.
+# Mark zones, that are connected by only one router.  Ignore routers
+# with only one interface occuring e.g. from split crypto routers.
 sub mark_leaf_zones {
     my %leaf_zones;
     for my $zone (@zones) {
