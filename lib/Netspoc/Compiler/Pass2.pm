@@ -2242,6 +2242,7 @@ sub apply_concurrent {
         # Process sequentially.
         elsif (1 >= $concurrent) {
             pass2_file($device_path, $dir);
+            $generated++;
         }
 
         # Start concurrent jobs at beginning.
