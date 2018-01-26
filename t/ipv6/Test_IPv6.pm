@@ -160,6 +160,7 @@ sub adjust_testfile {
         $line =~ s/IP address expected/IPv6 address expected/;
         $line =~ s/IPv4 topology/IPv6 topology/;
         $line =~ s/(DIAG: Reused [.]prev)/$1\/ipv6/;
+        $line =~ s/Read IPv4:/Read IPv6:/;
 
         # Convert test subroutine calls
         # No IPv6 version of rename-netspoc necessary.
