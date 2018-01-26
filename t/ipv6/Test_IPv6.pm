@@ -146,6 +146,18 @@ sub adjust_testfile {
             $line =~ s/\/128//;
         }
 
+        # Convert ASA IPv4 ACL syntax to IPv6 ACL syntax.
+        if ($line =~ /^access-list/) {
+            $line =~ s/($ipv6) ($ipv6) ($ipv6) ($ipv6)/$1\/\/$2 $3\/\/$4/;
+            $line =~ s/host ($ipv6) ($ipv6) ($ipv6)/host $1 $2\/\/$3/;
+            $line =~ s/($ipv6) ($ipv6) host ($ipv6)/$1\/\/$2 host $3/;
+            $line =~ s/($ipv6) ($ipv6) object-group/$1\/\/$2 object-group/;
+            $line =~ s/object-group (\w+) ($ipv6) ($ipv6)/object-group $1 $2\/\/$3/;
+
+            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/ge;
+            $line =~ s/\/128//;
+        }
+
         # Change path of to be checked output files.
         # IPv6 files are generated in ipv6/ subdirectory.
         if ($line !~ m(topology|config|file|raw/| raw$|private) and
