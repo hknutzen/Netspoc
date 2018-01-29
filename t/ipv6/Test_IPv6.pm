@@ -138,6 +138,8 @@ sub adjust_testfile {
             $line = join ("", @words);
         }
 
+        $line =~ s/any4/any6/g;
+
         # Convert ASA IPv4 routing syntax to IPv6 routing syntax.
         my $ipv6 = qr/(?:$IPv6_re|::)/;
         if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
@@ -148,12 +150,26 @@ sub adjust_testfile {
 
         # Convert ASA IPv4 ACL syntax to IPv6 ACL syntax.
         if ($line =~ /^access-list/) {
+
+            # extended ACL
             $line =~ s/($ipv6) ($ipv6) ($ipv6) ($ipv6)/$1\/\/$2 $3\/\/$4/;
+            $line =~ s/any6 ($ipv6) ($ipv6)/any6 $1\/\/$2/;
+            $line =~ s/($ipv6) ($ipv6) any6/$1\/\/$2 any6/;
             $line =~ s/host ($ipv6) ($ipv6) ($ipv6)/host $1 $2\/\/$3/;
             $line =~ s/($ipv6) ($ipv6) host ($ipv6)/$1\/\/$2 host $3/;
             $line =~ s/($ipv6) ($ipv6) object-group/$1\/\/$2 object-group/;
             $line =~ s/object-group (\w+) ($ipv6) ($ipv6)/object-group $1 $2\/\/$3/;
 
+#            # Standard ACL
+            $line =~ /standard/ and $line =~ s/($ipv6) ($ipv6)/$1\/\/$2/;
+
+            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/ge;
+            $line =~ s/\/128//;
+        }
+
+        # Convert ASA IPv4 network-object syntax to IPv6 network-object syntax.
+        if ($line =~ /\s+network-object/) {
+            $line =~ s/($ipv6) ($ipv6)/$1\/\/$2/;
             $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/ge;
             $line =~ s/\/128//;
         }
@@ -166,7 +182,7 @@ sub adjust_testfile {
             $line =~ s/^(-+[ ]*)([^\s-]+)([ ]*)$/${1}ipv6\/$2$3/;
         }
 
-        $line =~ s/any4/any6/g;
+
 
         # Convert result messages.
         $line =~ s/IP address expected/IPv6 address expected/;

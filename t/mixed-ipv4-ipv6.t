@@ -53,7 +53,7 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --ipv6/r1
 ! n1_in
-access-list n1_in extended permit tcp 1000::abcd:1:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 1000::abcd:2:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 eq 80
+access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
@@ -257,7 +257,7 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 -- ipv6/r1
 ! n1_in
-access-list n1_in extended permit tcp 1000::abcd:1:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 1000::abcd:2:0 ffff:ffff:ffff:ffff:ffff:ffff:ffff:0 eq 80
+access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
