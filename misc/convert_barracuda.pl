@@ -2,7 +2,7 @@
 
 # Generate Netspoc services from Barracuda rules.
 
-# Reads text file with pairs "ip name" of all defined hosts 
+# Reads text file with pairs "ip name" of all defined hosts
 # and networks from Netspoc.
 # Reads text export of rules from barracuda firewall.
 # Writes services and new host and network definitions to STDOUT.
@@ -30,11 +30,15 @@ my $title = <$fh>;
 while (my $line = <$fh>) {
     my ($nr, $action, $name, $features, $srv, $src, $dst) = split /\t/, $line;
     next if $action eq 'CascadeBack ';
-    if ($action eq 'Pass No SNAT') {
+    if ($action =~ /^Pass/) {
         $action = 'permit';
     }
+    elsif ($action =~ /^Block/) {
+        $action = 'deny';
+    }
     else {
-        die "Unexpected action: $action";
+        warn "Ignored line with action: $action";
+        next;
     }
     $features and die "Unexpected Features: $features";
     my $prt_list = cleanup_prt($srv);
@@ -87,8 +91,7 @@ sub normalize {
         my $name = $ip2name{$ip} || new_name($ip);
         $result{$name} = 1;
     }
-    $has_not and not $has_internet and 
-        die "Unexpected NOT without internet in\n $list\n";
+    $has_not and warn "Ignored 'NOT IP' in\n $list\n";
     return [ sort keys %result ];
 }
 
@@ -97,12 +100,14 @@ sub new_name {
     my ($ip) = @_;
     my $orig_ip = $ip;
     $ip =~ s/[.]/_/g;
+    my $prefix = $ip =~ /^192_168_/ ? 'DOI' : 'LNHH';
+    $ip = "${prefix}_$ip";
     my $name;
     if (my ($ip1, $len) = $ip =~ /(.*)\/(.*)/) {
-        $name = "network:INTERNET_$ip1-$len";
+        $name = "network:$ip1-$len";
     }
     else {
-        $name = "host:INTERNET_$ip";
+        $name = "host:$ip";
     }
     $new_name2ip{$name} = $orig_ip;
     $ip2name{$orig_ip} = $name;
