@@ -11014,7 +11014,7 @@ sub apply_pathrestriction_optimization {
 # Purpose : Find partitions of loops that are separated by pathrestrictions.
 #           Mark every node of a partition with a unique number that is
 #           attached to the partitions routers and zones, and every
-#           pathrestriction with a list of partitions that ca be reached.
+#           pathrestriction with a list of partitions that can be reached.
 sub optimize_pathrestrictions {
     my $mark = 1;
 
