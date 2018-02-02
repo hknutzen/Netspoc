@@ -11052,12 +11052,14 @@ sub optimize_pathrestrictions {
             }
         }
 
-        # Optimize pathrestriction.
-        if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
+        # Number of partitions found for current pathrestriction.
+        my $count = $mark - $start_mark;
+
+        # Optimize pathrestriction, if at least 2 partitions.
+        if ($count > 1) {
             apply_pathrestriction_optimization($restrict, $lookup);
         }
         elsif(SHOW_DIAG) {
-            my $count = $mark - $start_mark;
             diag_msg("Can't optimize $restrict->{name};",
                      " has only $count partition");
         }
