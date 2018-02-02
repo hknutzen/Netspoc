@@ -10978,9 +10978,7 @@ sub apply_pathrestriction_optimization {
         my $reached = $lookup->{$interface};
 
         # Count pathrestriction interfaces inside a partition.
-        if (    $reached->{zone} eq $reached->{router}
-            and $reached->{zone} ne 'none')
-        {
+        if ($reached->{zone} eq $reached->{router}) {
             $has_interior++;
         }
 
