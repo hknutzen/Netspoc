@@ -1949,11 +1949,16 @@ sub cisco_acl_addr {
             return "host $ip_code";
         }
         else {
-
             # Inverse mask bits.
             $mask = ~$mask if $model =~ /^(:?NX-OS|IOS)$/;
-            my $mask_code = bitstr2ip($mask);
-            return "$ip_code $mask_code";
+            if ($config->{ipv6} and $model eq 'ASA') {
+                my $prefix = mask2prefix($mask);
+                return "$ip_code/$prefix";
+            }
+            else {
+                my $mask_code = bitstr2ip($mask);
+                return "$ip_code $mask_code";
+            }
         }
     }
 }
