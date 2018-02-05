@@ -154,7 +154,8 @@ service:pdp3 = {
 END
 
 $out = <<'END';
-Warning: Missing policy_distribution_point for router:asa1
+Warning: Missing attribute 'policy_distribution_point' for 1 devices:
+ - router:asa1
 END
 
 test_warn($title, $in, $out, '-check_policy_distribution_point=warn');

@@ -7469,17 +7469,36 @@ sub set_policy_distribution_ip {
 
     my $need_all = $config->{check_policy_distribution_point};
     my @pdp_routers;
+    my %seen;
+    my @missing;
     for my $router (@managed_routers, @routing_only_routers) {
         if ($router->{policy_distribution_point}) {
             push @pdp_routers, $router;
+            next;
         }
-        elsif ($need_all and not $router->{orig_router}) {
-            warn_or_err_msg($need_all,
-                            "Missing policy_distribution_point",
-                            " for $router->{name}");
+        $need_all or next;
+        next if $seen{$router};
+        next if $router->{orig_router};
+        if (my $vrf_members = $router->{vrf_members}) {
+            if (not grep { $_->{policy_distribution_point} } @$vrf_members) {
+                push(@missing, {
+                    name =>
+                        "at least one VRF of router:$router->{device_name}"
+                     }
+                    );
+            }
+            $seen{$_} = 1 for @$vrf_members;
+        }
+        else {
+            push @missing, $router;
         }
     }
-
+    if (my $count = @missing) {
+        warn_or_err_msg($need_all,
+                        "Missing attribute 'policy_distribution_point'",
+                        " for $count devices:\n",
+                        name_list(\@missing));
+    }
     @pdp_routers or return;
 
     # Find all TCP ranges which include port 22 and 23.
@@ -7563,30 +7582,12 @@ sub set_policy_distribution_ip {
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
         ];
     }
-    my %seen;
-    my @unreachable;
-    for my $router (@pdp_routers) {
-        next if $seen{$router};
-        next if $router->{orig_router};
-        if (my $vrf_members = $router->{vrf_members}) {
-            if (not grep { $_->{admin_ip} } @$vrf_members) {
-                push(@unreachable,
-                     { name =>
-                           "at least one VRF of router:$router->{device_name}" }
-                    );
-            }
-            $seen{$_} = 1 for @$vrf_members;
-        }
-        else {
-            $router->{admin_ip}
-              or push @unreachable, $router;
-            $seen{$router} = 1;
-        }
-    }
+    my @unreachable =
+        grep { !$_->{admin_ip} && !$_->{orig_router} } @pdp_routers;
     if (my $count = @unreachable) {
         warn_msg("Missing rules to reach $count devices from",
                  " policy_distribution_point:\n",
-                 short_name_list(\@unreachable)
+                 name_list(\@unreachable)
         );
     }
 }
@@ -17947,10 +17948,8 @@ sub print_code {
 
         print "$comment_char [ BEGIN $device_name ]\n";
         print "$comment_char [ Model = $model->{class} ]\n";
-        if ($router->{policy_distribution_point}) {
-            if (my @ips = map { @{ $_->{admin_ip} || [] } } @$vrf_members) {
-                printf("$comment_char [ IP = %s ]\n", join(',', @ips));
-            }
+        if (my @ips = map { @{ $_->{admin_ip} || [] } } @$vrf_members) {
+            printf("$comment_char [ IP = %s ]\n", join(',', @ips));
         }
         for my $vrouter (@$vrf_members) {
             $seen{$vrouter} = 1;
