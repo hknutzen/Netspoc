@@ -215,14 +215,15 @@ router:r1@v2 = {
 END
 
 $out = <<'END';
-Warning: Missing rules to reach 1 devices from policy_distribution_point:
- - at least one VRF of router:r1
+Warning: Missing rules to reach 2 devices from policy_distribution_point:
+ - router:r1@v1
+ - router:r1@v2
 END
 
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'One admin IP found in multiple VRFs';
+$title = 'One admin IP for multiple VRFs';
 ############################################################
 
 $in = <<'END';
@@ -232,7 +233,6 @@ network:n1 = { ip = 10.1.1.0/24;
 router:r1@v1 = {
  managed;
  model = NX-OS;
- policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.1; hardware = v1; }
 }
 router:r1@v2 = {
@@ -288,6 +288,33 @@ $out = <<'END';
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Missing policy distribution point at all VRF members';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.9; }
+}
+router:r1@v1 = {
+ managed;
+ model = NX-OS;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+router:r1@v2 = {
+ managed;
+ model = NX-OS;
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
+}
+END
+
+$out = <<'END';
+Error: Missing attribute 'policy_distribution_point' for 1 devices:
+ - at least one VRF of router:r1
+END
+
+test_err($title, $in, $out, '-check_policy_distribution_point=1');
 
 ############################################################
 

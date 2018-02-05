@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.030'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.031'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -7469,17 +7469,36 @@ sub set_policy_distribution_ip {
 
     my $need_all = $config->{check_policy_distribution_point};
     my @pdp_routers;
+    my %seen;
+    my @missing;
     for my $router (@managed_routers, @routing_only_routers) {
         if ($router->{policy_distribution_point}) {
             push @pdp_routers, $router;
+            next;
         }
-        elsif ($need_all and not $router->{orig_router}) {
-            warn_or_err_msg($need_all,
-                            "Missing policy_distribution_point",
-                            " for $router->{name}");
+        $need_all or next;
+        next if $seen{$router};
+        next if $router->{orig_router};
+        if (my $vrf_members = $router->{vrf_members}) {
+            if (not grep { $_->{policy_distribution_point} } @$vrf_members) {
+                push(@missing, {
+                    name =>
+                        "at least one VRF of router:$router->{device_name}"
+                     }
+                    );
+            }
+            $seen{$_} = 1 for @$vrf_members;
+        }
+        else {
+            push @missing, $router;
         }
     }
-
+    if (my $count = @missing) {
+        warn_or_err_msg($need_all,
+                        "Missing attribute 'policy_distribution_point'",
+                        " for $count devices:\n",
+                        name_list(\@missing));
+    }
     @pdp_routers or return;
 
     # Find all TCP ranges which include port 22 and 23.
@@ -7563,30 +7582,12 @@ sub set_policy_distribution_ip {
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
         ];
     }
-    my %seen;
-    my @unreachable;
-    for my $router (@pdp_routers) {
-        next if $seen{$router};
-        next if $router->{orig_router};
-        if (my $vrf_members = $router->{vrf_members}) {
-            if (not grep { $_->{admin_ip} } @$vrf_members) {
-                push(@unreachable,
-                     { name =>
-                           "at least one VRF of router:$router->{device_name}" }
-                    );
-            }
-            $seen{$_} = 1 for @$vrf_members;
-        }
-        else {
-            $router->{admin_ip}
-              or push @unreachable, $router;
-            $seen{$router} = 1;
-        }
-    }
+    my @unreachable =
+        grep { !$_->{admin_ip} && !$_->{orig_router} } @pdp_routers;
     if (my $count = @unreachable) {
         warn_msg("Missing rules to reach $count devices from",
                  " policy_distribution_point:\n",
-                 short_name_list(\@unreachable)
+                 name_list(\@unreachable)
         );
     }
 }
@@ -10978,9 +10979,7 @@ sub apply_pathrestriction_optimization {
         my $reached = $lookup->{$interface};
 
         # Count pathrestriction interfaces inside a partition.
-        if (    $reached->{zone} eq $reached->{router}
-            and $reached->{zone} ne 'none')
-        {
+        if ($reached->{zone} eq $reached->{router}) {
             $has_interior++;
         }
 
@@ -11014,7 +11013,7 @@ sub apply_pathrestriction_optimization {
 # Purpose : Find partitions of loops that are separated by pathrestrictions.
 #           Mark every node of a partition with a unique number that is
 #           attached to the partitions routers and zones, and every
-#           pathrestriction with a list of partitions that ca be reached.
+#           pathrestriction with a list of partitions that can be reached.
 sub optimize_pathrestrictions {
     my $mark = 1;
 
@@ -11054,12 +11053,14 @@ sub optimize_pathrestrictions {
             }
         }
 
-        # Optimize pathrestriction.
-        if ($mark > $start_mark + 1) {    # Optimization needs 2 partitions min.
+        # Number of partitions found for current pathrestriction.
+        my $count = $mark - $start_mark;
+
+        # Optimize pathrestriction, if at least 2 partitions.
+        if ($count > 1) {
             apply_pathrestriction_optimization($restrict, $lookup);
         }
         elsif(SHOW_DIAG) {
-            my $count = $mark - $start_mark;
             diag_msg("Can't optimize $restrict->{name};",
                      " has only $count partition");
         }
@@ -13841,7 +13842,8 @@ sub all_contained_in {
     return 1;
 }
 
-# Inversed of sub all_contained_in.
+# Get elements that were missing
+# from all_contained_in and elements_in_one_zone.
 sub get_missing {
     my ($aref1, $aref2, $zone) = @_;
     my %in_aref2;
@@ -13872,8 +13874,8 @@ sub elements_in_one_zone {
     return 1;
 }
 
-# Mark zones, that are connected by only one router.
-# Ignore routers with only one interface occuring from split crypto routers.
+# Mark zones, that are connected by only one router.  Ignore routers
+# with only one interface occuring e.g. from split crypto routers.
 sub mark_leaf_zones {
     my %leaf_zones;
     for my $zone (@zones) {
@@ -17946,10 +17948,8 @@ sub print_code {
 
         print "$comment_char [ BEGIN $device_name ]\n";
         print "$comment_char [ Model = $model->{class} ]\n";
-        if ($router->{policy_distribution_point}) {
-            if (my @ips = map { @{ $_->{admin_ip} || [] } } @$vrf_members) {
-                printf("$comment_char [ IP = %s ]\n", join(',', @ips));
-            }
+        if (my @ips = map { @{ $_->{admin_ip} || [] } } @$vrf_members) {
+            printf("$comment_char [ IP = %s ]\n", join(',', @ips));
         }
         for my $vrouter (@$vrf_members) {
             $seen{$vrouter} = 1;

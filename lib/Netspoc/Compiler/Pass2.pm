@@ -494,7 +494,7 @@ sub join_ranges {
         my @rules;
         for my $rule (@$rules) {
 
-            # Check and remove attribute 'deleted'.
+            # Ignore deleted rules
             next if $rule->{deleted};
 
             # Process rule with joined port ranges.
@@ -636,9 +636,11 @@ sub combine_adjacent_ip_mask {
     my ($hash, $ip_net2obj) = @_;
 
     # Convert names to objects.
-    # Sort by mask. Adjacent networks will be adjacent elements then.
+    # Sort by IP address. Adjacent networks will be adjacent elements then.
+    # Precondition is, that list already has been optimized and
+    # therefore has no redundant elements.
     my $elements = [
-        sort { $a->{ip} cmp $b->{ip} || $a->{mask} cmp $b->{mask} }
+        sort { $a->{ip} cmp $b->{ip} }
         map { $ip_net2obj->{$_} }
         keys %$hash ];
 
@@ -667,7 +669,7 @@ sub combine_adjacent_ip_mask {
         delete $hash->{$element1->{name}};
         delete $hash->{$element2->{name}};
 
-        if ($i > 0 and $prefix) {
+        if ($i > 0) {
             my $up2_mask = prefix2mask($prefix-1);
 
             # Check previous network again, if newly created network
@@ -2242,6 +2244,7 @@ sub apply_concurrent {
         # Process sequentially.
         elsif (1 >= $concurrent) {
             pass2_file($device_path, $dir);
+            $generated++;
         }
 
         # Start concurrent jobs at beginning.
