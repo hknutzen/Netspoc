@@ -1673,6 +1673,146 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No warning on aggregate in zone cluster of src';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.0.0/16; }
+network:n1sub = { ip = 10.1.4.0/24; subnet_of = network:n1; }
+network:n2 = { ip = 10.2.2.0/24; }
+network:n3 = { ip = 10.2.3.0/24; }
+network:n4 = { ip = 10.2.4.0/24; }
+
+router:u1 = {
+ interface:n1sub;
+ interface:n1;
+}
+
+router:u2 = {
+ interface:n1;
+ interface:n2;
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.2.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.2.4.2; hardware = n4; }
+}
+
+pathrestriction:p1 =
+ interface:u2.n2,
+ interface:r2.n1,
+ interface:r2.n3,
+;
+
+# This implicitly creates aggregate at zone of n2.
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = any:[ip=10.1.0.0/16 & network:n1sub]; prt = tcp 80;
+}
+
+# Must not show warning on implicit aggregate, because it is located
+# in same zone cluster as n1.
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = ip;
+}
+END
+
+$out = <<"END";
+-- r1
+! n2_in
+access-list n2_in extended permit ip 10.1.0.0 255.255.0.0 10.2.3.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp 10.2.4.0 255.255.255.0 10.1.0.0 255.255.0.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No warning on subnet in zone cluster of src/dst';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.0.0/16; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:n1; }
+network:n3 = { ip = 10.1.3.0/24; subnet_of = network:n1; }
+network:n4 = { ip = 10.2.4.0/24; }
+
+router:u1 = {
+ interface:n1;
+ interface:n2;
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.2.4.2; hardware = n4; }
+}
+
+router:r3 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.0.1; hardware = n1; }
+ interface:n4 = { ip = 10.2.4.1; hardware = n4; }
+}
+
+pathrestriction:p1 =
+ interface:u1.n2,
+ interface:r3.n1,
+ interface:r3.n4,
+;
+
+# Must show warning for subnet n3, but not for subnet n2,
+# because n2 is located in same zone cluster as n1.
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = ip;
+ permit src = network:n4; dst = user; prt = ip;
+}
+END
+
+$out = <<"END";
+Warning: Missing rule for supernet rule.
+ permit src=network:n1; dst=network:n4; prt=ip; of service:s1
+ can't be effective at interface:r2.n3.
+ Tried network:n3 as src.
+Warning: Missing rule for supernet rule.
+ permit src=network:n4; dst=network:n1; prt=ip; of service:s1
+ can't be effective at interface:r2.n4.
+ Tried network:n3 as dst.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing transient rule with multiple protocols';
 ############################################################
 

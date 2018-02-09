@@ -13615,7 +13615,7 @@ sub check_supernet_src_rule {
 
     # Nothing to do at first router.
     # zone2 is checked at R2, because we need the no_nat_set at R2.
-    return if $src_zone eq $in_zone;
+    return if zone_eq($src_zone, $in_zone);
 
     # Check if rule "supernet2 -> dst" is defined.
     check_supernet_in_zone($rule, 'src', $in_intf, $in_zone);
