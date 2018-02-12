@@ -2913,6 +2913,39 @@ network:lan1 = {
 END
 
 ############################################################
+$title = 'Create crypto ACL even if no rule is defined';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80;
+ permit src = host:netspoc; dst = user; prt = udp 123;
+}
+END
+
+$out = <<'END';
+--asavpn
+! crypto-1.2.3.129
+access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
+crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-1.2.3.129
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group 1.2.3.129 type ipsec-l2l
+tunnel-group 1.2.3.129 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.2.3.129
+crypto map crypto-outside interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'NAT of IPSec traffic at ASA and NAT of VPN network at IOS';
 ############################################################
 
@@ -2981,6 +3014,39 @@ access-list inside_in extended permit udp host 10.254.254.6 eq 500 host 1.2.3.2 
 access-list inside_in extended permit udp host 10.254.254.6 eq 4500 host 1.2.3.2 eq 4500
 access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Create crypto ACL even no rule is defined';
+############################################################
+
+$in = $topo . <<'END';
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80;
+ permit src = host:netspoc; dst = user; prt = udp 123;
+}
+END
+
+$out = <<'END';
+--asavpn
+! crypto-1.2.3.129
+access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
+crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-1.2.3.129
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group 1.2.3.129 type ipsec-l2l
+tunnel-group 1.2.3.129 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.2.3.129
+crypto map crypto-outside interface outside
 END
 
 test_run($title, $in, $out);
