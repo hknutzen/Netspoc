@@ -605,7 +605,8 @@ sub add_local_deny_rules {
                 return $group;
             }
             else {
-                $group = { name => "g$router_data->{obj_group_counter}",
+                $group = { name     => ($config->{ipv6}? "v6g" : "g") .
+                              "$router_data->{obj_group_counter}",
                            elements => $obj_list };
                 $router_data->{obj_group_counter}++;
                 push @{ $acl_info->{object_groups} }, $group;
@@ -788,7 +789,8 @@ sub find_objectgroups {
             }
 
             # No group found, build new group.
-            my $group = { name     => "g$router_data->{obj_group_counter}",
+            my $group = { name     => ($config->{ipv6}? "v6g" : "g") .
+                              "$router_data->{obj_group_counter}",
                           elements => $elements,
                           hash     => $hash, };
             $router_data->{obj_group_counter}++;
@@ -2307,6 +2309,7 @@ sub pass2 {
     }
     else {
         my $devlist = "$dir/.devlist";
+
         open($from_pass1, '<', $devlist) or
             fatal_err("Can't open $devlist for reading: $!");
     }

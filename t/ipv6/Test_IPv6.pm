@@ -236,6 +236,9 @@ sub adjust_testfile {
             }
         }
 
+        # Convert group names
+        $line =~ s/ g(\d+)(\s)/ v6g$1$2/g;
+
         print $outfilehandle $line;
     }
     close $infilehandle;
