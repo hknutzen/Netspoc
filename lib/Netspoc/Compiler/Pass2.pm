@@ -1948,17 +1948,17 @@ sub cisco_acl_addr {
         if ($max_ip eq $mask) {
             return "host $ip_code";
         }
+        elsif ($config->{ipv6}) {
+            my $prefix = mask2prefix($mask);
+            return "$ip_code/$prefix";
+        }
         else {
+
             # Inverse mask bits.
             $mask = ~$mask if $model =~ /^(:?NX-OS|IOS)$/;
-            if ($config->{ipv6} and $model eq 'ASA') {
-                my $prefix = mask2prefix($mask);
-                return "$ip_code/$prefix";
-            }
-            else {
-                my $mask_code = bitstr2ip($mask);
-                return "$ip_code $mask_code";
-            }
+
+            my $mask_code = bitstr2ip($mask);
+            return "$ip_code $mask_code";
         }
     }
 }

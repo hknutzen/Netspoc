@@ -36,7 +36,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
  deny ip any any
 END
 
@@ -85,7 +85,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 2000::1
- permit tcp 1000:: 0:ffff:ffff:ffff:ffff:ffff:ffff:ffff 2000:: ::ffff:ffff:ffff:ffff:ffff range 80 90
+ permit tcp 1000::/16 2000::/48 range 80 90
  deny ip any any
 END
 
@@ -122,7 +122,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
  deny ip any any
 END
 
