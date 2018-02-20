@@ -28,42 +28,6 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Interface IP has address of its network";
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1 = { ip = 10.1.1.0; }
-}
-END
-
-$out = <<'END';
-Error: interface:r1.n1 has address of its network
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = "Interface IP has broadcast address";
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-
-router:r1 = {
- interface:n1 = { ip = 10.1.1.255; }
-}
-END
-
-$out = <<'END';
-Error: interface:r1.n1 has broadcast address
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = "Host IP/range don't match network IP/mask";
 ############################################################
 

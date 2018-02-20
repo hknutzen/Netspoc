@@ -4089,7 +4089,10 @@ sub check_interface_ip {
                 );
             }
         }
-        else {
+
+        # Check network and broadcast address only for IPv4,
+        # but not for /31 IPv4 (see RFC 3021).
+        elsif (not ($config->{ipv6} or 31 == mask2prefix($mask))) {
             if ($ip eq $network_ip) {
                 err_msg("$interface->{name} has address of its network");
             }
