@@ -14388,6 +14388,7 @@ sub mark_secondary {
         if (my $managed = $router->{managed}) {
             next if $managed !~ /^(?:secondary|local.*)$/;
         }
+        $zone->{has_secondary} = 1;
         next if $router->{secondary_mark};
         $router->{secondary_mark} = $mark;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -14413,6 +14414,7 @@ sub mark_primary {
         if (my $managed = $router->{managed}) {
             next if $managed eq 'primary';
         }
+        $zone->{has_non_primary} = 1;
         next if $router->{primary_mark};
         $router->{primary_mark} = $mark;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -14449,11 +14451,92 @@ sub have_different_marks {
     return not intersect($src_marks, $dst_marks);
 }
 
+sub collect_conflict {
+    my ($rule, $src_zones, $dst_zones, $src, $dst, $conflict, $is_primary) = @_;
+    if (not grep({ not $_->{modifiers}->{no_check_supernet_rules} }
+                 @{ $rule->{prt} }))
+    {
+        return;
+    }
+    my $established = not grep({ not $_->{established} } @{ $rule->{prt} });
+    my ($zones, $other_zones) = ($src_zones, $dst_zones);
+    my $list = $src;
+    for my $is_src (1, 0) {
+        if (not $is_src) {
+            ($zones, $other_zones) = ($dst_zones, $src_zones);
+            $list = $dst;
+        }
+        for my $zone (@$zones) {
+            $zone->{$is_primary ? 'has_non_primary' : 'has_secondary'} or next;
+            my $mark = $zone->{$is_primary ? 'primary_mark' : 'secondary_mark'};
+            my $pushed;
+            for my $other_zone (@$other_zones) {
+                my $hash =
+                    $conflict->{"$is_src,$is_primary,$mark,$other_zone"} ||= {};
+                for my $obj (@$list) {
+                    if ($obj->{has_other_subnet}) {
+                        $hash->{supernets}->{$obj} = $obj if not $established;
+                    }
+                    elsif (not $pushed) {
+                        push @{ $hash->{rules} }, $rule;
+                        $pushed = 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+sub check_conflict {
+    my ($conflict) = @_;
+    my %cache;
+    my %seen;
+    for my $key (keys %$conflict) {
+        my ($is_src, $is_primary) = split ',', $key;
+        my $hash = $conflict->{$key};
+        my $supernet_hash = $hash->{supernets} or next;
+        my $rules = $hash->{rules} or next;
+        my $what = $is_src ? 'src' : 'dst';
+      RULE:
+        for my $rule1 (@$rules) {
+            next if $seen{$rule1};
+            my $zone1 = $rule1->{"${what}_path"};
+            my $list1 = $rule1->{$what};
+            for my $supernet (values %$supernet_hash) {
+                my $zone2 = $supernet->{zone};
+                next if $zone1 eq $zone2;
+                for my $obj1 (@$list1) {
+                    next if $obj1->{has_other_subnet};
+                    my $network = $obj1->{network} || $obj1;
+                    my $is_subnet = $cache{$supernet}->{$network};
+                    if (not defined $is_subnet) {
+                        my ($ip, $mask) = @{$network}{ 'ip', 'mask' };
+                        my $no_nat_set = $network->{nat_domain}->{no_nat_set};
+                        my $obj = get_nat_network($supernet, $no_nat_set);
+                        my ($i, $m) = @{$obj}{ 'ip', 'mask' };
+                        $is_subnet = $m lt $mask && match_ip($ip, $i, $m);
+                        $cache{$supernet}->{$network} = $is_subnet || 0;
+                    }
+                    $is_subnet or next;
+                    delete $rule1->{$is_primary ?
+                                        'some_primary' : 'some_non_secondary'};
+                    $seen{$rule1} = 1;
+#                   my $name1 = $rule1->{rule}->{service}->{name} || '';
+#                   debug "$name1 $what";
+#                   debug print_rule $rule1;
+#                   debug "$obj1->{name} < $supernet->{name}";
+                    next RULE;
+                }
+            }
+        }
+    }
+}
+
 sub mark_secondary_rules {
     progress('Marking rules for secondary optimization');
 
-    my $secondary_mark        = 1;
-    my $primary_mark          = 1;
+    my $secondary_mark = 1;
+    my $primary_mark   = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
             mark_secondary $zone, $secondary_mark++;
@@ -14465,6 +14548,7 @@ sub mark_secondary_rules {
 
     # Mark only permit rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
+    my $conflict = {};
     for my $rule (@{ $path_rules{permit} }) {
         my ($src, $dst, $src_path, $dst_path) =
             @{$rule}{qw(src dst src_path dst_path)};
@@ -14477,11 +14561,16 @@ sub mark_secondary_rules {
         my $dst_zones = get_zones($dst_path, $dst);
         if (have_different_marks($src_zones, $dst_zones, 'secondary_mark')) {
             $rule->{some_non_secondary} = 1;
+            collect_conflict($rule, $src_zones, $dst_zones, $src, $dst,
+                             $conflict, 0);
         }
         if (have_different_marks($src_zones, $dst_zones, 'primary_mark')) {
             $rule->{some_primary} = 1;
+            collect_conflict($rule, $src_zones, $dst_zones, $src, $dst,
+                             $conflict, 1);
         }
     }
+    check_conflict($conflict);
 }
 
 sub check_unstable_nat_rules {

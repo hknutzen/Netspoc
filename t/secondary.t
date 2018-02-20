@@ -437,7 +437,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = "Don't optimize rule if aggregate rule starts behind secondary router";
+$title = "Don't optimize if aggregate rule starts behind secondary router";
 ############################################################
 
 $in = <<'END';
@@ -446,8 +446,8 @@ network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; }}
 router:r1 = {
  model = ASA;
  managed = secondary;
- interface:n1 = { ip = 10.2.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/27;}
@@ -455,15 +455,19 @@ network:n2 = { ip = 10.2.2.0/27;}
 router:r2 = {
  model = ASA;
  managed;
- interface:n2 = { ip = 10.2.2.2; hardware = vlan1; }
- interface:n3 = { ip = 10.2.3.2; hardware = vlan2; }
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.2; hardware = n3; }
 }
 
-network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+network:n3 = { ip = 10.2.3.0/27; }
 
 service:n1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
+}
+service:h1 = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 22-23;
 }
 service:any = {
  user = any:[network:n2];
@@ -473,22 +477,214 @@ END
 
 $out = <<'END';
 --r1
-! vlan1_in
-access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit tcp host 10.2.1.4 10.2.3.0 255.255.255.224 range 22 23
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--r2
+! n2_in
+access-list n2_in extended permit tcp any4 10.2.3.0 255.255.255.224 eq 22
+access-list n2_in extended permit tcp host 10.2.1.4 10.2.3.0 255.255.255.224 range 22 23
+access-list n2_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
-#--r2
-#! [ ACL ]
-#access-list vlan1_in extended permit tcp any 10.2.3.0 255.255.255.224 eq 22
-#access-list vlan1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.#255.255.224 eq 80
-#access-list vlan1_in extended deny ip any any
-#access-group vlan1_in in interface vlan1
-#END
 
+test_run($title, $in, $out);
 
-Test::More->builder->
-    todo_start("Check aggregate rules during secondary optimization");
+############################################################
+$title = "Don't optimize if aggregate rule ends before secondary router";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.2.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27;}
+
+router:r2 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.2; hardware = n3; }
+}
+
+network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+
+service:n1 = {
+ user = network:n1;
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+service:any = {
+ user = network:n1;
+ permit src = user; dst = any:[ip = 10.2.0.0/16 & network:n2]; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.0.0 255.255.0.0 eq 22
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--r2
+! n2_in
+access-list n2_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Don't optimize with primary router";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r3 = {
+ model = ASA;
+ managed = primary;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+network:n4 = { ip = 10.1.4.0/24; }
+
+service:n1 = {
+ user = host:h1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:any = {
+ user = any:[ip=10.0.0.0/8 & network:n3];
+ permit src = user; dst = network:n4; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.4 10.1.4.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Still optimize with supernet rule having no_check_supernet_rules";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.2.1.0/27; host:h1 = { ip = 10.2.1.4; } }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27;}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.2; hardware = n3; }
+}
+
+network:n3 = { ip = 10.2.3.0/27; }
+
+protocol:Ping = icmp 8, no_check_supernet_rules;
+
+service:h1 = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+service:any = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = protocol:Ping;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit ip 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Still optimize if supernet is used in same service";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.4; } }
+
+service:n1 = {
+ user = host:h1, any:[network:n2];
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit ip host 10.1.1.4 10.1.3.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+Test::More->builder->todo_start("Should optimize protocol and destination");
 test_run($title, $in, $out);
 Test::More->builder->todo_end;
 
