@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Broadcast and network address is now allowed as interface IP
+   in /31 networks and isn't checked at all for IPv6.
+ - Mask is printed as /prefixlen in Cisco ACLs for IPv6.
+
 5.031     2018-02-05 17:44:33+01:00 Europe/Berlin
 
  - Fixed handling of 'policy_distribution_point' at multi VRF device.
