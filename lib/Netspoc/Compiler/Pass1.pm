@@ -14487,6 +14487,42 @@ sub collect_conflict {
     }
 }
 
+# Disable secondary optimization for conflicting rules.
+#
+### Case A:
+# Topology:
+# src--R1--any--R2--dst,
+# with R1 is "managed=secondary"
+# Rules:
+# 1. permit any->net:dst, telnet
+# 2. permit host:src->host:dst, http
+# Generated ACLs:
+# R1:
+# permit net:src->net:dst ip (with secondary optimization)
+# R2:
+# permit any net:dst telnet
+# permit host:src host:dst http
+# Problem:
+# - src would be able to access dst with telnet, but only http was permitted,
+# - the whole network of src would be able to access dst, even if
+#   only a single host of src was permitted.
+# - src would be able to access the whole network of dst, even if
+#   only a single host of dst was permitted.
+#
+### Case B:
+# Topology:
+# src--R1--any--R2--dst,
+# with R2 is "managed=secondary"
+# Rules:
+# 1. permit net:src->any, telnet
+# 2. permit host:host:src->host:dst, http
+# Generated ACLs:
+# R1:
+# permit net:src any telnet
+# permit host:src host:dst http
+# R2
+# permit net:src net:dst ip
+# Problem: Same as case A.
 sub check_conflict {
     my ($conflict) = @_;
     my %cache;
@@ -14548,6 +14584,7 @@ sub mark_secondary_rules {
 
     # Mark only permit rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
+    # Collect conflicting optimizeable rules and supernet rules.
     my $conflict = {};
     for my $rule (@{ $path_rules{permit} }) {
         my ($src, $dst, $src_path, $dst_path) =
