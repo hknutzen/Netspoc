@@ -3687,9 +3687,6 @@ sub expand_split_protocol {
 # automatically generated deny rules.
 my $prt_ip;
 
-# Protocol 'ICMP any', needed in optimization of chains for iptables.
-my $prt_icmp;
-
 # Protocol 'TCP any'.
 my $prt_tcp;
 
@@ -3734,7 +3731,6 @@ sub order_protocols {
     # name.
     for my $prt (
         $prt_ip,
-        $prt_icmp,
         $prt_tcp, $prt_udp,
         $prt_bootps, $prt_bootpc,
         $prt_ike,
@@ -18332,10 +18328,6 @@ sub init_protocols {
     );
 
     $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
-    $prt_icmp = {
-        name  => 'auto_prt:icmp',
-        proto => 'icmp'
-    };
     $prt_tcp = {
         name      => 'auto_prt:tcp',
         proto     => 'tcp',
