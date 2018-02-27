@@ -13,6 +13,19 @@ use NetAddr::IP::Util qw(maskanyto6 inet_aton ipv6_ntoa add128 ipv6_aton
 use Regexp::IPv6 qw($IPv6_re);
 use Netspoc::Compiler::Common;
 
+# mask2prefix lookup will be needed for ASA routing
+my %mask2prefix;
+my $prefix = 0;
+my $mask = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
+my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
+while (1) {
+    $mask2prefix{$mask}   = $prefix;
+    last if $prefix == 128;
+    my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
+    vec($mask, $bitpos, 1) = 1;
+    $prefix++;
+}
+
 # Transform IPv4 prefix to IPv6 prefix.
 sub add_96 {
     my ($prefix) = @_;
@@ -23,6 +36,21 @@ sub add_96 {
         $prefix += 96;
         return "/$prefix";
     }
+}
+
+# Transform marked IPv6 "!mask" to IPv6 "/prefix".
+# Invert inverted mask again.
+sub to_prefix {
+    my ($in) = @_;
+    my $mask = substr $in, 1;
+    my $v6 = ipv6_aton($mask);
+
+    # Invert inverted mask again.
+    if ($mask =~ /^:/ and $mask ne '::') {
+        $v6 = ~$v6;
+    }
+    my $prefix = $mask2prefix{$v6};
+    return "/$prefix";
 }
 
 sub adjust_testfile {
@@ -38,20 +66,6 @@ sub adjust_testfile {
 
     open (my $outfilehandle, '>', $dir . "/" . $name . "_ipv6.t") or
         die "Can not open file $filename";
-
-    # mask2prefix lookup will be needed for ASA routing
-    my %mask2prefix;
-    my $prefix = 0;
-    my $mask = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
-    my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
-    while (1) {
-        $mask2prefix{$mask}   = $prefix;
-        last if $prefix == 128;
-        my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
-        vec($mask, $bitpos, 1) = 1;
-        $prefix++;
-    }
-
 
     # Convert IPv4 input file line by line.
     while (my $line = <$infilehandle>) {
@@ -143,35 +157,20 @@ sub adjust_testfile {
         # Convert ASA IPv4 routing syntax to IPv6 routing syntax.
         my $ipv6 = qr/(?:$IPv6_re|::)/;
         if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
-            $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2\/\/$3 $4/;
-            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/e;
+            $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2!$3 $4/;
+            $line =~ s/(!$ipv6)/to_prefix($1)/e;
             $line =~ s/\/128//;
         }
 
-        # Convert ASA IPv4 ACL syntax to IPv6 ACL syntax.
-        if ($line =~ /^access-list/) {
+        # Convert mask to prefix in ACLs and in network-objects.
+        if ($line =~ / (?:permit|deny|network-object)/) {
 
-            # extended ACL
-            $line =~ s/($ipv6) ($ipv6) ($ipv6) ($ipv6)/$1\/\/$2 $3\/\/$4/;
-            $line =~ s/any6 ($ipv6) ($ipv6)/any6 $1\/\/$2/;
-            $line =~ s/($ipv6) ($ipv6) any6/$1\/\/$2 any6/;
-            $line =~ s/host ($ipv6) ($ipv6) ($ipv6)/host $1 $2\/\/$3/;
-            $line =~ s/($ipv6) ($ipv6) host ($ipv6)/$1\/\/$2 host $3/;
-            $line =~ s/($ipv6) ($ipv6) object-group/$1\/\/$2 object-group/;
-            $line =~ s/object-group (\w+) ($ipv6) ($ipv6)/object-group $1 $2\/\/$3/;
+            # Mark to be converted masks with "!"
+            $line =~ s/($ipv6) ($ipv6) ($ipv6) ($ipv6)/$1!$2 $3!$4/ or
+                $line =~ s/((?:$ipv6 )?)($ipv6) ($ipv6)/$1$2!$3/g;
 
-#            # Standard ACL
-            $line =~ /standard/ and $line =~ s/($ipv6) ($ipv6)/$1\/\/$2/;
-
-            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/ge;
-            $line =~ s/\/128//;
-        }
-
-        # Convert ASA IPv4 network-object syntax to IPv6 network-object syntax.
-        if ($line =~ /\s+network-object/) {
-            $line =~ s/($ipv6) ($ipv6)/$1\/\/$2/;
-            $line =~ s/\/($ipv6)/$mask2prefix{ipv6_aton($1)}/ge;
-            $line =~ s/\/128//;
+            # Convert marked masks.
+            $line =~ s/(!$ipv6)/to_prefix($1)/ge;
         }
 
         # Change path of to be checked output files.
@@ -228,3 +227,5 @@ sub adjust_testfile {
     close $infilehandle;
     close $outfilehandle;
 }
+
+1;
