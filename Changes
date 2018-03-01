@@ -1,12 +1,19 @@
 {{$NEXT}}
 
+5.032     2018-03-01 15:07:44+01:00 Europe/Berlin
+
  - Broadcast and network address is now allowed as interface IP
-   in /31 networks and isn't checked at all for IPv6.
+   in /31 networks.
+ - Broadcast and network address isn't checked at all for IPv6.
  - Optimization at routers with "managed=secondary" is more restrictive now.
    The optimization is disabled, if the optimized version of an ACL
    would permit too much traffic together with a related supernet rule.
    This also applies to optimization with "managed=primary".
- - Mask is printed as /prefixlen in Cisco ACLs for IPv6.
+ - Inside IPv6 rules, protocol 'icmp' is no longer valid.
+   Use 'prt = icmpv6' instead. Syntax for type and code is unchanged.
+ - Mask is printed as /prefixlen in ACLs for IPv6 with IOS and NX-OS.
+ - Generated access-lists for ASA with IPv6 use protocol "icmp6" now.
+ - Fixed missing /128 in route of ASA for IPv6.
 
 5.031     2018-02-05 17:44:33+01:00 Europe/Berlin
 
