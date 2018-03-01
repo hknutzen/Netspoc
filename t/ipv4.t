@@ -136,4 +136,34 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = "Must not use icmp protocol as number";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+protocol:ICMP  = proto 1;
+END
+
+$out = <<'END';
+Error: Must not use 'proto 1', use 'icmp' instead at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Must not use icmpv6 with ipv4";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+protocol:ICMPv6  = icmpv6;
+END
+
+$out = <<'END';
+Error: Must use 'icmpv6' only with ipv6 at line 2 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;

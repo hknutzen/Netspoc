@@ -89,6 +89,22 @@ sub adjust_testfile {
             $line =~ s/test_run\(\$title, \$in, \$out\);/$a\n$b\n$c\n/;
         }
 
+        # Convert icmp to icmpv6 in input lines
+        # but not in JSON output of file export.t.
+        if ($line =~ /[=,;]/ and $line !~ /"/) {
+            $line =~ s/icmp/icmpv6/g;
+        }
+
+        # Convert icmp to ipv6-icmp for ip6tables.
+        if ($line =~ /^-A /) {
+            $line =~ s/icmp/ipv6-icmp/;
+        }
+
+        # Convert icmp to icmp6 for ASA.
+        if ($line =~ /^access-list/) {
+            $line =~ s/icmp/icmp6/;
+        }
+
         # Convert prefixes.
         # Several backslashes can occur in one line, examine one at a time.
         my @matchcount = $line =~ /\/\d+/;
@@ -180,7 +196,6 @@ sub adjust_testfile {
         {
             $line =~ s/^(-+[ ]*)([^\s-]+)([ ]*)$/${1}ipv6\/$2$3/;
         }
-
 
 
         # Convert result messages.

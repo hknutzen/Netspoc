@@ -243,6 +243,36 @@ END
 test_err($title, $in, $out, '-ipv6');
 
 ############################################################
+$title = "Must not use icmpv6 protocol as number";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+protocol:ICMPv6  = proto 58;
+END
+
+$out = <<'END';
+Error: Must not use 'proto 58', use 'icmpv6' instead at line 2 of STDIN
+END
+
+test_err($title, $in, $out, '-ipv6');
+
+############################################################
+$title = "Must not use icmp with ipv6";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+protocol:ICMP  = icmp;
+END
+
+$out = <<'END';
+Error: Must use 'icmp' only with ipv4 at line 2 of STDIN
+END
+
+test_err($title, $in, $out, '-ipv6');
+
+############################################################
  $title = 'Convert and check IPv4 tests';
 ############################################################
 

@@ -2752,22 +2752,19 @@ sub read_proto_nr {
     defined (my $nr = check_int) or syntax_err("Expected protocol number");
     error_atline("Too large protocol number $nr") if $nr > 255;
     error_atline("Invalid protocol number '0'")   if $nr == 0;
-    if ($nr == 1) {
-        $prt->{proto} = 'icmp';
-
-        # No ICMP type and code given.
+    if ($nr == 1 and not $config->{ipv6}) {
+        error_atline("Must not use 'proto 1', use 'icmp' instead");
     }
     elsif ($nr == 4) {
-        $prt->{proto}     = 'tcp';
-        $prt->{dst_range} = $aref_tcp_any;
+        error_atline("Must not use 'proto 4', use 'tcp' instead");
     }
     elsif ($nr == 17) {
-        $prt->{proto}     = 'udp';
-        $prt->{dst_range} = $aref_tcp_any;
+        error_atline("Must not use 'proto 17', use 'udp' instead");
     }
-    else {
-        $prt->{proto} = $nr;
+    elsif ($nr == 58 and $config->{ipv6}) {
+        error_atline("Must not use 'proto 58', use 'icmpv6' instead");
     }
+    $prt->{proto} = $nr;
 }
 
 # Creates a readable, unique name for passed protocol,
@@ -2838,8 +2835,16 @@ sub read_simple_protocol {
     if ($proto eq 'tcp'or $proto eq 'udp') {
         read_port_ranges($protocol);
     }
-    elsif ($proto eq 'icmp') {
+    elsif ($proto eq 'icmp'or $proto eq 'icmpv6') {
+
+        # Internally, both 'icmp' and 'icmpv6' are stored as 'icmp'.
+        $protocol->{proto} = 'icmp';
+
         read_icmp_type_code $protocol;
+        if ($config->{ipv6} xor $proto eq 'icmpv6') {
+            my $v = $config->{ipv6} ? 'ipv4' : 'ipv6';
+            error_atline("Must use '$proto' only with $v");
+        }
     }
     elsif ($proto eq 'ip') {
     }
@@ -17725,7 +17730,7 @@ sub print_prt {
         push @result,  @{ $prt->{range} };
         push @result, 'established' if $prt->{established};
     }
-    elsif ($proto eq 'icmp') {
+    elsif ($proto eq 'icmp' or $proto eq 'icmpv6') {
         if (defined(my $type = $prt->{type})) {
             push @result, $type;
         }
