@@ -16048,7 +16048,7 @@ sub print_routes {
                 }
                 elsif ($type eq 'ASA') {
                     my $adr = $config->{ipv6} ?
-                        prefix_code($netinfo) : ios_route_code($netinfo);
+                        full_prefix_code($netinfo) : ios_route_code($netinfo);
                     print $config->{ipv6} ? "ipv6 " : "";
                     print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }

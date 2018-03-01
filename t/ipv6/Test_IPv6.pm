@@ -175,7 +175,6 @@ sub adjust_testfile {
         if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
             $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2!$3 $4/;
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
-            $line =~ s/\/128//;
         }
 
         # Convert mask to prefix in ACLs and in network-objects.
