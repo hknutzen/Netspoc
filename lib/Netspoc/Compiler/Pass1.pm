@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.031'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.032'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2752,22 +2752,19 @@ sub read_proto_nr {
     defined (my $nr = check_int) or syntax_err("Expected protocol number");
     error_atline("Too large protocol number $nr") if $nr > 255;
     error_atline("Invalid protocol number '0'")   if $nr == 0;
-    if ($nr == 1) {
-        $prt->{proto} = 'icmp';
-
-        # No ICMP type and code given.
+    if ($nr == 1 and not $config->{ipv6}) {
+        error_atline("Must not use 'proto 1', use 'icmp' instead");
     }
     elsif ($nr == 4) {
-        $prt->{proto}     = 'tcp';
-        $prt->{dst_range} = $aref_tcp_any;
+        error_atline("Must not use 'proto 4', use 'tcp' instead");
     }
     elsif ($nr == 17) {
-        $prt->{proto}     = 'udp';
-        $prt->{dst_range} = $aref_tcp_any;
+        error_atline("Must not use 'proto 17', use 'udp' instead");
     }
-    else {
-        $prt->{proto} = $nr;
+    elsif ($nr == 58 and $config->{ipv6}) {
+        error_atline("Must not use 'proto 58', use 'icmpv6' instead");
     }
+    $prt->{proto} = $nr;
 }
 
 # Creates a readable, unique name for passed protocol,
@@ -2838,8 +2835,16 @@ sub read_simple_protocol {
     if ($proto eq 'tcp'or $proto eq 'udp') {
         read_port_ranges($protocol);
     }
-    elsif ($proto eq 'icmp') {
+    elsif ($proto eq 'icmp'or $proto eq 'icmpv6') {
+
+        # Internally, both 'icmp' and 'icmpv6' are stored as 'icmp'.
+        $protocol->{proto} = 'icmp';
+
         read_icmp_type_code $protocol;
+        if ($config->{ipv6} xor $proto eq 'icmpv6') {
+            my $v = $config->{ipv6} ? 'ipv4' : 'ipv6';
+            error_atline("Must use '$proto' only with $v");
+        }
     }
     elsif ($proto eq 'ip') {
     }
@@ -3687,9 +3692,6 @@ sub expand_split_protocol {
 # automatically generated deny rules.
 my $prt_ip;
 
-# Protocol 'ICMP any', needed in optimization of chains for iptables.
-my $prt_icmp;
-
 # Protocol 'TCP any'.
 my $prt_tcp;
 
@@ -3734,7 +3736,6 @@ sub order_protocols {
     # name.
     for my $prt (
         $prt_ip,
-        $prt_icmp,
         $prt_tcp, $prt_udp,
         $prt_bootps, $prt_bootpc,
         $prt_ike,
@@ -4089,7 +4090,10 @@ sub check_interface_ip {
                 );
             }
         }
-        else {
+
+        # Check network and broadcast address only for IPv4,
+        # but not for /31 IPv4 (see RFC 3021).
+        elsif (not ($config->{ipv6} or 31 == mask2prefix($mask))) {
             if ($ip eq $network_ip) {
                 err_msg("$interface->{name} has address of its network");
             }
@@ -13615,7 +13619,7 @@ sub check_supernet_src_rule {
 
     # Nothing to do at first router.
     # zone2 is checked at R2, because we need the no_nat_set at R2.
-    return if $src_zone eq $in_zone;
+    return if zone_eq($src_zone, $in_zone);
 
     # Check if rule "supernet2 -> dst" is defined.
     check_supernet_in_zone($rule, 'src', $in_intf, $in_zone);
@@ -14385,6 +14389,7 @@ sub mark_secondary {
         if (my $managed = $router->{managed}) {
             next if $managed !~ /^(?:secondary|local.*)$/;
         }
+        $zone->{has_secondary} = 1;
         next if $router->{secondary_mark};
         $router->{secondary_mark} = $mark;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -14410,6 +14415,7 @@ sub mark_primary {
         if (my $managed = $router->{managed}) {
             next if $managed eq 'primary';
         }
+        $zone->{has_non_primary} = 1;
         next if $router->{primary_mark};
         $router->{primary_mark} = $mark;
         for my $out_interface (@{ $router->{interfaces} }) {
@@ -14446,11 +14452,128 @@ sub have_different_marks {
     return not intersect($src_marks, $dst_marks);
 }
 
+sub collect_conflict {
+    my ($rule, $src_zones, $dst_zones, $src, $dst, $conflict, $is_primary) = @_;
+    if (not grep({ not $_->{modifiers}->{no_check_supernet_rules} }
+                 @{ $rule->{prt} }))
+    {
+        return;
+    }
+    my $established = not grep({ not $_->{established} } @{ $rule->{prt} });
+    my ($zones, $other_zones) = ($src_zones, $dst_zones);
+    my $list = $src;
+    for my $is_src (1, 0) {
+        if (not $is_src) {
+            ($zones, $other_zones) = ($dst_zones, $src_zones);
+            $list = $dst;
+        }
+        for my $zone (@$zones) {
+            $zone->{$is_primary ? 'has_non_primary' : 'has_secondary'} or next;
+            my $mark = $zone->{$is_primary ? 'primary_mark' : 'secondary_mark'};
+            my $pushed;
+            for my $other_zone (@$other_zones) {
+                my $hash =
+                    $conflict->{"$is_src,$is_primary,$mark,$other_zone"} ||= {};
+                for my $obj (@$list) {
+                    if ($obj->{has_other_subnet}) {
+                        $hash->{supernets}->{$obj} = $obj if not $established;
+                    }
+                    elsif (not $pushed) {
+                        push @{ $hash->{rules} }, $rule;
+                        $pushed = 1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Disable secondary optimization for conflicting rules.
+#
+### Case A:
+# Topology:
+# src--R1--any--R2--dst,
+# with R1 is "managed=secondary"
+# Rules:
+# 1. permit any->net:dst, telnet
+# 2. permit host:src->host:dst, http
+# Generated ACLs:
+# R1:
+# permit net:src->net:dst ip (with secondary optimization)
+# R2:
+# permit any net:dst telnet
+# permit host:src host:dst http
+# Problem:
+# - src would be able to access dst with telnet, but only http was permitted,
+# - the whole network of src would be able to access dst, even if
+#   only a single host of src was permitted.
+# - src would be able to access the whole network of dst, even if
+#   only a single host of dst was permitted.
+#
+### Case B:
+# Topology:
+# src--R1--any--R2--dst,
+# with R2 is "managed=secondary"
+# Rules:
+# 1. permit net:src->any, telnet
+# 2. permit host:host:src->host:dst, http
+# Generated ACLs:
+# R1:
+# permit net:src any telnet
+# permit host:src host:dst http
+# R2
+# permit net:src net:dst ip
+# Problem: Same as case A.
+sub check_conflict {
+    my ($conflict) = @_;
+    my %cache;
+    my %seen;
+    for my $key (keys %$conflict) {
+        my ($is_src, $is_primary) = split ',', $key;
+        my $hash = $conflict->{$key};
+        my $supernet_hash = $hash->{supernets} or next;
+        my $rules = $hash->{rules} or next;
+        my $what = $is_src ? 'src' : 'dst';
+      RULE:
+        for my $rule1 (@$rules) {
+            next if $seen{$rule1};
+            my $zone1 = $rule1->{"${what}_path"};
+            my $list1 = $rule1->{$what};
+            for my $supernet (values %$supernet_hash) {
+                my $zone2 = $supernet->{zone};
+                next if $zone1 eq $zone2;
+                for my $obj1 (@$list1) {
+                    next if $obj1->{has_other_subnet};
+                    my $network = $obj1->{network} || $obj1;
+                    my $is_subnet = $cache{$supernet}->{$network};
+                    if (not defined $is_subnet) {
+                        my ($ip, $mask) = @{$network}{ 'ip', 'mask' };
+                        my $no_nat_set = $network->{nat_domain}->{no_nat_set};
+                        my $obj = get_nat_network($supernet, $no_nat_set);
+                        my ($i, $m) = @{$obj}{ 'ip', 'mask' };
+                        $is_subnet = $m lt $mask && match_ip($ip, $i, $m);
+                        $cache{$supernet}->{$network} = $is_subnet || 0;
+                    }
+                    $is_subnet or next;
+                    delete $rule1->{$is_primary ?
+                                        'some_primary' : 'some_non_secondary'};
+                    $seen{$rule1} = 1;
+#                   my $name1 = $rule1->{rule}->{service}->{name} || '';
+#                   debug "$name1 $what";
+#                   debug print_rule $rule1;
+#                   debug "$obj1->{name} < $supernet->{name}";
+                    next RULE;
+                }
+            }
+        }
+    }
+}
+
 sub mark_secondary_rules {
     progress('Marking rules for secondary optimization');
 
-    my $secondary_mark        = 1;
-    my $primary_mark          = 1;
+    my $secondary_mark = 1;
+    my $primary_mark   = 1;
     for my $zone (@zones) {
         if (not $zone->{secondary_mark}) {
             mark_secondary $zone, $secondary_mark++;
@@ -14462,6 +14585,8 @@ sub mark_secondary_rules {
 
     # Mark only permit rules for secondary optimization.
     # Don't modify a deny rule from e.g. tcp to ip.
+    # Collect conflicting optimizeable rules and supernet rules.
+    my $conflict = {};
     for my $rule (@{ $path_rules{permit} }) {
         my ($src, $dst, $src_path, $dst_path) =
             @{$rule}{qw(src dst src_path dst_path)};
@@ -14474,11 +14599,16 @@ sub mark_secondary_rules {
         my $dst_zones = get_zones($dst_path, $dst);
         if (have_different_marks($src_zones, $dst_zones, 'secondary_mark')) {
             $rule->{some_non_secondary} = 1;
+            collect_conflict($rule, $src_zones, $dst_zones, $src, $dst,
+                             $conflict, 0);
         }
         if (have_different_marks($src_zones, $dst_zones, 'primary_mark')) {
             $rule->{some_primary} = 1;
+            collect_conflict($rule, $src_zones, $dst_zones, $src, $dst,
+                             $conflict, 1);
         }
     }
+    check_conflict($conflict);
 }
 
 sub check_unstable_nat_rules {
@@ -15918,7 +16048,7 @@ sub print_routes {
                 }
                 elsif ($type eq 'ASA') {
                     my $adr = $config->{ipv6} ?
-                        prefix_code($netinfo) : ios_route_code($netinfo);
+                        full_prefix_code($netinfo) : ios_route_code($netinfo);
                     print $config->{ipv6} ? "ipv6 " : "";
                     print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
@@ -17600,7 +17730,7 @@ sub print_prt {
         push @result,  @{ $prt->{range} };
         push @result, 'established' if $prt->{established};
     }
-    elsif ($proto eq 'icmp') {
+    elsif ($proto eq 'icmp' or $proto eq 'icmpv6') {
         if (defined(my $type = $prt->{type})) {
             push @result, $type;
         }
@@ -18203,10 +18333,6 @@ sub init_protocols {
     );
 
     $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
-    $prt_icmp = {
-        name  => 'auto_prt:icmp',
-        proto => 'icmp'
-    };
     $prt_tcp = {
         name      => 'auto_prt:tcp',
         proto     => 'tcp',

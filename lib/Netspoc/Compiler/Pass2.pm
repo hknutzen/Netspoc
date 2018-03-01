@@ -229,41 +229,51 @@ sub order_ranges {
     return;
 }
 
+sub order_icmp {
+    my ($prt2obj, $up) = @_;
+
+    # Handle 'icmp any'.
+    if (my $prt = $prt2obj->{icmp}) {
+        $prt->{up} = $up;
+        $up = $prt;
+    }
+    for my $prt (values %$prt2obj) {
+        $prt->{proto} eq 'icmp' or next;
+        my $type = $prt->{type};
+
+        # 'icmp any' has been handled above.
+        defined $type or next;
+
+        if (defined $prt->{code}) {
+            $prt->{up} = $prt2obj->{"icmp $type"} || $up;
+        }
+        else {
+            $prt->{up} = $up;
+        }
+    }
+}
+
+# Order numeric protocols.
+sub order_proto {
+    my ($prt2obj, $up) = @_;
+    for my $prt (values %$prt2obj) {
+        $prt->{proto} =~ /^\d+$/ or next;
+        $prt->{up} = $up;
+    }
+}
+
 sub setup_prt_relation {
     my ($prt2obj) = @_;
     my $prt_ip = $prt2obj->{ip} ||= create_prt_obj('ip');
-    my $icmp_up = $prt2obj->{icmp} || $prt_ip;
-    for my $prt (values %$prt2obj) {
-        my $proto = $prt->{proto};
-        if ($proto eq 'icmp') {
-            my $type = $prt->{type};
-            if (defined $type) {
-                if (defined $prt->{code}) {
-                    $prt->{up} = $prt2obj->{"icmp $type"} || $icmp_up;
-                }
-                else {
-                    $prt->{up} = $icmp_up;
-                }
-            }
-            else {
-                $prt->{up} = $prt_ip;
-            }
-        }
-
-        # Numeric protocol.
-        elsif ($proto =~ /^\d+$/) {
-            $prt->{up} = $prt_ip;
-        }
-    }
 
     order_ranges('tcp', $prt2obj, $prt_ip);
     order_ranges('udp', $prt2obj, $prt_ip);
+    order_icmp($prt2obj, $prt_ip);
+    order_proto($prt2obj, $prt_ip);
 
     if (my $tcp_establ = $prt2obj->{'tcp 1 65535 established'}) {
         $tcp_establ->{up} = $prt2obj->{'tcp 1 65535'} || $prt_ip;
     }
-
-    return;
 }
 
 #sub print_rule {
@@ -928,23 +938,23 @@ sub iptables_prt_code {
         return $result;
     }
     elsif ($proto eq 'icmp') {
+        my $icmp = $config->{ipv6} ? 'ipv6-icmp' : 'icmp';
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                return "-p $proto --icmp-type $type/$code";
+                return "-p $icmp --icmp-type $type/$code";
             }
             else {
-                return "-p $proto --icmp-type $type";
+                return "-p $icmp --icmp-type $type";
             }
         }
         else {
-            return "-p $proto";
+            return "-p $icmp";
         }
     }
     else {
         return "-p $proto";
     }
 }
-
 
 # Handle iptables.
 #
@@ -1948,10 +1958,15 @@ sub cisco_acl_addr {
         if ($max_ip eq $mask) {
             return "host $ip_code";
         }
+        elsif ($config->{ipv6}) {
+            my $prefix = mask2prefix($mask);
+            return "$ip_code/$prefix";
+        }
         else {
 
             # Inverse mask bits.
             $mask = ~$mask if $model =~ /^(:?NX-OS|IOS)$/;
+
             my $mask_code = bitstr2ip($mask);
             return "$ip_code $mask_code";
         }
@@ -1988,7 +2003,7 @@ sub print_object_groups {
 # Returns 3 values for building a Cisco ACL:
 # permit <val1> <src> <val2> <dst> <val3>
 sub cisco_prt_code {
-    my ($src_range, $prt) = @_;
+    my ($src_range, $prt, $model) = @_;
     my $proto = $prt->{proto};
 
     if ($proto eq 'ip') {
@@ -2028,16 +2043,17 @@ sub cisco_prt_code {
         return ($proto, $src_prt, $dst_prt);
     }
     elsif ($proto eq 'icmp') {
+        my $icmp = $model eq 'ASA' && $config->{ipv6} ? 'icmp6' : 'icmp';
         if (defined(my $type = $prt->{type})) {
             if (defined(my $code = $prt->{code})) {
-                return ($proto, undef, "$type $code");
+                return ($icmp, undef, "$type $code");
             }
             else {
-                return ($proto, undef, $type);
+                return ($icmp, undef, $type);
             }
         }
         else {
-            return ($proto, undef, undef);
+            return ($icmp, undef, undef);
         }
     }
     else {
@@ -2090,7 +2106,7 @@ sub print_cisco_acl {
           @{$rule}{qw(deny src dst src_range prt)};
         my $action = $deny ? 'deny' : 'permit';
         my ($proto_code, $src_port_code, $dst_port_code) =
-          cisco_prt_code($src_range, $prt);
+          cisco_prt_code($src_range, $prt, $model);
         my $result = "$prefix $action $proto_code";
         $result .= ' ' . cisco_acl_addr($src, $model);
         $result .= " $src_port_code" if defined $src_port_code;

@@ -219,7 +219,7 @@ my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
         }
     }
 
-    # Convert a network mask to a prefix ranging from 0 to 32.
+    # Convert a network mask to a prefix ranging from 0 to 32/128.
     sub mask2prefix {
         my $mask = shift;
         return $mask2prefix{$mask};

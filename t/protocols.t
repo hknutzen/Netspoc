@@ -342,20 +342,17 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Standard protocols as number";
+$title = "Valid protocol number";
 ############################################################
 
 $in = $topo . <<'END';
-protocol:ICMP = proto 1;
-protocol:TCP  = proto 4;
-protocol:UDP  = proto 17;
 protocol:test = proto 123;
 
 service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = protocol:ICMP, protocol:TCP, protocol:UDP, protocol:test;
+        prt = proto 50, protocol:test;
 }
 END
 
@@ -363,14 +360,29 @@ $out = <<'END';
 --r1
 ip access-list extended n1_in
  deny ip any host 10.1.2.1
- permit icmp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
- permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
- permit udp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
+ permit 50 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  permit 123 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = "Must not use standard protocol as number";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+protocol:TCP  = proto 4;
+protocol:UDP  = proto 17;
+END
+
+$out = <<'END';
+Error: Must not use 'proto 4', use 'tcp' instead at line 2 of STDIN
+Error: Must not use 'proto 17', use 'udp' instead at line 3 of STDIN
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Overlapping udp oneway';

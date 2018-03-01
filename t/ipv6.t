@@ -36,7 +36,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
  deny ip any any
 END
 
@@ -85,7 +85,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 2000::1
- permit tcp 1000:: 0:ffff:ffff:ffff:ffff:ffff:ffff:ffff 2000:: ::ffff:ffff:ffff:ffff:ffff range 80 90
+ permit tcp 1000::/16 2000::/48 range 80 90
  deny ip any any
 END
 
@@ -122,7 +122,7 @@ $out = <<'END';
 -- ipv6/r1
 ip access-list extended E1_in
  deny ip any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0 ::ffff 1000::abcd:2:0 ::ffff range 80 90
+ permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
  deny ip any any
 END
 
@@ -238,6 +238,36 @@ service:test1 = {
 END
 $out = <<'END';
 Syntax error: IPv6 address expected at line 2 of STDIN, near "10.2.2.0/24<--HERE-->;}"
+END
+
+test_err($title, $in, $out, '-ipv6');
+
+############################################################
+$title = "Must not use icmpv6 protocol as number";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+protocol:ICMPv6  = proto 58;
+END
+
+$out = <<'END';
+Error: Must not use 'proto 58', use 'icmpv6' instead at line 2 of STDIN
+END
+
+test_err($title, $in, $out, '-ipv6');
+
+############################################################
+$title = "Must not use icmp with ipv6";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+protocol:ICMP  = icmp;
+END
+
+$out = <<'END';
+Error: Must use 'icmp' only with ipv4 at line 2 of STDIN
 END
 
 test_err($title, $in, $out, '-ipv6');
