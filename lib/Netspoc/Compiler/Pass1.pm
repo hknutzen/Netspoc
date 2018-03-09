@@ -2243,9 +2243,6 @@ sub read_router {
             $model->{can_acl_use_real_ip} or
                 warn_msg("Ignoring attribute 'acl_use_real_ip' at $name,",
                          " of model $model->{name}");
-            2 == @{ $router->{hardware} } or
-                err_msg("Can't use attribute 'acl_use_real_ip' at $name,\n",
-                        " it is only applicable at device with 2 interfaces");
             $router->{has_crypto} and
                 err_msg("Must not use attribute 'acl_use_real_ip' at $name",
                         " having crypto interfaces");
@@ -8285,6 +8282,83 @@ sub distribute_no_nat_sets_to_interfaces {
     }
 }
 
+sub combine_no_nat_sets {
+    my ($set1, $set2, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+
+    my $combined = { %$set1 };
+  NAT_TAG:
+    for my $nat_tag (keys %$set2) {
+        next if $set1->{$nat_tag};
+
+        my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
+
+        # Add non multi NAT tag.
+        if (not $multinat_hashes) {
+            $combined->{$nat_tag} = 1;
+            next;
+        }
+
+        # Must not combine different multi NAT tags.
+        # This would disturb NAT lookup.
+        # Note: We are working on inverted NAT sets.
+
+        # Hidden tag is element of $set2, hence this tag is not
+        # active. But it is known to be not element of $set1, hence
+        # this tag is active at $set1.  Hidden NAT isn't needed for
+        # address calculation, hence add hidden tag and remove tag X,
+        # that is from same multi NAT group and is element of $set1,
+        # but not element of $set2.
+        if (not $has_non_hidden->{$nat_tag}) {
+            for my $multinat_hash (@$multinat_hashes) {
+
+                # All multi tags are active, so original address is visible.
+                if (not grep { not $set2->{$_} } keys %$multinat_hash) {
+
+                    # All but one must be active at $set1.
+                    1 == grep { not $set1->{$_} } keys %$multinat_hash or next;
+
+                    $combined->{$nat_tag} = 1;
+                    next NAT_TAG;
+                }
+
+                # Not all active, find to be removed tag X.
+                else {
+                    for my $nat_tag2 (keys %$multinat_hash) {
+                        $set1->{$nat_tag2} or next;
+                        next if $set2->{$nat_tag2};
+                        delete $combined->{$nat_tag2};
+                        $combined->{$nat_tag} = 1;
+                        next NAT_TAG;
+                    }
+                }
+            }
+        }
+
+        # Check non hidden tag of $set2.
+        for my $multinat_hash (@$multinat_hashes) {
+            for my $nat_tag2 (sort keys %$multinat_hash) {
+                $set1->{$nat_tag2} or next;
+
+                # Only check NAT tags, that are not set,
+                # because we operate on inverted NAT set.
+                next if $set2->{$nat_tag2};
+
+                # Silently ignore tag of set2.
+                # If inverted, it stands for hidden tag.
+                # Hidden tag isn't needed for address
+                # calculation.
+                next if not $has_non_hidden->{$nat_tag2};
+
+                err_msg(
+                    "Grouped NAT tags '$nat_tag2' and '$nat_tag'\n",
+                    " would both be active at $context");
+                next NAT_TAG;
+            }
+        }
+    }
+    return $combined;
+}
+
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
 # where encrypted traffic passes. But real interface gets ACL that filter
 # both encrypted and unencrypted traffic. Hence a new {crypto_no_nat_set}
@@ -8306,69 +8380,12 @@ sub add_crypto_no_nat_set {
 
                 # Take no_nat_set of tunnel and add tags from real
                 # interface.
-                my $crypto_no_nat_set = { %$tunnel_set };
-              NAT_TAG:
-                for my $nat_tag (keys %$real_set) {
-                    next if $tunnel_set->{$nat_tag};
-
-                    my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
-
-                    # Add non multi NAT tag.
-                    if (not $multinat_hashes) {
-                        $crypto_no_nat_set->{$nat_tag} = 1;
-                        next;
-                    }
-
-                    # Must not combine different multi NAT tags from
-                    # both, real and tunnel interface. This would
-                    # disturb NAT lookup.
-                    # Note: We are working on inverted NAT sets.
-
-                    # Hidden tag is element of $real_set, hence
-                    # this tag is not active at real interface.
-                    # But it is known to be not element of
-                    # $tunnel_set, hence this tag is active at tunnel.
-                    # Hidden NAT isn't needed for address calculation,
-                    # hence add hidden tag and remove tag X, that is
-                    # from same multi NAT group and is element of
-                    # $tunnel_set, but not element of $real_set
-                    if (not $has_non_hidden->{$nat_tag}) {
-                        for my $multinat_hash (@$multinat_hashes) {
-                            for my $nat_tag2 (keys %$multinat_hash) {
-                                $tunnel_set->{$nat_tag2} or next;
-                                next if $real_set->{$nat_tag2};
-                                delete $crypto_no_nat_set->{$nat_tag2};
-                                $crypto_no_nat_set->{$nat_tag} = 1;
-                                next NAT_TAG;
-                            }
-                        }
-                    }
-
-                    # Check non hidden tag of $real_set.
-                    for my $multinat_hash (@$multinat_hashes) {
-                        for my $nat_tag2 (sort keys %$multinat_hash) {
-                            $tunnel_set->{$nat_tag2} or next;
-
-                            # Only check NAT tags, that are not set,
-                            # because we operate on inverted NAT set.
-                            next if $real_set->{$nat_tag2};
-
-                            # Silently ignore tag of real interface.
-                            # If inverted, it stands for hidden tag.
-                            # Hidden tag isn't needed for address
-                            # calculation.
-                            next if not $has_non_hidden->{$nat_tag2};
-
-                            err_msg(
-                                "Grouped NAT tags '$nat_tag2' and '$nat_tag'\n",
-                                " would both be active at $real_intf->{name}\n",
-                                " for combined crypto and cleartext traffic");
-                            next NAT_TAG;
-                        }
-                    }
-                }
                 $real_intf->{hardware}->{crypto_no_nat_set} =
-                    $crypto_no_nat_set;
+                    combine_no_nat_sets(
+                        $tunnel_set, $real_set,
+                        "$real_intf->{name}\n" .
+                        " for combined crypto and cleartext traffic",
+                        $nat_tag2multinat_def, $has_non_hidden);
             }
         }
     }
@@ -8389,6 +8406,7 @@ sub distribute_nat_info {
     invert_nat_sets();
     distribute_no_nat_sets_to_interfaces();
     add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
+    prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -17003,6 +17021,81 @@ sub print_iptables_acls {
     }
 }
 
+sub prepare_real_ip_nat {
+    my ($router, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my $hw_list = $router->{hardware};
+
+    my %effective2hw_list;
+    my @two_effective;
+  HARDWARE:
+    for my $hardware (@$hw_list) {
+        my $bind_nat = $hardware->{bind_nat} || [];
+
+        # Build effective list of bound NAT tags.
+        # Remove hidden NAT. This doesn't matter because errors with
+        # hidden addresses will be detected before this is used.
+        my $effective = {};
+        for my $nat_tag (@$bind_nat) {
+            $has_non_hidden->{$nat_tag} or next;
+            $effective->{$nat_tag} = 1;
+        }
+
+        # Find identical effective bound NAT tags.
+      EQ:
+        for my $seen (@two_effective) {
+            keys %$effective == keys %$seen or next;
+            for my $nat_tag (keys %$effective) {
+                my $nat = $seen->{$nat_tag} or next EQ;
+                $nat eq $effective->{$nat_tag} or next EQ;
+            }
+            push @{ $effective2hw_list{$seen} }, $hardware;
+            next HARDWARE;
+        }
+        if (@two_effective >= 2) {
+            err_msg(
+                "Must not use attribute 'acl_use_real_ip' at $router->{name}\n",
+                " having different effective NAT at more than two interfaces");
+            return;
+        }
+        push @two_effective, $effective;
+        push @{ $effective2hw_list{$effective} }, $hardware;
+    }
+    if (@two_effective < 2) {
+        warn_msg("Useless attribute 'acl_use_real_ip' at $router->{name}");
+        return;
+    }
+    # Found two sets of hardware having identical effective bound NAT.
+    # Combine no_nat_sets of each set.
+    my $combine_nat = sub {
+        my ($list) = @_;
+        my $hw0 = $list->[0];
+        my $combined = $hw0->{no_nat_set};
+        for my $hardware (@$list) {
+            next if $hardware eq $hw0;
+            $combined = combine_no_nat_sets(
+                $combined, $hardware->{no_nat_set},
+
+                # Error should not occur.
+                "$router->{name}, processing 'acl_use_real_ip'",
+                $nat_tag2multinat_def, $has_non_hidden);
+        }
+        return $combined;
+    };
+    my ($list1, $list2) = values %effective2hw_list;
+    my $combined1 = $combine_nat->($list1);
+    my $combined2 = $combine_nat->($list2);
+    $_->{dst_no_nat_set} = $combined2 for @$list1;
+    $_->{dst_no_nat_set} = $combined1 for @$list2;
+}
+
+sub prepare_real_ip_nat_routers {
+    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    for my $router (@managed_routers, @routing_only_routers) {
+        $router->{acl_use_real_ip} or next;
+        prepare_real_ip_nat($router, $nat_tag2multinat_def, $has_non_hidden);
+    }
+}
+
 sub print_cisco_acls {
     my ($router)      = @_;
     my $model         = $router->{model};
@@ -17024,6 +17117,7 @@ sub print_cisco_acls {
 
         my $no_nat_set =
             $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
+        my $dst_no_nat_set = $hardware->{dst_no_nat_set};
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
@@ -17047,12 +17141,7 @@ sub print_cisco_acls {
                 name => $acl_name,
                 no_nat_set => $no_nat_set,
             };
-
-            if ($router->{acl_use_real_ip}) {
-                my $hw0 = $hw_list->[0];
-                my $dst_hw = $hardware eq $hw0 ? $hw_list->[1] : $hw0;
-                $acl_info->{dst_no_nat_set} = $dst_hw->{no_nat_set};
-            }
+            $acl_info->{dst_no_nat_set} = $dst_no_nat_set if $dst_no_nat_set;
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
