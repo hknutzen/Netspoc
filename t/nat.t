@@ -2622,6 +2622,31 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Useless acl_use_real_ip';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h2; }
+}
+END
+
+$out = <<'END';
+Warning: Useless attribute 'acl_use_real_ip' at router:r1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'acl_use_real_ip, 3 interfaces, identical NAT ip, hidden';
 ############################################################
 
