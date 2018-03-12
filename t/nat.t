@@ -2596,6 +2596,176 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'acl_use_real_ip, more than 2 effective NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 2.2.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
+}
+END
+
+$out = <<'END';
+Error: Must not use attribute 'acl_use_real_ip' at router:r1
+ having different effective NAT at more than two interfaces
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'acl_use_real_ip, 3 interfaces, identical NAT ip, hidden';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:intern = { ip = 2.2.0.0/23; dynamic; } }
+network:n2 = { ip = 10.1.2.0/24; nat:intern = { ip = 2.2.0.0/23; dynamic; } }
+network:n3 = { ip = 10.1.3.0/24; nat:hide_n3 = { hidden; } }
+
+router:u = {
+ interface:n3;
+ interface:n1;
+}
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = extern; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = extern, hide_n3; }
+ interface:t = { ip = 10.9.1.1; hardware = t; bind_nat = intern; }
+}
+
+network:t = { ip = 10.9.1.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:extern = { ip = 2.2.2.2; hardware = outside; }
+}
+
+network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
+
+service:test = {
+ user = network:extern;
+ permit src = user; dst = network:n1, network:n2; prt = tcp 80;
+ permit src = network:n1, network:n2; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! t_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+-- r2
+! t_in
+access-list t_in extended permit tcp 2.2.0.0 255.255.254.0 2.2.2.0 255.255.255.0 eq 22
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+--
+! outside_in
+access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 2.2.0.0 255.255.254.0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'acl_use_real_ip, 3 interfaces, identical real IP';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:intern1 = { ip = 2.1.1.0/24; } nat:h1 = { hidden; } }
+network:n2 = { ip = 10.1.1.0/24; nat:intern2 = { ip = 2.1.2.0/24; } nat:h2 = { hidden; } }
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = extern, h2; }
+ interface:n2 = { ip = 10.1.1.1; hardware = n2; bind_nat = extern, h1; }
+ interface:t = { ip = 10.9.1.1; hardware = t; bind_nat = intern1, intern2; }
+}
+
+network:t = { ip = 10.9.1.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:t = { ip = 10.9.1.2; hardware = t; }
+ interface:extern = { ip = 2.2.2.2; hardware = outside; }
+}
+
+network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
+
+service:test = {
+ user = network:extern;
+ permit src = user; dst = network:n1, network:n2; prt = tcp 80;
+ permit src = network:n1, network:n2; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! t_in
+access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+-- r2
+! t_in
+object-group network g0
+ network-object 2.1.1.0 255.255.255.0
+ network-object 2.1.2.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+--
+! outside_in
+access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'NAT at loopback network (1)';
 ############################################################
 
