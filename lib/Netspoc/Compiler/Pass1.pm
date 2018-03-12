@@ -14470,6 +14470,7 @@ sub have_different_marks {
     return not intersect($src_marks, $dst_marks);
 }
 
+# Collect conflicting rules and supernet rules for check_conflict below.
 sub collect_conflict {
     my ($rule, $src_zones, $dst_zones, $src, $dst, $conflict, $is_primary) = @_;
     if (not grep({ not $_->{modifiers}->{no_check_supernet_rules} }
@@ -14545,7 +14546,6 @@ sub collect_conflict {
 sub check_conflict {
     my ($conflict) = @_;
     my %cache;
-    my %seen;
     for my $key (keys %$conflict) {
         my ($is_src, $is_primary) = split ',', $key;
         my $hash = $conflict->{$key};
@@ -14554,7 +14554,6 @@ sub check_conflict {
         my $what = $is_src ? 'src' : 'dst';
       RULE:
         for my $rule1 (@$rules) {
-            next if $seen{$rule1};
             my $zone1 = $rule1->{"${what}_path"};
             my $list1 = $rule1->{$what};
             for my $supernet (values %$supernet_hash) {
@@ -14575,7 +14574,6 @@ sub check_conflict {
                     $is_subnet or next;
                     delete $rule1->{$is_primary ?
                                         'some_primary' : 'some_non_secondary'};
-                    $seen{$rule1} = 1;
 #                   my $name1 = $rule1->{rule}->{service}->{name} || '';
 #                   debug "$name1 $what";
 #                   debug print_rule $rule1;
