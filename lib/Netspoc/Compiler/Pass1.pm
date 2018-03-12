@@ -3819,6 +3819,9 @@ sub link_owners {
             my $list = $owner->{$attr} or next;
             for my $email (@$list) {
 
+                # Expand below, in next loop.
+                next if $email =~ /^owner:/;
+
                 # Check email syntax.
                 # Local part definition from wikipedia,
                 # without space and other quoted characters.
@@ -9084,6 +9087,8 @@ sub find_subnets_in_nat_domain {
                 my $no_nat_set = $domain->{no_nat_set};
                 push @{ $bignet->{unstable_nat}->{$no_nat_set}}, $subnet;
             }
+
+            check_subnets($nat_bignet, $nat_subnet);
         }
     }
 
@@ -13995,6 +14000,8 @@ sub check_transient_supernet_rules {
         my $src_list = $rule->{src};
         for my $obj (@$src_list) {
             $obj->{has_other_subnet} or next;
+            my $zone = $obj->{zone};
+            next if $zone->{no_check_supernet_rules};
 
             # Ignore the internet. If the internet is used as src and dst
             # then the implicit transient rule is assumed to be ok.
@@ -14026,6 +14033,7 @@ sub check_transient_supernet_rules {
             }
             $supernet2rules{$obj} or push @{ $zone2supernets{$zone} }, $obj;
             push @{ $supernet2rules{$obj} }, $rule;
+            push @{ $zone2supernets{$zone} }, $obj if not $seen{$obj}++;
         }
     }
     keys %supernet2rules or return;
