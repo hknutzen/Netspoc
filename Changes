@@ -1,8 +1,11 @@
 {{$NEXT}}
 
+5.033     2018-03-12 14:08:49+01:00 Europe/Berlin
+
  - Attribute 'acl_use_real_ip' is now supported for 3 or more interfaces.
    But still only two different sets of effective NAT are allowed.
    Hidden NAT is ignored when calculating effective NAT.
+ - Nameclashes between IPv4 and IPv6 objectgroups are prevented.
 
 5.032     2018-03-01 15:07:44+01:00 Europe/Berlin
 
