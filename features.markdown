@@ -8,6 +8,7 @@ layout: default
   - Chains for iptables.
   - Access lists for ASA, NX-OS
   - Access lists for IOS with and without Firewall Feature Set.
+- Supports IPv4 and IPv6
 - Rules are optimized globally
   - Adjacent IP ranges and port ranges are joined.
   - Redundant rules are removed and optionally warned about.
