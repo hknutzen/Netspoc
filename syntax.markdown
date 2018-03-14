@@ -33,6 +33,18 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 `"[", "]"`
 : real bracket characters
 
+## Definitions for IPv4 and IPv6
+
+### In IPv4 mode
+
+    <ip>           ::= n.n.n.n with 0 <= n <= 255
+    <prefix-len>   ::= 0 | 1 | 2 | ... | 32
+
+### In IPv6 mode
+
+    <ip>           ::= some valid IPv6 address
+    <prefix-len>   ::= 0 | 1 | 2 | ... | 128
+
 ## Netspoc configuration
 
     <netspoc configuration> ::=
@@ -78,8 +90,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <bridge-part>  ::= <name>
     <description>  ::= description = <text_to_end_of_line>[;]
     <ip-net>       ::= <ip>/<prefix-len>
-    <ip>           ::= n.n.n.n with 0 <= n <= 255
-    <prefix-len>   ::= 0 | 1 | 2 | ... | 32
 
 ## Host definition
 
@@ -249,7 +259,8 @@ where `<network NAT>` must be hidden or dynamic.
       ip
     | tcp [[<range> :] <range>]
     | udp [[<range> :] <range>]
-    | icmp [<int>[/<int>]]
+    | icmp   [<int>[/<int>]]			(in IPv4 mode)
+    | icmpv6 [<int>[/<int>]]			(in IPv6 mode)
     | proto <int>
 
     <range> ::= <int> | <int>-<int>
