@@ -140,6 +140,45 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'With outgoing ACL';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:u = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n2 = {
+  ip = 10.1.2.2;
+  hardware = n2;
+  reroute_permit = network:n2;
+ }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; no_in_acl; }
+}
+network:n4 = { ip = 10.1.4.0/24; }
+END
+
+$out = <<'END';
+-- r1
+! n2_in
+access-list n2_in extended permit ip any4 10.1.2.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n2_out
+access-list n2_out extended permit ip any4 10.1.2.0 255.255.255.0
+access-list n2_out extended deny ip any4 any4
+access-group n2_out out interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Multiple networks from automatic group';
 ############################################################
 
