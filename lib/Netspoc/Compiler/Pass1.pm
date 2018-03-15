@@ -1827,6 +1827,24 @@ sub check_no_in_acl {
     $router->{model}->{has_out_acl}
       or err_msg("$router->{name} doesn't support outgoing ACL");
 
+    # reroute_permit would generate permit any -> networks,
+    # but no_in_acl would generate permit any -> any anyway.
+    if ($router->{no_in_acl}->{reroute_permit}) {
+        err_msg("Useless use of attribute reroute_permit together with",
+                " no_in_acl at $router->{no_in_acl}->{name}");
+    }
+
+    # Must not use reroute_permit to network N together with no_in_acl.
+    # In this case incoming traffic at no_in_acl interface
+    # to network N wouldn't be filtered at all.
+    if (my @list = grep { $_->{reroute_permit} } @{ $router->{interfaces} }) {
+        if (not (1 == @list and $router->{no_in_acl} eq $list[0])) {
+            err_msg("Must not use attributes no_in_acl and reroute_permit",
+                    " together at $router->{name}\n",
+                    " Add incoming and outgoing ACL line in raw file instead.");
+        }
+    }
+
     # Assert router not to take part in crypto tunnels.
     if (grep { $_->{hub} or $_->{spoke} } @{ $router->{interfaces} }) {
         err_msg(
@@ -8498,8 +8516,6 @@ sub nat_to_loopback_ok {
     }
     return ($all_device_ok == $device_count);
 }
-
-sub link_reroute_permit;
 
 # Find subnet relation between networks inside a zone.
 # - $subnet->{up} = $bignet;

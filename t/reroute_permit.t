@@ -140,6 +140,60 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Forbidden with outgoing ACL';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:u = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n2 = {
+  ip = 10.1.2.2;
+  hardware = n2;
+  reroute_permit = network:n2;
+ }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; no_in_acl; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+END
+
+$out = <<'END';
+Error: Must not use attributes no_in_acl and reroute_permit together at router:r1
+ Add incoming and outgoing ACL line in raw file instead.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Forbidden at no_in_acl interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; reroute_permit = network:n2;
+ no_in_acl; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+Error: Useless use of attribute reroute_permit together with no_in_acl at interface:r1.n2
+END
+
+test_err($title, $in, $out);
+
+
+############################################################
 $title = 'Multiple networks from automatic group';
 ############################################################
 
