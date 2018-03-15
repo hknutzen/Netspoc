@@ -16294,9 +16294,6 @@ sub add_router_acls {
                         unshift@{ $hardware->{io_rules}->{$hw_name} }, $rule;
                     }
                     else {
-                        if ($hardware->{need_out_acl}) {
-                            unshift @{ $hardware->{out_rules} }, $rule;
-                        }
                         unshift @{ $hardware->{rules} }, $rule;
                     }
                 }
