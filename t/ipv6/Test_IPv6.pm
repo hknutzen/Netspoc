@@ -70,6 +70,12 @@ sub adjust_testfile {
     # Convert IPv4 input file line by line.
     while (my $line = <$infilehandle>) {
 
+        # Disable marked line
+        if ($line =~ /#NOT IPv6$/i) {
+            $line = "#$line";
+            next;
+        }
+
         # Ad hoc input topology generation in huge.t requires special handling.
         if ($filename =~ "huge.t") {
 
@@ -210,15 +216,18 @@ sub adjust_testfile {
         }
         # Alter test subroutine, if it is defined within the testfile.
         elsif ($filename =~
-               /export.t|cut-netspoc.t|print-service.t|add-to-netspoc.t/) {
+               /cut-netspoc.t|print-service.t|add-to-netspoc.t/) {
             $line =~ s/ -q/ -q -ipv6/;
         }
         # Add -ipv6 option to the test call otherwise.
         else {
-            if ($filename =~ /concurrency.t/ and $line =~ /-q/) {
+            if ($filename =~ /export.t|concurrency.t/ and $line =~ / -q/) {
                 $line =~ s/-q/-q -ipv6/;
             }
             elsif ($filename =~ /concurrency.t/ and $line =~ m'my \$path') {
+                $line =~ s|out_dir|out_dir/ipv6|;
+            }
+            elsif ($filename =~ /export.t/ and $line =~ m'my \$out_fh') {
                 $line =~ s|out_dir|out_dir/ipv6|;
             }
             elsif ($filename =~ /options.t/ and $line =~ /undef,/) {

@@ -56,7 +56,9 @@ my $policy_file = "$netspoc_data/POLICY";
 
 sub create_dirs {
     my ($path) = @_;
-    $path = "$out_dir/$path";
+    my $dir = $out_dir;
+    $dir .= '/ipv6' if $config->{ipv6};
+    $path = "$dir/$path";
     make_path($path, {error => \my $err} );
     # uncoverable branch true
     if (@$err) {
@@ -75,9 +77,11 @@ sub create_dirs {
     return;
 }
 
-sub export {
+sub export_json {
     my ($path, $data) = @_;
-    $path = "$out_dir/$path";
+    my $dir = $out_dir;
+    $dir .= '/ipv6' if $config->{ipv6};
+    $path = "$dir/$path";
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
@@ -801,7 +805,7 @@ sub export_no_nat_set {
     for my $owner_name (keys %owner2no_nat_set) {
         my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
         create_dirs("owner/$owner_name");
-        export("owner/$owner_name/no_nat_set", $no_nat_set);
+        export_json("owner/$owner_name/no_nat_set", $no_nat_set);
     }
     return;
 }
@@ -925,7 +929,7 @@ sub export_assets {
     for my $owner (keys %result) {
         my $hash = $result{$owner};
         create_dirs("owner/$owner");
-        export("owner/$owner/assets", $hash);
+        export_json("owner/$owner/assets", $hash);
     }
     return;
 }
@@ -1023,7 +1027,7 @@ sub export_services {
         (my $sname = $service->{name}) =~ s/^\w+://;
         $shash{$sname} = { details => $details, rules => \@rules };
     }
-    export("services", \%shash);
+    export_json("services", \%shash);
     return \%owner2type2shash;
 }
 
@@ -1059,8 +1063,8 @@ sub export_users_and_service_lists {
             $type2snames{$type} = [ sort @snames ];
         }
         create_dirs("owner/$owner");
-        export("owner/$owner/service_lists", \%type2snames);
-        export("owner/$owner/users", \%service2users);
+        export_json("owner/$owner/service_lists", \%type2snames);
+        export_json("owner/$owner/users", \%service2users);
     }
     return;
 }
@@ -1115,7 +1119,7 @@ sub export_objects {
             owner => scalar owner_for_object($_),
         }
     } values %all_objects;
-    export("objects", \%objects);
+    export_json("objects", \%objects);
     return;
 }
 
@@ -1150,11 +1154,11 @@ sub export_owners {
             push @e_owners, $e_owner->{name};
         }
 
-        export("owner/$name/emails",
+        export_json("owner/$name/emails",
                [ map { { email => $_ } } sort @emails ]);
-        export("owner/$name/watchers",
+        export_json("owner/$name/watchers",
                [ map { { email => $_ } } sort @watchers ]);
-        export("owner/$name/extended_by",
+        export_json("owner/$name/extended_by",
                [ map { { name => $_ } } sort @e_owners ]);
     }
 
@@ -1175,7 +1179,7 @@ sub export_owners {
     # Substitute hash by array.
     $_ = [ sort values(%$_) ] for values %email2owners;
 
-    export("email", \%email2owners);
+    export_json("email", \%email2owners);
     return;
 }
 
@@ -1188,41 +1192,54 @@ sub copy_policy_file {
     return;
 }
 
-####################################################################
-# Initialize Netspoc data
-####################################################################
 $config =
     combine_config({time_stamps => 1, max_errors => 9999,
                     verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
-init_global_vars();
-read_file_or_dir($netspoc_data);
-order_protocols();
-link_topology();
-mark_disabled();
-set_zone();
-setpath();
-distribute_nat_info();
-find_subnets_in_zone();
 
-# Copy of %services with those services split, that have different 'user'.
-my $normalized_services = normalize_services_for_export();
-propagate_owners();
-find_subnets_in_nat_domain();
-adapt_owner_names();
-setup_zones();
-setup_part_owners();
-setup_outer_owners();
-setup_service_info($normalized_services);
+# Export ipv4 and ipv6 part.
+sub export {
+    my ($in_path, $ignore_dir) = @_;
+    init_global_vars();
+    read_file_or_dir($in_path, $ignore_dir);
+    order_protocols();
+    link_topology();
+    mark_disabled();
+    set_zone();
+    setpath();
+    distribute_nat_info();
+    find_subnets_in_zone();
 
-####################################################################
-# Export data
-####################################################################
-create_dirs('');
-export_owners();
-export_assets();
-my $owner2type2shash = export_services($normalized_services);
-export_users_and_service_lists($owner2type2shash);
-export_objects();
-export_no_nat_set();
+    # Copy of %services with those services split, that have different 'user'.
+    my $normalized_services = normalize_services_for_export();
+    propagate_owners();
+    find_subnets_in_nat_domain();
+    adapt_owner_names();
+    setup_zones();
+    setup_part_owners();
+    setup_outer_owners();
+    setup_service_info($normalized_services);
+
+    # Export data
+    create_dirs('');
+    export_owners();
+    export_assets();
+    my $owner2type2shash = export_services($normalized_services);
+    export_users_and_service_lists($owner2type2shash);
+    export_objects();
+    export_no_nat_set();
+}
+
+my $ignore_dir;
+if (not $config->{ipv6} and -e (my $sub_dir = "$netspoc_data/ipv6")) {
+    local $config->{ipv6} = 1;
+    export($sub_dir);
+    $ignore_dir = 'ipv6';
+}
+elsif ($config->{ipv6} and -e ($sub_dir = "$netspoc_data/ipv4")) {
+    local $config->{ipv6} = undef;
+    export($sub_dir);
+    $ignore_dir = 'ipv4';
+}
+export($netspoc_data, $ignore_dir);
 copy_policy_file();
 progress("Ready");
