@@ -212,12 +212,59 @@ for my $model (keys %router_info) {
 my $aref_tcp_any = [ 1, 65535 ];
 
 # Definition of dynamic routing protocols.
-# Protocols get {up} relation in order_protocols.
-my %routing_info;
+my %routing_info = (
+    EIGRP => {
+        name   => 'EIGRP',
+        prt    => { proto => 88 },
+        mcast  => [ '224.0.0.10' ],
+        mcast6 => [ 'ff02::a' ],
+    },
+    OSPF => {
+        name   => 'OSPF',
+        prt    => { proto => 89 },
+        mcast  => [ '224.0.0.5', '224.0.0.6' ],
+        mcast6 => [ 'ff02::5', 'ff02::6' ],
+    },
+    RIPv2 => {
+        name   => 'RIP',
+        prt    => { proto => 'udp', range => [ 520, 520 ] },
+        mcast  => [ '224.0.0.9' ],
+        mcast6 => [ 'ff02::9' ],
+    },
+    dynamic => { name => 'dynamic' },
+
+    # Identical to 'dynamic', but must only be applied to router, not
+    # to interface.
+    manual => { name => 'manual' },
+);
 
 # Definition of redundancy protocols.
-# Protocols get {up} relation in order_protocols.
-my %xxrp_info;
+my %xxrp_info = (
+    VRRP => {
+        prt    => { proto => 112 },
+        mcast  => [ '224.0.0.18' ],
+        mcast6 => [ 'ff02::12' ],
+    },
+    HSRP => {
+        prt    => { proto => 'udp', range => [ 1985, 1985 ] },
+        mcast  => [ '224.0.0.2' ],
+
+        # No official IPv6 multicast address for HSRP available,
+        # therefore using IPv4 equivalent.
+        mcast6 => [ '::e000:2' ],
+    },
+    HSRPv2 => {
+        prt    => { proto => 'udp', range => [ 1985, 1985 ] },
+        mcast  => [ '224.0.0.102' ],
+        mcast6 => [ 'ff02::66' ],
+    },
+);
+
+# DHCP server.
+my $prt_bootps = { proto => 'udp', range => [ 67, 67 ] };
+
+# DHCP client.
+my $prt_bootpc = { proto => 'udp', range => [ 68, 68 ] };
 
 # Comparison functions for sort.
 sub by_name     { return $a->{name} cmp $b->{name} }
@@ -3703,6 +3750,10 @@ sub expand_split_protocol {
     }
 }
 
+# Following protocols are initialized in init_protocols.
+# Must not be defined as constant, because {up} relation is set
+# in order_protocols dependening of other protocols from input.
+
 # Protocol 'ip' is needed later for implementing secondary rules and
 # automatically generated deny rules.
 my $prt_ip;
@@ -3712,12 +3763,6 @@ my $prt_tcp;
 
 # Protocol 'UDP any'.
 my $prt_udp;
-
-# DHCP server.
-my $prt_bootps;
-
-# DHCP client.
-my $prt_bootpc;
 
 # IPSec: Internet key exchange.
 # Source and destination port (range) is set to 500.
@@ -3752,12 +3797,9 @@ sub order_protocols {
     for my $prt (
         $prt_ip,
         $prt_tcp, $prt_udp,
-        $prt_bootps, $prt_bootpc,
         $prt_ike,
         $prt_natt,
         $prt_esp, $prt_ah,
-        unique map({ $_->{prt} ? ($_->{prt}) : () } values %routing_info,
-            values %xxrp_info),
         values %protocols
       )
     {
@@ -16258,6 +16300,19 @@ sub distribute_rule {
 
 my $permit_any_rule;
 
+sub get_multicast_objects {
+    my ($info) = @_;
+    my ($ip_list, $mask);
+    if ($config->{ipv6}) {
+        $ip_list = $info->{mcast6};
+    }
+    else {
+        $ip_list = $info->{mcast};
+    }
+    return [
+        map { new('Network', ip => ip2bitstr($_), mask => $max_ip) } @$ip_list ];
+}
+
 sub add_router_acls {
     for my $router (@managed_routers) {
         my $has_io_acl = $router->{model}->{has_io_acl};
@@ -16318,14 +16373,11 @@ sub add_router_acls {
                 if (my $routing = $interface->{routing}) {
                     if ($routing->{name} !~ /^(?:manual|dynamic)$/) {
                         my $prt = $routing->{prt};
-                        if (my $dst_range = $prt->{dst_range}) {
-                            $prt = $dst_range;
-                        }
                         $prt = [ $prt ];
                         my $network = [ $interface->{network} ];
 
                         # Permit multicast packets from current network.
-                        my $mcast = $routing->{mcast};
+                        my $mcast = get_multicast_objects($routing);
                         push @{ $hardware->{intf_rules} },
                           {
                             src => $network,
@@ -16350,15 +16402,13 @@ sub add_router_acls {
                 # Handle multicast packets of redundancy protocols.
                 if (my $type = $interface->{redundancy_type}) {
                     my $network = $interface->{network};
-                    my $mcast   = $xxrp_info{$type}->{mcast};
-                    my $prt     = $xxrp_info{$type}->{prt};
-                    if (my $dst_range = $prt->{dst_range}) {
-                        $prt = $dst_range;
-                    }
+                    my $xrrp    = $xxrp_info{$type};
+                    my $mcast   = get_multicast_objects($xrrp);
+                    my $prt     = $xrrp->{prt};
                     push @{ $hardware->{intf_rules} },
                       {
                         src => [ $network ],
-                        dst => [ $mcast ],
+                        dst => $mcast,
                         prt => [ $prt ]
                       };
                 }
@@ -16369,7 +16419,7 @@ sub add_router_acls {
                       {
                         src => [ $network_00 ],
                         dst => [ $network_00 ],
-                        prt => [ $prt_bootps->{dst_range} ]
+                        prt => [ $prt_bootps ]
                       };
                 }
 
@@ -16379,7 +16429,7 @@ sub add_router_acls {
                       {
                         src => [ $network_00 ],
                         dst => [ $network_00 ],
-                        prt => [ $prt_bootpc->{dst_range} ]
+                        prt => [ $prt_bootpc ]
                       };
                 }
             }
@@ -18336,105 +18386,6 @@ sub concurrent {
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
-
-    %routing_info = (
-        EIGRP => {
-            name  => 'EIGRP',
-            prt   => { name => 'auto_prt:EIGRP', proto => 88 },
-            mcast => [
-                new(
-                    'Network',
-                    name => "auto_network:EIGRP_multicast",
-                    ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::a' : '224.0.0.10'),
-                    mask => $max_ip
-                )
-            ]
-        },
-        OSPF => {
-            name  => 'OSPF',
-            prt   => { name => 'auto_prt:OSPF', proto => 89 },
-            mcast => [
-                new(
-                    'Network',
-                    name => "auto_network:OSPF_multicast5",
-                    ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::5' : '224.0.0.5'),
-                    mask => $max_ip
-                ),
-                new(
-                    'Network',
-                    name => "auto_network:OSPF_multicast6",
-                    ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::6' : '224.0.0.6'),
-                    mask => $max_ip
-                )
-            ]
-        },
-        RIPv2 => {
-            name  => 'RIP',
-            prt   => { name => 'auto_prt:RIPv2',
-                       proto => 'udp',
-                       dst_range => [ 520, 520 ],
-            },
-            mcast => [
-                new(
-                    'Network',
-                    name => "auto_network:RIPv2_multicast",
-                    ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::9' : '224.0.0.9'),
-                    mask => $max_ip
-                )
-            ]
-        },
-        dynamic => { name => 'dynamic' },
-
-        # Identical to 'dynamic', but must only be applied to router.
-        manual => { name => 'manual' },
-    );
-    %xxrp_info = (
-        VRRP => {
-            prt   => { name => 'auto_prt:VRRP', proto => 112 },
-            mcast => new(
-                'Network',
-                name => "auto_network:VRRP_multicast",
-                ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::12' : '224.0.0.18'),
-                mask => $max_ip
-            )
-        },
-        HSRP => {
-            prt => {
-                name      => 'auto_prt:HSRP',
-                proto     => 'udp',
-                dst_range => [ 1985, 1985 ],
-            },
-            mcast => new(
-                'Network',
-                name => "auto_network:HSRP_multicast",
-                # No official IPv6 multicast address for HSRP available,
-                # therefore using IPv4 equivalent.
-                ip   => ip2bitstr($config->{ipv6}?
-                                      '::e000:2' : '224.0.0.2'),
-                mask => $max_ip
-            )
-        },
-        HSRPv2 => {
-            prt => {
-                name      => 'auto_prt:HSRPv2',
-                proto     => 'udp',
-                dst_range => [ 1985, 1985 ],
-            },
-            mcast => new(
-                'Network',
-                name => "auto_network:HSRPv2_multicast",
-                ip   => ip2bitstr($config->{ipv6}?
-                                      'ff02::66' : '224.0.0.102'),
-                mask => $max_ip
-            )
-        },
-    );
-
     $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
     $prt_tcp = {
         name      => 'auto_prt:tcp',
@@ -18445,16 +18396,6 @@ sub init_protocols {
         name      => 'auto_prt:udp',
         proto     => 'udp',
         dst_range => $aref_tcp_any
-    };
-    $prt_bootps = {
-        name      => 'auto_prt:bootps',
-        proto     => 'udp',
-        dst_range => [ 67, 67 ]
-    };
-    $prt_bootpc = {
-        name      => 'auto_prt:bootpc',
-        proto     => 'udp',
-        dst_range => [ 68, 68 ]
     };
     $prt_ike = {
         name      => 'auto_prt:IPSec_IKE',
