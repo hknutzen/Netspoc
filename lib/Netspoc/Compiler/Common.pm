@@ -36,7 +36,7 @@ our @EXPORT = qw(
  fatal_err debug info diag_msg
  $start_time progress
  ip2bitstr bitstr2ip
- $zero_ip $max_ip $prefix_len @inverse_masks
+ $zero_ip $max_ip @inverse_masks
  increment_ip
  mask2prefix prefix2mask match_ip
  init_mask_prefix_lookups
@@ -102,24 +102,24 @@ sub progress {
 
 sub ip2bitstr {
     my ($ip) = @_;
-    if ($config->{ipv6}) {
+    if ($ip =~ /:/) {
         return NetAddr::IP::Util::ipv6_aton($ip);
     }
     else {
-    my ($i1,$i2,$i3,$i4) = split '\.', $ip;
+        my ($i1,$i2,$i3,$i4) = split '\.', $ip;
 
-    # Create bit string with 32 bits.
-    return pack 'C4', $i1, $i2, $i3, $i4;
+        # Create bit string with 32 bits.
+        return pack 'C4', $i1, $i2, $i3, $i4;
     }
 }
 
 ## no critic (RequireArgUnpacking)
 sub bitstr2ip {
-    if ($config->{ipv6}) {
+    if (length($_[0]) == 16) {
         return NetAddr::IP::Util::ipv6_ntoa($_[0]);
     }
     else {
-    return sprintf "%vd", $_[0];
+        return sprintf "%vd", $_[0];
     }
 }
 
