@@ -181,20 +181,9 @@ sub increment_ip  {
     }
 
     else {
-        pack('N', 1 + unpack( 'N', $bitstring));
+        pack('N', 1 + unpack('N', $bitstring));
     }
 }
-
-# Bitwise functions use vec() to access single bits. vec() has a
-# mixed-endian behaviour tough: While it is little-endian regarding a
-# sequence of bytes (lowest byte first/left), it is big-endian within
-# the byte (biggest bit first/left). Tis array is used to transform
-# the big-endianness within bytes to little-endianness. Thus,
-# positions 0..x in the function below refer to the position from
-# left to right, with leftmost bit is position 0, rightmost bit
-# position x.
-
-my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
 
 # Conversion from netmask to prefix and vice versa.
 {
@@ -203,19 +192,25 @@ my @big_to_little_endian = (7,5,3,1,-1,-3,-5,-7);
     my %mask2prefix;
     my %prefix2mask;
 
+    # Build mask in 32/128bit bitstring format from 1/4 32bit numbers.
+    # [0000,0000],[1000,0000],[1100,0000],[1110,0000],[1111,0000],[1111,1000],..
     sub init_mask_prefix_lookups {
+        my $size_32 = $config->{ipv6} ? 4 : 1;
+        my @words = (0x00000000) x $size_32;
+        my $index = 0;
         my $prefix = 0;
-        my $mask = $config->{ipv6}
-            ? NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0')
-            : pack('N', 0x00000000);
-
-        while (1) {
-            $mask2prefix{$mask}   = $prefix;
-            $prefix2mask{$prefix} = $mask;
-            last if $prefix == $prefix_len;
-            my $bitpos = $prefix + $big_to_little_endian[$prefix % 8];
-            vec($mask, $bitpos, 1) = 1;
-            $prefix++;
+        while ($index < $size_32) {
+            my $bit = 0x80000000;	# Highest bit is set.
+            while (1) {
+                my $mask = pack 'N*', @words;
+                $mask2prefix{$mask}   = $prefix;
+                $prefix2mask{$prefix} = $mask;
+                last if $bit == 0;
+                $words[$index] |= $bit;
+                $bit >>= 1;
+                $prefix++;
+            }
+            $index++;
         }
     }
 
