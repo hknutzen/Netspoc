@@ -156,7 +156,7 @@ sub init_inverse_masks {
 sub increment_ip  {
     my ($bitstring) = @_;
 
-    if ($config->{ipv6}) {
+    if (length($bitstring) == 16) {
         my ($s1, $s2, $s3, $s4) = unpack('N4', $bitstring);
         if ($s4 == 0xffffffff) {
             $s4 = 0;
