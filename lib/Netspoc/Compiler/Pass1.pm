@@ -586,7 +586,7 @@ sub read_ip_range {
 ## no critic (RequireArgUnpacking RequireFinalReturn)
 sub print_ip {
     my ($ip) = @_;
-    if ($config->{ipv6}) {
+    if (16 == length($ip)) {
         sprintf "%s", NetAddr::IP::Util::ipv6_ntoa($ip);
     }
     else {
@@ -4150,7 +4150,7 @@ sub check_interface_ip {
 
         # Check network and broadcast address only for IPv4,
         # but not for /31 IPv4 (see RFC 3021).
-        elsif (not ($config->{ipv6} or 31 == mask2prefix($mask))) {
+        elsif (not (16 == length($mask) or 31 == mask2prefix($mask))) {
             if ($ip eq $network_ip) {
                 err_msg("$interface->{name} has address of its network");
             }
@@ -4959,9 +4959,10 @@ sub check_host_compatibility {
 
 sub convert_hosts {
     progress('Converting hosts to subnets');
-    my $bitstr_len = $config->{ipv6} ? 128 : 32;
     for my $network (@networks) {
-        next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
+        my $net_ip = $network->{ip};
+        next if $net_ip =~ /^(?:unnumbered|tunnel)$/;
+        my $bitstr_len = 16 == length($net_ip) ? 128 : 32;
         my @subnet_aref;
 
         # Converts hosts and ranges to subnets.
@@ -16617,8 +16618,7 @@ sub prefix_code {
     my ($ip, $mask) = @$pair;
     my $ip_code     = print_ip($ip);
     my $prefix_code = mask2prefix($mask);
-    my $bitstr_len = $config->{ipv6}? 128 : 32;
-    return $prefix_code == $bitstr_len ? $ip_code : "$ip_code/$prefix_code";
+    return $mask eq $max_ip ? $ip_code : "$ip_code/$prefix_code";
 }
 
 sub full_prefix_code {
