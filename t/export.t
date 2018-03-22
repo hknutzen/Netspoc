@@ -3435,7 +3435,7 @@ $out = <<END;
 # p1234
 END
 
-test_run($title, $in, $out);	#NOT IPv6
+test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
 $title = 'Invalid options and arguments';

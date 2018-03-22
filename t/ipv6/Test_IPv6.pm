@@ -71,7 +71,7 @@ sub adjust_testfile {
     while (my $line = <$infilehandle>) {
 
         # Disable marked line
-        if ($line =~ /#NOT IPv6$/i) {
+        if ($line =~ /# *No IPv6/i) {
             $line = "#$line";
             next;
         }
