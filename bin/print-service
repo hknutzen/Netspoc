@@ -109,8 +109,8 @@ sub obj_info {
     }
     my ($ip, $mask) = @{ address($obj, $no_nat_set) };
     my $prefix_len = mask2prefix($mask);
-    return(print_ip($ip) . ($prefix_len == ($config->{ipv6} ? 128 : 32 )?
-                            '' : "/$prefix_len"));
+    my $bitstr_len = length($mask) * 8;
+    return(print_ip($ip) . ($prefix_len == $bitstr_len ? '' : "/$prefix_len"));
 }
 
 sub prt_info {
