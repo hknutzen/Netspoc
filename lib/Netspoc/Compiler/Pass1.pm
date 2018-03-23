@@ -4923,15 +4923,15 @@ sub mark_disabled {
 sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
-
   IP:
     while ($low le $high) {
         for my $mask (@inverse_masks) {
-            if (($low & $mask) eq $zero_ip and ($low | $mask) le $high) {
-                push @result, [ $low, ~ $mask ];
-                $low = increment_ip($low | $mask);
-                next IP;
-            }
+            ($low & $mask) eq $zero_ip or next;
+            my $end = $low | $mask;
+            $end le $high or next;
+            push @result, [ $low, ~ $mask ];
+            $low = increment_ip($end);
+            next IP;
         }
     }
     return @result;
