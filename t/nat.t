@@ -2872,6 +2872,33 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate NAT at loopback network';
+############################################################
+
+$in = <<'END';
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:lo = {
+  ip = 10.1.9.1;
+  hardware = Looback0;
+  loopback;
+  nat:N = { hidden; }
+  nat:N2 = { ip = 10.1.99.99; }
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+END
+
+$out = <<'END';
+Error: Must not bind multiple NAT tags 'N,N2' of interface:r1.lo at router:r1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Only NAT IP at non loopback interface';
 ############################################################
 

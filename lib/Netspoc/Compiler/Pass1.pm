@@ -1284,6 +1284,7 @@ sub read_nat {
     # of hosts inside a dynamically translated network.
     $nat->{nat_tag} = $nat_tag;
 
+    $nat->{name} = $obj_name;
     $nat->{descr} = "nat:$nat_tag of $obj_name";
     return $nat;
 }
