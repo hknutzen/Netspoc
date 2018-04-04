@@ -2528,6 +2528,7 @@ sub move_locked_interfaces {
             orig_router => $orig_router,
             interfaces  => [$interface]
         );
+        $new_router->{ipv6} = 1 if $interface->{ipv6};
         $interface->{router} = $new_router;
         push @router_fragments, $new_router;
 
