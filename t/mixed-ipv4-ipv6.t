@@ -181,7 +181,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Checkmodel of IPv4/IPv6 router';
+$title = 'Check model of IPv4/IPv6 router';
 ############################################################
 
 $in = <<'END';
