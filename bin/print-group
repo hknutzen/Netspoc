@@ -303,7 +303,7 @@ sub try_expand {
         return $expanded;
     }
     else {
-        return undef, $stderr;
+        return(undef, $stderr);
     }
 }
 
