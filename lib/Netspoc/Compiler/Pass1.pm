@@ -16404,7 +16404,7 @@ my $permit_any6_rule;
 
 sub get_multicast_objects {
     my ($info, $ipv6) = @_;
-    my ($ip_list, $mask);
+    my $ip_list;
     if ($ipv6) {
         $ip_list = $info->{mcast6};
     }
