@@ -9970,6 +9970,7 @@ sub get_any {
                 ip           => $ip,
                 mask         => $mask,
             );
+            $aggregate->{ipv6} = 1 if $zone->{ipv6};
             if (my $private = $zone->{private}) {
                 $aggregate->{private} = $private;
             }
