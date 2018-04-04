@@ -66,7 +66,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -90,6 +90,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
+use Capture::Tiny 'capture_stderr';
 use open qw(:std :utf8);
 use Encode qw(decode_utf8);
 use Netspoc::Compiler::GetArgs qw(read_config combine_config);
@@ -279,10 +280,52 @@ if ($show_owner) {
     propagate_owners();
 }
 
+# Try to expand group as IPv4 or IPv6, but don't abort on error.
+sub try_expand {
+    my ($parsed, $ipv6) = @_;
+    my $expanded;
+    my ($stderr, $success) =
+        capture_stderr {
+            my $result;
+            eval {
+                $Netspoc::Compiler::Pass1::error_counter = 0;
+                $expanded = expand_group($parsed, "print-group",
+                                         $ipv6, 'with_subnets');
+                abort_on_error();
+                $result = 1;
+            };
+            if ($@) {
+                warn $@;
+            }
+            $result;
+    };
+    if ($success) {
+        return $expanded;
+    }
+    else {
+        return undef, $stderr;
+    }
+}
+
 # Expand group definition(s).
+# We don't know if this expands to IPv4 or IPv6 addresses,
+# so we try both in first cycle.
+my $search_ipv6;
 for my $aref (@groups) {
     my ($definition, $parsed) = @$aref;
-    my $elements = expand_group($parsed, 'print-group', 'with_subnets');
+    my ($elements, $err);
+    if (not defined $search_ipv6) {
+        $search_ipv6 = 1;
+        ($elements, $err) = try_expand($parsed, $search_ipv6);
+        if (not $elements) {
+            $search_ipv6 = 0;
+            redo;
+        }
+    }
+    else {
+        ($elements, $err) = try_expand($parsed, $search_ipv6);
+        $elements or die $err;
+    }
 
     if ($show_unused) {
         $elements = [ grep { not $used{$_} } @$elements ];
@@ -293,8 +336,6 @@ for my $aref (@groups) {
                                $_->{name} ];
                      push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
                      $v } @$elements;
-
-    abort_on_error();
 
     # Prepend group definition as comment.
     if ($groups_file) {

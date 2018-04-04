@@ -6,7 +6,7 @@ Common code of Pass1 and Pass2
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -28,6 +28,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 use strict;
 use warnings;
+use NetAddr::IP::Util;
 
 use Exporter;
 our @ISA    = qw(Exporter);
@@ -36,13 +37,9 @@ our @EXPORT = qw(
  fatal_err debug info diag_msg
  $start_time progress
  ip2bitstr bitstr2ip
- $zero_ip $max_ip @inverse_masks
+ is_zero_ip get_zero_ip is_host_mask get_host_mask
  increment_ip
  mask2prefix prefix2mask match_ip
- init_mask_prefix_lookups
- init_zero_and_max_ip
- init_inverse_masks
- init_prefix_len
 );
 
 # Enable printing of diagnostic messages by
@@ -125,32 +122,50 @@ sub bitstr2ip {
 
 ## use critic
 
-our $zero_ip;
-our $max_ip;
+my $zero_ip  = pack('N', 0);
+my $zero_ip6 = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
+my $max_ip = pack('N', 0xffffffff);
+my $max_ip6 =
+    NetAddr::IP::Util::ipv6_aton('ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff');
 
-sub init_zero_and_max_ip {
-    if ($config->{ipv6}) {
-        $zero_ip = NetAddr::IP::Util::ipv6_aton('0:0:0:0:0:0:0:0');
-        $max_ip = NetAddr::IP::Util::ipv6_aton(
-            'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff');
+sub is_zero_ip {
+    my ($ip) = @_;
+    if (length($ip) == 4) {
+        return $ip eq $zero_ip;
     }
     else {
-        $zero_ip = pack('N', 0);
-        $max_ip = pack('N', 0xffffffff);
+        return $ip eq $zero_ip6;
     }
 }
 
-our $prefix_len;
-
-sub init_prefix_len {
-    $prefix_len = $config->{ipv6} ? 128 : 32;
+sub get_zero_ip {
+    my ($ipv6) = @_;
+    if ($ipv6) {
+        return $zero_ip6;
+    }
+    else {
+        return $zero_ip;
+    }
 }
 
-# 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-our @inverse_masks;
+sub is_host_mask {
+    my ($mask) = @_;
+    if (length($mask) == 4) {
+        return $mask eq $max_ip;
+    }
+    else {
+        return $mask eq $max_ip6;
+    }
+}
 
-sub init_inverse_masks {
-    @inverse_masks = map { ~ prefix2mask($_) } (0 .. $prefix_len);
+sub get_host_mask {
+    my ($ip) = @_;
+    if (length($ip) == 4) {
+        return $max_ip;
+    }
+    else {
+        return $max_ip6;
+    }
 }
 
 sub increment_ip  {
@@ -191,38 +206,48 @@ sub increment_ip  {
     # Initialize private variables of this block.
     my %mask2prefix;
     my %prefix2mask;
+    my %prefix2mask_v6;
 
-    # Build mask in 32/128bit bitstring format from 1/4 32bit numbers.
-    # [0000,0000],[1000,0000],[1100,0000],[1110,0000],[1111,0000],[1111,1000],..
-    sub init_mask_prefix_lookups {
-        my $size_32 = $config->{ipv6} ? 4 : 1;
-        my @words = (0x00000000) x $size_32;
-        my $index = 0;
-        my $prefix = 0;
-        while ($index < $size_32) {
-            my $bit = 0x80000000;	# Highest bit is set.
-            while (1) {
-                my $mask = pack 'N*', @words;
-                $mask2prefix{$mask}   = $prefix;
-                $prefix2mask{$prefix} = $mask;
-                last if $bit == 0;
-                $words[$index] |= $bit;
-                $bit >>= 1;
-                $prefix++;
+    # Build mask in 128bit bitstring format from 4 32bit numbers.
+    # [000,000],[100,000],[110,000],[111,100],[111,110],[111,111]
+    # Also builds 32bit bitstrings.
+    my @words = (0x00000000) x 4;
+    my $index = 0;
+    my $prefix = 0;
+    while ($index < 4) {
+        my $bit = 0x80000000;   # Highest bit is set.
+        while (1) {
+            my $mask6 = pack 'N*', @words;
+            $mask2prefix{$mask6}  = $prefix;
+            $prefix2mask_v6{$prefix} = $mask6;
+            if ($prefix <= 32) {
+                my $mask4 = pack 'N', $words[0];
+                $mask2prefix{$mask4}  = $prefix;
+                $prefix2mask{$prefix} = $mask4;
             }
-            $index++;
+            last if $bit == 0;
+            $words[$index] |= $bit;
+            $bit >>= 1;
+            $prefix++;
         }
+        $index++;
     }
 
-    # Convert a network mask to a prefix ranging from 0 to 32/128.
+    # Convert IPv4 or IPv6 network mask to prefix ranging from 0 to 32/128.
     sub mask2prefix {
         my $mask = shift;
         return $mask2prefix{$mask};
     }
 
+    # Convert prefix to IPv4 or IPv6 mask.
     sub prefix2mask {
-        my $prefix = shift;
-        return $prefix2mask{$prefix};
+        my ($prefix, $ipv6) = @_;
+        if ($ipv6) {
+            return $prefix2mask_v6{$prefix};
+        }
+        else {
+            return $prefix2mask{$prefix};
+        }
     }
 }
 

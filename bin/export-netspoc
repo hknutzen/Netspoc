@@ -6,7 +6,7 @@ export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@gmail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@gmail.com>
 (c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -122,7 +122,7 @@ sub ip_nat_for_object {
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
-            elsif ($obj->{is_aggregate} && $obj->{mask} eq $zero_ip) {
+            elsif ($obj->{is_aggregate} && is_zero_ip($obj->{mask})) {
                 print_ip($obj->{ip});
             }
             else {
@@ -411,9 +411,10 @@ sub normalize_services_for_export {
     progress("Normalize services for export");
     my @result;
     for my $service (sort by_name values %services) {
+        my $ipv6    = $service->{ipv6};
         my $sname   = $service->{name};
         my $context = $sname;
-        my $user    = expand_group($service->{user}, "user of $context");
+        my $user    = expand_group($service->{user}, "user of $context", $ipv6);
         my $rules   = $service->{rules};
         my $foreach = $service->{foreach};
 
@@ -434,7 +435,8 @@ sub normalize_services_for_export {
 
             for my $element ($foreach ? @$user : ($user)) {
                 my $src_dst_list_pairs =
-                    normalize_src_dst_list($unexpanded, $element, $context);
+                    normalize_src_dst_list($unexpanded, $element,
+                                           $context, $ipv6);
                 for my $src_dst_list (@$src_dst_list_pairs) {
                     my ($src_list, $dst_list) = @$src_dst_list;
 
@@ -896,6 +898,7 @@ sub export_assets {
         next if not @{ $zone->{networks} };
 
         # Zone with network 0/0 doesn't have an aggregate 0/0.
+        my $zero_ip = get_zero_ip($zone->{ipv6});
         my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
@@ -1092,6 +1095,7 @@ sub zone_and_subnet {
             ($zone) = @$cluster;
         }
     }
+    my $zero_ip = get_zero_ip($zone->{ipv6});
     my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
     my $zone_name = $any ? $any->{name} : $zone->{name};
 
@@ -1195,51 +1199,33 @@ sub copy_policy_file {
 $config =
     combine_config({time_stamps => 1, max_errors => 9999,
                     verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
+init_global_vars();
+read_file_or_dir($netspoc_data);
+order_protocols();
+link_topology();
+mark_disabled();
+set_zone();
+setpath();
+distribute_nat_info();
+find_subnets_in_zone();
 
-# Export ipv4 and ipv6 part.
-sub export {
-    my ($in_path, $ignore_dir) = @_;
-    init_global_vars();
-    read_file_or_dir($in_path, $ignore_dir);
-    order_protocols();
-    link_topology();
-    mark_disabled();
-    set_zone();
-    setpath();
-    distribute_nat_info();
-    find_subnets_in_zone();
+# Copy of %services with those services split, that have different 'user'.
+my $normalized_services = normalize_services_for_export();
+propagate_owners();
+find_subnets_in_nat_domain();
+adapt_owner_names();
+setup_zones();
+setup_part_owners();
+setup_outer_owners();
+setup_service_info($normalized_services);
 
-    # Copy of %services with those services split, that have different 'user'.
-    my $normalized_services = normalize_services_for_export();
-    propagate_owners();
-    find_subnets_in_nat_domain();
-    adapt_owner_names();
-    setup_zones();
-    setup_part_owners();
-    setup_outer_owners();
-    setup_service_info($normalized_services);
-
-    # Export data
-    create_dirs('');
-    export_owners();
-    export_assets();
-    my $owner2type2shash = export_services($normalized_services);
-    export_users_and_service_lists($owner2type2shash);
-    export_objects();
-    export_no_nat_set();
-}
-
-my $ignore_dir;
-if (not $config->{ipv6} and -e (my $sub_dir = "$netspoc_data/ipv6")) {
-    local $config->{ipv6} = 1;
-    export($sub_dir);
-    $ignore_dir = 'ipv6';
-}
-elsif ($config->{ipv6} and -e ($sub_dir = "$netspoc_data/ipv4")) {
-    local $config->{ipv6} = undef;
-    export($sub_dir);
-    $ignore_dir = 'ipv4';
-}
-export($netspoc_data, $ignore_dir);
+# Export data
+create_dirs('');
+export_owners();
+export_assets();
+my $owner2type2shash = export_services($normalized_services);
+export_users_and_service_lists($owner2type2shash);
+export_objects();
+export_no_nat_set();
 copy_policy_file();
 progress("Ready");

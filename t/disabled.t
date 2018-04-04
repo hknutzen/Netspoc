@@ -102,7 +102,7 @@ END
 $out = <<END;
 Error: interface:r1.n1 must not be disabled,
  since it is part of a loop
-Error: IPv4 topology seems to be empty
+Error: topology seems to be empty
 Aborted
 END
 

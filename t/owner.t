@@ -61,7 +61,7 @@ $out = <<'END';
 Error: Duplicates in admins of owner:x: a@b.c
 Error: Duplicates in watchers of owner:x: b@b.c
 Error: Duplicates in admins/watchers of owner:x: b@b.c
-Error: IPv4 topology seems to be empty
+Error: topology seems to be empty
 Aborted
 END
 

@@ -42,7 +42,7 @@ router:r@v3 = {
 END
 
 $out = <<'END';
-Error: All VRF instances of router:r must have identical model
+Error: All instances of router:r must have identical model
 Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
 END
 
@@ -311,7 +311,7 @@ END
 
 $out = <<'END';
 Error: Missing attribute 'policy_distribution_point' for 1 devices:
- - at least one VRF of router:r1
+ - at least one instance of router:r1
 END
 
 test_err($title, $in, $out, '-check_policy_distribution_point=1');

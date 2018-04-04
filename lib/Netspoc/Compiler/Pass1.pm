@@ -51,6 +51,7 @@ use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(
   %routers
+  %routers6
   %interfaces
   %networks
   %hosts
@@ -542,7 +543,7 @@ sub read_ip_prefix {
     my ($part1, $part2) = $token =~ m/^(.*)\/(.*)$/ or
         syntax_err("Expected 'IP/prefixlen'");
     my $ip = convert_ip($part1);
-    my $mask = prefix2mask($part2);
+    my $mask = prefix2mask($part2, $config->{ipv6});
     defined $mask or syntax_err('Invalid prefix');
     match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
 
@@ -1082,6 +1083,10 @@ sub host_as_interface {
     $interface->{is_managed_host} = 1;
     $router->{interfaces}         = [$interface];
     $router->{hardware}           = [$hardware];
+    if ($config->{ipv6}) {
+        $router->{ipv6} = 1;
+        $interface->{ipv6} = 1;
+    }
 
     # Don't add to %routers
     # - Name lookup isn't needed.
@@ -1265,8 +1270,8 @@ sub read_nat {
         # This prevents 'Use of uninitialized value'
         # if code generation is started concurrently,
         # before all error conditions are checked.
-        $nat->{ip} = $zero_ip;
-        $nat->{mask} = $max_ip;
+        my $zero_ip = $nat->{ip} = get_zero_ip($config->{ipv6});
+        $nat->{mask} = get_host_mask($zero_ip);
     }
     elsif ($nat->{identity}) {
         for my $key (sort keys %$nat) {
@@ -1347,6 +1352,7 @@ sub read_network {
                 my  $host_name = $name2;
                 my $host = read_host("host:$host_name", $net_name);
                 $host->{network} = $network;
+                $host->{ipv6} = 1 if $config->{ipv6};
                 if (is_host($host)) {
                     push @{ $network->{hosts} }, $host;
                     $host_name = (split_typed_name($host->{name}))[1];
@@ -1912,6 +1918,7 @@ my $bind_nat0 = [];
 
 # Mapping from router names to router objects.
 our %routers;
+our %routers6;
 
 sub read_router {
     my $name = shift;
@@ -2020,6 +2027,7 @@ sub read_router {
 
                 # Assign interface to global hash of interfaces.
                 $interfaces{$iname} = $interface;
+                $interface->{ipv6} = 1 if $config->{ipv6};
 
                 # Link interface with router object.
                 $interface->{router} = $router;
@@ -2392,22 +2400,25 @@ sub read_router {
                 ($net_name = $name) =~ s/^interface://;
             }
             if (not $networks{$net_name}) {
+                my $ip = $interface->{ip};
+                my $host_mask = get_host_mask($ip);
                 my $network = new(
                     'Network',
                     name => $name,
-                    ip   => $interface->{ip},
-                    mask => $max_ip,
+                    ip   => $ip,
+                    mask => $host_mask,
 
                     # Mark as automatically created.
                     loopback  => 1,
                     subnet_of => delete $interface->{subnet_of},
                     is_layer3 => $interface->{is_layer3},
                 );
+                $network->{ipv6} = 1 if $config->{ipv6};
 
                 # Move NAT definition from interface to loopback network.
                 if (my $nat = delete $interface->{nat}) {
                     for my $nat_info (values %$nat) {
-                        $nat_info->{mask} = $max_ip;
+                        $nat_info->{mask} = $host_mask;
                     }
                     $network->{nat} = $nat;
                 }
@@ -2607,9 +2618,10 @@ sub read_aggregate {
         syntax_err("Attribute 'link' must be defined for $name");
     my $ip = $aggregate->{ip};
     if (not $ip) {
-        $ip = $aggregate->{ip} = $aggregate->{mask} = $zero_ip;
+        $ip = $aggregate->{ip} = $aggregate->{mask} =
+            get_zero_ip($config->{ipv6});
     }
-    if ($ip ne $zero_ip) {
+    if (not is_zero_ip($ip)) {
         for my $key (sort keys %$aggregate) {
             next
               if grep({ $key eq $_ }
@@ -3358,20 +3370,21 @@ sub read_owner {
     return $owner;
 }
 
+# Third attribute is true, if definitions are shared between IPv4 and IPv6.
 our %global_type = (
     router          => [ \&read_router,          \%routers ],
     network         => [ \&read_network,         \%networks ],
     any             => [ \&read_aggregate,       \%aggregates ],
     area            => [ \&read_area,            \%areas ],
-    owner           => [ \&read_owner,           \%owners ],
     group           => [ \&read_group,           \%groups ],
-    protocol        => [ \&read_protocol,        \%protocols ],
-    protocolgroup   => [ \&read_protocolgroup,   \%protocolgroups ],
     service         => [ \&read_service,         \%services ],
     pathrestriction => [ \&read_pathrestriction, \%pathrestrictions ],
-    isakmp          => [ \&read_isakmp,          \%isakmp ],
-    ipsec           => [ \&read_ipsec,           \%ipsec ],
-    crypto          => [ \&read_crypto,          \%crypto ],
+    owner           => [ \&read_owner,           \%owners,         1 ],
+    protocol        => [ \&read_protocol,        \%protocols,      1 ],
+    protocolgroup   => [ \&read_protocolgroup,   \%protocolgroups, 1 ],
+    isakmp          => [ \&read_isakmp,          \%isakmp,         1 ],
+    ipsec           => [ \&read_ipsec,           \%ipsec,          1 ],
+    crypto          => [ \&read_crypto,          \%crypto,         1 ],
 );
 
 sub parse_toplevel {
@@ -3381,9 +3394,17 @@ sub parse_toplevel {
     my ($type, $name) = @$pair;
     my $descr = $global_type{$type}
       or syntax_err("Unknown global definition");
-    my ($fun, $hash) = @$descr;
+    my ($fun, $hash, $shared) = @$descr;
     my $result = $fun->("$type:$name");
     $result->{file} = $current_file;
+    if ($config->{ipv6}) {
+        if (not $shared) {
+            $result->{ipv6} = 1;
+        }
+        if ($type eq 'router') {
+            $hash = \%routers6;
+        }
+    }
     if (my $other = $hash->{$name}) {
         my $file = $other->{file};
         if ($current_file ne $file) {
@@ -3391,10 +3412,11 @@ sub parse_toplevel {
         }
         err_msg("Duplicate definition of $type:$name in $file");
     }
+    $hash->{$name} = $result;
 
     # Result is not used in this module but can be useful
     # when this function is called from outside.
-    return $hash->{$name} = $result;
+    return $result;
 }
 
 sub parse_input {
@@ -3404,19 +3426,24 @@ sub parse_input {
     }
 }
 
+# Read IPv4 and / or IPv6 input.
 sub read_file_or_dir {
-    my ($path, $ignore_dir) = @_;
+    my ($path) = @_;
+    my $ignore_dir = $config->{ipv6} ? 'ipv4' : 'ipv6';
+    if (-e (my $sub_dir = "$path/$ignore_dir")) {
+        local $config->{ipv6} = !$config->{ipv6};
+        process_file_or_dir($sub_dir, \&parse_input);
+    }
     process_file_or_dir($path, \&parse_input, $ignore_dir);
 }
 
 # Prints number of read entities if in verbose mode.
 sub show_read_statistics {
+    my $r = keys(%routers) + keys(%routers6);
     my $n = keys %networks;
     my $h = keys %hosts;
-    my $r = keys %routers;
     my $s = keys %services;
-    my $ipv = $config->{ipv6} ? 'IPv6' : 'IPv4';
-    info("Read $ipv: $r routers, $n networks, $h hosts, $s services");
+    info("Read: $r routers, $n networks, $h hosts, $s services");
 }
 
 ## no critic (RequireArgUnpacking RequireFinalReturn)
@@ -3831,6 +3858,10 @@ sub order_protocols {
 
 sub expand_group;
 
+sub get_ipv4_ipv6_routers {
+    return(values %routers, values %routers6);
+}
+
 # Replace the owner name by the actual owner object inside the passed
 # object and aditionally returns the owner object.
 # Owner attribute defaults to 'owner', but other attribute name can be used,
@@ -3941,7 +3972,7 @@ sub link_owners {
             link_to_real_owner($router_attributes);
         }
     }
-    for my $router (values %routers, @router_fragments) {
+    for my $router (get_ipv4_ipv6_routers(), @router_fragments) {
         link_to_real_owner($router);
         next if $router->{managed} or $router->{routing_only};
         for my $interface (@{ $router->{interfaces} }) {
@@ -3954,27 +3985,24 @@ sub link_owners {
 }
 
 sub link_policy_distribution_point {
-    my ($obj) = @_;
+    my ($obj, $ipv6) = @_;
     my $pair = $obj->{policy_distribution_point} or return;
     my ($type, $name) = @$pair;
     if ($type ne 'host') {
         err_msg("Must only use 'host' in 'policy_distribution_point'",
-            " of $obj->{name}");
-
-        # Prevent further errors;
-        delete $obj->{policy_distribution_point};
+                " of $obj->{name}");
+    }
+    elsif (my $host = expand_typed_name($type, $name, $obj->{name}, $ipv6)) {
+        $obj->{policy_distribution_point} = $host;
         return;
     }
-    my $host = $hosts{$name};
-    if (not $host) {
-        warn_msg("Ignoring undefined host:$name",
-            " in 'policy_distribution_point' of $obj->{name}");
-
-        # Prevent further errors;
-        delete $obj->{policy_distribution_point};
-        return;
+    else {
+        warn_msg("Ignoring undefined $type:$name in 'policy_distribution_point'",
+                " of $obj->{name}");
     }
-    $obj->{policy_distribution_point} = $host;
+
+    # Prevent further errors;
+    delete $obj->{policy_distribution_point};
 }
 
 sub link_general_permit {
@@ -4022,12 +4050,13 @@ sub link_general_permit {
 # Link areas with referenced interfaces or network.
 sub link_areas {
     for my $area (values %areas) {
+        my $ipv6 = $area->{ipv6};
         if (my $net_name = $area->{anchor}) {
 
             # Input has already been checked by parser, so we are sure
             # to get exactly one network as result.
-            my ($obj) =
-                @{ expand_group([['network', $net_name]], $area->{name}) };
+            my ($obj) = @{ expand_group([['network', $net_name]],
+                                        $area->{name}, $ipv6) };
             $area->{anchor} = $obj;
         }
         for my $attr (qw(border inclusive_border)) {
@@ -4035,7 +4064,7 @@ sub link_areas {
 
             # Input has already been checked by parser, so we are sure
             # to get list of interfaces as result.
-            $area->{$attr} = expand_group($area->{$attr}, $area->{name});
+            $area->{$attr} = expand_group($area->{$attr}, $area->{name}, $ipv6);
             for my $obj (@{ $area->{$attr} }) {
                 my $router = $obj->{router};
                 $router->{managed} or
@@ -4049,7 +4078,7 @@ sub link_areas {
             }
         }
         if (my $router_attributes = $area->{router_attributes}) {
-            link_policy_distribution_point($router_attributes);
+            link_policy_distribution_point($router_attributes, $area->{ipv6});
             link_general_permit($router_attributes);
         }
     }
@@ -4058,11 +4087,12 @@ sub link_areas {
 # Link interfaces with networks in both directions.
 sub link_interfaces {
     my ($router) = @_;
+    my $ipv6 = $router->{ipv6};
     for my $interface (@{ $router->{interfaces} }) {
         my $net_name = $interface->{network};
-        my $network  = $networks{$net_name};
-
-        unless ($network) {
+        my $network  = expand_typed_name('network', $net_name,
+                                         $interface->{name}, $ipv6);
+        if (not $network) {
             my $msg = "Referencing undefined network:$net_name"
               . " from $interface->{name}";
             if ($interface->{disabled}) {
@@ -4138,7 +4168,7 @@ sub check_interface_ip {
             err_msg("$interface->{name}'s IP doesn't match ",
                 "$network->{name}'s IP/mask");
         }
-        if ($mask eq $max_ip) {
+        if (is_host_mask($mask)) {
             if (not $network->{loopback}) {
                 warn_msg(
                     "$interface->{name} has address of its network.\n",
@@ -4167,18 +4197,18 @@ sub check_interface_ip {
 # Don't use values %interfaces because we want to traverse the interfaces
 # in a deterministic order.
 sub link_routers {
-    for my $router (sort(by_name values %routers), @router_fragments) {
+    for my $router (sort(by_name get_ipv4_ipv6_routers()), @router_fragments) {
         link_interfaces($router);
-        link_policy_distribution_point($router);
+        link_policy_distribution_point($router, $router->{ipv6});
         link_general_permit($router);
     }
 }
 
 sub link_subnet {
-    my ($object) = @_;
+    my ($object, $ipv6) = @_;
     my $name = $object->{subnet_of} or return;
     my $context = $object->{descr} || $object->{name};
-    my $network = $networks{$name};
+    my $network = expand_typed_name('network', $name, $context, $ipv6);
     if (not $network) {
         warn_msg("Ignoring undefined network:$name",
                  " from attribute 'subnet_of'\n",
@@ -4214,13 +4244,13 @@ sub link_subnet {
 
 sub link_subnets {
     for my $network (values %networks) {
-        link_subnet($network);
+        link_subnet($network, $network->{ipv6});
     }
     for my $obj (values %networks, values %aggregates, values %areas) {
         my $href = $obj->{nat} or next;
         for my $nat_tag (sort keys %$href) {
             my $nat_info = $href->{$nat_tag};
-            link_subnet($nat_info);
+            link_subnet($nat_info, $obj->{ipv6});
         }
     }
 }
@@ -4242,8 +4272,8 @@ sub add_pathrestriction {
 
 sub link_pathrestrictions {
     for my $restrict (sort by_name values %pathrestrictions) {
-        my $elements =
-            expand_group($restrict->{elements}, $restrict->{name});
+        my $elements = expand_group($restrict->{elements},
+                                    $restrict->{name}, $restrict->{ipv6});
         my $changed;
         my $private = my $no_private = $restrict->{private};
         for my $obj (@$elements) {
@@ -4324,7 +4354,7 @@ sub link_pathrestrictions {
 # - one split part for each interface with pathrestrictions.
 # All parts are connected by a freshly created unnumbered network.
 sub split_semi_managed_router {
-    for my $router (values %routers) {
+    for my $router (get_ipv4_ipv6_routers()) {
 
         # Router is marked as semi_managed, if it
         # - has pathrestriction
@@ -4821,7 +4851,7 @@ sub mark_disabled {
         }
     }
 
-    for my $router (sort(by_name values %routers), @router_fragments) {
+    for my $router (sort(by_name get_ipv4_ipv6_routers()), @router_fragments) {
         next if $router->{disabled};
         push @routers, $router;
         if ($router->{managed}) {
@@ -4834,35 +4864,43 @@ sub mark_disabled {
 
     # Collect vrf instances belonging to one device.
     # This includes different managed hosts with identical server_name.
-    my %name2vrf;
+    # Also collect all IPv4 and IPv6 routers with same name.
+    my %name_ipv2vrf;
+    my %name2all;
     for my $router (@managed_routers, @routing_only_routers) {
         next if $router->{orig_router};
         my $device_name = $router->{device_name};
-        push @{ $name2vrf{$device_name} }, $router;
+        my $ipv6 = $router->{ipv6} ? ',6' : '';
+        push @{ $name_ipv2vrf{"$device_name$ipv6"} }, $router;
+        push @{ $name2all{"$device_name"} }, $router;
     }
-    for my $aref (values %name2vrf) {
+    for my $aref (values %name2all) {
         next if @$aref == 1;
         equal(
-            map {
-                    $_->{managed} || $_->{routing_only}
+            map {   $_->{managed} || $_->{routing_only}
                   ? $_->{model}->{name}
                   : ()
             } @$aref
           )
           or err_msg(
-            "All VRF instances of router:$aref->[0]->{device_name}",
+            "All instances of router:$aref->[0]->{device_name}",
             " must have identical model"
           );
+        for my $router (@$aref) {
+            $router->{ipv_members} = $aref;
+        }
+    }
+
+    for my $aref (values %name_ipv2vrf) {
+        next if @$aref == 1;
 
         my %hardware;
         for my $router (@$aref) {
             for my $hardware (@{ $router->{hardware} }) {
                 my $name = $hardware->{name};
                 if (my $other = $hardware{$name}) {
-                    err_msg(
-                        "Duplicate hardware '$name' at",
-                        " $other->{name} and $router->{name}"
-                    );
+                    err_msg("Duplicate hardware '$name' at",
+                            " $other->{name} and $router->{name}");
                 }
                 else {
                     $hardware{$name} = $router;
@@ -4898,7 +4936,7 @@ sub mark_disabled {
     for my $network (values %networks) {
         next if $network->{disabled};
         next if $seen{$network};
-        if (keys %networks > 1 or keys %routers) {
+        if (keys %networks > 1 or @routers) {
             err_msg("$network->{name} isn't connected to any router");
             $network->{disabled} = 1;
             for my $host (@{ $network->{hosts} }) {
@@ -4920,14 +4958,20 @@ sub mark_disabled {
 # Mark subnet relation of subnets.
 ####################################################################
 
+# 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
+my @inverse_masks4 = map { ~ prefix2mask($_) } (0 .. 32);
+my @inverse_masks6 = map { ~ prefix2mask($_, 1) } (0 .. 128);
+
+
 # Convert an IP range to a set of covering IP/mask pairs.
 sub split_ip_range {
     my ($low, $high) = @_;
     my @result;
+    my $inv_masks = length($low) == 4 ? \@inverse_masks4 : \@inverse_masks6;
   IP:
     while ($low le $high) {
-        for my $mask (@inverse_masks) {
-            ($low & $mask) eq $zero_ip or next;
+        for my $mask (@$inv_masks) {
+            is_zero_ip($low & $mask) or next;
             my $end = $low | $mask;
             $end le $high or next;
             push @result, [ $low, ~ $mask ];
@@ -4963,7 +5007,8 @@ sub convert_hosts {
     for my $network (@networks) {
         my $net_ip = $network->{ip};
         next if $net_ip =~ /^(?:unnumbered|tunnel)$/;
-        my $bitstr_len = 16 == length($net_ip) ? 128 : 32;
+        my $ipv6 = $network->{ipv6};
+        my $bitstr_len = $ipv6 ? 128 : 32;
         my @subnet_aref;
 
         # Converts hosts and ranges to subnets.
@@ -4973,7 +5018,7 @@ sub convert_hosts {
             my @ip_mask;
 
             if (my $ip = $host->{ip}) {
-                @ip_mask = [ $ip, $max_ip ];
+                @ip_mask = [ $ip, get_host_mask($ip) ];
                 if ($id) {
                     if (my ($user) = ($id =~ /^(.*?)\@/)) {
                         $user
@@ -4998,7 +5043,7 @@ sub convert_hosts {
                         err_msg("Range of $name with ID must expand to",
                             " exactly one subnet");
                     }
-                    elsif ($ip_mask[0]->[1] eq $max_ip) {
+                    elsif (is_host_mask($ip_mask[0]->[1])) {
                         err_msg("$name with ID must not have single IP");
                     }
                     elsif ($id =~ /^.+\@/) {
@@ -5048,7 +5093,7 @@ sub convert_hosts {
 
                 # Search for enclosing subnet.
                 for (my $j = $i + 1 ; $j < @subnet_aref ; $j++) {
-                    my $mask = prefix2mask($bitstr_len - $j);
+                    my $mask = prefix2mask($bitstr_len - $j, $ipv6);
                     $ip &= $mask;
                     if (my $up = $subnet_aref[$j]->{$ip}) {
                         $subnet->{up} = $up;
@@ -5066,11 +5111,11 @@ sub convert_hosts {
         my $network_size = $bitstr_len - mask2prefix($network->{mask});
         for (my $i = 0 ; $i < @subnet_aref ; $i++) {
             my $ip2subnet = $subnet_aref[$i] or next;
-            my $mask = prefix2mask($bitstr_len - $i);
+            my $mask = prefix2mask($bitstr_len - $i, $ipv6);
 
             # Identify next supernet.
             my $up_subnet_size = $i + 1;
-            my $up_mask = prefix2mask($bitstr_len - $up_subnet_size);
+            my $up_mask = prefix2mask($bitstr_len - $up_subnet_size, $ipv6);
 
             # Network mask and supernet mask differ in one bit.
             # This bit distinguishes left and right subnet of supernet:
@@ -5094,7 +5139,7 @@ sub convert_hosts {
 
                 # Only take the left part of two adjacent subnets,
                 # where lowest network bit is zero.
-                next if ($ip & $next) ne $zero_ip;
+                is_zero_ip($ip & $next) or next;
 
                 my $next_ip = $ip | $next;
 
@@ -5189,6 +5234,18 @@ my %name2object = (
     area      => \%areas,
 );
 
+sub expand_typed_name {
+    my ($type, $name, $context, $ipv6) = @_;
+    my $object = $name2object{$type}->{$name} or return;
+    if ($ipv6 xor $object->{ipv6}) {
+        my $expected = $ipv6 ? 'IPv6' : 'IPv4';
+        my $found = $object->{ipv6} ? 'IPv6' : 'IPv4';
+        err_msg("Must not reference $found $object->{name} in",
+                " $expected context $context");
+    }
+    return $object;
+}
+
 sub get_intf {
     my ($router) = @_;
     if (my $orig_router = $router->{orig_router}) {
@@ -5261,7 +5318,7 @@ sub remove_duplicates {
 sub expand_group1;
 
 sub expand_group1 {
-    my ($aref, $context, $clean_autogrp, $with_subnets) = @_;
+    my ($aref, $context, $ipv6, $clean_autogrp, $with_subnets) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -5275,7 +5332,7 @@ sub expand_group1 {
                   map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
-                        $clean_autogrp, $with_subnets
+                        $ipv6, $clean_autogrp, $with_subnets
                     )
                   };
                 if ($element->[0] eq '!') {
@@ -5352,8 +5409,7 @@ sub expand_group1 {
                   or err_msg("Must not use interface:[..].$ext in $context");
                 my ($selector, $managed) = @$ext;
                 my $sub_objects = expand_group1(
-                    $name,
-                    "interface:[..].[$selector] of $context");
+                    $name, "interface:[..].[$selector] of $context", $ipv6);
                 for my $object (@$sub_objects) {
                     next if $object->{disabled};
                     $object->{is_used} = 1;
@@ -5365,7 +5421,7 @@ sub expand_group1 {
                                 # We can't simply take
                                 # aggregate -> networks -> interfaces,
                                 # because subnets may be missing.
-                                $object->{mask} eq $zero_ip
+                                is_zero_ip($object->{mask})
                                   or err_msg "Must not use",
                                   " interface:[..].[all]\n",
                                   " with $object->{name} having ip/mask\n",
@@ -5486,7 +5542,8 @@ sub expand_group1 {
             # interface:name.[xxx]
             elsif (ref $ext) {
                 my ($selector) = @$ext;
-                if (my $router = $routers{$name}) {
+                my $lookup = $ipv6 ? \%routers6 : \%routers;
+                if (my $router = $lookup->{$name}) {
                     if ($selector eq 'all') {
                         push @check, get_intf($router);
                     }
@@ -5520,10 +5577,13 @@ sub expand_group1 {
             my $sub_objects = [
                 map { $_->{is_used} = 1; $_; }
                   grep { not($_->{disabled}) }
-                  @{ expand_group1($name, "$type:[..] of $context") }
+                  @{ expand_group1($name, "$type:[..] of $context", $ipv6) }
             ];
             my $get_aggregates = sub {
                 my ($object, $ip, $mask) = @_;
+                if (not defined $ip) {
+                    $ip = $mask = get_zero_ip($object->{ipv6});
+                }
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Area') {
@@ -5558,8 +5618,7 @@ sub expand_group1 {
                         push @objects, @{ $object->{networks} };
                     }
                 }
-                elsif (my $aggregates = $get_aggregates->($object,
-                                                          $zero_ip, $zero_ip))
+                elsif (my $aggregates = $get_aggregates->($object))
                 {
                     push(
                         @objects,
@@ -5661,7 +5720,7 @@ sub expand_group1 {
                 push @objects, unique(@list);
             }
             elsif ($type eq 'any') {
-                my ($ip, $mask) = $ext ? @$ext : ($zero_ip, $zero_ip);
+                my ($ip, $mask) = $ext ? @$ext : ();
                 my @list;
                 for my $object (@$sub_objects) {
                     if (my $aggregates = $get_aggregates->($object, $ip, $mask))
@@ -5690,10 +5749,14 @@ sub expand_group1 {
         }
 
         # An object named simply 'type:name'.
-        elsif (my $object = $name2object{$type}->{$name}) {
-
-            $ext
-              and err_msg("Unexpected '.$ext' after $type:$name in $context");
+        else {
+            my $object = expand_typed_name($type, $name, $context, $ipv6);
+            if (not $object) {
+                err_msg("Can't resolve $type:$name in $context");
+                next;
+            }
+            $ext and
+                err_msg("Unexpected '.$ext' after $type:$name in $context");
 
             # Split a group into its members.
             # There may be two different versions depending of $clean_autogrp.
@@ -5722,8 +5785,8 @@ sub expand_group1 {
                     $object->{is_used} = 1;
 
                     $elements =
-                      expand_group1($object->{elements}, "$type:$name",
-                        $clean_autogrp);
+                      expand_group1($object->{elements}, "$type:$name", $ipv6,
+                                    $clean_autogrp);
                     delete $object->{recursive};
 
                     # Private group must not reference private element of other
@@ -5760,10 +5823,6 @@ sub expand_group1 {
             else {
                 push @objects, $object;
             }
-
-        }
-        else {
-            err_msg("Can't resolve $type:$name in $context");
         }
     }
     return \@objects;
@@ -5774,8 +5833,9 @@ sub expand_group1 {
 # For each resulting network, all subnets of this network in same zone
 # are added.
 sub expand_group {
-    my ($obref, $context, $with_subnets) = @_;
-    my $aref = expand_group1($obref, $context, 'clean_autogrp', $with_subnets);
+    my ($obref, $context, $ipv6, $with_subnets) = @_;
+    my $aref =
+        expand_group1($obref, $context, $ipv6, 'clean_autogrp', $with_subnets);
     remove_duplicates($aref, $context);
 
     # Ignore disabled objects.
@@ -5793,8 +5853,8 @@ sub expand_group {
 my %subnet_warning_seen;
 
 sub expand_group_in_rule {
-    my ($obref, $context) = @_;
-    my $aref = expand_group($obref, $context);
+    my ($obref, $context, $ipv6) = @_;
+    my $aref = expand_group($obref, $context, $ipv6);
 
     # Ignore unusable objects.
     my $changed;
@@ -6169,12 +6229,12 @@ sub add_managed_hosts {
 }
 
 sub normalize_src_dst_list {
-    my ($rule, $user, $context) = @_;
+    my ($rule, $user, $context, $ipv6) = @_;
     $user_object->{elements} = $user;
-    my $src_list = expand_group_in_rule($rule->{src},
-                                        "src of rule in $context");
-    my $dst_list = expand_group_in_rule($rule->{dst},
-                                        "dst of rule in $context");
+    my $src_list =
+        expand_group_in_rule($rule->{src}, "src of rule in $context", $ipv6);
+    my $dst_list =
+        expand_group_in_rule($rule->{dst}, "dst of rule in $context", $ipv6);
 
     # Expand auto interfaces in src.
     my @extra_src_dst = substitute_auto_intf($src_list, $dst_list, $context);
@@ -6201,9 +6261,10 @@ sub normalize_src_dst_list {
 
 sub normalize_service_rules {
     my ($service) = @_;
+    my $ipv6    = $service->{ipv6};
     my $context = $service->{name};
     my $user    = $service->{user}
-                = expand_group($service->{user}, "user of $context");
+                = expand_group($service->{user}, "user of $context", $ipv6);
     my $rules   = $service->{rules};
     my $foreach = $service->{foreach};
     my $rule_count;
@@ -6228,7 +6289,7 @@ sub normalize_service_rules {
 
         for my $element ($foreach ? @$user : ($user)) {
             my $src_dst_list_pairs =
-                normalize_src_dst_list($unexpanded, $element, $context);
+                normalize_src_dst_list($unexpanded, $element, $context, $ipv6);
             for my $src_dst_list (@$src_dst_list_pairs) {
                 my ($src_list, $dst_list) = @$src_dst_list;
                 $rule_count++ if @$src_list or @$dst_list;
@@ -6901,10 +6962,10 @@ sub collect_unenforceable {
 
                 # This is a common case, which results from rules like
                 # user -> any:[user]
-                elsif ($src->{is_aggregate} and $src->{mask} eq $zero_ip) {
+                elsif ($src->{is_aggregate} and is_zero_ip($src->{mask})) {
                     next;
                 }
-                elsif ($dst->{is_aggregate} and $dst->{mask} eq $zero_ip) {
+                elsif ($dst->{is_aggregate} and is_zero_ip($dst->{mask})) {
                     next;
                 }
             }
@@ -6969,6 +7030,7 @@ sub warn_useless_unenforceable {
     for my $zone (@zones) {
         $zone->{has_unenforceable} or next;
         $zone->{seen_unenforceable} and next;
+        my $zero_ip = get_zero_ip($zone->{ipv6});
         my $agg00 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $name = $agg00 ? $agg00->{name} : $zone->{name};
         warn_msg("Useless attribute 'has_unenforceable' at $name");
@@ -7542,15 +7604,15 @@ sub set_policy_distribution_ip {
         $need_all or next;
         next if $seen{$router};
         next if $router->{orig_router};
-        if (my $vrf_members = $router->{vrf_members}) {
-            if (not grep { $_->{policy_distribution_point} } @$vrf_members) {
+        if (my $ipv_members = $router->{ipv_members}) {
+            if (not grep { $_->{policy_distribution_point} } @$ipv_members) {
                 push(@missing, {
                     name =>
-                        "at least one VRF of router:$router->{device_name}"
+                        "at least one instance of router:$router->{device_name}"
                      }
                     );
             }
-            $seen{$_} = 1 for @$vrf_members;
+            $seen{$_} = 1 for @$ipv_members;
         }
         else {
             push @missing, $router;
@@ -8507,7 +8569,7 @@ sub check_subnets {
             {
                 if (    grep { $_ eq $nat_tag2 } @$nat_tags
                     and $object->{ip} eq $subnet->{ip}
-                    and $subnet->{mask} eq $max_ip)
+                    and is_host_mask($subnet->{mask}))
                 {
                     return;
                 }
@@ -8851,23 +8913,27 @@ sub find_subnets_in_nat_domain {
     # Calculate %is_in relation from IP addresses;
     # This includes all addresses of all networks in all NAT domains.
     # Go from smaller to larger networks.
+    # Process IPv4 and IPv6 addresses separately.
     my %is_in;
-    my @mask_list = reverse sort keys %mask_ip_hash;
-    while (my $mask = shift @mask_list) {
+    my @mixed_mask_list = reverse sort keys %mask_ip_hash;
+    for my $ip_len (4, 16) {
+        my @mask_list = grep { length($_) == $ip_len } @mixed_mask_list;
+        while (my $mask = shift @mask_list) {
 
-        # No supernets available
-        last if not @mask_list;
+            # No supernets available
+            last if not @mask_list;
 
-        my $ip_hash = $mask_ip_hash{$mask};
-        for my $ip (sort keys %$ip_hash) {
-            my $subnet = $ip_hash->{$ip};
+            my $ip_hash = $mask_ip_hash{$mask};
+            for my $ip (sort keys %$ip_hash) {
+                my $subnet = $ip_hash->{$ip};
 
-            # @mask_list holds masks of potential supernets.
-            for my $m (@mask_list) {
-                my $i      = $ip & $m;
-                my $bignet = $mask_ip_hash{$m}->{$i} or next;
-                $is_in{$subnet} = $bignet;
-                last;
+                # @mask_list holds masks of potential supernets.
+                for my $m (@mask_list) {
+                    my $i      = $ip & $m;
+                    my $bignet = $mask_ip_hash{$m}->{$i} or next;
+                    $is_in{$subnet} = $bignet;
+                    last;
+                }
             }
         }
     }
@@ -9357,16 +9423,32 @@ sub check_crosslink {
 # - for default route optimization,
 # - while generating chains of iptables and
 # - in local optimization.
-my $network_00;
-sub initialize_network_0_0 {
-    $network_00 = new(
+my $network_00 = new(
     'Network',
     name             => "network:0/0",
-    ip               => $zero_ip,
-    mask             => $zero_ip,
+    ip               => get_zero_ip(),
+    mask             => get_zero_ip(),
     is_aggregate     => 1,
     has_other_subnet => 1,
-        );
+    );
+
+my $network_00_v6 = new(
+    'Network',
+    name             => "network:0/0",
+    ip               => get_zero_ip(1),
+    mask             => get_zero_ip(1),
+    is_aggregate     => 1,
+    has_other_subnet => 1,
+    );
+
+sub get_network_00 {
+    my ($ipv6) = @_;
+    if ($ipv6) {
+        return $network_00_v6;
+    }
+    else {
+        return $network_00;
+    }
 }
 
 # Find cluster of zones connected by 'local' routers.
@@ -9520,6 +9602,7 @@ sub mark_managed_local {
         # Rules from general_permit should be applied to all devices
         # with 'managed=local'.
         $network_00->{filter_at}->{$mark} = 1;
+        $network_00_v6->{filter_at}->{$mark} = 1;
     }
 }
 
@@ -9530,10 +9613,12 @@ sub mark_managed_local {
 # Reroute permit is not allowed between different security zones.
 sub link_reroute_permit {
     for my $zone (@zones) {
+        my $ipv6 = $zone->{ipv6};
         for my $interface (@{ $zone->{interfaces} }) {
             my $group = $interface->{reroute_permit} or next;
-            $group =
-              expand_group($group, "'reroute_permit' of $interface->{name}");
+            $group = expand_group($group,
+                                  "'reroute_permit' of $interface->{name}",
+                                  $ipv6);
             my @checked;
             for my $obj (@$group) {
                 if (is_network($obj) and not $obj->{is_aggregate}) {
@@ -9762,7 +9847,7 @@ sub link_aggregates {
         # retain NAT at other aggregates.
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
-        if ($mask eq $zero_ip) {
+        if (is_zero_ip($mask)) {
             for my $attr (qw(has_unenforceable has_fully_redundant
                              owner nat
                              no_check_supernet_rules))
@@ -9834,6 +9919,9 @@ sub duplicate_aggregate_to_cluster {
 # return aggregates for each zone of the cluster.
 sub get_any {
     my ($zone, $ip, $mask) = @_;
+    if (not defined $ip) {
+        $ip = $mask = get_zero_ip($zone->{ipv6});
+    }
     my $key     = "$ip$mask";
     my $cluster = $zone->{zone_cluster};
     if (not $zone->{ipmask2aggregate}->{$key}) {
@@ -10229,10 +10317,14 @@ sub inherit_attributes_from_area {
 #            then NAT of B is used.
 sub inherit_nat_to_subnets_in_zone {
     my ($net_or_zone, $zone) = @_;
-    my ($ip1, $mask1) =
-        is_network($net_or_zone)
-      ? @{$net_or_zone}{qw(ip mask)}
-      : ($zero_ip, $zero_ip);
+    my ($ip1, $mask1);
+    if (is_network($net_or_zone)) {
+        ($ip1, $mask1) = @{$net_or_zone}{qw(ip mask)};
+    }
+    else {
+        my $zero_ip = get_zero_ip($net_or_zone->{ipv6});
+        ($ip1, $mask1) = ($zero_ip, $zero_ip);
+    }
     my $hash = $net_or_zone->{nat};
     for my $nat_tag (sort keys %$hash) {
         my $nat = $hash->{$nat_tag};
@@ -10398,6 +10490,7 @@ sub set_zones {
         # Create zone object with name of corresponding aggregate and ip 0/0.
         my $name = "any:[$network->{name}]";
         my $zone = new('Zone', name => $name, networks => []);
+        $zone->{ipv6} = 1 if $network->{ipv6};
         push @zones, $zone;
 
         # Collect zone elements...
@@ -11303,8 +11396,7 @@ sub set_loop_cluster {
 #           Check for multiple unconnected parts of topology.
 sub find_dists_and_loops {
     if (not @zones) {
-        my $type = $config->{ipv6} ? 'IPv6' : 'IPv4';
-        fatal_err("$type topology seems to be empty");
+        fatal_err("topology seems to be empty");
     }
     my $path_routers =
         [ grep { $_->{managed} or $_->{semi_managed} } @routers ];
@@ -11371,10 +11463,13 @@ sub find_dists_and_loops {
         push @unconnected, $zone1;
     }
 
-    if (@unconnected > 1) {
-        err_msg("Topology has unconnected parts:\n",
+    for my $ipv6 (1, 0) {
+        my @un = grep { not $_->{ipv6} xor $ipv6 } @unconnected;
+        @un > 1 or next;
+        my $ipv = $ipv6 ? 'IPv6' : 'IPv4';
+        err_msg("$ipv topology has unconnected parts:\n",
                 " - ",
-                join "\n - ", map { $_->{name} } @unconnected);
+                join "\n - ", map { $_->{name} } @un);
     }
 }
 
@@ -14076,7 +14171,7 @@ sub check_transient_supernet_rules {
 
             # Ignore the internet. If the internet is used as src and dst
             # then the implicit transient rule is assumed to be ok.
-            next if not $obj->{is_aggregate} and $obj->{mask} eq $zero_ip;
+            next if not $obj->{is_aggregate} and is_zero_ip($obj->{mask});
 
             my $zone = $obj->{zone};
             next if $zone->{no_check_supernet_rules};
@@ -14130,7 +14225,7 @@ sub check_transient_supernet_rules {
                 # If mask of $obj2 is 0.0.0.0, take all elements.
                 # Otherwise check IP addresses in NAT domain of $obj2.
                 my $src_list1 = $rule1->{src};
-                if ($obj2->{mask} ne $zero_ip) {
+                if (not is_zero_ip($obj2->{mask})) {
                     $src_list1 =
                         get_ip_matching($obj2, $src_list1, $no_nat_set);
                     @$src_list1 or next;
@@ -14143,7 +14238,7 @@ sub check_transient_supernet_rules {
                     # Find elements of dst of $rule2 with an IP
                     # address matching $obj1.
                     my $dst_list2 = $rule2->{dst};
-                    if ($obj1->{mask} ne $zero_ip) {
+                    if (not is_zero_ip($obj1->{mask})) {
                         $dst_list2 =
                             get_ip_matching($obj1, $dst_list2, $no_nat_set);
                         @$dst_list2 or next;
@@ -15548,7 +15643,7 @@ sub find_active_routes {
     progress('Finding routes');
 
     # Mark interfaces of unmanaged routers such that no routes are collected.
-    for my $router (values %routers) {
+    for my $router (get_ipv4_ipv6_routers()) {
         $router->{semi_managed} and not $router->{routing_only} or next;
         for my $interface (@{ $router->{interfaces} }) {
             $interface->{routing} = 'dynamic';
@@ -15896,10 +15991,12 @@ sub print_header {
 
 sub print_routes {
     my ($router)              = @_;
+    my $ipv6                  = $router->{ipv6};
     my $model                 = $router->{model};
     my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
     my $do_auto_default_route = $config->{auto_default_route};
+    my $zero_ip               = get_zero_ip($router->{ipv6});
     my $crypto_type = $model->{crypto} || '';
     my $asa_crypto = $crypto_type eq 'ASA';
     my (%mask2ip2net, %net2hop_info);
@@ -15951,7 +16048,7 @@ sub print_routes {
     # if combined network doesn't already exist.
     # Prepare @inv_prefix_aref.
     my @inv_prefix_aref;
-    my $bitstr_len = $config->{ipv6}? 128 : 32;
+    my $bitstr_len = $ipv6 ? 128 : 32;
     for my $mask (keys %mask2ip2net) {
         my $inv_prefix  = $bitstr_len - mask2prefix($mask);
         my $ip2net = $mask2ip2net{$mask};
@@ -15973,10 +16070,10 @@ sub print_routes {
     for (my $inv_prefix = 0 ; $inv_prefix < @inv_prefix_aref ; $inv_prefix++) {
         next if $inv_prefix >= $bitstr_len;
         my $ip2net = $inv_prefix_aref[$inv_prefix] or next;
-        my $part_mask = prefix2mask($bitstr_len - $inv_prefix);
+        my $part_mask = prefix2mask($bitstr_len - $inv_prefix, $ipv6);
         my $combined_inv_prefix = $inv_prefix + 1;
         my $combined_inv_mask =
-            ~ prefix2mask($bitstr_len - $combined_inv_prefix);
+            ~ prefix2mask($bitstr_len - $combined_inv_prefix, $ipv6);
 
         # A single bit, masking the lowest network bit.
         my $next = $combined_inv_mask & $part_mask;
@@ -16123,9 +16220,9 @@ sub print_routes {
                     print "${nxos_prefix}ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'ASA') {
-                    my $adr = $config->{ipv6} ?
+                    my $adr = $router->{ipv6} ?
                         full_prefix_code($netinfo) : ios_route_code($netinfo);
-                    print $config->{ipv6} ? "ipv6 " : "";
+                    print "ipv6 " if $router->{ipv6};
                     print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
@@ -16300,23 +16397,29 @@ sub distribute_rule {
     }
 }
 
+my $deny_any_rule;
+my $deny_any6_rule;
 my $permit_any_rule;
+my $permit_any6_rule;
 
 sub get_multicast_objects {
-    my ($info) = @_;
+    my ($info, $ipv6) = @_;
     my ($ip_list, $mask);
-    if ($config->{ipv6}) {
+    if ($ipv6) {
         $ip_list = $info->{mcast6};
     }
     else {
         $ip_list = $info->{mcast};
     }
     return [
-        map { new('Network', ip => ip2bitstr($_), mask => $max_ip) } @$ip_list ];
+        map { my $ip = ip2bitstr($_);
+              new('Network', ip => $ip, mask => get_host_mask($ip)) } @$ip_list
+        ];
 }
 
 sub add_router_acls {
     for my $router (@managed_routers) {
+        my $ipv6 = $router->{ipv6};
         my $has_io_acl = $router->{model}->{has_io_acl};
         my $hardware_list = $router->{hardware};
         for my $hardware (@$hardware_list) {
@@ -16324,6 +16427,7 @@ sub add_router_acls {
             # Some managed devices are connected by a crosslink network.
             # Permit any traffic at the internal crosslink interface.
             if ($hardware->{crosslink}) {
+                my $permit_any = $ipv6 ? $permit_any6_rule : $permit_any_rule;
 
                 # We can savely change rules at hardware interface
                 # because it has been checked that no other logical
@@ -16334,16 +16438,16 @@ sub add_router_acls {
                     for my $out_hardware (@$hardware_list) {
                         next if $hardware eq $out_hardware;
                         $hardware->{io_rules}->{ $out_hardware->{name} } =
-                            [$permit_any_rule];
+                            [$permit_any];
                     }
                 }
                 else {
-                    $hardware->{rules} = [$permit_any_rule];
+                    $hardware->{rules} = [$permit_any];
                     if ($hardware->{need_out_acl}) {
-                        $hardware->{out_rules} = [$permit_any_rule];
+                        $hardware->{out_rules} = [$permit_any];
                     }
                 }
-                $hardware->{intf_rules} = [$permit_any_rule];
+                $hardware->{intf_rules} = [$permit_any];
                 next;
             }
 
@@ -16354,7 +16458,7 @@ sub add_router_acls {
                 if ($interface->{reroute_permit}) {
                     my $net_list = $interface->{reroute_permit};
                     my $rule = {
-                        src => [ $network_00 ],
+                        src => [ get_network_00($ipv6) ],
                         dst => $net_list,
                         prt => [ $prt_ip ]
                     };
@@ -16379,7 +16483,7 @@ sub add_router_acls {
                         my $network = [ $interface->{network} ];
 
                         # Permit multicast packets from current network.
-                        my $mcast = get_multicast_objects($routing);
+                        my $mcast = get_multicast_objects($routing, $ipv6);
                         push @{ $hardware->{intf_rules} },
                           {
                             src => $network,
@@ -16405,7 +16509,7 @@ sub add_router_acls {
                 if (my $type = $interface->{redundancy_type}) {
                     my $network = $interface->{network};
                     my $xrrp    = $xxrp_info{$type};
-                    my $mcast   = get_multicast_objects($xrrp);
+                    my $mcast   = get_multicast_objects($xrrp, $ipv6);
                     my $prt     = $xrrp->{prt};
                     push @{ $hardware->{intf_rules} },
                       {
@@ -16419,8 +16523,8 @@ sub add_router_acls {
                 if ($interface->{dhcp_server}) {
                     push @{ $hardware->{intf_rules} },
                       {
-                        src => [ $network_00 ],
-                        dst => [ $network_00 ],
+                        src => [ get_network_00($ipv6) ],
+                        dst => [ get_network_00($ipv6) ],
                         prt => [ $prt_bootps ]
                       };
                 }
@@ -16429,8 +16533,8 @@ sub add_router_acls {
                 if ($interface->{dhcp_client}) {
                     push @{ $hardware->{intf_rules} },
                       {
-                        src => [ $network_00 ],
-                        dst => [ $network_00 ],
+                        src => [ get_network_00($ipv6) ],
+                        dst => [ get_network_00($ipv6) ],
                         prt => [ $prt_bootpc ]
                       };
                 }
@@ -16440,15 +16544,15 @@ sub add_router_acls {
 }
 
 sub create_general_permit_rules {
-    my ($protocols) = @_;
+    my ($protocols, $ipv6) = @_;
     my @prt = map {   ref($_) eq 'ARRAY'
                     ? $_->[1]	# take dst range; src range was error before.
                     : $_->{main_prt}
                     ? $_->{main_prt}
                     : $_ } @$protocols;
     my $rule = {
-        src => [ $network_00 ],
-        dst => [ $network_00 ],
+        src => [ get_network_00($ipv6) ],
+        dst => [ get_network_00($ipv6) ],
         prt => \@prt,
     };
     return $rule;
@@ -16456,8 +16560,9 @@ sub create_general_permit_rules {
 
 sub distribute_general_permit {
     for my $router (@managed_routers) {
+        my $ipv6 = $router->{ipv6};
         my $general_permit = $router->{general_permit} or next;
-        my $rule = create_general_permit_rules($general_permit);
+        my $rule = create_general_permit_rules($general_permit, $ipv6);
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if $in_intf->{main_interface};
@@ -16559,7 +16664,7 @@ sub address {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this host.
-                return [ $ip, $max_ip ];
+                return [ $ip, get_host_mask($ip) ];
             }
             else {
                 return [ $network->{ip}, $network->{mask} ];
@@ -16588,7 +16693,7 @@ sub address {
             if (my $ip = $obj->{nat}->{$nat_tag}) {
 
                 # Single static NAT IP for this interface.
-                return [ $ip, $max_ip ];
+                return [ $ip, get_host_mask($ip) ];
             }
             else {
                 return [ $network->{ip}, $network->{mask} ];
@@ -16599,7 +16704,7 @@ sub address {
             # Take higher bits from network NAT, lower bits from original IP.
             # This works with and without NAT.
             $ip = $network->{ip} | $ip & ~ $network->{mask};
-            return [ $ip, $max_ip ];
+            return [ $ip, get_host_mask($ip) ];
         }
     }
 }
@@ -16618,8 +16723,7 @@ sub prefix_code {
     my ($pair) = @_;
     my ($ip, $mask) = @$pair;
     my $ip_code     = print_ip($ip);
-    my $prefix_code = mask2prefix($mask);
-    return $mask eq $max_ip ? $ip_code : "$ip_code/$prefix_code";
+    return is_host_mask($mask) ? $ip_code : "$ip_code/" . mask2prefix($mask);
 }
 
 sub full_prefix_code {
@@ -16629,8 +16733,6 @@ sub full_prefix_code {
     my $prefix_code = mask2prefix($mask);
     return "$ip_code/$prefix_code";
 }
-
-my $deny_any_rule;
 
 sub print_acl_placeholder {
     my ($router, $acl_name) = @_;
@@ -16665,7 +16767,7 @@ sub get_split_tunnel_nets {
 
                 # Don't add 'any' (resulting from global:permit)
                 # to split_tunnel networks.
-                next if $network->{mask} eq $zero_ip;
+                next if is_zero_ip($network->{mask});
 
                 $split_tunnel_nets{$network} = $network;
             }
@@ -16682,6 +16784,7 @@ my %asa_vpn_attr_need_value =
 
 sub print_asavpn {
     my ($router) = @_;
+    my $ipv6 = $router->{ipv6};
 
     my $global_group_name = 'global';
     print <<"EOF";
@@ -16747,6 +16850,7 @@ EOF
     my %cert_group_map;
     my %single_cert_map;
     my $acl_counter = 1;
+    my $deny_any = $ipv6 ? $deny_any6_rule : $deny_any_rule;
     for my $interface (@{ $router->{interfaces} }) {
         next if not $interface->{ip} eq 'tunnel';
         my $no_nat_set = $interface->{no_nat_set};
@@ -16802,12 +16906,12 @@ EOF
                         if (@$split_tunnel_nets) {
                             $rules = [ {
                                 src => $split_tunnel_nets,
-                                dst => [ $network_00 ],
+                                dst => [ get_network_00($ipv6) ],
                                 prt => [ $prt_ip ],
                             } ];
                         }
                         else {
-                            $rules = [ $deny_any_rule ];
+                            $rules = [ $deny_any ];
                         }
                         $split_t_cache{@$split_tunnel_nets}->{$acl_name} =
                           $split_tunnel_nets;
@@ -16829,7 +16933,7 @@ EOF
                 $id_intf->{rules}      = [
                     {
                         src => [ $src ],
-                        dst => [ $network_00 ],
+                        dst => [ get_network_00($ipv6) ],
                         prt => [ $prt_ip ],
                     }
                 ];
@@ -16845,7 +16949,7 @@ EOF
 
                 my $ip      = print_ip $src->{ip};
                 my $network = $src->{network};
-                if ($src->{mask} eq $max_ip) {
+                if (is_host_mask($src->{mask})) {
 
                     # For anyconnect clients.
                     my (undef, $domain) = ($id =~ /^(.*?)(\@.*)$/);
@@ -16946,7 +17050,7 @@ EOF
             delete $interface->{intf_rules};
             delete $interface->{rules};
             my $rules = [ { src => $interface->{peer_networks},
-                            dst => [ $network_00 ],
+                            dst => [ get_network_00($ipv6) ],
 
                             prt => [ $prt_ip ] } ];
             my $id_name = $gen_id_name->($id);
@@ -17167,6 +17271,7 @@ sub print_cisco_acls {
     my $filter        = $model->{filter};
     my $managed_local = $router->{managed} =~ /^local/;
     my $hw_list       = $router->{hardware};
+    my $permit_any    = $router->{ipv6} ? $permit_any6_rule : $permit_any_rule;
 
     for my $hardware (@$hw_list) {
 
@@ -17193,7 +17298,7 @@ sub print_cisco_acls {
                 if (
                     not grep {
                         my $rules = $hardware->{$_} || [];
-                        @$rules != 1 or $rules->[0] ne $permit_any_rule
+                        @$rules != 1 or $rules->[0] ne $permit_any
                     } (qw(rules intf_rules))
                   )
                 {
@@ -17356,7 +17461,7 @@ sub print_ezvpn {
     # Crypto ACL controls which traffic needs to be encrypted.
     my $crypto_rules =
       gen_crypto_rules($tunnel_intf->{peer}->{peer_networks},
-        [$network_00]);
+        [get_network_00($router->{ipv6})]);
     my $acl_info = {
         name => $crypto_acl_name,
         rules => $crypto_rules,
@@ -17395,7 +17500,9 @@ sub print_crypto_acl {
     my $is_hub   = $interface->{is_hub};
     my $hub      = $is_hub ? $interface : $interface->{peer};
     my $detailed = $crypto->{detailed_crypto_acl};
-    my $local    = $detailed ? get_split_tunnel_nets($hub) : [$network_00];
+    my $local    = $detailed
+                 ? get_split_tunnel_nets($hub)
+                 : [get_network_00($interface->{router}->{ipv6})];
     my $remote   = $hub->{peer_networks};
     $is_hub or ($local, $remote) = ($remote, $local);
     my $crypto_rules = gen_crypto_rules($local, $remote);
@@ -18040,7 +18147,7 @@ sub print_acls {
                                     }
 
                                     # Ignore loopback network.
-                                    next if $subst->{mask} eq $max_ip;
+                                    next if is_host_mask($subst->{mask});
                                 }
 
                                 # Network or aggregate.
@@ -18189,13 +18296,7 @@ sub print_code {
     }
     ## use critic
 
-    my $v6 = '';
-    if ($config->{ipv6}) {
-        $v6 = 'ipv6/';
-        my $v6dir = "$dir/ipv6";
-        -d $v6dir or mkdir $v6dir
-          or fatal_err("Can't create output directory $v6dir: $!");
-    }
+    my $checked_v6dir;
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
         next if $seen{$router};
@@ -18204,7 +18305,13 @@ sub print_code {
         next if $router->{orig_router};
 
         my $device_name = $router->{device_name};
-        my $path        = "$v6$device_name";
+        my $path        = $device_name;
+        if ($router->{ipv6}) {
+            $path = "ipv6/$path";
+            my $v6dir = "$dir/ipv6";
+            $checked_v6dir++ or -d $v6dir or mkdir $v6dir
+                or fatal_err("Can't create output directory $v6dir: $!");
+        }
 
         # File for router config without ACLs.
         my $config_file = "$dir/$path.config";
@@ -18266,21 +18373,18 @@ sub print_code {
 
 # Copy raw configuration files of devices into out_dir for devices
 # known from topology.
-sub copy_raw {
+sub copy_raw1 {
     my ($in_path, $out_dir) = @_;
-    return if not (defined $in_path and -d $in_path);
-    return if not defined $out_dir;
+    my $raw_dir = "$in_path/raw";
+    -d $raw_dir or return;
 
-    $out_dir .= '/ipv6' if $config->{ipv6};
+    my $ipv6 = $out_dir =~ m'/ipv6$';
+    my %device_names =
+      map({ $_->{device_name} => 1 }
+          grep { $_->{ipv6} ? $ipv6 : !$ipv6 }
+          @managed_routers, @routing_only_routers);
 
     # $out_dir has already been checked / created in print_code.
-
-    my $raw_dir = "$in_path/raw";
-    return if not -d $raw_dir;
-
-    my %device_names =
-      map { $_->{device_name} => 1 } @managed_routers, @routing_only_routers;
-
     opendir(my $dh, $raw_dir) or fatal_err("Can't opendir $raw_dir: $!");
     for my $file (sort map { Encode::decode($filename_encode, $_) } readdir $dh)
     {
@@ -18299,6 +18403,23 @@ sub copy_raw {
         my $copy = "$out_dir/$file.raw";
         system("cp -f $raw_path $copy") == 0
           or fatal_err("Can't copy file $raw_path to $copy: $!");
+    }
+}
+
+sub copy_raw {
+    my ($in_path, $out_dir) = @_;
+    my $has_subdir = $config->{ipv6} ? -e "$in_path/ipv4" : -e "$in_path/ipv6";
+    if ($config->{ipv6}) {
+        copy_raw1($in_path, "$out_dir/ipv6");
+        if ($has_subdir) {
+            copy_raw1("$in_path/ipv4", $out_dir);
+        }
+    }
+    else {
+        copy_raw1($in_path, $out_dir);
+        if ($has_subdir) {
+            copy_raw1("$in_path/ipv6", "$out_dir/ipv6");
+        }
     }
 }
 
@@ -18417,20 +18538,22 @@ sub init_protocols {
         dst => [ $network_00 ],
         prt => [ $prt_ip ]
     };
+    $permit_any6_rule = {
+        src => [ $network_00_v6 ],
+        dst => [ $network_00_v6 ],
+        prt => [ $prt_ip ]
+    };
     $deny_any_rule = { %$permit_any_rule, deny => 1, };
+    $deny_any6_rule = { %$permit_any6_rule, deny => 1, };
 }
 
 sub init_global_vars {
-    init_prefix_len;
-    init_mask_prefix_lookups;
-    init_zero_and_max_ip;
-    init_inverse_masks;
-    initialize_network_0_0;
     $start_time            = $config->{start_time} || time();
     $error_counter         = 0;
     for my $pair (values %global_type) {
         %{ $pair->[1] } = ();
     }
+    %routers6           = ();
     %interfaces         = %hosts                = ();
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
@@ -18451,10 +18574,15 @@ sub init_global_vars {
     init_protocols();
 }
 
-sub pass1 {
-    my ($in_path, $out_dir, $ignore_dir) = @_;
+sub compile {
+    my ($args) = @_;
+
     init_global_vars();
-    &read_file_or_dir($in_path, $ignore_dir);
+    my ($in_path, $out_dir);
+    ($config, $in_path, $out_dir) = get_args($args);
+    show_version();
+    read_file_or_dir($in_path);
+
     &show_read_statistics();
     &order_protocols();
     &link_topology();
@@ -18508,36 +18636,14 @@ sub pass1 {
             gen_reverse_rules();
             mark_secondary_rules();
             if ($out_dir) {
-#                DB::enable_profile();
                 rules_distribution();
-#                DB::disable_profile();
+                check_output_dir($out_dir);
                 print_code($out_dir);
                 copy_raw($in_path, $out_dir);
             }
         });
 
     abort_on_error();
-}
-
-sub compile {
-    my ($args) = @_;
-
-    my ($in_path, $out_dir);
-    ($config, $in_path, $out_dir) = get_args($args);
-    &show_version();
-    check_output_dir($out_dir) if $out_dir;
-    my $ignore_dir;
-    if (not $config->{ipv6} and -e (my $sub_dir = "$in_path/ipv6")) {
-        local $config->{ipv6} = 1;
-        pass1($sub_dir, $out_dir);
-        $ignore_dir = 'ipv6';
-    }
-    elsif ($config->{ipv6} and -e ($sub_dir = "$in_path/ipv4")) {
-        local $config->{ipv6} = undef;
-        pass1($sub_dir, $out_dir);
-        $ignore_dir = 'ipv4';
-    }
-    pass1($in_path, $out_dir, $ignore_dir);
 }
 
 1;
