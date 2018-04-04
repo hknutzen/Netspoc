@@ -129,6 +129,72 @@ END
 test_run($title, $in, $out, '-ipv6');
 
 #############################################################
+$title = 'OSPF, EIGRP, HSRP, VRRP, DHCP';
+#############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112; }
+network:n2 = { ip = 1000::abcd:0002:0000/112; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {
+  ip = 1000::abcd:0001:0002;
+  virtual = { ip = 1000::abcd:0001:0001; type = VRRP; id = 6; }
+  hardware = n1;
+  routing = OSPF;
+  dhcp_server;
+ }
+ interface:n2 = {
+  ip = 1000::abcd:0002:0002;
+  virtual = { ip = 1000::abcd:0002:0001; type = HSRP; id = 7; }
+  hardware = n2;
+  routing = EIGRP;
+  dhcp_client;
+ }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {
+  ip = 1000::abcd:0001:0003;
+  virtual = { ip = 1000::abcd:0001:0001; type = VRRP; id = 6; }
+  hardware = n1;
+  routing = OSPF;
+ }
+ interface:n2 = {
+  ip = 1000::abcd:0002:0003;
+  virtual = { ip = 1000::abcd:0002:0001; type = HSRP; id = 7; }
+  hardware = n2;
+  routing = EIGRP;
+ }
+}
+
+END
+
+$out = <<'END';
+-- ipv6/r1
+ip access-list extended n1_in
+ permit 89 1000::abcd:1:0/112 host ff02::5
+ permit 89 1000::abcd:1:0/112 host ff02::6
+ permit 89 1000::abcd:1:0/112 1000::abcd:1:0/112
+ permit 112 1000::abcd:1:0/112 host ff02::12
+ permit udp any any eq 67
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit 88 1000::abcd:2:0/112 host ff02::a
+ permit 88 1000::abcd:2:0/112 1000::abcd:2:0/112
+ permit udp 1000::abcd:2:0/112 host ::e000:2 eq 1985
+ permit udp any any eq 68
+ deny ip any any
+END
+
+test_run($title, $in, $out, '-ipv6');
+
+#############################################################
 $title = 'IPv6 interface in IPv4 topology';
 #############################################################
 
