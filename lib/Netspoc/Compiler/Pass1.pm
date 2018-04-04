@@ -2489,6 +2489,9 @@ sub read_router {
                     $tunnel_net->{private} = $private;
                 }
                 $networks{$net_name} = $tunnel_net;
+                if ($config->{ipv6}) {
+                    $tunnel_intf->{ipv6} = $tunnel_net->{ipv6} = 1;
+                }
 
                 # Tunnel network will later be attached to crypto hub.
                 push @{ $crypto2spokes{$crypto} }, $tunnel_net;
