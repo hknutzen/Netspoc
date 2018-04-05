@@ -4,14 +4,14 @@
    - Some definitions are shared between IPv4 and IPv6:
      owner, protocol, protocolgroup, crypto, isakmp, ipsec
    - All defintions except routers use a shared namspace for IPv4 and IPv6.
-     It is no longer allowed to define two networks
-     with same name for IPv4 and IPv6.
+     It is no longer allowed to define two networks with same name
+     for IPv4 and IPv6.
    - Only one element of a pair of IPv4/v6 routers
      needs to have a policy_distribution_point.
  - IPv6 input can be placed in arbitrarily nested "ipv6/" subdirectories now.
  - The same holds for "ipv4/" subdirectory with option "ipv6 = 1".
  - Raw files for IPv6 are read from directory "raw/ipv6" now
-   and now longer from "ipv6/raw".
+   and no longer from "ipv6/raw".
  - print-group now works again with mixed IPv4/IPv6 input.
  - export-netspoc now generates mixed JSON output.
  - Attribute 'reroute_permit' is ignored with warning now, if used
