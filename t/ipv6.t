@@ -219,6 +219,80 @@ END
 
 test_run($title, $in, $out, '-ipv6');
 
+############################################################
+$title = 'Crypto tunnel to directly connected software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = ::a01:101;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = {
+  spoke = crypto:vpn;
+  ip = ::a01:102;
+ }
+ interface:clients;
+}
+
+network:clients = {
+ ip = ::a09:100/120;
+ host:id:foo@domain.x = {  ip = ::a09:10a; }
+}
+
+service:s1 = {
+ user = host:id:foo@domain.x.clients;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<END;
+-- ipv6/asavpn
+! [ Routing ]
+ipv6 route n1 ::a09:100/120 ::a01:102
+--
+! n1_in
+access-list n1_in extended permit tcp host ::a09:10a ::a01:100/120 eq 80
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out, '-ipv6');
+
 #############################################################
 $title = 'IPv6 interface in IPv4 topology';
 #############################################################
