@@ -14,31 +14,32 @@ $title = 'Mixed IPv4 and IPv6';
 ############################################################
 
 $in = <<'END';
--- file1
+-- ipv4/topo/net
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-
+-- ipv4/topo/router
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
+-- ipv4/rules
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
--- ipv6/file2
+-- ipv4/topo/ipv6
 network:n3 = { ip = 1000::abcd:0001:0/112;}
 network:n4 = { ip = 1000::abcd:0002:0/112;}
-
+-- ipv6/router
 router:r1 = {
  managed;
  model = ASA;
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
  interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
+-- ipv4/ipv6/rules
 service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n4; prt = tcp 80;
@@ -64,8 +65,8 @@ test_run($title, $in, $out);
 $title = 'Mixed IPv6 and IPv4';
 ############################################################
 
-$in =~ s|file1|ipv4/file1|;
-$in =~ s|ipv6/file2|file2|;
+$in =~ s|ipv4/ipv6|ipv6/ipv6|g;
+$in =~ s|ipv4/topo/ipv6|topo|g;
 
 test_run($title, $in, $out, '-ipv6');
 
@@ -267,7 +268,7 @@ router:r1 = {
  model = ASA;
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
 }
--- ipv6/raw/r1
+-- raw/ipv6/r1
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 END
@@ -290,6 +291,36 @@ access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Invalid file and directory in raw/ipv6';
+############################################################
+
+$in = <<'END';
+-- ipv4
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+-- raw/ipv6/r1
+access-list n1_in extended permit icmp6 any6 any6
+access-group n1_in in interface n1
+-- raw/ipv6/ipv6/foo
+foo
+END
+
+$out = <<'END';
+Warning: Ignoring path raw/ipv6/ipv6
+Warning: Found unused file raw/ipv6/r1
+--r1
+! n1_in
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Verbose output with progress messages';

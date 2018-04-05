@@ -35,7 +35,7 @@ use JSON::XS;
 use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::File qw(
  process_file_or_dir
- *current_file *input *private $filename_encode);
+ *current_file *input *read_ipv6 *private $filename_encode);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
@@ -513,7 +513,7 @@ sub read_int {
 # Check and convert IP address to bit string.
 sub convert_ip {
     my ($token) = @_;
-    if ($config->{ipv6}) {
+    if ($read_ipv6) {
         # $ipv6_re does not match "::"
         $token =~ /^$IPv6_re$|^::$/ or syntax_err("IPv6 address expected");
         return ip2bitstr($token);
@@ -543,7 +543,7 @@ sub read_ip_prefix {
     my ($part1, $part2) = $token =~ m/^(.*)\/(.*)$/ or
         syntax_err("Expected 'IP/prefixlen'");
     my $ip = convert_ip($part1);
-    my $mask = prefix2mask($part2, $config->{ipv6});
+    my $mask = prefix2mask($part2, $read_ipv6);
     defined $mask or syntax_err('Invalid prefix');
     match_ip($ip, $ip, $mask) or error_atline("IP and mask don't match");
 
@@ -1083,7 +1083,7 @@ sub host_as_interface {
     $interface->{is_managed_host} = 1;
     $router->{interfaces}         = [$interface];
     $router->{hardware}           = [$hardware];
-    if ($config->{ipv6}) {
+    if ($read_ipv6) {
         $router->{ipv6} = 1;
         $interface->{ipv6} = 1;
     }
@@ -1270,7 +1270,7 @@ sub read_nat {
         # This prevents 'Use of uninitialized value'
         # if code generation is started concurrently,
         # before all error conditions are checked.
-        my $zero_ip = $nat->{ip} = get_zero_ip($config->{ipv6});
+        my $zero_ip = $nat->{ip} = get_zero_ip($read_ipv6);
         $nat->{mask} = get_host_mask($zero_ip);
     }
     elsif ($nat->{identity}) {
@@ -1352,7 +1352,7 @@ sub read_network {
                 my  $host_name = $name2;
                 my $host = read_host("host:$host_name", $net_name);
                 $host->{network} = $network;
-                $host->{ipv6} = 1 if $config->{ipv6};
+                $host->{ipv6} = 1 if $read_ipv6;
                 if (is_host($host)) {
                     push @{ $network->{hosts} }, $host;
                     $host_name = (split_typed_name($host->{name}))[1];
@@ -2027,7 +2027,7 @@ sub read_router {
 
                 # Assign interface to global hash of interfaces.
                 $interfaces{$iname} = $interface;
-                $interface->{ipv6} = 1 if $config->{ipv6};
+                $interface->{ipv6} = 1 if $read_ipv6;
 
                 # Link interface with router object.
                 $interface->{router} = $router;
@@ -2413,7 +2413,7 @@ sub read_router {
                     subnet_of => delete $interface->{subnet_of},
                     is_layer3 => $interface->{is_layer3},
                 );
-                $network->{ipv6} = 1 if $config->{ipv6};
+                $network->{ipv6} = 1 if $read_ipv6;
 
                 # Move NAT definition from interface to loopback network.
                 if (my $nat = delete $interface->{nat}) {
@@ -2489,7 +2489,7 @@ sub read_router {
                     $tunnel_net->{private} = $private;
                 }
                 $networks{$net_name} = $tunnel_net;
-                if ($config->{ipv6}) {
+                if ($read_ipv6) {
                     $tunnel_intf->{ipv6} = $tunnel_net->{ipv6} = 1;
                 }
 
@@ -2623,7 +2623,7 @@ sub read_aggregate {
     my $ip = $aggregate->{ip};
     if (not $ip) {
         $ip = $aggregate->{ip} = $aggregate->{mask} =
-            get_zero_ip($config->{ipv6});
+            get_zero_ip($read_ipv6);
     }
     if (not is_zero_ip($ip)) {
         for my $key (sort keys %$aggregate) {
@@ -2831,7 +2831,7 @@ sub read_proto_nr {
     defined (my $nr = check_int) or syntax_err("Expected protocol number");
     error_atline("Too large protocol number $nr") if $nr > 255;
     error_atline("Invalid protocol number '0'")   if $nr == 0;
-    if ($nr == 1 and not $config->{ipv6}) {
+    if ($nr == 1 and not $read_ipv6) {
         error_atline("Must not use 'proto 1', use 'icmp' instead");
     }
     elsif ($nr == 4) {
@@ -2840,7 +2840,7 @@ sub read_proto_nr {
     elsif ($nr == 17) {
         error_atline("Must not use 'proto 17', use 'udp' instead");
     }
-    elsif ($nr == 58 and $config->{ipv6}) {
+    elsif ($nr == 58 and $read_ipv6) {
         error_atline("Must not use 'proto 58', use 'icmpv6' instead");
     }
     $prt->{proto} = $nr;
@@ -2920,8 +2920,8 @@ sub read_simple_protocol {
         $protocol->{proto} = 'icmp';
 
         read_icmp_type_code $protocol;
-        if ($config->{ipv6} xor $proto eq 'icmpv6') {
-            my $v = $config->{ipv6} ? 'ipv4' : 'ipv6';
+        if ($read_ipv6 xor $proto eq 'icmpv6') {
+            my $v = $read_ipv6 ? 'IPv4' : 'IPv6';
             error_atline("Must use '$proto' only with $v");
         }
     }
@@ -3401,7 +3401,7 @@ sub parse_toplevel {
     my ($fun, $hash, $shared) = @$descr;
     my $result = $fun->("$type:$name");
     $result->{file} = $current_file;
-    if ($config->{ipv6}) {
+    if ($read_ipv6) {
         if (not $shared) {
             $result->{ipv6} = 1;
         }
@@ -3430,15 +3430,10 @@ sub parse_input {
     }
 }
 
-# Read IPv4 and / or IPv6 input.
+# Reads and parses netspoc input from file or from directory.
 sub read_file_or_dir {
     my ($path) = @_;
-    my $ignore_dir = $config->{ipv6} ? 'ipv4' : 'ipv6';
-    if (-e (my $sub_dir = "$path/$ignore_dir")) {
-        local $config->{ipv6} = !$config->{ipv6};
-        process_file_or_dir($sub_dir, \&parse_input);
-    }
-    process_file_or_dir($path, \&parse_input, $ignore_dir);
+    process_file_or_dir($path, \&parse_input);
 }
 
 # Prints number of read entities if in verbose mode.
@@ -18379,10 +18374,7 @@ sub print_code {
 # Copy raw configuration files of devices into out_dir for devices
 # known from topology.
 sub copy_raw1 {
-    my ($in_path, $out_dir) = @_;
-    my $raw_dir = "$in_path/raw";
-    -d $raw_dir or return;
-
+    my ($raw_dir, $out_dir, $ignore_dir) = @_;
     my $ipv6 = $out_dir =~ m'/ipv6$';
     my %device_names =
       map({ $_->{device_name} => 1 }
@@ -18395,6 +18387,7 @@ sub copy_raw1 {
     {
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
+        next if $ignore_dir and $file eq $ignore_dir;
 
         my $raw_path = "$raw_dir/$file";
         if (not -f $raw_path) {
@@ -18413,17 +18406,18 @@ sub copy_raw1 {
 
 sub copy_raw {
     my ($in_path, $out_dir) = @_;
-    my $has_subdir = $config->{ipv6} ? -e "$in_path/ipv4" : -e "$in_path/ipv6";
+    my $raw_dir = "$in_path/raw";
+    -d $raw_dir or return;
     if ($config->{ipv6}) {
-        copy_raw1($in_path, "$out_dir/ipv6");
-        if ($has_subdir) {
-            copy_raw1("$in_path/ipv4", $out_dir);
+        copy_raw1($raw_dir, "$out_dir/ipv6", 'ipv4');
+        if (-d (my $subdir = "$raw_dir/ipv4")) {
+            copy_raw1($subdir, $out_dir);
         }
     }
     else {
-        copy_raw1($in_path, $out_dir);
-        if ($has_subdir) {
-            copy_raw1("$in_path/ipv6", "$out_dir/ipv6");
+        copy_raw1($raw_dir, $out_dir, 'ipv6');
+        if (-d (my $subdir = "$raw_dir/ipv6")) {
+            copy_raw1($subdir, "$out_dir/ipv6");
         }
     }
 }

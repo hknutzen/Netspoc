@@ -160,7 +160,7 @@ protocol:ICMPv6  = icmpv6;
 END
 
 $out = <<'END';
-Error: Must use 'icmpv6' only with ipv6 at line 2 of STDIN
+Error: Must use 'icmpv6' only with IPv6 at line 2 of STDIN
 END
 
 test_err($title, $in, $out);

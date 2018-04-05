@@ -432,7 +432,7 @@ protocol:ICMP  = icmp;
 END
 
 $out = <<'END';
-Error: Must use 'icmp' only with ipv4 at line 2 of STDIN
+Error: Must use 'icmp' only with IPv4 at line 2 of STDIN
 END
 
 test_err($title, $in, $out, '-ipv6');
