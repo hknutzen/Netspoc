@@ -3190,25 +3190,33 @@ area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 
 router:r1 = {
  managed;
  model = IOS;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n2;
  interface:n3;
 }
-
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
 service:s1 = {
  user = network:n1, network:n2, network:n3;
  permit src = user; dst = any:[user]; prt = tcp 80;
  permit src = any:[user]; dst = user; prt = tcp 81;
 }
 
-# Internally, this is reritten to
+# Internally, this is rewritten to
 # "user = network:n1, network:n2, network:n3;"
 # because number of networks is larger than number of aggregates.
 service:s2 = {
@@ -3227,6 +3235,13 @@ service:s4 = {
  user = network:n1, network:n2, network:n3;
  permit src = user; dst = any:[user]; prt = tcp 86;
  permit src = network:n1; dst = user &! network:n1; prt = tcp 87;
+}
+
+service:s5 = {
+ user = foreach interface:r1.n1, interface:r3.n3;
+ permit src = any:[interface:[user].[all]];
+        dst = any:[interface:[user].[all]];
+        prt = tcp 179;
 }
 END
 
@@ -3380,6 +3395,48 @@ $out = <<END;
             ]
          }
       ]
+   },
+   "s5(Lg5S4o3m)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n2]",
+               "any:[network:n4]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 179"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s5(iIo0gt2o)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "any:[network:n1]",
+               "any:[network:n2]"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 179"
+            ],
+            "src" : []
+         }
+      ]
    }
 }
 --owner/all/users
@@ -3411,6 +3468,14 @@ $out = <<END;
    "s4(avp-zO-c)" : [
       "network:n2",
       "network:n3"
+   ],
+   "s5(Lg5S4o3m)" : [
+      "any:[network:n2]",
+      "any:[network:n4]"
+   ],
+   "s5(iIo0gt2o)" : [
+      "any:[network:n1]",
+      "any:[network:n2]"
    ]
 }
 END

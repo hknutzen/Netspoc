@@ -441,8 +441,11 @@ sub normalize_services_for_export {
                     # Artificially take one of 'src' and 'dst' as user
                     # for case like
                     # src = user; dst = any:[user];
-                    if ($has_user eq 'both' and
-                        not aref_eq($src_list, $dst_list))
+                    if ($has_user eq 'both'
+                        and
+                        (not aref_eq($src_list, $dst_list)
+                         or
+                         $foreach))
                     {
                         if ($seen_as_user->($src_list)) {
                             $has_user = 'src';
