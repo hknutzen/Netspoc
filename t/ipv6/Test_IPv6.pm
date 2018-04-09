@@ -227,9 +227,6 @@ sub adjust_testfile {
             elsif ($filename =~ /concurrency.t/ and $line =~ m'my \$path') {
                 $line =~ s|out_dir|out_dir/ipv6|;
             }
-            elsif ($filename =~ /export.t/ and $line =~ m'my \$out_fh') {
-                $line =~ s|out_dir|out_dir/ipv6|;
-            }
             elsif ($filename =~ /options.t/ and $line =~ /undef,/) {
                 $line =~ s/undef,/'-ipv6',/;
             }
