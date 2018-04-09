@@ -40,9 +40,13 @@ sub usage {
 }
 my $quiet;
 my $ipv6;
+my $export_ipv6;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6 ) or usage();
+GetOptions ('quiet!' => \$quiet,
+            'ipv6' => \$ipv6,
+            'export_ipv6!' => \$export_ipv6)
+    or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -231,7 +235,8 @@ sub setup_zones {
     progress('Setup zones');
     my %seen;
     for my $network (values %networks) {
-        $network->{disabled} and next;
+        next if $network->{disabled};
+        next if $network->{ipv6} and not $export_ipv6;
         my $zone = $network->{zone};
         next if $seen{$zone}++;
 #        debug "$network->{name} in $zone->{name}";
@@ -410,6 +415,7 @@ sub normalize_services_for_export {
     my @result;
     for my $service (sort by_name values %services) {
         my $ipv6    = $service->{ipv6};
+        next if $ipv6 and not $export_ipv6;
         my $sname   = $service->{name};
         my $context = $sname;
         my $user    = expand_group($service->{user}, "user of $context", $ipv6);
