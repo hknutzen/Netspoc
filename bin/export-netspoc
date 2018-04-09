@@ -57,7 +57,6 @@ my $policy_file = "$netspoc_data/POLICY";
 sub create_dirs {
     my ($path) = @_;
     my $dir = $out_dir;
-    $dir .= '/ipv6' if $config->{ipv6};
     $path = "$dir/$path";
     make_path($path, {error => \my $err} );
     # uncoverable branch true
@@ -80,7 +79,6 @@ sub create_dirs {
 sub export_json {
     my ($path, $data) = @_;
     my $dir = $out_dir;
-    $dir .= '/ipv6' if $config->{ipv6};
     $path = "$dir/$path";
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {pretty => 1, canonical => 1});
