@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+5.034     2018-04-10 11:01:09+02:00 Europe/Berlin
+
  - IPv4 and IPv6 input is no longer processed separately.
    - Some definitions are shared between IPv4 and IPv6:
      owner, protocol, protocolgroup, crypto, isakmp, ipsec
@@ -13,9 +15,12 @@
  - Raw files for IPv6 are read from directory "raw/ipv6" now
    and no longer from "ipv6/raw".
  - print-group now works again with mixed IPv4/IPv6 input.
- - export-netspoc now generates mixed JSON output.
+ - export-netspoc now generates mixed IPv4/IPv6 JSON output,
+   if export of IPv6 data is enabled with new option '-export_ipv6'.
  - Attribute 'reroute_permit' is ignored with warning now, if used
    together with attribute 'no_in_acl' at same device.
+ - A nondeterminism in generated code was fixed.
+   Secondary optimization is now always disabled if neccessary.
 
 5.033     2018-03-12 14:08:49+01:00 Europe/Berlin
 
