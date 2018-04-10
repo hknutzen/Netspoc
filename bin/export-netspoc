@@ -6,7 +6,7 @@ export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@gmail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@gmail.com>
 (c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -40,9 +40,13 @@ sub usage {
 }
 my $quiet;
 my $ipv6;
+my $export_ipv6;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6 ) or usage();
+GetOptions ('quiet!' => \$quiet,
+            'ipv6' => \$ipv6,
+            'export_ipv6!' => \$export_ipv6)
+    or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -56,7 +60,8 @@ my $policy_file = "$netspoc_data/POLICY";
 
 sub create_dirs {
     my ($path) = @_;
-    $path = "$out_dir/$path";
+    my $dir = $out_dir;
+    $path = "$dir/$path";
     make_path($path, {error => \my $err} );
     # uncoverable branch true
     if (@$err) {
@@ -75,9 +80,10 @@ sub create_dirs {
     return;
 }
 
-sub export {
+sub export_json {
     my ($path, $data) = @_;
-    $path = "$out_dir/$path";
+    my $dir = $out_dir;
+    $path = "$dir/$path";
     open (my $fh, '>', $path) or die "Can't open $path\n";
     print $fh to_json($data, {pretty => 1, canonical => 1});
     close $fh or die "Can't close $path\n";
@@ -118,7 +124,7 @@ sub ip_nat_for_object {
 
             # Print no mask for aggregate with mask 0, for compatibility
             # with old version.
-            elsif ($obj->{is_aggregate} && $obj->{mask} eq $zero_ip) {
+            elsif ($obj->{is_aggregate} && is_zero_ip($obj->{mask})) {
                 print_ip($obj->{ip});
             }
             else {
@@ -229,7 +235,8 @@ sub setup_zones {
     progress('Setup zones');
     my %seen;
     for my $network (values %networks) {
-        $network->{disabled} and next;
+        next if $network->{disabled};
+        next if $network->{ipv6} and not $export_ipv6;
         my $zone = $network->{zone};
         next if $seen{$zone}++;
 #        debug "$network->{name} in $zone->{name}";
@@ -407,9 +414,11 @@ sub normalize_services_for_export {
     progress("Normalize services for export");
     my @result;
     for my $service (sort by_name values %services) {
+        my $ipv6    = $service->{ipv6};
+        next if $ipv6 and not $export_ipv6;
         my $sname   = $service->{name};
         my $context = $sname;
-        my $user    = expand_group($service->{user}, "user of $context");
+        my $user    = expand_group($service->{user}, "user of $context", $ipv6);
         my $rules   = $service->{rules};
         my $foreach = $service->{foreach};
 
@@ -430,15 +439,19 @@ sub normalize_services_for_export {
 
             for my $element ($foreach ? @$user : ($user)) {
                 my $src_dst_list_pairs =
-                    normalize_src_dst_list($unexpanded, $element, $context);
+                    normalize_src_dst_list($unexpanded, $element,
+                                           $context, $ipv6);
                 for my $src_dst_list (@$src_dst_list_pairs) {
                     my ($src_list, $dst_list) = @$src_dst_list;
 
                     # Artificially take one of 'src' and 'dst' as user
                     # for case like
                     # src = user; dst = any:[user];
-                    if ($has_user eq 'both' and
-                        not aref_eq($src_list, $dst_list))
+                    if ($has_user eq 'both'
+                        and
+                        (not aref_eq($src_list, $dst_list)
+                         or
+                         $foreach))
                     {
                         if ($seen_as_user->($src_list)) {
                             $has_user = 'src';
@@ -801,7 +814,7 @@ sub export_no_nat_set {
     for my $owner_name (keys %owner2no_nat_set) {
         my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
         create_dirs("owner/$owner_name");
-        export("owner/$owner_name/no_nat_set", $no_nat_set);
+        export_json("owner/$owner_name/no_nat_set", $no_nat_set);
     }
     return;
 }
@@ -892,6 +905,7 @@ sub export_assets {
         next if not @{ $zone->{networks} };
 
         # Zone with network 0/0 doesn't have an aggregate 0/0.
+        my $zero_ip = get_zero_ip($zone->{ipv6});
         my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
@@ -925,7 +939,7 @@ sub export_assets {
     for my $owner (keys %result) {
         my $hash = $result{$owner};
         create_dirs("owner/$owner");
-        export("owner/$owner/assets", $hash);
+        export_json("owner/$owner/assets", $hash);
     }
     return;
 }
@@ -1023,7 +1037,7 @@ sub export_services {
         (my $sname = $service->{name}) =~ s/^\w+://;
         $shash{$sname} = { details => $details, rules => \@rules };
     }
-    export("services", \%shash);
+    export_json("services", \%shash);
     return \%owner2type2shash;
 }
 
@@ -1059,8 +1073,8 @@ sub export_users_and_service_lists {
             $type2snames{$type} = [ sort @snames ];
         }
         create_dirs("owner/$owner");
-        export("owner/$owner/service_lists", \%type2snames);
-        export("owner/$owner/users", \%service2users);
+        export_json("owner/$owner/service_lists", \%type2snames);
+        export_json("owner/$owner/users", \%service2users);
     }
     return;
 }
@@ -1088,6 +1102,7 @@ sub zone_and_subnet {
             ($zone) = @$cluster;
         }
     }
+    my $zero_ip = get_zero_ip($zone->{ipv6});
     my $any = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
     my $zone_name = $any ? $any->{name} : $zone->{name};
 
@@ -1115,7 +1130,7 @@ sub export_objects {
             owner => scalar owner_for_object($_),
         }
     } values %all_objects;
-    export("objects", \%objects);
+    export_json("objects", \%objects);
     return;
 }
 
@@ -1150,11 +1165,11 @@ sub export_owners {
             push @e_owners, $e_owner->{name};
         }
 
-        export("owner/$name/emails",
+        export_json("owner/$name/emails",
                [ map { { email => $_ } } sort @emails ]);
-        export("owner/$name/watchers",
+        export_json("owner/$name/watchers",
                [ map { { email => $_ } } sort @watchers ]);
-        export("owner/$name/extended_by",
+        export_json("owner/$name/extended_by",
                [ map { { name => $_ } } sort @e_owners ]);
     }
 
@@ -1175,7 +1190,7 @@ sub export_owners {
     # Substitute hash by array.
     $_ = [ sort values(%$_) ] for values %email2owners;
 
-    export("email", \%email2owners);
+    export_json("email", \%email2owners);
     return;
 }
 
@@ -1188,9 +1203,6 @@ sub copy_policy_file {
     return;
 }
 
-####################################################################
-# Initialize Netspoc data
-####################################################################
 $config =
     combine_config({time_stamps => 1, max_errors => 9999,
                     verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
@@ -1214,9 +1226,7 @@ setup_part_owners();
 setup_outer_owners();
 setup_service_info($normalized_services);
 
-####################################################################
 # Export data
-####################################################################
 create_dirs('');
 export_owners();
 export_assets();

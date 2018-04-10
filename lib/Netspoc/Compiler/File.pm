@@ -36,7 +36,7 @@ use Exporter;
 our @ISA    = qw(Exporter);
 our @EXPORT_OK = qw(
  read_file read_file_lines process_file_or_dir
- *current_file *input *private $filename_encode
+ *current_file *input *read_ipv6 *private $filename_encode
 );
 
 our $filename_encode = 'UTF-8';
@@ -67,6 +67,9 @@ our $current_file;
 # Content of current file.
 our $input;
 
+# Current file has IPv6 content.
+our $read_ipv6;
+
 # Rules and objects read from directories and files with
 # special name 'xxx.private' are marked with attribute {private} = 'xxx'.
 # This variable is used to propagate the value from directories to its
@@ -92,7 +95,9 @@ sub process_file {
 }
 
 sub process_file_or_dir {
-    my ($path, $parser, $ignore_dir) = @_;
+    my ($path, $parser) = @_;
+    my $ipv_dir = $config->{ipv6} ? 'ipv4' : 'ipv6';
+    local $read_ipv6 = $config->{ipv6};
 
     # Handle toplevel file.
     if (not -d $path) {
@@ -103,17 +108,21 @@ sub process_file_or_dir {
     # Recursively read files and directories.
     my $read_nested_files = sub {
         my ($path) = @_;
-        my $next_private = $private;
+        my ($name) = ($path =~ m'([^/]*)$');
+
+        # Handle ipv6 / ipv4 subdirectory or file.
+        local $read_ipv6 = $name eq $ipv_dir ? $name eq 'ipv6' : $read_ipv6;
 
         # Handle private directories and files.
-        if (my ($name) = ($path =~ m'([^/]*\.private)$')) {
+        my $next_private = $private;
+        if ($name =~ /[.]private$/) {
             if ($private) {
                 fatal_err("Nested private context is not supported:\n $path");
             }
             $next_private = $name;
         }
-
         local $private = $next_private;
+
         if (-d $path) {
             opendir(my $dh, $path) or fatal_err("Can't opendir $path: $!");
             for my $file (sort map { Encode::decode($filename_encode, $_) }
@@ -139,7 +148,6 @@ sub process_file_or_dir {
 
         next if $file =~ /^\./;
         next if $file =~ m/$config->{ignore_files}/o;
-        next if $ignore_dir and $file eq $ignore_dir;
 
         # Ignore special files/directories.
         next if $file =~ /^(config|raw)$/;

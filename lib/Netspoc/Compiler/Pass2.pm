@@ -39,8 +39,9 @@ use NetAddr::IP::Util;
 sub create_ip_obj {
     my ($ip_net) = @_;
     my ($ip, $prefix) = split '/', $ip_net;
-    return { ip => ip2bitstr($ip), mask => prefix2mask($prefix),
-             name => $ip_net };
+    my $i = ip2bitstr($ip);
+    my $m = prefix2mask($prefix, length($i) == 16);
+    return { ip => $i, mask => $m, name => $ip_net };
 }
 
 sub get_ip_obj {
@@ -605,7 +606,8 @@ sub add_local_deny_rules {
                 return $group;
             }
             else {
-                $group = { name => "g$router_data->{obj_group_counter}",
+                $group = { name     => ($config->{ipv6}? "v6g" : "g") .
+                              "$router_data->{obj_group_counter}",
                            elements => $obj_list };
                 $router_data->{obj_group_counter}++;
                 push @{ $acl_info->{object_groups} }, $group;
@@ -663,7 +665,7 @@ sub combine_adjacent_ip_mask {
         my $mask = $element1->{mask};
         $mask eq $element2->{mask} or next;
         my $prefix = mask2prefix($mask)-1;
-        my $up_mask = prefix2mask($prefix);
+        my $up_mask = prefix2mask($prefix, length($mask) == 16);
         my $ip = $element1->{ip};
         ($ip & $up_mask) eq ($element2->{ip} & $up_mask) or next;
         my $up_element = get_ip_obj($ip, $up_mask, $ip_net2obj);
@@ -680,7 +682,7 @@ sub combine_adjacent_ip_mask {
         delete $hash->{$element2->{name}};
 
         if ($i > 0) {
-            my $up2_mask = prefix2mask($prefix-1);
+            my $up2_mask = prefix2mask($prefix-1, length($mask) == 16);
 
             # Check previous network again, if newly created network
             # is right part.
@@ -788,7 +790,8 @@ sub find_objectgroups {
             }
 
             # No group found, build new group.
-            my $group = { name     => "g$router_data->{obj_group_counter}",
+            my $group = { name     => ($config->{ipv6}? "v6g" : "g") .
+                              "$router_data->{obj_group_counter}",
                           elements => $elements,
                           hash     => $hash, };
             $router_data->{obj_group_counter}++;
@@ -980,6 +983,7 @@ sub add_bintree {
     my ($tree,    $node)      = @_;
     my ($tree_ip, $tree_mask) = @{$tree}{qw(ip mask)};
     my ($node_ip, $node_mask) = @{$node}{qw(ip mask)};
+    my $ipv6 = length($tree_ip) == 16;
     my $result;
 
     # The case where new node is larger than root node will never
@@ -1001,7 +1005,7 @@ sub add_bintree {
             or $tree->{subtree} ne $node->{subtree})
         {
             my $prefix = mask2prefix($tree_mask);
-            my $mask = prefix2mask($prefix+1);
+            my $mask = prefix2mask($prefix+1, $ipv6);
             my $branch = match_ip($node_ip, $tree_ip, $mask) ? 'lo' : 'hi';
             if (my $subtree = $tree->{$branch}) {
                 $tree->{$branch} = add_bintree $subtree, $node;
@@ -1017,7 +1021,7 @@ sub add_bintree {
     else {
         while (1) {
             my $prefix = mask2prefix($tree_mask);
-            $tree_mask = prefix2mask($prefix-1);
+            $tree_mask = prefix2mask($prefix-1, $ipv6);
             last if ($node_ip & $tree_mask) eq ($tree_ip & $tree_mask);
         }
         $result = {
@@ -1035,7 +1039,7 @@ sub add_bintree {
         my $lo = $result->{lo} or last;
         my $hi = $result->{hi} or last;
         my $prefix = mask2prefix($result->{mask});
-        my $mask = prefix2mask($prefix+1);
+        my $mask = prefix2mask($prefix+1, $ipv6);
         $lo->{mask} eq $mask or last;
         $hi->{mask} eq $mask or last;
         $lo->{subtree} and $hi->{subtree} or last;
@@ -1079,7 +1083,7 @@ sub gen_addr_bintree {
 
     # Add attribute {noop} to node which doesn't add any test to
     # generated rule.
-    $bintree->{noop} = 1 if $bintree->{mask} eq $zero_ip;
+    $bintree->{noop} = 1 if is_zero_ip($bintree->{mask});
 
 #    debug_bintree($bintree);
     return $bintree;
@@ -1665,7 +1669,7 @@ sub prefix_code {
     my ($ip_net) = @_;
     my ($ip, $mask) = @{$ip_net}{qw(ip mask)};
     my $ip_code     = bitstr2ip($ip);
-    if ($mask eq $max_ip) {
+    if (is_host_mask($mask)) {
         return $ip_code;
     }
     else {
@@ -1729,12 +1733,12 @@ sub print_chains {
             my $jump = $rule->{goto} ? '-g' : '-j';
             my $result = "$jump $action_code";
             if (my $src = $rule->{src}) {
-                if ($src->{mask} ne $zero_ip) {
+                if (not is_zero_ip($src->{mask})) {
                     $result .= ' -s ' . prefix_code($src);
                 }
             }
             if (my $dst = $rule->{dst}) {
-                if ($dst->{mask} ne $zero_ip) {
+                if (not is_zero_ip($dst->{mask})) {
                     $result .= ' -d ' . prefix_code($dst);
                 }
             }
@@ -1780,10 +1784,10 @@ sub iptables_acl_line {
       :                       'droplog';
     my $jump = $rule->{goto} ? '-g' : '-j';
     my $result = "$prefix $jump $action_code";
-    if ($src->{mask} ne $zero_ip) {
+    if (not is_zero_ip($src->{mask})) {
         $result .= ' -s ' . prefix_code($src);
     }
-    if ($dst->{mask} ne $zero_ip) {
+    if (not is_zero_ip($dst->{mask})) {
         $result .= ' -d ' . prefix_code($dst);
     }
     if ($prt->{proto} ne 'ip') {
@@ -1942,7 +1946,7 @@ sub cisco_acl_addr {
         my $keyword = $model eq 'NX-OS' ? 'addrgroup' : 'object-group';
         return "$keyword $obj->{name}";
     }
-    elsif ($mask eq $zero_ip) {
+    elsif (is_zero_ip($mask)) {
         if ($model eq 'ASA') {
             return length($mask) == 4 ? 'any4' : 'any6';
         }
@@ -1955,7 +1959,7 @@ sub cisco_acl_addr {
     }
     else {
         my $ip_code = bitstr2ip($ip);
-        if ($max_ip eq $mask) {
+        if (is_host_mask($mask)) {
             return "host $ip_code";
         }
         elsif ($config->{ipv6}) {
@@ -1986,7 +1990,7 @@ sub print_object_groups {
 
             # Reject network with mask = 0 in group.
             # This occurs if optimization didn't work correctly.
-            $zero_ip eq $element->{mask}
+            is_zero_ip($element->{mask})
                 and fatal_err("Unexpected network with mask 0 in object-group");
             my $adr = cisco_acl_addr($element, $model);
             if ($model eq 'NX-OS') {
@@ -2209,9 +2213,6 @@ sub pass2_file {
     my ($device_path, $dir) = @_;
     my $file = "$dir/$device_path";
     local $config->{ipv6} = $device_path =~ /^ipv6/;
-    init_prefix_len;
-    init_mask_prefix_lookups;
-    init_zero_and_max_ip;
 
 #   debug "building $device_path";
     my $router_data = prepare_acls("$file.rules");
@@ -2307,6 +2308,7 @@ sub pass2 {
     }
     else {
         my $devlist = "$dir/.devlist";
+
         open($from_pass1, '<', $devlist) or
             fatal_err("Can't open $devlist for reading: $!");
     }

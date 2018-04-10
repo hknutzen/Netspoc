@@ -28,6 +28,7 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {
+    "Capture::Tiny" => 0,
     "Digest::SHA" => 0,
     "Encode" => 0,
     "Exporter" => 0,
@@ -47,7 +48,6 @@ my %WriteMakefileArgs = (
     "warnings" => 0
   },
   "TEST_REQUIRES" => {
-    "Capture::Tiny" => 0,
     "Carp" => 0,
     "File::Spec::Functions" => 0,
     "File::Temp" => 0,
@@ -57,7 +57,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.032",
+  "VERSION" => "5.034",
   "test" => {
     "TESTS" => "t/*.t"
   }

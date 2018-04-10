@@ -3,7 +3,6 @@ abstract: 'Generates rules for many firewalls from a central ruleset.'
 author:
   - 'Heinz Knutzen <heinz.knutzen@dataport.de>'
 build_requires:
-  Capture::Tiny: '0'
   Carp: '0'
   File::Spec::Functions: '0'
   File::Temp: '0'
@@ -22,6 +21,7 @@ meta-spec:
   version: '1.4'
 name: Netspoc
 requires:
+  Capture::Tiny: '0'
   Digest::SHA: '0'
   Encode: '0'
   Exporter: '0'
@@ -39,5 +39,5 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
-version: '5.032'
+version: '5.034'
 x_serialization_backend: 'YAML::Tiny version 1.69'

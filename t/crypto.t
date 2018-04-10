@@ -729,7 +729,7 @@ END
 $out = <<'END';
 Error: interface:asavpn.n1 references unknown crypto:vpn
 Error: interface:softclients.n1 references unknown crypto:vpn
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:clients]
 END

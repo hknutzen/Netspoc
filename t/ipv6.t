@@ -129,6 +129,171 @@ END
 test_run($title, $in, $out, '-ipv6');
 
 #############################################################
+$title = 'OSPF, EIGRP, HSRP, VRRP, DHCP';
+#############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112; }
+network:n2 = { ip = 1000::abcd:0002:0000/112; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {
+  ip = 1000::abcd:0001:0002;
+  virtual = { ip = 1000::abcd:0001:0001; type = VRRP; id = 6; }
+  hardware = n1;
+  routing = OSPF;
+  dhcp_server;
+ }
+ interface:n2 = {
+  ip = 1000::abcd:0002:0002;
+  virtual = { ip = 1000::abcd:0002:0001; type = HSRP; id = 7; }
+  hardware = n2;
+  routing = EIGRP;
+  dhcp_client;
+ }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {
+  ip = 1000::abcd:0001:0003;
+  virtual = { ip = 1000::abcd:0001:0001; type = VRRP; id = 6; }
+  hardware = n1;
+  routing = OSPF;
+ }
+ interface:n2 = {
+  ip = 1000::abcd:0002:0003;
+  virtual = { ip = 1000::abcd:0002:0001; type = HSRP; id = 7; }
+  hardware = n2;
+  routing = EIGRP;
+ }
+}
+
+END
+
+$out = <<'END';
+-- ipv6/r1
+ip access-list extended n1_in
+ permit 89 1000::abcd:1:0/112 host ff02::5
+ permit 89 1000::abcd:1:0/112 host ff02::6
+ permit 89 1000::abcd:1:0/112 1000::abcd:1:0/112
+ permit 112 1000::abcd:1:0/112 host ff02::12
+ permit udp any any eq 67
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit 88 1000::abcd:2:0/112 host ff02::a
+ permit 88 1000::abcd:2:0/112 1000::abcd:2:0/112
+ permit udp 1000::abcd:2:0/112 host ::e000:2 eq 1985
+ permit udp any any eq 68
+ deny ip any any
+END
+
+test_run($title, $in, $out, '-ipv6');
+
+############################################################
+$title = 'Access managed host from enclosing network';
+############################################################
+
+$in = <<'END';
+network:N = {
+ ip = ::a01:100/120;
+ host:h1 = { managed; model = Linux; ip = ::a01:10b; hardware = eth0; }
+}
+
+service:test = {
+ user = network:N;
+ permit src = user; dst = host:h1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--ipv6/host:h1
+:eth0_self -
+-A eth0_self -j ACCEPT -s ::a01:100/120 -d ::a01:10b -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
+END
+
+test_run($title, $in, $out, '-ipv6');
+
+############################################################
+$title = 'Crypto tunnel to directly connected software clients';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 600 sec;
+}
+
+isakmp:aes256SHA = {
+ identity = address;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:vpn = {
+ type = ipsec:aes256SHA;
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = ::a01:101;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = {
+  spoke = crypto:vpn;
+  ip = ::a01:102;
+ }
+ interface:clients;
+}
+
+network:clients = {
+ ip = ::a09:100/120;
+ host:id:foo@domain.x = {  ip = ::a09:10a; }
+}
+
+service:s1 = {
+ user = host:id:foo@domain.x.clients;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<END;
+-- ipv6/asavpn
+! [ Routing ]
+ipv6 route n1 ::a09:100/120 ::a01:102
+--
+! n1_in
+access-list n1_in extended permit tcp host ::a09:10a ::a01:100/120 eq 80
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out, '-ipv6');
+
+#############################################################
 $title = 'IPv6 interface in IPv4 topology';
 #############################################################
 
@@ -267,7 +432,7 @@ protocol:ICMP  = icmp;
 END
 
 $out = <<'END';
-Error: Must use 'icmp' only with ipv4 at line 2 of STDIN
+Error: Must use 'icmp' only with IPv4 at line 2 of STDIN
 END
 
 test_err($title, $in, $out, '-ipv6');

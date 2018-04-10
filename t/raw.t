@@ -63,7 +63,7 @@ syntax error
 END
 
 $out = <<'END';
-Error: IPv4 topology seems to be empty
+Error: topology seems to be empty
 Aborted
 END
 

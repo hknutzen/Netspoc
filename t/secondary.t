@@ -599,6 +599,49 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Disable secondary optimization for both primary and secondary.";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.2.3.0/24; }
+
+router:r1 = {
+ managed = primary;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = IOS, FW;
+ managed = secondary;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = any:[ ip = 10.2.0.0/16 & network:n2 ];
+ permit src = user; dst = network:n1; prt = tcp 3128;
+}
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r2
+ip access-list extended n3_in
+ permit tcp 10.2.3.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Still optimize with supernet rule having no_check_supernet_rules";
 ############################################################
 

@@ -19,7 +19,7 @@ END
 
 $out = <<"END";
 Error: router:r isn\'t connected to any network
-Error: IPv4 topology seems to be empty
+Error: topology seems to be empty
 Aborted
 END
 
@@ -38,7 +38,7 @@ $out = <<'END';
 Error: Referencing undefined network:n2 from interface:r.n2
 Error: router:r isn't connected to any network
 Error: network:n1 isn't connected to any router
-Error: IPv4 topology seems to be empty
+Error: topology seems to be empty
 Aborted
 END
 
@@ -78,7 +78,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
  - any:[network:n3]
@@ -112,7 +112,7 @@ service:s = {
 END
 
 $out = <<'END';
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
 END
@@ -169,7 +169,7 @@ network:n3 = { ip = 10.1.3.0/24; }
 END
 
 $out = <<'END';
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n3]
 END
@@ -190,7 +190,7 @@ router:fw = {
 END
 
 $out = <<'END';
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
 END
@@ -209,7 +209,7 @@ service:test = {
 END
 
 $out = <<'END';
-Error: Topology has unconnected parts:
+Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
 Error: No valid path

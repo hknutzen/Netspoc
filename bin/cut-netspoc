@@ -34,7 +34,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -64,7 +64,7 @@ use Netspoc::Compiler::Common;
 use Netspoc::Compiler::Pass1;
 use Encode qw(decode_utf8);
 
-our $VERSION = '5.032'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.034'; # VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing
@@ -358,6 +358,7 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
+    my $zero_ip = get_zero_ip($zone->{ipv6});
     my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
 
     # Simplifies test below.
@@ -412,7 +413,7 @@ for my $network (values %networks) {
     # identity NAT attributes, which have been deleted already.
     while ($up = $up->{up}) {
         if ($up->{is_aggregate}) {
-            $up->{mask} eq $zero_ip or next;
+            is_zero_ip($up->{mask}) or next;
             my $zone = $up->{zone};
 
             # Check if NAT attribute was inherited from zone or areas.
@@ -461,7 +462,7 @@ for my $network (values %networks) {
     }
 }
 
-for my $router (values %routers) {
+for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
 
     # Mark fragments of marked crypto routers.
@@ -492,7 +493,7 @@ for my $router (values %routers) {
 # Needed to mark crypto path of unmanaged crypto routers.
 mark_unmanaged();
 
-for my $router (values %routers) {
+for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
@@ -558,7 +559,7 @@ for my $network (values %networks) {
 
 # Remove definitions of unused interfaces from routers
 progress('Removing unused interfaces');
-for my $router (values %routers) {
+for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
         next if $interface->{is_used};
@@ -579,7 +580,8 @@ for my $router (values %routers) {
 # Remove one or multiple occurences of attribute 'owner'.
 # Multiple from embedded host or interface definiton.
 progress('Removing referenced owners');
-for my $object (values %networks, values %routers,
+for my $object (values %networks,
+                values %routers, values %routers6,
                 values %areas, values %aggregates)
 {
     $object->{is_used} or next;
@@ -607,7 +609,7 @@ for my $area (values %areas) {
 
 # Remove attribute 'policy_distribution_point'
 progress('Removing referenced policy_distribution_point');
-for my $router (values %routers) {
+for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     $router->{policy_distribution_point} or next;
     $router->{src_code} =~ /^[^#]policy_distribution_point/m or next;
@@ -624,6 +626,7 @@ sub by_index {
 # Groups and protocolroups objects have been marked during expand_services.
 for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
     values %routers,
+    values %routers6,
     values %networks,
     values %aggregates,
     values %areas,
