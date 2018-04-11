@@ -1523,24 +1523,6 @@ $out = <<'END';
          }
       ]
    },
-   "s1(Wq2IaGjr)" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 22"
-            ],
-            "src" : []
-         }
-      ]
-   },
    "s1(aZ1_3Qf8)" : {
       "details" : {
          "owner" : [
@@ -1663,9 +1645,6 @@ $out = <<'END';
 }
 --owner/a/users
 {
-   "s1(Wq2IaGjr)" : [
-      "network:n1"
-   ],
    "s1(aZ1_3Qf8)" : [
       "network:n1"
    ],
@@ -1707,9 +1686,6 @@ $out = <<'END';
 --owner/d/users
 {
    "s1(OlWkR_nb)" : [
-      "network:n4"
-   ],
-   "s1(Wq2IaGjr)" : [
       "network:n4"
    ],
    "s2(6J6zzaOm)" : [
@@ -3559,27 +3535,6 @@ $out = <<END;
          }
       ]
    },
-   "s1(iBdfavjf)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n3",
-               "network:n4"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 49"
-            ],
-            "src" : []
-         }
-      ]
-   },
    "s1(se22rxX1)" : {
       "details" : {
          "owner" : [
@@ -3607,7 +3562,6 @@ $out = <<END;
       "interface:r1.n2",
       "interface:r2.n2"
    ],
-   "s1(iBdfavjf)" : [],
    "s1(se22rxX1)" : [
       "interface:r1.n1",
       "interface:r1.n2",

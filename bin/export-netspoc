@@ -511,6 +511,18 @@ sub normalize_services_for_export {
             # Add extension to make name of split service unique.
             my $rules_key;
             if ($is_split) {
+
+                # Ignore split part with empty users or only empty rules.
+                # This is an relict from expanding auto interfaces.
+                @$user_list or next;
+                grep { $_->{has_user} eq 'src' and @{$_->{dst}}
+                       or
+                       $_->{has_user} eq 'dst' and @{$_->{src}}
+                       or
+                       $_->{has_user} eq 'both' } @$rules
+                    or next;
+
+
                 $rules_key = calc_rules_key($json_rules);
                 $new_name .= "($rules_key)";
 
