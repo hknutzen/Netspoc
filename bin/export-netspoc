@@ -471,11 +471,17 @@ sub normalize_services_for_export {
                         prt      => $prt_list,
                         has_user => $has_user,
                     };
+                    my $json_rule = { %$rule, src => [], dst => [] };
+                    $rule->{json_rule} = $json_rule;
                     if ($has_user eq 'src') {
                         $rule->{dst} = $dst_list;
+                        $json_rule->{dst} =
+                            [ sort map { $_->{name} } @$dst_list ];
                     }
                     elsif ($has_user eq 'dst') {
                         $rule->{src} = $src_list;
+                        $json_rule->{src} =
+                            [ sort map { $_->{name} } @$src_list ];
                     }
 
                     my $user_list = $has_user eq 'dst' ? $dst_list : $src_list;
@@ -487,17 +493,40 @@ sub normalize_services_for_export {
         }
 
         # 'user' has different value for some rules
-        # and we get multiple services with identical name.
+        # and implicitly we get multiple services with identical name.
         my $is_split = (1 < keys %key2rules);
 
+        # Name of split part is derived from its rules.
+        # We might get different split parts with identical rules from
+        # auto interfaces. We must re-join these parts to prevent name
+        # clashes.
+        my %split_parts;
+
         for my $user_key (keys %key2rules) {
-            my $user_list = $key2user{$user_key};
-            my $rules     = $key2rules{$user_key};
+            my $user_list  = $key2user{$user_key};
+            my $rules      = $key2rules{$user_key};
+            my $json_rules = [ map { delete $_->{json_rule} } @$rules ];
+            my $new_name   = $sname;
+
+            # Add extension to make name of split service unique.
+            my $rules_key;
+            if ($is_split) {
+                $rules_key = calc_rules_key($json_rules);
+                $new_name .= "($rules_key)";
+
+                # Join different split parts having identical rules.
+                if (my $other = $split_parts{$rules_key}) {
+                    push @{ $other->{user} }, @$user_list;
+                    next;
+                }
+            }
             my $new_service = { %$service,
+                                name  => $new_name,
                                 user  => $user_list,
                                 rules => $rules,
+                                json_rules => $json_rules,
             };
-            $new_service->{is_split} = 1 if $is_split;
+            $split_parts{$rules_key} = $new_service if $rules_key;
             push @result, $new_service;
         }
     }
@@ -982,22 +1011,6 @@ sub export_services {
     my %shash;
     my %owner2type2shash;
     for my $service (@$normalized_services) {
-        my @rules = map {
-            {
-                action => $_->{action},
-                has_user => $_->{has_user},
-                src => [ sort map { $_->{name} } @{ $_->{src} } ],
-                dst => [ sort map { $_->{name} } @{ $_->{dst} } ],
-                prt => $_->{prt},
-            }
-        } @{ $service->{rules} };
-
-        # Add extension to make name of split service unique.
-        if ($service->{is_split}) {
-            my $rules_key = calc_rules_key(\@rules);
-            $service->{name} .= "($rules_key)";
-        }
-
         for my $owner ($service->{sub_owner} || (),
                        @{ $service->{owners} },
                        @{ $service->{part_owners} },
@@ -1035,7 +1048,8 @@ sub export_services {
         }
 
         (my $sname = $service->{name}) =~ s/^\w+://;
-        $shash{$sname} = { details => $details, rules => \@rules };
+        my $json_rules = $service->{json_rules};
+        $shash{$sname} = { details => $details, rules => $json_rules };
     }
     export_json("services", \%shash);
     return \%owner2type2shash;

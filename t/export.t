@@ -3483,6 +3483,143 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Re-join split parts from auto interfaces';
+############################################################
+
+$in = <<'END';
+area:all = { owner = all; anchor = network:n1;}
+owner:all = { admins = a@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;}
+network:n4 = { ip = 10.1.4.0/24;}
+
+router:r1 = {
+ routing = manual;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ routing = manual;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.4; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n2;  }
+}
+
+pathrestriction:p1 = interface:r1.n1, interface:r1.n2;
+pathrestriction:p2 = interface:r2.n1, interface:r2.n2;
+pathrestriction:p3 = interface:r3.n1, interface:r3.n2;
+
+service:s1 = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = user;
+        dst = network:n3, network:n4;
+        prt = tcp 49;
+}
+END
+
+$out = <<END;
+--services
+{
+   "s1(CbJX20AY)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n4"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 49"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s1(iBdfavjf)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3",
+               "network:n4"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 49"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s1(se22rxX1)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 49"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+--owner/all/users
+{
+   "s1(CbJX20AY)" : [
+      "interface:r1.n2",
+      "interface:r2.n2"
+   ],
+   "s1(iBdfavjf)" : [],
+   "s1(se22rxX1)" : [
+      "interface:r1.n1",
+      "interface:r1.n2",
+      "interface:r2.n1",
+      "interface:r2.n2"
+   ]
+}
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
 $title = 'Copy POLICY file';
 ############################################################
 
