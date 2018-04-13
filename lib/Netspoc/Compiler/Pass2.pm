@@ -1963,8 +1963,7 @@ sub cisco_acl_addr {
             return "host $ip_code";
         }
         elsif ($config->{ipv6}) {
-            my $prefix = mask2prefix($mask);
-            return "$ip_code/$prefix";
+            return $obj->{name};
         }
         else {
 
