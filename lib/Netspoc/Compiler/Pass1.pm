@@ -15996,7 +15996,7 @@ sub print_routes {
     my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
     my $do_auto_default_route = $config->{auto_default_route};
-    my $zero_ip               = get_zero_ip($router->{ipv6});
+    my $zero_ip               = get_zero_ip($ipv6);
     my $crypto_type = $model->{crypto} || '';
     my $asa_crypto = $crypto_type eq 'ASA';
     my (%mask2ip2net, %net2hop_info);
@@ -16205,8 +16205,10 @@ sub print_routes {
 
             for my $netinfo (@{ $hop2nets->{$hop} }) {
                 if ($type eq 'IOS') {
-                    my $adr = ios_route_code($netinfo);
-                    print "ip route $ios_vrf$adr $hop_addr\n";
+                    my $adr = $ipv6 ?
+                        full_prefix_code($netinfo) : ios_route_code($netinfo);
+                    my $ip = $ipv6 ? 'ipv6' : 'ip';
+                    print "$ip route $ios_vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'NX-OS') {
                     if ($vrf and not $nxos_prefix) {
@@ -16217,12 +16219,13 @@ sub print_routes {
                         $nxos_prefix = ' ';
                     }
                     my $adr = full_prefix_code($netinfo);
-                    print "${nxos_prefix}ip route $adr $hop_addr\n";
+                    my $ip = $ipv6 ? 'ipv6' : 'ip';
+                    print "$nxos_prefix$ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'ASA') {
-                    my $adr = $router->{ipv6} ?
+                    my $adr = $ipv6 ?
                         full_prefix_code($netinfo) : ios_route_code($netinfo);
-                    print "ipv6 " if $router->{ipv6};
+                    print "ipv6 " if $ipv6;
                     print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
@@ -17271,7 +17274,8 @@ sub print_cisco_acls {
     my $filter        = $model->{filter};
     my $managed_local = $router->{managed} =~ /^local/;
     my $hw_list       = $router->{hardware};
-    my $permit_any    = $router->{ipv6} ? $permit_any6_rule : $permit_any_rule;
+    my $ipv6          = $router->{ipv6};
+    my $permit_any    = $ipv6 ? $permit_any6_rule : $permit_any_rule;
 
     for my $hardware (@$hw_list) {
 
@@ -17379,7 +17383,8 @@ sub print_cisco_acls {
             if ($filter eq 'IOS' or $filter eq 'NX-OS') {
                 push(
                     @{ $hardware->{subcmd} },
-                    "ip access-group $acl_name $suffix"
+                    ($ipv6 ? "ipv6 traffic-filter" : "ip access-group")
+                    . " $acl_name $suffix"
                 );
             }
             elsif ($filter eq 'ASA') {
@@ -17485,7 +17490,8 @@ sub print_ezvpn {
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
-    print " ip access-group $crypto_filter_name in\n";
+    print($router->{ipv6} ? " ipv6 traffic-filter" : " ip access-group",
+          " $crypto_filter_name in\n");
 }
 
 # Print crypto ACL.
@@ -17924,6 +17930,7 @@ sub print_interface {
     $model->{print_interface} or return;
     my $class    = $model->{class};
     my $stateful = not $model->{stateless};
+    my $ipv6     = $router->{ipv6};
     for my $hardware (@{ $router->{hardware} }) {
         my $name = $hardware->{name};
         my @subcmd;
@@ -17940,10 +17947,11 @@ sub print_interface {
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';
             }
-            elsif ($model->{use_prefix}) {
+            elsif ($model->{use_prefix} or $ipv6) {
                 my $addr = print_ip($ip);
                 my $mask = mask2prefix($intf->{network}->{mask});
-                $addr_cmd = "ip address $addr/$mask";
+                my $ip = $ipv6 ? 'ipv6' : 'ip';
+                $addr_cmd = "$ip address $addr/$mask";
                 $addr_cmd .= ' secondary' if $secondary;
             }
             else {
@@ -17953,7 +17961,7 @@ sub print_interface {
                 $addr_cmd .= ' secondary' if $secondary;
             }
             push @subcmd, $addr_cmd;
-            $secondary = 1;
+            $secondary = 1 if not $ipv6;
         }
         if (my $vrf = $router->{vrf}) {
             if ($class eq 'NX-OS') {
