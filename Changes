@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+ - export-netspoc now ignores hidden NAT when determining combined NAT
+   mapping for owner having networks with different NAT mapping.  -
+ - When generating IPv6 code for IOS and NX-OS devices, now correct
+   syntax is generated for access-list, static route and interface address.
+ - Fixed export of split service with parts having same rules.
+   Previously, some split parts had been silently discarded.
+
 5.034     2018-04-10 11:01:09+02:00 Europe/Berlin
 
  - IPv4 and IPv6 input is no longer processed separately.
