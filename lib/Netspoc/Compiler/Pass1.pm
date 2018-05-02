@@ -102,6 +102,7 @@ our @EXPORT = qw(
   expand_crypto
   setpath
   distribute_nat_info
+  combine_no_nat_sets
   find_subnets_in_zone
   find_subnets_in_nat_domain
   convert_hosts_in_rules
@@ -8405,81 +8406,90 @@ sub distribute_no_nat_sets_to_interfaces {
     }
 }
 
+# Combine different no-nat-sets into a single no-nat-set in a way
+# that NAT mapping remains identical.
+# Different real NAT tags of a multi NAT set can't be combined.
+# In this case either an error is shown or NAT is disabled
+# for this multi NAT set.
+# Hidden NAT tag is ignored if combined with a real NAT tag,
+# because hidden tag doesn't affect address calculation.
+#
+# Parameter $context controls, if error is shown or if NAT is disabled..
 sub combine_no_nat_sets {
-    my ($set1, $set2, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($no_nat_sets, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    return $no_nat_sets->[0] if @$no_nat_sets == 1;
+    my %combined;
+    my %multi2active;
+    my %multi2hidden;
+    my %multi2multi;
+    my $errors;
+    for my $set (@$no_nat_sets) {
+        debug "Set: ", join ' ', sort keys %$set;
+        for my $nat_tag (keys %$set) {
+            debug "Tag: $nat_tag";
+            my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
 
-    my $combined = { %$set1 };
-  NAT_TAG:
-    for my $nat_tag (keys %$set2) {
-        next if $set1->{$nat_tag};
+            # Add non multi NAT tag.
+            if (not $multinat_hashes) {
+                $combined{$nat_tag} = 1;
+                next;
+            }
 
-        my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
-
-        # Add non multi NAT tag.
-        if (not $multinat_hashes) {
-            $combined->{$nat_tag} = 1;
-            next;
-        }
-
-        # Must not combine different multi NAT tags.
-        # This would disturb NAT lookup.
-        # Note: We are working on inverted NAT sets.
-
-        # Hidden tag is element of $set2, hence this tag is not
-        # active. But it is known to be not element of $set1, hence
-        # this tag is active at $set1.  Hidden NAT isn't needed for
-        # address calculation, hence add hidden tag and remove tag X,
-        # that is from same multi NAT group and is element of $set1,
-        # but not element of $set2.
-        if (not $has_non_hidden->{$nat_tag}) {
             for my $multinat_hash (@$multinat_hashes) {
+                $multi2multi{$multinat_hash} = $multinat_hash;
+                my ($active) = grep { not $set->{$_} } keys %$multinat_hash;
 
-                # All multi tags are active, so original address is visible.
-                if (not grep { not $set2->{$_} } keys %$multinat_hash) {
-
-                    # All but one must be active at $set1.
-                    1 == grep { not $set1->{$_} } keys %$multinat_hash or next;
-
-                    $combined->{$nat_tag} = 1;
-                    next NAT_TAG;
+                # Original address is shown.
+                if (not $active) {
+                    $multi2active{$multinat_hash} = ':all';
+                    next;
                 }
+                debug "active: $active";
 
-                # Not all active, find to be removed tag X.
-                else {
-                    for my $nat_tag2 (keys %$multinat_hash) {
-                        $set1->{$nat_tag2} or next;
-                        next if $set2->{$nat_tag2};
-                        delete $combined->{$nat_tag2};
-                        $combined->{$nat_tag} = 1;
-                        next NAT_TAG;
+                # Check if the same NAT mapping is active in all NAT domains.
+                my $non_hidden = $has_non_hidden->{$active};
+                my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
+                if (my $other = $hash->{$multinat_hash}) {
+                    if ($other ne $active) {
+                        if ($context and $non_hidden) {
+                            if ($other eq ':all') {
+                                push(@$errors,
+                                     "Original address and NAT tag '$active'");
+                            }
+                            else {
+                                push(@$errors,
+                                     "Grouped NAT tags '$other' and '$active'");
+                            }
+                        }
+                        else {
+                            $hash->{$multinat_hash} = ':all';
+                        }
                     }
                 }
-            }
-        }
-
-        # Check non hidden tag of $set2.
-        for my $multinat_hash (@$multinat_hashes) {
-            for my $nat_tag2 (sort keys %$multinat_hash) {
-                $set1->{$nat_tag2} or next;
-
-                # Only check NAT tags, that are not set,
-                # because we operate on inverted NAT set.
-                next if $set2->{$nat_tag2};
-
-                # Silently ignore tag of set2.
-                # If inverted, it stands for hidden tag.
-                # Hidden tag isn't needed for address
-                # calculation.
-                next if not $has_non_hidden->{$nat_tag2};
-
-                err_msg(
-                    "Grouped NAT tags '$nat_tag2' and '$nat_tag'\n",
-                    " would both be active at $context");
-                next NAT_TAG;
+                else {
+                    $hash->{$multinat_hash} = $active;
+                }
             }
         }
     }
-    return $combined;
+
+    # Add multi NAT tags.
+    # Activate single tag (by leaving it out) if this tag was active in all
+    # NAT domains.
+    # Hidden is only set, if no non-hidden tag was found.
+    # Deactivate all tags otherwise.
+    for my $multinat_hash (values %multi2multi) {
+        my $active_or_all =
+            $multi2active{$multinat_hash} || $multi2hidden{$multinat_hash} || '';
+        for my $nat_tag (keys %$multinat_hash) {
+            next if $nat_tag eq $active_or_all;
+            $combined{$nat_tag} = 1;
+        }
+    }
+    if ($errors) {
+        err_msg "$_\n would both be active at $context" for unique @$errors;
+    }
+    return \%combined;
 }
 
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
@@ -8505,7 +8515,7 @@ sub add_crypto_no_nat_set {
                 # interface.
                 $real_intf->{hardware}->{crypto_no_nat_set} =
                     combine_no_nat_sets(
-                        $tunnel_set, $real_set,
+                        [$tunnel_set, $real_set],
                         "$real_intf->{name}\n" .
                         " for combined crypto and cleartext traffic",
                         $nat_tag2multinat_def, $has_non_hidden);
@@ -8530,6 +8540,8 @@ sub distribute_nat_info {
     distribute_no_nat_sets_to_interfaces();
     add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
+
+    return($nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -17240,18 +17252,9 @@ sub prepare_real_ip_nat {
     # Combine no_nat_sets of each set.
     my $combine_nat = sub {
         my ($list) = @_;
-        my $hw0 = $list->[0];
-        my $combined = $hw0->{no_nat_set};
-        for my $hardware (@$list) {
-            next if $hardware eq $hw0;
-            $combined = combine_no_nat_sets(
-                $combined, $hardware->{no_nat_set},
-
-                # Error should not occur.
-                "$router->{name}, processing 'acl_use_real_ip'",
-                $nat_tag2multinat_def, $has_non_hidden);
-        }
-        return $combined;
+        my $no_nat_sets = [ map { $_->{no_nat_set} } @$list ];
+        return combine_no_nat_sets($no_nat_sets, undef,
+                                   $nat_tag2multinat_def, $has_non_hidden);
     };
     my ($list1, $list2) = values %effective2hw_list;
     my $combined1 = $combine_nat->($list1);

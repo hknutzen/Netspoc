@@ -801,11 +801,24 @@ sub setup_outer_owners {
 
 ######################################################################
 # Export no-NAT-set
-# - relate each network to its owner and part_owners
-# - build a no_nat_set for each owner, where own networks aren't translated
+# - Relate each network to its owner and part_owners.
+# - Build a no_nat_set for each owner by combining no_nat_sets of
+#   NAT domains of all own networks.
+#   Properties of combined no_nat_set:
+#   - IP of own networks aren't translated,
+# If owner has exactly one NAT domain, use corresponding no_nat_set
+# to determine IP address of other networks.
+# Otherwise multiple no-nat-sets need to be combined.
+# Analyze each network X with multiple NAT tags.
+# - If all no-nat-sets map to the same IP, use this mapping.
+# - If some no-nat-sets map to different IPs, use oiginal IP.
+# - If some no-nat-sets map to the same IP and all other no-nat-sets
+#   map to 'hidden' then ignore hidden in combined no-nat-set.
+# This way, a real NAT tag will not be disabled,
+# if it is combined with a hidden NAT tag from same multi-NAT.
 ######################################################################
-
 sub export_no_nat_set {
+    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
     progress("Export no-NAT-sets");
     my %owner2net;
     for my $network (values %networks) {
@@ -844,10 +857,12 @@ sub export_no_nat_set {
 #           }
 #       }
 
-        # Build union of no_nat_sets
-        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) }
-                                           @nat_domains)) ];
-#       debug "$owner_name: ", join(',', sort @$no_nat_set);
+        # Build union of all no_nat_sets of that NAT domains.
+        my $no_nat_sets = [ map { $_->{no_nat_set} } @nat_domains ];
+        my $combined = combine_no_nat_sets($no_nat_sets, undef,
+                                           $nat_tag2multinat_def,
+                                           $has_non_hidden);
+        my $no_nat_set = [ sort keys %$combined ];
         $owner2no_nat_set{$owner_name} = $no_nat_set;
         @all_nat_tags{@$no_nat_set} = @$no_nat_set;
     }
@@ -1239,7 +1254,7 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-distribute_nat_info();
+my ($nat_tag2multinat_def, $has_non_hidden) = distribute_nat_info();
 find_subnets_in_zone();
 
 # Copy of %services with those services split, that have different 'user'.
@@ -1259,6 +1274,6 @@ export_assets();
 my $owner2type2shash = export_services($normalized_services);
 export_users_and_service_lists($owner2type2shash);
 export_objects();
-export_no_nat_set();
+export_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
 copy_policy_file();
 progress("Ready");
