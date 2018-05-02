@@ -8424,9 +8424,7 @@ sub combine_no_nat_sets {
     my %multi2multi;
     my $errors;
     for my $set (@$no_nat_sets) {
-        debug "Set: ", join ' ', sort keys %$set;
         for my $nat_tag (keys %$set) {
-            debug "Tag: $nat_tag";
             my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
 
             # Add non multi NAT tag.
@@ -8444,7 +8442,6 @@ sub combine_no_nat_sets {
                     $multi2active{$multinat_hash} = ':all';
                     next;
                 }
-                debug "active: $active";
 
                 # Check if the same NAT mapping is active in all NAT domains.
                 my $non_hidden = $has_non_hidden->{$active};
