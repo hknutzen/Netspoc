@@ -920,8 +920,6 @@ A large number of crypto tunnels of a hub and spoke topology can be
 defined easily.  If only a single tunnel is needed, one interface is
 arbitrarily marked as hub.
 
-Define two hubs for a redundant pair of VPN hubs.
-
 Encrypted VPN tunnels are supported for
 
 - remote access by tele worker with software VPN client,
