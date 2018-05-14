@@ -934,10 +934,8 @@ tunnels is filtered at interface ACL. Netspoc uses "no sysopt
 connection permit-vpn" to enable filtering of VPN traffic at interface
 ACL.
 
-For IOS routers from version 12.3(8)T up, a separate access-list is used
-for filtering incoming traffic of crypto tunnels. Use
-attribute `no_crypto_filter` to enable the old behavior where
-crypto traffic is filtered by access-lists of interfaces.
+For IOS routers, a separate access-list is used for filtering incoming
+traffic of crypto tunnels.
 
 
 ## Changing default values of command line switches
