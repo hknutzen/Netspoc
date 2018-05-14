@@ -427,7 +427,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -443,7 +442,6 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -503,7 +501,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -533,7 +530,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Interface with attribute 'spoke' must not have secondary interfaces at line 54 of STDIN
+Error: Interface with attribute 'spoke' must not have secondary interfaces at line 53 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -555,7 +552,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -581,7 +577,6 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint2;
  }
@@ -633,7 +628,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -747,7 +741,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1178,7 +1171,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1327,7 +1319,6 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
@@ -1413,7 +1404,6 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1537,7 +1527,6 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1667,7 +1656,6 @@ network:n1 = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1891,7 +1879,6 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
@@ -1933,7 +1920,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1984,7 +1970,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -2660,7 +2645,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint3;
   banner = Welcome at VPN service;
@@ -3395,7 +3379,6 @@ network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }

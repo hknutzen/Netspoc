@@ -1963,10 +1963,6 @@ sub read_router {
             skip(';');
             $router->{no_group_code} = 1;
         }
-        elsif ($token eq 'no_crypto_filter') {
-            skip(';');
-            $router->{no_crypto_filter} = 1;
-        }
         elsif ($token eq 'no_protect_self') {
             skip(';');
             $router->{no_protect_self} = 1;
@@ -2337,9 +2333,6 @@ sub read_router {
         else {
             $router->{radius_attributes}
               and warn_msg("Ignoring 'radius_attributes' at $name");
-        }
-        if ($model->{no_crypto_filter}) {
-            $router->{no_crypto_filter} = 1;
         }
     }
 
@@ -16349,7 +16342,7 @@ sub distribute_rule {
         # Rules for single software clients are stored individually.
         # Consistency checks have already been done at expand_crypto.
         # Rules are needed at tunnel for generating split tunnel ACL
-        # regardless of $router->{no_crypto_filter} value.
+        # regardless of $model->{no_crypto_filter} value.
         if (my $id2rules = $in_intf->{id_rules}) {
             my $src_list = $rule->{src};
 
@@ -16387,13 +16380,13 @@ sub distribute_rule {
 
         # Rules are needed at tunnel for generating
         # detailed_crypto_acl or crypto_filter ACL.
-        elsif (not $router->{no_crypto_filter} or
+        elsif (not $model->{no_crypto_filter} or
                $in_intf->{crypto}->{detailed_crypto_acl})
         {
             push @{ $in_intf->{$key} }, $rule;
         }
 
-        if ($router->{no_crypto_filter}) {
+        if ($model->{no_crypto_filter}) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
     }
@@ -17532,7 +17525,7 @@ sub print_crypto_filter_acl {
     my ($interface, $suffix) = @_;
     my $router = $interface->{router};
 
-    return if $router->{no_crypto_filter};
+    return if $router->{model}->{no_crypto_filter};
 
     my $crypto_filter_name = "crypto-filter-$suffix";
     my $no_nat_set = $interface->{no_nat_set};

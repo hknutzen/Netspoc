@@ -1078,7 +1078,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
