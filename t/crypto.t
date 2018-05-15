@@ -2910,6 +2910,19 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing trust_point in isakmp for spoke and hub';
+############################################################
+
+$in =~ s/trust_point/#trust_point/;
+
+$out = <<"END";
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
 # Shared topology for multiple tests.
 ############################################################
 
@@ -3120,18 +3133,6 @@ crypto map crypto-outside interface outside
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Missing trust_point in isakmp definition';
-############################################################
-
-($in = $topo) =~ s/trust_point/#trust_point/;
-
-$out = <<"END";
-Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 $title = 'detailed_crypto_acl at managed spoke';

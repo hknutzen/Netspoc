@@ -13365,7 +13365,7 @@ sub expand_crypto {
                 $peer->{peer_networks} = \@encrypted;
 
                 if ($managed and $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($hub_router, $crypto);
+                    verify_asa_trustpoint($router, $crypto);
                 }
 
                 # Add rules to permit crypto traffic between
