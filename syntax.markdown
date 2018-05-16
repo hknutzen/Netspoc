@@ -397,14 +397,15 @@ Model `ASA,VPN` switches to VPN concentrator mode. Default is site-to-site mode.
 Model `IOS,EZVPN` generates EasyVPN configuration for
 IOS router connected to VPN concentrator.
 
-Additional attributes need to be defined for model `ASA,VPN`
-in attribute `radius_attributes`.
+Additional attributes need to be defined for model `ASA,VPN` in
+attribute `radius_attributes`. These attributes are used at host
+definitions of software clients, but are also inherited from
+correspondig network and VPN router definition.
 
-    router:<name> = {
-      ..
-      <radius-attributes>
-      ..
-    }
+    host:id:<cert-name>  = { .. <radius-attributes> .. }
+    host:id:<cert-match> = { .. <radius-attributes> .. }
+    network:<name>       = { .. <radius-attributes> .. }
+    router:<name>        = { .. <radius-attributes> .. }
 
     <radius-attributes> ::=
       radius_attributes = {
