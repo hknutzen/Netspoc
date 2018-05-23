@@ -5868,7 +5868,7 @@ sub expand_group_in_rule {
             }
         }
         elsif ($type eq 'Interface') {
-            if ($object->{ip} =~ /^(short|unnumbered)$/) {
+            if ($object->{ip} =~ /^(bridged|short|unnumbered)$/) {
                 $ignore = "$object->{ip} $object->{name}";
             }
         }
@@ -7668,7 +7668,7 @@ sub set_policy_distribution_ip {
         }
         else {
 
-#           debug("$router->{name}: ", scalar keys %found_interfaces);
+#           debug("$router->{name}: ", scalar keys %$found_interfaces);
             my @front = path_auto_interfaces($router, $pdp);
 
             # If multiple management interfaces were found, take that which is

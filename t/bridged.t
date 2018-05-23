@@ -500,6 +500,25 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Must not use bridged interface in rule';
+############################################################
+
+$in = $topology . <<'END';
+service:test = {
+ user = network:intern;
+ permit src = user; dst = interface:bridge.dmz/right; prt = tcp 22;
+ permit src = interface:bridge.dmz/left; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring bridged interface:bridge.dmz/right in dst of rule in service:test
+Warning: Ignoring bridged interface:bridge.dmz/left in src of rule in service:test
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Duplicate auto interface';
 ############################################################
 
