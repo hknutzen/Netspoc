@@ -33,7 +33,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'No dynamic routing bridge interface';
+$title = 'No dynamic routing at bridged interface';
 ############################################################
 
 $in = <<'END';
@@ -415,7 +415,7 @@ END
 
 $in = $topology . <<'END';
 service:admin = {
- user =  interface:bridge.dmz;
+ user = interface:bridge.dmz;
  permit src = network:intern; dst = user; prt = tcp 22;
 }
 END
