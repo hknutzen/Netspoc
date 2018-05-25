@@ -4709,13 +4709,11 @@ sub check_ip_addresses_and_bridges {
         }
         my $ip = $network->{ip};
         if ($ip eq 'unnumbered') {
-            if ($network->{interfaces} and @{ $network->{interfaces} } > 2) {
-                my $msg = "Unnumbered $network->{name} is connected to"
-                    . " more than two interfaces:";
-                for my $interface (@{ $network->{interfaces} }) {
-                    $msg .= "\n $interface->{name}";
-                }
-                err_msg($msg);
+            my $interfaces = $network->{interfaces};
+            if ($interfaces and @$interfaces > 2) {
+                err_msg("Unnumbered $network->{name} is connected to",
+                        " more than two interfaces:\n",
+                        name_list($interfaces));
             }
             next;
         }
