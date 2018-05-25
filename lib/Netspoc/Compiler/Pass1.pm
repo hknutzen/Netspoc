@@ -6409,7 +6409,6 @@ sub propagate_owners {
         # then set owner of this zone to the one owner.
         my $owner;
         for my $network (@{ $zone->{networks} }) {
-            next if $network->{ip} eq 'tunnel';
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
             if ($owner) {
@@ -8687,8 +8686,6 @@ sub find_subnets_in_zone {
             for my $network (@{ $zone->{networks} },
                 values %{ $zone->{ipmask2aggregate} })
             {
-                next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-
                 my $nat_network = $network;
                 if (my $href = $network->{nat}) {
                     for my $tag (keys %$href) {
@@ -13560,8 +13557,6 @@ sub find_zone_network {
         my $nat_network = get_nat_network($network, $no_nat_set);
         next if $nat_network->{hidden};
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
-        next if $i =~ /^(?:unnumbered|tunnel)$/;
-
         if (   $m ge $mask and match_ip($i, $ip, $mask)
             or $m lt $mask and match_ip($ip, $i, $m))
         {
