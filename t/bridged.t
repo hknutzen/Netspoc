@@ -130,13 +130,13 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Bridged network must not have hosts';
+$title = 'Bridged network must not have host with range';
 ############################################################
 
 $in = <<'END';
 network:n1/left = {
  ip = 10.1.1.0/24;
- host:h = { ip = 10.1.1.10; }
+ host:h = { range = 10.1.1.10-10.1.1.20; }
 }
 
 router:bridge = {
@@ -150,7 +150,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Bridged network:n1/left must not have host definition (not implemented)
+Error: Bridged network:n1/left must not have host:h with range (not implemented)
 END
 
 test_err($title, $in, $out);
@@ -313,7 +313,7 @@ router:bridge1 = {
 router:bridge2 = {
  model = ASA;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1 = { ip = 10.1.1.2; hardware = device; }
  interface:n1/left = { hardware = inside; }
  interface:n1/right = { hardware = outside; }
 }
@@ -369,7 +369,80 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Admin access to bridge';
+$title = 'Duplicate layer 3 IP';
+############################################################
+
+$in = <<'END';
+network:n1/a = { ip = 10.1.1.0/24; }
+network:n1/b = { ip = 10.1.1.0/24; }
+network:n1/c = { ip = 10.1.1.0/24; }
+
+router:bridge1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/a = { hardware = inside; }
+ interface:n1/b = { hardware = outside; }
+}
+router:bridge2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/b = { hardware = inside; }
+ interface:n1/c = { hardware = outside; }
+}
+END
+
+$out = <<'END';
+Error: Duplicate IP address for interface:bridge1.n1 and interface:bridge2.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Duplicate IP addresses in bridged parts';
+############################################################
+
+$in = <<'END';
+
+router:r1 = {
+ interface:n1/left = { ip = 10.1.1.1; }
+}
+
+network:n1/left = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; }
+ host:h2a = { ip = 10.1.1.2; }
+}
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = {
+ ip = 10.1.1.0/24;
+ host:h2b = { ip = 10.1.1.2; }
+}
+
+router:r2 = {
+ interface:n1/right = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<'END';
+Error: Duplicate IP address for interface:r1.n1/left and interface:bridge.n1
+Error: Duplicate IP address for interface:r1.n1/left and interface:r2.n1/right
+Error: Duplicate IP address for interface:r1.n1/left and host:h1
+Error: Duplicate IP address for host:h2a and host:h2b
+END
+
+test_err($title, $in, $out);
+
+############################################################
+# Shared topology for multiple tests
 ############################################################
 
 my $topology = <<'END';
@@ -412,6 +485,10 @@ router:extern = {
 
 network:extern = { ip = 10.9.9.0/24; }
 END
+
+############################################################
+$title = 'Admin access to bridge';
+############################################################
 
 $in = $topology . <<'END';
 service:admin = {
@@ -671,7 +748,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 router:r2 = {
  managed;
  model = ASA;
- interface:n1/right = { ip = 10.1.1.2; hardware = n1; }
+ interface:n1/right = { ip = 10.1.1.5; hardware = n1; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
 
@@ -686,10 +763,72 @@ END
 $out = <<'END';
 --r1
 ! [ Routing ]
-route left 10.1.2.0 255.255.255.0 10.1.1.2
+route left 10.1.2.0 255.255.255.0 10.1.1.5
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Rules for hosts in bridged network';
+############################################################
+
+$in = <<'END';
+
+network:n1/left = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; }
+}
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.9; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = {
+ ip = 10.1.1.0/24;
+ host:h2 = { ip = 10.1.1.2; }
+}
+
+router:r2 = {
+ interface:n1/right = { ip = 10.1.1.10; }
+ interface:n2;
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = host:h2; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+service:s3 = {
+ user = host:h1, host:h2;
+ permit src = network:n2; dst = user; prt = tcp 82;
+}
+END
+
+$out = <<'END';
+Warning: service:s3 has unenforceable rules:
+ src=network:n2; dst=host:h2
+--bridge
+! left_in
+access-list left_in extended permit tcp host 10.1.1.1 host 10.1.1.2 eq 80
+access-list left_in extended permit tcp host 10.1.1.1 10.1.2.0 255.255.255.0 eq 81
+access-list left_in extended deny ip any4 any4
+access-group left_in in interface left
+--
+! right_in
+access-list right_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.1 eq 82
+access-list right_in extended deny ip any4 any4
+access-group right_in in interface right
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -1419,9 +1419,12 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        if (delete $network->{hosts}) {
-            err_msg("Bridged $name must not have ",
-                    "host definition (not implemented)");
+        if (my $hosts = $network->{hosts}) {
+            for my $host (@$hosts) {
+                $host->{range} or next;
+                err_msg("Bridged $name must not have ",
+                        "$host->{name} with range (not implemented)");
+            }
         }
         if (my $hash = $network->{nat}) {
             for my $nat_tag (sort keys %$hash) {
@@ -4566,81 +4569,185 @@ sub is_redundany_group {
 }
 
 sub check_ip_addresses {
-    for my $network (values %networks) {
-        if (    $network->{ip} eq 'unnumbered'
-            and $network->{interfaces}
-            and @{ $network->{interfaces} } > 2)
-        {
-            my $msg = "Unnumbered $network->{name} is connected to"
-              . " more than two interfaces:";
-            for my $interface (@{ $network->{interfaces} }) {
-                $msg .= "\n $interface->{name}";
-            }
-            err_msg($msg);
-        }
+    my ($network) = @_;
+    my %ip2obj;
 
-        my %ip2obj;
+    # 1. Check for duplicate interface addresses.
+    # 2. Short or negotiated interfaces must not be used, if a managed
+    #    interface with static routing exists in the same network.
+    my ($short_intf, $route_intf);
+    for my $interface (@{ $network->{interfaces} }) {
+        my $ip = $interface->{ip};
+        if ($ip eq 'short') {
 
-        # 1. Check for duplicate interface addresses.
-
-        # 2. Short or negotiated interfaces must not be used, if a managed
-        #    interface with static routing exists in the same network.
-        my ($short_intf, $route_intf);
-        for my $interface (@{ $network->{interfaces} }) {
-            my $ip = $interface->{ip};
-            if ($ip eq 'short') {
-
-                # Ignore short interface from split crypto router.
-                if (1 < @{ $interface->{router}->{interfaces} }) {
-                    $short_intf = $interface;
-                }
-            }
-            elsif ($ip eq 'negotiated') {
+            # Ignore short interface from split crypto router.
+            if (1 < @{ $interface->{router}->{interfaces} }) {
                 $short_intf = $interface;
             }
-            elsif (not $ip =~ /^(?:unnumbered|tunnel|bridged)$/) {
-                my $router = $interface->{router};
-                if (($router->{managed} or $router->{routing_only})
-                    and not $interface->{routing})
-                {
-                    $route_intf = $interface;
-                }
-                if (my $other = $ip2obj{$ip}) {
-                    $other->{redundant} and $interface->{redundant} or
-                        err_msg("Duplicate IP address for",
-                                " $other->{name} and $interface->{name}");
-                }
-                else {
-                    $ip2obj{$ip} = $interface;
-                }
+        }
+        elsif ($ip eq 'negotiated') {
+            $short_intf = $interface;
+        }
+        elsif ($ip ne 'bridged') {
+            my $router = $interface->{router};
+            if (($router->{managed} or $router->{routing_only})
+                and not $interface->{routing} and not $interface->{is_layer3})
+            {
+                $route_intf = $interface;
             }
-            if ($short_intf and $route_intf) {
-                err_msg "$short_intf->{name} must be defined in more detail,",
-                  " since there is\n",
-                  " a managed $route_intf->{name} with static routing enabled.";
+            if (my $other = $ip2obj{$ip}) {
+                $other->{redundant} and $interface->{redundant} or
+                    err_msg("Duplicate IP address for",
+                            " $other->{name} and $interface->{name}");
+            }
+            else {
+                $ip2obj{$ip} = $interface;
             }
         }
-        for my $host (@{ $network->{hosts} }) {
-            my $range = $host->{range} or next;
-            my ($low, $high) = @$range;
-            for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
-                if (my $other_device = $ip2obj{$ip}) {
-                    err_msg("Duplicate IP address for $other_device->{name}",
-                            " and $host->{name}");
-                }
-            }
+        if ($short_intf and $route_intf) {
+            err_msg(
+                "$short_intf->{name} must be defined in more detail,",
+                " since there is\n",
+                " a managed $route_intf->{name} with static routing enabled.");
         }
-        for my $host (@{ $network->{hosts} }) {
-            my $key = $host->{ip} || join '-', @{ $host->{range} };
-            if (my $other_device = $ip2obj{$key}) {
+    }
+    my $hosts = $network->{hosts} or next;
+    for my $host (@$hosts) {
+        my $range = $host->{range} or next;
+        my ($low, $high) = @$range;
+        for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
+            if (my $other_device = $ip2obj{$ip}) {
                 err_msg("Duplicate IP address for $other_device->{name}",
                         " and $host->{name}");
             }
-            else {
-                $ip2obj{$key} = $host;
-            }
         }
     }
+    for my $host (@$hosts) {
+        my $key = $host->{ip} || join '-', @{ $host->{range} };
+        if (my $other_device = $ip2obj{$key}) {
+            err_msg("Duplicate IP address for $other_device->{name}",
+                    " and $host->{name}");
+        }
+        else {
+            $ip2obj{$key} = $host;
+        }
+    }
+}
+
+# Check grouped bridged networks.
+# Each group
+# - must have the same IP address and mask,
+# - must have at least two members,
+# - must be adjacent
+# - linked by bridged interfaces
+# Each router having a bridged interface
+# must connect at least two bridged networks of the same group.
+sub check_bridged_networks {
+    my ($prefix2net) = @_;
+    for my $prefix (keys %$prefix2net) {
+        if (my $network = $networks{$prefix}) {
+            err_msg("Must not define $network->{name} together with",
+                    " bridged networks of same name");
+        }
+    }
+    for my $href (values %$prefix2net) {
+        my @group = sort by_name values %$href;
+        my $net1  = shift @group;
+        @group or warn_msg("Bridged $net1->{name} must not be used solitary");
+        my %seen;
+        my @next = ($net1);
+        my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
+
+        # Mark all networks connected directly or indirectly with $net1
+        # by a bridge as 'connected' in $href.
+        while (my $network = pop(@next)) {
+            my ($ip, $mask) = @{$network}{qw(ip mask)};
+            $ip eq $ip1 and $mask eq $mask1
+              or err_msg("$net1->{name} and $network->{name} must have",
+                         " identical ip/mask");
+            $href->{$network} = 'connected';
+            for my $in_intf (@{ $network->{interfaces} }) {
+                next if $in_intf->{ip} ne 'bridged';
+                my $router = $in_intf->{router};
+                next if $seen{$router}++;
+                my $count = 1;
+                if (my $layer3_intf = $in_intf->{layer3_interface}) {
+                    match_ip($layer3_intf->{ip}, $ip1, $mask1)
+                      or err_msg("$layer3_intf->{name}'s IP doesn't match",
+                        " IP/mask of bridged networks");
+                }
+                for my $out_intf (@{ $router->{interfaces} }) {
+                    next if $out_intf eq $in_intf;
+                    next if $out_intf->{ip} ne 'bridged';
+                    my $next_net = $out_intf->{network};
+                    next if not $href->{$next_net};
+                    push(@next, $out_intf->{network});
+                    $count++;
+                }
+                $count > 1
+                  or err_msg("$router->{name} can't bridge a single network");
+            }
+        }
+        for my $network (@group) {
+            $href->{$network} eq 'connected'
+              or err_msg(
+                "$network->{name} and $net1->{name}",
+                " must be connected by bridge"
+              );
+        }
+    }
+}
+
+sub check_ip_addresses_and_bridges {
+    my %prefix2net;
+    for my $network (values %networks) {
+
+        # Group bridged networks by prefix of name.
+        if (my $prefix = $network->{bridged}) {
+            $prefix2net{$prefix}->{$network} = $network;
+            next;
+        }
+        my $ip = $network->{ip};
+        if ($ip eq 'unnumbered') {
+            if ($network->{interfaces} and @{ $network->{interfaces} } > 2) {
+                my $msg = "Unnumbered $network->{name} is connected to"
+                    . " more than two interfaces:";
+                for my $interface (@{ $network->{interfaces} }) {
+                    $msg .= "\n $interface->{name}";
+                }
+                err_msg($msg);
+            }
+            next;
+        }
+        next if $ip eq 'tunnel';
+        next if $network->{loopback};
+        check_ip_addresses($network);
+    }
+
+    # Check address conflicts for collected parts of bridged networks.
+    for my $href (values %prefix2net) {
+        my $dummy  = new('Network');
+        my %seen;
+        for my $network (sort by_name values %$href) {
+            if (my $list = $network->{interfaces}) {
+                push(@{ $dummy->{interfaces} },
+                     @$list,
+
+                     # Add layer 3 interfaces for address check.
+                     grep { not $seen{$_}++ }
+                     map { $_->{layer3_interface} || () }
+                     @$list)
+            }
+            if (my $list = $network->{hosts}) {
+                push @{ $dummy->{hosts} }, @$list;
+            }
+        }
+        check_ip_addresses($dummy);
+    }
+
+    # Check collected parts of bridged networks.
+    check_bridged_networks(\%prefix2net);
+
 }
 
 sub link_ipsec;
@@ -4660,7 +4767,7 @@ sub link_topology {
     link_subnets;
     link_owners;
     link_services;
-    check_ip_addresses();
+    check_ip_addresses_and_bridges();
 }
 
 ####################################################################
@@ -4719,76 +4826,6 @@ my @routers;
 my @networks;
 my @zones;
 my @areas;
-
-# Group bridged networks by prefix of name.
-# Each group
-# - must have the same IP address and mask,
-# - must have at least two members,
-# - must be adjacent
-# - linked by bridged interfaces
-# - IP addresses of hosts must be disjoint (ToDo).
-# Each router having a bridged interface
-# must connect at least two bridged networks of the same group.
-sub check_bridged_networks {
-    my %prefix2net;
-    for my $network (@networks) {
-        my $prefix = $network->{bridged} or next;
-        $prefix2net{$prefix}->{$network} = $network;
-    }
-    for my $prefix (keys %prefix2net) {
-        if (my $network = $networks{$prefix}) {
-            $network->{disabled}
-              or err_msg("Must not define $network->{name} together with",
-                " bridged networks of same name");
-        }
-    }
-    for my $href (values %prefix2net) {
-        my @group = sort by_name values %$href;
-        my $net1  = shift @group;
-        @group or warn_msg("Bridged $net1->{name} must not be used solitary");
-        my %seen;
-        my @next = ($net1);
-        my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
-
-        # Mark all networks connected directly or indirectly with $net1
-        # by a bridge as 'connected' in $href.
-        while (my $network = pop(@next)) {
-            my ($ip, $mask) = @{$network}{qw(ip mask)};
-            $ip eq $ip1 and $mask eq $mask1
-              or err_msg("$net1->{name} and $network->{name} must have",
-                " identical ip/mask");
-            $href->{$network} = 'connected';
-            for my $in_intf (@{ $network->{interfaces} }) {
-                next if $in_intf->{ip} ne 'bridged';
-                my $router = $in_intf->{router};
-                next if $seen{$router}++;
-                my $count = 1;
-                if (my $layer3_intf = $in_intf->{layer3_interface}) {
-                    match_ip($layer3_intf->{ip}, $ip1, $mask1)
-                      or err_msg("$layer3_intf->{name}'s IP doesn't match",
-                        " IP/mask of bridged networks");
-                }
-                for my $out_intf (@{ $router->{interfaces} }) {
-                    next if $out_intf eq $in_intf;
-                    next if $out_intf->{ip} ne 'bridged';
-                    my $next_net = $out_intf->{network};
-                    next if not $href->{$next_net};
-                    push(@next, $out_intf->{network});
-                    $count++;
-                }
-                $count > 1
-                  or err_msg("$router->{name} can't bridge a single network");
-            }
-        }
-        for my $network (@group) {
-            $href->{$network} eq 'connected'
-              or err_msg(
-                "$network->{name} and $net1->{name}",
-                " must be connected by bridge"
-              );
-        }
-    }
-}
 
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
@@ -4942,7 +4979,6 @@ sub mark_disabled {
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
-    check_bridged_networks();
 }
 
 ####################################################################
