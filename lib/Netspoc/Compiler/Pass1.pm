@@ -4582,11 +4582,11 @@ sub check_ip_addresses {
 
             # Ignore short interface from split crypto router.
             if (1 < @{ $interface->{router}->{interfaces} }) {
-                $short_intf = $interface;
+                push @$short_intf, $interface;
             }
         }
         elsif ($ip eq 'negotiated') {
-            $short_intf = $interface;
+            push @$short_intf, $interface;
         }
         elsif ($ip ne 'bridged') {
             my $router = $interface->{router};
@@ -4604,12 +4604,11 @@ sub check_ip_addresses {
                 $ip2obj{$ip} = $interface;
             }
         }
-        if ($short_intf and $route_intf) {
-            err_msg(
-                "$short_intf->{name} must be defined in more detail,",
-                " since there is\n",
-                " a managed $route_intf->{name} with static routing enabled.");
-        }
+    }
+    if ($short_intf and $route_intf) {
+        err_msg("Can't generate static routes for $route_intf->{name}",
+                " because IP address is unknown for:\n",
+                name_list($short_intf));
     }
     my $hosts = $network->{hosts} or next;
     for my $host (@$hosts) {
