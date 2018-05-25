@@ -13546,7 +13546,7 @@ sub find_zone_network {
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
         return $aggregate;
     }
-    if (my $result = $zone->{ipmask2net}->{$key}) {
+    if (defined(my $result = $zone->{ipmask2net}->{$key})) {
         return $result;
     }
 
