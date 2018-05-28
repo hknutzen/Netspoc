@@ -1557,13 +1557,12 @@ test_err($title, $in, $out);
 $title = 'Grouped NAT tags must only be used grouped (2)';
 ############################################################
 
-# In this case, using ungrouped NAT tags at network:n2 does not lead
-# to ambiguities. An error is generated, although in a strict sense no
+# In this case, using ungrouped NAT tag at network:n2 does not lead
+# to ambiguities. An error is shown, although in a strict sense no
 # error occurs. If a way is found to distinct such cases from real
 # error cases, NetSPoC and this test should be adapted.
 
-$in =~ s/network:n2.*\}\}//s;
-$in .= "network:n2 = { ip = 10.1.2.0/24; nat:t2 = { ip = 10.9.9.0/24; }}";
+$in =~ s/(network:n2.*)nat:t1/${1}nat:t2/;
 
 $out = <<'END';
 Error: If multiple NAT tags are used at one network,
