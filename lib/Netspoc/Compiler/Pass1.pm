@@ -8081,7 +8081,7 @@ sub check_for_proper_nat_transition {
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
 
-    # Tranistion from hidden NAT to any other NAT is invalid.
+    # Transition from hidden NAT to any other NAT is invalid.
     if ($nat_info->{hidden}) {
 
         # Use $next_info->{name} and not $nat_info->{name} because
