@@ -128,7 +128,7 @@ $out = <<'END';
 ! [ IP = 10.1.3.2 ]
 END
 
-test_run($title, $in, $out, '-check_policy_distribution_point=warn');
+test_run($title, $in, $out, '--check_policy_distribution_point=warn');
 
 ############################################################
 $title = 'Missing policy distribution point';
@@ -158,7 +158,7 @@ Warning: Missing attribute 'policy_distribution_point' for 1 devices:
  - router:asa1
 END
 
-test_warn($title, $in, $out, '-check_policy_distribution_point=warn');
+test_warn($title, $in, $out, '--check_policy_distribution_point=warn');
 
 ############################################################
 $title = 'Overlapping areas';

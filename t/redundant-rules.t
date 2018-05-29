@@ -140,7 +140,7 @@ Warning: service:2a is fully redundant
 Warning: service:2b is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Show all redundant rules, not only the smallest one';
@@ -196,7 +196,7 @@ Warning: service:s2b is fully redundant
 Warning: service:s3 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule: multi redundant and duplicate';
@@ -244,7 +244,7 @@ $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule: mixed redundant and duplicate';
@@ -278,7 +278,7 @@ $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule: simple duplicates';
@@ -314,7 +314,7 @@ $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule with reversed overlaps';
@@ -350,7 +350,7 @@ $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule without overlaps';
@@ -386,7 +386,7 @@ Warning: Duplicate rules in service:s2 and service:s1:
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Fully redundant rule with multiple duplicates';
@@ -429,7 +429,7 @@ END
 $out = <<'END';
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Warn on first of multiple redundant services';
@@ -474,7 +474,7 @@ $out = <<'END';
 Warning: service:s1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Warn on second service if first warning is suppressed';
@@ -486,7 +486,7 @@ $out = <<'END';
 Warning: service:s2 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Suppress warning even if duplicate and redundant';
@@ -529,7 +529,7 @@ END
 
 $out = '';
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'has_fully_redundant at only src and only dst';
@@ -581,7 +581,7 @@ END
 
 $out = '';
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Empty service is not shown as fully redundant';
@@ -598,7 +598,7 @@ END
 
 $out = '';
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Relation between src and dst ranges';
@@ -685,7 +685,7 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 Warning: service:test1 is fully redundant
 END
 
-test_warn($title, $in, $out, '-check_fully_redundant_rules=warn');
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
 $title = 'Redundancy in enclosed port range';

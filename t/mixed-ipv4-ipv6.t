@@ -68,7 +68,7 @@ $title = 'Mixed IPv6 and IPv4';
 $in =~ s|ipv4/ipv6|ipv6/ipv6|g;
 $in =~ s|ipv4/topo/ipv6|topo|g;
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'IPv6 network is not subnet of 0.0.0.0/0';
@@ -244,7 +244,7 @@ Error: topology seems to be empty
 Aborted
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Raw files for IPv4 and IPv6';
@@ -299,7 +299,7 @@ $title = 'Raw files for IPv6 and IPv4';
 $in =~ s|raw/r1|raw/ipv4/r1|;
 $in =~ s|raw/ipv6/r1|raw/r1|;
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Invalid file and directory in raw/ipv6';
@@ -415,7 +415,7 @@ access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
 
-test_reuse_prev($title, $in, $in, $out, '-verbose');
+test_reuse_prev($title, $in, $in, $out, '--verbose');
 
 ############################################################
 done_testing;

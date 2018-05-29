@@ -40,7 +40,7 @@ Error: Unused owner:a1
 Error: Unused owner:o1
 END
 
-test_err($title, $in, $out, '-check_unused_owners=1');
+test_err($title, $in, $out, '--check_unused_owners=1');
 
 ############################################################
 $title = 'Duplicates in admins/watchers';
@@ -578,7 +578,7 @@ Warning: Unknown owner for host:h2 in service:s3
 Warning: Unknown owner for network:n2 in service:s1, service:s2
 END
 
-test_warn($title, $in, $out, '-check_service_unknown_owner=warn');
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
 
 ############################################################
 $title = 'Multiple service owners';

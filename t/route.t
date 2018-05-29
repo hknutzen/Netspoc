@@ -82,7 +82,7 @@ ip route 10.1.3.128/25 10.9.1.3
 ip route 10.1.4.0/24 10.9.1.3
 END
 
-test_run($title, $in, $out, '-noauto_default_route');
+test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
 $title = 'Missing next hop';
@@ -322,7 +322,7 @@ ip route 10.1.1.0/28 10.9.1.2
 ip route 10.1.1.0/24 10.9.2.2
 END
 
-test_run($title, $in, $out, '-check_redundant_rules=0');
+test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
 $title = 'Check NAT when finding largest supernet for route.';

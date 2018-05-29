@@ -40,7 +40,7 @@ ipv6 access-list E1_in
  deny ipv6 any any
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'Check IPv6 increment_ip';
@@ -89,7 +89,7 @@ ipv6 access-list E1_in
  deny ipv6 any any
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 with host ranges';
@@ -144,7 +144,7 @@ interface E2
  ipv6 traffic-filter E2_in in
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'OSPF, EIGRP, HSRP, VRRP, DHCP';
@@ -222,7 +222,7 @@ interface n2
  ipv6 traffic-filter n2_in in
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Static routes';
@@ -274,7 +274,7 @@ ipv6 route 1000::abcd:4:0/112 1000::abcd:3:2
 ipv6 route n3 1000::abcd:1:0/112 1000::abcd:3:1
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Access managed host from enclosing network';
@@ -299,7 +299,7 @@ $out = <<'END';
 -A INPUT -j eth0_self -i eth0
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Crypto tunnel to directly connected software clients';
@@ -373,7 +373,7 @@ access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 interface in IPv4 topology';
@@ -430,7 +430,7 @@ $out = <<'END';
 Syntax error: IPv6 address expected at line 8 of STDIN, near "10.2.2.1<--HERE-->; hardware"
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 network in IPv4 topology';
@@ -487,7 +487,7 @@ $out = <<'END';
 Syntax error: IPv6 address expected at line 2 of STDIN, near "10.2.2.0/24<--HERE-->;}"
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = "Must not use icmpv6 protocol as number";
@@ -502,7 +502,7 @@ $out = <<'END';
 Error: Must not use 'proto 58', use 'icmpv6' instead at line 2 of STDIN
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = "Must not use icmp with ipv6";
@@ -517,7 +517,7 @@ $out = <<'END';
 Error: Must use 'icmp' only with IPv4 at line 2 of STDIN
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
  $title = 'Convert and check IPv4 tests';

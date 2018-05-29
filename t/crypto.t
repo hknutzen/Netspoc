@@ -1273,7 +1273,7 @@ access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
-test_run($title, $in, $out, '-noauto_default_route');
+test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
 $title = 'Missing route for VPN ASA with internal software clients';
