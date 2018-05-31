@@ -7791,6 +7791,39 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
     return \%has_non_hidden;
 }
 
+# Mark invalid NAT transitions.
+# A transition from nat:t1 to nat:t2 occurs at an interface I
+# - if nat:t1 was active previously
+# - and nat:t2 is activated at I with "bind_nat = t2".
+# This transition is invalid
+# - if a network:n1 exists having NAT definitions for both t1 and t2
+# - and some other network:n2 exists having a NAT definition for t1,
+#   but not for t2.
+sub mark_invalid_nat_transitions {
+    my ($nat_tag2multinat_def) = @_;
+    my %result;
+    for my $nat_hashes (values %$nat_tag2multinat_def) {
+        next if @$nat_hashes == 1;
+        my %union;
+        for my $nat_hash (@$nat_hashes) {
+            @union{keys %$nat_hash} = values %$nat_hash;
+        }
+        my $count = keys %union;
+        for my $nat_hash (@$nat_hashes) {
+            next if keys %$nat_hash == $count;
+            my @missing = grep { not $nat_hash->{$_} } keys %union;
+            for my $tag1 (keys %$nat_hash) {
+                my $nat_network = $nat_hash->{$tag1};
+                my $hash = $result{$tag1} ||= {};
+                for my $tag2 (@missing) {
+                    $hash->{$tag2} = $nat_network;
+                }
+            }
+        }
+    }
+    return \%result;
+}
+
 ##############################################################################
 # Returns   : $nat_tag2multinat_def: Hash with NAT tags occurring in multi
 #                 NAT definitions (several NAT definitions grouped at one
@@ -7809,7 +7842,6 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
 #           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
-
 sub generate_multinat_def_lookup {
     my ($has_non_hidden) = @_;
     my %nat_tag2multinat_def;
@@ -7818,60 +7850,43 @@ sub generate_multinat_def_lookup {
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
 #        debug $network->{name}, " nat=", join(',', sort keys %$nat_hash);
-        my $err_shown;
 
       NAT_TAG:
         for my $nat_tag (sort keys %$nat_hash) {
             $nat_definitions{$nat_tag} = 1;
-
             if (my $previous_nat_hashes = $nat_tag2multinat_def{$nat_tag}) {
 
-                # Check for proper multi nat definition at current network.
+                # Do not add same group twice.
                 if ($has_non_hidden->{$nat_tag}) {
-                    my $nat_hash2 = $previous_nat_hashes->[0];
-                    if (not keys_eq($nat_hash, $nat_hash2) and not $err_shown) {
-
-                        # Show error on unequal NAT hash.
-                        my $tags1 = join(',', sort keys %$nat_hash);
-                        my $name1 = $network->{name};
-                        my $tags2 = join(',', sort keys %$nat_hash2);
-
-                        # Values are NAT entries with name of network.
-                        # Take first value deterministically.
-                        my ($name2) =
-                            sort map { $_->{name} } values %$nat_hash2;
-                        err_msg(
-                            "If multiple NAT tags are used at one network,\n",
-                            " these NAT tags must be used",
-                            " equally grouped at other networks:\n",
-                            " - $name1: $tags1\n",
-                            " - $name2: $tags2");
-                        $err_shown = 1;
+                    for my $nat_hash2 (@$previous_nat_hashes) {
+                        next NAT_TAG if keys_eq($nat_hash, $nat_hash2);
                     }
-                    # Do not add same group twice.
-                    next NAT_TAG;
                 }
 
                 # Check for subset relation. Keep superset only.
-                for my $nat_hash2 (@$previous_nat_hashes) {
-                    my $common_keys = grep { $nat_hash2->{$_} } keys %$nat_hash;
-                    if ($common_keys eq keys %$nat_hash) {
+                else {
+                    for my $nat_hash2 (@$previous_nat_hashes) {
+                        my $common_keys =
+                            grep { $nat_hash2->{$_} } keys %$nat_hash;
+                        if ($common_keys eq keys %$nat_hash) {
 
-                        # Ignore new nat_hash, because it is subset.
-                        next NAT_TAG;
-                    }
-                    elsif ($common_keys eq keys %$nat_hash2) {
+                            # Ignore new nat_hash, because it is subset.
+                            next NAT_TAG;
+                        }
+                        elsif ($common_keys eq keys %$nat_hash2) {
 
-                        # Replace previous nat_hash by new superset.
-                        $nat_hash2 = $nat_hash;
-                        next NAT_TAG;
+                            # Replace previous nat_hash by new superset.
+                            $nat_hash2 = $nat_hash;
+                            next NAT_TAG;
+                        }
                     }
+
                 }
-
             }
             push @{ $nat_tag2multinat_def{$nat_tag} }, $nat_hash;
         }
     }
+
     # Remove entry if nat tag never occurs in multi nat definitions (grouped).
     for my $nat_tag (keys %nat_tag2multinat_def) {
         my $nat_hashes = $nat_tag2multinat_def{$nat_tag};
@@ -7880,6 +7895,7 @@ sub generate_multinat_def_lookup {
         next if keys %$nat_hash > 1;
         delete $nat_tag2multinat_def{$nat_tag};
     }
+
     return \%nat_tag2multinat_def, \%nat_definitions;
 }
 
@@ -8070,14 +8086,16 @@ sub check_for_proper_NAT_binding {
 }
 
 ##############################################################################
-# Purpose:   Generate errors for invalid NAT transitions.
+# Purpose:   Show errors for invalid transitions of grouped NAT tags.
 # Parameter: $nat_tag: NAT tag that is distributed during domain traversal.
 #            $nat_tag2: NAT tag that implicitly deactivates $nat_tag.
 #            $nat_hash: NAT hash of network with both $nat_tag and $nat_tag2
-#                defined.
-#            $router - router NAT transition occurs at.
+#            defined.
+#            $invalid_nat_transitions: Hash with pairs of NAT tags t1, t2
+#                where transition from t1 to t2 is invalid.
+#            $router - router where NAT transition occurs at.
 sub check_for_proper_nat_transition {
-    my ($nat_tag, $nat_tag2, $nat_hash, $router) = @_;
+    my ($nat_tag, $nat_tag2, $nat_hash, $invalid_nat_transitions, $router) = @_;
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
 
@@ -8100,6 +8118,17 @@ sub check_for_proper_nat_transition {
                 " to static using nat:$nat_tag2\n",
                 " for $nat_info->{name} at $router->{name}");
     }
+
+    # Transition from $nat_tag to $nat_tag2 is invalid,
+    # if $nat_tag occurs somewhere not grouped with $nat_tag2.
+    elsif (my $network = $invalid_nat_transitions->{$nat_tag}->{$nat_tag2}) {
+        err_msg("Invalid transition from nat:$nat_tag to nat:$nat_tag2",
+                " at $router->{name}.\n",
+                " Reason:",
+                " Both NAT tags are used grouped at $nat_info->{name}\n",
+                " but nat:$nat_tag2 is missing at $network->{name}"
+            );
+    }
 }
 
 ##############################################################################
@@ -8110,13 +8139,17 @@ sub check_for_proper_nat_transition {
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more than
 #                 one NAT tag specified.
+#             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
+#                 where transition from first to second tag is invalid.
 #             $in_router: Router $domain was entered from.
 # Results:    All domains, where NAT tag is active contain $nat_tag in their
 #             {nat_set} attribute.
 # Returns:    undef on success, array reference of routers, if invalid
 #             path was found in loop.
 sub distribute_nat1 {
-    my ($domain, $nat_tag, $nat_tag2multinat_def, $in_router) = @_;
+    my ($domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions,
+        $in_router) = @_;
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
 
     # Loop found or domain was processed by earlier call of distribute_nat.
@@ -8160,10 +8193,10 @@ sub distribute_nat1 {
                      next if $nat_tag2 eq $nat_tag;
                      for my $nat_hash (@$multinat_hashes) {
                          if ($nat_hash->{$nat_tag2}) {
-                             check_for_proper_nat_transition($nat_tag,
-                                                             $nat_tag2,
-                                                             $nat_hash,
-                                                             $router);
+                             check_for_proper_nat_transition(
+                                 $nat_tag, $nat_tag2,
+                                 $nat_hash, $invalid_nat_transitions,
+                                 $router);
                              next DOMAIN;
                          }
                      }
@@ -8174,7 +8207,9 @@ sub distribute_nat1 {
 #            debug "Caller $domain->{name}";
             if (
                 my $err_path = distribute_nat1(
-                    $out_domain, $nat_tag, $nat_tag2multinat_def, $router
+                    $out_domain, $nat_tag,
+                    $nat_tag2multinat_def, $invalid_nat_transitions,
+                    $router
                 )
               )
             {
@@ -8193,11 +8228,18 @@ sub distribute_nat1 {
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more
 #                 than one NAT tag specified.
+#             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
+#                 where transition from first to second tag is invalid.
 #             $in_router: router the depth first search starts at.
 sub distribute_nat {
-    my ($domain, $nat_tag, $nat_tag2multinat_def, $in_router) = @_;
+    my ($domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions,
+        $in_router) = @_;
     if (my $err_path =
-        distribute_nat1($domain, $nat_tag, $nat_tag2multinat_def, $in_router))
+        distribute_nat1(
+            $domain, $nat_tag,
+            $nat_tag2multinat_def, $invalid_nat_transitions,
+            $in_router))
     {
         push @$err_path, $in_router;
         err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
@@ -8211,6 +8253,8 @@ sub distribute_nat {
 #          Assure unambiguous NAT for networks with multi NAT definitions.
 sub distribute_nat_tags_to_nat_domains {
     my ($nat_tag2multinat_def, $nat_definitions) = @_;
+    my $invalid_nat_transitions =
+        mark_invalid_nat_transitions($nat_tag2multinat_def);
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
@@ -8253,7 +8297,9 @@ sub distribute_nat_tags_to_nat_domains {
                         last NAT_TAG;
                     }
                 }
-                distribute_nat($domain, $nat_tag, $nat_tag2multinat_def,
+                distribute_nat($domain, $nat_tag,
+                               $nat_tag2multinat_def,
+                               $invalid_nat_transitions,
                                $router);
             }
         }
