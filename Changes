@@ -1,11 +1,19 @@
 {{$NEXT}}
 
- - export-netspoc now ignores hidden NAT when determining combined NAT
-   mapping for owner having networks with different NAT mapping.  -
+ - Relaxed restriction for grouped NAT tags at network.
  - When generating IPv6 code for IOS and NX-OS devices, now correct
    syntax is generated for access-list, static route and interface address.
+ - Hosts inside bridged networks are supported now and can be used in
+   rules as usual.
+ - Hosts with IP range are still not supported inside bridged network.
+ - Attribute 'no_crypto_filter' is no longer supported.
+   It was used for IOS < 12.3(8)T
+ - export-netspoc now ignores hidden NAT when determining combined NAT
+   mapping for owner having networks with different NAT mapping.
+   This results in more visibilty of NAT addresses in shown rules and objects.
  - Fixed export of split service with parts having same rules.
    Previously, some split parts had been silently discarded.
+ - Removed option '--export_ipv6' from export-netspoc.
 
 5.034     2018-04-10 11:01:09+02:00 Europe/Berlin
 
