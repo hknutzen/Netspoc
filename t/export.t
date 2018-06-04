@@ -1523,24 +1523,6 @@ $out = <<'END';
          }
       ]
    },
-   "s1(Wq2IaGjr)" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 22"
-            ],
-            "src" : []
-         }
-      ]
-   },
    "s1(aZ1_3Qf8)" : {
       "details" : {
          "owner" : [
@@ -1663,9 +1645,6 @@ $out = <<'END';
 }
 --owner/a/users
 {
-   "s1(Wq2IaGjr)" : [
-      "network:n1"
-   ],
    "s1(aZ1_3Qf8)" : [
       "network:n1"
    ],
@@ -1707,9 +1686,6 @@ $out = <<'END';
 --owner/d/users
 {
    "s1(OlWkR_nb)" : [
-      "network:n4"
-   ],
-   "s1(Wq2IaGjr)" : [
       "network:n4"
    ],
    "s2(6J6zzaOm)" : [
@@ -3483,6 +3459,121 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Re-join split parts from auto interfaces';
+############################################################
+
+$in = <<'END';
+area:all = { owner = all; anchor = network:n1;}
+owner:all = { admins = a@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;}
+network:n4 = { ip = 10.1.4.0/24;}
+
+router:r1 = {
+ routing = manual;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ routing = manual;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.4; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n2;  }
+}
+
+pathrestriction:p1 = interface:r1.n1, interface:r1.n2;
+pathrestriction:p2 = interface:r2.n1, interface:r2.n2;
+pathrestriction:p3 = interface:r3.n1, interface:r3.n2;
+
+service:s1 = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = user;
+        dst = network:n3, network:n4;
+        prt = tcp 49;
+}
+END
+
+$out = <<END;
+--services
+{
+   "s1(CbJX20AY)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n4"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 49"
+            ],
+            "src" : []
+         }
+      ]
+   },
+   "s1(se22rxX1)" : {
+      "details" : {
+         "owner" : [
+            "all"
+         ]
+      },
+      "rules" : [
+         {
+            "action" : "permit",
+            "dst" : [
+               "network:n3"
+            ],
+            "has_user" : "src",
+            "prt" : [
+               "tcp 49"
+            ],
+            "src" : []
+         }
+      ]
+   }
+}
+--owner/all/users
+{
+   "s1(CbJX20AY)" : [
+      "interface:r1.n2",
+      "interface:r2.n2"
+   ],
+   "s1(se22rxX1)" : [
+      "interface:r1.n1",
+      "interface:r1.n2",
+      "interface:r2.n1",
+      "interface:r2.n2"
+   ]
+}
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
 $title = 'Copy POLICY file';
 ############################################################
 
@@ -3529,6 +3620,88 @@ for my $args (sort keys %in2out) {
     }
     eq_or_diff($stderr, $in2out{$args}, qq/$title: "$args"/);
 }
+
+############################################################
+$title = 'Preserve real NAT together with hidden NAT';
+############################################################
+
+# Must preserve nat:n2 when combined with hidden nat:n3
+# in no_nat_set of owner:n23.
+# But nat:n2a isn't preserved when combined with non hidden nat:n3a.
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+owner:n23 = { admins = n23@example.com; }
+owner:n4  = { admins = n4@example.com; }
+owner:h2  = { admins = h2@example.com; }
+owner:h3  = { admins = h3@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+network:n0 = {
+ ip = 10.1.0.0/24;
+ nat:n2a = { ip = 10.2.0.0/24; }
+ nat:n3a = { ip = 10.3.0.0/24; }
+}
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n2 = { ip = 10.2.1.0/24; }
+ nat:n3 = { hidden; }
+ nat:n4 = { ip = 10.4.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; owner = n23; host:h2 = { ip = 10.1.2.2; owner = h2; } }
+network:n3 = { ip = 10.1.3.0/24; owner = n23; host:h3 = { ip = 10.1.3.3; owner = h3; } }
+network:n4 = { ip = 10.1.4.0/24; owner = n4;}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n2, n2a; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n3, n3a; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = n4; }
+}
+END
+
+$out = <<'END';
+--owner/all/no_nat_set
+[
+   "n2",
+   "n2a",
+   "n3",
+   "n3a",
+   "n4"
+]
+--owner/n23/no_nat_set
+[
+   "n2a",
+   "n3",
+   "n3a",
+   "n4"
+]
+--owner/n4/no_nat_set
+[
+   "n2",
+   "n2a",
+   "n3",
+   "n3a"
+]
+--owner/h2/no_nat_set
+[
+   "n3",
+   "n3a",
+   "n4"
+]
+--owner/h3/no_nat_set
+[
+   "n2",
+   "n2a",
+   "n4"
+]
+END
+
+test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
 done_testing;

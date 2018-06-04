@@ -40,13 +40,9 @@ sub usage {
 }
 my $quiet;
 my $ipv6;
-my $export_ipv6;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet,
-            'ipv6' => \$ipv6,
-            'export_ipv6!' => \$export_ipv6)
-    or usage();
+GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6) or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -236,7 +232,6 @@ sub setup_zones {
     my %seen;
     for my $network (values %networks) {
         next if $network->{disabled};
-        next if $network->{ipv6} and not $export_ipv6;
         my $zone = $network->{zone};
         next if $seen{$zone}++;
 #        debug "$network->{name} in $zone->{name}";
@@ -415,7 +410,6 @@ sub normalize_services_for_export {
     my @result;
     for my $service (sort by_name values %services) {
         my $ipv6    = $service->{ipv6};
-        next if $ipv6 and not $export_ipv6;
         my $sname   = $service->{name};
         my $context = $sname;
         my $user    = expand_group($service->{user}, "user of $context", $ipv6);
@@ -471,11 +465,17 @@ sub normalize_services_for_export {
                         prt      => $prt_list,
                         has_user => $has_user,
                     };
+                    my $json_rule = { %$rule, src => [], dst => [] };
+                    $rule->{json_rule} = $json_rule;
                     if ($has_user eq 'src') {
                         $rule->{dst} = $dst_list;
+                        $json_rule->{dst} =
+                            [ sort map { $_->{name} } @$dst_list ];
                     }
                     elsif ($has_user eq 'dst') {
                         $rule->{src} = $src_list;
+                        $json_rule->{src} =
+                            [ sort map { $_->{name} } @$src_list ];
                     }
 
                     my $user_list = $has_user eq 'dst' ? $dst_list : $src_list;
@@ -487,17 +487,52 @@ sub normalize_services_for_export {
         }
 
         # 'user' has different value for some rules
-        # and we get multiple services with identical name.
+        # and implicitly we get multiple services with identical name.
         my $is_split = (1 < keys %key2rules);
 
+        # Name of split part is derived from its rules.
+        # We might get different split parts with identical rules from
+        # auto interfaces. We must re-join these parts to prevent name
+        # clashes.
+        my %split_parts;
+
         for my $user_key (keys %key2rules) {
-            my $user_list = $key2user{$user_key};
-            my $rules     = $key2rules{$user_key};
+            my $user_list  = $key2user{$user_key};
+            my $rules      = $key2rules{$user_key};
+            my $json_rules = [ map { delete $_->{json_rule} } @$rules ];
+            my $new_name   = $sname;
+
+            # Add extension to make name of split service unique.
+            my $rules_key;
+            if ($is_split) {
+
+                # Ignore split part with empty users or only empty rules.
+                # This is an relict from expanding auto interfaces.
+                @$user_list or next;
+                grep { $_->{has_user} eq 'src' and @{$_->{dst}}
+                       or
+                       $_->{has_user} eq 'dst' and @{$_->{src}}
+                       or
+                       $_->{has_user} eq 'both' } @$rules
+                    or next;
+
+
+                $rules_key = calc_rules_key($json_rules);
+                $new_name .= "($rules_key)";
+
+                # Join different split parts having identical rules.
+                if (my $other = $split_parts{$rules_key}) {
+                    push @{ $other->{user} }, @$user_list;
+                    next;
+                }
+            }
             my $new_service = { %$service,
+                                name  => $new_name,
                                 user  => $user_list,
                                 rules => $rules,
+                                json_rules => $json_rules,
             };
-            $new_service->{is_split} = 1 if $is_split;
+            $split_parts{$rules_key} = $new_service if $rules_key;
             push @result, $new_service;
         }
     }
@@ -760,11 +795,24 @@ sub setup_outer_owners {
 
 ######################################################################
 # Export no-NAT-set
-# - relate each network to its owner and part_owners
-# - build a no_nat_set for each owner, where own networks aren't translated
+# - Relate each network to its owner and part_owners.
+# - Build a no_nat_set for each owner by combining no_nat_sets of
+#   NAT domains of all own networks.
+#   Properties of combined no_nat_set:
+#   - IP of own networks aren't translated,
+# If owner has exactly one NAT domain, use corresponding no_nat_set
+# to determine IP address of other networks.
+# Otherwise multiple no-nat-sets need to be combined.
+# Analyze each network X with multiple NAT tags.
+# - If all no-nat-sets map to the same IP, use this mapping.
+# - If some no-nat-sets map to different IPs, use oiginal IP.
+# - If some no-nat-sets map to the same IP and all other no-nat-sets
+#   map to 'hidden' then ignore hidden in combined no-nat-set.
+# This way, a real NAT tag will not be disabled,
+# if it is combined with a hidden NAT tag from same multi-NAT.
 ######################################################################
-
 sub export_no_nat_set {
+    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
     progress("Export no-NAT-sets");
     my %owner2net;
     for my $network (values %networks) {
@@ -803,10 +851,12 @@ sub export_no_nat_set {
 #           }
 #       }
 
-        # Build union of no_nat_sets
-        my $no_nat_set = [ sort(unique(map { keys(%{ $_->{no_nat_set} }) }
-                                           @nat_domains)) ];
-#       debug "$owner_name: ", join(',', sort @$no_nat_set);
+        # Build union of all no_nat_sets of that NAT domains.
+        my $no_nat_sets = [ map { $_->{no_nat_set} } @nat_domains ];
+        my $combined = combine_no_nat_sets($no_nat_sets, undef,
+                                           $nat_tag2multinat_def,
+                                           $has_non_hidden);
+        my $no_nat_set = [ sort keys %$combined ];
         $owner2no_nat_set{$owner_name} = $no_nat_set;
         @all_nat_tags{@$no_nat_set} = @$no_nat_set;
     }
@@ -982,22 +1032,6 @@ sub export_services {
     my %shash;
     my %owner2type2shash;
     for my $service (@$normalized_services) {
-        my @rules = map {
-            {
-                action => $_->{action},
-                has_user => $_->{has_user},
-                src => [ sort map { $_->{name} } @{ $_->{src} } ],
-                dst => [ sort map { $_->{name} } @{ $_->{dst} } ],
-                prt => $_->{prt},
-            }
-        } @{ $service->{rules} };
-
-        # Add extension to make name of split service unique.
-        if ($service->{is_split}) {
-            my $rules_key = calc_rules_key(\@rules);
-            $service->{name} .= "($rules_key)";
-        }
-
         for my $owner ($service->{sub_owner} || (),
                        @{ $service->{owners} },
                        @{ $service->{part_owners} },
@@ -1035,7 +1069,8 @@ sub export_services {
         }
 
         (my $sname = $service->{name}) =~ s/^\w+://;
-        $shash{$sname} = { details => $details, rules => \@rules };
+        my $json_rules = $service->{json_rules};
+        $shash{$sname} = { details => $details, rules => $json_rules };
     }
     export_json("services", \%shash);
     return \%owner2type2shash;
@@ -1213,7 +1248,7 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-distribute_nat_info();
+my ($nat_tag2multinat_def, $has_non_hidden) = distribute_nat_info();
 find_subnets_in_zone();
 
 # Copy of %services with those services split, that have different 'user'.
@@ -1233,6 +1268,6 @@ export_assets();
 my $owner2type2shash = export_services($normalized_services);
 export_users_and_service_lists($owner2type2shash);
 export_objects();
-export_no_nat_set();
+export_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
 copy_policy_file();
 progress("Ready");

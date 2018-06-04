@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.034'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.035'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -102,6 +102,7 @@ our @EXPORT = qw(
   expand_crypto
   setpath
   distribute_nat_info
+  combine_no_nat_sets
   find_subnets_in_zone
   find_subnets_in_nat_domain
   convert_hosts_in_rules
@@ -1418,9 +1419,12 @@ sub read_network {
         }
     }
     elsif ($network->{bridged}) {
-        if (delete $network->{hosts}) {
-            err_msg("Bridged $name must not have ",
-                    "host definition (not implemented)");
+        if (my $hosts = $network->{hosts}) {
+            for my $host (@$hosts) {
+                $host->{range} or next;
+                err_msg("Bridged $name must not have ",
+                        "$host->{name} with range (not implemented)");
+            }
         }
         if (my $hash = $network->{nat}) {
             for my $nat_tag (sort keys %$hash) {
@@ -1962,10 +1966,6 @@ sub read_router {
             skip(';');
             $router->{no_group_code} = 1;
         }
-        elsif ($token eq 'no_crypto_filter') {
-            skip(';');
-            $router->{no_crypto_filter} = 1;
-        }
         elsif ($token eq 'no_protect_self') {
             skip(';');
             $router->{no_protect_self} = 1;
@@ -2336,9 +2336,6 @@ sub read_router {
         else {
             $router->{radius_attributes}
               and warn_msg("Ignoring 'radius_attributes' at $name");
-        }
-        if ($model->{no_crypto_filter}) {
-            $router->{no_crypto_filter} = 1;
         }
     }
 
@@ -4572,81 +4569,182 @@ sub is_redundany_group {
 }
 
 sub check_ip_addresses {
-    for my $network (values %networks) {
-        if (    $network->{ip} eq 'unnumbered'
-            and $network->{interfaces}
-            and @{ $network->{interfaces} } > 2)
-        {
-            my $msg = "Unnumbered $network->{name} is connected to"
-              . " more than two interfaces:";
-            for my $interface (@{ $network->{interfaces} }) {
-                $msg .= "\n $interface->{name}";
-            }
-            err_msg($msg);
-        }
+    my ($network) = @_;
+    my %ip2obj;
 
-        my %ip2obj;
+    # 1. Check for duplicate interface addresses.
+    # 2. Short or negotiated interfaces must not be used, if a managed
+    #    interface with static routing exists in the same network.
+    my ($short_intf, $route_intf);
+    for my $interface (@{ $network->{interfaces} }) {
+        my $ip = $interface->{ip};
+        if ($ip eq 'short') {
 
-        # 1. Check for duplicate interface addresses.
-
-        # 2. Short or negotiated interfaces must not be used, if a managed
-        #    interface with static routing exists in the same network.
-        my ($short_intf, $route_intf);
-        for my $interface (@{ $network->{interfaces} }) {
-            my $ip = $interface->{ip};
-            if ($ip eq 'short') {
-
-                # Ignore short interface from split crypto router.
-                if (1 < @{ $interface->{router}->{interfaces} }) {
-                    $short_intf = $interface;
-                }
-            }
-            elsif ($ip eq 'negotiated') {
-                $short_intf = $interface;
-            }
-            elsif (not $ip =~ /^(?:unnumbered|tunnel|bridged)$/) {
-                my $router = $interface->{router};
-                if (($router->{managed} or $router->{routing_only})
-                    and not $interface->{routing})
-                {
-                    $route_intf = $interface;
-                }
-                if (my $other = $ip2obj{$ip}) {
-                    $other->{redundant} and $interface->{redundant} or
-                        err_msg("Duplicate IP address for",
-                                " $other->{name} and $interface->{name}");
-                }
-                else {
-                    $ip2obj{$ip} = $interface;
-                }
-            }
-            if ($short_intf and $route_intf) {
-                err_msg "$short_intf->{name} must be defined in more detail,",
-                  " since there is\n",
-                  " a managed $route_intf->{name} with static routing enabled.";
+            # Ignore short interface from split crypto router.
+            if (1 < @{ $interface->{router}->{interfaces} }) {
+                push @$short_intf, $interface;
             }
         }
-        for my $host (@{ $network->{hosts} }) {
-            my $range = $host->{range} or next;
-            my ($low, $high) = @$range;
-            for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
-                if (my $other_device = $ip2obj{$ip}) {
-                    err_msg("Duplicate IP address for $other_device->{name}",
-                            " and $host->{name}");
-                }
-            }
+        elsif ($ip eq 'negotiated') {
+            push @$short_intf, $interface;
         }
-        for my $host (@{ $network->{hosts} }) {
-            my $key = $host->{ip} || join '-', @{ $host->{range} };
-            if (my $other_device = $ip2obj{$key}) {
-                err_msg("Duplicate IP address for $other_device->{name}",
-                        " and $host->{name}");
+        elsif ($ip ne 'bridged') {
+            my $router = $interface->{router};
+            if (($router->{managed} or $router->{routing_only})
+                and not $interface->{routing} and not $interface->{is_layer3})
+            {
+                $route_intf = $interface;
+            }
+            if (my $other = $ip2obj{$ip}) {
+                $other->{redundant} and $interface->{redundant} or
+                    err_msg("Duplicate IP address for",
+                            " $other->{name} and $interface->{name}");
             }
             else {
-                $ip2obj{$key} = $host;
+                $ip2obj{$ip} = $interface;
             }
         }
     }
+    if ($short_intf and $route_intf) {
+        err_msg("Can't generate static routes for $route_intf->{name}",
+                " because IP address is unknown for:\n",
+                name_list($short_intf));
+    }
+    my $hosts = $network->{hosts} or next;
+    for my $host (@$hosts) {
+        my $range = $host->{range} or next;
+        my ($low, $high) = @$range;
+        for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
+            if (my $other_device = $ip2obj{$ip}) {
+                err_msg("Duplicate IP address for $other_device->{name}",
+                        " and $host->{name}");
+            }
+        }
+    }
+    for my $host (@$hosts) {
+        my $key = $host->{ip} || join '-', @{ $host->{range} };
+        if (my $other_device = $ip2obj{$key}) {
+            err_msg("Duplicate IP address for $other_device->{name}",
+                    " and $host->{name}");
+        }
+        else {
+            $ip2obj{$key} = $host;
+        }
+    }
+}
+
+# Check grouped bridged networks.
+# Each group
+# - must have the same IP address and mask,
+# - must have at least two members,
+# - must be adjacent
+# - linked by bridged interfaces
+# Each router having a bridged interface
+# must connect at least two bridged networks of the same group.
+sub check_bridged_networks {
+    my ($prefix2net) = @_;
+    for my $prefix (keys %$prefix2net) {
+        if (my $network = $networks{$prefix}) {
+            err_msg("Must not define $network->{name} together with",
+                    " bridged networks of same name");
+        }
+    }
+    for my $href (values %$prefix2net) {
+        my @group = sort by_name values %$href;
+        my $net1  = shift @group;
+        @group or warn_msg("Bridged $net1->{name} must not be used solitary");
+        my %seen;
+        my @next = ($net1);
+        my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
+
+        # Mark all networks connected directly or indirectly with $net1
+        # by a bridge as 'connected' in $href.
+        while (my $network = pop(@next)) {
+            my ($ip, $mask) = @{$network}{qw(ip mask)};
+            $ip eq $ip1 and $mask eq $mask1
+              or err_msg("$net1->{name} and $network->{name} must have",
+                         " identical ip/mask");
+            $href->{$network} = 'connected';
+            for my $in_intf (@{ $network->{interfaces} }) {
+                next if $in_intf->{ip} ne 'bridged';
+                my $router = $in_intf->{router};
+                next if $seen{$router}++;
+                my $count = 1;
+                if (my $layer3_intf = $in_intf->{layer3_interface}) {
+                    match_ip($layer3_intf->{ip}, $ip1, $mask1)
+                      or err_msg("$layer3_intf->{name}'s IP doesn't match",
+                        " IP/mask of bridged networks");
+                }
+                for my $out_intf (@{ $router->{interfaces} }) {
+                    next if $out_intf eq $in_intf;
+                    next if $out_intf->{ip} ne 'bridged';
+                    my $next_net = $out_intf->{network};
+                    next if not $href->{$next_net};
+                    push(@next, $out_intf->{network});
+                    $count++;
+                }
+                $count > 1
+                  or err_msg("$router->{name} can't bridge a single network");
+            }
+        }
+        for my $network (@group) {
+            $href->{$network} eq 'connected'
+              or err_msg(
+                "$network->{name} and $net1->{name}",
+                " must be connected by bridge"
+              );
+        }
+    }
+}
+
+sub check_ip_addresses_and_bridges {
+    my %prefix2net;
+    for my $network (values %networks) {
+
+        # Group bridged networks by prefix of name.
+        if (my $prefix = $network->{bridged}) {
+            $prefix2net{$prefix}->{$network} = $network;
+            next;
+        }
+        my $ip = $network->{ip};
+        if ($ip eq 'unnumbered') {
+            my $interfaces = $network->{interfaces};
+            if ($interfaces and @$interfaces > 2) {
+                err_msg("Unnumbered $network->{name} is connected to",
+                        " more than two interfaces:\n",
+                        name_list($interfaces));
+            }
+            next;
+        }
+        next if $ip eq 'tunnel';
+        next if $network->{loopback};
+        check_ip_addresses($network);
+    }
+
+    # Check address conflicts for collected parts of bridged networks.
+    for my $href (values %prefix2net) {
+        my $dummy  = new('Network');
+        my %seen;
+        for my $network (sort by_name values %$href) {
+            if (my $list = $network->{interfaces}) {
+                push(@{ $dummy->{interfaces} },
+                     @$list,
+
+                     # Add layer 3 interfaces for address check.
+                     grep { not $seen{$_}++ }
+                     map { $_->{layer3_interface} || () }
+                     @$list)
+            }
+            if (my $list = $network->{hosts}) {
+                push @{ $dummy->{hosts} }, @$list;
+            }
+        }
+        check_ip_addresses($dummy);
+    }
+
+    # Check collected parts of bridged networks.
+    check_bridged_networks(\%prefix2net);
+
 }
 
 sub link_ipsec;
@@ -4666,7 +4764,7 @@ sub link_topology {
     link_subnets;
     link_owners;
     link_services;
-    check_ip_addresses();
+    check_ip_addresses_and_bridges();
 }
 
 ####################################################################
@@ -4725,76 +4823,6 @@ my @routers;
 my @networks;
 my @zones;
 my @areas;
-
-# Group bridged networks by prefix of name.
-# Each group
-# - must have the same IP address and mask,
-# - must have at least two members,
-# - must be adjacent
-# - linked by bridged interfaces
-# - IP addresses of hosts must be disjoint (ToDo).
-# Each router having a bridged interface
-# must connect at least two bridged networks of the same group.
-sub check_bridged_networks {
-    my %prefix2net;
-    for my $network (@networks) {
-        my $prefix = $network->{bridged} or next;
-        $prefix2net{$prefix}->{$network} = $network;
-    }
-    for my $prefix (keys %prefix2net) {
-        if (my $network = $networks{$prefix}) {
-            $network->{disabled}
-              or err_msg("Must not define $network->{name} together with",
-                " bridged networks of same name");
-        }
-    }
-    for my $href (values %prefix2net) {
-        my @group = sort by_name values %$href;
-        my $net1  = shift @group;
-        @group or warn_msg("Bridged $net1->{name} must not be used solitary");
-        my %seen;
-        my @next = ($net1);
-        my ($ip1, $mask1) = @{$net1}{qw(ip mask)};
-
-        # Mark all networks connected directly or indirectly with $net1
-        # by a bridge as 'connected' in $href.
-        while (my $network = pop(@next)) {
-            my ($ip, $mask) = @{$network}{qw(ip mask)};
-            $ip eq $ip1 and $mask eq $mask1
-              or err_msg("$net1->{name} and $network->{name} must have",
-                " identical ip/mask");
-            $href->{$network} = 'connected';
-            for my $in_intf (@{ $network->{interfaces} }) {
-                next if $in_intf->{ip} ne 'bridged';
-                my $router = $in_intf->{router};
-                next if $seen{$router}++;
-                my $count = 1;
-                if (my $layer3_intf = $in_intf->{layer3_interface}) {
-                    match_ip($layer3_intf->{ip}, $ip1, $mask1)
-                      or err_msg("$layer3_intf->{name}'s IP doesn't match",
-                        " IP/mask of bridged networks");
-                }
-                for my $out_intf (@{ $router->{interfaces} }) {
-                    next if $out_intf eq $in_intf;
-                    next if $out_intf->{ip} ne 'bridged';
-                    my $next_net = $out_intf->{network};
-                    next if not $href->{$next_net};
-                    push(@next, $out_intf->{network});
-                    $count++;
-                }
-                $count > 1
-                  or err_msg("$router->{name} can't bridge a single network");
-            }
-        }
-        for my $network (@group) {
-            $href->{$network} eq 'connected'
-              or err_msg(
-                "$network->{name} and $net1->{name}",
-                " must be connected by bridge"
-              );
-        }
-    }
-}
 
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
@@ -4948,7 +4976,6 @@ sub mark_disabled {
     }
 
     @virtual_interfaces = grep { not $_->{disabled} } @virtual_interfaces;
-    check_bridged_networks();
 }
 
 ####################################################################
@@ -5874,7 +5901,7 @@ sub expand_group_in_rule {
             }
         }
         elsif ($type eq 'Interface') {
-            if ($object->{ip} =~ /^(short|unnumbered)$/) {
+            if ($object->{ip} =~ /^(bridged|short|unnumbered)$/) {
                 $ignore = "$object->{ip} $object->{name}";
             }
         }
@@ -6382,7 +6409,6 @@ sub propagate_owners {
         # then set owner of this zone to the one owner.
         my $owner;
         for my $network (@{ $zone->{networks} }) {
-            next if $network->{ip} eq 'tunnel';
             my $net_owner = $network->{owner};
             next ZONE if not $net_owner;
             if ($owner) {
@@ -7674,7 +7700,7 @@ sub set_policy_distribution_ip {
         }
         else {
 
-#           debug("$router->{name}: ", scalar keys %found_interfaces);
+#           debug("$router->{name}: ", scalar keys %$found_interfaces);
             my @front = path_auto_interfaces($router, $pdp);
 
             # If multiple management interfaces were found, take that which is
@@ -7765,6 +7791,39 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
     return \%has_non_hidden;
 }
 
+# Mark invalid NAT transitions.
+# A transition from nat:t1 to nat:t2 occurs at an interface I
+# - if nat:t1 was active previously
+# - and nat:t2 is activated at I with "bind_nat = t2".
+# This transition is invalid
+# - if a network:n1 exists having NAT definitions for both t1 and t2
+# - and some other network:n2 exists having a NAT definition for t1,
+#   but not for t2.
+sub mark_invalid_nat_transitions {
+    my ($nat_tag2multinat_def) = @_;
+    my %result;
+    for my $nat_hashes (values %$nat_tag2multinat_def) {
+        next if @$nat_hashes == 1;
+        my %union;
+        for my $nat_hash (@$nat_hashes) {
+            @union{keys %$nat_hash} = values %$nat_hash;
+        }
+        my $count = keys %union;
+        for my $nat_hash (@$nat_hashes) {
+            next if keys %$nat_hash == $count;
+            my @missing = grep { not $nat_hash->{$_} } keys %union;
+            for my $tag1 (keys %$nat_hash) {
+                my $nat_network = $nat_hash->{$tag1};
+                my $hash = $result{$tag1} ||= {};
+                for my $tag2 (@missing) {
+                    $hash->{$tag2} = $nat_network;
+                }
+            }
+        }
+    }
+    return \%result;
+}
+
 ##############################################################################
 # Returns   : $nat_tag2multinat_def: Hash with NAT tags occurring in multi
 #                 NAT definitions (several NAT definitions grouped at one
@@ -7783,7 +7842,6 @@ sub generate_lookup_hash_for_non_hidden_nat_tags {
 #           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
-
 sub generate_multinat_def_lookup {
     my ($has_non_hidden) = @_;
     my %nat_tag2multinat_def;
@@ -7792,60 +7850,43 @@ sub generate_multinat_def_lookup {
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
 #        debug $network->{name}, " nat=", join(',', sort keys %$nat_hash);
-        my $err_shown;
 
       NAT_TAG:
         for my $nat_tag (sort keys %$nat_hash) {
             $nat_definitions{$nat_tag} = 1;
-
             if (my $previous_nat_hashes = $nat_tag2multinat_def{$nat_tag}) {
 
-                # Check for proper multi nat definition at current network.
+                # Do not add same group twice.
                 if ($has_non_hidden->{$nat_tag}) {
-                    my $nat_hash2 = $previous_nat_hashes->[0];
-                    if (not keys_eq($nat_hash, $nat_hash2) and not $err_shown) {
-
-                        # Show error on unequal NAT hash.
-                        my $tags1 = join(',', sort keys %$nat_hash);
-                        my $name1 = $network->{name};
-                        my $tags2 = join(',', sort keys %$nat_hash2);
-
-                        # Values are NAT entries with name of network.
-                        # Take first value deterministically.
-                        my ($name2) =
-                            sort map { $_->{name} } values %$nat_hash2;
-                        err_msg(
-                            "If multiple NAT tags are used at one network,\n",
-                            " these NAT tags must be used",
-                            " equally grouped at other networks:\n",
-                            " - $name1: $tags1\n",
-                            " - $name2: $tags2");
-                        $err_shown = 1;
+                    for my $nat_hash2 (@$previous_nat_hashes) {
+                        next NAT_TAG if keys_eq($nat_hash, $nat_hash2);
                     }
-                    # Do not add same group twice.
-                    next NAT_TAG;
                 }
 
                 # Check for subset relation. Keep superset only.
-                for my $nat_hash2 (@$previous_nat_hashes) {
-                    my $common_keys = grep { $nat_hash2->{$_} } keys %$nat_hash;
-                    if ($common_keys eq keys %$nat_hash) {
+                else {
+                    for my $nat_hash2 (@$previous_nat_hashes) {
+                        my $common_keys =
+                            grep { $nat_hash2->{$_} } keys %$nat_hash;
+                        if ($common_keys eq keys %$nat_hash) {
 
-                        # Ignore new nat_hash, because it is subset.
-                        next NAT_TAG;
-                    }
-                    elsif ($common_keys eq keys %$nat_hash2) {
+                            # Ignore new nat_hash, because it is subset.
+                            next NAT_TAG;
+                        }
+                        elsif ($common_keys eq keys %$nat_hash2) {
 
-                        # Replace previous nat_hash by new superset.
-                        $nat_hash2 = $nat_hash;
-                        next NAT_TAG;
+                            # Replace previous nat_hash by new superset.
+                            $nat_hash2 = $nat_hash;
+                            next NAT_TAG;
+                        }
                     }
+
                 }
-
             }
             push @{ $nat_tag2multinat_def{$nat_tag} }, $nat_hash;
         }
     }
+
     # Remove entry if nat tag never occurs in multi nat definitions (grouped).
     for my $nat_tag (keys %nat_tag2multinat_def) {
         my $nat_hashes = $nat_tag2multinat_def{$nat_tag};
@@ -7854,6 +7895,7 @@ sub generate_multinat_def_lookup {
         next if keys %$nat_hash > 1;
         delete $nat_tag2multinat_def{$nat_tag};
     }
+
     return \%nat_tag2multinat_def, \%nat_definitions;
 }
 
@@ -8044,18 +8086,20 @@ sub check_for_proper_NAT_binding {
 }
 
 ##############################################################################
-# Purpose:   Generate errors for invalid NAT transitions.
+# Purpose:   Show errors for invalid transitions of grouped NAT tags.
 # Parameter: $nat_tag: NAT tag that is distributed during domain traversal.
 #            $nat_tag2: NAT tag that implicitly deactivates $nat_tag.
 #            $nat_hash: NAT hash of network with both $nat_tag and $nat_tag2
-#                defined.
-#            $router - router NAT transition occurs at.
+#            defined.
+#            $invalid_nat_transitions: Hash with pairs of NAT tags t1, t2
+#                where transition from t1 to t2 is invalid.
+#            $router - router where NAT transition occurs at.
 sub check_for_proper_nat_transition {
-    my ($nat_tag, $nat_tag2, $nat_hash, $router) = @_;
+    my ($nat_tag, $nat_tag2, $nat_hash, $invalid_nat_transitions, $router) = @_;
     my $nat_info  = $nat_hash->{$nat_tag};
     my $next_info = $nat_hash->{$nat_tag2};
 
-    # Tranistion from hidden NAT to any other NAT is invalid.
+    # Transition from hidden NAT to any other NAT is invalid.
     if ($nat_info->{hidden}) {
 
         # Use $next_info->{name} and not $nat_info->{name} because
@@ -8074,6 +8118,17 @@ sub check_for_proper_nat_transition {
                 " to static using nat:$nat_tag2\n",
                 " for $nat_info->{name} at $router->{name}");
     }
+
+    # Transition from $nat_tag to $nat_tag2 is invalid,
+    # if $nat_tag occurs somewhere not grouped with $nat_tag2.
+    elsif (my $network = $invalid_nat_transitions->{$nat_tag}->{$nat_tag2}) {
+        err_msg("Invalid transition from nat:$nat_tag to nat:$nat_tag2",
+                " at $router->{name}.\n",
+                " Reason:",
+                " Both NAT tags are used grouped at $nat_info->{name}\n",
+                " but nat:$nat_tag2 is missing at $network->{name}"
+            );
+    }
 }
 
 ##############################################################################
@@ -8084,13 +8139,17 @@ sub check_for_proper_nat_transition {
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more than
 #                 one NAT tag specified.
+#             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
+#                 where transition from first to second tag is invalid.
 #             $in_router: Router $domain was entered from.
 # Results:    All domains, where NAT tag is active contain $nat_tag in their
 #             {nat_set} attribute.
 # Returns:    undef on success, array reference of routers, if invalid
 #             path was found in loop.
 sub distribute_nat1 {
-    my ($domain, $nat_tag, $nat_tag2multinat_def, $in_router) = @_;
+    my ($domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions,
+        $in_router) = @_;
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
 
     # Loop found or domain was processed by earlier call of distribute_nat.
@@ -8134,10 +8193,10 @@ sub distribute_nat1 {
                      next if $nat_tag2 eq $nat_tag;
                      for my $nat_hash (@$multinat_hashes) {
                          if ($nat_hash->{$nat_tag2}) {
-                             check_for_proper_nat_transition($nat_tag,
-                                                             $nat_tag2,
-                                                             $nat_hash,
-                                                             $router);
+                             check_for_proper_nat_transition(
+                                 $nat_tag, $nat_tag2,
+                                 $nat_hash, $invalid_nat_transitions,
+                                 $router);
                              next DOMAIN;
                          }
                      }
@@ -8148,7 +8207,9 @@ sub distribute_nat1 {
 #            debug "Caller $domain->{name}";
             if (
                 my $err_path = distribute_nat1(
-                    $out_domain, $nat_tag, $nat_tag2multinat_def, $router
+                    $out_domain, $nat_tag,
+                    $nat_tag2multinat_def, $invalid_nat_transitions,
+                    $router
                 )
               )
             {
@@ -8167,11 +8228,18 @@ sub distribute_nat1 {
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more
 #                 than one NAT tag specified.
+#             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
+#                 where transition from first to second tag is invalid.
 #             $in_router: router the depth first search starts at.
 sub distribute_nat {
-    my ($domain, $nat_tag, $nat_tag2multinat_def, $in_router) = @_;
+    my ($domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions,
+        $in_router) = @_;
     if (my $err_path =
-        distribute_nat1($domain, $nat_tag, $nat_tag2multinat_def, $in_router))
+        distribute_nat1(
+            $domain, $nat_tag,
+            $nat_tag2multinat_def, $invalid_nat_transitions,
+            $in_router))
     {
         push @$err_path, $in_router;
         err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
@@ -8185,6 +8253,8 @@ sub distribute_nat {
 #          Assure unambiguous NAT for networks with multi NAT definitions.
 sub distribute_nat_tags_to_nat_domains {
     my ($nat_tag2multinat_def, $nat_definitions) = @_;
+    my $invalid_nat_transitions =
+        mark_invalid_nat_transitions($nat_tag2multinat_def);
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
@@ -8227,7 +8297,9 @@ sub distribute_nat_tags_to_nat_domains {
                         last NAT_TAG;
                     }
                 }
-                distribute_nat($domain, $nat_tag, $nat_tag2multinat_def,
+                distribute_nat($domain, $nat_tag,
+                               $nat_tag2multinat_def,
+                               $invalid_nat_transitions,
                                $router);
             }
         }
@@ -8405,81 +8477,87 @@ sub distribute_no_nat_sets_to_interfaces {
     }
 }
 
+# Combine different no-nat-sets into a single no-nat-set in a way
+# that NAT mapping remains identical.
+# Different real NAT tags of a multi NAT set can't be combined.
+# In this case either an error is shown or NAT is disabled
+# for this multi NAT set.
+# Hidden NAT tag is ignored if combined with a real NAT tag,
+# because hidden tag doesn't affect address calculation.
+#
+# Parameter $context controls, if error is shown or if NAT is disabled..
 sub combine_no_nat_sets {
-    my ($set1, $set2, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($no_nat_sets, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    return $no_nat_sets->[0] if @$no_nat_sets == 1;
+    my %combined;
+    my %multi2active;
+    my %multi2hidden;
+    my %multi2multi;
+    my $errors;
+    for my $set (@$no_nat_sets) {
+        for my $nat_tag (keys %$set) {
+            my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
 
-    my $combined = { %$set1 };
-  NAT_TAG:
-    for my $nat_tag (keys %$set2) {
-        next if $set1->{$nat_tag};
+            # Add non multi NAT tag.
+            if (not $multinat_hashes) {
+                $combined{$nat_tag} = 1;
+                next;
+            }
 
-        my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
-
-        # Add non multi NAT tag.
-        if (not $multinat_hashes) {
-            $combined->{$nat_tag} = 1;
-            next;
-        }
-
-        # Must not combine different multi NAT tags.
-        # This would disturb NAT lookup.
-        # Note: We are working on inverted NAT sets.
-
-        # Hidden tag is element of $set2, hence this tag is not
-        # active. But it is known to be not element of $set1, hence
-        # this tag is active at $set1.  Hidden NAT isn't needed for
-        # address calculation, hence add hidden tag and remove tag X,
-        # that is from same multi NAT group and is element of $set1,
-        # but not element of $set2.
-        if (not $has_non_hidden->{$nat_tag}) {
             for my $multinat_hash (@$multinat_hashes) {
+                $multi2multi{$multinat_hash} = $multinat_hash;
+                my ($active) = grep { not $set->{$_} } keys %$multinat_hash;
 
-                # All multi tags are active, so original address is visible.
-                if (not grep { not $set2->{$_} } keys %$multinat_hash) {
-
-                    # All but one must be active at $set1.
-                    1 == grep { not $set1->{$_} } keys %$multinat_hash or next;
-
-                    $combined->{$nat_tag} = 1;
-                    next NAT_TAG;
+                # Original address is shown.
+                if (not $active) {
+                    $multi2active{$multinat_hash} = ':all';
+                    next;
                 }
 
-                # Not all active, find to be removed tag X.
-                else {
-                    for my $nat_tag2 (keys %$multinat_hash) {
-                        $set1->{$nat_tag2} or next;
-                        next if $set2->{$nat_tag2};
-                        delete $combined->{$nat_tag2};
-                        $combined->{$nat_tag} = 1;
-                        next NAT_TAG;
+                # Check if the same NAT mapping is active in all NAT domains.
+                my $non_hidden = $has_non_hidden->{$active};
+                my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
+                if (my $other = $hash->{$multinat_hash}) {
+                    if ($other ne $active) {
+                        if ($context and $non_hidden) {
+                            if ($other eq ':all') {
+                                push(@$errors,
+                                     "Original address and NAT tag '$active'");
+                            }
+                            else {
+                                push(@$errors,
+                                     "Grouped NAT tags '$other' and '$active'");
+                            }
+                        }
+                        else {
+                            $hash->{$multinat_hash} = ':all';
+                        }
                     }
                 }
-            }
-        }
-
-        # Check non hidden tag of $set2.
-        for my $multinat_hash (@$multinat_hashes) {
-            for my $nat_tag2 (sort keys %$multinat_hash) {
-                $set1->{$nat_tag2} or next;
-
-                # Only check NAT tags, that are not set,
-                # because we operate on inverted NAT set.
-                next if $set2->{$nat_tag2};
-
-                # Silently ignore tag of set2.
-                # If inverted, it stands for hidden tag.
-                # Hidden tag isn't needed for address
-                # calculation.
-                next if not $has_non_hidden->{$nat_tag2};
-
-                err_msg(
-                    "Grouped NAT tags '$nat_tag2' and '$nat_tag'\n",
-                    " would both be active at $context");
-                next NAT_TAG;
+                else {
+                    $hash->{$multinat_hash} = $active;
+                }
             }
         }
     }
-    return $combined;
+
+    # Add multi NAT tags.
+    # Activate single tag (by leaving it out) if this tag was active in all
+    # NAT domains.
+    # Hidden is only set, if no non-hidden tag was found.
+    # Deactivate all tags otherwise.
+    for my $multinat_hash (values %multi2multi) {
+        my $active_or_all =
+            $multi2active{$multinat_hash} || $multi2hidden{$multinat_hash} || '';
+        for my $nat_tag (keys %$multinat_hash) {
+            next if $nat_tag eq $active_or_all;
+            $combined{$nat_tag} = 1;
+        }
+    }
+    if ($errors) {
+        err_msg "$_\n would both be active at $context" for unique @$errors;
+    }
+    return \%combined;
 }
 
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
@@ -8505,7 +8583,7 @@ sub add_crypto_no_nat_set {
                 # interface.
                 $real_intf->{hardware}->{crypto_no_nat_set} =
                     combine_no_nat_sets(
-                        $tunnel_set, $real_set,
+                        [$tunnel_set, $real_set],
                         "$real_intf->{name}\n" .
                         " for combined crypto and cleartext traffic",
                         $nat_tag2multinat_def, $has_non_hidden);
@@ -8530,6 +8608,8 @@ sub distribute_nat_info {
     distribute_no_nat_sets_to_interfaces();
     add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
+
+    return($nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -8652,8 +8732,6 @@ sub find_subnets_in_zone {
             for my $network (@{ $zone->{networks} },
                 values %{ $zone->{ipmask2aggregate} })
             {
-                next if $network->{ip} =~ /^(?:unnumbered|tunnel)$/;
-
                 my $nat_network = $network;
                 if (my $href = $network->{nat}) {
                     for my $tag (keys %$href) {
@@ -9222,9 +9300,21 @@ sub find_subnets_in_nat_domain {
                     $up = $up2;
                 }
 
+                # Identical IP from dynamic NAT is valid as subnet relation.
+                my $no_nat_set = $domain->{no_nat_set};
+                my $nat_subnet = get_nat_network($subnet, $no_nat_set);
+                if ($nat_subnet->{dynamic}) {
+                    my $nat_bignet = get_nat_network($bignet, $no_nat_set);
+                    if ($nat_bignet->{dynamic} and
+                        $nat_subnet->{ip} eq $nat_bignet->{ip} and
+                        $nat_subnet->{mask} eq $nat_bignet->{mask})
+                    {
+                        next;
+                    }
+                }
+
                 # Found NAT domain, where networks are not in subnet relation.
                 # Remember at attribute {unstable_nat} for later check.
-                my $no_nat_set = $domain->{no_nat_set};
                 push @{ $bignet->{unstable_nat}->{$no_nat_set}}, $subnet;
             }
         }
@@ -13363,7 +13453,7 @@ sub expand_crypto {
                 $peer->{peer_networks} = \@encrypted;
 
                 if ($managed and $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($hub_router, $crypto);
+                    verify_asa_trustpoint($router, $crypto);
                 }
 
                 # Add rules to permit crypto traffic between
@@ -13514,7 +13604,7 @@ sub find_zone_network {
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
         return $aggregate;
     }
-    if (my $result = $zone->{ipmask2net}->{$key}) {
+    if (defined(my $result = $zone->{ipmask2net}->{$key})) {
         return $result;
     }
 
@@ -13525,8 +13615,6 @@ sub find_zone_network {
         my $nat_network = get_nat_network($network, $no_nat_set);
         next if $nat_network->{hidden};
         my ($i, $m) = @{$nat_network}{qw(ip mask)};
-        next if $i =~ /^(?:unnumbered|tunnel)$/;
-
         if (   $m ge $mask and match_ip($i, $ip, $mask)
             or $m lt $mask and match_ip($ip, $i, $m))
         {
@@ -15996,7 +16084,7 @@ sub print_routes {
     my $type                  = $model->{routing};
     my $vrf                   = $router->{vrf};
     my $do_auto_default_route = $config->{auto_default_route};
-    my $zero_ip               = get_zero_ip($router->{ipv6});
+    my $zero_ip               = get_zero_ip($ipv6);
     my $crypto_type = $model->{crypto} || '';
     my $asa_crypto = $crypto_type eq 'ASA';
     my (%mask2ip2net, %net2hop_info);
@@ -16205,8 +16293,10 @@ sub print_routes {
 
             for my $netinfo (@{ $hop2nets->{$hop} }) {
                 if ($type eq 'IOS') {
-                    my $adr = ios_route_code($netinfo);
-                    print "ip route $ios_vrf$adr $hop_addr\n";
+                    my $adr = $ipv6 ?
+                        full_prefix_code($netinfo) : ios_route_code($netinfo);
+                    my $ip = $ipv6 ? 'ipv6' : 'ip';
+                    print "$ip route $ios_vrf$adr $hop_addr\n";
                 }
                 elsif ($type eq 'NX-OS') {
                     if ($vrf and not $nxos_prefix) {
@@ -16217,12 +16307,13 @@ sub print_routes {
                         $nxos_prefix = ' ';
                     }
                     my $adr = full_prefix_code($netinfo);
-                    print "${nxos_prefix}ip route $adr $hop_addr\n";
+                    my $ip = $ipv6 ? 'ipv6' : 'ip';
+                    print "$nxos_prefix$ip route $adr $hop_addr\n";
                 }
                 elsif ($type eq 'ASA') {
-                    my $adr = $router->{ipv6} ?
+                    my $adr = $ipv6 ?
                         full_prefix_code($netinfo) : ios_route_code($netinfo);
-                    print "ipv6 " if $router->{ipv6};
+                    print "ipv6 " if $ipv6;
                     print "route $interface->{hardware}->{name} $adr $hop_addr\n";
                 }
                 elsif ($type eq 'iproute') {
@@ -16337,7 +16428,7 @@ sub distribute_rule {
         # Rules for single software clients are stored individually.
         # Consistency checks have already been done at expand_crypto.
         # Rules are needed at tunnel for generating split tunnel ACL
-        # regardless of $router->{no_crypto_filter} value.
+        # regardless of $model->{no_crypto_filter} value.
         if (my $id2rules = $in_intf->{id_rules}) {
             my $src_list = $rule->{src};
 
@@ -16375,13 +16466,13 @@ sub distribute_rule {
 
         # Rules are needed at tunnel for generating
         # detailed_crypto_acl or crypto_filter ACL.
-        elsif (not $router->{no_crypto_filter} or
+        elsif (not $model->{no_crypto_filter} or
                $in_intf->{crypto}->{detailed_crypto_acl})
         {
             push @{ $in_intf->{$key} }, $rule;
         }
 
-        if ($router->{no_crypto_filter}) {
+        if ($model->{no_crypto_filter}) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
     }
@@ -17237,18 +17328,9 @@ sub prepare_real_ip_nat {
     # Combine no_nat_sets of each set.
     my $combine_nat = sub {
         my ($list) = @_;
-        my $hw0 = $list->[0];
-        my $combined = $hw0->{no_nat_set};
-        for my $hardware (@$list) {
-            next if $hardware eq $hw0;
-            $combined = combine_no_nat_sets(
-                $combined, $hardware->{no_nat_set},
-
-                # Error should not occur.
-                "$router->{name}, processing 'acl_use_real_ip'",
-                $nat_tag2multinat_def, $has_non_hidden);
-        }
-        return $combined;
+        my $no_nat_sets = [ map { $_->{no_nat_set} } @$list ];
+        return combine_no_nat_sets($no_nat_sets, undef,
+                                   $nat_tag2multinat_def, $has_non_hidden);
     };
     my ($list1, $list2) = values %effective2hw_list;
     my $combined1 = $combine_nat->($list1);
@@ -17271,7 +17353,8 @@ sub print_cisco_acls {
     my $filter        = $model->{filter};
     my $managed_local = $router->{managed} =~ /^local/;
     my $hw_list       = $router->{hardware};
-    my $permit_any    = $router->{ipv6} ? $permit_any6_rule : $permit_any_rule;
+    my $ipv6          = $router->{ipv6};
+    my $permit_any    = $ipv6 ? $permit_any6_rule : $permit_any_rule;
 
     for my $hardware (@$hw_list) {
 
@@ -17379,7 +17462,8 @@ sub print_cisco_acls {
             if ($filter eq 'IOS' or $filter eq 'NX-OS') {
                 push(
                     @{ $hardware->{subcmd} },
-                    "ip access-group $acl_name $suffix"
+                    ($ipv6 ? "ipv6 traffic-filter" : "ip access-group")
+                    . " $acl_name $suffix"
                 );
             }
             elsif ($filter eq 'ASA') {
@@ -17485,7 +17569,8 @@ sub print_ezvpn {
 
     # Bind crypto filter ACL to virtual template.
     print "interface Virtual-Template$virtual_interface_number type tunnel\n";
-    print " ip access-group $crypto_filter_name in\n";
+    print($router->{ipv6} ? " ipv6 traffic-filter" : " ip access-group",
+          " $crypto_filter_name in\n");
 }
 
 # Print crypto ACL.
@@ -17526,7 +17611,7 @@ sub print_crypto_filter_acl {
     my ($interface, $suffix) = @_;
     my $router = $interface->{router};
 
-    return if $router->{no_crypto_filter};
+    return if $router->{model}->{no_crypto_filter};
 
     my $crypto_filter_name = "crypto-filter-$suffix";
     my $no_nat_set = $interface->{no_nat_set};
@@ -17924,6 +18009,7 @@ sub print_interface {
     $model->{print_interface} or return;
     my $class    = $model->{class};
     my $stateful = not $model->{stateless};
+    my $ipv6     = $router->{ipv6};
     for my $hardware (@{ $router->{hardware} }) {
         my $name = $hardware->{name};
         my @subcmd;
@@ -17940,10 +18026,11 @@ sub print_interface {
             elsif ($ip eq 'negotiated') {
                 $addr_cmd = 'ip address negotiated';
             }
-            elsif ($model->{use_prefix}) {
+            elsif ($model->{use_prefix} or $ipv6) {
                 my $addr = print_ip($ip);
                 my $mask = mask2prefix($intf->{network}->{mask});
-                $addr_cmd = "ip address $addr/$mask";
+                my $ip = $ipv6 ? 'ipv6' : 'ip';
+                $addr_cmd = "$ip address $addr/$mask";
                 $addr_cmd .= ' secondary' if $secondary;
             }
             else {
@@ -17953,7 +18040,7 @@ sub print_interface {
                 $addr_cmd .= ' secondary' if $secondary;
             }
             push @subcmd, $addr_cmd;
-            $secondary = 1;
+            $secondary = 1 if not $ipv6;
         }
         if (my $vrf = $router->{vrf}) {
             if ($class eq 'NX-OS') {

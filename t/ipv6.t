@@ -34,13 +34,13 @@ END
 
 $out = <<'END';
 -- ipv6/r1
-ip access-list extended E1_in
- deny ip any host 1000::abcd:2:1
+ipv6 access-list E1_in
+ deny ipv6 any host 1000::abcd:2:1
  permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
- deny ip any any
+ deny ipv6 any any
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'Check IPv6 increment_ip';
@@ -83,13 +83,13 @@ END
 
 $out = <<'END';
 -- ipv6/r1
-ip access-list extended E1_in
- deny ip any host 2000::1
+ipv6 access-list E1_in
+ deny ipv6 any host 2000::1
  permit tcp 1000::/16 2000::/48 range 80 90
- deny ip any any
+ deny ipv6 any any
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 with host ranges';
@@ -105,7 +105,7 @@ network:n2 = {
 
 router:r1 = {
  managed;
- model = IOS, FW;
+ model = NX-OS;
  interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
  interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
 }
@@ -113,20 +113,38 @@ router:r1 = {
 service:test1 = {
  user = network:n1;
  permit src = user;
- dst = network:n2;
+ dst = host:a, host:b;
  prt = tcp 80-90;
 }
 END
 
 $out = <<'END';
 -- ipv6/r1
-ip access-list extended E1_in
- deny ip any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
- deny ip any any
+object-group ip address v6g0
+ 10 1000::abcd:2:12/127
+ 20 1000::abcd:2:14/126
+ 30 1000::abcd:2:18/125
+ 40 1000::abcd:2:20/127
+ 50 1000::abcd:2:22/128
+ 60 1000::abcd:2:60/123
+ 70 1000::abcd:2:80/121
+ 80 1000::abcd:2:100/120
+ 90 1000::abcd:2:200/122
+ 100 1000::abcd:2:240/128
+--
+ipv6 access-list E1_in
+ 10 permit tcp 1000::abcd:1:0/112 addrgroup v6g0 range 80 90
+ 20 deny ip any any
+--
+interface E1
+ ipv6 address 1000::abcd:1:1/112
+ ipv6 traffic-filter E1_in in
+interface E2
+ ipv6 address 1000::abcd:2:1/112
+ ipv6 traffic-filter E2_in in
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'OSPF, EIGRP, HSRP, VRRP, DHCP';
@@ -176,23 +194,87 @@ END
 
 $out = <<'END';
 -- ipv6/r1
-ip access-list extended n1_in
+ipv6 access-list n1_in
  permit 89 1000::abcd:1:0/112 host ff02::5
  permit 89 1000::abcd:1:0/112 host ff02::6
  permit 89 1000::abcd:1:0/112 1000::abcd:1:0/112
  permit 112 1000::abcd:1:0/112 host ff02::12
  permit udp any any eq 67
- deny ip any any
+ deny ipv6 any any
 --
-ip access-list extended n2_in
+ipv6 access-list n2_in
  permit 88 1000::abcd:2:0/112 host ff02::a
  permit 88 1000::abcd:2:0/112 1000::abcd:2:0/112
  permit udp 1000::abcd:2:0/112 host ::e000:2 eq 1985
  permit udp any any eq 68
- deny ip any any
+ deny ipv6 any any
+--
+interface n1
+ ipv6 address 1000::abcd:1:1/112
+ ipv6 address 1000::abcd:1:2/112
+ ip inspect X in
+ ipv6 traffic-filter n1_in in
+--
+interface n2
+ ipv6 address 1000::abcd:2:1/112
+ ipv6 address 1000::abcd:2:2/112
+ ip inspect X in
+ ipv6 traffic-filter n2_in in
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
+
+############################################################
+$title = 'Static routes';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+network:n3 = { ip = 1000::abcd:0003:0/112;}
+network:n4 = { ip = 1000::abcd:0004:0/112;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+
+router:r2 = {
+ managed;
+ model = NX-OS;
+ interface:n2 = {ip = 1000::abcd:0002:0002; hardware = n2;}
+ interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n3;}
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = {ip = 1000::abcd:0003:0002; hardware = n3;}
+ interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n4;}
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--ipv6/r1
+! [ Routing ]
+ipv6 route 1000::abcd:4:0/112 1000::abcd:2:2
+--ipv6/r2
+! [ Routing ]
+ipv6 route 1000::abcd:1:0/112 1000::abcd:2:1
+ipv6 route 1000::abcd:4:0/112 1000::abcd:3:2
+--ipv6/r3
+! [ Routing ]
+ipv6 route n3 1000::abcd:1:0/112 1000::abcd:3:1
+END
+
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Access managed host from enclosing network';
@@ -217,7 +299,7 @@ $out = <<'END';
 -A INPUT -j eth0_self -i eth0
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = 'Crypto tunnel to directly connected software clients';
@@ -291,7 +373,7 @@ access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 END
 
-test_run($title, $in, $out, '-ipv6');
+test_run($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 interface in IPv4 topology';
@@ -348,7 +430,7 @@ $out = <<'END';
 Syntax error: IPv6 address expected at line 8 of STDIN, near "10.2.2.1<--HERE-->; hardware"
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 #############################################################
 $title = 'IPv6 network in IPv4 topology';
@@ -405,7 +487,7 @@ $out = <<'END';
 Syntax error: IPv6 address expected at line 2 of STDIN, near "10.2.2.0/24<--HERE-->;}"
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = "Must not use icmpv6 protocol as number";
@@ -420,7 +502,7 @@ $out = <<'END';
 Error: Must not use 'proto 58', use 'icmpv6' instead at line 2 of STDIN
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
 $title = "Must not use icmp with ipv6";
@@ -435,7 +517,7 @@ $out = <<'END';
 Error: Must use 'icmp' only with IPv4 at line 2 of STDIN
 END
 
-test_err($title, $in, $out, '-ipv6');
+test_err($title, $in, $out, '--ipv6');
 
 ############################################################
  $title = 'Convert and check IPv4 tests';

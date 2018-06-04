@@ -79,9 +79,9 @@ END
 
 $out = <<'END';
 Error: Unnumbered network:u is connected to more than two interfaces:
- interface:r1.u
- interface:r2.u
- interface:r3.u
+ - interface:r1.u
+ - interface:r2.u
+ - interface:r3.u
 END
 
 test_err($title, $in, $out);

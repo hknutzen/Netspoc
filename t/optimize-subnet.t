@@ -93,7 +93,7 @@ ip access-list extended outside_in
  deny ip any any
 END
 
-test_run($title, $in, $out, '-check_redundant_rules=0');
+test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
 $title = 'Optimize subnet of NAT network in zone';

@@ -448,7 +448,7 @@ ip access-list extended E8_in
  deny ip any any
 END
 
-test_run($title, $in, $out, '-noauto_default_route');
+test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
 $title = 'Follow implicit pathrestriction at unmanaged virtual interface';

@@ -176,10 +176,11 @@ sub adjust_testfile {
 
         $line =~ s/any4/any6/g;
 
-        # Convert ASA IPv4 routing syntax to IPv6 routing syntax.
         my $ipv6 = qr/(?:$IPv6_re|::)/;
-        if ($line =~ /^route \w+ $ipv6 $ipv6 (?:$ipv6|\w+)$/) {
-            $line =~ s/^route (\w+) ($ipv6) ($ipv6) ($ipv6|\w+)$/ipv6 route $1 $2!$3 $4/;
+
+        # Convert mask to prefix in in routes.
+        if ($line =~ /route(?: \w+)* $ipv6 $ipv6 (?:$ipv6|\w+)/) {
+            $line =~ s/($ipv6) ($ipv6) ($ipv6|\w+)$/$1!$2 $3/;
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
         }
 
@@ -193,6 +194,29 @@ sub adjust_testfile {
             # Convert marked masks.
             $line =~ s/(!$ipv6)/to_prefix($1)/ge;
         }
+
+        # Convert syntax and convert mask to prefix in interface ip
+        if ($line =~
+            s/^ ip address ($ipv6) ($ipv6)( secondary)?$/ ipv6 address $1!$2/)
+        {
+            $line =~ s/(!$ipv6)/to_prefix($1)/e;
+        }
+
+        # Convert syntax of IOS / NX-OS routing, but not iptables.
+        if ($line !~ /ip route add/) {
+            $line =~ s/ip route/ipv6 route/;
+        }
+
+        # Convert syntax of ASA routing.
+        $line =~ s/^route /ipv6 route /;
+
+        # Convert syntax of IOS access-list.
+        $line =~ s/ip access-list extended/ipv6 access-list/;
+        $line =~ s/^ (permit|deny) ip / $1 ipv6 /;
+        $line =~ s/^ ip access-group/ ipv6 traffic-filter/;
+
+        # Convert syntax of NX-OS access-list.
+        $line =~ s/^ip access-list (\w+)$/ipv6 access-list $1/;
 
         # Change path of to be checked output files.
         # IPv6 files are generated in ipv6/ subdirectory.

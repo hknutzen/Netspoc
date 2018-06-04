@@ -18,7 +18,7 @@ use lib 'lib';
 use Netspoc::Compiler::Pass1;
 use Netspoc::Compiler::Pass2;
 
-my $default_options = '-quiet';
+my $default_options = '--quiet';
 
 sub prepare_in_dir {
     my($input) = @_;

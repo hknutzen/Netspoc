@@ -82,7 +82,7 @@ ip route 10.1.3.128/25 10.9.1.3
 ip route 10.1.4.0/24 10.9.1.3
 END
 
-test_run($title, $in, $out, '-noauto_default_route');
+test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
 $title = 'Missing next hop';
@@ -112,8 +112,49 @@ service:test = {
 END
 
 $out = <<'END';
-Error: interface:u.Trans must be defined in more detail, since there is
- a managed interface:asa.Trans with static routing enabled.
+Error: Can't generate static routes for interface:asa.Trans because IP address is unknown for:
+ - interface:u.Trans
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Negotiated interface as next hop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { negotiated; hardware = n2; }
+}
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+# Error message should only be shown once, even if another interface is defined.
+router:r3 = {
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Can't generate static routes for interface:r2.n2 because IP address is unknown for:
+ - interface:r1.n2
 END
 
 test_err($title, $in, $out);
@@ -281,7 +322,7 @@ ip route 10.1.1.0/28 10.9.1.2
 ip route 10.1.1.0/24 10.9.2.2
 END
 
-test_run($title, $in, $out, '-check_redundant_rules=0');
+test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
 $title = 'Check NAT when finding largest supernet for route.';
@@ -490,43 +531,6 @@ ip route 10.1.2.0 255.255.255.0 10.1.1.2
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Negotiated interface as next hop';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-
-router:r1 = {
- model = IOS;
- managed;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; }
- interface:n2 = { negotiated; hardware = n2; }
-}
-
-router:r2 = {
- model = IOS;
- managed;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-}
-
-
-service:s1 = {
- user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 80;
-}
-END
-
-$out = <<'END';
-Error: interface:r1.n2 must be defined in more detail, since there is
- a managed interface:r2.n2 with static routing enabled.
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 $title = 'No route between pair of virtual interfaces';

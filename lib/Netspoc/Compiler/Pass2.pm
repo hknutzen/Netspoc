@@ -1963,8 +1963,7 @@ sub cisco_acl_addr {
             return "host $ip_code";
         }
         elsif ($config->{ipv6}) {
-            my $prefix = mask2prefix($mask);
-            return "$ip_code/$prefix";
+            return $obj->{name};
         }
         else {
 
@@ -2011,7 +2010,8 @@ sub cisco_prt_code {
     my $proto = $prt->{proto};
 
     if ($proto eq 'ip') {
-        return ('ip', undef, undef);
+        my $ip = $model eq 'IOS' && $config->{ipv6} ? 'ipv6' : 'ip';
+        return ($ip, undef, undef);
     }
     elsif ($proto eq 'tcp' or $proto eq 'udp') {
         my $port_code = sub {
@@ -2093,13 +2093,17 @@ sub print_cisco_acl {
     my $name = $acl_info->{name};
     my $numbered = 10;
     my $prefix;
-    if ($model eq 'IOS') {
+    if ($model eq 'IOS' or $model eq 'NX-OS') {
         $prefix = '';
-        print "ip access-list extended $name\n";
-    }
-    elsif ($model eq 'NX-OS') {
-        $prefix = '';
-        print "ip access-list $name\n";
+        if ($config->{ipv6}) {
+            print "ipv6 access-list $name\n";
+        }
+        elsif ($model eq 'IOS') {
+            print "ip access-list extended $name\n";
+        }
+        else {
+            print "ip access-list $name\n";
+        }
     }
     elsif ($model eq 'ASA') {
         $prefix = "access-list $name extended";

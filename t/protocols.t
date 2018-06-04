@@ -528,7 +528,7 @@ Warning: unused protocol:http
 Warning: unused protocol:ping
 END
 
-test_warn($title, $in, $out, '-check_unused_protocols=warn');
+test_warn($title, $in, $out, '--check_unused_protocols=warn');
 
 ############################################################
 $title = 'Unknown protocol and protocolgroup';

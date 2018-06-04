@@ -1545,34 +1545,26 @@ network:k = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: If multiple NAT tags are used at one network,
- these NAT tags must be used equally grouped at other networks:
- - network:n2: t1
- - network:n1: t1,t2
+Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
+ Reason: Both NAT tags are used grouped at network:n1
+ but nat:t2 is missing at network:n2
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Grouped NAT tags must only be used grouped (2)';
+$title = 'Mixed grouped and single NAT tag ok ';
 ############################################################
 
-# In this case, using ungrouped NAT tags at network:n2 does not lead
-# to ambiguities. An error is generated, although in a strict sense no
-# error occurs. If a way is found to distinct such cases from real
-# error cases, NetSPoC and this test should be adapted.
+# In this case, using ungrouped NAT tag at network:n2 isn't
+# ambiguous, because t2 isn't changed again.
 
-$in =~ s/network:n2.*\}\}//s;
-$in .= "network:n2 = { ip = 10.1.2.0/24; nat:t2 = { ip = 10.9.9.0/24; }}";
+$in =~ s/(network:n2.*)nat:t1/${1}nat:t2/;
 
 $out = <<'END';
-Error: If multiple NAT tags are used at one network,
- these NAT tags must be used equally grouped at other networks:
- - network:n2: t2
- - network:n1: t1,t2
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Grouped NAT tags with additional hidden allowed';
@@ -1727,10 +1719,12 @@ network:k2 = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: If multiple NAT tags are used at one network,
- these NAT tags must be used equally grouped at other networks:
- - network:n2: t1
- - network:n1: h1,h2,t1
+Error: Invalid transition from nat:t1 to nat:h1 at router:r2.
+ Reason: Both NAT tags are used grouped at network:n1
+ but nat:h1 is missing at network:n2
+Error: Invalid transition from nat:t1 to nat:h2 at router:r2.
+ Reason: Both NAT tags are used grouped at network:n1
+ but nat:h2 is missing at network:n2
 END
 
 test_err($title, $in, $out);
@@ -1785,10 +1779,9 @@ network:k = { ip = 10.2.3.0/24; }
 END
 
 $out = <<'END';
-Error: If multiple NAT tags are used at one network,
- these NAT tags must be used equally grouped at other networks:
- - network:n3: h,t1,t2
- - network:n1: h,t1
+Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
+ Reason: Both NAT tags are used grouped at network:n3
+ but nat:t2 is missing at network:n1
 END
 
 test_err($title, $in, $out);
@@ -2960,6 +2953,45 @@ Error: Must not use network:n1 in rule
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Identical IP from dynamic NAT is valid as subnet relation';
+############################################################
+
+$in = <<'END';
+network:n1  = { ip = 10.1.1.0/24; nat:t2 = { ip = 10.9.2.64/26; dynamic; } }
+network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
+
+router:u1 = {
+ interface:n1a;
+ interface:n1;
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = t2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.2.64 255.255.255.192 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Broken NAT for aggregate as supernet';

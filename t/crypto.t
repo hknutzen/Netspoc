@@ -427,7 +427,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -443,7 +442,6 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -503,7 +501,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -533,7 +530,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Interface with attribute 'spoke' must not have secondary interfaces at line 54 of STDIN
+Error: Interface with attribute 'spoke' must not have secondary interfaces at line 53 of STDIN
 END
 
 test_err($title, $in, $out);
@@ -555,7 +552,6 @@ router:asavpn1 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -581,7 +577,6 @@ router:asavpn2 = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint2;
  }
@@ -633,7 +628,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -747,7 +741,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1178,7 +1171,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1281,7 +1273,7 @@ access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
 
-test_run($title, $in, $out, '-noauto_default_route');
+test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
 $title = 'Missing route for VPN ASA with internal software clients';
@@ -1327,7 +1319,6 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
@@ -1413,7 +1404,6 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1516,7 +1506,7 @@ $title = 'Invalid mixed NAT at ASA crypto interface (1)';
 $in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
 
 $out = <<'END';
-Error: Grouped NAT tags 'h' and 'n2'
+Error: Grouped NAT tags 'n2' and 'h'
  would both be active at interface:asavpn.dmz
  for combined crypto and cleartext traffic
 END
@@ -1527,7 +1517,7 @@ test_err($title, $in, $out);
 $title = 'Mixed NAT at ASA crypto interface (2)';
 ############################################################
 
-# Must use NAT ip of internal network, not NAT ip of internet
+# Must use NAT IP of internal network, not NAT IP of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internal network.
 
@@ -1537,7 +1527,6 @@ network:n1 = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1636,12 +1625,97 @@ $title = 'Invalid mixed NAT at ASA crypto interface (2)';
 $in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
 
 $out = <<'END';
-Error: Grouped NAT tags 'n' and 'h'
+Error: Grouped NAT tags 'h' and 'n'
  would both be active at interface:asavpn.dmz
  for combined crypto and cleartext traffic
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (3)';
+############################################################
+
+$in = $crypto_sts . <<'END';
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:Firewall = {
+ managed;
+ model = Linux;
+ interface:internet = { negotiated; hardware = internet; bind_nat = a; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = b; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:a = { ip = 1.2.3.0/24; }
+ nat:b = { ip = 1.2.3.0/24; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.1;
+  id = cert@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+END
+
+$out = <<'END';
+Error: Original address and NAT tag 'a'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (4)';
+############################################################
+
+$in =~ s/network:n2/#/;
+$in =~ s/interface:n2/#/;
+$in =~ s/nat:b/#/;
+
+$out = <<'END';
+Error: Original address and NAT tag 'a'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+Test::More->builder->todo_start($title);
+test_err($title, $in, $out);
+Test::More->builder->todo_end;
 
 ############################################################
 $title = 'Directly connected software clients';
@@ -1805,7 +1879,6 @@ router:gw = {
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = { trust-point = ASDM_TrustPoint1; }
  interface:dmz = {
   ip = 192.168.0.101;
@@ -1847,7 +1920,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -1898,7 +1970,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }
@@ -2574,7 +2645,6 @@ router:asavpn = {
  model = ASA, VPN;
  managed;
  general_permit = icmp 3;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint3;
   banner = Welcome at VPN service;
@@ -2840,6 +2910,19 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing trust_point in isakmp for spoke and hub';
+############################################################
+
+$in =~ s/trust_point/#trust_point/;
+
+$out = <<"END";
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+END
+
+test_err($title, $in, $out);
+
+############################################################
 # Shared topology for multiple tests.
 ############################################################
 
@@ -3050,18 +3133,6 @@ crypto map crypto-outside interface outside
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Missing trust_point in isakmp definition';
-############################################################
-
-($in = $topo) =~ s/trust_point/#trust_point/;
-
-$out = <<"END";
-Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 $title = 'detailed_crypto_acl at managed spoke';
@@ -3309,7 +3380,6 @@ network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
  managed;
- no_crypto_filter;
  radius_attributes = {
   trust-point = ASDM_TrustPoint1;
  }

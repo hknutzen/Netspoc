@@ -105,7 +105,7 @@ $out = <<'END';
 Warning: unused group:g
 END
 
-test_warn($title, $in, $out, '-check_unused_groups=warn');
+test_warn($title, $in, $out, '--check_unused_groups=warn');
 
 ############################################################
 $title = 'Invalid value for command line option';
@@ -120,7 +120,7 @@ Aborted
 
 END
 
-test_err($title, $in, $out, '-check_unused_groups=foo');
+test_err($title, $in, $out, '--check_unused_groups=foo');
 
 ############################################################
 $title = 'Invalid command line option';
@@ -134,7 +134,7 @@ Unknown option: foo
 
 END
 
-test_err($title, $in, $out, '-foo=foo');
+test_err($title, $in, $out, '--foo=foo');
 
 ############################################################
 $title = 'Non existent out directory';
