@@ -9300,9 +9300,21 @@ sub find_subnets_in_nat_domain {
                     $up = $up2;
                 }
 
+                # Identical IP from dynamic NAT is valid as subnet relation.
+                my $no_nat_set = $domain->{no_nat_set};
+                my $nat_subnet = get_nat_network($subnet, $no_nat_set);
+                if ($nat_subnet->{dynamic}) {
+                    my $nat_bignet = get_nat_network($bignet, $no_nat_set);
+                    if ($nat_bignet->{dynamic} and
+                        $nat_subnet->{ip} eq $nat_bignet->{ip} and
+                        $nat_subnet->{mask} eq $nat_bignet->{mask})
+                    {
+                        next;
+                    }
+                }
+
                 # Found NAT domain, where networks are not in subnet relation.
                 # Remember at attribute {unstable_nat} for later check.
-                my $no_nat_set = $domain->{no_nat_set};
                 push @{ $bignet->{unstable_nat}->{$no_nat_set}}, $subnet;
             }
         }

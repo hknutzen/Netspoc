@@ -2955,6 +2955,45 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Identical IP from dynamic NAT is valid as subnet relation';
+############################################################
+
+$in = <<'END';
+network:n1  = { ip = 10.1.1.0/24; nat:t2 = { ip = 10.9.2.64/26; dynamic; } }
+network:n1a = { ip = 10.1.1.64/26; subnet_of = network:n1; }
+
+router:u1 = {
+ interface:n1a;
+ interface:n1;
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = t2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.2.64 255.255.255.192 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Broken NAT for aggregate as supernet';
 ############################################################
 
