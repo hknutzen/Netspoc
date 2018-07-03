@@ -18720,8 +18720,8 @@ sub compile {
             expand_crypto();
             find_active_routes();
             gen_reverse_rules();
-            mark_secondary_rules();
             if ($out_dir) {
+                mark_secondary_rules();
                 rules_distribution();
                 check_output_dir($out_dir);
                 print_code($out_dir);
