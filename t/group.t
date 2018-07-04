@@ -165,6 +165,38 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Toplevel group with more than 8 elements';
+############################################################
+
+$in = $topo . <<'END';
+group:g1 =
+ network:n1,
+ network:n2,
+ network:n3,
+ host:h3a,
+ host:h3b,
+ host:h3m,
+ host:h3c,
+ host:h3d,
+ host:h3m2,
+;
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+10.1.3.10-10.1.3.15	host:h3a
+10.1.3.26	host:h3b
+10.1.3.33	host:h3m
+10.1.3.65-10.1.3.67	host:h3d
+10.1.3.66	host:h3c
+10.1.3.73	host:h3m2
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
 $title = 'Intersection';
 ############################################################
 

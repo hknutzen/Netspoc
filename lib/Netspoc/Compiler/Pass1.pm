@@ -5798,14 +5798,13 @@ sub expand_group1 {
                 if ($object->{recursive}) {
                     err_msg("Found recursion in definition of $context");
                     $object->{$attr_name} = $elements = [];
-                    delete $object->{recursive};
                 }
 
                 # Group has not been converted from names to references.
                 elsif (not $elements) {
 
                     # Add marker for detection of recursive group definition.
-                    $object->{recursive} = 1;
+                    local $object->{recursive} = 1;
 
                     # Mark group as used.
                     $object->{is_used} = 1;
@@ -5813,7 +5812,6 @@ sub expand_group1 {
                     $elements =
                       expand_group1($object->{elements}, "$type:$name", $ipv6,
                                     $clean_autogrp);
-                    delete $object->{recursive};
 
                     # Private group must not reference private element of other
                     # context.
