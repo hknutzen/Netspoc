@@ -5848,6 +5848,7 @@ sub expand_group1 {
             }
 
             # Substitute aggregate by aggregate set of zone cluster.
+            # Ignore zone having no aggregate from unnumbered network.
             elsif ($object->{is_aggregate} and
                    (my $cluster = $object->{zone}->{zone_cluster}))
             {
@@ -10089,15 +10090,6 @@ sub get_any {
         }
     }
     return @result;
-}
-
-# Get set of aggregates of a zone cluster.
-# Ignore zone having no aggregate from unnumbered network.
-sub get_cluster_aggregates {
-    my ($zone, $ip, $mask) = @_;
-    my $key = "$ip$mask";
-    return
-      map { $_->{ipmask2aggregate}->{$key} || () } @{ $zone->{zone_cluster} };
 }
 
 ###############################################################################
