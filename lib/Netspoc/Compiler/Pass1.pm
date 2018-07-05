@@ -5339,12 +5339,19 @@ sub remove_duplicates {
     }
 }
 
-# Get a reference to an array of network object descriptions and
-# return a reference to an array of network objects.
+# Parameters:
+# $aref: array of network object descriptions,
+# $context: string for error messages,
+# $ipv6: boolean, IPv6 or IPv4 is requested,
+# $visible: boolean, states that result will be returned after recursion,
+#  or is only used intermediately.
+#  Visible result from automatic group will be cleaned from duplicates.
+# $with_subnets: boolean, subnets of networks will be added to result.
+# Returns array of network objects.
 sub expand_group1;
 
 sub expand_group1 {
-    my ($aref, $context, $ipv6, $clean_autogrp, $with_subnets) = @_;
+    my ($aref, $context, $ipv6, $visible, $with_subnets) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -5358,7 +5365,7 @@ sub expand_group1 {
                   map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
-                        $ipv6, $clean_autogrp, $with_subnets
+                        $ipv6, $visible, $with_subnets
                     )
                   };
                 if ($element->[0] eq '!') {
@@ -5595,7 +5602,7 @@ sub expand_group1 {
             # from automatic groups.
             push @objects,
               grep { $_->{ip} ne 'tunnel' }
-              $clean_autogrp
+              $visible
               ? grep { $_->{ip} !~ /^(?:unnumbered|bridged)$/ } @check
               : @check;
         }
@@ -5615,10 +5622,12 @@ sub expand_group1 {
                 if ($type eq 'Area') {
                     push @objects,
                       unique(
-                        map({ get_any($_, $ip, $mask) } @{ $object->{zones} }));
+                        map({ get_any($_, $ip, $mask, $visible) }
+                            @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' and $object->{is_aggregate}) {
-                    push @objects, get_any($object->{zone}, $ip, $mask);
+                    push(@objects,
+                         get_any($object->{zone}, $ip, $mask, $visible));
                 }
                 else {
                     return;
@@ -5725,7 +5734,7 @@ sub expand_group1 {
                         # - crosslink network
                         # - loopback network of managed device
                         push(@list,
-                               $clean_autogrp
+                               $visible
                              ? grep {
                                  not ($_->{loopback} and
                                       $_->{interfaces}->[0]->{router}->{managed}
@@ -5755,7 +5764,8 @@ sub expand_group1 {
                     }
                     elsif (my $networks = $get_networks->($object)) {
                         push @list,
-                          map({ get_any($_->{zone}, $ip, $mask) } @$networks);
+                          map({ get_any($_->{zone}, $ip, $mask, $visible) }
+                              @$networks);
                     }
                     else {
                         my $type = ref $object;
@@ -5785,11 +5795,11 @@ sub expand_group1 {
                 err_msg("Unexpected '.$ext' after $type:$name in $context");
 
             # Split a group into its members.
-            # There may be two different versions depending of $clean_autogrp.
+            # There may be two different versions depending of $visible.
             if (is_group $object) {
 
-                # Two different expanded values, depending on $clean_autogrp.
-                my $ext = $clean_autogrp ? 'clean' : 'noclean';
+                # Two different expanded values, depending on $visible.
+                my $ext = $visible ? 'clean' : 'noclean';
                 my $attr_name = "expanded_$ext";
 
                 my $elements = $object->{$attr_name};
@@ -5811,7 +5821,7 @@ sub expand_group1 {
 
                     $elements =
                       expand_group1($object->{elements}, "$type:$name", $ipv6,
-                                    $clean_autogrp);
+                                    $visible);
 
                     # Private group must not reference private element of other
                     # context.
@@ -5831,17 +5841,20 @@ sub expand_group1 {
                     remove_duplicates($elements, "$type:$name");
 
                     # Cache result for further references to the same group
-                    # in same $clean_autogrp context.
+                    # in same $visible context.
                     $object->{$attr_name} = $elements;
                 }
                 push @objects, @$elements;
             }
 
             # Substitute aggregate by aggregate set of zone cluster.
-            elsif ($object->{is_aggregate} and $object->{zone}->{zone_cluster}) {
+            elsif ($object->{is_aggregate} and
+                   (my $cluster = $object->{zone}->{zone_cluster}))
+            {
                 my ($ip, $mask) = @{$object}{qw(ip mask)};
+                my $key = "$ip$mask";
                 push(@objects,
-                    get_cluster_aggregates($object->{zone}, $ip, $mask));
+                     map { $_->{ipmask2aggregate}->{$key} || () } @$cluster);
             }
 
             else {
@@ -5859,7 +5872,7 @@ sub expand_group1 {
 sub expand_group {
     my ($obref, $context, $ipv6, $with_subnets) = @_;
     my $aref =
-        expand_group1($obref, $context, $ipv6, 'clean_autogrp', $with_subnets);
+        expand_group1($obref, $context, $ipv6, 'visible', $with_subnets);
     remove_duplicates($aref, $context);
 
     # Ignore disabled objects.
@@ -10004,8 +10017,10 @@ sub duplicate_aggregate_to_cluster {
 # Creates new anonymous aggregate if missing.
 # If zone is part of a zone_cluster,
 # return aggregates for each zone of the cluster.
+# Parameter $visible states that result will be returned from expand_group
+# and not only be used intermediately.
 sub get_any {
-    my ($zone, $ip, $mask) = @_;
+    my ($zone, $ip, $mask, $visible) = @_;
     if (not defined $ip) {
         $ip = $mask = get_zero_ip($zone->{ipv6});
     }
@@ -10022,23 +10037,11 @@ sub get_any {
                 map { @{ $_->{networks} } } $cluster ? @$cluster : ($zone))
           )
         {
-            for my $network (@networks) {
-                my $nat = $network->{nat} or next;
-                grep { not $_->{hidden} } values %$nat or next;
-                my $p_ip    = print_ip($ip);
-                my $prefix  = mask2prefix($mask);
-                err_msg("Must not use aggregate with IP $p_ip/$prefix",
-                        " in $zone->{name}\n",
-                        " because $network->{name} has identical IP",
-                        " but is also translated by NAT");
-            }
-
             # Duplicate networks have already been sorted out.
             my ($network) = @networks;
-            my $zone2 = $network->{zone};
 
             # Handle $network like an aggregate.
-            $zone2->{ipmask2aggregate}->{$key} = $network;
+            $network->{zone}->{ipmask2aggregate}->{$key} = $network;
 
             # Create aggregates in cluster, using the name of the network.
             duplicate_aggregate_to_cluster($network, 1) if $cluster;
@@ -10065,12 +10068,27 @@ sub get_any {
             duplicate_aggregate_to_cluster($aggregate, 1) if $cluster;
         }
     }
-    if ($cluster) {
-        return get_cluster_aggregates($zone, $ip, $mask);
+    my @result;
+    for my $zone1 ($cluster ? @$cluster : ($zone)) {
+
+        # Ignore zone having no aggregate from unnumbered network.
+        my $agg_or_net = $zone1->{ipmask2aggregate}->{$key} or next;
+
+        push @result, $agg_or_net;
+
+        # Check for error condition only if result will be visible.
+        if ($visible and (my $nat = $agg_or_net->{nat})) {
+            if (grep { not $_->{hidden} } values %$nat) {
+                my $p_ip    = print_ip($ip);
+                my $prefix  = mask2prefix($mask);
+                err_msg("Must not use aggregate with IP $p_ip/$prefix",
+                        " in $zone->{name}\n",
+                        " because $agg_or_net->{name} has identical IP",
+                        " but is also translated by NAT");
+            }
+        }
     }
-    else {
-        return $zone->{ipmask2aggregate}->{$key};
-    }
+    return @result;
 }
 
 # Get set of aggregates of a zone cluster.
