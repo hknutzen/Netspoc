@@ -13383,15 +13383,6 @@ sub expand_crypto {
                             " together at $router->{name}:\n",
                             name_list(\@encrypted));
                 }
-                if (@encrypted) {
-                    $has_id_hosts
-                      or $has_other_network
-                      or err_msg(
-                        "Must use network or host with ID",
-                        " at $tunnel_intf->{name}:\n",
-                        name_list(\@encrypted)
-                      );
-                }
 
                 my $do_auth = $hub_model->{do_auth};
                 if (my $id = $tunnel_intf->{id}) {
