@@ -3502,9 +3502,6 @@ sub get_orig_prt {
 # Order protocols
 ##############################################################################
 
-# Hash for converting a reference of a protocol back to this protocol.
-our %ref2prt;
-
 # Look up a protocol object by its defining attributes.
 my %prt_hash;
 
@@ -3535,9 +3532,6 @@ sub prepare_prt_ordering {
                     range => $range,
                 };
                 $prt_hash{$proto}->{$key} = $range_prt;
-
-                # Set up ref2prt.
-                $ref2prt{$range_prt} = $range_prt;
             }
             $prt->{$where} = $range_prt;
         }
@@ -3572,7 +3566,6 @@ sub prepare_prt_ordering {
 }
 
 # Set {up} relation between all ICMP protocols and to larger 'ip' protocol.
-# Additionally fill global variable %ref2prt.
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3592,21 +3585,14 @@ sub order_icmp {
         else {
             $prt->{up} = $up;
         }
-
-        # Set up ref2prt.
-        $ref2prt{$prt} = $prt;
     }
 }
 
 # Set {up} relation for all numeric protocols to larger 'ip' protocol.
-# Additionally fill global variable %ref2prt.
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
         $prt->{up} = $up;
-
-        # Set up ref2prt.
-        $ref2prt{$prt} = $prt;
     }
 }
 
@@ -3616,7 +3602,6 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
 # Set attribute {split} at original range, referencing pair of split ranges.
-# Additionally fill global variable %ref2prt.
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -3734,9 +3719,6 @@ sub order_ranges {
                 # Insert new range at position $i.
                 splice @sorted, $i, 0, $new_range;
 
-                # Set up ref2prt.
-                $ref2prt{$new_range} = $new_range;
-
                 return $new_range;
             };
             my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b);
@@ -3843,9 +3825,6 @@ sub order_protocols {
     order_ranges($prt_hash{udp}, $up);
     order_icmp($prt_hash{icmp}, $up);
     order_proto($prt_hash{proto}, $up);
-
-    # Set up ref2prt.
-    $ref2prt{$prt_ip} = $prt_ip;
 }
 
 ####################################################################
@@ -6014,6 +5993,9 @@ sub expand_protocols {
     return \@protocols;
 }
 
+# Hash for converting a reference of a protocol back to this protocol.
+our %src_range_ref2proto;
+
 # Split protocols.
 # Result:
 # Reference to array with elements
@@ -6046,6 +6028,11 @@ sub split_protocols {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
                 for my $src_split (expand_split_protocol($src_range)) {
+
+                    # Fill global variable %src_range_ref2proto with protocols
+                    # used in src_range.
+                    $src_range_ref2proto{$src_split} = $src_split if $src_split;
+
                     for my $dst_split (expand_split_protocol($dst_range)) {
                         push @$aref_list, [ $src_split, $dst_split, $prt ];
                     }
@@ -7518,7 +7505,7 @@ sub find_redundant_rules {
       if (my $cmp_hash = $cmp_hash->{$deny}) {
        for my $src_range_ref (keys %$chg_hash) {
         my $chg_hash = $chg_hash->{$src_range_ref};
-        my $src_range = $ref2prt{$src_range_ref};
+        my $src_range = $src_range_ref2proto{$src_range_ref};
         while (1) {
          if (my $cmp_hash = $cmp_hash->{$src_range}) {
           for my $src_ref (keys %$chg_hash) {
@@ -7589,6 +7576,7 @@ sub check_expanded_rules {
         push @{ $key2rules{$key} }, $rule;
     }
 
+    $src_range_ref2proto{$prt_ip} = $prt_ip;
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
         my $index = 1;
@@ -18605,7 +18593,7 @@ sub init_global_vars {
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
     %prt_hash           = %token2regex = ();
-    %ref2obj            = %ref2prt = ();
+    %ref2obj            = %src_range_ref2proto = ();
     %obj2zone           = ();
     %obj2path           = ();
     %border2obj2auto    = ();
