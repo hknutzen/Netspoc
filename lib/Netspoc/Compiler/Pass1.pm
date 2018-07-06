@@ -8584,22 +8584,21 @@ sub add_crypto_no_nat_set {
     for my $crypto (values %crypto) {
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
-            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                my $real_intf = $tunnel_intf->{real_interface};
-                next if $seen{$real_intf}++;
-                $real_intf->{router}->{managed} or next;
-                my $real_set = $real_intf->{no_nat_set};
-                my $tunnel_set = $tunnel_intf->{no_nat_set};
+            my ($spoke, $hub) = @{ $tunnel->{interfaces} };
+            my $real_hub = $hub->{real_interface};
+            $real_hub->{router}->{managed} or next;
+            my $real_spoke = $spoke->{real_interface};
+            next if $seen{$real_spoke}++;
+            my $real_set = $real_hub->{no_nat_set};
+            my $tunnel_set = $hub->{no_nat_set};
 
-                # Take no_nat_set of tunnel and add tags from real
-                # interface.
-                $real_intf->{hardware}->{crypto_no_nat_set} =
-                    combine_no_nat_sets(
-                        [$tunnel_set, $real_set],
-                        "$real_intf->{name}\n" .
-                        " for combined crypto and cleartext traffic",
-                        $nat_tag2multinat_def, $has_non_hidden);
-            }
+            # Take no_nat_set of tunnel and add tags from real interface.
+            $hub->{hardware}->{crypto_no_nat_set} =
+                combine_no_nat_sets(
+                    [$tunnel_set, $real_set],
+                    "$real_hub->{name}\n" .
+                    " for combined crypto and cleartext traffic",
+                    $nat_tag2multinat_def, $has_non_hidden);
         }
     }
 }
@@ -13305,155 +13304,137 @@ sub expand_crypto {
         # add rules which allow encrypted traffic.
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
-            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                next if $tunnel_intf->{is_hub};
-                my $router  = $tunnel_intf->{router};
-                my $peer    = $tunnel_intf->{peer};
-                my $managed = $router->{managed};
-                my $hub_router     = $peer->{router};
-                my $hub_model      = $hub_router->{model};
-                my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
-                my @encrypted;
-                my ($has_id_hosts, $has_other_network);
+            my ($spoke, $hub)  = @{ $tunnel->{interfaces} };
+            my $router         = $spoke->{router};
+            my $managed        = $router->{managed};
+            my $hub_router     = $hub->{router};
+            my $hub_model      = $hub_router->{model};
+            my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
+            my @encrypted;
+            my ($has_id_hosts, $has_other_network);
 
-                # Analyze cleartext networks behind spoke router.
-                for my $interface (@{ $router->{interfaces} }) {
-                    next if $interface eq $tunnel_intf;
-                    my $network = $interface->{network};
-                    my @all_networks = crypto_behind($interface, $managed);
-                    if ($network->{has_id_hosts}) {
-                        $has_id_hosts = 1;
-                        $managed
-                          and err_msg
-                          "$network->{name} having ID hosts must not",
-                          " be located behind managed $router->{name}";
+            # Analyze cleartext networks behind spoke router.
+            for my $interface (@{ $router->{interfaces} }) {
+                next if $interface eq $spoke;
+                my $network = $interface->{network};
+                my @all_networks = crypto_behind($interface, $managed);
+                if ($network->{has_id_hosts}) {
+                    $has_id_hosts = 1;
+                    $managed and
+                        err_msg("$network->{name} having ID hosts must not",
+                                " be located behind managed $router->{name}");
+                    if ($hub_is_asa_vpn) {
+                        verify_asa_vpn_attributes($network);
+                    }
+
+                    # Rules for single software clients are stored
+                    # individually at crypto hub interface.
+                    my $no_nat_set = $hub->{no_nat_set};
+                    for my $host (@{ $network->{hosts} }) {
+                        my $id = $host->{id};
+
+                        # ID host has already been checked to have
+                        # exactly one subnet.
+                        my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
-                            verify_asa_vpn_attributes($network);
+                            verify_asa_vpn_attributes($host);
+                            verify_subject_name($host, $hub);
                         }
-
-                        # Rules for single software clients are stored
-                        # individually at crypto hub interface.
-                        for my $host (@{ $network->{hosts} }) {
-                            my $id = $host->{id};
-
-                            # ID host has already been checked to have
-                            # exactly one subnet.
-                            my $subnet = $host->{subnets}->[0];
-                            if ($hub_is_asa_vpn) {
-                                verify_asa_vpn_attributes($host);
-                                verify_subject_name($host, $peer);
-                            }
-                            my $no_nat_set = $peer->{no_nat_set};
-                            if (my $other = $peer->{id_rules}->{$id}) {
-                                my $src = $other->{src};
-                                err_msg(
-                                    "Duplicate ID-host $id from",
+                        if (my $other = $hub->{id_rules}->{$id}) {
+                            my $src = $other->{src};
+                            err_msg("Duplicate ID-host $id from",
                                     " $src->{network}->{name} and",
                                     " $subnet->{network}->{name}",
-                                    " at $peer->{router}->{name}"
-                                );
-                                next;
-                            }
-                            $peer->{id_rules}->{$id} = {
-                                name       => "$peer->{name}.$id",
-                                ip         => 'tunnel',
-                                src        => $subnet,
-                                no_nat_set => $no_nat_set,
-                            };
+                                    " at $hub_router->{name}");
+                            next;
                         }
-                        push @encrypted, $network;
+                        $hub->{id_rules}->{$id} = {
+                            name       => "$hub->{name}.$id",
+                            ip         => 'tunnel',
+                            src        => $subnet,
+                            no_nat_set => $no_nat_set,
+                        };
                     }
-                    else {
-                        $has_other_network = 1;
-                        push @encrypted, @all_networks;
-                    }
+                    push @encrypted, $network;
                 }
-                if ($has_id_hosts and $has_other_network) {
-                    err_msg("Must not use networks having ID hosts",
-                            " and other networks having no ID hosts\n",
-                            " together at $router->{name}:\n",
+                else {
+                    $has_other_network = 1;
+                    push @encrypted, @all_networks;
+                }
+            }
+            if ($has_id_hosts and $has_other_network) {
+                err_msg("Must not use networks having ID hosts",
+                        " and other networks having no ID hosts\n",
+                        " together at $router->{name}:\n",
+                        name_list(\@encrypted));
+            }
+
+            my $do_auth = $hub_model->{do_auth};
+            if (my $id = $spoke->{id}) {
+                $need_id or
+                    err_msg("Invalid attribute 'id' at $spoke->{name}.\n",
+                            " Set authentication=rsasig at $isakmp->{name}");
+                my $aref = $id2intf{$id} ||= [];
+                if (my @other =
+                    grep { $_->{peer}->{router} eq $hub_router } @$aref)
+                {
+
+                    # Id must be unique per crypto hub, because it
+                    # is used to generate ACL names and other names.
+                    err_msg("Must not reuse 'id = $id' at different",
+                            " crypto spokes of '$hub_router->{name}':\n",
+                            name_list([@other, $spoke]));
+                }
+                push(@$aref, $spoke);
+            }
+            elsif ($has_id_hosts) {
+                $do_auth or
+                    err_msg("$hub_router->{name} can't check IDs",
+                            " of $encrypted[0]->{name}");
+            }
+            elsif (@encrypted) {
+                if ($do_auth and not $managed) {
+                    err_msg("Networks need to have ID hosts because",
+                            " $hub_router->{name} has attribute 'do_auth':\n",
                             name_list(\@encrypted));
                 }
-
-                my $do_auth = $hub_model->{do_auth};
-                if (my $id = $tunnel_intf->{id}) {
-                    $need_id
-                      or err_msg(
-                        "Invalid attribute 'id' at $tunnel_intf->{name}.\n",
-                        " Set authentication=rsasig at $isakmp->{name}"
-                      );
-                    my $aref = $id2intf{$id} ||= [];
-                    if (my @other =
-                        grep { $_->{peer}->{router} eq $hub_router } @$aref)
-                    {
-
-                        # Id must be unique per crypto hub, because it
-                        # is used to generate ACL names and other names.
-                        err_msg("Must not reuse 'id = $id' at different",
-                                " crypto spokes of '$hub_router->{name}':\n",
-                                name_list([@other, $tunnel_intf]));
-                    }
-                    push(@$aref, $tunnel_intf);
-                }
-                elsif ($has_id_hosts) {
-                    $do_auth
-                      or err_msg(
-                        "$hub_router->{name} can't check IDs",
-                        " of $encrypted[0]->{name}"
-                      );
-                }
-                elsif (@encrypted) {
-                    if ($do_auth and not $managed) {
-                        err_msg(
-                            "Networks need to have ID hosts because",
-                            " $hub_router->{name} has attribute 'do_auth':\n",
-                            name_list(\@encrypted)
-                        );
-                    }
-                    elsif ($need_id) {
-                        err_msg(
-                            "$tunnel_intf->{name}",
+                elsif ($need_id) {
+                    err_msg("$spoke->{name}",
                             " needs attribute 'id',",
                             " because $isakmp->{name}",
-                            " has authentication=rsasig"
-                        );
+                            " has authentication=rsasig");
 
-                        # Prevent further errors.
-                        $tunnel_intf->{id} = '';
-                    }
+                    # Prevent further errors.
+                    $spoke->{id} = '';
                 }
-                $peer->{peer_networks} = \@encrypted;
+            }
+            $hub->{peer_networks} = \@encrypted;
 
-                if ($managed and $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($router, $crypto);
-                }
-                if ($managed and $crypto->{detailed_crypto_acl}) {
-                    err_msg("Attribute 'detailed_crypto_acl' is not",
-                            " allowed for managed spoke $router->{name}");
-                }
+            if ($managed and $router->{model}->{crypto} eq 'ASA') {
+                verify_asa_trustpoint($router, $crypto);
+            }
+            if ($managed and $crypto->{detailed_crypto_acl}) {
+                err_msg("Attribute 'detailed_crypto_acl' is not",
+                        " allowed for managed spoke $router->{name}");
+            }
 
-                # Add rules to permit crypto traffic between
-                # tunnel endpoints.
-                # If one tunnel endpoint has no known IP address,
-                # some rules have to be added manually.
-                my $real_spoke = $tunnel_intf->{real_interface};
-                if (    $real_spoke
-                    and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
-                {
-                    my $hub = $tunnel_intf->{peer};
-                    my $real_hub = $hub->{real_interface};
-                    for my $intf1 ($real_spoke, $real_hub)
-                    {
-                        # Don't generate incoming ACL from unknown
-                        # address.
-                        next if $intf1->{ip} eq 'negotiated';
+            # Add rules to permit crypto traffic between tunnel endpoints.
+            # If one tunnel endpoint has no known IP address,
+            # some rules have to be added manually.
+            my $real_spoke = $spoke->{real_interface};
+            if (    $real_spoke
+                and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
+            {
+                my $real_hub = $hub->{real_interface};
+                for my $intf1 ($real_spoke, $real_hub) {
 
-                        my $intf2 =
-                            $intf1 eq $real_hub ? $real_spoke : $real_hub;
-                        my $rules =
+                    # Don't generate incoming ACL from unknown address.
+                    next if $intf1->{ip} eq 'negotiated';
+
+                    my $intf2 = $intf1 eq $real_hub ? $real_spoke : $real_hub;
+                    my $rules =
                           gen_tunnel_rules($intf1, $intf2, $crypto->{type});
-                        push @{ $path_rules{permit} }, @$rules;
-                    }
+                    push @{ $path_rules{permit} }, @$rules;
                 }
             }
         }
