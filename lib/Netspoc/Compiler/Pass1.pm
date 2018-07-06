@@ -13319,7 +13319,6 @@ sub expand_crypto {
                 # Analyze cleartext networks behind spoke router.
                 for my $interface (@{ $router->{interfaces} }) {
                     next if $interface eq $tunnel_intf;
-                    next if $interface->{spoke};
                     my $network = $interface->{network};
                     my @all_networks = crypto_behind($interface, $managed);
                     if ($network->{has_id_hosts}) {
