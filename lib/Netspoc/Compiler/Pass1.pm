@@ -13172,14 +13172,6 @@ sub link_tunnels {
                               " reference $real_hub->{name} of",
                               " $real_hub->{private}");
             }
-
-            my $spoke_router = $spoke->{router};
-            if ($spoke_router->{managed} and $crypto->{detailed_crypto_acl}) {
-                err_msg(
-                    "Attribute 'detailed_crypto_acl' is not",
-                    " allowed for managed spoke $spoke_router->{name}"
-                );
-            }
         }
     }
 
@@ -13435,6 +13427,10 @@ sub expand_crypto {
 
                 if ($managed and $router->{model}->{crypto} eq 'ASA') {
                     verify_asa_trustpoint($router, $crypto);
+                }
+                if ($managed and $crypto->{detailed_crypto_acl}) {
+                    err_msg("Attribute 'detailed_crypto_acl' is not",
+                            " allowed for managed spoke $router->{name}");
                 }
 
                 # Add rules to permit crypto traffic between
