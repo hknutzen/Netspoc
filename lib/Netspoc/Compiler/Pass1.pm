@@ -8586,9 +8586,8 @@ sub add_crypto_no_nat_set {
             next if $tunnel->{disabled};
             my ($spoke, $hub) = @{ $tunnel->{interfaces} };
             my $real_hub = $hub->{real_interface};
+            next if $seen{$real_hub}++;
             $real_hub->{router}->{managed} or next;
-            my $real_spoke = $spoke->{real_interface};
-            next if $seen{$real_spoke}++;
             my $real_set = $real_hub->{no_nat_set};
             my $tunnel_set = $hub->{no_nat_set};
 
