@@ -4818,7 +4818,6 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -13059,8 +13058,6 @@ sub gen_tunnel_rules {
 # Link tunnel networks with tunnel hubs.
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels {
-
-    my %hub_seen;
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
@@ -13102,8 +13099,6 @@ sub link_tunnels {
             err_msg("Must not use $router->{name} of model '$model->{name}'",
                     " as crypto hub");
         }
-
-        push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
 
         # Generate a single tunnel from each spoke to single hub.
         for my $spoke_net (@$real_spokes) {
@@ -13293,6 +13288,8 @@ sub verify_asa_trustpoint {
 
 sub expand_crypto {
     progress('Expanding crypto rules');
+    my @managed_crypto_hubs;
+    my %hub_seen;
     my %id2intf;
 
     for my $crypto (sort by_name values %crypto) {
@@ -13311,6 +13308,9 @@ sub expand_crypto {
             my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
             my @encrypted;
             my ($has_id_hosts, $has_other_network);
+
+            push @managed_crypto_hubs, $hub_router
+                if not $hub_seen{$hub_router}++;
 
             # Analyze cleartext networks behind spoke router.
             for my $interface (@{ $router->{interfaces} }) {
@@ -18599,7 +18599,7 @@ sub init_global_vars {
     %interfaces         = %hosts                = ();
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
-    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
+    @routers = @networks = @zones = @areas = ();
     @natdomains         = ();
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
