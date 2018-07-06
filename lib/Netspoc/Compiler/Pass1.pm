@@ -13164,33 +13164,16 @@ sub link_tunnels {
             }
             else {
                 $real_spoke->{private}
-                  and err_msg "Tunnel of public $name must not",
-                  " reference $real_spoke->{name} of",
-                  " $real_spoke->{private}";
+                  and err_msg("Tunnel of public $name must not",
+                              " reference $real_spoke->{name} of",
+                              " $real_spoke->{private}");
                 $real_hub->{private}
-                  and err_msg "Tunnel of public $name must not",
-                  " reference $real_hub->{name} of",
-                  " $real_hub->{private}";
+                  and err_msg("Tunnel of public $name must not",
+                              " reference $real_hub->{name} of",
+                              " $real_hub->{private}");
             }
 
             my $spoke_router = $spoke->{router};
-            my @other;
-            my $has_id_hosts;
-            for my $interface (@{ $spoke_router->{interfaces} }) {
-                my $network = $interface->{network};
-                if ($network->{has_id_hosts}) {
-                    $has_id_hosts = $network;
-                }
-                elsif ($interface->{ip} ne 'tunnel') {
-                    push @other, $interface;
-                }
-            }
-            if ($has_id_hosts and @other) {
-                err_msg("Must not use $has_id_hosts->{name} with ID hosts",
-                        " together with networks having no ID host:\n",
-                        name_list(\@other));
-            }
-
             if ($spoke_router->{managed} and $crypto->{detailed_crypto_acl}) {
                 err_msg(
                     "Attribute 'detailed_crypto_acl' is not",
@@ -13394,13 +13377,12 @@ sub expand_crypto {
                         push @encrypted, @all_networks;
                     }
                 }
-                $has_id_hosts
-                  and $has_other_network
-                  and err_msg(
-                    "Must not use host with ID and network",
-                    " together at $tunnel_intf->{name}:\n",
-                    name_list(\@encrypted)
-                  );
+                if ($has_id_hosts and $has_other_network) {
+                    err_msg("Must not use networks having ID hosts",
+                            " and other networks having no ID hosts\n",
+                            " together at $router->{name}:\n",
+                            name_list(\@encrypted));
+                }
                 if (@encrypted) {
                     $has_id_hosts
                       or $has_other_network

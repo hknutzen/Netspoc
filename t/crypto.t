@@ -315,8 +315,10 @@ network:other = { ip = 10.99.9.0/24; }
 END
 
 $out = <<'END';
-Error: Must not use network:clients with ID hosts together with networks having no ID host:
- - interface:softclients.other
+Error: Must not use networks having ID hosts and other networks having no ID hosts
+ together at router:softclients:
+ - network:clients
+ - network:other
 END
 
 test_err($title, $in, $out);
