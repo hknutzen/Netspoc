@@ -8484,22 +8484,53 @@ sub distribute_no_nat_sets_to_interfaces {
 # Hidden NAT tag is ignored if combined with a real NAT tag,
 # because hidden tag doesn't affect address calculation.
 #
-# Parameter $context controls, if error is shown or if NAT is disabled..
+# Parameter
+# - $restrict, if set, is a hash of tags, that need to be compared,
+# - $context controls, if error is shown or if NAT is disabled..
 sub combine_no_nat_sets {
-    my ($no_nat_sets, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($no_nat_sets, $restrict, $context,
+        $nat_tag2multinat_def, $has_non_hidden) = @_;
     return $no_nat_sets->[0] if @$no_nat_sets == 1;
     my %combined;
     my %multi2active;
     my %multi2hidden;
     my %multi2multi;
     my $errors;
+
+    my $first_set = shift @$no_nat_sets;
+    for my $nat_tag (keys %$first_set) {
+        my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
+        if (not $multinat_hashes) {
+            $combined{$nat_tag} = 1;
+            next;
+        }
+        for my $multinat_hash (@$multinat_hashes) {
+            $multi2multi{$multinat_hash} = $multinat_hash;
+            my ($active) = grep { not $first_set->{$_} } keys %$multinat_hash;
+            $active ||= ':all';
+            my $non_hidden = $active eq ':all' || $has_non_hidden->{$active};
+            my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
+            $hash->{$multinat_hash} = $active;
+        }
+    }
+
+    # Compare other sets with first set.
     for my $set (@$no_nat_sets) {
+        for my $nat_tag (keys %combined) {
+            $restrict and not $restrict->{$nat_tag} and next;
+            $has_non_hidden->{$nat_tag} or next;
+            $set->{$nat_tag} or
+                push(@$errors, "Original address and NAT tag '$nat_tag'");
+        }
         for my $nat_tag (keys %$set) {
+            $restrict and not $restrict->{$nat_tag} and next;
             my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
 
-            # Add non multi NAT tag.
+            # Check non multi NAT tag.
             if (not $multinat_hashes) {
-                $combined{$nat_tag} = 1;
+                $has_non_hidden->{$nat_tag} or next;
+                $combined{$nat_tag} or
+                    push(@$errors, "Original address and NAT tag '$nat_tag'");
                 next;
             }
 
@@ -8508,13 +8539,10 @@ sub combine_no_nat_sets {
                 my ($active) = grep { not $set->{$_} } keys %$multinat_hash;
 
                 # Original address is shown.
-                if (not $active) {
-                    $multi2active{$multinat_hash} = ':all';
-                    next;
-                }
+                $active ||= ':all';
 
                 # Check if the same NAT mapping is active in all NAT domains.
-                my $non_hidden = $has_non_hidden->{$active};
+                my $non_hidden = $active eq ':all' || $has_non_hidden->{$active};
                 my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
                 if (my $other = $hash->{$multinat_hash}) {
                     if ($other ne $active) {
@@ -8523,12 +8551,18 @@ sub combine_no_nat_sets {
                                 push(@$errors,
                                      "Original address and NAT tag '$active'");
                             }
+                            elsif ($active eq ':all') {
+                                push(@$errors,
+                                     "Original address and NAT tag '$other'");
+                            }
                             else {
                                 push(@$errors,
                                      "Grouped NAT tags '$other' and '$active'");
                             }
                         }
                         else {
+
+                            # Deactivate NAT in case of conflict.
                             $hash->{$multinat_hash} = ':all';
                         }
                     }
@@ -8562,30 +8596,64 @@ sub combine_no_nat_sets {
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
 # where encrypted traffic passes. But real interface gets ACL that filter
 # both encrypted and unencrypted traffic. Hence a new {crypto_no_nat_set}
-# is created by combining no_nat_set of real interface and some
-# corresponding tunnel.
+# is created by combining no_nat_set of real interface and no_nat_set
+# of some corresponding tunnel.
 # (All tunnels are known to have identical no_nat_set.)
+# no_nat_set of real interface is only needed to access public IP of
+# crypto peers. So we first build $reduced_set from $real_set only
+# containing NAT entries needed for crypto peers.
+# This way we reduce chance of conflict between both no_nat_sets.
 sub add_crypto_no_nat_set {
     my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+
+    # List of crypto peers for each real interface of crypto hub.
+    my %hub2peers;
+
+    # Internal no_nat_set used at tunnels of crypto hub.
+    my %hub2tunnel_set;
+
+    # List of real interfaces of crypto hubs.
+    my @hubs;
+
     my %seen;
     for my $crypto (values %crypto) {
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
             my ($spoke, $hub) = @{ $tunnel->{interfaces} };
+            $hub->{router}->{managed} or next;
             my $real_hub = $hub->{real_interface};
-            next if $seen{$real_hub}++;
-            $real_hub->{router}->{managed} or next;
-            my $real_set = $real_hub->{no_nat_set};
-            my $tunnel_set = $hub->{no_nat_set};
-
-            # Take no_nat_set of tunnel and add tags from real interface.
-            $hub->{hardware}->{crypto_no_nat_set} =
-                combine_no_nat_sets(
-                    [$tunnel_set, $real_set],
-                    "$real_hub->{name}\n" .
-                    " for combined crypto and cleartext traffic",
-                    $nat_tag2multinat_def, $has_non_hidden);
+            my $real_spoke = $spoke->{real_interface};
+            push @{ $hub2peers{$real_hub} }, $real_spoke;
+            if (not $hub2tunnel_set{$real_hub}) {
+                $hub2tunnel_set{$real_hub} = $hub->{no_nat_set};
+                push @hubs, $real_hub;
+            }
         }
+    }
+    for my $hub (@hubs) {
+        my $tunnel_set = $hub2tunnel_set{$hub};
+        my $real_set = $hub->{no_nat_set};
+
+        # Find restricted set of NAT-tags needed to find NAT addresses
+        # - of crypto peers,
+        # - of next hop for static routing at $hub.
+        my %restrict_set;
+        for my $peer (@{ $hub2peers{$hub} }, $hub->{routing} ? () : $hub) {
+            my $href = $peer->{network}->{nat} or next;
+            for my $tag (keys %$href) {
+                $restrict_set{$tag} = 1;
+            }
+        }
+
+        # Take no_nat_set of tunnel and add needed tags from real interface.
+        # Show error in case of NAT conflict.
+        $hub->{hardware}->{crypto_no_nat_set} =
+            combine_no_nat_sets(
+                [$tunnel_set, $real_set],
+                \%restrict_set,
+                "$hub->{name}\n" .
+                " for combined crypto and cleartext traffic",
+                $nat_tag2multinat_def, $has_non_hidden);
     }
 }
 
@@ -17273,7 +17341,7 @@ sub prepare_real_ip_nat {
     my $combine_nat = sub {
         my ($list) = @_;
         my $no_nat_sets = [ map { $_->{no_nat_set} } @$list ];
-        return combine_no_nat_sets($no_nat_sets, undef,
+        return combine_no_nat_sets($no_nat_sets, undef, undef,
                                    $nat_tag2multinat_def, $has_non_hidden);
     };
     my ($list1, $list2) = values %effective2hw_list;

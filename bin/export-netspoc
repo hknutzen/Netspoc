@@ -853,7 +853,7 @@ sub export_no_nat_set {
 
         # Build union of all no_nat_sets of that NAT domains.
         my $no_nat_sets = [ map { $_->{no_nat_set} } @nat_domains ];
-        my $combined = combine_no_nat_sets($no_nat_sets, undef,
+        my $combined = combine_no_nat_sets($no_nat_sets, undef, undef,
                                            $nat_tag2multinat_def,
                                            $has_non_hidden);
         my $no_nat_set = [ sort keys %$combined ];

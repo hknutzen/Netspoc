@@ -1502,21 +1502,23 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (1)';
+$title = 'Mixed NAT at ASA crypto interface (2)';
 ############################################################
+# No error, because NAT isn't applicable for encrypted packets.
 
 $in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
 
 $out = <<'END';
-Error: Grouped NAT tags 'n2' and 'h'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
+-- asavpn
+! [ Routing ]
+route inside 10.1.2.0 255.255.255.0 10.1.1.2
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
 END
 
-test_err($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
-$title = 'Mixed NAT at ASA crypto interface (2)';
+$title = 'Mixed NAT at ASA crypto interface (3)';
 ############################################################
 
 # Must use NAT IP of internal network, not NAT IP of internet
@@ -1621,7 +1623,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (2)';
+$title = 'Invalid mixed NAT at ASA crypto interface (1)';
 ############################################################
 
 $in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
@@ -1635,7 +1637,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (3)';
+$title = 'Invalid mixed NAT at ASA crypto interface (2)';
 ############################################################
 
 $in = $crypto_sts . <<'END';
@@ -1652,7 +1654,6 @@ router:Firewall = {
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:a = { ip = 1.2.3.0/24; }
- nat:b = { ip = 1.2.3.0/24; }
 }
 
 router:asavpn = {
@@ -1681,9 +1682,27 @@ router:extern = {
 
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
 
-router:vpn1 = {
+router:fw-extern = {
+ managed;
+ model = ASA;
  interface:internet = {
   ip = 1.1.1.1;
+  bind_nat = a;
+  routing = dynamic;
+  hardware = outside;
+ }
+ interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
+}
+
+network:dmz1 = {
+ ip = 10.254.254.0/24;
+ nat:a = { ip = 1.2.4.0/24; }
+ nat:b = { ip = 1.2.4.0/24; }
+}
+
+router:vpn1 = {
+ interface:dmz1 = {
+  ip = 10.254.254.6;
   id = cert@example.com;
   spoke = crypto:sts;
  }
@@ -1702,7 +1721,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (4)';
+$title = 'Invalid mixed NAT at ASA crypto interface (3)';
 ############################################################
 
 $in =~ s/network:n2/#/;
@@ -1715,9 +1734,7 @@ Error: Original address and NAT tag 'a'
  for combined crypto and cleartext traffic
 END
 
-Test::More->builder->todo_start($title);
 test_err($title, $in, $out);
-Test::More->builder->todo_end;
 
 ############################################################
 $title = 'Directly connected software clients';
