@@ -728,6 +728,7 @@ Error: interface:softclients.n1 references unknown crypto:vpn
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:clients]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);

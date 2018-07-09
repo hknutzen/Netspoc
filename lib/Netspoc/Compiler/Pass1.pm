@@ -1391,9 +1391,14 @@ sub read_network {
                     err_msg("Duplicate NAT definition nat:$nat_tag at $name");
                 $network->{nat}->{$nat_tag} = $nat;
             }
+
             else {
                 syntax_err('Unexpected token');
             }
+        }
+        elsif ($token eq 'partition') {
+            my $partition_name = read_assign(\&read_identifier);
+            add_attribute($network, partition => $partition_name);
         }
         else {
             syntax_err('Unexpected token');
@@ -10174,6 +10179,7 @@ sub set_zone1 {
     # Set zone property flags depending on network properties...
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel}    = 1;
     $network->{has_id_hosts}   and $zone->{has_id_hosts} = 1;
+    $network->{partition}      and $zone->{partition} = $network->{partition};
 
     # Check network 'private' status and zone 'private' status to be equal.
     my $private1 = $network->{private} || 'public';
@@ -11544,6 +11550,27 @@ sub set_loop_cluster {
     }
 }
 
+sub find_zone1 {
+    my ($zone) = @_;
+
+    my $obj = $zone;
+    my $interface_to_zone1;
+    while (1) {
+        $interface_to_zone1 = $obj->{to_zone1};
+        unless ($interface_to_zone1) {
+            $obj->{loop} or
+                return $obj;
+            my $loop_exit = $obj->{loop}->{exit};
+
+            # Zone1 is adjacent to loop.
+            $loop_exit->{to_zone1} or
+                return $loop_exit;
+            $interface_to_zone1 = $loop_exit->{to_zone1};
+        }
+        $obj = $interface_to_zone1->{to_zone1};
+    }
+}
+
 ###############################################################################
 # Purpose : Set direction and distances to an arbitrary chosen start zone.
 #           Identify loops inside the graph topology, tag nodes of a
@@ -11618,13 +11645,44 @@ sub find_dists_and_loops {
         push @unconnected, $zone1;
     }
 
+    # Check whether partitions are unconnected on purpose:
+    # Find zones with a partition-flag and partitions zone1.
+    my $partition_zones =
+        [ grep { $_->{partition} } @zones ];
+    my %partitions;
+    my %names;
+    for my $zone (@$partition_zones) {
+        my $zone1;
+        $zone1 = find_zone1($zone);
+        push @{$partitions{$zone1}}, $zone->{partition};
+        $zone1->{partition} = $zone->{partition};
+        $names{$zone1} = $zone1->{name};
+    }
+
+    # Zone1 is found for several partition definitions.
+    for my $zone1 (keys %partitions) {
+        @{$partitions{$zone1}} > 1 and
+            err_msg("Several partition definitions in partition " .
+                    $names{$zone1} . ":\n - " .
+                    (join "\n - ",  @{$partitions{$zone1}}));
+    }
+
+    # Unconnected partitions without definition are probably
+    # accidentally unconnected. Generate an error.
+    my @only_in_un = grep { !$partitions{$_} } @unconnected;
     for my $ipv6 (1, 0) {
         my @un = grep { not $_->{ipv6} xor $ipv6 } @unconnected;
+
+        # Single unconneted partition does not need to be named.
+        @un == 1 and $un[0]->{partition} and err_msg("Spare partition definition for single partition $un[0]->{name}: $un[0]->{partition}.");
         @un > 1 or next;
+        @un = grep { not $_->{ipv6} xor $ipv6 } @only_in_un;
+        @un or next;
         my $ipv = $ipv6 ? 'IPv6' : 'IPv4';
         err_msg("$ipv topology has unconnected parts:\n",
                 " - ",
-                join "\n - ", map { $_->{name} } @un);
+                (join "\n - ", map { $_->{name} } @un),
+                "\nUse partition attribute, if intended.");
     }
 }
 
@@ -12771,14 +12829,28 @@ sub path_walk {
         if (not path_mark($from_store, $to_store)) {
 
             # Abort, if path does not exist.
+            my $zone1 = find_zone1($from_store);
+            my $zone2 = find_zone1($to_store);
+            my $msg;
+            if ($zone1->{partition} and $zone2->{partition} and
+                $zone1->{partition} ne $zone2->{partition}) {
+                    $msg = "Source and destination objects are located in ".
+                        "different topology partitions: " .
+                        "$zone1->{partition}, $zone2->{partition}.";
+            }
+            else {
+                $msg = "Check path restrictions and crypto interfaces.";
+            }
+
+
             err_msg(
                 "No valid path\n",
                 " from $from_store->{name}\n",
                 " to $to_store->{name}\n",
                 " for rule ",
                 print_rule($rule),
-                "\n",
-                " Check path restrictions and crypto interfaces."
+                "\n ",
+                $msg
             );
             delete $from_store->{path1}->{$to_store};
             return;
@@ -13001,13 +13073,25 @@ sub path_auto_interfaces {
         }
     }
     if (not @result) {
+        my $zone1 = find_zone1($src_path);
+        my $zone2 = find_zone1($dst_path);
+        my $msg;
+        if ($zone1->{partition} and $zone2->{partition} and
+            $zone1->{partition} ne $zone2->{partition}) {
+            $msg = " Source and destination objects are located in ".
+                "different topology partitions: " .
+                "$zone1->{partition}, $zone2->{partition}.";
+        }
+        else {
+            $msg = " Check path restrictions and crypto interfaces.";
+        }
         err_msg(
             "No valid path\n",
             " from $src_path->{name}\n",
             " to $dst_path->{name}\n",
             " while resolving $src->{name}",
             " (destination is $dst->{name}).\n",
-            " Check path restrictions and crypto interfaces."
+            $msg
             );
         return;
     }

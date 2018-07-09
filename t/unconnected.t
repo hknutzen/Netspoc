@@ -82,6 +82,7 @@ Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
  - any:[network:n3]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -115,6 +116,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -172,6 +174,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n3]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -193,6 +196,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -212,6 +216,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
+Use partition attribute, if intended.
 Error: No valid path
  from router:r3
  to any:[network:n2]
@@ -299,6 +304,232 @@ Error: No valid path
  to any:[network:t2]
  for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
  Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Intentionally unconnected, too many partition definitions';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ partition = part1;
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n3 = {
+ ip = 10.1.3.0/24;
+ partition = part2;
+}
+network:n4 = {
+ ip = 10.1.4.0/24;
+ partition = part3;
+}
+network:n5 = {
+ ip = 10.1.5.0/24;
+ partition = part4;
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n3 = { ip = 10.1.3.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n2; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n3; }
+}
+
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Several partition definitions in partition any:[network:n3]:
+ - part2
+ - part3
+ - part4
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Intentionally unconnected, named partitions';
+############################################################
+$in =~ s/partition = part3;//;
+$in =~ s/partition = part4;//;
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Intentionally unconnected, service between partitions';
+############################################################
+$in =~ s/dst = network:n2;/dst = network:n3;/;
+
+$out = <<'END';
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
+ Source and destination objects are located in different topology partitions: part1, part2.
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
+ Source and destination objects are located in different topology partitions: part1, part2.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unconnected, partition attribute missing';
+############################################################
+$in =~ s/dst = network:n3;/dst = network:n2;/;
+$in =~ s/partition = part1;//;
+
+$out = <<'END';
+Error: IPv4 topology has unconnected parts:
+ - any:[network:n1]
+Use partition attribute, if intended.
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Intentionally unconnected, with loops 1';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ partition = part1;
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n0 = { ip = 10.1.0.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = {
+ ip = 10.1.8.0/24;
+ partition = part2;
+}
+
+router:r0 = {
+ model = ASA;
+ managed;
+ interface:n0 = { ip = 10.1.0.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n2; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n3 = { ip = 10.1.3.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n2; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n3; }
+}
+
+router:r3 = {
+ model = ASA;
+ managed;
+ interface:n3 = { ip = 10.1.3.2; hardware = n1; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n2; }
+}
+
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:n6 = { ip = 10.1.6.2; hardware = n1; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n2; }
+}
+
+router:r5 = {
+ model = ASA;
+ managed;
+ interface:n5 = { ip = 10.1.5.2; hardware = n1; }
+ interface:n7 = { ip = 10.1.7.2; hardware = n2; }
+ interface:n8 = { ip = 10.1.8.1; hardware = n2; }
+}
+
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Intentionally unconnected, with loops 2';
+############################################################
+$in =~ s/network:n0 = \{ ip = 10.1.0.0\/24; \}//;
+$in =~ s/router:r0 = \{\n model = ASA;\n managed;//;
+$in =~ s/ interface:n0 = \{ ip = 10.1.0.1; hardware = n1; \}//;
+$in =~ s/ interface:n3 = \{ ip = 10.1.3.3; hardware = n2; \}\n\}//;
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Single partition with partition definition';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ partition = part1;
+}
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+END
+
+$out = <<'END';
+Error: Spare partition definition for single partition any:[network:n1]: part1.
 END
 
 test_err($title, $in, $out);
