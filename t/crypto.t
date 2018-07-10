@@ -1737,6 +1737,88 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (4)';
+############################################################
+
+$in = $crypto_sts . <<'END';
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:Firewall = {
+ managed;
+ model = Linux;
+ interface:internet = { negotiated; hardware = internet; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = b; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a; }
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:fw-extern = {
+ managed;
+ model = ASA;
+ interface:internet = {
+  ip = 1.1.1.1;
+  routing = dynamic;
+  hardware = outside;
+ }
+ interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
+}
+
+network:dmz1 = {
+ ip = 10.254.254.0/24;
+ nat:a = { ip = 1.2.4.0/24; }
+ nat:b = { ip = 1.2.4.0/24; }
+}
+
+router:vpn1 = {
+ interface:dmz1 = {
+  ip = 10.254.254.6;
+  id = cert@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+
+network:lan1 = { ip = 10.99.1.0/24; }
+END
+
+$out = <<'END';
+Error: Original address and NAT tag 'a'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Directly connected software clients';
 ############################################################
 
