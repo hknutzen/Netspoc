@@ -8615,7 +8615,6 @@ sub add_crypto_no_nat_set {
     # List of real interfaces of crypto hubs.
     my @hubs;
 
-    my %seen;
     for my $crypto (values %crypto) {
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
