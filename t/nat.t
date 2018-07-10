@@ -3209,6 +3209,36 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'Aggregate has IP of network with NAT';
 ############################################################
+# Special handling is only needed for implicit aggregate.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.1.8.0/24; } }
+any:n1     = { ip = 10.1.1.0/24; link = network:n1; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = any:n1;
+ permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+Error: any:n1 and network:n1 have identical IP/mask at interface:r1.n1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Implicit aggregate has IP of network with NAT';
+############################################################
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.1.8.0/24; } }
@@ -3225,6 +3255,53 @@ network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
  user = any:[ ip = 10.1.1.0/24 & network:n1 ];
  permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+$out = <<'END';
+Error: Must not use aggregate with IP 10.1.1.0/24 in any:[network:n1]
+ because network:n1 has identical IP but is also translated by NAT
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Invisible implicit aggregate has IP of network with NAT';
+############################################################
+# Aggregate is only used intermediately for automatic group of networks.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 10.1.8.0/24; } }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = a; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = network:[any:[ ip = 10.1.1.0/24 & network:n1 ]];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Implicit aggregate has IP of network with NAT (2)';
+############################################################
+# Show error also for cached implicit aggregate.
+
+$in .= <<'END';
+service:s2 = {
+ user = any:[ ip = 10.1.1.0/24 & network:n1 ];
+ permit src = user; dst = network:n2; prt = tcp 81;
 }
 END
 

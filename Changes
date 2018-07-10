@@ -1,3 +1,16 @@
+5.036     2018-07-10 15:05:46+02:00 Europe/Berlin
+
+ - Fixed command 'print-group'. It didn't work for groups with more
+   than ~10 elements since version 5.034
+ - Fixed check for conflicting NAT at crypto interface.
+   - NAT is only checked for addresses of VPN peers.
+   - Non multi NAT tags are checked correctly now.
+ - More precise check for
+   "Error: Must not use aggregate with IP a.b.c.d/e in any:[network:abc]
+    because network:def has identical IP but is also translated by NAT"
+   Error is no longer shown, if aggregate is only used intermediately
+   in automatic group.
+
 5.035     2018-06-04 16:56:59+02:00 Europe/Berlin
 
  - Relaxed restriction for grouped NAT tags at network.

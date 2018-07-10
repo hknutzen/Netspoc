@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.035'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.036'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3502,9 +3502,6 @@ sub get_orig_prt {
 # Order protocols
 ##############################################################################
 
-# Hash for converting a reference of a protocol back to this protocol.
-our %ref2prt;
-
 # Look up a protocol object by its defining attributes.
 my %prt_hash;
 
@@ -3535,9 +3532,6 @@ sub prepare_prt_ordering {
                     range => $range,
                 };
                 $prt_hash{$proto}->{$key} = $range_prt;
-
-                # Set up ref2prt.
-                $ref2prt{$range_prt} = $range_prt;
             }
             $prt->{$where} = $range_prt;
         }
@@ -3572,7 +3566,6 @@ sub prepare_prt_ordering {
 }
 
 # Set {up} relation between all ICMP protocols and to larger 'ip' protocol.
-# Additionally fill global variable %ref2prt.
 sub order_icmp {
     my ($hash, $up) = @_;
 
@@ -3592,21 +3585,14 @@ sub order_icmp {
         else {
             $prt->{up} = $up;
         }
-
-        # Set up ref2prt.
-        $ref2prt{$prt} = $prt;
     }
 }
 
 # Set {up} relation for all numeric protocols to larger 'ip' protocol.
-# Additionally fill global variable %ref2prt.
 sub order_proto {
     my ($hash, $up) = @_;
     for my $prt (values %$hash) {
         $prt->{up} = $up;
-
-        # Set up ref2prt.
-        $ref2prt{$prt} = $prt;
     }
 }
 
@@ -3616,7 +3602,6 @@ sub order_proto {
 # Set attribute {has_neighbor} to range adjacent to upper port.
 # Find overlapping ranges and split one of them to eliminate the overlap.
 # Set attribute {split} at original range, referencing pair of split ranges.
-# Additionally fill global variable %ref2prt.
 sub order_ranges {
     my ($range_href, $up) = @_;
     my @sorted =
@@ -3734,9 +3719,6 @@ sub order_ranges {
                 # Insert new range at position $i.
                 splice @sorted, $i, 0, $new_range;
 
-                # Set up ref2prt.
-                $ref2prt{$new_range} = $new_range;
-
                 return $new_range;
             };
             my $left  = $find_or_insert_range->($x1, $x2, $i + 1, $b);
@@ -3843,9 +3825,6 @@ sub order_protocols {
     order_ranges($prt_hash{udp}, $up);
     order_icmp($prt_hash{icmp}, $up);
     order_proto($prt_hash{proto}, $up);
-
-    # Set up ref2prt.
-    $ref2prt{$prt_ip} = $prt_ip;
 }
 
 ####################################################################
@@ -4818,7 +4797,6 @@ sub disable_behind {
 # Lists of network objects which are left over after disabling.
 #my @managed_routers;	# defined above
 my @routing_only_routers;
-my @managed_crypto_hubs;
 my @routers;
 my @networks;
 my @zones;
@@ -5339,12 +5317,19 @@ sub remove_duplicates {
     }
 }
 
-# Get a reference to an array of network object descriptions and
-# return a reference to an array of network objects.
+# Parameters:
+# $aref: array of network object descriptions,
+# $context: string for error messages,
+# $ipv6: boolean, IPv6 or IPv4 is requested,
+# $visible: boolean, states that result will be returned after recursion,
+#  or is only used intermediately.
+#  Visible result from automatic group will be cleaned from duplicates.
+# $with_subnets: boolean, subnets of networks will be added to result.
+# Returns array of network objects.
 sub expand_group1;
 
 sub expand_group1 {
-    my ($aref, $context, $ipv6, $clean_autogrp, $with_subnets) = @_;
+    my ($aref, $context, $ipv6, $visible, $with_subnets) = @_;
     my @objects;
     for my $parts (@$aref) {
 
@@ -5358,7 +5343,7 @@ sub expand_group1 {
                   map { $_->{is_used} = 1; $_; } @{
                     expand_group1(
                         [$element1], "intersection of $context",
-                        $ipv6, $clean_autogrp, $with_subnets
+                        $ipv6, $visible, $with_subnets
                     )
                   };
                 if ($element->[0] eq '!') {
@@ -5595,7 +5580,7 @@ sub expand_group1 {
             # from automatic groups.
             push @objects,
               grep { $_->{ip} ne 'tunnel' }
-              $clean_autogrp
+              $visible
               ? grep { $_->{ip} !~ /^(?:unnumbered|bridged)$/ } @check
               : @check;
         }
@@ -5615,10 +5600,12 @@ sub expand_group1 {
                 if ($type eq 'Area') {
                     push @objects,
                       unique(
-                        map({ get_any($_, $ip, $mask) } @{ $object->{zones} }));
+                        map({ get_any($_, $ip, $mask, $visible) }
+                            @{ $object->{zones} }));
                 }
                 elsif ($type eq 'Network' and $object->{is_aggregate}) {
-                    push @objects, get_any($object->{zone}, $ip, $mask);
+                    push(@objects,
+                         get_any($object->{zone}, $ip, $mask, $visible));
                 }
                 else {
                     return;
@@ -5725,7 +5712,7 @@ sub expand_group1 {
                         # - crosslink network
                         # - loopback network of managed device
                         push(@list,
-                               $clean_autogrp
+                               $visible
                              ? grep {
                                  not ($_->{loopback} and
                                       $_->{interfaces}->[0]->{router}->{managed}
@@ -5755,7 +5742,8 @@ sub expand_group1 {
                     }
                     elsif (my $networks = $get_networks->($object)) {
                         push @list,
-                          map({ get_any($_->{zone}, $ip, $mask) } @$networks);
+                          map({ get_any($_->{zone}, $ip, $mask, $visible) }
+                              @$networks);
                     }
                     else {
                         my $type = ref $object;
@@ -5785,11 +5773,11 @@ sub expand_group1 {
                 err_msg("Unexpected '.$ext' after $type:$name in $context");
 
             # Split a group into its members.
-            # There may be two different versions depending of $clean_autogrp.
+            # There may be two different versions depending of $visible.
             if (is_group $object) {
 
-                # Two different expanded values, depending on $clean_autogrp.
-                my $ext = $clean_autogrp ? 'clean' : 'noclean';
+                # Two different expanded values, depending on $visible.
+                my $ext = $visible ? 'clean' : 'noclean';
                 my $attr_name = "expanded_$ext";
 
                 my $elements = $object->{$attr_name};
@@ -5798,22 +5786,20 @@ sub expand_group1 {
                 if ($object->{recursive}) {
                     err_msg("Found recursion in definition of $context");
                     $object->{$attr_name} = $elements = [];
-                    delete $object->{recursive};
                 }
 
                 # Group has not been converted from names to references.
                 elsif (not $elements) {
 
                     # Add marker for detection of recursive group definition.
-                    $object->{recursive} = 1;
+                    local $object->{recursive} = 1;
 
                     # Mark group as used.
                     $object->{is_used} = 1;
 
                     $elements =
                       expand_group1($object->{elements}, "$type:$name", $ipv6,
-                                    $clean_autogrp);
-                    delete $object->{recursive};
+                                    $visible);
 
                     # Private group must not reference private element of other
                     # context.
@@ -5833,17 +5819,21 @@ sub expand_group1 {
                     remove_duplicates($elements, "$type:$name");
 
                     # Cache result for further references to the same group
-                    # in same $clean_autogrp context.
+                    # in same $visible context.
                     $object->{$attr_name} = $elements;
                 }
                 push @objects, @$elements;
             }
 
             # Substitute aggregate by aggregate set of zone cluster.
-            elsif ($object->{is_aggregate} and $object->{zone}->{zone_cluster}) {
+            # Ignore zone having no aggregate from unnumbered network.
+            elsif ($object->{is_aggregate} and
+                   (my $cluster = $object->{zone}->{zone_cluster}))
+            {
                 my ($ip, $mask) = @{$object}{qw(ip mask)};
+                my $key = "$ip$mask";
                 push(@objects,
-                    get_cluster_aggregates($object->{zone}, $ip, $mask));
+                     map { $_->{ipmask2aggregate}->{$key} || () } @$cluster);
             }
 
             else {
@@ -5861,7 +5851,7 @@ sub expand_group1 {
 sub expand_group {
     my ($obref, $context, $ipv6, $with_subnets) = @_;
     my $aref =
-        expand_group1($obref, $context, $ipv6, 'clean_autogrp', $with_subnets);
+        expand_group1($obref, $context, $ipv6, 'visible', $with_subnets);
     remove_duplicates($aref, $context);
 
     # Ignore disabled objects.
@@ -6003,6 +5993,9 @@ sub expand_protocols {
     return \@protocols;
 }
 
+# Hash for converting a reference of a protocol back to this protocol.
+our %src_range_ref2proto;
+
 # Split protocols.
 # Result:
 # Reference to array with elements
@@ -6035,6 +6028,11 @@ sub split_protocols {
             my $aref_list = $prt->{src_dst_range_list};
             if (not $aref_list) {
                 for my $src_split (expand_split_protocol($src_range)) {
+
+                    # Fill global variable %src_range_ref2proto with protocols
+                    # used in src_range.
+                    $src_range_ref2proto{$src_split} = $src_split if $src_split;
+
                     for my $dst_split (expand_split_protocol($dst_range)) {
                         push @$aref_list, [ $src_split, $dst_split, $prt ];
                     }
@@ -7507,7 +7505,7 @@ sub find_redundant_rules {
       if (my $cmp_hash = $cmp_hash->{$deny}) {
        for my $src_range_ref (keys %$chg_hash) {
         my $chg_hash = $chg_hash->{$src_range_ref};
-        my $src_range = $ref2prt{$src_range_ref};
+        my $src_range = $src_range_ref2proto{$src_range_ref};
         while (1) {
          if (my $cmp_hash = $cmp_hash->{$src_range}) {
           for my $src_ref (keys %$chg_hash) {
@@ -7578,6 +7576,7 @@ sub check_expanded_rules {
         push @{ $key2rules{$key} }, $rule;
     }
 
+    $src_range_ref2proto{$prt_ip} = $prt_ip;
     for my $key (sort numerically keys %key2rules) {
         my $rules = $key2rules{$key};
         my $index = 1;
@@ -8485,22 +8484,53 @@ sub distribute_no_nat_sets_to_interfaces {
 # Hidden NAT tag is ignored if combined with a real NAT tag,
 # because hidden tag doesn't affect address calculation.
 #
-# Parameter $context controls, if error is shown or if NAT is disabled..
+# Parameter
+# - $restrict, if set, is a hash of tags, that need to be compared,
+# - $context controls, if error is shown or if NAT is disabled..
 sub combine_no_nat_sets {
-    my ($no_nat_sets, $context, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($no_nat_sets, $restrict, $context,
+        $nat_tag2multinat_def, $has_non_hidden) = @_;
     return $no_nat_sets->[0] if @$no_nat_sets == 1;
     my %combined;
     my %multi2active;
     my %multi2hidden;
     my %multi2multi;
     my $errors;
+
+    my $first_set = shift @$no_nat_sets;
+    for my $nat_tag (keys %$first_set) {
+        my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
+        if (not $multinat_hashes) {
+            $combined{$nat_tag} = 1;
+            next;
+        }
+        for my $multinat_hash (@$multinat_hashes) {
+            $multi2multi{$multinat_hash} = $multinat_hash;
+            my ($active) = grep { not $first_set->{$_} } keys %$multinat_hash;
+            $active ||= ':all';
+            my $non_hidden = $active eq ':all' || $has_non_hidden->{$active};
+            my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
+            $hash->{$multinat_hash} = $active;
+        }
+    }
+
+    # Compare other sets with first set.
     for my $set (@$no_nat_sets) {
+        for my $nat_tag (keys %combined) {
+            $restrict and not $restrict->{$nat_tag} and next;
+            $has_non_hidden->{$nat_tag} or next;
+            $set->{$nat_tag} or
+                push(@$errors, "Original address and NAT tag '$nat_tag'");
+        }
         for my $nat_tag (keys %$set) {
+            $restrict and not $restrict->{$nat_tag} and next;
             my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
 
-            # Add non multi NAT tag.
+            # Check non multi NAT tag.
             if (not $multinat_hashes) {
-                $combined{$nat_tag} = 1;
+                $has_non_hidden->{$nat_tag} or next;
+                $combined{$nat_tag} or
+                    push(@$errors, "Original address and NAT tag '$nat_tag'");
                 next;
             }
 
@@ -8509,13 +8539,10 @@ sub combine_no_nat_sets {
                 my ($active) = grep { not $set->{$_} } keys %$multinat_hash;
 
                 # Original address is shown.
-                if (not $active) {
-                    $multi2active{$multinat_hash} = ':all';
-                    next;
-                }
+                $active ||= ':all';
 
                 # Check if the same NAT mapping is active in all NAT domains.
-                my $non_hidden = $has_non_hidden->{$active};
+                my $non_hidden = $active eq ':all' || $has_non_hidden->{$active};
                 my $hash = $non_hidden ? \%multi2active : \%multi2hidden;
                 if (my $other = $hash->{$multinat_hash}) {
                     if ($other ne $active) {
@@ -8524,12 +8551,18 @@ sub combine_no_nat_sets {
                                 push(@$errors,
                                      "Original address and NAT tag '$active'");
                             }
+                            elsif ($active eq ':all') {
+                                push(@$errors,
+                                     "Original address and NAT tag '$other'");
+                            }
                             else {
                                 push(@$errors,
                                      "Grouped NAT tags '$other' and '$active'");
                             }
                         }
                         else {
+
+                            # Deactivate NAT in case of conflict.
                             $hash->{$multinat_hash} = ':all';
                         }
                     }
@@ -8563,32 +8596,63 @@ sub combine_no_nat_sets {
 # Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
 # where encrypted traffic passes. But real interface gets ACL that filter
 # both encrypted and unencrypted traffic. Hence a new {crypto_no_nat_set}
-# is created by combining no_nat_set of real interface and some
-# corresponding tunnel.
+# is created by combining no_nat_set of real interface and no_nat_set
+# of some corresponding tunnel.
 # (All tunnels are known to have identical no_nat_set.)
+# no_nat_set of real interface is only needed to access public IP of
+# crypto peers. So we first build $reduced_set from $real_set only
+# containing NAT entries needed for crypto peers.
+# This way we reduce chance of conflict between both no_nat_sets.
 sub add_crypto_no_nat_set {
     my ($nat_tag2multinat_def, $has_non_hidden) = @_;
-    my %seen;
+
+    # List of crypto peers for each real interface of crypto hub.
+    my %hub2peers;
+
+    # Internal no_nat_set used at tunnels of crypto hub.
+    my %hub2tunnel_set;
+
+    # List of real interfaces of crypto hubs.
+    my @hubs;
+
     for my $crypto (values %crypto) {
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
-            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                my $real_intf = $tunnel_intf->{real_interface};
-                next if $seen{$real_intf}++;
-                $real_intf->{router}->{managed} or next;
-                my $real_set = $real_intf->{no_nat_set};
-                my $tunnel_set = $tunnel_intf->{no_nat_set};
-
-                # Take no_nat_set of tunnel and add tags from real
-                # interface.
-                $real_intf->{hardware}->{crypto_no_nat_set} =
-                    combine_no_nat_sets(
-                        [$tunnel_set, $real_set],
-                        "$real_intf->{name}\n" .
-                        " for combined crypto and cleartext traffic",
-                        $nat_tag2multinat_def, $has_non_hidden);
+            my ($spoke, $hub) = @{ $tunnel->{interfaces} };
+            $hub->{router}->{managed} or next;
+            my $real_hub = $hub->{real_interface};
+            my $real_spoke = $spoke->{real_interface};
+            push @{ $hub2peers{$real_hub} }, $real_spoke;
+            if (not $hub2tunnel_set{$real_hub}) {
+                $hub2tunnel_set{$real_hub} = $hub->{no_nat_set};
+                push @hubs, $real_hub;
             }
         }
+    }
+    for my $hub (@hubs) {
+        my $tunnel_set = $hub2tunnel_set{$hub};
+        my $real_set = $hub->{no_nat_set};
+
+        # Find restricted set of NAT-tags needed to find NAT addresses
+        # - of crypto peers,
+        # - of next hop for static routing at $hub.
+        my %restrict_set;
+        for my $peer (@{ $hub2peers{$hub} }, $hub->{routing} ? () : $hub) {
+            my $href = $peer->{network}->{nat} or next;
+            for my $tag (keys %$href) {
+                $restrict_set{$tag} = 1;
+            }
+        }
+
+        # Take no_nat_set of tunnel and add needed tags from real interface.
+        # Show error in case of NAT conflict.
+        $hub->{hardware}->{crypto_no_nat_set} =
+            combine_no_nat_sets(
+                [$tunnel_set, $real_set],
+                \%restrict_set,
+                "$hub->{name}\n" .
+                " for combined crypto and cleartext traffic",
+                $nat_tag2multinat_def, $has_non_hidden);
     }
 }
 
@@ -10006,8 +10070,10 @@ sub duplicate_aggregate_to_cluster {
 # Creates new anonymous aggregate if missing.
 # If zone is part of a zone_cluster,
 # return aggregates for each zone of the cluster.
+# Parameter $visible states that result will be returned from expand_group
+# and not only be used intermediately.
 sub get_any {
-    my ($zone, $ip, $mask) = @_;
+    my ($zone, $ip, $mask, $visible) = @_;
     if (not defined $ip) {
         $ip = $mask = get_zero_ip($zone->{ipv6});
     }
@@ -10024,23 +10090,11 @@ sub get_any {
                 map { @{ $_->{networks} } } $cluster ? @$cluster : ($zone))
           )
         {
-            for my $network (@networks) {
-                my $nat = $network->{nat} or next;
-                grep { not $_->{hidden} } values %$nat or next;
-                my $p_ip    = print_ip($ip);
-                my $prefix  = mask2prefix($mask);
-                err_msg("Must not use aggregate with IP $p_ip/$prefix",
-                        " in $zone->{name}\n",
-                        " because $network->{name} has identical IP",
-                        " but is also translated by NAT");
-            }
-
             # Duplicate networks have already been sorted out.
             my ($network) = @networks;
-            my $zone2 = $network->{zone};
 
             # Handle $network like an aggregate.
-            $zone2->{ipmask2aggregate}->{$key} = $network;
+            $network->{zone}->{ipmask2aggregate}->{$key} = $network;
 
             # Create aggregates in cluster, using the name of the network.
             duplicate_aggregate_to_cluster($network, 1) if $cluster;
@@ -10067,21 +10121,27 @@ sub get_any {
             duplicate_aggregate_to_cluster($aggregate, 1) if $cluster;
         }
     }
-    if ($cluster) {
-        return get_cluster_aggregates($zone, $ip, $mask);
-    }
-    else {
-        return $zone->{ipmask2aggregate}->{$key};
-    }
-}
+    my @result;
+    for my $zone1 ($cluster ? @$cluster : ($zone)) {
 
-# Get set of aggregates of a zone cluster.
-# Ignore zone having no aggregate from unnumbered network.
-sub get_cluster_aggregates {
-    my ($zone, $ip, $mask) = @_;
-    my $key = "$ip$mask";
-    return
-      map { $_->{ipmask2aggregate}->{$key} || () } @{ $zone->{zone_cluster} };
+        # Ignore zone having no aggregate from unnumbered network.
+        my $agg_or_net = $zone1->{ipmask2aggregate}->{$key} or next;
+
+        push @result, $agg_or_net;
+
+        # Check for error condition only if result will be visible.
+        if ($visible and (my $nat = $agg_or_net->{nat})) {
+            if (grep { not $_->{hidden} } values %$nat) {
+                my $p_ip    = print_ip($ip);
+                my $prefix  = mask2prefix($mask);
+                err_msg("Must not use aggregate with IP $p_ip/$prefix",
+                        " in $zone->{name}\n",
+                        " because $agg_or_net->{name} has identical IP",
+                        " but is also translated by NAT");
+            }
+        }
+    }
+    return @result;
 }
 
 ###############################################################################
@@ -13053,8 +13113,6 @@ sub gen_tunnel_rules {
 # Link tunnel networks with tunnel hubs.
 # ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels {
-
-    my %hub_seen;
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
         my $private     = $crypto->{private};
@@ -13096,8 +13154,6 @@ sub link_tunnels {
             err_msg("Must not use $router->{name} of model '$model->{name}'",
                     " as crypto hub");
         }
-
-        push @managed_crypto_hubs, $router if not $hub_seen{$router}++;
 
         # Generate a single tunnel from each spoke to single hub.
         for my $spoke_net (@$real_spokes) {
@@ -13156,38 +13212,13 @@ sub link_tunnels {
             }
             else {
                 $real_spoke->{private}
-                  and err_msg "Tunnel of public $name must not",
-                  " reference $real_spoke->{name} of",
-                  " $real_spoke->{private}";
+                  and err_msg("Tunnel of public $name must not",
+                              " reference $real_spoke->{name} of",
+                              " $real_spoke->{private}");
                 $real_hub->{private}
-                  and err_msg "Tunnel of public $name must not",
-                  " reference $real_hub->{name} of",
-                  " $real_hub->{private}";
-            }
-
-            my $spoke_router = $spoke->{router};
-            my @other;
-            my $has_id_hosts;
-            for my $interface (@{ $spoke_router->{interfaces} }) {
-                my $network = $interface->{network};
-                if ($network->{has_id_hosts}) {
-                    $has_id_hosts = $network;
-                }
-                elsif ($interface->{ip} ne 'tunnel') {
-                    push @other, $interface;
-                }
-            }
-            if ($has_id_hosts and @other) {
-                err_msg("Must not use $has_id_hosts->{name} with ID hosts",
-                        " together with networks having no ID host:\n",
-                        name_list(\@other));
-            }
-
-            if ($spoke_router->{managed} and $crypto->{detailed_crypto_acl}) {
-                err_msg(
-                    "Attribute 'detailed_crypto_acl' is not",
-                    " allowed for managed spoke $spoke_router->{name}"
-                );
+                  and err_msg("Tunnel of public $name must not",
+                              " reference $real_hub->{name} of",
+                              " $real_hub->{private}");
             }
         }
     }
@@ -13312,6 +13343,8 @@ sub verify_asa_trustpoint {
 
 sub expand_crypto {
     progress('Expanding crypto rules');
+    my @managed_crypto_hubs;
+    my %hub_seen;
     my %id2intf;
 
     for my $crypto (sort by_name values %crypto) {
@@ -13322,162 +13355,140 @@ sub expand_crypto {
         # add rules which allow encrypted traffic.
         for my $tunnel (@{ $crypto->{tunnels} }) {
             next if $tunnel->{disabled};
-            for my $tunnel_intf (@{ $tunnel->{interfaces} }) {
-                next if $tunnel_intf->{is_hub};
-                my $router  = $tunnel_intf->{router};
-                my $peer    = $tunnel_intf->{peer};
-                my $managed = $router->{managed};
-                my $hub_router     = $peer->{router};
-                my $hub_model      = $hub_router->{model};
-                my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
-                my @encrypted;
-                my ($has_id_hosts, $has_other_network);
+            my ($spoke, $hub)  = @{ $tunnel->{interfaces} };
+            my $router         = $spoke->{router};
+            my $managed        = $router->{managed};
+            my $hub_router     = $hub->{router};
+            my $hub_model      = $hub_router->{model};
+            my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
+            my @encrypted;
+            my ($has_id_hosts, $has_other_network);
 
-                # Analyze cleartext networks behind spoke router.
-                for my $interface (@{ $router->{interfaces} }) {
-                    next if $interface eq $tunnel_intf;
-                    next if $interface->{spoke};
-                    my $network = $interface->{network};
-                    my @all_networks = crypto_behind($interface, $managed);
-                    if ($network->{has_id_hosts}) {
-                        $has_id_hosts = 1;
-                        $managed
-                          and err_msg
-                          "$network->{name} having ID hosts must not",
-                          " be located behind managed $router->{name}";
+            push @managed_crypto_hubs, $hub_router
+                if not $hub_seen{$hub_router}++;
+
+            # Analyze cleartext networks behind spoke router.
+            for my $interface (@{ $router->{interfaces} }) {
+                next if $interface eq $spoke;
+                my $network = $interface->{network};
+                my @all_networks = crypto_behind($interface, $managed);
+                if ($network->{has_id_hosts}) {
+                    $has_id_hosts = 1;
+                    $managed and
+                        err_msg("$network->{name} having ID hosts must not",
+                                " be located behind managed $router->{name}");
+                    if ($hub_is_asa_vpn) {
+                        verify_asa_vpn_attributes($network);
+                    }
+
+                    # Rules for single software clients are stored
+                    # individually at crypto hub interface.
+                    my $no_nat_set = $hub->{no_nat_set};
+                    for my $host (@{ $network->{hosts} }) {
+                        my $id = $host->{id};
+
+                        # ID host has already been checked to have
+                        # exactly one subnet.
+                        my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
-                            verify_asa_vpn_attributes($network);
+                            verify_asa_vpn_attributes($host);
+                            verify_subject_name($host, $hub);
                         }
-
-                        # Rules for single software clients are stored
-                        # individually at crypto hub interface.
-                        for my $host (@{ $network->{hosts} }) {
-                            my $id = $host->{id};
-
-                            # ID host has already been checked to have
-                            # exactly one subnet.
-                            my $subnet = $host->{subnets}->[0];
-                            if ($hub_is_asa_vpn) {
-                                verify_asa_vpn_attributes($host);
-                                verify_subject_name($host, $peer);
-                            }
-                            my $no_nat_set = $peer->{no_nat_set};
-                            if (my $other = $peer->{id_rules}->{$id}) {
-                                my $src = $other->{src};
-                                err_msg(
-                                    "Duplicate ID-host $id from",
+                        if (my $other = $hub->{id_rules}->{$id}) {
+                            my $src = $other->{src};
+                            err_msg("Duplicate ID-host $id from",
                                     " $src->{network}->{name} and",
                                     " $subnet->{network}->{name}",
-                                    " at $peer->{router}->{name}"
-                                );
-                                next;
-                            }
-                            $peer->{id_rules}->{$id} = {
-                                name       => "$peer->{name}.$id",
-                                ip         => 'tunnel',
-                                src        => $subnet,
-                                no_nat_set => $no_nat_set,
-                            };
+                                    " at $hub_router->{name}");
+                            next;
                         }
-                        push @encrypted, $network;
+                        $hub->{id_rules}->{$id} = {
+                            name       => "$hub->{name}.$id",
+                            ip         => 'tunnel',
+                            src        => $subnet,
+                            no_nat_set => $no_nat_set,
+                        };
                     }
-                    else {
-                        $has_other_network = 1;
-                        push @encrypted, @all_networks;
-                    }
+                    push @encrypted, $network;
                 }
-                $has_id_hosts
-                  and $has_other_network
-                  and err_msg(
-                    "Must not use host with ID and network",
-                    " together at $tunnel_intf->{name}:\n",
-                    name_list(\@encrypted)
-                  );
-                if (@encrypted) {
-                    $has_id_hosts
-                      or $has_other_network
-                      or err_msg(
-                        "Must use network or host with ID",
-                        " at $tunnel_intf->{name}:\n",
-                        name_list(\@encrypted)
-                      );
+                else {
+                    $has_other_network = 1;
+                    push @encrypted, @all_networks;
                 }
+            }
+            if ($has_id_hosts and $has_other_network) {
+                err_msg("Must not use networks having ID hosts",
+                        " and other networks having no ID hosts\n",
+                        " together at $router->{name}:\n",
+                        name_list(\@encrypted));
+            }
 
-                my $do_auth = $hub_model->{do_auth};
-                if (my $id = $tunnel_intf->{id}) {
-                    $need_id
-                      or err_msg(
-                        "Invalid attribute 'id' at $tunnel_intf->{name}.\n",
-                        " Set authentication=rsasig at $isakmp->{name}"
-                      );
-                    my $aref = $id2intf{$id} ||= [];
-                    if (my @other =
-                        grep { $_->{peer}->{router} eq $hub_router } @$aref)
-                    {
+            my $do_auth = $hub_model->{do_auth};
+            if (my $id = $spoke->{id}) {
+                $need_id or
+                    err_msg("Invalid attribute 'id' at $spoke->{name}.\n",
+                            " Set authentication=rsasig at $isakmp->{name}");
+                my $aref = $id2intf{$id} ||= [];
+                if (my @other =
+                    grep { $_->{peer}->{router} eq $hub_router } @$aref)
+                {
 
-                        # Id must be unique per crypto hub, because it
-                        # is used to generate ACL names and other names.
-                        err_msg("Must not reuse 'id = $id' at different",
-                                " crypto spokes of '$hub_router->{name}':\n",
-                                name_list([@other, $tunnel_intf]));
-                    }
-                    push(@$aref, $tunnel_intf);
+                    # Id must be unique per crypto hub, because it
+                    # is used to generate ACL names and other names.
+                    err_msg("Must not reuse 'id = $id' at different",
+                            " crypto spokes of '$hub_router->{name}':\n",
+                            name_list([@other, $spoke]));
                 }
-                elsif ($has_id_hosts) {
-                    $do_auth
-                      or err_msg(
-                        "$hub_router->{name} can't check IDs",
-                        " of $encrypted[0]->{name}"
-                      );
-                }
-                elsif (@encrypted) {
-                    if ($do_auth and not $managed) {
-                        err_msg(
-                            "Networks need to have ID hosts because",
+                push(@$aref, $spoke);
+            }
+            elsif ($has_id_hosts) {
+                $do_auth or
+                    err_msg("$hub_router->{name} can't check IDs",
+                            " of $encrypted[0]->{name}");
+            }
+            elsif (@encrypted) {
+                if ($do_auth and not $managed) {
+                    err_msg("Networks need to have ID hosts because",
                             " $hub_router->{name} has attribute 'do_auth':\n",
-                            name_list(\@encrypted)
-                        );
-                    }
-                    elsif ($need_id) {
-                        err_msg(
-                            "$tunnel_intf->{name}",
+                            name_list(\@encrypted));
+                }
+                elsif ($need_id) {
+                    err_msg("$spoke->{name}",
                             " needs attribute 'id',",
                             " because $isakmp->{name}",
-                            " has authentication=rsasig"
-                        );
+                            " has authentication=rsasig");
 
-                        # Prevent further errors.
-                        $tunnel_intf->{id} = '';
-                    }
+                    # Prevent further errors.
+                    $spoke->{id} = '';
                 }
-                $peer->{peer_networks} = \@encrypted;
+            }
+            $hub->{peer_networks} = \@encrypted;
 
-                if ($managed and $router->{model}->{crypto} eq 'ASA') {
-                    verify_asa_trustpoint($router, $crypto);
-                }
+            if ($managed and $router->{model}->{crypto} eq 'ASA') {
+                verify_asa_trustpoint($router, $crypto);
+            }
+            if ($managed and $crypto->{detailed_crypto_acl}) {
+                err_msg("Attribute 'detailed_crypto_acl' is not",
+                        " allowed for managed spoke $router->{name}");
+            }
 
-                # Add rules to permit crypto traffic between
-                # tunnel endpoints.
-                # If one tunnel endpoint has no known IP address,
-                # some rules have to be added manually.
-                my $real_spoke = $tunnel_intf->{real_interface};
-                if (    $real_spoke
-                    and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
-                {
-                    my $hub = $tunnel_intf->{peer};
-                    my $real_hub = $hub->{real_interface};
-                    for my $intf1 ($real_spoke, $real_hub)
-                    {
-                        # Don't generate incoming ACL from unknown
-                        # address.
-                        next if $intf1->{ip} eq 'negotiated';
+            # Add rules to permit crypto traffic between tunnel endpoints.
+            # If one tunnel endpoint has no known IP address,
+            # some rules have to be added manually.
+            my $real_spoke = $spoke->{real_interface};
+            if (    $real_spoke
+                and $real_spoke->{ip} !~ /^(?:short|unnumbered)$/)
+            {
+                my $real_hub = $hub->{real_interface};
+                for my $intf1 ($real_spoke, $real_hub) {
 
-                        my $intf2 =
-                            $intf1 eq $real_hub ? $real_spoke : $real_hub;
-                        my $rules =
+                    # Don't generate incoming ACL from unknown address.
+                    next if $intf1->{ip} eq 'negotiated';
+
+                    my $intf2 = $intf1 eq $real_hub ? $real_spoke : $real_hub;
+                    my $rules =
                           gen_tunnel_rules($intf1, $intf2, $crypto->{type});
-                        push @{ $path_rules{permit} }, @$rules;
-                    }
+                    push @{ $path_rules{permit} }, @$rules;
                 }
             }
         }
@@ -17329,7 +17340,7 @@ sub prepare_real_ip_nat {
     my $combine_nat = sub {
         my ($list) = @_;
         my $no_nat_sets = [ map { $_->{no_nat_set} } @$list ];
-        return combine_no_nat_sets($no_nat_sets, undef,
+        return combine_no_nat_sets($no_nat_sets, undef, undef,
                                    $nat_tag2multinat_def, $has_non_hidden);
     };
     my ($list1, $list2) = values %effective2hw_list;
@@ -18643,13 +18654,13 @@ sub init_global_vars {
     %interfaces         = %hosts                = ();
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
-    @managed_crypto_hubs = @routers = @networks = @zones = @areas = ();
+    @routers = @networks = @zones = @areas = ();
     @natdomains         = ();
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
     %prt_hash           = %token2regex = ();
-    %ref2obj            = %ref2prt = ();
+    %ref2obj            = %src_range_ref2proto = ();
     %obj2zone           = ();
     %obj2path           = ();
     %border2obj2auto    = ();
@@ -18720,8 +18731,8 @@ sub compile {
             expand_crypto();
             find_active_routes();
             gen_reverse_rules();
-            mark_secondary_rules();
             if ($out_dir) {
+                mark_secondary_rules();
                 rules_distribution();
                 check_output_dir($out_dir);
                 print_code($out_dir);
