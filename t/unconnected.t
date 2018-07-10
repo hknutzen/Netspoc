@@ -222,4 +222,86 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Path between different crypto parts';
+############################################################
+
+$in = <<'END';
+isakmp:x = {
+ identity = address;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+ipsec:x = {
+ key_exchange = isakmp:x;
+ esp_encryption = aes256;
+ esp_authentication = sha_hmac;
+ lifetime = 3600 sec;
+}
+crypto:x1 = {
+ type = ipsec:x;
+}
+crypto:x2 = {
+ type = ipsec:x;
+}
+
+network:n0 = { ip = 10.0.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n0 = { ip = 10.0.1.1; hardware = n0; }
+ interface:t1  = { ip = 10.1.9.1; hub = crypto:x1; hardware = t1; }
+}
+
+network:t1 = { ip = 10.1.9.0/24; }
+
+router:vpn1 = {
+ managed;
+ model = IOS;
+ interface:t1  = { ip = 10.1.9.2; spoke = crypto:x1; hardware = t1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n0 = { ip = 10.0.1.2; hardware = n0; }
+ interface:t2  = { ip = 10.2.9.1; hub = crypto:x2; hardware = t2; }
+}
+
+network:t2 = { ip = 10.2.9.0/24; }
+
+router:vpn0 = {
+ managed;
+ model = IOS;
+ interface:t2  = { ip = 10.2.9.2; spoke = crypto:x2; hardware = t2; }
+ interface:n2 = { ip = 10.2.1.1; hardware = n2; }
+}
+network:n2 = { ip = 10.2.1.0/24; }
+
+service:s1 = {
+ user = network:t1;
+ permit src = user; dst = network:t2; prt = tcp;
+}
+END
+
+$out = <<'END';
+Error: No valid path
+ from any:[network:t1]
+ to any:[network:t2]
+ for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:t1]
+ to any:[network:t2]
+ for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
