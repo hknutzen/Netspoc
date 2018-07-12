@@ -15016,11 +15016,11 @@ sub check_unstable_nat_rules {
 
 sub get_zone_cluster_borders {
     my ($zone) = @_;
-    my $zone_cluster = $zone->{zone_cluster} || [$zone];
+    my $zone_cluster = $zone->{zone_cluster};
     return (
         grep { $_->{router}->{managed} }
         map { @{ $_->{interfaces} } }
-        @$zone_cluster);
+        $zone_cluster ? @$zone_cluster : ($zone));
 }
 
 # Analyze networks having host or interface with dynamic NAT.
