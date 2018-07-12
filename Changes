@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+5.037     2018-07-12 09:58:26+02:00 Europe/Berlin
+
+ - Fixed export of NAT info for Netspoc-Web.
+   Keyword 'hidden' was shown in some cases instead of IP address.
+   This affected owners having networks from different NAT domains.
+
 5.036     2018-07-10 15:05:46+02:00 Europe/Berlin
 
  - Fixed command 'print-group'. It didn't work for groups with more
