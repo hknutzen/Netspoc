@@ -1820,6 +1820,22 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (5)';
+############################################################
+
+$in =~ s/network:n2/#/;
+$in =~ s/interface:n2/#/;
+$in =~ s/nat:b/#/;
+
+$out = <<'END';
+Error: Original address and NAT tag 'a'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Directly connected software clients';
 ############################################################
 
