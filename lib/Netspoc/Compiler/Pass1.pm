@@ -8518,9 +8518,10 @@ sub combine_no_nat_sets {
     for my $set (@$no_nat_sets) {
         for my $nat_tag (keys %combined) {
             $restrict and not $restrict->{$nat_tag} and next;
-            $has_non_hidden->{$nat_tag} or next;
-            $set->{$nat_tag} or
+            next if $set->{$nat_tag};
+            if ($context) {
                 push(@$errors, "Original address and NAT tag '$nat_tag'");
+            }
         }
         for my $nat_tag (keys %$set) {
             $restrict and not $restrict->{$nat_tag} and next;
@@ -8528,9 +8529,13 @@ sub combine_no_nat_sets {
 
             # Check non multi NAT tag.
             if (not $multinat_hashes) {
-                $has_non_hidden->{$nat_tag} or next;
-                $combined{$nat_tag} or
+                next if $combined{$nat_tag};
+                if ($context and $has_non_hidden->{$nat_tag}) {
                     push(@$errors, "Original address and NAT tag '$nat_tag'");
+                }
+                else {
+                    $combined{$nat_tag} = 1;
+                }
                 next;
             }
 
