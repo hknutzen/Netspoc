@@ -3704,4 +3704,35 @@ END
 test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
+$title = 'Activate hidden NAT tags in combined no-nat-set';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+
+area:all = { anchor = network:n1; owner = all; }
+
+network:n1 = { ip = 10.1.1.0/24; nat:h1 = { hidden; } }
+network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
+
+router:r1 = {
+ routing = manual;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+}
+END
+
+$out = <<'END';
+--owner/all/no_nat_set
+[
+   "h1",
+   "h2"
+]
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
 done_testing;
