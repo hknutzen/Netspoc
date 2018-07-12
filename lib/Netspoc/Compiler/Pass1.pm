@@ -15014,23 +15014,9 @@ sub check_unstable_nat_rules {
     }
 }
 
-sub get_zone_cluster_borders {
-    my ($zone) = @_;
-    my $zone_cluster = $zone->{zone_cluster};
-    return (
-        grep { $_->{router}->{managed} }
-        map { @{ $_->{interfaces} } }
-        $zone_cluster ? @$zone_cluster : ($zone));
-}
-
-# Analyze networks having host or interface with dynamic NAT.
-# In this case secondary optimization must be disabled
-# at border routers of zone cluster of these networks,
-# because we could accidently permit traffic for the whole network
-# where only a single host should be permitted.
+# Mark networks having host or interface with dynamic NAT
+# for more detailed analysis in check_dynamic_nat_rules.
 sub mark_dynamic_host_nets {
-
-    my %zone2dynamic;
   NETWORK:
     for my $network (@networks) {
         my $href = $network->{nat} or next;
@@ -15041,27 +15027,35 @@ sub mark_dynamic_host_nets {
             for my $obj (@{ $network->{hosts} }, @{ $network->{interfaces} }) {
                 $obj->{nat} and $obj->{nat}->{$nat_tag} and next;
                 $network->{has_dynamic_host} = 1;
-                my $zone = $network->{zone};
-                push @{ $zone2dynamic{$zone} }, $network;
                 next NETWORK;
             }
         }
     }
-    for my $zone (@zones) {
-        my $dynamic_nets = $zone2dynamic{$zone} or next;
-        for my $interface (get_zone_cluster_borders($zone)) {
-            my $router = $interface->{router};
-            my $managed = $router->{managed};
-            next if ($managed eq 'primary' or $managed eq 'full');
-
-            # Secondary optimization will or may be applicable
-            # and must be disabled for $dynamic_nets.
-            @{ $router->{no_secondary_opt} }{@$dynamic_nets} = @$dynamic_nets;
-        }
-    }
 }
 
+sub get_zone_cluster_borders {
+    my ($zone) = @_;
+    my $zone_cluster = $zone->{zone_cluster};
+    return (
+        grep { $_->{router}->{managed} }
+        map { @{ $_->{interfaces} } }
+        $zone_cluster ? @$zone_cluster : ($zone));
+}
 
+# Disable secondary optimization for networks with active dynamic NAT
+# at border routers of zone cluster of these networks.
+# This is neccessary because we would accidently permit traffic for
+# the whole network where only a single host should be permitted.
+sub disable_second_opt_for_dyn_host_net {
+    my ($network) = @_;
+    my $zone = $network->{zone};
+    for my $interface (get_zone_cluster_borders($zone)) {
+        my $router = $interface->{router};
+        my $managed = $router->{managed};
+        next if ($managed eq 'primary' or $managed eq 'full');
+        @{ $router->{no_secondary_opt} }{$network} = $network;
+    }
+}
 
 # Collect managed interfaces on path.
 sub collect_path_interfaces {
@@ -15164,12 +15158,7 @@ sub check_dynamic_nat_rules {
                 next;
             }
 
-            # Detailed check for host / interface with dynamic NAT.
-            # 1. Dynamic NAT address of host / interface object is
-            # used in ACL at managed router at the border of zone
-            # of that object. Hence the whole network would
-            # accidentally be permitted.
-            # 2. Check later to be added reverse rule as well.
+            disable_second_opt_for_dyn_host_net($network);
 
             # Ignore network.
             next if $obj eq $network;
@@ -15177,6 +15166,12 @@ sub check_dynamic_nat_rules {
             # Ignore host / interface with static NAT.
             next if $obj->{nat}->{$nat_tag};
 
+            # Detailed check for host / interface with dynamic NAT.
+            # 1. Dynamic NAT address of host / interface object is
+            # used in ACL at managed router at the border of zone
+            # of that object. Hence the whole network would
+            # accidentally be permitted.
+            # 2. Check later to be added reverse rule as well.
             my $check = sub {
                 my ($rule, $in_intf, $out_intf) = @_;
                 my $router = ($in_intf || $out_intf)->{router};
