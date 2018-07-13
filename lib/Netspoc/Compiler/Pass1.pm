@@ -11677,7 +11677,9 @@ sub find_dists_and_loops {
         my @un = grep { not $_->{ipv6} xor $ipv6 } @unconnected;
 
         # Single unconneted partition does not need to be named.
-        @un == 1 and $un[0]->{partition} and err_msg("Spare partition name for single partition $un[0]->{name}: $un[0]->{partition}.");
+        @un == 1 and $un[0]->{partition} and
+            warn_msg("Spare partition name for single partition ",
+                     "$un[0]->{name}: $un[0]->{partition}.");
         @un > 1 or next;
         @un = grep { not $_->{ipv6} xor $ipv6 } @only_in_un;
         @un or next;

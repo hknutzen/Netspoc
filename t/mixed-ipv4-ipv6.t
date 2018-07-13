@@ -447,10 +447,10 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Spare partition name for single partition any:[network:n3]: part1.
+Warning: Spare partition name for single partition any:[network:n3]: part1.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'No partition names for unconnected IPv6 and IPv4 partitions 2';

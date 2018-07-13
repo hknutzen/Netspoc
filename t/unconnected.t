@@ -529,10 +529,10 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Spare partition name for single partition any:[network:n1]: part1.
+Warning: Spare partition name for single partition any:[network:n1]: part1.
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Too many partition definitions in one zone';
@@ -554,7 +554,7 @@ $out = <<'END';
 Error: too many partition names in zone any:[network:n2]:
  - part4
  - part1
-Error: Spare partition name for single partition any:[network:n1]: part4.
+Warning: Spare partition name for single partition any:[network:n1]: part4.
 END
 
 test_err($title, $in, $out);
