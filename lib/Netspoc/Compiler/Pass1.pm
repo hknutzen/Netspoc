@@ -10179,7 +10179,10 @@ sub set_zone1 {
     # Set zone property flags depending on network properties...
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel}    = 1;
     $network->{has_id_hosts}   and $zone->{has_id_hosts} = 1;
-    $network->{partition}      and $zone->{partition} = $network->{partition};
+    $network->{partition} and $zone->{partition} and
+        err_msg("too many partition definitions in zone $zone->{name}:\n",
+        " - $network->{partition}\n - $zone->{partition}");
+    $network->{partition} and $zone->{partition} = $network->{partition};
 
     # Check network 'private' status and zone 'private' status to be equal.
     my $private1 = $network->{private} || 'public';

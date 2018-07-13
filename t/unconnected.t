@@ -535,4 +535,29 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Too many partition definitions in one zone';
+############################################################
+$in .= <<'END';
+network:n3 = {
+ ip = 10.1.3.0/24;
+ partition = part4;
+}
+
+router:r2 = {
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n2; }
+}
+END
+
+$out = <<'END';
+Error: too many partition definitions in zone any:[network:n2]:
+ - part4
+ - part1
+Error: Spare partition definition for single partition any:[network:n1]: part4.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 done_testing;
