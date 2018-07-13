@@ -447,7 +447,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Spare partition definition for single partition any:[network:n3]: part1.
+Error: Spare partition name for single partition any:[network:n3]: part1.
 END
 
 test_err($title, $in, $out);

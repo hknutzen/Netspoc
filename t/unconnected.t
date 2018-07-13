@@ -353,7 +353,7 @@ service:s = {
 END
 
 $out = <<'END';
-Error: Several partition definitions in partition any:[network:n3]:
+Error: Several partition names in partition any:[network:n3]:
  - part2
  - part3
  - part4
@@ -511,7 +511,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Single partition with partition definition';
+$title = 'Single partition with partition name';
 ############################################################
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24;}
@@ -529,7 +529,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Spare partition definition for single partition any:[network:n1]: part1.
+Error: Spare partition name for single partition any:[network:n1]: part1.
 END
 
 test_err($title, $in, $out);
@@ -551,10 +551,10 @@ router:r2 = {
 END
 
 $out = <<'END';
-Error: too many partition definitions in zone any:[network:n2]:
+Error: too many partition names in zone any:[network:n2]:
  - part4
  - part1
-Error: Spare partition definition for single partition any:[network:n1]: part4.
+Error: Spare partition name for single partition any:[network:n1]: part4.
 END
 
 test_err($title, $in, $out);

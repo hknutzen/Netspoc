@@ -10180,7 +10180,7 @@ sub set_zone1 {
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel}    = 1;
     $network->{has_id_hosts}   and $zone->{has_id_hosts} = 1;
     $network->{partition} and $zone->{partition} and
-        err_msg("too many partition definitions in zone $zone->{name}:\n",
+        err_msg("too many partition names in zone $zone->{name}:\n",
         " - $network->{partition}\n - $zone->{partition}");
     $network->{partition} and $zone->{partition} = $network->{partition};
 
@@ -11665,7 +11665,7 @@ sub find_dists_and_loops {
     # Zone1 is found for several partition definitions.
     for my $zone1 (keys %partitions) {
         @{$partitions{$zone1}} > 1 and
-            err_msg("Several partition definitions in partition " .
+            err_msg("Several partition names in partition " .
                     $names{$zone1} . ":\n - " .
                     (join "\n - ",  @{$partitions{$zone1}}));
     }
@@ -11677,7 +11677,7 @@ sub find_dists_and_loops {
         my @un = grep { not $_->{ipv6} xor $ipv6 } @unconnected;
 
         # Single unconneted partition does not need to be named.
-        @un == 1 and $un[0]->{partition} and err_msg("Spare partition definition for single partition $un[0]->{name}: $un[0]->{partition}.");
+        @un == 1 and $un[0]->{partition} and err_msg("Spare partition name for single partition $un[0]->{name}: $un[0]->{partition}.");
         @un > 1 or next;
         @un = grep { not $_->{ipv6} xor $ipv6 } @only_in_un;
         @un or next;
