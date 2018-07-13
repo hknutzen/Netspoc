@@ -906,6 +906,164 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'No secondary optimization with host and dynamic NAT (3)';
+############################################################
+
+# Dynamic NAT is disabled completely at router:r2
+# if dynamic NAT is applied to at least one rule.
+# ToDo:
+# This should be checked and disabled more fine grained.
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a; }
+ interface:t = {ip = 10.4.4.1; hardware = t;}
+}
+
+network:c = { ip = 10.3.3.0/24; }
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:c = {ip = 10.3.3.1; hardware = c; bind_nat = b; }
+ interface:t = {ip = 10.4.4.3; hardware = t;}
+}
+
+network:t = { ip = 10.4.4.0/24; }
+router:r2 = {
+ managed = secondary;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t;}
+ interface:b = {ip = 10.2.2.1; hardware = b;}
+}
+
+network:b  = {
+ ip = 10.2.2.0/24;
+ nat:b = { ip = 10.9.9.4/30; dynamic; }
+ host:b10 = { ip = 10.2.2.10; }
+}
+
+service:s1 = {
+ user = network:a, network:c;
+ permit src = user; dst = host:b10; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended a_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.2.2.10 eq 80
+ deny ip any any
+--
+ip access-list extended t_in
+ permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
+ deny ip any any
+-- r3
+ip access-list extended c_in
+ permit tcp 10.3.3.0 0.0.0.255 10.9.9.4 0.0.0.3 eq 80
+ deny ip any any
+--
+ip access-list extended t_in
+ permit tcp host 10.2.2.10 10.3.3.0 0.0.0.255 established
+ deny ip any any
+-- r2
+! t_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.3.3.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 host 10.2.2.10 eq 80
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Optimize secondary if dynamic NAT is not applied';
+############################################################
+# Dynamic NAT does't influence network:b at router:r2,
+# because it isn't applied at any rule for network:b
+
+$in = <<'END';
+network:a = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:a = {ip = 10.1.1.1; hardware = a; }
+ interface:t = {ip = 10.4.4.1; hardware = t; }
+}
+
+network:t = { ip = 10.4.4.0/24; }
+
+router:r2 = {
+ managed = secondary;
+ model = ASA;
+ routing = manual;
+ interface:t = {ip = 10.4.4.2; hardware = t; }
+ interface:b = {ip = 10.2.2.1; hardware = b; }
+ interface:c = {ip = 10.3.3.1; hardware = b; }
+}
+
+network:b  = {
+ ip = 10.2.2.0/24;
+ nat:b = { ip = 10.9.9.4/30; dynamic; }
+ host:b10 = { ip = 10.2.2.10; }
+}
+
+network:c = { ip = 10.3.3.0/24; nat:b = { ip = 10.9.9.4/30; dynamic; } }
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:c = {ip = 10.3.3.2; hardware = c; }
+ interface:d = {ip = 10.5.5.1; hardware = d; bind_nat = b; }
+}
+
+network:d = { ip = 10.5.5.0/24; }
+
+service:s1 = {
+ user = network:a;
+ permit src = user; dst = host:b10; prt = tcp 80;
+}
+service:s2 = {
+ user = network:d;
+ permit src = user; dst = network:c; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended a_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.2.2.10 eq 80
+ deny ip any any
+--
+ip access-list extended t_in
+ permit tcp host 10.2.2.10 10.1.1.0 0.0.0.255 established
+ deny ip any any
+-- r2
+! t_in
+access-list t_in extended permit ip 10.1.1.0 255.255.255.0 10.2.2.0 255.255.255.0
+access-list t_in extended deny ip any4 any4
+access-group t_in in interface t
+-- r3
+! d_in
+access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.9.9.4 255.255.255.252 eq 81
+access-list d_in extended deny ip any4 any4
+access-group d_in in interface d
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'No route for supernet for unstable subnet relation';
 ############################################################
 

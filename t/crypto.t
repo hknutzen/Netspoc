@@ -728,6 +728,7 @@ Error: interface:softclients.n1 references unknown crypto:vpn
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:clients]
+Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -1809,6 +1810,22 @@ router:vpn1 = {
 
 network:lan1 = { ip = 10.99.1.0/24; }
 END
+
+$out = <<'END';
+Error: Original address and NAT tag 'a'
+ would both be active at interface:asavpn.dmz
+ for combined crypto and cleartext traffic
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Invalid mixed NAT at ASA crypto interface (5)';
+############################################################
+
+$in =~ s/network:n2/#/;
+$in =~ s/interface:n2/#/;
+$in =~ s/nat:b/#/;
 
 $out = <<'END';
 Error: Original address and NAT tag 'a'

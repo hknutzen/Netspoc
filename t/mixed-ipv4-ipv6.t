@@ -418,4 +418,56 @@ END
 test_reuse_prev($title, $in, $in, $out, '--verbose');
 
 ############################################################
+$title = 'No partition names for unconnected IPv6 and IPv4 partitions 1';
+############################################################
+$in = <<'END';
+-- ipv4/topo/net
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+-- ipv4/topo/router
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- ipv4/topo/ipv6
+network:n3 = {
+ ip = 1000::abcd:0003:0/112;
+ partition = part1;
+}
+network:n4 = { ip = 1000::abcd:0004:0/112; }
+-- ipv6/router
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n1;}
+ interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
+}
+END
+
+$out = <<'END';
+Warning: Spare partition name for single partition any:[network:n3]: part1.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No partition names for unconnected IPv6 and IPv4 partitions 2';
+############################################################
+$in =~ s/partition = part1;//;
+
+$out = <<'END';
+--ipv6/r1
+! n1_in
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+--r1
+! n1_in
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+############################################################
 done_testing;
