@@ -1275,4 +1275,44 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Unconnected parts within one topology';
+############################################################
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ partition = part1;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = {
+ ip = 10.1.4.0/24;
+ partition = part2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = $in;
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
