@@ -3,6 +3,7 @@
  - Secondary optimization is no longer disabled at border of zone for
    network with dynamic NAT, if dynamic NAT is only defined but not
    used for this network.
+ - New partition attribute allows to define unconnected topology parts.
 
 5.037     2018-07-12 09:58:26+02:00 Europe/Berlin
 
