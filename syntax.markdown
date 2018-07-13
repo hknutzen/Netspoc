@@ -76,6 +76,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ has_subnets;                ]
          [ crosslink;                  ]
          [ owner = <name>;             ]
+         [ partition = <name>;         ]
          <host definition> *
       }
 
