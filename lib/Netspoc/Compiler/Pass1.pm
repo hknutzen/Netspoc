@@ -10180,8 +10180,8 @@ sub set_zone1 {
     $network->{ip} eq 'tunnel' and $zone->{is_tunnel}    = 1;
     $network->{has_id_hosts}   and $zone->{has_id_hosts} = 1;
     $network->{partition} and $zone->{partition} and
-        err_msg("too many partition names in zone $zone->{name}:\n",
-        " - $network->{partition}\n - $zone->{partition}");
+        err_msg("Only one partition name allowed in zone $zone->{name}, " .
+                "but found:\n - $network->{partition}\n - $zone->{partition}");
     $network->{partition} and $zone->{partition} = $network->{partition};
 
     # Check network 'private' status and zone 'private' status to be equal.

@@ -551,7 +551,7 @@ router:r2 = {
 END
 
 $out = <<'END';
-Error: too many partition names in zone any:[network:n2]:
+Error: Only one partition name allowed in zone any:[network:n2], but found:
  - part4
  - part1
 Warning: Spare partition name for single partition any:[network:n1]: part4.
