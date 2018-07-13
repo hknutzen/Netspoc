@@ -560,4 +560,48 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Partitions with own policy_distribution_point';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; partition = part1; host:h1 = {ip = 10.1.1.10;} }
+router:r1 = {
+ model = IOS;
+ managed;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.[auto];
+ permit src = host:h1; dst = user; prt = tcp 22;
+}
+
+network:n2 = { ip = 10.1.2.0/24; partition = part2; host:h2 = {ip = 10.1.2.10;} }
+router:r2 = {
+ model = IOS;
+ managed;
+ policy_distribution_point = host:h2;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s2 = {
+ user = interface:r2.[auto];
+ permit src = host:h2; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ permit tcp host 10.1.1.10 host 10.1.1.1 eq 22
+ deny ip any any
+--r2
+ip access-list extended n2_in
+ permit tcp host 10.1.2.10 host 10.1.2.1 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
