@@ -7582,7 +7582,7 @@ sub check_expanded_rules {
     }
 
     $src_range_ref2proto{$prt_ip} = $prt_ip;
-    for my $key (sort numerically keys %key2rules) {
+    for (my $key = 1; $key < $index; $key++) {
         my $rules = $key2rules{$key};
         my $index = 1;
         my %path2index;
@@ -7592,7 +7592,7 @@ sub check_expanded_rules {
             my $key  = $path2index{$path} ||= $index++;
             push @{ $key2rules{$key} }, $rule;
         }
-        for my $key (sort numerically keys %key2rules) {
+        for (my $key = 1; $key < $index; $key++) {
             my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
