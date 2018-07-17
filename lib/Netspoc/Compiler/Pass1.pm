@@ -8385,7 +8385,7 @@ sub check_interfaces_with_dynamic_nat {
 # Returns: $partitions: Lookup hash with domains as keys and partition ID
 #              as values.
 # Comment: NAT partitions arise, if parts of the topology are strictly
-#          separated by crypto interfaces.
+#          separated by crypto interfaces or partitioned toplology.
 sub find_nat_partitions {
     my %partitions;
     my $mark_nat_partition = sub {
