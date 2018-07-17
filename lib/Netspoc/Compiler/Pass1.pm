@@ -18114,7 +18114,12 @@ sub print_interface {
         my $name = $hardware->{name};
         my @subcmd;
         my $secondary;
-        for my $intf (@{ $hardware->{interfaces} }) {
+
+        # Show address of real interface first, because
+        # Netspoc-Approve checks first address.
+        for my $intf (sort({ ($a->{redundant} || '') cmp($b->{redundant} || '') }
+                           @{ $hardware->{interfaces} }))
+        {
             my $addr_cmd;
             my $ip = $intf->{ip};
             if ($ip eq 'tunnel') {
