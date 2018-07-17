@@ -413,6 +413,7 @@ correspondig network and VPN router definition.
         trust-point = <string>;
         [ banner = <string>;                      ]
         [ check-subject-name = <string>;          ]
+        [ check-extended-key-usage = <string>;    ]
         [ dns-server = <string>;                  ]
         [ default-domain = <string>;              ]
         [ split-dns;                              ]
