@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.038'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.039'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -7582,7 +7582,7 @@ sub check_expanded_rules {
     }
 
     $src_range_ref2proto{$prt_ip} = $prt_ip;
-    for my $key (sort numerically keys %key2rules) {
+    for (my $key = 1; $key < $index; $key++) {
         my $rules = $key2rules{$key};
         my $index = 1;
         my %path2index;
@@ -7592,7 +7592,7 @@ sub check_expanded_rules {
             my $key  = $path2index{$path} ||= $index++;
             push @{ $key2rules{$key} }, $rule;
         }
-        for my $key (sort numerically keys %key2rules) {
+        for (my $key = 1; $key < $index; $key++) {
             my $rules = $key2rules{$key};
 
             my $expanded_rules = expand_rules($rules);
@@ -13357,6 +13357,7 @@ my %asa_vpn_attributes = (
     # group-policy attributes
     banner                        => {},
     'check-subject-name'          => {},
+    'check-extended-key-usage'    => {},
     'dns-server'                  => {},
     'default-domain'              => {},
     'split-dns'                   => {},
@@ -13407,7 +13408,7 @@ sub verify_asa_vpn_attributes {
 # Host with ID that doesn't contain a '@' must use attribute
 # 'verify-subject-name'.
 sub verify_subject_name {
-    my ($host, $peer) = @_;
+    my ($host, $router) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
     my $has_attr = sub {
@@ -13417,9 +13418,32 @@ sub verify_subject_name {
     };
     return if $has_attr->($host);
     return if $has_attr->($host->{network});
-    if (not $has_attr->($peer->{router})) {
+    if (not $has_attr->($router)) {
         err_msg("Missing radius_attribute 'check-subject-name'\n",
                 " for $host->{name}");
+    }
+}
+
+sub verify_extended_key_usage {
+    my ($host, $router) = @_;
+    my $extended_keys = $router->{extended_keys} ||= {};
+    my $id = $host->{id};
+    my ($domain) = ($id =~ /^(?:.*?)(\@.*)$/) or return;
+    my $get_attr = sub {
+        my ($obj) = @_;
+        my $attributes = $obj->{radius_attributes};
+        return ($attributes && $attributes->{'check-extended-key-usage'});
+    };
+    my $oid = $get_attr->($host) ||
+        $get_attr->($host->{network}) || $get_attr->($router) || '';
+    if(defined(my $other = $extended_keys->{$domain})) {
+        $oid eq $other or
+            err_msg("All ID hosts having domain '$domain'",
+                    " must use identical value from",
+                    " 'check_expanded_key_usage'");
+    }
+    else {
+        $extended_keys->{$domain} = $oid;
     }
 }
 
@@ -13486,7 +13510,8 @@ sub expand_crypto {
                         my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
                             verify_asa_vpn_attributes($host);
-                            verify_subject_name($host, $hub);
+                            verify_subject_name($host, $hub_router);
+                            verify_extended_key_usage($host, $hub_router);
                         }
                         if (my $other = $hub->{id_rules}->{$id}) {
                             my $src = $other->{src};
@@ -13619,6 +13644,10 @@ sub expand_crypto {
     }
 
     for my $router (@managed_crypto_hubs) {
+
+        # No longer needed.
+        delete $router->{extended_keys};
+
         my $crypto_type = $router->{model}->{crypto};
         if ($crypto_type eq 'ASA_VPN') {
             verify_asa_vpn_attributes($router);
@@ -15118,10 +15147,6 @@ sub check_dynamic_nat_rules {
         }
     }
 
-    # Remember, if pair of src object and dst network already has been
-    # processed.
-    my %seen;
-
     # Remember interfaces of already checked path.
     my %cache;
 
@@ -15234,7 +15259,7 @@ sub check_dynamic_nat_rules {
             $nat_network->{dynamic} or next;
             my $is_hidden = $nat_network->{hidden};
             $is_hidden or $static_seen or next;
-            $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
+            $dyn_nat_hash->{$nat_tag} = $is_hidden;
         }
         $dyn_nat_hash or return;
 
@@ -15271,6 +15296,9 @@ sub check_dynamic_nat_rules {
         }
     };
 
+    # Remember, if pair of src object and dst network already has been
+    # processed.
+    my %seen;
     for my $what (qw(src dst)) {
         my $reversed = $what eq 'dst';
         my $other = $reversed ? 'src' : 'dst';
@@ -17040,6 +17068,7 @@ EOF
     };
     my %cert_group_map;
     my %single_cert_map;
+    my %extended_key;
     my $acl_counter = 1;
     my $deny_any = $ipv6 ? $deny_any6_rule : $deny_any_rule;
     for my $interface (@{ $router->{interfaces} }) {
@@ -17143,8 +17172,11 @@ EOF
                 if (is_host_mask($src->{mask})) {
 
                     # For anyconnect clients.
-                    my (undef, $domain) = ($id =~ /^(.*?)(\@.*)$/);
+                    my ($domain) = ($id =~ /^(?:.*?)(\@.*)$/);
                     $single_cert_map{$domain} = 1;
+
+                    $extended_key{$domain} =
+                        delete $attributes->{'check-extended-key-usage'};
 
                     my $mask = print_ip $network->{mask};
                     my $group_policy_name;
@@ -17174,6 +17206,11 @@ EOF
                     my $map_name = "ca-map-$id_name";
                     print "crypto ca certificate map $map_name 10\n";
                     print " subject-name attr $subject_name co $id\n";
+                    if (my $oid =
+                        delete $attributes->{'check-extended-key-usage'})
+                    {
+                        print " extended-key-usage co $oid\n";
+                    }
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
                     $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
@@ -17281,6 +17318,9 @@ EOF
             my $map_name = "ca-map-$id_name";
             print "crypto ca certificate map $map_name 10\n";
             print " subject-name attr ea co $id\n";
+            if (my $oid = $extended_key{$id}) {
+                print " extended-key-usage co $oid\n";
+            }
             $cert_group_map{$map_name} = $default_tunnel_group;
         }
         print "webvpn\n";
@@ -18114,7 +18154,12 @@ sub print_interface {
         my $name = $hardware->{name};
         my @subcmd;
         my $secondary;
-        for my $intf (@{ $hardware->{interfaces} }) {
+
+        # Show address of real interface first, because
+        # Netspoc-Approve checks first address.
+        for my $intf (sort({ ($a->{redundant} || '') cmp($b->{redundant} || '') }
+                           @{ $hardware->{interfaces} }))
+        {
             my $addr_cmd;
             my $ip = $intf->{ip};
             if ($ip eq 'tunnel') {

@@ -816,6 +816,7 @@ network:customers2 = {
  host:id:zzz = {
   range = 10.99.2.128 - 10.99.2.191;
   radius_attributes = { split-tunnel-policy = tunnelspecified;
+                        check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2;
                         check-subject-name = ou; }
  }
 }
@@ -999,6 +1000,7 @@ access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any4
 access-list vpn-filter-zzz extended deny ip any4 any4
 crypto ca certificate map ca-map-zzz 10
  subject-name attr ou co zzz
+ extended-key-usage co 1.3.6.1.4.1.311.20.2.2
 ip local pool pool-zzz 10.99.2.128-10.99.2.191 mask 255.255.255.192
 group-policy VPN-group-zzz internal
 group-policy VPN-group-zzz attributes
@@ -1152,6 +1154,81 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Bad check-extended-key-usage';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.2.0/24; }
+
+router:r = {
+ model = IOS;
+ managed = routing_only;
+ interface:intern = { ip = 10.1.2.1; hardware = e0; }
+ interface:trans = { ip = 10.9.9.1; hardware = e1; }
+}
+network:trans = { ip = 10.9.9.0/24; }
+router:gw = {
+ interface:trans = { ip = 10.9.9.2; }
+ interface:dmz = { ip = 192.168.0.2; }
+}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+  no_check;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:softclients = {
+ interface:trans = { spoke = crypto:vpn; ip = 10.9.9.3; }
+ interface:customers1;
+ interface:customers2;
+ interface:customers3;
+}
+
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:id:bar@domain.x = { ip = 10.99.1.11;
+  radius_attributes = { check-extended-key-usage = bar; }}
+ host:id:@domain.x = { range = 10.99.1.12-10.99.1.15; }
+ host:id:@domain.y = { range = 10.99.1.16-10.99.1.31; }
+}
+network:customers2 = {
+ ip = 10.99.2.0/24;
+ radius_attributes = { check-extended-key-usage = foo; }
+
+ host:id:foo@domain.y = { ip = 10.99.2.10; }
+}
+network:customers3 = {
+ ip = 10.99.3.0/24;
+ host:id:foo@domain.z = { ip = 10.99.3.10;
+  radius_attributes = { check-extended-key-usage = foo; }}
+ host:id:bar@domain.z = { ip = 10.99.3.11;
+  radius_attributes = { check-extended-key-usage = foo; }}
+}
+END
+
+$out = <<'END';
+Error: All ID hosts having domain '@domain.x' must use identical value from 'check_expanded_key_usage'
+Error: All ID hosts having domain '@domain.y' must use identical value from 'check_expanded_key_usage'
+END
+
+test_err($title, $in, $out, '--noauto_default_route');
+
+############################################################
 $title = 'VPN ASA with internal software clients';
 ############################################################
 
@@ -1194,6 +1271,8 @@ router:softclients = {
 
 network:customers1 = {
  ip = 10.99.1.0/24;
+ radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+
  host:id:foo@domain.x = { ip = 10.99.1.10; }
  host:id:long-first-name.long-second-name@long-domain.xyz = {
   ip = 10.99.1.11;
@@ -1261,8 +1340,10 @@ username long-first-name.long-second-name@long-domain.xyz attributes
 --
 crypto ca certificate map ca-map-@domain.x 10
  subject-name attr ea co @domain.x
+ extended-key-usage co 1.3.6.1.4.1.311.20.2.2
 crypto ca certificate map ca-map-@long-domain.xyz 10
  subject-name attr ea co @long-domain.xyz
+ extended-key-usage co 1.3.6.1.4.1.311.20.2.2
 webvpn
  certificate-group-map ca-map-@domain.x 10 VPN-single
  certificate-group-map ca-map-@long-domain.xyz 10 VPN-single
