@@ -15118,10 +15118,6 @@ sub check_dynamic_nat_rules {
         }
     }
 
-    # Remember, if pair of src object and dst network already has been
-    # processed.
-    my %seen;
-
     # Remember interfaces of already checked path.
     my %cache;
 
@@ -15234,7 +15230,7 @@ sub check_dynamic_nat_rules {
             $nat_network->{dynamic} or next;
             my $is_hidden = $nat_network->{hidden};
             $is_hidden or $static_seen or next;
-            $dyn_nat_hash->{$nat_tag} = $nat_network->{hidden};
+            $dyn_nat_hash->{$nat_tag} = $is_hidden;
         }
         $dyn_nat_hash or return;
 
@@ -15271,6 +15267,9 @@ sub check_dynamic_nat_rules {
         }
     };
 
+    # Remember, if pair of src object and dst network already has been
+    # processed.
+    my %seen;
     for my $what (qw(src dst)) {
         my $reversed = $what eq 'dst';
         my $other = $reversed ? 'src' : 'dst';
