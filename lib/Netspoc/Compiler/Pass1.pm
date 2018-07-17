@@ -8136,10 +8136,10 @@ sub check_for_proper_nat_transition {
 }
 
 ##############################################################################
-# Purpose:    Performs a depth first search to distribute specified NAT tag
-#             to reachable domains where NAT tag is active; checks whether
-#             NAT declarations are applied correctly.
-# Parameters: $domain: Domain the depth first search proceeds from.
+# Purpose:    Performs a depth first traversal to distribute specified
+#             NAT tag to reachable domains where NAT tag is active;
+#             checks whether NAT declarations are applied correctly.
+# Parameters: $domain: Domain the depth first traversal proceeds from.
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more than
 #                 one NAT tag specified.
@@ -8228,13 +8228,13 @@ sub distribute_nat1 {
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
 #             error message, if called function returns an error loop path.
-# Parameters: $domain: Domain the depth first search starts at.
+# Parameters: $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more
 #                 than one NAT tag specified.
 #             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
 #                 where transition from first to second tag is invalid.
-#             $in_router: router the depth first search starts at.
+#             $in_router: router the depth first traversal starts at.
 sub distribute_nat {
     my ($domain, $nat_tag,
         $nat_tag2multinat_def, $invalid_nat_transitions,
