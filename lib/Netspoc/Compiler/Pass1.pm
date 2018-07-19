@@ -15171,6 +15171,8 @@ sub check_dynamic_nat_rules {
 
         my ($nat_seen, $hidden_seen, $static_seen);
         my $nat_hash = $network->{nat};
+
+        # More than one NAT tag could be active in multi_no_nat_set.
         for my $nat_tag (sort keys %$nat_hash) {
             next if $no_nat_set->{$nat_tag};
             $nat_seen = 1;

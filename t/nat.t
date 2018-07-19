@@ -1631,6 +1631,56 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Combined hidden and dynamic NAT error in destination aggregate';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:d1 = { ip = 1.1.1.1/32; dynamic; }
+ host:h1 = { ip = 10.1.1.10; }
+}
+network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
+network:n3 = { ip = 10.1.3.0/24; nat:h3 = { hidden; } }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = d1; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r3 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h2; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; bind_nat = h3; }
+}
+
+service:s1 = {
+ user = host:h1, network:n2, network:n3;
+ permit src = user; dst = any:[network:n4]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
+ permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
+Error: network:n2 is hidden by nat:h2 in rule
+ permit src=network:n2; dst=any:[network:n4]; prt=tcp 80; of service:s1
+Error: network:n3 is hidden by nat:h3 in rule
+ permit src=network:n3; dst=any:[network:n4]; prt=tcp 80; of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Interface with dynamic NAT applied at same device';
 ############################################################
 
