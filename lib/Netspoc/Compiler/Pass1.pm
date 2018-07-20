@@ -15208,6 +15208,12 @@ sub check_dynamic_nat_rules {
                 my ($rule, $in_intf, $out_intf) = @_;
                 my $router = ($in_intf || $out_intf)->{router};
 
+                # Only check at border router.
+                # $intf would have value 'undef' if $obj is
+                # interface of current router and src/dst of rule.
+                my $intf = $reversed ? $out_intf : $in_intf;
+                not $intf or zone_eq($network->{zone}, $intf->{zone}) or return;
+
                 my $check_common = sub {
                     my ($nat_intf, $reversed2) = @_;
                     my $no_nat_set = $nat_intf->{no_nat_set};
@@ -15215,18 +15221,12 @@ sub check_dynamic_nat_rules {
                     $nat_network->{dynamic} or return;
                     my $nat_tag = $nat_network->{nat_tag};
                     return if $obj->{nat}->{$nat_tag};
-                    my $intf = $reversed ? $out_intf : $in_intf;
-
-                    # $intf would have value 'undef' if $obj is
-                    # interface of current router and src/dst of rule.
-                    if (not $intf or zone_eq($network->{zone}, $intf->{zone})) {
-                        err_msg("$obj->{name} needs static translation",
-                                " for nat:$nat_tag at $router->{name}",
-                                " to be valid in",
-                                $reversed2 ? ' reversed rule for' : ' rule',
-                                "\n ",
-                                $show_rule->());
-                    }
+                    err_msg("$obj->{name} needs static translation",
+                            " for nat:$nat_tag at $router->{name}",
+                            " to be valid in",
+                            $reversed2 ? ' reversed rule for' : ' rule',
+                            "\n ",
+                            $show_rule->());
                 };
                 $check_common->($in_intf);
                 if ($router->{model}->{stateless}) {
