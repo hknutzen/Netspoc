@@ -60,6 +60,7 @@ END
 
 $out = <<'END';
 Error: Bridged interfaces must not be used at unmanged router:bridge
+Error: network:n1/right and network:n1/left have identical IP/mask in any:[network:n1/left]
 END
 
 test_err($title, $in, $out);
@@ -89,8 +90,8 @@ router:u2 = {
  interface:u2n = {ip = 10.241.114.25; }
 }
 router:u3 = {
- interface:C1 = {ip = 10.1.0.2; virtual = {ip = 10.1.0.1; } }	
- interface:C3 = {ip = 10.3.0.2; virtual = {ip = 10.3.0.1; } }	
+ interface:C1 = {ip = 10.1.0.2; virtual = {ip = 10.1.0.1; } }
+ interface:C3 = {ip = 10.3.0.2; virtual = {ip = 10.3.0.1; } }
  interface:u3n = {ip = 10.241.114.17; }
 }
 

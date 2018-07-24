@@ -186,7 +186,7 @@ find_subnets_in_zone();
 if($nat_net) {
     my $net = $networks{$nat_net} or
 	die "Unknown network:$nat_net of option '-n'\n";
-    $no_nat_set = $net->{nat_domain}->{no_nat_set};
+    $no_nat_set = $net->{zone}->{nat_domain}->{no_nat_set};
 }
 
 # Expand services

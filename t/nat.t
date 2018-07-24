@@ -160,7 +160,7 @@ END
 
 $out = <<'END';
 Error: network:n1b and network:n1a have identical IP/mask
- in nat_domain:u
+ in nat_domain:[network:u]
 END
 
 test_err($title, $in, $out);
@@ -289,7 +289,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Check rule with any to hidden NAT';
+$title = 'Check rule with aggregate to hidden NAT';
 ############################################################
 
 $in = <<'END';
@@ -332,7 +332,7 @@ END
 
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
- permit src=any:[network:t1]; dst=network:Test; prt=tcp 80; of service:s1
+ permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:s1
 Error: network:Test is hidden by nat:C in rule
  permit src=network:X; dst=network:Test; prt=tcp 81; of service:s2
 END
@@ -361,7 +361,7 @@ END
 
 $out = <<'END';
 Warning: nat:C of network:Test is subnet of network:X
- in nat_domain:X.
+ in nat_domain:[network:X].
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
 
@@ -430,10 +430,10 @@ END
 
 $out = <<'END';
 Warning: network:n1sub is subnet of network:n1
- in nat_domain:t1.
+ in nat_domain:[network:t1].
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 Warning: network:n2sub is subnet of network:n2
- in nat_domain:t2.
+ in nat_domain:[network:t2].
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
 
@@ -1529,7 +1529,7 @@ END
 
 $out = <<'END';
 Error: nat:a2 of network:n2a and nat:a2 of network:n2 have identical IP/mask
- in nat_domain:n1
+ in nat_domain:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -1669,7 +1669,12 @@ service:s1 = {
 }
 END
 
+# Duplicate error messages from zone cluster.
 $out = <<'END';
+Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
+ permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
+Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
+ permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
 Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
  permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
 Error: network:n2 is hidden by nat:h2 in rule
@@ -2033,7 +2038,7 @@ network:b = {ip = 10.9.9.0/24;}
 END
 
 $out = <<'END';
-Error: Grouped NAT tags 'a2' and 'a1' must not both be active inside nat_domain:b
+Error: Grouped NAT tags 'a2' and 'a1' must not both be active inside nat_domain:[network:b]
 END
 
 test_err($title, $in, $out);
@@ -2249,6 +2254,7 @@ Error: Must not apply hidden NAT 'h' on path
  permit src=network:n1; dst=network:n2; prt=proto 50; of service:test
  NAT 'h' is active at
  - interface:r1.t1
+ - interface:u1.t1
  Add pathrestriction to exclude this path
 END
 
@@ -2418,6 +2424,7 @@ Error: Must not apply hidden NAT 'h' on path
  of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
+ - interface:r1.t1
  - interface:r2.t1
  - interface:r2.t2
  - interface:r3.t2
@@ -2434,8 +2441,10 @@ Error: Must not apply hidden NAT 'h' on path
  of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
+ - interface:r1.t1
  - interface:r2.t1
  - interface:r2.t2
+ - interface:r3.t2
  Add pathrestriction to exclude this path
 END
 test_err($title, $in, $out);
@@ -2449,8 +2458,10 @@ Error: Must not apply dynamic NAT 'h' on path
  of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
+ - interface:r1.t1
  - interface:r2.t1
  - interface:r2.t2
+ - interface:r3.t2
  Add pathrestriction to exclude this path
 END
 test_err($title, $in, $out);
@@ -2587,9 +2598,9 @@ $in = <<'END';
 network:a = {ip = 10.1.13.0/24; nat:h = { hidden; }}
 
 router:r1 = {
+ interface:b = { bind_nat = h; }
  interface:a;
  interface:t;
- interface:b = { bind_nat = h; }
 }
 
 network:t = {ip = 10.3.103.240/30;}
@@ -3439,7 +3450,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: any:n1 and network:n1 have identical IP/mask at interface:r1.n1
+Error: any:n1 and network:n1 have identical IP/mask in any:[network:n1]
 END
 
 test_err($title, $in, $out);

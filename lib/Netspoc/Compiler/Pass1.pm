@@ -2356,6 +2356,9 @@ sub read_router {
                 err_msg("Unmanaged $interface->{name} must not",
                         " use attribute 'hub'");
             }
+            if ($interface->{bind_nat}) {
+                $router->{semi_managed} = 1;
+            }
             if (delete $interface->{reroute_permit}) {
                 warn_msg(
                     "Ignoring attribute 'reroute_permit'",
@@ -7730,7 +7733,7 @@ sub set_policy_distribution_ip {
         # Lookup interface address in NAT domain of PDP, because PDP
         # needs to access the device.
         # Prefer loopback interface if available.
-        my $no_nat_set = $pdp->{network}->{nat_domain}->{no_nat_set};
+        my $no_nat_set = $pdp->{network}->{zone}->{nat_domain}->{no_nat_set};
         $router->{admin_ip} = [
             map { print_ip((address($_, $no_nat_set))->[0]) }
             sort { ($b->{loopback} || '') cmp($a->{loopback} || '') } @result
@@ -7904,30 +7907,30 @@ sub generate_multinat_def_lookup {
 }
 
 ##############################################################################
-# Purpose:    Perform depth first search to collect networks and limiting
+# Purpose:    Perform depth first search to collect zones and limiting
 #             routers of given NAT-domain.
-# Parameters: $network: Network to be added to domain.
+# Parameters: $zone: Network to be added to domain.
 #             $domain: Domain information is collected for.
 #             $in_interface: Interface $network was entered at.
-# Results   : $domain contains references to its networks and limiting routers,
-#             $routers that are domain limiting contain references to the
+# Results   : $domain contains references to its zones and limiting routers,
+#             $routers that are domain limiting, contain references to the
 #             limited domains and store NAT tags bound to domains border
 #             interfaces.
 sub set_natdomain {
-    my ($network, $domain, $in_interface) = @_;
+    my ($zone, $domain, $in_interface) = @_;
 
-    # Network was processed by a former call from find_nat_domains
+    # Zone was processed by a former call from find_nat_domains
     # or loop found inside a NAT domain.
-    return if $network->{nat_domain};
-#    debug("$domain->{name}: $network->{name}");
+    return if $zone->{nat_domain};
+#    debug("$domain->{name}: $zone->{name}");
 
-    $network->{nat_domain} = $domain;
-    push @{ $domain->{networks} }, $network;
+    $zone->{nat_domain} = $domain;
+    push @{ $domain->{zones} }, $zone;
 
-    # Find adjacent networks to proceed with.
-    for my $interface (@{ $network->{interfaces} }) {
+    # Find adjacent zones to proceed with.
+    for my $interface (@{ $zone->{interfaces} }) {
 
-        # Ignore interface where we reached this network.
+        # Ignore interface where we reached this zone.
         next if $interface eq $in_interface;
         next if $interface->{main_interface};
 
@@ -7952,8 +7955,8 @@ sub set_natdomain {
                 next if $router->{active_path};
                 local $router->{active_path} = 1;
 
-                my $next_net = $out_interface->{network};
-                set_natdomain($next_net, $domain, $out_interface);
+                my $next_zone = $out_interface->{zone};
+                set_natdomain($next_zone, $domain, $out_interface);
             }
 
             # Another NAT domain starts at current router behind $out_interface.
@@ -7997,19 +8000,18 @@ sub set_natdomain {
 #           are hold within global @natdomains array. Networks and NAT domain
 #           limiting routers keep references to their domains.
 sub find_nat_domains {
-    for my $network (@networks) {
-        next if $network->{is_aggregate};
-        next if $network->{nat_domain};
-        (my $name = $network->{name}) =~ s/^\w+:/nat_domain:/;
+    for my $zone (@zones) {
+        next if $zone->{nat_domain};
+        (my $name = $zone->{name}) =~ s/^\w+:/nat_domain:/;
         my $domain = new(
             'nat_domain',
             name     => $name,
-            networks => [],
+            zoness => [],
             routers  => [],
             nat_set  => {},
         );
         push @natdomains, $domain;
-        set_natdomain($network, $domain, 0);
+        set_natdomain($zone, $domain, 0);
     }
 }
 
@@ -8045,18 +8047,20 @@ sub check_for_multinat_errors {
 #            $router: Router domain was entered at during domain traversal.
 sub check_nat_network_location {
     my ($domain, $nat_tag, $router) = @_;
-    for my $network (@{ $domain->{networks} }) {
-        my $nat = $network->{nat} or next;
-        $nat->{$nat_tag} or next;
-        err_msg(
-            "$network->{name} is translated by $nat_tag,\n",
-            " but is located inside the translation domain of $nat_tag.\n",
-            " Probably $nat_tag was bound to wrong interface",
-            " at $router->{name}."
-        );
+    for my $zone (@{ $domain->{zones} }) {
+        for my $network (@{ $zone->{networks} }) {
+            my $nat = $network->{nat} or next;
+            $nat->{$nat_tag} or next;
+            err_msg(
+                "$network->{name} is translated by $nat_tag,\n",
+                " but is located inside the translation domain of $nat_tag.\n",
+                " Probably $nat_tag was bound to wrong interface",
+                " at $router->{name}."
+                );
 
-        # Show error message only once.
-        last;
+            # Show error message only once per zone.
+            last;
+        }
     }
 }
 
@@ -8420,10 +8424,12 @@ sub map_partitions_to_NAT_tags {
     my %partition2tags;
     for my $domain (@natdomains) {
         my $mark = $partitions->{$domain};
-        for my $network (@{ $domain->{networks} }) {
-            my $nat_hash = $network->{nat} or next;
-            for my $nat_tag (keys %$nat_hash) {
-                $partition2tags{$mark}->{$nat_tag} = 1;
+        for my $zone (@{ $domain->{zones} }) {
+            for my $network (@{ $zone->{networks} }) {
+                my $nat_hash = $network->{nat} or next;
+                for my $nat_tag (keys %$nat_hash) {
+                    $partition2tags{$mark}->{$nat_tag} = 1;
+                }
             }
         }
     }
@@ -8463,8 +8469,8 @@ sub invert_nat_sets {
 sub distribute_no_nat_sets_to_interfaces {
     for my $domain (@natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
-        for my $network (@{ $domain->{networks} }) {
-            for my $interface (@{ $network->{interfaces} }) {
+        for my $zone (@{ $domain->{zones} }) {
+            for my $interface (@{ $zone->{interfaces} }) {
                 my $router = $interface->{router};
                 $router->{managed} or $router->{semi_managed} or next;
 
@@ -8788,142 +8794,76 @@ sub find_subnets_in_zone {
         # - If a subnet relation exists, then this NAT must be unique inside
         #   the zone.
 
-        my $first_intf = $zone->{interfaces}->[0];
-        my %seen;
+        my $no_nat_set = $zone->{nat_domain}->{no_nat_set};
 
-        # Handle different no_nat_sets visible at border of zone.
-        # For a zone without NAT, this loop is executed only once.
-        for my $interface (@{ $zone->{interfaces} }) {
-            my $no_nat_set = $interface->{no_nat_set};
+        # Add networks of zone to %mask_ip_hash.
+        # Use NAT IP/mask.
+        my %mask_ip_hash;
 
-#            debug $interface->{name};
-            next if $seen{$no_nat_set}++;
-
-            # Add networks of zone to %mask_ip_hash.
-            # Use NAT IP/mask.
-            my %mask_ip_hash;
-
-            for my $network (@{ $zone->{networks} },
-                values %{ $zone->{ipmask2aggregate} })
-            {
-                my $nat_network = $network;
-                if (my $href = $network->{nat}) {
-                    for my $tag (keys %$href) {
-                        next if $no_nat_set->{$tag};
-                        $nat_network = $href->{$tag};
-                        last;
-                    }
-                }
-
-                if ($nat_network->{hidden}) {
-                    my $other = $network->{up} or next;
-                    next if get_nat_network($other, $no_nat_set)->{hidden};
-                    err_msg(
-                        "Ambiguous subnet relation from NAT.\n",
-                        " $network->{name} is subnet of\n",
-                        " - $other->{name} at",
-                        " $first_intf->{name}\n",
-                        " - but it is hidden by nat:$nat_network->{nat_tag} at",
-                        " $interface->{name}"
-                    );
-                    next;
-                }
-                my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
-
-                # Found two different networks with identical IP/mask.
-                if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
-                    my $name1 = $network->{name};
-                    my $name2 = $other_net->{name};
-                    err_msg("$name1 and $name2 have identical IP/mask",
-                        " at $interface->{name}");
-                }
-                else {
-
-                    # Store original network under NAT IP/mask.
-                    $mask_ip_hash{$mask}->{$ip} = $network;
+        for my $network (@{ $zone->{networks} },
+                         values %{ $zone->{ipmask2aggregate} })
+        {
+            my $nat_network = $network;
+            if (my $href = $network->{nat}) {
+                for my $tag (keys %$href) {
+                    next if $no_nat_set->{$tag};
+                    $nat_network = $href->{$tag};
+                    last;
                 }
             }
+            my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
 
-            # Compare networks of zone.
-            # Go from smaller to larger networks.
-            my @mask_list = reverse sort keys %mask_ip_hash;
-            while (my $mask = shift @mask_list) {
+            # Found two different networks with identical IP/mask.
+            if (my $other_net = $mask_ip_hash{$mask}->{$ip}) {
+                my $name1 = $network->{name};
+                my $name2 = $other_net->{name};
+                err_msg("$name1 and $name2 have identical IP/mask",
+                        " in $zone->{name}");
+            }
+            else {
 
-                # No supernets available
-                last if not @mask_list;
+                # Store original network under NAT IP/mask.
+                $mask_ip_hash{$mask}->{$ip} = $network;
+            }
+        }
 
-                my $ip_hash = $mask_ip_hash{$mask};
-              SUBNET:
-                for my $ip (sort keys %$ip_hash) {
+        # Compare networks of zone.
+        # Go from smaller to larger networks.
+        my @mask_list = reverse sort keys %mask_ip_hash;
+        while (my $mask = shift @mask_list) {
 
-                    my $subnet = $ip_hash->{$ip};
+            # No supernets available
+            last if not @mask_list;
 
-                    # Find networks which include current subnet.
-                    # @mask_list holds masks of potential supernets.
-                    for my $m (@mask_list) {
+            my $ip_hash = $mask_ip_hash{$mask};
+          SUBNET:
+            for my $ip (sort keys %$ip_hash) {
 
-                        my $i = $ip & $m;
-                        my $bignet = $mask_ip_hash{$m}->{$i} or next;
+                my $subnet = $ip_hash->{$ip};
 
-                        # Collect subnet relation for first no_nat_set.
-                        if ($interface eq $first_intf) {
-                            $subnet->{up} = $bignet;
+                # Find networks which include current subnet.
+                # @mask_list holds masks of potential supernets.
+                for my $m (@mask_list) {
 
-#                           debug "$subnet->{name} -up-> $bignet->{name}";
+                    my $i = $ip & $m;
+                    my $bignet = $mask_ip_hash{$m}->{$i} or next;
 
-                            push(
-                                @{ $bignet->{networks} },
-                                  $subnet->{is_aggregate}
-                                ? @{ $subnet->{networks} || [] }
-                                : ($subnet)
-                            );
+                    # Collect subnet relation.
+                    $subnet->{up} = $bignet;
 
-                            check_subnets($bignet, $subnet);
-                        }
+#                    debug "$subnet->{name} -up-> $bignet->{name}";
+                    push(
+                        @{ $bignet->{networks} },
+                        $subnet->{is_aggregate}
+                        ? @{ $subnet->{networks} || [] }
+                        : ($subnet)
+                        );
 
-                        # Check for ambiguous subnet relation with
-                        # other no_nat_sets.
-                        else {
-                            if (my $other = $subnet->{up}) {
-                                if ($other ne $bignet) {
-                                    err_msg(
-                                        "Ambiguous subnet relation from NAT.\n",
-                                        " $subnet->{name} is subnet of\n",
-                                        " - $other->{name} at",
-                                        " $first_intf->{name}\n",
-                                        " - $bignet->{name} at",
-                                        " $interface->{name}"
-                                    );
-                                }
-                            }
-                            else {
-                                err_msg(
-                                    "Ambiguous subnet relation from NAT.\n",
-                                    " $subnet->{name} is subnet of\n",
-                                    " - $bignet->{name} at",
-                                    " $interface->{name}\n",
-                                    " - but has no subnet relation at",
-                                    " $first_intf->{name}"
-                                );
-                            }
-                        }
+                    check_subnets($bignet, $subnet);
 
-                        # We only need to find the smallest enclosing
-                        # network.
-                        next SUBNET;
-                    }
-                    if ($interface ne $first_intf) {
-                        if (my $other = $subnet->{up}) {
-                            err_msg(
-                                "Ambiguous subnet relation from NAT.\n",
-                                " $subnet->{name} is subnet of\n",
-                                " - $other->{name} at",
-                                " $first_intf->{name}\n",
-                                " - but has no subnet relation at",
-                                " $interface->{name}"
-                            );
-                        }
-                    }
+                    # We only need to find the smallest enclosing
+                    # network.
+                    next SUBNET;
                 }
             }
         }
@@ -9106,14 +9046,14 @@ sub find_subnets_in_nat_domain {
     my %seen;
     for my $domain (@natdomains) {
 
-        # Ignore NAT domain consisting only of a single unnumbered network and
-        # surrounded by unmanaged devices.
+        # Ignore NAT domain consisting of empty zone from unnumbered networks
+        # and surrounded by unmanaged devices.
         # An address conflict would not be observable inside this NAT domain.
-        my $domain_networks = $domain->{networks};
-        if (1 == @$domain_networks) {
-            my $network = $domain_networks->[0];
-            if ($network->{ip} eq 'unnumbered') {
-                my $interfaces = $network->{interfaces};
+        my $domain_zones = $domain->{zones};
+        if (1 == @$domain_zones) {
+            my $zone = $domain_zones ->[0];
+            if (not @{ $zone->{networks} }) {
+                my $interfaces = $zone->{interfaces};
                 if (not grep { $_->{router}->{managed} } @$interfaces) {
                     next;
                 }
@@ -9264,7 +9204,8 @@ sub find_subnets_in_nat_domain {
             # Remember subnet relation in same zone in %pending_other_subnet,
             # if current status of subnet is not known,
             # since status may change later.
-            if ($bignet->{zone} eq $subnet->{zone}) {
+            my $same_zone = $bignet->{zone} eq $subnet->{zone};
+            if ($same_zone) {
                 if ($subnet->{has_other_subnet} or $has_identical{$subnet}) {
                     $bignet->{has_other_subnet} = 1;
                 }
@@ -9317,7 +9258,7 @@ sub find_subnets_in_nat_domain {
                 }
             }
 
-            check_subnets($nat_bignet, $nat_subnet);
+            check_subnets($nat_bignet, $nat_subnet) if not $same_zone;
         }
     }
 
@@ -14942,7 +14883,8 @@ sub check_conflict {
                     my $is_subnet = $cache{$supernet}->{$network};
                     if (not defined $is_subnet) {
                         my ($ip, $mask) = @{$network}{ 'ip', 'mask' };
-                        my $no_nat_set = $network->{nat_domain}->{no_nat_set};
+                        my $no_nat_set =
+                            $network->{zone}->{nat_domain}->{no_nat_set};
                         my $obj = get_nat_network($supernet, $no_nat_set);
                         my ($i, $m) = @{$obj}{ 'ip', 'mask' };
                         $is_subnet = $m lt $mask && match_ip($ip, $i, $m);
@@ -15105,28 +15047,6 @@ sub collect_path_interfaces {
 sub check_dynamic_nat_rules {
     progress('Checking rules with hidden or dynamic NAT');
 
-    # Collect no_nat_sets applicable in zone
-    # and combine them into {multi_no_nat_set}.
-    my %zone2no_nat_set;
-    for my $network (@networks) {
-        my $nat_domain = $network->{nat_domain} or next;
-        my $no_nat_set = $nat_domain->{no_nat_set};
-        my $zone = $network->{zone};
-        $zone2no_nat_set{$zone}->{$no_nat_set} = $no_nat_set;
-    }
-    for my $zone (@zones) {
-        my @no_nat_set_list = values %{ $zone2no_nat_set{$zone} };
-        my $result = pop @no_nat_set_list;
-        for my $no_nat_set (@no_nat_set_list) {
-            my $intersection = {};
-            for my $key (%$no_nat_set) {
-                $intersection->{$key} = 1 if $result->{$key};
-            }
-            $result = $intersection
-        }
-        $zone->{multi_no_nat_set} = $result;
-    }
-
     # For each no_nat_set, collect hidden or dynamic NAT tags that are
     # active inside that no_nat_set.
     my %no_nat_set2active_tags;
@@ -15152,15 +15072,7 @@ sub check_dynamic_nat_rules {
 
     my $check_dyn_nat_path = sub {
         my ($path_rule, $obj, $network, $other, $other_net, $reversed) = @_;
-        my $nat_domain = $other_net->{nat_domain}; # Is undef for aggregate.
-
-        # Find $nat_tag which is effective at $other.
-        # - single: $other is host or network, $nat_domain is known.
-        # - multiple: $other is aggregate.
-        #             Use intersection of all no_nat_sets active in zone.
-        my $no_nat_set = $nat_domain
-                       ? $nat_domain->{no_nat_set}
-                       : $other->{zone}->{multi_no_nat_set};
+        my $no_nat_set = $other_net->{zone}->{nat_domain}->{no_nat_set};
 
         my $show_rule = sub {
             my $rule = { %$path_rule };
@@ -15172,9 +15084,10 @@ sub check_dynamic_nat_rules {
         my ($nat_seen, $hidden_seen, $static_seen);
         my $nat_hash = $network->{nat};
 
-        # More than one NAT tag could be active in multi_no_nat_set.
-        for my $nat_tag (sort keys %$nat_hash) {
-            next if $no_nat_set->{$nat_tag};
+      CHECK:
+        {
+            my ($nat_tag) = grep { not $no_nat_set->{$_} } keys %$nat_hash
+                or last;
             $nat_seen = 1;
             my $nat_network = $nat_hash->{$nat_tag};
 
@@ -15183,20 +15096,20 @@ sub check_dynamic_nat_rules {
                 $hidden_seen++
                   or err_msg("$obj->{name} is hidden by nat:$nat_tag",
                              " in rule\n ", $show_rule->());
-                next;
+                last;
             }
             if (not $nat_network->{dynamic}) {
                 $static_seen = 1;
-                next;
+                last;
             }
 
             disable_second_opt_for_dyn_host_net($network);
 
             # Ignore network.
-            next if $obj eq $network;
+            last if $obj eq $network;
 
             # Ignore host / interface with static NAT.
-            next if $obj->{nat}->{$nat_tag};
+            last if $obj->{nat}->{$nat_tag};
 
             # Detailed check for host / interface with dynamic NAT.
             # 1. Dynamic NAT address of host / interface object is
@@ -15207,6 +15120,7 @@ sub check_dynamic_nat_rules {
             my $check = sub {
                 my ($rule, $in_intf, $out_intf) = @_;
                 my $router = ($in_intf || $out_intf)->{router};
+                $router->{managed} or return;
 
                 # Only check at border router.
                 # $intf would have value 'undef' if $obj is

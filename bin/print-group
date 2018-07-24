@@ -252,7 +252,7 @@ if($nat_net) {
     $nat_net =~ s/^network://;
     my $net = $networks{$nat_net} or
 	die "Unknown network:$nat_net of option '-nat'\n";
-    $no_nat_set = $net->{nat_domain}->{no_nat_set};
+    $no_nat_set = $net->{zone}->{nat_domain}->{no_nat_set};
 }
 
 # Prepare finding unused objects by marking used objects.

@@ -2767,8 +2767,7 @@ network:n1 = { ip = 10.0.0.0/8; }
 END
 
 $out = <<'END';
-Error: any:a1 and network:n1 have identical IP/mask
- in nat_domain:n1
+Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -2789,7 +2788,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: any:a1 and network:n1 have identical IP/mask at interface:r1.n1
+Error: any:a1 and network:n1 have identical IP/mask in any:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -2830,7 +2829,7 @@ router:r2 = {
 END
 
 $out = <<'END';
-Error: any:a1 and network:n2 have identical IP/mask at interface:r2.n2
+Error: any:a1 and network:n2 have identical IP/mask in any:[network:n2]
 END
 
 test_err($title, $in, $out);

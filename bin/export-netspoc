@@ -832,7 +832,7 @@ sub export_no_nat_set {
     for my $owner_name (sort keys %owner2net) {
         my %nat_domains;
         for my $network (values %{ $owner2net{$owner_name} }) {
-            my $nat_domain = $network->{nat_domain};
+            my $nat_domain = $network->{zone}->{nat_domain};
             $nat_domains{$nat_domain} = $nat_domain;
         }
         my @nat_domains = values %nat_domains;

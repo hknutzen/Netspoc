@@ -179,7 +179,7 @@ END
 
 $out = <<'END';
 Warning: interface:r.m is subnet of network:n
- in nat_domain:n.
+ in nat_domain:[network:n].
  If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
 END
 
@@ -362,7 +362,7 @@ END
 
 $out = <<'END';
 Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
- in nat_domain:n2
+ in nat_domain:[network:n2]
 END
 
 test_err($title, $in, $out);

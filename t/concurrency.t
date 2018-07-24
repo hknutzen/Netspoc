@@ -163,7 +163,7 @@ END
 
 $out = <<'END';
 Error: network:n2 and network:n1 have identical IP/mask
- in nat_domain:n1
+ in nat_domain:[network:n1]
 Aborted after 1 errors
 END
 
