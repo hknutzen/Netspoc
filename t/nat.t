@@ -330,11 +330,10 @@ service:s2 = {
 }
 END
 
+# Only first error is shown.
 $out = <<'END';
 Error: network:Test is hidden by nat:C in rule
  permit src=any:[network:X]; dst=network:Test; prt=tcp 80; of service:s1
-Error: network:Test is hidden by nat:C in rule
- permit src=network:X; dst=network:Test; prt=tcp 81; of service:s2
 END
 
 test_err($title, $in, $out);
@@ -785,10 +784,10 @@ test_err($title, $in, $out);
 $in =~ s/managed; \#1//;
 
 $out = <<'END';
-Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
- permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
 Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
+Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
+ permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
 END
 
 test_err($title, $in, $out);
@@ -3383,6 +3382,37 @@ $out = '';
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'NAT definitions with different type.';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:x = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:x = { ip = 10.9.2.2/31; dynamic; } }
+network:n3 = { ip = 10.1.3.0/24; nat:x = { hidden; } }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n4 = { bind_nat = x; }
+}
+END
+
+$out = <<'END';
+Error: All definitions of nat:x must have equal type.
+ But found
+ - static for network:n1
+ - dynamic for network:n2
+Error: All definitions of nat:x must have equal type.
+ But found
+ - dynamic for network:n2
+ - hidden for network:n3
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Identical subnets invisible to supernet';
 ############################################################
 
@@ -3392,7 +3422,7 @@ $title = 'Identical subnets invisible to supernet';
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
-network:x  = { ip = 193.1.1.0/24; nat:extern = { hidden; } }
+network:x  = { ip = 193.1.1.0/24; nat:hidden = { hidden; } }
 network:n3 = { ip = 10.1.3.0/24; }
 
 router:r1 = {
@@ -3406,7 +3436,7 @@ router:r2 = {
  model = ASA;
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2;}
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = extern; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = extern, hidden; }
 }
 
 service:s1 = {
