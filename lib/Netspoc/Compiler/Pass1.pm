@@ -3151,7 +3151,13 @@ sub read_service {
         };
         if (check('log')) {
             my $list = read_assign_list(\&read_identifier);
-            $rule->{log} = $list;
+            my %seen;
+            for my $tag (@$list) {
+                if ($seen{$tag}++) {
+                    warn_msg("Duplicate '$tag' in log of $name");
+                }
+            }
+            $rule->{log} = join(',', sort keys %seen);
         }
         push @{ $service->{rules} }, $rule;
     }
@@ -3470,8 +3476,7 @@ sub print_rule {
 
     my $extra = '';
     if (my $log = $rule->{log}) {
-        my $names = join(',', @$log);
-        $extra .= " log=$names;";
+        $extra .= " log=$log;";
     }
     $extra .= " stateless"           if $rule->{stateless};
     $extra .= " stateless_icmp"      if $rule->{stateless_icmp};
@@ -6072,22 +6077,13 @@ sub collect_log {
 # Check for referencing log tags, that corresponding defining log tags exist.
 sub check_log {
     my ($log, $context) = @_;
-    for my $tag (@$log) {
-        $known_log{$tag} and next;
-        warn_msg("Referencing unknown '$tag' in log of $context");
-        aref_delete($log, $tag);
+    if (my @unknown = grep { not $known_log{$_} } split(',', $log)) {
+        for my $tag (@unknown) {
+            warn_msg("Referencing unknown '$tag' in log of $context");
+        }
+        return join(',', grep { $known_log{$_} } split(',', $log));
     }
-}
-
-# Normalize lists of log tags at different rules in such a way,
-# that equal sets of tags are represented by 'eq' array references.
-my %key2log;
-
-sub normalize_log {
-    my ($log) = @_;
-    my @tags = sort @$log;
-    my $key = join(',', @tags);
-    return $key2log{$key} ||= \@tags;
+    return $log;
 }
 
 ########################################################################
@@ -6302,13 +6298,7 @@ sub normalize_service_rules {
         my $store = $service_rules{$deny ? 'deny' : 'permit'} ||= [];
         my $log   = $unexpanded->{log};
         if ($log) {
-            check_log($log, $context);
-            if (@$log) {
-                $log = normalize_log($log);
-            }
-            else {
-                $log = undef;
-            }
+            $log = check_log($log, $context);
         }
         my $prt_list =
           split_protocols(expand_protocols($unexpanded->{prt}, $context));
@@ -18275,7 +18265,7 @@ sub print_acls {
                     # This code is machine specific.
                     if ($active_log and (my $log = $rule->{log})) {
                         my $log_code;
-                        for my $tag (@$log) {
+                        for my $tag (split(',', $log)) {
                             if (exists $active_log->{$tag}) {
                                 if (my $modifier = $active_log->{$tag}) {
                                     my $normalized =
@@ -18764,7 +18754,7 @@ sub init_global_vars {
     %border2obj2auto    = ();
     @duplicate_rules    = @redundant_rules = ();
     %missing_supernet   = ();
-    %known_log          = %key2log = ();
+    %known_log          = ();
     %nat2obj2address    = ();
     init_protocols();
 }
