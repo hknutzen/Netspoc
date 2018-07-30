@@ -15116,7 +15116,7 @@ sub check_dynamic_nat_rules {
                 return print_rule($rule);
             };
 
-          CHECK:
+          CHECK_TAG:
             {
                 my ($nat_tag) = grep { not $no_nat_set->{$_} } keys %$nat_hash
                     or last;
