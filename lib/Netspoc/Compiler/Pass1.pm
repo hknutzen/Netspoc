@@ -2598,10 +2598,6 @@ sub read_aggregate {
             skip(';');
             $aggregate->{has_unenforceable} = 1;
         }
-        elsif ($token eq 'has_fully_redundant') {
-            skip(';');
-            $aggregate->{has_fully_redundant} = 1;
-        }
         elsif ($token eq 'no_check_supernet_rules') {
             skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
@@ -7278,25 +7274,11 @@ sub set_local_prt_relation {
     }
 }
 
-sub set_ignore_fully_redundant {
-    my ($rule) = @_;
-    for my $obj ($rule->{src}, $rule->{dst}) {
-        my $net = $obj->{network} || $obj;
-        my $zone = $net->{zone};
-        if ($zone->{has_fully_redundant}) {
-            $rule->{ignore_fully_redundant}++ or
-                $rule->{rule}->{service}->{ignore_fully_redundant}++;
-            last;
-        }
-    }
-}
-
 my @duplicate_rules;
 
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
-    set_ignore_fully_redundant($rule);
 
     # Mark duplicate rules in both services.
 
@@ -7310,7 +7292,6 @@ sub collect_duplicate_rules {
     my $oservice = $other->{rule}->{service};
     if (not $other->{redundant}++) {
         $oservice->{duplicate_count}++;
-        set_ignore_fully_redundant($other);
     }
 
     # Link both services, so we later show only one of both service as
@@ -7375,7 +7356,6 @@ sub collect_redundant_rules {
     if (not $rule->{redundant}++) {
         $$count_ref++;
         $service->{redundant_count}++;
-        set_ignore_fully_redundant($rule);
     }
 
     my $prt1 = get_orig_prt($rule);
@@ -7433,9 +7413,6 @@ sub show_fully_redundant_rules {
         my $service = $services{$key};
         next if $keep{$service};
         my $rule_count = $service->{rule_count} or next;
-        if (my $ignore_fully_redundant = $service->{ignore_fully_redundant}) {
-            next if $ignore_fully_redundant == $rule_count;
-        }
         my $duplicates = $service->{duplicate_count} || 0;
         my $redundants = $service->{redundant_count} || 0;
         $duplicates + $redundants == $rule_count or next;
@@ -9952,8 +9929,7 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if (is_zero_ip($mask)) {
-            for my $attr (qw(has_unenforceable has_fully_redundant
-                             owner nat
+            for my $attr (qw(has_unenforceable owner nat
                              no_check_supernet_rules))
             {
                 if (my $v = delete $aggregate->{$attr}) {
