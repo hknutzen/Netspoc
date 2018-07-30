@@ -186,7 +186,6 @@ here `<object set>` must expand to networks.
          [ owner = <name>;          ]
          <network NAT> *
          [ has_unenforceable;       ]
-         [ has_fully_redundant;       ]
          [ no_check_supernet_rules; ]
       }
 
