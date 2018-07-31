@@ -15131,10 +15131,6 @@ sub check_dynamic_nat_rules {
                                    " in rule\n ", $show_rule->());
                     last;
                 }
-                if (not $nat_network->{dynamic}) {
-                    $static_seen = 1;
-                    last;
-                }
 
                 disable_second_opt_for_dyn_host_net($network);
 
