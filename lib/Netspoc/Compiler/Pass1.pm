@@ -9070,17 +9070,11 @@ sub find_subnets_in_nat_domain {
                 my $network = $orig_net{$nat_network};
                 my $error;
                 if ($other->{is_aggregate} or $network->{is_aggregate}) {
-                    if ($other->{zone} eq $network->{zone}) {
-                        $error = 1;
-                    }
-                    else {
 
-                        # Check supernet rules and prevent secondary
-                        # optimization, if identical IP address
-                        # occurrs in different zones.
-                        $other->{has_other_subnet} = 1;
-                        $network->{has_other_subnet} = 1;
-                    }
+                    # Check supernet rules and prevent secondary optimization,
+                    # if identical IP address occurrs in different zones.
+                    $other->{has_other_subnet} = 1;
+                    $network->{has_other_subnet} = 1;
                 }
                 elsif ($nat_other->{dynamic} and $nat_network->{dynamic}) {
 
