@@ -950,11 +950,6 @@ $out = <<'END';
 {
    "test" : [
       "any:[ip=10.140.0.0/16 & network:t1]",
-      "any:[ip=10.140.0.0/16 & network:t1]",
-      "any:[ip=10.140.0.0/16 & network:t1]",
-      "any:[ip=10.140.0.0/16 & network:t1]",
-      "any:c2",
-      "any:c2",
       "any:c2"
    ]
 }
@@ -2216,11 +2211,9 @@ $out = <<'END';
 --owner/o/users
 {
    "s1" : [
-      "any:[network:n1]",
       "any:[network:n1]"
    ],
    "s2" : [
-      "any:[network:n1]",
       "any:[network:n1]"
    ]
 }

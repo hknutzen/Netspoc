@@ -1102,7 +1102,11 @@ sub export_users_and_service_lists {
                     @users = grep({ $_->{visible_owner_hash}->{$owner} }
                                   @{ $service->{user} });
                 }
-                @users = sort map { $_->{name} } @users;
+
+                # Sort result and
+                # remove duplicate aggregates from zone clusters.
+                # Mark call to unique, so it isn't used as compare function.
+                @users = sort &unique(map { $_->{name} } @users);
                 $service2users{$sname} = \@users;
             }
             $type2snames{$type} = [ sort @snames ];
