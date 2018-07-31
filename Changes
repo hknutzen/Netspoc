@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Attribute 'has_fully_redundant' is no longer supported.  Netspoc
+ - Compiler has better CPU performance for topology with many dynamic
+   and hidden NAT definitions.
+
 5.039     2018-07-17 13:23:51+02:00 Europe/Berlin
 
  - Added new radius_attribute "check-extended-key-usage" for ID hosts.
