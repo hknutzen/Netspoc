@@ -12703,6 +12703,27 @@ sub loop_path_walk {
     return $exit_at_router;
 }
 
+sub show_err_no_valid_path {
+    my($src_path, $dst_path, $context) = @_;
+    my $zone1 = find_zone1($src_path);
+    my $zone2 = find_zone1($dst_path);
+    my $msg;
+    if ($zone1->{partition} and $zone2->{partition} and
+        $zone1->{partition} ne $zone2->{partition}) {
+        $msg = " Source and destination objects are located in ".
+            "different topology partitions: " .
+            "$zone1->{partition}, $zone2->{partition}.";
+    }
+    else {
+        $msg = " Check path restrictions and crypto interfaces.";
+    }
+    err_msg("No valid path\n",
+            " from $src_path->{name}\n",
+            " to $dst_path->{name}\n",
+            " $context\n",
+            $msg);
+}
+
 ##############################################################################
 # Purpose    : For a given rule, visit every node on path from rules source
 #              to its destination. At every second node (every router or
@@ -12739,32 +12760,11 @@ sub path_walk {
     # Identify path from source to destination if not known.
     if (not exists $from_store->{path1}->{$to_store}) {
         if (not path_mark($from_store, $to_store)) {
+            delete $from_store->{path1}->{$to_store};
 
             # Abort, if path does not exist.
-            my $zone1 = find_zone1($from_store);
-            my $zone2 = find_zone1($to_store);
-            my $msg;
-            if ($zone1->{partition} and $zone2->{partition} and
-                $zone1->{partition} ne $zone2->{partition}) {
-                    $msg = "Source and destination objects are located in ".
-                        "different topology partitions: " .
-                        "$zone1->{partition}, $zone2->{partition}.";
-            }
-            else {
-                $msg = "Check path restrictions and crypto interfaces.";
-            }
-
-
-            err_msg(
-                "No valid path\n",
-                " from $from_store->{name}\n",
-                " to $to_store->{name}\n",
-                " for rule ",
-                print_rule($rule),
-                "\n ",
-                $msg
-            );
-            delete $from_store->{path1}->{$to_store};
+            show_err_no_valid_path($from_store, $to_store,
+                                   "for rule " . print_rule($rule));
             return;
         }
     }
@@ -12985,26 +12985,9 @@ sub path_auto_interfaces {
         }
     }
     if (not @result) {
-        my $zone1 = find_zone1($src_path);
-        my $zone2 = find_zone1($dst_path);
-        my $msg;
-        if ($zone1->{partition} and $zone2->{partition} and
-            $zone1->{partition} ne $zone2->{partition}) {
-            $msg = " Source and destination objects are located in ".
-                "different topology partitions: " .
-                "$zone1->{partition}, $zone2->{partition}.";
-        }
-        else {
-            $msg = " Check path restrictions and crypto interfaces.";
-        }
-        err_msg(
-            "No valid path\n",
-            " from $src_path->{name}\n",
-            " to $dst_path->{name}\n",
-            " while resolving $src->{name}",
-            " (destination is $dst->{name}).\n",
-            $msg
-            );
+        show_err_no_valid_path($src_path, $dst_path,
+                               "while resolving $src->{name}" .
+                               " (destination is $dst->{name}).");
         return;
     }
     @result = grep { $_->{ip} ne 'tunnel' } unique @result;
