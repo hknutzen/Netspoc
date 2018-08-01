@@ -95,6 +95,14 @@ sub nat {
     return($network->{ip} | $ip & ~ $network->{mask});
 }
 
+sub print_network_ip {
+    my ($network) = @_;
+    my ($ip, $mask) = @{$network}{qw(ip mask)};
+    my $p_ip = print_ip($ip);
+    my $p_mask = 16 == length($mask) ? mask2prefix($mask) : print_ip($mask);
+    return "$p_ip/$p_mask";
+}
+
 sub ip_nat_for_object {
     my ($obj) = @_;
     my $ip;
@@ -124,7 +132,7 @@ sub ip_nat_for_object {
                 print_ip($obj->{ip});
             }
             else {
-                join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
+                print_network_ip($obj);
             }
         };
         $ip = $get_ip->($obj);
@@ -151,8 +159,7 @@ sub ip_nat_for_object {
                 else {
 
                     # Dynamic NAT, take whole network.
-                    join('/',
-                         print_ip($network->{ip}), print_ip($network->{mask}));
+                    print_network_ip($network);
                 }
             }
             else {
@@ -189,8 +196,7 @@ sub ip_nat_for_object {
                 else {
 
                     # Dynamic NAT, take whole network.
-                    join('/',
-                         print_ip($network->{ip}), print_ip($network->{mask}));
+                    print_network_ip($network);
                 }
             }
             elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
@@ -199,8 +205,7 @@ sub ip_nat_for_object {
             elsif ($obj->{ip} eq 'negotiated') {
 
                 # Take whole network.
-                join('/',
-                     print_ip($network->{ip}), print_ip($network->{mask}));
+                print_network_ip($network);
             }
             else {
                 print_ip(nat($obj->{ip}, $network));

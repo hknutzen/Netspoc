@@ -202,6 +202,11 @@ sub adjust_testfile {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
         }
 
+        # Convert mask to prefix in exported JSON data.
+        if ($line =~ s/( : ")($ipv6)\/($ipv6)/$1$2!$3/) {
+            $line =~ s/(!$ipv6)/to_prefix($1)/e;
+        }
+
         # Convert syntax of IOS / NX-OS routing, but not iptables.
         if ($line !~ /ip route add/) {
             $line =~ s/ip route/ipv6 route/;
