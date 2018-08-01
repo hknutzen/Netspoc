@@ -389,6 +389,15 @@ END
 test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Don\'t check for duplicate rules';
+############################################################
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out, '--check_duplicate_rules=0');
+
+############################################################
 $title = 'Fully redundant rule with multiple duplicates';
 ############################################################
 # Must not count duplicate rule multple times at s1,

@@ -7309,7 +7309,7 @@ sub collect_duplicate_rules {
     my $prt2 = get_orig_prt($other);
     return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
 
-    push @duplicate_rules, [ $rule, $other ];
+    push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
 
 sub show_duplicate_rules {
