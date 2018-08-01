@@ -7372,7 +7372,7 @@ sub show_redundant_rules {
 
         my $sname = $rule->{rule}->{service}->{name};
         my $oname = $other->{rule}->{service}->{name};
-        push(@{ $sname2oname2redundant{$sname}->{$oname} }, [ $rule, $other ]);
+        push(@{ $sname2oname2redundant{$sname}->{$oname} }, $pair);
     }
 
     # Free memory.
