@@ -32,6 +32,7 @@ use feature 'current_sub';
 use strict;
 use warnings;
 use JSON::XS;
+use Sereal::Encoder;
 use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::File qw(
  process_file_or_dir
@@ -18874,11 +18875,6 @@ sub UNIVERSAL::TO_JSON {
     $new_obj{$obj} = 1;
     return "$obj"; 
 }
-sub Area::TO_JSON { return 0; }
-sub Host::TO_JSON { return 0; }
-sub Owner::TO_JSON { return 0; }
-sub nat_domain::TO_JSON { return 0; }
-sub Rule::TO_JSON { return $_[0]->{service}->{name}; }
 
 sub compile {
     my ($args) = @_;
@@ -18916,17 +18912,10 @@ sub compile {
 
 #=head
     progress("Exporting path_rules");
-    my $j = JSON::XS->new->pretty(1)->canonical(1)->convert_blessed(1);
-    print $j->encode(\%path_rules);
-    progress("Finding transient objects");
-    while (keys %new_obj) {
-        for my $ref (keys %new_obj) {
-            $j->encode($JSON_obj{$ref});
-        }
-        %new_obj = ();
-    }
-    progress("Exporting objects");
-    print $j->encode(\%JSON_obj);
+    my $e = Sereal::Encoder->new();
+    open(my $fh, '>:', "/home/hk/out.sereal");
+    print $fh $e->encode(\%path_rules);
+    close $fh;
     progress("Export ready");
     exit;
 #=cut
