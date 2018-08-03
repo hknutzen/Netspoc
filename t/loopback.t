@@ -162,6 +162,38 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Ignore zone of loopback interface at mixed hardware';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:lo = { ip = 10.0.0.1; hardware = n1; loopback; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+service:s1 = {
+ user = any:[interface:r1.lo], network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.2
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Loopback is subnet';
 ############################################################
 

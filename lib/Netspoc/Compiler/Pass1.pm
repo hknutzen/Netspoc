@@ -16421,7 +16421,9 @@ sub distribute_rule {
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
     # Don't generate code for src any:[interface:r.loopback] at router:r.
-    return if $in_intf->{loopback};
+    if ($in_intf->{loopback}) {
+        return;
+    }
 
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
