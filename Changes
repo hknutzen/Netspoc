@@ -1,8 +1,10 @@
 {{$NEXT}}
 
- - Attribute 'has_fully_redundant' is no longer supported.  Netspoc
- - Compiler has better CPU performance for topology with many dynamic
-   and hidden NAT definitions.
+ - Netspoc compiler has better CPU performance now
+   for topology with many dynamic and hidden NAT definitions.
+ - Removed artificial duplicate elements from zone clusters
+   in user lists of exported JSON data.
+ - Attribute 'has_fully_redundant' is no longer supported.
 
 5.039     2018-07-17 13:23:51+02:00 Europe/Berlin
 
