@@ -16481,55 +16481,47 @@ sub distribute_rule {
     }
 
     if ($in_intf->{ip} eq 'tunnel') {
+        my $no_crypto_filter = $model->{no_crypto_filter};
 
         # Rules for single software clients are stored individually.
         # Consistency checks have already been done at expand_crypto.
         # Rules are needed at tunnel for generating split tunnel ACL
-        # regardless of $model->{no_crypto_filter} value.
+        # regardless of $no_crypto_filter value.
         if (my $id2rules = $in_intf->{id_rules}) {
             my $src_list = $rule->{src};
-
-            # Check individual ID hosts of network at authenticating router.
-            if (grep { $_->{has_id_hosts} } @$src_list) {
-                my @host_list;
-                for my $src (@$src_list) {
-                    if ($src->{has_id_hosts}) {
-                        push @host_list, @{ $src->{subnets} };
-                    }
-                    else {
-                        push @host_list, $src;
-                    }
-                }
-                $src_list = \@host_list;
-                $rule = { %$rule, src => $src_list };
-            }
-
-            my %id2src_list;
+            my $extra_hosts;
             for my $src (@$src_list) {
-                my $id = $src->{id};
-                push @{ $id2src_list{$id} }, $src;
-            }
-            for my $id (keys %id2src_list) {
-                my $id_src_list = $id2src_list{$id};
-
-                # Try to reuse original rule for memory efficiency.
-                my $new_rule = $rule;
-                if (@$src_list != @$id_src_list) {
-                    $new_rule = { %$rule, src => $id_src_list };
+                
+                # Check individual ID hosts of network at
+                # authenticating router.
+                if ($src->{has_id_hosts}) {
+                    for my $host (@{ $src->{subnets} }) {
+                        my $id = $host->{id};
+                        my $new_rule = { %$rule, src => [$host] };
+                        push @{ $id2rules->{$id}->{$key} }, $new_rule;
+                        push @$extra_hosts, $host
+                    }
+                    next;
                 }
+                my $id = $src->{id};
+                my $new_rule = { %$rule, src => [$src] };
                 push @{ $id2rules->{$id}->{$key} }, $new_rule;
+            }
+            if ($extra_hosts and $no_crypto_filter) {
+                push @$extra_hosts, grep { $_->{id} } @$src_list;
+                $rule = { %$rule, src => $extra_hosts };
             }
         }
 
         # Rules are needed at tunnel for generating
         # detailed_crypto_acl or crypto_filter ACL.
-        elsif (not $model->{no_crypto_filter} or
+        elsif (not $no_crypto_filter or
                $in_intf->{crypto}->{detailed_crypto_acl})
         {
             push @{ $in_intf->{$key} }, $rule;
         }
 
-        if ($model->{no_crypto_filter}) {
+        if ($no_crypto_filter) {
             push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
         }
     }
