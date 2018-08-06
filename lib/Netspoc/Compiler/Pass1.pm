@@ -14816,13 +14816,13 @@ sub check_conflict {
       RULE:
         for my $rule1 (@$rules) {
             my $zone1 = $rule1->{"${what}_path"};
-            my $list1 = $rule1->{$what};
+            my @list1 = map({ $_->{network} || $_ }
+                            grep({ not $_->{has_other_subnet}  }
+                                 @{ $rule1->{$what} }));
             for my $supernet (values %$supernet_hash) {
                 my $zone2 = $supernet->{zone};
                 next if $zone1 eq $zone2;
-                for my $obj1 (@$list1) {
-                    next if $obj1->{has_other_subnet};
-                    my $network = $obj1->{network} || $obj1;
+                for my $network (@list1) {
                     my $is_subnet = $cache{$supernet}->{$network};
                     if (not defined $is_subnet) {
                         my ($ip, $mask) = @{$network}{ 'ip', 'mask' };
@@ -16491,7 +16491,7 @@ sub distribute_rule {
             my $src_list = $rule->{src};
             my $extra_hosts;
             for my $src (@$src_list) {
-                
+
                 # Check individual ID hosts of network at
                 # authenticating router.
                 if ($src->{has_id_hosts}) {
