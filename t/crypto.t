@@ -161,7 +161,21 @@ END
 
 $out = <<'END';
 Error: Unknown type 'xyz' for crypto:c
-Warning: No hub has been defined for crypto:c
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unknown ipsec referenced in crypto definition';
+############################################################
+
+$in = <<'END';
+crypto:c = { type = ipsec:abc; }
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve reference to ipsec:abc for crypto:c
 END
 
 test_err($title, $in, $out);

@@ -4743,16 +4743,12 @@ sub check_ip_addresses_and_bridges {
 
 }
 
-sub link_ipsec;
-sub link_crypto;
-sub link_tunnels;
-
 sub link_topology {
     progress('Linking topology');
     link_routers;
-    link_ipsec;
-    link_crypto;
-    link_tunnels;
+    my $crypto_err = link_ipsec();
+    $crypto_err ||= link_crypto();
+    link_tunnels() if not $crypto_err;
     link_pathrestrictions;
     link_virtual_interfaces;
     split_semi_managed_router();
@@ -13024,23 +13020,30 @@ sub path_auto_interfaces {
 ########################################################################
 
 sub link_ipsec {
+    my $error;
     for my $ipsec (values %ipsec) {
 
         # Convert name of ISAKMP definition to object with ISAKMP definition.
         my ($type, $name) = @{ $ipsec->{key_exchange} };
         if ($type eq 'isakmp') {
-            my $isakmp = $isakmp{$name}
-              or err_msg "Can't resolve reference to $type:$name",
-              " for $ipsec->{name}";
+            my $isakmp = $isakmp{$name};
+            if (not $isakmp) {
+                err_msg("Can't resolve reference to $type:$name",
+                        " for $ipsec->{name}");
+                $error = 1;
+            }
             $ipsec->{key_exchange} = $isakmp;
         }
         else {
             err_msg("Unknown key_exchange type '$type' for $ipsec->{name}");
+            $error = 1;
         }
     }
+    return $error;
 }
 
 sub link_crypto {
+    my $error;
     for my $crypto (values %crypto) {
         my $name = $crypto->{name};
 
@@ -13048,15 +13051,19 @@ sub link_crypto {
         my ($type, $name2) = @{ $crypto->{type} };
 
         if ($type eq 'ipsec') {
-            my $ipsec = $ipsec{$name2}
-              or err_msg "Can't resolve reference to $type:$name2",
-              " for $name";
+            my $ipsec = $ipsec{$name2};
+            if (not $ipsec) {
+                err_msg("Can't resolve reference to $type:$name2 for $name");
+                $error = 1;
+            }
             $crypto->{type} = $ipsec;
         }
         else {
             err_msg("Unknown type '$type' for $name");
+            $error = 1;
         }
     }
+    return $error;
 }
 
 # Generate rules to permit crypto traffic between tunnel endpoints.
