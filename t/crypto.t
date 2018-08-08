@@ -377,7 +377,7 @@ network:other = { ip = 10.99.9.0/24; }
 END
 
 $out = <<'END';
-Error: Exactly one network must be located behind unmanaged crypto interface:softclients.clients
+Error: Exactly one network must be located behind unmanaged interface:softclients.clients of crypto router
 END
 
 test_err($title, $in, $out);
@@ -3197,7 +3197,7 @@ id = cert@example.com;
   hardware = GigabitEthernet0;
  }
  interface:lan1 = {
-  ip = 10.99.1.1;
+  ip = 10.99.1.1, 10.99.1.253;
   hardware = Fastethernet8;
  }
 }
@@ -3280,6 +3280,7 @@ ip access-list extended crypto-1.2.3.2
  permit ip 10.10.10.0 0.0.0.255 any
 ip access-list extended crypto-filter-1.2.3.2
  deny ip any host 10.10.10.1
+ deny ip any host 10.10.10.253
  permit udp host 10.1.1.111 10.10.10.0 0.0.0.255 eq 123
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any

@@ -1849,6 +1849,11 @@ sub read_interface {
     return $interface, @secondary_interfaces;
 }
 
+sub non_secondary_interfaces {
+    my ($obj) = @_;
+    return grep { not $_->{main_interface} } @{ $obj->{interfaces} }
+}
+
 #############################################################################
 # Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because
 #            ACLs operate on hardware, not on logic. Marks hardware needing
@@ -1868,7 +1873,7 @@ sub check_no_in_acl {
         $hardware->{no_in_acl} = 1;
 
         # Assure max number of main interfaces at no_in_acl-hardware == 1.
-        1 == grep({ not $_->{main_interface} } @{ $hardware->{interfaces} })
+        1 == non_secondary_interfaces($hardware)
           or err_msg(
             "Only one logical interface allowed at hardware",
             " '$hardware->{name}' of $router->{name}\n",
@@ -9435,7 +9440,7 @@ sub check_crosslink {
                 );
                 next;
             }
-            1 == grep({ not $_->{main_interface} } @{ $hardware->{interfaces} })
+            1 == non_secondary_interfaces($hardware)
               or err_msg("Crosslink $network->{name} must be the only network\n",
                          " connected to $hardware->{name} of $router->{name}");
 
@@ -13233,17 +13238,17 @@ sub crypto_behind {
     my ($interface, $managed) = @_;
     if ($managed) {
         my $zone = $interface->{zone};
-        1 == @{ $zone->{interfaces} }
-          or err_msg "Exactly one security zone must be located behind",
-          " managed crypto $interface->{name}";
+        1 == non_secondary_interfaces($zone) or
+            err_msg("Exactly one security zone must be located behind",
+                    " managed $interface->{name} of crypto router");
         my $zone_networks = $zone->{networks};
         return @$zone_networks;
     }
     else {
         my $network = $interface->{network};
-        1 == @{ $network->{interfaces} }
-          or err_msg "Exactly one network must be located behind",
-          " unmanaged crypto $interface->{name}";
+        1 == non_secondary_interfaces($network) or
+            err_msg("Exactly one network must be located behind",
+                    " unmanaged $interface->{name} of crypto router");
         return ($network);
     }
 }
@@ -17503,8 +17508,7 @@ sub print_cisco_acls {
                         $zone->{zone_cluster} and last;
 
                         # Ignore real interface of virtual interface.
-                        my @interfaces = grep({ not $_->{main_interface} }
-                                              @{ $zone->{interfaces} });
+                        my @interfaces = non_secondary_interfaces($zone);
 
                         if (@interfaces > 1) {
 
