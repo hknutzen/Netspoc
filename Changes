@@ -1,10 +1,16 @@
 {{$NEXT}}
 
+5.040     2018-08-08 17:23:09+02:00 Europe/Berlin
+
+ - If host range has subnet size, e.g. range = 10.1.1.8 - 10.1.1.15,
+   this range is allowed to overlap with interface IPs of same network.
+   Previously, this was only allowed for real sub network.
+ - Attribute 'has_fully_redundant' is no longer supported.
  - Netspoc compiler has better CPU performance now
    for topology with many dynamic and hidden NAT definitions.
  - Removed artificial duplicate elements from zone clusters
    in user lists of exported JSON data.
- - Attribute 'has_fully_redundant' is no longer supported.
+ - IPv6 addresses in exported JSON data now use prefix length instead of mask.
 
 5.039     2018-07-17 13:23:51+02:00 Europe/Berlin
 
