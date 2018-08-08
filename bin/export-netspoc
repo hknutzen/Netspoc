@@ -95,6 +95,14 @@ sub nat {
     return($network->{ip} | $ip & ~ $network->{mask});
 }
 
+sub print_network_ip {
+    my ($network) = @_;
+    my ($ip, $mask) = @{$network}{qw(ip mask)};
+    my $p_ip = print_ip($ip);
+    my $p_mask = 16 == length($mask) ? mask2prefix($mask) : print_ip($mask);
+    return "$p_ip/$p_mask";
+}
+
 sub ip_nat_for_object {
     my ($obj) = @_;
     my $ip;
@@ -124,7 +132,7 @@ sub ip_nat_for_object {
                 print_ip($obj->{ip});
             }
             else {
-                join('/', print_ip($obj->{ip}), print_ip($obj->{mask}));
+                print_network_ip($obj);
             }
         };
         $ip = $get_ip->($obj);
@@ -151,8 +159,7 @@ sub ip_nat_for_object {
                 else {
 
                     # Dynamic NAT, take whole network.
-                    join('/',
-                         print_ip($network->{ip}), print_ip($network->{mask}));
+                    print_network_ip($network);
                 }
             }
             else {
@@ -189,8 +196,7 @@ sub ip_nat_for_object {
                 else {
 
                     # Dynamic NAT, take whole network.
-                    join('/',
-                         print_ip($network->{ip}), print_ip($network->{mask}));
+                    print_network_ip($network);
                 }
             }
             elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
@@ -199,8 +205,7 @@ sub ip_nat_for_object {
             elsif ($obj->{ip} eq 'negotiated') {
 
                 # Take whole network.
-                join('/',
-                     print_ip($network->{ip}), print_ip($network->{mask}));
+                print_network_ip($network);
             }
             else {
                 print_ip(nat($obj->{ip}, $network));
@@ -832,7 +837,7 @@ sub export_no_nat_set {
     for my $owner_name (sort keys %owner2net) {
         my %nat_domains;
         for my $network (values %{ $owner2net{$owner_name} }) {
-            my $nat_domain = $network->{nat_domain};
+            my $nat_domain = $network->{zone}->{nat_domain};
             $nat_domains{$nat_domain} = $nat_domain;
         }
         my @nat_domains = values %nat_domains;
@@ -1102,7 +1107,11 @@ sub export_users_and_service_lists {
                     @users = grep({ $_->{visible_owner_hash}->{$owner} }
                                   @{ $service->{user} });
                 }
-                @users = sort map { $_->{name} } @users;
+
+                # Sort result and
+                # remove duplicate aggregates from zone clusters.
+                # Mark call to unique, so it isn't used as compare function.
+                @users = sort &unique(map { $_->{name} } @users);
                 $service2users{$sname} = \@users;
             }
             $type2snames{$type} = [ sort @snames ];

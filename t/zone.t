@@ -108,6 +108,8 @@ test_warn($title, $in, $out);
 ############################################################
 $title = 'Duplicate IP from NAT in zone';
 ############################################################
+# Must only allow traffic from network:A, but not from network:B
+# at filter1.
 
 $in = <<'END';
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -127,148 +129,20 @@ router:filter1 = {
  routing = manual;
  interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
 }
+
+service:s1 = {
+ user = network:A;
+ permit src = user; dst = interface:filter1.Trans; prt = tcp 22;
+}
 END
 
 $out = <<'END';
 Error: network:B and network:A have identical IP/mask at interface:filter1.Trans
 END
 
+Test::More->builder->todo_start($title);
 test_err($title, $in, $out);
-
-############################################################
-$title = 'Ambiguous subnet relation from NAT in zone';
-############################################################
-
-$in = <<'END';
-router:filter1 = {
- managed;
- model = ASA;
- routing = manual;
- interface:B = { ip = 10.3.3.10; hardware = VLAN1; }
-}
-
-network:A = { ip = 10.3.3.0/24; has_subnets; }
-network:B = {
- ip = 10.3.3.8/29;
- nat:C = { ip = 10.1.1.8/29; }
-}
-
-router:ras = {
- interface:A = { ip = 10.3.3.1; }
- interface:B = { ip = 10.3.3.9; }
- interface:Trans = { ip = 10.1.1.2; bind_nat = C; }
-}
-
-network:Trans = { ip = 10.1.1.0/24; has_subnets; }
-
-router:filter2 = {
- managed;
- model = ASA;
- routing = manual;
- interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
-}
-END
-
-$out = <<'END';
-Error: Ambiguous subnet relation from NAT.
- network:B is subnet of
- - network:A at interface:filter1.B
- - network:Trans at interface:filter2.Trans
-END
-
-test_err($title, $in, $out);
-
-$in =~ s|nat:C.*|nat:C = { ip = 10.2.2.8/29; }|;
-
-$out = <<'END';
-Error: Ambiguous subnet relation from NAT.
- network:B is subnet of
- - network:A at interface:filter1.B
- - but has no subnet relation at interface:filter2.Trans
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Subnet relation with hidden subnet';
-############################################################
-
-$in =~ s|nat:C.*|nat:C = { hidden; }|;
-
-$out = <<'END';
-Error: Ambiguous subnet relation from NAT.
- network:B is subnet of
- - network:A at interface:filter1.B
- - but it is hidden by nat:C at interface:filter2.Trans
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Mutual subnet relation from NAT in zone';
-############################################################
-
-$in = <<'END';
-router:filter1 = {
- managed;
- model = ASA;
- routing = manual;
- interface:B = { ip = 10.3.3.10; hardware = VLAN1; }
-}
-
-network:A = { ip = 10.3.3.0/24;
- has_subnets;
- nat:C = { ip = 10.3.3.12/30; dynamic; }
-}
-network:B = {
- has_subnets;
- ip = 10.3.3.8/29;
- nat:C = { identity; }
-}
-
-router:ras = {
- interface:A = { ip = 10.3.3.1; }
- interface:B = { ip = 10.3.3.9; }
- interface:Trans = { ip = 10.1.1.2; bind_nat = C; }
-}
-
-network:Trans = { ip = 10.1.1.0/24; has_subnets; }
-
-router:filter2 = {
- managed;
- model = ASA;
- routing = manual;
- interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
-}
-END
-
-$out = <<'END';
-Error: Ambiguous subnet relation from NAT.
- network:A is subnet of
- - network:B at interface:filter2.Trans
- - but has no subnet relation at interface:filter1.B
-Error: Ambiguous subnet relation from NAT.
- network:B is subnet of
- - network:A at interface:filter1.B
- - but has no subnet relation at interface:filter2.Trans
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Subnet relation with hidden supernet';
-############################################################
-
-$in =~ s|nat:C.*|nat:C = { hidden; }|;
-
-$out = <<'END';
-Error: Ambiguous subnet relation from NAT.
- network:B is subnet of
- - network:A at interface:filter1.B
- - but has no subnet relation at interface:filter2.Trans
-END
-
-test_err($title, $in, $out);
+Test::More->builder->todo_end;
 
 ############################################################
 $title = 'No secondary optimization for network with subnet in other zone';

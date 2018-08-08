@@ -161,7 +161,21 @@ END
 
 $out = <<'END';
 Error: Unknown type 'xyz' for crypto:c
-Warning: No hub has been defined for crypto:c
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Unknown ipsec referenced in crypto definition';
+############################################################
+
+$in = <<'END';
+crypto:c = { type = ipsec:abc; }
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve reference to ipsec:abc for crypto:c
 END
 
 test_err($title, $in, $out);
@@ -1145,8 +1159,8 @@ object-group network g2
  network-object 10.99.2.128 255.255.255.192
 access-list outside_in extended permit icmp object-group g0 any4 3
 access-list outside_in extended permit tcp object-group g1 10.1.1.0 255.255.255.0 eq 80
-access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
 access-list outside_in extended permit tcp object-group g2 10.1.1.0 255.255.255.0 eq 81
+access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.0 range 80 81
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END

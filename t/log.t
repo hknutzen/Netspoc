@@ -173,6 +173,26 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Duplicate log tag';
+############################################################
+
+$in = $topo . <<'END';
+service:t = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80; log = b,a,a,c,b,c,b;
+}
+END
+
+$out = <<'END';
+Warning: Duplicate 'a' in log of service:t
+Warning: Duplicate 'b' in log of service:t
+Warning: Duplicate 'c' in log of service:t
+Warning: Duplicate 'b' in log of service:t
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Global optimization with log tag';
 ############################################################
 
