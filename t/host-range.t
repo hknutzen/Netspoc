@@ -130,6 +130,27 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Ignore overlap of subnet range and interface IP';
+############################################################
+
+$in = <<'END';
+
+network:n = {
+ ip = 10.1.1.0/24;
+ host:a = { range = 10.1.1.0-10.1.1.15; }
+}
+
+router:r = {
+ interface:n = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Duplicate host and interface IP';
 ############################################################
 

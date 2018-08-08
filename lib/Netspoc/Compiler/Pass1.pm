@@ -4601,9 +4601,17 @@ sub check_ip_addresses {
     my $hosts = $network->{hosts} or next;
     for my $host (@$hosts) {
         my $range = $host->{range} or next;
+
+        # It is ok for subnet range to overlap with interface IP,
+        # but not with managed host.
+        my @subnets = split_ip_range(@$range);
+        my $is_subnet = 1 == @subnets && !is_host_mask($subnets[0]->[1]);
+        next if $is_subnet and not $network->{managed_hosts};
+
         my ($low, $high) = @$range;
         for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
             if (my $other_device = $ip2obj{$ip}) {
+                next if $is_subnet and not $other_device->{is_managed_host};
                 err_msg("Duplicate IP address for $other_device->{name}",
                         " and $host->{name}");
             }
