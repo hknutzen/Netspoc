@@ -137,6 +137,25 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unknown key_exchange';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:abc;
+ esp_encryption = aes256;
+ lifetime = 600 sec;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve reference to isakmp:abc for ipsec:aes256SHA
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Missing type of crypto definition';
 ############################################################
 
@@ -151,7 +170,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Unknown type and missing hub for crypto definition';
+$title = 'Unknown type in crypto definition';
 ############################################################
 
 $in = <<'END';
@@ -179,6 +198,20 @@ Error: Can't resolve reference to ipsec:abc for crypto:c
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'No hub defined for crypto';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: No hub has been defined for crypto:vpn
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Unnumbered crypto interface';
