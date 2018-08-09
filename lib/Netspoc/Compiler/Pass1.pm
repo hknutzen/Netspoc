@@ -13382,6 +13382,7 @@ sub expand_crypto {
             my $managed        = $router->{managed};
             my $hub_router     = $hub->{router};
             my $hub_model      = $hub_router->{model};
+            my $no_nat_set     = $hub->{no_nat_set};
             my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
             my @encrypted;
             my ($has_id_hosts, $has_other_network);
@@ -13405,7 +13406,6 @@ sub expand_crypto {
 
                     # Rules for single software clients are stored
                     # individually at crypto hub interface.
-                    my $no_nat_set = $hub->{no_nat_set};
                     for my $host (@{ $network->{hosts} }) {
                         my $id = $host->{id};
 
@@ -13485,7 +13485,12 @@ sub expand_crypto {
                     $spoke->{id} = '';
                 }
             }
-            $hub->{peer_networks} = \@encrypted;
+
+            # Add only non hidden peer networks.
+            for my $net (@encrypted) {
+                next if get_nat_network($net, $no_nat_set)->{hidden};
+                push @{ $hub->{peer_networks} }, $net;
+            }
 
             if ($managed and $router->{model}->{crypto} eq 'ASA') {
                 verify_asa_trustpoint($router, $crypto);

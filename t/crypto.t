@@ -3394,6 +3394,42 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Don't add hidden network to crypto ACL";
+############################################################
+
+$in = $topo;
+$in =~ s/(interface:lan1)/interface:lan2={ip=10.99.2.1;hardware=lan2;}$1/;
+$in =~ s/bind_nat = lan1;/bind_nat = h, lan1; /;
+$in .= <<'END';
+network:lan2 = {
+ ip = 10.99.2.0/24;
+ nat:h = { hidden; }
+}
+END
+
+
+$out = <<'END';
+--asavpn
+! crypto-1.2.3.129
+access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
+crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-1.2.3.129
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group 1.2.3.129 type ipsec-l2l
+tunnel-group 1.2.3.129 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.2.3.129
+crypto map crypto-outside interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
 # Changed topology
 ############################################################
 
