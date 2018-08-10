@@ -18100,17 +18100,12 @@ sub print_interface {
         my @subcmd;
         my $secondary;
 
-        # Show address of real interface first, because
-        # Netspoc-Approve checks first address.
-        for my $intf (sort({ ($a->{redundant} || '') cmp($b->{redundant} || '') }
-                           @{ $hardware->{interfaces} }))
-        {
+        for my $intf (@{ $hardware->{interfaces} }) {
             my $addr_cmd;
+            next if $intf->{redundant};
             my $ip = $intf->{ip};
-            if ($ip eq 'tunnel') {
-                next;
-            }
-            elsif ($ip eq 'unnumbered') {
+            next if $ip eq 'tunnel';
+            if ($ip eq 'unnumbered') {
                 $addr_cmd = 'ip unnumbered X';
             }
             elsif ($ip eq 'negotiated') {

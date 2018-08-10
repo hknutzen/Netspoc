@@ -162,7 +162,6 @@ ip access-list extended e0_in
 --
 interface e0
  ip address 10.1.1.2 255.255.255.0
- ip address 10.1.1.1 255.255.255.0 secondary
  ip access-group e0_in in
 interface e1
  ip address 10.2.2.1 255.255.255.0
@@ -174,7 +173,6 @@ ip access-list extended e0_in
 --
 interface e0
  ip address 10.1.1.3 255.255.255.0
- ip address 10.1.1.1 255.255.255.0 secondary
  ip access-group e0_in in
 interface e1
  ip address 10.2.2.2 255.255.255.0
