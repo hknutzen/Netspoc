@@ -25,10 +25,20 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1, 10.1.2.9; hardware = vlan2; }
 }
 
+router:r2 = {
+ managed;
+ model = NX-OS;
+ interface:n1 = { ip = 10.1.1.11,10.1.1.12;  hardware = n1; }
+}
+
 service:t1 = {
  user = network:n1, network:n2;
  permit src = user; dst = interface:r1.n1.5th; prt = tcp 22;
  permit src = user; dst = interface:r1.n2.2; prt = tcp 23;
+}
+service:t2 = {
+ user = network:n1;
+ permit src = user; dst = interface:r2.n1.2; prt = tcp 21;
 }
 END
 
@@ -52,6 +62,15 @@ interface vlan2
  ip address 10.1.2.1 255.255.255.0
  ip address 10.1.2.9 255.255.255.0 secondary
  ip access-group vlan2_in in
+-- r2
+ip access-list n1_in
+ 10 permit tcp 10.1.1.0/24 10.1.1.12/32 eq 21
+ 20 deny ip any any
+--
+interface n1
+ ip address 10.1.1.11/24
+ ip address 10.1.1.12/24 secondary
+ ip access-group n1_in in
 END
 
 test_run($title, $in, $out);
