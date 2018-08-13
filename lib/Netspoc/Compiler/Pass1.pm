@@ -3504,12 +3504,38 @@ sub print_rule {
 sub get_orig_prt {
     my ($rule) = @_;
     my $prt = $rule->{prt};
-    my $src_range = $rule->{src_range};
-    my $service = $rule->{rule}->{service};
-    my $map = $src_range
-            ? $service->{src_range2prt2orig_prt}->{$src_range}
-            : $service->{prt2orig_prt};
-    return $map->{$prt} || $prt;
+    my $orig_rule = $rule->{rule};
+    my $service = $orig_rule->{service};
+    my $list = expand_protocols($orig_rule->{prt}, $service->{name});
+    for my $o_prt (@$list) {
+        my $proto = $o_prt->{proto};
+        if ($proto eq 'tcp' or $proto eq 'udp') {
+            my ($l1, $h1) = @{ $prt->{range} };
+            my ($l2, $h2) = @{ $o_prt->{dst_range}->{range} };
+            $l2 <= $l1 and $h1 <= $h2 or next;
+            my $src_range = $rule->{src_range};
+            my $o_src_range = $o_prt->{src_range};
+            if ($src_range xor $o_src_range) {
+                next;
+            }
+            elsif (not $src_range) {
+                return $o_prt;
+            }
+            else {
+                my ($l1, $h1) = @{ $src_range->{range} };
+                my ($l2, $h2) = @{ $o_src_range->{range} };
+                if ($l2 <= $l1 and $h1 <= $h2) {
+                    return $o_prt;
+                }
+            }
+        }
+        elsif (my $main_prt = $o_prt->{main}) {
+            if ($main_prt eq $prt) {
+                return $o_prt;
+            }
+        }
+    }
+    return $prt;
 }
 
 ##############################################################################
@@ -6208,17 +6234,6 @@ sub classify_protocols {
             $prt      = $main_prt;
         }
         my $modifiers = $orig_prt ? $orig_prt->{modifiers} : $prt->{modifiers};
-        if ($orig_prt) {
-            if ($src_range) {
-#               debug "$context +:$prt->{name} => $orig_prt->{name}";
-                $service->{src_range2prt2orig_prt}->{$src_range}->{$prt} =
-                    $orig_prt;
-            }
-            else {
-#               debug "$context $prt->{name} => $orig_prt->{name}";
-                $service->{prt2orig_prt}->{$prt} = $orig_prt;
-            }
-        }
         if (keys %$modifiers or $src_range or $prt->{stateless_icmp}) {
             push @$complex_prt_list, [ $prt, $src_range, $modifiers ];
         }
@@ -6356,6 +6371,7 @@ sub normalize_service_rules {
                     $rule->{src_range} = $src_range if $src_range;
                     $rule->{stateless} = 1          if $modifiers->{stateless};
                     $rule->{oneway}    = 1          if $modifiers->{oneway};
+                    $rule->{overlaps}  = 1          if $modifiers->{overlaps};
                     $rule->{no_check_supernet_rules} = 1
                         if $modifiers->{no_check_supernet_rules};
                     $rule->{src_net}   = 1          if $modifiers->{src_net};
@@ -7314,9 +7330,7 @@ sub collect_duplicate_rules {
             }
         }
     }
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+    return if $rule->{overlaps} and $other->{overlaps};
 
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
@@ -7357,9 +7371,7 @@ sub collect_redundant_rules {
         $service->{redundant_count}++;
     }
 
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+    return if $rule->{overlaps} and $other->{overlaps};
 
     my $oservice = $other->{rule}->{service};
     if (my $overlaps = $service->{overlaps}) {
