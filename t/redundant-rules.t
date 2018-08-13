@@ -478,6 +478,10 @@ service:t1 = {
   user = network:n1;
   permit src = user; dst = network:n2; prt = protocol:p1, protocol:p2, protocol:p3;
 }
+service:t2 = {
+  user = network:n1;
+  permit src = network:n2; dst = user; prt = protocol:p1, udp 123;
+}
 END
 
 # Adjacent src ranges are not joined currently.
@@ -487,12 +491,20 @@ Warning: Redundant rules in service:t1 compared to service:t1:
 < permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
   permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
 < permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:t1
+Warning: Redundant rules in service:t2 compared to service:t2:
+  permit src=network:n2; dst=network:n1; prt=protocol:p1; of service:t2
+< permit src=network:n2; dst=network:n1; prt=udp 123; of service:t2
 -- r1
 ip access-list extended n1_in
  deny ip any host 10.1.2.1
  permit udp 10.1.1.0 0.0.0.255 range 100 1000 10.1.2.0 0.0.0.255 eq 123
  permit udp 10.1.1.0 0.0.0.255 gt 1000 10.1.2.0 0.0.0.255 eq 123
  permit udp 10.1.1.0 0.0.0.255 eq 123 10.1.2.0 0.0.0.255 lt 1001
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ permit udp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 123
  deny ip any any
 END
 

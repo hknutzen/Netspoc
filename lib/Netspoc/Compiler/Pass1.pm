@@ -3501,6 +3501,7 @@ sub print_rule {
         "$action src=$src->{name}; dst=$dst->{name}; prt=$prt->{name};$extra";
 }
 
+# Find original protocol in original, unexpanded rule.
 sub get_orig_prt {
     my ($rule) = @_;
     my $prt = $rule->{prt};
@@ -3535,7 +3536,6 @@ sub get_orig_prt {
             }
         }
     }
-    return $prt;
 }
 
 ##############################################################################
