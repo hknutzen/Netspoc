@@ -137,6 +137,25 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Unknown key_exchange';
+############################################################
+
+$in = <<'END';
+ipsec:aes256SHA = {
+ key_exchange = isakmp:abc;
+ esp_encryption = aes256;
+ lifetime = 600 sec;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve reference to isakmp:abc for ipsec:aes256SHA
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Missing type of crypto definition';
 ############################################################
 
@@ -151,7 +170,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Unknown type and missing hub for crypto definition';
+$title = 'Unknown type in crypto definition';
 ############################################################
 
 $in = <<'END';
@@ -179,6 +198,20 @@ Error: Can't resolve reference to ipsec:abc for crypto:c
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'No hub defined for crypto';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Warning: No hub has been defined for crypto:vpn
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Unnumbered crypto interface';
@@ -377,7 +410,7 @@ network:other = { ip = 10.99.9.0/24; }
 END
 
 $out = <<'END';
-Error: Exactly one network must be located behind unmanaged crypto interface:softclients.clients
+Error: Exactly one network must be located behind unmanaged interface:softclients.clients of crypto router
 END
 
 test_err($title, $in, $out);
@@ -3197,7 +3230,7 @@ id = cert@example.com;
   hardware = GigabitEthernet0;
  }
  interface:lan1 = {
-  ip = 10.99.1.1;
+  ip = 10.99.1.1, 10.99.1.253;
   hardware = Fastethernet8;
  }
 }
@@ -3280,6 +3313,7 @@ ip access-list extended crypto-1.2.3.2
  permit ip 10.10.10.0 0.0.0.255 any
 ip access-list extended crypto-filter-1.2.3.2
  deny ip any host 10.10.10.1
+ deny ip any host 10.10.10.253
  permit udp host 10.1.1.111 10.10.10.0 0.0.0.255 eq 123
  permit tcp host 10.1.1.111 10.10.10.0 0.0.0.255 established
  deny ip any any
@@ -3358,6 +3392,42 @@ Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:v
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = "Don't add hidden network to crypto ACL";
+############################################################
+
+$in = $topo;
+$in =~ s/(interface:lan1)/interface:lan2={ip=10.99.2.1;hardware=lan2;}$1/;
+$in =~ s/bind_nat = lan1;/bind_nat = h, lan1; /;
+$in .= <<'END';
+network:lan2 = {
+ ip = 10.99.2.0/24;
+ nat:h = { hidden; }
+}
+END
+
+
+$out = <<'END';
+--asavpn
+! crypto-1.2.3.129
+access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
+crypto map crypto-outside 1 set peer 1.2.3.129
+crypto map crypto-outside 1 match address crypto-1.2.3.129
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group 1.2.3.129 type ipsec-l2l
+tunnel-group 1.2.3.129 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint3
+ ikev1 user-authentication none
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 1.2.3.129
+crypto map crypto-outside interface outside
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 # Changed topology

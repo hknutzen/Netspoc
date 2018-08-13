@@ -85,7 +85,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode;
 
-our $VERSION = '5.040'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.041'; # VERSION: inserted by DZP::OurPkgVersion
 my $quiet;
 
 my %global_type =

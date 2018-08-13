@@ -1,3 +1,12 @@
+5.041     2018-08-13 12:42:57+02:00 Europe/Berlin
+
+ - Secondary IP addresses are ignored now, when checking for valid networks
+   behind crypto spoke.
+ - Network behind crypto spoke that is hidden at crypto hub,
+   is ignored now in crypto ACL generated at crypto hub.
+ - Virtual IP is no longer written als secondary interface IP
+   in generated device configuration.
+
 5.040     2018-08-08 17:23:09+02:00 Europe/Berlin
 
  - If host range has subnet size, e.g. range = 10.1.1.8 - 10.1.1.15,

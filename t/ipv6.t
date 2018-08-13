@@ -211,13 +211,11 @@ ipv6 access-list n2_in
 --
 interface n1
  ipv6 address 1000::abcd:1:2/112
- ipv6 address 1000::abcd:1:1/112
  ip inspect X in
  ipv6 traffic-filter n1_in in
 --
 interface n2
  ipv6 address 1000::abcd:2:2/112
- ipv6 address 1000::abcd:2:1/112
  ip inspect X in
  ipv6 traffic-filter n2_in in
 END

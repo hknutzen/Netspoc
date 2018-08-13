@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.040'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.041'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -1849,6 +1849,11 @@ sub read_interface {
     return $interface, @secondary_interfaces;
 }
 
+sub non_secondary_interfaces {
+    my ($obj) = @_;
+    return grep { not $_->{main_interface} } @{ $obj->{interfaces} }
+}
+
 #############################################################################
 # Purpose  : Moves attribute 'no_in_acl' from interfaces to hardware because
 #            ACLs operate on hardware, not on logic. Marks hardware needing
@@ -1868,7 +1873,7 @@ sub check_no_in_acl {
         $hardware->{no_in_acl} = 1;
 
         # Assure max number of main interfaces at no_in_acl-hardware == 1.
-        1 == grep({ not $_->{main_interface} } @{ $hardware->{interfaces} })
+        1 == non_secondary_interfaces($hardware)
           or err_msg(
             "Only one logical interface allowed at hardware",
             " '$hardware->{name}' of $router->{name}\n",
@@ -3499,12 +3504,38 @@ sub print_rule {
 sub get_orig_prt {
     my ($rule) = @_;
     my $prt = $rule->{prt};
-    my $src_range = $rule->{src_range};
-    my $service = $rule->{rule}->{service};
-    my $map = $src_range
-            ? $service->{src_range2prt2orig_prt}->{$src_range}
-            : $service->{prt2orig_prt};
-    return $map->{$prt} || $prt;
+    my $orig_rule = $rule->{rule};
+    my $service = $orig_rule->{service};
+    my $list = expand_protocols($orig_rule->{prt}, $service->{name});
+    for my $o_prt (@$list) {
+        my $proto = $o_prt->{proto};
+        if ($proto eq 'tcp' or $proto eq 'udp') {
+            my ($l1, $h1) = @{ $prt->{range} };
+            my ($l2, $h2) = @{ $o_prt->{dst_range}->{range} };
+            $l2 <= $l1 and $h1 <= $h2 or next;
+            my $src_range = $rule->{src_range};
+            my $o_src_range = $o_prt->{src_range};
+            if ($src_range xor $o_src_range) {
+                next;
+            }
+            elsif (not $src_range) {
+                return $o_prt;
+            }
+            else {
+                my ($l1, $h1) = @{ $src_range->{range} };
+                my ($l2, $h2) = @{ $o_src_range->{range} };
+                if ($l2 <= $l1 and $h1 <= $h2) {
+                    return $o_prt;
+                }
+            }
+        }
+        elsif (my $main_prt = $o_prt->{main}) {
+            if ($main_prt eq $prt) {
+                return $o_prt;
+            }
+        }
+    }
+    return $prt;
 }
 
 ##############################################################################
@@ -6183,7 +6214,7 @@ sub substitute_auto_intf {
 }
 
 sub classify_protocols {
-    my ($prt_list, $service) = @_;
+    my ($prt_list) = @_;
     my ($simple_prt_list, $complex_prt_list);
     for my $prt (@$prt_list) {
 
@@ -6203,17 +6234,6 @@ sub classify_protocols {
             $prt      = $main_prt;
         }
         my $modifiers = $orig_prt ? $orig_prt->{modifiers} : $prt->{modifiers};
-        if ($orig_prt) {
-            if ($src_range) {
-#               debug "$context +:$prt->{name} => $orig_prt->{name}";
-                $service->{src_range2prt2orig_prt}->{$src_range}->{$prt} =
-                    $orig_prt;
-            }
-            else {
-#               debug "$context $prt->{name} => $orig_prt->{name}";
-                $service->{prt2orig_prt}->{$prt} = $orig_prt;
-            }
-        }
         if (keys %$modifiers or $src_range or $prt->{stateless_icmp}) {
             push @$complex_prt_list, [ $prt, $src_range, $modifiers ];
         }
@@ -6307,7 +6327,7 @@ sub normalize_service_rules {
         my $prt_list =
           split_protocols(expand_protocols($unexpanded->{prt}, $context));
         @$prt_list or next;
-        my $prt_list_pair = classify_protocols($prt_list, $service);
+        my $prt_list_pair = classify_protocols($prt_list);
 
         for my $element ($foreach ? @$user : ($user)) {
             my $src_dst_list_pairs =
@@ -6351,6 +6371,7 @@ sub normalize_service_rules {
                     $rule->{src_range} = $src_range if $src_range;
                     $rule->{stateless} = 1          if $modifiers->{stateless};
                     $rule->{oneway}    = 1          if $modifiers->{oneway};
+                    $rule->{overlaps}  = 1          if $modifiers->{overlaps};
                     $rule->{no_check_supernet_rules} = 1
                         if $modifiers->{no_check_supernet_rules};
                     $rule->{src_net}   = 1          if $modifiers->{src_net};
@@ -7309,9 +7330,7 @@ sub collect_duplicate_rules {
             }
         }
     }
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+    return if $rule->{overlaps} and $other->{overlaps};
 
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
@@ -7352,9 +7371,7 @@ sub collect_redundant_rules {
         $service->{redundant_count}++;
     }
 
-    my $prt1 = get_orig_prt($rule);
-    my $prt2 = get_orig_prt($other);
-    return if $prt1->{modifiers}->{overlaps} and $prt2->{modifiers}->{overlaps};
+    return if $rule->{overlaps} and $other->{overlaps};
 
     my $oservice = $other->{rule}->{service};
     if (my $overlaps = $service->{overlaps}) {
@@ -9435,7 +9452,7 @@ sub check_crosslink {
                 );
                 next;
             }
-            1 == grep({ not $_->{main_interface} } @{ $hardware->{interfaces} })
+            1 == non_secondary_interfaces($hardware)
               or err_msg("Crosslink $network->{name} must be the only network\n",
                          " connected to $hardware->{name} of $router->{name}");
 
@@ -13233,17 +13250,17 @@ sub crypto_behind {
     my ($interface, $managed) = @_;
     if ($managed) {
         my $zone = $interface->{zone};
-        1 == @{ $zone->{interfaces} }
-          or err_msg "Exactly one security zone must be located behind",
-          " managed crypto $interface->{name}";
+        1 == non_secondary_interfaces($zone) or
+            err_msg("Exactly one security zone must be located behind",
+                    " managed $interface->{name} of crypto router");
         my $zone_networks = $zone->{networks};
         return @$zone_networks;
     }
     else {
         my $network = $interface->{network};
-        1 == @{ $network->{interfaces} }
-          or err_msg "Exactly one network must be located behind",
-          " unmanaged crypto $interface->{name}";
+        1 == non_secondary_interfaces($network) or
+            err_msg("Exactly one network must be located behind",
+                    " unmanaged $interface->{name} of crypto router");
         return ($network);
     }
 }
@@ -13377,6 +13394,7 @@ sub expand_crypto {
             my $managed        = $router->{managed};
             my $hub_router     = $hub->{router};
             my $hub_model      = $hub_router->{model};
+            my $no_nat_set     = $hub->{no_nat_set};
             my $hub_is_asa_vpn = $hub_model->{crypto} eq 'ASA_VPN';
             my @encrypted;
             my ($has_id_hosts, $has_other_network);
@@ -13400,7 +13418,6 @@ sub expand_crypto {
 
                     # Rules for single software clients are stored
                     # individually at crypto hub interface.
-                    my $no_nat_set = $hub->{no_nat_set};
                     for my $host (@{ $network->{hosts} }) {
                         my $id = $host->{id};
 
@@ -13480,7 +13497,12 @@ sub expand_crypto {
                     $spoke->{id} = '';
                 }
             }
-            $hub->{peer_networks} = \@encrypted;
+
+            # Add only non hidden peer networks.
+            for my $net (@encrypted) {
+                next if get_nat_network($net, $no_nat_set)->{hidden};
+                push @{ $hub->{peer_networks} }, $net;
+            }
 
             if ($managed and $router->{model}->{crypto} eq 'ASA') {
                 verify_asa_trustpoint($router, $crypto);
@@ -17503,8 +17525,7 @@ sub print_cisco_acls {
                         $zone->{zone_cluster} and last;
 
                         # Ignore real interface of virtual interface.
-                        my @interfaces = grep({ not $_->{main_interface} }
-                                              @{ $zone->{interfaces} });
+                        my @interfaces = non_secondary_interfaces($zone);
 
                         if (@interfaces > 1) {
 
@@ -18091,17 +18112,12 @@ sub print_interface {
         my @subcmd;
         my $secondary;
 
-        # Show address of real interface first, because
-        # Netspoc-Approve checks first address.
-        for my $intf (sort({ ($a->{redundant} || '') cmp($b->{redundant} || '') }
-                           @{ $hardware->{interfaces} }))
-        {
+        for my $intf (@{ $hardware->{interfaces} }) {
             my $addr_cmd;
+            next if $intf->{redundant};
             my $ip = $intf->{ip};
-            if ($ip eq 'tunnel') {
-                next;
-            }
-            elsif ($ip eq 'unnumbered') {
+            next if $ip eq 'tunnel';
+            if ($ip eq 'unnumbered') {
                 $addr_cmd = 'ip unnumbered X';
             }
             elsif ($ip eq 'negotiated') {
