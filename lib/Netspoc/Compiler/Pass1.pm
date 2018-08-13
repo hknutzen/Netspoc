@@ -6214,7 +6214,7 @@ sub substitute_auto_intf {
 }
 
 sub classify_protocols {
-    my ($prt_list, $service) = @_;
+    my ($prt_list) = @_;
     my ($simple_prt_list, $complex_prt_list);
     for my $prt (@$prt_list) {
 
@@ -6327,7 +6327,7 @@ sub normalize_service_rules {
         my $prt_list =
           split_protocols(expand_protocols($unexpanded->{prt}, $context));
         @$prt_list or next;
-        my $prt_list_pair = classify_protocols($prt_list, $service);
+        my $prt_list_pair = classify_protocols($prt_list);
 
         for my $element ($foreach ? @$user : ($user)) {
             my $src_dst_list_pairs =
