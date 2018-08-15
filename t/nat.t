@@ -2733,33 +2733,6 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'NAT is applied twice';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
-
-router:r1 = {
- interface:n1;
- interface:t1 = { bind_nat = n1; }
-}
-network:t1 = { ip = 10.7.1.0/24; }
-
-router:r2 = {
- interface:t1;
- interface:t2 = { bind_nat = n1; }
-}
-
-network:t2 = { ip = 10.7.2.0/24; }
-END
-
-$out = <<'END';
-Error: nat:n1 is applied twice between router:r1 and router:r2
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = 'Attribute acl_use_real_ip';
 ############################################################
 
