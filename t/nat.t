@@ -517,7 +517,8 @@ END
 
 # Only first error is shown.
 $out = <<'END';
-Error: Must not bind multiple NAT tags 'C,D' of network:n1 at router:filter
+Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
+ - interface:filter.X
 Warning: Ignoring useless nat:E bound at router:filter
 END
 
@@ -2038,7 +2039,9 @@ network:b = {ip = 10.9.9.0/24;}
 END
 
 $out = <<'END';
-Error: Grouped NAT tags 'a2' and 'a1' must not both be active inside nat_domain:[network:b]
+Error: Grouped NAT tags 'a2, a1' of network:a must not both be active at
+ - interface:r12.b
+ - interface:r22.b
 END
 
 test_err($title, $in, $out);
@@ -3081,7 +3084,8 @@ network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 END
 
 $out = <<'END';
-Error: Must not bind multiple NAT tags 'N,N2' of interface:r1.lo at router:r1
+Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
+ - interface:r1.n2
 END
 
 test_err($title, $in, $out);

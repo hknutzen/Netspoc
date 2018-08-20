@@ -8003,6 +8003,14 @@ sub find_nat_domains {
     }
 }
 
+sub get_nat_domain_borders {
+    my ($domain) = @_;
+    return [
+        grep { $_->{zone}->{nat_domain} eq $domain }
+        map { @{ $_->{interfaces} } } @{ $domain->{routers} }
+        ];
+}
+
 #############################################################################
 # Purpose:   For networks with multiple NAT definitions, only one NAT
 #            definition can be active in a domain. Generate error otherwise.
@@ -8016,12 +8024,14 @@ sub check_for_multinat_errors {
     if (my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag}) {
         for my $multinat_hash (@$multinat_hashes) {
             for my $nat_tag2 (sort keys %$multinat_hash) {
-                if ($nat_set->{$nat_tag2}) {
-                    err_msg(
-                        "Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                        " must not both be active inside $domain->{name}"
-                    );
-                }
+                $nat_set->{$nat_tag2} or next;
+                my $nat_net = $multinat_hash->{$nat_tag2};
+                err_msg(
+                    "Grouped NAT tags '$nat_tag2, $nat_tag'",
+                    " of $nat_net->{name}",
+                    " must not both be active at\n",
+                    name_list(get_nat_domain_borders($domain))
+                );
             }
         }
     }
@@ -8218,8 +8228,7 @@ sub distribute_nat {
 }
 
 ##############################################################################
-# Purpose: Distribute NAT tags to the domains they are active in.
-#          Assure unambiguous NAT for networks with multi NAT definitions.
+# Purpose: Distribute NAT tags to domains they are active in.
 sub distribute_nat_tags_to_nat_domains {
     my ($nat_tag2multinat_def) = @_;
     my $invalid_nat_transitions =
@@ -8228,30 +8237,7 @@ sub distribute_nat_tags_to_nat_domains {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
-          NAT_TAG:
             for my $nat_tag (@$nat_tags) {
-
-                # Multiple tags are bound to interface.
-                # If some network has multiple matching NAT tags,
-                # the resulting NAT mapping would be ambiguous.
-                if (@$nat_tags >= 2 and
-                    (my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag}))
-                {
-                    for my $multinat_hash (@$multinat_hashes) {
-                        my @tags = grep { $multinat_hash->{$_} } @$nat_tags;
-                        @tags >= 2 or next;
-                        my $tags = join(',', @tags);
-                        my $nat_net = $multinat_hash->{ $tags[0] };
-                        err_msg(
-                            "Must not bind multiple NAT tags '$tags'",
-                            " of $nat_net->{name} at $router->{name}"
-                        );
-
-                        # Show only first error. Process only first
-                        # valid NAT tag to prevent inherited errors.
-                        last NAT_TAG;
-                    }
-                }
                 distribute_nat($domain, $nat_tag,
                                $nat_tag2multinat_def,
                                $invalid_nat_transitions,
@@ -8262,7 +8248,7 @@ sub distribute_nat_tags_to_nat_domains {
 }
 
 #############################################################################
-# Purpose:   Check every NAT tag is both bound and defined somewhere.
+# Purpose: Check that every NAT tag is both bound and defined somewhere.
 sub check_nat_definitions {
     my ($nat_definitions) = @_;
     for my $domain (@natdomains) {
