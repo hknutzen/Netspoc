@@ -8116,21 +8116,20 @@ sub check_for_proper_nat_transition {
 # Purpose:    Performs a depth first traversal to distribute specified
 #             NAT tag to reachable domains where NAT tag is active;
 #             checks whether NAT declarations are applied correctly.
-# Parameters: $domain: Domain the depth first traversal proceeds from.
+# Parameters: $in_router: Router $domain was entered from.
+#             $domain: Domain the depth first traversal proceeds from.
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more than
 #                 one NAT tag specified.
 #             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
 #                 where transition from first to second tag is invalid.
-#             $in_router: Router $domain was entered from.
 # Results:    All domains, where NAT tag is active contain $nat_tag in their
 #             {nat_set} attribute.
 # Returns:    undef on success, array reference of routers, if invalid
 #             path was found in loop.
 sub distribute_nat1 {
-    my ($domain, $nat_tag,
-        $nat_tag2multinat_def, $invalid_nat_transitions,
-        $in_router) = @_;
+    my ($in_router, $domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions) = @_;
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
 
     # Loop found or domain was processed by earlier call of distribute_nat.
@@ -8187,9 +8186,8 @@ sub distribute_nat1 {
 #            debug "Caller $domain->{name}";
             if (
                 my $err_path = distribute_nat1(
-                    $out_domain, $nat_tag,
-                    $nat_tag2multinat_def, $invalid_nat_transitions,
-                    $router
+                    $router, $out_domain, $nat_tag,
+                    $nat_tag2multinat_def, $invalid_nat_transitions
                 )
               )
             {
@@ -8204,22 +8202,20 @@ sub distribute_nat1 {
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
 #             error message, if called function returns an error loop path.
-# Parameters: $domain: Domain the depth first traversal starts at.
+# Parameters: $in_router: router the depth first traversal starts at.
+#             $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
 #             $nat_tag2multinat_def: Lookup hash for elements with more
 #                 than one NAT tag specified.
 #             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
 #                 where transition from first to second tag is invalid.
-#             $in_router: router the depth first traversal starts at.
 sub distribute_nat {
-    my ($domain, $nat_tag,
-        $nat_tag2multinat_def, $invalid_nat_transitions,
-        $in_router) = @_;
+    my ($in_router, $domain, $nat_tag,
+        $nat_tag2multinat_def, $invalid_nat_transitions) = @_;
     if (my $err_path =
         distribute_nat1(
-            $domain, $nat_tag,
-            $nat_tag2multinat_def, $invalid_nat_transitions,
-            $in_router))
+            $in_router, $domain, $nat_tag,
+            $nat_tag2multinat_def, $invalid_nat_transitions))
     {
         push @$err_path, $in_router;
         err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
@@ -8238,10 +8234,8 @@ sub distribute_nat_tags_to_nat_domains {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
             for my $nat_tag (@$nat_tags) {
-                distribute_nat($domain, $nat_tag,
-                               $nat_tag2multinat_def,
-                               $invalid_nat_transitions,
-                               $router);
+                distribute_nat($router, $domain, $nat_tag,
+                               $nat_tag2multinat_def, $invalid_nat_transitions);
             }
         }
     }
