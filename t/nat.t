@@ -517,8 +517,8 @@ END
 
 # Only first error is shown.
 $out = <<'END';
-Warning: Ignoring useless nat:E bound at router:filter
 Error: Must not bind multiple NAT tags 'C,D' of network:n1 at router:filter
+Warning: Ignoring useless nat:E bound at router:filter
 END
 
 test_err($title, $in, $out);

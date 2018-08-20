@@ -8219,30 +8219,15 @@ sub distribute_nat {
 
 ##############################################################################
 # Purpose: Distribute NAT tags to the domains they are active in.
-#          Check every NAT tag is both bound and defined somewhere.
 #          Assure unambiguous NAT for networks with multi NAT definitions.
 sub distribute_nat_tags_to_nat_domains {
-    my ($nat_tag2multinat_def, $nat_definitions) = @_;
+    my ($nat_tag2multinat_def) = @_;
     my $invalid_nat_transitions =
         mark_invalid_nat_transitions($nat_tag2multinat_def);
     for my $domain (@natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
-
-            # Assure every bound NAT is defined somewhere.
-            for my $nat_tag (@$nat_tags) {
-                if ($nat_definitions->{$nat_tag}) {
-                    $nat_definitions->{$nat_tag} = 'used';
-                }
-                else {
-                    warn_msg(
-                        "Ignoring useless nat:$nat_tag",
-                        " bound at $router->{name}"
-                    );
-                }
-            }
-
           NAT_TAG:
             for my $nat_tag (@$nat_tags) {
 
@@ -8274,13 +8259,29 @@ sub distribute_nat_tags_to_nat_domains {
             }
         }
     }
+}
 
-    # Assure every defined NAT bound somewhere.
-    for my $name (keys %$nat_definitions) {
-        $nat_definitions->{$name} eq 'used'
-          or warn_msg("nat:$name is defined, but not bound to any interface");
+#############################################################################
+# Purpose:   Check every NAT tag is both bound and defined somewhere.
+sub check_nat_definitions {
+    my ($nat_definitions) = @_;
+    for my $domain (@natdomains) {
+        for my $router (@{ $domain->{routers} }) {
+            my $nat_tags = $router->{nat_tags}->{$domain};
+            for my $nat_tag (@$nat_tags) {
+                if ($nat_definitions->{$nat_tag}) {
+                    $nat_definitions->{$nat_tag} = 'used';
+                    next;
+                }
+                warn_msg(
+                    "Ignoring useless nat:$nat_tag bound at $router->{name}");
+            }
+        }
     }
-
+    for my $name (sort keys %$nat_definitions) {
+        $nat_definitions->{$name} eq 'used'
+            or warn_msg("nat:$name is defined, but not bound to any interface");
+    }
 }
 
 #############################################################################
@@ -8667,7 +8668,8 @@ sub distribute_nat_info {
     my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
     my ($nat_tag2multinat_def, $nat_definitions)
         = generate_multinat_def_lookup($has_non_hidden);
-    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $nat_definitions);
+    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def);
+    check_nat_definitions($nat_definitions);
     check_nat_network_location();
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
