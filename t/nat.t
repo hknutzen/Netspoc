@@ -192,9 +192,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: network:n1 is translated by x,
+Error: network:n1 is translated by nat:x,
  but is located inside the translation domain of x.
- Probably x was bound to wrong interface at router:r.
+ Probably x was bound to wrong interface at
+ - router:r
 END
 
 test_err($title, $in, $out);
@@ -2616,9 +2617,10 @@ END
 $out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
  nat:(none) vs. nat:h
-Error: network:a is translated by h,
+Error: network:a is translated by nat:h,
  but is located inside the translation domain of h.
- Probably h was bound to wrong interface at router:r1.
+ Probably h was bound to wrong interface at
+ - router:r1
 END
 
 test_err($title, $in, $out);
@@ -2656,9 +2658,11 @@ Error: Inconsistent NAT in loop at router:r2:
  nat:(none) vs. nat:x
 Error: Inconsistent NAT in loop at router:r3:
  nat:(none) vs. nat:x
-Error: network:n3 is translated by x,
+Error: network:n3 is translated by nat:x,
  but is located inside the translation domain of x.
- Probably x was bound to wrong interface at router:r2.
+ Probably x was bound to wrong interface at
+ - router:r2
+ - router:r3
 END
 
 test_err($title, $in, $out);

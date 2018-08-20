@@ -8027,31 +8027,6 @@ sub check_for_multinat_errors {
     }
 }
 
-#############################################################################
-# Purpose:   Network which has translation with tag $nat_tag must not be located
-#            in domain where this tag is active.
-# Parameter: $domain: Actual domain.
-#            $nat_tag: NAT tag that is distributed during domain traversal.
-#            $router: Router domain was entered at during domain traversal.
-sub check_nat_network_location {
-    my ($domain, $nat_tag, $router) = @_;
-    for my $zone (@{ $domain->{zones} }) {
-        for my $network (@{ $zone->{networks} }) {
-            my $nat = $network->{nat} or next;
-            $nat->{$nat_tag} or next;
-            err_msg(
-                "$network->{name} is translated by $nat_tag,\n",
-                " but is located inside the translation domain of $nat_tag.\n",
-                " Probably $nat_tag was bound to wrong interface",
-                " at $router->{name}."
-                );
-
-            # Show error message only once per zone.
-            last;
-        }
-    }
-}
-
 ##############################################################################
 # Purpose:   Generate errors if NAT tags are applied multiple times in a row.
 # Parameter: $domain: Actual domain.
@@ -8155,7 +8130,6 @@ sub distribute_nat1 {
     # Perform checks before $nat_tag is added.
     check_for_multinat_errors($nat_tag2multinat_def, $nat_set,
                               $nat_tag, $domain);
-    check_nat_network_location($domain, $nat_tag, $in_router);
     $nat_set->{$nat_tag} = 1;
 
     # Activate loop detection.
@@ -8307,6 +8281,30 @@ sub distribute_nat_tags_to_nat_domains {
           or warn_msg("nat:$name is defined, but not bound to any interface");
     }
 
+}
+
+#############################################################################
+# Purpose:   Network which has translation with tag $nat_tag must not be located
+#            in domain where this tag is active.
+# Parameter: -
+sub check_nat_network_location {
+    for my $domain (@natdomains) {
+        my $nat_set = $domain->{nat_set};
+        for my $zone (@{ $domain->{zones} }) {
+            for my $network (@{ $zone->{networks} }) {
+                my $nat_hash = $network->{nat} or next;
+                for my $nat_tag (sort keys %$nat_hash) {
+                    $nat_set->{$nat_tag} or next;
+                    err_msg(
+                        "$network->{name} is translated by nat:$nat_tag,\n",
+                        " but is located inside the translation domain of",
+                        " $nat_tag.\n",
+                        " Probably $nat_tag was bound to wrong interface at\n",
+                        name_list($domain->{routers}));
+                }
+            }
+        }
+    }
 }
 
 #############################################################################
@@ -8670,6 +8668,7 @@ sub distribute_nat_info {
     my ($nat_tag2multinat_def, $nat_definitions)
         = generate_multinat_def_lookup($has_non_hidden);
     distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $nat_definitions);
+    check_nat_network_location();
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     invert_nat_sets();
