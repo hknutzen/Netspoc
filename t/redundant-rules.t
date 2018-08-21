@@ -143,6 +143,50 @@ END
 test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Redundant rules having protocols with and without modifiers';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+protocol:Ping_Net = icmp 8, src_net, dst_net, overlaps;
+protocol:NTP = udp 123;
+
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = protocol:NTP;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = udp 123, protocol:Ping_Net;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = ip;
+}
+END
+
+$out = <<'END';
+Warning: Redundant rules in service:s2 compared to service:s3:
+  permit src=network:n1; dst=network:n2; prt=protocol:Ping_Net; of service:s2
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s3
+  permit src=network:n1; dst=network:n2; prt=udp 123; of service:s2
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s3
+Warning: service:s2 is fully redundant
+END
+
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
+
+############################################################
 $title = 'Show all redundant rules, not only the smallest one';
 ############################################################
 
@@ -488,9 +532,9 @@ END
 $out = <<'END';
 Warning: Redundant rules in service:t1 compared to service:t1:
   permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
-< permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
-  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
 < permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:t1
+  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
+< permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
 Warning: Redundant rules in service:t2 compared to service:t2:
   permit src=network:n2; dst=network:n1; prt=protocol:p1; of service:t2
 < permit src=network:n2; dst=network:n1; prt=udp 123; of service:t2

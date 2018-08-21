@@ -3505,11 +3505,12 @@ sub print_rule {
 sub get_orig_prt {
     my ($rule) = @_;
     my $prt = $rule->{prt};
+    my $proto = $prt->{proto};
     my $orig_rule = $rule->{rule};
     my $service = $orig_rule->{service};
     my $list = expand_protocols($orig_rule->{prt}, $service->{name});
     for my $o_prt (@$list) {
-        my $proto = $o_prt->{proto};
+        $proto eq $o_prt->{proto} or next;
         if ($proto eq 'tcp' or $proto eq 'udp') {
             my ($l1, $h1) = @{ $prt->{range} };
             my ($l2, $h2) = @{ $o_prt->{dst_range}->{range} };
@@ -3536,6 +3537,7 @@ sub get_orig_prt {
             }
         }
     }
+    return $prt;
 }
 
 ##############################################################################
@@ -7407,6 +7409,7 @@ sub show_redundant_rules {
             my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
             $msg .= join(
                 "\n  ",
+                sort
                 map {
                     my ($r, $o) = @$_;
                     print_rule($r) . "\n< " . print_rule($o);
