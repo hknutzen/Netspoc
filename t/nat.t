@@ -2039,7 +2039,7 @@ network:b = {ip = 10.9.9.0/24;}
 END
 
 $out = <<'END';
-Error: Grouped NAT tags 'a2, a1' of network:a must not both be active at
+Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
  - interface:r12.b
  - interface:r22.b
 END

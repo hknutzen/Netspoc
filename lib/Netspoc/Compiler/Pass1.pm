@@ -8011,30 +8011,6 @@ sub get_nat_domain_borders {
         ];
 }
 
-#############################################################################
-# Purpose:   For networks with multiple NAT definitions, only one NAT
-#            definition can be active in a domain. Generate error otherwise.
-# Parameter: $multinat_hashes: List of multi NAT hashes containing $nat_tag.
-#            $nat_tag: NAT tag to be added to domains NAT set.
-#            $nat_set: Hash containing NAT tags already collected for domain.
-#            $domain: Actual domain.
-sub check_for_multinat_errors {
-    my($multinat_hashes, $nat_tag, $nat_set, $domain) = @_;
-    $multinat_hashes or return;
-    for my $multinat_hash (@$multinat_hashes) {
-        for my $nat_tag2 (sort keys %$multinat_hash) {
-            $nat_set->{$nat_tag2} or next;
-            my $nat_net = $multinat_hash->{$nat_tag2};
-            err_msg(
-                "Grouped NAT tags '$nat_tag2, $nat_tag'",
-                " of $nat_net->{name}",
-                " must not both be active at\n",
-                name_list(get_nat_domain_borders($domain))
-            );
-        }
-    }
-}
-
 ##############################################################################
 # Purpose:   Generate errors if NAT tags are applied multiple times in a row.
 # Parameter: $domain: Actual domain.
@@ -8130,9 +8106,6 @@ sub distribute_nat1 {
     # Loop found or domain was processed by earlier call of distribute_nat.
     my $nat_set = $domain->{nat_set};
     return if $nat_set->{$nat_tag};
-
-    # Perform checks before $nat_tag is added.
-    check_for_multinat_errors($multinat_hashes, $nat_tag, $nat_set, $domain);
     $nat_set->{$nat_tag} = 1;
 
     # Activate loop detection.
@@ -8230,6 +8203,33 @@ sub distribute_nat_tags_to_nat_domains {
                 my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
                 distribute_nat($router, $domain, $nat_tag,
                                $multinat_hashes, $invalid_nat_transitions);
+            }
+        }
+    }
+}
+
+#############################################################################
+# Purpose: For networks with multiple NAT definitions, at most one NAT
+#          definition must be active in a domain. Show error otherwise.
+sub check_multinat_errors {
+    my ($nat_tag2multinat_def, $natdomains) = @_;
+    for my $domain (@$natdomains) {
+        my $seen;
+        my $nat_set = $domain->{nat_set};
+        for my $nat_tag (sort keys %$nat_set) {
+            my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag} or next;
+            for my $multinat_hash (@$multinat_hashes) {
+                for my $nat_tag2 (sort keys %$multinat_hash) {
+                    next if $nat_tag2 eq $nat_tag;
+                    $nat_set->{$nat_tag2} or next;
+                    my $pair = $nat_tag2 gt $nat_tag
+                        ? "$nat_tag, $nat_tag2" : "$nat_tag2, $nat_tag";
+                    next if $seen->{$pair}++;
+                    my $nat_net = $multinat_hash->{$nat_tag2};
+                    err_msg("Grouped NAT tags '$pair' of $nat_net->{name}",
+                            " must not both be active at\n",
+                            name_list(get_nat_domain_borders($domain)));
+                }
             }
         }
     }
@@ -8647,6 +8647,7 @@ sub distribute_nat_info {
     my ($nat_tag2multinat_def, $nat_definitions)
         = generate_multinat_def_lookup($has_non_hidden);
     distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
+    check_multinat_errors($nat_tag2multinat_def, $natdomains);
     check_nat_definitions($nat_definitions, $natdomains);
     check_nat_network_location($natdomains);
     check_nat_compatibility();
