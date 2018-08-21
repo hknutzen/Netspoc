@@ -8140,7 +8140,6 @@ sub distribute_nat1 {
                  my $out_nat_tags = $dom2tags->{$out_domain};
                  for my $nat_tag2 (@$out_nat_tags) {
 #                     debug "- $nat_tag2";
-#                     next if $nat_tag2 eq $nat_tag;
                      for my $nat_hash (@$multinat_hashes) {
                          $nat_hash->{$nat_tag2} or next;
                          check_for_proper_nat_transition(
