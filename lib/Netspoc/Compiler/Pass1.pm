@@ -7767,8 +7767,6 @@ a common set of NAT tags (NAT set) is effective at every network.
 
 =cut
 
-my @natdomains;
-
 #############################################################################
 # Returns: Hash containing nat_tags declared to be non hidden at least
 #          once as keys.
@@ -7984,10 +7982,11 @@ sub set_natdomain {
 
 ##############################################################################
 # Purpose : Divide topology into NAT domains.
-# Results : For every NAT domain a hash object exists. All NAT domain hashes
-#           are hold within global @natdomains array. Networks and NAT domain
-#           limiting routers keep references to their domains.
+#           Networks and NAT domain limiting routers keep references
+#           to their domains.
+# Returns : A list of NAT domain objects.
 sub find_nat_domains {
+    my @result;
     for my $zone (@zones) {
         next if $zone->{nat_domain};
         (my $name = $zone->{name}) =~ s/^\w+:/nat_domain:/;
@@ -7998,9 +7997,10 @@ sub find_nat_domains {
             routers  => [],
             nat_set  => {},
         );
-        push @natdomains, $domain;
+        push @result, $domain;
         set_natdomain($zone, $domain, 0);
     }
+    return \@result;
 }
 
 sub get_nat_domain_borders {
@@ -8219,10 +8219,10 @@ sub distribute_nat {
 ##############################################################################
 # Purpose: Distribute NAT tags to domains they are active in.
 sub distribute_nat_tags_to_nat_domains {
-    my ($nat_tag2multinat_def) = @_;
+    my ($nat_tag2multinat_def, $natdomains) = @_;
     my $invalid_nat_transitions =
         mark_invalid_nat_transitions($nat_tag2multinat_def);
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
@@ -8238,8 +8238,8 @@ sub distribute_nat_tags_to_nat_domains {
 #############################################################################
 # Purpose: Check that every NAT tag is both bound and defined somewhere.
 sub check_nat_definitions {
-    my ($nat_definitions) = @_;
-    for my $domain (@natdomains) {
+    my ($nat_definitions, $natdomains) = @_;
+    for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
             for my $nat_tag (@$nat_tags) {
@@ -8261,9 +8261,9 @@ sub check_nat_definitions {
 #############################################################################
 # Purpose:   Network which has translation with tag $nat_tag must not be located
 #            in domain where this tag is active.
-# Parameter: -
 sub check_nat_network_location {
-    for my $domain (@natdomains) {
+    my ($natdomains) = @_;
+    for my $domain (@$natdomains) {
         my $nat_set = $domain->{nat_set};
         for my $zone (@{ $domain->{zones} }) {
             for my $network (@{ $zone->{networks} }) {
@@ -8352,6 +8352,7 @@ sub check_interfaces_with_dynamic_nat {
 # Comment: NAT partitions arise, if parts of the topology are strictly
 #          separated by crypto interfaces or partitioned toplology.
 sub find_nat_partitions {
+    my ($natdomains) = @_;
     my %partitions;
     my $mark_nat_partition = sub {
         my ($domain, $mark) = @_;
@@ -8367,7 +8368,7 @@ sub find_nat_partitions {
         }
     };
     my $mark = 0;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         $mark++;
         $mark_nat_partition->($domain, $mark);
     }
@@ -8378,12 +8379,13 @@ sub find_nat_partitions {
 #                the NAT tags used within the partition.
 # Parameter: $partitions: Lookup hash with domains as keys and partition ID
 #                as values.
+#            $natdomains: List of all NAT domains.
 # Comment:   NAT tags only used in one partition must not be included in other
 #            partitions no_nat_set.
 sub map_partitions_to_NAT_tags {
-    my ($partitions) = @_;
+    my ($partitions, $natdomains) = @_;
     my %partition2tags;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         my $mark = $partitions->{$domain};
         for my $zone (@{ $domain->{zones} }) {
             for my $network (@{ $zone->{networks} }) {
@@ -8404,11 +8406,12 @@ sub map_partitions_to_NAT_tags {
 #           inactive. Storing the set of inactive NAT tags significantly
 #           reduces memory requirements.
 sub invert_nat_sets {
-    my $partitions = find_nat_partitions;
-    my $partition2tags = map_partitions_to_NAT_tags($partitions);
+    my ($natdomains) = @_;
+    my $partitions = find_nat_partitions($natdomains);
+    my $partition2tags = map_partitions_to_NAT_tags($partitions, $natdomains);
 
     # Invert {nat_set} to {no_nat_set}
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         my $nat_set     = delete $domain->{nat_set};
         my $mark        = $partitions->{$domain};
         my $all_nat_set = $partition2tags->{$mark} ||= {};
@@ -8428,7 +8431,8 @@ sub invert_nat_sets {
 # Comment: Neccessary at semi_managed routers to calculate {up} relation
 #          between subnets.
 sub distribute_no_nat_sets_to_interfaces {
-    for my $domain (@natdomains) {
+    my ($natdomains) = @_;
+    for my $domain (@$natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
         for my $zone (@{ $domain->{zones} }) {
             for my $interface (@{ $zone->{interfaces} }) {
@@ -8638,21 +8642,21 @@ sub add_crypto_no_nat_set {
 #           for every NAT domain.
 sub distribute_nat_info {
     progress('Distributing NAT');
-    find_nat_domains();
+    my $natdomains = find_nat_domains();
     my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
     my ($nat_tag2multinat_def, $nat_definitions)
         = generate_multinat_def_lookup($has_non_hidden);
-    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def);
-    check_nat_definitions($nat_definitions);
-    check_nat_network_location();
+    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
+    check_nat_definitions($nat_definitions, $natdomains);
+    check_nat_network_location($natdomains);
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
-    invert_nat_sets();
-    distribute_no_nat_sets_to_interfaces();
+    invert_nat_sets($natdomains);
+    distribute_no_nat_sets_to_interfaces($natdomains);
     add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
 
-    return($nat_tag2multinat_def, $has_non_hidden);
+    return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -8920,7 +8924,8 @@ sub find_subnets_in_zone {
 # 2. If rule has src or dst with attribute {has_other_subnet},
 #    it is later checked for missing supernets.
 sub find_subnets_in_nat_domain {
-    my $count = @natdomains;
+    my ($natdomains) = @_;
+    my $count = @$natdomains;
     progress("Finding subnets in $count NAT domains");
 
     # List of all networks and NAT networks having an IP address.
@@ -9007,7 +9012,7 @@ sub find_subnets_in_nat_domain {
     };
     my %subnet_in_zone;
     my %seen;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
 
         # Ignore NAT domain consisting of empty zone from unnumbered networks
         # and surrounded by unmanaged devices.
@@ -9227,7 +9232,7 @@ sub find_subnets_in_nat_domain {
         my $nat_hash = $network->{nat} or next;
         my @hidden_tags = grep { $nat_hash->{$_}->{hidden} } keys %$nat_hash
             or next;
-        for my $domain (@natdomains) {
+        for my $domain (@$natdomains) {
             my $no_nat_set = $domain->{no_nat_set};
             if (grep { not $no_nat_set->{$_} } @hidden_tags) {
                 $net2dom2hidden{$network}->{$domain} = 1;
@@ -9247,7 +9252,7 @@ sub find_subnets_in_nat_domain {
             # - subnet relation holds or
             # - at least one of both networks is hidden.
           DOMAIN:
-            for my $domain (@natdomains) {
+            for my $domain (@$natdomains) {
 
                 # Ok, is subnet in current NAT domain.
                 next if $dom2is_subnet->{$domain};
@@ -15000,6 +15005,7 @@ sub collect_path_interfaces {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
+    my ($natdomains) = @_;
     progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags that
@@ -15042,7 +15048,7 @@ sub check_dynamic_nat_rules {
                 $zone2dyn_nat{$zone}->{$nat_tag} = $nat_network->{hidden} || 0;
             }
         }
-        for my $natdomain (@natdomains) {
+        for my $natdomain (@$natdomains) {
             my $no_nat_set = $natdomain->{no_nat_set};
             my @active =
                 grep { not $no_nat_set->{$_} } keys %is_dynamic_nat_tag;
@@ -18716,7 +18722,6 @@ sub init_global_vars {
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
     @routers = @networks = @zones = @areas = ();
-    @natdomains         = ();
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
@@ -18747,7 +18752,7 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    &distribute_nat_info();
+    my ($natdomains) = distribute_nat_info();
     find_subnets_in_zone();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
@@ -18768,7 +18773,7 @@ sub compile {
 
     concurrent(
         sub {
-            find_subnets_in_nat_domain();
+            find_subnets_in_nat_domain($natdomains);
             check_unstable_nat_rules();
 
             # Call after {up} relation for anonymous aggregates has
@@ -18776,7 +18781,7 @@ sub compile {
             mark_managed_local();
         },
         sub {
-            check_dynamic_nat_rules();
+            check_dynamic_nat_rules($natdomains);
         });
 
     concurrent(

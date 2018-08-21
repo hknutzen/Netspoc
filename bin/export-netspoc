@@ -1257,13 +1257,13 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-my ($nat_tag2multinat_def, $has_non_hidden) = distribute_nat_info();
+my ($natdomains, $nat_tag2multinat_def, $has_non_hidden) = distribute_nat_info();
 find_subnets_in_zone();
 
 # Copy of %services with those services split, that have different 'user'.
 my $normalized_services = normalize_services_for_export();
 propagate_owners();
-find_subnets_in_nat_domain();
+find_subnets_in_nat_domain($natdomains);
 adapt_owner_names();
 setup_zones();
 setup_part_owners();
