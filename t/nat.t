@@ -2069,7 +2069,10 @@ network:n2 = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n is applied twice between router:r1 and router:r2
+Error: Incomplete 'bind_nat = n' at
+ - interface:r1.tr
+ Possibly 'bind_nat = n' is missing at these interfaces:
+ - interface:r2.tr
 END
 
 test_err($title, $in, $out);
@@ -2695,16 +2698,17 @@ network:t2 = { ip = 10.7.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n1 is applied recursively in loop at this path:
- - router:r1
- - router:r2
- - router:r1
+Error: Incomplete 'bind_nat = n1' at
+ - interface:r1.t1
+ Possibly 'bind_nat = n1' is missing at these interfaces:
+ - interface:r2.n2
+ - interface:r2.t1
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT in loop ok';
+$title = 'NAT in simple loop ok';
 ############################################################
 
 $in = <<'END';
@@ -2738,6 +2742,168 @@ $out = <<'END';
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'NAT in complex loop ok';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n5; }
+ interface:n5;
+}
+router:r2 = {
+ interface:n1 = {
+  bind_nat = n5; #1
+ }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r3 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n4; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r4 = {
+ interface:n2 = {
+  bind_nat =
+   n4,
+   n5,
+  ;
+ }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r5 = {
+ interface:n3 = {
+  bind_nat =
+   n1,
+   n5, #2
+  ;
+ }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r6 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
+router:r7 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Complex loop with 1 missing NAT behind domain';
+############################################################
+
+my $in2 = $in;
+$in2 =~ s/bind_nat = n5; #1//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r4.n2
+ - interface:r5.n3
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r2.n1
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Complex loop with 1 missing NAT behind router';
+############################################################
+
+$in2 = $in;
+$in2 =~ s/n5, #2//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r2.n1
+ - interface:r4.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r5.n3
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Complex loop with 2 missing NAT';
+############################################################
+
+$in2 =~ s/bind_nat = n5; #1//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r4.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r4.n4
+ - interface:r6.n4
+ - interface:r7.n4
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Nested loop with 2 missing NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n5; }
+ interface:n5;
+}
+router:r2 = {
+ interface:n1 = { bind_nat = n5; }
+ interface:n2 = { bind_nat = n5; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r3 = {
+ interface:n2; # = { bind_nat = n5; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r4 = {
+ interface:n2; # = { bind_nat = n5; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r5 = {
+ interface:n3 = { bind_nat = n1; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r6 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r2.n1
+ - interface:r2.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r5.n3
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'Attribute acl_use_real_ip';
