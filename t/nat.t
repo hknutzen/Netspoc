@@ -2833,7 +2833,8 @@ Error: Incomplete 'bind_nat = n5' at
  - interface:r2.n1
  - interface:r4.n2
  Possibly 'bind_nat = n5' is missing at these interfaces:
- - interface:r5.n3
+ - interface:r3.n1
+ - interface:r3.n2
 END
 
 test_err($title, $in2, $out);

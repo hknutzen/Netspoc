@@ -8106,14 +8106,15 @@ sub err_missing_bind_nat {
             defined $d_result or next;
 
             # Valid and invalid paths are joining at $router.
-            # Collect outgoing interfaces of neighbor domains
-            # located on invalid paths, where bind_nat is missing.
+            # Add bind_nat at inbound interface.
+            # But also add bind_nat at outbound interfaces of valid paths,
+            # to prevent duplicate NAT, effectively reverting the effect
+            # of bind_nat at inbound interface.
             if ($d_result and keys %d_invalid) {
                 for my $out_domain (@{ $router->{nat_domains} }) {
-                    $d_invalid{$out_domain} or next;
-                    $d_seen{$out_domain} = 1;
+                    next if $d_invalid{$out_domain};
                     push(@missing_intf,
-                         grep { not $_->{router} eq $router }
+                         grep { $_->{router} eq $router }
                          get_nat_domain_borders($out_domain));
                 }
             }
