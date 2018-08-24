@@ -2907,6 +2907,67 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Missing NAT with multi NAT tags.';
+############################################################
+# Ignore paths with corresponding multi NAT tags.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1a = { ip = 10.9.1.0/25; dynamic; }
+ nat:n1b = { ip = 10.9.1.128/25; dynamic; }
+}
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a, n3; }
+}
+router:r2 = {
+ interface:n2 = { bind_nat = n3; }
+ interface:n3;
+}
+router:r3 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n1a; }
+}
+router:r4 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n3; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r5 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+ interface:n6 = { bind_nat = n1b; }
+}
+router:r6 = {
+ interface:n1;
+ interface:n5 = { bind_nat = n1a; }
+}
+router:r7 = {
+ interface:n1;
+ interface:n6 = { bind_nat = n1b; }
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n1a' at
+ - interface:r1.n2
+ - interface:r3.n3
+ - interface:r6.n5
+ Possibly 'bind_nat = n1a' is missing at these interfaces:
+ - interface:r4.n2
+ - interface:r4.n4
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Attribute acl_use_real_ip';
 ############################################################
 

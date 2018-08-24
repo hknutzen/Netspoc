@@ -8041,7 +8041,7 @@ sub err_missing_bind_nat {
         if (exists $cache{$in_router}->{$domain}) {
             return $cache{$in_router}->{$domain};
         }
-#        debug "Path $in_router->{name} $domain->{name}";
+#        debug "ENTER $in_router->{name} $domain->{name}";
         local $in_router->{active_path} = 1;
 
         # For combined result (undef, 0, 1) of all neighbor routers.
@@ -8079,7 +8079,7 @@ sub err_missing_bind_nat {
 
                 # Found invalid path.
                 if (grep { $_ eq $nat_tag } @$out_nat_tags) {
-#                    debug "O $domain->{name} $router->{name}";
+# debug "O $domain->{name} $router->{name} $out_domain->{name}";
                     $d_invalid{$out_domain} = 1;
                     $d_result ||= 0;
                     next;
@@ -8087,7 +8087,11 @@ sub err_missing_bind_nat {
                 if ($multinat_hashes) {
                     for my $nat_tag2 (@$out_nat_tags) {
                         for my $nat_hash (@$multinat_hashes) {
-                            next DOMAIN if $nat_hash->{$nat_tag2};
+                            if ($nat_hash->{$nat_tag2}) {
+
+                                # Ignore path at imlpicit border.
+                                next DOMAIN;
+                            }
                         }
                     }
                 }
@@ -8133,6 +8137,7 @@ sub err_missing_bind_nat {
                  grep { $r_invalid{$_->{router}} }
                  get_nat_domain_borders($domain));
         }
+#        debug "EXIT $in_router->{name} $domain->{name}";
         return $cache{$in_router}->{$domain} = $r_result;
     };
     $traverse->($in_router, $domain);
@@ -8299,7 +8304,7 @@ sub distribute_nat {
     if (my $err = distribute_nat1($in_router, $domain, $nat_tag,
                                   $multinat_hashes, $invalid_nat_transitions))
     {
-        err_missing_bind_nat($in_router, $domain, $nat_tag);
+        err_missing_bind_nat($in_router, $domain, $nat_tag, $multinat_hashes);
         return 1;
     }
 }
