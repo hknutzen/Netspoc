@@ -2968,6 +2968,70 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Cache path results when finding NAT errors';
+############################################################
+# For test coverage.
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; nat:n0 = { ip = 10.9.0.0/24; } }
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
+network:n6 = { ip = 10.1.6.0/24; nat:n6 = { ip = 10.9.6.0/24; } }
+network:n7 = { ip = 10.1.7.0/24; nat:n7 = { ip = 10.9.7.0/24; } }
+network:n8 = { ip = 10.1.8.0/24; }
+
+router:r1 = {
+ interface:n0;
+ interface:n1 = { bind_nat = n0; }
+ interface:n2 = { bind_nat = n0, n1; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n2; }
+}
+router:r3 = {
+ interface:n2 = { bind_nat = n1; }
+ interface:n3 = { bind_nat = n2; }
+ interface:n4 = { bind_nat = n3; }
+ interface:n5 = { bind_nat = n4; }
+}
+router:r4 = {
+ interface:n4 = { bind_nat = n3; }
+ interface:n6 = { bind_nat = n5; }
+ interface:n7 = { bind_nat = n6; }
+}
+router:r5 = {
+ interface:n5 = { bind_nat = n0, n4; }
+ interface:n6 = { bind_nat = n5; }
+ interface:n8 = { bind_nat = n7; }
+}
+router:r6 = {
+ interface:n6 = { bind_nat = n5; }
+ interface:n7 = { bind_nat = n6; }
+}
+router:r7 = {
+ interface:n6 = { bind_nat = n5; }
+ interface:n8 = { bind_nat = n7; }
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n0' at
+ - interface:r1.n1
+ - interface:r1.n2
+ - interface:r5.n5
+ Possibly 'bind_nat = n0' is missing at these interfaces:
+ - interface:r3.n2
+ - interface:r3.n3
+ - interface:r3.n5
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Attribute acl_use_real_ip';
 ############################################################
 
