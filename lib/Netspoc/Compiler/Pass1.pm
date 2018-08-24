@@ -8154,7 +8154,7 @@ sub err_missing_bind_nat {
     }
 
     @nat_intf = sort by_name unique(@nat_intf);
-    @missing_intf = sort by_name @missing_intf;
+    @missing_intf = sort by_name unique @missing_intf;
     err_msg("Incomplete 'bind_nat = $nat_tag' at\n",
             name_list(\@nat_intf), "\n",
             " Possibly 'bind_nat = $nat_tag' is missing at these interfaces:\n",
