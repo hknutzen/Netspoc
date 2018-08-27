@@ -8301,8 +8301,8 @@ sub distribute_nat1 {
 sub distribute_nat {
     my ($in_router, $domain, $nat_tag,
         $multinat_hashes, $invalid_nat_transitions) = @_;
-    if (my $err = distribute_nat1($in_router, $domain, $nat_tag,
-                                  $multinat_hashes, $invalid_nat_transitions))
+    if (distribute_nat1($in_router, $domain, $nat_tag,
+                        $multinat_hashes, $invalid_nat_transitions))
     {
         err_missing_bind_nat($in_router, $domain, $nat_tag, $multinat_hashes);
         return 1;
