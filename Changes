@@ -1,3 +1,16 @@
+5.042     2018-08-27 11:51:40+02:00 Europe/Berlin
+
+ - Improved error handling for 'bind_nat' in complex topology.
+   If 'bind_nat' attributes are placed around a subarea of the topology
+   and accidentally one or more attributes are left out,
+   Netspoc now prints a more helpful error message showing
+   the missing interfaces.
+ - When printing a rule in some error or warning message, the compiler
+   aborted without showing the message in some cases. This only
+   occurred for special combinations of protocols that are used
+   together in this rule. This error was introduced in previous
+   version and has been fixed.
+
 5.041     2018-08-13 12:42:57+02:00 Europe/Berlin
 
  - Secondary IP addresses are ignored now, when checking for valid networks

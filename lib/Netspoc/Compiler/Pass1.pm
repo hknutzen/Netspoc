@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.041'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.042'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -3501,14 +3501,16 @@ sub print_rule {
         "$action src=$src->{name}; dst=$dst->{name}; prt=$prt->{name};$extra";
 }
 
+# Find original protocol in original, unexpanded rule.
 sub get_orig_prt {
     my ($rule) = @_;
     my $prt = $rule->{prt};
+    my $proto = $prt->{proto};
     my $orig_rule = $rule->{rule};
     my $service = $orig_rule->{service};
     my $list = expand_protocols($orig_rule->{prt}, $service->{name});
     for my $o_prt (@$list) {
-        my $proto = $o_prt->{proto};
+        $proto eq $o_prt->{proto} or next;
         if ($proto eq 'tcp' or $proto eq 'udp') {
             my ($l1, $h1) = @{ $prt->{range} };
             my ($l2, $h2) = @{ $o_prt->{dst_range}->{range} };
@@ -7407,6 +7409,7 @@ sub show_redundant_rules {
             my $msg  = "Redundant rules in $sname compared to $oname:\n  ";
             $msg .= join(
                 "\n  ",
+                sort
                 map {
                     my ($r, $o) = @$_;
                     print_rule($r) . "\n< " . print_rule($o);
@@ -7767,8 +7770,6 @@ a common set of NAT tags (NAT set) is effective at every network.
 
 =cut
 
-my @natdomains;
-
 #############################################################################
 # Returns: Hash containing nat_tags declared to be non hidden at least
 #          once as keys.
@@ -7984,10 +7985,11 @@ sub set_natdomain {
 
 ##############################################################################
 # Purpose : Divide topology into NAT domains.
-# Results : For every NAT domain a hash object exists. All NAT domain hashes
-#           are hold within global @natdomains array. Networks and NAT domain
-#           limiting routers keep references to their domains.
+#           Networks and NAT domain limiting routers keep references
+#           to their domains.
+# Returns : A list of NAT domain objects.
 sub find_nat_domains {
+    my @result;
     for my $zone (@zones) {
         next if $zone->{nat_domain};
         (my $name = $zone->{name}) =~ s/^\w+:/nat_domain:/;
@@ -7998,87 +8000,172 @@ sub find_nat_domains {
             routers  => [],
             nat_set  => {},
         );
-        push @natdomains, $domain;
+        push @result, $domain;
         set_natdomain($zone, $domain, 0);
     }
-}
-
-#############################################################################
-# Purpose:   For networks with multiple NAT definitions, only one NAT
-#            definition can be active in a domain. Generate error otherwise.
-# Parameter: $nat_tag2multinat_def: Lookup hash for elements with more
-#                than one NAT tag specified.
-#            $nat_set: Hash containing NAT tags already collected for domain.
-#            $nat_tag: NAT tag to be added to domains NAT set.
-#            $domain: Actual domain.
-sub check_for_multinat_errors {
-    my($nat_tag2multinat_def, $nat_set, $nat_tag, $domain) = @_;
-    if (my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag}) {
-        for my $multinat_hash (@$multinat_hashes) {
-            for my $nat_tag2 (sort keys %$multinat_hash) {
-                if ($nat_set->{$nat_tag2}) {
-                    err_msg(
-                        "Grouped NAT tags '$nat_tag2' and '$nat_tag'",
-                        " must not both be active inside $domain->{name}"
-                    );
-                }
-            }
-        }
-    }
-}
-
-#############################################################################
-# Purpose:   Network which has translation with tag $nat_tag must not be located
-#            in domain where this tag is active.
-# Parameter: $domain: Actual domain.
-#            $nat_tag: NAT tag that is distributed during domain traversal.
-#            $router: Router domain was entered at during domain traversal.
-sub check_nat_network_location {
-    my ($domain, $nat_tag, $router) = @_;
-    for my $zone (@{ $domain->{zones} }) {
-        for my $network (@{ $zone->{networks} }) {
-            my $nat = $network->{nat} or next;
-            $nat->{$nat_tag} or next;
-            err_msg(
-                "$network->{name} is translated by $nat_tag,\n",
-                " but is located inside the translation domain of $nat_tag.\n",
-                " Probably $nat_tag was bound to wrong interface",
-                " at $router->{name}."
-                );
-
-            # Show error message only once per zone.
-            last;
-        }
-    }
+    return \@result;
 }
 
 ##############################################################################
-# Purpose:   Generate errors if NAT tags are applied multiple times in a row.
-# Parameter: $domain: Actual domain.
-#            $in_router: Router domain was entered at during domain traversal.
-#            $router: Router domain is left at during domain traversal.
-#            $nat_tag: NAT tag that is distributed during domain traversal.
-# Returns:   1, if NAT tag is applied twice on a loop path, undef otherwise.
-sub check_for_proper_NAT_binding {
-    my ($domain, $in_router, $router, $nat_tag) = @_;
-    for my $out_domain (@{ $router->{nat_domains} }) {
-        next if $out_domain eq $domain;
+# Purpose : Show interfaces, where bind_nat for $nat_tag is missing.
+sub err_missing_bind_nat {
+    my($in_router, $domain, $nat_tag, $multinat_hashes) = @_;
 
-        # NAT tag occurs more than once in a row.
-        my $out_nat_tags = $router->{nat_tags}->{$out_domain};
-        if (grep { $_ eq $nat_tag } @$out_nat_tags) {
+    # Collect interfaces where bind_nat for $nat_tag is applied correctly.
+    # First, add interface between $in_router and $domain.
+    # Other interfaces are added later, during traversal.
+    my @nat_intf =
+        grep { $_->{router} eq $in_router } get_nat_domain_borders($domain);
 
-            # NAT is applied twice on loop path.
-            if ($router->{active_path}) {
-                return 1;
+    # Collect interfaces with missing bind_nat.
+    my @missing_intf;
+
+    # Don't traverse these domains in other direction, if
+    # - either a valid path was found behind this domain
+    # - or a missing bind_nat is assumed at interface of this domain.
+    my %d_seen;
+
+    # Cache result depending on ($in_router, $domain).
+    my %cache;
+
+#    debug "Missing bin_nat = $nat_tag";
+    # Traverse the topology recursively and depth first.
+    # Returns:
+    # 1 if valid path is found,
+    # 0 if invalid path,
+    # undef on loop or dead end.
+    my $traverse = sub {
+        my ($in_router, $domain) = @_;
+        return if $in_router->{active_path};
+        return if $d_seen{$domain};
+        if (exists $cache{$in_router}->{$domain}) {
+            return $cache{$in_router}->{$domain};
+        }
+#        debug "ENTER $in_router->{name} $domain->{name}";
+        local $in_router->{active_path} = 1;
+
+        # For combined result (undef, 0, 1) of all neighbor routers.
+        my $r_result;
+
+        # For collecting router where invalid path starts.
+        my %r_invalid;
+
+        for my $router (@{ $domain->{routers} }) {
+            next if $router eq $in_router;
+            my $dom2tags = $router->{nat_tags};
+            my $in_nat_tags = $dom2tags->{$domain};
+
+            # Found valid path.
+            if (grep { $_ eq $nat_tag } @$in_nat_tags) {
+#                debug "I $domain->{name} $router->{name}";
+                $d_seen{$domain} = 1;
+                $r_result = 1;
+                push(@nat_intf,
+                     grep { $_->{router} eq $router }
+                     get_nat_domain_borders($domain));
+                next;
             }
-            # NAT is applied twice on linear path.
-            err_msg(
-                "nat:$nat_tag is applied twice between",
-                " $in_router->{name} and $router->{name}"
-                );
+
+            # For combined result (undef, 0, 1) of all neighbor domains.
+            my $d_result;
+
+            # For collecting domains where invalid path starts.
+            my %d_invalid;
+
+          DOMAIN:
+            for my $out_domain (@{ $router->{nat_domains} }) {
+                next if $out_domain eq $domain;
+                my $out_nat_tags = $dom2tags->{$out_domain};
+
+                # Found invalid path.
+                if (grep { $_ eq $nat_tag } @$out_nat_tags) {
+# debug "O $domain->{name} $router->{name} $out_domain->{name}";
+                    $d_invalid{$out_domain} = 1;
+                    $d_result ||= 0;
+                    next;
+                }
+                if ($multinat_hashes) {
+                    for my $nat_tag2 (@$out_nat_tags) {
+                        for my $nat_hash (@$multinat_hashes) {
+                            if ($nat_hash->{$nat_tag2}) {
+
+                                # Ignore path at imlpicit border.
+                                next DOMAIN;
+                            }
+                        }
+                    }
+                }
+
+                if (defined(my $i_result = __SUB__->($router, $out_domain))) {
+#                    debug "$i_result- $domain->{name} $router->{name}";
+                    if ($i_result == 0) {
+                        $d_invalid{$out_domain} = 1;
+                    }
+                    else {
+                        $d_seen{$out_domain} = 1;
+                    }
+                    $d_result ||= $i_result;
+                }
+            }
+            defined $d_result or next;
+
+            # Valid and invalid paths are joining at $router.
+            # Add bind_nat at inbound interface.
+            # But also add bind_nat at outbound interfaces of valid paths,
+            # to prevent duplicate NAT, effectively reverting the effect
+            # of bind_nat at inbound interface.
+            if ($d_result and keys %d_invalid) {
+                for my $out_domain (@{ $router->{nat_domains} }) {
+                    next if $d_invalid{$out_domain};
+                    push(@missing_intf,
+                         grep { $_->{router} eq $router }
+                         get_nat_domain_borders($out_domain));
+                }
+            }
+
+            if (not $d_result) {
+                $r_invalid{$router} = 1;
+            }
+            $r_result ||= $d_result;
+        }
+
+        # Valid and invalid paths are joining at $domain.
+        # Collect interfaces to neighbor routers located on
+        # invalid paths, where bind_nat is missing.
+        if (defined $r_result and $r_result and keys %r_invalid) {
+            push(@missing_intf,
+                 grep { $r_invalid{$_->{router}} }
+                 get_nat_domain_borders($domain));
+        }
+#        debug "EXIT $in_router->{name} $domain->{name}";
+        return $cache{$in_router}->{$domain} = $r_result;
+    };
+    $traverse->($in_router, $domain);
+
+    # No valid path was found, hence add all interfaces of current $domain
+    # that have no bind_nat for $nat_tag.
+    if (not @missing_intf) {
+        for my $interface (get_nat_domain_borders($domain)) {
+            my $bind_nat = $interface->{bind_nat};
+            if (not (($bind_nat and grep { $_ eq $nat_tag } @$bind_nat))) {
+                push @missing_intf, $interface;
+            }
         }
     }
+
+    @nat_intf = sort by_name unique(@nat_intf);
+    @missing_intf = sort by_name unique @missing_intf;
+    err_msg("Incomplete 'bind_nat = $nat_tag' at\n",
+            name_list(\@nat_intf), "\n",
+            " Possibly 'bind_nat = $nat_tag' is missing at these interfaces:\n",
+            name_list(\@missing_intf));
+}
+
+sub get_nat_domain_borders {
+    my ($domain) = @_;
+    return
+        grep({ $_->{zone}->{nat_domain} eq $domain }
+             map { @{ $_->{interfaces} } } @{ $domain->{routers} });
 }
 
 ##############################################################################
@@ -8107,9 +8194,7 @@ sub check_for_proper_nat_transition {
     }
 
     # Transition from dynamic to static NAT is invalid.
-    elsif ($nat_info->{dynamic} and
-           not $next_info->{dynamic})
-    {
+    elsif ($nat_info->{dynamic} and not $next_info->{dynamic}) {
         err_msg("Must not change dynamic nat:$nat_tag",
                 " to static using nat:$nat_tag2\n",
                 " for $nat_info->{name} at $router->{name}");
@@ -8131,87 +8216,73 @@ sub check_for_proper_nat_transition {
 # Purpose:    Performs a depth first traversal to distribute specified
 #             NAT tag to reachable domains where NAT tag is active;
 #             checks whether NAT declarations are applied correctly.
-# Parameters: $domain: Domain the depth first traversal proceeds from.
+# Parameters: $in_router: Router $domain was entered from.
+#             $domain: Domain the depth first traversal proceeds from.
 #             $nat_tag: NAT tag that is to be distributed.
-#             $nat_tag2multinat_def: Lookup hash for elements with more than
-#                 one NAT tag specified.
+#             $multinat_hashes: List of multi NAT hashes containing $nat_tag.
 #             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
 #                 where transition from first to second tag is invalid.
-#             $in_router: Router $domain was entered from.
 # Results:    All domains, where NAT tag is active contain $nat_tag in their
 #             {nat_set} attribute.
-# Returns:    undef on success, array reference of routers, if invalid
-#             path was found in loop.
+# Returns:    undef on success,
+#             1 on error, if same NAT tag is reached twice.
 sub distribute_nat1 {
-    my ($domain, $nat_tag,
-        $nat_tag2multinat_def, $invalid_nat_transitions,
-        $in_router) = @_;
+    my ($in_router, $domain, $nat_tag,
+        $multinat_hashes, $invalid_nat_transitions) = @_;
 #    debug "nat:$nat_tag at $domain->{name} from $in_router->{name}";
 
     # Loop found or domain was processed by earlier call of distribute_nat.
     my $nat_set = $domain->{nat_set};
     return if $nat_set->{$nat_tag};
-
-    # Perform checks before $nat_tag is added.
-    check_for_multinat_errors($nat_tag2multinat_def, $nat_set,
-                              $nat_tag, $domain);
-    check_nat_network_location($domain, $nat_tag, $in_router);
     $nat_set->{$nat_tag} = 1;
 
     # Activate loop detection.
-    local $in_router->{active_path} = 1;
+###    local $in_router->{active_path} = 1;
 
     # Find adjacent domains with active $nat_tag to proceed traversal.
     for my $router (@{ $domain->{routers} }) {
         next if $router eq $in_router;
+        my $dom2tags = $router->{nat_tags};
 
         # $nat_tag is deactivated at routers domain facing interface.
-        my $in_nat_tags = $router->{nat_tags}->{$domain};
+        my $in_nat_tags = $dom2tags->{$domain};
         next if grep { $_ eq $nat_tag } @$in_nat_tags;
 
-        my $loop_error = check_for_proper_NAT_binding($domain, $in_router,
-                                                     $router, $nat_tag);
-        # Wrong NAT binding on loop path:
-        # Abort traversal and start collecting error path.
-        $loop_error and return [$router];
-
-      DOMAIN:
         # Check whether $nat_tag is active in adjacent NAT domains.
+      DOMAIN:
         for my $out_domain (@{ $router->{nat_domains} }) {
              next if $out_domain eq $domain;
+             my $out_nat_tags = $dom2tags->{$out_domain};
+
+             # Found error: reached the same NAT tag twice.
+             # Signal this error with return value 1.
+             if (grep { $_ eq $nat_tag } @$out_nat_tags) {
+                 return 1;
+             }
 
              # $nat_tag is implicitly deactivated by activation of another NAT
-             # tag occuring with $nat_tag in a multinat definition
-             my $out_nat_tags = $router->{nat_tags}->{$out_domain};
-             if (my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag}) {
+             # tag used together with $nat_tag in a multi NAT definition.
+             if ($multinat_hashes) {
                  for my $nat_tag2 (@$out_nat_tags) {
 #                     debug "- $nat_tag2";
-                     next if $nat_tag2 eq $nat_tag;
                      for my $nat_hash (@$multinat_hashes) {
-                         if ($nat_hash->{$nat_tag2}) {
-                             check_for_proper_nat_transition(
-                                 $nat_tag, $nat_tag2,
-                                 $nat_hash, $invalid_nat_transitions,
-                                 $router);
-                             next DOMAIN;
-                         }
+                         $nat_hash->{$nat_tag2} or next;
+                         check_for_proper_nat_transition(
+                             $nat_tag, $nat_tag2,
+                             $nat_hash, $invalid_nat_transitions,
+                             $router);
+                         next DOMAIN;
                      }
                  }
              }
 
              # $nat_tag is active within adjacent domain: proceed traversal
 #            debug "Caller $domain->{name}";
-            if (
-                my $err_path = distribute_nat1(
-                    $out_domain, $nat_tag,
-                    $nat_tag2multinat_def, $invalid_nat_transitions,
-                    $router
-                )
-              )
-            {
-                push @$err_path, $router;
-                return $err_path;
-            }
+             if (distribute_nat1($router, $out_domain, $nat_tag,
+                                 $multinat_hashes, $invalid_nat_transitions))
+             {
+                 return 1;
+             }
         }
     }
 }
@@ -8220,93 +8291,119 @@ sub distribute_nat1 {
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
 #             error message, if called function returns an error loop path.
-# Parameters: $domain: Domain the depth first traversal starts at.
+# Parameters: $in_router: router the depth first traversal starts at.
+#             $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
-#             $nat_tag2multinat_def: Lookup hash for elements with more
-#                 than one NAT tag specified.
+#             $multinat_hashes: List of multi NAT hashes containing $nat_tag.
 #             $invalid_nat_transitions: Hash with pairs of NAT tags as keys,
 #                 where transition from first to second tag is invalid.
-#             $in_router: router the depth first traversal starts at.
+# Returns:    1 if NAT errors have occured.
 sub distribute_nat {
-    my ($domain, $nat_tag,
-        $nat_tag2multinat_def, $invalid_nat_transitions,
-        $in_router) = @_;
-    if (my $err_path =
-        distribute_nat1(
-            $domain, $nat_tag,
-            $nat_tag2multinat_def, $invalid_nat_transitions,
-            $in_router))
+    my ($in_router, $domain, $nat_tag,
+        $multinat_hashes, $invalid_nat_transitions) = @_;
+    if (distribute_nat1($in_router, $domain, $nat_tag,
+                        $multinat_hashes, $invalid_nat_transitions))
     {
-        push @$err_path, $in_router;
-        err_msg("nat:$nat_tag is applied recursively in loop at this path:\n",
-            " - ", join("\n - ", map { $_->{name} } reverse @$err_path));
+        err_missing_bind_nat($in_router, $domain, $nat_tag, $multinat_hashes);
+        return 1;
     }
 }
 
 ##############################################################################
-# Purpose: Distribute NAT tags to the domains they are active in.
-#          Check every NAT tag is both bound and defined somewhere.
-#          Assure unambiguous NAT for networks with multi NAT definitions.
+# Purpose: Distribute NAT tags to domains they are active in.
+# Returns: 1 if NAT errors have occured.
 sub distribute_nat_tags_to_nat_domains {
-    my ($nat_tag2multinat_def, $nat_definitions) = @_;
+    my ($nat_tag2multinat_def, $natdomains) = @_;
     my $invalid_nat_transitions =
         mark_invalid_nat_transitions($nat_tag2multinat_def);
-    for my $domain (@natdomains) {
+    my $nat_errors;
+    for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
 #            debug "$domain->{name} $router->{name}: ", join(',', @$nat_tags);
-
-            # Assure every bound NAT is defined somewhere.
             for my $nat_tag (@$nat_tags) {
-                if ($nat_definitions->{$nat_tag}) {
-                    $nat_definitions->{$nat_tag} = 'used';
-                }
-                else {
-                    warn_msg(
-                        "Ignoring useless nat:$nat_tag",
-                        " bound at $router->{name}"
-                    );
-                }
-            }
-
-          NAT_TAG:
-            for my $nat_tag (@$nat_tags) {
-
-                # Multiple tags are bound to interface.
-                # If some network has multiple matching NAT tags,
-                # the resulting NAT mapping would be ambiguous.
-                if (@$nat_tags >= 2 and
-                    (my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag}))
-                {
-                    for my $multinat_hash (@$multinat_hashes) {
-                        my @tags = grep { $multinat_hash->{$_} } @$nat_tags;
-                        @tags >= 2 or next;
-                        my $tags = join(',', @tags);
-                        my $nat_net = $multinat_hash->{ $tags[0] };
-                        err_msg(
-                            "Must not bind multiple NAT tags '$tags'",
-                            " of $nat_net->{name} at $router->{name}"
-                        );
-
-                        # Show only first error. Process only first
-                        # valid NAT tag to prevent inherited errors.
-                        last NAT_TAG;
-                    }
-                }
-                distribute_nat($domain, $nat_tag,
-                               $nat_tag2multinat_def,
-                               $invalid_nat_transitions,
-                               $router);
+                my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag};
+                $nat_errors ||=
+                    distribute_nat($router, $domain, $nat_tag,
+                                   $multinat_hashes, $invalid_nat_transitions);
             }
         }
     }
+    return $nat_errors;
+}
 
-    # Assure every defined NAT bound somewhere.
-    for my $name (keys %$nat_definitions) {
-        $nat_definitions->{$name} eq 'used'
-          or warn_msg("nat:$name is defined, but not bound to any interface");
+#############################################################################
+# Purpose: For networks with multiple NAT definitions, at most one NAT
+#          definition must be active in a domain. Show error otherwise.
+sub check_multinat_errors {
+    my ($nat_tag2multinat_def, $natdomains) = @_;
+    for my $domain (@$natdomains) {
+        my $seen;
+        my $nat_set = $domain->{nat_set};
+        for my $nat_tag (sort keys %$nat_set) {
+            my $multinat_hashes = $nat_tag2multinat_def->{$nat_tag} or next;
+            for my $multinat_hash (@$multinat_hashes) {
+                for my $nat_tag2 (sort keys %$multinat_hash) {
+                    next if $nat_tag2 eq $nat_tag;
+                    $nat_set->{$nat_tag2} or next;
+                    my $pair = $nat_tag2 gt $nat_tag
+                        ? "$nat_tag, $nat_tag2" : "$nat_tag2, $nat_tag";
+                    next if $seen->{$pair}++;
+                    my $nat_net = $multinat_hash->{$nat_tag2};
+                    err_msg("Grouped NAT tags '$pair' of $nat_net->{name}",
+                            " must not both be active at\n",
+                            name_list([get_nat_domain_borders($domain)]));
+                }
+            }
+        }
     }
+}
 
+#############################################################################
+# Purpose: Check that every NAT tag is both bound and defined somewhere.
+sub check_nat_definitions {
+    my ($nat_definitions, $natdomains) = @_;
+    for my $domain (@$natdomains) {
+        for my $router (@{ $domain->{routers} }) {
+            my $nat_tags = $router->{nat_tags}->{$domain};
+            for my $nat_tag (@$nat_tags) {
+                if ($nat_definitions->{$nat_tag}) {
+                    $nat_definitions->{$nat_tag} = 'used';
+                    next;
+                }
+                warn_msg(
+                    "Ignoring useless nat:$nat_tag bound at $router->{name}");
+            }
+        }
+    }
+    for my $name (sort keys %$nat_definitions) {
+        $nat_definitions->{$name} eq 'used'
+            or warn_msg("nat:$name is defined, but not bound to any interface");
+    }
+}
+
+#############################################################################
+# Purpose:   Network which has translation with tag $nat_tag must not be located
+#            in domain where this tag is active.
+sub check_nat_network_location {
+    my ($natdomains) = @_;
+    for my $domain (@$natdomains) {
+        my $nat_set = $domain->{nat_set};
+        for my $zone (@{ $domain->{zones} }) {
+            for my $network (@{ $zone->{networks} }) {
+                my $nat_hash = $network->{nat} or next;
+                for my $nat_tag (sort keys %$nat_hash) {
+                    $nat_set->{$nat_tag} or next;
+                    err_msg(
+                        "$network->{name} is translated by nat:$nat_tag,\n",
+                        " but is located inside the translation domain of",
+                        " $nat_tag.\n",
+                        " Probably $nat_tag was bound to wrong interface at\n",
+                        name_list($domain->{routers}));
+                }
+            }
+        }
+    }
 }
 
 #############################################################################
@@ -8379,6 +8476,7 @@ sub check_interfaces_with_dynamic_nat {
 # Comment: NAT partitions arise, if parts of the topology are strictly
 #          separated by crypto interfaces or partitioned toplology.
 sub find_nat_partitions {
+    my ($natdomains) = @_;
     my %partitions;
     my $mark_nat_partition = sub {
         my ($domain, $mark) = @_;
@@ -8394,7 +8492,7 @@ sub find_nat_partitions {
         }
     };
     my $mark = 0;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         $mark++;
         $mark_nat_partition->($domain, $mark);
     }
@@ -8405,12 +8503,13 @@ sub find_nat_partitions {
 #                the NAT tags used within the partition.
 # Parameter: $partitions: Lookup hash with domains as keys and partition ID
 #                as values.
+#            $natdomains: List of all NAT domains.
 # Comment:   NAT tags only used in one partition must not be included in other
 #            partitions no_nat_set.
 sub map_partitions_to_NAT_tags {
-    my ($partitions) = @_;
+    my ($partitions, $natdomains) = @_;
     my %partition2tags;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         my $mark = $partitions->{$domain};
         for my $zone (@{ $domain->{zones} }) {
             for my $network (@{ $zone->{networks} }) {
@@ -8431,11 +8530,12 @@ sub map_partitions_to_NAT_tags {
 #           inactive. Storing the set of inactive NAT tags significantly
 #           reduces memory requirements.
 sub invert_nat_sets {
-    my $partitions = find_nat_partitions;
-    my $partition2tags = map_partitions_to_NAT_tags($partitions);
+    my ($natdomains) = @_;
+    my $partitions = find_nat_partitions($natdomains);
+    my $partition2tags = map_partitions_to_NAT_tags($partitions, $natdomains);
 
     # Invert {nat_set} to {no_nat_set}
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
         my $nat_set     = delete $domain->{nat_set};
         my $mark        = $partitions->{$domain};
         my $all_nat_set = $partition2tags->{$mark} ||= {};
@@ -8455,7 +8555,8 @@ sub invert_nat_sets {
 # Comment: Neccessary at semi_managed routers to calculate {up} relation
 #          between subnets.
 sub distribute_no_nat_sets_to_interfaces {
-    for my $domain (@natdomains) {
+    my ($natdomains) = @_;
+    for my $domain (@$natdomains) {
         my $no_nat_set = $domain->{no_nat_set};
         for my $zone (@{ $domain->{zones} }) {
             for my $interface (@{ $zone->{interfaces} }) {
@@ -8665,19 +8766,23 @@ sub add_crypto_no_nat_set {
 #           for every NAT domain.
 sub distribute_nat_info {
     progress('Distributing NAT');
-    find_nat_domains();
+    my $natdomains = find_nat_domains();
     my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
     my ($nat_tag2multinat_def, $nat_definitions)
         = generate_multinat_def_lookup($has_non_hidden);
-    distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $nat_definitions);
+    my $nat_errors =
+        distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
+    check_multinat_errors($nat_tag2multinat_def, $natdomains);
+    check_nat_definitions($nat_definitions, $natdomains);
+    check_nat_network_location($natdomains) if not $nat_errors;
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
-    invert_nat_sets();
-    distribute_no_nat_sets_to_interfaces();
+    invert_nat_sets($natdomains);
+    distribute_no_nat_sets_to_interfaces($natdomains);
     add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
 
-    return($nat_tag2multinat_def, $has_non_hidden);
+    return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
 }
 
 sub get_nat_network {
@@ -8945,7 +9050,8 @@ sub find_subnets_in_zone {
 # 2. If rule has src or dst with attribute {has_other_subnet},
 #    it is later checked for missing supernets.
 sub find_subnets_in_nat_domain {
-    my $count = @natdomains;
+    my ($natdomains) = @_;
+    my $count = @$natdomains;
     progress("Finding subnets in $count NAT domains");
 
     # List of all networks and NAT networks having an IP address.
@@ -9032,7 +9138,7 @@ sub find_subnets_in_nat_domain {
     };
     my %subnet_in_zone;
     my %seen;
-    for my $domain (@natdomains) {
+    for my $domain (@$natdomains) {
 
         # Ignore NAT domain consisting of empty zone from unnumbered networks
         # and surrounded by unmanaged devices.
@@ -9252,7 +9358,7 @@ sub find_subnets_in_nat_domain {
         my $nat_hash = $network->{nat} or next;
         my @hidden_tags = grep { $nat_hash->{$_}->{hidden} } keys %$nat_hash
             or next;
-        for my $domain (@natdomains) {
+        for my $domain (@$natdomains) {
             my $no_nat_set = $domain->{no_nat_set};
             if (grep { not $no_nat_set->{$_} } @hidden_tags) {
                 $net2dom2hidden{$network}->{$domain} = 1;
@@ -9272,7 +9378,7 @@ sub find_subnets_in_nat_domain {
             # - subnet relation holds or
             # - at least one of both networks is hidden.
           DOMAIN:
-            for my $domain (@natdomains) {
+            for my $domain (@$natdomains) {
 
                 # Ok, is subnet in current NAT domain.
                 next if $dom2is_subnet->{$domain};
@@ -15025,6 +15131,7 @@ sub collect_path_interfaces {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
+    my ($natdomains) = @_;
     progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags that
@@ -15067,7 +15174,7 @@ sub check_dynamic_nat_rules {
                 $zone2dyn_nat{$zone}->{$nat_tag} = $nat_network->{hidden} || 0;
             }
         }
-        for my $natdomain (@natdomains) {
+        for my $natdomain (@$natdomains) {
             my $no_nat_set = $natdomain->{no_nat_set};
             my @active =
                 grep { not $no_nat_set->{$_} } keys %is_dynamic_nat_tag;
@@ -18741,7 +18848,6 @@ sub init_global_vars {
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
     @routers = @networks = @zones = @areas = ();
-    @natdomains         = ();
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();
@@ -18772,7 +18878,7 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    &distribute_nat_info();
+    my ($natdomains) = distribute_nat_info();
     find_subnets_in_zone();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
@@ -18793,7 +18899,7 @@ sub compile {
 
     concurrent(
         sub {
-            find_subnets_in_nat_domain();
+            find_subnets_in_nat_domain($natdomains);
             check_unstable_nat_rules();
 
             # Call after {up} relation for anonymous aggregates has
@@ -18801,7 +18907,7 @@ sub compile {
             mark_managed_local();
         },
         sub {
-            check_dynamic_nat_rules();
+            check_dynamic_nat_rules($natdomains);
         });
 
     concurrent(

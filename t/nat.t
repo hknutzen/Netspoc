@@ -192,9 +192,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: network:n1 is translated by x,
+Error: network:n1 is translated by nat:x,
  but is located inside the translation domain of x.
- Probably x was bound to wrong interface at router:r.
+ Probably x was bound to wrong interface at
+ - router:r
 END
 
 test_err($title, $in, $out);
@@ -516,8 +517,9 @@ END
 
 # Only first error is shown.
 $out = <<'END';
+Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
+ - interface:filter.X
 Warning: Ignoring useless nat:E bound at router:filter
-Error: Must not bind multiple NAT tags 'C,D' of network:n1 at router:filter
 END
 
 test_err($title, $in, $out);
@@ -2037,7 +2039,9 @@ network:b = {ip = 10.9.9.0/24;}
 END
 
 $out = <<'END';
-Error: Grouped NAT tags 'a2' and 'a1' must not both be active inside nat_domain:[network:b]
+Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
+ - interface:r12.b
+ - interface:r22.b
 END
 
 test_err($title, $in, $out);
@@ -2065,7 +2069,10 @@ network:n2 = { ip = 10.2.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n is applied twice between router:r1 and router:r2
+Error: Incomplete 'bind_nat = n' at
+ - interface:r1.tr
+ Possibly 'bind_nat = n' is missing at these interfaces:
+ - interface:r2.tr
 END
 
 test_err($title, $in, $out);
@@ -2616,9 +2623,10 @@ END
 $out = <<'END';
 Error: Inconsistent NAT in loop at router:r1:
  nat:(none) vs. nat:h
-Error: network:a is translated by h,
+Error: network:a is translated by nat:h,
  but is located inside the translation domain of h.
- Probably h was bound to wrong interface at router:r1.
+ Probably h was bound to wrong interface at
+ - router:r1
 END
 
 test_err($title, $in, $out);
@@ -2656,9 +2664,11 @@ Error: Inconsistent NAT in loop at router:r2:
  nat:(none) vs. nat:x
 Error: Inconsistent NAT in loop at router:r3:
  nat:(none) vs. nat:x
-Error: network:n3 is translated by x,
+Error: network:n3 is translated by nat:x,
  but is located inside the translation domain of x.
- Probably x was bound to wrong interface at router:r2.
+ Probably x was bound to wrong interface at
+ - router:r2
+ - router:r3
 END
 
 test_err($title, $in, $out);
@@ -2688,16 +2698,17 @@ network:t2 = { ip = 10.7.2.0/24; }
 END
 
 $out = <<'END';
-Error: nat:n1 is applied recursively in loop at this path:
- - router:r1
- - router:r2
- - router:r1
+Error: Incomplete 'bind_nat = n1' at
+ - interface:r1.t1
+ Possibly 'bind_nat = n1' is missing at these interfaces:
+ - interface:r2.n2
+ - interface:r2.t1
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'NAT in loop ok';
+$title = 'NAT in simple loop ok';
 ############################################################
 
 $in = <<'END';
@@ -2733,28 +2744,289 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'NAT is applied twice';
+$title = 'NAT in complex loop ok';
 ############################################################
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
 
 router:r1 = {
- interface:n1;
- interface:t1 = { bind_nat = n1; }
+ interface:n1 = { bind_nat = n5; }
+ interface:n5;
 }
-network:t1 = { ip = 10.7.1.0/24; }
-
 router:r2 = {
- interface:t1;
- interface:t2 = { bind_nat = n1; }
+ interface:n1 = {
+  bind_nat = n5; #1
+ }
+ interface:n4 = { bind_nat = n2; }
 }
-
-network:t2 = { ip = 10.7.2.0/24; }
+router:r3 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n4; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r4 = {
+ interface:n2 = {
+  bind_nat =
+   n4,
+   n5,
+  ;
+ }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r5 = {
+ interface:n3 = {
+  bind_nat =
+   n1,
+   n5, #2
+  ;
+ }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r6 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
+router:r7 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
 END
 
 $out = <<'END';
-Error: nat:n1 is applied twice between router:r1 and router:r2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Complex loop with 1 missing NAT behind domain';
+############################################################
+
+my $in2 = $in;
+$in2 =~ s/bind_nat = n5; #1//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r4.n2
+ - interface:r5.n3
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r2.n1
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Complex loop with 1 missing NAT behind router';
+############################################################
+
+$in2 = $in;
+$in2 =~ s/n5, #2//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r2.n1
+ - interface:r4.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r3.n1
+ - interface:r3.n2
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Complex loop with 2 missing NAT';
+############################################################
+
+$in2 =~ s/bind_nat = n5; #1//;
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r4.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r4.n4
+ - interface:r6.n4
+ - interface:r7.n4
+END
+
+test_err($title, $in2, $out);
+
+############################################################
+$title = 'Nested loop with 2 missing NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n5; }
+ interface:n5;
+}
+router:r2 = {
+ interface:n1 = { bind_nat = n5; }
+ interface:n2 = { bind_nat = n5; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r3 = {
+ interface:n2; # = { bind_nat = n5; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r4 = {
+ interface:n2; # = { bind_nat = n5; }
+ interface:n3 = { bind_nat = n1; }
+}
+router:r5 = {
+ interface:n3 = { bind_nat = n1; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r6 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n5' at
+ - interface:r1.n1
+ - interface:r2.n1
+ - interface:r2.n2
+ Possibly 'bind_nat = n5' is missing at these interfaces:
+ - interface:r5.n3
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Missing NAT with multi NAT tags.';
+############################################################
+# Ignore paths with corresponding multi NAT tags.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1a = { ip = 10.9.1.0/25; dynamic; }
+ nat:n1b = { ip = 10.9.1.128/25; dynamic; }
+}
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a, n3; }
+}
+router:r2 = {
+ interface:n2 = { bind_nat = n3; }
+ interface:n3;
+}
+router:r3 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n1a; }
+}
+router:r4 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n3; }
+ interface:n4 = { bind_nat = n2; }
+}
+router:r5 = {
+ interface:n4 = { bind_nat = n2; }
+ interface:n5;
+ interface:n6 = { bind_nat = n1b; }
+}
+router:r6 = {
+ interface:n1;
+ interface:n5 = { bind_nat = n1a; }
+}
+router:r7 = {
+ interface:n1;
+ interface:n6 = { bind_nat = n1b; }
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n1a' at
+ - interface:r1.n2
+ - interface:r3.n3
+ - interface:r6.n5
+ Possibly 'bind_nat = n1a' is missing at these interfaces:
+ - interface:r4.n2
+ - interface:r4.n4
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Cache path results when finding NAT errors';
+############################################################
+# For test coverage.
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; nat:n0 = { ip = 10.9.0.0/24; } }
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+network:n5 = { ip = 10.1.5.0/24; nat:n5 = { ip = 10.9.5.0/24; } }
+network:n6 = { ip = 10.1.6.0/24; nat:n6 = { ip = 10.9.6.0/24; } }
+network:n7 = { ip = 10.1.7.0/24; nat:n7 = { ip = 10.9.7.0/24; } }
+network:n8 = { ip = 10.1.8.0/24; }
+
+router:r1 = {
+ interface:n0;
+ interface:n1 = { bind_nat = n0; }
+ interface:n2 = { bind_nat = n0, n1; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n2; }
+}
+router:r3 = {
+ interface:n2 = { bind_nat = n1; }
+ interface:n3 = { bind_nat = n2; }
+ interface:n4 = { bind_nat = n3; }
+ interface:n5 = { bind_nat = n4; }
+}
+router:r4 = {
+ interface:n4 = { bind_nat = n3; }
+ interface:n6 = { bind_nat = n5; }
+ interface:n7 = { bind_nat = n6; }
+}
+router:r5 = {
+ interface:n5 = { bind_nat = n0, n4; }
+ interface:n6 = { bind_nat = n5; }
+ interface:n8 = { bind_nat = n7; }
+}
+router:r6 = {
+ interface:n6 = { bind_nat = n5; }
+ interface:n7 = { bind_nat = n6; }
+}
+router:r7 = {
+ interface:n6 = { bind_nat = n5; }
+ interface:n8 = { bind_nat = n7; }
+}
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = n0' at
+ - interface:r1.n1
+ - interface:r1.n2
+ - interface:r5.n5
+ Possibly 'bind_nat = n0' is missing at these interfaces:
+ - interface:r3.n2
+ - interface:r3.n3
+ - interface:r3.n5
 END
 
 test_err($title, $in, $out);
@@ -3104,7 +3376,8 @@ network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 END
 
 $out = <<'END';
-Error: Must not bind multiple NAT tags 'N,N2' of interface:r1.lo at router:r1
+Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
+ - interface:r1.n2
 END
 
 test_err($title, $in, $out);
