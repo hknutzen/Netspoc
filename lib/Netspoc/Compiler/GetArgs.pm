@@ -140,6 +140,8 @@ our %config = (
 # Pass 1 writes processed device names to STDOUT,
 # pass 2 reads to be processed device names from STDIN.
     pipe => 0,
+
+    export => 0,
 );
 
 sub get_config_keys {

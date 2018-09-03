@@ -18910,16 +18910,6 @@ sub compile {
     convert_hosts_in_rules();
     group_path_rules();
 
-#=head
-    progress("Exporting path_rules");
-    my $e = Sereal::Encoder->new();
-    open(my $fh, '>:', "/home/hk/out.sereal");
-    print $fh $e->encode(\%path_rules);
-    close $fh;
-    progress("Export ready");
-    exit;
-#=cut
-    
     concurrent(
         sub {
             find_subnets_in_nat_domain($natdomains);
@@ -18937,7 +18927,36 @@ sub compile {
         sub {
             check_unused_groups();
             check_supernet_rules();
-            check_expanded_rules();
+#            check_expanded_rules();
+#            progress("Exporting path_rules");
+            my $data = {
+                config => $config,
+                prt_ip => $prt_ip, 
+                protocols  => \%protocols, 
+                services   => \%services, 
+                path_rules => \%path_rules
+            };
+            my $e = Sereal::Encoder->new();
+            if ($config->{export}) {
+                my $file = '/home/hk/out.sereal';
+                open(my $fh, '>:bytes', $file) or die "Can't open $file: $!\n";
+                print $fh $e->encode($data);
+                close $fh;
+            }
+            else {
+                my $cmd = "/home/hk/go/src/pass1/pass1";
+                open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
+                print $fh $e->encode($data);
+                if (not close($fh)) {
+                    if ($!) {
+                        die "bad pipe: $!";
+                    }
+                    else {
+                        $error_counter += $?;
+                    }
+                }
+            }
+#            progress("Golang ready");
         },
         sub {
             %service_rules = ();
