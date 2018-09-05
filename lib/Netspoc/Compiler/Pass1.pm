@@ -7555,7 +7555,7 @@ sub find_redundant_rules {
  return $count;
 }
 
-sub check_expanded_rules {
+sub check_redundant_rules {
     progress('Checking for redundant rules');
     setup_ref2obj();
     my $count  = 0;
@@ -18914,7 +18914,7 @@ sub compile {
         sub {
             check_unused_groups();
             check_supernet_rules();
-            check_expanded_rules();
+            check_redundant_rules();
         },
         sub {
             %service_rules = ();
