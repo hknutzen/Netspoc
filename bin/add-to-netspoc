@@ -123,6 +123,7 @@ sub process {
     my $changed = 0;
     my $in_list = 0;
     my $copy = '';
+    my $subst_done;
     while(1) {
 
         # Ignore comment.
@@ -142,9 +143,11 @@ sub process {
                 my $new = $add_to{$object};
                 if (not $new) {
                     $copy .= "$space$object";
+                    $subst_done = 0;
                     next;
                 }
                 $changed++;
+                $subst_done = 1;
                 $copy .= $space;
 
                 # Current line has only one entry, possibly preceeded
@@ -181,15 +184,16 @@ sub process {
                 $input =~ /\G (\s* \])/gcx or
 
                 # Negation / intersection.
-                $input =~ /\G (\s* [&!])/gcx
+                $input =~ /\G (\s* [&!])/gcx or
+
+                # Comma.
+                $input =~ /\G (\s* ,) /gcx
                 )
             {
                 $copy .= $1;
-            }
-
-            # Read and copy comma.
-            elsif ($input =~ /\G (\s* , (?: [ \t]* \n)? ) /gcx) {
-                $copy .= $1;
+                if ($1 =~ /^(?: \s* [&])/x and $subst_done) {
+                    warn("Warning: Substituted in intersection\n");
+                }
             }
 
             # Everything else terminates list.
