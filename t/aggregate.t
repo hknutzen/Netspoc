@@ -351,6 +351,58 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'permit any between two interfaces, 1x no_in_acl';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; no_in_acl; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+protocol:oneway_IP = ip, oneway;
+
+# Allow unfiltered communication between n2 and n3.
+service:s1 = {
+ user = any:[network:n2], any:[network:n3];
+ permit src = user; dst = user; prt = protocol:oneway_IP;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n1_in
+ deny ip any any
+--
+ip access-list extended n1_out
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ permit ip any any
+--
+ip access-list extended n3_in
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.2.1
+ deny ip any host 10.1.3.1
+ permit ip any any
+--
+ip access-list extended n3_out
+ permit ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Loop with no_in_acl and in_zone eq no_in_zone';
 ############################################################
 
