@@ -11693,9 +11693,8 @@ sub find_dists_and_loops {
     # Zone1 is found for several partition definitions.
     for my $zone1 (keys %partitions) {
         @{$partitions{$zone1}} > 1 and
-            err_msg("Several partition names in partition " .
-                    $names{$zone1} . ":\n - " .
-                    (join "\n - ",  @{$partitions{$zone1}}));
+            err_msg("Several partition names in partition $names{$zone1}:\n",
+                    " - ", join "\n - ",  @{$partitions{$zone1}});
     }
 
     # Unconnected partitions without definition are probably
@@ -11713,9 +11712,8 @@ sub find_dists_and_loops {
         @un or next;
         my $ipv = $ipv6 ? 'IPv6' : 'IPv4';
         err_msg("$ipv topology has unconnected parts:\n",
-                " - ",
-                (join "\n - ", map { $_->{name} } @un),
-                "\nUse partition attribute, if intended.");
+                name_list(\@un),
+                "\n Use partition attribute, if intended.");
     }
 }
 

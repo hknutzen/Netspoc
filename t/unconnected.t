@@ -82,7 +82,7 @@ Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
  - any:[network:n3]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -116,7 +116,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n2]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -174,7 +174,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
  - any:[network:n3]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -196,7 +196,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
@@ -216,7 +216,7 @@ $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
  - any:[network:n3]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 Error: No valid path
  from router:r3
  to any:[network:n2]
@@ -406,7 +406,7 @@ $in =~ s/partition = part1;//;
 $out = <<'END';
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
-Use partition attribute, if intended.
+ Use partition attribute, if intended.
 END
 
 test_err($title, $in, $out);
