@@ -278,10 +278,12 @@ any:Trans = { link = network:Trans; }
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can\'t be effective at interface:filter1.Trans.
- Tried any:Trans as src.
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
+ Generated ACL at interface:filter1.Trans would permit access from additional networks:
+ - any:Trans
+ Either replace any:[network:Kunde] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -342,13 +344,176 @@ network:N1 = { ip = 10.192.0.0/24; }
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
- can\'t be effective at interface:filter1.Trans.
- Tried network:N1 as src.
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:Kunde]; dst=network:Test; prt=tcp 80; of service:test
+ Generated ACL at interface:filter1.Trans would permit access from additional networks:
+ - network:N1
+ Either replace any:[ip=10.0.0.0/8 & network:Kunde] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = 'Warn on multiple missing networks';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; has_subnets; }
+network:n3a = { ip = 10.1.3.4/30; }
+network:n3b = { ip = 10.1.3.8/30; }
+network:n3c = { ip = 10.1.3.16/28; }
+network:n3d = { ip = 10.1.3.64/27; }
+network:n3e = { ip = 10.1.3.96/27; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ interface:n2  = { ip = 10.1.2.2; }
+ interface:n3a;
+ interface:n3b;
+ interface:n3c;
+ interface:n3d;
+ interface:n3e;
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = network:n1; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<"END";
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n3; prt=icmp 8; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n3a
+ - network:n3b
+ - network:n3c
+ - ...
+ Either replace network:n3 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:[ ip=10.1.3.0/24 & network:n3a ] to dst of rule.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Warn on multiple missing networks with aggregate';
+############################################################
+
+$in .= <<'END';
+any:n3x = { ip = 10.1.3.0/24; link = network:n3a; }
+END
+
+$out = <<"END";
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n3; prt=icmp 8; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n3a
+ - network:n3b
+ - network:n3c
+ - ...
+ Either replace network:n3 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:n3x to dst of rule.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No missing subnets';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; has_subnets; }
+network:n3a = { ip = 10.1.3.4/30; }
+network:n3b = { ip = 10.1.3.8/30; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ interface:n2  = { ip = 10.1.2.2; }
+ interface:n3a;
+ interface:n3b;
+}
+
+service:s1 = {
+ user = network:n3, network:n3a, network:n3b;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Larger  intermediate aggregate';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ],
+        any:[ network:n2 ];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.0.0.0 255.0.0.0 10.1.3.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--r2
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'permit any between two interfaces, 1x no_in_acl';
@@ -876,14 +1041,18 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can\'t be effective at interface:r1.Customer.
- Tried network:trans as dst.
-Warning: Missing rule for supernet rule.
- permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can\'t be effective at interface:r2.trans.
- Tried network:n2 as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r1.Customer would permit access to additional networks:
+ - network:trans
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r2.trans would permit access to additional networks:
+ - network:n2
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -911,10 +1080,13 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can\'t be effective at interface:r2.trans.
- No supernet available for network:n2, network:n2x as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r2.trans would permit access to additional networks:
+ - network:n2
+ - network:n2x
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1025,10 +1197,12 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
- can\'t be effective at interface:r1.Customer.
- Tried network:trans as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r1.Customer would permit access to additional networks:
+ - network:trans
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1083,10 +1257,13 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
- can\'t be effective at interface:r.Customer.
- No supernet available for network:n2, interface:u.l as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[network:n1]; prt=tcp 80; of service:test
+ Generated ACL at interface:r.Customer would permit access to additional networks:
+ - network:n2
+ - interface:u.l
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1143,10 +1320,12 @@ service:s2 = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:n1; dst=any:sub-28; prt=tcp 80; of service:s1
- can\'t be effective at interface:r1.n1.
- Tried network:sub-27 as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:sub-28; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:sub-27
+ Either replace any:sub-28 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1261,18 +1440,24 @@ END
 # TODO:
 # First warning should show missing networks t1, t2, t3 and t4.
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
- can\'t be effective at interface:r1.n1.
- Tried network:t1 as dst.
-Warning: Missing rule for supernet rule.
- permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
- can\'t be effective at interface:r2.t4.
- Tried network:n3 as dst.
-Warning: Missing rule for supernet rule.
- permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
- can\'t be effective at interface:r2.t3.
- Tried network:n3 as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:t1
+ Either replace any:[network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ Generated ACL at interface:r2.t4 would permit access to additional networks:
+ - network:n3
+ Either replace any:[network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ Generated ACL at interface:r2.t3 would permit access to additional networks:
+ - network:n3
+ Either replace any:[network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1330,10 +1515,12 @@ service:s2 = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=interface:u.n3; dst=any:[network:n1]; prt=tcp 23; of service:s2
- can\'t be effective at interface:r3.n3.
- Tried network:n4 as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=interface:u.n3; dst=any:[network:n1]; prt=tcp 23; of service:s2
+ Generated ACL at interface:r3.n3 would permit access to additional networks:
+ - network:n4
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 --r1
 ip access-list extended n2_in
  deny ip any host 10.1.1.1
@@ -1387,10 +1574,12 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:r2.n3; prt=udp 123; of service:test
- can't be effective at interface:r2.n3.
- Tried network:n3 as src.
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:r2.n3; prt=udp 123; of service:test
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1436,14 +1625,18 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for reversed supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- can\'t be effective at interface:r1.n2.
- Tried network:n2 as src.
-Warning: Missing rule for reversed supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- can\'t be effective at interface:r2.n3.
- Tried network:n3 as src.
+Warning: This reversed supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ Generated ACL at interface:r1.n2 would permit access from additional networks:
+ - network:n2
+ Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+Warning: This reversed supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1481,10 +1674,12 @@ $in =~ s/, FW//;
 $in =~ s/; [#]1/, FW;/;
 
 $out = <<"END";
-Warning: Missing rule for reversed supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- can\'t be effective at interface:r2.n3.
- Tried network:n3 as src.
+Warning: This reversed supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1591,18 +1786,24 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
- can't be effective at interface:r3.n4.
- Tried network:n4 as src.
-Warning: Missing rule for supernet rule.
- permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
- can't be effective at interface:r3.n3.
- Tried network:n3 as src.
-Warning: Missing rule for reversed supernet rule.
- permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
- can't be effective at interface:r2.n3.
- Tried network:n3 as src.
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ Generated ACL at interface:r3.n4 would permit access from additional networks:
+ - network:n4
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ Generated ACL at interface:r3.n3 would permit access from additional networks:
+ - network:n3
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+Warning: This reversed supernet rule would permit unexpected access:
+  permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace any:[network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1656,10 +1857,12 @@ service:test = {
 END
 
 $out = <<"END";
-Warning: Missing rule for reversed supernet rule.
- permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
- can\'t be effective at interface:r.n2.
- Tried network:n2 as src.
+Warning: This reversed supernet rule would permit unexpected access:
+  permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
+ Generated ACL at interface:r.n2 would permit access from additional networks:
+ - network:n2
+ Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1852,14 +2055,18 @@ service:s1 = {
 END
 
 $out = <<"END";
-Warning: Missing rule for supernet rule.
- permit src=network:n1; dst=network:n4; prt=ip; of service:s1
- can't be effective at interface:r2.n3.
- Tried network:n3 as src.
-Warning: Missing rule for supernet rule.
- permit src=network:n4; dst=network:n1; prt=ip; of service:s1
- can't be effective at interface:r2.n4.
- Tried network:n3 as dst.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n4; prt=ip; of service:s1
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace network:n1 by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n4; dst=network:n1; prt=ip; of service:s1
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
+ - network:n3
+ Either replace network:n1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
