@@ -18652,6 +18652,9 @@ sub print_code {
         select STDOUT;
         close $code_fd or fatal_err("Can't close $config_file: $!");
 
+        # ACLs are printed from Go.
+        next;
+        
         # Print ACLs in machine independent format into separate file.
         # Collect ACLs from VRF parts.
         my $acl_file = "$dir/$path.rules";
@@ -18928,35 +18931,13 @@ sub compile {
             check_unused_groups();
             check_supernet_rules();
 #            check_expanded_rules();
-#            progress("Exporting path_rules");
-            my $data = {
+            call_go('spoc1-check', {
                 config => $config,
                 prt_ip => $prt_ip, 
                 protocols  => \%protocols, 
                 services   => \%services, 
-                path_rules => \%path_rules
-            };
-            my $e = Sereal::Encoder->new();
-            if ($config->{export}) {
-                my ($file) = glob '~/out.sereal';
-                open(my $fh, '>:bytes', $file) or die "Can't open $file: $!\n";
-                print $fh $e->encode($data);
-                close $fh;
-            }
-            else {
-                my ($cmd) = glob '~/go-Netspoc/cmd/spoc1-check/spoc1-check';
-                open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
-                print $fh $e->encode($data);
-                if (not close($fh)) {
-                    if ($!) {
-                        die "bad pipe: $!";
-                    }
-                    else {
-                        $error_counter += $? >> 8;
-                    }
-                }
-            }
-#            progress("Golang ready");
+                path_rules => \%path_rules,
+                    });
         },
         sub {
             %service_rules = ();
@@ -18970,11 +18951,41 @@ sub compile {
                 rules_distribution();
                 check_output_dir($out_dir);
                 print_code($out_dir);
+                call_go('spoc1-print', {
+                    config => $config,
+                    managed_routers => \@managed_routers,
+                    routing_only_routers => \@routing_only_routers,
+                    out_dir => $out_dir,
+                        });
                 copy_raw($in_path, $out_dir);
             }
         });
 
     abort_on_error();
+}
+
+sub call_go {
+    my ($what, $data) = @_;
+    my $e = Sereal::Encoder->new();
+    if ($config->{export}) {
+        my ($file) = glob "~/$what.sereal";
+        open(my $fh, '>:bytes', $file) or die "Can't open $file: $!\n";
+        print $fh $e->encode($data);
+        close $fh;
+    }
+    else {
+        my ($cmd) = glob "~/go-Netspoc/cmd/$what/$what";
+        open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
+        print $fh $e->encode($data);
+        if (not close($fh)) {
+            if ($!) {
+                die "bad pipe: $!";
+            }
+            else {
+                $error_counter += $? >> 8;
+            }
+        }
+    }
 }
 
 1;
