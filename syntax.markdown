@@ -325,7 +325,7 @@ where `<object set>` must expand to interfaces.
     <owner definition> ::=
       owner:<name> = {
         admins = <email>(, <email>)*;
-        [ watchers = <owner_email_wildcard>(, <owner_email_wildcard>)*; ]
+        [ watchers = <email_or_wildcard>(, <email_or_wildcard>)*; ]
         [ extend;           ]
         [ extend_only;      ]
         [ extend_unbounded; ]
@@ -335,7 +335,7 @@ where `<object set>` must expand to interfaces.
     <email> ::= some valid email address or 'guest'
     <domain> ::= some valid email domain part
     <wildcard> ::= "["all"]"@<domain>
-    <owner_email_wildcard> ::= <email> | owner:<name> | <wildcard>
+    <email_or_wildcard> ::= <email> | <wildcard>
 
 `admins` are optional if `extend_only` is set.
 
