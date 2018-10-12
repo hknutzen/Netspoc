@@ -18944,7 +18944,7 @@ sub compile {
                 close $fh;
             }
             else {
-                my $cmd = "/home/hk/go/src/pass1/pass1";
+                my $cmd = "/home/hk/go-Netspoc/cmd/spoc1-check/spoc1-check";
                 open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
                 print $fh $e->encode($data);
                 if (not close($fh)) {
