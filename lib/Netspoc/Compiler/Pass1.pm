@@ -18938,13 +18938,13 @@ sub compile {
             };
             my $e = Sereal::Encoder->new();
             if ($config->{export}) {
-                my $file = '/home/hk/out.sereal';
+                my ($file) = glob '~/out.sereal';
                 open(my $fh, '>:bytes', $file) or die "Can't open $file: $!\n";
                 print $fh $e->encode($data);
                 close $fh;
             }
             else {
-                my $cmd = "/home/hk/go-Netspoc/cmd/spoc1-check/spoc1-check";
+                my ($cmd) = glob '~/go-Netspoc/cmd/spoc1-check/spoc1-check';
                 open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
                 print $fh $e->encode($data);
                 if (not close($fh)) {
@@ -18952,7 +18952,7 @@ sub compile {
                         die "bad pipe: $!";
                     }
                     else {
-                        $error_counter += $?;
+                        $error_counter += $? >> 8;
                     }
                 }
             }
