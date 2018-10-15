@@ -11507,7 +11507,7 @@ sub setpath_obj {
                 # If current loop is part of a cluster,
                 # this marker will be overwritten later.
                 # Otherwise this is the exit of a cluster of loops.
-                $obj->{loop} ||= 
+                $obj->{loop} ||=
                     new('loop', exit => $obj, distance => $distance);
             }
 
@@ -18654,18 +18654,6 @@ sub print_code {
 
         # ACLs are printed from Go.
         next;
-        
-        # Print ACLs in machine independent format into separate file.
-        # Collect ACLs from VRF parts.
-        my $acl_file = "$dir/$path.rules";
-        open(my $acl_fd, '>', $acl_file)
-          or fatal_err("Can't open $acl_file for writing: $!");
-        print_acls($vrf_members, $acl_fd);
-        close $acl_fd or fatal_err("Can't close $acl_file: $!");
-
-        # Send device name to pass 2, showing that processing for this
-        # device can be started.
-        print $to_pass2 "$path\n";
     }
 }
 
@@ -18872,11 +18860,11 @@ sub init_global_vars {
 
 my %JSON_obj;
 my %new_obj;
-sub UNIVERSAL::TO_JSON { 
-    my($obj) = @_; 
+sub UNIVERSAL::TO_JSON {
+    my($obj) = @_;
     $JSON_obj{$obj} ||= { %$obj };
     $new_obj{$obj} = 1;
-    return "$obj"; 
+    return "$obj";
 }
 
 sub compile {
@@ -18933,9 +18921,9 @@ sub compile {
 #            check_expanded_rules();
             call_go('spoc1-check', {
                 config => $config,
-                prt_ip => $prt_ip, 
-                protocols  => \%protocols, 
-                services   => \%services, 
+                prt_ip => $prt_ip,
+                protocols  => \%protocols,
+                services   => \%services,
                 path_rules => \%path_rules,
                     });
         },
