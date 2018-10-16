@@ -2014,7 +2014,7 @@ sub read_router {
                 $name2 =~ /^ [\w-]+ $/x or syntax_err("Invalid log name");
                 defined($router->{log}->{$name2})
                   and error_atline("Duplicate 'log' definition");
-                my $modifier = check('=') ? read_identifier() : 0;
+                my $modifier = check('=') ? read_identifier() : '';
                 $router->{log}->{$name2} = $modifier;
                 skip(';');
                 next;
@@ -2193,7 +2193,7 @@ sub read_router {
             if (my $log_modifiers = $model->{log_modifiers}) {
                 for my $name2 (sort keys %$hash) {
 
-                    # 0: simple unmodified 'log' statement.
+                    # '': simple unmodified 'log' statement.
                     my $modifier = $hash->{$name2} or next;
 
                     $log_modifiers->{$modifier} and next;
