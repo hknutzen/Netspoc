@@ -16,7 +16,7 @@ sub run {
     print $in_fh $input;
     close $in_fh;
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/rename-netspoc -q $filename $args";
+    my $cmd = "/home/knutzehe/go/src/github.com/hknutzen/go-Netspoc/cmd/rename-netspoc/rename-netspoc -q $filename $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
@@ -126,7 +126,7 @@ $out = <<'END' . $out;
 4 changes in INPUT
 END
 
-test_run($title, $in, '--noquiet network:Test network:Toast', $out);
+test_run($title, $in, '--quiet=0 network:Test network:Toast', $out);
 
 ############################################################
 $title = 'Rename bridged network';
@@ -376,7 +376,7 @@ $title = 'Unknown file for substitutions';
 ############################################################
 
 $out = <<'END';
-Error: Can't open missing.file: No such file or directory
+Error: Can't open missing.file: no such file or directory
 END
 
 test_err($title, '', "-f missing.file", $out);
