@@ -18532,20 +18532,6 @@ sub print_code {
     my ($dir) = @_;
     progress('Printing intermediate code');
 
-    ## no critic (RequireBriefOpen)
-    my $to_pass2;
-    if ($config->{pipe}) {
-        open($to_pass2, '>&', STDOUT) or
-            fatal_err("Can't open STDOUT for writing: $!");
-        $to_pass2->autoflush(1);
-    }
-    else {
-        my $devlist = "$dir/.devlist";
-        open($to_pass2, '>>', $devlist) or
-            fatal_err("Can't open $devlist for writing: $!");
-    }
-    ## use critic
-
     my $checked_v6dir;
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
@@ -18911,6 +18897,7 @@ sub compile {
 
 sub call_go {
     my ($what, $data) = @_;
+    progress "Exporting to Go";
     my $e = Sereal::Encoder->new();
     if ($config->{export}) {
         my ($file) = glob "~/$what.sereal";
