@@ -1048,6 +1048,109 @@ END
 test_run($title, $in, $in);
 
 ############################################################
+$title = 'Handle split router from pathrestriction';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = { ip = 10.1.8.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ interface:n1;
+ interface:n3;
+ interface:n5;
+ interface:n7;
+}
+
+router:r3 = {
+ interface:n2;
+ interface:n4;
+ interface:n6;
+ interface:n8;
+}
+
+router:r4 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n7 = { ip = 10.1.7.2; hardware = n7; }
+ interface:n8 = { ip = 10.1.8.2; hardware = n8; }
+}
+
+pathrestriction:p1 =
+ interface:r2.n1,
+ interface:r3.n2,
+;
+
+pathrestriction:p2 =
+ interface:r2.n7,
+ interface:r3.n8,
+;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n8; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = { ip = 10.1.8.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n7;
+}
+router:r3 = {
+ interface:n2;
+ interface:n8;
+}
+router:r4 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n7 = { ip = 10.1.7.2; hardware = n7; }
+ interface:n8 = { ip = 10.1.8.2; hardware = n8; }
+}
+pathrestriction:p1 =
+ interface:r2.n1,
+ interface:r3.n2,
+;
+pathrestriction:p2 =
+ interface:r2.n7,
+ interface:r3.n8,
+;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n8; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 # Shared topology for crypto tests
 ############################################################
 

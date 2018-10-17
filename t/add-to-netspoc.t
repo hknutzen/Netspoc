@@ -160,6 +160,35 @@ test_add($title, $in, 'network:def network:n', $out);
 test_rmv($title, $out, 'network:n', $in);
 
 ############################################################
+$title = 'Warn group with intersection';
+############################################################
+
+$in = <<'END';
+group:g2 = group:g1 &! network:n2;
+END
+
+$out = <<'END';
+Warning: Substituted in intersection
+group:g2 = group:g1, group:g3 &! network:n2;
+END
+
+test_add($title, $in, 'group:g1 group:g3', $out);
+
+############################################################
+$title = 'No warn group with intersection';
+############################################################
+
+$in = <<'END';
+group:g3 = group:g1, group:g2 &! network:n2;
+END
+
+$out = <<'END';
+group:g3 = group:g1, group:g3, group:g2 &! network:n2;
+END
+
+test_add($title, $in, 'group:g1 group:g3', $out);
+
+############################################################
 $title = 'network in automatic group';
 ############################################################
 

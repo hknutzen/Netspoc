@@ -2015,7 +2015,7 @@ sub read_router {
                 $name2 =~ /^ [\w-]+ $/x or syntax_err("Invalid log name");
                 defined($router->{log}->{$name2})
                   and error_atline("Duplicate 'log' definition");
-                my $modifier = check('=') ? read_identifier() : 0;
+                my $modifier = check('=') ? read_identifier() : '';
                 $router->{log}->{$name2} = $modifier;
                 skip(';');
                 next;
@@ -2194,7 +2194,7 @@ sub read_router {
             if (my $log_modifiers = $model->{log_modifiers}) {
                 for my $name2 (sort keys %$hash) {
 
-                    # 0: simple unmodified 'log' statement.
+                    # '': simple unmodified 'log' statement.
                     my $modifier = $hash->{$name2} or next;
 
                     $log_modifiers->{$modifier} and next;
@@ -7557,7 +7557,7 @@ sub find_redundant_rules {
  return $count;
 }
 
-sub check_expanded_rules {
+sub check_redundant_rules {
     progress('Checking for redundant rules');
     setup_ref2obj();
     my $count  = 0;
@@ -8156,7 +8156,7 @@ sub err_missing_bind_nat {
     }
 
     @nat_intf = sort by_name unique(@nat_intf);
-    @missing_intf = sort by_name @missing_intf;
+    @missing_intf = sort by_name unique @missing_intf;
     err_msg("Incomplete 'bind_nat = $nat_tag' at\n",
             name_list(\@nat_intf), "\n",
             " Possibly 'bind_nat = $nat_tag' is missing at these interfaces:\n",
@@ -8303,8 +8303,8 @@ sub distribute_nat1 {
 sub distribute_nat {
     my ($in_router, $domain, $nat_tag,
         $multinat_hashes, $invalid_nat_transitions) = @_;
-    if (my $err = distribute_nat1($in_router, $domain, $nat_tag,
-                                  $multinat_hashes, $invalid_nat_transitions))
+    if (distribute_nat1($in_router, $domain, $nat_tag,
+                        $multinat_hashes, $invalid_nat_transitions))
     {
         err_missing_bind_nat($in_router, $domain, $nat_tag, $multinat_hashes);
         return 1;
@@ -11697,9 +11697,8 @@ sub find_dists_and_loops {
     # Zone1 is found for several partition definitions.
     for my $zone1 (keys %partitions) {
         @{$partitions{$zone1}} > 1 and
-            err_msg("Several partition names in partition " .
-                    $names{$zone1} . ":\n - " .
-                    (join "\n - ",  @{$partitions{$zone1}}));
+            err_msg("Several partition names in partition $names{$zone1}:\n",
+                    " - ", join "\n - ",  @{$partitions{$zone1}});
     }
 
     # Unconnected partitions without definition are probably
@@ -11717,9 +11716,8 @@ sub find_dists_and_loops {
         @un or next;
         my $ipv = $ipv6 ? 'IPv6' : 'IPv4';
         err_msg("$ipv topology has unconnected parts:\n",
-                " - ",
-                (join "\n - ", map { $_->{name} } @un),
-                "\nUse partition attribute, if intended.");
+                name_list(\@un),
+                "\n Use partition attribute, if intended.");
     }
 }
 
@@ -13733,49 +13731,39 @@ sub expand_crypto {
 #                Additional rule required: "permit src->any:Y".
 ##############################################################################
 
-sub find_supernet {
-    my ($net1, $net2) = @_;
-
-    # Start with $net1 being the smaller network.
-    ($net1, $net2) = ($net2, $net1) if $net1->{mask} lt $net2->{mask};
-    while (1) {
-        while ($net1->{mask} gt $net2->{mask}) {
-            $net1 = $net1->{up} or return;
-        }
-        return $net1 if $net1 eq $net2;
-        $net2 = $net2->{up} or return;
-    }
-}
-
-# Find networks in zone with address
-# - equal to ip/mask or
-# - subnet of ip/mask
+# Find aggregate in zone with address equal to $ip/$mask
+# or find networks in zone with address in subnet or supernet relation
+# to $ip/$mask.
 # Leave out small networks which are subnet of a matching network.
-# Result:
-# 0: no network found
-# network:
-#   a) exactly one network matches, i.e. is equal or subnet.
-#   b) a supernet which encloses multiple matching networks
-# String: More than one network found and no supernet exists.
-#         String has the name of first two networks.
-sub find_zone_network {
-    my ($interface, $zone, $other) = @_;
-    return 0 if $zone->{no_check_supernet_rules};
-    my $no_nat_set = $interface->{no_nat_set};
-    my $nat_other = get_nat_network($other, $no_nat_set);
-    return 0 if $nat_other->{hidden};
-    my ($ip, $mask) = @{$nat_other}{qw(ip mask)};
+# Leave out objects that
+# - are element of $net_hash or
+# - are subnet of element of $net_hash.
+# Result: List of found networks or aggregates or undef.
+sub find_zone_networks {
+    my ($zone, $ip, $mask, $no_nat_set, $net_hash) = @_;
+
+    # Check if argument or some supernet of argument is member of $net_hash.
+    my $in_net_hash = sub {
+        my ($net_or_agg) = @_;
+        while (1) {
+            return 1 if $net_hash->{$net_or_agg};
+            $net_or_agg = $net_or_agg->{up} or return;
+        }
+    };
     my $key = "$ip$mask";
     if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
-        return $aggregate;
+        return if $in_net_hash->($aggregate);
+        return [$aggregate];
     }
-    if (defined(my $result = $zone->{ipmask2net}->{$key})) {
-        return $result;
+
+    # Use cached result.
+    if (exists $zone->{ipmask2net}->{$key}) {
+        return $zone->{ipmask2net}->{$key};
     }
 
     # Real networks in zone without aggregates and without subnets.
     my $networks = $zone->{networks};
-    my $result   = 0;
+    my $result;
     for my $network (@$networks) {
         my $nat_network = get_nat_network($network, $no_nat_set);
         next if $nat_network->{hidden};
@@ -13783,61 +13771,11 @@ sub find_zone_network {
         if (   $m ge $mask and match_ip($i, $ip, $mask)
             or $m lt $mask and match_ip($ip, $i, $m))
         {
-
-            # Found first matching network.
-            if (not $result) {
-                $result = $network;
-                next;
-            }
-
-            # Search a common supernet of two networks
-            if (my $super = find_supernet($result, $network)) {
-                $result = $super;
-            }
-            else {
-                $result = "$result->{name}, $network->{name}";
-                last;
-            }
+            next if $in_net_hash->($network);
+            push @$result, $network;
         }
     }
-
-#    debug "zone_network:", ref($result) ? $result->{name} : $result;
     return ($zone->{ipmask2net}->{$key} = $result);
-}
-
-# Find all networks in zone, which match network from other zone.
-# Result:
-# undef: No network of zone matches $other.
-# []   : Multiple networks match, but no supernet exists.
-# [N, ..]: Array reference to networks which match $other (ascending order).
-sub find_matching_supernet {
-    my ($interface, $zone, $other) = @_;
-    my $net_or_count = find_zone_network($interface, $zone, $other);
-
-    # No network or aggregate matches.
-    # $other wont match in current zone.
-    if (not $net_or_count) {
-        return;
-    }
-
-    # More than one network matches and no supernet exists.
-    # Return names of that networks.
-    if (not ref($net_or_count)) {
-        return $net_or_count;
-    }
-
-    # Exactly one network or aggregate matches or supernet exists.
-    my @result;
-
-    # Add enclosing supernets.
-    my $up = $net_or_count;
-    while ($up) {
-        push @result, $up;
-        $up = $up->{up};
-    }
-
-#    debug "matching:", join(',', map { $_->{name} } @result);
-    return \@result;
 }
 
 # Prevent multiple error messages about missing supernet rules;
@@ -13853,37 +13791,54 @@ my %missing_supernet;
 # $reversed: (optional) the check is for reversed rule at stateless device
 sub check_supernet_in_zone {
     my ($rule, $where, $interface, $zone, $reversed) = @_;
-
+    return if $zone->{no_check_supernet_rules};
     my $service = $rule->{rule}->{service};
     return if $missing_supernet{$interface}->{$service};
 
     my $supernet = $rule->{$where}->[0];
-    my $networks = find_matching_supernet($interface, $zone, $supernet);
-    return if not $networks;
-    my $extra;
-    if (not ref($networks)) {
-        $extra = "No supernet available for $networks";
-    }
-    else {
-
-        # $networks holds matching network and all its supernets.
-        # Find smallest matching rule.
-        my $net_hash = $rule->{zone2net_hash}->{$zone};
-        for my $network (@$networks) {
-            return if $net_hash->{$network}
-        }
-        $extra = "Tried " . join(', ', map { $_->{name} } @$networks);
-    }
+    my $no_nat_set = $interface->{no_nat_set};
+    my $nat_super = get_nat_network($supernet, $no_nat_set);
+    return if $nat_super->{hidden};
+    my ($ip, $mask) = @{$nat_super}{qw(ip mask)};
+    my $net_hash = $rule->{zone2net_hash}->{$zone};
+    my $networks = find_zone_networks($zone, $ip, $mask, $no_nat_set, $net_hash)
+        or return;
 
     $missing_supernet{$interface}->{$service} = 1;
+    my $or_agg = '';
+    my $net0 = $networks->[0];
 
-    $rule = print_rule $rule;
+    # Show also aggregate, if multiple networks are shown.
+    if (@$networks > 2) {
+        my $net_name = $net0->{name};
+        my $p_ip     = print_ip($ip);
+        my $prefix   = mask2prefix($mask);
+        $or_agg = "any:[ ip=$p_ip/$prefix & $net_name ]";
+    }
+
+    # If aggregate has networks, show both, networks and aggreagte.
+    elsif ($net0->{is_aggregate}) {
+        my $agg_nets = $net0->{networks};
+        if (@$agg_nets > 0) {
+            $networks = $agg_nets;
+            $or_agg = $net0->{name};
+        }
+    }
+    $or_agg = "\n or add $or_agg to $where of rule" if $or_agg;
+    $rule = print_rule($rule);
     $reversed = $reversed ? 'reversed ' : '';
-    warn_or_err_msg($config->{check_supernet_rules},
-                    "Missing rule for ${reversed}supernet rule.\n",
-                    " $rule\n",
-                    " can't be effective at $interface->{name}.\n",
-                    " $extra as $where.");
+    my $fromto = $where eq 'src' ? 'from' : 'to';
+    warn_or_err_msg(
+        $config->{check_supernet_rules},
+        "This ${reversed}supernet rule would permit unexpected access:\n",
+        "  $rule\n",
+        " Generated ACL at $interface->{name} would permit access",
+        " $fromto additional networks:\n",
+        short_name_list($networks), "\n",
+        " Either replace $supernet->{name} by smaller networks",
+        " that are not supernet\n",
+        " or add above-mentioned networks to $where of rule$or_agg."
+    );
 }
 
 # Check if path between $supernet and $obj_list ist filtered by
@@ -14158,8 +14113,8 @@ sub check_missing_supernet_rules {
         my $list = $rule->{$what};
         my @supernets = grep { $_->{has_other_subnet} } @$list or next;
 
-        # Build mapping from zone to hash of all src/dst networks of
-        # current rule.
+        # Build mapping from zone to hash of all src/dst networks and
+        # aggregates of current rule.
         my %zone2net_hash;
         for my $obj (@$list) {
             is_network($obj) or next;
@@ -18918,7 +18873,7 @@ sub compile {
         sub {
             check_unused_groups();
             check_supernet_rules();
-#            check_expanded_rules();
+#            check_redundant_rules();
             call_go('spoc1-check', {
                 config => $config,
                 start_time => $start_time,
