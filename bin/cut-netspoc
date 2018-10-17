@@ -463,6 +463,16 @@ for my $network (values %networks) {
 }
 
 for my $router (values %routers, values %routers6) {
+
+    # Mark split router, if some split part is marked.
+    for my $interface (get_intf($router)) {
+        my $fragment = $interface->{router};
+        next if $fragment eq $router;
+        $fragment->{is_used} or next;
+#        debug "From split: $router->{name}";
+        $router->{is_used} = 1;
+    }
+
     $router->{is_used} or next;
 
     # Mark fragments of marked crypto routers.
