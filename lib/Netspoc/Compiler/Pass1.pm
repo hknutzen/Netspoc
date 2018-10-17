@@ -18921,6 +18921,7 @@ sub compile {
 #            check_expanded_rules();
             call_go('spoc1-check', {
                 config => $config,
+                start_time => $start_time,
                 prt_ip => $prt_ip,
                 protocols  => \%protocols,
                 services   => \%services,
@@ -18941,6 +18942,7 @@ sub compile {
                 print_code($out_dir);
                 call_go('spoc1-print', {
                     config => $config,
+                    start_time => $start_time,
                     managed_routers => \@managed_routers,
                     routing_only_routers => \@routing_only_routers,
                     out_dir => $out_dir,
