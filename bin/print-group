@@ -100,7 +100,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.043'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.044'; # VERSION: inserted by DZP::OurPkgVersion
 
 # Take higher bits from network NAT, lower bits from original IP.
 # This works with and without NAT.

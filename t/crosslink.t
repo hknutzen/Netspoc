@@ -427,4 +427,91 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Ignore from automatic group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; no_in_acl; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+
+area:n1-cr = {
+ border = interface:r2.cr;
+}
+
+service:s1 = {
+ user = network:[area:n1-cr];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+-r2
+! n2_out
+access-list n2_out extended permit tcp 10.1.1.0 255.255.255.224 10.2.2.0 255.255.255.224 eq 80
+access-list n2_out extended deny ip any4 any4
+access-group n2_out out interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Use intermediately in automatic group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.2.2.0/27; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:[network:cr].[all]; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.31 host 10.3.3.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.31 host 10.3.3.2 eq 22
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
