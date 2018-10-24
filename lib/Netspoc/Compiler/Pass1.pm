@@ -16525,11 +16525,6 @@ sub distribute_rule {
     # which don't handle stateless_icmp automatically;
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
-    # Don't generate code for src any:[interface:r.loopback] at router:r.
-    if ($in_intf->{loopback}) {
-        return;
-    }
-
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
     if (my $mark = $router->{local_mark}) {
@@ -16811,6 +16806,7 @@ sub distribute_general_permit {
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if $in_intf->{main_interface};
+            next if $in_intf->{loopback};
 
             # At VPN hub, don't permit any -> any, but only traffic
             # from each encrypted network.
@@ -16837,6 +16833,7 @@ sub distribute_general_permit {
             else {
                 for my $out_intf (@{ $router->{interfaces} }) {
                     next if $out_intf eq $in_intf;
+                    next if $out_intf->{loopback};
 
                     # For IOS and NX-OS print this rule only
                     # once at interface filter rules below
