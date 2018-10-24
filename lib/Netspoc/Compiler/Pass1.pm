@@ -5641,29 +5641,36 @@ sub expand_group1 {
                 if (not defined $ip) {
                     $ip = $mask = get_zero_ip($object->{ipv6});
                 }
-                my @objects;
+                my $zones;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects,
-                      unique(
-                        map({ get_any($_, $ip, $mask, $visible) }
-                            @{ $object->{zones} }));
+                    $zones = $object->{zones};
                 }
                 elsif ($type eq 'Network' and $object->{is_aggregate}) {
-                    push(@objects,
-                         get_any($object->{zone}, $ip, $mask, $visible));
+                    $zones = [ $object->{zone} ];
                 }
                 else {
                     return;
                 }
-                return \@objects;
+
+                # Silently remove loopback aggregates from automatic groups.
+                return [ unique(map{ get_any($_, $ip, $mask, $visible) }
+                                grep { not $_->{loopback} }
+                                @$zones) ];
             };
             my $get_networks = sub {
                 my ($object) = @_;
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
-                    return [$object->{network}];
+
+                    # Ignore managed loopback interface.
+                    if ($object->{loopback} and $object->{zone}) {
+                        return [];
+                    }
+                    else {
+                        return [$object->{network}];
+                    }
                 }
                 if ($type eq 'Network') {
                     if (not $object->{is_aggregate}) {
@@ -5754,18 +5761,15 @@ sub expand_group1 {
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
 
-                        # Silently remove from automatic groups:
-                        # - crosslink network
-                        # - loopback network of managed device
-                        push(@list,
-                               $visible
-                             ? grep {
-                                 not ($_->{loopback} and
-                                      $_->{interfaces}->[0]->{router}->{managed}
-                                     ) }
-                               grep { not($_->{crosslink}) }
-                               @$networks
-                             : @$networks);
+                        # Silently remove crosslink network from
+                        # automatic groups.
+                        if ($visible) {
+                            push(@list,
+                                 grep { not $_->{crosslink} } @$networks);
+                        }
+                        else {
+                            push @list, @$networks;
+                        }
                     }
                     else {
                         my $type = ref $object;
@@ -5794,8 +5798,7 @@ sub expand_group1 {
                     else {
                         my $type = ref $object;
                         err_msg
-                          "Unexpected type '$type' in any:[..]",
-                          " of $context";
+                          "Unexpected type '$type' in any:[..] of $context";
                     }
                 }
 
