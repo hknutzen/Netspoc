@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.044'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.045'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -5664,8 +5664,8 @@ sub expand_group1 {
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
 
-                    # Ignore managed loopback interface.
-                    if ($object->{loopback} and $object->{zone}) {
+                    # Ignore network at managed loopback interface.
+                    if ($object->{loopback} and $object->{router}->{managed}) {
                         return [];
                     }
                     else {
@@ -10215,6 +10215,13 @@ sub set_zone1 {
                 "but found:\n - $network->{partition}\n - $zone->{partition}");
     $network->{partition} and $zone->{partition} = $network->{partition};
 
+    # Mark zone at loopback network of managed router.
+    if ($network->{loopback} and
+        $network->{interfaces}->[0]->{router}->{managed})
+    {
+        $zone->{loopback} = 1;
+    }
+
     # Check network 'private' status and zone 'private' status to be equal.
     my $private1 = $network->{private} || 'public';
     if ($zone->{private}) {
@@ -10690,10 +10697,6 @@ sub set_zones {
 
         # Collect zone elements...
         set_zone1($network, $zone, 0);
-
-        # Mark zone which consists only of a loopback network.
-        $zone->{loopback} = 1
-          if $network->{loopback} and @{ $zone->{networks} } == 1;
 
         # Attribute {is_tunnel} is set only when zone has only tunnel networks.
         if (@{ $zone->{networks} }) { # tunnel networks arent referenced in zone

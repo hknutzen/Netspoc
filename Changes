@@ -1,3 +1,9 @@
+5.045     2018-10-24 17:02:28+02:00 Europe/Berlin
+
+ - Fix: No longer accidentally ignore zone having only a single
+   network at loopback interface of unmanaged router. This may occur
+   for zone having unnumbered or tunnel networks.
+
 5.044     2018-10-24 12:10:19+02:00 Europe/Berlin
 
  - Security zone at managed loopback interface is no longer included

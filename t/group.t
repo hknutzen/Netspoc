@@ -761,5 +761,34 @@ $out = <<'END';
 END
 
 test_group($title, $in, 'group:g1', $out, '-nat n1');
+
+############################################################
+$title = 'Must not ignore aggregate with only loopback network';
+############################################################
+
+$in = <<'END';
+area:n2-lo = { border = interface:r1.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { unnumbered; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { unnumbered; hardware = n2; }
+ }
+
+router:r2 = {
+ interface:n2;
+ interface:lo = { ip = 10.1.3.1; loopback; }
+}
+END
+
+$out = <<'END';
+0.0.0.0/0	any:[network:n2]
+END
+
+test_group($title, $in, 'any:[area:n2-lo]', $out);
+
 ############################################################
 done_testing;
