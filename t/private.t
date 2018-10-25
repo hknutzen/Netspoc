@@ -188,6 +188,34 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Private aggregate';
+############################################################
+
+$in = <<'END';
+-- a.private
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+-- b
+network:n1 = { ip = 10.1.1.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Rule of public service:s1 must not reference
+ - any:[ip=10.0.0.0/8 & network:n2] of a.private
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Public aggregate linked to private network';
 ############################################################
 
