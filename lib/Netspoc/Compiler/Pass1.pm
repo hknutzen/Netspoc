@@ -17533,7 +17533,7 @@ sub print_cisco_acls {
 
         my $no_nat_set =
             $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
-        my $dst_no_nat_set = $hardware->{dst_no_nat_set};
+        my $dst_no_nat_set = $hardware->{dst_no_nat_set} || $no_nat_set;
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
@@ -17553,16 +17553,14 @@ sub print_cisco_acls {
             }
 
             my $acl_name = "$hardware->{name}_$suffix";
-            my $acl_info = {
-                name => $acl_name,
-                no_nat_set => $no_nat_set,
-            };
-            $acl_info->{dst_no_nat_set} = $dst_no_nat_set if $dst_no_nat_set;
+            my $acl_info = { name => $acl_name };
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
             # - set {filter_any_src}.
             if ($suffix eq 'in') {
+                $acl_info->{no_nat_set} = $no_nat_set;
+                $acl_info->{dst_no_nat_set} = $dst_no_nat_set;
                 $acl_info->{rules} = delete $hardware->{rules};
 
                 # Marker: Generate protect_self rules, if available.
@@ -17612,6 +17610,8 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                $acl_info->{no_nat_set} = $dst_no_nat_set;
+                $acl_info->{dst_no_nat_set} = $no_nat_set;
                 $acl_info->{rules} = delete $hardware->{out_rules};
                 $acl_info->{add_deny} = 1;
 
