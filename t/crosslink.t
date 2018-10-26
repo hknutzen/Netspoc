@@ -477,6 +477,7 @@ $title = 'Use intermediately in automatic group';
 ############################################################
 
 $in = <<'END';
+area:n1-cr = { border = interface:r2.cr; }
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -499,7 +500,9 @@ network:n2 = { ip = 10.2.2.0/27; }
 
 service:s1 = {
  user = network:n1;
- permit src = user; dst = interface:[network:cr].[all]; prt = tcp 22;
+ permit src = user;
+        dst = interface:[network:[area:n1-cr] &! network:n1].[all];
+        prt = tcp 22;
 }
 END
 

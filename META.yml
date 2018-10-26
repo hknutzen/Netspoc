@@ -39,6 +39,6 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
-version: '5.045'
+version: '5.046'
 x_generated_by_perl: v5.24.0
 x_serialization_backend: 'YAML::Tiny version 1.69'

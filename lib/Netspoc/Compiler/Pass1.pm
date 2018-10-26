@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.045'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.046'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -16525,11 +16525,6 @@ sub distribute_rule {
     # which don't handle stateless_icmp automatically;
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
-    # Don't generate code for src any:[interface:r.loopback] at router:r.
-    if ($in_intf->{loopback}) {
-        return;
-    }
-
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
     if (my $mark = $router->{local_mark}) {
@@ -16811,6 +16806,7 @@ sub distribute_general_permit {
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if $in_intf->{main_interface};
+            next if $in_intf->{loopback};
 
             # At VPN hub, don't permit any -> any, but only traffic
             # from each encrypted network.
@@ -16837,6 +16833,7 @@ sub distribute_general_permit {
             else {
                 for my $out_intf (@{ $router->{interfaces} }) {
                     next if $out_intf eq $in_intf;
+                    next if $out_intf->{loopback};
 
                     # For IOS and NX-OS print this rule only
                     # once at interface filter rules below
@@ -17536,7 +17533,7 @@ sub print_cisco_acls {
 
         my $no_nat_set =
             $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
-        my $dst_no_nat_set = $hardware->{dst_no_nat_set};
+        my $dst_no_nat_set = $hardware->{dst_no_nat_set} || $no_nat_set;
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
@@ -17556,16 +17553,14 @@ sub print_cisco_acls {
             }
 
             my $acl_name = "$hardware->{name}_$suffix";
-            my $acl_info = {
-                name => $acl_name,
-                no_nat_set => $no_nat_set,
-            };
-            $acl_info->{dst_no_nat_set} = $dst_no_nat_set if $dst_no_nat_set;
+            my $acl_info = { name => $acl_name };
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
             # - set {filter_any_src}.
             if ($suffix eq 'in') {
+                $acl_info->{no_nat_set} = $no_nat_set;
+                $acl_info->{dst_no_nat_set} = $dst_no_nat_set;
                 $acl_info->{rules} = delete $hardware->{rules};
 
                 # Marker: Generate protect_self rules, if available.
@@ -17615,6 +17610,8 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                $acl_info->{no_nat_set} = $dst_no_nat_set;
+                $acl_info->{dst_no_nat_set} = $no_nat_set;
                 $acl_info->{rules} = delete $hardware->{out_rules};
                 $acl_info->{add_deny} = 1;
 

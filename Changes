@@ -1,3 +1,8 @@
+5.046     2018-10-26 12:57:43+02:00 Europe/Berlin
+
+ - Fix: Attribute acl_use_real_ip is now also applied to outgoing ACL.
+ - Rules from general_permit are no longer applied to loopback interfaces.
+
 5.045     2018-10-24 17:02:28+02:00 Europe/Berlin
 
  - Fix: No longer accidentally ignore zone having only a single
