@@ -386,12 +386,24 @@ for my $zone (@all_zones) {
 }
 
 # Mark interfaces which are referenced by used areas.
+my @empty_areas;
 for my $area (values %areas) {
     $area->{is_used} or next;
+
     if (my $anchor = $area->{anchor}) {
         $anchor->{is_used} = 1;
     }
     else {
+
+        # Ignore and collect empty areas.
+        if (not
+            grep { $_->{is_used} } map { @{ $_->{networks} } } @{$area->{zones}})
+        {
+            delete $area->{is_used};
+            push @empty_areas, $area->{name};
+            next;
+        }
+
         for my $interface (@{ $area->{border} }, @{ $area->{inclusive_border} })
         {
             $interface->{is_used} = 1;
@@ -626,6 +638,20 @@ for my $router (values %routers, values %routers6) {
     remove_attribute_src_code('policy_distribution_point', $router);
 }
 
+# Prepare $empty_group
+my $empty_group;
+if (@empty_areas) {
+    $empty_group = 'group:empty-area';
+    print "$empty_group = ;\n";
+}
+
+sub subst_empty_areas {
+    my ($object) = @_;
+    for my $name (@empty_areas) {
+        $object->{src_code} =~ s/$name/$empty_group/g;
+    }
+}
+
 sub by_index {
     return $a->{src_index} <=> $b->{src_index}
 }
@@ -651,8 +677,9 @@ for my $object ( sort by_index map { $_->{src_index} ? ($_) : () }
     if ($object->{is_used}) {
 
         # There are some internal objects without src_code.
-        if (my $src_code = $object->{src_code}) {
-            print $src_code, "\n";
+        if ($object->{src_code}) {
+            subst_empty_areas($object);
+            print $object->{src_code}, "\n";
         }
     }
 }
@@ -682,5 +709,6 @@ for my $restrict (sort by_index values %pathrestrictions) {
 # All unwanted services have already been deleted above.
 for my $service (sort by_index values %services) {
     next if $service->{disabled};
+    subst_empty_areas($service);
     print $service->{src_code}, "\n";
 }

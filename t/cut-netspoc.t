@@ -480,6 +480,68 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Replace empty area by empty group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+router:r3 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:un = { unnumbered; hardware = un;
+ }
+}
+network:un = { unnumbered; }
+
+area:a = { inclusive_border = interface:r3.n4; }
+
+service:s1 = {
+ user = network:n2, network:[area:a];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+group:empty-area = ;
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n2, network:[group:empty-area];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Mark supernet having identity NAT';
 ############################################################
 
