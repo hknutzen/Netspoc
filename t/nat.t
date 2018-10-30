@@ -3130,6 +3130,60 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'acl_use_real_ip with outgoing ACL';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:intern = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = intern; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = intern; no_in_acl; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2, network:n3; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.254.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n1_out
+access-list n1_out extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 22
+access-list n1_out extended deny ip any4 any4
+access-group n1_out out interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 22
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n2_out
+access-list n2_out extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n2_out extended deny ip any4 any4
+access-group n2_out out interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'acl_use_real_ip, 3 interfaces, identical NAT ip, hidden';
 ############################################################
 

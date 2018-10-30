@@ -5643,29 +5643,36 @@ sub expand_group1 {
                 if (not defined $ip) {
                     $ip = $mask = get_zero_ip($object->{ipv6});
                 }
-                my @objects;
+                my $zones;
                 my $type = ref $object;
                 if ($type eq 'Area') {
-                    push @objects,
-                      unique(
-                        map({ get_any($_, $ip, $mask, $visible) }
-                            @{ $object->{zones} }));
+                    $zones = $object->{zones};
                 }
                 elsif ($type eq 'Network' and $object->{is_aggregate}) {
-                    push(@objects,
-                         get_any($object->{zone}, $ip, $mask, $visible));
+                    $zones = [ $object->{zone} ];
                 }
                 else {
                     return;
                 }
-                return \@objects;
+
+                # Silently remove loopback aggregates from automatic groups.
+                return [ unique(map{ get_any($_, $ip, $mask, $visible) }
+                                grep { not $_->{loopback} }
+                                @$zones) ];
             };
             my $get_networks = sub {
                 my ($object) = @_;
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
-                    return [$object->{network}];
+
+                    # Ignore network at managed loopback interface.
+                    if ($object->{loopback} and $object->{router}->{managed}) {
+                        return [];
+                    }
+                    else {
+                        return [$object->{network}];
+                    }
                 }
                 if ($type eq 'Network') {
                     if (not $object->{is_aggregate}) {
@@ -5756,18 +5763,15 @@ sub expand_group1 {
                 for my $object (@$sub_objects) {
                     if (my $networks = $get_networks->($object)) {
 
-                        # Silently remove from automatic groups:
-                        # - crosslink network
-                        # - loopback network of managed device
-                        push(@list,
-                               $visible
-                             ? grep {
-                                 not ($_->{loopback} and
-                                      $_->{interfaces}->[0]->{router}->{managed}
-                                     ) }
-                               grep { not($_->{crosslink}) }
-                               @$networks
-                             : @$networks);
+                        # Silently remove crosslink network from
+                        # automatic groups.
+                        if ($visible) {
+                            push(@list,
+                                 grep { not $_->{crosslink} } @$networks);
+                        }
+                        else {
+                            push @list, @$networks;
+                        }
                     }
                     else {
                         my $type = ref $object;
@@ -5796,8 +5800,7 @@ sub expand_group1 {
                     else {
                         my $type = ref $object;
                         err_msg
-                          "Unexpected type '$type' in any:[..]",
-                          " of $context";
+                          "Unexpected type '$type' in any:[..] of $context";
                     }
                 }
 
@@ -10214,6 +10217,13 @@ sub set_zone1 {
                 "but found:\n - $network->{partition}\n - $zone->{partition}");
     $network->{partition} and $zone->{partition} = $network->{partition};
 
+    # Mark zone at loopback network of managed router.
+    if ($network->{loopback} and
+        $network->{interfaces}->[0]->{router}->{managed})
+    {
+        $zone->{loopback} = 1;
+    }
+
     # Check network 'private' status and zone 'private' status to be equal.
     my $private1 = $network->{private} || 'public';
     if ($zone->{private}) {
@@ -10689,10 +10699,6 @@ sub set_zones {
 
         # Collect zone elements...
         set_zone1($network, $zone, 0);
-
-        # Mark zone which consists only of a loopback network.
-        $zone->{loopback} = 1
-          if $network->{loopback} and @{ $zone->{networks} } == 1;
 
         # Attribute {is_tunnel} is set only when zone has only tunnel networks.
         if (@{ $zone->{networks} }) { # tunnel networks arent referenced in zone
@@ -16523,11 +16529,6 @@ sub distribute_rule {
     # which don't handle stateless_icmp automatically;
     return if $rule->{stateless_icmp} and not $model->{stateless_icmp};
 
-    # Don't generate code for src any:[interface:r.loopback] at router:r.
-    if ($in_intf->{loopback}) {
-        return;
-    }
-
     # Apply only matching rules to 'managed=local' router.
     # Filter out non matching elements from src_list and dst_list.
     if (my $mark = $router->{local_mark}) {
@@ -16809,6 +16810,7 @@ sub distribute_general_permit {
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if $in_intf->{main_interface};
+            next if $in_intf->{loopback};
 
             # At VPN hub, don't permit any -> any, but only traffic
             # from each encrypted network.
@@ -16835,6 +16837,7 @@ sub distribute_general_permit {
             else {
                 for my $out_intf (@{ $router->{interfaces} }) {
                     next if $out_intf eq $in_intf;
+                    next if $out_intf->{loopback};
 
                     # For IOS and NX-OS print this rule only
                     # once at interface filter rules below
@@ -17534,7 +17537,7 @@ sub print_cisco_acls {
 
         my $no_nat_set =
             $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
-        my $dst_no_nat_set = $hardware->{dst_no_nat_set};
+        my $dst_no_nat_set = $hardware->{dst_no_nat_set} || $no_nat_set;
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
@@ -17554,16 +17557,14 @@ sub print_cisco_acls {
             }
 
             my $acl_name = "$hardware->{name}_$suffix";
-            my $acl_info = {
-                name => $acl_name,
-                no_nat_set => $no_nat_set,
-            };
-            $acl_info->{dst_no_nat_set} = $dst_no_nat_set if $dst_no_nat_set;
+            my $acl_info = { name => $acl_name };
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
             # - set {filter_any_src}.
             if ($suffix eq 'in') {
+                $acl_info->{no_nat_set} = $no_nat_set;
+                $acl_info->{dst_no_nat_set} = $dst_no_nat_set;
                 $acl_info->{rules} = delete $hardware->{rules};
 
                 # Marker: Generate protect_self rules, if available.
@@ -17613,6 +17614,8 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                $acl_info->{no_nat_set} = $dst_no_nat_set;
+                $acl_info->{dst_no_nat_set} = $no_nat_set;
                 $acl_info->{rules} = delete $hardware->{out_rules};
                 $acl_info->{add_deny} = 1;
 

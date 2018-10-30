@@ -1,5 +1,24 @@
 {{$NEXT}}
 
+5.046     2018-10-26 12:57:43+02:00 Europe/Berlin
+
+ - Fix: Attribute acl_use_real_ip is now also applied to outgoing ACL.
+ - Rules from general_permit are no longer applied to loopback interfaces.
+
+5.045     2018-10-24 17:02:28+02:00 Europe/Berlin
+
+ - Fix: No longer accidentally ignore zone having only a single
+   network at loopback interface of unmanaged router. This may occur
+   for zone having unnumbered or tunnel networks.
+
+5.044     2018-10-24 12:10:19+02:00 Europe/Berlin
+
+ - Security zone at managed loopback interface is no longer included
+   in automatic group. These zones didn't have any effect, but were
+   confusing in output of 'print-group'.
+ - Fixed 'cut-netspoc' to handle unmanaged router with multiple
+   interfaces and multiple pathrestrictions.
+
 5.043     2018-10-01 17:38:02+02:00 Europe/Berlin
 
  - Fixed pointless warning about missing supernet rule for this case:

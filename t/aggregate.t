@@ -934,10 +934,73 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Aggregate of loopback interface';
+$title = 'Implicitly remove aggregate of loopback interface';
 ############################################################
 
-$topo = <<'END';
+$in = <<'END';
+router:filter = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:loop = { ip = 10.7.7.7; loopback; hardware = lo1; }
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; no_in_acl; }
+}
+network:Customer = { ip = 10.9.9.0/24; }
+
+service:test = {
+ user = any:[interface:filter.[all]] &! any:[network:Customer];
+ permit src = network:Customer; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: Empty intersection in user of service:test:
+  any:[..]
+&!any:[..]
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Implicitly remove aggregate of loopback interface from area';
+############################################################
+
+$in = <<'END';
+network:Trans = { ip = 10.1.1.0/24; }
+
+router:filter = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:loop = { ip = 10.7.7.7; loopback; hardware = lo1; }
+ interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; no_in_acl; }
+}
+network:Customer = { ip = 10.9.9.0/24; }
+
+area:n1-lo = {
+ inclusive_border = interface:filter.Customer;
+}
+
+service:test = {
+ user = any:[area:n1-lo] &! any:[network:Trans];
+ permit src = network:Customer; dst = user; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+Warning: Empty intersection in user of service:test:
+  any:[..]
+&!any:[..]
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Implicitly remove loopback network';
+############################################################
+
+$in = <<'END';
 network:Trans = { ip = 10.1.1.0/24; }
 
 router:filter = {
@@ -949,32 +1012,7 @@ router:filter = {
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; }
 }
 network:Customer = { ip = 10.9.9.0/24; }
-END
 
-$in = $topo . <<'END';
-service:test = {
- user = any:[interface:filter.[all]] &! any:[network:Customer];
- permit src = network:Customer; dst = user; prt = tcp 22;
-}
-END
-
-$out = <<'END';
---filter
-ip access-list extended VLAN2_in
- deny ip any host 10.1.1.1
- deny ip any host 10.7.7.7
- deny ip any host 10.9.9.1
- permit tcp 10.9.9.0 0.0.0.255 any eq 22
- deny ip any any
-END
-
-test_run($title, $in, $out);
-
-############################################################
-$title = 'Remove loopback network from aggregate';
-############################################################
-
-$in = $topo . <<'END';
 service:test = {
  user = network:[interface:filter.[all]] &! network:Customer;
  permit src = network:Customer; dst = user; prt = tcp 22;
