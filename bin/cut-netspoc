@@ -592,7 +592,10 @@ for my $router (values %routers, values %routers6) {
         $name =~ s/ : [^.]+ [.] /:/x;
 
         # Ignore secondary and virtual interfaces.
-        next if $name =~ s/[.]\w+$//;
+        next if $interface->{main_interface};
+
+        # Ignore extension if virtual interface is used as main interface.
+        $name =~ s/[.]\w+$//;
 
 #        progress("- $interface->{name}");
         remove_attribute_src_code($name, $router);

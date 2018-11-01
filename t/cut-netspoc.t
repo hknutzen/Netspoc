@@ -634,6 +634,68 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove interface with virtual address';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = n1;
+ }
+ interface:lo = {
+  virtual = { ip = 10.1.4.1; type = VRRP; }
+  loopback;
+  hardware = lo;
+ }
+ interface:n2 = {
+  virtual = { ip = 10.1.2.1; type = VRRP; }
+  hardware = n2;
+ }
+ interface:n3 = {
+  virtual = { ip = 10.1.3.1; type = VRRP; }
+  hardware = n3;
+ }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = n1;
+ }
+ interface:n2 = {
+  virtual = { ip = 10.1.2.1; type = VRRP; }
+  hardware = n2;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Mark interface, if only virtual is used';
 ############################################################
 
