@@ -1418,6 +1418,90 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Ignore intermediate aggregate from empty automatic group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+
+area:n2 = { border = interface:r1.n2; }
+area:n3 = { border = interface:r1.n3; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = any:[ip = 10.1.0.0/16 & area:n2],
+
+        # This automatic group is empty.
+        network:[any:[ip = 10.1.0.0/16 & area:n3]],
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+END
+
+$out = <<"END";
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Ignore intermediate aggregate from automatic group';
+############################################################
+# Must not show warning on missing any:[ip=10.1.0.0/16 & network:n3],
+# because it is only used intermediately in automatic group.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+area:n2 = { border = interface:r1.n2; }
+area:n3 = { border = interface:r1.n3; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+
+service:s1 = {
+ user = any:[ip = 10.1.0.0/16 & area:n2],
+        network:[any:[ip = 10.1.0.0/16 & area:n3]],
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+END
+
+$out = <<"END";
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing destination aggregates in loop';
 ############################################################
 

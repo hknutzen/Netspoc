@@ -10095,6 +10095,7 @@ sub duplicate_aggregate_to_cluster {
             ip           => $aggregate->{ip},
             mask         => $aggregate->{mask},
         );
+        $aggregate2->{invisible} = 1 if $aggregate->{invisible};
 
         # Link new aggregate object and cluster
         if ($implicit) {
@@ -10154,6 +10155,7 @@ sub get_any {
                 ip           => $ip,
                 mask         => $mask,
             );
+            $visible or $aggregate->{invisible} = 1;
             $aggregate->{ipv6} = 1 if $zone->{ipv6};
             if (my $private = $zone->{private}) {
                 $aggregate->{private} = $private;
@@ -10170,15 +10172,21 @@ sub get_any {
 
         push @result, $agg_or_net;
 
-        # Check for error condition only if result will be visible.
-        if ($visible and (my $nat = $agg_or_net->{nat})) {
-            if (grep { not $_->{hidden} } values %$nat) {
-                my $p_ip    = print_ip($ip);
-                my $prefix  = mask2prefix($mask);
-                err_msg("Must not use aggregate with IP $p_ip/$prefix",
-                        " in $zone->{name}\n",
-                        " because $agg_or_net->{name} has identical IP",
-                        " but is also translated by NAT");
+        if ($visible) {
+
+            # Mark aggregate as visible for find_zone_networks.
+            delete $agg_or_net->{invisible};
+
+            # Check for error condition only if result will be visible.
+            if (my $nat = $agg_or_net->{nat}) {
+                if (grep { not $_->{hidden} } values %$nat) {
+                    my $p_ip    = print_ip($ip);
+                    my $prefix  = mask2prefix($mask);
+                    err_msg("Must not use aggregate with IP $p_ip/$prefix",
+                            " in $zone->{name}\n",
+                            " because $agg_or_net->{name} has identical IP",
+                            " but is also translated by NAT");
+                }
             }
         }
     }
@@ -13736,10 +13744,12 @@ sub expand_crypto {
 # Find aggregate in zone with address equal to $ip/$mask
 # or find networks in zone with address in subnet or supernet relation
 # to $ip/$mask.
-# Leave out small networks which are subnet of a matching network.
-# Leave out objects that
-# - are element of $net_hash or
-# - are subnet of element of $net_hash.
+# Leave out
+# - invible aggregates, only used intermediately in automatic groups,
+# - small networks which are subnet of a matching network,
+# - objects that are
+#   - element of $net_hash or
+#   - subnet of element of $net_hash.
 # Result: List of found networks or aggregates or undef.
 sub find_zone_networks {
     my ($zone, $ip, $mask, $no_nat_set, $net_hash) = @_;
@@ -13753,7 +13763,8 @@ sub find_zone_networks {
         }
     };
     my $key = "$ip$mask";
-    if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
+    my $aggregate = $zone->{ipmask2aggregate}->{$key};
+    if ($aggregate and not $aggregate->{invisible}) {
         return if $in_net_hash->($aggregate);
         return [$aggregate];
     }
