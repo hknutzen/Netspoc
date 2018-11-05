@@ -378,39 +378,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Area defined by anchor';
-############################################################
-
-$in = $topo . <<'END';
-area:all = { anchor = network:n1; }
-service:test = {
-    has_unenforceable;
-    user = network:[area:all];
-    permit src = user; dst = network:n2; prt = tcp;
-}
-END
-
-$out = <<'END';
-network:n1 = { ip = 10.1.1.0/24;
-}
-network:n2 = { ip = 10.1.2.0/24; }
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-area:all = { anchor = network:n1; }
-service:test = {
-    has_unenforceable;
-    user = network:[area:all];
-    permit src = user; dst = network:n2; prt = tcp;
-}
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Useless aggregate';
 ############################################################
 
@@ -478,6 +445,80 @@ service:test = {
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Area defined by anchor, anchor ouside of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+area:all = { anchor = network:n4; }
+area:n3-4 = { inclusive_border = interface:asa2.n2; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:test = {
+    has_unenforceable;
+    user = network:[area:all] &! network:[area:n3-4];
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Area with border ouside of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+area:n1-3 = { inclusive_border = interface:asa3.n4; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:test = {
+    user = network:[area:n1-3] &! network:n3 &! network:n2;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
 
 ############################################################
 $title = 'Replace empty area by empty group';
@@ -581,6 +622,45 @@ service:s1 = {
 END
 
 test_run($title, $in, $in);
+
+############################################################
+$title = 'Mark networks inside aggregate';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.3.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:un = { unnumbered; }
+any:n1-3 = { ip = 10.1.0.0/16; link = network:un; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n0;
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ interface:n3;
+ interface:un;
+}
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:un = { unnumbered; hardware = un; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = any:n1-3;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+($out = $in) =~ s/^.*:n0.*\n//mg;
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Remove interface with multiple IP addresses';
