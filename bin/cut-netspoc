@@ -202,18 +202,16 @@ sub mark_unconnected {
     progress("Marking $what routers");
 
     my $mark = sub {
-        my ($obj, $in_interface) = @_;
+        my ($obj, $in_interface, $seen) = @_;
         return 1 if $obj->{is_used};
-        return if $obj->{active_path};
+        return if $seen->{$obj}++;
         return if not $managed and ($obj->{managed} || $obj->{semi_managed});
-
-        local $obj->{active_path} = 1;
         my $result = 0;
         for my $interface (@{ $obj->{interfaces} }) {
             next if $interface eq $in_interface;
             next if $interface->{main_interface};
             my $next = $interface->{is_network($obj) ? 'router' : 'network'};
-            if (__SUB__->($next, $interface)) {
+            if (__SUB__->($next, $interface, $seen)) {
                 $obj->{is_used} = 1;
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
@@ -224,12 +222,12 @@ sub mark_unconnected {
     };
 
     for my $network (@$objects) {
-        debug "Connecting $network->{name}";
+#        debug "Connecting $network->{name}";
         for my $interface (@{ $network->{interfaces} }) {
             next if $interface->{main_interface};
             my $router = $interface->{router};
 #            debug "Try $router->{name} $interface->{name}";
-            if ($mark->($router, $interface)) {
+            if ($mark->($router, $interface, {})) {
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
             }
