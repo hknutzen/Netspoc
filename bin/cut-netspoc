@@ -331,8 +331,9 @@ sub process_rules {
 }
 
 # Collect objects referenced from rules.
+# Use %service_rules here, to get also objects from unenforceable rules.
 my %on_path;
-for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
+for my $rule (@{ $service_rules{deny} }, @{ $service_rules{permit} }) {
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
     for my $obj (@$src_list, @$dst_list) {
         $on_path{$obj} = 1;

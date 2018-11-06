@@ -663,6 +663,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mark unmanaged at end of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3;
+}
+group:g1 = host:h3, interface:r2.n2;
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 $title = 'Remove interface with multiple IP addresses';
 ############################################################
 
@@ -1620,6 +1647,36 @@ END
 $out = $in;
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Unenforceable rule';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2, network:n4;
+        prt = tcp 22;
+}
+END
+
+test_run($title, $in, $in);
 
 ############################################################
 done_testing;
