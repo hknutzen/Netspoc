@@ -345,7 +345,7 @@ for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
 # Collect objects, that are referenced, but not visible in rules:
 # Networks, interfaces, hosts, aggregates from negated part of intersection.
 # These need to be connected with other parts of topology
-# by managed an unmanaged routers.
+# by managed and unmanaged routers.
 my @todo_managed;
 for my $global (\%networks, \%hosts, \%interfaces, \%aggregates) {
     for my $obj (values %$global) {
