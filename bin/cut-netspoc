@@ -312,28 +312,21 @@ group_path_rules();
 # Process rules of services.
 sub process_rules {
     my ($path_rules) = @_;
+    my %seen;
     for my $rule (@{ $path_rules->{deny} }, @{ $path_rules->{permit} }) {
         my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
         for my $obj (@$src_list, @$dst_list) {
 
             # path_walk only handles managed routers and interfaces.
             # Mark all objects additionally here.
-            my $type = ref $obj;
-            if ($type eq 'Network') {
-#                debug "Used $obj->{name}";
-                $obj->{is_used} = 1;
+            if (my $router = $obj->{router}) {
+                next if $router->{managed} or $router->{semi_managed};
+                $router->{is_used} = 1;
             }
-            elsif ($type eq 'Host') {
-                $obj->{is_used} = 1;
-#                debug "Used $obj->{name}";
-                $obj->{network}->{is_used} = 1;
-            }
-            elsif ($type eq 'Interface') {
-                $obj->{is_used} = 1;
-#                debug "Used $obj->{name}";
-                $obj->{router}->{is_used} = 1;
-                $obj->{network}->{is_used} = 1;
-            }
+            my $network = $obj->{network} || $obj;
+            $network->{is_used} = 1;
+            next if $seen{$network}++;
+            push @todo_unmanaged, $network;
         }
         &path_walk($rule, \&mark_topology);
     }
