@@ -203,8 +203,11 @@ sub mark_unconnected {
 
     my $mark = sub {
         my ($obj, $in_interface, $seen) = @_;
-        return 1 if $obj->{is_used};
         return if $seen->{$obj}++;
+        if ($obj->{is_used}) {
+#            debug "Found $obj->{name}";
+            return 1;
+        }
         return if not $managed and ($obj->{managed} || $obj->{semi_managed});
         my $result = 0;
         for my $interface (@{ $obj->{interfaces} }) {
@@ -214,7 +217,7 @@ sub mark_unconnected {
             if (__SUB__->($next, $interface, $seen)) {
                 $obj->{is_used} = 1;
                 $interface->{is_used} = 1;
-#                debug "Marked $interface->{name}";
+#                debug "Marked $obj->{name} + $interface->{name}";
                 $result = 1;
             }
         }
@@ -222,8 +225,8 @@ sub mark_unconnected {
     };
 
     for my $obj (@$objects) {
-#        debug "Connecting $network->{name}";
-        my $seen = {};
+#        debug "Connecting $obj->{name}";
+        my $seen = { $obj => 1 };
         for my $interface (@{ $obj->{interfaces} }) {
             next if $interface->{main_interface};
             my $next = $interface->{is_network($obj) ? 'router' : 'network'};
@@ -347,13 +350,14 @@ for my $rule (@{ $service_rules{deny} }, @{ $service_rules{permit} }) {
 # These need to be connected with other parts of topology
 # by managed and unmanaged routers.
 my @todo_managed;
+my @add_later;
 for my $global (\%networks, \%hosts, \%interfaces, \%aggregates) {
     for my $obj (values %$global) {
         $obj->{is_used} or next;
         next if $on_path{$obj};
         my $network = $obj->{network} || $obj;
         if (my $router = $obj->{router}) {
-            $router->{is_used} = 1;
+            push @add_later, $router;
         }
         $network->{is_used} = 1;
         push @todo_managed, $network;
@@ -429,10 +433,10 @@ for my $area (values %areas) {
 
         for my $interface (@{ $area->{border} }, @{ $area->{inclusive_border} })
         {
-            next if $interface->{is_used}++;
-            push @todo_managed, $interface->{network};
-            $interface->{router}->{is_used} = 1;
+            next if $interface->{is_used};
             $interface->{network}->{is_used} = 1;
+            push @todo_managed, $interface->{network};
+            push @add_later, $interface, $interface->{router};
         }
     }
 }
@@ -490,6 +494,7 @@ for my $hash (values %auto_interfaces) {
 
 # Connect objects, that are located outside of any path.
 mark_unconnected(\@todo_managed, 1);
+$_->{is_used} = 1 for @add_later;
 
 # Mark bridge and bridged networks.
 for my $network (values %networks) {
