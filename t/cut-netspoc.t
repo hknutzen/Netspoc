@@ -1651,6 +1651,7 @@ test_run($title, $in, $out);
 ############################################################
 $title = 'Unenforceable rule';
 ############################################################
+
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = { ip = 10.1.2.0/24;}
@@ -1673,6 +1674,41 @@ service:s1 = {
  permit src = user;
         dst = network:n2, network:n4;
         prt = tcp 22;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Negated auto interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n2-3 = { border = interface:r1.n2; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = interface:[managed & area:n2-3].[auto]
+        &! interface:r3.[auto];
+ permit src = user; dst = network:n1; prt = udp 123;
 }
 END
 

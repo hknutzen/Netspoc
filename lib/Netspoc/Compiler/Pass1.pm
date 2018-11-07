@@ -66,6 +66,7 @@ our @EXPORT = qw(
   %isakmp
   %ipsec
   %crypto
+  %auto_interfaces
   %service_rules
   %path_rules
   init_global_vars
@@ -5311,7 +5312,7 @@ sub get_intf {
 
 # Cache created autointerface objects:
 # Parent object -> managed flag -> autointerface object
-my %auto_interfaces;
+our %auto_interfaces;
 
 # Create an autointerface from the passed router or network.
 sub get_auto_intf {
@@ -6404,9 +6405,6 @@ sub normalize_services {
     for my $service (sort by_name values %services) {
         normalize_service_rules($service);
     }
-
-    # Only needed during normalize_service_rules.
-    %auto_interfaces = ();
 }
 
 ##############################################################################

@@ -221,13 +221,14 @@ sub mark_unconnected {
         return $result;
     };
 
-    for my $network (@$objects) {
+    for my $obj (@$objects) {
 #        debug "Connecting $network->{name}";
-        for my $interface (@{ $network->{interfaces} }) {
+        my $seen = {};
+        for my $interface (@{ $obj->{interfaces} }) {
             next if $interface->{main_interface};
-            my $router = $interface->{router};
-#            debug "Try $router->{name} $interface->{name}";
-            if ($mark->($router, $interface, {})) {
+            my $next = $interface->{is_network($obj) ? 'router' : 'network'};
+#            debug "Try $next->{name} $interface->{name}";
+            if ($mark->($next, $interface, $seen)) {
                 $interface->{is_used} = 1;
 #                debug "Marked $interface->{name}";
             }
@@ -476,6 +477,16 @@ for my $network (values %networks) {
 # Needed to mark unmanaged crypto routers.
 mark_unconnected(\@todo_unmanaged);
 @todo_unmanaged = ();
+
+# Mark negated auto interfaces.
+for my $hash (values %auto_interfaces) {
+    for my $intf (values %$hash) {
+        $intf->{is_used} or next;
+        my $obj = $intf->{object};
+        next if $obj->{is_used}++;
+        push @todo_managed, $obj;
+    }
+}
 
 # Connect objects, that are located outside of any path.
 mark_unconnected(\@todo_managed, 1);
