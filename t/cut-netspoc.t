@@ -66,7 +66,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -105,7 +105,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s2 = {
@@ -136,7 +136,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -164,7 +164,7 @@ network:n1 = { ip = 10.1.1.0/24;
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 service:test = {
     user = network:n1;
@@ -192,7 +192,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -264,7 +264,7 @@ network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
@@ -335,7 +335,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -396,7 +396,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {

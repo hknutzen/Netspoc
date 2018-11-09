@@ -98,12 +98,18 @@ sub parse_input_with_src {
     }
 }
 
-sub change_attribute_src_code {
-    my ($attr, $object, $replace) = @_;
+sub change_attribute_src_code_at {
+    my ($attr, $object, $sub_name, $replace) = @_;
     my $code = $object->{src_code};
 
-    # Find attribute outside of comment.
-    $code =~ m/ ^[^#]* \Q$attr\E (?=[\s;=#]) /gmx;
+    # Start changing at $sub_name.
+    if ($sub_name) {
+        $code =~ m/ ^[^#]* \Q$sub_name\E (?=[\s;=#]) /gmx;
+    }
+
+    # Find attribute outside of comment,
+    # either at new line or directly behind $sub_name.
+    $code =~ m/ (?:^|\G) [^#]*? \Q$attr\E (?=[\s;=#]) /gmx;
     my $start = pos($code) - length($attr);
 
     # Helper functions to parse attribute value.
@@ -170,9 +176,19 @@ sub change_attribute_src_code {
     substr($object->{src_code}, $start, $len) = $replace;
 }
 
+sub remove_attribute_src_code_at {
+    my ($attr, $object, $sub_obj) = @_;
+    change_attribute_src_code_at($attr, $object, $sub_obj, '');
+}
+
+sub change_attribute_src_code {
+    my ($attr, $object, $replace) = @_;
+    change_attribute_src_code_at($attr, $object, '', $replace);
+}
+
 sub remove_attribute_src_code {
     my ($attr, $object) = @_;
-    change_attribute_src_code($attr, $object, '');
+    change_attribute_src_code_at($attr, $object, '', '');
 }
 
 # Collect networks that need to be connected by unmanaged parts of topology.
@@ -262,6 +278,20 @@ sub get_zones {
     return;
 }
 
+sub get_used_nat_tags {
+    my $used = {};
+    for my $network (values %networks) {
+        $network->{is_used} or next;
+        my $nat_hash = $network->{nat};
+        for my $tag (keys %$nat_hash) {
+            next if $used->{$tag};
+            next if $nat_hash->{tag}->{identity};
+            $used->{$tag} = 1;
+        }
+    }
+    return $used;
+}
+
 ####################################################################
 # Main program
 ####################################################################
@@ -311,25 +341,10 @@ link_reroute_permit();
 normalize_services();
 group_path_rules();
 
-# Process rules of services.
-sub process_rules {
+# Mark path between endpoints of rules.
+sub mark_rules_path {
     my ($path_rules) = @_;
-    my %seen;
     for my $rule (@{ $path_rules->{deny} }, @{ $path_rules->{permit} }) {
-        my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
-        for my $obj (@$src_list, @$dst_list) {
-
-            # path_walk only handles managed routers and interfaces.
-            # Mark all objects additionally here.
-            if (my $router = $obj->{router}) {
-                next if $router->{managed} or $router->{semi_managed};
-                $router->{is_used} = 1;
-            }
-            my $network = $obj->{network} || $obj;
-            $network->{is_used} = 1;
-            next if $seen{$network}++;
-            push @todo_unmanaged, $network;
-        }
         &path_walk($rule, \&mark_topology);
     }
 }
@@ -337,13 +352,27 @@ sub process_rules {
 # Collect objects referenced from rules.
 # Use %service_rules here, to get also objects from unenforceable rules.
 my %on_path;
+my %seen;
 for my $rule (@{ $service_rules{deny} }, @{ $service_rules{permit} }) {
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
     for my $obj (@$src_list, @$dst_list) {
         $on_path{$obj} = 1;
+
+        # path_walk only handles managed routers and interfaces.
+        # Mark all objects additionally here.
         $obj->{is_used} = 1;
+        if (my $router = $obj->{router}) {
+            $router->{is_used} = 1;
+        }
+        my $network = $obj->{network} || $obj;
+        $network->{is_used} = 1;
+        next if $seen{$network}++;
+        push @todo_unmanaged, $network;
     }
 }
+
+# Mark NAT tags referenced in networks used in rules.
+my $used_nat = get_used_nat_tags();
 
 # Collect objects, that are referenced, but not visible in rules:
 # Networks, interfaces, hosts, aggregates from negated part of intersection.
@@ -359,13 +388,10 @@ for my $global (\%networks, \%hosts, \%interfaces, \%aggregates) {
         if (my $router = $obj->{router}) {
             push @add_later, $router;
         }
-        $network->{is_used} = 1;
+#        $network->{is_used} = 1;
         push @todo_managed, $network;
     }
 }
-
-# Mark parts of topology which are referenced by rules of services.
-process_rules(\%path_rules);
 
 # Mark networks inside marked aggregates.
 get_zones();
@@ -474,6 +500,8 @@ for my $network (values %networks) {
     }
 }
 
+mark_rules_path(\%path_rules);
+
 # Call this after topology has been marked.
 &expand_crypto();
 
@@ -565,18 +593,37 @@ for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
+        (my $intf_name = $interface->{name}) =~ s/:[^.]+[.]/:/;
 
-        # Remove unused networks referenced in attribute reroute_permit.
-        if (my $networks = $interface->{reroute_permit}) {
-            my @used_networks = grep { $_->{is_used} } @$networks;
-            if (not @used_networks) {
-                remove_attribute_src_code('reroute_permit', $router);
+        # Remove unused nat_tags referenced in attribute bind_nat.
+        if (my $tags = $interface->{bind_nat}) {
+            my @used_tags = grep { $used_nat->{$_} } @$tags;
+            if (not @used_tags) {
+                remove_attribute_src_code_at('bind_nat', $router, $intf_name);
             }
-            elsif(@$networks != @used_networks) {
-                my $used_net_names =
-                    join ', ', map { $_->{name} } @used_networks;
-                my $new_code = "reroute_permit = $used_net_names;";
-                change_attribute_src_code('reroute_permit', $router, $new_code);
+            elsif(@$tags != @used_tags) {
+                my $new_list = join ', ',  @used_tags;
+                my $new_code = "bind_nat = $new_list;";
+                change_attribute_src_code_at(
+                    'bind_nat', $router, $intf_name, $new_code);
+            }
+        }
+
+        # Remove unused networks referenced in attributes
+        # reroute_permit and subnet_of.
+        for my $attr (qw(reroute_permit subnet_of)) {
+            if (my $networks = $interface->{$attr}) {
+                my @used_networks = grep { $_->{is_used} } @$networks;
+                if (not @used_networks) {
+                    remove_attribute_src_code_at($attr, $router, $intf_name);
+                }
+                elsif(@$networks != @used_networks) {
+                    my $used_net_names =
+                        join ', ', map { $_->{name} } @used_networks;
+                    my $new_code = "$attr = $used_net_names;";
+                    change_attribute_src_code_at(
+                        $attr, $router, $intf_name, $new_code);
+                }
             }
         }
 
