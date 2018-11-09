@@ -566,8 +566,8 @@ for my $router (values %routers, values %routers6) {
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
 
-	# Remove unused networks referenced in attribute reroute_permit.
-	if (my $networks = $interface->{reroute_permit}) {
+        # Remove unused networks referenced in attribute reroute_permit.
+        if (my $networks = $interface->{reroute_permit}) {
             my @used_networks = grep { $_->{is_used} } @$networks;
             if (not @used_networks) {
                 remove_attribute_src_code('reroute_permit', $router);
@@ -578,10 +578,10 @@ for my $router (values %routers, values %routers6) {
                 my $new_code = "reroute_permit = $used_net_names;";
                 change_attribute_src_code('reroute_permit', $router, $new_code);
             }
-	}
+        }
 
-	# Mark crypto definitions which are referenced by
-	# already marked interfaces.
+        # Mark crypto definitions which are referenced by
+        # already marked interfaces.
         if (my $crypto_list = $interface->{hub}) {
             for my $crypto (@$crypto_list) {
                 $crypto->{is_used} = 1;
