@@ -2354,6 +2354,61 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Mixed hidden and IP NAT in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ nat:i = { ip = 10.9.1.0/24; }
+ nat:h = { hidden; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = i; }
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h; }
+}
+router:r3 = {
+ managed;
+ routing = manual;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = h; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
+pathrestriction:p = interface:r3.n3, interface:r2.n3;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 80
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp 10.1.2.0 0.0.0.255 10.9.1.0 0.0.0.255 established
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Traverse hidden NAT domain in loop';
 ############################################################
 
