@@ -103,8 +103,9 @@ sub change_attribute_src_code_at {
     my $code = $object->{src_code};
 
     # Start changing at $sub_name.
+    # Do nothing, if $sub_name can't be found, e.g. virtual interface.
     if ($sub_name) {
-        $code =~ m/ ^[^#]* \Q$sub_name\E (?=[\s;=#]) /gmx;
+        $code =~ m/ ^[^#]* \Q$sub_name\E (?=[\s;=#]) /gmx or return;
     }
 
     # Find attribute outside of comment,
@@ -177,8 +178,8 @@ sub change_attribute_src_code_at {
 }
 
 sub remove_attribute_src_code_at {
-    my ($attr, $object, $sub_obj) = @_;
-    change_attribute_src_code_at($attr, $object, $sub_obj, '');
+    my ($attr, $object, $sub_name) = @_;
+    change_attribute_src_code_at($attr, $object, $sub_name, '');
 }
 
 sub change_attribute_src_code {
