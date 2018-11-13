@@ -427,6 +427,7 @@ for my $zone (@all_zones) {
     $zone->{is_used} or next;
     if (my $link = $zone->{link}) {
         $link->{is_used} = 1;
+        push @todo_unmanaged, $link;
     }
 }
 
