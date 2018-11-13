@@ -258,10 +258,11 @@ sub mark_unconnected {
 
 sub mark_path {
     my ($src, $dst) = @_;
+    $src->{is_used} = 1;
+    $dst->{is_used} = 1;
     my $rule = {src => $src, dst => $dst, prt => {}};
 #    debug "Path $src->{name} $dst->{name}";
-    &single_path_walk($rule, \&mark_topology);
-    return;
+    single_path_walk($rule, \&mark_topology);
 }
 
 # We can't use %aggregates from Netspoc.pm because it only holds named
