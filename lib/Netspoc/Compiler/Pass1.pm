@@ -2339,8 +2339,8 @@ sub read_router {
         }
         if ($model->{do_auth}) {
             grep { $_->{hub} } @{ $router->{interfaces} }
-              or err_msg("Attribute 'hub' needs to be defined",
-                         " at an interface of $name of model $model->{name}");
+              or warn_msg("Attribute 'hub' needs to be defined",
+                         " at some interface of $name of model $model->{name}");
 
             $router->{radius_attributes} ||= {};
         }
