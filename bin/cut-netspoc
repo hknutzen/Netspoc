@@ -611,21 +611,19 @@ for my $router (values %routers, values %routers6) {
             }
         }
 
-        # Remove unused networks referenced in attributes
-        # reroute_permit and subnet_of.
-        for my $attr (qw(reroute_permit subnet_of)) {
-            if (my $networks = $interface->{$attr}) {
-                my @used_networks = grep { $_->{is_used} } @$networks;
-                if (not @used_networks) {
-                    remove_attribute_src_code_at($attr, $router, $intf_name);
-                }
-                elsif(@$networks != @used_networks) {
-                    my $used_net_names =
-                        join ', ', map { $_->{name} } @used_networks;
-                    my $new_code = "$attr = $used_net_names;";
-                    change_attribute_src_code_at(
-                        $attr, $router, $intf_name, $new_code);
-                }
+        # Remove unused networks referenced in attribute reroute_permit.
+        my $attr = 'reroute_permit';
+        if (my $networks = $interface->{$attr}) {
+            my @used_networks = grep { $_->{is_used} } @$networks;
+            if (not @used_networks) {
+                remove_attribute_src_code_at($attr, $router, $intf_name);
+            }
+            elsif(@$networks != @used_networks) {
+                my $used_net_names =
+                    join ', ', map { $_->{name} } @used_networks;
+                my $new_code = "$attr = $used_net_names;";
+                change_attribute_src_code_at(
+                    $attr, $router, $intf_name, $new_code);
             }
         }
 
