@@ -182,10 +182,10 @@ sub remove_attribute_src_code_at {
     change_attribute_src_code_at($attr, $object, $sub_name, '');
 }
 
-sub change_attribute_src_code {
-    my ($attr, $object, $replace) = @_;
-    change_attribute_src_code_at($attr, $object, '', $replace);
-}
+#sub change_attribute_src_code {
+#    my ($attr, $object, $replace) = @_;
+#    change_attribute_src_code_at($attr, $object, '', $replace);
+#}
 
 sub remove_attribute_src_code {
     my ($attr, $object) = @_;
