@@ -573,12 +573,6 @@ for my $router (values %routers, values %routers6) {
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
 
-        # Mark main interface of secondary or virtual interface.
-        if (my $main = $interface->{main_interface} || $interface->{orig_main})
-        {
-            $main->{is_used} = 1;
-        }
-
         # Mark path of crypto tunnel.
         if ($interface->{ip} eq 'tunnel') {
             my $peer = $interface->{peer};
@@ -596,9 +590,15 @@ for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     for my $interface (get_intf($router)) {
         $interface->{is_used} or next;
-        (my $intf_name = $interface->{name}) =~ s/:[^.]+[.]/:/;
+
+        # Mark main interface of secondary or virtual interface.
+        if (my $main = $interface->{main_interface} || $interface->{orig_main})
+        {
+            $main->{is_used} = 1;
+        }
 
         # Remove unused nat_tags referenced in attribute bind_nat.
+        (my $intf_name = $interface->{name}) =~ s/:[^.]+[.]/:/;
         if (my $tags = $interface->{bind_nat}) {
             my @used_tags = grep { $used_nat->{$_} } @$tags;
             if (not @used_tags) {
