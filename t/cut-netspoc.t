@@ -688,6 +688,38 @@ END
 test_run($title, $in, $in);
 
 ############################################################
+$title = 'Mark 2x unmanaged at end of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;  }
+network:n2 = { ip = 10.1.2.0/24;  }
+network:n3 = { ip = 10.1.3.0/24;  }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+ interface:L = { ip = 10.9.9.2; loopback; }
+}
+router:r3 = {
+ interface:n3;
+ interface:L = { ip = 10.9.9.3; loopback; }
+}
+service:test = {
+ user = interface:r2.L, interface:r3.L;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 $title = 'Remove interface with multiple IP addresses';
 ############################################################
 

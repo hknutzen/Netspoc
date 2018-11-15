@@ -354,6 +354,7 @@ sub mark_rules_path {
 # Collect objects referenced from rules.
 # Use %service_rules here, to get also objects from unenforceable rules.
 my %on_path;
+my @add_later;
 my %seen;
 for my $rule (@{ $service_rules{deny} }, @{ $service_rules{permit} }) {
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
@@ -364,7 +365,7 @@ for my $rule (@{ $service_rules{deny} }, @{ $service_rules{permit} }) {
         # Mark all objects additionally here.
         $obj->{is_used} = 1;
         if (my $router = $obj->{router}) {
-            $router->{is_used} = 1;
+            push @add_later, $router;
         }
         my $network = $obj->{network} || $obj;
         $network->{is_used} = 1;
@@ -381,7 +382,6 @@ my $used_nat = get_used_nat_tags();
 # These need to be connected with other parts of topology
 # by managed and unmanaged routers.
 my @todo_managed;
-my @add_later;
 for my $global (\%networks, \%hosts, \%interfaces, \%aggregates) {
     for my $obj (values %$global) {
         $obj->{is_used} or next;
