@@ -212,6 +212,7 @@ sub mark_topology {
 }
 
 # Mark path between $objects and marked parts of topology.
+# $object must be of type network or router.
 # Depending on $managed, mark only unmanaged or also managed parts.
 sub mark_unconnected {
     my ($objects, $managed) = @_;
@@ -258,8 +259,12 @@ sub mark_unconnected {
 
 sub mark_path {
     my ($src, $dst) = @_;
-    $src->{is_used} = 1;
-    $dst->{is_used} = 1;
+    for my $intf ($src, $dst) {
+        my $net = $intf->{network};
+        $intf->{is_used} = 1;
+        $net->{is_used} = 1;
+        push @todo_unmanaged, $net;
+    }
     my $rule = {src => $src, dst => $dst, prt => {}};
 #    debug "Path $src->{name} $dst->{name}";
     single_path_walk($rule, \&mark_topology);
