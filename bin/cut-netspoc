@@ -400,11 +400,13 @@ for my $global (\%networks, \%hosts, \%interfaces, \%aggregates) {
     }
 }
 
+# Mark zone of marked aggregates.
 # Mark networks inside marked aggregates.
 get_zones();
 for my $zone (@all_zones) {
     for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
         $aggregate->{is_used} or next;
+        $aggregate->{zone}->{is_used} = 1;
 #        debug "Marking networks of $aggregate->{name} in $zone->{name}";
         for my $network (@{ $aggregate->{networks} }) {
             $network->{is_used} = 1;

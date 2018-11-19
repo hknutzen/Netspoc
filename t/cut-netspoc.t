@@ -661,6 +661,33 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Matching aggregate without matching network';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_2_0_0 = { ip = 10.2.0.0/16; link = network:n3; }
+service:s1 = {
+ user = any:10_2_0_0;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
 $title = 'Mark unmanaged at end of path';
 ############################################################
 
