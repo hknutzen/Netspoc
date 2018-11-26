@@ -10497,7 +10497,7 @@ sub inherit_area_nat {
             # Store NAT definition in zone otherwise
             $zone->{nat}->{$nat_tag} = $nat;
 
-           debug "$zone->{name}: $nat_tag from $area->{name}";
+#           debug "$zone->{name}: $nat_tag from $area->{name}";
         }
     }
 }
