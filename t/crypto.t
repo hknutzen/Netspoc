@@ -1201,6 +1201,32 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'ASA, VPN in CONTEXT';
+############################################################
+# This line is missing from config:
+#  ikev1 user-authentication none
+
+($in = $topo) =~ s/ASA, VPN/ASA, VPN, CONTEXT/;
+
+$out = <<'END';
+--asavpn
+tunnel-group VPN-single type remote-access
+tunnel-group VPN-single general-attributes
+ authorization-server-group LOCAL
+ default-group-policy global
+ authorization-required
+ username-from-certificate EA
+tunnel-group VPN-single ipsec-attributes
+ chain
+ ikev1 trust-point ASDM_TrustPoint1
+tunnel-group VPN-single webvpn-attributes
+ authentication certificate
+tunnel-group-map default-group VPN-single
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Bad check-extended-key-usage';
 ############################################################
 
