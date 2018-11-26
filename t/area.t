@@ -178,6 +178,9 @@ END
 
 $out = <<'END';
 Error: Overlapping area:a2 and area:a2x
+ - both areas contain any:[network:n2],
+ - only 1. area contains any:[network:n3],
+ - only 2. ares contains any:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -196,6 +199,20 @@ Error: Duplicate area:a2 and area:a2x
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Distinct areas, only router is different';
+############################################################
+
+$in = $topo . <<'END';
+area:a2 = { border = interface:asa1.n2; }
+area:a2r = { inclusive_border = interface:asa1.n1; }
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Area with auto_border';
@@ -356,7 +373,7 @@ router:asa2 = {
 END
 
 ############################################################
-$title = 'inclusive_border at areas without subset relation';
+$title = 'Overlapping areas at router';
 ############################################################
 
 $in = $topo . <<'END';
@@ -369,14 +386,16 @@ area:a2 = {
 END
 
 $out = <<'END';
-Error: area:a2 and area:a1 must be in subset relation,
- because both have router:asa1 as 'inclusive_border'
+Error: Overlapping area:a2 and area:a1
+ - both areas contain router:asa1,
+ - only 1. area contains any:[network:n1],
+ - only 2. ares contains any:[network:n2]
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Missing inclusive_border at areas in subset relation';
+$title = 'Missing router in overlapping areas';
 ############################################################
 
 $in = $topo . <<'END';
@@ -386,14 +405,13 @@ area:a1 = {
 area:a2 = {
  border = interface:asa1.n2, interface:asa1.n3;
 }
-
 END
 
 $out = <<'END';
-Error: router:asa1 must be located in area:a2,
- because it is located in area:a1
- and both areas are in subset relation
- (use attribute 'inclusive_border')
+Error: Overlapping area:a1 and area:a2
+ - both areas contain any:[network:n2],
+ - only 1. area contains router:asa1,
+ - only 2. ares contains any:[network:n5]
 END
 
 test_err($title, $in, $out);
