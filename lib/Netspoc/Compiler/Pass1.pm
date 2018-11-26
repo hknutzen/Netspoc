@@ -2693,7 +2693,10 @@ sub read_area {
         elsif ($token eq 'border' or $token eq 'inclusive_border') {
             skip '=';
             my $elements = read_union(';');
-            if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
+            if (grep
+                { $_->[0] ne 'interface' or ref $_->[1] or ref $_->[2] }
+                @$elements)
+            {
                 error_atline("Must only use interface names in '$token'");
                 $elements = [];
             }

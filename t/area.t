@@ -78,6 +78,22 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No automatic interface as border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { inclusive_border = interface:r1.[all]; }
+area:b = { border = interface:r2.[auto]; }
+END
+
+$out = <<'END';
+Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
+Error: Must only use interface names in 'border' at line 19 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unmanaged interface can\'t be border';
 ############################################################
 
@@ -553,6 +569,34 @@ END
 
 $out = <<'END';
 Warning: Ignoring area:a1 in src of rule in service:s1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Ignore area with disabled anchor';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+}
+
+area:all = { anchor = network:n2; }
+
+service:s1 = {
+ user = network:[area:all];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
 END
 
 test_warn($title, $in, $out);
