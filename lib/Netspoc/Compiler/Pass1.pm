@@ -190,6 +190,7 @@ my %router_info = (
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
+            CONTEXT => { crypto_in_context => 1 },
             EZVPN => { crypto => 'ASA_EZVPN' },
         },
     },
@@ -16971,6 +16972,17 @@ sub get_split_tunnel_nets {
           values %split_tunnel_nets ];
 }
 
+sub print_asa_trustpoint {
+    my ($router, $trustpoint) = @_;
+    my $model = $router->{model};
+    print " ikev1 trust-point $trustpoint\n";
+
+    # This command is not known, if ASA runs as virtual context.
+    if (not $model->{crypto_in_context}) {
+        print " ikev1 user-authentication none\n";
+    }
+}
+
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
   qw(banner dns-server default-domain split-dns wins-server address-pools
@@ -17002,10 +17014,9 @@ tunnel-group $default_tunnel_group general-attributes
 tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
+    print_asa_trustpoint($router, $trust_point);
 
     print <<"EOF";
- ikev1 trust-point $trust_point
- ikev1 user-authentication none
 tunnel-group $default_tunnel_group webvpn-attributes
  authentication certificate
 EOF
@@ -17205,12 +17216,6 @@ EOF
 
                     my $trustpoint2 =
                         delete $attributes->{'trust-point'} || $trust_point;
-                    my @tunnel_ipsec_att =
-                      (
-                        "ikev1 trust-point $trustpoint2",
-                        'ikev1 user-authentication none'
-                      );
-
                     $print_group_policy->($group_policy_name, $attributes);
 
                     my $tunnel_group_name = "VPN-tunnel-$id_name";
@@ -17225,10 +17230,7 @@ EOF
                     print <<"EOF";
 tunnel-group $tunnel_group_name ipsec-attributes
 EOF
-
-                    for my $line (@tunnel_ipsec_att) {
-                        print " $line\n";
-                    }
+                    print_asa_trustpoint($router, $trustpoint2);
 
                     # For anyconnect clients.
                     print <<"EOF";
@@ -17791,7 +17793,7 @@ sub print_crypto_map_attributes {
 }
 
 sub print_tunnel_group {
-    my ($name, $isakmp) = @_;
+    my ($router, $name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
@@ -17802,8 +17804,7 @@ sub print_tunnel_group {
             print(" ikev2 remote-authentication certificate\n");
         }
         else {
-            print " ikev1 trust-point $trust_point\n";
-            print " ikev1 user-authentication none\n";
+            print_asa_trustpoint($router, $trust_point);
         }
     }
 
@@ -17874,7 +17875,7 @@ sub print_static_crypto_map {
             $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($peer_ip, $isakmp);
+            print_tunnel_group($router, $peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17923,7 +17924,7 @@ sub print_dynamic_crypto_map {
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($id, $isakmp);
+        print_tunnel_group($router, $id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
