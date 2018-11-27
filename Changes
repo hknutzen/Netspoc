@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+5.047     2018-11-26 16:22:17+01:00 Europe/Berlin
+
+ - New option "CONTEXT" in
+   model = "ASA, VPN, CONTEXT" or model = "ASA, CONTEXT".
+   With this option set,  line "ikev1 user-authentication none"
+   is no longer generated for "tunnel-group NAME ipsec-attributes".
+ - It is now valid, to define two areas, that only differ in a single
+   managed router. Previously this was rejected as "duplicate areas".
+
 5.046     2018-10-26 12:57:43+02:00 Europe/Berlin
 
  - Fix: Attribute acl_use_real_ip is now also applied to outgoing ACL.

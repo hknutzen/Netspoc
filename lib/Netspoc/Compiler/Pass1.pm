@@ -67,6 +67,7 @@ our @EXPORT = qw(
   %isakmp
   %ipsec
   %crypto
+  %auto_interfaces
   %service_rules
   %path_rules
   init_global_vars
@@ -190,6 +191,7 @@ my %router_info = (
                 stateless_tunnel => 1,
                 do_auth          => 1,
             },
+            CONTEXT => { crypto_in_context => 1 },
             EZVPN => { crypto => 'ASA_EZVPN' },
         },
     },
@@ -2339,8 +2341,8 @@ sub read_router {
         }
         if ($model->{do_auth}) {
             grep { $_->{hub} } @{ $router->{interfaces} }
-              or err_msg("Attribute 'hub' needs to be defined",
-                         " at an interface of $name of model $model->{name}");
+              or warn_msg("Attribute 'hub' needs to be defined",
+                         " at some interface of $name of model $model->{name}");
 
             $router->{radius_attributes} ||= {};
         }
@@ -2692,7 +2694,10 @@ sub read_area {
         elsif ($token eq 'border' or $token eq 'inclusive_border') {
             skip '=';
             my $elements = read_union(';');
-            if (grep { $_->[0] ne 'interface' or ref $_->[1] } @$elements) {
+            if (grep
+                { $_->[0] ne 'interface' or ref $_->[1] or ref $_->[2] }
+                @$elements)
+            {
                 error_atline("Must only use interface names in '$token'");
                 $elements = [];
             }
@@ -4848,7 +4853,7 @@ my @routing_only_routers;
 my @routers;
 my @networks;
 my @zones;
-my @areas;
+my @ascending_areas;
 
 sub mark_disabled {
     my @disabled_interfaces = grep { $_->{disabled} } values %interfaces;
@@ -4883,24 +4888,20 @@ sub mark_disabled {
 
     # Disable area, where all interfaces or anchor are disabled.
     for my $area (sort by_name values %areas) {
-        my $ok;
         if (my $anchor = $area->{anchor}) {
-            $ok = !$anchor->{disabled};
-        }
-        else {
-            for my $attr (qw(border inclusive_border)) {
-                my $borders = $area->{$attr} or next;
-                if (my @active_borders = grep { not $_->{disabled} } @$borders) {
-                    $area->{$attr} = \@active_borders;
-                    $ok = 1;
-                }
+            if ($anchor->{disabled}) {
+                $area->{disabled} = 1;
             }
         }
-        if ($ok) {
-            push @areas, $area;
-        }
         else {
-            $area->{disabled} = 1;
+            my $ok;
+            for my $attr (qw(border inclusive_border)) {
+                my $borders = $area->{$attr} or next;
+                my @active_borders = grep { not $_->{disabled} } @$borders;
+                $area->{$attr} = \@active_borders;
+                @active_borders and $ok = 1;
+            }
+            $ok or $area->{disabled} = 1;
         }
     }
 
@@ -5313,7 +5314,7 @@ sub get_intf {
 
 # Cache created autointerface objects:
 # Parent object -> managed flag -> autointerface object
-my %auto_interfaces;
+our %auto_interfaces;
 
 # Create an autointerface from the passed router or network.
 sub get_auto_intf {
@@ -6406,9 +6407,6 @@ sub normalize_services {
     for my $service (sort by_name values %services) {
         normalize_service_rules($service);
     }
-
-    # Only needed during normalize_service_rules.
-    %auto_interfaces = ();
 }
 
 ##############################################################################
@@ -6487,7 +6485,7 @@ sub propagate_owners {
         #   an owner without attribute {only_watch}.
         # - Zone inherits {watching_owners} from all enclosing areas.
         # Check for redundant owners of zones and areas.
-        for my $area ( sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
+        for my $area (@ascending_areas) {
             my $owner = $area->{owner} or next;
             $owner->{is_used} = 1;
             my $redundant;
@@ -6611,7 +6609,7 @@ sub propagate_owners {
 
     # Handle {router_attributes}->{owner} separately.
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
+    for my $area (@ascending_areas) {
         my $attributes = $area->{router_attributes} or next;
         my $owner      = $attributes->{owner}       or next;
         $owner->{is_used} = 1;
@@ -10097,6 +10095,7 @@ sub duplicate_aggregate_to_cluster {
             ip           => $aggregate->{ip},
             mask         => $aggregate->{mask},
         );
+        $aggregate2->{invisible} = 1 if $aggregate->{invisible};
 
         # Link new aggregate object and cluster
         if ($implicit) {
@@ -10156,6 +10155,7 @@ sub get_any {
                 ip           => $ip,
                 mask         => $mask,
             );
+            $visible or $aggregate->{invisible} = 1;
             $aggregate->{ipv6} = 1 if $zone->{ipv6};
             if (my $private = $zone->{private}) {
                 $aggregate->{private} = $private;
@@ -10172,15 +10172,21 @@ sub get_any {
 
         push @result, $agg_or_net;
 
-        # Check for error condition only if result will be visible.
-        if ($visible and (my $nat = $agg_or_net->{nat})) {
-            if (grep { not $_->{hidden} } values %$nat) {
-                my $p_ip    = print_ip($ip);
-                my $prefix  = mask2prefix($mask);
-                err_msg("Must not use aggregate with IP $p_ip/$prefix",
-                        " in $zone->{name}\n",
-                        " because $agg_or_net->{name} has identical IP",
-                        " but is also translated by NAT");
+        if ($visible) {
+
+            # Mark aggregate as visible for find_zone_networks.
+            delete $agg_or_net->{invisible};
+
+            # Check for error condition only if result will be visible.
+            if (my $nat = $agg_or_net->{nat}) {
+                if (grep { not $_->{hidden} } values %$nat) {
+                    my $p_ip    = print_ip($ip);
+                    my $prefix  = mask2prefix($mask);
+                    err_msg("Must not use aggregate with IP $p_ip/$prefix",
+                            " in $zone->{name}\n",
+                            " because $agg_or_net->{name} has identical IP",
+                            " but is also translated by NAT");
+                }
             }
         }
     }
@@ -10508,7 +10514,7 @@ sub inherit_area_nat {
 sub inherit_attributes_from_area {
 
     # Areas can be nested. Proceed from small to larger ones.
-    for my $area (sort { @{ $a->{zones} } <=> @{ $b->{zones} } } @areas) {
+    for my $area (@ascending_areas) {
         inherit_router_attributes($area);
         inherit_area_nat($area);
     }
@@ -10742,31 +10748,23 @@ sub cluster_zones {
 }
 
 ###############################################################################
-# Purpose  : Mark interfaces, which are border of some area, prepare consistency
-#            check for attributes {border} and {inclusive_border}.
+# Purpose  : Mark interfaces, which are border of some area.
 # Comments : Area labeled interfaces are needed to locate auto_borders.
-sub prepare_area_borders {
-    my %has_inclusive_borders;   # collects all routers with inclusive border IF
-
-    # Identify all interfaces which are border of some area
-    for my $area (@areas) {
+sub mark_area_borders {
+    for my $area (values %areas) {
+        next if $area->{disabled};
         for my $attribute (qw(border inclusive_border)) {
             my $border = $area->{$attribute} or next;
             for my $interface (@$border) {
 
-                # Reference delimited area in the interfaces attributes
+                # Reference delimited area in interfaces attributes.
                 $interface->{is_border} = $area;    # used for auto borders
                 if ($attribute eq 'inclusive_border') {
                     $interface->{is_inclusive}->{$area} = $area;
-
-                    # Collect routers with inclusive border interface
-                    my $router = $interface->{router};
-                    $has_inclusive_borders{$router} = $router;
                 }
             }
         }
     }
-    return \%has_inclusive_borders;
 }
 
 ###############################################################################
@@ -10798,7 +10796,8 @@ sub set_area {
 ###############################################################################s
 # Purpose  : Set up area objects, assure proper border definitions.
 sub set_areas {
-    for my $area (@areas) {
+    for my $area (sort by_name values %areas) {
+        next if $area->{disabled};
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
             set_area($network->{zone}, $area, 0);
@@ -10851,114 +10850,69 @@ sub set_areas {
     }
 }
 
-###############################################################################
-# Purpose : Find subset relation between areas, assure that no duplicate or
-#           overlapping areas exist
-sub find_area_subset_relations {
-    my %seen;    # key:contained area, value: containing area
-
-    # Process all zones contained by one or more areas
-    for my $zone (@zones) {
-        $zone->{areas} or next;
-
-        # Sort areas containing zone by ascending size
-        my @areas = sort(
-            {    @{ $a->{zones} } <=> @{ $b->{zones} }
-              || $a->{name} cmp $b->{name} }        # equal size? sort by name
-            values %{ $zone->{areas} }) or next;    # Skip empty hash.
-
-        # Take the smallest area.
-        my $next = shift @areas;
-
-        while (@areas) {
-            my $small = $next;
-            $next = shift @areas;
-            next if $seen{$small}->{$next};  # Already identified in other zone.
-
-            # Check that each zone of $small is part of $next.
-            my $ok = 1;
-            for my $zone (@{ $small->{zones} }) {
-                if (not $zone->{areas}->{$next}) {
-                    $ok = 0;
-                    err_msg("Overlapping $small->{name} and $next->{name}");
-                    last;
-                }
-            }
-
-            # check for duplicates
-            if ($ok) {
-                if (@{ $small->{zones} } == @{ $next->{zones} }) {
-                    err_msg("Duplicate $small->{name} and $next->{name}");
-                }
-
-                # reference containing area
-                else {
-                    $small->{subset_of} = $next;
-
-#                    debug "$small->{name} < $next->{name}";
-                }
-            }
-
-            #keep track of processed areas
-            $seen{$small}->{$next} = 1;
-        }
-    }
+sub area_by_size {
+    my $az = $a->{zones};
+    my $ar = $a->{managed_routers};
+    my $a_size = ($az && @$az || 0)  + ($ar && @$ar || 0);
+    my $bz = $b->{zones};
+    my $br = $b->{managed_routers};
+    my $b_size = ($bz && @$bz || 0)  + ($br && @$br || 0);
+    return $a_size <=> $b_size || $a->{name} cmp $b->{name}
 }
 
-#############################################################################
-# Purpose  : Check, that area subset relations hold for routers:
-#          : Case 1: If a router R is located inside areas A1 and A2 via
-#            'inclusive_border', then A1 and A2 must be in subset relation.
-#          : Case 2: If area A1 and A2 are in subset relation and A1 includes R,
-#            then A2 also needs to include R either from 'inclusive_border' or
-#            R is surrounded by zones located inside A2.
-# Comments : This is needed to get consistent inheritance with
-#            'router_attributes'.
-sub check_routers_in_nested_areas {
+###############################################################################
+# Purpose : Check subset relation between areas, assure that no duplicate or
+#           overlapping areas exist
+sub check_area_subset_relations {
 
-    my ($has_inclusive_borders) = @_;
+    # Fill global list of areas sorted by size or by name on equal size.
+    @ascending_areas =
+        sort area_by_size grep { not $_->{disabled} } values %areas;
 
-    # Case 1: Identify routers contained by areas via 'inclusive_border'
-    for my $router (sort by_name values %$has_inclusive_borders) {
+    # Collect pairs of areas already identified with other zone or router.
+    # Key: contained area, value: containing area
+    my %seen;
 
-        # Sort all areas having this router as inclusive_border by size.
-        my @areas =
-          sort({
-              @{ $a->{zones} } <=> @{ $b->{zones} } ||    # ascending order
-              $a->{name} cmp $b->{name}    # equal size? sort by name
-            }
-            values %{ $router->{areas} });
+    # Process all elements contained by one or more areas.
+    for my $obj (@zones, @managed_routers) {
+        my $area_hash = $obj->{areas} or next;
+
+        # Find ascending list of areas containing current object.
+        my @containing = sort area_by_size values %$area_hash or next;
 
         # Take the smallest area.
-        my $next = shift @areas;
+        my $next = shift @containing;
 
-        # Pairwisely check containing areas for subset relation.
-        while (@areas) {
+      LARGER:
+        while (@containing) {
             my $small = $next;
-            $next = shift @areas;
-            my $big = $small->{subset_of} || '';    # extract containing area
-            next if $next eq $big;
-            err_msg(
-                "$small->{name} and $next->{name} must be",
-                " in subset relation,\n because both have",
-                " $router->{name} as 'inclusive_border'"
-            );
-        }
-    }
+            $next = shift @containing;
+            next if $seen{$small}->{$next}++;
+            my $small_z = $small->{zones};
+            my $small_r = $small->{managed_routers};
+            my $next_z = $next->{zones};
+            my $next_r = $next->{managed_routers};
 
-    # Case 2: Identify areas in subset relation
-    for my $area (@areas) {
-        my $big = $area->{subset_of} or next;
+            # Check that each zone and managed router of $small is part of $next.
+            for my $obj2 (@$small_z, @$small_r) {
+                next if $obj2->{areas}->{$next};
+                for my $obj3 (@$next_z, @$next_r) {
+                    next if $obj3->{areas}->{$small};
+                    err_msg("Overlapping $small->{name} and $next->{name}\n",
+                            " - both areas contain $obj->{name},\n",
+                            " - only 1. area contains $obj2->{name},\n",
+                            " - only 2. ares contains $obj3->{name}");
+                    next LARGER;
+                }
+            }
 
-        # Assure routers of the subset area to be located in containing area too
-        for my $router (@{ $area->{managed_routers} }) {
-            next if $router->{areas}->{$big};
-            err_msg(
-                "$router->{name} must be located in $big->{name},\n",
-                " because it is located in $area->{name}\n",
-                " and both areas are in subset relation\n",
-                " (use attribute 'inclusive_border')"
-            );
+            # Check for duplicates.
+            if ((not $small_z or @$small_z == @$next_z)
+                and
+                (not $small_r or @$small_r == @$next_r))
+            {
+                err_msg("Duplicate $small->{name} and $next->{name}");
+            }
         }
     }
 }
@@ -10966,7 +10920,7 @@ sub check_routers_in_nested_areas {
 ##############################################################################
 # Purpose  : Delete unused attributes in area objects.
 sub clean_areas {
-    for my $area (@areas) {
+    for my $area (@ascending_areas) {
         delete $area->{intf_lookup};
         for my $interface (@{ $area->{border} }) {
             delete $interface->{is_border};
@@ -10983,10 +10937,9 @@ sub set_zone {
     cluster_zones();
     my $crosslink_routers = check_crosslink();
     cluster_crosslink_routers($crosslink_routers);
-    my $has_inclusive_borders = prepare_area_borders();
+    mark_area_borders();
     set_areas();
-    find_area_subset_relations();
-    check_routers_in_nested_areas($has_inclusive_borders);
+    check_area_subset_relations();
     clean_areas();                                  # delete unused attributes
     link_aggregates();
     inherit_attributes();
@@ -13740,10 +13693,12 @@ sub expand_crypto {
 # Find aggregate in zone with address equal to $ip/$mask
 # or find networks in zone with address in subnet or supernet relation
 # to $ip/$mask.
-# Leave out small networks which are subnet of a matching network.
-# Leave out objects that
-# - are element of $net_hash or
-# - are subnet of element of $net_hash.
+# Leave out
+# - invible aggregates, only used intermediately in automatic groups,
+# - small networks which are subnet of a matching network,
+# - objects that are
+#   - element of $net_hash or
+#   - subnet of element of $net_hash.
 # Result: List of found networks or aggregates or undef.
 sub find_zone_networks {
     my ($zone, $ip, $mask, $no_nat_set, $net_hash) = @_;
@@ -13757,7 +13712,8 @@ sub find_zone_networks {
         }
     };
     my $key = "$ip$mask";
-    if (my $aggregate = $zone->{ipmask2aggregate}->{$key}) {
+    my $aggregate = $zone->{ipmask2aggregate}->{$key};
+    if ($aggregate and not $aggregate->{invisible}) {
         return if $in_net_hash->($aggregate);
         return [$aggregate];
     }
@@ -17023,6 +16979,17 @@ sub get_split_tunnel_nets {
           values %split_tunnel_nets ];
 }
 
+sub print_asa_trustpoint {
+    my ($router, $trustpoint) = @_;
+    my $model = $router->{model};
+    print " ikev1 trust-point $trustpoint\n";
+
+    # This command is not known, if ASA runs as virtual context.
+    if (not $model->{crypto_in_context}) {
+        print " ikev1 user-authentication none\n";
+    }
+}
+
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
   qw(banner dns-server default-domain split-dns wins-server address-pools
@@ -17054,10 +17021,9 @@ tunnel-group $default_tunnel_group general-attributes
 tunnel-group $default_tunnel_group ipsec-attributes
  chain
 EOF
+    print_asa_trustpoint($router, $trust_point);
 
     print <<"EOF";
- ikev1 trust-point $trust_point
- ikev1 user-authentication none
 tunnel-group $default_tunnel_group webvpn-attributes
  authentication certificate
 EOF
@@ -17257,12 +17223,6 @@ EOF
 
                     my $trustpoint2 =
                         delete $attributes->{'trust-point'} || $trust_point;
-                    my @tunnel_ipsec_att =
-                      (
-                        "ikev1 trust-point $trustpoint2",
-                        'ikev1 user-authentication none'
-                      );
-
                     $print_group_policy->($group_policy_name, $attributes);
 
                     my $tunnel_group_name = "VPN-tunnel-$id_name";
@@ -17277,10 +17237,7 @@ EOF
                     print <<"EOF";
 tunnel-group $tunnel_group_name ipsec-attributes
 EOF
-
-                    for my $line (@tunnel_ipsec_att) {
-                        print " $line\n";
-                    }
+                    print_asa_trustpoint($router, $trustpoint2);
 
                     # For anyconnect clients.
                     print <<"EOF";
@@ -17843,7 +17800,7 @@ sub print_crypto_map_attributes {
 }
 
 sub print_tunnel_group {
-    my ($name, $isakmp) = @_;
+    my ($router, $name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
     print "tunnel-group $name ipsec-attributes\n";
@@ -17854,8 +17811,7 @@ sub print_tunnel_group {
             print(" ikev2 remote-authentication certificate\n");
         }
         else {
-            print " ikev1 trust-point $trust_point\n";
-            print " ikev1 user-authentication none\n";
+            print_asa_trustpoint($router, $trust_point);
         }
     }
 
@@ -17926,7 +17882,7 @@ sub print_static_crypto_map {
             $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($peer_ip, $isakmp);
+            print_tunnel_group($router, $peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17975,7 +17931,7 @@ sub print_dynamic_crypto_map {
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($id, $isakmp);
+        print_tunnel_group($router, $id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
@@ -18786,7 +18742,7 @@ sub init_global_vars {
     %interfaces         = %hosts                = ();
     @managed_routers    = @routing_only_routers = @router_fragments = ();
     @virtual_interfaces = @pathrestrictions     = ();
-    @routers = @networks = @zones = @areas = ();
+    @routers = @networks = @zones = @ascending_areas = ();
     %auto_interfaces    = ();
     %crypto2spokes      = %crypto2hub = ();
     %service_rules      = %path_rules = ();

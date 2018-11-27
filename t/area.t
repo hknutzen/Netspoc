@@ -78,6 +78,22 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'No automatic interface as border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = { inclusive_border = interface:r1.[all]; }
+area:b = { border = interface:r2.[auto]; }
+END
+
+$out = <<'END';
+Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
+Error: Must only use interface names in 'border' at line 19 of STDIN
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unmanaged interface can\'t be border';
 ############################################################
 
@@ -178,6 +194,9 @@ END
 
 $out = <<'END';
 Error: Overlapping area:a2 and area:a2x
+ - both areas contain any:[network:n2],
+ - only 1. area contains any:[network:n3],
+ - only 2. ares contains any:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -196,6 +215,20 @@ Error: Duplicate area:a2 and area:a2x
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Distinct areas, only router is different';
+############################################################
+
+$in = $topo . <<'END';
+area:a2 = { border = interface:asa1.n2; }
+area:a2r = { inclusive_border = interface:asa1.n1; }
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Area with auto_border';
@@ -356,7 +389,7 @@ router:asa2 = {
 END
 
 ############################################################
-$title = 'inclusive_border at areas without subset relation';
+$title = 'Overlapping areas at router';
 ############################################################
 
 $in = $topo . <<'END';
@@ -369,14 +402,16 @@ area:a2 = {
 END
 
 $out = <<'END';
-Error: area:a2 and area:a1 must be in subset relation,
- because both have router:asa1 as 'inclusive_border'
+Error: Overlapping area:a2 and area:a1
+ - both areas contain router:asa1,
+ - only 1. area contains any:[network:n1],
+ - only 2. ares contains any:[network:n2]
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Missing inclusive_border at areas in subset relation';
+$title = 'Missing router in overlapping areas';
 ############################################################
 
 $in = $topo . <<'END';
@@ -386,14 +421,13 @@ area:a1 = {
 area:a2 = {
  border = interface:asa1.n2, interface:asa1.n3;
 }
-
 END
 
 $out = <<'END';
-Error: router:asa1 must be located in area:a2,
- because it is located in area:a1
- and both areas are in subset relation
- (use attribute 'inclusive_border')
+Error: Overlapping area:a1 and area:a2
+ - both areas contain any:[network:n2],
+ - only 1. area contains router:asa1,
+ - only 2. ares contains any:[network:n5]
 END
 
 test_err($title, $in, $out);
@@ -535,6 +569,34 @@ END
 
 $out = <<'END';
 Warning: Ignoring area:a1 in src of rule in service:s1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Ignore area with disabled anchor';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+}
+
+area:all = { anchor = network:n2; }
+
+service:s1 = {
+ user = network:[area:all];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
 END
 
 test_warn($title, $in, $out);

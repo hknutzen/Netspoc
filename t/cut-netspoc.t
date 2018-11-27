@@ -66,7 +66,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -105,7 +105,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s2 = {
@@ -136,7 +136,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -164,7 +164,7 @@ network:n1 = { ip = 10.1.1.0/24;
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 service:test = {
     user = network:n1;
@@ -192,7 +192,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -264,7 +264,7 @@ network:n3 = { ip = 10.1.3.0/24; nat:a2 = { ip = 10.9.8.0/24; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
@@ -335,7 +335,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -378,39 +378,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Area defined by anchor';
-############################################################
-
-$in = $topo . <<'END';
-area:all = { anchor = network:n1; }
-service:test = {
-    has_unenforceable;
-    user = network:[area:all];
-    permit src = user; dst = network:n2; prt = tcp;
-}
-END
-
-$out = <<'END';
-network:n1 = { ip = 10.1.1.0/24;
-}
-network:n2 = { ip = 10.1.2.0/24; }
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-area:all = { anchor = network:n1; }
-service:test = {
-    has_unenforceable;
-    user = network:[area:all];
-    permit src = user; dst = network:n2; prt = tcp;
-}
-END
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Useless aggregate';
 ############################################################
 
@@ -429,7 +396,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
@@ -480,6 +447,175 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Area defined by anchor, anchor ouside of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+area:all = { anchor = network:n4; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:test = {
+    user = network:[any:[ip = 10.1.1.0/24 & area:all]];
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Area with border ouside of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+area:n1-3 = { inclusive_border = interface:asa3.n4; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:test = {
+    user = network:[area:n1-3] &! network:n3 &! network:n2;
+    permit src = user; dst = network:n2; prt = tcp;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Zone ouside of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;  }
+network:n2 = { ip = 10.1.2.0/24;  }
+network:n3 = { ip = 10.2.3.0/24;  }
+network:n4 = { ip = 10.2.4.0/24;  }
+any:n4 = { link = network:n4; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.2.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n3 = { ip = 10.2.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.2.4.1; hardware = n4; }
+}
+area:n2-4 = { inclusive_border = interface:r1.n1; }
+service:s1 = {
+ user = network:[any:[ip = 10.1.0.0/16 & area:n2-4]];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+($out = $in) =~ s/^any:n4.*\n//mg;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Replace empty area by empty group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+router:r3 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:un = { unnumbered; hardware = un;
+ }
+}
+network:un = { unnumbered; }
+
+area:a = { inclusive_border = interface:r3.n4; }
+
+service:s1 = {
+ user = network:n2, network:[area:a];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+group:empty-area = ;
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n2, network:[group:empty-area];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Mark supernet having identity NAT';
 ############################################################
 
@@ -515,6 +651,131 @@ router:asa1 = {
 service:s1 = {
     user = network:n1_subsub;
     permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Mark networks inside aggregate';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.3.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:un = { unnumbered; }
+any:n1-3 = { ip = 10.1.0.0/16; link = network:un; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n0;
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r2 = {
+ interface:n3;
+ interface:un;
+}
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:un = { unnumbered; hardware = un; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = any:n1-3;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+($out = $in) =~ s/^.*:n0.*\n//mg;
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Matching aggregate without matching network';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+any:10_2_0_0 = { ip = 10.2.0.0/16; link = network:n3; }
+service:s1 = {
+ user = any:10_2_0_0;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Mark unmanaged at end of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3;
+}
+group:g1 = host:h3, interface:r2.n2;
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Mark 2x unmanaged at end of path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;  }
+network:n2 = { ip = 10.1.2.0/24;  }
+network:n3 = { ip = 10.1.3.0/24;  }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+ interface:L = { ip = 10.9.9.2; loopback; }
+}
+router:r3 = {
+ interface:n3;
+ interface:L = { ip = 10.9.9.3; loopback; }
+}
+service:test = {
+ user = interface:r2.L, interface:r3.L;
+ permit src = network:n1; dst = user; prt = tcp 22;
 }
 END
 
@@ -566,6 +827,68 @@ network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove interface with virtual address';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = n1;
+ }
+ interface:lo = {
+  virtual = { ip = 10.1.4.1; type = VRRP; }
+  loopback;
+  hardware = lo;
+ }
+ interface:n2 = {
+  virtual = { ip = 10.1.2.1; type = VRRP; }
+  hardware = n2;
+ }
+ interface:n3 = {
+  virtual = { ip = 10.1.3.1; type = VRRP; }
+  hardware = n3;
+ }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = VRRP; }
+  hardware = n1;
+ }
+ interface:n2 = {
+  virtual = { ip = 10.1.2.1; type = VRRP; }
+  hardware = n2;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = network:n2; dst = user; prt = tcp 80;
 }
 END
 
@@ -1018,6 +1341,56 @@ $in =~ s/general_permit/#general_permit/;
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove unused tags of bind_nat';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+network:n4 = { ip = 10.1.4.0/24; nat:n4 = { ip = 10.9.4.0/24; } }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3, n4; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
+}
+router:asa3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:test = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { ip = 10.9.3.0/24; } }
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n2; }
+}
+service:test = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Bridged network';
 ############################################################
 
@@ -1416,6 +1789,95 @@ END
 $out = $in;
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Unenforceable rule';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2, network:n4;
+        prt = tcp 22;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Negated auto interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n2-3 = { border = interface:r1.n2; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = interface:[managed & area:n2-3].[auto]
+        &! interface:r3.[auto];
+ permit src = user; dst = network:n1; prt = udp 123;
+}
+END
+
+test_run($title, $in, $in);
+
+############################################################
+$title = 'Negated interface';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = interface:r1.[all] &! interface:r1.n3 &! interface:r1.n1;
+ permit src = user; dst = network:n1; prt = tcp 22;
+}
+END
+
+test_run($title, $in, $in);
 
 ############################################################
 done_testing;
