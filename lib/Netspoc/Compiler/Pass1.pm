@@ -18386,8 +18386,10 @@ sub print_acls {
                                                              $dst_no_nat_set))
                           }
                           @{ $rule->{dst} } ];
-                    $new_rule->{prt} = [ map { $_->{printed} ||= print_prt($_) }
-                                         @{ $rule->{prt} } ];
+                    $new_rule->{prt} = 
+                        $rule->{printed_prt} ||=
+                        [ map { $_->{printed} ||= print_prt($_) }
+                          @{ $rule->{prt} } ];
                     if (my $src_range = $rule->{src_range}) {
                         $new_rule->{src_range} =
                             $src_range->{printed} ||= print_prt($src_range);
