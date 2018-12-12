@@ -3383,6 +3383,54 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'acl_use_real_ip with secondary optimization';
+############################################################
+
+$in = <<'END';
+network:n1 =  { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.1.0/24; } }
+
+router:r1 = {
+ managed = secondary;
+ model = ASA;
+ routing = manual;
+ acl_use_real_ip;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; bind_nat = n1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ nat:n2 = { ip = 10.2.2.0/24; }
+ host:h2 = { ip = 10.1.2.10; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'NAT at loopback network (1)';
 ############################################################
 

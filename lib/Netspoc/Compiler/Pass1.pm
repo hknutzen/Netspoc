@@ -18263,6 +18263,10 @@ sub print_acls {
             # Collect networks forbidden in secondary optimization.
             my %no_opt_addrs;
 
+            # Collect objects in %opt_addr and %no_opt_addrs, that need
+            # $dst_no_nat_set for address calculation.
+            my %dst_obj;
+
             my $no_nat_set = delete $acl->{no_nat_set};
             my $addr_cache = $nat2obj2address{$no_nat_set} ||= {};
             my $dst_no_nat_set = delete $acl->{dst_no_nat_set} || $no_nat_set;
@@ -18317,6 +18321,10 @@ sub print_acls {
                         or $standard_filter and $rule->{some_primary})
                     {
                         for my $where (qw(src dst)) {
+                            my $dst_nat =
+                                $where eq 'dst' &&
+                                $no_nat_set ne $dst_no_nat_set;
+
                             my $obj_list = $rule->{$where};
                             for my $obj (@$obj_list) {
 
@@ -18347,6 +18355,7 @@ sub print_acls {
                                     {
                                         if ($no_opt->{$net}) {
                                             $no_opt_addrs{$obj} = $obj;
+                                            $dst_nat and $dst_obj{$obj} = 1;
                                             next;
                                         }
                                     }
@@ -18368,6 +18377,7 @@ sub print_acls {
                                     # supernet rules.
                                     if ($obj->{has_other_subnet}) {
                                         $no_opt_addrs{$obj} = $obj;
+                                        $dst_nat and $dst_obj{$obj} = 1;
                                         next;
 
                                     }
@@ -18375,6 +18385,7 @@ sub print_acls {
                                     $subst = $max;
                                 }
                                 $opt_addr{$subst} = $subst;
+                                $dst_nat and $dst_obj{$subst} = 1;
                             }
                         }
                         $new_rule->{opt_secondary} = 1;
@@ -18390,8 +18401,10 @@ sub print_acls {
                                                              $dst_no_nat_set))
                           }
                           @{ $rule->{dst} } ];
-                    $new_rule->{prt} = [ map { $_->{printed} ||= print_prt($_) }
-                                         @{ $rule->{prt} } ];
+                    $new_rule->{prt} =
+                        $rule->{printed_prt} ||=
+                        [ map { $_->{printed} ||= print_prt($_) }
+                          @{ $rule->{prt} } ];
                     if (my $src_range = $rule->{src_range}) {
                         $new_rule->{src_range} =
                             $src_range->{printed} ||= print_prt($src_range);
@@ -18415,15 +18428,19 @@ sub print_acls {
             if (values %opt_addr) {
                 $acl->{opt_networks} = [
                     sort
-                    map { $addr_cache->{$_} ||=
-                              full_prefix_code(address($_, $no_nat_set)) }
+                    map {   $dst_obj{$_}
+                          ? full_prefix_code(address($_, $dst_no_nat_set))
+                          : ($addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $no_nat_set))) }
                     values %opt_addr ];
             }
             if (values %no_opt_addrs) {
                 $acl->{no_opt_addrs} = [
                     sort
-                    map { $addr_cache->{$_} ||=
-                              full_prefix_code(address($_, $no_nat_set)) }
+                    map {   $dst_obj{$_}
+                          ? full_prefix_code(address($_, $dst_no_nat_set))
+                          : ($addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $no_nat_set))) }
                     values %no_opt_addrs ];
             }
             push @acl_list, $acl;
