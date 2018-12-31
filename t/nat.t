@@ -3274,16 +3274,19 @@ router:r2 = {
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
 
 service:test = {
- user = network:extern;
- permit src = user; dst = network:n1, network:n2; prt = tcp 80;
- permit src = network:n1, network:n2; dst = user; prt = tcp 22;
+ user = network:n1, network:n2, network:n3;
+ permit src = network:extern; dst = user; prt = tcp 80;
+ permit src = user; dst = network:extern; prt = tcp 22;
 }
 END
 
 $out = <<'END';
 -- r1
 ! n1_in
-access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.3.0 255.255.255.0
+access-list n1_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
@@ -3293,20 +3296,23 @@ access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! t_in
-object-group network g0
+object-group network g1
  network-object 10.1.1.0 255.255.255.0
- network-object 10.1.2.0 255.255.255.0
-access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
+ network-object 10.1.2.0 255.255.254.0
+access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g1 eq 80
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 -- r2
 ! t_in
-access-list t_in extended permit tcp 2.2.0.0 255.255.254.0 2.2.2.0 255.255.255.0 eq 22
+object-group network g0
+ network-object 2.2.0.0 255.255.254.0
+ network-object 10.1.3.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 --
 ! outside_in
-access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 2.2.0.0 255.255.254.0 eq 80
+access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
