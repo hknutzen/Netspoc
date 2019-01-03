@@ -174,9 +174,9 @@ END
 # Netspoc doesn't show original aggregate names.
 $out = <<"END";
 Warning: Duplicate elements in user of service:t1:
- any:[ip=10.0.0.0/13 & network:Trans1]
- any:[ip=10.0.0.0/13 & network:Trans1]
- any:[ip=10.0.0.0/13 & network:Trans1]
+ - any:[ip=10.0.0.0/13 & network:Trans1]
+ - any:[ip=10.0.0.0/13 & network:Trans1]
+ - any:[ip=10.0.0.0/13 & network:Trans1]
 -- filter1
 ! VLAN1_in
 access-list VLAN1_in extended permit tcp 10.0.0.0 255.240.0.0 10.9.1.0 255.255.255.0 eq 81
