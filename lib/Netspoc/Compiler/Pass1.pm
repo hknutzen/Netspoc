@@ -6678,9 +6678,12 @@ sub check_service_owner {
             my $unexpanded = $rule->{rule};
             my $service    = $unexpanded->{service};
             my $name       = $service->{name};
-            my $info       = $sname2info{$name} ||= {};
+            my $info       = $sname2info{$name} ||= {
+                service => $service,
 
-            $info->{service} = $service;
+                # Is set, if all rules are coupling rules.
+                is_coupling => 1,
+            };
 
             # Non 'user' objects.
             my $objects = $info->{objects} ||= {};
@@ -6688,11 +6691,11 @@ sub check_service_owner {
             # Check, if service contains a coupling rule with only
             # "user" elements.
             my $has_user = $unexpanded->{has_user};
-            if ($has_user eq 'both') {
-                $info->{is_coupling} = 1;
-            }
-            elsif (delete $rule->{reversed}) { # Attribute is no longer needed.
-                $has_user = $has_user eq 'src' ? 'dst' : 'src';
+            if ($has_user ne 'both') {
+                delete $info->{is_coupling};
+                if (delete $rule->{reversed}) { # Attribute is no longer needed.
+                    $has_user = $has_user eq 'src' ? 'dst' : 'src';
+                }
             }
 
             # Collect objects referenced in rules of service.
