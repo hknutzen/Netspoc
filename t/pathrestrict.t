@@ -89,9 +89,9 @@ router:r1 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:top = { ip = 10.1.1.1; hardware = Vlan1; }
- interface:lft = { ip = 10.3.1.245; hardware = Ethernet1; }
- interface:dst = { ip = 10.1.2.1; hardware = Vlan2; }
+ interface:top = { ip = 10.1.1.1; hardware = top; }
+ interface:lft = { ip = 10.3.1.245; hardware = lft; }
+ interface:dst = { ip = 10.1.2.1; hardware = dst; }
 }
 network:lft = { ip = 10.3.1.244/30;}
 
@@ -99,9 +99,9 @@ router:r2 = {
  managed;
  model = IOS, FW;
  routing = manual;
- interface:top = { ip = 10.1.1.2; hardware = Vlan3; }
- interface:rgt = { ip = 10.3.1.129; hardware = Ethernet3; }
- interface:dst = { ip = 10.1.2.2; hardware = Vlan4; }
+ interface:top = { ip = 10.1.1.2; hardware = top; }
+ interface:rgt = { ip = 10.3.1.129; hardware = rgt; }
+ interface:dst = { ip = 10.1.2.2; hardware = dst; }
 }
 network:rgt = { ip = 10.3.1.128/30;}
 
@@ -166,25 +166,25 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  permit tcp 10.3.1.128 0.0.0.3 host 10.1.1.1 established
  deny ip any any
 --
-ip access-list extended Ethernet1_in
+ip access-list extended lft_in
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  deny ip any any
 -- r2
-ip access-list extended Vlan3_in
+ip access-list extended top_in
  deny ip any host 10.3.1.129
  permit tcp host 10.1.1.1 10.3.1.128 0.0.0.3 eq 80
  deny ip any any
 --
-ip access-list extended Ethernet3_in
+ip access-list extended rgt_in
  deny ip any any
 --
-ip access-list extended Vlan4_in
+ip access-list extended dst_in
  deny ip any any
 END
 
@@ -212,27 +212,27 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  permit tcp 10.1.2.0 0.0.0.255 host 10.1.1.1 established
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 established
  deny ip any any
 --
-ip access-list extended Ethernet1_in
+ip access-list extended lft_in
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  permit tcp 10.1.2.0 0.0.0.255 host 10.1.1.1 established
  deny ip any any
 -- r2
-ip access-list extended Vlan3_in
+ip access-list extended top_in
  deny ip any host 10.1.2.2
  permit tcp host 10.1.1.1 10.1.2.0 0.0.0.255 eq 80
  deny ip any any
 --
-ip access-list extended Ethernet3_in
+ip access-list extended rgt_in
  deny ip any any
 --
-ip access-list extended Vlan4_in
+ip access-list extended dst_in
  deny ip any any
 END
 
@@ -259,14 +259,14 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 established
  deny ip any any
 -- r2
-ip access-list extended Vlan4_in
+ip access-list extended dst_in
  deny ip any host 10.1.1.2
  permit tcp host 10.1.2.1 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
@@ -297,10 +297,10 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 80
  deny ip any any
 END
@@ -331,11 +331,11 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.3.1.245 eq 80
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  deny ip any any
 END
 
@@ -363,11 +363,11 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended Vlan1_in
+ip access-list extended top_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 179
  deny ip any any
 --
-ip access-list extended Vlan2_in
+ip access-list extended dst_in
  deny ip any any
 END
 

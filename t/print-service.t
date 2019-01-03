@@ -39,15 +39,15 @@ network:n3 = { ip = 10.1.3.0/24; host:range3 = { range = 10.1.3.9-10.1.3.10; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = N; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = N; }
 }
 END
 

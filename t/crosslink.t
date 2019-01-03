@@ -15,8 +15,8 @@ network:n1 = { ip = 10.1.1.0/27; }
 router:r1 = {
  model = ASA;
  managed = _1;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:cr = { ip = 10.3.3.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
 }
 
 network:cr = { ip = 10.3.3.0/29; crosslink; }
@@ -24,8 +24,8 @@ network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
  model = NX-OS;
  managed = _2;
- interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/27; }
@@ -41,8 +41,8 @@ $in =~ s/_2/full/;
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended permit ip any4 any4
-access-group vlan2_in in interface vlan2
+access-list cr_in extended permit ip any4 any4
+access-group cr_in in interface cr
 END
 
 test_run($title, $in, $out);
@@ -57,8 +57,8 @@ $in =~ s/_2/secondary/;
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+access-list cr_in extended deny ip any4 any4
+access-group cr_in in interface cr
 END
 
 test_run($title, $in, $out);
@@ -88,8 +88,8 @@ network:n1 = { ip = 10.1.1.0/27; }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:cr = { ip = 10.3.3.1; virtual = {ip = 10.3.3.3;} hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; virtual = {ip = 10.3.3.3;} hardware = cr; }
 }
 
 network:cr = { ip = 10.3.3.0/29; crosslink; }
@@ -97,8 +97,8 @@ network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r2 = {
  model = NX-OS;
  managed;
- interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/27; }
@@ -118,8 +118,8 @@ network:n1 = { ip = 10.1.1.0/27; }
 router:r1 = {
  model = ASA;
  managed = standard;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:cr = { ip = 10.3.3.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = cr; }
 }
 
 network:cr = { ip = 10.3.3.0/29; crosslink; }
@@ -128,8 +128,8 @@ router:r2 = {
  model = NX-OS;
  managed = local;
  filter_only =  10.2.0.0/15;
- interface:cr = { ip = 10.3.3.2; hardware = vlan3; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan4; }
+ interface:cr = { ip = 10.3.3.2; hardware = cr; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/27; }
@@ -147,8 +147,8 @@ END
 
 $out = <<'END';
 -r1
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+access-list cr_in extended deny ip any4 any4
+access-group cr_in in interface cr
 END
 
 test_run($title, $in, $out);

@@ -22,15 +22,15 @@ router:r = {
  managed = routing_only;
  model = ASA;
  policy_distribution_point = host:h3;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 service:test = {
  user = host:h3;
@@ -43,7 +43,7 @@ $out = <<'END';
 ! [ IP = 10.1.2.1 ]
 --
 ! [ Routing ]
-route vlan2 10.1.3.0 255.255.255.0 10.1.2.2
+route n2 10.1.3.0 255.255.255.0 10.1.2.2
 END
 
 test_run($title, $in, $out);
@@ -59,8 +59,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r = {
  managed = routing_only;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:test = {
  user = host:h1;

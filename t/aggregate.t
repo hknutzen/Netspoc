@@ -1276,8 +1276,8 @@ router:r = {
  model = IOS, FW;
  routing = manual;
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
- interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
- interface:n2 = { ip = 10.1.2.1; hardware = VLAN2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = N1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = N2; }
 }
 
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2205,15 +2205,15 @@ network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 
 service:s1 = {
@@ -2249,14 +2249,14 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
 
 service:s1 = {
@@ -2362,8 +2362,8 @@ network:n4sub = { ip = 10.1.4.32/27; subnet_of = network:n4; }
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:u1 = {
@@ -2374,8 +2374,8 @@ router:u1 = {
 router:r2 = {
  managed;
  model = IOS, FW;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 
 router:u2 = {

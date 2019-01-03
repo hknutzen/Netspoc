@@ -33,9 +33,9 @@ router:filter = {
  managed;
  model = Linux;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
- interface:n2 = { ip = 10.2.2.1; hardware = VLAN2; }
- interface:n3 = { ip = 10.3.3.1; hardware = VLAN3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n3; }
 }
 
 network:n2 = {
