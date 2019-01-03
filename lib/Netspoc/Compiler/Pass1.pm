@@ -7320,6 +7320,9 @@ sub collect_duplicate_rules {
     $service->{has_same_dupl}->{$oservice} = $oservice;
     $oservice->{has_same_dupl}->{$service} = $service;
 
+    # Return early, so {overlaps_used} isn't set below.
+    return if $rule->{overlaps} and $other->{overlaps};
+
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7336,7 +7339,6 @@ sub collect_duplicate_rules {
             }
         }
     }
-    return if $rule->{overlaps} and $other->{overlaps};
 
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }

@@ -187,6 +187,39 @@ END
 test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
 
 ############################################################
+$title = 'Find fully redundant rules even if protocol suppresses warning';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.2; }}
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+protocol:Ping_Net = icmp 8, src_net, dst_net, overlaps;
+
+service:s1 = {
+ user = host:h1;
+ permit src = user; dst = network:n2; prt = protocol:Ping_Net;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = protocol:Ping_Net;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 is fully redundant
+END
+
+test_warn($title, $in, $out, '--check_fully_redundant_rules=warn');
+
+############################################################
 $title = 'Show all redundant rules, not only the smallest one';
 ############################################################
 

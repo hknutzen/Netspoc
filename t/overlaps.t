@@ -27,6 +27,7 @@ router:filter = {
 network:N = {
  ip = 10.1.1.0/24;
  host:h1 = {   ip = 10.1.1.10;  }
+ host:h2 = {   ip = 10.1.1.11;  }
 }
 END
 
@@ -176,6 +177,36 @@ Warning: Redundant rules in service:test1a compared to service:test2:
   permit src=host:h1; dst=network:Test; prt=protocol:ssh; of service:test1a
 < permit src=host:h1; dst=network:Test; prt=tcp; of service:test2
 DIAG: Removed duplicate permit src=host:h1; dst=network:Test; prt=tcp 22; of service:test1b
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Show useless overlap, if warning was suppressed by modifier';
+############################################################
+
+$in = $topo . <<'END';
+protocol:Ping_Net = icmp 8, src_net, dst_net, overlaps;
+
+service:s1 = {
+ overlaps = service:s2;
+ user = network:Test;
+ permit src = user;
+        dst = host:h1;
+        prt = tcp 80, protocol:Ping_Net;
+}
+
+service:s2 = {
+ user = network:Test;
+ permit src = user;
+	dst = host:h2;
+	prt = tcp 80, protocol:Ping_Net;
+}
+END
+
+$out = <<'END';
+Warning: Useless 'overlaps = service:s2' in service:s1
+DIAG: Removed duplicate permit src=network:Test; dst=network:N; prt=protocol:Ping_Net; of service:s2
 END
 
 test_warn($title, $in, $out);
