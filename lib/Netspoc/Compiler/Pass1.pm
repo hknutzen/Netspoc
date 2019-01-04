@@ -15568,9 +15568,7 @@ sub add_end_routes {
     # For every dst network, check the hops that can be used to get there.
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
-        my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
-          or internal_err("Missing route for $network->{name}",
-                          " at $interface->{name}");
+        my $hops = $route_in_zone->{default} || $route_in_zone->{$network};
 
         # Store the used hops and routes within the interface object.
         for my $hop (@$hops) {
@@ -15973,9 +15971,7 @@ sub check_and_convert_routes {
             elsif ($real_net->{zone} eq $peer_net->{zone}) {
                 my $route_in_zone = $real_intf->{route_in_zone};
                 my $hops =
-                  ($route_in_zone->{default} || $route_in_zone->{$peer_net})
-                  or internal_err("Missing route for $peer_net->{name}",
-                                  " at $real_intf->{name} ");
+                    $route_in_zone->{default} || $route_in_zone->{$peer_net};
                 push @hops, @$hops;
             }
 
@@ -15990,10 +15986,7 @@ sub check_and_convert_routes {
                 my @zone_hops;
                 my $walk = sub {
                     my (undef,  $in_intf, $out_intf) = @_;
-                    $in_intf               or internal_err("No in_intf");
                     $in_intf eq $real_intf or return;
-                    $out_intf              or internal_err("No out_intf");
-                    $out_intf->{network}   or internal_err "No out net";
                     push @zone_hops, $out_intf;
                 };
                 single_path_walk($pseudo_rule, $walk, 'Zone');
@@ -16005,12 +15998,8 @@ sub check_and_convert_routes {
                         push @hops, $hop;
                     }
                     else {
-                        my $hops =
-                          (      $route_in_zone->{default}
-                              || $route_in_zone->{$hop_net})
-                          or
-                          internal_err("Missing route for $hop_net->{name}",
-                            " at $real_intf->{name}");
+                        my $hops = $route_in_zone->{default} ||
+                            $route_in_zone->{$hop_net};
                         push @hops, @$hops;
                     }
                 }
