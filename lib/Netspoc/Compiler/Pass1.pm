@@ -15522,6 +15522,9 @@ sub set_routes_in_zone {
 #              $dst_networks - destination networks of associated pseudo rule.
 # Results    : $in_intf holds routing information that $dst_networks are
 #              reachable via next hop interface H.
+# Comment    : $dst_networks are converted to @nat_nets, before storing as
+#              routing information, because NAT addresses are used in
+#              static routes.
 sub add_path_routes {
     my ($in_intf, $out_intf, $dst_networks) = @_;
 
@@ -15530,19 +15533,21 @@ sub add_path_routes {
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
+    my $no_nat_set = $in_intf->{no_nat_set};
+    my @nat_nets = map { get_nat_network($_, $no_nat_set) } @$dst_networks;
 
     # Identify hop interface(s).
     # Store hop interfaces and routing information within in_intf.
     if ($in_net eq $out_net) {
         $in_intf->{hopref2obj}->{$out_intf} = $out_intf;
-        @{ $in_intf->{routes}->{$out_intf} }{@$dst_networks} = @$dst_networks;
+        @{ $in_intf->{routes}->{$out_intf} }{@nat_nets} = @nat_nets;
     }
     else {
         my $route_in_zone = $in_intf->{route_in_zone};
         my $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
         for my $hop (@$hops) {
             $in_intf->{hopref2obj}->{$hop} = $hop;
-            @{ $in_intf->{routes}->{$hop} }{@$dst_networks} = @$dst_networks;
+            @{ $in_intf->{routes}->{$hop} }{@nat_nets} = @nat_nets;
         }
     }
 }
@@ -15556,6 +15561,9 @@ sub add_path_routes {
 #              $dst_networks - destination networks inside the same zone.
 # Results    : $interface holds routing entries about which hops to use to
 #              reach the networks specified in $dst_networks.
+# Comment    : $dst_networks are converted to $nat_net, before storing as
+#              routing information, because NAT addresses are used in
+#              static routes.
 sub add_end_routes {
     my ($interface, $dst_networks) = @_;
 
@@ -15564,17 +15572,19 @@ sub add_end_routes {
 
     my $intf_net      = $interface->{network};
     my $route_in_zone = $interface->{route_in_zone};
+    my $no_nat_set    = $interface->{no_nat_set};
 
     # For every dst network, check the hops that can be used to get there.
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
+        my $nat_net = get_nat_network($network, $no_nat_set);
         my $hops = $route_in_zone->{default} || $route_in_zone->{$network};
 
         # Store the used hops and routes within the interface object.
         for my $hop (@$hops) {
             $interface->{hopref2obj}->{$hop} = $hop;
-#	     debug("$interface->{name} -> $hop->{name}: $network->{name}");
-            $interface->{routes}->{$hop}->{$network} = $network;
+#	         debug("$interface->{name} -> $hop->{name}: $nat_net->{name}");
+            $interface->{routes}->{$hop}->{$nat_net} = $nat_net;
         }
     }
 }
@@ -16042,7 +16052,9 @@ sub check_and_convert_routes {
 
             # Add route to reach peer interface.
             if ($peer_net ne $real_net) {
-                $hop_routes->{$peer_net} = $peer_net;
+                my $no_nat_set = $real_intf->{no_nat_set};
+                my $nat_net = get_nat_network($peer_net, $no_nat_set);
+                $hop_routes->{$nat_net} = $nat_net;
             }
         }
 
@@ -16205,10 +16217,6 @@ sub print_routes {
         if ($asa_crypto and $interface->{hub}) {
             $do_auto_default_route = 0;
         }
-        my $hardware = $interface->{hardware};
-        my $no_nat_set =
-            $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
-
         my $routes = $interface->{routes};
         for my $hop (@{ $interface->{hopref2obj} }) {
             my $hop_info = [ $interface, $hop ];
@@ -16216,8 +16224,7 @@ sub print_routes {
             # A hash having all networks reachable via current hop
             # both as key and as value.
             my $net_hash = $routes->{$hop};
-            for my $network (values %$net_hash) {
-                my $nat_network = get_nat_network($network, $no_nat_set);
+            for my $nat_network (values %$net_hash) {
                 next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip eq $zero_ip and $mask eq $zero_ip) {
