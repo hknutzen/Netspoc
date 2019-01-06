@@ -649,9 +649,9 @@ END
 
 $out = <<'END';
 Warning: Duplicate elements in group:g1:
- network:n2
- network:n1
- network:n2
+ - network:n2
+ - network:n1
+ - network:n2
 END
 
 test_warn($title, $in, $out);

@@ -106,7 +106,7 @@ END
 
 $out = <<'END';
 Warning: Duplicate elements in dst of rule in service:test:
- host:h1
+ - host:h1
 END
 
 test_warn($title, $in, $out);

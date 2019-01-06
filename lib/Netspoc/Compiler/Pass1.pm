@@ -5359,8 +5359,8 @@ sub remove_duplicates {
     }
     if (@duplicates) {
         aref_delete($aref, $_) for @duplicates;
-        warn_msg("Duplicate elements in $context:\n ",
-                 join "\n ", map { $_->{name} } @duplicates);
+        warn_msg("Duplicate elements in $context:\n",
+                 name_list(\@duplicates));
     }
 }
 
@@ -6595,12 +6595,11 @@ sub propagate_owners {
             push @invalid, $zone;
         }
         if (@invalid) {
-            my $missing = join("\n - ", map { $_->{name} } @invalid);
             err_msg(
                 "$owner->{name} has attribute 'show_all',",
                 " but doesn't own whole topology.\n",
                 " Missing:\n",
-                " - $missing"
+                name_list(\@invalid)
             );
         }
     }
@@ -6678,9 +6677,12 @@ sub check_service_owner {
             my $unexpanded = $rule->{rule};
             my $service    = $unexpanded->{service};
             my $name       = $service->{name};
-            my $info       = $sname2info{$name} ||= {};
+            my $info       = $sname2info{$name} ||= {
+                service => $service,
 
-            $info->{service} = $service;
+                # Is set, if all rules are coupling rules.
+                is_coupling => 1,
+            };
 
             # Non 'user' objects.
             my $objects = $info->{objects} ||= {};
@@ -6688,11 +6690,11 @@ sub check_service_owner {
             # Check, if service contains a coupling rule with only
             # "user" elements.
             my $has_user = $unexpanded->{has_user};
-            if ($has_user eq 'both') {
-                $info->{is_coupling} = 1;
-            }
-            elsif (delete $rule->{reversed}) { # Attribute is no longer needed.
-                $has_user = $has_user eq 'src' ? 'dst' : 'src';
+            if ($has_user ne 'both') {
+                delete $info->{is_coupling};
+                if (delete $rule->{reversed}) { # Attribute is no longer needed.
+                    $has_user = $has_user eq 'src' ? 'dst' : 'src';
+                }
             }
 
             # Collect objects referenced in rules of service.
@@ -7317,6 +7319,9 @@ sub collect_duplicate_rules {
     $service->{has_same_dupl}->{$oservice} = $oservice;
     $oservice->{has_same_dupl}->{$service} = $service;
 
+    # Return early, so {overlaps_used} isn't set below.
+    return if $rule->{overlaps} and $other->{overlaps};
+
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7333,7 +7338,6 @@ sub collect_duplicate_rules {
             }
         }
     }
-    return if $rule->{overlaps} and $other->{overlaps};
 
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
@@ -10647,8 +10651,7 @@ sub check_attr_no_check_supernet_rules {
             err_msg("Must not use attribute 'no_check_supernet_rules'",
                     " at $zone->{name}\n",
                     " with networks having host definitions:\n",
-                    " - ",
-                    join "\n - ", map { $_->{name} } @$bad_networks);
+                    name_list($bad_networks));
         }
     }
 }
@@ -10784,8 +10787,7 @@ sub set_area {
             $in_loop,
             ".\n",
             " It is reached from outside via this path:\n",
-            " - ",
-            join("\n - ", map { $_->{name} } reverse @$err_path)
+            name_list([reverse @$err_path])
         );
         return 1;
     }
@@ -10832,8 +10834,8 @@ sub set_areas {
                 my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
                   or next;
                 err_msg(
-                    "Unreachable $attr of $area->{name}:\n - ",
-                    join("\n - ", map { $_->{name} } @bad_intf)
+                    "Unreachable $attr of $area->{name}:\n",
+                    name_list(\@bad_intf)
                 );
                 $area->{$attr} =
                   [ grep { $lookup->{$_} eq 'found' } @$borders ];
@@ -14969,8 +14971,7 @@ sub check_unstable_nat_rules {
                 err_msg("Must not use $obj->{name} in rule\n",
                         " ", print_rule($rule), ",\n",
                         " because it is no longer supernet of\n",
-                        " - ",
-                        join("\n - ", map { $_->{name} } @$subnets),
+                        name_list($subnets),
                         "\n",
                         " at $intf->{name}");
             }
@@ -15246,9 +15247,6 @@ sub check_dynamic_nat_rules {
                     grep({ $no_nat_set2active_tags
                            {$_->{no_nat_set}}->{$nat_tag} }
                          @$interfaces);
-                my $names = join("\n - ",
-                                 map { $_->{name} }
-                                 sort by_name unique @nat_interfaces);
                 my $type = $is_hidden ? 'hidden' : 'dynamic';
                 err_msg(
                     "Must not apply $type NAT '$nat_tag' on path\n",
@@ -15257,7 +15255,8 @@ sub check_dynamic_nat_rules {
                     " rule\n",
                     " ", $show_rule->(), "\n",
                     " NAT '$nat_tag' is active at\n",
-                    " - $names\n",
+                    name_list([unique sort by_name @nat_interfaces]),
+                    "\n",
                     " Add pathrestriction to exclude this path"
                     );
                 aref_delete($to_check, $nat_tag);
@@ -16035,14 +16034,13 @@ sub check_and_convert_routes {
                 # for the encrypted traffic which is allowed
                 # by gen_tunnel_rules (even for negotiated interface).
                 my $count = @hops;
-                my $names = join('', map({ "\n - $_->{name}" } @hops));
                 err_msg(
                     "Can't determine next hop to reach $peer_net->{name}",
                     " while moving routes\n",
                     " of $interface->{name} to $real_intf->{name}.\n",
                     " Exactly one route is needed,",
-                    " but $count candidates were found:",
-                    $names
+                    " but $count candidates were found:\n",
+                    name_list(\@hops)
                 );
             }
 

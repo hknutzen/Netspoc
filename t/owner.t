@@ -138,15 +138,15 @@ network:n3 = { ip = 10.1.3.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 END
 
@@ -322,9 +322,9 @@ network:n3 = { ip = 10.1.3.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 END
 
@@ -412,7 +412,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 END
 
@@ -488,7 +488,7 @@ network:n1 = { ip = 10.1.1.0/24;
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 END
 
@@ -513,8 +513,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.1.2.0/24; owner = o2; }
@@ -546,8 +546,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 network:n2 = {
@@ -592,8 +592,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 network:n2 = {
@@ -611,6 +611,43 @@ END
 $out = <<'END';
 Warning: service:s1 has multiple owners:
  o1, o2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'multi_owner with mixed coupling rules';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = user; prt = tcp 80;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 has multiple owners:
+ o1, o2, o3
 END
 
 test_warn($title, $in, $out);

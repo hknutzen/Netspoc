@@ -19,15 +19,15 @@ network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 END
 
@@ -185,8 +185,8 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.3; hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa2.n2; }
@@ -240,15 +240,15 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.3; hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 router:asa4 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 10.1.3.3; hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
 area:a1 = { border = interface:asa3.n4;
@@ -276,8 +276,8 @@ router:asa3 = {
  managed;
  model = ASA;
  interface:n2 = {
-  ip = 10.1.2.3; secondary:2 = { ip = 10.1.2.4; } hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+  ip = 10.1.2.3; secondary:2 = { ip = 10.1.2.4; } hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 area:a1 = { border = interface:asa3.n2.2; }
@@ -303,8 +303,8 @@ router:asa3 = {
  managed;
  model = ASA;
  interface:n2 = {
-  ip = 10.1.2.3; secondary:virtual = { ip = 10.1.2.4; } hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+  ip = 10.1.2.3; secondary:virtual = { ip = 10.1.2.4; } hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 area:a1 = { border = interface:asa3.n2.virtual; }
@@ -330,16 +330,16 @@ router:asa3 = {
  managed;
  model = ASA;
  interface:n2 = {
-   ip = 10.1.2.3; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.1; hardware = vlan4; }
+   ip = 10.1.2.3; virtual = { ip = 10.1.2.10; } hardware = n2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 
 router:asa4 = {
  managed;
  model = ASA;
  interface:n2 = {
-   ip = 10.1.2.4; virtual = { ip = 10.1.2.10; } hardware = vlan2; }
- interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+   ip = 10.1.2.4; virtual = { ip = 10.1.2.10; } hardware = n2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
 area:a1 = {
@@ -372,19 +372,19 @@ router:asa1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 
 router:asa2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
- interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
- interface:n5 = { ip = 10.1.5.2; hardware = vlan5; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
 END
 
@@ -501,18 +501,18 @@ END
 
 $out = <<'END';
 -- asa1
-! vlan2_in
+! n2_in
 object-group network g0
  network-object 10.1.2.0 255.255.254.0
  network-object 10.1.4.0 255.255.255.0
-access-list vlan2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+access-list n2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 --
-! vlan3_in
-access-list vlan3_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
-access-list vlan3_in extended deny ip any4 any4
-access-group vlan3_in in interface vlan3
+! n3_in
+access-list n3_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
 END
 
 test_run($title, $in, $out);
@@ -530,14 +530,14 @@ END
 
 $out = <<'END';
 -- asa1
-! vlan1_in
-access-list vlan1_in extended permit icmp any4 any4
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit icmp any4 any4
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 -- asa2
-! vlan2_in
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
