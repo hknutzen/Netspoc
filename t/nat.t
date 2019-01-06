@@ -3998,4 +3998,35 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Must not compare networks of other partition';
+############################################################
+# network:n1a and :n1b would have identical IP in network:n3.
+
+$in = <<'END';
+network:n1a = { ip = 10.1.1.0/24;
+ nat:h1a = { hidden; }
+ partition = part1;
+}
+network:n1b = { ip = 10.1.1.0/24;
+ nat:h1b = { hidden; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = h1b; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1b; bind_nat = h1a; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; partition = part2; }
+router:r2 = {
+ interface:n3;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;
