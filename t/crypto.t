@@ -1423,9 +1423,9 @@ webvpn
 --
 ! outside_in
 access-list outside_in extended permit icmp any4 any4 3
+access-list outside_in extended permit icmp 10.1.2.0 255.255.255.0 10.99.1.10 255.255.255.254 8
 access-list outside_in extended permit tcp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 255.255.255.0 8
-access-list outside_in extended permit icmp 10.1.2.0 255.255.255.0 10.99.1.10 255.255.255.254 8
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
@@ -1532,9 +1532,9 @@ username foo@domain.x attributes
  vpn-filter value vpn-filter-foo@domain.x
 --
 ! outside_in
+access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended permit tcp host 10.99.1.10 10.7.7.0 255.255.255.0 eq 81
-access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
@@ -1778,218 +1778,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (1)';
-############################################################
-
-$in =~ s/hidden/ip = 10.2.2.0\/24; dynamic/;
-
-$out = <<'END';
-Error: Grouped NAT tags 'h' and 'n'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (2)';
-############################################################
-
-$in = $crypto_sts . <<'END';
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:Firewall = {
- managed;
- model = Linux;
- interface:internet = { negotiated; hardware = internet; bind_nat = a; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = b; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-
-network:n1 = {
- ip = 10.1.1.0/24;
- nat:a = { ip = 1.2.3.0/24; }
-}
-
-router:asavpn = {
- model = ASA, VPN;
- managed;
- radius_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:n1 = {
-  ip = 10.1.1.101;
-  hardware = inside;
- }
- interface:dmz = {
-  ip = 192.168.0.101;
-  hub = crypto:sts;
-  hardware = outside;
- }
-}
-
-network:dmz = { ip = 192.168.0.0/24; }
-
-router:extern = {
- interface:dmz = { ip = 192.168.0.1; }
- interface:internet;
-}
-
-network:internet = { ip = 0.0.0.0/0; has_subnets; }
-
-router:fw-extern = {
- managed;
- model = ASA;
- interface:internet = {
-  ip = 1.1.1.1;
-  bind_nat = a;
-  routing = dynamic;
-  hardware = outside;
- }
- interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
-}
-
-network:dmz1 = {
- ip = 10.254.254.0/24;
- nat:a = { ip = 1.2.4.0/24; }
- nat:b = { ip = 1.2.4.0/24; }
-}
-
-router:vpn1 = {
- interface:dmz1 = {
-  ip = 10.254.254.6;
-  id = cert@example.com;
-  spoke = crypto:sts;
- }
- interface:lan1;
-}
-
-network:lan1 = { ip = 10.99.1.0/24; }
-END
-
-$out = <<'END';
-Error: Original address and NAT tag 'a'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (3)';
-############################################################
-
-$in =~ s/network:n2/#/;
-$in =~ s/interface:n2/#/;
-$in =~ s/nat:b/#/;
-
-$out = <<'END';
-Error: Original address and NAT tag 'a'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (4)';
-############################################################
-
-$in = $crypto_sts . <<'END';
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:Firewall = {
- managed;
- model = Linux;
- interface:internet = { negotiated; hardware = internet; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = b; }
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a; }
-}
-
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-
-router:asavpn = {
- model = ASA, VPN;
- managed;
- radius_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
- interface:n1 = {
-  ip = 10.1.1.101;
-  hardware = inside;
- }
- interface:dmz = {
-  ip = 192.168.0.101;
-  hub = crypto:sts;
-  hardware = outside;
- }
-}
-
-network:dmz = { ip = 192.168.0.0/24; }
-
-router:extern = {
- interface:dmz = { ip = 192.168.0.1; }
- interface:internet;
-}
-
-network:internet = { ip = 0.0.0.0/0; has_subnets; }
-
-router:fw-extern = {
- managed;
- model = ASA;
- interface:internet = {
-  ip = 1.1.1.1;
-  routing = dynamic;
-  hardware = outside;
- }
- interface:dmz1 = { ip = 10.254.254.144; hardware = inside; }
-}
-
-network:dmz1 = {
- ip = 10.254.254.0/24;
- nat:a = { ip = 1.2.4.0/24; }
- nat:b = { ip = 1.2.4.0/24; }
-}
-
-router:vpn1 = {
- interface:dmz1 = {
-  ip = 10.254.254.6;
-  id = cert@example.com;
-  spoke = crypto:sts;
- }
- interface:lan1;
-}
-
-network:lan1 = { ip = 10.99.1.0/24; }
-END
-
-$out = <<'END';
-Error: Original address and NAT tag 'a'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid mixed NAT at ASA crypto interface (5)';
-############################################################
-
-$in =~ s/network:n2/#/;
-$in =~ s/interface:n2/#/;
-$in =~ s/nat:b/#/;
-
-$out = <<'END';
-Error: Original address and NAT tag 'a'
- would both be active at interface:asavpn.dmz
- for combined crypto and cleartext traffic
-END
-
-test_err($title, $in, $out);
-
-############################################################
 $title = 'Directly connected software clients';
 ############################################################
 
@@ -2126,8 +1914,8 @@ END
 $out = <<END;
 -- asavpn
 ! n2_in
-access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
 access-list n2_in extended permit ip 10.1.1.0 255.255.255.0 host 10.99.1.10
+access-list n2_in extended permit ip host 10.99.1.10 10.1.1.0 255.255.255.0
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END

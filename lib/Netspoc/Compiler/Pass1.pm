@@ -8703,69 +8703,6 @@ sub combine_no_nat_sets {
     return \%combined;
 }
 
-# Real interface of crypto tunnel has got {no_nat_set} of that NAT domain,
-# where encrypted traffic passes. But real interface gets ACL that filter
-# both encrypted and unencrypted traffic. Hence a new {crypto_no_nat_set}
-# is created by combining no_nat_set of real interface and no_nat_set
-# of some corresponding tunnel.
-# (All tunnels are known to have identical no_nat_set.)
-# no_nat_set of real interface is only needed to access public IP of
-# crypto peers. So we first build $reduced_set from $real_set only
-# containing NAT entries needed for crypto peers.
-# This way we reduce chance of conflict between both no_nat_sets.
-sub add_crypto_no_nat_set {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
-
-    # List of crypto peers for each real interface of crypto hub.
-    my %hub2peers;
-
-    # Internal no_nat_set used at tunnels of crypto hub.
-    my %hub2tunnel_set;
-
-    # List of real interfaces of crypto hubs.
-    my @hubs;
-
-    for my $crypto (values %crypto) {
-        for my $tunnel (@{ $crypto->{tunnels} }) {
-            next if $tunnel->{disabled};
-            my ($spoke, $hub) = @{ $tunnel->{interfaces} };
-            $hub->{router}->{managed} or next;
-            my $real_hub = $hub->{real_interface};
-            my $real_spoke = $spoke->{real_interface};
-            push @{ $hub2peers{$real_hub} }, $real_spoke;
-            if (not $hub2tunnel_set{$real_hub}) {
-                $hub2tunnel_set{$real_hub} = $hub->{no_nat_set};
-                push @hubs, $real_hub;
-            }
-        }
-    }
-    for my $hub (@hubs) {
-        my $tunnel_set = $hub2tunnel_set{$hub};
-        my $real_set = $hub->{no_nat_set};
-
-        # Find restricted set of NAT-tags needed to find NAT addresses
-        # - of crypto peers,
-        # - of next hop for static routing at $hub.
-        my %restrict_set;
-        for my $peer (@{ $hub2peers{$hub} }, $hub->{routing} ? () : $hub) {
-            my $href = $peer->{network}->{nat} or next;
-            for my $tag (keys %$href) {
-                $restrict_set{$tag} = 1;
-            }
-        }
-
-        # Take no_nat_set of tunnel and add needed tags from real interface.
-        # Show error in case of NAT conflict.
-        $hub->{hardware}->{crypto_no_nat_set} =
-            combine_no_nat_sets(
-                [$tunnel_set, $real_set],
-                \%restrict_set,
-                "$hub->{name}\n" .
-                " for combined crypto and cleartext traffic",
-                $nat_tag2multinat_def, $has_non_hidden);
-    }
-}
-
 #############################################################################
 # Purpose : Determine NAT domains and generate inverted NAT set (no_nat_set)
 #           for every NAT domain.
@@ -8784,7 +8721,6 @@ sub distribute_nat_info {
     check_interfaces_with_dynamic_nat();
     invert_nat_sets($natdomains);
     distribute_no_nat_sets_to_interfaces($natdomains);
-    add_crypto_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
 
     return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
@@ -16562,18 +16498,7 @@ sub distribute_rule {
                 $rule = { %$rule, src => $extra_hosts };
             }
         }
-
-        # Rules are needed at tunnel for generating
-        # detailed_crypto_acl or crypto_filter ACL.
-        elsif (not $no_crypto_filter or
-               $in_intf->{crypto}->{detailed_crypto_acl})
-        {
-            push @{ $in_intf->{$key} }, $rule;
-        }
-
-        if ($no_crypto_filter) {
-            push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
-        }
+        push @{ $in_intf->{$key} }, $rule;
     }
 
     # Remember outgoing interface.
@@ -17249,8 +17174,6 @@ EOF
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
-            delete $interface->{intf_rules};
-            delete $interface->{rules};
             my $rules = [ { src => $interface->{peer_networks},
                             dst => [ get_network_00($ipv6) ],
 
@@ -17482,8 +17405,7 @@ sub print_cisco_acls {
         # when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        my $no_nat_set =
-            $hardware->{crypto_no_nat_set} || $hardware->{no_nat_set};
+        my $no_nat_set = $hardware->{no_nat_set};
         my $dst_no_nat_set = $hardware->{dst_no_nat_set} || $no_nat_set;
 
         # Generate code for incoming and possibly for outgoing ACL.
@@ -17555,6 +17477,24 @@ sub print_cisco_acls {
                     }
                     if ($intf_ok == @{ $hardware->{interfaces} }) {
                         $acl_info->{filter_any_src} = 1;
+                    }
+                }
+
+                # Add ACL of corresponding tunnel interfaces.
+                # We have exactly one crypto interface per hardware.
+                my $interface = $hardware->{interfaces}->[0];
+                if (($interface->{hub} or $interface->{spoke}) and
+                    $router->{model}->{no_crypto_filter})
+                {
+                    for my $tunnel_intf (get_intf($router)) {
+                        my $real_intf = $tunnel_intf->{real_interface} or next;
+                        $real_intf eq $interface or next;
+                        my $tunnel_acl_info = {
+                            no_nat_set => $tunnel_intf->{no_nat_set},
+                            rules => $tunnel_intf->{rules},
+                            intf_rules => $tunnel_intf->{intf_rules},
+                        };
+                        push @{ $acl_info->{sub_acl_list} }, $tunnel_acl_info;
                     }
                 }
             }
@@ -18241,11 +18181,8 @@ sub print_acls {
             }
         }
 
-        my $aref = delete $router->{acl_list} or next;
-        for my $acl (@$aref) {
-
-            # Don't modify loop variable.
-            my $acl = $acl;
+        my $process = sub {
+            my ($acl) = @_;
 
             # Collect networks used in secondary optimization.
             my %opt_addr;
@@ -18433,7 +18370,24 @@ sub print_acls {
                              full_prefix_code(address($_, $no_nat_set))) }
                     values %no_opt_addrs ];
             }
-            push @acl_list, $acl;
+            return $acl;
+        };
+
+        my $aref = delete $router->{acl_list} or next;
+        for my $acl (@$aref) {
+            my $result = $process->($acl);
+            if (my $list = delete $acl->{sub_acl_list}) {
+                for my $acl (@$list) {
+                    my $sub_result = $process->($acl);
+                    for my $attr
+                        (qw(rules intf_rules opt_networks no_opt_addrs))
+                    {
+                        my $val = $sub_result->{$attr} or next;
+                        push @{$result->{$attr}}, @$val;
+                    }
+                }
+            }
+            push @acl_list, $result;
         }
     }
 
