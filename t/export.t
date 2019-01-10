@@ -556,8 +556,8 @@ network:n1 = {  ip = 10.1.1.0/24; owner = z; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/24; }
@@ -565,8 +565,8 @@ network:n2 = { ip = 10.2.2.0/24; }
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.2.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.3.3.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n1; }
 }
 
 network:n3 = { ip = 10.3.3.0/24; owner = y; }
@@ -1184,9 +1184,9 @@ network:n3 = { ip = 10.1.3.0/24;
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 END
 
@@ -1463,8 +1463,8 @@ network:n4 = { ip = 10.1.4.0/24; owner = d; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r = {
@@ -1475,8 +1475,8 @@ router:r = {
 router:asa2 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
- interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
 owner:a = { admins = a@example.com; }

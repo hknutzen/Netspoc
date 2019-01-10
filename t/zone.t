@@ -73,15 +73,15 @@ router:filter1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:Test = { ip = 10.9.1.1; hardware = Vlan20; }
- interface:Trans1 = { ip = 10.5.6.1; hardware = VLAN1; }
+ interface:Test = { ip = 10.9.1.1; hardware = Test; }
+ interface:Trans1 = { ip = 10.5.6.1; hardware = Trans1; }
 }
 router:filter2 = {
  managed;
  model = ASA;
  routing = manual;
- interface:Test = { ip = 10.9.1.2; hardware = Vlan20; }
- interface:Trans2 = { ip = 10.5.7.1; hardware = VLAN1; }
+ interface:Test = { ip = 10.9.1.2; hardware = Test; }
+ interface:Trans2 = { ip = 10.5.7.1; hardware = Trans2; }
 }
 network:Trans1 = { ip = 10.5.6.0/24; }
 network:Trans2 = { ip = 10.5.7.0/24; owner = t1;}
@@ -127,7 +127,7 @@ router:filter1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:Trans = { ip = 10.1.1.1; hardware = Trans; }
 }
 
 service:s1 = {
@@ -159,9 +159,9 @@ router:secondary = {
  managed = secondary;
  model = IOS, FW;
  routing = manual;
- interface:A = { ip = 10.3.3.1; hardware = VLAN1; }
- interface:sub = { ip = 10.3.3.9; hardware = VLAN9; }
- interface:Trans = { ip = 10.1.1.2; hardware = VLAN2; }
+ interface:A = { ip = 10.3.3.1; hardware = A; }
+ interface:sub = { ip = 10.3.3.9; hardware = sub; }
+ interface:Trans = { ip = 10.1.1.2; hardware = Trans; }
 }
 
 network:Trans = { ip = 10.1.1.0/24; }
@@ -169,8 +169,8 @@ network:Trans = { ip = 10.1.1.0/24; }
 router:filter = {
  managed;
  model = ASA;
- interface:Trans = { ip = 10.1.1.1; hardware = VLAN1; }
- interface:Customer = { ip = 10.9.9.1; hardware = VLAN2; }
+ interface:Trans = { ip = 10.1.1.1; hardware = Trans; }
+ interface:Customer = { ip = 10.9.9.1; hardware = Customer; }
 }
 
 network:Customer = { ip = 10.9.9.0/24; }
@@ -183,7 +183,7 @@ END
 
 $out = <<'END';
 --secondary
-ip access-list extended VLAN2_in
+ip access-list extended Trans_in
  permit ip 10.9.9.0 0.0.0.255 host 10.3.3.5
  deny ip any any
 END

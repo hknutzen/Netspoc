@@ -698,7 +698,7 @@ router:r1 = {
  filter_only =  10.2.0.0/16;
  routing = manual;
  interface:n1 = { ip = 10.2.1.1; hardware = n1; }
- interface:tr = { ip = 10.2.9.1; hardware = vlan4; }
+ interface:tr = { ip = 10.2.9.1; hardware = tr; }
 }
 
 network:n2 = { ip = 10.2.2.0/27;}
@@ -708,8 +708,8 @@ router:r2 = {
  managed = local;
  filter_only =  10.2.0.0/16;
  routing = manual;
- interface:n2 = { ip = 10.2.2.1; hardware = vlan5; }
- interface:tr = { ip = 10.2.9.2; hardware = vlan6; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:tr = { ip = 10.2.9.2; hardware = tr; }
 }
 
 network:tr = { ip = 10.2.9.0/29; }
@@ -738,17 +738,17 @@ access-list inside_in extended permit tcp 10.2.2.0 255.255.255.224 10.5.3.0 255.
 access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --r1
-! vlan4_in
-access-list vlan4_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
-access-list vlan4_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
-access-list vlan4_in extended permit ip any4 any4
-access-group vlan4_in in interface vlan4
+! tr_in
+access-list tr_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
+access-list tr_in extended deny ip 10.2.0.0 255.255.0.0 10.2.0.0 255.255.0.0
+access-list tr_in extended permit ip any4 any4
+access-group tr_in in interface tr
 --r2
-! vlan5_in
-access-list vlan5_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
-access-list vlan5_in extended deny ip any4 10.2.0.0 255.255.0.0
-access-list vlan5_in extended permit ip any4 any4
-access-group vlan5_in in interface vlan5
+! n2_in
+access-list n2_in extended permit tcp 10.2.2.0 255.255.255.224 10.2.1.0 255.255.255.224 eq 25
+access-list n2_in extended deny ip any4 10.2.0.0 255.255.0.0
+access-list n2_in extended permit ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);

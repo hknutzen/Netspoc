@@ -21,8 +21,8 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = 10.1.1.1; secondary:5th = { ip = 10.1.1.5; } hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1, 10.1.2.9; hardware = vlan2; }
+  ip = 10.1.1.1; secondary:5th = { ip = 10.1.1.5; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.9; hardware = n2; }
 }
 
 router:r2 = {
@@ -44,24 +44,24 @@ END
 
 $out = <<'END';
 --r1
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.5 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.9 eq 23
  deny ip any any
 --
-ip access-list extended vlan2_in
+ip access-list extended n2_in
  permit tcp 10.1.2.0 0.0.0.255 host 10.1.1.5 eq 22
  permit tcp 10.1.2.0 0.0.0.255 host 10.1.2.9 eq 23
  deny ip any any
 --
-interface vlan1
+interface n1
  ip address 10.1.1.1 255.255.255.0
  ip address 10.1.1.5 255.255.255.0 secondary
- ip access-group vlan1_in in
-interface vlan2
+ ip access-group n1_in in
+interface n2
  ip address 10.1.2.1 255.255.255.0
  ip address 10.1.2.9 255.255.255.0 secondary
- ip access-group vlan2_in in
+ ip access-group n2_in in
 -- r2
 ip access-list n1_in
  10 permit tcp 10.1.1.0/24 10.1.1.12/32 eq 21
@@ -87,8 +87,8 @@ router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {
-  ip = 10.1.1.1; secondary:5th = { ip = 10.1.1.5; } hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1, 10.1.2.9; hardware = vlan2; }
+  ip = 10.1.1.1; secondary:5th = { ip = 10.1.1.5; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.9; hardware = n2; }
 }
 
 service:t1 = {
@@ -100,12 +100,12 @@ END
 
 $out = <<'END';
 --r1
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  permit udp 10.1.1.0 0.0.0.255 eq 123 host 10.1.1.5
  permit udp 10.1.1.0 0.0.0.255 eq 69 host 10.1.2.9
  deny ip any any
 --
-ip access-list extended vlan2_in
+ip access-list extended n2_in
  permit udp 10.1.2.0 0.0.0.255 eq 123 host 10.1.1.5
  permit udp 10.1.2.0 0.0.0.255 eq 69 host 10.1.2.9
  deny ip any any

@@ -5359,8 +5359,8 @@ sub remove_duplicates {
     }
     if (@duplicates) {
         aref_delete($aref, $_) for @duplicates;
-        warn_msg("Duplicate elements in $context:\n ",
-                 join "\n ", map { $_->{name} } @duplicates);
+        warn_msg("Duplicate elements in $context:\n",
+                 name_list(\@duplicates));
     }
 }
 
@@ -6595,12 +6595,11 @@ sub propagate_owners {
             push @invalid, $zone;
         }
         if (@invalid) {
-            my $missing = join("\n - ", map { $_->{name} } @invalid);
             err_msg(
                 "$owner->{name} has attribute 'show_all',",
                 " but doesn't own whole topology.\n",
                 " Missing:\n",
-                " - $missing"
+                name_list(\@invalid)
             );
         }
     }
@@ -6678,9 +6677,12 @@ sub check_service_owner {
             my $unexpanded = $rule->{rule};
             my $service    = $unexpanded->{service};
             my $name       = $service->{name};
-            my $info       = $sname2info{$name} ||= {};
+            my $info       = $sname2info{$name} ||= {
+                service => $service,
 
-            $info->{service} = $service;
+                # Is set, if all rules are coupling rules.
+                is_coupling => 1,
+            };
 
             # Non 'user' objects.
             my $objects = $info->{objects} ||= {};
@@ -6688,11 +6690,11 @@ sub check_service_owner {
             # Check, if service contains a coupling rule with only
             # "user" elements.
             my $has_user = $unexpanded->{has_user};
-            if ($has_user eq 'both') {
-                $info->{is_coupling} = 1;
-            }
-            elsif (delete $rule->{reversed}) { # Attribute is no longer needed.
-                $has_user = $has_user eq 'src' ? 'dst' : 'src';
+            if ($has_user ne 'both') {
+                delete $info->{is_coupling};
+                if (delete $rule->{reversed}) { # Attribute is no longer needed.
+                    $has_user = $has_user eq 'src' ? 'dst' : 'src';
+                }
             }
 
             # Collect objects referenced in rules of service.
@@ -7317,6 +7319,9 @@ sub collect_duplicate_rules {
     $service->{has_same_dupl}->{$oservice} = $oservice;
     $oservice->{has_same_dupl}->{$service} = $service;
 
+    # Return early, so {overlaps_used} isn't set below.
+    return if $rule->{overlaps} and $other->{overlaps};
+
     if (my $overlaps = $service->{overlaps}) {
         for my $overlap (@$overlaps) {
             if ($oservice eq $overlap) {
@@ -7333,7 +7338,6 @@ sub collect_duplicate_rules {
             }
         }
     }
-    return if $rule->{overlaps} and $other->{overlaps};
 
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
@@ -8596,73 +8600,6 @@ sub combine_nat_sets {
     return \%combined;
 }
 
-# Real interface of crypto tunnel has got {nat_set} of that NAT domain,
-# where encrypted traffic passes. But real interface gets ACL that filter
-# both encrypted and unencrypted traffic. Hence a new {crypto_nat_set}
-# is created by combining nat_set of real interface and nat_set
-# of some corresponding tunnel.
-# (All tunnels are known to have identical nat_set.)
-# nat_set of real interface is only needed to access public IP of
-# crypto peers. So we first build $reduced_set from $real_set only
-# containing NAT entries needed for crypto peers.
-# This way we reduce chance of conflict between both nat_sets.
-sub add_crypto_nat_set {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
-
-    # List of crypto peers for each real interface of crypto hub.
-    my %hub2peers;
-
-    # Internal nat_set used at tunnels of crypto hub.
-    my %hub2tunnel_set;
-
-    # List of real interfaces of crypto hubs.
-    my @hubs;
-
-    for my $crypto (values %crypto) {
-        for my $tunnel (@{ $crypto->{tunnels} }) {
-            next if $tunnel->{disabled};
-            my ($spoke, $hub) = @{ $tunnel->{interfaces} };
-            $hub->{router}->{managed} or next;
-            my $real_hub = $hub->{real_interface};
-            my $real_spoke = $spoke->{real_interface};
-            push @{ $hub2peers{$real_hub} }, $real_spoke;
-            if (not $hub2tunnel_set{$real_hub}) {
-                $hub2tunnel_set{$real_hub} = $hub->{nat_set};
-                push @hubs, $real_hub;
-            }
-        }
-    }
-    for my $hub (@hubs) {
-        my $tunnel_set = $hub2tunnel_set{$hub};
-        my $real_set = $hub->{nat_set};
-
-        # Find restricted set of NAT-tags needed to find NAT addresses
-        # - of crypto peers,
-        # - of next hop for static routing at $hub.
-        my %crypto_tags;
-        for my $peer (@{ $hub2peers{$hub} }, $hub->{routing} ? () : $hub) {
-            my $href = $peer->{network}->{nat} or next;
-            for my $tag (keys %$href) {
-                $crypto_tags{$tag} = 1;
-            }
-        }
-        my %crypto_set;
-        for my $tag (keys %$real_set) {
-            $crypto_set{$tag} = 1 if $crypto_tags{$tag};
-        }
-        for my $tag (keys %$tunnel_set) {
-            $crypto_set{$tag} = 1 if not $crypto_tags{$tag};
-        }
-        $real_set = \%crypto_set;
-
-        # Take nat_set of tunnel and add needed tags from real interface.
-        $hub->{hardware}->{crypto_nat_set} =
-            combine_nat_sets([$tunnel_set, $real_set],
-                             $nat_tag2multinat_def,
-                             $has_non_hidden);
-    }
-}
-
 #############################################################################
 # Purpose : Determine NAT domains and generate NAT set
 #           for every NAT domain.
@@ -8680,7 +8617,6 @@ sub distribute_nat_info {
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     distribute_nat_sets_to_interfaces($natdomains);
-    add_crypto_nat_set($nat_tag2multinat_def, $has_non_hidden);
     prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
 
     return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
@@ -10592,8 +10528,7 @@ sub check_attr_no_check_supernet_rules {
             err_msg("Must not use attribute 'no_check_supernet_rules'",
                     " at $zone->{name}\n",
                     " with networks having host definitions:\n",
-                    " - ",
-                    join "\n - ", map { $_->{name} } @$bad_networks);
+                    name_list($bad_networks));
         }
     }
 }
@@ -10729,8 +10664,7 @@ sub set_area {
             $in_loop,
             ".\n",
             " It is reached from outside via this path:\n",
-            " - ",
-            join("\n - ", map { $_->{name} } reverse @$err_path)
+            name_list([reverse @$err_path])
         );
         return 1;
     }
@@ -10777,8 +10711,8 @@ sub set_areas {
                 my @bad_intf = grep { $lookup->{$_} ne 'found' } @$borders
                   or next;
                 err_msg(
-                    "Unreachable $attr of $area->{name}:\n - ",
-                    join("\n - ", map { $_->{name} } @bad_intf)
+                    "Unreachable $attr of $area->{name}:\n",
+                    name_list(\@bad_intf)
                 );
                 $area->{$attr} =
                   [ grep { $lookup->{$_} eq 'found' } @$borders ];
@@ -14912,8 +14846,7 @@ sub check_unstable_nat_rules {
                 err_msg("Must not use $obj->{name} in rule\n",
                         " ", print_rule($rule), ",\n",
                         " because it is no longer supernet of\n",
-                        " - ",
-                        join("\n - ", map { $_->{name} } @$subnets),
+                        name_list($subnets),
                         "\n",
                         " at $intf->{name}");
             }
@@ -15185,9 +15118,6 @@ sub check_dynamic_nat_rules {
                 my @nat_interfaces =
                     grep({ $nat_set2active_tags{$_->{nat_set}}->{$nat_tag} }
                          @$interfaces);
-                my $names = join("\n - ",
-                                 map { $_->{name} }
-                                 sort by_name unique @nat_interfaces);
                 my $type = $is_hidden ? 'hidden' : 'dynamic';
                 err_msg(
                     "Must not apply $type NAT '$nat_tag' on path\n",
@@ -15196,7 +15126,8 @@ sub check_dynamic_nat_rules {
                     " rule\n",
                     " ", $show_rule->(), "\n",
                     " NAT '$nat_tag' is active at\n",
-                    " - $names\n",
+                    name_list([unique sort by_name @nat_interfaces]),
+                    "\n",
                     " Add pathrestriction to exclude this path"
                     );
                 aref_delete($to_check, $nat_tag);
@@ -15462,6 +15393,9 @@ sub set_routes_in_zone {
 #              $dst_networks - destination networks of associated pseudo rule.
 # Results    : $in_intf holds routing information that $dst_networks are
 #              reachable via next hop interface H.
+# Comment    : $dst_networks are converted to @nat_nets, before storing as
+#              routing information, because NAT addresses are used in
+#              static routes.
 sub add_path_routes {
     my ($in_intf, $out_intf, $dst_networks) = @_;
 
@@ -15470,19 +15404,21 @@ sub add_path_routes {
 
     my $in_net  = $in_intf->{network};
     my $out_net = $out_intf->{network};
+    my $nat_set = $in_intf->{nat_set};
+    my @nat_nets = map { get_nat_network($_, $nat_set) } @$dst_networks;
 
     # Identify hop interface(s).
     # Store hop interfaces and routing information within in_intf.
     if ($in_net eq $out_net) {
         $in_intf->{hopref2obj}->{$out_intf} = $out_intf;
-        @{ $in_intf->{routes}->{$out_intf} }{@$dst_networks} = @$dst_networks;
+        @{ $in_intf->{routes}->{$out_intf} }{@nat_nets} = @nat_nets;
     }
     else {
         my $route_in_zone = $in_intf->{route_in_zone};
         my $hops = $route_in_zone->{default} || $route_in_zone->{$out_net};
         for my $hop (@$hops) {
             $in_intf->{hopref2obj}->{$hop} = $hop;
-            @{ $in_intf->{routes}->{$hop} }{@$dst_networks} = @$dst_networks;
+            @{ $in_intf->{routes}->{$hop} }{@nat_nets} = @nat_nets;
         }
     }
 }
@@ -15496,6 +15432,9 @@ sub add_path_routes {
 #              $dst_networks - destination networks inside the same zone.
 # Results    : $interface holds routing entries about which hops to use to
 #              reach the networks specified in $dst_networks.
+# Comment    : $dst_networks are converted to $nat_net, before storing as
+#              routing information, because NAT addresses are used in
+#              static routes.
 sub add_end_routes {
     my ($interface, $dst_networks) = @_;
 
@@ -15504,19 +15443,19 @@ sub add_end_routes {
 
     my $intf_net      = $interface->{network};
     my $route_in_zone = $interface->{route_in_zone};
+    my $nat_set       = $interface->{nat_set};
 
     # For every dst network, check the hops that can be used to get there.
     for my $network (@$dst_networks) {
         next if $network eq $intf_net;
-        my $hops = $route_in_zone->{default} || $route_in_zone->{$network}
-          or internal_err("Missing route for $network->{name}",
-                          " at $interface->{name}");
+        my $nat_net = get_nat_network($network, $nat_set);
+        my $hops = $route_in_zone->{default} || $route_in_zone->{$network};
 
         # Store the used hops and routes within the interface object.
         for my $hop (@$hops) {
             $interface->{hopref2obj}->{$hop} = $hop;
-#	     debug("$interface->{name} -> $hop->{name}: $network->{name}");
-            $interface->{routes}->{$hop}->{$network} = $network;
+#	         debug("$interface->{name} -> $hop->{name}: $nat_net->{name}");
+            $interface->{routes}->{$hop}->{$nat_net} = $nat_net;
         }
     }
 }
@@ -15913,9 +15852,7 @@ sub check_and_convert_routes {
             elsif ($real_net->{zone} eq $peer_net->{zone}) {
                 my $route_in_zone = $real_intf->{route_in_zone};
                 my $hops =
-                  ($route_in_zone->{default} || $route_in_zone->{$peer_net})
-                  or internal_err("Missing route for $peer_net->{name}",
-                                  " at $real_intf->{name} ");
+                    $route_in_zone->{default} || $route_in_zone->{$peer_net};
                 push @hops, @$hops;
             }
 
@@ -15930,10 +15867,7 @@ sub check_and_convert_routes {
                 my @zone_hops;
                 my $walk = sub {
                     my (undef,  $in_intf, $out_intf) = @_;
-                    $in_intf               or internal_err("No in_intf");
                     $in_intf eq $real_intf or return;
-                    $out_intf              or internal_err("No out_intf");
-                    $out_intf->{network}   or internal_err "No out net";
                     push @zone_hops, $out_intf;
                 };
                 single_path_walk($pseudo_rule, $walk, 'Zone');
@@ -15945,12 +15879,8 @@ sub check_and_convert_routes {
                         push @hops, $hop;
                     }
                     else {
-                        my $hops =
-                          (      $route_in_zone->{default}
-                              || $route_in_zone->{$hop_net})
-                          or
-                          internal_err("Missing route for $hop_net->{name}",
-                            " at $real_intf->{name}");
+                        my $hops = $route_in_zone->{default} ||
+                            $route_in_zone->{$hop_net};
                         push @hops, @$hops;
                     }
                 }
@@ -15974,14 +15904,13 @@ sub check_and_convert_routes {
                 # for the encrypted traffic which is allowed
                 # by gen_tunnel_rules (even for negotiated interface).
                 my $count = @hops;
-                my $names = join('', map({ "\n - $_->{name}" } @hops));
                 err_msg(
                     "Can't determine next hop to reach $peer_net->{name}",
                     " while moving routes\n",
                     " of $interface->{name} to $real_intf->{name}.\n",
                     " Exactly one route is needed,",
-                    " but $count candidates were found:",
-                    $names
+                    " but $count candidates were found:\n",
+                    name_list(\@hops)
                 );
             }
 
@@ -15994,7 +15923,9 @@ sub check_and_convert_routes {
 
             # Add route to reach peer interface.
             if ($peer_net ne $real_net) {
-                $hop_routes->{$peer_net} = $peer_net;
+                my $nat_set = $real_intf->{nat_set};
+                my $nat_net = get_nat_network($peer_net, $nat_set);
+                $hop_routes->{$nat_net} = $nat_net;
             }
         }
 
@@ -16157,8 +16088,6 @@ sub print_routes {
         if ($asa_crypto and $interface->{hub}) {
             $do_auto_default_route = 0;
         }
-        my $hardware = $interface->{hardware};
-        my $nat_set = $hardware->{crypto_nat_set} || $hardware->{nat_set};
         my $routes = $interface->{routes};
         for my $hop (@{ $interface->{hopref2obj} }) {
             my $hop_info = [ $interface, $hop ];
@@ -16166,8 +16095,7 @@ sub print_routes {
             # A hash having all networks reachable via current hop
             # both as key and as value.
             my $net_hash = $routes->{$hop};
-            for my $network (values %$net_hash) {
-                my $nat_network = get_nat_network($network, $nat_set);
+            for my $nat_network (values %$net_hash) {
                 next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
                 if ($ip eq $zero_ip and $mask eq $zero_ip) {
@@ -16505,18 +16433,7 @@ sub distribute_rule {
                 $rule = { %$rule, src => $extra_hosts };
             }
         }
-
-        # Rules are needed at tunnel for generating
-        # detailed_crypto_acl or crypto_filter ACL.
-        elsif (not $no_crypto_filter or
-               $in_intf->{crypto}->{detailed_crypto_acl})
-        {
-            push @{ $in_intf->{$key} }, $rule;
-        }
-
-        if ($no_crypto_filter) {
-            push @{ $in_intf->{real_interface}->{hardware}->{$key} }, $rule;
-        }
+        push @{ $in_intf->{$key} }, $rule;
     }
 
     # Remember outgoing interface.
@@ -17192,8 +17109,6 @@ EOF
 
             # Access list will be bound to cleartext interface.
             # Only check for correct source address at vpn-filter.
-            delete $interface->{intf_rules};
-            delete $interface->{rules};
             my $rules = [ { src => $interface->{peer_networks},
                             dst => [ get_network_00($ipv6) ],
 
@@ -17425,7 +17340,7 @@ sub print_cisco_acls {
         # when checking for non empty array.
         $hardware->{rules} ||= [];
 
-        my $nat_set = $hardware->{crypto_nat_set} || $hardware->{nat_set};
+        my $nat_set = $hardware->{nat_set};
         my $dst_nat_set = $hardware->{dst_nat_set} || $nat_set;
 
         # Generate code for incoming and possibly for outgoing ACL.
@@ -17497,6 +17412,24 @@ sub print_cisco_acls {
                     }
                     if ($intf_ok == @{ $hardware->{interfaces} }) {
                         $acl_info->{filter_any_src} = 1;
+                    }
+                }
+
+                # Add ACL of corresponding tunnel interfaces.
+                # We have exactly one crypto interface per hardware.
+                my $interface = $hardware->{interfaces}->[0];
+                if (($interface->{hub} or $interface->{spoke}) and
+                    $router->{model}->{no_crypto_filter})
+                {
+                    for my $tunnel_intf (get_intf($router)) {
+                        my $real_intf = $tunnel_intf->{real_interface} or next;
+                        $real_intf eq $interface or next;
+                        my $tunnel_acl_info = {
+                            nat_set => $tunnel_intf->{nat_set},
+                            rules => $tunnel_intf->{rules},
+                            intf_rules => $tunnel_intf->{intf_rules},
+                        };
+                        push @{ $acl_info->{sub_acl_list} }, $tunnel_acl_info;
                     }
                 }
             }
@@ -18182,11 +18115,8 @@ sub print_acls {
             }
         }
 
-        my $aref = delete $router->{acl_list} or next;
-        for my $acl (@$aref) {
-
-            # Don't modify loop variable.
-            my $acl = $acl;
+        my $process = sub {
+            my ($acl) = @_;
 
             # Collect networks used in secondary optimization.
             my %opt_addr;
@@ -18371,7 +18301,24 @@ sub print_acls {
                              full_prefix_code(address($_, $nat_set))) }
                     values %no_opt_addrs ];
             }
-            push @acl_list, $acl;
+            return $acl;
+        };
+
+        my $aref = delete $router->{acl_list} or next;
+        for my $acl (@$aref) {
+            my $result = $process->($acl);
+            if (my $list = delete $acl->{sub_acl_list}) {
+                for my $acl (@$list) {
+                    my $sub_result = $process->($acl);
+                    for my $attr
+                        (qw(rules intf_rules opt_networks no_opt_addrs))
+                    {
+                        my $val = $sub_result->{$attr} or next;
+                        push @{$result->{$attr}}, @$val;
+                    }
+                }
+            }
+            push @acl_list, $result;
         }
     }
 
