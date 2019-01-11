@@ -66,7 +66,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
