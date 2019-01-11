@@ -5468,6 +5468,7 @@ sub expand_group1 {
                 my ($selector, $managed) = @$ext;
                 my $sub_objects = expand_group1(
                     $name, "interface:[..].[$selector] of $context", $ipv6);
+                my %router_seen;
                 for my $object (@$sub_objects) {
                     next if $object->{disabled};
                     $object->{is_used} = 1;
@@ -5513,6 +5514,7 @@ sub expand_group1 {
                     }
                     elsif ($type eq 'Interface') {
                         my $router = $object->{router};
+                        next if $router_seen{$router}++;
                         if ($managed and
                             not ($router->{managed} or $router->{routing_only}))
                         {
@@ -5572,6 +5574,7 @@ sub expand_group1 {
                     elsif ($type eq 'Autointerface') {
                         my $obj = $object->{object};
                         if (is_router $obj) {
+                            next if $router_seen{$obj}++;
                             if ($managed and
                                 not ($obj->{managed} or $obj->{routing_only}))
                             {
