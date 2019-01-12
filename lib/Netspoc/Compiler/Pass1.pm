@@ -18284,7 +18284,8 @@ sub print_acls {
                 $acl->{opt_networks} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %opt_addr ];
@@ -18293,7 +18294,8 @@ sub print_acls {
                 $acl->{no_opt_addrs} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %no_opt_addrs ];
