@@ -66,7 +66,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -109,12 +109,12 @@ sub nat {
     return($network->{ip} | $ip & ~ $network->{mask});
 }
 
-# Print IP address of $obj in context of $no_nat_set.
+# Print IP address of $obj in context of $nat_set.
 sub print_address {
-    my ($obj, $no_nat_set) = @_;
+    my ($obj, $nat_set) = @_;
     my $type = ref $obj;
     if ($type eq 'Network') {
-        $obj = get_nat_network($obj, $no_nat_set);
+        $obj = get_nat_network($obj, $nat_set);
         my $ip = $obj->{ip};
         if ($ip eq 'unnumbered') {
             return $ip;
@@ -129,7 +129,7 @@ sub print_address {
         }
     }
     elsif ($type eq 'Host' or $type eq 'Interface') {
-        my $network = get_nat_network($obj->{network}, $no_nat_set);
+        my $network = get_nat_network($obj->{network}, $nat_set);
         if ($network->{dynamic}) {
             my $nat_tag = $network->{nat_tag};
             if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
@@ -247,12 +247,12 @@ find_subnets_in_zone();
 &abort_on_error();
 
 # Find network for resolving NAT addresses.
-my $no_nat_set;
+my $nat_set;
 if($nat_net) {
     $nat_net =~ s/^network://;
     my $net = $networks{$nat_net} or
-	die "Unknown network:$nat_net of option '-nat'\n";
-    $no_nat_set = $net->{zone}->{nat_domain}->{no_nat_set};
+        die "Unknown network:$nat_net of option '-nat'\n";
+    $nat_set = $net->{zone}->{nat_domain}->{nat_set};
 }
 
 # Prepare finding unused objects by marking used objects.
@@ -332,7 +332,7 @@ for my $aref (@groups) {
     }
 
     # Collect IP address, name, owner.
-    my @info = map { my $v = [ print_address($_, $no_nat_set),
+    my @info = map { my $v = [ print_address($_, $nat_set),
                                $_->{name} ];
                      push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
                      $v } @$elements;

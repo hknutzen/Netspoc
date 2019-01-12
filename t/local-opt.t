@@ -19,8 +19,8 @@ network:N1 = { ip = 10.4.6.0/24;}
 router:R1 = {
  managed;
  model = IOS, FW;
- interface:N1 = {ip = 10.4.6.3;hardware = Vlan1;}
- interface:T1 = {ip = 10.6.8.46;hardware = Vlan2;}
+ interface:N1 = {ip = 10.4.6.3;hardware = N1;}
+ interface:T1 = {ip = 10.6.8.46;hardware = T1;}
 }
 network:T1 = { ip = 10.6.8.44/30;}
 
@@ -33,8 +33,8 @@ network:T2 = { ip = 10.6.8.0/30;}
 router:R2 = {
  managed;
  model = IOS, FW;
- interface:T2 = {ip = 10.6.8.2;hardware = Vlan3;}
- interface:N2 = {ip = 10.5.1.1;hardware = Vlan4;}
+ interface:T2 = {ip = 10.6.8.2;hardware = T2;}
+ interface:N2 = {ip = 10.5.1.1;hardware = N2;}
 }
 network:N2 = {ip = 10.5.1.0/30;}
 
@@ -50,7 +50,7 @@ END
 
 $out = <<'END';
 --R1
-ip access-list extended Vlan1_in
+ip access-list extended N1_in
  deny ip any host 10.4.6.3
  deny ip any host 10.6.8.46
  permit tcp 10.4.6.0 0.0.0.255 any eq 80
@@ -184,15 +184,15 @@ network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r2 = {
  managed;
  model = IOS;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 
 service:s1 = {
@@ -204,12 +204,12 @@ END
 $out = <<'END';
 -- r1
 ! [ ACL ]
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  deny ip any host 10.1.2.1
  permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22
  deny ip any any
 --
-ip access-list extended vlan2_in
+ip access-list extended n2_in
  permit tcp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 established
  deny ip any any
 END
@@ -282,8 +282,8 @@ router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 service:t1 = {
@@ -301,15 +301,15 @@ END
 
 $out = <<'END';
 -- asa
-! vlan1_in
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 --
-! vlan2_in
-access-list vlan2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.10 range 70 85
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.10 range 70 85
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -326,8 +326,8 @@ router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 service:t1 = {
@@ -344,11 +344,11 @@ END
 
 $out = <<'END';
 -- asa
-! vlan1_in
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
-access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 range 83 90
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 range 80 86
+access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 range 83 90
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
@@ -419,8 +419,8 @@ router:asa = {
  managed;
  model = ASA;
  log:a = warnings;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 service:t1 = {
@@ -438,13 +438,13 @@ END
 
 $out = <<'END';
 -- asa
-! vlan1_in
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
-access-list vlan1_in extended permit udp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 81
-access-list vlan1_in extended permit udp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 80
-access-list vlan1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 81
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended permit udp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 81
+access-list n1_in extended permit udp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 81
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);

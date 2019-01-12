@@ -43,7 +43,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2017 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses module Netspoc.pm,
 a Network Security Policy Compiler,
@@ -100,14 +100,14 @@ my @names = @ARGV;
 # Subroutines
 ####################################################################
 
-my $no_nat_set;
+my $nat_set;
 
 sub obj_info {
     my ($obj) = @_;
     if ($show_name) {
         return $obj->{name};
     }
-    my ($ip, $mask) = @{ address($obj, $no_nat_set) };
+    my ($ip, $mask) = @{ address($obj, $nat_set) };
     my $prefix_len = mask2prefix($mask);
     my $bitstr_len = length($mask) * 8;
     return(print_ip($ip) . ($prefix_len == $bitstr_len ? '' : "/$prefix_len"));
@@ -185,8 +185,8 @@ find_subnets_in_zone();
 # Find network for resolving NAT addresses.
 if($nat_net) {
     my $net = $networks{$nat_net} or
-	die "Unknown network:$nat_net of option '-n'\n";
-    $no_nat_set = $net->{zone}->{nat_domain}->{no_nat_set};
+        die "Unknown network:$nat_net of option '-n'\n";
+    $nat_set = $net->{zone}->{nat_domain}->{nat_set};
 }
 
 # Expand services

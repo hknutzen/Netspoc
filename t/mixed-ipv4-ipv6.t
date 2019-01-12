@@ -469,5 +469,68 @@ access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'No unstable IPv4 subnet with IPv6 topology';
+############################################################
+# Secondary optimization must still work.
+
+$in = <<'END';
+-- ipv4
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n4sub = {
+ ip = 10.1.4.0/26;
+ nat:h = { hidden; }
+ subnet_of = network:n4;
+ host:h4 = { ip = 10.1.4.10; }
+}
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1  = {
+ managed = secondary;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h; }
+}
+router:r3 = {
+ interface:n3 = { ip = 10.1.3.2; }
+ interface:n4;
+ interface:n4sub;
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h4; prt = tcp;
+}
+-- ipv6
+network:n1_v6 = { ip = 1::/64; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1_v6 = { ip = 1::1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
 ############################################################
 done_testing;

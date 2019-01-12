@@ -170,7 +170,7 @@ router:r = {
  model = NX-OS;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:t1 = { ip = 10.9.1.1; hardware = vlan1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
 }
 
 network:t1 = { ip = 10.9.1.0/29; }
@@ -270,8 +270,8 @@ network:t2 = { ip = 10.9.2.0/30; }
 router:r = {
  model = NX-OS;
  managed;
- interface:t1 = { ip = 10.9.1.1; hardware = vlan1; }
- interface:t2 = { ip = 10.9.2.1; hardware = vlan2; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
 }
 
 service:test = {
@@ -334,8 +334,8 @@ network:src = { ip = 10.1.1.0/24; }
 router:r = {
  model = NX-OS;
  managed;
- interface:src = { ip = 10.1.1.1; hardware = vlan2; }
- interface:t1 = { ip = 10.9.1.1; hardware = vlan1; }
+ interface:src = { ip = 10.1.1.1; hardware = src; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
 }
 
 network:t1 = { ip = 10.9.1.0/30; }
@@ -405,15 +405,15 @@ network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  model = NX-OS;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:t1 = { ip = 10.9.1.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
 }
 
 router:r2 = {
  model = NX-OS;
  managed;
- interface:n2 = { ip = 10.1.2.1; hardware = vlan1; }
- interface:t1 = { ip = 10.9.1.2; hardware = vlan2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
 }
 
 network:t1 = { ip = 10.9.1.0/24; }

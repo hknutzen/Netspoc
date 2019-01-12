@@ -556,8 +556,8 @@ network:n1 = {  ip = 10.1.1.0/24; owner = z; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.2.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
 
 network:n2 = { ip = 10.2.2.0/24; }
@@ -565,8 +565,8 @@ network:n2 = { ip = 10.2.2.0/24; }
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.2.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.3.3.1; hardware = vlan1; }
+ interface:n2 = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n1; }
 }
 
 network:n3 = { ip = 10.3.3.0/24; owner = y; }
@@ -1184,9 +1184,9 @@ network:n3 = { ip = 10.1.3.0/24;
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 END
 
@@ -1463,8 +1463,8 @@ network:n4 = { ip = 10.1.4.0/24; owner = d; }
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r = {
@@ -1475,8 +1475,8 @@ router:r = {
 router:asa2 = {
  managed;
  model = ASA;
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
- interface:n4 = { ip = 10.1.4.2; hardware = vlan4; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
 
 owner:a = { admins = a@example.com; }
@@ -3723,6 +3723,84 @@ $out = <<'END';
    "h1",
    "h2"
 ]
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
+$title = 'Must not activate NAT tag used in two multi NAT sets';
+############################################################
+
+$in = <<'END';
+owner:o = { admins = o@example.com; }
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.9.1.0/24; } nat:h1 = { hidden; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ nat:n1 = { ip = 10.9.2.0/24; } nat:h2 = { hidden; }
+}
+network:n3 = { ip = 10.1.3.0/24; owner = o; } # n1 of [n1,h1], n1 of [n1,h2]
+network:n4 = { ip = 10.1.4.0/24; owner = o; } # h1 of [n1,h1], h2 of [n1,h2]
+network:n5 = { ip = 10.1.5.0/24; owner = o; } # {} of [n1,h1], h2 of [n1,h2]
+# combined of [n1,h1] = {}, combined of [n1,h2] = n1
+# must be combined to {}, not to n1
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h1, h2; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h2; }
+}
+END
+
+$out = <<'END';
+--owner/o/no_nat_set
+[
+   "h1",
+   "h2",
+   "n1"
+]
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
+$title = 'Ignore IPv6 in combined NAT for owner';
+############################################################
+
+$in = <<'END';
+-- ipv4
+owner:o = { admins = o@example.com; }
+
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; owner = o; }
+
+
+router:r1  = {
+ managed = secondary;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+}
+-- ipv6
+network:n1_v6 = { ip = 1::/64; owner = o; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1_v6 = { ip = 1::1; hardware = n1; }
+}
+END
+
+$out = <<'END';
+--owner/o/no_nat_set
+[]
 END
 
 test_run($title, $in, $out);	# No IPv6 test

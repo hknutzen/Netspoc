@@ -1142,9 +1142,9 @@ router:r1 =  {
  managed;
  model = ASA;
  routing = manual;
- interface:a1 = { ip = 10.5.5.1; hardware = vlan2; }
- interface:a2 = { ip = 10.4.4.1; hardware = vlan1; }
- interface:b1 = { ip = 10.2.2.1; hardware = vlan0; }
+ interface:a1 = { ip = 10.5.5.1; hardware = a1; }
+ interface:a2 = { ip = 10.4.4.1; hardware = a2; }
+ interface:b1 = { ip = 10.2.2.1; hardware = b1; }
 }
 network:b2 = { ip = 10.3.3.0/24; }
 router:u = { interface:b2; interface:b1; }
@@ -1153,8 +1153,8 @@ router:r2 = {
  managed;
  model = IOS,FW;
  routing = manual;
- interface:b1 = { ip = 10.2.2.2; hardware = e0; }
- interface:X = { ip = 10.1.1.2; hardware = e1; bind_nat = d; }
+ interface:b1 = { ip = 10.2.2.2; hardware = b1; }
+ interface:X = { ip = 10.1.1.2; hardware = X; bind_nat = d; }
 }
 network:X = { ip = 10.1.1.0/24; }
 
@@ -1166,15 +1166,15 @@ END
 
 $out = <<'END';
 --r1
-! vlan0_in
+! b1_in
 object-group network g0
  network-object 10.4.4.0 255.255.255.0
  network-object 10.5.5.0 255.255.255.0
-access-list vlan0_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
-access-list vlan0_in extended deny ip any4 any4
-access-group vlan0_in in interface vlan0
+access-list b1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list b1_in extended deny ip any4 any4
+access-group b1_in in interface b1
 --r2
-ip access-list extended e1_in
+ip access-list extended X_in
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.99.99.8 0.0.0.3 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.4.4.0 0.0.0.255 eq 80
@@ -1240,8 +1240,8 @@ router:r1 = {
  managed;
  model = IOS,FW;
  routing = manual;
- interface:t1 = { ip = 10.9.1.1; hardware = e0; }
- interface:X = { ip = 10.2.1.2; hardware = e1; bind_nat = d; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+ interface:X = { ip = 10.2.1.2; hardware = X; bind_nat = d; }
 }
 network:X = { ip = 10.2.1.0/24; }
 
@@ -1264,7 +1264,7 @@ END
 
 $out = <<'END';
 --r1
-ip access-list extended e1_in
+ip access-list extended X_in
  deny ip any host 11.9.1.1
  permit tcp 10.2.1.0 0.0.0.255 11.0.0.0 0.255.255.255 eq 80
  permit tcp 10.2.1.0 0.0.0.255 11.17.0.0 0.0.255.255 eq 81
@@ -1574,14 +1574,14 @@ router:asa1 = {
  managed;
  model = ASA;
  policy_distribution_point = host:h3;
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
  managed;
  model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; bind_nat = dyn; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = dyn; }
 }
 
 service:s = {
@@ -2097,8 +2097,8 @@ network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
- interface:T = { ip = 10.3.3.18; hardware = e0;}
- interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+ interface:T = { ip = 10.3.3.18; hardware = T;}
+ interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
 }
 
 network:K = { ip = 10.2.2.0/24; }
@@ -2131,8 +2131,8 @@ network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
- interface:T = { ip = 10.3.3.18; hardware = e0;}
- interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+ interface:T = { ip = 10.3.3.18; hardware = T;}
+ interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
 }
 
 network:K = { ip = 10.2.2.0/24; }
@@ -2165,8 +2165,8 @@ network:T = { ip = 10.3.3.16/29; }
 router:R2 = {
  managed;
  model = ASA;
- interface:T = { ip = 10.3.3.18; hardware = e0;}
- interface:K = { ip = 10.2.2.1; hardware = e2; bind_nat = t2; }
+ interface:T = { ip = 10.3.3.18; hardware = T;}
+ interface:K = { ip = 10.2.2.1; hardware = K; bind_nat = t2; }
 }
 
 network:K = { ip = 10.2.2.0/24; }
@@ -2197,9 +2197,9 @@ router:asa = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; bind_nat = h; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; bind_nat = P; }
- interface:n3 = { ip = 10.1.3.1; hardware = vlan3; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = P; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 
 router:r2 = {
@@ -3274,16 +3274,19 @@ router:r2 = {
 network:extern = { ip = 2.2.2.0/24; nat:extern = { ip = 10.2.2.0/24; } }
 
 service:test = {
- user = network:extern;
- permit src = user; dst = network:n1, network:n2; prt = tcp 80;
- permit src = network:n1, network:n2; dst = user; prt = tcp 22;
+ user = network:n1, network:n2, network:n3;
+ permit src = network:extern; dst = user; prt = tcp 80;
+ permit src = user; dst = network:extern; prt = tcp 22;
 }
 END
 
 $out = <<'END';
 -- r1
 ! n1_in
-access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 22
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.3.0 255.255.255.0
+access-list n1_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --
@@ -3293,20 +3296,23 @@ access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 --
 ! t_in
-object-group network g0
+object-group network g1
  network-object 10.1.1.0 255.255.255.0
- network-object 10.1.2.0 255.255.255.0
-access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
+ network-object 10.1.2.0 255.255.254.0
+access-list t_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g1 eq 80
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 -- r2
 ! t_in
-access-list t_in extended permit tcp 2.2.0.0 255.255.254.0 2.2.2.0 255.255.255.0 eq 22
+object-group network g0
+ network-object 2.2.0.0 255.255.254.0
+ network-object 10.1.3.0 255.255.255.0
+access-list t_in extended permit tcp object-group g0 2.2.2.0 255.255.255.0 eq 22
 access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 --
 ! outside_in
-access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 2.2.0.0 255.255.254.0 eq 80
+access-list outside_in extended permit tcp 2.2.2.0 255.255.255.0 object-group g0 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
@@ -3751,7 +3757,7 @@ router:r1 = {
  model = IOS,FW;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.2.2.1; hardware = e1; bind_nat = d; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; bind_nat = d; }
 }
 network:n2 = { ip = 10.2.2.0/24; }
 
@@ -3763,7 +3769,7 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended e1_in
+ip access-list extended n2_in
  deny ip any host 10.9.9.1
  deny ip any host 10.2.2.1
  permit tcp 10.2.2.0 0.0.0.255 any eq 80
@@ -3990,6 +3996,37 @@ Error: Must not use aggregate with IP 10.1.1.0/24 in any:[network:n1]
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not compare networks of other partition';
+############################################################
+# network:n1a and :n1b would have identical IP in network:n3.
+
+$in = <<'END';
+network:n1a = { ip = 10.1.1.0/24;
+ nat:h1a = { hidden; }
+ partition = part1;
+}
+network:n1b = { ip = 10.1.1.0/24;
+ nat:h1b = { hidden; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = h1b; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1b; bind_nat = h1a; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; partition = part2; }
+router:r2 = {
+ interface:n3;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

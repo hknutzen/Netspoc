@@ -649,10 +649,40 @@ END
 
 $out = <<'END';
 Warning: Duplicate elements in group:g1:
- network:n2
- network:n1
- network:n2
+ - network:n2
+ - network:n1
+ - network:n2
 END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Silently ignore duplicate elements from automatic interfaces';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+group:g1 = interface:r1.n1, interface:r1.n2;
+group:g2 = interface:[group:g1].[all];
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = group:g2; prt = icmp;
+}
+END
+
+$out = '';
 
 test_warn($title, $in, $out);
 
