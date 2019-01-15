@@ -4959,10 +4959,8 @@ sub mark_disabled {
                 }
             }
         }
-        my $shared_hash = {};
         for my $router (@$aref) {
             $router->{vrf_members}     = $aref;
-            $router->{vrf_shared_data} = $shared_hash;
         }
     }
 
