@@ -8002,7 +8002,7 @@ sub find_nat_domains {
         my $domain = new(
             'nat_domain',
             name     => $name,
-            zoness => [],
+            zones    => [],
             routers  => [],
             nat_set  => {},
         );
