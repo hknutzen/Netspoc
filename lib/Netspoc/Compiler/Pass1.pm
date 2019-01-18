@@ -9950,7 +9950,7 @@ sub link_aggregates {
 #            containing the aggregates link-network.
 # Comments : From users point of view, an aggregate refers to networks of a zone
 #            cluster. Internally, an aggregate object represents a set of
-#            networks inside a zone. Therefeore, every zone inside a cluster
+#            networks inside a zone. Therefore, every zone inside a cluster
 #            gets its own copy of the defined aggregate to collect the zones
 #            networks matching the aggregates IP address.
 # TDOD     : Aggregate may be a non aggregate network,
@@ -18076,7 +18076,56 @@ sub print_prt {
     return(join(' ', @result));
 }
 
+# Collect interfaces that need protection by additional deny rules.
+# Add list to each ACL separately, because IP may be changed by NAT.
+sub get_need_protect {
+    my ($router) = @_;
+
+    # ASA protects IOS router behind crosslink interface.
+    # Routers connected by crosslink networks are handled like one
+    # large router. Protect the collected interfaces of the whole
+    # cluster at each entry.
+    if (my $list = $router->{crosslink_interfaces}) {
+        return $list;
+    }
+    $router->{need_protect} or return;
+    return [
+        grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
+             @{ $router->{interfaces} }) ];
+}
+
 my %nat2obj2address;
+
+# Set attribute {need_protect} in $acl_info.
+# Value is list of IP addresses of to be protected interfaces.
+#
+# This possibly generates invalid IP address 0.0.0.0/32 for hidden interface,
+# if some LAN interface is hidden in NAT set of crypto interface.
+# But that doesn't matter, because only IOS routers
+# - need protection of interfaces and
+# - are also used as crypto device.
+# But IOS routers have separate crypto-filter-ACL
+# and therefore these invalid addresses are never used.
+sub set_need_protect {
+    my ($acl_info, $need_protect) = @_;
+
+    # This device needs to protect itself or crosslink interfaces.
+    delete $acl_info->{protect_self} or return;
+
+    # No interfaces to protect.
+    $need_protect or return;
+
+    # Collect IP addresses of all interfaces.
+    my $nat_set = $acl_info->{nat_set};
+    my @list = map({  $nat2obj2address{$nat_set}->{$_}
+                      ||= full_prefix_code(address($_, $nat_set))
+                   }
+                   @$need_protect);
+    $acl_info->{need_protect} = [
+
+        # Remove duplicate addresses from redundancy interfaces.
+        unique @list ];
+}
 
 sub print_acls {
     my ($vrf_members, $fh) = @_;
@@ -18090,31 +18139,6 @@ sub print_acls {
         my $model            = $router->{model};
         my $do_auth          = $model->{do_auth};
         my $active_log       = $router->{log};
-        my $need_protect;
-
-        # Collect interfaces that need protection by additional deny rules.
-        # Add list to each ACL separately, because IP may be changed by NAT.
-        if (
-            $router->{need_protect}
-            or
-
-            # ASA protects IOS router behind crosslink interface.
-            $router->{crosslink_interfaces}
-          )
-        {
-
-            # Routers connected by crosslink networks are handled like
-            # one large router. Protect the collected interfaces of
-            # the whole cluster at each entry.
-            $need_protect = $router->{crosslink_interfaces};
-            if (not $need_protect) {
-                $need_protect = $router->{interfaces};
-                $need_protect = [
-                    grep({ $_->{ip} !~
-                               /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
-                         @$need_protect) ];
-            }
-        }
 
         my $process = sub {
             my ($acl) = @_;
@@ -18133,16 +18157,6 @@ sub print_acls {
             my $addr_cache = $nat2obj2address{$nat_set} ||= {};
             my $dst_nat_set = delete $acl->{dst_nat_set} || $nat_set;
             my $dst_addr_cache = $nat2obj2address{$dst_nat_set} ||= {};
-            my $protect_self = delete $acl->{protect_self};
-            if ($need_protect and $protect_self) {
-                $acl->{need_protect} = [
-
-                    # Remove duplicate addresses from redundancy interfaces.
-                    unique
-                    map({ $addr_cache->{$_} ||=
-                              full_prefix_code(address($_, $nat_set)) }
-                        @$need_protect) ];
-            }
 
             for my $what (qw(intf_rules rules)) {
                 my $rules = $acl->{$what} or next;
@@ -18306,7 +18320,9 @@ sub print_acls {
         };
 
         my $aref = delete $router->{acl_list} or next;
+        my $need_protect = get_need_protect($router);
         for my $acl (@$aref) {
+            set_need_protect($acl, $need_protect);
             my $result = $process->($acl);
             if (my $list = delete $acl->{sub_acl_list}) {
                 for my $acl (@$list) {
