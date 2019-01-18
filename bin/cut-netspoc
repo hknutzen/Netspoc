@@ -419,13 +419,9 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
     my $zero_ip = get_zero_ip($zone->{ipv6});
     my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
-
-    # Simplifies test below.
-    $aggregate0->{owner} = $zone->{owner};
-
-    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
     $aggregate0->{is_used} = 1;
     $zone->{is_used} = 1;
 }
