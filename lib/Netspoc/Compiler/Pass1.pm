@@ -8556,15 +8556,8 @@ sub combine_nat_sets {
         my $hash = $multi2tags{$multinat_hash};
         my $add;
 
-        # Ignore tags, that are inactive in some set.
-        if ($hash->{':none'}) {
-        }
-
-        # Single real or hidden tag.
-        elsif (keys %$hash == 1) {
-            ($add) = keys %$hash;
-        }
-        else {
+        # Analyze active and inactive tags.
+        if (not $hash->{':none'}) {
             my $real_tag;
             for my $tag (%$hash) {
                 if ($has_non_hidden->{$tag}) {
@@ -8584,8 +8577,9 @@ sub combine_nat_sets {
             }
             # Ignore multiple hidden tags.
         }
-
         $to_add{$add} = 1 if $add;
+
+        # Ignore all tags, if none is active.
         $add ||= ':none';
 
         # Tag that is ignored in one multi set must be ignored completely.
@@ -18302,7 +18296,8 @@ sub print_acls {
                 $acl->{opt_networks} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %opt_addr ];
@@ -18311,7 +18306,8 @@ sub print_acls {
                 $acl->{no_opt_addrs} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %no_opt_addrs ];
