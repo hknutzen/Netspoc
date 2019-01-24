@@ -6,7 +6,7 @@ export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2018 by Heinz Knutzen <heinz.knutzen@gmail.com>
+(c) 2019 by Heinz Knutzen <heinz.knutzen@gmail.com>
 (c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -801,77 +801,61 @@ sub setup_outer_owners {
 ######################################################################
 # Export no-NAT-set
 # - Relate each network to its owner and part_owners.
-# - Build a no_nat_set for each owner by combining no_nat_sets of
+# - Build a nat_set for each owner by combining nat_sets of
 #   NAT domains of all own networks.
-#   Properties of combined no_nat_set:
-#   - IP of own networks aren't translated,
-# If owner has exactly one NAT domain, use corresponding no_nat_set
+# If owner has exactly one NAT domain, use corresponding nat_set
 # to determine IP address of other networks.
-# Otherwise multiple no-nat-sets need to be combined.
+# Otherwise multiple nat-sets need to be combined.
 # Analyze each network X with multiple NAT tags.
-# - If all no-nat-sets map to the same IP, use this mapping.
-# - If some no-nat-sets map to different IPs, use oiginal IP.
-# - If some no-nat-sets map to the same IP and all other no-nat-sets
-#   map to 'hidden' then ignore hidden in combined no-nat-set.
+# - If all nat-sets map to the same IP, use this mapping.
+# - If some nat-sets map to different IPs, use original IP.
+# - If some nat-sets map to the same IP and all other nat-sets
+#   map to 'hidden' then ignore hidden in combined nat-set.
 # This way, a real NAT tag will not be disabled,
 # if it is combined with a hidden NAT tag from same multi-NAT.
+#
+# Before export, NAT-set is inverted to no-NAT-set for compatibility
+# with previous version.
 ######################################################################
 sub export_no_nat_set {
     my ($nat_tag2multinat_def, $has_non_hidden) = @_;
     progress("Export no-NAT-sets");
-    my %owner2net;
+    my %owner2domains;
+    my %all_nat_tags;
     for my $network (values %networks) {
-        $network->{disabled} and next;
+        next if $network->{disabled};
+
+        # Ignore IPv6 networks where typically no NAT is active.
+        next if $network->{ipv6};
+
+        my $nat_domain = $network->{zone}->{nat_domain};
         for my $owner_name
             (owner_for_object($network),
              part_owners_for_object($network),
              outer_owners_for_object($network),
             )
         {
-            $owner2net{$owner_name}->{$network} = $network;
+            $owner2domains{$owner_name}->{$nat_domain} = $nat_domain;
+        }
+        if (my $nat_href = $network->{nat}) {
+            for my $nat_tag (keys %$nat_href) {
+                $all_nat_tags{$nat_tag} = 1;
+            }
         }
     }
-    my %owner2no_nat_set;
-    my %all_nat_tags;
-    $owner2net{$_} ||= {} for keys %owners;
-    for my $owner_name (sort keys %owner2net) {
-        my %nat_domains;
-        for my $network (values %{ $owner2net{$owner_name} }) {
-            my $nat_domain = $network->{zone}->{nat_domain};
-            $nat_domains{$nat_domain} = $nat_domain;
-        }
-        my @nat_domains = values %nat_domains;
-        if (not @nat_domains) {
+    for my $owner_name (keys %owners) {
+        my $no_nat_set = { %all_nat_tags };
+        if (my @nat_domains = values %{ $owner2domains{$owner_name} }) {
 
-            # Special value 'undef' marks owner without any networks.
-            # This will be changed to all_nat_tags below.
-            $owner2no_nat_set{$owner_name} = undef;
-            next;
+            # Build union of all nat_sets of found NAT domains.
+            my $nat_sets = [ map { $_->{nat_set} } @nat_domains ];
+            my $combined = combine_nat_sets(
+                $nat_sets, $nat_tag2multinat_def, $has_non_hidden);
+            delete @{$no_nat_set}{ keys %$combined };
         }
-#       if ((my $count = @nat_domains) > 1) {
-#           print "$owner_name has $count nat_domains\n";
-#           for my $network (values %{ $owner2net{$owner_name} }) {
-#               my $d = $network->{nat_domain};
-#               print " - $d->{name}: $network->{name}\n";
-#           }
-#       }
-
-        # Build union of all no_nat_sets of that NAT domains.
-        my $no_nat_sets = [ map { $_->{no_nat_set} } @nat_domains ];
-        my $combined = combine_no_nat_sets($no_nat_sets, undef, undef,
-                                           $nat_tag2multinat_def,
-                                           $has_non_hidden);
-        my $no_nat_set = [ sort keys %$combined ];
-        $owner2no_nat_set{$owner_name} = $no_nat_set;
-        @all_nat_tags{@$no_nat_set} = @$no_nat_set;
-    }
-    my @all_nat_tags = sort values %all_nat_tags;
-    for my $owner_name (keys %owner2no_nat_set) {
-        my $no_nat_set = $owner2no_nat_set{$owner_name} || \@all_nat_tags;
         create_dirs("owner/$owner_name");
-        export_json("owner/$owner_name/no_nat_set", $no_nat_set);
+        export_json("owner/$owner_name/no_nat_set", [ sort keys %$no_nat_set ]);
     }
-    return;
 }
 
 ####################################################################

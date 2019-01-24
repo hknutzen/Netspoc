@@ -487,16 +487,16 @@ router:r1 = {
  managed;
  model = ASA;
  routing = manual;
- interface:n1 = { ip = 10.1.1.1; hardware = Vlan20; }
- interface:n2 = { ip = 10.1.2.1; hardware = G0/1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2;
  }
 }
 router:r2 = {
  managed;
  model = IOS;
  routing = manual;
- interface:n1 = { ip = 10.1.1.2; hardware = Vlan20; }
- interface:n2 = { ip = 10.1.2.2; hardware = G0/1;  }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2;  }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 
@@ -527,11 +527,11 @@ END
 $out = <<'END';
 --r2
 ! [ ACL ]
-ip access-list extended Vlan20_in
+ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.70 eq 80
  deny ip any any
 --
-ip access-list extended G0/1_in
+ip access-list extended n2_in
  permit tcp host 10.1.2.70 10.1.1.0 0.0.0.255 established
  deny ip any any
 END

@@ -19,8 +19,8 @@ router:r1 = {
  managed;
  model = IOS;
  log:a = log-input;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:asa2 = {
@@ -29,8 +29,8 @@ router:asa2 = {
  log:a = errors;
  log:b = debugging;
  log:c = disable;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 END
 
@@ -54,20 +54,20 @@ END
 $out = <<'END';
 -- r1
 ! [ ACL ]
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 85 log-input
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 range 81 84
  deny ip any any
 -- asa2
-! vlan2_in
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 81 log 7
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 82 83 log disable
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 85 log 3
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 84
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 81 log 7
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 range 82 83 log disable
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 85 log 3
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 84
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -82,7 +82,7 @@ router:r1 = {
  managed;
  model = ASA;
  log:a = foo;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 END
 
@@ -103,7 +103,7 @@ router:r1 = {
  managed;
  model = IOS;
  log:a = foo;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 END
 
@@ -124,7 +124,7 @@ router:r1 = {
  managed;
  model = NX-OS;
  log:a = foo;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
 END
 
@@ -235,16 +235,16 @@ END
 $out = <<'END';
 -- r1
 ! [ ACL ]
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
  permit tcp any 10.1.3.0 0.0.0.255 eq 80
  deny ip any any
 -- asa2
-! vlan2_in
-access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -292,11 +292,11 @@ END
 
 $out = <<'END';
 -- asa2
-! vlan2_in
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list n2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -315,14 +315,14 @@ END
 $out = <<'END';
 -- r1
 ! [ ACL ]
-ip access-list extended vlan1_in
+ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80 log-input
  deny ip any any
 -- asa2
-! vlan2_in
-access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -345,11 +345,11 @@ END
 
 $out = <<'END';
 -- asa2
-! vlan2_in
-access-list vlan2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
-access-list vlan2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
-access-list vlan2_in extended deny ip any4 any4
-access-group vlan2_in in interface vlan2
+! n2_in
+access-list n2_in extended permit tcp any4 10.1.3.0 255.255.255.0 eq 80 log 7
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80 log 3
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);
@@ -374,8 +374,8 @@ router:asa = {
  log:a = warnings;
  log:b = errors;
  log:c = warnings;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 service:t = {
@@ -389,15 +389,15 @@ END
 
 $out = <<'END';
 -- asa
-! vlan1_in
+! n1_in
 object-group network g0
  network-object host 10.1.2.11
  network-object host 10.1.2.13
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log 4
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.12 eq 80 log 3
-access-list vlan1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.14 eq 80
-access-list vlan1_in extended deny ip any4 any4
-access-group vlan1_in in interface vlan1
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80 log 4
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.12 eq 80 log 3
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 host 10.1.2.14 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
@@ -415,8 +415,8 @@ router:r1 = {
  managed;
  model = NX-OS;
  log:a;
- interface:n1 = { ip = 10.1.1.1; hardware = vlan1; }
- interface:n2 = { ip = 10.1.2.1; hardware = vlan2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
 router:r2 = {
@@ -424,8 +424,8 @@ router:r2 = {
  model = NX-OS;
  log:a;
  log:b;
- interface:n2 = { ip = 10.1.2.2; hardware = vlan2; }
- interface:n3 = { ip = 10.1.3.2; hardware = vlan3; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 service:t = {
  user = network:n1;
@@ -437,13 +437,13 @@ END
 $out = <<'END';
 -- r1
 ! [ ACL ]
-ip access-list vlan1_in
+ip access-list n1_in
  10 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 80 log
  20 permit tcp 10.1.1.0/24 10.1.3.0/24 eq 81
  30 deny ip any any
 -- r2
 ! [ ACL ]
-ip access-list vlan2_in
+ip access-list n2_in
  10 deny ip any 10.1.3.2/32
  20 permit tcp 10.1.1.0/24 10.1.3.0/24 range 80 81 log
  30 deny ip any any
