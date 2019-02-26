@@ -8332,7 +8332,7 @@ sub distribute_nat1 {
 ##############################################################################
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
-#             error message, if called function returns an error loop path.
+#             error message, if called function returns an error value.
 # Parameters: $in_router: router the depth first traversal starts at.
 #             $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
