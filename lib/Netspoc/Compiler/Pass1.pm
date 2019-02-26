@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.048'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.049'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -6681,14 +6681,17 @@ sub check_service_owner {
             my $info       = $sname2info{$name} ||= {
                 service => $service,
 
+                # Is set, if all rules use same objects.
+                same_objects => 1,
+
                 # Is set, if all rules are coupling rules.
                 is_coupling => 1,
             };
 
-            # Non 'user' objects.
-            my $objects = $info->{objects} ||= {};
+            # Collect non 'user' objects.
+            my $objects = $info->{objects};
 
-            # Check, if service contains a coupling rule with only
+            # Check, if service contains only coupling rules with only
             # "user" elements.
             my $has_user = $unexpanded->{has_user};
             if ($has_user ne 'both') {
@@ -6699,11 +6702,23 @@ sub check_service_owner {
             }
 
             # Collect objects referenced in rules of service.
+            # Mark service, where different rules have different objects
+            # for multi_owner check below.
             for my $what (qw(src dst)) {
                 next if $what eq $has_user;
                 my $group = $rule->{$what};
+                my $pre = $objects && keys %$objects;
                 @{$objects}{@$group} = @$group;
+                if (defined $pre and
+                    not (@$group == $pre and keys %$objects == $pre))
+                {
+                    delete $info->{same_objects};
+                }
             }
+
+            # Store found objects and remember that first rule has
+            # been processed.
+            $info->{objects} = $objects || {};
         }
     }
 
@@ -6738,9 +6753,7 @@ sub check_service_owner {
         }
 
         # Check for multiple owners.
-        my $multi_count = $info->{is_coupling}
-                        ? 1
-                        : values %$service_owners;
+        my $multi_count = $info->{is_coupling} ? 1 : @{ $service->{owners} };
         if ($multi_count > 1 xor $service->{multi_owner}) {
             if ($service->{multi_owner}) {
                 warn_msg("Useless use of attribute 'multi_owner' at $sname");
@@ -6751,6 +6764,29 @@ sub check_service_owner {
                 warn_or_err_msg($print_type,
                                 "$sname has multiple owners:\n ",
                                 join(', ', @names));
+            }
+        }
+
+        # Check if attribute 'multi_owner' could be avoided,
+        # if objects of user and objects of rules are swapped.
+        elsif ($service->{multi_owner} and $info->{same_objects}) {
+            my $user_owner = '';
+            my $multi_owner;
+            for my $user (@{ $service->{user} }) {
+                my $owner = $user->{owner} || ':unknown';
+                $user_owner ||= $owner;
+                next if $user_owner eq $owner;
+                $multi_owner = 1;
+                last;
+            }
+            if (not $multi_owner and $user_owner ne ':unknown') {
+                warn_msg("Useless use of attribute 'multi_owner' at $sname\n",
+                         " All 'user' objects belong to single",
+                         " $user_owner->{name}.\n",
+                         " Either swap objects of 'user' and objects",
+                         " of rules,\n",
+                         " or split service into multiple parts,",
+                         " one for each owner.");
             }
         }
 
@@ -8556,15 +8592,8 @@ sub combine_nat_sets {
         my $hash = $multi2tags{$multinat_hash};
         my $add;
 
-        # Ignore tags, that are inactive in some set.
-        if ($hash->{':none'}) {
-        }
-
-        # Single real or hidden tag.
-        elsif (keys %$hash == 1) {
-            ($add) = keys %$hash;
-        }
-        else {
+        # Analyze active and inactive tags.
+        if (not $hash->{':none'}) {
             my $real_tag;
             for my $tag (%$hash) {
                 if ($has_non_hidden->{$tag}) {
@@ -8584,8 +8613,9 @@ sub combine_nat_sets {
             }
             # Ignore multiple hidden tags.
         }
-
         $to_add{$add} = 1 if $add;
+
+        # Ignore all tags, if none is active.
         $add ||= ':none';
 
         # Tag that is ignored in one multi set must be ignored completely.
@@ -18302,7 +18332,8 @@ sub print_acls {
                 $acl->{opt_networks} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %opt_addr ];
@@ -18311,7 +18342,8 @@ sub print_acls {
                 $acl->{no_opt_addrs} = [
                     sort
                     map {   $dst_obj{$_}
-                          ? full_prefix_code(address($_, $dst_nat_set))
+                          ? ($dst_addr_cache->{$_} ||=
+                             full_prefix_code(address($_, $dst_nat_set)))
                           : ($addr_cache->{$_} ||=
                              full_prefix_code(address($_, $nat_set))) }
                     values %no_opt_addrs ];

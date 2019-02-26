@@ -653,4 +653,114 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Useless multi_owner when user objects have single owner';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+group:g1 = host:h1, host:h2;
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+ permit src = group:g1; dst = user; prt = tcp 82;
+}
+END
+
+$out = <<'END';
+Warning: Useless use of attribute 'multi_owner' at service:s1
+ All 'user' objects belong to single owner:o3.
+ Either swap objects of 'user' and objects of rules,
+ or split service into multiple parts, one for each owner.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'multi_owner ok with empty user objects';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+group:g1 = ;
+
+service:s1 = {
+ multi_owner;
+ user = group:g1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'multi_owner with mixed coupling rules';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = user; dst = user; prt = tcp 80;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
 done_testing;
