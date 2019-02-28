@@ -4389,7 +4389,9 @@ sub split_semi_managed_router {
 
         # Count interfaces without pathrestriction or bind_nat.
         my $interfaces = $router->{interfaces};
-        my $count = grep({ not($_->{main_interface} or $_->{path_restrict} or $_->{bind_nat}) }
+        my $count = grep({ not($_->{main_interface} or
+                               $_->{path_restrict} or
+                               $_->{bind_nat}) }
                          @$interfaces);
         next if $count < 2;
 
@@ -4430,8 +4432,7 @@ sub split_semi_managed_router {
                             name => "$intf_name(split1)",
                             ip => 'unnumbered',
                             router => $router,
-                            network => $network,
-                            split_orig => $interface);
+                            network => $network);
             my $intf2 = new('Interface',
                             name => "$intf_name(split2)",
                             ip => 'unnumbered',
@@ -4445,12 +4446,6 @@ sub split_semi_managed_router {
             # processing in check_pathrestrictions.
             if ($interface->{path_restrict}) {
                 $interface->{split_other} = $intf2;
-            }
-
-            # Mark artificial interface. It must not be shown in
-            # error message as border of NAT domain.
-            if ($interface->{bind_nat}) {
-                $intf2->{split_nat} = $intf1;
             }
 
             # Replace original interface at current router.
@@ -8205,32 +8200,10 @@ sub err_missing_bind_nat {
 
 sub get_nat_domain_borders {
     my ($domain) = @_;
-    my @result;
-    for my $router (@{ $domain->{routers} }) {
-        for my $interface (@{ $router->{interfaces} }) {
-            $interface->{zone}->{nat_domain} eq $domain or next;
 
-            # Reconstruct split router.
-            # Must not show internal split interfaces.
-            if (my $intf1 = $interface->{split_nat}) {
-                my $orig_router = $intf1->{router};
-                for my $intf (@{ $orig_router->{interfaces} }) {
-                    next if $intf eq $interface;
-                    if (my $orig_intf = $intf->{split_orig}) {
-                        $orig_intf->{zone}->{nat_domain} eq $domain or next;
-                        push @result, $orig_intf;
-                    }
-                    else {
-                        push @result, $intf;
-                    }
-                }
-            }
-            else {
-                push @result, $interface;
-            }
-        }
-    }
-    return @result;
+    # Must get zone from network, because some interfaces are unmanaged.
+    return grep({ $_->{network}->{zone}->{nat_domain} eq $domain }
+                map { get_intf($_) } @{ $domain->{routers} });
 }
 
 ##############################################################################
