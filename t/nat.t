@@ -1676,10 +1676,10 @@ Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in r
  permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
 Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
  permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
-Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
- permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
 Error: network:n2 is hidden by nat:h2 in rule
  permit src=network:n2; dst=any:[network:n4]; prt=tcp 80; of service:s1
+Error: host:h1 needs static translation for nat:d1 at router:r2 to be valid in rule
+ permit src=host:h1; dst=any:[network:n4]; prt=tcp 80; of service:s1
 Error: network:n3 is hidden by nat:h3 in rule
  permit src=network:n3; dst=any:[network:n4]; prt=tcp 80; of service:s1
 END
@@ -3082,6 +3082,52 @@ Error: Incomplete 'bind_nat = n0' at
  - interface:r3.n2
  - interface:r3.n3
  - interface:r3.n5
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Incomplete and useless NAT at split router';
+############################################################
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; nat:h = { hidden; } }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ interface:n0;
+ interface:n2;
+ interface:n3;
+}
+
+# Router will internally be split into 3 parts (n1)(n2)(n4,n5)
+router:r2 = {
+ interface:n1 = { bind_nat = hx; }
+ interface:n2;
+ interface:n4;
+ interface:n5;
+}
+router:r3 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+pathrestriction:p1 = interface:r2.n2, interface:r3.n3;
+END
+
+$out = <<'END';
+Error: Incomplete 'bind_nat = hx' at
+ - interface:r2.n1
+ Possibly 'bind_nat = hx' is missing at these interfaces:
+ - interface:r3.n1
+Warning: Ignoring useless nat:hx bound at router:r2
 END
 
 test_err($title, $in, $out);
