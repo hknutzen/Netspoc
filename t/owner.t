@@ -728,6 +728,41 @@ $out = '';
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'multi_owner ok with multiple owners in user objects';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ owner = o1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+
+service:s1 = {
+ multi_owner;
+ user = network:n1, interface:asa1.n2;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+}
+END
+
+$out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'multi_owner with mixed coupling rules';
 ############################################################
 

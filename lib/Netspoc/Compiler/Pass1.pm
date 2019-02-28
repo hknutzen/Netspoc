@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.049'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.050'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -4363,50 +4363,41 @@ sub link_pathrestrictions {
     }
 }
 
-# If a pathrestriction is added to an unmanged router, it is marked as
-# semi_managed. As a consequence, a new zone would be created at each
-# interface of this router.
+# If a pathrestriction or a bind_nat is added to an unmanged router,
+# it is marked as semi_managed. As a consequence, a new zone would be
+# created at each interface of this router.
 # If an unmanaged router has a large number of interfaces, but only
-# one or a few pathrestrictions attached, we would get a large
-# number of useless zones.
+# one or a few pathrestrictions or bind_nat attached, we would get a
+# large number of useless zones.
 # To reduce the number of newly created zones, we split an unmanaged
-# router with pathrestrictions, if it has more than two interfaces
-# without pathrestriction:
-# - original part having only interfaces without pathrestrictions,
-# - one split part for each interface with pathrestrictions.
+# router with pathrestrictions or bind_nat, if it has more than two
+# interfaces without any pathrestriction or bind_nat:
+# - original part having only interfaces without pathrestriction or bind_nat,
+# - one split part for each interface with pathrestriction or bind_nat.
 # All parts are connected by a freshly created unnumbered network.
 sub split_semi_managed_router {
     for my $router (get_ipv4_ipv6_routers()) {
 
-        # Router is marked as semi_managed, if it
-        # - has pathrestriction
-        # - or is managed=routing_only.
+        # Unmanaged router is marked as semi_managed, if
+        # - it has pathrestriction,
+        # - it has interface with bind_nat or
+        # - is managed=routing_only.
         $router->{semi_managed} or next;
 
         # Don't split device with 'managed=routing_only'.
         next if $router->{routing_only};
 
-        # Count interfaces without pathrestriction.
-        # Check if router has pathrestriction at all.
+        # Count interfaces without pathrestriction or bind_nat.
         my $interfaces = $router->{interfaces};
-        my $has_pathrestriction;
-        my $count = 0;
-        for my $interface (@$interfaces) {
-            next if $interface->{main_interface};
-            if ($interface->{path_restrict}) {
-                $has_pathrestriction = 1;
-            }
-            else {
-                $count++;
-            }
-        }
-        $count > 1 and $has_pathrestriction or next;
+        my $count = grep({ not($_->{main_interface} or $_->{path_restrict} or $_->{bind_nat}) }
+                         @$interfaces);
+        next if $count < 2;
 
         # Retain copy of original interfaces for finding [all] interfaces.
         $router->{orig_interfaces} ||= [@$interfaces];
 
         # Split router into two or more parts.
-        # Move each interface with pathrestriction and
+        # Move each interface with pathrestriction or bind_nat and
         # corresponding secondary interface to new router.
 #        debug "split $router->{name}";
         my @split_secondary;
@@ -4414,23 +4405,23 @@ sub split_semi_managed_router {
 
         for my $interface (@$interfaces) {
             if (my $main = $interface->{main_interface}) {
-                $main->{path_restrict} or next;
+                $main->{path_restrict} or $main->{bind_nat} or next;
                 push @split_secondary, $interface;
                 next;
             }
-            $interface->{path_restrict} or next;
+            $interface->{path_restrict} or $interface->{bind_nat} or next;
 
             # Create new semi_manged router with identical name.
             # Add reference to original router having {orig_interfaces}.
             my $new_router = new('Router',
-                                 name => "$name(split)",
+                                 name => $name,
                                  semi_managed => 1,
-                                 orig_router => $router,
-                                 interfaces => [$interface]);
+                                 orig_router => $router);
             $interface->{router} = $new_router;
             push @router_fragments, $new_router;
 
             # Link current and newly created router by unnumbered network.
+            # Add reference to original interface at internal interface.
             my $intf_name = $interface->{name};
             my $network = new('Network',
                               name => "$intf_name(split Network)",
@@ -4439,7 +4430,8 @@ sub split_semi_managed_router {
                             name => "$intf_name(split1)",
                             ip => 'unnumbered',
                             router => $router,
-                            network => $network);
+                            network => $network,
+                            split_orig => $interface);
             my $intf2 = new('Interface',
                             name => "$intf_name(split2)",
                             ip => 'unnumbered',
@@ -4451,7 +4443,15 @@ sub split_semi_managed_router {
             # Add reference to other interface at original interface
             # at newly created router. This is needed for post
             # processing in check_pathrestrictions.
-            $interface->{split_other} = $intf2;
+            if ($interface->{path_restrict}) {
+                $interface->{split_other} = $intf2;
+            }
+
+            # Mark artificial interface. It must not be shown in
+            # error message as border of NAT domain.
+            if ($interface->{bind_nat}) {
+                $intf2->{split_nat} = $intf1;
+            }
 
             # Replace original interface at current router.
             $interface = $intf1;
@@ -8205,9 +8205,32 @@ sub err_missing_bind_nat {
 
 sub get_nat_domain_borders {
     my ($domain) = @_;
-    return
-        grep({ $_->{zone}->{nat_domain} eq $domain }
-             map { @{ $_->{interfaces} } } @{ $domain->{routers} });
+    my @result;
+    for my $router (@{ $domain->{routers} }) {
+        for my $interface (@{ $router->{interfaces} }) {
+            $interface->{zone}->{nat_domain} eq $domain or next;
+
+            # Reconstruct split router.
+            # Must not show internal split interfaces.
+            if (my $intf1 = $interface->{split_nat}) {
+                my $orig_router = $intf1->{router};
+                for my $intf (@{ $orig_router->{interfaces} }) {
+                    next if $intf eq $interface;
+                    if (my $orig_intf = $intf->{split_orig}) {
+                        $orig_intf->{zone}->{nat_domain} eq $domain or next;
+                        push @result, $orig_intf;
+                    }
+                    else {
+                        push @result, $intf;
+                    }
+                }
+            }
+            else {
+                push @result, $interface;
+            }
+        }
+    }
+    return @result;
 }
 
 ##############################################################################
@@ -8332,7 +8355,7 @@ sub distribute_nat1 {
 ##############################################################################
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
-#             error message, if called function returns an error loop path.
+#             error message, if called function returns an error value.
 # Parameters: $in_router: router the depth first traversal starts at.
 #             $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
