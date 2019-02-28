@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+5.050     2019-02-28 12:50:47+01:00 Europe/Berlin
+
+ - Fixed bug in processing of NAT. Attribute bind_nat was ignored at unmanaged router if
+   - at least one interface has pathrestriction,
+   - at least two interfaces have no pathrestriction and
+   - bind_nat is placed at interface without pathrestriction.
+
 5.049     2019-02-26 16:02:34+01:00 Europe/Berlin
 
  - New warning on useless attribute 'multi_owner' is shown
