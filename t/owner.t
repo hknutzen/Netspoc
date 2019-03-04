@@ -43,6 +43,23 @@ END
 test_err($title, $in, $out, '--check_unused_owners=1');
 
 ############################################################
+$title = 'No warning if owner is used at aggregate';
+############################################################
+
+$in = <<'END';
+owner:o = { admins = a@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+any:n1 = { link = network:n1; owner = o; }
+
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Duplicates in admins/watchers';
 ############################################################
 

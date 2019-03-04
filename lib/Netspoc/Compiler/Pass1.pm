@@ -6526,6 +6526,7 @@ sub propagate_owners {
     my $inherit = sub {
         my ($node, $upper_node) = @_;
         my $upper_owner = $upper_node->{owner};
+        $upper_owner->{is_used} = 1 if $upper_owner;
         if (my $owner = $node->{owner}) {
             $owner->{is_used} = 1;
             if ($upper_owner and $owner eq $upper_owner) {

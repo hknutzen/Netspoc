@@ -962,7 +962,6 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Warning: Unused owner:o
 Warning: Useless attribute 'has_unenforceable' at any:n
 END
 
