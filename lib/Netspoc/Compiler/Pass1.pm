@@ -2576,6 +2576,45 @@ sub move_locked_interfaces {
 # Mapping from aggregate names to aggregate objects.
 our %aggregates;
 
+sub read_common_aggregate_area {
+    my ($token, $obj, $name) = @_;
+    if ($token eq 'owner') {
+        my $owner = read_assign(\&read_identifier);
+        add_attribute($obj, owner => $owner);
+    }
+    elsif ($token =~
+           /^(overlaps|unknown_owner|multi_owner|has_unenforceable)$/)
+    {
+        my $value;
+
+        # For compatibility with old syntax.
+        if (check(';')) {
+            $value = 'ok';
+        }
+        else {
+            $value = read_assign(\&read_identifier);
+            $value =~ /^(restrict|enable|ok)$/ or
+                error_atline("Expected 'restrict', 'enable' or 'ok'");
+
+            # 0 is default value for absent attribute.
+            $value = 0 if $value eq 'enable';
+        }
+        $obj->{$token} = $value;
+    }
+    elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
+        $type eq 'nat' or syntax_err('Unexpected token');
+        verify_name($name2);
+        my $nat_tag = $name2;
+        my $nat = read_nat($nat_tag, $name);
+        $obj->{nat}->{$nat_tag} and
+            err_msg("Duplicate NAT definition nat:$nat_tag at $name");
+        $obj->{nat}->{$nat_tag} = $nat;
+    }
+    else {
+        syntax_err('Unexpected token');
+    }
+}
+
 sub read_aggregate {
     my $name = shift;
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
@@ -2593,37 +2632,16 @@ sub read_aggregate {
             add_attribute($aggregate, ip   => $ip);
             add_attribute($aggregate, mask => $mask);
         }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($aggregate, owner => $owner);
-        }
         elsif ($token eq 'link') {
             my $link = read_assign(\&read_typed_name);
             add_attribute($aggregate, link => $link);
-        }
-        elsif ($token eq 'has_unenforceable') {
-            skip(';');
-            $aggregate->{has_unenforceable} = 1;
         }
         elsif ($token eq 'no_check_supernet_rules') {
             skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
         }
-        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
-            if ($type eq 'nat') {
-                verify_name($name2);
-                my $nat_tag = $name2;
-                my $nat = read_nat($nat_tag, $name);
-                $aggregate->{nat}->{$nat_tag} and
-                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
-                $aggregate->{nat}->{$nat_tag} = $nat;
-            }
-            else {
-                syntax_err('Unexpected token');
-            }
-        }
         else {
-            syntax_err('Unexpected token');
+            read_common_aggregate_area($token, $aggregate, $name);
         }
     }
     $aggregate->{link} or
@@ -2710,29 +2728,12 @@ sub read_area {
             my $net_name = read_network_assign($token);
             add_attribute($area, anchor => $net_name);
         }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($area, owner => $owner);
-        }
         elsif ($token eq 'router_attributes') {
             my $router_attributes = read_router_attributes($name);
             add_attribute($area, router_attributes => $router_attributes);
         }
-        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
-            if ($type eq 'nat') {
-                verify_name($name2);
-                my $nat_tag = $name2;
-                my $nat = read_nat($nat_tag, $name);
-                $area->{nat}->{$nat_tag} and
-                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
-                $area->{nat}->{$nat_tag} = $nat;
-            }
-            else {
-                syntax_err('Unexpected token');
-            }
-        }
         else {
-            syntax_err('Unexpected token');
+            read_common_aggregate_area($token, $area, $name);
         }
     }
     ($area->{border} or $area->{inclusive_border}) and $area->{anchor}
@@ -6661,6 +6662,31 @@ sub propagate_owners {
     }
 }
 
+##############################################################################
+# Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
+#            $obj : Zone, (or area from recursion)
+# Comment  : Caches found value or 0 at area and zone.
+# Returns  : Value of attribute or 0
+sub get_attr_from_zone {
+    my ($attr, $obj) = @_;
+    if (exists $obj->{$attr}) {
+        return $obj->{$attr};
+    }
+    my $up = $obj->{in_area} or return 0;
+    return $obj->{$attr} = $up && get_attr_from_zone($attr, $up) || 0;
+}
+
+##############################################################################
+# Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
+#            $obj: host, interface, network, aggregate
+# Purpose  : Find attribute at corresponding zone or enclosing area.
+# Returns  : Value of attribute or 0.
+sub get_attr {
+    my ($attr, $obj) = @_;
+    $obj = $obj->{network} || $obj;
+    return get_attr_from_zone($attr, $obj->{zone});
+}
+
 sub check_service_owner {
     progress('Checking service owner');
 
@@ -6722,9 +6748,9 @@ sub check_service_owner {
         my $info = $sname2info{$sname};
         my $service = $info->{service};
 
-        # Collect service owners and unknown owners;
+        # Collect service owners, remember if unknown owners;
         my $service_owners;
-        my $unknown_owners;
+        my $has_unknown;
 
         my $objects = $info->{objects};
         for my $obj (values %$objects) {
@@ -6733,7 +6759,7 @@ sub check_service_owner {
                 $service_owners->{$owner} = $owner;
             }
             else {
-                $unknown_owners->{$obj} = $obj;
+                $has_unknown = 1;
             }
         }
 
@@ -6741,7 +6767,7 @@ sub check_service_owner {
 
         # Check for redundant service owner.
         # Allow dedicated service owner, if we have multiple owners
-        # from @objects.
+        # from @$objects.
         if (my $sub_owner = $service->{sub_owner}) {
             $sub_owner->{is_used} = 1;
             keys %$service_owners == 1 and $service_owners->{$sub_owner}
@@ -6749,57 +6775,81 @@ sub check_service_owner {
         }
 
         # Check for multiple owners.
-        my $multi_count = $info->{is_coupling} ? 1 : @{ $service->{owners} };
-        if ($multi_count > 1 xor $service->{multi_owner}) {
-            if ($service->{multi_owner}) {
+        my $has_multi = !$info->{is_coupling} && 1 < @{ $service->{owners} };
+        if ($service->{multi_owner}) {
+            if (not $has_multi) {
                 warn_msg("Useless use of attribute 'multi_owner' at $sname");
             }
-            elsif (my $print_type = $config->{check_service_multi_owner}) {
-                my @names = sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
-                                 values %$service_owners);
-                warn_or_err_msg($print_type,
-                                "$sname has multiple owners:\n ",
-                                join(', ', @names));
+
+            # Check if attribute 'multi_owner' is restricted at this service.
+            elsif (grep { $_->{owner} and
+                          'restrict' eq get_attr('multi_owner', $_)
+                   }
+                   sort by_name values %$objects)
+            {
+                warn_msg("Must not use attribute 'multi_owner' at",
+                         " $service->{name}");
+            }
+
+            # Check if attribute 'multi_owner' could be avoided,
+            # if objects of user and objects of rules are swapped.
+            elsif ($info->{same_objects}) {
+                my $user_owner = '';
+                my $multi_owner;
+                for my $user (@{ $service->{user} }) {
+                    my $owner = $user->{owner} || ':unknown';
+                    $user_owner ||= $owner;
+                    next if $user_owner eq $owner;
+                    $multi_owner = 1;
+                    last;
+                }
+                if (not $multi_owner and $user_owner ne ':unknown') {
+                    warn_msg("Useless use of attribute 'multi_owner'",
+                             " at $sname\n",
+                             " All 'user' objects belong to single",
+                             " $user_owner->{name}.\n",
+                             " Either swap objects of 'user' and objects",
+                             " of rules,\n",
+                             " or split service into multiple parts,",
+                             " one for each owner.");
+                }
             }
         }
-
-        # Check if attribute 'multi_owner' could be avoided,
-        # if objects of user and objects of rules are swapped.
-        elsif ($service->{multi_owner} and $info->{same_objects}) {
-            my $user_owner = '';
-            my $multi_owner;
-            for my $user (@{ $service->{user} }) {
-                my $owner = $user->{owner} || ':unknown';
-                $user_owner ||= $owner;
-                next if $user_owner eq $owner;
-                $multi_owner = 1;
-                last;
-            }
-            if (not $multi_owner and $user_owner ne ':unknown') {
-                warn_msg("Useless use of attribute 'multi_owner' at $sname\n",
-                         " All 'user' objects belong to single",
-                         " $user_owner->{name}.\n",
-                         " Either swap objects of 'user' and objects",
-                         " of rules,\n",
-                         " or split service into multiple parts,",
-                         " one for each owner.");
-            }
+        elsif ($has_multi and
+               (my $print_type = $config->{check_service_multi_owner}) and
+               (my @names =
+                unique sort
+                map { $_->{owner}->{name} =~ s/^owner://r }
+                grep { $_->{owner} and 'ok' ne get_attr('multi_owner', $_) }
+                values %$objects))
+        {
+            warn_or_err_msg($print_type,
+                            "$sname has multiple owners:\n ",
+                            join(', ', @names));
         }
 
         # Check for unknown owners.
-        if (($unknown_owners and keys %$unknown_owners)
-            xor $service->{unknown_owner})
-        {
-            if ($service->{unknown_owner}) {
+        if ($service->{unknown_owner}) {
+            if (not $has_unknown) {
                 warn_msg("Useless use of attribute 'unknown_owner' at $sname");
             }
-            else {
-                if ($config->{check_service_unknown_owner}) {
-                    for my $obj (values %$unknown_owners) {
-                        $unknown2unknown{$obj} = $obj;
-                        push @{ $unknown2services{$obj} }, $sname;
-                    }
-                }
+            elsif (grep { not $_->{owner} and
+                          'restrict' eq get_attr('unknown_owner', $_)
+                   }
+                   sort by_name values %$objects)
+            {
+                warn_msg("Must not use attribute 'unknown_owner' at",
+                         " $service->{name}");
+            }
+        }
+        elsif ($has_unknown &&
+               $config->{check_service_unknown_owner})
+        {
+            for my $obj (values %$objects) {
+                next if $obj->{owner};
+                next if 'ok' eq get_attr('unknown_owner', $obj);
+                $unknown2unknown{$obj} = $obj;
+                push @{ $unknown2services{$obj} }, $sname;
             }
         }
     }
@@ -6991,15 +7041,13 @@ sub get_zone {
 sub collect_unenforceable {
     my ($rule, $zone) = @_;
     my $service = $rule->{rule}->{service};
+    $service->{silent_unenforceable} = 1;
 
-    if ($zone->{has_unenforceable}) {
-        $zone->{seen_unenforceable}      = 1;
-        $service->{silent_unenforceable} = 1;
+    if ('ok' eq get_attr_from_zone('has_unenforceable', $zone)) {
         return;
     }
 
     my $is_coupling = $rule->{rule}->{has_user} eq 'both';
-    $service->{silent_unenforceable} = 1;
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
     for my $src (@$src_list) {
@@ -7009,7 +7057,7 @@ sub collect_unenforceable {
                 if ($src eq $dst) {
                     next;
                 }
-                elsif (is_subnet $src and is_subnet($dst)) {
+                elsif (is_subnet($src) and is_subnet($dst)) {
 
                     # For rules with different subnets of a single
                     # network we don't know if the subnets have been
@@ -7067,7 +7115,7 @@ sub show_unenforceable {
 
         if ($service->{has_unenforceable}
             and (not $service->{seen_unenforceable} or
-                 not$service->{seen_enforceable}))
+                 not $service->{seen_enforceable}))
         {
             warn_msg("Useless attribute 'has_unenforceable' at $context");
         }
@@ -7087,33 +7135,38 @@ sub show_unenforceable {
             }
             next;
         }
-        next if $service->{has_unenforceable};
 
         if (my $src_hash = delete $service->{seen_unenforceable}) {
             my @list;
             for my $dst_hash (values %$src_hash) {
                 for my $aref (values %$dst_hash) {
                     my ($src, $dst) = @$aref;
+                    my $src_attr = get_attr('has_unenforceable', $src);
+                    my $dst_attr =
+                        $src_attr && get_attr('has_unenforceable', $dst);
+                    if ($service->{has_unenforceable}) {
+                        if($src_attr eq 'restrict' and $dst_attr eq 'restrict')
+                        {
+                            $service->{has_unenforceable_restricted}++ or
+                                warn_msg("Must not use attribute",
+                                         " 'has_unenforceable' at",
+                                         " $service->{name}");
+                        }
+                        next;
+                    }
+                    if($src_attr eq 'ok' and $dst_attr eq 'ok') {
+                        next;
+                    }
                     push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
             }
-            warn_or_err_msg($config->{check_unenforceable},
-                            join "\n ",
-                            "$context has unenforceable rules:",
-                            sort @list);
+            @list and
+                warn_or_err_msg($config->{check_unenforceable},
+                                join "\n ",
+                                "$context has unenforceable rules:",
+                                sort @list);
         }
         delete $service->{silent_unenforceable};
-    }
-}
-
-sub warn_useless_unenforceable {
-    for my $zone (@zones) {
-        $zone->{has_unenforceable} or next;
-        $zone->{seen_unenforceable} and next;
-        my $zero_ip = get_zero_ip($zone->{ipv6});
-        my $agg00 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
-        my $name = $agg00 ? $agg00->{name} : $zone->{name};
-        warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
 }
 
@@ -7204,7 +7257,6 @@ sub group_path_rules {
     info("Grouped rule count: $count");
 
     show_unenforceable();
-    warn_useless_unenforceable();
 }
 
 sub remove_simple_duplicate_rules {
@@ -7329,6 +7381,29 @@ sub set_local_prt_relation {
 
 my @duplicate_rules;
 
+# Returns 1, if overlap should be ignored.
+sub check_attr_overlaps {
+    my ($service, $oservice, $rule) = @_;
+    my $src_attr = get_attr('overlaps', $rule->{src});
+    my $dst_attr = $src_attr && get_attr('overlaps', $rule->{dst});
+    my $overlaps = $service->{overlaps};
+    if ($overlaps and grep { $oservice eq $_ } @$overlaps) {
+        $service->{overlaps_used}->{$oservice} = 1;
+        if ('restrict' eq get_attr('overlaps', $rule->{src})
+            and
+            'restrict' eq get_attr('overlaps', $rule->{dst}))
+        {
+            $service->{overlaps_restricted}++ or
+                warn_msg("Must not use attribute 'overlaps' at $service->{name}");
+            return;
+        }
+        return 1;
+    }
+    elsif ($src_attr eq 'ok' and $dst_attr eq 'ok') {
+        return 1;
+    }
+}
+
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
@@ -7355,23 +7430,11 @@ sub collect_duplicate_rules {
     # Return early, so {overlaps_used} isn't set below.
     return if $rule->{overlaps} and $other->{overlaps};
 
-    if (my $overlaps = $service->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($oservice eq $overlap) {
-                $service->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
+    if (check_attr_overlaps($service, $oservice, $rule) or
+        check_attr_overlaps($oservice, $service, $rule))
+    {
+        return;
     }
-    if (my $overlaps = $oservice->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($service eq $overlap) {
-                $oservice->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
-    }
-
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
 
@@ -7414,13 +7477,8 @@ sub collect_redundant_rules {
     return if $rule->{overlaps} and $other->{overlaps};
 
     my $oservice = $other->{rule}->{service};
-    if (my $overlaps = $service->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($oservice eq $overlap) {
-                $service->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
+    if (check_attr_overlaps($service, $oservice, $rule)) {
+        return;
     }
     push @redundant_rules, [ $rule, $other ];
 }
@@ -9950,10 +10008,11 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if (is_zero_ip($mask)) {
-            for my $attr (qw(has_unenforceable owner nat
+            for my $attr (qw(overlaps unknown_owner multi_owner
+                             has_unenforceable owner nat
                              no_check_supernet_rules))
             {
-                if (my $v = delete $aggregate->{$attr}) {
+                if (defined(my $v = delete $aggregate->{$attr})) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
                     }
@@ -10774,10 +10833,6 @@ sub check_area_subset_relations {
     @ascending_areas =
         sort area_by_size grep { not $_->{disabled} } values %areas;
 
-    # Collect pairs of areas already identified with other zone or router.
-    # Key: contained area, value: containing area
-    my %seen;
-
     # Process all elements contained by one or more areas.
     for my $obj (@zones, @managed_routers) {
         my $area_hash = $obj->{areas} or next;
@@ -10788,11 +10843,16 @@ sub check_area_subset_relations {
         # Take the smallest area.
         my $next = shift @containing;
 
+        if (is_zone($obj)) {
+            $obj->{in_area} = $next;
+        }
+
       LARGER:
         while (@containing) {
             my $small = $next;
             $next = shift @containing;
-            next if $seen{$small}->{$next}++;
+            next if $small->{in_area};
+            $small->{in_area} = $next;
             my $small_z = $small->{zones};
             my $small_r = $small->{managed_routers};
             my $next_z = $next->{zones};
