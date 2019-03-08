@@ -415,6 +415,8 @@ $in = $topo . <<'END';
 any:a2 = {
  link = network:n2;
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
+ unknown_owner = restrict;
+ multi_owner = restrict;
  owner = foo;
 }
 owner:foo = { admins = a@example.com; }
@@ -437,6 +439,8 @@ router:asa1 = {
 any:a2 = {
  link = network:n2;
  nat:a2 = { ip = 10.9.9.9/32; dynamic; }
+ unknown_owner = restrict;
+ multi_owner = restrict;
 }
 service:test = {
     user = network:n2;
