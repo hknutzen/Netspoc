@@ -13288,19 +13288,18 @@ sub crypto_behind {
     }
 }
 
-# Valid group-policy attributes.
-# Hash describes usage:
-# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
 my %asa_vpn_attributes = (
+
+    # Our own attributes
+    'check-subject-name'          => {},
+    'check-extended-key-usage'    => {},
+    'trust-point'                 => {},
 
     # group-policy attributes
     banner                        => {},
-    'check-subject-name'          => {},
-    'check-extended-key-usage'    => {},
     'dns-server'                  => {},
     'default-domain'              => {},
     'split-dns'                   => {},
-    'trust-point'                 => {},
     'wins-server'                 => {},
     'vpn-access-hours'            => {},
     'vpn-idle-timeout'            => {},
@@ -13308,6 +13307,8 @@ my %asa_vpn_attributes = (
     'vpn-simultaneous-logins'     => {},
     vlan                          => {},
     'split-tunnel-policy'         => {},
+
+    # tunnel-group general-attributes
     'authentication-server-group' => { tg_general => 1 },
     'authorization-server-group'  => { tg_general => 1 },
     'authorization-required'      => { tg_general => 1 },
