@@ -956,14 +956,12 @@ any:n = {
  link = network:n;
  ip = 0.0.0.0/0;
  owner = o;
- has_unenforceable;
+ no_check_supernet_rules;
 }
 network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Warning: Unused owner:o
-Warning: Useless attribute 'has_unenforceable' at any:n
 END
 
 test_warn($title, $in, $out);

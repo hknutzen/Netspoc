@@ -43,6 +43,23 @@ END
 test_err($title, $in, $out, '--check_unused_owners=1');
 
 ############################################################
+$title = 'No warning if owner is used at aggregate';
+############################################################
+
+$in = <<'END';
+owner:o = { admins = a@b.c; }
+
+network:n1 = { ip = 10.1.1.0/24; }
+any:n1 = { link = network:n1; owner = o; }
+
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Duplicates in admins/watchers';
 ############################################################
 
@@ -581,6 +598,64 @@ END
 test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
 
 ############################################################
+$title = "Restrict attribute 'unknown_owner'";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+any:n2 = { link = network:n2; unknown_owner = restrict; }
+
+service:s1 = {
+ unknown_owner;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Must not use attribute 'unknown_owner' at service:s1
+END
+
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
+
+############################################################
+$title = "Ignore unknown owners in zone";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+any:n2 = { link = network:n2; unknown_owner = ok; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
+
+############################################################
 $title = 'Multiple service owners';
 ############################################################
 
@@ -794,6 +869,76 @@ service:s1 = {
 END
 
 $out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Restrict attribute 'multi_owner'";
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+any:n2 = { link = network:n2; multi_owner = restrict; }
+
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Must not use attribute 'multi_owner' at service:s1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Ignore multiple owners in zone";
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+any:n2 = { link = network:n2; multi_owner = ok; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+END
 
 test_warn($title, $in, $out);
 
