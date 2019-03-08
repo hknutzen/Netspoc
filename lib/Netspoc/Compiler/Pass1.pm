@@ -7141,20 +7141,13 @@ sub show_unenforceable {
             for my $dst_hash (values %$src_hash) {
                 for my $aref (values %$dst_hash) {
                     my ($src, $dst) = @$aref;
-                    my $src_attr = get_attr('has_unenforceable', $src);
-                    my $dst_attr =
-                        $src_attr && get_attr('has_unenforceable', $dst);
                     if ($service->{has_unenforceable}) {
-                        if($src_attr eq 'restrict' and $dst_attr eq 'restrict')
-                        {
+                        if('restrict' eq get_attr('has_unenforceable', $src)) {
                             $service->{has_unenforceable_restricted}++ or
                                 warn_msg("Must not use attribute",
                                          " 'has_unenforceable' at",
                                          " $service->{name}");
                         }
-                        next;
-                    }
-                    if($src_attr eq 'ok' and $dst_attr eq 'ok') {
                         next;
                     }
                     push @list, "src=$src->{name}; dst=$dst->{name}";
