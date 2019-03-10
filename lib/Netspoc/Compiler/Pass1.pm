@@ -15013,7 +15013,7 @@ sub check_dynamic_nat_rules {
     # 1. are active inside nat_set,
     # 2. are defined inside zone and remeber if NAT is hidden or not.
     # 3. Check for equal type of NAT definitions.
-    #    This is used for mor efficient check of dynamic NAT rules,
+    #    This is used for more efficient check of dynamic NAT rules,
     #    so we need to check only once for each pair of src / dst zone.
     my %nat_set2active_tags;
     my %zone2dyn_nat;
