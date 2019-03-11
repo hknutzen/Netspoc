@@ -7860,20 +7860,39 @@ a common set of NAT tags (NAT set) is effective at every network.
 =cut
 
 #############################################################################
-# Returns: Hash containing nat_tags declared to be non hidden at least
-#          once as keys.
-sub generate_lookup_hash_for_non_hidden_nat_tags {
-    my %has_non_hidden;
+# Comment: Check for equal type of NAT definitions.
+#          This is used for more efficient check of dynamic NAT rules,
+#          so we need to check only once for each pair of src / dst zone.
+# Returns: A hash, mapping nat_tag to its type: static, dynamic or hidden.
+sub get_lookup_hash_for_nat_type {
+    my %nat_tag2network;
+    my %nat_tag2nat_type;
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
-        for my $nat_tag (keys %$nat_hash) {
+        for my $nat_tag (sort keys %$nat_hash) {
             my $nat_network = $nat_hash->{$nat_tag};
-            if (not $nat_network->{hidden}) {
-                $has_non_hidden{$nat_tag} = 1;
-             }
+            my $type =
+                $nat_network->{dynamic} ?
+                $nat_network->{hidden} ? 'hidden' : 'dynamic' : 'static';
+            if (my $other_net = $nat_tag2network{$nat_tag}) {
+                my $other_nat = $other_net->{nat}->{$nat_tag};
+                my $other_type =
+                    $other_nat->{dynamic} ?
+                    $other_nat->{hidden} ? 'hidden' : 'dynamic' : 'static';
+                if ($other_type ne $type) {
+                    err_msg("All definitions of nat:$nat_tag must have",
+                            " equal type.\n But found\n",
+                            " - $other_type for $other_net->{name}\n",
+                            " - $type for $network->{name}");
+                }
+            }
+            else {
+                $nat_tag2network{$nat_tag} = $network;
+                $nat_tag2nat_type{$nat_tag} = $type;
+            }
         }
     }
-    return \%has_non_hidden;
+    return \%nat_tag2nat_type;
 }
 
 # Mark invalid NAT transitions.
@@ -7914,10 +7933,6 @@ sub mark_invalid_nat_transitions {
 #                 NAT definitions (several NAT definitions grouped at one
 #                 network) as keys and arrays of NAT hashes containing the
 #                 key NAT tag as values.
-#             $nat_definitions: Lookup hash with all NAT tags that are
-#                 defined somewhere as keys. It is used to check, if all
-#                 NAT definitions are bound and if all bound NAT tags are
-#                 defined somewhere.
 # Comments: Also checks consistency of multi NAT tags at one network. If
 #           non hidden NAT tags are grouped at one network, the same NAT
 #           tags must be used as group in all other occurrences to avoid
@@ -7928,9 +7943,8 @@ sub mark_invalid_nat_transitions {
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
 sub generate_multinat_def_lookup {
-    my ($has_non_hidden) = @_;
+    my ($nat_tag2nat_type) = @_;
     my %nat_tag2multinat_def;
-    my %nat_definitions;
 
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
@@ -7938,11 +7952,10 @@ sub generate_multinat_def_lookup {
 
       NAT_TAG:
         for my $nat_tag (sort keys %$nat_hash) {
-            $nat_definitions{$nat_tag} = 1;
             if (my $previous_nat_hashes = $nat_tag2multinat_def{$nat_tag}) {
 
                 # Do not add same group twice.
-                if ($has_non_hidden->{$nat_tag}) {
+                if ($nat_tag2nat_type->{$nat_tag} ne 'hidden') {
                     for my $nat_hash2 (@$previous_nat_hashes) {
                         next NAT_TAG if keys_eq($nat_hash, $nat_hash2);
                     }
@@ -7981,7 +7994,7 @@ sub generate_multinat_def_lookup {
         delete $nat_tag2multinat_def{$nat_tag};
     }
 
-    return \%nat_tag2multinat_def, \%nat_definitions;
+    return \%nat_tag2multinat_def;
 }
 
 ##############################################################################
@@ -8452,23 +8465,28 @@ sub check_multinat_errors {
 #############################################################################
 # Purpose: Check that every NAT tag is both bound and defined somewhere.
 sub check_nat_definitions {
-    my ($nat_definitions, $natdomains) = @_;
+    my ($nat_tag2nat_type, $natdomains) = @_;
+    my %nat_definitions = %$nat_tag2nat_type;
     for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
             for my $nat_tag (@$nat_tags) {
-                if ($nat_definitions->{$nat_tag}) {
-                    $nat_definitions->{$nat_tag} = 'used';
+                if ($nat_definitions{$nat_tag}) {
+                    $nat_definitions{$nat_tag} = 'used';
                     next;
                 }
+
+                # Prevent uninitialized value when checking NAT type later.
+                $nat_tag2nat_type->{$nat_tag} = 'static';
+
                 warn_msg(
                     "Ignoring useless nat:$nat_tag bound at $router->{name}");
             }
         }
     }
-    for my $name (sort keys %$nat_definitions) {
-        $nat_definitions->{$name} eq 'used'
-            or warn_msg("nat:$name is defined, but not bound to any interface");
+    for my $name (sort keys %nat_definitions) {
+        $nat_definitions{$name} eq 'used' or
+            warn_msg("nat:$name is defined, but not bound to any interface");
     }
 }
 
@@ -8596,7 +8614,7 @@ sub distribute_nat_sets_to_interfaces {
 # because hidden tag doesn't affect address calculation.
 # Multiple hidden tags without real tag are ignored.
 sub combine_nat_sets {
-    my ($nat_sets, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_sets, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     return $nat_sets->[0] if @$nat_sets == 1;
 
     # Collect single NAT tags and multi NAT hashes.
@@ -8643,8 +8661,8 @@ sub combine_nat_sets {
         # Analyze active and inactive tags.
         if (not $hash->{':none'}) {
             my $real_tag;
-            for my $tag (%$hash) {
-                if ($has_non_hidden->{$tag}) {
+            for my $tag (keys %$hash) {
+                if ($nat_tag2nat_type->{$tag} ne 'hidden') {
                     if ($real_tag) {
 
                         # Ignore multiple real tags.
@@ -8685,20 +8703,20 @@ sub combine_nat_sets {
 sub distribute_nat_info {
     progress('Distributing NAT');
     my $natdomains = find_nat_domains();
-    my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
-    my ($nat_tag2multinat_def, $nat_definitions)
-        = generate_multinat_def_lookup($has_non_hidden);
+    my $nat_tag2nat_type = get_lookup_hash_for_nat_type();
+    my ($nat_tag2multinat_def)
+        = generate_multinat_def_lookup($nat_tag2nat_type);
     my $nat_errors =
         distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
     check_multinat_errors($nat_tag2multinat_def, $natdomains);
-    check_nat_definitions($nat_definitions, $natdomains);
+    check_nat_definitions($nat_tag2nat_type, $natdomains);
     check_nat_network_location($natdomains) if not $nat_errors;
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     distribute_nat_sets_to_interfaces($natdomains);
-    prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
+    prepare_real_ip_nat_routers($nat_tag2multinat_def, $nat_tag2nat_type);
 
-    return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
+    return($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def);
 }
 
 sub get_nat_network {
@@ -15006,15 +15024,12 @@ sub collect_path_interfaces {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
-    my ($natdomains) = @_;
+    my ($natdomains, $nat_tag2nat_type) = @_;
     progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags that
-    # 1. are active inside nat_set,
-    # 2. are defined inside zone and remeber if NAT is hidden or not.
-    # 3. Check for equal type of NAT definitions.
-    #    This is used for more efficient check of dynamic NAT rules,
-    #    so we need to check only once for each pair of src / dst zone.
+    # 1. are active inside nat_set (i.e. NAT domain),
+    # 2. are defined inside zone.
     my %nat_set2active_tags;
     my %zone2dyn_nat;
     {
@@ -15024,34 +15039,18 @@ sub check_dynamic_nat_rules {
             my $href = $network->{nat} or next;
             my $zone = $network->{zone};
             for my $nat_tag (keys %$href) {
-                my $nat_network = $href->{$nat_tag};
-                if (my $other_net = $nat_type{$nat_tag}) {
-                    my $other_nat = $other_net->{nat}->{$nat_tag};
-                    my $other_type =
-                        $other_nat->{dynamic} ?
-                        $other_nat->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    my $current_type =
-                        $nat_network->{dynamic} ?
-                        $nat_network->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    if ($other_type ne $current_type) {
-                        err_msg("All definitions of nat:$nat_tag must have",
-                                " equal type.\n But found\n",
-                                " - $other_type for $other_net->{name}\n",
-                                " - $current_type for $network->{name}");
-                    }
-                }
-                $nat_type{$nat_tag} = $network;
 
-                $nat_network->{dynamic} or next;
-                $is_dynamic_nat_tag{$nat_tag} = 1;
-                $zone2dyn_nat{$zone}->{$nat_tag} = $nat_network->{hidden} || 0;
+                # We already know, that type of $nat_tag is equal at
+                # all networks.
+                my $type = $nat_tag2nat_type->{$nat_tag};
+                next if $type eq 'static';
+                $zone2dyn_nat{$zone}->{$nat_tag} = 1;
             }
         }
         for my $natdomain (@$natdomains) {
             my $nat_set = $natdomain->{nat_set};
-            my @active = grep { $nat_set->{$_} } keys %is_dynamic_nat_tag;
+            my @active =
+                grep { $nat_tag2nat_type->{$_} ne 'static' } keys %$nat_set;
             @{$nat_set2active_tags{$nat_set}}{@active} = @active;
         }
     }
@@ -17336,7 +17335,7 @@ sub print_iptables_acls {
 }
 
 sub prepare_real_ip_nat {
-    my ($router, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($router, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     my $hw_list = $router->{hardware};
 
     my %effective2hw_list;
@@ -17350,7 +17349,7 @@ sub prepare_real_ip_nat {
         # hidden addresses will be detected before this is used.
         my $effective = {};
         for my $nat_tag (@$bind_nat) {
-            $has_non_hidden->{$nat_tag} or next;
+            $nat_tag2nat_type->{$nat_tag} ne 'hidden' or next;
             $effective->{$nat_tag} = 1;
         }
 
@@ -17383,8 +17382,8 @@ sub prepare_real_ip_nat {
     my $combine_nat = sub {
         my ($list) = @_;
         my $nat_sets = [ map { $_->{nat_set} } @$list ];
-        return
-            combine_nat_sets($nat_sets, $nat_tag2multinat_def, $has_non_hidden);
+        return combine_nat_sets($nat_sets,
+                                $nat_tag2multinat_def, $nat_tag2nat_type);
     };
     my ($list1, $list2) = values %effective2hw_list;
     my $combined1 = $combine_nat->($list1);
@@ -17394,10 +17393,10 @@ sub prepare_real_ip_nat {
 }
 
 sub prepare_real_ip_nat_routers {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     for my $router (@managed_routers, @routing_only_routers) {
         $router->{acl_use_real_ip} or next;
-        prepare_real_ip_nat($router, $nat_tag2multinat_def, $has_non_hidden);
+        prepare_real_ip_nat($router, $nat_tag2multinat_def, $nat_tag2nat_type);
     }
 }
 
@@ -18788,7 +18787,7 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    my ($natdomains) = distribute_nat_info();
+    my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
     find_subnets_in_zone();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
@@ -18817,7 +18816,7 @@ sub compile {
             mark_managed_local();
         },
         sub {
-            check_dynamic_nat_rules($natdomains);
+            check_dynamic_nat_rules($natdomains, $nat_tag2nat_type);
         });
 
     concurrent(
