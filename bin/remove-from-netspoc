@@ -219,6 +219,11 @@ sub process {
                 $copy .= $1;
             }
 
+            # Read and copy description.
+            elsif ($input =~ /\G  (\s* description \s* = .* \n) /gcx) {
+                $copy .= $1;
+            }
+
             # Everything else terminates list.
             else {
                 $in_list = undef;
