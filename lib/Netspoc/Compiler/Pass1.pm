@@ -623,7 +623,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;,""''\n]+)/gc) {
+    if ($input =~ m/\G([^;""''\n]+)/gc) {
         return $1;
     }
     else {
@@ -803,6 +803,17 @@ sub read_typed_name {
         }
         else {
             syntax_err("Id expected (a\@b.c)");
+        }
+    }
+
+# domain
+    sub read_domain {
+        skip_space_and_comment;
+        if ($input =~ m/\G($domain_regex)/gco) {
+            return $1;
+        }
+        else {
+            syntax_err("Domain name expected");
         }
     }
 
@@ -1154,6 +1165,10 @@ sub read_host {
             my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
         }
+        elsif ($token eq 'ldap_id') {
+            my $ldap_id = read_assign(\&read_string);
+            add_attribute($host, ldap_id => $ldap_id);
+        }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
             add_attribute($host, radius_attributes => $radius_attributes);
@@ -1204,6 +1219,15 @@ sub read_host {
     }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
+        if (delete $host->{ldap_id}) {
+            warn_msg("Ignoring attribute 'ldap_id' at $name");
+        }
+    }
+    elsif ($host->{ldap_id}) {
+        $host->{radius_attributes} ||= {};
+        $host->{range} or
+            err_msg("Attribute 'ldap_id' must only be used together with",
+                    " IP range at $name");
     }
     else {
         $host->{radius_attributes}
@@ -1344,6 +1368,14 @@ sub read_network {
         elsif ($token eq 'owner') {
             my $owner = read_assign(\&read_identifier);
             add_attribute($network, owner => $owner);
+        }
+        elsif ($token eq 'cert_id') {
+            my $cert_id = read_assign(\&read_domain);
+            add_attribute($network, cert_id => $cert_id);
+        }
+        elsif ($token eq 'ldap_append') {
+            my $ldap_append = read_assign(\&read_string);
+            add_attribute($network, ldap_append => $ldap_append);
         }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
@@ -1487,19 +1519,49 @@ sub read_network {
         }
 
         # Check and mark networks with ID-hosts.
-        if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+        if (my $ldap_count = grep { $_->{ldap_id} } @{ $network->{hosts} }) {
 
-            # If one host has ID, all hosts must have ID.
-            @{ $network->{hosts} } == $id_hosts_count
-              or err_msg("All hosts must have ID in $name");
+            # If one host has ldap_id, all hosts must have ldap_id.
+            @{ $network->{hosts} } == $ldap_count
+              or err_msg("All hosts must have attribute 'ldap_id' in $name");
+
+            my $append = $network->{ldap_append};
+            for my $host (@{ $network->{hosts} }) {
+                my $id = $host->{ldap_id} or next;
+                if ($append) {
+                    $id .= $append;
+                    $host->{ldap_id} = $id;
+                }
+                $host->{id} = $id;
+            }
+            $network->{cert_id} or
+                err_msg("Missing attribute 'cert_id' at network having hosts",
+                        " with attribute 'ldap_id'");
 
             # Mark network.
             $network->{has_id_hosts} = 1;
-            $network->{radius_attributes} ||= {};
         }
         else {
-            $network->{radius_attributes}
-              and warn_msg("Ignoring 'radius_attributes' at $name");
+            for my $attr (qw(ldap_append cert_id)) {
+                delete $network->{$attr} or next;
+                warn_msg("Ignoring '$attr' at $name");
+            }
+            if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+
+                # If one host has ID, all hosts must have ID.
+                @{ $network->{hosts} } == $id_hosts_count
+                    or err_msg("All hosts must have ID in $name");
+
+                # Mark network.
+                $network->{has_id_hosts} = 1;
+            }
+        }
+
+        if ($network->{has_id_hosts}) {
+            $network->{radius_attributes} ||= {};
+        }
+        elsif ($network->{radius_attributes}) {
+            warn_msg("Ignoring 'radius_attributes' at $name");
         }
     }
     return $network;
@@ -5118,6 +5180,9 @@ sub convert_hosts {
                     $subnet->{owner} = $owner if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
+                        if (my $ldap_id = $host->{ldap_id}) {
+                            $subnet->{ldap_id} = $ldap_id;
+                        }
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
                     }
@@ -13309,9 +13374,9 @@ sub crypto_behind {
 my %asa_vpn_attributes = (
 
     # Our own attributes
-    'check-subject-name'          => {},
-    'check-extended-key-usage'    => {},
-    'trust-point'                 => {},
+    'check-subject-name'          => { own => 1 },
+    'check-extended-key-usage'    => { own => 1 },
+    'trust-point'                 => { own => 1 },
 
     # group-policy attributes
     banner                        => {},
@@ -13339,8 +13404,8 @@ sub verify_asa_vpn_attributes {
     for my $key (sort keys %$attributes) {
         my $spec = $asa_vpn_attributes{$key};
         $spec or err_msg("Invalid radius_attribute '$key' at $obj->{name}");
+        my $value = $attributes->{$key};
         if ($key eq 'split-tunnel-policy') {
-            my $value = $attributes->{$key};
             $value =~ /^(?:tunnelall|tunnelspecified)$/
               or err_msg(
                 "Unsupported value in radius_attributes",
@@ -13363,23 +13428,62 @@ sub verify_asa_vpn_attributes {
     }
 }
 
+sub get_radius_attr {
+    my ($attr, $host, $router) = @_;
+    for my $obj ($host, $host->{network}, $router) {
+        my $attributes = $obj->{radius_attributes} or next;
+        if (my $val = $attributes->{$attr}) {
+            return $val;
+        }
+    }
+    return;
+}
+
+# Attribute 'authentication-server-group' must only be used
+# together with 'ldpa_id' and must then be available at network.
+sub verify_auth_server {
+    my ($host, $router) = @_;
+    my $auth = get_radius_attr('authentication-server-group', $host, $router);
+    if ($host->{ldap_id}) {
+        my $network = $host->{network};
+        if(not $auth) {
+            err_msg("Missing attribute 'authentication-server-group' at ",
+                    " $network->{name} having host with 'ldap_id'");
+            $host->{network}->{radius_attributes}
+            ->{'authentication-server-group'} = 'ERROR';
+        }
+        elsif ($host->{radius_attributes}->{'authentication-server-group'}) {
+            err_msg("Attribute 'authentication-server-group' must",
+                    " not be used directly at $host->{name}");
+        }
+    }
+    elsif ($auth) {
+        err_msg("Attribute 'authentication-server-group' must",
+                " only be used together with attribute 'ldap_id'");
+    }
+}
+
 # Host with ID that doesn't contain a '@' must use attribute
 # 'verify-subject-name'.
-sub verify_subject_name {
+sub verify_subject_name_for_host {
     my ($host, $router) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
-    my $has_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-subject-name'});
-    };
-    return if $has_attr->($host);
-    return if $has_attr->($host->{network});
-    if (not $has_attr->($router)) {
-        err_msg("Missing radius_attribute 'check-subject-name'\n",
-                " for $host->{name}");
+    return if get_radius_attr('check-subject-name', $host, $router);
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $host->{name}");
+}
+
+# Network with attribute 'cert_id' must use attribute
+# 'verify-subject-name'.
+sub verify_subject_name_for_net {
+    my ($network, $router) = @_;
+    for my $obj ($network, $router) {
+        my $attr = $obj->{radius_attributes} or next;
+        return if $attr->{'check-subject-name'};
     }
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $network->{name}");
 }
 
 sub verify_extended_key_usage {
@@ -13387,18 +13491,12 @@ sub verify_extended_key_usage {
     my $extended_keys = $router->{extended_keys} ||= {};
     my $id = $host->{id};
     my ($domain) = ($id =~ /^(?:.*?)(\@.*)$/) or return;
-    my $get_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-extended-key-usage'});
-    };
-    my $oid = $get_attr->($host) ||
-        $get_attr->($host->{network}) || $get_attr->($router) || '';
+    my $oid = get_radius_attr('check-extended-key-usage', $host, $router) || '';
     if(defined(my $other = $extended_keys->{$domain})) {
         $oid eq $other or
             err_msg("All ID hosts having domain '$domain'",
                     " must use identical value from",
-                    " 'check_expanded_key_usage'");
+                    " 'check-extended-key-usage'");
     }
     else {
         $extended_keys->{$domain} = $oid;
@@ -13468,8 +13566,16 @@ sub expand_crypto {
                         my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
                             verify_asa_vpn_attributes($host);
-                            verify_subject_name($host, $hub_router);
-                            verify_extended_key_usage($host, $hub_router);
+                            verify_auth_server($host, $hub_router);
+                            if ($host->{ldap_id}) {
+                                verify_subject_name_for_net($network,
+                                                            $hub_router);
+                            }
+                            else {
+                                verify_subject_name_for_host($host,
+                                                             $hub_router);
+                                verify_extended_key_usage($host, $hub_router);
+                            }
                         }
                         if (my $other = $hub->{id_rules}->{$id}) {
                             my $src = $other->{src};
@@ -16921,6 +17027,68 @@ sub print_asa_trustpoint {
     }
 }
 
+sub print_tunnel_group_ra {
+    my ($id, $id_name, $attributes, $router, $group_policy_name,
+        $cert_group_map) = @_;
+
+    my $subject_name = delete $attributes->{'check-subject-name'} || '';
+    if ($id =~ /^@/) {
+        $subject_name = 'ea';
+    }
+    my $map_name = "ca-map-$id_name";
+    print "crypto ca certificate map $map_name 10\n";
+    print " subject-name attr $subject_name co $id\n";
+    if (my $oid = delete $attributes->{'check-extended-key-usage'})
+    {
+        print " extended-key-usage co $oid\n";
+    }
+    my $trustpoint2 =
+        delete $attributes->{'trust-point'} || $router->{trust_point};
+    my @tunnel_gen_att;
+    my $authentication = 'certificate';
+    if ($group_policy_name) {
+        push(@tunnel_gen_att, "default-group-policy $group_policy_name");
+    }
+    else {
+        $authentication = "aaa $authentication";
+    }
+
+    # Select attributes for tunnel-group general-attributes.
+    for my $key (sort keys %$attributes) {
+        my $spec = $asa_vpn_attributes{$key};
+        $spec and $spec->{tg_general} or next;
+        my $value = $attributes->{$key};
+        my $out = defined($value) ? "$key $value" : $key;
+        push(@tunnel_gen_att, $out);
+    }
+
+    my $tunnel_group_name = "VPN-tunnel-$id_name";
+    print <<"EOF";
+tunnel-group $tunnel_group_name type remote-access
+tunnel-group $tunnel_group_name general-attributes
+EOF
+
+    for my $line (@tunnel_gen_att) {
+        print " $line\n";
+    }
+    print <<"EOF";
+tunnel-group $tunnel_group_name ipsec-attributes
+EOF
+    print_asa_trustpoint($router, $trustpoint2);
+
+    # For anyconnect clients.
+    print <<"EOF";
+tunnel-group $tunnel_group_name webvpn-attributes
+ authentication $authentication
+EOF
+    $cert_group_map->{$map_name} = $tunnel_group_name;
+
+    print <<"EOF";
+tunnel-group-map $map_name 10 $tunnel_group_name
+
+EOF
+}
+
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
   qw(banner dns-server default-domain split-dns wins-server address-pools
@@ -16969,6 +17137,11 @@ EOF
         print "group-policy $name internal\n";
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
+
+            # Ignore attributes for tunnel-group general or own attributes.
+            my $spec = $asa_vpn_attributes{$key};
+            next if $spec and ($spec->{tg_general} or $spec->{own});
+
             my $value = $attributes->{$key};
             my $out   = $key;
             if (defined($value)) {
@@ -16988,11 +17161,18 @@ EOF
     my $id_counter = 1;
     my $gen_id_name = sub {
         my ($id) = @_;
-        return length($id) <= 46 ? $id : $id_counter++;
+        if (length($id) <= 46 && $id =~ /^[\w\@.-]+$/) {
+            return $id;
+        }
+        else {
+            return $id_counter++;
+        }
     };
     my %cert_group_map;
     my %single_cert_map;
     my %extended_key;
+    my %ldap_map;
+    my %network_seen;
     my $acl_counter = 1;
     my $deny_any = $ipv6 ? $deny_any6_rule : $deny_any_rule;
     for my $interface (@{ $router->{interfaces} }) {
@@ -17005,7 +17185,6 @@ EOF
                 my $id_intf = $hash->{$id};
                 my $id_name = $gen_id_name->($id);
                 my $src     = $id_intf->{src};
-                my $pool_name;
                 my $attributes = {
                     %{ $router->{radius_attributes} },
                     %{ $src->{network}->{radius_attributes} },
@@ -17118,69 +17297,40 @@ EOF
                     print "\n";
                 }
                 else {
-                    $pool_name = "pool-$id_name";
+                    my $pool_name = "pool-$id_name";
                     my $mask = print_ip $src->{mask};
-                    my $max =
-                      print_ip($src->{ip} | ~ $src->{mask});
-                    my $subject_name =
-                      delete $attributes->{'check-subject-name'};
-                    if ($id =~ /^@/) {
-                        $subject_name = 'ea';
-                    }
-                    my $map_name = "ca-map-$id_name";
-                    print "crypto ca certificate map $map_name 10\n";
-                    print " subject-name attr $subject_name co $id\n";
-                    if (my $oid =
-                        delete $attributes->{'check-extended-key-usage'})
-                    {
-                        print " extended-key-usage co $oid\n";
-                    }
+                    my $max = print_ip($src->{ip} | ~ $src->{mask});
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
-                    $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
+                    $attributes->{'vpn-filter'}    = $filter_name;
                     my $group_policy_name = "VPN-group-$id_name";
-                    my @tunnel_gen_att =
-                      ("default-group-policy $group_policy_name");
-
-                    # Select attributes for tunnel-group general-attributes.
-                    for my $key (sort keys %$attributes) {
-                        my $spec = $asa_vpn_attributes{$key};
-                        if ($spec and $spec->{tg_general}) {
-                            my $value = delete $attributes->{$key};
-                            my $out = defined($value) ? "$key $value" : $key;
-                            push(@tunnel_gen_att, $out);
-                        }
-                    }
-
-                    my $trustpoint2 =
-                        delete $attributes->{'trust-point'} || $trust_point;
                     $print_group_policy->($group_policy_name, $attributes);
 
-                    my $tunnel_group_name = "VPN-tunnel-$id_name";
-                    print <<"EOF";
-tunnel-group $tunnel_group_name type remote-access
-tunnel-group $tunnel_group_name general-attributes
-EOF
-
-                    for my $line (@tunnel_gen_att) {
-                        print " $line\n";
+                    if (my $ldap_id = $src->{ldap_id}) {
+                        my $network = $src->{network};
+                        my $net_attr = {
+                            %{ $router->{radius_attributes} },
+                            %{ $network->{radius_attributes} },
+                        };
+                        my $auth_server =
+                            $net_attr->{'authentication-server-group'};
+                        push(@{ $ldap_map{$auth_server} },
+                             [$ldap_id, $group_policy_name]);
+                        if (not $network_seen{$network}++) {
+                            my $cert_id = $network->{cert_id};
+                            print_tunnel_group_ra($cert_id,
+                                                  $gen_id_name->($cert_id),
+                                                  $net_attr,
+                                                  $router, undef,
+                                                  \%cert_group_map);
+                        }
                     }
-                    print <<"EOF";
-tunnel-group $tunnel_group_name ipsec-attributes
-EOF
-                    print_asa_trustpoint($router, $trustpoint2);
-
-                    # For anyconnect clients.
-                    print <<"EOF";
-tunnel-group $tunnel_group_name webvpn-attributes
- authentication certificate
-EOF
-                    $cert_group_map{$map_name} = $tunnel_group_name;
-
-                    print <<"EOF";
-tunnel-group-map $map_name 10 $tunnel_group_name
-
-EOF
+                    else {
+                        print_tunnel_group_ra($id, $id_name,
+                                              $attributes,
+                                              $router, $group_policy_name,
+                                              \%cert_group_map);
+                    }
                 }
             }
         }
@@ -17240,6 +17390,20 @@ EOF
         for my $map_name (sort keys %cert_group_map) {
             my $tunnel_group_map = $cert_group_map{$map_name};
             print " certificate-group-map $map_name 10 $tunnel_group_map\n";
+        }
+        print "\n";
+    }
+
+    # Generate ldap attribute-maps and aaa-server referencing each map.
+    for my $name (sort keys %ldap_map) {
+        print "aaa-server $name protocol ldap\n";
+        print "aaa-server $name host X\n";
+        print " ldap-attribute-map $name\n";
+        print "ldap attribute-map $name\n";
+        print " map-name memberOf Group-Policy\n";
+        for my $entry (@{ $ldap_map{$name} }) {
+            my ($dn, $gp_name) = @$entry;
+            print " map-value memberOf $dn $gp_name\n";
         }
     }
 }
@@ -17745,7 +17909,7 @@ sub print_crypto_map_attributes {
     }
 }
 
-sub print_tunnel_group {
+sub print_tunnel_group_l2l {
     my ($router, $name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
@@ -17827,7 +17991,7 @@ sub print_static_crypto_map {
             $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($router, $peer_ip, $isakmp);
+            print_tunnel_group_l2l($router, $peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17876,7 +18040,7 @@ sub print_dynamic_crypto_map {
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($router, $id, $isakmp);
+        print_tunnel_group_l2l($router, $id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);

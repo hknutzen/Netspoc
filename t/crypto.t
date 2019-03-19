@@ -942,14 +942,14 @@ tunnel-group-map default-group VPN-single
 ! vpn-filter-@domain.y
 access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any4
 access-list vpn-filter-@domain.y extended deny ip any4 any4
-crypto ca certificate map ca-map-@domain.y 10
- subject-name attr ea co @domain.y
 ip local pool pool-@domain.y 10.99.2.64-10.99.2.127 mask 255.255.255.192
 group-policy VPN-group-@domain.y internal
 group-policy VPN-group-@domain.y attributes
  address-pools value pool-@domain.y
  vpn-filter value vpn-filter-@domain.y
  vpn-idle-timeout 40
+crypto ca certificate map ca-map-@domain.y 10
+ subject-name attr ea co @domain.y
 tunnel-group VPN-tunnel-@domain.y type remote-access
 tunnel-group VPN-tunnel-@domain.y general-attributes
  default-group-policy VPN-group-@domain.y
@@ -981,8 +981,6 @@ access-list split-tunnel-1 standard permit 10.0.4.0 255.255.255.0
 ! vpn-filter-domain.x
 access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any4
 access-list vpn-filter-domain.x extended deny ip any4 any4
-crypto ca certificate map ca-map-domain.x 10
- subject-name attr ou co domain.x
 ip local pool pool-domain.x 10.99.2.0-10.99.2.63 mask 255.255.255.192
 group-policy VPN-group-domain.x internal
 group-policy VPN-group-domain.x attributes
@@ -991,6 +989,8 @@ group-policy VPN-group-domain.x attributes
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-domain.x
  vpn-idle-timeout 120
+crypto ca certificate map ca-map-domain.x 10
+ subject-name attr ou co domain.x
 tunnel-group VPN-tunnel-domain.x type remote-access
 tunnel-group VPN-tunnel-domain.x general-attributes
  default-group-policy VPN-group-domain.x
@@ -1045,9 +1045,6 @@ username unused@domain.x attributes
 ! vpn-filter-zzz
 access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any4
 access-list vpn-filter-zzz extended deny ip any4 any4
-crypto ca certificate map ca-map-zzz 10
- subject-name attr ou co zzz
- extended-key-usage co 1.3.6.1.4.1.311.20.2.2
 ip local pool pool-zzz 10.99.2.128-10.99.2.191 mask 255.255.255.192
 group-policy VPN-group-zzz internal
 group-policy VPN-group-zzz attributes
@@ -1056,6 +1053,9 @@ group-policy VPN-group-zzz attributes
  split-tunnel-policy tunnelspecified
  vpn-filter value vpn-filter-zzz
  vpn-idle-timeout 120
+crypto ca certificate map ca-map-zzz 10
+ subject-name attr ou co zzz
+ extended-key-usage co 1.3.6.1.4.1.311.20.2.2
 tunnel-group VPN-tunnel-zzz type remote-access
 tunnel-group VPN-tunnel-zzz general-attributes
  default-group-policy VPN-group-zzz
@@ -1227,6 +1227,235 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Missing authentication-server-group at network with ldap_id';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ cert_id = cert1;
+ radius_attributes = {
+  check-subject-name = cn;
+ }
+ host:example1 = {
+  ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
+  range = 10.99.1.8 - 10.99.1.15;
+  radius_attributes = {
+   authentication-server-group = LDAP_1;
+  }
+ }
+ host:example2 = {
+  ldap_id = CN=example2,OU=VPN,DC=example,DC=com;
+  range = 10.99.1.16 - 10.99.1.31;
+ }
+ host:example3 = {
+  ldap_id = CN=example3,OU=VPN,DC=example,DC=com;
+  range = 10.99.1.32 - 10.99.1.47;
+ }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'authentication-server-group' must not be used directly at host:example1
+Error: Missing attribute 'authentication-server-group' at  network:customers1 having host with 'ldap_id'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+# Changed topology für tests with ldap_id
+############################################################
+
+$topo = $crypto_vpn . <<'END';
+network:intern = { ip = 10.1.1.0/24;}
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 192.168.0.0/24; }
+
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+ interface:customers2;
+}
+
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ cert_id = cert1;
+ radius_attributes = {
+  check-subject-name = cn;
+  authentication-server-group = LDAP_1;
+ }
+ host:example1 = {
+  ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
+  range = 10.99.1.8 - 10.99.1.15;
+ }
+}
+
+network:customers2 = {
+ ip = 10.99.2.0/24;
+ cert_id = cert2;
+ ldap_append = ,OU=VPN,DC=example,DC=com;
+ radius_attributes = {
+  check-subject-name = ou;
+  authentication-server-group = LDAP_2;
+ }
+
+ host:example2a = {
+  ldap_id = CN=example2a;
+  range = 10.99.2.0 - 10.99.2.63;
+  radius_attributes = { username-from-certificate = CN;
+                        authorization-required; }
+ }
+ host:example2b = {
+  ldap_id = CN=example2b;
+  range = 10.99.2.128 - 10.99.2.191;
+  radius_attributes = { check-extended-key-usage = 1.3.6.1.4.1.311.20.2.2; }
+ }
+}
+END
+
+############################################################
+$title = 'VPN ASA with ldap_id';
+############################################################
+
+$in = $topo . <<'END';
+service:test1 = {
+ user = host:example1, host:example2a;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+service:test2 = {
+ user = host:example2a, host:example2b;
+ permit src = user; dst = network:intern; prt = tcp 81;
+}
+END
+
+$out = <<'END';
+--asavpn
+! vpn-filter-1
+access-list vpn-filter-1 extended permit ip 10.99.1.8 255.255.255.248 any4
+access-list vpn-filter-1 extended deny ip any4 any4
+ip local pool pool-1 10.99.1.8-10.99.1.15 mask 255.255.255.248
+group-policy VPN-group-1 internal
+group-policy VPN-group-1 attributes
+ address-pools value pool-1
+ vpn-filter value vpn-filter-1
+crypto ca certificate map ca-map-cert1 10
+ subject-name attr cn co cert1
+tunnel-group VPN-tunnel-cert1 type remote-access
+tunnel-group VPN-tunnel-cert1 general-attributes
+ authentication-server-group LDAP_1
+tunnel-group VPN-tunnel-cert1 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-cert1 webvpn-attributes
+ authentication aaa certificate
+tunnel-group-map ca-map-cert1 10 VPN-tunnel-cert1
+--
+! vpn-filter-2
+access-list vpn-filter-2 extended permit ip 10.99.2.0 255.255.255.192 any4
+access-list vpn-filter-2 extended deny ip any4 any4
+ip local pool pool-2 10.99.2.0-10.99.2.63 mask 255.255.255.192
+group-policy VPN-group-2 internal
+group-policy VPN-group-2 attributes
+ address-pools value pool-2
+ vpn-filter value vpn-filter-2
+crypto ca certificate map ca-map-cert2 10
+ subject-name attr ou co cert2
+tunnel-group VPN-tunnel-cert2 type remote-access
+tunnel-group VPN-tunnel-cert2 general-attributes
+ authentication-server-group LDAP_2
+tunnel-group VPN-tunnel-cert2 ipsec-attributes
+ ikev1 trust-point ASDM_TrustPoint1
+ ikev1 user-authentication none
+tunnel-group VPN-tunnel-cert2 webvpn-attributes
+ authentication aaa certificate
+tunnel-group-map ca-map-cert2 10 VPN-tunnel-cert2
+--
+! vpn-filter-3
+access-list vpn-filter-3 extended permit ip 10.99.2.128 255.255.255.192 any4
+access-list vpn-filter-3 extended deny ip any4 any4
+ip local pool pool-3 10.99.2.128-10.99.2.191 mask 255.255.255.192
+group-policy VPN-group-3 internal
+group-policy VPN-group-3 attributes
+ address-pools value pool-3
+ vpn-filter value vpn-filter-3
+--
+webvpn
+ certificate-group-map ca-map-cert1 10 VPN-tunnel-cert1
+ certificate-group-map ca-map-cert2 10 VPN-tunnel-cert2
+--
+ldap attribute-map LDAP_1
+ map-name memberOf Group-Policy
+ map-value memberOf CN=example1,OU=VPN,DC=example,DC=com VPN-group-1
+aaa-server LDAP_2 protocol ldap
+aaa-server LDAP_2 host X
+ ldap-attribute-map LDAP_2
+ldap attribute-map LDAP_2
+ map-name memberOf Group-Policy
+ map-value memberOf CN=example2a,OU=VPN,DC=example,DC=com VPN-group-2
+ map-value memberOf CN=example2b,OU=VPN,DC=example,DC=com VPN-group-3
+END
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Bad check-extended-key-usage';
 ############################################################
 
@@ -1295,8 +1524,8 @@ network:customers3 = {
 END
 
 $out = <<'END';
-Error: All ID hosts having domain '@domain.x' must use identical value from 'check_expanded_key_usage'
-Error: All ID hosts having domain '@domain.y' must use identical value from 'check_expanded_key_usage'
+Error: All ID hosts having domain '@domain.x' must use identical value from 'check-extended-key-usage'
+Error: All ID hosts having domain '@domain.y' must use identical value from 'check-extended-key-usage'
 END
 
 test_err($title, $in, $out, '--noauto_default_route');
