@@ -13443,23 +13443,23 @@ sub get_radius_attr {
 # together with 'ldpa_id' and must then be available at network.
 sub verify_auth_server {
     my ($host, $router) = @_;
-    my $auth = get_radius_attr('authentication-server-group', $host, $router);
+    my $attr = 'authentication-server-group';
+    if (delete $host->{radius_attributes}->{$attr}) {
+        err_msg("Attribute '$attr' must not be used directly at $host->{name}");
+    }
+    my $auth = get_radius_attr($attr, $host, $router);
+    my $network = $host->{network};
     if ($host->{ldap_id}) {
-        my $network = $host->{network};
         if(not $auth) {
-            err_msg("Missing attribute 'authentication-server-group' at ",
+            err_msg("Missing attribute '$attr' at",
                     " $network->{name} having host with 'ldap_id'");
-            $host->{network}->{radius_attributes}
-            ->{'authentication-server-group'} = 'ERROR';
-        }
-        elsif ($host->{radius_attributes}->{'authentication-server-group'}) {
-            err_msg("Attribute 'authentication-server-group' must",
-                    " not be used directly at $host->{name}");
+            $network->{radius_attributes}->{$attr} = 'ERROR';
         }
     }
     elsif ($auth) {
-        err_msg("Attribute 'authentication-server-group' must",
-                " only be used together with attribute 'ldap_id'");
+        my $where = $network->{radius_attributes}->{$attr} ? $network : $router;
+        err_msg("Attribute '$attr' at $where->{name} must only be used",
+                " together with attribute 'ldap_id' at host");
     }
 }
 

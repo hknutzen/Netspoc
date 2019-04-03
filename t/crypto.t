@@ -1291,7 +1291,7 @@ END
 
 $out = <<'END';
 Error: Attribute 'authentication-server-group' must not be used directly at host:example1
-Error: Missing attribute 'authentication-server-group' at  network:customers1 having host with 'ldap_id'
+Error: Missing attribute 'authentication-server-group' at network:customers1 having host with 'ldap_id'
 END
 
 test_err($title, $in, $out);
