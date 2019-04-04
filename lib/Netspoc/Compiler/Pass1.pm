@@ -15138,27 +15138,23 @@ sub check_dynamic_nat_rules {
     # 2. are defined inside zone.
     my %nat_set2active_tags;
     my %zone2dyn_nat;
-    {
-        my %nat_type;
-        my %is_dynamic_nat_tag;
-        for my $network (@networks) {
-            my $href = $network->{nat} or next;
-            my $zone = $network->{zone};
-            for my $nat_tag (keys %$href) {
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        my $zone = $network->{zone};
+        for my $nat_tag (keys %$href) {
 
-                # We already know, that type of $nat_tag is equal at
-                # all networks.
-                my $type = $nat_tag2nat_type->{$nat_tag};
-                next if $type eq 'static';
-                $zone2dyn_nat{$zone}->{$nat_tag} = 1;
-            }
+            # We already know, that type of $nat_tag is equal at
+            # all networks.
+            my $type = $nat_tag2nat_type->{$nat_tag};
+            next if $type eq 'static';
+            $zone2dyn_nat{$zone}->{$nat_tag} = 1;
         }
-        for my $natdomain (@$natdomains) {
-            my $nat_set = $natdomain->{nat_set};
-            my @active =
-                grep { $nat_tag2nat_type->{$_} ne 'static' } keys %$nat_set;
-            @{$nat_set2active_tags{$nat_set}}{@active} = @active;
-        }
+    }
+    for my $natdomain (@$natdomains) {
+        my $nat_set = $natdomain->{nat_set};
+        my @active =
+            grep { $nat_tag2nat_type->{$_} ne 'static' } keys %$nat_set;
+        @{$nat_set2active_tags{$nat_set}}{@active} = @active;
     }
 
     # Remember interfaces of already checked path.
