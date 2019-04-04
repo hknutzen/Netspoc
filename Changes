@@ -1,3 +1,18 @@
+5.052     2019-04-04 10:53:41+02:00 Europe/Berlin
+
+ - Netspoc generates ldap attribute-map at ASA now.
+   Define software client as ordinary host (not ID host) and add attribute
+   'ldap_id' with some LDAP attribute as value.
+   Add attribute 'cert_id' with some certificate pattern as value
+   at corresponding network.
+   Optionally move common postfix string of ldap_id,
+   that is identical for all hosts of a network,
+   to attribe 'ldap_append' of that network.
+
+ - Fixed command "remove-from-netspoc" for group with description.
+ - Fixed command "cut-netspoc" to not accidentally change
+   attribute 'unknown_owner' when removing 'owner' from input.
+
 5.051     2019-03-08 12:20:02+01:00 Europe/Berlin
 
  - Introduced new attributes at zone and area:

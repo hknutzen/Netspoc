@@ -351,7 +351,7 @@ $title = 'Area with NAT';
 ############################################################
 
 $in = $topo . <<'END';
-area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.9.9/32; dynamic; } }
+area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.0.0/16; } }
 service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
@@ -368,7 +368,7 @@ router:asa1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.9.9/32; dynamic; } }
+area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.0.0/16; } }
 service:test = {
     user = network:n2;
     permit src = user; dst = network:n1; prt = tcp;
@@ -414,7 +414,9 @@ $title = 'Aggregate with NAT and owner';
 $in = $topo . <<'END';
 any:a2 = {
  link = network:n2;
- nat:a2 = { ip = 10.9.9.9/32; dynamic; }
+ nat:a2 = { ip = 10.9.0.0/16; }
+ unknown_owner = restrict;
+ multi_owner = restrict;
  owner = foo;
 }
 owner:foo = { admins = a@example.com; }
@@ -436,7 +438,9 @@ router:asa1 = {
 }
 any:a2 = {
  link = network:n2;
- nat:a2 = { ip = 10.9.9.9/32; dynamic; }
+ nat:a2 = { ip = 10.9.0.0/16; }
+ unknown_owner = restrict;
+ multi_owner = restrict;
 }
 service:test = {
     user = network:n2;

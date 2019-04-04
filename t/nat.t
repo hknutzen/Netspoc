@@ -3888,7 +3888,7 @@ Error: All definitions of nat:x must have equal type.
  - dynamic for network:n2
 Error: All definitions of nat:x must have equal type.
  But found
- - dynamic for network:n2
+ - static for network:n1
  - hidden for network:n3
 END
 

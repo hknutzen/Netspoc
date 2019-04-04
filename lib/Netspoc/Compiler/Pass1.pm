@@ -43,7 +43,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '5.051'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '5.052'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -623,7 +623,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;,""''\n]+)/gc) {
+    if ($input =~ m/\G([^;""''\n]+)/gc) {
         return $1;
     }
     else {
@@ -803,6 +803,17 @@ sub read_typed_name {
         }
         else {
             syntax_err("Id expected (a\@b.c)");
+        }
+    }
+
+# domain
+    sub read_domain {
+        skip_space_and_comment;
+        if ($input =~ m/\G($domain_regex)/gco) {
+            return $1;
+        }
+        else {
+            syntax_err("Domain name expected");
         }
     }
 
@@ -1154,6 +1165,10 @@ sub read_host {
             my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
         }
+        elsif ($token eq 'ldap_id') {
+            my $ldap_id = read_assign(\&read_string);
+            add_attribute($host, ldap_id => $ldap_id);
+        }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
             add_attribute($host, radius_attributes => $radius_attributes);
@@ -1204,6 +1219,15 @@ sub read_host {
     }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
+        if (delete $host->{ldap_id}) {
+            warn_msg("Ignoring attribute 'ldap_id' at $name");
+        }
+    }
+    elsif ($host->{ldap_id}) {
+        $host->{radius_attributes} ||= {};
+        $host->{range} or
+            err_msg("Attribute 'ldap_id' must only be used together with",
+                    " IP range at $name");
     }
     else {
         $host->{radius_attributes}
@@ -1344,6 +1368,14 @@ sub read_network {
         elsif ($token eq 'owner') {
             my $owner = read_assign(\&read_identifier);
             add_attribute($network, owner => $owner);
+        }
+        elsif ($token eq 'cert_id') {
+            my $cert_id = read_assign(\&read_domain);
+            add_attribute($network, cert_id => $cert_id);
+        }
+        elsif ($token eq 'ldap_append') {
+            my $ldap_append = read_assign(\&read_string);
+            add_attribute($network, ldap_append => $ldap_append);
         }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
@@ -1487,19 +1519,49 @@ sub read_network {
         }
 
         # Check and mark networks with ID-hosts.
-        if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+        if (my $ldap_count = grep { $_->{ldap_id} } @{ $network->{hosts} }) {
 
-            # If one host has ID, all hosts must have ID.
-            @{ $network->{hosts} } == $id_hosts_count
-              or err_msg("All hosts must have ID in $name");
+            # If one host has ldap_id, all hosts must have ldap_id.
+            @{ $network->{hosts} } == $ldap_count
+              or err_msg("All hosts must have attribute 'ldap_id' in $name");
+
+            my $append = $network->{ldap_append};
+            for my $host (@{ $network->{hosts} }) {
+                my $id = $host->{ldap_id} or next;
+                if ($append) {
+                    $id .= $append;
+                    $host->{ldap_id} = $id;
+                }
+                $host->{id} = $id;
+            }
+            $network->{cert_id} or
+                err_msg("Missing attribute 'cert_id' at network having hosts",
+                        " with attribute 'ldap_id'");
 
             # Mark network.
             $network->{has_id_hosts} = 1;
-            $network->{radius_attributes} ||= {};
         }
         else {
-            $network->{radius_attributes}
-              and warn_msg("Ignoring 'radius_attributes' at $name");
+            for my $attr (qw(ldap_append cert_id)) {
+                delete $network->{$attr} or next;
+                warn_msg("Ignoring '$attr' at $name");
+            }
+            if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+
+                # If one host has ID, all hosts must have ID.
+                @{ $network->{hosts} } == $id_hosts_count
+                    or err_msg("All hosts must have ID in $name");
+
+                # Mark network.
+                $network->{has_id_hosts} = 1;
+            }
+        }
+
+        if ($network->{has_id_hosts}) {
+            $network->{radius_attributes} ||= {};
+        }
+        elsif ($network->{radius_attributes}) {
+            warn_msg("Ignoring 'radius_attributes' at $name");
         }
     }
     return $network;
@@ -5118,6 +5180,9 @@ sub convert_hosts {
                     $subnet->{owner} = $owner if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
+                        if (my $ldap_id = $host->{ldap_id}) {
+                            $subnet->{ldap_id} = $ldap_id;
+                        }
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
                     }
@@ -7141,20 +7206,13 @@ sub show_unenforceable {
             for my $dst_hash (values %$src_hash) {
                 for my $aref (values %$dst_hash) {
                     my ($src, $dst) = @$aref;
-                    my $src_attr = get_attr('has_unenforceable', $src);
-                    my $dst_attr =
-                        $src_attr && get_attr('has_unenforceable', $dst);
                     if ($service->{has_unenforceable}) {
-                        if($src_attr eq 'restrict' and $dst_attr eq 'restrict')
-                        {
+                        if('restrict' eq get_attr('has_unenforceable', $src)) {
                             $service->{has_unenforceable_restricted}++ or
                                 warn_msg("Must not use attribute",
                                          " 'has_unenforceable' at",
                                          " $service->{name}");
                         }
-                        next;
-                    }
-                    if($src_attr eq 'ok' and $dst_attr eq 'ok') {
                         next;
                     }
                     push @list, "src=$src->{name}; dst=$dst->{name}";
@@ -7867,20 +7925,39 @@ a common set of NAT tags (NAT set) is effective at every network.
 =cut
 
 #############################################################################
-# Returns: Hash containing nat_tags declared to be non hidden at least
-#          once as keys.
-sub generate_lookup_hash_for_non_hidden_nat_tags {
-    my %has_non_hidden;
+# Comment: Check for equal type of NAT definitions.
+#          This is used for more efficient check of dynamic NAT rules,
+#          so we need to check only once for each pair of src / dst zone.
+# Returns: A hash, mapping nat_tag to its type: static, dynamic or hidden.
+sub get_lookup_hash_for_nat_type {
+    my %nat_tag2network;
+    my %nat_tag2nat_type;
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
-        for my $nat_tag (keys %$nat_hash) {
+        for my $nat_tag (sort keys %$nat_hash) {
             my $nat_network = $nat_hash->{$nat_tag};
-            if (not $nat_network->{hidden}) {
-                $has_non_hidden{$nat_tag} = 1;
-             }
+            my $type =
+                $nat_network->{dynamic} ?
+                $nat_network->{hidden} ? 'hidden' : 'dynamic' : 'static';
+            if (my $other_net = $nat_tag2network{$nat_tag}) {
+                my $other_nat = $other_net->{nat}->{$nat_tag};
+                my $other_type =
+                    $other_nat->{dynamic} ?
+                    $other_nat->{hidden} ? 'hidden' : 'dynamic' : 'static';
+                if ($other_type ne $type) {
+                    err_msg("All definitions of nat:$nat_tag must have",
+                            " equal type.\n But found\n",
+                            " - $other_type for $other_net->{name}\n",
+                            " - $type for $network->{name}");
+                }
+            }
+            else {
+                $nat_tag2network{$nat_tag} = $network;
+                $nat_tag2nat_type{$nat_tag} = $type;
+            }
         }
     }
-    return \%has_non_hidden;
+    return \%nat_tag2nat_type;
 }
 
 # Mark invalid NAT transitions.
@@ -7921,10 +7998,6 @@ sub mark_invalid_nat_transitions {
 #                 NAT definitions (several NAT definitions grouped at one
 #                 network) as keys and arrays of NAT hashes containing the
 #                 key NAT tag as values.
-#             $nat_definitions: Lookup hash with all NAT tags that are
-#                 defined somewhere as keys. It is used to check, if all
-#                 NAT definitions are bound and if all bound NAT tags are
-#                 defined somewhere.
 # Comments: Also checks consistency of multi NAT tags at one network. If
 #           non hidden NAT tags are grouped at one network, the same NAT
 #           tags must be used as group in all other occurrences to avoid
@@ -7935,9 +8008,8 @@ sub mark_invalid_nat_transitions {
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
 sub generate_multinat_def_lookup {
-    my ($has_non_hidden) = @_;
+    my ($nat_tag2nat_type) = @_;
     my %nat_tag2multinat_def;
-    my %nat_definitions;
 
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
@@ -7945,11 +8017,10 @@ sub generate_multinat_def_lookup {
 
       NAT_TAG:
         for my $nat_tag (sort keys %$nat_hash) {
-            $nat_definitions{$nat_tag} = 1;
             if (my $previous_nat_hashes = $nat_tag2multinat_def{$nat_tag}) {
 
                 # Do not add same group twice.
-                if ($has_non_hidden->{$nat_tag}) {
+                if ($nat_tag2nat_type->{$nat_tag} ne 'hidden') {
                     for my $nat_hash2 (@$previous_nat_hashes) {
                         next NAT_TAG if keys_eq($nat_hash, $nat_hash2);
                     }
@@ -7988,7 +8059,7 @@ sub generate_multinat_def_lookup {
         delete $nat_tag2multinat_def{$nat_tag};
     }
 
-    return \%nat_tag2multinat_def, \%nat_definitions;
+    return \%nat_tag2multinat_def;
 }
 
 ##############################################################################
@@ -8459,23 +8530,28 @@ sub check_multinat_errors {
 #############################################################################
 # Purpose: Check that every NAT tag is both bound and defined somewhere.
 sub check_nat_definitions {
-    my ($nat_definitions, $natdomains) = @_;
+    my ($nat_tag2nat_type, $natdomains) = @_;
+    my %nat_definitions = %$nat_tag2nat_type;
     for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
             for my $nat_tag (@$nat_tags) {
-                if ($nat_definitions->{$nat_tag}) {
-                    $nat_definitions->{$nat_tag} = 'used';
+                if ($nat_definitions{$nat_tag}) {
+                    $nat_definitions{$nat_tag} = 'used';
                     next;
                 }
+
+                # Prevent uninitialized value when checking NAT type later.
+                $nat_tag2nat_type->{$nat_tag} = 'static';
+
                 warn_msg(
                     "Ignoring useless nat:$nat_tag bound at $router->{name}");
             }
         }
     }
-    for my $name (sort keys %$nat_definitions) {
-        $nat_definitions->{$name} eq 'used'
-            or warn_msg("nat:$name is defined, but not bound to any interface");
+    for my $name (sort keys %nat_definitions) {
+        $nat_definitions{$name} eq 'used' or
+            warn_msg("nat:$name is defined, but not bound to any interface");
     }
 }
 
@@ -8603,7 +8679,7 @@ sub distribute_nat_sets_to_interfaces {
 # because hidden tag doesn't affect address calculation.
 # Multiple hidden tags without real tag are ignored.
 sub combine_nat_sets {
-    my ($nat_sets, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_sets, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     return $nat_sets->[0] if @$nat_sets == 1;
 
     # Collect single NAT tags and multi NAT hashes.
@@ -8650,8 +8726,8 @@ sub combine_nat_sets {
         # Analyze active and inactive tags.
         if (not $hash->{':none'}) {
             my $real_tag;
-            for my $tag (%$hash) {
-                if ($has_non_hidden->{$tag}) {
+            for my $tag (keys %$hash) {
+                if ($nat_tag2nat_type->{$tag} ne 'hidden') {
                     if ($real_tag) {
 
                         # Ignore multiple real tags.
@@ -8692,20 +8768,20 @@ sub combine_nat_sets {
 sub distribute_nat_info {
     progress('Distributing NAT');
     my $natdomains = find_nat_domains();
-    my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
-    my ($nat_tag2multinat_def, $nat_definitions)
-        = generate_multinat_def_lookup($has_non_hidden);
+    my $nat_tag2nat_type = get_lookup_hash_for_nat_type();
+    my ($nat_tag2multinat_def)
+        = generate_multinat_def_lookup($nat_tag2nat_type);
     my $nat_errors =
         distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
     check_multinat_errors($nat_tag2multinat_def, $natdomains);
-    check_nat_definitions($nat_definitions, $natdomains);
+    check_nat_definitions($nat_tag2nat_type, $natdomains);
     check_nat_network_location($natdomains) if not $nat_errors;
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     distribute_nat_sets_to_interfaces($natdomains);
-    prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
+    prepare_real_ip_nat_routers($nat_tag2multinat_def, $nat_tag2nat_type);
 
-    return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
+    return($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def);
 }
 
 sub get_nat_network {
@@ -13295,19 +13371,18 @@ sub crypto_behind {
     }
 }
 
-# Valid group-policy attributes.
-# Hash describes usage:
-# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
 my %asa_vpn_attributes = (
+
+    # Our own attributes
+    'check-subject-name'          => { own => 1 },
+    'check-extended-key-usage'    => { own => 1 },
+    'trust-point'                 => { own => 1 },
 
     # group-policy attributes
     banner                        => {},
-    'check-subject-name'          => {},
-    'check-extended-key-usage'    => {},
     'dns-server'                  => {},
     'default-domain'              => {},
     'split-dns'                   => {},
-    'trust-point'                 => {},
     'wins-server'                 => {},
     'vpn-access-hours'            => {},
     'vpn-idle-timeout'            => {},
@@ -13315,6 +13390,8 @@ my %asa_vpn_attributes = (
     'vpn-simultaneous-logins'     => {},
     vlan                          => {},
     'split-tunnel-policy'         => {},
+
+    # tunnel-group general-attributes
     'authentication-server-group' => { tg_general => 1 },
     'authorization-server-group'  => { tg_general => 1 },
     'authorization-required'      => { tg_general => 1 },
@@ -13327,8 +13404,8 @@ sub verify_asa_vpn_attributes {
     for my $key (sort keys %$attributes) {
         my $spec = $asa_vpn_attributes{$key};
         $spec or err_msg("Invalid radius_attribute '$key' at $obj->{name}");
+        my $value = $attributes->{$key};
         if ($key eq 'split-tunnel-policy') {
-            my $value = $attributes->{$key};
             $value =~ /^(?:tunnelall|tunnelspecified)$/
               or err_msg(
                 "Unsupported value in radius_attributes",
@@ -13351,23 +13428,62 @@ sub verify_asa_vpn_attributes {
     }
 }
 
+sub get_radius_attr {
+    my ($attr, $host, $router) = @_;
+    for my $obj ($host, $host->{network}, $router) {
+        my $attributes = $obj->{radius_attributes} or next;
+        if (my $val = $attributes->{$attr}) {
+            return $val;
+        }
+    }
+    return;
+}
+
+# Attribute 'authentication-server-group' must only be used
+# together with 'ldpa_id' and must then be available at network.
+sub verify_auth_server {
+    my ($host, $router) = @_;
+    my $attr = 'authentication-server-group';
+    if (delete $host->{radius_attributes}->{$attr}) {
+        err_msg("Attribute '$attr' must not be used directly at $host->{name}");
+    }
+    my $auth = get_radius_attr($attr, $host, $router);
+    my $network = $host->{network};
+    if ($host->{ldap_id}) {
+        if(not $auth) {
+            err_msg("Missing attribute '$attr' at",
+                    " $network->{name} having host with 'ldap_id'");
+            $network->{radius_attributes}->{$attr} = 'ERROR';
+        }
+    }
+    elsif ($auth) {
+        my $where = $network->{radius_attributes}->{$attr} ? $network : $router;
+        err_msg("Attribute '$attr' at $where->{name} must only be used",
+                " together with attribute 'ldap_id' at host");
+    }
+}
+
 # Host with ID that doesn't contain a '@' must use attribute
 # 'verify-subject-name'.
-sub verify_subject_name {
+sub verify_subject_name_for_host {
     my ($host, $router) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
-    my $has_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-subject-name'});
-    };
-    return if $has_attr->($host);
-    return if $has_attr->($host->{network});
-    if (not $has_attr->($router)) {
-        err_msg("Missing radius_attribute 'check-subject-name'\n",
-                " for $host->{name}");
+    return if get_radius_attr('check-subject-name', $host, $router);
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $host->{name}");
+}
+
+# Network with attribute 'cert_id' must use attribute
+# 'verify-subject-name'.
+sub verify_subject_name_for_net {
+    my ($network, $router) = @_;
+    for my $obj ($network, $router) {
+        my $attr = $obj->{radius_attributes} or next;
+        return if $attr->{'check-subject-name'};
     }
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $network->{name}");
 }
 
 sub verify_extended_key_usage {
@@ -13375,18 +13491,12 @@ sub verify_extended_key_usage {
     my $extended_keys = $router->{extended_keys} ||= {};
     my $id = $host->{id};
     my ($domain) = ($id =~ /^(?:.*?)(\@.*)$/) or return;
-    my $get_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-extended-key-usage'});
-    };
-    my $oid = $get_attr->($host) ||
-        $get_attr->($host->{network}) || $get_attr->($router) || '';
+    my $oid = get_radius_attr('check-extended-key-usage', $host, $router) || '';
     if(defined(my $other = $extended_keys->{$domain})) {
         $oid eq $other or
             err_msg("All ID hosts having domain '$domain'",
                     " must use identical value from",
-                    " 'check_expanded_key_usage'");
+                    " 'check-extended-key-usage'");
     }
     else {
         $extended_keys->{$domain} = $oid;
@@ -13456,8 +13566,16 @@ sub expand_crypto {
                         my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
                             verify_asa_vpn_attributes($host);
-                            verify_subject_name($host, $hub_router);
-                            verify_extended_key_usage($host, $hub_router);
+                            verify_auth_server($host, $hub_router);
+                            if ($host->{ldap_id}) {
+                                verify_subject_name_for_net($network,
+                                                            $hub_router);
+                            }
+                            else {
+                                verify_subject_name_for_host($host,
+                                                             $hub_router);
+                                verify_extended_key_usage($host, $hub_router);
+                            }
                         }
                         if (my $other = $hub->{id_rules}->{$id}) {
                             my $src = $other->{src};
@@ -15012,54 +15130,31 @@ sub collect_path_interfaces {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
-    my ($natdomains) = @_;
+    my ($natdomains, $nat_tag2nat_type) = @_;
     progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags that
-    # 1. are active inside nat_set,
-    # 2. are defined inside zone and remeber if NAT is hidden or not.
-    # 3. Check for equal type of NAT definitions.
-    #    This is used for mor efficient check of dynamic NAT rules,
-    #    so we need to check only once for each pair of src / dst zone.
+    # 1. are active inside nat_set (i.e. NAT domain),
+    # 2. are defined inside zone.
     my %nat_set2active_tags;
     my %zone2dyn_nat;
-    {
-        my %nat_type;
-        my %is_dynamic_nat_tag;
-        for my $network (@networks) {
-            my $href = $network->{nat} or next;
-            my $zone = $network->{zone};
-            for my $nat_tag (keys %$href) {
-                my $nat_network = $href->{$nat_tag};
-                if (my $other_net = $nat_type{$nat_tag}) {
-                    my $other_nat = $other_net->{nat}->{$nat_tag};
-                    my $other_type =
-                        $other_nat->{dynamic} ?
-                        $other_nat->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    my $current_type =
-                        $nat_network->{dynamic} ?
-                        $nat_network->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    if ($other_type ne $current_type) {
-                        err_msg("All definitions of nat:$nat_tag must have",
-                                " equal type.\n But found\n",
-                                " - $other_type for $other_net->{name}\n",
-                                " - $current_type for $network->{name}");
-                    }
-                }
-                $nat_type{$nat_tag} = $network;
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        my $zone = $network->{zone};
+        for my $nat_tag (keys %$href) {
 
-                $nat_network->{dynamic} or next;
-                $is_dynamic_nat_tag{$nat_tag} = 1;
-                $zone2dyn_nat{$zone}->{$nat_tag} = $nat_network->{hidden} || 0;
-            }
+            # We already know, that type of $nat_tag is equal at
+            # all networks.
+            my $type = $nat_tag2nat_type->{$nat_tag};
+            next if $type eq 'static';
+            $zone2dyn_nat{$zone}->{$nat_tag} = 1;
         }
-        for my $natdomain (@$natdomains) {
-            my $nat_set = $natdomain->{nat_set};
-            my @active = grep { $nat_set->{$_} } keys %is_dynamic_nat_tag;
-            @{$nat_set2active_tags{$nat_set}}{@active} = @active;
-        }
+    }
+    for my $natdomain (@$natdomains) {
+        my $nat_set = $natdomain->{nat_set};
+        my @active =
+            grep { $nat_tag2nat_type->{$_} ne 'static' } keys %$nat_set;
+        @{$nat_set2active_tags{$nat_set}}{@active} = @active;
     }
 
     # Remember interfaces of already checked path.
@@ -16928,6 +17023,68 @@ sub print_asa_trustpoint {
     }
 }
 
+sub print_tunnel_group_ra {
+    my ($id, $id_name, $attributes, $router, $group_policy_name,
+        $cert_group_map) = @_;
+
+    my $subject_name = delete $attributes->{'check-subject-name'} || '';
+    if ($id =~ /^@/) {
+        $subject_name = 'ea';
+    }
+    my $map_name = "ca-map-$id_name";
+    print "crypto ca certificate map $map_name 10\n";
+    print " subject-name attr $subject_name co $id\n";
+    if (my $oid = delete $attributes->{'check-extended-key-usage'})
+    {
+        print " extended-key-usage co $oid\n";
+    }
+    my $trustpoint2 =
+        delete $attributes->{'trust-point'} || $router->{trust_point};
+    my @tunnel_gen_att;
+    my $authentication = 'certificate';
+    if ($group_policy_name) {
+        push(@tunnel_gen_att, "default-group-policy $group_policy_name");
+    }
+    else {
+        $authentication = "aaa $authentication";
+    }
+
+    # Select attributes for tunnel-group general-attributes.
+    for my $key (sort keys %$attributes) {
+        my $spec = $asa_vpn_attributes{$key};
+        $spec and $spec->{tg_general} or next;
+        my $value = $attributes->{$key};
+        my $out = defined($value) ? "$key $value" : $key;
+        push(@tunnel_gen_att, $out);
+    }
+
+    my $tunnel_group_name = "VPN-tunnel-$id_name";
+    print <<"EOF";
+tunnel-group $tunnel_group_name type remote-access
+tunnel-group $tunnel_group_name general-attributes
+EOF
+
+    for my $line (@tunnel_gen_att) {
+        print " $line\n";
+    }
+    print <<"EOF";
+tunnel-group $tunnel_group_name ipsec-attributes
+EOF
+    print_asa_trustpoint($router, $trustpoint2);
+
+    # For anyconnect clients.
+    print <<"EOF";
+tunnel-group $tunnel_group_name webvpn-attributes
+ authentication $authentication
+EOF
+    $cert_group_map->{$map_name} = $tunnel_group_name;
+
+    print <<"EOF";
+tunnel-group-map $map_name 10 $tunnel_group_name
+
+EOF
+}
+
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
   qw(banner dns-server default-domain split-dns wins-server address-pools
@@ -16976,6 +17133,11 @@ EOF
         print "group-policy $name internal\n";
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
+
+            # Ignore attributes for tunnel-group general or own attributes.
+            my $spec = $asa_vpn_attributes{$key};
+            next if $spec and ($spec->{tg_general} or $spec->{own});
+
             my $value = $attributes->{$key};
             my $out   = $key;
             if (defined($value)) {
@@ -16995,11 +17157,18 @@ EOF
     my $id_counter = 1;
     my $gen_id_name = sub {
         my ($id) = @_;
-        return length($id) <= 46 ? $id : $id_counter++;
+        if (length($id) <= 46 && $id =~ /^[\w\@.-]+$/) {
+            return $id;
+        }
+        else {
+            return $id_counter++;
+        }
     };
     my %cert_group_map;
     my %single_cert_map;
     my %extended_key;
+    my %ldap_map;
+    my %network_seen;
     my $acl_counter = 1;
     my $deny_any = $ipv6 ? $deny_any6_rule : $deny_any_rule;
     for my $interface (@{ $router->{interfaces} }) {
@@ -17012,7 +17181,6 @@ EOF
                 my $id_intf = $hash->{$id};
                 my $id_name = $gen_id_name->($id);
                 my $src     = $id_intf->{src};
-                my $pool_name;
                 my $attributes = {
                     %{ $router->{radius_attributes} },
                     %{ $src->{network}->{radius_attributes} },
@@ -17125,69 +17293,40 @@ EOF
                     print "\n";
                 }
                 else {
-                    $pool_name = "pool-$id_name";
+                    my $pool_name = "pool-$id_name";
                     my $mask = print_ip $src->{mask};
-                    my $max =
-                      print_ip($src->{ip} | ~ $src->{mask});
-                    my $subject_name =
-                      delete $attributes->{'check-subject-name'};
-                    if ($id =~ /^@/) {
-                        $subject_name = 'ea';
-                    }
-                    my $map_name = "ca-map-$id_name";
-                    print "crypto ca certificate map $map_name 10\n";
-                    print " subject-name attr $subject_name co $id\n";
-                    if (my $oid =
-                        delete $attributes->{'check-extended-key-usage'})
-                    {
-                        print " extended-key-usage co $oid\n";
-                    }
+                    my $max = print_ip($src->{ip} | ~ $src->{mask});
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
-                    $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
+                    $attributes->{'vpn-filter'}    = $filter_name;
                     my $group_policy_name = "VPN-group-$id_name";
-                    my @tunnel_gen_att =
-                      ("default-group-policy $group_policy_name");
-
-                    # Select attributes for tunnel-group general-attributes.
-                    for my $key (sort keys %$attributes) {
-                        my $spec = $asa_vpn_attributes{$key};
-                        if ($spec and $spec->{tg_general}) {
-                            my $value = delete $attributes->{$key};
-                            my $out = defined($value) ? "$key $value" : $key;
-                            push(@tunnel_gen_att, $out);
-                        }
-                    }
-
-                    my $trustpoint2 =
-                        delete $attributes->{'trust-point'} || $trust_point;
                     $print_group_policy->($group_policy_name, $attributes);
 
-                    my $tunnel_group_name = "VPN-tunnel-$id_name";
-                    print <<"EOF";
-tunnel-group $tunnel_group_name type remote-access
-tunnel-group $tunnel_group_name general-attributes
-EOF
-
-                    for my $line (@tunnel_gen_att) {
-                        print " $line\n";
+                    if (my $ldap_id = $src->{ldap_id}) {
+                        my $network = $src->{network};
+                        my $net_attr = {
+                            %{ $router->{radius_attributes} },
+                            %{ $network->{radius_attributes} },
+                        };
+                        my $auth_server =
+                            $net_attr->{'authentication-server-group'};
+                        push(@{ $ldap_map{$auth_server} },
+                             [$ldap_id, $group_policy_name]);
+                        if (not $network_seen{$network}++) {
+                            my $cert_id = $network->{cert_id};
+                            print_tunnel_group_ra($cert_id,
+                                                  $gen_id_name->($cert_id),
+                                                  $net_attr,
+                                                  $router, undef,
+                                                  \%cert_group_map);
+                        }
                     }
-                    print <<"EOF";
-tunnel-group $tunnel_group_name ipsec-attributes
-EOF
-                    print_asa_trustpoint($router, $trustpoint2);
-
-                    # For anyconnect clients.
-                    print <<"EOF";
-tunnel-group $tunnel_group_name webvpn-attributes
- authentication certificate
-EOF
-                    $cert_group_map{$map_name} = $tunnel_group_name;
-
-                    print <<"EOF";
-tunnel-group-map $map_name 10 $tunnel_group_name
-
-EOF
+                    else {
+                        print_tunnel_group_ra($id, $id_name,
+                                              $attributes,
+                                              $router, $group_policy_name,
+                                              \%cert_group_map);
+                    }
                 }
             }
         }
@@ -17247,6 +17386,20 @@ EOF
         for my $map_name (sort keys %cert_group_map) {
             my $tunnel_group_map = $cert_group_map{$map_name};
             print " certificate-group-map $map_name 10 $tunnel_group_map\n";
+        }
+        print "\n";
+    }
+
+    # Generate ldap attribute-maps and aaa-server referencing each map.
+    for my $name (sort keys %ldap_map) {
+        print "aaa-server $name protocol ldap\n";
+        print "aaa-server $name host X\n";
+        print " ldap-attribute-map $name\n";
+        print "ldap attribute-map $name\n";
+        print " map-name memberOf Group-Policy\n";
+        for my $entry (@{ $ldap_map{$name} }) {
+            my ($dn, $gp_name) = @$entry;
+            print " map-value memberOf $dn $gp_name\n";
         }
     }
 }
@@ -17342,7 +17495,7 @@ sub print_iptables_acls {
 }
 
 sub prepare_real_ip_nat {
-    my ($router, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($router, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     my $hw_list = $router->{hardware};
 
     my %effective2hw_list;
@@ -17356,7 +17509,7 @@ sub prepare_real_ip_nat {
         # hidden addresses will be detected before this is used.
         my $effective = {};
         for my $nat_tag (@$bind_nat) {
-            $has_non_hidden->{$nat_tag} or next;
+            $nat_tag2nat_type->{$nat_tag} ne 'hidden' or next;
             $effective->{$nat_tag} = 1;
         }
 
@@ -17389,8 +17542,8 @@ sub prepare_real_ip_nat {
     my $combine_nat = sub {
         my ($list) = @_;
         my $nat_sets = [ map { $_->{nat_set} } @$list ];
-        return
-            combine_nat_sets($nat_sets, $nat_tag2multinat_def, $has_non_hidden);
+        return combine_nat_sets($nat_sets,
+                                $nat_tag2multinat_def, $nat_tag2nat_type);
     };
     my ($list1, $list2) = values %effective2hw_list;
     my $combined1 = $combine_nat->($list1);
@@ -17400,10 +17553,10 @@ sub prepare_real_ip_nat {
 }
 
 sub prepare_real_ip_nat_routers {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     for my $router (@managed_routers, @routing_only_routers) {
         $router->{acl_use_real_ip} or next;
-        prepare_real_ip_nat($router, $nat_tag2multinat_def, $has_non_hidden);
+        prepare_real_ip_nat($router, $nat_tag2multinat_def, $nat_tag2nat_type);
     }
 }
 
@@ -17752,7 +17905,7 @@ sub print_crypto_map_attributes {
     }
 }
 
-sub print_tunnel_group {
+sub print_tunnel_group_l2l {
     my ($router, $name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
@@ -17834,7 +17987,7 @@ sub print_static_crypto_map {
             $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($router, $peer_ip, $isakmp);
+            print_tunnel_group_l2l($router, $peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17883,7 +18036,7 @@ sub print_dynamic_crypto_map {
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($router, $id, $isakmp);
+        print_tunnel_group_l2l($router, $id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
@@ -18794,7 +18947,7 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    my ($natdomains) = distribute_nat_info();
+    my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
     find_subnets_in_zone();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
@@ -18823,7 +18976,7 @@ sub compile {
             mark_managed_local();
         },
         sub {
-            check_dynamic_nat_rules($natdomains);
+            check_dynamic_nat_rules($natdomains, $nat_tag2nat_type);
         });
 
     concurrent(
