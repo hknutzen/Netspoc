@@ -13484,6 +13484,7 @@ sub verify_subject_name_for_net {
     }
     err_msg("Missing radius_attribute 'check-subject-name'\n",
             " for $network->{name}");
+    $network->{radius_attributes}->{'check-subject-name'} = 'ERROR';
 }
 
 sub verify_extended_key_usage {
