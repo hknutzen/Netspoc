@@ -616,6 +616,20 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Bad cert_id";
+############################################################
+
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; cert_id = @b.c; }
+END
+
+$out = <<'END';
+Syntax error: Domain name expected at line 1 of STDIN, near "cert_id = <--HERE-->@b.c"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Bad managed attribute";
 ############################################################
 

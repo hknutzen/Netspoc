@@ -416,6 +416,144 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Use authentication-server-group only with ldap_id (1)';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  authentication-server-group = LDAP_1;
+ }
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'authentication-server-group' at network:clients must only be used together with attribute 'ldap_id' at host
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Use authentication-server-group only with ldap_id (2)';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+  authentication-server-group = LDAP_1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'authentication-server-group' at router:asavpn must only be used together with attribute 'ldap_id' at host
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use ldap_id at ID host';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
+ }
+}
+END
+
+$out = <<'END';
+Warning: Ignoring attribute 'ldap_id' at host:id:foo@domain.x.clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'cert_id and ldap_append only together with ldap_id';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ cert_id = cert99;
+ ldap_append = ,OU=VPN,DC=example,DC=com;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring 'ldap_append' at network:clients
+Warning: Ignoring 'cert_id' at network:clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Ignore radius_attributes without ID hosts';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+}
+END
+
+$out = <<'END';
+Warning: Ignoring 'radius_attributes' at network:clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'no_in_acl at crypto interface';
 ############################################################
 
@@ -1098,7 +1236,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Missing radius_attribute check-subject-name';
+$title = 'Missing radius_attribute check-subject-name at host';
 ############################################################
 
 $in =~ s/check-subject-name = ou;//;
@@ -1371,6 +1509,20 @@ network:customers2 = {
  }
 }
 END
+
+############################################################
+$title = 'Missing radius_attribute check-subject-name at network';
+############################################################
+
+($in = $topo) =~ s/check-subject-name = ou;//;
+
+$out = <<'END';
+Error: Missing radius_attribute 'check-subject-name'
+ for network:customers2
+END
+
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'VPN ASA with ldap_id';
