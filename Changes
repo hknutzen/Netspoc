@@ -1,5 +1,66 @@
 {{$NEXT}}
 
+5.052     2019-04-04 10:53:41+02:00 Europe/Berlin
+
+ - Netspoc generates ldap attribute-map at ASA now.
+   Define software client as ordinary host (not ID host) and add attribute
+   'ldap_id' with some LDAP attribute as value.
+   Add attribute 'cert_id' with some certificate pattern as value
+   at corresponding network.
+   Optionally move common postfix string of ldap_id,
+   that is identical for all hosts of a network,
+   to attribe 'ldap_append' of that network.
+
+ - Fixed command "remove-from-netspoc" for group with description.
+ - Fixed command "cut-netspoc" to not accidentally change
+   attribute 'unknown_owner' when removing 'owner' from input.
+
+5.051     2019-03-08 12:20:02+01:00 Europe/Berlin
+
+ - Introduced new attributes at zone and area:
+   overlaps | unknown_owner | multi_owner | has_unenforceable
+   with value
+   restrict | enable | ok
+
+   These attributes control if corresponding attributes at service
+   are permitted.
+   - restrict: Attribute is not allowed at service
+   - enable:   Attribute is allowed at service
+   - ok:       No attribute needed at service to suppress warning.
+
+   Warning about unknown owner is restricted, if object with unknown owner is
+   located inside marked zone.
+   Warning about multiple owners is restricted, if objects with multiple
+   owners are located inside marked zone.
+   Warning about unenforceable rule is restricted, if src and dst are
+   located inside marked zone.
+   Warning about redundant or duplicate rule is restricted, if those both
+   zones are marked where src and dst are located.
+
+   Attribute is inherited from area to enclosing area and zone.
+
+5.050     2019-02-28 12:50:47+01:00 Europe/Berlin
+
+ - Fixed bug in processing of NAT. Attribute bind_nat was ignored at unmanaged router if
+   - at least one interface has pathrestriction,
+   - at least two interfaces have no pathrestriction and
+   - bind_nat is placed at interface without pathrestriction.
+
+5.049     2019-02-26 16:02:34+01:00 Europe/Berlin
+
+ - New warning on useless attribute 'multi_owner' is shown
+   - if 'user' objects belong to single owner and
+   - if multi owner could be avoided by swapping objects of 'user'
+     and objects of rules.
+
+5.048     2019-01-24 13:48:47+01:00 Europe/Berlin
+
+ - Duplicate elements from automatic interfaces are silently ignored now.
+ - Useless attribute 'overlaps' is shown even if protocol has
+   modifier 'overlaps'.
+ - Fixed check for 'multi-owner' in service with mixed coupling rule
+   and normal rule.
+
 5.047     2018-11-26 16:22:17+01:00 Europe/Berlin
 
  - New option "CONTEXT" in

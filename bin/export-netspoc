@@ -818,7 +818,7 @@ sub setup_outer_owners {
 # with previous version.
 ######################################################################
 sub export_no_nat_set {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     progress("Export no-NAT-sets");
     my %owner2domains;
     my %all_nat_tags;
@@ -850,7 +850,7 @@ sub export_no_nat_set {
             # Build union of all nat_sets of found NAT domains.
             my $nat_sets = [ map { $_->{nat_set} } @nat_domains ];
             my $combined = combine_nat_sets(
-                $nat_sets, $nat_tag2multinat_def, $has_non_hidden);
+                $nat_sets, $nat_tag2multinat_def, $nat_tag2nat_type);
             delete @{$no_nat_set}{ keys %$combined };
         }
         create_dirs("owner/$owner_name");
@@ -1241,7 +1241,8 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-my ($natdomains, $nat_tag2multinat_def, $has_non_hidden) = distribute_nat_info();
+my ($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def) =
+    distribute_nat_info();
 find_subnets_in_zone();
 
 # Copy of %services with those services split, that have different 'user'.
@@ -1261,6 +1262,6 @@ export_assets();
 my $owner2type2shash = export_services($normalized_services);
 export_users_and_service_lists($owner2type2shash);
 export_objects();
-export_no_nat_set($nat_tag2multinat_def, $has_non_hidden);
+export_no_nat_set($nat_tag2multinat_def, $nat_tag2nat_type);
 copy_policy_file();
 progress("Ready");

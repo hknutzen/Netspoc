@@ -110,7 +110,7 @@ sub change_attribute_src_code_at {
 
     # Find attribute outside of comment,
     # either at new line or directly behind $sub_name.
-    $code =~ m/ (?:^|\G) [^#]*? \Q$attr\E (?=[\s;=#]) /gmx;
+    $code =~ m/ (?:^|\G) [^#]*? \b \Q$attr\E (?=[\s;=#]) /gmx;
     my $start = pos($code) - length($attr);
 
     # Helper functions to parse attribute value.
@@ -419,13 +419,9 @@ for my $zone (@all_zones) {
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
+    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
     my $zero_ip = get_zero_ip($zone->{ipv6});
     my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
-
-    # Simplifies test below.
-    $aggregate0->{owner} = $zone->{owner};
-
-    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
     $aggregate0->{is_used} = 1;
     $zone->{is_used} = 1;
 }
@@ -712,7 +708,9 @@ for my $object (values %networks,
 {
     $object->{is_used} or next;
     $object->{src_code} or next;
-    while ($object->{src_code} =~ /^[^#]*owner *=/m) {
+
+    # Must not match attribute 'unknown_owner = restrict;'
+    while ($object->{src_code} =~ /^ [^#]* \b owner [ ]* =/mx) {
 #        progress("- $object->{name}");
         remove_attribute_src_code('owner', $object);
     }

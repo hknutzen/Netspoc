@@ -236,5 +236,110 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Inherited overlaps = restrict, enable, ok';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
+
+area:all = { anchor = network:n1; overlaps = restrict; }
+area:a1234 = { inclusive_border = interface:r2.n5; overlaps = enable; }
+area:a1 = { border = interface:r1.n1; overlaps = ok; }
+area:a34 = { border = interface:r2.n3; overlaps = ok; }
+area:a4 = { border = interface:r3.n4; overlaps = restrict; }
+any:a6 = { link = network:n6; overlaps = enable; }
+
+# n1: restrict, enable, ok
+# n2: restrict, enable
+# n3: restrict, ok
+# n4: restrict, ok, restrict
+# n5: restrict
+# n6: restrict, enable
+
+# ok -> ok: no warning
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp;
+}
+
+# enable -> enable: suppress warning
+service:s3 = {
+ overlaps = service:s4;
+ user = network:n2;
+ permit src = user; dst = network:n6; prt = tcp 80;
+}
+service:s4 = {
+ user = network:n2;
+ permit src = user; dst = network:n6; prt = tcp;
+}
+
+# restrict -> restrict: can't suppress warning
+service:s5 = {
+ overlaps = service:s6;
+ user = network:n4;
+ permit src = user; dst = network:n5; prt = tcp 80;
+}
+service:s6 = {
+ user = network:n4;
+ permit src = user; dst = network:n5; prt = tcp;
+}
+
+# ok -> restrict: is like enable -> enable
+service:s7 = {
+ overlaps = service:s8;
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s8 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp;
+}
+END
+
+$out = <<'END';
+Warning: Must not use attribute 'overlaps' at service:s5
+Warning: Redundant rules in service:s5 compared to service:s6:
+  permit src=network:n4; dst=network:n5; prt=tcp 80; of service:s5
+< permit src=network:n4; dst=network:n5; prt=tcp; of service:s6
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 
 done_testing;

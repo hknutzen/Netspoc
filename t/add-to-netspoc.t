@@ -487,5 +487,26 @@ group:g1 =
 END
 
 test_rmv($title, $in, 'host:c', $out);
+
+############################################################
+$title = 'Group with description';
+############################################################
+
+$in = <<'END';
+group:g1 =
+ description = host:a, host:b, ;
+ host:a,
+ host:b,
+;
+END
+
+$out = <<'END';
+group:g1 =
+ description = host:a, host:b, ;
+ host:a,
+;
+END
+
+test_rmv($title, $in, 'host:b', $out);
 ############################################################
 done_testing;

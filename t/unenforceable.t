@@ -50,7 +50,7 @@ $title = 'Zone ignoring unenforceable rule';
 ############################################################
 
 $in .= <<'END';
-any:x = { link = network:x; has_unenforceable; }
+any:x = { link = network:x; has_unenforceable = ok; }
 END
 
 $out = '';
@@ -70,6 +70,50 @@ service:test = {
 END
 
 $out = '';
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Restrict attribute 'has_unenforceable'";
+############################################################
+
+$in = $topo . <<'END';
+any:x = { link = network:x; has_unenforceable = restrict; }
+service:test = {
+ has_unenforceable;
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Must not use attribute 'has_unenforceable' at service:test
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Restrict + enable attribute 'has_unenforceable'";
+############################################################
+
+$in = $topo . <<'END';
+area:all = { anchor = network:x; has_unenforceable = restrict; }
+any:x = { link = network:x; has_unenforceable = enable; }
+service:s1 = {
+ has_unenforceable;
+ user = host:x7, host:x9;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+service:s2 = {
+ has_unenforceable;
+ user = host:y;
+ permit src = user; dst = network:y, host:x7; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: Must not use attribute 'has_unenforceable' at service:s2
+END
 
 test_warn($title, $in, $out);
 
@@ -218,24 +262,6 @@ $in =~ s/#1//;
 $out = <<'END';
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable
-END
-
-test_warn($title, $in, $out);
-
-############################################################
-$title = 'Useless attribute "has_unenforceable" at zone';
-############################################################
-
-$in = <<'END';
-any:x = {
- has_unenforceable;
- link = network:x;
-}
-network:x = { ip = 10.1.1.0/24; }
-END
-
-$out = <<'END';
-Warning: Useless attribute 'has_unenforceable' at any:x
 END
 
 test_warn($title, $in, $out);

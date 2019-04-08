@@ -624,7 +624,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;,""''\n]+)/gc) {
+    if ($input =~ m/\G([^;""''\n]+)/gc) {
         return $1;
     }
     else {
@@ -804,6 +804,17 @@ sub read_typed_name {
         }
         else {
             syntax_err("Id expected (a\@b.c)");
+        }
+    }
+
+# domain
+    sub read_domain {
+        skip_space_and_comment;
+        if ($input =~ m/\G($domain_regex)/gco) {
+            return $1;
+        }
+        else {
+            syntax_err("Domain name expected");
         }
     }
 
@@ -1155,6 +1166,10 @@ sub read_host {
             my $server_name = read_assign(\&read_name);
             add_attribute($host, server_name => $server_name);
         }
+        elsif ($token eq 'ldap_id') {
+            my $ldap_id = read_assign(\&read_string);
+            add_attribute($host, ldap_id => $ldap_id);
+        }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
             add_attribute($host, radius_attributes => $radius_attributes);
@@ -1205,6 +1220,15 @@ sub read_host {
     }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
+        if (delete $host->{ldap_id}) {
+            warn_msg("Ignoring attribute 'ldap_id' at $name");
+        }
+    }
+    elsif ($host->{ldap_id}) {
+        $host->{radius_attributes} ||= {};
+        $host->{range} or
+            err_msg("Attribute 'ldap_id' must only be used together with",
+                    " IP range at $name");
     }
     else {
         $host->{radius_attributes}
@@ -1345,6 +1369,14 @@ sub read_network {
         elsif ($token eq 'owner') {
             my $owner = read_assign(\&read_identifier);
             add_attribute($network, owner => $owner);
+        }
+        elsif ($token eq 'cert_id') {
+            my $cert_id = read_assign(\&read_domain);
+            add_attribute($network, cert_id => $cert_id);
+        }
+        elsif ($token eq 'ldap_append') {
+            my $ldap_append = read_assign(\&read_string);
+            add_attribute($network, ldap_append => $ldap_append);
         }
         elsif ($token eq 'radius_attributes') {
             my $radius_attributes = read_radius_attributes();
@@ -1488,19 +1520,49 @@ sub read_network {
         }
 
         # Check and mark networks with ID-hosts.
-        if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+        if (my $ldap_count = grep { $_->{ldap_id} } @{ $network->{hosts} }) {
 
-            # If one host has ID, all hosts must have ID.
-            @{ $network->{hosts} } == $id_hosts_count
-              or err_msg("All hosts must have ID in $name");
+            # If one host has ldap_id, all hosts must have ldap_id.
+            @{ $network->{hosts} } == $ldap_count
+              or err_msg("All hosts must have attribute 'ldap_id' in $name");
+
+            my $append = $network->{ldap_append};
+            for my $host (@{ $network->{hosts} }) {
+                my $id = $host->{ldap_id} or next;
+                if ($append) {
+                    $id .= $append;
+                    $host->{ldap_id} = $id;
+                }
+                $host->{id} = $id;
+            }
+            $network->{cert_id} or
+                err_msg("Missing attribute 'cert_id' at network having hosts",
+                        " with attribute 'ldap_id'");
 
             # Mark network.
             $network->{has_id_hosts} = 1;
-            $network->{radius_attributes} ||= {};
         }
         else {
-            $network->{radius_attributes}
-              and warn_msg("Ignoring 'radius_attributes' at $name");
+            for my $attr (qw(ldap_append cert_id)) {
+                delete $network->{$attr} or next;
+                warn_msg("Ignoring '$attr' at $name");
+            }
+            if (my $id_hosts_count = grep { $_->{id} } @{ $network->{hosts} }) {
+
+                # If one host has ID, all hosts must have ID.
+                @{ $network->{hosts} } == $id_hosts_count
+                    or err_msg("All hosts must have ID in $name");
+
+                # Mark network.
+                $network->{has_id_hosts} = 1;
+            }
+        }
+
+        if ($network->{has_id_hosts}) {
+            $network->{radius_attributes} ||= {};
+        }
+        elsif ($network->{radius_attributes}) {
+            warn_msg("Ignoring 'radius_attributes' at $name");
         }
     }
     return $network;
@@ -2577,6 +2639,45 @@ sub move_locked_interfaces {
 # Mapping from aggregate names to aggregate objects.
 our %aggregates;
 
+sub read_common_aggregate_area {
+    my ($token, $obj, $name) = @_;
+    if ($token eq 'owner') {
+        my $owner = read_assign(\&read_identifier);
+        add_attribute($obj, owner => $owner);
+    }
+    elsif ($token =~
+           /^(overlaps|unknown_owner|multi_owner|has_unenforceable)$/)
+    {
+        my $value;
+
+        # For compatibility with old syntax.
+        if (check(';')) {
+            $value = 'ok';
+        }
+        else {
+            $value = read_assign(\&read_identifier);
+            $value =~ /^(restrict|enable|ok)$/ or
+                error_atline("Expected 'restrict', 'enable' or 'ok'");
+
+            # 0 is default value for absent attribute.
+            $value = 0 if $value eq 'enable';
+        }
+        $obj->{$token} = $value;
+    }
+    elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
+        $type eq 'nat' or syntax_err('Unexpected token');
+        verify_name($name2);
+        my $nat_tag = $name2;
+        my $nat = read_nat($nat_tag, $name);
+        $obj->{nat}->{$nat_tag} and
+            err_msg("Duplicate NAT definition nat:$nat_tag at $name");
+        $obj->{nat}->{$nat_tag} = $nat;
+    }
+    else {
+        syntax_err('Unexpected token');
+    }
+}
+
 sub read_aggregate {
     my $name = shift;
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
@@ -2594,37 +2695,16 @@ sub read_aggregate {
             add_attribute($aggregate, ip   => $ip);
             add_attribute($aggregate, mask => $mask);
         }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($aggregate, owner => $owner);
-        }
         elsif ($token eq 'link') {
             my $link = read_assign(\&read_typed_name);
             add_attribute($aggregate, link => $link);
-        }
-        elsif ($token eq 'has_unenforceable') {
-            skip(';');
-            $aggregate->{has_unenforceable} = 1;
         }
         elsif ($token eq 'no_check_supernet_rules') {
             skip(';');
             $aggregate->{no_check_supernet_rules} = 1;
         }
-        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
-            if ($type eq 'nat') {
-                verify_name($name2);
-                my $nat_tag = $name2;
-                my $nat = read_nat($nat_tag, $name);
-                $aggregate->{nat}->{$nat_tag} and
-                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
-                $aggregate->{nat}->{$nat_tag} = $nat;
-            }
-            else {
-                syntax_err('Unexpected token');
-            }
-        }
         else {
-            syntax_err('Unexpected token');
+            read_common_aggregate_area($token, $aggregate, $name);
         }
     }
     $aggregate->{link} or
@@ -2711,29 +2791,12 @@ sub read_area {
             my $net_name = read_network_assign($token);
             add_attribute($area, anchor => $net_name);
         }
-        elsif ($token eq 'owner') {
-            my $owner = read_assign(\&read_identifier);
-            add_attribute($area, owner => $owner);
-        }
         elsif ($token eq 'router_attributes') {
             my $router_attributes = read_router_attributes($name);
             add_attribute($area, router_attributes => $router_attributes);
         }
-        elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
-            if ($type eq 'nat') {
-                verify_name($name2);
-                my $nat_tag = $name2;
-                my $nat = read_nat($nat_tag, $name);
-                $area->{nat}->{$nat_tag} and
-                    err_msg("Duplicate NAT definition nat:$nat_tag at $name");
-                $area->{nat}->{$nat_tag} = $nat;
-            }
-            else {
-                syntax_err('Unexpected token');
-            }
-        }
         else {
-            syntax_err('Unexpected token');
+            read_common_aggregate_area($token, $area, $name);
         }
     }
     ($area->{border} or $area->{inclusive_border}) and $area->{anchor}
@@ -4365,50 +4428,43 @@ sub link_pathrestrictions {
     }
 }
 
-# If a pathrestriction is added to an unmanged router, it is marked as
-# semi_managed. As a consequence, a new zone would be created at each
-# interface of this router.
+# If a pathrestriction or a bind_nat is added to an unmanged router,
+# it is marked as semi_managed. As a consequence, a new zone would be
+# created at each interface of this router.
 # If an unmanaged router has a large number of interfaces, but only
-# one or a few pathrestrictions attached, we would get a large
-# number of useless zones.
+# one or a few pathrestrictions or bind_nat attached, we would get a
+# large number of useless zones.
 # To reduce the number of newly created zones, we split an unmanaged
-# router with pathrestrictions, if it has more than two interfaces
-# without pathrestriction:
-# - original part having only interfaces without pathrestrictions,
-# - one split part for each interface with pathrestrictions.
+# router with pathrestrictions or bind_nat, if it has more than two
+# interfaces without any pathrestriction or bind_nat:
+# - original part having only interfaces without pathrestriction or bind_nat,
+# - one split part for each interface with pathrestriction or bind_nat.
 # All parts are connected by a freshly created unnumbered network.
 sub split_semi_managed_router {
     for my $router (get_ipv4_ipv6_routers()) {
 
-        # Router is marked as semi_managed, if it
-        # - has pathrestriction
-        # - or is managed=routing_only.
+        # Unmanaged router is marked as semi_managed, if
+        # - it has pathrestriction,
+        # - it has interface with bind_nat or
+        # - is managed=routing_only.
         $router->{semi_managed} or next;
 
         # Don't split device with 'managed=routing_only'.
         next if $router->{routing_only};
 
-        # Count interfaces without pathrestriction.
-        # Check if router has pathrestriction at all.
+        # Count interfaces without pathrestriction or bind_nat.
         my $interfaces = $router->{interfaces};
-        my $has_pathrestriction;
-        my $count = 0;
-        for my $interface (@$interfaces) {
-            next if $interface->{main_interface};
-            if ($interface->{path_restrict}) {
-                $has_pathrestriction = 1;
-            }
-            else {
-                $count++;
-            }
-        }
-        $count > 1 and $has_pathrestriction or next;
+        my $count = grep({ not($_->{main_interface} or
+                               $_->{path_restrict} or
+                               $_->{bind_nat}) }
+                         @$interfaces);
+        next if $count < 2;
 
         # Retain copy of original interfaces for finding [all] interfaces.
         $router->{orig_interfaces} ||= [@$interfaces];
 
         # Split router into two or more parts.
-        # Move each interface with pathrestriction and
+        # Move each interface with pathrestriction or bind_nat and
         # corresponding secondary interface to new router.
 #        debug "split $router->{name}";
         my @split_secondary;
@@ -4416,23 +4472,23 @@ sub split_semi_managed_router {
 
         for my $interface (@$interfaces) {
             if (my $main = $interface->{main_interface}) {
-                $main->{path_restrict} or next;
+                $main->{path_restrict} or $main->{bind_nat} or next;
                 push @split_secondary, $interface;
                 next;
             }
-            $interface->{path_restrict} or next;
+            $interface->{path_restrict} or $interface->{bind_nat} or next;
 
             # Create new semi_manged router with identical name.
             # Add reference to original router having {orig_interfaces}.
             my $new_router = new('Router',
-                                 name => "$name(split)",
+                                 name => $name,
                                  semi_managed => 1,
-                                 orig_router => $router,
-                                 interfaces => [$interface]);
+                                 orig_router => $router);
             $interface->{router} = $new_router;
             push @router_fragments, $new_router;
 
             # Link current and newly created router by unnumbered network.
+            # Add reference to original interface at internal interface.
             my $intf_name = $interface->{name};
             my $network = new('Network',
                               name => "$intf_name(split Network)",
@@ -4453,7 +4509,9 @@ sub split_semi_managed_router {
             # Add reference to other interface at original interface
             # at newly created router. This is needed for post
             # processing in check_pathrestrictions.
-            $interface->{split_other} = $intf2;
+            if ($interface->{path_restrict}) {
+                $interface->{split_other} = $intf2;
+            }
 
             # Replace original interface at current router.
             $interface = $intf1;
@@ -4961,10 +5019,8 @@ sub mark_disabled {
                 }
             }
         }
-        my $shared_hash = {};
         for my $router (@$aref) {
             $router->{vrf_members}     = $aref;
-            $router->{vrf_shared_data} = $shared_hash;
         }
     }
 
@@ -5126,6 +5182,9 @@ sub convert_hosts {
                     $subnet->{owner} = $owner if $owner;
                     if ($id) {
                         $subnet->{id} = $id;
+                        if (my $ldap_id = $host->{ldap_id}) {
+                            $subnet->{ldap_id} = $ldap_id;
+                        }
                         $subnet->{radius_attributes} =
                           $host->{radius_attributes};
                     }
@@ -6535,6 +6594,7 @@ sub propagate_owners {
     my $inherit = sub {
         my ($node, $upper_node) = @_;
         my $upper_owner = $upper_node->{owner};
+        $upper_owner->{is_used} = 1 if $upper_owner;
         if (my $owner = $node->{owner}) {
             $owner->{is_used} = 1;
             if ($upper_owner and $owner eq $upper_owner) {
@@ -6669,6 +6729,31 @@ sub propagate_owners {
     }
 }
 
+##############################################################################
+# Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
+#            $obj : Zone, (or area from recursion)
+# Comment  : Caches found value or 0 at area and zone.
+# Returns  : Value of attribute or 0
+sub get_attr_from_zone {
+    my ($attr, $obj) = @_;
+    if (exists $obj->{$attr}) {
+        return $obj->{$attr};
+    }
+    my $up = $obj->{in_area} or return 0;
+    return $obj->{$attr} = $up && get_attr_from_zone($attr, $up) || 0;
+}
+
+##############################################################################
+# Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
+#            $obj: host, interface, network, aggregate
+# Purpose  : Find attribute at corresponding zone or enclosing area.
+# Returns  : Value of attribute or 0.
+sub get_attr {
+    my ($attr, $obj) = @_;
+    $obj = $obj->{network} || $obj;
+    return get_attr_from_zone($attr, $obj->{zone});
+}
+
 sub check_service_owner {
     progress('Checking service owner');
 
@@ -6685,14 +6770,17 @@ sub check_service_owner {
             my $info       = $sname2info{$name} ||= {
                 service => $service,
 
+                # Is set, if all rules use same objects.
+                same_objects => 1,
+
                 # Is set, if all rules are coupling rules.
                 is_coupling => 1,
             };
 
-            # Non 'user' objects.
-            my $objects = $info->{objects} ||= {};
+            # Collect non 'user' objects.
+            my $objects = $info->{objects};
 
-            # Check, if service contains a coupling rule with only
+            # Check, if service contains only coupling rules with only
             # "user" elements.
             my $has_user = $unexpanded->{has_user};
             if ($has_user ne 'both') {
@@ -6703,11 +6791,23 @@ sub check_service_owner {
             }
 
             # Collect objects referenced in rules of service.
+            # Mark service, where different rules have different objects
+            # for multi_owner check below.
             for my $what (qw(src dst)) {
                 next if $what eq $has_user;
                 my $group = $rule->{$what};
+                my $pre = $objects && keys %$objects;
                 @{$objects}{@$group} = @$group;
+                if (defined $pre and
+                    not (@$group == $pre and keys %$objects == $pre))
+                {
+                    delete $info->{same_objects};
+                }
             }
+
+            # Store found objects and remember that first rule has
+            # been processed.
+            $info->{objects} = $objects || {};
         }
     }
 
@@ -6715,9 +6815,9 @@ sub check_service_owner {
         my $info = $sname2info{$sname};
         my $service = $info->{service};
 
-        # Collect service owners and unknown owners;
+        # Collect service owners, remember if unknown owners;
         my $service_owners;
-        my $unknown_owners;
+        my $has_unknown;
 
         my $objects = $info->{objects};
         for my $obj (values %$objects) {
@@ -6726,7 +6826,7 @@ sub check_service_owner {
                 $service_owners->{$owner} = $owner;
             }
             else {
-                $unknown_owners->{$obj} = $obj;
+                $has_unknown = 1;
             }
         }
 
@@ -6734,7 +6834,7 @@ sub check_service_owner {
 
         # Check for redundant service owner.
         # Allow dedicated service owner, if we have multiple owners
-        # from @objects.
+        # from @$objects.
         if (my $sub_owner = $service->{sub_owner}) {
             $sub_owner->{is_used} = 1;
             keys %$service_owners == 1 and $service_owners->{$sub_owner}
@@ -6742,36 +6842,81 @@ sub check_service_owner {
         }
 
         # Check for multiple owners.
-        my $multi_count = $info->{is_coupling}
-                        ? 1
-                        : values %$service_owners;
-        if ($multi_count > 1 xor $service->{multi_owner}) {
-            if ($service->{multi_owner}) {
+        my $has_multi = !$info->{is_coupling} && 1 < @{ $service->{owners} };
+        if ($service->{multi_owner}) {
+            if (not $has_multi) {
                 warn_msg("Useless use of attribute 'multi_owner' at $sname");
             }
-            elsif (my $print_type = $config->{check_service_multi_owner}) {
-                my @names = sort(map { ($_->{name} =~ /^owner:(.*)/)[0] }
-                                 values %$service_owners);
-                warn_or_err_msg($print_type,
-                                "$sname has multiple owners:\n ",
-                                join(', ', @names));
+
+            # Check if attribute 'multi_owner' is restricted at this service.
+            elsif (grep { $_->{owner} and
+                          'restrict' eq get_attr('multi_owner', $_)
+                   }
+                   sort by_name values %$objects)
+            {
+                warn_msg("Must not use attribute 'multi_owner' at",
+                         " $service->{name}");
             }
+
+            # Check if attribute 'multi_owner' could be avoided,
+            # if objects of user and objects of rules are swapped.
+            elsif ($info->{same_objects}) {
+                my $user_owner = '';
+                my $multi_owner;
+                for my $user (@{ $service->{user} }) {
+                    my $owner = $user->{owner} || ':unknown';
+                    $user_owner ||= $owner;
+                    next if $user_owner eq $owner;
+                    $multi_owner = 1;
+                    last;
+                }
+                if (not $multi_owner and $user_owner ne ':unknown') {
+                    warn_msg("Useless use of attribute 'multi_owner'",
+                             " at $sname\n",
+                             " All 'user' objects belong to single",
+                             " $user_owner->{name}.\n",
+                             " Either swap objects of 'user' and objects",
+                             " of rules,\n",
+                             " or split service into multiple parts,",
+                             " one for each owner.");
+                }
+            }
+        }
+        elsif ($has_multi and
+               (my $print_type = $config->{check_service_multi_owner}) and
+               (my @names =
+                unique sort
+                map { $_->{owner}->{name} =~ s/^owner://r }
+                grep { $_->{owner} and 'ok' ne get_attr('multi_owner', $_) }
+                values %$objects))
+        {
+            warn_or_err_msg($print_type,
+                            "$sname has multiple owners:\n ",
+                            join(', ', @names));
         }
 
         # Check for unknown owners.
-        if (($unknown_owners and keys %$unknown_owners)
-            xor $service->{unknown_owner})
-        {
-            if ($service->{unknown_owner}) {
+        if ($service->{unknown_owner}) {
+            if (not $has_unknown) {
                 warn_msg("Useless use of attribute 'unknown_owner' at $sname");
             }
-            else {
-                if ($config->{check_service_unknown_owner}) {
-                    for my $obj (values %$unknown_owners) {
-                        $unknown2unknown{$obj} = $obj;
-                        push @{ $unknown2services{$obj} }, $sname;
-                    }
-                }
+            elsif (grep { not $_->{owner} and
+                          'restrict' eq get_attr('unknown_owner', $_)
+                   }
+                   sort by_name values %$objects)
+            {
+                warn_msg("Must not use attribute 'unknown_owner' at",
+                         " $service->{name}");
+            }
+        }
+        elsif ($has_unknown &&
+               $config->{check_service_unknown_owner})
+        {
+            for my $obj (values %$objects) {
+                next if $obj->{owner};
+                next if 'ok' eq get_attr('unknown_owner', $obj);
+                $unknown2unknown{$obj} = $obj;
+                push @{ $unknown2services{$obj} }, $sname;
             }
         }
     }
@@ -6963,15 +7108,13 @@ sub get_zone {
 sub collect_unenforceable {
     my ($rule, $zone) = @_;
     my $service = $rule->{rule}->{service};
+    $service->{silent_unenforceable} = 1;
 
-    if ($zone->{has_unenforceable}) {
-        $zone->{seen_unenforceable}      = 1;
-        $service->{silent_unenforceable} = 1;
+    if ('ok' eq get_attr_from_zone('has_unenforceable', $zone)) {
         return;
     }
 
     my $is_coupling = $rule->{rule}->{has_user} eq 'both';
-    $service->{silent_unenforceable} = 1;
     my ($src_list, $dst_list) = @{$rule}{qw(src dst)};
 
     for my $src (@$src_list) {
@@ -6981,7 +7124,7 @@ sub collect_unenforceable {
                 if ($src eq $dst) {
                     next;
                 }
-                elsif (is_subnet $src and is_subnet($dst)) {
+                elsif (is_subnet($src) and is_subnet($dst)) {
 
                     # For rules with different subnets of a single
                     # network we don't know if the subnets have been
@@ -7039,7 +7182,7 @@ sub show_unenforceable {
 
         if ($service->{has_unenforceable}
             and (not $service->{seen_unenforceable} or
-                 not$service->{seen_enforceable}))
+                 not $service->{seen_enforceable}))
         {
             warn_msg("Useless attribute 'has_unenforceable' at $context");
         }
@@ -7059,33 +7202,31 @@ sub show_unenforceable {
             }
             next;
         }
-        next if $service->{has_unenforceable};
 
         if (my $src_hash = delete $service->{seen_unenforceable}) {
             my @list;
             for my $dst_hash (values %$src_hash) {
                 for my $aref (values %$dst_hash) {
                     my ($src, $dst) = @$aref;
+                    if ($service->{has_unenforceable}) {
+                        if('restrict' eq get_attr('has_unenforceable', $src)) {
+                            $service->{has_unenforceable_restricted}++ or
+                                warn_msg("Must not use attribute",
+                                         " 'has_unenforceable' at",
+                                         " $service->{name}");
+                        }
+                        next;
+                    }
                     push @list, "src=$src->{name}; dst=$dst->{name}";
                 }
             }
-            warn_or_err_msg($config->{check_unenforceable},
-                            join "\n ",
-                            "$context has unenforceable rules:",
-                            sort @list);
+            @list and
+                warn_or_err_msg($config->{check_unenforceable},
+                                join "\n ",
+                                "$context has unenforceable rules:",
+                                sort @list);
         }
         delete $service->{silent_unenforceable};
-    }
-}
-
-sub warn_useless_unenforceable {
-    for my $zone (@zones) {
-        $zone->{has_unenforceable} or next;
-        $zone->{seen_unenforceable} and next;
-        my $zero_ip = get_zero_ip($zone->{ipv6});
-        my $agg00 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
-        my $name = $agg00 ? $agg00->{name} : $zone->{name};
-        warn_msg("Useless attribute 'has_unenforceable' at $name");
     }
 }
 
@@ -7176,7 +7317,6 @@ sub group_path_rules {
     info("Grouped rule count: $count");
 
     show_unenforceable();
-    warn_useless_unenforceable();
 }
 
 sub remove_simple_duplicate_rules {
@@ -7301,6 +7441,29 @@ sub set_local_prt_relation {
 
 my @duplicate_rules;
 
+# Returns 1, if overlap should be ignored.
+sub check_attr_overlaps {
+    my ($service, $oservice, $rule) = @_;
+    my $src_attr = get_attr('overlaps', $rule->{src});
+    my $dst_attr = $src_attr && get_attr('overlaps', $rule->{dst});
+    my $overlaps = $service->{overlaps};
+    if ($overlaps and grep { $oservice eq $_ } @$overlaps) {
+        $service->{overlaps_used}->{$oservice} = 1;
+        if ('restrict' eq get_attr('overlaps', $rule->{src})
+            and
+            'restrict' eq get_attr('overlaps', $rule->{dst}))
+        {
+            $service->{overlaps_restricted}++ or
+                warn_msg("Must not use attribute 'overlaps' at $service->{name}");
+            return;
+        }
+        return 1;
+    }
+    elsif ($src_attr eq 'ok' and $dst_attr eq 'ok') {
+        return 1;
+    }
+}
+
 sub collect_duplicate_rules {
     my ($rule, $other) = @_;
     my $service  = $rule->{rule}->{service};
@@ -7327,23 +7490,11 @@ sub collect_duplicate_rules {
     # Return early, so {overlaps_used} isn't set below.
     return if $rule->{overlaps} and $other->{overlaps};
 
-    if (my $overlaps = $service->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($oservice eq $overlap) {
-                $service->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
+    if (check_attr_overlaps($service, $oservice, $rule) or
+        check_attr_overlaps($oservice, $service, $rule))
+    {
+        return;
     }
-    if (my $overlaps = $oservice->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($service eq $overlap) {
-                $oservice->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
-    }
-
     push @duplicate_rules, [ $rule, $other ] if $config->{check_duplicate_rules};
 }
 
@@ -7386,13 +7537,8 @@ sub collect_redundant_rules {
     return if $rule->{overlaps} and $other->{overlaps};
 
     my $oservice = $other->{rule}->{service};
-    if (my $overlaps = $service->{overlaps}) {
-        for my $overlap (@$overlaps) {
-            if ($oservice eq $overlap) {
-                $service->{overlaps_used}->{$overlap} = $overlap;
-                return;
-            }
-        }
+    if (check_attr_overlaps($service, $oservice, $rule)) {
+        return;
     }
     push @redundant_rules, [ $rule, $other ];
 }
@@ -7781,20 +7927,39 @@ a common set of NAT tags (NAT set) is effective at every network.
 =cut
 
 #############################################################################
-# Returns: Hash containing nat_tags declared to be non hidden at least
-#          once as keys.
-sub generate_lookup_hash_for_non_hidden_nat_tags {
-    my %has_non_hidden;
+# Comment: Check for equal type of NAT definitions.
+#          This is used for more efficient check of dynamic NAT rules,
+#          so we need to check only once for each pair of src / dst zone.
+# Returns: A hash, mapping nat_tag to its type: static, dynamic or hidden.
+sub get_lookup_hash_for_nat_type {
+    my %nat_tag2network;
+    my %nat_tag2nat_type;
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
-        for my $nat_tag (keys %$nat_hash) {
+        for my $nat_tag (sort keys %$nat_hash) {
             my $nat_network = $nat_hash->{$nat_tag};
-            if (not $nat_network->{hidden}) {
-                $has_non_hidden{$nat_tag} = 1;
-             }
+            my $type =
+                $nat_network->{dynamic} ?
+                $nat_network->{hidden} ? 'hidden' : 'dynamic' : 'static';
+            if (my $other_net = $nat_tag2network{$nat_tag}) {
+                my $other_nat = $other_net->{nat}->{$nat_tag};
+                my $other_type =
+                    $other_nat->{dynamic} ?
+                    $other_nat->{hidden} ? 'hidden' : 'dynamic' : 'static';
+                if ($other_type ne $type) {
+                    err_msg("All definitions of nat:$nat_tag must have",
+                            " equal type.\n But found\n",
+                            " - $other_type for $other_net->{name}\n",
+                            " - $type for $network->{name}");
+                }
+            }
+            else {
+                $nat_tag2network{$nat_tag} = $network;
+                $nat_tag2nat_type{$nat_tag} = $type;
+            }
         }
     }
-    return \%has_non_hidden;
+    return \%nat_tag2nat_type;
 }
 
 # Mark invalid NAT transitions.
@@ -7835,10 +8000,6 @@ sub mark_invalid_nat_transitions {
 #                 NAT definitions (several NAT definitions grouped at one
 #                 network) as keys and arrays of NAT hashes containing the
 #                 key NAT tag as values.
-#             $nat_definitions: Lookup hash with all NAT tags that are
-#                 defined somewhere as keys. It is used to check, if all
-#                 NAT definitions are bound and if all bound NAT tags are
-#                 defined somewhere.
 # Comments: Also checks consistency of multi NAT tags at one network. If
 #           non hidden NAT tags are grouped at one network, the same NAT
 #           tags must be used as group in all other occurrences to avoid
@@ -7849,9 +8010,8 @@ sub mark_invalid_nat_transitions {
 #           active at a time. As NAT:A can not be active (n2) and inactive
 #           (n1) in the same NAT domain, this restriction is needed.
 sub generate_multinat_def_lookup {
-    my ($has_non_hidden) = @_;
+    my ($nat_tag2nat_type) = @_;
     my %nat_tag2multinat_def;
-    my %nat_definitions;
 
     for my $network (@networks) {
         my $nat_hash = $network->{nat} or next;
@@ -7859,11 +8019,10 @@ sub generate_multinat_def_lookup {
 
       NAT_TAG:
         for my $nat_tag (sort keys %$nat_hash) {
-            $nat_definitions{$nat_tag} = 1;
             if (my $previous_nat_hashes = $nat_tag2multinat_def{$nat_tag}) {
 
                 # Do not add same group twice.
-                if ($has_non_hidden->{$nat_tag}) {
+                if ($nat_tag2nat_type->{$nat_tag} ne 'hidden') {
                     for my $nat_hash2 (@$previous_nat_hashes) {
                         next NAT_TAG if keys_eq($nat_hash, $nat_hash2);
                     }
@@ -7902,7 +8061,7 @@ sub generate_multinat_def_lookup {
         delete $nat_tag2multinat_def{$nat_tag};
     }
 
-    return \%nat_tag2multinat_def, \%nat_definitions;
+    return \%nat_tag2multinat_def;
 }
 
 ##############################################################################
@@ -8006,7 +8165,7 @@ sub find_nat_domains {
         my $domain = new(
             'nat_domain',
             name     => $name,
-            zoness => [],
+            zones    => [],
             routers  => [],
             nat_set  => {},
         );
@@ -8173,9 +8332,10 @@ sub err_missing_bind_nat {
 
 sub get_nat_domain_borders {
     my ($domain) = @_;
-    return
-        grep({ $_->{zone}->{nat_domain} eq $domain }
-             map { @{ $_->{interfaces} } } @{ $domain->{routers} });
+
+    # Must get zone from network, because some interfaces are unmanaged.
+    return grep({ $_->{network}->{zone}->{nat_domain} eq $domain }
+                map { get_intf($_) } @{ $domain->{routers} });
 }
 
 ##############################################################################
@@ -8300,7 +8460,7 @@ sub distribute_nat1 {
 ##############################################################################
 # Purpose:    Calls distribute_nat1 to distribute specified NAT tag
 #             to reachable domains where NAT tag is active. Generate
-#             error message, if called function returns an error loop path.
+#             error message, if called function returns an error value.
 # Parameters: $in_router: router the depth first traversal starts at.
 #             $domain: Domain the depth first traversal starts at.
 #             $nat_tag: NAT tag that is to be distributed.
@@ -8372,23 +8532,28 @@ sub check_multinat_errors {
 #############################################################################
 # Purpose: Check that every NAT tag is both bound and defined somewhere.
 sub check_nat_definitions {
-    my ($nat_definitions, $natdomains) = @_;
+    my ($nat_tag2nat_type, $natdomains) = @_;
+    my %nat_definitions = %$nat_tag2nat_type;
     for my $domain (@$natdomains) {
         for my $router (@{ $domain->{routers} }) {
             my $nat_tags = $router->{nat_tags}->{$domain};
             for my $nat_tag (@$nat_tags) {
-                if ($nat_definitions->{$nat_tag}) {
-                    $nat_definitions->{$nat_tag} = 'used';
+                if ($nat_definitions{$nat_tag}) {
+                    $nat_definitions{$nat_tag} = 'used';
                     next;
                 }
+
+                # Prevent uninitialized value when checking NAT type later.
+                $nat_tag2nat_type->{$nat_tag} = 'static';
+
                 warn_msg(
                     "Ignoring useless nat:$nat_tag bound at $router->{name}");
             }
         }
     }
-    for my $name (sort keys %$nat_definitions) {
-        $nat_definitions->{$name} eq 'used'
-            or warn_msg("nat:$name is defined, but not bound to any interface");
+    for my $name (sort keys %nat_definitions) {
+        $nat_definitions{$name} eq 'used' or
+            warn_msg("nat:$name is defined, but not bound to any interface");
     }
 }
 
@@ -8516,7 +8681,7 @@ sub distribute_nat_sets_to_interfaces {
 # because hidden tag doesn't affect address calculation.
 # Multiple hidden tags without real tag are ignored.
 sub combine_nat_sets {
-    my ($nat_sets, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_sets, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     return $nat_sets->[0] if @$nat_sets == 1;
 
     # Collect single NAT tags and multi NAT hashes.
@@ -8563,8 +8728,8 @@ sub combine_nat_sets {
         # Analyze active and inactive tags.
         if (not $hash->{':none'}) {
             my $real_tag;
-            for my $tag (%$hash) {
-                if ($has_non_hidden->{$tag}) {
+            for my $tag (keys %$hash) {
+                if ($nat_tag2nat_type->{$tag} ne 'hidden') {
                     if ($real_tag) {
 
                         # Ignore multiple real tags.
@@ -8605,20 +8770,20 @@ sub combine_nat_sets {
 sub distribute_nat_info {
     progress('Distributing NAT');
     my $natdomains = find_nat_domains();
-    my $has_non_hidden = generate_lookup_hash_for_non_hidden_nat_tags();
-    my ($nat_tag2multinat_def, $nat_definitions)
-        = generate_multinat_def_lookup($has_non_hidden);
+    my $nat_tag2nat_type = get_lookup_hash_for_nat_type();
+    my ($nat_tag2multinat_def)
+        = generate_multinat_def_lookup($nat_tag2nat_type);
     my $nat_errors =
         distribute_nat_tags_to_nat_domains($nat_tag2multinat_def, $natdomains);
     check_multinat_errors($nat_tag2multinat_def, $natdomains);
-    check_nat_definitions($nat_definitions, $natdomains);
+    check_nat_definitions($nat_tag2nat_type, $natdomains);
     check_nat_network_location($natdomains) if not $nat_errors;
     check_nat_compatibility();
     check_interfaces_with_dynamic_nat();
     distribute_nat_sets_to_interfaces($natdomains);
-    prepare_real_ip_nat_routers($nat_tag2multinat_def, $has_non_hidden);
+    prepare_real_ip_nat_routers($nat_tag2multinat_def, $nat_tag2nat_type);
 
-    return($natdomains, $nat_tag2multinat_def, $has_non_hidden);
+    return($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def);
 }
 
 sub get_nat_network {
@@ -9921,10 +10086,11 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if (is_zero_ip($mask)) {
-            for my $attr (qw(has_unenforceable owner nat
+            for my $attr (qw(overlaps unknown_owner multi_owner
+                             has_unenforceable owner nat
                              no_check_supernet_rules))
             {
-                if (my $v = delete $aggregate->{$attr}) {
+                if (defined(my $v = delete $aggregate->{$attr})) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
                     }
@@ -9948,7 +10114,7 @@ sub link_aggregates {
 #            containing the aggregates link-network.
 # Comments : From users point of view, an aggregate refers to networks of a zone
 #            cluster. Internally, an aggregate object represents a set of
-#            networks inside a zone. Therefeore, every zone inside a cluster
+#            networks inside a zone. Therefore, every zone inside a cluster
 #            gets its own copy of the defined aggregate to collect the zones
 #            networks matching the aggregates IP address.
 # TDOD     : Aggregate may be a non aggregate network,
@@ -10745,10 +10911,6 @@ sub check_area_subset_relations {
     @ascending_areas =
         sort area_by_size grep { not $_->{disabled} } values %areas;
 
-    # Collect pairs of areas already identified with other zone or router.
-    # Key: contained area, value: containing area
-    my %seen;
-
     # Process all elements contained by one or more areas.
     for my $obj (@zones, @managed_routers) {
         my $area_hash = $obj->{areas} or next;
@@ -10759,11 +10921,16 @@ sub check_area_subset_relations {
         # Take the smallest area.
         my $next = shift @containing;
 
+        if (is_zone($obj)) {
+            $obj->{in_area} = $next;
+        }
+
       LARGER:
         while (@containing) {
             my $small = $next;
             $next = shift @containing;
-            next if $seen{$small}->{$next}++;
+            next if $small->{in_area};
+            $small->{in_area} = $next;
             my $small_z = $small->{zones};
             my $small_r = $small->{managed_routers};
             my $next_z = $next->{zones};
@@ -13208,19 +13375,18 @@ sub crypto_behind {
     }
 }
 
-# Valid group-policy attributes.
-# Hash describes usage:
-# - tg_general: attribute is only applicable to 'tunnel-group general-attributes'
 my %asa_vpn_attributes = (
+
+    # Our own attributes
+    'check-subject-name'          => { own => 1 },
+    'check-extended-key-usage'    => { own => 1 },
+    'trust-point'                 => { own => 1 },
 
     # group-policy attributes
     banner                        => {},
-    'check-subject-name'          => {},
-    'check-extended-key-usage'    => {},
     'dns-server'                  => {},
     'default-domain'              => {},
     'split-dns'                   => {},
-    'trust-point'                 => {},
     'wins-server'                 => {},
     'vpn-access-hours'            => {},
     'vpn-idle-timeout'            => {},
@@ -13228,6 +13394,8 @@ my %asa_vpn_attributes = (
     'vpn-simultaneous-logins'     => {},
     vlan                          => {},
     'split-tunnel-policy'         => {},
+
+    # tunnel-group general-attributes
     'authentication-server-group' => { tg_general => 1 },
     'authorization-server-group'  => { tg_general => 1 },
     'authorization-required'      => { tg_general => 1 },
@@ -13240,8 +13408,8 @@ sub verify_asa_vpn_attributes {
     for my $key (sort keys %$attributes) {
         my $spec = $asa_vpn_attributes{$key};
         $spec or err_msg("Invalid radius_attribute '$key' at $obj->{name}");
+        my $value = $attributes->{$key};
         if ($key eq 'split-tunnel-policy') {
-            my $value = $attributes->{$key};
             $value =~ /^(?:tunnelall|tunnelspecified)$/
               or err_msg(
                 "Unsupported value in radius_attributes",
@@ -13264,23 +13432,63 @@ sub verify_asa_vpn_attributes {
     }
 }
 
+sub get_radius_attr {
+    my ($attr, $host, $router) = @_;
+    for my $obj ($host, $host->{network}, $router) {
+        my $attributes = $obj->{radius_attributes} or next;
+        if (my $val = $attributes->{$attr}) {
+            return $val;
+        }
+    }
+    return;
+}
+
+# Attribute 'authentication-server-group' must only be used
+# together with 'ldpa_id' and must then be available at network.
+sub verify_auth_server {
+    my ($host, $router) = @_;
+    my $attr = 'authentication-server-group';
+    if (delete $host->{radius_attributes}->{$attr}) {
+        err_msg("Attribute '$attr' must not be used directly at $host->{name}");
+    }
+    my $auth = get_radius_attr($attr, $host, $router);
+    my $network = $host->{network};
+    if ($host->{ldap_id}) {
+        if(not $auth) {
+            err_msg("Missing attribute '$attr' at",
+                    " $network->{name} having host with 'ldap_id'");
+            $network->{radius_attributes}->{$attr} = 'ERROR';
+        }
+    }
+    elsif ($auth) {
+        my $where = $network->{radius_attributes}->{$attr} ? $network : $router;
+        err_msg("Attribute '$attr' at $where->{name} must only be used",
+                " together with attribute 'ldap_id' at host");
+    }
+}
+
 # Host with ID that doesn't contain a '@' must use attribute
 # 'verify-subject-name'.
-sub verify_subject_name {
+sub verify_subject_name_for_host {
     my ($host, $router) = @_;
     my $id = $host->{id};
     return if $id =~ /@/;
-    my $has_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-subject-name'});
-    };
-    return if $has_attr->($host);
-    return if $has_attr->($host->{network});
-    if (not $has_attr->($router)) {
-        err_msg("Missing radius_attribute 'check-subject-name'\n",
-                " for $host->{name}");
+    return if get_radius_attr('check-subject-name', $host, $router);
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $host->{name}");
+}
+
+# Network with attribute 'cert_id' must use attribute
+# 'verify-subject-name'.
+sub verify_subject_name_for_net {
+    my ($network, $router) = @_;
+    for my $obj ($network, $router) {
+        my $attr = $obj->{radius_attributes} or next;
+        return if $attr->{'check-subject-name'};
     }
+    err_msg("Missing radius_attribute 'check-subject-name'\n",
+            " for $network->{name}");
+    $network->{radius_attributes}->{'check-subject-name'} = 'ERROR';
 }
 
 sub verify_extended_key_usage {
@@ -13288,18 +13496,12 @@ sub verify_extended_key_usage {
     my $extended_keys = $router->{extended_keys} ||= {};
     my $id = $host->{id};
     my ($domain) = ($id =~ /^(?:.*?)(\@.*)$/) or return;
-    my $get_attr = sub {
-        my ($obj) = @_;
-        my $attributes = $obj->{radius_attributes};
-        return ($attributes && $attributes->{'check-extended-key-usage'});
-    };
-    my $oid = $get_attr->($host) ||
-        $get_attr->($host->{network}) || $get_attr->($router) || '';
+    my $oid = get_radius_attr('check-extended-key-usage', $host, $router) || '';
     if(defined(my $other = $extended_keys->{$domain})) {
         $oid eq $other or
             err_msg("All ID hosts having domain '$domain'",
                     " must use identical value from",
-                    " 'check_expanded_key_usage'");
+                    " 'check-extended-key-usage'");
     }
     else {
         $extended_keys->{$domain} = $oid;
@@ -13369,8 +13571,16 @@ sub expand_crypto {
                         my $subnet = $host->{subnets}->[0];
                         if ($hub_is_asa_vpn) {
                             verify_asa_vpn_attributes($host);
-                            verify_subject_name($host, $hub_router);
-                            verify_extended_key_usage($host, $hub_router);
+                            verify_auth_server($host, $hub_router);
+                            if ($host->{ldap_id}) {
+                                verify_subject_name_for_net($network,
+                                                            $hub_router);
+                            }
+                            else {
+                                verify_subject_name_for_host($host,
+                                                             $hub_router);
+                                verify_extended_key_usage($host, $hub_router);
+                            }
                         }
                         if (my $other = $hub->{id_rules}->{$id}) {
                             my $src = $other->{src};
@@ -14925,54 +15135,31 @@ sub collect_path_interfaces {
 # 2. Check host rule with dynamic NAT.
 # 3. Check for partially applied hidden or dynamic NAT on path.
 sub check_dynamic_nat_rules {
-    my ($natdomains) = @_;
+    my ($natdomains, $nat_tag2nat_type) = @_;
     progress('Checking rules with hidden or dynamic NAT');
 
     # Collect hidden or dynamic NAT tags that
-    # 1. are active inside nat_set,
-    # 2. are defined inside zone and remeber if NAT is hidden or not.
-    # 3. Check for equal type of NAT definitions.
-    #    This is used for mor efficient check of dynamic NAT rules,
-    #    so we need to check only once for each pair of src / dst zone.
+    # 1. are active inside nat_set (i.e. NAT domain),
+    # 2. are defined inside zone.
     my %nat_set2active_tags;
     my %zone2dyn_nat;
-    {
-        my %nat_type;
-        my %is_dynamic_nat_tag;
-        for my $network (@networks) {
-            my $href = $network->{nat} or next;
-            my $zone = $network->{zone};
-            for my $nat_tag (keys %$href) {
-                my $nat_network = $href->{$nat_tag};
-                if (my $other_net = $nat_type{$nat_tag}) {
-                    my $other_nat = $other_net->{nat}->{$nat_tag};
-                    my $other_type =
-                        $other_nat->{dynamic} ?
-                        $other_nat->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    my $current_type =
-                        $nat_network->{dynamic} ?
-                        $nat_network->{hidden} ? 'hidden' : 'dynamic' :
-                        'static';
-                    if ($other_type ne $current_type) {
-                        err_msg("All definitions of nat:$nat_tag must have",
-                                " equal type.\n But found\n",
-                                " - $other_type for $other_net->{name}\n",
-                                " - $current_type for $network->{name}");
-                    }
-                }
-                $nat_type{$nat_tag} = $network;
+    for my $network (@networks) {
+        my $href = $network->{nat} or next;
+        my $zone = $network->{zone};
+        for my $nat_tag (keys %$href) {
 
-                $nat_network->{dynamic} or next;
-                $is_dynamic_nat_tag{$nat_tag} = 1;
-                $zone2dyn_nat{$zone}->{$nat_tag} = $nat_network->{hidden} || 0;
-            }
+            # We already know, that type of $nat_tag is equal at
+            # all networks.
+            my $type = $nat_tag2nat_type->{$nat_tag};
+            next if $type eq 'static';
+            $zone2dyn_nat{$zone}->{$nat_tag} = 1;
         }
-        for my $natdomain (@$natdomains) {
-            my $nat_set = $natdomain->{nat_set};
-            my @active = grep { $nat_set->{$_} } keys %is_dynamic_nat_tag;
-            @{$nat_set2active_tags{$nat_set}}{@active} = @active;
-        }
+    }
+    for my $natdomain (@$natdomains) {
+        my $nat_set = $natdomain->{nat_set};
+        my @active =
+            grep { $nat_tag2nat_type->{$_} ne 'static' } keys %$nat_set;
+        @{$nat_set2active_tags{$nat_set}}{@active} = @active;
     }
 
     # Remember interfaces of already checked path.
@@ -16841,6 +17028,68 @@ sub print_asa_trustpoint {
     }
 }
 
+sub print_tunnel_group_ra {
+    my ($id, $id_name, $attributes, $router, $group_policy_name,
+        $cert_group_map) = @_;
+
+    my $subject_name = delete $attributes->{'check-subject-name'} || '';
+    if ($id =~ /^@/) {
+        $subject_name = 'ea';
+    }
+    my $map_name = "ca-map-$id_name";
+    print "crypto ca certificate map $map_name 10\n";
+    print " subject-name attr $subject_name co $id\n";
+    if (my $oid = delete $attributes->{'check-extended-key-usage'})
+    {
+        print " extended-key-usage co $oid\n";
+    }
+    my $trustpoint2 =
+        delete $attributes->{'trust-point'} || $router->{trust_point};
+    my @tunnel_gen_att;
+    my $authentication = 'certificate';
+    if ($group_policy_name) {
+        push(@tunnel_gen_att, "default-group-policy $group_policy_name");
+    }
+    else {
+        $authentication = "aaa $authentication";
+    }
+
+    # Select attributes for tunnel-group general-attributes.
+    for my $key (sort keys %$attributes) {
+        my $spec = $asa_vpn_attributes{$key};
+        $spec and $spec->{tg_general} or next;
+        my $value = $attributes->{$key};
+        my $out = defined($value) ? "$key $value" : $key;
+        push(@tunnel_gen_att, $out);
+    }
+
+    my $tunnel_group_name = "VPN-tunnel-$id_name";
+    print <<"EOF";
+tunnel-group $tunnel_group_name type remote-access
+tunnel-group $tunnel_group_name general-attributes
+EOF
+
+    for my $line (@tunnel_gen_att) {
+        print " $line\n";
+    }
+    print <<"EOF";
+tunnel-group $tunnel_group_name ipsec-attributes
+EOF
+    print_asa_trustpoint($router, $trustpoint2);
+
+    # For anyconnect clients.
+    print <<"EOF";
+tunnel-group $tunnel_group_name webvpn-attributes
+ authentication $authentication
+EOF
+    $cert_group_map->{$map_name} = $tunnel_group_name;
+
+    print <<"EOF";
+tunnel-group-map $map_name 10 $tunnel_group_name
+
+EOF
+}
+
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
   qw(banner dns-server default-domain split-dns wins-server address-pools
@@ -16889,6 +17138,11 @@ EOF
         print "group-policy $name internal\n";
         print "group-policy $name attributes\n";
         for my $key (sort keys %$attributes) {
+
+            # Ignore attributes for tunnel-group general or own attributes.
+            my $spec = $asa_vpn_attributes{$key};
+            next if $spec and ($spec->{tg_general} or $spec->{own});
+
             my $value = $attributes->{$key};
             my $out   = $key;
             if (defined($value)) {
@@ -16908,11 +17162,18 @@ EOF
     my $id_counter = 1;
     my $gen_id_name = sub {
         my ($id) = @_;
-        return length($id) <= 46 ? $id : $id_counter++;
+        if (length($id) <= 46 && $id =~ /^[\w\@.-]+$/) {
+            return $id;
+        }
+        else {
+            return $id_counter++;
+        }
     };
     my %cert_group_map;
     my %single_cert_map;
     my %extended_key;
+    my %ldap_map;
+    my %network_seen;
     my $acl_counter = 1;
     my $deny_any = $ipv6 ? $deny_any6_rule : $deny_any_rule;
     for my $interface (@{ $router->{interfaces} }) {
@@ -16925,7 +17186,6 @@ EOF
                 my $id_intf = $hash->{$id};
                 my $id_name = $gen_id_name->($id);
                 my $src     = $id_intf->{src};
-                my $pool_name;
                 my $attributes = {
                     %{ $router->{radius_attributes} },
                     %{ $src->{network}->{radius_attributes} },
@@ -17038,69 +17298,40 @@ EOF
                     print "\n";
                 }
                 else {
-                    $pool_name = "pool-$id_name";
+                    my $pool_name = "pool-$id_name";
                     my $mask = print_ip $src->{mask};
-                    my $max =
-                      print_ip($src->{ip} | ~ $src->{mask});
-                    my $subject_name =
-                      delete $attributes->{'check-subject-name'};
-                    if ($id =~ /^@/) {
-                        $subject_name = 'ea';
-                    }
-                    my $map_name = "ca-map-$id_name";
-                    print "crypto ca certificate map $map_name 10\n";
-                    print " subject-name attr $subject_name co $id\n";
-                    if (my $oid =
-                        delete $attributes->{'check-extended-key-usage'})
-                    {
-                        print " extended-key-usage co $oid\n";
-                    }
+                    my $max = print_ip($src->{ip} | ~ $src->{mask});
                     print "ip local pool $pool_name $ip-$max mask $mask\n";
-                    $attributes->{'vpn-filter'}    = $filter_name;
                     $attributes->{'address-pools'} = $pool_name;
+                    $attributes->{'vpn-filter'}    = $filter_name;
                     my $group_policy_name = "VPN-group-$id_name";
-                    my @tunnel_gen_att =
-                      ("default-group-policy $group_policy_name");
-
-                    # Select attributes for tunnel-group general-attributes.
-                    for my $key (sort keys %$attributes) {
-                        my $spec = $asa_vpn_attributes{$key};
-                        if ($spec and $spec->{tg_general}) {
-                            my $value = delete $attributes->{$key};
-                            my $out = defined($value) ? "$key $value" : $key;
-                            push(@tunnel_gen_att, $out);
-                        }
-                    }
-
-                    my $trustpoint2 =
-                        delete $attributes->{'trust-point'} || $trust_point;
                     $print_group_policy->($group_policy_name, $attributes);
 
-                    my $tunnel_group_name = "VPN-tunnel-$id_name";
-                    print <<"EOF";
-tunnel-group $tunnel_group_name type remote-access
-tunnel-group $tunnel_group_name general-attributes
-EOF
-
-                    for my $line (@tunnel_gen_att) {
-                        print " $line\n";
+                    if (my $ldap_id = $src->{ldap_id}) {
+                        my $network = $src->{network};
+                        my $net_attr = {
+                            %{ $router->{radius_attributes} },
+                            %{ $network->{radius_attributes} },
+                        };
+                        my $auth_server =
+                            $net_attr->{'authentication-server-group'};
+                        push(@{ $ldap_map{$auth_server} },
+                             [$ldap_id, $group_policy_name]);
+                        if (not $network_seen{$network}++) {
+                            my $cert_id = $network->{cert_id};
+                            print_tunnel_group_ra($cert_id,
+                                                  $gen_id_name->($cert_id),
+                                                  $net_attr,
+                                                  $router, undef,
+                                                  \%cert_group_map);
+                        }
                     }
-                    print <<"EOF";
-tunnel-group $tunnel_group_name ipsec-attributes
-EOF
-                    print_asa_trustpoint($router, $trustpoint2);
-
-                    # For anyconnect clients.
-                    print <<"EOF";
-tunnel-group $tunnel_group_name webvpn-attributes
- authentication certificate
-EOF
-                    $cert_group_map{$map_name} = $tunnel_group_name;
-
-                    print <<"EOF";
-tunnel-group-map $map_name 10 $tunnel_group_name
-
-EOF
+                    else {
+                        print_tunnel_group_ra($id, $id_name,
+                                              $attributes,
+                                              $router, $group_policy_name,
+                                              \%cert_group_map);
+                    }
                 }
             }
         }
@@ -17160,6 +17391,20 @@ EOF
         for my $map_name (sort keys %cert_group_map) {
             my $tunnel_group_map = $cert_group_map{$map_name};
             print " certificate-group-map $map_name 10 $tunnel_group_map\n";
+        }
+        print "\n";
+    }
+
+    # Generate ldap attribute-maps and aaa-server referencing each map.
+    for my $name (sort keys %ldap_map) {
+        print "aaa-server $name protocol ldap\n";
+        print "aaa-server $name host X\n";
+        print " ldap-attribute-map $name\n";
+        print "ldap attribute-map $name\n";
+        print " map-name memberOf Group-Policy\n";
+        for my $entry (@{ $ldap_map{$name} }) {
+            my ($dn, $gp_name) = @$entry;
+            print " map-value memberOf $dn $gp_name\n";
         }
     }
 }
@@ -17255,7 +17500,7 @@ sub print_iptables_acls {
 }
 
 sub prepare_real_ip_nat {
-    my ($router, $nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($router, $nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     my $hw_list = $router->{hardware};
 
     my %effective2hw_list;
@@ -17269,7 +17514,7 @@ sub prepare_real_ip_nat {
         # hidden addresses will be detected before this is used.
         my $effective = {};
         for my $nat_tag (@$bind_nat) {
-            $has_non_hidden->{$nat_tag} or next;
+            $nat_tag2nat_type->{$nat_tag} ne 'hidden' or next;
             $effective->{$nat_tag} = 1;
         }
 
@@ -17302,8 +17547,8 @@ sub prepare_real_ip_nat {
     my $combine_nat = sub {
         my ($list) = @_;
         my $nat_sets = [ map { $_->{nat_set} } @$list ];
-        return
-            combine_nat_sets($nat_sets, $nat_tag2multinat_def, $has_non_hidden);
+        return combine_nat_sets($nat_sets,
+                                $nat_tag2multinat_def, $nat_tag2nat_type);
     };
     my ($list1, $list2) = values %effective2hw_list;
     my $combined1 = $combine_nat->($list1);
@@ -17313,10 +17558,10 @@ sub prepare_real_ip_nat {
 }
 
 sub prepare_real_ip_nat_routers {
-    my ($nat_tag2multinat_def, $has_non_hidden) = @_;
+    my ($nat_tag2multinat_def, $nat_tag2nat_type) = @_;
     for my $router (@managed_routers, @routing_only_routers) {
         $router->{acl_use_real_ip} or next;
-        prepare_real_ip_nat($router, $nat_tag2multinat_def, $has_non_hidden);
+        prepare_real_ip_nat($router, $nat_tag2multinat_def, $nat_tag2nat_type);
     }
 }
 
@@ -17665,7 +17910,7 @@ sub print_crypto_map_attributes {
     }
 }
 
-sub print_tunnel_group {
+sub print_tunnel_group_l2l {
     my ($router, $name, $isakmp) = @_;
     my $authentication = $isakmp->{authentication};
     print "tunnel-group $name type ipsec-l2l\n";
@@ -17747,7 +17992,7 @@ sub print_static_crypto_map {
             $ipsec2trans_name);
 
         if ($crypto_type eq 'ASA') {
-            print_tunnel_group($router, $peer_ip, $isakmp);
+            print_tunnel_group_l2l($router, $peer_ip, $isakmp);
 
             # Tunnel group needs to be activated, if certificate is in use.
             if (my $id = $peer->{id}) {
@@ -17796,7 +18041,7 @@ sub print_dynamic_crypto_map {
         print "$prefix ipsec-isakmp dynamic $id\n";
 
         # Use $id as tunnel-group name
-        print_tunnel_group($router, $id, $isakmp);
+        print_tunnel_group_l2l($router, $id, $isakmp);
 
         # Activate tunnel-group with tunnel-group-map.
         print_ca_and_tunnel_group_map($id, $id);
@@ -18076,7 +18321,56 @@ sub print_prt {
     return(join(' ', @result));
 }
 
+# Collect interfaces that need protection by additional deny rules.
+# Add list to each ACL separately, because IP may be changed by NAT.
+sub get_need_protect {
+    my ($router) = @_;
+
+    # ASA protects IOS router behind crosslink interface.
+    # Routers connected by crosslink networks are handled like one
+    # large router. Protect the collected interfaces of the whole
+    # cluster at each entry.
+    if (my $list = $router->{crosslink_interfaces}) {
+        return $list;
+    }
+    $router->{need_protect} or return;
+    return [
+        grep({ $_->{ip} !~ /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
+             @{ $router->{interfaces} }) ];
+}
+
 my %nat2obj2address;
+
+# Set attribute {need_protect} in $acl_info.
+# Value is list of IP addresses of to be protected interfaces.
+#
+# This possibly generates invalid IP address 0.0.0.0/32 for hidden interface,
+# if some LAN interface is hidden in NAT set of crypto interface.
+# But that doesn't matter, because only IOS routers
+# - need protection of interfaces and
+# - are also used as crypto device.
+# But IOS routers have separate crypto-filter-ACL
+# and therefore these invalid addresses are never used.
+sub set_need_protect {
+    my ($acl_info, $need_protect) = @_;
+
+    # This device needs to protect itself or crosslink interfaces.
+    delete $acl_info->{protect_self} or return;
+
+    # No interfaces to protect.
+    $need_protect or return;
+
+    # Collect IP addresses of all interfaces.
+    my $nat_set = $acl_info->{nat_set};
+    my @list = map({  $nat2obj2address{$nat_set}->{$_}
+                      ||= full_prefix_code(address($_, $nat_set))
+                   }
+                   @$need_protect);
+    $acl_info->{need_protect} = [
+
+        # Remove duplicate addresses from redundancy interfaces.
+        unique @list ];
+}
 
 sub print_acls {
     my ($vrf_members, $fh) = @_;
@@ -18090,31 +18384,6 @@ sub print_acls {
         my $model            = $router->{model};
         my $do_auth          = $model->{do_auth};
         my $active_log       = $router->{log};
-        my $need_protect;
-
-        # Collect interfaces that need protection by additional deny rules.
-        # Add list to each ACL separately, because IP may be changed by NAT.
-        if (
-            $router->{need_protect}
-            or
-
-            # ASA protects IOS router behind crosslink interface.
-            $router->{crosslink_interfaces}
-          )
-        {
-
-            # Routers connected by crosslink networks are handled like
-            # one large router. Protect the collected interfaces of
-            # the whole cluster at each entry.
-            $need_protect = $router->{crosslink_interfaces};
-            if (not $need_protect) {
-                $need_protect = $router->{interfaces};
-                $need_protect = [
-                    grep({ $_->{ip} !~
-                               /^(?:unnumbered|negotiated|tunnel|bridged)$/ }
-                         @$need_protect) ];
-            }
-        }
 
         my $process = sub {
             my ($acl) = @_;
@@ -18133,16 +18402,6 @@ sub print_acls {
             my $addr_cache = $nat2obj2address{$nat_set} ||= {};
             my $dst_nat_set = delete $acl->{dst_nat_set} || $nat_set;
             my $dst_addr_cache = $nat2obj2address{$dst_nat_set} ||= {};
-            my $protect_self = delete $acl->{protect_self};
-            if ($need_protect and $protect_self) {
-                $acl->{need_protect} = [
-
-                    # Remove duplicate addresses from redundancy interfaces.
-                    unique
-                    map({ $addr_cache->{$_} ||=
-                              full_prefix_code(address($_, $nat_set)) }
-                        @$need_protect) ];
-            }
 
             for my $what (qw(intf_rules rules)) {
                 my $rules = $acl->{$what} or next;
@@ -18308,7 +18567,9 @@ sub print_acls {
         };
 
         my $aref = delete $router->{acl_list} or next;
+        my $need_protect = get_need_protect($router);
         for my $acl (@$aref) {
+            set_need_protect($acl, $need_protect);
             my $result = $process->($acl);
             if (my $list = delete $acl->{sub_acl_list}) {
                 for my $acl (@$list) {
@@ -18677,7 +18938,7 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    my ($natdomains) = distribute_nat_info();
+    my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
     find_subnets_in_zone();
 
     # Call after find_subnets_in_zone, where $zone->{networks} has
@@ -18706,7 +18967,7 @@ sub compile {
             mark_managed_local();
         },
         sub {
-            check_dynamic_nat_rules($natdomains);
+            check_dynamic_nat_rules($natdomains, $nat_tag2nat_type);
         });
 
     concurrent(
