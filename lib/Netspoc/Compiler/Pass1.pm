@@ -7447,12 +7447,10 @@ sub check_attr_overlaps {
     my $overlaps = $service->{overlaps};
     if ($overlaps and grep { $oservice eq $_ } @$overlaps) {
         $service->{overlaps_used}->{$oservice} = 1;
-        if ('restrict' eq get_attr('overlaps', $rule->{src})
-            and
-            'restrict' eq get_attr('overlaps', $rule->{dst}))
-        {
+        if ($src_attr eq 'restrict' and $dst_attr eq 'restrict') {
             $service->{overlaps_restricted}++ or
-                warn_msg("Must not use attribute 'overlaps' at $service->{name}");
+                warn_msg("Must not use attribute 'overlaps'",
+                         " at $service->{name}");
             return;
         }
         return 1;
