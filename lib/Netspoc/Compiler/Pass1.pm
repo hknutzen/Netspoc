@@ -13377,6 +13377,7 @@ my %asa_vpn_attributes = (
     'trust-point'                 => { own => 1 },
 
     # group-policy attributes
+    'anyconnect-custom_perapp'    => {},
     banner                        => {},
     'dns-server'                  => {},
     'default-domain'              => {},
@@ -17086,8 +17087,9 @@ EOF
 
 my %asa_vpn_attr_need_value =
   map { $_ => 1 }
-  qw(banner dns-server default-domain split-dns wins-server address-pools
-  split-tunnel-network-list vpn-filter);
+  qw(anyconnect-custom_perapp banner dns-server default-domain
+     split-dns wins-server address-pools
+     split-tunnel-network-list vpn-filter);
 
 sub print_asavpn {
     my ($router) = @_;
@@ -17139,6 +17141,10 @@ EOF
 
             my $value = $attributes->{$key};
             my $out   = $key;
+
+            # Replace "_" by " " in keys,
+            # e.g. anyconnect-custom_perapp => "anyconnect-custom perapp"
+            $out =~ s/_/ /g;
             if (defined($value)) {
                 $out .= ' value' if $asa_vpn_attr_need_value{$key};
                 $out .= " $value";
