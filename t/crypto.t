@@ -416,6 +416,144 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Use authentication-server-group only with ldap_id (1)';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  authentication-server-group = LDAP_1;
+ }
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'authentication-server-group' at network:clients must only be used together with attribute 'ldap_id' at host
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Use authentication-server-group only with ldap_id (2)';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+  authentication-server-group = LDAP_1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+END
+
+$out = <<'END';
+Error: Attribute 'authentication-server-group' at router:asavpn must only be used together with attribute 'ldap_id' at host
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Must not use ldap_id at ID host';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
+ }
+}
+END
+
+$out = <<'END';
+Warning: Ignoring attribute 'ldap_id' at host:id:foo@domain.x.clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'cert_id and ldap_append only together with ldap_id';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ cert_id = cert99;
+ ldap_append = ,OU=VPN,DC=example,DC=com;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring 'ldap_append' at network:clients
+Warning: Ignoring 'cert_id' at network:clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Ignore radius_attributes without ID hosts';
+############################################################
+
+$in = <<'END';
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+}
+END
+
+$out = <<'END';
+Warning: Ignoring 'radius_attributes' at network:clients
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'no_in_acl at crypto interface';
 ############################################################
 
@@ -834,6 +972,10 @@ network:customers1 = {
   radius_attributes = { split-tunnel-policy = tunnelall;
                         banner = Willkommen zu Hause; }
  }
+ host:id:baz@domain.x = {
+  ip = 10.99.1.12;
+  radius_attributes = { anyconnect-custom_perapp = SomeName; }
+ }
  host:id:unused@domain.x = {
   ip = 10.99.1.254;
   radius_attributes = { split-tunnel-policy = tunnelspecified; }
@@ -903,7 +1045,9 @@ service:test1 = {
  permit src = user; dst = group:g1; prt = tcp 80;
 }
 service:test2 = {
- user = host:id:bar@domain.x.customers1, host:id:domain.x.customers2;
+ user = host:id:bar@domain.x.customers1,
+        host:id:baz@domain.x.customers1,
+        host:id:domain.x.customers2;
  permit src = user; dst = group:g2; prt = tcp 81;
 }
 service:test3 = {
@@ -972,6 +1116,20 @@ username bar@domain.x attributes
  service-type remote-access
  vpn-filter value vpn-filter-bar@domain.x
  vpn-group-policy VPN-group-bar@domain.x
+--
+! vpn-filter-baz@domain.x
+access-list vpn-filter-baz@domain.x extended permit ip host 10.99.1.12 any4
+access-list vpn-filter-baz@domain.x extended deny ip any4 any4
+group-policy VPN-group-baz@domain.x internal
+group-policy VPN-group-baz@domain.x attributes
+ anyconnect-custom perapp value SomeName
+ banner value Willkommen
+username baz@domain.x nopassword
+username baz@domain.x attributes
+ vpn-framed-ip-address 10.99.1.12 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-baz@domain.x
+ vpn-group-policy VPN-group-baz@domain.x
 --
 ! split-tunnel-1
 access-list split-tunnel-1 standard permit 10.0.2.0 255.255.255.0
@@ -1074,6 +1232,7 @@ access-group inside_in in interface inside
 ! outside_in
 object-group network g0
  network-object 10.99.1.10 255.255.255.254
+ network-object host 10.99.1.12
  network-object host 10.99.1.254
  network-object 10.99.2.0 255.255.255.128
  network-object 10.99.2.128 255.255.255.192
@@ -1081,16 +1240,19 @@ object-group network g1
  network-object host 10.99.1.10
  network-object 10.99.2.64 255.255.255.192
 object-group network g2
+ network-object host 10.99.1.11
+ network-object host 10.99.1.12
+object-group network g3
  network-object 10.0.1.0 255.255.255.0
  network-object 10.0.2.0 255.255.254.0
-object-group network g3
+object-group network g4
  network-object 10.0.2.0 255.255.254.0
  network-object 10.0.4.0 255.255.255.0
 access-list outside_in extended permit icmp object-group g0 any4 3
-access-list outside_in extended permit tcp object-group g1 object-group g2 eq 80
-access-list outside_in extended permit tcp host 10.99.1.11 object-group g3 eq 81
-access-list outside_in extended permit tcp 10.99.2.0 255.255.255.192 object-group g3 range 81 82
-access-list outside_in extended permit tcp 10.99.2.128 255.255.255.192 object-group g3 eq 82
+access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
+access-list outside_in extended permit tcp object-group g2 object-group g4 eq 81
+access-list outside_in extended permit tcp 10.99.2.0 255.255.255.192 object-group g4 range 81 82
+access-list outside_in extended permit tcp 10.99.2.128 255.255.255.192 object-group g4 eq 82
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
@@ -1098,7 +1260,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Missing radius_attribute check-subject-name';
+$title = 'Missing radius_attribute check-subject-name at host';
 ############################################################
 
 $in =~ s/check-subject-name = ou;//;
@@ -1160,6 +1322,20 @@ username bar@domain.x attributes
  vpn-filter value vpn-filter-bar@domain.x
  vpn-group-policy VPN-group-bar@domain.x
 --
+! vpn-filter-baz@domain.x
+access-list vpn-filter-baz@domain.x extended permit ip host 10.99.1.12 any4
+access-list vpn-filter-baz@domain.x extended deny ip any4 any4
+group-policy VPN-group-baz@domain.x internal
+group-policy VPN-group-baz@domain.x attributes
+ anyconnect-custom perapp value SomeName
+ banner value Willkommen
+username baz@domain.x nopassword
+username baz@domain.x attributes
+ vpn-framed-ip-address 10.99.1.12 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-baz@domain.x
+ vpn-group-policy VPN-group-baz@domain.x
+--
 ! split-tunnel-1
 access-list split-tunnel-1 standard permit 10.1.1.0 255.255.255.0
 --
@@ -1181,11 +1357,13 @@ username foo@domain.x attributes
 ! outside_in
 object-group network g0
  network-object 10.99.1.10 255.255.255.254
+ network-object host 10.99.1.12
  network-object host 10.99.1.254
  network-object 10.99.2.0 255.255.255.128
  network-object 10.99.2.128 255.255.255.192
 object-group network g1
  network-object host 10.99.1.10
+ network-object host 10.99.1.12
  network-object host 10.99.1.254
 object-group network g2
  network-object 10.99.2.0 255.255.255.128
@@ -1371,6 +1549,20 @@ network:customers2 = {
  }
 }
 END
+
+############################################################
+$title = 'Missing radius_attribute check-subject-name at network';
+############################################################
+
+($in = $topo) =~ s/check-subject-name = ou;//;
+
+$out = <<'END';
+Error: Missing radius_attribute 'check-subject-name'
+ for network:customers2
+END
+
+
+test_err($title, $in, $out);
 
 ############################################################
 $title = 'VPN ASA with ldap_id';
