@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+5.053     2019-05-22 15:44:21+02:00 Europe/Berlin
+
+ - New radius-attribute "anyconnect-custom_perapp = NAME"
+   generates "anyconnect-custom perapp value NAME"
+   in group-policy attributes
+ - Changed "#!/usr/bin/perl" to "#!/usr/bin/env perl" in scripts
+   to enable running files during tests, without installation.
+
 5.052     2019-04-04 10:53:41+02:00 Europe/Berlin
 
  - Netspoc generates ldap attribute-map at ASA now.
