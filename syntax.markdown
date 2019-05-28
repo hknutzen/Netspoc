@@ -184,10 +184,16 @@ here `<object set>` must expand to networks.
          link = network:<network name>;
          [ ip = <ip-net>;           ]
          [ owner = <name>;          ]
+         <control service attr>*
          <network NAT> *
          [ has_unenforceable;       ]
          [ no_check_supernet_rules; ]
       }
+
+      <control service attr> ::=
+         ( overlaps | unknown_owner | multi_owner | has_unenforceable )
+         =
+         ( restrict | enable | ok );
 
 ## Area definition
 
@@ -199,6 +205,7 @@ here `<object set>` must expand to networks.
          ) | anchor = network:<network name>;
          [ auto_border;    ]
          [ owner = <name>; ]
+         <control service attr>*
          <network NAT> *
          [ <default router attributes> ]
       }
@@ -209,8 +216,6 @@ here `<object set>` must expand to networks.
         [ policy_distribution_point = host:<name>; ]
         [ general_permit = <protocol list>;        ]
       }
-
-where `<network NAT>` must be hidden or dynamic.
 
 ## Set of objects
 
@@ -410,6 +415,7 @@ correspondig network and VPN router definition.
     <radius-attributes> ::=
       radius_attributes = {
         trust-point = <string>;
+        [ anyconnect-custom_perapp = <string>;    ]
         [ banner = <string>;                      ]
         [ check-subject-name = <string>;          ]
         [ check-extended-key-usage = <string>;    ]
@@ -429,9 +435,11 @@ correspondig network and VPN router definition.
         [ split-tunnel-policy = tunnelall | tunnelspecified; ]
       }
 
-### Software client
+### Software client with certificate authentication
 
-Software clients are similar to hosts, but special names are used.
+Software clients are similar to hosts, but name or pattern of
+certificate is used as name of host.
+
 
     network:<network name> = {
       ..
@@ -445,12 +453,35 @@ Software clients are similar to hosts, but special names are used.
     <Software client group> ::=
       host:id:<cert-match> = { .. }
 
-    <cert-name>  ::= <name>(.<name>)*@<name>.<name>(.<name>)*
-    <cert-match> ::=                 [@]<name>.<name>(.<name>)*
+    <cert-name>  ::= <name>(.<name>)*@<name>(.<name>)*
+    <cert-match> ::=                 [@]<name>(.<name>)*
 
 Host definition of software client and correspondig network definition
 can have `<radius-attributes>`, which augment or overwrite attributes
 of correspondig VPN concentrator.
+
+### Software client with LDAP authentication
+
+Host is authenticated with its ldap_id at LDAP server.
+Additionally the network is authenticated at VPN concentrator with its cert_id.
+
+If all hosts of a network use a common postfix string, this can be
+moved to attribute 'ldap_append' of that network.
+
+    network:<network name> = {
+      cert_id = <domain-name>
+      [ ldap_append = string; ]
+      ..
+      <LDAP client>*
+      ..
+    }
+
+    <LDAP client> ::= <host definition> with additional attributes:
+      ldap_id = <LDAP-attribute>
+      <radius-attributes>
+
+    <domain-name> ::= <name>(.<name>)*
+    <LDAP-attribute> ::= <string>
 
 ### Hardware client
 
