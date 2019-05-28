@@ -2647,20 +2647,12 @@ sub read_common_aggregate_area {
     elsif ($token =~
            /^(overlaps|unknown_owner|multi_owner|has_unenforceable)$/)
     {
-        my $value;
+        my $value = read_assign(\&read_identifier);
+        $value =~ /^(restrict|enable|ok)$/ or
+            error_atline("Expected 'restrict', 'enable' or 'ok'");
 
-        # For compatibility with old syntax.
-        if (check(';')) {
-            $value = 'ok';
-        }
-        else {
-            $value = read_assign(\&read_identifier);
-            $value =~ /^(restrict|enable|ok)$/ or
-                error_atline("Expected 'restrict', 'enable' or 'ok'");
-
-            # 0 is default value for absent attribute.
-            $value = 0 if $value eq 'enable';
-        }
+        # 0 is default value for absent attribute.
+        $value = 0 if $value eq 'enable';
         $obj->{$token} = $value;
     }
     elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
