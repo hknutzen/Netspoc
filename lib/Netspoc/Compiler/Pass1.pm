@@ -18313,9 +18313,9 @@ sub print_prt {
     elsif ($proto eq 'icmp' or $proto eq 'icmpv6') {
         if (defined(my $type = $prt->{type})) {
             push @result, $type;
-        }
-        if (defined(my $code = $prt->{code})) {
-            push @result, $code;
+            if (defined(my $code = $prt->{code})) {
+                push @result, $code;
+            }
         }
     }
     return(join(' ', @result));
