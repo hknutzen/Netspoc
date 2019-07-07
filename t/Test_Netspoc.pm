@@ -149,6 +149,11 @@ sub compare_warnings_and_devices {
             $stderr =~ s/\Q$dir\E//g;
         }
 
+        # Normalize order of DIAG messages: "Reuse .prev/".
+        if ($warnings =~ /DIAG: Reused/) {
+            $stderr = join '', sort split /^/, $stderr;
+        }
+
         eq_or_diff($stderr, $warnings, $title);
     }
     else {
