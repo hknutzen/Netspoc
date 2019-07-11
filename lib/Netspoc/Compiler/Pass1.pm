@@ -19017,7 +19017,7 @@ sub compile {
 sub call_go {
     my ($what, $data) = @_;
     progress "Exporting to Go";
-    my $e = Sereal::Encoder->new();
+    my $e = Sereal::Encoder->new({max_recursion_depth => 15000});
     if ($config->{export}) {
         my ($file) = glob "~/$what.sereal";
         open(my $fh, '>:bytes', $file) or die "Can't open $file: $!\n";
