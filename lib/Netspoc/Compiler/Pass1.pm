@@ -18094,21 +18094,15 @@ sub print_crypto {
         $isakmp_count++;
         print "crypto isakmp policy $isakmp_count\n";
 
-        my $authentication = $isakmp->{authentication};
-        $authentication =~ s/preshare/pre-share/;
-        $authentication =~ s/rsasig/rsa-sig/;
-
-        # Don't print default value for backend IOS.
-        if (not($authentication eq 'rsa-sig')) {
-            print " authentication $authentication\n";
+        # Don't print default value 'rsa-sig'.
+        if ($isakmp->{authentication} eq 'preshare') {
+            print " authentication pre-share\n";
         }
 
         my $encryption = $isakmp->{encryption};
-        if ($encryption =~ /^aes(\d+)$/a) {
-            my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
-            $encryption = "aes$len";
-        }
+        $encryption =~ s/^aes(\d+)$/aes $1/a;
         print " encryption $encryption\n";
+
         my $hash = $isakmp->{hash};
         print " hash $hash\n";
         my $group = $isakmp->{group};
