@@ -18135,11 +18135,11 @@ sub print_crypto {
             if (not(my $esp = $ipsec->{esp_encryption})) {
                 $esp_encr = 'null';
             }
-            elsif ($esp =~ /^(aes|des|3des)$/) {
-                $esp_encr = $1;
-            }
             elsif ($esp =~ /^aes(192|256)$/) {
                 $esp_encr = "aes-$1";
+            }
+            else {
+                $esp_encr = $esp;
             }
             print " protocol esp encryption $esp_encr\n";
             if (my $esp_ah = $ipsec->{esp_authentication}) {
@@ -18158,12 +18158,12 @@ sub print_crypto {
             if (not(my $esp = $ipsec->{esp_encryption})) {
                 $transform .= 'esp-null ';
             }
-            elsif ($esp =~ /^(aes|des|3des)$/) {
-                $transform .= "esp-$1 ";
-            }
             elsif ($esp =~ /^aes(192|256)$/) {
                 my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
                 $transform .= "esp-aes$len ";
+            }
+            else {
+                $transform .= "esp-$esp ";
             }
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $transform .= "esp-$esp_ah-hmac";
