@@ -3343,20 +3343,14 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     esp_authentication => {
-        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
+        values  => [qw( none md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => {
-            none => undef,
-
-            # Compatibility for old version.
-            md5_hmac => 'md5',
-            sha_hmac => 'sha',
-        }
+        map     => { none => undef }
     },
     ah => {
-        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
+        values  => [qw( none md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => { none => undef, md5_hmac => 'md5', sha_hmac => 'sha', }
+        map     => { none => undef }
     },
     pfs_group => {
         values  => [qw( none 1 2 5 14 15 16 19 20 21 24 )],
