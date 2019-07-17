@@ -137,7 +137,7 @@ isakmp:x = {
 ipsec:x = {
  key_exchange = isakmp:x;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  lifetime = 3600 sec;
 }
 crypto:x = {
@@ -242,7 +242,7 @@ isakmp:x = {
 ipsec:x = {
  key_exchange = isakmp:x;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  lifetime = 3600 sec;
 }
 crypto:x1 = {
