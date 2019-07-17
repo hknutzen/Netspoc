@@ -2540,10 +2540,15 @@ sub read_router {
                 network        => $net_name,
                 real_interface => $interface
             );
-            for my $key (qw(hardware routing private bind_nat id)) {
-                if ($interface->{$key}) {
-                    $tunnel_intf->{$key} = $interface->{$key};
+            for my $key (qw(routing private bind_nat id)) {
+                if (my $value = $interface->{$key}) {
+                    $tunnel_intf->{$key} = $value;
                 }
+            }
+            if ($router->{managed}) {
+                my $hardware = $interface->{hardware};
+                $tunnel_intf->{hardware} = $hardware;
+                push @{ $hardware->{interfaces} }, $tunnel_intf;
             }
             if ($interfaces{$iname}) {
                 err_msg("Only 1 crypto spoke allowed.\n",
@@ -2623,7 +2628,8 @@ sub move_locked_interfaces {
             # Retain copy of original hardware.
             $orig_router->{orig_hardware} = [@$hw_list];
             aref_delete($hw_list, $hardware);
-            1 == @{ $hardware->{interfaces} }
+
+            1 == grep { $_->{ip} ne 'tunnel' } @{ $hardware->{interfaces} }
               or err_msg("Crypto $interface->{name} must not share hardware",
                 " with other interfaces");
             if (my $hash = $orig_router->{radius_attributes}) {
@@ -18176,37 +18182,37 @@ sub print_crypto {
         }
     }
 
-    # Collect tunnel interfaces attached to each hardware interface.
-    # Differentiate on peers having static or dynamic IP address.
-    my %hardware2crypto;
-    my %hardware2dyn_crypto;
-    for my $interface (@{ $router->{interfaces} }) {
-        $interface->{ip} eq 'tunnel' or next;
-        my $ip = $interface->{peer}->{real_interface}->{ip};
-        if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
-            push @{ $hardware2dyn_crypto{ $interface->{hardware} } },
-              $interface;
-        }
-        else {
-            push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
-        }
-    }
-
     for my $hardware (@{ $router->{hardware} }) {
+
+        # Collect tunnel interfaces attached to this hardware interface.
+        # Differentiate on peers having static or dynamic IP address.
+        my $static;
+        my $dynamic;
+        for my $interface (@{ $hardware->{interfaces} }) {
+            $interface->{ip} eq 'tunnel' or next;
+            my $ip = $interface->{peer}->{real_interface}->{ip};
+            if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
+                push @$dynamic, $interface;
+            }
+            else {
+                push @$static, $interface;
+            }
+        }
+
         my $hw_name = $hardware->{name};
 
         # Name of crypto map.
         my $map_name = "crypto-$hw_name";
 
         my $have_crypto_map;
-        if (my $interfaces = $hardware2crypto{$hardware}) {
-            print_static_crypto_map($router, $hardware, $map_name, $interfaces,
-                \%ipsec2trans_name);
+        if ($static) {
+            print_static_crypto_map($router, $hardware, $map_name, $static,
+                                    \%ipsec2trans_name);
             $have_crypto_map = 1;
         }
-        if (my $interfaces = $hardware2dyn_crypto{$hardware}) {
-            print_dynamic_crypto_map(
-                $router, $map_name, $interfaces, \%ipsec2trans_name);
+        if ($dynamic) {
+            print_dynamic_crypto_map($router, $map_name, $dynamic,
+                                     \%ipsec2trans_name);
             $have_crypto_map = 1;
         }
 
