@@ -2240,7 +2240,7 @@ sub read_router {
         }
     }
     if (my $managed = $router->{managed}) {
-        if ($managed =~ /^local/) {
+        if ($managed eq 'local') {
             if (not $router->{filter_only}) {
                 $router->{filter_only} = [];
                 err_msg("Missing attribute 'filter_only' for $name");
@@ -2396,7 +2396,7 @@ sub read_router {
                 err_msg("Must not use attribute 'acl_use_real_ip' at $name",
                         " having crypto interfaces");
         }
-        if ($managed =~ /^local/) {
+        if ($managed eq 'local') {
             $has_bind_nat and
                 err_msg("Attribute 'bind_nat' is not allowed",
                         " at interface of $name with 'managed = $managed'");
@@ -17565,7 +17565,7 @@ sub print_cisco_acls {
     my ($router)      = @_;
     my $model         = $router->{model};
     my $filter        = $model->{filter};
-    my $managed_local = $router->{managed} =~ /^local/;
+    my $managed_local = $router->{managed} eq 'local';
     my $hw_list       = $router->{hardware};
     my $ipv6          = $router->{ipv6};
     my $permit_any    = $ipv6 ? $permit_any6_rule : $permit_any_rule;
