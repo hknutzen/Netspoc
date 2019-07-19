@@ -2239,7 +2239,7 @@ sub read_router {
         }
     }
     if (my $managed = $router->{managed}) {
-        if ($managed =~ /^local/) {
+        if ($managed eq 'local') {
             if (not $router->{filter_only}) {
                 $router->{filter_only} = [];
                 err_msg("Missing attribute 'filter_only' for $name");
@@ -2395,7 +2395,7 @@ sub read_router {
                 err_msg("Must not use attribute 'acl_use_real_ip' at $name",
                         " having crypto interfaces");
         }
-        if ($managed =~ /^local/) {
+        if ($managed eq 'local') {
             $has_bind_nat and
                 err_msg("Attribute 'bind_nat' is not allowed",
                         " at interface of $name with 'managed = $managed'");
@@ -2540,10 +2540,15 @@ sub read_router {
                 network        => $net_name,
                 real_interface => $interface
             );
-            for my $key (qw(hardware routing private bind_nat id)) {
-                if ($interface->{$key}) {
-                    $tunnel_intf->{$key} = $interface->{$key};
+            for my $key (qw(routing private bind_nat id)) {
+                if (my $value = $interface->{$key}) {
+                    $tunnel_intf->{$key} = $value;
                 }
+            }
+            if ($router->{managed}) {
+                my $hardware = $interface->{hardware};
+                $tunnel_intf->{hardware} = $hardware;
+                push @{ $hardware->{interfaces} }, $tunnel_intf;
             }
             if ($interfaces{$iname}) {
                 err_msg("Only 1 crypto spoke allowed.\n",
@@ -2623,7 +2628,8 @@ sub move_locked_interfaces {
             # Retain copy of original hardware.
             $orig_router->{orig_hardware} = [@$hw_list];
             aref_delete($hw_list, $hardware);
-            1 == @{ $hardware->{interfaces} }
+
+            1 == grep { $_->{ip} ne 'tunnel' } @{ $hardware->{interfaces} }
               or err_msg("Crypto $interface->{name} must not share hardware",
                 " with other interfaces");
             if (my $hash = $orig_router->{radius_attributes}) {
@@ -2647,20 +2653,12 @@ sub read_common_aggregate_area {
     elsif ($token =~
            /^(overlaps|unknown_owner|multi_owner|has_unenforceable)$/)
     {
-        my $value;
+        my $value = read_assign(\&read_identifier);
+        $value =~ /^(restrict|enable|ok)$/ or
+            error_atline("Expected 'restrict', 'enable' or 'ok'");
 
-        # For compatibility with old syntax.
-        if (check(';')) {
-            $value = 'ok';
-        }
-        else {
-            $value = read_assign(\&read_identifier);
-            $value =~ /^(restrict|enable|ok)$/ or
-                error_atline("Expected 'restrict', 'enable' or 'ok'");
-
-            # 0 is default value for absent attribute.
-            $value = 0 if $value eq 'enable';
-        }
+        # 0 is default value for absent attribute.
+        $value = 0 if $value eq 'enable';
         $obj->{$token} = $value;
     }
     elsif (my ($type, $name2) = $token =~ /^ (\w+) : (.+) $/x) {
@@ -3345,20 +3343,14 @@ my %ipsec_attributes = (
         map     => { none => undef }
     },
     esp_authentication => {
-        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
+        values  => [qw( none md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => {
-            none => undef,
-
-            # Compatibility for old version.
-            md5_hmac => 'md5',
-            sha_hmac => 'sha',
-        }
+        map     => { none => undef }
     },
     ah => {
-        values  => [qw( none md5_hmac sha_hmac md5 sha sha256 sha384 sha512 )],
+        values  => [qw( none md5 sha sha256 sha384 sha512 )],
         default => 'none',
-        map     => { none => undef, md5_hmac => 'md5', sha_hmac => 'sha', }
+        map     => { none => undef }
     },
     pfs_group => {
         values  => [qw( none 1 2 5 14 15 16 19 20 21 24 )],
@@ -17165,7 +17157,7 @@ sub print_cisco_acls {
     my ($router)      = @_;
     my $model         = $router->{model};
     my $filter        = $model->{filter};
-    my $managed_local = $router->{managed} =~ /^local/;
+    my $managed_local = $router->{managed} eq 'local';
     my $hw_list       = $router->{hardware};
     my $ipv6          = $router->{ipv6};
     my $permit_any    = $ipv6 ? $permit_any6_rule : $permit_any_rule;
@@ -17698,21 +17690,15 @@ sub print_crypto {
         $isakmp_count++;
         print "crypto isakmp policy $isakmp_count\n";
 
-        my $authentication = $isakmp->{authentication};
-        $authentication =~ s/preshare/pre-share/;
-        $authentication =~ s/rsasig/rsa-sig/;
-
-        # Don't print default value for backend IOS.
-        if (not($authentication eq 'rsa-sig')) {
-            print " authentication $authentication\n";
+        # Don't print default value 'rsa-sig'.
+        if ($isakmp->{authentication} eq 'preshare') {
+            print " authentication pre-share\n";
         }
 
         my $encryption = $isakmp->{encryption};
-        if ($encryption =~ /^aes(\d+)$/a) {
-            my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
-            $encryption = "aes$len";
-        }
+        $encryption =~ s/^aes(\d+)$/aes $1/a;
         print " encryption $encryption\n";
+
         my $hash = $isakmp->{hash};
         print " hash $hash\n";
         my $group = $isakmp->{group};
@@ -17745,15 +17731,15 @@ sub print_crypto {
             if (not(my $esp = $ipsec->{esp_encryption})) {
                 $esp_encr = 'null';
             }
-            elsif ($esp =~ /^(aes|des|3des)$/) {
-                $esp_encr = $1;
-            }
             elsif ($esp =~ /^aes(192|256)$/) {
                 $esp_encr = "aes-$1";
             }
+            else {
+                $esp_encr = $esp;
+            }
             print " protocol esp encryption $esp_encr\n";
             if (my $esp_ah = $ipsec->{esp_authentication}) {
-                $esp_ah =~ s/^(.+?)(\d+)/$1-$2/;
+                $esp_ah =~ s/^sha(\d+)/sha-$1/;
                 $esp_ah =~ s/^sha$/sha-1/;
                 print " protocol esp integrity $esp_ah\n";
             }
@@ -17768,12 +17754,12 @@ sub print_crypto {
             if (not(my $esp = $ipsec->{esp_encryption})) {
                 $transform .= 'esp-null ';
             }
-            elsif ($esp =~ /^(aes|des|3des)$/) {
-                $transform .= "esp-$1 ";
-            }
             elsif ($esp =~ /^aes(192|256)$/) {
                 my $len = $crypto_type eq 'ASA' ? "-$1" : " $1";
                 $transform .= "esp-aes$len ";
+            }
+            else {
+                $transform .= "esp-$esp ";
             }
             if (my $esp_ah = $ipsec->{esp_authentication}) {
                 $transform .= "esp-$esp_ah-hmac";
@@ -17786,37 +17772,37 @@ sub print_crypto {
         }
     }
 
-    # Collect tunnel interfaces attached to each hardware interface.
-    # Differentiate on peers having static or dynamic IP address.
-    my %hardware2crypto;
-    my %hardware2dyn_crypto;
-    for my $interface (@{ $router->{interfaces} }) {
-        $interface->{ip} eq 'tunnel' or next;
-        my $ip = $interface->{peer}->{real_interface}->{ip};
-        if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
-            push @{ $hardware2dyn_crypto{ $interface->{hardware} } },
-              $interface;
-        }
-        else {
-            push @{ $hardware2crypto{ $interface->{hardware} } }, $interface;
-        }
-    }
-
     for my $hardware (@{ $router->{hardware} }) {
+
+        # Collect tunnel interfaces attached to this hardware interface.
+        # Differentiate on peers having static or dynamic IP address.
+        my $static;
+        my $dynamic;
+        for my $interface (@{ $hardware->{interfaces} }) {
+            $interface->{ip} eq 'tunnel' or next;
+            my $ip = $interface->{peer}->{real_interface}->{ip};
+            if ($ip =~ /^(?:negotiated|short|unnumbered)$/) {
+                push @$dynamic, $interface;
+            }
+            else {
+                push @$static, $interface;
+            }
+        }
+
         my $hw_name = $hardware->{name};
 
         # Name of crypto map.
         my $map_name = "crypto-$hw_name";
 
         my $have_crypto_map;
-        if (my $interfaces = $hardware2crypto{$hardware}) {
-            print_static_crypto_map($router, $hardware, $map_name, $interfaces,
-                \%ipsec2trans_name);
+        if ($static) {
+            print_static_crypto_map($router, $hardware, $map_name, $static,
+                                    \%ipsec2trans_name);
             $have_crypto_map = 1;
         }
-        if (my $interfaces = $hardware2dyn_crypto{$hardware}) {
-            print_dynamic_crypto_map(
-                $router, $map_name, $interfaces, \%ipsec2trans_name);
+        if ($dynamic) {
+            print_dynamic_crypto_map($router, $map_name, $dynamic,
+                                     \%ipsec2trans_name);
             $have_crypto_map = 1;
         }
 

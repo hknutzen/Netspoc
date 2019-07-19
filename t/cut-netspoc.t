@@ -1535,7 +1535,7 @@ $topo = <<'END';
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 600 sec;
 }
