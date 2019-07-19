@@ -2179,7 +2179,7 @@ sub read_router {
                   " at $name must use identical NAT binding";
             }
             else {
-                $hardware = new('hardware', name => $hw_name, loopback => 1);
+                $hardware = { name => $hw_name, loopback => 1 };
                 $hardware{$hw_name} = $hardware;
                 push @{ $router->{hardware} }, $hardware;
                 if (my $nat = $interface->{bind_nat}) {
@@ -2984,7 +2984,7 @@ sub cache_anonymous_protocol {
 
 sub read_simple_protocol {
     my ($proto) = @_;
-    my $protocol = new('Proto', proto => $proto);
+    my $protocol = { proto => $proto };
     if ($proto eq 'tcp'or $proto eq 'udp') {
         read_port_ranges($protocol);
     }
@@ -3146,7 +3146,7 @@ sub date_is_reached {
 
 sub read_service {
     my ($name) = @_;
-    my $service = new('Service', name => $name, rules => []);
+    my $service = { name => $name, rules => [] };
     $service->{private} = $private if $private;
     skip '=';
     skip '{';
@@ -3214,15 +3214,14 @@ sub read_service {
                 "Rule of $name should reference 'user' in 'src' and 'dst'\n",
                 " because service has keyword 'foreach'");
         }
-        my $rule = new(
-            'Rule',
+        my $rule = {
             service  => $service,
             action   => $action,
             src      => $src,
             dst      => $dst,
             prt      => $prt,
             has_user => $src_user ? $dst_user ? 'both' : 'src' : 'dst',
-        );
+        };
         if (check('log')) {
             my $list = read_assign_list(\&read_identifier);
             my %seen;
@@ -3384,7 +3383,7 @@ sub read_crypto {
     my ($name) = @_;
     skip '=';
     skip '{';
-    my $crypto = new('Crypto', name => $name);
+    my $crypto = { name => $name };
     $crypto->{private} = $private if $private;
     add_description($crypto);
     while (1) {
@@ -3637,11 +3636,11 @@ sub prepare_prt_ordering {
             my $key = join ':', @$range;
             my $range_prt = $prt_hash{$proto}->{$key};
             if (not $range_prt) {
-                $range_prt = new('Proto',
-                                 name  => $prt->{name},
-                                 proto => $proto,
-                                 range => $range,
-                    );
+                $range_prt = {
+                    name  => $prt->{name},
+                    proto => $proto,
+                    range => $range,
+                };
                 $prt_hash{$proto}->{$key} = $range_prt;
             }
             $prt->{$where} = $range_prt;
@@ -6052,7 +6051,7 @@ sub expand_protocols {
     for my $pair (@$aref) {
 
         # Handle anonymous protocol.
-        if (ref($pair) eq 'Proto') {
+        if (ref($pair) eq 'HASH') {
             push @protocols, $pair;
             next;
         }
@@ -11061,11 +11060,10 @@ sub setpath_obj {
 
         # Create unique loop marker, which will be added to all loop members.
         my $new_distance = $obj->{distance} + 1;
-        my $loop = $to_zone1->{loop} = new(
-            'loop',
+        my $loop = $to_zone1->{loop} = {
             exit     => $obj,             # Reference exit node.
             distance => $new_distance,    # Required for cluster navigation.
-        );
+        };
         return ($new_distance, $loop);
     }
 
@@ -11102,8 +11100,7 @@ sub setpath_obj {
                 # If current loop is part of a cluster,
                 # this marker will be overwritten later.
                 # Otherwise this is the exit of a cluster of loops.
-                $obj->{loop} ||=
-                    new('loop', exit => $obj, distance => $distance);
+                $obj->{loop} ||= { exit => $obj, distance => $distance, };
             }
 
             # Found intermediate loop node which was marked as loop before.
@@ -18141,31 +18138,31 @@ sub concurrent {
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
-    $prt_ip = new('Proto', name => 'auto_prt:ip', proto => 'ip');
-    $prt_tcp = new('Proto',
+    $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
+    $prt_tcp = {
         name      => 'auto_prt:tcp',
         proto     => 'tcp',
         dst_range => $aref_tcp_any
-    );
-    $prt_udp = new('proto',
+    };
+    $prt_udp = {
         name      => 'auto_prt:udp',
         proto     => 'udp',
         dst_range => $aref_tcp_any
-    );
-    $prt_ike = new('Proto',
+    };
+    $prt_ike = {
         name      => 'auto_prt:IPSec_IKE',
         proto     => 'udp',
         src_range => [ 500, 500 ],
         dst_range => [ 500, 500 ]
-    );
-    $prt_natt = new('Proto',
+    };
+    $prt_natt = {
         name      => 'auto_prt:IPSec_NATT',
         proto     => 'udp',
         src_range => [ 4500, 4500 ],
         dst_range => [ 4500, 4500 ]
-    );
-    $prt_esp = new('Proto', name => 'auto_prt:IPSec_ESP', proto => 50);
-    $prt_ah  = new('Proto', name => 'auto_prt:IPSec_AH',  proto => 51);
+    };
+    $prt_esp = { name => 'auto_prt:IPSec_ESP', proto => 50, };
+    $prt_ah  = { name => 'auto_prt:IPSec_AH',  proto => 51, };
     $permit_any_rule = {
         src => [ $network_00 ],
         dst => [ $network_00 ],
