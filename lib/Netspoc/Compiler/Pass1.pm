@@ -17583,37 +17583,36 @@ sub print_cisco_acls {
 
         # Generate code for incoming and possibly for outgoing ACL.
         for my $suffix ('in', 'out') {
-            next if $suffix eq 'out' and not $hardware->{need_out_acl};
 
-            # Don't generate single 'permit ip any any'.
-            if (not $model->{need_acl}) {
-                if (
-                    not grep {
-                        my $rules = $hardware->{$_} || [];
-                        @$rules != 1 or $rules->[0] ne $permit_any
-                    } (qw(rules intf_rules))
-                  )
-                {
-                    next;
-                }
-            }
 
-            my $acl_name = "$hardware->{name}_$suffix";
-            my $acl_info = { name => $acl_name };
+            my $acl_info = {};
 
             # - Collect incoming ACLs,
             # - protect own interfaces,
             # - set {filter_any_src}.
             if ($suffix eq 'in') {
+                my $rules = delete $hardware->{rules};
+                my $intf_rules = delete $hardware->{intf_rules};
+
+                # Don't generate single 'permit ip any any'.
+                if (not $model->{need_acl}
+                    and
+                    $rules and @$rules == 1 and $rules->[0] eq $permit_any
+                    and
+                    $intf_rules and @$intf_rules == 1
+                    and $intf_rules->[0] eq $permit_any)
+                {
+                    next;
+                }
                 $acl_info->{nat_set} = $nat_set;
                 $acl_info->{dst_nat_set} = $dst_nat_set;
-                $acl_info->{rules} = delete $hardware->{rules};
+                $acl_info->{rules} = $rules;
 
                 # Marker: Generate protect_self rules, if available.
                 $acl_info->{protect_self} = 1;
 
                 if ($router->{need_protect}) {
-                    $acl_info->{intf_rules} = $hardware->{intf_rules};
+                    $acl_info->{intf_rules} = $intf_rules;
                 }
                 if ($hardware->{no_in_acl}) {
                     $acl_info->{add_permit} = 1;
@@ -17674,13 +17673,18 @@ sub print_cisco_acls {
 
             # Outgoing ACL
             else {
+                $hardware->{need_out_acl} or next;
+                my $rules = delete $hardware->{out_rules};
+                next if $rules and @$rules == 1 and $rules->[0] eq $permit_any;
+                $acl_info->{rules} = $rules;
                 $acl_info->{nat_set} = $dst_nat_set;
                 $acl_info->{dst_nat_set} = $nat_set;
-                $acl_info->{rules} = delete $hardware->{out_rules};
                 $acl_info->{add_deny} = 1;
 
             }
 
+            my $acl_name = "$hardware->{name}_$suffix";
+            $acl_info->{name} = $acl_name;
             push @{ $router->{acl_list} }, $acl_info;
             print_acl_placeholder($router, $acl_name);
 
