@@ -16273,7 +16273,7 @@ sub print_routes {
             for my $nat_network (values %$net_hash) {
                 next if $nat_network->{hidden};
                 my ($ip, $mask) = @{$nat_network}{ 'ip', 'mask' };
-                if ($ip eq $zero_ip and $mask eq $zero_ip) {
+                if ($mask eq $zero_ip) {
                     $do_auto_default_route = 0;
                 }
 
