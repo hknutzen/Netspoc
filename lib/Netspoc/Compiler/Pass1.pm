@@ -17477,7 +17477,7 @@ sub print_iptables_acls {
             my $acl_name = "${in_hw}_$out_hw";
             my $acl_info = {
                 name     => $acl_name,
-                rules    => delete $rules_hash->{$out_hw},
+                rules    => $rules_hash->{$out_hw},
                 add_deny => 1,
                 nat_set  => $nat_set,
             };
@@ -17485,6 +17485,7 @@ sub print_iptables_acls {
             print_acl_placeholder($router, $acl_name);
             print "-A FORWARD -j $acl_name -i $in_hw -o $out_hw\n";
         }
+        delete $hardware->{io_rules};
 
         # Empty line after each chain.
         print "\n";
