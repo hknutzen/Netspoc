@@ -16312,7 +16312,10 @@ sub print_routes {
     # Go from small to large networks. So we combine newly added
     # networks as well.
     for (my $inv_prefix = 0 ; $inv_prefix < @inv_prefix_aref ; $inv_prefix++) {
+
+        # Must not optimize network 0/0; it has no supernet.
         next if $inv_prefix >= $bitstr_len;
+
         my $ip2net = $inv_prefix_aref[$inv_prefix] or next;
         my $part_mask = prefix2mask($bitstr_len - $inv_prefix, $ipv6);
         my $combined_inv_prefix = $inv_prefix + 1;
