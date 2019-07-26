@@ -16356,7 +16356,7 @@ sub print_routes {
         }
     }
 
-    # Find and remove duplicate networks.
+    # Find and remove redundant routes.
     # Go from smaller to larger networks.
     my @masks = reverse sort keys %mask2ip2net;
     my (%intf2hop2nets, %net2no_opt);
