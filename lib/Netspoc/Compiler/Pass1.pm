@@ -16359,13 +16359,14 @@ sub print_routes {
     # Find and remove redundant routes.
     # Go from smaller to larger networks.
     my @masks = reverse sort keys %mask2ip2net;
-    my (%intf2hop2nets, %net2no_opt);
+    my %intf2hop2nets;
     while (defined(my $mask = shift @masks)) {
       NETWORK:
         for my $ip (sort keys %{ $mask2ip2net{$mask} }) {
             my $small    = $mask2ip2net{$mask}->{$ip};
             my $hop_info = $net2hop_info{$small};
             my ($interface, $hop) = @$hop_info;
+            my $no_opt;
 
             # ASA with site-to-site VPN needs individual routes for each peer.
             if (not ($asa_crypto and $interface->{hub})) {
@@ -16387,7 +16388,7 @@ sub print_routes {
                     # Otherwise $small isn't redundant, even if a bigger network
                     # with same hop exists.
                     # It must not be removed by default route later.
-                    $net2no_opt{$small} = 1;
+                    $no_opt = 1;
 
 #                    debug "No opt: $small->{name} -> $hop->{name}";
                     last;
@@ -16395,7 +16396,7 @@ sub print_routes {
             }
             push(
                 @{ $intf2hop2nets{$interface}->{$hop} },
-                [ $ip, $mask, $small ]
+                [ $ip, $mask, $no_opt ]
             );
         }
     }
@@ -16412,8 +16413,7 @@ sub print_routes {
         for my $interface (@{ $router->{interfaces} }) {
             my $hop2nets = $intf2hop2nets{$interface};
             for my $hop (@{ $interface->{hopref2obj} }) {
-                my $count = grep({ not $net2no_opt{ $_->[2] } }
-                                 @{ $hop2nets->{$hop} || [] });
+                my $count = grep({ not $_->[2] } @{ $hop2nets->{$hop} || [] });
                 if ($count > $max) {
                     $max_intf = $interface;
                     $max_hop  = $hop;
@@ -16428,8 +16428,7 @@ sub print_routes {
             # with supernet behind other hop.
             $intf2hop2nets{$max_intf}->{$max_hop} = [
                 [ $zero_ip, $zero_ip ],
-                grep({ $net2no_opt{ $_->[2] } }
-                    @{ $intf2hop2nets{$max_intf}->{$max_hop} })
+                grep({ $_->[2] } @{ $intf2hop2nets{$max_intf}->{$max_hop} })
             ];
         }
     }
