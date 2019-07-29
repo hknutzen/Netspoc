@@ -10949,8 +10949,8 @@ sub check_area_subset_relations {
 }
 
 ##############################################################################
-# Purpose  : Delete unused attributes in area objects.
-sub clean_areas {
+# Purpose  : Delete unused attributes of areas.
+sub cleanup_areas {
     for my $area (@ascending_areas) {
         delete $area->{intf_lookup};
         for my $interface (@{ $area->{border} }) {
@@ -10971,7 +10971,7 @@ sub set_zone {
     mark_area_borders();
     set_areas();
     check_area_subset_relations();
-    clean_areas();                                  # delete unused attributes
+    cleanup_areas();
     link_aggregates();
     inherit_attributes();
 }
