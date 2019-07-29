@@ -14169,6 +14169,7 @@ sub check_missing_supernet_rules {
                 path_walk($check_rule, $worker);
             }
         }
+        delete $rule->{zone2net_hash};
     }
 }
 
