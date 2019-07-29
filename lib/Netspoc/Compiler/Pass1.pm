@@ -16361,9 +16361,10 @@ sub print_routes {
     my @masks = reverse sort keys %mask2ip2net;
     my %intf2hop2nets;
     while (defined(my $mask = shift @masks)) {
+        my $ip2net = $mask2ip2net{$mask};
       NETWORK:
-        for my $ip (sort keys %{ $mask2ip2net{$mask} }) {
-            my $small    = $mask2ip2net{$mask}->{$ip};
+        for my $ip (sort keys %$ip2net) {
+            my $small    = $ip2net->{$ip};
             my $hop_info = $net2hop_info{$small};
             my ($interface, $hop) = @$hop_info;
             my $no_opt;
@@ -16374,8 +16375,8 @@ sub print_routes {
                 # Compare current $mask with masks of larger networks.
                 for my $m (@masks) {
                     my $i = $ip & $m;
-                    my $ip2net = $mask2ip2net{$m} or next;
-                    my $big    = $ip2net->{$i}    or next;
+                    my $i2net = $mask2ip2net{$m} or next;
+                    my $big   = $i2net->{$i}     or next;
 
                     # $small is subnet of $big.
                     # If both use the same hop, then $small is redundant.
