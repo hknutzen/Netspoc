@@ -340,7 +340,7 @@ if (@ARGV) {
 &order_protocols();
 &link_topology();
 &mark_disabled();
-&set_zone();
+my $obj2areas = &set_zone();
 &setpath();
 &distribute_nat_info();
 find_subnets_in_zone();
@@ -437,7 +437,7 @@ for my $zone (@all_zones) {
 # Mark areas having attributes that influence their networks.
 for my $zone (@all_zones) {
     $zone->{is_used} or next;
-    for my $area (values %{ $zone->{areas} }) {
+    for my $area (values %{ $obj2areas->{$zone} }) {
         $area->{nat} or next;
         $area->{is_used} = 1;
     }
@@ -490,7 +490,7 @@ for my $network (values %networks) {
 
             # Check if NAT attribute was inherited from zone or areas.
             $zone->{is_used} or
-                grep { $_->{is_used} } values %{ $zone->{areas} } or
+                grep { $_->{is_used} } values %{ $obj2areas->{$zone} } or
                 next;
         }
         else {

@@ -4137,22 +4137,26 @@ sub link_areas {
             $area->{anchor} = $obj;
         }
         for my $attr (qw(border inclusive_border)) {
-            $area->{$attr} or next;
+            my $names = $area->{$attr} or next;
 
             # Input has already been checked by parser, so we are sure
             # to get list of interfaces as result.
-            $area->{$attr} = expand_group($area->{$attr}, $area->{name}, $ipv6);
-            for my $obj (@{ $area->{$attr} }) {
-                my $router = $obj->{router};
-                $router->{managed} or
+            my $objects = expand_group($names, $area->{name}, $ipv6);
+            my $managed;
+            for my $obj (@$objects) {
+                if (not $obj->{router}->{managed}) {
                     err_msg("Referencing unmanaged $obj->{name} ",
                             "from $area->{name}");
+                    next;
+                }
 
                 # Reverse swapped main and virtual interface.
                 if (my $main_interface = $obj->{main_interface}) {
                     $obj = $main_interface;
                 }
+                push @$managed, $obj;
             }
+            $area->{$attr} = $managed;
         }
         if (my $router_attributes = $area->{router_attributes}) {
             link_policy_distribution_point($router_attributes, $area->{ipv6});
@@ -10374,11 +10378,12 @@ sub zone_eq {
 #            arrays.
 # Returns  : undef (or aref of interfaces, if invalid path was found).
 sub set_area1 {
-    my ($obj, $area, $in_interface) = @_;
+    my ($obj, $area, $in_interface, $obj2areas) = @_;
 
-    return if $obj->{areas}->{$area};    # Found a loop.
+    return if $obj2areas->{$obj}->{$area};    # Found a loop.
 
-    $obj->{areas}->{$area} = $area;  # Find duplicate/overlapping areas or loops
+    # Find duplicate/overlapping areas or loops
+    $obj2areas->{$obj}->{$area} = $area;
 
     my $is_zone = is_zone($obj);
 
@@ -10430,7 +10435,7 @@ sub set_area1 {
 
         # Proceed traversal with next element
         my $next = $interface->{ $is_zone ? 'router' : 'zone' };
-        if (my $err_path = set_area1($next, $area, $interface)) {
+        if (my $err_path = set_area1($next, $area, $interface, $obj2areas)) {
             push @$err_path, $interface;    # collect interfaces of invalid path
             return $err_path;
         }
@@ -10803,15 +10808,15 @@ sub mark_area_borders {
 #            of an area.
 # Returns  : undef (or 1, if error was shown)
 sub set_area {
-    my ($obj, $area, $in_interface) = @_;
-    if (my $err_path = set_area1($obj, $area, $in_interface)) {
+    my ($obj, $area, $in_interface, $obj2areas) = @_;
+    if (my $err_path = set_area1($obj, $area, $in_interface, $obj2areas)) {
 
         # Print error path, if errors occurred
         push @$err_path, $in_interface if $in_interface;
         my $err_intf     = $err_path->[0];
         my $is_inclusive = $err_intf->{is_inclusive};
         my $err_obj = $err_intf->{ $is_inclusive->{$area} ? 'router' : 'zone' };
-        my $in_loop = $err_obj->{areas}->{$area} ? ' in loop' : '';
+        my $in_loop = $obj2areas->{$err_obj}->{$area} ? ' in loop' : '';
         err_msg(
             "Inconsistent definition of $area->{name}",
             $in_loop,
@@ -10826,11 +10831,12 @@ sub set_area {
 ###############################################################################s
 # Purpose  : Set up area objects, assure proper border definitions.
 sub set_areas {
+    my $obj2areas = {};
     for my $area (sort by_name values %areas) {
         next if $area->{disabled};
         $area->{zones} = [];
         if (my $network = $area->{anchor}) {
-            set_area($network->{zone}, $area, 0);
+            set_area($network->{zone}, $area, 0, $obj2areas);
         }
         else {
 
@@ -10855,7 +10861,7 @@ sub set_areas {
 
             # Collect zones and routers of area and keep track of borders found.
             $lookup->{$start} = 'found';
-            my $err = set_area($obj1, $area, $start);
+            my $err = set_area($obj1, $area, $start, $obj2areas);
             next if $err;
 
             # Assert that all borders were found.
@@ -10878,6 +10884,7 @@ sub set_areas {
 
 #     debug("$area->{name}:\n ", join "\n ", map $_->{name}, @{$area->{zones}});
     }
+    return $obj2areas;
 }
 
 sub area_by_size {
@@ -10894,6 +10901,7 @@ sub area_by_size {
 # Purpose : Check subset relation between areas, assure that no duplicate or
 #           overlapping areas exist
 sub check_area_subset_relations {
+    my ($obj2areas) = @_;
 
     # Fill global list of areas sorted by size or by name on equal size.
     @ascending_areas =
@@ -10901,7 +10909,7 @@ sub check_area_subset_relations {
 
     # Process all elements contained by one or more areas.
     for my $obj (@zones, @managed_routers) {
-        my $area_hash = $obj->{areas} or next;
+        my $area_hash = $obj2areas->{$obj} or next;
 
         # Find ascending list of areas containing current object.
         my @containing = sort area_by_size values %$area_hash or next;
@@ -10926,9 +10934,9 @@ sub check_area_subset_relations {
 
             # Check that each zone and managed router of $small is part of $next.
             for my $obj2 (@$small_z, @$small_r) {
-                next if $obj2->{areas}->{$next};
+                next if $obj2areas->{$obj2}->{$next};
                 for my $obj3 (@$next_z, @$next_r) {
-                    next if $obj3->{areas}->{$small};
+                    next if $obj2areas->{$obj3}->{$small};
                     err_msg("Overlapping $small->{name} and $next->{name}\n",
                             " - both areas contain $obj->{name},\n",
                             " - only 1. area contains $obj2->{name},\n",
@@ -10969,11 +10977,12 @@ sub set_zone {
     my $crosslink_routers = check_crosslink();
     cluster_crosslink_routers($crosslink_routers);
     mark_area_borders();
-    set_areas();
-    check_area_subset_relations();
+    my $obj2areas = set_areas();
+    check_area_subset_relations($obj2areas);
     cleanup_areas();
     link_aggregates();
     inherit_attributes();
+    return $obj2areas;	# For use in cut-netspoc
 }
 
 ####################################################################
