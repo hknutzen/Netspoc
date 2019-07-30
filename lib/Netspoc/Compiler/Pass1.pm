@@ -16432,7 +16432,7 @@ sub print_routes {
                 }
             }
         }
-        if ($max_intf and $max_hop) {
+        if ($max_intf) {
 
             # Use default route for this direction.
             # But still generate routes for small networks
