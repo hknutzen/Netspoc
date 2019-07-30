@@ -105,7 +105,6 @@ END
 
 $out = <<'END';
 Error: Referencing unmanaged interface:r1.n1 from area:a
-Warning: area:a is empty
 END
 
 test_err($title, $in, $out);

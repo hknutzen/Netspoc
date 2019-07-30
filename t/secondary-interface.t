@@ -114,6 +114,50 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Secondary IP from multiple networks at same hardware';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n2; }
+}
+
+service:t1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n2, interface:r1.n3; prt = tcp 22;
+}
+END
+
+$out = <<'END';
+-- r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.3.1 eq 22
+ deny ip any any
+--
+ip access-list extended n2_in
+ deny ip any any
+--
+interface n1
+ ip address 10.1.1.1 255.255.255.0
+ ip access-group n1_in in
+interface n2
+ ip address 10.1.2.1 255.255.255.0
+ ip address 10.1.3.1 255.255.255.0 secondary
+ ip access-group n2_in in
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Duplicate named secondary interface';
 ############################################################
 
@@ -220,7 +264,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Move secondary interface of  internally split router';
+$title = 'Move secondary interface of internally split router';
 ############################################################
 
 $in = <<'END';
