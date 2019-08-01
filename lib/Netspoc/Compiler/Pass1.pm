@@ -15913,7 +15913,7 @@ sub find_active_routes {
     for my $router (get_ipv4_ipv6_routers()) {
         $router->{semi_managed} and not $router->{routing_only} or next;
         for my $interface (@{ $router->{interfaces} }) {
-            $interface->{routing} = 'dynamic';
+            $interface->{routing} = $routing_info{dynamic};
         }
     }
 
