@@ -15823,11 +15823,6 @@ sub check_and_convert_routes {
             if ($errors) {
                 err_msg($_) for sort @$errors;
             }
-
-            # Convert to array, because hash isn't needed any longer.
-            # Array is sorted to get deterministic output.
-            $interface->{hopref2obj} =
-              [ sort by_name values %{ $interface->{hopref2obj} } ];
         }
     }
 }
@@ -18275,11 +18270,16 @@ sub compile {
             if ($out_dir) {
                 mark_secondary_rules();
                 rules_distribution();
-                check_output_dir($out_dir);
-                print_code($out_dir);
                 call_go('spoc1-print', {
                     config => $config,
                     start_time => $start_time,
+                    prt_ip => $prt_ip,
+                    network_00 => $network_00,
+                    network_00_v6 => $network_00_v6,
+                    permit_any_rule => $permit_any_rule,
+                    permit_any6_rule => $permit_any6_rule,
+                    deny_any_rule => $deny_any_rule,
+                    deny_any6_rule => $deny_any6_rule,
                     managed_routers => \@managed_routers,
                     routing_only_routers => \@routing_only_routers,
                     out_dir => $out_dir,
