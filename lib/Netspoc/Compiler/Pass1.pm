@@ -18313,9 +18313,9 @@ sub print_prt {
     elsif ($proto eq 'icmp' or $proto eq 'icmpv6') {
         if (defined(my $type = $prt->{type})) {
             push @result, $type;
-        }
-        if (defined(my $code = $prt->{code})) {
-            push @result, $code;
+            if (defined(my $code = $prt->{code})) {
+                push @result, $code;
+            }
         }
     }
     return(join(' ', @result));
@@ -18647,6 +18647,20 @@ sub print_code {
     my ($dir) = @_;
     progress('Printing intermediate code');
 
+    ## no critic (RequireBriefOpen)
+    my $to_pass2;
+    if ($config->{pipe}) {
+        open($to_pass2, '>&', STDOUT) or
+            fatal_err("Can't open STDOUT for writing: $!");
+        $to_pass2->autoflush(1);
+    }
+    else {
+        my $devlist = "$dir/.devlist";
+        open($to_pass2, '>>', $devlist) or
+            fatal_err("Can't open $devlist for writing: $!");
+    }
+    ## use critic
+
     my $checked_v6dir;
     my %seen;
     for my $router (@managed_routers, @routing_only_routers) {
@@ -18708,8 +18722,17 @@ sub print_code {
         select STDOUT;
         close $code_fd or fatal_err("Can't close $config_file: $!");
 
-        # ACLs are printed from Go.
-        next;
+        # Print ACLs in machine independent format into separate file.
+        # Collect ACLs from VRF parts.
+        my $acl_file = "$dir/$path.rules";
+        open(my $acl_fd, '>', $acl_file)
+          or fatal_err("Can't open $acl_file for writing: $!");
+        print_acls($vrf_members, $acl_fd);
+        close $acl_fd or fatal_err("Can't close $acl_file: $!");
+
+        # Send device name to pass 2, showing that processing for this
+        # device can be started.
+        print $to_pass2 "$path\n";
     }
 }
 
@@ -18914,15 +18937,6 @@ sub init_global_vars {
     init_protocols();
 }
 
-my %JSON_obj;
-my %new_obj;
-sub UNIVERSAL::TO_JSON {
-    my($obj) = @_;
-    $JSON_obj{$obj} ||= { %$obj };
-    $new_obj{$obj} = 1;
-    return "$obj";
-}
-
 sub compile {
     my ($args) = @_;
 
@@ -18974,7 +18988,6 @@ sub compile {
         sub {
             check_unused_groups();
             check_supernet_rules();
-#            check_redundant_rules();
             call_go('spoc1-check', {
                 config => $config,
                 start_time => $start_time,
