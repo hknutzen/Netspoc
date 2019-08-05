@@ -309,7 +309,7 @@ network:t1 = { ip = 10.9.1.0/30; }
 network:t2 = { ip = 10.9.2.0/30; }
 
 router:r = {
- model = NX-OS;
+ model = Linux;
  managed;
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
  interface:t2 = { ip = 10.9.2.1; hardware = t2; }
@@ -323,10 +323,10 @@ END
 
 $out = <<'END';
 --r
-! [ Routing ]
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.0.0/16 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.0.0/16 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out);
@@ -339,10 +339,10 @@ $in =~ s/;#,/,/;
 
 $out = <<'END';
 --r
-! [ Routing ]
-ip route 0.0.0.0/0 10.9.1.2
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 0.0.0.0/0 via 10.9.1.2
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out);
@@ -360,10 +360,10 @@ END
 
 $out = <<'END';
 --r
-! [ Routing ]
-ip route 0.0.0.0/0 10.9.1.2
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 0.0.0.0/0 via 10.9.1.2
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out, '--check_redundant_rules=0');
