@@ -150,7 +150,7 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Can't create output directory missing.dir/file: No such file or directory
+Error: Can't mkdir missing.dir/file: no such file or directory
 Aborted
 END
 
