@@ -18273,6 +18273,7 @@ sub compile {
                 call_go('spoc1-print', {
                     config => $config,
                     start_time => $start_time,
+                    program => $program,
                     prt_ip => $prt_ip,
                     network_00 => $network_00,
                     network_00_v6 => $network_00_v6,
