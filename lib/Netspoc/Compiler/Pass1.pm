@@ -18993,6 +18993,7 @@ sub compile {
                 start_time => $start_time,
                 prt_ip => $prt_ip,
                 protocols  => \%protocols,
+                protocolgroups  => \%protocolgroups,
                 services   => \%services,
                 path_rules => \%path_rules,
                     });
