@@ -16784,7 +16784,7 @@ sub add_router_acls {
 sub create_general_permit_rules {
     my ($protocols, $ipv6) = @_;
     my @prt = map {   ref($_) eq 'ARRAY'
-                    ? $_->[1]	# take dst range; src range was error before.
+                    ? $_->[1]	# Ignore src range, was already rejected before.
                     : $_->{main_prt}
                     ? $_->{main_prt}
                     : $_ } @$protocols;
