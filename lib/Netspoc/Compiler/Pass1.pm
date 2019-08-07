@@ -4086,33 +4086,25 @@ sub link_general_permit {
     my ($obj) = @_;
     my $list = $obj->{general_permit} or return;
     my $context = $obj->{name};
-
-    # Sort protocols and src_range/dst_range/orig_prt triples by name,
-    # so we can compare value lists of attribute general_permit for
-    # redundancy during inheritance.
-    $list = $obj->{general_permit} = [
-        sort {
-            (ref $a eq 'ARRAY'      ? $a->[2]->{name} : $a->{name})
-              cmp(ref $b eq 'ARRAY' ? $b->[2]->{name} : $b->{name})
-        } @{ split_protocols(expand_protocols($list, $context)) }
-    ];
-
-    # Don't allow port ranges. This wouldn't work, because
-    # gen_reverse_rules doesn't handle generally permitted protocols.
-    for my $prt (@$list) {
-        my ($src_range, $range, $orig_prt);
+    my @result;
+    for my $prt (@{ split_protocols(expand_protocols($list, $context)) }) {
+        my ($src_range, $orig_prt);
         if (ref $prt eq 'ARRAY') {
             ($src_range, my $dst_range, $orig_prt) = @$prt;
-            $range = $dst_range->{range};
+            $prt = $dst_range;
         }
         else {
-            $range = $prt->{range};
             $orig_prt = $prt;
         }
+
+        # Check for protocols not valid for general_permit.
+        # Don't allow port ranges. This wouldn't work, because
+        # gen_reverse_rules doesn't handle generally permitted protocols.
         my @reason;
         if ($orig_prt->{modifiers}) {
             push @reason, 'modifiers';
         }
+        my $range = $prt->{range};
         if ($src_range or $range and $range ne $aref_tcp_any) {
             push @reason, 'ports';
         }
@@ -4121,7 +4113,14 @@ sub link_general_permit {
             err_msg("Must not use '$orig_prt->{name}' with $reason",
                 " in general_permit of $context");
         }
+
+        # Collect protocols
+        push(@result, $prt->{main_prt} || $prt);
     }
+
+    # Sort protocols by name, so we can compare value lists of
+    # attribute general_permit for redundancy during inheritance.
+    $obj->{general_permit} = [ sort by_name @result ];
 }
 
 # Link areas with referenced interfaces or network.
@@ -11831,7 +11830,8 @@ sub get_path {
         $result = $obj;
     }
 
-    # This is used, if expand_services is called without convert_hosts.
+    # This is used in cut-netspoc and if path_walk is called early to
+    # expand auto interfaces.
     elsif ($type eq 'Host') {
         $result = $obj->{network}->{zone};
     }
@@ -16781,26 +16781,13 @@ sub add_router_acls {
     }
 }
 
-sub create_general_permit_rules {
-    my ($protocols, $ipv6) = @_;
-    my @prt = map {   ref($_) eq 'ARRAY'
-                    ? $_->[1]	# Ignore src range, was already rejected before.
-                    : $_->{main_prt}
-                    ? $_->{main_prt}
-                    : $_ } @$protocols;
-    my $rule = {
-        src => [ get_network_00($ipv6) ],
-        dst => [ get_network_00($ipv6) ],
-        prt => \@prt,
-    };
-    return $rule;
-}
-
 sub distribute_general_permit {
     for my $router (@managed_routers) {
-        my $ipv6 = $router->{ipv6};
         my $general_permit = $router->{general_permit} or next;
-        my $rule = create_general_permit_rules($general_permit, $ipv6);
+        my $net00_list = [ get_network_00($router->{ipv6}) ];
+        my $rule = {
+            src => $net00_list, dst => $net00_list, prt => $general_permit,
+        };
         my $need_protect = $router->{need_protect};
         for my $in_intf (@{ $router->{interfaces} }) {
             next if $in_intf->{main_interface};
@@ -18876,14 +18863,14 @@ sub concurrent {
 # These must be initialized on each run, because protocols are changed
 # by prepare_prt_ordering.
 sub init_protocols {
-    $prt_ip = { name => 'auto_prt:ip', proto => 'ip' };
+    $prt_ip = { name => 'ip', proto => 'ip' };
     $prt_tcp = {
-        name      => 'auto_prt:tcp',
+        name      => 'tcp',
         proto     => 'tcp',
         dst_range => $aref_tcp_any
     };
     $prt_udp = {
-        name      => 'auto_prt:udp',
+        name      => 'udp',
         proto     => 'udp',
         dst_range => $aref_tcp_any
     };
