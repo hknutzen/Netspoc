@@ -96,6 +96,64 @@ END
 test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
+$title = 'Combined hosts prevent optimal object group';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h11 = { ip = 10.1.1.11; }
+ host:h13 = { ip = 10.1.1.13; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h20 = { ip = 10.1.2.20; }
+ host:h21 = { ip = 10.1.2.21; }
+ host:h23 = { ip = 10.1.2.23; }
+ host:h24 = { ip = 10.1.2.24; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ overlaps = service:s2, service:s3;
+ user = host:h11, host:h13;
+ permit src = user; dst = host:h20, host:h21, host:h23, host:h24; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = host:h20, host:h23; prt = tcp 80;
+}
+
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = host:h21, host:h24; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+object-group network g0
+ network-object 10.1.2.20 255.255.255.254
+ network-object host 10.1.2.23
+ network-object host 10.1.2.24
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+Test::More->builder->todo_start($title);
+test_run($title, $in, $out);
+Test::More->builder->todo_end;
+
+############################################################
 $title = 'Optimize subnet of NAT network in zone';
 ############################################################
 
