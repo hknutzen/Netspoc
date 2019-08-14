@@ -85,6 +85,47 @@ END
 test_run($title, $in, $out, '--noauto_default_route');
 
 ############################################################
+$title = 'Remove redundant routes, even if combined already exists';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = NX-OS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+
+network:t1 = { ip = 10.9.1.0/24; }
+
+router:u1 = {
+ interface:t1 = { ip = 10.9.1.2; }
+ interface:n2a;
+ interface:n2b;
+ interface:n2;
+}
+
+network:n2a = { ip = 10.1.2.0/25; subnet_of = network:n2; }
+network:n2b = { ip = 10.1.2.128/25; subnet_of = network:n2; }
+network:n2  = { ip = 10.1.2.0/24; }
+
+service:test = {
+ user = network:n2a, network:n2b;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r1
+! [ Routing ]
+ip route 10.1.2.0/24 10.9.1.2
+END
+
+test_run($title, $in, $out, '--noauto_default_route');
+
+############################################################
 $title = 'Missing next hop';
 ############################################################
 
@@ -268,7 +309,7 @@ network:t1 = { ip = 10.9.1.0/30; }
 network:t2 = { ip = 10.9.2.0/30; }
 
 router:r = {
- model = NX-OS;
+ model = Linux;
  managed;
  interface:t1 = { ip = 10.9.1.1; hardware = t1; }
  interface:t2 = { ip = 10.9.2.1; hardware = t2; }
@@ -282,9 +323,10 @@ END
 
 $out = <<'END';
 --r
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.0.0/16 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.0.0/16 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out);
@@ -297,9 +339,10 @@ $in =~ s/;#,/,/;
 
 $out = <<'END';
 --r
-ip route 0.0.0.0/0 10.9.1.2
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 0.0.0.0/0 via 10.9.1.2
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out);
@@ -317,9 +360,10 @@ END
 
 $out = <<'END';
 --r
-ip route 0.0.0.0/0 10.9.1.2
-ip route 10.1.1.0/28 10.9.1.2
-ip route 10.1.1.0/24 10.9.2.2
+# [ Routing ]
+ip route add 0.0.0.0/0 via 10.9.1.2
+ip route add 10.1.1.0/28 via 10.9.1.2
+ip route add 10.1.1.0/24 via 10.9.2.2
 END
 
 test_run($title, $in, $out, '--check_redundant_rules=0');

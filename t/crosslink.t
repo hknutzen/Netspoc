@@ -43,6 +43,12 @@ $out = <<'END';
 -r1
 access-list cr_in extended permit ip any4 any4
 access-group cr_in in interface cr
+-r2
+interface cr
+ ip address 10.3.3.2/29
+interface n2
+ ip address 10.2.2.1/27
+ ip access-group n2_in in
 END
 
 test_run($title, $in, $out);
@@ -59,6 +65,12 @@ $out = <<'END';
 -r1
 access-list cr_in extended deny ip any4 any4
 access-group cr_in in interface cr
+-r2
+interface cr
+ ip address 10.3.3.2/29
+interface n2
+ ip address 10.2.2.1/27
+ ip access-group n2_in in
 END
 
 test_run($title, $in, $out);
@@ -104,7 +116,17 @@ router:r2 = {
 network:n2 = { ip = 10.2.2.0/27; }
 END
 
-$out = '';
+$out = <<'END';
+-r1
+access-list cr_in extended permit ip any4 any4
+access-group cr_in in interface cr
+-r2
+interface cr
+ ip address 10.3.3.2/29
+interface n2
+ ip address 10.2.2.1/27
+ ip access-group n2_in in
+END
 
 test_warn($title, $in, $out);
 
@@ -135,11 +157,11 @@ router:r2 = {
 network:n2 = { ip = 10.2.2.0/27; }
 
 router:r3 = {
- model = NX-OS;
+ model = IOS;
  managed = local;
  filter_only =  10.2.0.0/15;
- interface:cr = { ip = 10.3.3.3; hardware = vlan5; }
- interface:n3 = { ip = 10.2.2.33; hardware = vlan6; }
+ interface:cr = { ip = 10.3.3.3; hardware = cr; }
+ interface:n3 = { ip = 10.2.2.33; hardware = n3; }
 }
 
 network:n3 = { ip = 10.2.2.32/27; }
@@ -149,6 +171,18 @@ $out = <<'END';
 -r1
 access-list cr_in extended deny ip any4 any4
 access-group cr_in in interface cr
+-r2
+interface cr
+ ip address 10.3.3.2/29
+interface n2
+ ip address 10.2.2.1/27
+ ip access-group n2_in in
+-r3
+interface cr
+ ip address 10.3.3.3 255.255.255.248
+interface n3
+ ip address 10.2.2.33 255.255.255.224
+ ip access-group n3_in in
 END
 
 test_run($title, $in, $out);
@@ -185,7 +219,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'different no_in_acl at crosslink routers';
+$title = 'Different no_in_acl at crosslink routers';
 ############################################################
 
 $in = <<'END';
@@ -280,12 +314,18 @@ access-list n1_in extended deny ip any4 host 10.3.3.2
 access-list n1_in extended deny ip any4 host 10.1.1.2
 access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
+-r2
+interface cr
+ ip address 10.3.3.2/29
+interface n1
+ ip address 10.1.1.2/27
+ ip access-group n1_in in
 END
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'no_in_acl inside of crosslink routers';
+$title = 'no_in_acl at crosslink interfaces';
 ############################################################
 
 $in = <<'END';
@@ -334,6 +374,13 @@ ip access-list n2_in
 ip access-list n2_out
  10 permit tcp 10.1.1.0/27 10.2.2.0/27 eq 80
  20 deny ip any any
+--
+interface cr
+ ip address 10.3.3.2/29
+interface n2
+ ip address 10.2.2.1/27
+ ip access-group n2_in in
+ ip access-group n2_out out
 END
 
 test_run($title, $in, $out);

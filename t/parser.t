@@ -948,7 +948,7 @@ $in = <<'END';
 owner:o = { admins = a@b.c; }
 any:n = {
  link = network:n;ip = 10.0.0.0/16;
- owner = o; has_unenforceable;
+ owner = o; has_unenforceable = restrict;
 }
 network:n = { ip = 10.1.1.0/24; }
 END

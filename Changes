@@ -1,3 +1,14 @@
+5.054     2019-08-14 14:30:11+02:00 Europe/Berlin
+
+ - Now also network supports attributes
+   overlaps | unknown_owner | multi_owner | has_unenforceable
+   with value restrict | enable | ok.
+ - Changed priority of attributes 'overlaps' and 'has_unenforceable':
+   restrict < enable < ok
+   - 'restrict' is applied only if given at src AND dst.
+   - 'ok' is applied if given at src OR dst.
+ - Old syntax "has_unenforceable;" without value is no longer supported.
+
 5.053     2019-05-22 15:44:21+02:00 Europe/Berlin
 
  - New radius-attribute "anyconnect-custom_perapp = NAME"

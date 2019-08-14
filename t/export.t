@@ -1310,7 +1310,7 @@ isakmp:ikeaes256SHA = {
 ipsec:ipsecaes256SHA = {
  key_exchange = isakmp:ikeaes256SHA;
  esp_encryption = aes256;
- esp_authentication = sha_hmac;
+ esp_authentication = sha;
  pfs_group = 2;
  lifetime = 3600 sec;
 }
