@@ -88,6 +88,9 @@ END
 
 $out = <<'END';
 Warning: Must not use attribute 'has_unenforceable' at service:test
+Warning: service:test has unenforceable rules:
+ src=host:x7; dst=host:x7
+ src=host:x9; dst=host:x7
 END
 
 test_warn($title, $in, $out);
@@ -113,6 +116,8 @@ END
 
 $out = <<'END';
 Warning: Must not use attribute 'has_unenforceable' at service:s2
+Warning: service:s2 has unenforceable rules:
+ src=host:y; dst=network:y
 END
 
 test_warn($title, $in, $out);
