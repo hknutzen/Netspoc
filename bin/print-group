@@ -271,6 +271,11 @@ if ($show_unused) {
                     if (is_host($obj) or is_interface($obj)) {
                         $used{$obj->{network}} = 1;
                     }
+                    elsif (is_network($obj) and $obj->{has_id_hosts}) {
+                        for my $host (@{ $obj->{hosts} }) {
+                            $used{$host} = 1;
+                        }
+                    }
                 }
             }
         }
