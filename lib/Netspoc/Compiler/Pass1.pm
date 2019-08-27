@@ -12203,14 +12203,12 @@ sub intf_cluster_path_mark {
             @loop_leave = ($end_intf);
             @zone_tuples = ([ $start_intf, $end_intf ]);
             $start_store = $start_intf;
-            $start_intf = undef;
             $end_store = $end_intf;
         }
         elsif ($start_intf) {
             @loop_enter = ($start_intf);
             @loop_leave = ($start_intf);
             $start_store = $start_intf;
-            $start_intf = undef;
         }
         else {
             @loop_enter = ($end_intf);
