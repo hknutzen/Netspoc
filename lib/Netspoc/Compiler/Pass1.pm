@@ -12072,7 +12072,7 @@ sub fixup_zone_path {
     my $router = $start_end->{router};
     my $is_redundancy;
 
-    # Prohibt paths traversing related redundancy interfaces.
+    # Prohibit paths traversing related redundancy interfaces.
     if (my $interfaces = $start_end->{redundancy_interfaces}) {
         @{$is_redundancy}{@$interfaces} = @$interfaces;
     }
@@ -12108,7 +12108,7 @@ sub fixup_zone_path {
             $del_out{$in} = $in;
         }
 
-        # Remove mark, if non removed tuples are adjacent.
+        # Remove mark at interface, if non removed tuples are adjacent.
         for my $tuple (@$tuples) {
             my ($in, $out) = @$tuple;
             delete $del_in{$out};
@@ -12149,12 +12149,11 @@ sub fixup_zone_path {
     my $is_start = ($in_out == 0);
     my $out_in = $is_start ? 1 : 0;
     my $enter_leave = $is_start ? $loop_enter : $loop_leave;
-    my (@add_intf, @del_intf, $seen_intf);
+    my (@add_intf, $seen_intf);
     for my $intf (@$enter_leave) {
-        push @del_intf, $intf;
         if ($intf eq $start_end) {
-            my @del_tuples = grep { $_->[$in_out] eq $intf } @$router_tuples;
-            for my $tuple (@del_tuples) {
+            for my $tuple (@$router_tuples) {
+                $tuple->[$in_out] eq $intf or next;
                 aref_delete $router_tuples, $tuple;
                 push @add_intf, $tuple->[$out_in];
             }
@@ -12165,7 +12164,7 @@ sub fixup_zone_path {
             push @add_intf, $start_end if not $seen_intf++;
         }
     }
-    aref_delete $enter_leave, $_ for @del_intf;
+    splice(@$enter_leave);	# Remove all elements.
     push @$enter_leave, @add_intf;
 }
 
