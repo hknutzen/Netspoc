@@ -12152,8 +12152,7 @@ sub fixup_zone_path {
     my (@add_intf, $seen_intf);
     for my $intf (@$enter_leave) {
         if ($intf eq $start_end) {
-            for my $tuple (@$router_tuples) {
-                $tuple->[$in_out] eq $intf or next;
+            for my $tuple (grep { $_->[$in_out] eq $intf } @$router_tuples) {
                 aref_delete $router_tuples, $tuple;
                 push @add_intf, $tuple->[$out_in];
             }

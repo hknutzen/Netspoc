@@ -373,6 +373,81 @@ END
 
 test_run($title, $in, $out);
 
+###########################################################
+$title = 'Path starts at pathrestriction inside loop (4)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+
+router:r2 = {
+ managed = secondary;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; routing = dynamic; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; routing = OSPF;}
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; virtual = { ip = 10.1.4.1; type = HSRP; } }
+}
+
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n4 = { ip = 10.1.4.3; virtual = { ip = 10.1.4.1; type = HSRP; } }
+}
+
+service:s1 = {
+ user = foreach interface:r2.[all];
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+-- r2
+ip access-list extended n1_in
+ permit icmp any host 10.1.1.1 8
+ permit icmp any host 10.1.3.1 8
+ permit icmp any host 10.1.4.1 8
+ permit icmp any host 10.1.4.2 8
+ deny ip any host 10.1.1.1
+ deny ip any host 10.1.3.1
+ deny ip any host 10.1.4.1
+ deny ip any host 10.1.4.2
+ permit ip any any
+--
+ip access-list extended n3_in
+ permit icmp any host 10.1.1.1 8
+ permit icmp any host 10.1.3.1 8
+ permit icmp any host 10.1.4.1 8
+ permit icmp any host 10.1.4.2 8
+ permit 89 10.1.3.0 0.0.0.255 host 224.0.0.5
+ permit 89 10.1.3.0 0.0.0.255 host 224.0.0.6
+ permit 89 10.1.3.0 0.0.0.255 10.1.3.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended n3_out
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit icmp any host 10.1.1.1 8
+ permit icmp any host 10.1.3.1 8
+ permit icmp any host 10.1.4.1 8
+ permit icmp any host 10.1.4.2 8
+ permit udp 10.1.4.0 0.0.0.255 host 224.0.0.2 eq 1985
+ deny ip any any
+--
+ip access-list extended n4_out
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
 ############################################################
 $title = 'Pathrestriction located in different loops';
 ############################################################
