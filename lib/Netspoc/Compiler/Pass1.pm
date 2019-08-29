@@ -11859,13 +11859,11 @@ sub get_path {
 # Parameters : $obj - current (or start) loop node (zone or router).
 #              $in_intf - interface current loop node was entered from.
 #              $end - loop node that is to be reached.
-#              $path_tuples - hash to collect in and out interfaces of nodes on
-#                             detected path.
-#              $loop_leave - array to collect last interfaces of loop path.
+#              $loop_path - collect tuples and last interfaces of path.
 #              $navi - lookup hash to reduce search space, holds loops to enter.
 # Returns   :  1, if path is found, 0 otherwise.
 sub cluster_path_mark1 {
-    my ($obj, $in_intf, $end, $path_tuples, $loop_leave, $navi) = @_;
+    my ($obj, $in_intf, $end, $loop_path, $navi) = @_;
 
 #    debug("cluster_path_mark1: obj: $obj->{name},
 #           in_intf: $in_intf->{name} to: $end->{name}");
@@ -11893,7 +11891,7 @@ sub cluster_path_mark1 {
     if ($obj eq $end) {
 
         # Store interface where we leave the loop.
-        push @$loop_leave, $in_intf;
+        push @{$loop_path->{leave}}, $in_intf;
 
 #        debug(" leave: $in_intf->{name} -> $end->{name}");
         return 1;
@@ -11930,7 +11928,7 @@ sub cluster_path_mark1 {
 
     my $is_router   = ref $obj eq 'Router';
     my $get_next    = $is_router ? 'zone' : 'router';
-    my $type_tuples = $path_tuples->{$is_router ? 'router' : 'zone'};
+    my $type_tuples = $loop_path->{$is_router ? 'router_tuples' : 'zone_tuples'};
     my $success     = 0;
 
     # Extract navigation lookup hash.
@@ -11947,13 +11945,7 @@ sub cluster_path_mark1 {
 #        debug "Try $obj->{name} -> $next->{name}";
 
         # If a valid path is found from next node to $end...
-        if (
-            cluster_path_mark1(
-                $next,        $interface,  $end,
-                $path_tuples, $loop_leave, $navi
-            )
-          )
-        {
+        if (cluster_path_mark1($next, $interface, $end, $loop_path, $navi)) {
 
             # ...collect path information.
 #	    debug(" loop: $in_intf->{name} -> $interface->{name}");
@@ -12049,8 +12041,8 @@ sub cluster_navigation {
 }
 
 ##############################################################################
-# Purpose    : Adapt path starting/ending at zone, such that the original
-#              start/end-interface is reached.
+# Purpose    : Adapt $loop_path such that the original start/end-interface
+#              is reached.
 #              First step:
 #              Remove paths, that traverse router of start/end interface,
 #              but don't terminate at that router. This would lead to
@@ -12059,15 +12051,12 @@ sub cluster_navigation {
 #              Adjust start/end of paths from zone to router.
 # Parameters : $start_end: start or end interface of orginal path
 #              $in_out: has value 0 or 1, to access in or out interface
-#                       of paths.
-#              $loop_enter, $loop_leave: arrays of interfaces,
-#                                        where path starts/ends.
-#              $router_tuples, $zone_tuples: arrays of path tuples.
+#                       of path tuples.
+#              $loop_path: Describes path inside loop.
 # Returns    : nothing
-# Results    : Changes $loop_enter, $loop_leave, $router_tuples, $zone_tuples.
+# Results    : Changes attributes of $loop_path.
 sub fixup_zone_path {
-    my ($start_end, $in_out,
-        $loop_enter, $loop_leave, $router_tuples, $zone_tuples) = @_;
+    my ($start_end, $in_out, $loop_path) = @_;
 
     my $router = $start_end->{router};
     my $is_redundancy;
@@ -12077,6 +12066,8 @@ sub fixup_zone_path {
         @{$is_redundancy}{@$interfaces} = @$interfaces;
     }
 
+    my $router_tuples = $loop_path->{router_tuples};
+    my $zone_tuples = $loop_path->{zone_tuples};
     my @del_tuples;
 
     # Remove tuples traversing that router, where path should start/end.
@@ -12126,6 +12117,8 @@ sub fixup_zone_path {
     }
 
     # Remove dangling interfaces from start and end of path.
+    my $loop_enter = $loop_path->{enter};
+    my $loop_leave = $loop_path->{leave};
     if ($changed) {
         my (%has_in, %has_out);
 
@@ -12177,8 +12170,7 @@ sub fixup_zone_path {
 #              $start_intf: set if path starts at pathrestricted interface
 #              $end_intf: set if path ends at pathrestricted interface
 # Returns    : True if path was found, false otherwise.
-# Results    : Sets attributes {loop_enter}, {loop_leave}, {*_path_tuples}
-#              for found path and reversed path.
+# Results    : Sets attributes {loop_path} for found path.
 sub intf_cluster_path_mark {
     my ($start_store, $end_store, $start_intf, $end_intf) = @_;
     if ($start_intf) {
@@ -12187,7 +12179,7 @@ sub intf_cluster_path_mark {
     if ($end_intf) {
         $end_store = $end_intf->{zone};
     }
-    my (@loop_enter, @loop_leave, @router_tuples, @zone_tuples);
+    my $loop_path;
 
     # Zones are equal. Set minimal path manually.
     if ($start_store eq $end_store
@@ -12198,20 +12190,26 @@ sub intf_cluster_path_mark {
         )
     {
         if ($start_intf and $end_intf) {
-            @loop_enter = ($start_intf);
-            @loop_leave = ($end_intf);
-            @zone_tuples = ([ $start_intf, $end_intf ]);
+            $loop_path = {
+                enter => [$start_intf],
+                leave => [$end_intf],
+                zone_tuples => [[ $start_intf, $end_intf ]],
+            };
             $start_store = $start_intf;
             $end_store = $end_intf;
         }
         elsif ($start_intf) {
-            @loop_enter = ($start_intf);
-            @loop_leave = ($start_intf);
+            $loop_path = {
+                enter => [$start_intf],
+                leave => [$start_intf],
+            };
             $start_store = $start_intf;
         }
         else {
-            @loop_enter = ($end_intf);
-            @loop_leave = ($end_intf);
+            $loop_path = {
+                enter => [$end_intf],
+                leave => [$end_intf],
+            };
             $end_store = $end_intf;
         }
     }
@@ -12220,42 +12218,29 @@ sub intf_cluster_path_mark {
     else {
         cluster_path_mark($start_store, $end_store) or return;
 
-        @loop_enter    = @{ $start_store->{loop_enter}->{$end_store} };
-        @loop_leave    = @{ $start_store->{loop_leave}->{$end_store} };
-        @router_tuples = @{ $start_store->{router_path_tuples}->{$end_store} };
-        @zone_tuples   = @{ $start_store->{zone_path_tuples}->{$end_store} };
+        my $orig_path = $start_store->{loop_path}->{$end_store};
+
+        # Copy arrays, othwise $orig_path would be changed below.
+        for my $key (keys %$orig_path) {
+            $loop_path->{$key} = [@{$orig_path->{$key}}];
+        }
 
         # Fixup start of path.
         if ($start_intf) {
-            fixup_zone_path($start_intf, 0,
-                            \@loop_enter, \@loop_leave,
-                            \@router_tuples, \@zone_tuples);
+            fixup_zone_path($start_intf, 0, $loop_path);
             $start_store = $start_intf;
         }
 
         # Fixup end of path.
         if ($end_intf) {
-            fixup_zone_path($end_intf, 1,
-                            \@loop_enter, \@loop_leave,
-                            \@router_tuples, \@zone_tuples);
-
+            fixup_zone_path($end_intf, 1, $loop_path);
             $end_store = $end_intf;
         }
     }
 
     # Store found path.
-    $start_store->{loop_enter}->{$end_store}  = \@loop_enter;
-    $start_store->{loop_leave}->{$end_store}  = \@loop_leave;
-    $start_store->{router_path_tuples}->{$end_store} = \@router_tuples;
-    $start_store->{zone_path_tuples}->{$end_store} = \@zone_tuples;
-
     # Don't store reversed path, because few path start at interface.
-#    $end_store->{loop_enter}->{$start_store} = \@loop_leave;
-#    $end_store->{loop_leave}->{$start_store} = \@loop_enter;
-#    $end_store->{router_path_tuples}->{$start_store} =
-#        [ map { [ @{$_}[1, 0] ] } @router_tuples ];
-#    $end_store->{zone_path_tuples}->{$start_store} =
-#        [ map { [ @{$_}[1, 0] ] } @zone_tuples ];
+    $start_store->{loop_path}->{$end_store} = $loop_path;
 
     return 1;
 }
@@ -12277,7 +12262,7 @@ sub cluster_path_mark {
     my ($start_store, $end_store) = @_;
 
     # Path from $start_store to $end_store has been marked already.
-    if ($start_store->{loop_enter}->{$end_store}) {
+    if ($start_store->{loop_path}->{$end_store}) {
         return 1;
     }
 
@@ -12406,8 +12391,9 @@ sub cluster_path_mark {
         my $loop_enter  = []; # Interfaces of $from, where path enters cluster.
         my $loop_leave  = []; # Interfaces of $to, where cluster is left.
 
-        # Tuples of interfaces, describing all valid paths.
-        my $path_tuples = { router => [], zone => [] };
+        # These attributes describe valid paths inside loop.
+        my $loop_path = { enter => $loop_enter, leave => $loop_leave,
+                          router_tuples => [], zone_tuples => [] };
 
         # Create navigation look up hash to reduce search space in loop cluster.
         my $navi = cluster_navigation($from, $to) or internal_err("Empty navi");
@@ -12441,13 +12427,7 @@ sub cluster_path_mark {
 
             # Search path from next node to $to, store it in provided variables.
 #           debug(" try: $from->{name} -> $interface->{name}");
-            if (
-                cluster_path_mark1(
-                    $next,        $interface,  $to,
-                    $path_tuples, $loop_leave, $navi
-                )
-              )
-            {
+            if (cluster_path_mark1($next, $interface, $to, $loop_path, $navi)) {
                 $success = 1;
                 push @$loop_enter, $interface;
 
@@ -12459,38 +12439,37 @@ sub cluster_path_mark {
         last BLOCK if not $success;
 
         # Remove duplicates from path tuples.
-        # Create path tuples for
-        # router interfaces, zone interfaces, and both as reversed arrays.
-        my (@router_tuples, @zone_tuples,
-            @rev_router_tuples, @rev_zone_tuples);
-        for my $type (keys %$path_tuples) {
-            my $tuples = $type eq 'router' ? \@router_tuples : \@zone_tuples;
-            my $rev_tuples =
-                $type eq 'router' ? \@rev_router_tuples : \@rev_zone_tuples;
+        # Create reversed tuples.
+        my %reversed;
+        for my $type (qw(router_tuples zone_tuples)) {
+            my @tuples;
+            my @rev_tuples;
             my %seen;
-            for my $tuple (@{ $path_tuples->{$type} }) {
+            for my $tuple (@{ $loop_path->{$type} }) {
                 my ($in_intf, $out_intf) = @$tuple;
                 next if $seen{$in_intf}->{$out_intf}++;
-                push @$tuples, $tuple;
-                push @$rev_tuples, [ $out_intf, $in_intf ];
-#		debug("Tuple: $in_intf->{name}, $out_intf->{name} $type");
+                push @tuples, $tuple;
+                push @rev_tuples, [ $out_intf, $in_intf ];
+#                debug("Tuple: $in_intf->{name}, $out_intf->{name} $type");
+
             }
+            $loop_path->{$type} = \@tuples;
+            $reversed{$type} = \@rev_tuples;
         }
 
         # Remove duplicates, which occur from nested loops.
-        $loop_leave = [ unique(@$loop_leave) ];
+        $loop_path->{leave} = $loop_leave = [ unique(@$loop_leave) ];
 
-        # Add loop path information to start node or interface.
-        $start_store->{loop_enter}->{$end_store}  = $loop_enter;
-        $start_store->{loop_leave}->{$end_store}  = $loop_leave;
-        $start_store->{router_path_tuples}->{$end_store} = \@router_tuples;
-        $start_store->{zone_path_tuples}->{$end_store} = \@zone_tuples;
+        # Add loop path information.
+        $start_store->{loop_path}->{$end_store} = $loop_path;
 
         # Add data for reverse path.
-        $end_store->{loop_enter}->{$start_store} = $loop_leave;
-        $end_store->{loop_leave}->{$start_store} = $loop_enter;
-        $end_store->{router_path_tuples}->{$start_store} = \@rev_router_tuples;
-        $end_store->{zone_path_tuples}->{$start_store} = \@rev_zone_tuples;
+        $end_store->{loop_path}->{$start_store} = {
+            enter => $loop_leave,
+            leave => $loop_enter,
+            router_tuples => $reversed{router_tuples},
+            zone_tuples   => $reversed{zone_tuples},
+        }
     }
 
     # Disable pathrestriction at border of loop.
@@ -12759,6 +12738,8 @@ sub loop_path_walk {
 #    $info .= "->$out->{name}" if $out;
 #    debug($info);
 
+    my $loop_path = $loop_entry->{loop_path}->{$loop_exit};
+
     # Process entry of cyclic graph.
     my $entry_type = ref $loop_entry;
     if (
@@ -12772,23 +12753,20 @@ sub loop_path_walk {
             and
 
             # Take only interface which originally was a router.
-            $loop_entry->{router} eq
-            $loop_entry->{loop_enter}->{$loop_exit}->[0]->{router}
+            $loop_entry->{router} eq $loop_path->{enter}->[0]->{router}
         ) xor $call_at_zone
       )
     {
 
 #        debug(" loop_enter");
-        for my $out_intf (@{ $loop_entry->{loop_enter}->{$loop_exit} }) {
+        for my $out_intf (@{ $loop_path->{enter} }) {
             $fun->($rule, $in, $out_intf);
         }
     }
 
     # Process paths inside cyclic graph.
     my $path_tuples =
-        $loop_entry
-        ->{$call_at_zone ? 'zone_path_tuples' : 'router_path_tuples'}
-        ->{$loop_exit};
+        $loop_path->{$call_at_zone ? 'zone_tuples' : 'router_tuples'};
 
 #    debug(" loop_tuples");
     $fun->($rule, @$_) for @$path_tuples;
@@ -12799,13 +12777,12 @@ sub loop_path_walk {
         $exit_type eq 'Router'
         ||
         ($exit_type eq 'Interface'
-        &&
-         $loop_exit->{router} eq
-         $loop_entry->{loop_leave}->{$loop_exit}->[0]->{router});
+         &&
+         $loop_exit->{router} eq $loop_path->{leave}->[0]->{router});
     if ($exit_at_router xor $call_at_zone) {
 
 #        debug(" loop_leave");
-        for my $in_intf (@{ $loop_entry->{loop_leave}->{$loop_exit} }) {
+        for my $in_intf (@{ $loop_path->{leave} }) {
             $fun->($rule, $in_intf, $out);
         }
     }
@@ -13057,7 +13034,7 @@ sub path_auto_interfaces {
                 my $entry = $from_store->{loop_entry}->{$to_store})
             {
                 my $exit  = $entry->{loop_exit}->{$to_store};
-                my $enter = $entry->{loop_enter}->{$exit};
+                my $enter = $entry->{loop_path}->{$exit}->{enter};
                 if ($type eq 'Zone') {
                     push @result, map { auto_intf_in_zone($_, $src2) } @$enter;
                 }
