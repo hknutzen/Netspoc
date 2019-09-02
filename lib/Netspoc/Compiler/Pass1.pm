@@ -12723,14 +12723,16 @@ sub path_mark {
 # Parameters : $in - interface the loop is entered at.
 #              $out - interface loop is left at.
 #              $loop_entry - entry object, holding path information.
-#              $loop_exit - loop exit node.
+#              $to_store - used to calculate loop exit node.
 #              $call_at_zone - flag for node function is to be called at
 #                              (1 - zone. 0 - router)
 #              $rule - elementary rule providing source and destination.
 #              $fun - Function to be applied.
+# Returns:     1 if function was called on exit node of loop, 0 oherwise.
 
 sub loop_path_walk {
-    my ($in, $out, $loop_entry, $loop_exit, $call_at_zone, $rule, $fun) = @_;
+    my ($in, $out, $loop_entry, $to_store, $call_at_zone, $rule, $fun) = @_;
+    my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
 
 #    my $info = "loop_path_walk: ";
 #    $info .= "$in->{name}->" if $in;
@@ -12779,14 +12781,15 @@ sub loop_path_walk {
         ($exit_type eq 'Interface'
          &&
          $loop_exit->{router} eq $loop_path->{leave}->[0]->{router});
-    if ($exit_at_router xor $call_at_zone) {
+    my $call_it = ($exit_at_router xor $call_at_zone);
+    if ($call_it) {
 
 #        debug(" loop_leave");
         for my $in_intf (@{ $loop_path->{leave} }) {
             $fun->($rule, $in_intf, $out);
         }
     }
-    return $exit_at_router;
+    return $call_it;
 }
 
 sub show_err_no_valid_path {
@@ -12889,9 +12892,8 @@ sub path_walk {
 
     # Walk loop path.
     if ($loop_entry)  {
-        my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
-        my $exit_at_router =
-          loop_path_walk($in, $out, $loop_entry, $loop_exit, $at_zone,
+        $call_it =
+          loop_path_walk($in, $out, $loop_entry, $to_store, $at_zone,
                          $rule, $fun);
 
         # Return, if end of path has been reached.
@@ -12899,7 +12901,7 @@ sub path_walk {
 
         # Prepare to traverse path behind loop.
         $out     = $in->{path}->{$to_store};
-        $call_it = not($exit_at_router xor $at_zone);
+        $call_it = not $call_it;
     }
 
     # Start walking path.
@@ -12910,13 +12912,9 @@ sub path_walk {
             and $entry_hash = $in->{loop_entry}
             and $loop_entry = $entry_hash->{$to_store})
         {
-            my $loop_exit = $loop_entry->{loop_exit}->{$to_store};
-            my $exit_at_router = # last node of loop is a router ? 1 : 0
-              loop_path_walk($in, $out, $loop_entry, $loop_exit,
+            $call_it = # Was function called on last node of loop?
+              loop_path_walk($in, $out, $loop_entry, $to_store,
                              $at_zone, $rule, $fun);
-
-            # Prepare next iteration step.
-            $call_it = ($exit_at_router xor $at_zone);
         }
 
         # Non-loop path continues - call function, if switch is set.
@@ -12929,7 +12927,7 @@ sub path_walk {
 
         # Prepare next iteration otherwise.
         $out     = $in->{path}->{$to_store};
-        $call_it = !$call_it;
+        $call_it = not $call_it;
     }
 }
 
