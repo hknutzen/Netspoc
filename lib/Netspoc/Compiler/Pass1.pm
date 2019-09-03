@@ -11575,21 +11575,18 @@ sub set_loop_cluster {
 }
 
 sub find_zone1 {
-    my ($zone) = @_;
-
-    my $obj = $zone;
-    my $interface_to_zone1;
+    my ($obj) = @_;
     while (1) {
-        $interface_to_zone1 = $obj->{to_zone1};
-        unless ($interface_to_zone1) {
+        my $interface_to_zone1 = $obj->{to_zone1};
+        if (not $interface_to_zone1) {
             $obj->{loop} or
                 return $obj;
             my $loop_exit = $obj->{loop}->{exit};
+            $interface_to_zone1 = $loop_exit->{to_zone1};
 
             # Zone1 is adjacent to loop.
-            $loop_exit->{to_zone1} or
+            $interface_to_zone1 or
                 return $loop_exit;
-            $interface_to_zone1 = $loop_exit->{to_zone1};
         }
         $obj = $interface_to_zone1->{to_zone1};
     }
