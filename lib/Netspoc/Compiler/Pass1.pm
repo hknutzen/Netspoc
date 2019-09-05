@@ -8790,7 +8790,7 @@ sub get_nat_network {
 # All interfaces and hosts of a network must be located in that part
 # of the network which doesn't overlap with some subnet.
 sub check_subnets {
-    my ($network, $subnet) = @_;
+    my ($network, $subnet, $context) = @_;
     return if $network->{is_aggregate} or $subnet->{is_aggregate};
     my ($sub_ip, $sub_mask) = @{$subnet}{qw(ip mask)};
     my $check = sub {
@@ -8812,8 +8812,10 @@ sub check_subnets {
                     return;
                 }
             }
-            warn_msg("IP of $object->{name} overlaps with subnet",
-                     " $subnet->{name}");
+            my $msg =
+                "IP of $object->{name} overlaps with subnet $subnet->{name}";
+            $msg .= " in $context" if $context;
+            warn_msg($msg);
         }
     };
     for my $interface (@{ $network->{interfaces} }) {
@@ -9374,7 +9376,8 @@ sub find_subnets_in_nat_domain {
                 }
             }
 
-            check_subnets($nat_bignet, $nat_subnet) if not $same_zone;
+            check_subnets($nat_bignet, $nat_subnet, $domain->{name})
+                if not $same_zone;
         }
     }
 
