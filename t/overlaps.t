@@ -246,6 +246,8 @@ network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
 network:n6 = { ip = 10.1.6.0/24; }
+network:n7 = { ip = 10.1.7.0/24; overlaps = ok; }
+network:n8 = { ip = 10.1.8.0/24; overlaps = restrict; }
 
 router:r1 = {
  managed;
@@ -271,6 +273,8 @@ router:r4 = {
  model = ASA;
  interface:n5 = { ip = 10.1.5.2; hardware = n5; }
  interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n7; }
+ interface:n8 = { ip = 10.1.8.1; hardware = n8; }
 }
 
 area:all = { anchor = network:n1; overlaps = restrict; }
@@ -279,6 +283,7 @@ area:a1 = { border = interface:r1.n1; overlaps = ok; }
 area:a34 = { border = interface:r2.n3; overlaps = ok; }
 area:a4 = { border = interface:r3.n4; overlaps = restrict; }
 any:a6 = { link = network:n6; overlaps = enable; }
+any:a8 = { link = network:n8; overlaps = enable; }
 
 # n1: restrict, enable, ok
 # n2: restrict, enable
@@ -286,6 +291,8 @@ any:a6 = { link = network:n6; overlaps = enable; }
 # n4: restrict, ok, restrict
 # n5: restrict
 # n6: restrict, enable
+# n7: restrict, network:ok
+# n8: restrict, enable, network:restrict
 
 # ok -> ok: no warning
 service:s1 = {
@@ -297,14 +304,14 @@ service:s2 = {
  permit src = user; dst = network:n3; prt = tcp;
 }
 
-# enable -> enable: suppress warning
+# enable -> enable: suppressable warning
 service:s3 = {
  overlaps = service:s4;
- user = network:n2;
+ user = interface:r1.n2;
  permit src = user; dst = network:n6; prt = tcp 80;
 }
 service:s4 = {
- user = network:n2;
+ user = interface:r1.n2;
  permit src = user; dst = network:n6; prt = tcp;
 }
 
@@ -319,7 +326,7 @@ service:s6 = {
  permit src = user; dst = network:n5; prt = tcp;
 }
 
-# ok -> restrict: is like enable -> enable
+# ok -> restrict: is like ok -> ok
 service:s7 = {
  overlaps = service:s8;
  user = network:n1;
@@ -329,10 +336,57 @@ service:s8 = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp;
 }
+
+# enable -> restrict: is like enable -> enable
+service:s9 = {
+ overlaps = service:s10;
+ user = network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s10 = {
+ user = network:n2;
+ permit src = user; dst = network:n4; prt = tcp;
+}
+
+# ok -> owner:ok: no warning
+service:s11 = {
+ user = network:n3;
+ permit src = user; dst = network:n7; prt = tcp 80;
+}
+service:s12 = {
+ user = network:n3;
+ permit src = user; dst = network:n7; prt = tcp;
+}
+
+# ok -> owner:restrict: no warning
+service:s13 = {
+ overlaps = service:s14;
+ user = network:n3;
+ permit src = user; dst = network:n8; prt = tcp 80;
+}
+service:s14 = {
+ user = network:n3;
+ permit src = user; dst = network:n8; prt = tcp;
+}
+# owner:restrict -> resrict: can't suppress warning
+service:s15 = {
+ overlaps = service:s16;
+ user = network:n8;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s16 = {
+ user = network:n8;
+ permit src = user; dst = network:n4; prt = tcp;
+}
+
 END
 
 $out = <<'END';
+Warning: Must not use attribute 'overlaps' at service:s15
 Warning: Must not use attribute 'overlaps' at service:s5
+Warning: Redundant rules in service:s15 compared to service:s16:
+  permit src=network:n8; dst=network:n4; prt=tcp 80; of service:s15
+< permit src=network:n8; dst=network:n4; prt=tcp; of service:s16
 Warning: Redundant rules in service:s5 compared to service:s6:
   permit src=network:n4; dst=network:n5; prt=tcp 80; of service:s5
 < permit src=network:n4; dst=network:n5; prt=tcp; of service:s6

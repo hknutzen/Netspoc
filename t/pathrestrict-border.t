@@ -539,6 +539,65 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Minimal path inside loop with pathrestriction at border inside path';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+pathrestriction:p1 = interface:r1.n2, interface:r3.n2;
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = interface:r1.n2; prt = icmp 8;
+ permit src = interface:r1.n2; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+--r1
+ip access-list extended n2_in
+ permit icmp 10.1.3.0 0.0.0.255 host 10.1.2.1 8
+ deny ip any any
+--r3
+ip access-list extended n2_in
+ deny ip any host 10.1.3.1
+ permit icmp host 10.1.2.1 10.1.3.0 0.0.0.255 8
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit icmp 10.1.3.0 0.0.0.255 host 10.1.2.1 8
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Mixed start and entry at pathrestriction at border of loop';
 ############################################################
 

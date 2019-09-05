@@ -412,6 +412,68 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Rule from/to interface between unconnected partitions';
+############################################################
+# zone1 is at network0,
+# interface is at other zone at border of loop.
+
+$in = <<'END';
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; partition = part1; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+network:n4 = { ip = 10.1.4.0/24; partition = part2; }
+router:r3 = {
+ interface:n4;
+}
+
+pathrestriction:p = interface:r1.n1, interface:r2.n3;
+
+service:s1 = {
+ user = interface:r2.n3;
+ permit src = user; dst = network:n4; prt = tcp 80;
+ permit src = network:n4; dst = user; prt = tcp 80 ;
+}
+END
+
+$out = <<'END';
+Error: No valid path
+ from any:[network:n3]
+ to any:[network:n4]
+ for rule permit src=interface:r2.n3; dst=network:n4; prt=tcp 80; of service:s1
+ Source and destination objects are located in different topology partitions: part1, part2.
+Error: No valid path
+ from interface:r2.n3
+ to any:[network:n4]
+ for rule permit src=interface:r2.n3; dst=network:n4; prt=tcp 80; of service:s1
+ Source and destination objects are located in different topology partitions: part1, part2.
+Error: No valid path
+ from any:[network:n4]
+ to interface:r2.n3
+ for rule permit src=network:n4; dst=interface:r2.n3; prt=tcp 80; of service:s1
+ Source and destination objects are located in different topology partitions: part2, part1.
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Intentionally unconnected, with loops 1';
 ############################################################
 $in = <<'END';

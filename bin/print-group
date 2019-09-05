@@ -45,6 +45,10 @@ Show only IP address of elements.
 
 Show owner of elements.
 
+=item B<-ipv6>
+
+Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
+
 =item B<-f> FILE
 
 Read group definitions from FILE, one definition per line.
@@ -68,8 +72,7 @@ Prints the manual page and exits.
 
 (c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
-This program uses module Netspoc.pm,
-a Network Security Policy Compiler,
+This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
 
 This program is free software; you can redistribute it and/or modify
@@ -270,6 +273,11 @@ if ($show_unused) {
                     $used{$obj} = 1;
                     if (is_host($obj) or is_interface($obj)) {
                         $used{$obj->{network}} = 1;
+                    }
+                    elsif (is_network($obj) and $obj->{has_id_hosts}) {
+                        for my $host (@{ $obj->{hosts} }) {
+                            $used{$host} = 1;
+                        }
                     }
                 }
             }
