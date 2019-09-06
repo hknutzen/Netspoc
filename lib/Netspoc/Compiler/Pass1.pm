@@ -11477,7 +11477,9 @@ sub setpath_obj {
     for my $interface (@{ $obj->{interfaces} }) {
 
         # Skip interfaces:
+        no warnings "uninitialized";
         next if $interface eq $to_zone1;  # Interface where we reached this obj.
+        use warnings "uninitialized";
         next if $interface->{loop}; # Interface is entry of already marked loop.
         next if $interface->{main_interface};
 
@@ -11627,7 +11629,7 @@ sub find_dists_and_loops {
         # Traverse all nodes connected to zone1.
         # Second parameter stands for not existing starting interface.
         # Value must be "false" and unequal to any interface.
-        my $max = setpath_obj($zone1, '', $start_distance);
+        my $max = setpath_obj($zone1, undef, $start_distance);
 
         # Use other distance values in disconnected partition.
         # Otherwise pathmark would erroneously find a path between
@@ -11762,7 +11764,7 @@ sub setpath {
     check_pathrestrictions();       # Consistency checks, need {loop} attribute.
     check_virtual_interfaces();     # Consistency check, needs {loop} attribute.
     remove_redundant_pathrestrictions();
-    optimize_pathrestrictions();    # Add navigation info to pathrestricted IFs.
+#    optimize_pathrestrictions();    # Add navigation info to pathrestricted IFs.
 }
 
 ####################################################################
@@ -18959,7 +18961,6 @@ sub compile {
             gen_reverse_rules();
             if ($out_dir) {
                 mark_secondary_rules();
-                rules_distribution();
                 call_go('spoc1-print', {
                     config => $config,
                     start_time => $start_time,
@@ -18973,6 +18974,7 @@ sub compile {
                     deny_any6_rule => $deny_any6_rule,
                     managed_routers => \@managed_routers,
                     routing_only_routers => \@routing_only_routers,
+                    path_rules => \%path_rules,
                     out_dir => $out_dir,
                         });
                 copy_raw($in_path, $out_dir);
