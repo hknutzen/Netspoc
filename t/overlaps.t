@@ -348,7 +348,7 @@ service:s10 = {
  permit src = user; dst = network:n4; prt = tcp;
 }
 
-# ok -> owner:ok: no warning
+# ok -> network:ok: no warning
 service:s11 = {
  user = network:n3;
  permit src = user; dst = network:n7; prt = tcp 80;
@@ -358,7 +358,7 @@ service:s12 = {
  permit src = user; dst = network:n7; prt = tcp;
 }
 
-# ok -> owner:restrict: no warning
+# ok -> network:restrict: no warning
 service:s13 = {
  overlaps = service:s14;
  user = network:n3;
@@ -368,7 +368,7 @@ service:s14 = {
  user = network:n3;
  permit src = user; dst = network:n8; prt = tcp;
 }
-# owner:restrict -> resrict: can't suppress warning
+# network:restrict -> resrict: can't suppress warning
 service:s15 = {
  overlaps = service:s16;
  user = network:n8;
