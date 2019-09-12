@@ -18960,7 +18960,6 @@ sub compile {
             find_active_routes();
             gen_reverse_rules();
             if ($out_dir) {
-                mark_secondary_rules();
                 call_go('spoc1-print', {
                     config => $config,
                     start_time => $start_time,
