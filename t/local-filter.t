@@ -877,6 +877,68 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Two disjunct local-filter parts";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ managed = local;
+ filter_only = 10.1.1.0/24, 10.1.2.0/24;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r4 = {
+ managed = local;
+ filter_only = 10.1.4.0/23;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+
+service:s1 = {
+ user = network:n1, network:n4;
+ permit src = user; dst = network:n5; prt = tcp 25;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+-- r4
+! n4_in
+access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 10.1.5.0 255.255.255.0 eq 25
+access-list n4_in extended deny ip 10.1.4.0 255.255.254.0 10.1.4.0 255.255.254.0
+access-list n4_in extended permit ip any4 any4
+access-group n4_in in interface n4
+END
+
+test_run($title, $in, $out);
+############################################################
 $title = "general_permit";
 ############################################################
 

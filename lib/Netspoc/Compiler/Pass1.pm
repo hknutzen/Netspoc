@@ -14780,7 +14780,7 @@ sub mark_secondary {
         next if $in_interface->{main_interface};
         my $router = $in_interface->{router};
         if (my $managed = $router->{managed}) {
-            next if $managed !~ /^(?:secondary|local.*)$/;
+            next if $managed !~ /^(?:secondary|local)$/;
         }
         $zone->{has_secondary} = 1;
         next if $router->{secondary_mark};
