@@ -18980,6 +18980,7 @@ sub compile {
                     managed_routers => \@managed_routers,
                     routing_only_routers => \@routing_only_routers,
                     path_rules => \%path_rules,
+                    zones => \@zones,
                     out_dir => $out_dir,
                         });
                 copy_raw($in_path, $out_dir);
