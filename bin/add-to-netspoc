@@ -51,7 +51,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -191,7 +191,7 @@ sub process {
                 )
             {
                 $copy .= $1;
-                if ($1 =~ /^(?: \s* [&])/x and $subst_done) {
+                if ($1 =~ /^ \s* [&] /x and $subst_done) {
                     warn("Warning: Substituted in intersection\n");
                 }
             }
