@@ -15,9 +15,7 @@ sub run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my ($path) = glob "~/go-Netspoc/cmd/rename-netspoc/rename-netspoc";
-    my $cmd = "$path -q $filename $args";
+    my $cmd = "bin/rename-netspoc -q $filename $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
