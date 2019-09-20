@@ -154,9 +154,9 @@ sub process {
                 # by start of list.
                 # Add new entry to separate line with same indentation.
                 if (my ($prefix) =
-                    $copy =~ /\n ( (?:[ \t]*[\w:]+[ \t]*=)? [ \t]* ) $/x
+                    $copy =~ /(?:^|\n) ( (?:[ \t]*[-\w:]+[ \t]*=)? [ \t]* ) \z/x
                     and
-                    $input =~ /\G ((?:[ \t]* [,;])?) ([ \t]* (?:[#].*)?) \n/gcx)
+                    $input =~ /\G ((?:[ \t]* [,;])?) ([ \t]* (?:[#].*)?) (?:\n|$)/gcx)
                 {
                     my ($delim, $comment) = ($1, $2);
                     (my $indent = $prefix) =~ s/[^\s]/ /g;
