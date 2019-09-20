@@ -12,9 +12,8 @@ sub test_run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "$^X $perl_opt -I lib $what -q $filename $args";
+    my $cmd = "$what -q $filename $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
