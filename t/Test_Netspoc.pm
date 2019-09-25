@@ -17,6 +17,9 @@ use File::Path 'make_path';
 use lib 'lib';
 use Netspoc::Compiler::Pass1;
 
+# Add "bin/" because Pass1.pm calls other programs in same directory.
+$ENV{PATH} = "bin/:$ENV{PATH}";
+
 my $default_options = '--quiet';
 
 sub prepare_in_dir {
@@ -78,7 +81,7 @@ sub run {
                 # Copy unchanged arguments.
                 my $args2 = [ @$args ];
                 Netspoc::Compiler::Pass1::compile($args);
-                system('bin/spoc2', @$args2) if $out_dir;
+                system('spoc2', @$args2) if $out_dir;
                 $result = 1;
             };
             if($@) {
