@@ -19001,8 +19001,7 @@ sub call_go {
         close $fh;
     }
     else {
-        my ($cmd) = glob "~/go-Netspoc/cmd/$what/$what";
-        open(my $fh, '|-:bytes', $cmd) or die "Can't open '$cmd': $!\n";
+        open(my $fh, '|-:bytes', $what) or die "Can't start '$what': $!\n";
         print $fh $e->encode($data);
         if (not close($fh)) {
             if ($!) {
