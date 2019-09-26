@@ -18964,6 +18964,7 @@ sub compile {
                     config => $config,
                     start_time => $start_time,
                     program => $program,
+                    version => $version,
                     prt_ip => $prt_ip,
                     prt_bootpc => $prt_bootpc,
                     prt_bootps => $prt_bootps,
@@ -19001,7 +19002,8 @@ sub call_go {
         close $fh;
     }
     else {
-        open(my $fh, '|-:bytes', $what) or die "Can't start '$what': $!\n";
+        my $full = `which $what` or die "Can't find '$what' in PATH\n";
+        open(my $fh, '|-:bytes', $full) or die "Can't start '$full': $!\n";
         print $fh $e->encode($data);
         if (not close($fh)) {
             if ($!) {
