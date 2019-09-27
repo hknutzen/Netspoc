@@ -344,6 +344,32 @@ $title = 'NAT network is undeclared subnet';
 ############################################################
 
 $in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { hidden; }
+ has_subnets;
+ host:h65 = { ip = 10.1.1.65; }
+}
+network:n1sub = { ip = 10.1.1.64/26; nat:n1sub = { ip = 10.1.2.64/26; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n1sub; }
+ interface:l = { ip = 10.1.9.9; loopback; }
+ interface:n1sub = { bind_nat = n1; }
+}
+END
+
+$out = <<'END';
+Warning: IP of host:h65 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'NAT network is undeclared subnet';
+############################################################
+
+$in = <<'END';
 network:Test =  {
  ip = 10.0.0.0/28;
  nat:C = { ip = 10.8.3.240/28; } #subnet_of = network:X; }

@@ -27,6 +27,10 @@ Uses network:name as reference when resolving IP address in a NAT environment.
 
 Show name, not IP of elements.
 
+=item B<-ipv6>
+
+Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
+
 =item B<-quiet>
 
 Don't print progress messages.
@@ -45,8 +49,7 @@ Prints the manual page and exits.
 
 (c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
-This program uses module Netspoc.pm,
-a Network Security Policy Compiler,
+This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
 
 This program is free software; you can redistribute it and/or modify
@@ -75,7 +78,7 @@ use Netspoc::Compiler::Pass1;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '5.054'; # VERSION: inserted by DZP::OurPkgVersion
+# VERSION: inserted by DZP::OurPkgVersion
 
 ####################################################################
 # Argument processing

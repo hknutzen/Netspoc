@@ -16,7 +16,9 @@ use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 use lib 'lib';
 use Netspoc::Compiler::Pass1;
-use Netspoc::Compiler::Pass2;
+
+# Add "bin/" because Pass1.pm calls other programs in same directory.
+$ENV{PATH} = "bin/:$ENV{PATH}";
 
 my $default_options = '--quiet';
 
@@ -79,7 +81,7 @@ sub run {
                 # Copy unchanged arguments.
                 my $args2 = [ @$args ];
                 Netspoc::Compiler::Pass1::compile($args);
-                Netspoc::Compiler::Pass2::compile($args2);
+                system('spoc2', @$args2) if $out_dir;
                 $result = 1;
             };
             if($@) {
@@ -146,6 +148,11 @@ sub compare_warnings_and_devices {
         if ($options and $options =~ /verbose/) {
             $stderr =~ s/(?<=^Netspoc, version ).*/TESTING/;
             $stderr =~ s/\Q$dir\E//g;
+        }
+
+        # Normalize order of DIAG messages: "Reuse .prev/".
+        if ($warnings =~ /DIAG: Reused/) {
+            $stderr = join '', sort split /^/, $stderr;
         }
 
         eq_or_diff($stderr, $warnings, $title);

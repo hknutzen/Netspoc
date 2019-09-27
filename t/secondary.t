@@ -391,6 +391,47 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = "Optimize even if src range is different";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = udp 53:1-65535, udp 123:1-65535;
+}
+END
+
+$out = <<'END';
+--r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = "Interface of standard router as destination";
 ############################################################
 # interface:r2.n2 must not be otimized
@@ -637,6 +678,99 @@ $out = <<'END';
 ip access-list extended n3_in
  permit tcp 10.2.3.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Find group, even if protocol IP comes from optimization";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h10 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = primary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = host:h10;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:n3; prt = ip;
+}
+END
+
+$out = <<'END';
+--r2
+! n2_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list n2_in extended permit ip object-group g0 10.1.3.0 255.255.255.0
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "Unmanaged router with pathrestriction is not non secondary";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+router:r3 = {
+ model = ASA;
+ managed = secondary;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+
+pathrestriction:p1 = interface:r1.n2, interface:r2.n2;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r3
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 END
 
 test_run($title, $in, $out);

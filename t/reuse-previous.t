@@ -9,6 +9,7 @@ use Test::More;
 use Test::Differences;
 use lib 't';
 use Test_Netspoc;
+$ENV{SHOW_DIAG} = 1;
 
 my ($title, $in, $out, $topo);
 

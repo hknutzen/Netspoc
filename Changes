@@ -1,3 +1,13 @@
+6.000     2019-09-27 13:55:04+02:00 Europe/Berlin
+
+ - Started migration of Netspoc from Perl to Go (golang).
+   Some parts have already been migrated with identical functionality:
+   - Checking for redundant rules
+   - Marking rules for secondary optimization
+   - Rules distribution
+   - Printing intermediate code
+   - Pass2, generating code
+
 5.054     2019-08-14 14:30:11+02:00 Europe/Berlin
 
  - Now also network supports attributes

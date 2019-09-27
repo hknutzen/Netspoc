@@ -12,9 +12,8 @@ sub test_run {
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "$^X $perl_opt -I lib $what -q $filename $args";
+    my $cmd = "$what -q $filename $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
@@ -295,6 +294,42 @@ group:x =
 END
 
 test_rmv($title, $out, 'host:a1 host:b1 host:d1 host:e1 host:f1 host:g1', $in);
+
+############################################################
+$title = 'Add on new line for single object after definition';
+############################################################
+
+$in = <<'END';
+group:g-1 = host:a,
+          ;
+END
+
+$out = <<'END';
+group:g-1 = host:a,
+            host:a1,
+          ;
+END
+
+test_add($title, $in, 'host:a host:a1', $out);
+
+############################################################
+$title = 'Add on new line for single object after definition (2)';
+############################################################
+
+$in = <<'END';
+# first line
+group:g-1 = host:a,
+          ;
+END
+
+$out = <<'END';
+# first line
+group:g-1 = host:a,
+            host:a1,
+          ;
+END
+
+test_add($title, $in, 'host:a host:a1', $out);
 
 ############################################################
 $title = 'Find group after commented group';

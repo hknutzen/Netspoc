@@ -226,11 +226,6 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
   permit src=host:h7; dst=network:n2; prt=tcp 80; of service:test
 < permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
---r
-ip access-list extended n1_in
- deny ip any host 10.1.2.1
- permit tcp 10.1.1.4 0.0.0.3 10.1.2.0 0.0.0.255 eq 80
- deny ip any any
 END
 
 Test::More->builder->todo_start($title);

@@ -23,17 +23,17 @@ my %WriteMakefileArgs = (
     "bin/remove-from-netspoc",
     "bin/rename-netspoc",
     "bin/spoc1",
+    "bin/spoc1-check",
+    "bin/spoc1-print",
     "bin/spoc2"
   ],
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {
     "Capture::Tiny" => 0,
-    "Digest::SHA" => 0,
     "Encode" => 0,
     "Exporter" => 0,
     "File::Basename" => 0,
-    "File::Path" => 0,
     "Getopt::Long" => 0,
     "IO::Pipe" => 0,
     "JSON" => 0,
@@ -41,6 +41,7 @@ my %WriteMakefileArgs = (
     "NetAddr::IP::Util" => 0,
     "Pod::Usage" => 0,
     "Regexp::IPv6" => 0,
+    "Sereal::Encoder" => 0,
     "constant" => 0,
     "feature" => 0,
     "open" => 0,
@@ -49,6 +50,7 @@ my %WriteMakefileArgs = (
   },
   "TEST_REQUIRES" => {
     "Carp" => 0,
+    "File::Path" => 0,
     "File::Spec::Functions" => 0,
     "File::Temp" => 0,
     "IPC::Run3" => 0,
@@ -57,7 +59,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "5.054",
+  "VERSION" => "6.000",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -67,7 +69,6 @@ my %WriteMakefileArgs = (
 my %FallbackPrereqs = (
   "Capture::Tiny" => 0,
   "Carp" => 0,
-  "Digest::SHA" => 0,
   "Encode" => 0,
   "Exporter" => 0,
   "File::Basename" => 0,
@@ -83,6 +84,7 @@ my %FallbackPrereqs = (
   "POSIX" => 0,
   "Pod::Usage" => 0,
   "Regexp::IPv6" => 0,
+  "Sereal::Encoder" => 0,
   "Test::Differences" => 0,
   "Test::More" => 0,
   "constant" => 0,

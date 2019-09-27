@@ -6,6 +6,7 @@ use Test::More;
 use Test::Differences;
 use lib 't';
 use Test_Netspoc;
+use Test_Group;
 
 my ($title, $crypto_vpn, $crypto_sts, $topo, $in, $out);
 
@@ -1377,6 +1378,46 @@ access-group outside_in in interface outside
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Mark ID hosts as used even if only network is used (1)';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = network:customers1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+area:all = { anchor = network:intern; }
+END
+
+$out = <<'END';
+10.99.2.0-10.99.2.63	host:id:domain.x.customers2
+10.99.2.128-10.99.2.191	host:id:zzz.customers2
+10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
+END
+
+test_group($title, $in, 'host:[area:all]', $out, '-unused');
+
+############################################################
+$title = 'Mark ID hosts as used even if only network is used (2)';
+############################################################
+
+$in = $topo . <<'END';
+service:s2 = {
+ user = host:id:bar@domain.x.customers1, network:customers2;
+ permit src = user; dst = network:intern; prt = tcp 81;
+}
+area:all = { anchor = network:intern; }
+END
+
+$out = <<'END';
+10.99.1.10	host:id:foo@domain.x.customers1
+10.99.1.12	host:id:baz@domain.x.customers1
+10.99.1.254	host:id:unused@domain.x.customers1
+END
+
+test_group($title, $in, 'host:[area:all]', $out, '-unused');
 
 ############################################################
 $title = 'ASA, VPN in CONTEXT';
