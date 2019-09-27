@@ -1,1 +1,0 @@
-for i in go/cmd/* ; do (cd $i; go build) ; done
