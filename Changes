@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.000     2019-09-27 13:55:04+02:00 Europe/Berlin
+
  - Started migration of Netspoc from Perl to Go (golang).
    Some parts have already been migrated with identical functionality:
    - Checking for redundant rules
