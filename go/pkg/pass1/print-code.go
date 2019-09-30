@@ -1172,7 +1172,6 @@ func printCiscoAcls(fh *os.File, router *router) {
 					// address. It has already been checked, that all
 					// networks of this zone match attribute filterOnly.
 					intfOk := 0
-				OUTER:
 					for _, intf := range hardware.interfaces {
 						zone := intf.zone
 						if zone.zoneCluster != nil {
@@ -1181,26 +1180,11 @@ func printCiscoAcls(fh *os.File, router *router) {
 
 						// Ignore real interface of virtual interface.
 						interfaces := zone.nonSecondaryIntfs()
-						if len(interfaces) > 1 {
 
-							// Multilpe interfaces belonging to one redundancy
-							// group can't be used to cross the zone.
-							list1 := interfaces[0].redundancyIntfs
-							if list1 == nil {
-								break
-							}
-							// Check for equality of lists.
-							for _, intf := range interfaces[1:] {
-								list2 := intf.redundancyIntfs
-								if len(list2) != len(list1) {
-									break OUTER
-								}
-								for i, obj := range list1 {
-									if obj != list2[i] {
-										break OUTER
-									}
-								}
-							}
+						// Multiple interfaces belonging to one redundancy
+						// group can't be used to cross the zone.
+						if len(interfaces) > 1 && !isRedundanyGroup(interfaces) {
+							break
 						}
 						intfOk++
 					}
@@ -2462,7 +2446,7 @@ func printCode(dir string) {
 	printRouter(routingOnlyRouters)
 }
 
-func PrintCode() {
-	checkOutputDir(outDir)
-	printCode(outDir)
+func PrintCode(dir string) {
+	checkOutputDir(dir)
+	printCode(dir)
 }

@@ -193,8 +193,11 @@ func convNetwork(x xAny) *network {
 	n.interfaces = convRouterIntfs(m["interfaces"])
 	n.zone = convZone(m["zone"])
 	n.hasOtherSubnet = getBool(m["has_other_subnet"])
+	n.isAggregate = getBool(m["is_aggregate"])
+	n.maxRoutingNet = convNetwork(m["max_routing_net"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
 	n.nat = convNetNat(m["nat"])
+	n.networks = convNetworks(m["networks"])
 	n.dynamic = getBool(m["dynamic"])
 	n.hidden = getBool(m["hidden"])
 	n.ipV6 = getBool(m["ipv6"])
@@ -432,15 +435,15 @@ func convRouterIntf(x xAny) *routerIntf {
 	i.reroutePermit = convSomeObjects(m["reroute_permit"])
 	if x, ok := m["routes"]; ok {
 		m1 := getMap(x)
-		n1 := make(map[*routerIntf]map[*network]bool)
+		n1 := make(map[*routerIntf]netMap)
 		m2 := getMap(m["hopref2obj"])
 		n2 := make(map[string]*routerIntf)
 		for ref, intf := range m2 {
 			n2[getString(ref)] = convRouterIntf(intf)
 		}
-		for ref, netMap := range m1 {
-			m := getMap(netMap)
-			n := make(map[*network]bool)
+		for ref, nMap := range m1 {
+			m := getMap(nMap)
+			n := make(netMap)
 			for _, x := range m {
 				n[convNetwork(x)] = true
 			}
@@ -1012,7 +1015,7 @@ func ImportFromPerl() {
 	managedRouters = convRouters(m["managed_routers"])
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
-	outDir = getString(m["out_dir"])
+	OutDir = getString(m["out_dir"])
 	pRules = convpathRules(m["path_rules"])
 	permitAny6Rule = convRule(m["permit_any6_rule"])
 	permitAnyRule = convRule(m["permit_any_rule"])

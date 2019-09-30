@@ -4,27 +4,30 @@ import (
 	"time"
 )
 
-var version string
+var (
+	version string
 
-var config Config
+	config Config
 
-var startTime time.Time
-var ErrorCounter int
+	startTime    time.Time
+	ErrorCounter int
 
-var prtIP *proto
-var prtBootps *proto
-var prtBootpc *proto
-var xxrpInfo map[string]*xxrp
+	prtIP     *proto
+	prtBootps *proto
+	prtBootpc *proto
+	xxrpInfo  map[string]*xxrp
 
-var protocols map[string]*proto
-var protocolgroups map[string]*protoGroup
+	protocols      map[string]*proto
+	protocolgroups map[string]*protoGroup
+	routers        map[string]*router
+	routers6       map[string]*router
+	services       map[string]*service
 
-var services map[string]*service
+	pRules *pathRules
 
-var pRules *pathRules
+	managedRouters     []*router
+	routingOnlyRouters []*router
+	zones              []*zone
 
-var managedRouters []*router
-var routingOnlyRouters []*router
-var zones []*zone
-
-var outDir string
+	OutDir string
+)

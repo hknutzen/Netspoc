@@ -21,6 +21,7 @@ type someObj interface {
 	getUp() someObj
 	address(nn natSet) net.IPNet
 	getAttr(attr string) string
+	getPathNode() pathStore
 	setCommon(m xMap) // for importFromPerl
 }
 
@@ -48,8 +49,11 @@ type network struct {
 	interfaces       []*routerIntf
 	zone             *zone
 	hasOtherSubnet   bool
+	isAggregate      bool
+	maxRoutingNet    *network
 	maxSecondaryNet  *network
 	nat              map[string]*network
+	networks         []*network
 	dynamic          bool
 	hidden           bool
 	ipV6             bool
@@ -182,7 +186,8 @@ type routerIntf struct {
 	redundancyType  string
 	redundant       bool
 	reroutePermit   []someObj
-	routes          map[*routerIntf]map[*network]bool
+	routeInZone     map[*network]intfList
+	routes          map[*routerIntf]netMap
 	routing         *routing
 	rules           ruleList
 	intfRules       ruleList
@@ -191,6 +196,14 @@ type routerIntf struct {
 	toZone1         pathObj
 	zone            *zone
 }
+
+type intfList []*routerIntf
+
+// Add element to slice.
+func (a *intfList) push(e *routerIntf) {
+	*a = append(*a, e)
+}
+
 type idIntf struct {
 	*routerIntf
 	src *subnet
