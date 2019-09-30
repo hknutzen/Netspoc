@@ -19,7 +19,7 @@ func (l intfList) nameList() string {
 	for _, intf := range l {
 		names.push(intf.name)
 	}
-	return strings.Join(names, "\n - ")
+	return " - " + strings.Join(names, "\n - ")
 }
 
 func intfListEq(l1, l2 []*routerIntf) bool {
@@ -241,6 +241,8 @@ func setRoutesInZone(zone *zone) {
 		for net, _ := range *clust {
 			nMap[net] = true
 		}
+		// Add preliminary result to stop deep recursion.
+		hop2netMap[hop] = nMap
 
 		// Proceed depth first search with adjacent border networks.
 		for border, _ := range cluster2borders[clust] {
@@ -919,24 +921,30 @@ func checkAndConvertRoutes() {
 					// for the encrypted traffic which is allowed
 					// by genTunnelRules (even for negotiated interface).
 					count := len(hops)
-					errMsg("Can't determine next hop to reach %s"+
-						" while moving routes\n"+
-						" of %s to %s.\n"+
-						" Exactly one route is needed,"+
+					errMsg("Can't determine next hop to reach %s" +
+						" while moving routes\n" +
+						" of %s to %s.\n" +
+						" Exactly one route is needed," +
 						" but %d candidates were found:\n%s",
-						hops.nameList(),
 						peerNet.name,
 						intf.name,
 						realIntf.name,
-						count)
+						count,
+						hops.nameList(),
+					)
 				}
 
 				hop := hops[0]
-				if realIntf.routes[hop] == nil {
-					realIntf.routes[hop] = make(netMap)
+				routes := realIntf.routes
+				if routes == nil {
+					routes = make(map[*routerIntf]netMap)
 				}
-				hopRoutes := realIntf.routes[hop]
-				//          debug("Use %s as hop for %s", hop.name, real_peer.name)
+				hopRoutes := routes[hop]
+				if hopRoutes == nil {
+					hopRoutes = make(netMap)
+					routes[hop] = hopRoutes
+				}
+				// debug("Use %s as hop for %s", hop.name, real_peer.name)
 
 				// Use found hop to reach tunneled networks in tunnel_routes.
 				for _, tunnelNetHash := range tunnelRoutes {
@@ -951,6 +959,8 @@ func checkAndConvertRoutes() {
 					natNet := getNatNetwork(peerNet, natSet)
 					hopRoutes[natNet] = true
 				}
+
+				realIntf.routes = routes
 			}
 
 			// Remember, via which local interface a network is reached.
@@ -975,7 +985,7 @@ func checkAndConvertRoutes() {
 				// of redundancy interfaces are used to reach a network.
 				// Otherwise it would be wrong to route to virtual interface.
 				var netBehindVirtHop []*network
-				var net2extraHops map[*network]intfList
+				net2extraHops := make(map[*network]intfList)
 
 				// Abort, if more than one static route exists per network.
 				for hop, netMap := range intf.routes {
@@ -1039,6 +1049,9 @@ func checkAndConvertRoutes() {
 					physHop := hop1.origMain
 					if len(extraHops) == 0 && physHop != nil {
 						delete(intf.routes[hop1], network)
+						if intf.routes[physHop] == nil {
+							intf.routes[physHop] = make(netMap)
+						}
 						intf.routes[physHop][network] = true
 						continue
 					}
@@ -1053,15 +1066,15 @@ func checkAndConvertRoutes() {
 					names := strings.Join(nameList, "\n - ")
 					errors.push(
 						fmt.Sprintf(
-							"Pathrestriction ambiguously affects generation"+
-								" of static routes\n"+
-								" to interfaces with virtual IP %s:\n"+
-								" %s is reached via\n"+
-								" - %s"+
-								" But %d interface(s) of group are missing.\n"+
-								" Remaining paths must traverse\n"+
-								" - all interfaces or\n"+
-								" - exactly one interface\n"+
+							"Pathrestriction ambiguously affects generation" +
+								" of static routes\n" +
+								"       to interfaces with virtual IP %s:\n" +
+								" %s is reached via\n" +
+								" - %s\n" +
+								" But %d interface(s) of group are missing.\n" +
+								" Remaining paths must traverse\n" +
+								" - all interfaces or\n" +
+								" - exactly one interface\n" +
 								" of this group.",
 							hop1.ip.String(), network.name, names, missing))
 				}

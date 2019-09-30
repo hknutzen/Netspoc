@@ -1250,13 +1250,10 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 			"different topology partitions: " +
 			zone1.partition + ", " + zone2.partition + "."
 	} else {
-		msg = " Check path restrictions && crypto interfaces."
+		msg = " Check path restrictions and crypto interfaces."
 	}
-	errMsg("No valid path\n" +
-		" from srcPath.name\n" +
-		" to dstPath.name\n" +
-		" context\n" +
-		msg)
+	errMsg("No valid path\n from %s\n to %s\n %s\n" + msg,
+		srcPath.getName(), dstPath.getName(), context)
 }
 
 //#############################################################################

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/go-Netspoc/pkg/abort"
-	"github.com/hknutzen/go-Netspoc/pkg/fileop"
-	"github.com/hknutzen/go-Netspoc/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net"
 	"os"
 	"os/exec"
@@ -1674,7 +1674,7 @@ func printCrypto(fh *os.File, router *router) {
 	}
 
 	// Use interface access lists to filter incoming crypto traffic.
-	// Group policy && per-user authorization access list can't be used
+	// Group policy and per-user authorization access list can't be used
 	// because they are stateless.
 	if strings.HasPrefix(cryptoType, "ASA") {
 		fmt.Fprintln(fh, "! VPN traffic is filtered at interface ACL")
