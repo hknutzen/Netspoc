@@ -1,4 +1,4 @@
-module github.com/hknutzen/go-Netspoc
+module github.com/hknutzen/Netspoc/go
 
 go 1.13
 

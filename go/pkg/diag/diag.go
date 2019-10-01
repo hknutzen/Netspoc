@@ -2,7 +2,7 @@ package diag
 
 import (
 	"fmt"
-	"github.com/hknutzen/go-Netspoc/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"os"
 	"time"
 )

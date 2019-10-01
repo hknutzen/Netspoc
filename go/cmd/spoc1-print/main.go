@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/hknutzen/go-Netspoc/pkg/pass1"
+	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"os"
 )
 
