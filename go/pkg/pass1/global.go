@@ -22,6 +22,7 @@ var protocolgroups map[string]*protoGroup
 var services map[string]*service
 
 var pRules *pathRules
+var sRules *serviceRules
 
 var managedRouters []*router
 var routingOnlyRouters []*router

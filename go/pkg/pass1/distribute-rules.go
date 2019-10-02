@@ -208,7 +208,7 @@ func addRouterAcls() {
 			// Some managed devices are connected by a crosslink network.
 			// Permit any traffic at the internal crosslink interface.
 			if hardware.crosslink {
-				permitAny := getPermitAnyRule(ipv6)
+				permitAny := []*groupedRule{getPermitAnyRule(ipv6)}
 
 				// We can savely change rules at hardware interface
 				// because it has been checked that no other logical
@@ -223,16 +223,15 @@ func addRouterAcls() {
 						if hardware.ioRules == nil {
 							hardware.ioRules = make(map[string]ruleList)
 						}
-						hardware.ioRules[outHardware.name] =
-							[]*groupedRule{permitAny}
+						hardware.ioRules[outHardware.name] = permitAny
 					}
 				} else {
-					hardware.rules = []*groupedRule{permitAny}
+					hardware.rules = permitAny
 					if hardware.needOutAcl {
-						hardware.outRules = []*groupedRule{permitAny}
+						hardware.outRules = permitAny
 					}
 				}
-				hardware.intfRules = []*groupedRule{permitAny}
+				hardware.intfRules = permitAny
 				continue
 			}
 
@@ -242,11 +241,11 @@ func addRouterAcls() {
 				// some internal networks.
 				if len(intf.reroutePermit) != 0 {
 					netList := intf.reroutePermit
-					rule := &groupedRule{
-						src: []someObj{getNetwork00(ipv6)},
-						dst: netList,
-						prt: []*proto{prtIP},
-					}
+					rule := newRule(
+						[]someObj{getNetwork00(ipv6)},
+						netList,
+						[]*proto{prtIP},
+					)
 
 					// Prepend to all other rules.
 					if hasIoAcl {
@@ -272,24 +271,14 @@ func addRouterAcls() {
 
 						// Permit multicast packets from current network.
 						mcast := getMulticastObjects(routing.mcast, ipv6)
-						hardware.intfRules.push(
-							&groupedRule{
-								src: netList,
-								dst: mcast,
-								prt: prtList,
-							})
+						hardware.intfRules.push(newRule(netList, mcast, prtList))
 
 						// Additionally permit unicast packets.
 						// We use the network address as destination
 						// instead of the interface address,
 						// because we get fewer rules if the interface has
 						// multiple addresses.
-						hardware.intfRules.push(
-							&groupedRule{
-								src: netList,
-								dst: netList,
-								prt: prtList,
-							})
+						hardware.intfRules.push(newRule(netList, netList, prtList))
 					}
 				}
 
@@ -299,36 +288,21 @@ func addRouterAcls() {
 					xrrp := xxrpInfo[typ]
 					mcast := getMulticastObjects(xrrp.mcast, ipv6)
 					prtList := []*proto{xrrp.prt}
-					hardware.intfRules.push(
-						&groupedRule{
-							src: netList,
-							dst: mcast,
-							prt: prtList,
-						})
+					hardware.intfRules.push(newRule(netList, mcast, prtList))
 				}
 
 				// Handle DHCP requests.
 				if intf.dhcpServer {
 					netList := []someObj{getNetwork00(ipv6)}
 					prtList := []*proto{prtBootps}
-					hardware.intfRules.push(
-						&groupedRule{
-							src: netList,
-							dst: netList,
-							prt: prtList,
-						})
+					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 
 				// Handle DHCP answer.
 				if intf.dhcpClient {
 					netList := []someObj{getNetwork00(ipv6)}
 					prtList := []*proto{prtBootpc}
-					hardware.intfRules.push(
-						&groupedRule{
-							src: netList,
-							dst: netList,
-							prt: prtList,
-						})
+					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 			}
 		}
@@ -342,7 +316,7 @@ func distributeGeneralPermit() {
 			continue
 		}
 		net00List := []someObj{getNetwork00(router.ipV6)}
-		rule := &groupedRule{src: net00List, dst: net00List, prt: generalPermit}
+		rule := newRule(net00List, net00List, generalPermit)
 		needProtect := router.needProtect
 		for _, inIntf := range router.interfaces {
 			if inIntf.mainIntf != nil {

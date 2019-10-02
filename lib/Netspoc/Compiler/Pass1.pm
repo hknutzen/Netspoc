@@ -18941,7 +18941,6 @@ sub compile {
     concurrent(
         sub {
             check_unused_groups();
-            check_supernet_rules();
             call_go('spoc1-check', {
                 config => $config,
                 start_time => $start_time,
@@ -18949,7 +18948,9 @@ sub compile {
                 protocols  => \%protocols,
                 protocolgroups  => \%protocolgroups,
                 services   => \%services,
+                service_rules => \%service_rules,
                 path_rules => \%path_rules,
+                zones => \@zones,
                     });
         },
         sub {

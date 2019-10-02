@@ -7,6 +7,7 @@ import (
 
 func main() {
 	pass1.ImportFromPerl()
+	pass1.CheckSupernetRules()
 	pass1.CheckRedundantRules()
 	os.Exit(pass1.ErrorCounter)
 }

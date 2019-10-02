@@ -135,7 +135,7 @@ func getAttrFromNetwork(attr string, obj *network) string {
 		return v
 	}
 	if up := obj.up; up != nil {
-		v := getAttrFromNetwork(attr, up.(*network))
+		v := getAttrFromNetwork(attr, up)
 		if obj.attr == nil {
 			obj.attr = make(map[string]string)
 		}

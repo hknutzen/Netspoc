@@ -55,6 +55,7 @@ type pathStore interface {
 	setLoopEntry(pathStore, pathStore)
 	setLoopExit(pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
+	getZone() *zone
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
@@ -1256,7 +1257,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	} else {
 		msg = " Check path restrictions and crypto interfaces."
 	}
-	errMsg("No valid path\n from %s\n to %s\n %s\n" + msg,
+	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
 		srcPath.getName(), dstPath.getName(), context)
 }
 

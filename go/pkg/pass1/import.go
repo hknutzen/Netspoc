@@ -193,7 +193,9 @@ func convNetwork(x xAny) *network {
 	n.interfaces = convRouterIntfs(m["interfaces"])
 	n.zone = convZone(m["zone"])
 	n.hasOtherSubnet = getBool(m["has_other_subnet"])
+	n.isAggregate = getBool(m["is_aggregate"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
+	n.networks = convNetworks(m["networks"])
 	n.nat = convNetNat(m["nat"])
 	n.dynamic = getBool(m["dynamic"])
 	n.hidden = getBool(m["hidden"])
@@ -209,10 +211,12 @@ func convNetwork(x xAny) *network {
 		n.filterAt = p
 	}
 	n.hasIdHosts = getBool(m["has_id_hosts"])
+	n.invisible = getBool(m["invisible"])
 	n.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
+	n.up = convNetwork(m["up"])
 	return n
 }
-func convNetworks(x xAny) []*network {
+func convNetworks(x xAny) netList {
 	if x == nil {
 		return nil
 	}
@@ -338,6 +342,7 @@ func convRouter(x xAny) *router {
 	r.loop = convLoop(m["loop"])
 	r.needProtect = getBool(m["need_protect"])
 	r.noGroupCode = getBool(m["no_group_code"])
+	r.noInAcl = convRouterIntf(m["no_in_acl"])
 	if x, ok := m["no_secondary_opt"]; ok {
 		m := getMap(x)
 		n := make(map[*network]bool)
@@ -355,6 +360,12 @@ func convRouter(x xAny) *router {
 	r.trustPoint = getString(m["trust_point"])
 	r.ipV6 = getBool(m["ipv6"])
 	r.vrf = getString(m["vrf"])
+
+	// Add unique zone to each managed router.
+	// This represents the router itself.
+	if r.managed != "" {
+		r.zone = new(zone)
+	}
 	return r
 }
 func convRouters(x xAny) []*router {
@@ -624,8 +635,10 @@ func convZone(x xAny) *zone {
 	z.distance = getInt(m["distance"])
 	z.inArea = convArea(m["in_area"])
 	z.interfaces = convRouterIntfs(m["interfaces"])
+	z.ipmask2aggregate = convNetNat(m["ipmask2aggregate"])
 	z.loop = convLoop(m["loop"])
 	z.natDomain = convNATDomain(m["nat_domain"])
+	z.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
 	z.partition = getString(m["partition"])
 	z.toZone1 = convRouterIntf(m["to_zone1"])
 	z.zoneCluster = convZones(m["zone_cluster"])
@@ -845,8 +858,10 @@ func convRule(x xAny) *groupedRule {
 	if log, ok := m["log"]; ok {
 		r.log = getString(log)
 	}
+	r.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
 	r.stateless = getBool(m["stateless"])
 	r.statelessICMP = getBool(m["stateless_icmp"])
+	r.oneway = getBool(m["oneway"])
 	r.overlaps = getBool(m["overlaps"])
 	r.rule = convunexpRule(m["rule"])
 	r.someNonSecondary = getBool(m["some_non_secondary"])
@@ -854,7 +869,7 @@ func convRule(x xAny) *groupedRule {
 	return r
 }
 
-func convRules(x xAny) []*groupedRule {
+func convGroupedRules(x xAny) []*groupedRule {
 	if x == nil {
 		return nil
 	}
@@ -866,11 +881,36 @@ func convRules(x xAny) []*groupedRule {
 	return rules
 }
 
-func convpathRules(x xAny) *pathRules {
+func convPathRules(x xAny) *pathRules {
 	m := getMap(x)
 	r := new(pathRules)
-	r.permit = convRules(m["permit"])
-	r.deny = convRules(m["deny"])
+	r.permit = convGroupedRules(m["permit"])
+	r.deny = convGroupedRules(m["deny"])
+	return r
+}
+
+func convBaseRule(x xAny) *serviceRule {
+	r := convRule(x)
+	return &r.serviceRule
+}
+
+func convBaseRules(x xAny) []*serviceRule {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	rules := make([]*serviceRule, len(a))
+	for i, x := range a {
+		rules[i] = convBaseRule(x)
+	}
+	return rules
+}
+
+func convServiceRules(x xAny) *serviceRules {
+	m := getMap(x)
+	r := new(serviceRules)
+	r.permit = convBaseRules(m["permit"])
+	r.deny = convBaseRules(m["deny"])
 	return r
 }
 
@@ -974,14 +1014,16 @@ func convIsakmp(x xAny) *isakmp {
 func convConfig(x xAny) Config {
 	m := getMap(x)
 	c := Config{
-		Verbose:                  getBool(m["verbose"]),
-		TimeStamps:               getBool(m["time_stamps"]),
-		Pipe:                     getBool(m["pipe"]),
-		MaxErrors:                getInt(m["max_errors"]),
-		CheckDuplicateRules:      getString(m["check_duplicate_rules"]),
-		CheckRedundantRules:      getString(m["check_redundant_rules"]),
-		CheckFullyRedundantRules: getString(m["check_fully_redundant_rules"]),
-		autoDefaultRoute:         getBool(m["auto_default_route"]),
+		Verbose:                     getBool(m["verbose"]),
+		TimeStamps:                  getBool(m["time_stamps"]),
+		Pipe:                        getBool(m["pipe"]),
+		MaxErrors:                   getInt(m["max_errors"]),
+		CheckDuplicateRules:         getString(m["check_duplicate_rules"]),
+		CheckRedundantRules:         getString(m["check_redundant_rules"]),
+		CheckFullyRedundantRules:    getString(m["check_fully_redundant_rules"]),
+		CheckSupernetRules:          getString(m["check_supernet_rules"]),
+		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
+		autoDefaultRoute:            getBool(m["auto_default_route"]),
 	}
 	return c
 }
@@ -1013,7 +1055,8 @@ func ImportFromPerl() {
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
 	outDir = getString(m["out_dir"])
-	pRules = convpathRules(m["path_rules"])
+	sRules = convServiceRules(m["service_rules"])
+	pRules = convPathRules(m["path_rules"])
 	permitAny6Rule = convRule(m["permit_any6_rule"])
 	permitAnyRule = convRule(m["permit_any_rule"])
 	program = getString(m["program"])

@@ -5,14 +5,16 @@ import (
 )
 
 type Config struct {
-	CheckDuplicateRules      string
-	CheckRedundantRules      string
-	CheckFullyRedundantRules string
-	Verbose                  bool
-	TimeStamps               bool
-	Pipe                     bool
-	MaxErrors                int
-	autoDefaultRoute         bool
+	CheckDuplicateRules         string
+	CheckRedundantRules         string
+	CheckFullyRedundantRules    string
+	CheckSupernetRules          string
+	CheckTransientSupernetRules string
+	Verbose                     bool
+	TimeStamps                  bool
+	Pipe                        bool
+	MaxErrors                   int
+	autoDefaultRoute            bool
 }
 
 type someObj interface {
@@ -21,6 +23,8 @@ type someObj interface {
 	getUp() someObj
 	address(nn natSet) net.IPNet
 	getAttr(attr string) string
+	getPathNode() pathStore
+	getZone() *zone
 	setCommon(m xMap) // for importFromPerl
 }
 
@@ -48,7 +52,9 @@ type network struct {
 	interfaces       []*routerIntf
 	zone             *zone
 	hasOtherSubnet   bool
+	isAggregate      bool
 	maxSecondaryNet  *network
+	networks         netList
 	nat              map[string]*network
 	dynamic          bool
 	hidden           bool
@@ -57,10 +63,14 @@ type network struct {
 	certId           string
 	filterAt         map[int]bool
 	hasIdHosts       bool
+	invisible        bool
 	radiusAttributes map[string]string
+	up               *network
 }
 
 func (x *network) getNetwork() *network { return x }
+
+type netList []*network
 
 type netObj struct {
 	ipObj
@@ -136,6 +146,7 @@ type router struct {
 	generalPermit    []*proto
 	needProtect      bool
 	noGroupCode      bool
+	noInAcl          *routerIntf
 	noSecondaryOpt   map[*network]bool
 	hardware         []*hardware
 	origHardware     []*hardware
@@ -149,6 +160,9 @@ type router struct {
 	ipV6             bool
 	aclList          []*aclInfo
 	vrf              string
+
+	// This represents the router itself and is distinct from each real zone.
+	zone *zone
 }
 
 func (x *router) getName() string { return x.name }
@@ -156,27 +170,26 @@ func (x *router) getName() string { return x.name }
 type routerIntf struct {
 	netObj
 	pathStoreData
-	router         *router
-	crypto         *crypto
-	dhcpClient     bool
-	dhcpServer     bool
-	hub            []*crypto
-	spoke          *crypto
-	id             string
-	isHub          bool
-	hardware       *hardware
-	loop           *loop
-	loopback       bool
-	loopEntryZone  map[pathStore]pathStore
-	loopZoneBorder bool
-	mainIntf       *routerIntf
-	nat            map[string]net.IP
-	natSet         natSet
-	origMain       *routerIntf
-	pathRestrict   []*pathRestriction
-	//	reachableAt   map[pathObj][]int
+	router          *router
+	crypto          *crypto
+	dhcpClient      bool
+	dhcpServer      bool
+	hub             []*crypto
+	spoke           *crypto
+	id              string
+	isHub           bool
+	hardware        *hardware
+	loop            *loop
+	loopback        bool
+	loopEntryZone   map[pathStore]pathStore
+	loopZoneBorder  bool
+	mainIntf        *routerIntf
+	nat             map[string]net.IP
+	natSet          natSet
+	origMain        *routerIntf
+	pathRestrict    []*pathRestriction
 	peer            *routerIntf
-	peerNetworks    []*network
+	peerNetworks    netList
 	realIntf        *routerIntf
 	redundancyIntfs []*routerIntf
 	redundancyType  string
@@ -254,17 +267,21 @@ type isakmp struct {
 type zone struct {
 	pathStoreData
 	pathObjData
-	name          string
-	networks      []*network
-	attr          map[string]string
-	hasSecondary  bool
-	hasNonPrimary bool
-	inArea        *area
-	natDomain     *natDomain
-	partition     string
-	primaryMark   int
-	secondaryMark int
-	zoneCluster   []*zone
+	name                 string
+	networks             netList
+	attr                 map[string]string
+	hasSecondary         bool
+	hasNonPrimary        bool
+	inArea               *area
+	ipmask2aggregate     map[string]*network // Key: string(ip) + string(mask)
+	ipmask2net           map[string]netList
+	natDomain            *natDomain
+	noCheckSupernetRules bool
+	partition            string
+	primaryMark          int
+	secondaryMark        int
+	statefulMark         int
+	zoneCluster          []*zone
 }
 
 func (x *zone) getName() string { return x.name }
@@ -324,23 +341,42 @@ type unexpRule struct {
 	service *service
 }
 
+type serviceRule struct {
+	deny                 bool
+	src                  []someObj
+	dst                  []someObj
+	prt                  protoList
+	srcRange             *proto
+	log                  string
+	rule                 *unexpRule
+	stateless            bool
+	statelessICMP        bool
+	noCheckSupernetRules bool
+	oneway               bool
+	overlaps             bool
+	zone2netMap          map[*zone]map[*network]bool
+}
+
+type serviceRuleList []*serviceRule
+
+type serviceRules struct {
+	permit serviceRuleList
+	deny   serviceRuleList
+}
+
 type groupedRule struct {
-	deny             bool
-	src              []someObj
-	dst              []someObj
-	prt              protoList
-	srcRange         *proto
-	log              string
-	rule             *unexpRule
+	serviceRule
 	srcPath          pathStore
 	dstPath          pathStore
-	stateless        bool
-	statelessICMP    bool
-	overlaps         bool
 	someNonSecondary bool
 	somePrimary      bool
 }
 type ruleList []*groupedRule
+
+func newRule(src, dst []someObj, prt []*proto) *groupedRule {
+	return &groupedRule{
+		serviceRule: serviceRule{src: src, dst: dst, prt: prt}}
+}
 
 type pathRules struct {
 	permit ruleList

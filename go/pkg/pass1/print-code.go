@@ -790,11 +790,11 @@ func printAsavpn(fh *os.File, router *router) {
 							for i, n := range splitTunnelNets {
 								objects[i] = n
 							}
-							rule = &groupedRule{
-								src: objects,
-								dst: []someObj{getNetwork00(ipv6)},
-								prt: []*proto{prtIP},
-							}
+							rule = newRule(
+								objects,
+								[]someObj{getNetwork00(ipv6)},
+								[]*proto{prtIP},
+							)
 						} else {
 							rule = denyAny
 						}
@@ -820,11 +820,11 @@ func printAsavpn(fh *os.File, router *router) {
 				// Access list will be bound to cleartext interface.
 				// Only check for valid source address at vpn-filter.
 				idIntf.rules = nil
-				rule := &groupedRule{
-					src: []someObj{src},
-					dst: []someObj{getNetwork00(ipv6)},
-					prt: []*proto{prtIP},
-				}
+				rule := newRule(
+					[]someObj{src},
+					[]someObj{getNetwork00(ipv6)},
+					[]*proto{prtIP},
+				)
 				filterName := "vpn-filter-" + idName
 				info := &aclInfo{
 					name:    filterName,
@@ -920,11 +920,11 @@ func printAsavpn(fh *os.File, router *router) {
 			for i, n := range intf.peerNetworks {
 				objects[i] = n
 			}
-			rules := []*groupedRule{{
-				src: objects,
-				dst: []someObj{getNetwork00(ipv6)},
-				prt: []*proto{prtIP},
-			}}
+			rules := []*groupedRule{newRule(
+				objects,
+				[]someObj{getNetwork00(ipv6)},
+				[]*proto{prtIP},
+			)}
 			idName := genIdName(id)
 			filterName := "vpn-filter-" + idName
 			info := &aclInfo{
@@ -1288,11 +1288,11 @@ func genCryptoRules(local, remote []*network) []*groupedRule {
 	for i, n := range remote {
 		dst[i] = n
 	}
-	return []*groupedRule{{
-		src: src,
-		dst: dst,
-		prt: []*proto{prtIP},
-	}}
+	return []*groupedRule{newRule(
+		src,
+		dst,
+		[]*proto{prtIP},
+	)}
 }
 
 func printEzvpn(fh *os.File, router *router) {
