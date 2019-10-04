@@ -397,10 +397,10 @@ Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
 Setting policy distribution IP
 Expanding crypto rules
-Finding routes
-Generating reverse rules for stateless routers
 Exporting to Go
 Importing from Perl
+Finding routes
+Generating reverse rules for stateless routers
 Marking rules for secondary optimization
 Distributing rules
 Saving 6 old files of '' to subdirectory '.prev'
