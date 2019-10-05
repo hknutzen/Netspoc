@@ -124,7 +124,8 @@ func setupAddTo(old, new string) {
 func process(input string) (int, string) {
 	changed := 0
 	inList := false
-	copy := ""
+	var copy strings.Builder
+	copy.Grow(len(input))
 	substDone := false
 
 	// Match pattern in input and skip matched pattern.
@@ -142,7 +143,7 @@ func process(input string) (int, string) {
 	for {
 		if m := match(`^\s*[#].*\n`); m != nil {
 			// Ignore comment.
-			copy += m[0]
+			copy.WriteString(m[0])
 		} else if inList {
 			// Find next "type:name".
 			if m := match(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`); m != nil {
@@ -153,24 +154,25 @@ func process(input string) (int, string) {
 				}
 				new := addTo[object]
 				if new == "" {
-					copy += space + object
+					copy.WriteString(space)
+					copy.WriteString(object)
 					substDone = false
 					continue
 				}
 				changed++
 				substDone = true
-				copy += space
+				copy.WriteString(space)
 
-				// Current line has only one entry, possibly preceeded
-				// by start of list.
-				// Add new entry to separate line with same indentation.
+				// Check if current line has only one entry, possibly
+				// preceeded by start of list.
 				var m []string
 				var prefix string
-				idx := strings.LastIndex(copy, "\n")
+				processed := copy.String()
+				idx := strings.LastIndex(processed, "\n")
 				if idx != -1 {
-					prefix = copy[idx+1:]
+					prefix = processed[idx+1:]
 				} else {
-					prefix = copy
+					prefix = processed
 				}
 				re := regexp.MustCompile(
 					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
@@ -178,17 +180,27 @@ func process(input string) (int, string) {
 					m = match(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)\n`)
 				}
 				if m != nil {
+					// Add new entry to separate line with same indentation.
 					delim, comment := m[1], m[2]
 					indent := strings.Repeat(" ", len([]rune(prefix)))
-					copy +=
-						object + "," + comment + "\n" + indent + new + delim + "\n"
+					copy.WriteString(object)
+					copy.WriteString(",")
+					copy.WriteString(comment)
+					copy.WriteString("\n")
+					copy.WriteString(indent)
+					copy.WriteString(new)
+					copy.WriteString(delim)
+					copy.WriteString("\n")
 				} else {
 					// Add new entry on same line separated by white space.
-					copy += object + ", " + new
+					copy.WriteString(object)
+					copy.WriteString(", ")
+					copy.WriteString(new)
 				}
 			} else {
+				//  Check if list continues.
 				for _, p := range []string{
-					// Start of automatic group; list continues.
+					// Start of automatic group.
 					`^\s*\w+:\[`,
 					// Managed automatic group.
 					`^\s*managed\s*&`,
@@ -205,7 +217,7 @@ func process(input string) (int, string) {
 					}
 				}
 				if m != nil {
-					copy += m[0]
+					copy.WriteString(m[0])
 					if substDone {
 						trimmed := strings.TrimLeft(m[0], " \t")
 						if trimmed[0] == '&' {
@@ -220,22 +232,22 @@ func process(input string) (int, string) {
 			}
 		} else if m = match(`^.*?(?:src|dst|user|group:[-\w]+)`); m != nil {
 			// Find start of group.
-			copy += m[0]
+			copy.WriteString(m[0])
 
 			// Find equal sign.
 			if m = match(`^\s*=[ \t]*`); m != nil {
-				copy += m[0]
+				copy.WriteString(m[0])
 				inList = true
 			}
 		} else if m = match(`^.*\n`); m != nil {
 			// Ignore rest of line if nothing matches.
-			copy += m[0]
+			copy.WriteString(m[0])
 		} else {
 			// Terminate if everything has been processed.
 			break
 		}
 	}
-	return changed, copy
+				return changed, copy.String()
 }
 
 func processInput(input *filetree.Context) {
