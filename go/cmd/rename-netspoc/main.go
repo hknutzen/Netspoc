@@ -109,9 +109,9 @@ func process(input string) (int, string) {
 	// Iteratively parse inputstring
 	comment := regexp.MustCompile(`^\s*[#].*\n`)
 	nothing := regexp.MustCompile(`^.*\n`)
-	declaration := regexp.MustCompile(`^(.*?)(\w+)(:)([-\w\p{Ll}\p{Lu}.\@:]+)`)
+	declaration := regexp.MustCompile(`^(.*?)(\w+)(:)([-\w\p{L}.\@:]+)`)
 	list := regexp.MustCompile(`^(.*?)([-\w]+)(\s*=[ \t]*)`)
-	listelem := regexp.MustCompile(`^(\s*)([-\w\p{Ll}\p{Lu}.\@:]+)`)
+	listelem := regexp.MustCompile(`^(\s*)([-\w\p{L}.\@:]+)`)
 	comma := regexp.MustCompile(`^\s*,\s*`)
 
 	// Match pattern in input and skip matched pattern.
