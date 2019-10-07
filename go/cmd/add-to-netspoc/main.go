@@ -230,7 +230,7 @@ func process(input string) (int, string) {
 					inList = false
 				}
 			}
-		} else if m = match(`^.*?(?:src|dst|user|group:[-\w]+)`); m != nil {
+		} else if m = match(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`); m != nil {
 			// Find start of group.
 			copy.WriteString(m[0])
 
