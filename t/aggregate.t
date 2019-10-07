@@ -2239,6 +2239,51 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Missing transient rule with multiple protocols';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; has_subnets; }
+network:n3 = { ip = 10.1.3.0/27; nat:n3 = { ip = 10.1.2.32/27; } }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n3; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = udp 123;
+}
+service:s2 = {
+ user = any:[ip=10.0.0.0/8 & network:n2];
+ permit src = user; dst = network:n3; prt = udp 100-200;
+}
+END
+
+$out = <<'END';
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at network:n2, any:[ip=10.0.0.0/8 & network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n3
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Missing transient rule with managed interface';
 ############################################################
 

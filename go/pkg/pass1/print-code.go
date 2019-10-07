@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/go-Netspoc/pkg/abort"
-	"github.com/hknutzen/go-Netspoc/pkg/fileop"
-	"github.com/hknutzen/go-Netspoc/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net"
 	"os"
 	"os/exec"
@@ -790,11 +790,11 @@ func printAsavpn(fh *os.File, router *router) {
 							for i, n := range splitTunnelNets {
 								objects[i] = n
 							}
-							rule = &groupedRule{
-								src: objects,
-								dst: []someObj{getNetwork00(ipv6)},
-								prt: []*proto{prtIP},
-							}
+							rule = newRule(
+								objects,
+								[]someObj{getNetwork00(ipv6)},
+								[]*proto{prtIP},
+							)
 						} else {
 							rule = denyAny
 						}
@@ -820,11 +820,11 @@ func printAsavpn(fh *os.File, router *router) {
 				// Access list will be bound to cleartext interface.
 				// Only check for valid source address at vpn-filter.
 				idIntf.rules = nil
-				rule := &groupedRule{
-					src: []someObj{src},
-					dst: []someObj{getNetwork00(ipv6)},
-					prt: []*proto{prtIP},
-				}
+				rule := newRule(
+					[]someObj{src},
+					[]someObj{getNetwork00(ipv6)},
+					[]*proto{prtIP},
+				)
 				filterName := "vpn-filter-" + idName
 				info := &aclInfo{
 					name:    filterName,
@@ -920,11 +920,11 @@ func printAsavpn(fh *os.File, router *router) {
 			for i, n := range intf.peerNetworks {
 				objects[i] = n
 			}
-			rules := []*groupedRule{{
-				src: objects,
-				dst: []someObj{getNetwork00(ipv6)},
-				prt: []*proto{prtIP},
-			}}
+			rules := []*groupedRule{newRule(
+				objects,
+				[]someObj{getNetwork00(ipv6)},
+				[]*proto{prtIP},
+			)}
 			idName := genIdName(id)
 			filterName := "vpn-filter-" + idName
 			info := &aclInfo{
@@ -1172,7 +1172,6 @@ func printCiscoAcls(fh *os.File, router *router) {
 					// address. It has already been checked, that all
 					// networks of this zone match attribute filterOnly.
 					intfOk := 0
-				OUTER:
 					for _, intf := range hardware.interfaces {
 						zone := intf.zone
 						if zone.zoneCluster != nil {
@@ -1181,26 +1180,11 @@ func printCiscoAcls(fh *os.File, router *router) {
 
 						// Ignore real interface of virtual interface.
 						interfaces := zone.nonSecondaryIntfs()
-						if len(interfaces) > 1 {
 
-							// Multilpe interfaces belonging to one redundancy
-							// group can't be used to cross the zone.
-							list1 := interfaces[0].redundancyIntfs
-							if list1 == nil {
-								break
-							}
-							// Check for equality of lists.
-							for _, intf := range interfaces[1:] {
-								list2 := intf.redundancyIntfs
-								if len(list2) != len(list1) {
-									break OUTER
-								}
-								for i, obj := range list1 {
-									if obj != list2[i] {
-										break OUTER
-									}
-								}
-							}
+						// Multiple interfaces belonging to one redundancy
+						// group can't be used to cross the zone.
+						if len(interfaces) > 1 && !isRedundanyGroup(interfaces) {
+							break
 						}
 						intfOk++
 					}
@@ -1288,11 +1272,11 @@ func genCryptoRules(local, remote []*network) []*groupedRule {
 	for i, n := range remote {
 		dst[i] = n
 	}
-	return []*groupedRule{{
-		src: src,
-		dst: dst,
-		prt: []*proto{prtIP},
-	}}
+	return []*groupedRule{newRule(
+		src,
+		dst,
+		[]*proto{prtIP},
+	)}
 }
 
 func printEzvpn(fh *os.File, router *router) {
@@ -1690,7 +1674,7 @@ func printCrypto(fh *os.File, router *router) {
 	}
 
 	// Use interface access lists to filter incoming crypto traffic.
-	// Group policy && per-user authorization access list can't be used
+	// Group policy and per-user authorization access list can't be used
 	// because they are stateless.
 	if strings.HasPrefix(cryptoType, "ASA") {
 		fmt.Fprintln(fh, "! VPN traffic is filtered at interface ACL")
@@ -2462,7 +2446,7 @@ func printCode(dir string) {
 	printRouter(routingOnlyRouters)
 }
 
-func PrintCode() {
-	checkOutputDir(outDir)
-	printCode(outDir)
+func PrintCode(dir string) {
+	checkOutputDir(dir)
+	printCode(dir)
 }

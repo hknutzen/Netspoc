@@ -637,4 +637,54 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Must not add routes for zone at start interface at zone';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+
+# Must generate route for n2, but not for n1 at router:r3.
+service:s2 = {
+ user = interface:r3.n4;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r3
+! [ Routing ]
+route n4 10.1.2.0 255.255.255.0 10.1.4.1
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

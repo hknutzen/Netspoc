@@ -55,6 +55,7 @@ type pathStore interface {
 	setLoopEntry(pathStore, pathStore)
 	setLoopExit(pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
+	getZone() *zone
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
@@ -228,7 +229,6 @@ type navigation map[*loop]map[*loop]bool
 
 type intfTuple [2]*routerIntf
 type tupleList []intfTuple
-type intfList []*routerIntf
 type loopPath struct {
 	enter        intfList
 	leave        intfList
@@ -238,9 +238,6 @@ type loopPath struct {
 
 // Add element to slice.
 func (a *tupleList) push(e intfTuple) {
-	*a = append(*a, e)
-}
-func (a *intfList) push(e *routerIntf) {
 	*a = append(*a, e)
 }
 
@@ -1250,17 +1247,14 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	zone2 := findZone1(dstPath)
 	var msg string
 	if zone1.partition != zone2.partition {
-		msg = " Source && destination objects are located in " +
+		msg = " Source and destination objects are located in " +
 			"different topology partitions: " +
 			zone1.partition + ", " + zone2.partition + "."
 	} else {
-		msg = " Check path restrictions && crypto interfaces."
+		msg = " Check path restrictions and crypto interfaces."
 	}
-	errMsg("No valid path\n" +
-		" from srcPath.name\n" +
-		" to dstPath.name\n" +
-		" context\n" +
-		msg)
+	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
+		srcPath.getName(), dstPath.getName(), context)
 }
 
 //#############################################################################
@@ -1395,16 +1389,18 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	}
 }
 
-/*
-func singlePathWalk
-    (rule, fun, where) {
-    src := rule.src
-    dst := rule.dst
-    rule.srcPath = obj2path[src] || getPathNode(src)
-    rule.dstPath = obj2path[dst] || getPathNode(dst)
-    return pathWalk(rule, fun, where)
+func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
+	rule := &groupedRule{
+		serviceRule: serviceRule{
+			src: []someObj{src},
+			dst: []someObj{dst},
+			prt: []*proto{prtIP},
+		},
+		srcPath: src.getPathNode(),
+		dstPath: dst.getPathNode(),
+	}
+	pathWalk(rule, f, where)
 }
-*/
 
 type NetOrRouter interface{}
 

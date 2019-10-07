@@ -66,6 +66,7 @@ go/pkg/filetree/walk.go
 go/pkg/jcode/types.go
 go/pkg/pass1/address.go
 go/pkg/pass1/check-redundant.go
+go/pkg/pass1/check-supernet.go
 go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go
 go/pkg/pass1/global.go
@@ -74,6 +75,8 @@ go/pkg/pass1/mark-secondary-rules.go
 go/pkg/pass1/path-walk.go
 go/pkg/pass1/print-code.go
 go/pkg/pass1/protocol.go
+go/pkg/pass1/reverse-rules.go
+go/pkg/pass1/routes.go
 go/pkg/pass1/types.go
 lib/Netspoc/Compiler/Common.pm
 lib/Netspoc/Compiler/File.pm

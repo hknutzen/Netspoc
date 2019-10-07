@@ -443,11 +443,11 @@ $title = 'Find and change umlauts';
 ############################################################
 
 $in = <<'END';
-group:x = host:Müß, host:Mass;
+group:BÖSE = host:Müß, host:Mass;
 END
 
 $out = <<'END';
-group:x = host:Müß, host:Muess, host:Mass, host:Maß;
+group:BÖSE = host:Müß, host:Muess, host:Mass, host:Maß;
 END
 
 test_add($title, $in, 'host:Müß host:Muess host:Mass host:Maß', $out);

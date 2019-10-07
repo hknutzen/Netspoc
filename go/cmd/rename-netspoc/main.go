@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/hknutzen/go-Netspoc/pkg/abort"
-	"github.com/hknutzen/go-Netspoc/pkg/conf"
-	"github.com/hknutzen/go-Netspoc/pkg/diag"
-	"github.com/hknutzen/go-Netspoc/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
+	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
@@ -103,14 +103,15 @@ func substitute(objType string, name string) string {
 func process(input string) (int, string) {
 	changed := 0
 	typelist := ""
-	copy := ""
+	var copy strings.Builder
+	copy.Grow(len(input))
 
 	// Iteratively parse inputstring
 	comment := regexp.MustCompile(`^\s*[#].*\n`)
 	nothing := regexp.MustCompile(`^.*\n`)
-	declaration := regexp.MustCompile(`^(.*?)(\w+)(:)([-\w\p{Ll}\p{Lu}.\@:]+)`)
+	declaration := regexp.MustCompile(`^(.*?)(\w+)(:)([-\w\p{L}.\@:]+)`)
 	list := regexp.MustCompile(`^(.*?)([-\w]+)(\s*=[ \t]*)`)
-	listelem := regexp.MustCompile(`^(\s*)([-\w\p{Ll}\p{Lu}.\@:]+)`)
+	listelem := regexp.MustCompile(`^(\s*)([-\w\p{L}.\@:]+)`)
 	comma := regexp.MustCompile(`^\s*,\s*`)
 
 	// Match pattern in input and skip matched pattern.
@@ -127,51 +128,55 @@ func process(input string) (int, string) {
 	for {
 		if m := match(comment); m != nil {
 			// Ignore comment.
-			copy += m[0]
+			copy.WriteString(m[0])
 		} else if typelist != "" {
 			// Handle list of names after "name = "
 			// Read list element.
 			if m := match(listelem); m != nil {
-				copy += m[1]
+				copy.WriteString(m[1])
 				name := m[2]
 				new := substitute(typelist, name)
-				copy += new
+				copy.WriteString(new)
 				if new != name {
 					changed++
 				}
 			} else if m := match(comma); m != nil {
 				// Read comma.
-				copy += m[0]
+				copy.WriteString(m[0])
 			} else {
 				// Everything else terminates list.
 				typelist = ""
 			}
 		} else if m := match(declaration); m != nil {
 			// Find next "type:name".
-			copy += m[1] + m[2] + m[3]
+			copy.WriteString(m[1])
+			copy.WriteString(m[2])
+			copy.WriteString(m[3])
 			objType := m[2]
 			name := m[4]
 			new := substitute(objType, name)
-			copy += new
+			copy.WriteString(new)
 			if new != name {
 				changed++
 			}
 		} else if m := match(list); m != nil {
 			// Find "type = name".
-			copy += m[1] + m[2] + m[3]
+			copy.WriteString(m[1])
+			copy.WriteString(m[2])
+			copy.WriteString(m[3])
 			objType := m[2]
 			if subst[objType] != nil {
 				typelist = m[2]
 			}
 		} else if m := match(nothing); m != nil {
 			// Ignore rest of line if nothing matches.
-			copy += m[0]
+			copy.WriteString(m[0])
 		} else {
 			// Terminate, if everything has been processed.
 			break
 		}
 	}
-	return changed, copy
+	return changed, copy.String()
 }
 
 func processInput(input *filetree.Context) {

@@ -1,3 +1,15 @@
+6.001     2019-10-07 13:50:09+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Checking supernet rules
+   - Finding routes
+   - Generating reverse rules for stateless routers
+ - Fixed bugs in migrated programs add-to-netspoc and rename-netspoc:
+   - Fixed processing of directories.
+   - Fixed very bad runtime performance.
+   - Fixed add-to-netspoc to process elements of group with umlauts in
+     group name.
+
 6.000     2019-09-27 13:55:04+02:00 Europe/Berlin
 
  - Started migration of Netspoc from Perl to Go (golang).

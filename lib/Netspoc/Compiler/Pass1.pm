@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.000'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.001'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -18941,7 +18941,6 @@ sub compile {
     concurrent(
         sub {
             check_unused_groups();
-            check_supernet_rules();
             call_go('spoc1-check', {
                 config => $config,
                 start_time => $start_time,
@@ -18949,7 +18948,9 @@ sub compile {
                 protocols  => \%protocols,
                 protocolgroups  => \%protocolgroups,
                 services   => \%services,
+                service_rules => \%service_rules,
                 path_rules => \%path_rules,
+                zones => \@zones,
                     });
         },
         sub {
@@ -18957,33 +18958,33 @@ sub compile {
             remove_simple_duplicate_rules();
             set_policy_distribution_ip();
             expand_crypto();
-            find_active_routes();
-            gen_reverse_rules();
+            call_go('spoc1-print', {
+                config => $config,
+                start_time => $start_time,
+                program => $program,
+                version => $version,
+                prt_ip => $prt_ip,
+                prt_bootpc => $prt_bootpc,
+                prt_bootps => $prt_bootps,
+                prt_udp => $prt_udp,
+                range_tcp_established => $range_tcp_established,
+                xxrp_info => \%xxrp_info,
+                protocols  => \%protocols,
+                protocolgroups  => \%protocolgroups,
+                services   => \%services,
+                network_00 => $network_00,
+                network_00_v6 => $network_00_v6,
+                permit_any_rule => $permit_any_rule,
+                permit_any6_rule => $permit_any6_rule,
+                deny_any_rule => $deny_any_rule,
+                deny_any6_rule => $deny_any6_rule,
+                managed_routers => \@managed_routers,
+                routing_only_routers => \@routing_only_routers,
+                path_rules => \%path_rules,
+                zones => \@zones,
+                out_dir => ($out_dir || ''),
+                    });
             if ($out_dir) {
-                call_go('spoc1-print', {
-                    config => $config,
-                    start_time => $start_time,
-                    program => $program,
-                    version => $version,
-                    prt_ip => $prt_ip,
-                    prt_bootpc => $prt_bootpc,
-                    prt_bootps => $prt_bootps,
-                    xxrp_info => \%xxrp_info,
-                    protocols  => \%protocols,
-                    protocolgroups  => \%protocolgroups,
-                    services   => \%services,
-                    network_00 => $network_00,
-                    network_00_v6 => $network_00_v6,
-                    permit_any_rule => $permit_any_rule,
-                    permit_any6_rule => $permit_any6_rule,
-                    deny_any_rule => $deny_any_rule,
-                    deny_any6_rule => $deny_any6_rule,
-                    managed_routers => \@managed_routers,
-                    routing_only_routers => \@routing_only_routers,
-                    path_rules => \%path_rules,
-                    zones => \@zones,
-                    out_dir => $out_dir,
-                        });
                 copy_raw($in_path, $out_dir);
             }
         });

@@ -388,19 +388,19 @@ Grouped rule count: 4
 Finding subnets in 2 NAT domains
 Checking rules for unstable subnet relation
 Checking rules with hidden or dynamic NAT
-Checking supernet rules
-Checking transient supernet rules
 Exporting to Go
 Importing from Perl
+Checking supernet rules
+Checking transient supernet rules
 Checking for redundant rules
 Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
 Setting policy distribution IP
 Expanding crypto rules
-Finding routes
-Generating reverse rules for stateless routers
 Exporting to Go
 Importing from Perl
+Finding routes
+Generating reverse rules for stateless routers
 Marking rules for secondary optimization
 Distributing rules
 Saving 6 old files of '' to subdirectory '.prev'

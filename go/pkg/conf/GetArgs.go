@@ -26,8 +26,8 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"github.com/hknutzen/go-Netspoc/pkg/abort"
-	"github.com/hknutzen/go-Netspoc/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
 	flag "github.com/spf13/pflag"
