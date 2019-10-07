@@ -1,7 +1,6 @@
 package filetree
 
 import (
-	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -96,7 +95,6 @@ func Walk(fname string, fn parser) {
 				}
 
 				if !isDir {
-					fmt.Println(fname)
 					processFile(input, fn)
 				}
 				return nil
