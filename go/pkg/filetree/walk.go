@@ -1,6 +1,7 @@
 package filetree
 
 import (
+	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -49,14 +50,14 @@ func Walk(fname string, fn parser) {
 		ipvDir = "ipv4"
 	}
 	for _, file := range files {
-		name := file.Name()
-		base := path.Base(name)
+		base := file.Name()
 		ignore := conf.Conf.IgnoreFiles
 		// Skip hidden file, special file/directory, ignored file.
 		if base[0] == '.' || base == "config" || base == "raw" ||
 			ignore.MatchString(base) {
 			continue
 		}
+		name := filepath.Join(fname, base)
 		err = filepath.Walk(name,
 			func(fname string, file os.FileInfo, err error) error {
 				if err != nil {
@@ -83,12 +84,19 @@ func Walk(fname string, fn parser) {
 					input.private = base
 				}
 
+				isDir := file.IsDir()
+
 				// Skip hidden and ignored file.
 				if base[0] == '.' || ignore.MatchString(base) {
-					return nil
+					if isDir {
+						return filepath.SkipDir
+					} else {
+						return nil
+					}
 				}
 
-				if !file.IsDir() {
+				if !isDir {
+					fmt.Println(fname)
 					processFile(input, fn)
 				}
 				return nil
