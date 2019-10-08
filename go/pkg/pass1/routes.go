@@ -14,14 +14,6 @@ func (a *stringList) push(e string) {
 	*a = append(*a, e)
 }
 
-func (l intfList) nameList() string {
-	var names stringList
-	for _, intf := range l {
-		names.push(intf.name)
-	}
-	return " - " + strings.Join(names, "\n - ")
-}
-
 func intfListEq(l1, l2 []*routerIntf) bool {
 	if len(l1) != len(l2) {
 		return false

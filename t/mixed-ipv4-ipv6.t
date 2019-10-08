@@ -396,9 +396,9 @@ Checking for redundant rules
 Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
 Setting policy distribution IP
-Expanding crypto rules
 Exporting to Go
 Importing from Perl
+Expanding crypto rules
 Finding routes
 Generating reverse rules for stateless routers
 Marking rules for secondary optimization

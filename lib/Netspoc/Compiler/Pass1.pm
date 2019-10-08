@@ -18957,18 +18957,22 @@ sub compile {
             %service_rules = ();
             remove_simple_duplicate_rules();
             set_policy_distribution_ip();
-            expand_crypto();
             call_go('spoc1-print', {
                 config => $config,
                 start_time => $start_time,
                 program => $program,
                 version => $version,
-                prt_ip => $prt_ip,
+                prt_ah => $prt_ah,
                 prt_bootpc => $prt_bootpc,
                 prt_bootps => $prt_bootps,
+                prt_esp => $prt_esp,
+                prt_ip => $prt_ip,
+                prt_ike => $prt_ike,
+                prt_natt => $prt_natt,
                 prt_udp => $prt_udp,
                 range_tcp_established => $range_tcp_established,
                 xxrp_info => \%xxrp_info,
+                crypto => \%crypto,
                 protocols  => \%protocols,
                 protocolgroups  => \%protocolgroups,
                 services   => \%services,

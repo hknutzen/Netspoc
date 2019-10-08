@@ -193,6 +193,7 @@ func convNetwork(x xAny) *network {
 	}
 	n.interfaces = convRouterIntfs(m["interfaces"])
 	n.zone = convZone(m["zone"])
+	n.disabled = getBool(m["disabled"])
 	n.hasOtherSubnet = getBool(m["has_other_subnet"])
 	n.isAggregate = getBool(m["is_aggregate"])
 	n.maxRoutingNet = convNetwork(m["max_routing_net"])
@@ -270,10 +271,10 @@ func convModel(x xAny) *model {
 	}
 	d := new(model)
 	m["ref"] = d
-	d.CommentChar = getString(m["comment_char"])
-	d.Class = getString(m["class"])
+	d.commentChar = getString(m["comment_char"])
+	d.class = getString(m["class"])
 	d.crypto = getString(m["crypto"])
-	d.DoAuth = getBool(m["do_auth"])
+	d.doAuth = getBool(m["do_auth"])
 	d.canObjectgroup = getBool(m["can_objectgroup"])
 	d.cryptoInContext = getBool(m["crypto_in_context"])
 	d.filter = getString(m["filter"])
@@ -938,8 +939,10 @@ func convCrypto(x xAny) *crypto {
 	}
 	c := new(crypto)
 	m["ref"] = c
+	c.name = getString(m["name"])
 	c.ipsec = convIpsec(m["type"])
 	c.detailedCryptoAcl = getBool(m["detailed_crypto_acl"])
+	c.tunnels = convNetworks(m["tunnels"])
 	return c
 }
 func convCryptoList(x xAny) []*crypto {
@@ -952,6 +955,14 @@ func convCryptoList(x xAny) []*crypto {
 		b[i] = convCrypto(x)
 	}
 	return b
+}
+func convCryptoMap(x xAny) map[string]*crypto {
+	m := getMap(x)
+	n := make(map[string]*crypto)
+	for name, xCrypto := range m {
+		n[name] = convCrypto(xCrypto)
+	}
+	return n
 }
 
 func convIpsec(x xAny) *ipsec {
@@ -1011,6 +1022,7 @@ func convIsakmp(x xAny) *isakmp {
 	c.trustPoint = getString(m["trust_point"])
 	c.ikeVersion = getInt(m["ike_version"])
 	c.lifetime = getInt(m["lifetime"])
+	c.natTraversal = getString(m["nat_traversal"])
 	return c
 }
 
@@ -1052,6 +1064,7 @@ func ImportFromPerl() {
 	startTime = time.Unix(int64(m["start_time"].(int)), 0)
 	progress("Importing from Perl")
 
+	cryptoMap = convCryptoMap(m["crypto"])
 	denyAny6Rule = convRule(m["deny_any6_rule"])
 	denyAnyRule = convRule(m["deny_any_rule"])
 	managedRouters = convRouters(m["managed_routers"])
@@ -1064,11 +1077,15 @@ func ImportFromPerl() {
 	program = getString(m["program"])
 	protocolgroups = convprotoGroupMap(m["protocolgroups"])
 	protocols = convProtoMap(m["protocols"])
+	prtAh = convProto(m["prt_ah"])
 	prtBootpc = convProto(m["prt_bootpc"])
 	prtBootps = convProto(m["prt_bootps"])
+	prtEsp = convProto(m["prt_esp"])
 	prtIP = convProto(m["prt_ip"])
-	rangeTCPEstablished = convProto(m["range_tcp_established"])
+	prtIke = convProto(m["prt_ike"])
+	prtNatt = convProto(m["prt_natt"])
 	prtUDP = convProto(m["prt_udp"])
+	rangeTCPEstablished = convProto(m["range_tcp_established"])
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
 	sRules = convServiceRules(m["service_rules"])
 	services = convServiceMap(m["services"])

@@ -3,6 +3,7 @@ package pass1
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -65,4 +66,20 @@ func progress(msg string) {
 		}
 		info(msg)
 	}
+}
+
+func (l intfList) nameList() string {
+	var names stringList
+	for _, intf := range l {
+		names.push(intf.name)
+	}
+	return " - " + strings.Join(names, "\n - ")
+}
+
+func (l netList) nameList() string {
+	var names stringList
+	for _, intf := range l {
+		names.push(intf.name)
+	}
+	return " - " + strings.Join(names, "\n - ")
 }

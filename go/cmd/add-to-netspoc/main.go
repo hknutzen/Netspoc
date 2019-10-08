@@ -247,7 +247,7 @@ func process(input string) (int, string) {
 			break
 		}
 	}
-				return changed, copy.String()
+	return changed, copy.String()
 }
 
 func processInput(input *filetree.Context) {

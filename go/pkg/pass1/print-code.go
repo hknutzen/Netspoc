@@ -38,41 +38,6 @@ func (z *zone) nonSecondaryIntfs() []*routerIntf {
 	return result
 }
 
-const (
-	noAttr = iota
-	ownAttr
-	groupPolicy
-	tgGeneral
-)
-
-var asaVpnAttributes = map[string]int{
-
-	// Our own attributes
-	"check-subject-name":       ownAttr,
-	"check-extended-key-usage": ownAttr,
-	"trust-point":              ownAttr,
-
-	// group-policy attributes
-	"anyconnect-custom_perapp": groupPolicy,
-	"banner":                   groupPolicy,
-	"dns-server":               groupPolicy,
-	"default-domain":           groupPolicy,
-	"split-dns":                groupPolicy,
-	"wins-server":              groupPolicy,
-	"vpn-access-hours":         groupPolicy,
-	"vpn-idle-timeout":         groupPolicy,
-	"vpn-session-timeout":      groupPolicy,
-	"vpn-simultaneous-logins":  groupPolicy,
-	"vlan":                     groupPolicy,
-	"split-tunnel-policy":      groupPolicy,
-
-	// tunnel-group general-attributes
-	"authentication-server-group": tgGeneral,
-	"authorization-server-group":  tgGeneral,
-	"authorization-required":      tgGeneral,
-	"username-from-certificate":   tgGeneral,
-}
-
 var network00, network00v6 *network
 
 func getNetwork00(ipv6 bool) *network {
@@ -104,7 +69,7 @@ func getDenyAnyRule(ipv6 bool) *groupedRule {
 }
 
 func printHeader(fh *os.File, router *router, what string) {
-	commentChar := router.model.CommentChar
+	commentChar := router.model.commentChar
 	if router.vrfMembers != nil {
 		what += " for " + router.name
 	}
@@ -489,7 +454,7 @@ func printAclPlaceholder(fh *os.File, router *router, aclName string) {
 	model := router.model
 	filter := model.filter
 	if filter == "ASA" {
-		commentChar := model.CommentChar
+		commentChar := model.commentChar
 		fmt.Fprintln(fh, commentChar, aclName)
 	}
 
@@ -1010,7 +975,7 @@ func printAclPrefix(fh *os.File, router *router) {
 	if model.filter != "iptables" {
 		return
 	}
-	commentChar := model.CommentChar
+	commentChar := model.commentChar
 	fmt.Fprintln(fh, commentChar, "[ PREFIX ]")
 	fmt.Fprintln(fh, "#!/sbin/iptables-restore <<EOF")
 
@@ -1043,7 +1008,7 @@ func printAclSuffix(fh *os.File, router *router) {
 	if model.filter != "iptables" {
 		return
 	}
-	commentChar := model.CommentChar
+	commentChar := model.commentChar
 	fmt.Fprintln(fh, commentChar, "[ SUFFIX ]")
 	fmt.Fprintln(fh, "-A INPUT -j droplog")
 	fmt.Fprintln(fh, "-A FORWARD -j droplog")
@@ -1119,7 +1084,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 		}
 
 		// Ignore layer3 interface of ASA.
-		if hardware.name == "device" && model.Class == "ASA" {
+		if hardware.name == "device" && model.class == "ASA" {
 			continue
 		}
 
@@ -1835,7 +1800,7 @@ func printRouterIntf(fh *os.File, router *router) {
 	if !model.printRouterIntf {
 		return
 	}
-	class := model.Class
+	class := model.class
 	stateful := !model.stateless
 	ipv6 := router.ipV6
 	for _, hardware := range router.hardware {
@@ -2020,7 +1985,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 		secondaryFilter := strings.HasSuffix(managed, "secondary")
 		standardFilter := managed == "standard"
 		model := router.model
-		doAuth := model.DoAuth
+		doAuth := model.doAuth
 		activeLog := router.log
 		needProtect := getNeedProtect(router)
 
@@ -2259,7 +2224,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 
 	router := vrfMembers[0]
 	model := router.model
-	result := &jcode.RouterData{Model: model.Class, ACLs: aclList}
+	result := &jcode.RouterData{Model: model.class, ACLs: aclList}
 
 	if filterOnly := router.filterOnly; filterOnly != nil {
 		list := make([]string, len(filterOnly))
@@ -2373,7 +2338,7 @@ func printCode(dir string) {
 				abort.Msg("Can't %v", err)
 			}
 			model := r.model
-			commentChar := model.CommentChar
+			commentChar := model.commentChar
 
 			// Restore interfaces of split router.
 			if orig := r.origIntfs; orig != nil {
@@ -2395,7 +2360,7 @@ func printCode(dir string) {
 				fmt.Fprintf(fd, "%s [ %s %s ]\n", commentChar, key, val)
 			}
 			header("BEGIN", deviceName)
-			header("Model =", model.Class)
+			header("Model =", model.class)
 			ips := make([]string, 0, len(vrfMembers))
 			for _, r := range vrfMembers {
 				if r.adminIP != nil {

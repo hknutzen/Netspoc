@@ -51,6 +51,7 @@ type network struct {
 	subnets          []*subnet
 	interfaces       []*routerIntf
 	zone             *zone
+	disabled         bool
 	hasOtherSubnet   bool
 	isAggregate      bool
 	maxRoutingNet    *network
@@ -90,10 +91,10 @@ type subnet struct {
 }
 
 type model struct {
-	CommentChar     string
-	Class           string
+	commentChar     string
+	class           string
 	crypto          string
-	DoAuth          bool
+	doAuth          bool
 	canObjectgroup  bool
 	cryptoInContext bool
 	filter          string
@@ -143,6 +144,7 @@ type router struct {
 	localMark        int
 	origIntfs        []*routerIntf
 	crosslinkIntfs   []*routerIntf
+	extendedKeys     map[string]string
 	filterOnly       []net.IPNet
 	generalPermit    []*proto
 	needProtect      bool
@@ -251,8 +253,10 @@ type pathRestriction struct {
 }
 
 type crypto struct {
-	ipsec             *ipsec
 	detailedCryptoAcl bool
+	ipsec             *ipsec
+	name              string
+	tunnels           netList
 }
 type ipsec struct {
 	name              string
@@ -272,6 +276,7 @@ type isakmp struct {
 	trustPoint     string
 	ikeVersion     int
 	lifetime       int
+	natTraversal   string
 }
 
 type zone struct {
