@@ -1,6 +1,8 @@
 package pass1
 
-import ()
+import (
+	"fmt"
+)
 
 func findZone1(store pathStore) *zone {
 	var obj pathObj
@@ -44,7 +46,7 @@ type pathStoreData struct {
 }
 
 type pathStore interface {
-	getName() string
+	String() string
 	getPath() map[pathStore]*routerIntf
 	getPath1() map[pathStore]*routerIntf
 	getLoopEntry() map[pathStore]pathStore
@@ -1254,7 +1256,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		msg = " Check path restrictions and crypto interfaces."
 	}
 	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
-		srcPath.getName(), dstPath.getName(), context)
+		srcPath.String(), dstPath.String(), context)
 }
 
 //#############################################################################
@@ -1278,7 +1280,7 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	fromStore, toStore := rule.srcPath, rule.dstPath
 
 	/*	debug(rule.print());
-		debug(" start: %s, %s at %s",fromStore.getName(), toStore.getName(), where)
+		debug(" start: %s, %s at %s",fromStore.String(), toStore.String(), where)
 		fun2 := fun
 		fun = func(rule *Rule, i, o *routerIntf) {
 			var inName, outName string
@@ -1484,109 +1486,118 @@ func addPathrestictedIntfs(path pathStore, obj NetOrRouter) []pathStore {
 	return result
 }
 
-/*
-// src is an auto_interface or router.
+// src is [NOT IMPLEMENTED: an autoIntf or] router.
 // Result is the set of interfaces of src located at direction to dst.
-func pathAutoIntfs(src, dst) {
-    src2, managed :=
-      isAutointerface(src)
-      ? @{src}{ "object", "managed" }
-      : (src, undef)
-    dst2 := isAutointerface(dst) ? dst.object : dst
+func pathAutoInterfaces(src *router, dst someObj) intfList {
+	/*    src2, managed :=
+	        isAutointerface(src)
+	        ? @{src}{ "object", "managed" }
+	        : (src, undef)
+	      dst2 := isAutointerface(dst) ? dst.object : dst
+	*/
+	src2 := src
+	dst2 := dst
+	srcPath := src2.getPathNode()
+	dstPath := dst2.getPathNode()
+	if srcPath == dstPath {
+		return nil
+	}
 
-    srcPath := obj2path[src2] || getPathNode(src2)
-    dstPath := obj2path[dst2] || getPathNode(dst2)
-    if srcPath == dstPath { return }
+	// Check path separately for interfaces with pathrestriction,
+	// because path from inside the router to destination may be restricted.
+	fromList := addPathrestictedIntfs(srcPath, src2)
+	toList := addPathrestictedIntfs(dstPath, dst2)
+	var result intfList
+	for _, fromStore := range fromList {
+		for _, toStore := range toList {
+			if _, found := fromStore.getPath1()[toStore]; !found {
+				if !pathMark(fromStore, toStore) {
+					delete(fromStore.getPath1(), toStore)
+					continue
+				}
+			}
+			if x, ok := fromStore.(*routerIntf); ok {
+				if _, found := x.loopEntryZone[toStore]; found {
+					result.push(x)
+					continue
+				}
+			}
+			if entry, found := fromStore.getLoopEntry()[toStore]; found {
+				exit := entry.getLoopExit()[toStore]
+				enter := entry.getLoopPath()[exit].enter
+				switch x := fromStore.(type) {
+				case *zone:
+					for _, intf := range enter {
+						result = append(result, autoIntfInZone(intf, src2)...)
+					}
+				case *router:
+					result = append(result, enter...)
 
-    // Check path separately for interfaces with pathrestriction,
-    // because path from inside the router to destination may be restricted.
-    fromList := addPathrestictedIntfs(srcPath, src2)
-    toList := addPathrestictedIntfs(dstPath, dst2)
-    var result
-    for _, fromStore := range fromList {
-        for _, toStore := range toList {
-            if ! fromStore.path1[toStore] {
-                if ! pathMark(fromStore, toStore) {
-                    delete fromStore.path1[toStore]
-                    continue
-                }
-            }
-            type := ref fromStore
-            if (fromStore.loopEntryZone &&
-                fromStore.loopEntryZone[toStore])
-            {
-                push result, fromStore
-            }
-            elsif (fromStore.loopEntry &&
-                entry := fromStore.loopEntry[toStore])
-            {
-                exit := entry.loopExit[toStore]
-                enter := entry.loopEnter[exit]
-                if type == "Zone" {
-                    push result, map { autoIntfInZone($_, src2) } enter
-                }
-                else if type == "Router" {
-                    push result, enter
-                }
+				case *routerIntf:
+					// Path is only ok, if it doesn't traverse
+					// corrensponding router.
+					// Path starts inside loop.
+					// Check if some path doesn't traverse current router.
+					// Then interface is ok as [auto] interface.
+					if x.loop != nil {
+						for _, intf := range enter {
+							if intf == fromStore {
+								result.push(x)
+							}
+						}
+					}
+				}
+			} else {
+				next := fromStore.getPath1()[toStore]
+				switch fromStore.(type) {
+				case *zone:
+					result = append(result, autoIntfInZone(next, src2)...)
+				case *router:
+					result.push(next)
+				case *routerIntf:
+					// routerIntf with pathrestriction at border of loop,
+					// wont get additional path.
+				}
+			}
+		}
+	}
+	if len(result) == 0 {
+		showErrNoValidPath(srcPath, dstPath,
+			fmt.Sprintf("while resolving %s (destination is %s).",
+				src.String(), dst.String()))
+		return nil
+	}
+	result.delDupl()
 
-                // type eq 'routerIntf'
-                // Path is only ok, if it doesn't traverse
-                // corrensponding router.
-                // Path starts inside loop.
-                // Check if some path doesn't traverse current router.
-                // Then interface is ok as [auto] interface.
-                else if fromStore.loop {
-                    if grep { $_ == fromStore } enter {
-                        push result, fromStore
-                    }
-                }
-            }
-            else {
-                continue := fromStore.path1[toStore]
-                if type == "Zone" {
-                    push result, autoIntfInZone(continue, src2)
-                }
-                else if type == "Router" {
-                    push result, continue
-                }
+	// Remove tunnel interfaces, change slice in place.
+	j := 0
+	for _, intf := range result {
+		if !intf.tunnel {
+			result[j] = intf
+			j++
+		}
+	}
+	result = result[:j]
 
-                // else
-                // type eq 'routerIntf'
-                // routerIntf with pathrestriction at border of loop,
-                // wont get additional path.
-            }
-        }
-    }
-    if ! result {
-        showErrNoValidPath(srcPath, dstPath,
-                               "while resolving src.name" .
-                               " (destination is dst.name).")
-        return
-    }
-    result = grep { $_.ip != "tunnel" } unique result
+	bridgedSeen := false
+	for _, intf := range result {
+		if orig := intf.origMain; orig != nil {
+			// If device has virtual interface, main and virtual interface
+			// are swapped.  Swap it back here because we need the
+			// original main interface if an interface is used in a rule.
+			intf = orig
+		} else if l3 := intf.layer3Intf; l3 != nil {
+			// Change bridge interface to layer3 interface.
+			// Prevent duplicate layer3 interface.
+			intf = l3
+			bridgedSeen = true
+		}
+	}
+	if bridgedSeen {
+		result.delDupl()
+	}
 
-    bridgedCount := 0
-    for _, interface := range result {
+	// debug("%s.[auto] = \n" + result.nameList(), src2.name);
 
-        // If device has virtual interface, main and virtual interface
-        // are swapped.  Swap it back here because we need the
-        // original main interface if an interface is used in a rule.
-        if orig := interface.origMain {
-            interface = orig
-        }
-
-        // Change bridge interface to layer3 interface.
-        // Prevent duplicate layer3 interface.
-        else if layer3Intf := interface.layer3routerIntf {
-            interface = layer3Intf
-            bridgedCount++
-        }
-    }
-    if bridgedCount > 1 {
-        result = unique(result)
-    }
-
-//    debug("src2->{name}.[auto] = ", join ',', map {$_->{name}} result);
-    return (managed ? grep { $_.router.managed } result : result)
+	return result
 }
-*/

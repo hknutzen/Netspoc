@@ -83,3 +83,11 @@ func (l netList) nameList() string {
 	}
 	return " - " + strings.Join(names, "\n - ")
 }
+
+func (l stringerList) nameList() string {
+	var names stringList
+	for _, x := range l {
+		names.push(x.String())
+	}
+	return " - " + strings.Join(names, "\n - ")
+}

@@ -31,6 +31,7 @@ var (
 	routers6       map[string]*router
 	services       map[string]*service
 
+	prtMap protoLookup
 	pRules *pathRules
 	sRules *serviceRules
 

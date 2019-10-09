@@ -18956,12 +18956,12 @@ sub compile {
         sub {
             %service_rules = ();
             remove_simple_duplicate_rules();
-            set_policy_distribution_ip();
             call_go('spoc1-print', {
                 config => $config,
                 start_time => $start_time,
                 program => $program,
                 version => $version,
+                prt_hash => \%prt_hash,
                 prt_ah => $prt_ah,
                 prt_bootpc => $prt_bootpc,
                 prt_bootps => $prt_bootps,

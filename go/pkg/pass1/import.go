@@ -225,7 +225,7 @@ func convNetworks(x xAny) netList {
 		return nil
 	}
 	a := getSlice(x)
-	networks := make([]*network, len(a))
+	networks := make(netList, len(a))
 	for i, x := range a {
 		networks[i] = convNetwork(x)
 	}
@@ -233,6 +233,9 @@ func convNetworks(x xAny) netList {
 }
 
 func convSubnet(x xAny) *subnet {
+	if x == nil {
+		return nil
+	}
 	m := getMap(x)
 	if s, ok := m["ref"]; ok {
 		return s.(*subnet)
@@ -246,6 +249,32 @@ func convSubnet(x xAny) *subnet {
 	s.ldapId = getString(m["ldap_id"])
 	s.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	return s
+}
+func convSubnets(x xAny) []*subnet {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	subnets := make([]*subnet, len(a))
+	for i, x := range a {
+		subnets[i] = convSubnet(x)
+	}
+	return subnets
+}
+
+func convHost(x xAny) *host {
+	if x == nil {
+		return nil
+	}
+	m := getMap(x)
+	if o, ok := m["ref"]; ok {
+		return o.(*host)
+	}
+	o := new(host)
+	m["ref"] = o
+	o.setCommon(m)
+	o.subnets = convSubnets(m["subnets"])
+	return o
 }
 
 func convNatSet(x xAny) natSet {
@@ -357,8 +386,10 @@ func convRouter(x xAny) *router {
 	}
 	r.hardware = convHardwareList(m["hardware"])
 	r.origHardware = convHardwareList(m["orig_hardware"])
+	r.ipvMembers = convRouters(m["ipv_members"])
 	r.vrfMembers = convRouters(m["vrf_members"])
 	r.origRouter = convRouter(m["orig_router"])
+	r.policyDistributionPoint = convHost(m["policy_distribution_point"])
 	r.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	r.toZone1 = convRouterIntf(m["to_zone1"])
 	r.trustPoint = getString(m["trust_point"])
@@ -430,6 +461,7 @@ func convRouterIntf(x xAny) *routerIntf {
 	if i.router != nil && (i.router.managed != "" || i.router.routingOnly) {
 		i.hardware = convHardware(m["hardware"])
 	}
+	i.layer3Intf = convRouterIntf(m["layer3_interface"])
 	i.loop = convLoop(m["loop"])
 	i.loopback = getBool(m["loopback"])
 	i.loopZoneBorder = getBool(m["loop_zone_border"])
@@ -757,6 +789,17 @@ func convProtoMap(x xAny) map[string]*proto {
 	return n
 }
 
+func convProtoLookup(x xAny) protoLookup {
+	m := getMap(x)
+	var n protoLookup
+	n.ip = convProto(m["ip"])
+	n.icmp = convProtoMap(m["icmp"])
+	n.tcp = convProtoMap(m["tcp"])
+	n.udp = convProtoMap(m["udp"])
+	n.proto = convProtoMap(m["proto"])
+	return n
+}
+
 func convProtoOrName(x xAny) protoOrName {
 	switch u := x.(type) {
 	case xSlice, *xSlice:
@@ -1029,16 +1072,17 @@ func convIsakmp(x xAny) *isakmp {
 func convConfig(x xAny) Config {
 	m := getMap(x)
 	c := Config{
-		Verbose:                     getBool(m["verbose"]),
-		TimeStamps:                  getBool(m["time_stamps"]),
-		Pipe:                        getBool(m["pipe"]),
-		MaxErrors:                   getInt(m["max_errors"]),
-		CheckDuplicateRules:         getString(m["check_duplicate_rules"]),
-		CheckRedundantRules:         getString(m["check_redundant_rules"]),
-		CheckFullyRedundantRules:    getString(m["check_fully_redundant_rules"]),
-		CheckSupernetRules:          getString(m["check_supernet_rules"]),
-		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
-		autoDefaultRoute:            getBool(m["auto_default_route"]),
+		Verbose:                      getBool(m["verbose"]),
+		TimeStamps:                   getBool(m["time_stamps"]),
+		Pipe:                         getBool(m["pipe"]),
+		MaxErrors:                    getInt(m["max_errors"]),
+		CheckDuplicateRules:          getString(m["check_duplicate_rules"]),
+		CheckRedundantRules:          getString(m["check_redundant_rules"]),
+		CheckFullyRedundantRules:     getString(m["check_fully_redundant_rules"]),
+		CheckPolicyDistributionPoint: getString(m["check_policy_distribution_point"]),
+		CheckSupernetRules:           getString(m["check_supernet_rules"]),
+		CheckTransientSupernetRules:  getString(m["check_transient_supernet_rules"]),
+		autoDefaultRoute:             getBool(m["auto_default_route"]),
 	}
 	return c
 }
@@ -1077,6 +1121,7 @@ func ImportFromPerl() {
 	program = getString(m["program"])
 	protocolgroups = convprotoGroupMap(m["protocolgroups"])
 	protocols = convProtoMap(m["protocols"])
+	prtMap = convProtoLookup(m["prt_hash"])
 	prtAh = convProto(m["prt_ah"])
 	prtBootpc = convProto(m["prt_bootpc"])
 	prtBootps = convProto(m["prt_bootps"])

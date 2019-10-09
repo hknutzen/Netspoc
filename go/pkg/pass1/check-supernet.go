@@ -88,7 +88,7 @@ func shortNameList(list []someObj) string {
 			names = append(names, "...")
 			break
 		}
-		names = append(names, obj.getName())
+		names = append(names, obj.String())
 	}
 	return " - " + strings.Join(names, "\n - ")
 }

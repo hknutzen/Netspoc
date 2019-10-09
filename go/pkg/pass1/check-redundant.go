@@ -57,7 +57,7 @@ func (r *expandedRule) print() string {
 	}
 	origPrt := getOrigPrt(r)
 	return fmt.Sprintf("%s src=%s; dst=%s; prt=%s;%s",
-		action, r.src.getName(), r.dst.getName(), origPrt.name, extra)
+		action, r.src.String(), r.dst.String(), origPrt.name, extra)
 }
 
 func isSubRange(p *proto, o *proto) bool {

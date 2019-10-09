@@ -1,24 +1,28 @@
 package pass1
 
 import (
+	"fmt"
 	"net"
 )
 
+type stringerList []fmt.Stringer
+
 type Config struct {
-	CheckDuplicateRules         string
-	CheckRedundantRules         string
-	CheckFullyRedundantRules    string
-	CheckSupernetRules          string
-	CheckTransientSupernetRules string
-	Verbose                     bool
-	TimeStamps                  bool
-	Pipe                        bool
-	MaxErrors                   int
-	autoDefaultRoute            bool
+	CheckDuplicateRules          string
+	CheckRedundantRules          string
+	CheckFullyRedundantRules     string
+	CheckPolicyDistributionPoint string
+	CheckSupernetRules           string
+	CheckTransientSupernetRules  string
+	Verbose                      bool
+	TimeStamps                   bool
+	Pipe                         bool
+	MaxErrors                    int
+	autoDefaultRoute             bool
 }
 
 type someObj interface {
-	getName() string
+	String() string
 	getNetwork() *network
 	getUp() someObj
 	address(nn natSet) net.IPNet
@@ -39,8 +43,9 @@ type ipObj struct {
 	up         someObj
 }
 
-func (x *ipObj) getName() string { return x.name }
-func (x *ipObj) getUp() someObj  { return x.up }
+func (x ipObj) String() string { return x.name }
+
+func (x *ipObj) getUp() someObj { return x.up }
 
 type natMap map[string]*network
 
@@ -49,6 +54,7 @@ type network struct {
 	attr             map[string]string
 	mask             net.IPMask
 	subnets          []*subnet
+	hosts            []*host
 	interfaces       []*routerIntf
 	zone             *zone
 	disabled         bool
@@ -88,6 +94,11 @@ type subnet struct {
 	id               string
 	ldapId           string
 	radiusAttributes map[string]string
+}
+
+type host struct {
+	netObj
+	subnets []*subnet
 }
 
 type model struct {
@@ -133,42 +144,44 @@ type aclInfo struct {
 type router struct {
 	pathStoreData
 	pathObjData
-	name             string
-	deviceName       string
-	managed          string
-	semiManaged      bool
-	adminIP          []string
-	model            *model
-	log              map[string]string
-	logDeny          bool
-	localMark        int
-	origIntfs        []*routerIntf
-	crosslinkIntfs   []*routerIntf
-	extendedKeys     map[string]string
-	filterOnly       []net.IPNet
-	generalPermit    []*proto
-	needProtect      bool
-	noGroupCode      bool
-	noInAcl          *routerIntf
-	noSecondaryOpt   map[*network]bool
-	hardware         []*hardware
-	origHardware     []*hardware
-	origRouter       *router
-	primaryMark      int
-	radiusAttributes map[string]string
-	routingOnly      bool
-	secondaryMark    int
-	trustPoint       string
-	vrfMembers       []*router
-	ipV6             bool
-	aclList          []*aclInfo
-	vrf              string
+	name                    string
+	deviceName              string
+	managed                 string
+	semiManaged             bool
+	adminIP                 []string
+	model                   *model
+	log                     map[string]string
+	logDeny                 bool
+	localMark               int
+	origIntfs               []*routerIntf
+	crosslinkIntfs          []*routerIntf
+	extendedKeys            map[string]string
+	filterOnly              []net.IPNet
+	generalPermit           []*proto
+	needProtect             bool
+	noGroupCode             bool
+	noInAcl                 *routerIntf
+	noSecondaryOpt          map[*network]bool
+	hardware                []*hardware
+	origHardware            []*hardware
+	origRouter              *router
+	policyDistributionPoint *host
+	primaryMark             int
+	radiusAttributes        map[string]string
+	routingOnly             bool
+	secondaryMark           int
+	trustPoint              string
+	ipvMembers              []*router
+	vrfMembers              []*router
+	ipV6                    bool
+	aclList                 []*aclInfo
+	vrf                     string
 
 	// This represents the router itself and is distinct from each real zone.
 	zone *zone
 }
 
-func (x *router) getName() string { return x.name }
+func (x router) String() string { return x.name }
 
 type routerIntf struct {
 	netObj
@@ -182,6 +195,7 @@ type routerIntf struct {
 	id              string
 	isHub           bool
 	hardware        *hardware
+	layer3Intf      *routerIntf
 	loop            *loop
 	loopback        bool
 	loopEntryZone   map[pathStore]pathStore
@@ -299,7 +313,7 @@ type zone struct {
 	zoneCluster          []*zone
 }
 
-func (x *zone) getName() string { return x.name }
+func (x zone) String() string { return x.name }
 
 type area struct {
 	name   string
@@ -337,6 +351,24 @@ type proto struct {
 	hasNeighbor bool
 	isUsed      bool
 	printed     string
+}
+type protoList []*proto
+
+type protoOrName interface{}
+
+type protoGroup struct {
+	pairs     []protoOrName
+	elements  protoList
+	recursive bool
+	isUsed    bool
+}
+
+type protoLookup struct {
+	ip    *proto
+	icmp  map[string]*proto
+	tcp   map[string]*proto
+	udp   map[string]*proto
+	proto map[string]*proto
 }
 
 type service struct {
@@ -396,16 +428,6 @@ func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 type pathRules struct {
 	permit ruleList
 	deny   ruleList
-}
-
-type protoOrName interface{}
-type protoList []*proto
-
-type protoGroup struct {
-	pairs     []protoOrName
-	elements  protoList
-	recursive bool
-	isUsed    bool
 }
 
 type mcastInfo struct {

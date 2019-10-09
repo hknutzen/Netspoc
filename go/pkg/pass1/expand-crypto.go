@@ -29,14 +29,14 @@ func cryptoBehind(intf *routerIntf, managed string) netList {
 	if managed != "" {
 		zone := intf.zone
 		if len(zone.nonSecondaryInterfaces()) != 1 {
-			errMsg("Exactly one security zone must be located behind" +
+			errMsg("Exactly one security zone must be located behind"+
 				" managed %s of crypto router", intf.name)
 		}
 		return zone.networks
 	} else {
 		net := intf.network
 		if len(net.nonSecondaryInterfaces()) != 1 {
-			errMsg("Exactly one network must be located behind" +
+			errMsg("Exactly one network must be located behind"+
 				" unmanaged %s of crypto router", intf.name)
 		}
 		return netList{net}
@@ -328,9 +328,9 @@ func ExpandCrypto() {
 				}
 			}
 			if hasIdHosts && hasOtherNetwork {
-				errMsg("Must not use networks having ID hosts" +
-					" and other networks having no ID hosts\n" +
-					" together at %s:\n" + encrypted.nameList(),
+				errMsg("Must not use networks having ID hosts"+
+					" and other networks having no ID hosts\n"+
+					" together at %s:\n"+encrypted.nameList(),
 					router.name)
 			}
 
@@ -352,8 +352,8 @@ func ExpandCrypto() {
 					other = append(other, spoke)
 					// Id must be unique per crypto hub, because it
 					// is used to generate ACL names and other names.
-					errMsg("Must not reuse 'id = %s' at different" +
-						" crypto spokes of '%s':\n" + other.nameList(),
+					errMsg("Must not reuse 'id = %s' at different"+
+						" crypto spokes of '%s':\n"+other.nameList(),
 						id, hubRouter.name)
 				}
 				id2intf[id] = append(id2intf[id], spoke)
@@ -364,11 +364,11 @@ func ExpandCrypto() {
 				}
 			} else if len(encrypted) != 0 {
 				if doAuth && managed == "" {
-					errMsg("Networks need to have ID hosts because" +
-						" %s has attribute 'do_auth':\n" + encrypted.nameList(),
+					errMsg("Networks need to have ID hosts because"+
+						" %s has attribute 'do_auth':\n"+encrypted.nameList(),
 						hubRouter.name)
 				} else if needId {
-					errMsg("%s needs attribute 'id', because %s" +
+					errMsg("%s needs attribute 'id', because %s"+
 						" has authentication=rsasig",
 						spoke.name, isakmp.name)
 				}
@@ -387,7 +387,7 @@ func ExpandCrypto() {
 					verifyAsaTrustpoint(router, c)
 				}
 				if c.detailedCryptoAcl {
-					errMsg("Attribute 'detailed_crypto_acl' is not" +
+					errMsg("Attribute 'detailed_crypto_acl' is not"+
 						" allowed for managed spoke %s", router.name)
 				}
 			}
