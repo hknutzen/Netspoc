@@ -394,9 +394,9 @@ Checking supernet rules
 Checking transient supernet rules
 Checking for redundant rules
 Expanded rule count: 4; duplicate: 1; redundant: 1
-Removing simple duplicate rules
 Exporting to Go
 Importing from Perl
+Removing simple duplicate rules
 Setting policy distribution IP
 Expanding crypto rules
 Finding routes

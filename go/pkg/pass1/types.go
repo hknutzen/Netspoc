@@ -14,6 +14,8 @@ type Config struct {
 	CheckPolicyDistributionPoint string
 	CheckSupernetRules           string
 	CheckTransientSupernetRules  string
+	CheckUnusedGroups            string
+	CheckUnusedProtocols         string
 	Verbose                      bool
 	TimeStamps                   bool
 	Pipe                         bool
@@ -357,6 +359,7 @@ type protoList []*proto
 type protoOrName interface{}
 
 type protoGroup struct {
+	name      string
 	pairs     []protoOrName
 	elements  protoList
 	recursive bool
@@ -369,6 +372,12 @@ type protoLookup struct {
 	tcp   map[string]*proto
 	udp   map[string]*proto
 	proto map[string]*proto
+}
+
+type objGroup struct {
+	name     string
+	elements []someObj
+	isUsed   bool
 }
 
 type service struct {

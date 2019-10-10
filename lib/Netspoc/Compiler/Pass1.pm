@@ -18940,11 +18940,11 @@ sub compile {
 
     concurrent(
         sub {
-            check_unused_groups();
             call_go('spoc1-check', {
                 config => $config,
                 start_time => $start_time,
                 prt_ip => $prt_ip,
+                groups => \%groups,
                 protocols  => \%protocols,
                 protocolgroups  => \%protocolgroups,
                 services   => \%services,
@@ -18955,7 +18955,6 @@ sub compile {
         },
         sub {
             %service_rules = ();
-            remove_simple_duplicate_rules();
             call_go('spoc1-print', {
                 config => $config,
                 start_time => $start_time,

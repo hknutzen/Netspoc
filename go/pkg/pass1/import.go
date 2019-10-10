@@ -770,6 +770,7 @@ func convProto(x xAny) *proto {
 	p.src = convProto(m["src_range"])
 	p.dst = convProto(m["dst_range"])
 	p.main = convProto(m["main"])
+	p.isUsed = getBool(m["is_used"])
 	return p
 }
 func convProtos(x xAny) []*proto {
@@ -830,6 +831,7 @@ func convprotoGroup(x xAny) *protoGroup {
 	}
 	p := new(protoGroup)
 	m["ref"] = p
+	p.name = getString(m["name"])
 	p.isUsed = getBool(m["is_used"])
 	if p.isUsed {
 		p.elements = convProtos(m["elements"])
@@ -843,6 +845,29 @@ func convprotoGroupMap(x xAny) map[string]*protoGroup {
 	n := make(map[string]*protoGroup)
 	for name, xGroup := range m {
 		n[name] = convprotoGroup(xGroup)
+	}
+	return n
+}
+
+func convObjGroup(x xAny) *objGroup {
+	if x == nil {
+		return nil
+	}
+	m := getMap(x)
+	if o, ok := m["ref"]; ok {
+		return o.(*objGroup)
+	}
+	g := new(objGroup)
+	m["ref"] = g
+	g.name = getString(m["name"])
+	g.isUsed = getBool(m["is_used"])
+	return g
+}
+func convObjGroupMap(x xAny) map[string]*objGroup {
+	m := getMap(x)
+	n := make(map[string]*objGroup)
+	for name, xGroup := range m {
+		n[name] = convObjGroup(xGroup)
 	}
 	return n
 }
@@ -1082,6 +1107,8 @@ func convConfig(x xAny) Config {
 		CheckPolicyDistributionPoint: getString(m["check_policy_distribution_point"]),
 		CheckSupernetRules:           getString(m["check_supernet_rules"]),
 		CheckTransientSupernetRules:  getString(m["check_transient_supernet_rules"]),
+		CheckUnusedGroups:            getString(m["check_unused_groups"]),
+		CheckUnusedProtocols:         getString(m["check_unused_protocols"]),
 		autoDefaultRoute:             getBool(m["auto_default_route"]),
 	}
 	return c
@@ -1119,7 +1146,8 @@ func ImportFromPerl() {
 	permitAny6Rule = convRule(m["permit_any6_rule"])
 	permitAnyRule = convRule(m["permit_any_rule"])
 	program = getString(m["program"])
-	protocolgroups = convprotoGroupMap(m["protocolgroups"])
+	groups = convObjGroupMap(m["groups"])
+	protocolGroups = convprotoGroupMap(m["protocolgroups"])
 	protocols = convProtoMap(m["protocols"])
 	prtMap = convProtoLookup(m["prt_hash"])
 	prtAh = convProto(m["prt_ah"])

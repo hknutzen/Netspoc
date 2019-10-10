@@ -6,8 +6,10 @@ import (
 )
 
 func main() {
+	initialErrors := pass1.ErrorCounter
 	pass1.ImportFromPerl()
+	pass1.CheckUnusedGroups()
 	pass1.CheckSupernetRules()
 	pass1.CheckRedundantRules()
-	os.Exit(pass1.ErrorCounter)
+	os.Exit(pass1.ErrorCounter - initialErrors)
 }

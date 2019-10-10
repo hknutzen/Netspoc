@@ -25,8 +25,9 @@ var (
 	xxrpInfo map[string]*xxrp
 
 	cryptoMap      map[string]*crypto
+	groups         map[string]*objGroup
 	protocols      map[string]*proto
-	protocolgroups map[string]*protoGroup
+	protocolGroups map[string]*protoGroup
 	routers        map[string]*router
 	routers6       map[string]*router
 	services       map[string]*service

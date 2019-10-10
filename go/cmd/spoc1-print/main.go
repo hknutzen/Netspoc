@@ -7,6 +7,7 @@ import (
 
 func main() {
 	pass1.ImportFromPerl()
+	pass1.RemoveSimpleDuplicateRules()
 	pass1.SetPolicyDistributionIP()
 	pass1.ExpandCrypto()
 	pass1.FindActiveRoutes()
