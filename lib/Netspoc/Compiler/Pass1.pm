@@ -18938,59 +18938,43 @@ sub compile {
             check_dynamic_nat_rules($natdomains, $nat_tag2nat_type);
         });
 
-    concurrent(
-        sub {
-            call_go('spoc1-check', {
-                config => $config,
-                start_time => $start_time,
-                prt_ip => $prt_ip,
-                groups => \%groups,
-                protocols  => \%protocols,
-                protocolgroups  => \%protocolgroups,
-                services   => \%services,
-                service_rules => \%service_rules,
-                path_rules => \%path_rules,
-                zones => \@zones,
-                    });
-        },
-        sub {
-            %service_rules = ();
-            call_go('spoc1-print', {
-                config => $config,
-                start_time => $start_time,
-                program => $program,
-                version => $version,
-                prt_hash => \%prt_hash,
-                prt_ah => $prt_ah,
-                prt_bootpc => $prt_bootpc,
-                prt_bootps => $prt_bootps,
-                prt_esp => $prt_esp,
-                prt_ip => $prt_ip,
-                prt_ike => $prt_ike,
-                prt_natt => $prt_natt,
-                prt_udp => $prt_udp,
-                range_tcp_established => $range_tcp_established,
-                xxrp_info => \%xxrp_info,
-                crypto => \%crypto,
-                protocols  => \%protocols,
-                protocolgroups  => \%protocolgroups,
-                services   => \%services,
-                network_00 => $network_00,
-                network_00_v6 => $network_00_v6,
-                permit_any_rule => $permit_any_rule,
-                permit_any6_rule => $permit_any6_rule,
-                deny_any_rule => $deny_any_rule,
-                deny_any6_rule => $deny_any6_rule,
-                managed_routers => \@managed_routers,
-                routing_only_routers => \@routing_only_routers,
-                path_rules => \%path_rules,
-                zones => \@zones,
-                out_dir => ($out_dir || ''),
-                    });
-            if ($out_dir) {
-                copy_raw($in_path, $out_dir);
-            }
-        });
+    call_go('spoc1-go', {
+        config => $config,
+        start_time => $start_time,
+        program => $program,
+        version => $version,
+        prt_hash => \%prt_hash,
+        prt_ah => $prt_ah,
+        prt_bootpc => $prt_bootpc,
+        prt_bootps => $prt_bootps,
+        prt_esp => $prt_esp,
+        prt_ip => $prt_ip,
+        prt_ike => $prt_ike,
+        prt_natt => $prt_natt,
+        prt_udp => $prt_udp,
+        range_tcp_established => $range_tcp_established,
+        xxrp_info => \%xxrp_info,
+        crypto => \%crypto,
+        protocols  => \%protocols,
+        protocolgroups  => \%protocolgroups,
+        groups => \%groups,
+        services   => \%services,
+        service_rules => \%service_rules,
+        network_00 => $network_00,
+        network_00_v6 => $network_00_v6,
+        permit_any_rule => $permit_any_rule,
+        permit_any6_rule => $permit_any6_rule,
+        deny_any_rule => $deny_any_rule,
+        deny_any6_rule => $deny_any6_rule,
+        managed_routers => \@managed_routers,
+        routing_only_routers => \@routing_only_routers,
+        path_rules => \%path_rules,
+        zones => \@zones,
+        out_dir => ($out_dir || ''),
+            });
+    if ($out_dir) {
+        copy_raw($in_path, $out_dir);
+    }
 
     abort_on_error();
 }
