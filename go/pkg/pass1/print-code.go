@@ -86,7 +86,7 @@ func printRoutes(fh *os.File, router *router) {
 	ipv6 := router.ipV6
 	model := router.model
 	vrf := router.vrf
-	doAutoDefaultRoute := config.autoDefaultRoute
+	doAutoDefaultRoute := config.AutoDefaultRoute
 	zeroIp := getZeroIp(ipv6)
 	cryptoType := model.crypto
 	asaCrypto := cryptoType == "ASA"

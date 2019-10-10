@@ -22,6 +22,7 @@ func main() {
 		pass1.MarkSecondaryRules()
 		pass1.RulesDistribution()
 		pass1.PrintCode(pass1.OutDir)
+		pass1.CopyRaw(pass1.InPath, pass1.OutDir)
 	}
 	os.Exit(pass1.ErrorCounter - initialErrors)
 }

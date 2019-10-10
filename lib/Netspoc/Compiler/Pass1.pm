@@ -18970,11 +18970,9 @@ sub compile {
         routing_only_routers => \@routing_only_routers,
         path_rules => \%path_rules,
         zones => \@zones,
+        in_path => $in_path,
         out_dir => ($out_dir || ''),
             });
-    if ($out_dir) {
-        copy_raw($in_path, $out_dir);
-    }
 
     abort_on_error();
 }

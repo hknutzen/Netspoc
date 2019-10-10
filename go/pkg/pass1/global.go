@@ -40,6 +40,7 @@ var (
 	routingOnlyRouters []*router
 	zones              []*zone
 
+	InPath string
 	OutDir string
 )
 

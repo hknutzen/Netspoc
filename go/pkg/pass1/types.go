@@ -3,6 +3,7 @@ package pass1
 import (
 	"fmt"
 	"net"
+	"regexp"
 )
 
 type stringerList []fmt.Stringer
@@ -16,11 +17,13 @@ type Config struct {
 	CheckTransientSupernetRules  string
 	CheckUnusedGroups            string
 	CheckUnusedProtocols         string
+	AutoDefaultRoute             bool
+	IgnoreFiles                  *regexp.Regexp
+	IPV6                         bool
+	MaxErrors                    int
 	Verbose                      bool
 	TimeStamps                   bool
 	Pipe                         bool
-	MaxErrors                    int
-	autoDefaultRoute             bool
 }
 
 type someObj interface {

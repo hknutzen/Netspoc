@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -95,6 +96,15 @@ func getMapStringString(x xAny) map[string]string {
 		n[getString(k)] = getString(v)
 	}
 	return n
+}
+
+func getRegexp(x xAny) *regexp.Regexp {
+	s := getString(x)
+	if s == "" {
+		return nil
+	}
+	r := regexp.MustCompile(s)
+	return r
 }
 
 func getSlice(x xAny) xSlice {
@@ -1097,10 +1107,6 @@ func convIsakmp(x xAny) *isakmp {
 func convConfig(x xAny) Config {
 	m := getMap(x)
 	c := Config{
-		Verbose:                      getBool(m["verbose"]),
-		TimeStamps:                   getBool(m["time_stamps"]),
-		Pipe:                         getBool(m["pipe"]),
-		MaxErrors:                    getInt(m["max_errors"]),
 		CheckDuplicateRules:          getString(m["check_duplicate_rules"]),
 		CheckRedundantRules:          getString(m["check_redundant_rules"]),
 		CheckFullyRedundantRules:     getString(m["check_fully_redundant_rules"]),
@@ -1109,7 +1115,13 @@ func convConfig(x xAny) Config {
 		CheckTransientSupernetRules:  getString(m["check_transient_supernet_rules"]),
 		CheckUnusedGroups:            getString(m["check_unused_groups"]),
 		CheckUnusedProtocols:         getString(m["check_unused_protocols"]),
-		autoDefaultRoute:             getBool(m["auto_default_route"]),
+		AutoDefaultRoute:             getBool(m["auto_default_route"]),
+		IgnoreFiles:                  getRegexp(m["ignore_files"]),
+		IPV6:                         getBool(m["ipv6"]),
+		MaxErrors:                    getInt(m["max_errors"]),
+		Verbose:                      getBool(m["verbose"]),
+		TimeStamps:                   getBool(m["time_stamps"]),
+		Pipe:                         getBool(m["pipe"]),
 	}
 	return c
 }
@@ -1138,6 +1150,7 @@ func ImportFromPerl() {
 	cryptoMap = convCryptoMap(m["crypto"])
 	denyAny6Rule = convRule(m["deny_any6_rule"])
 	denyAnyRule = convRule(m["deny_any_rule"])
+	InPath = getString(m["in_path"])
 	managedRouters = convRouters(m["managed_routers"])
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
