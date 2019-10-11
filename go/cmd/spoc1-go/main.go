@@ -9,6 +9,7 @@ func main() {
 	pass1.ImportFromPerl()
 	initialErrors := pass1.ErrorCounter
 
+	pass1.CheckDynamicNatRules(pass1.NATDomains, pass1.NATTag2natType)
 	pass1.CheckUnusedGroups()
 	pass1.CheckSupernetRules()
 	pass1.CheckRedundantRules()

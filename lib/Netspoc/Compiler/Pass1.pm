@@ -18913,10 +18913,6 @@ sub compile {
     # been set up.
     link_reroute_permit();
 
-    # Sets attributes used in check_dynamic_nat_rules and
-    # for ACL generation.
-    mark_dynamic_host_nets();
-
     normalize_services();
     # Abort now, if there had been syntax errors and simple semantic errors.
     abort_on_error();
@@ -18925,18 +18921,12 @@ sub compile {
     convert_hosts_in_rules();
     group_path_rules();
 
-    concurrent(
-        sub {
-            find_subnets_in_nat_domain($natdomains);
-            check_unstable_nat_rules();
+    find_subnets_in_nat_domain($natdomains);
+    check_unstable_nat_rules();
 
-            # Call after {up} relation for anonymous aggregates has
-            # been set up.
-            mark_managed_local();
-        },
-        sub {
-            check_dynamic_nat_rules($natdomains, $nat_tag2nat_type);
-        });
+    # Call after {up} relation for anonymous aggregates has
+    # been set up.
+    mark_managed_local();
 
     call_go('spoc1-go', {
         config => $config,
@@ -18960,8 +18950,11 @@ sub compile {
         groups => \%groups,
         services   => \%services,
         service_rules => \%service_rules,
+        natdomains => $natdomains,
+        nat_tag2nat_type => $nat_tag2nat_type,
         network_00 => $network_00,
         network_00_v6 => $network_00_v6,
+        all_networks => \@networks,
         permit_any_rule => $permit_any_rule,
         permit_any6_rule => $permit_any6_rule,
         deny_any_rule => $deny_any_rule,

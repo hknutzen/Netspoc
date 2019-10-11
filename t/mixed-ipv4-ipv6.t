@@ -387,9 +387,9 @@ Grouping rules
 Grouped rule count: 4
 Finding subnets in 2 NAT domains
 Checking rules for unstable subnet relation
-Checking rules with hidden or dynamic NAT
 Exporting to Go
 Importing from Perl
+Checking and marking rules with hidden or dynamic NAT
 Checking supernet rules
 Checking transient supernet rules
 Checking for redundant rules

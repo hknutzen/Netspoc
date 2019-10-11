@@ -12,6 +12,10 @@ var (
 	startTime    time.Time
 	ErrorCounter int
 
+	// will become local variable when conversion to Go is finished
+	NATDomains     []*natDomain
+	NATTag2natType map[string]string
+
 	prtAh               *proto
 	prtBootpc           *proto
 	prtBootps           *proto
@@ -36,6 +40,7 @@ var (
 	pRules *pathRules
 	sRules *serviceRules
 
+	allNetworks        netList
 	managedRouters     []*router
 	routingOnlyRouters []*router
 	zones              []*zone

@@ -765,7 +765,7 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Check rule with host and dynamic NAT';
+$title = 'Check rule with host and dynamic NAT (managed)';
 ############################################################
 
 $in = <<'END';
@@ -774,6 +774,7 @@ network:Test =  {
  nat:C = { ip = 1.9.2.0/24; dynamic;}
  host:h3 = { ip = 10.9.1.3; }
  host:h4 = { ip = 10.9.1.4; }
+ host:h5 = { ip = 10.9.1.5; nat:C = { ip = 1.9.2.55; } }
 }
 
 router:C = {
@@ -797,8 +798,8 @@ network:X = { ip = 10.8.3.0/24; }
 
 service:s1 = {
  user = network:X;
- permit src = user;   dst = host:h3;       prt = tcp 80;
- permit src = host:h4; dst = user;         prt = tcp 80;
+ permit src = user;    dst = host:h3, host:h5; prt = tcp 80;
+ permit src = host:h4; dst = user;             prt = tcp 80;
 }
 END
 
@@ -808,6 +809,10 @@ Error: host:h3 needs static translation for nat:C at router:C to be valid in rul
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Check rule with host and dynamic NAT (unmanaged)';
+############################################################
 
 $in =~ s/managed; \#1//;
 

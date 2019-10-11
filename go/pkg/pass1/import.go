@@ -714,6 +714,17 @@ func convNATDomain(x xAny) *natDomain {
 	d.natSet = convNatSet(m["nat_set"])
 	return d
 }
+func convNATDomains(x xAny) []*natDomain {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	l := make([]*natDomain, len(a))
+	for i, x := range a {
+		l[i] = convNATDomain(x)
+	}
+	return l
+}
 
 func convModifiers(x xAny) modifiers {
 	m := getMap(x)
@@ -1152,8 +1163,11 @@ func ImportFromPerl() {
 	denyAnyRule = convRule(m["deny_any_rule"])
 	InPath = getString(m["in_path"])
 	managedRouters = convRouters(m["managed_routers"])
+	NATDomains = convNATDomains(m["natdomains"])
+	NATTag2natType = getMapStringString(m["nat_tag2nat_type"])
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
+	allNetworks = convNetworks(m["all_networks"])
 	OutDir = getString(m["out_dir"])
 	pRules = convPathRules(m["path_rules"])
 	permitAny6Rule = convRule(m["permit_any6_rule"])
