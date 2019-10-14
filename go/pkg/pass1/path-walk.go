@@ -104,7 +104,7 @@ func (x *pathStoreData) setLoopPath(s pathStore, i *loopPath) {
 }
 
 type pathObjData struct {
-	interfaces []*routerIntf
+	interfaces intfList
 	activePath bool
 	distance   int
 	loop       *loop
@@ -113,7 +113,7 @@ type pathObjData struct {
 }
 
 type pathObj interface {
-	intfList() []*routerIntf
+	intfList() intfList
 	isActivePath() bool
 	setActivePath()
 	clearActivePath()
@@ -124,7 +124,7 @@ type pathObj interface {
 	getToZone1() *routerIntf
 }
 
-func (x *pathObjData) intfList() []*routerIntf         { return x.interfaces }
+func (x *pathObjData) intfList() intfList         { return x.interfaces }
 func (x *pathObjData) isActivePath() bool              { return x.activePath }
 func (x *pathObjData) setActivePath()                  { x.activePath = true }
 func (x *pathObjData) clearActivePath()                { x.activePath = false }
@@ -229,17 +229,17 @@ type loop struct {
 }
 type navigation map[*loop]map[*loop]bool
 
-type intfTuple [2]*routerIntf
-type tupleList []intfTuple
+type intfPair [2]*routerIntf
+type intfPairs []intfPair
 type loopPath struct {
 	enter        intfList
 	leave        intfList
-	routerTuples tupleList
-	zoneTuples   tupleList
+	routerTuples intfPairs
+	zoneTuples   intfPairs
 }
 
 // Add element to slice.
-func (a *tupleList) push(e intfTuple) {
+func (a *intfPairs) push(e intfPair) {
 	*a = append(*a, e)
 }
 
@@ -321,7 +321,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopP
 	}
 
 	var getNext func(i *routerIntf) pathObj
-	var typeTuples *tupleList
+	var typeTuples *intfPairs
 	switch obj.(type) {
 	case *router:
 		getNext = func(i *routerIntf) pathObj { return i.zone }
@@ -356,7 +356,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopP
 
 			// ...collect path information.
 			//	    debug(" loop: in_intf->{name} -> interface->{name}");
-			typeTuples.push(intfTuple{inIntf, intf})
+			typeTuples.push(intfPair{inIntf, intf})
 			success = true
 		}
 	}
@@ -445,7 +445,7 @@ func clusterNavigation(from, to pathObj) navigation {
 }
 
 // Remove element from slice without modifying original slice.
-func (a *tupleList) deleteElement(e intfTuple) {
+func (a *intfPairs) deleteElement(e intfPair) {
 	index := -1
 	for i, x := range *a {
 		if x == e {
@@ -497,7 +497,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		isRedundancy[i] = true
 	}
 
-	delTuples := make(tupleList, 0)
+	delTuples := make(intfPairs, 0)
 
 	// Remove tuples traversing that router, where path should start/end.
 	for _, tuple := range lPath.routerTuples {
@@ -560,7 +560,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		// because path starts/ends at zone.
 		// But for other side of path, we don't know if it starts at
 		// router or zone; so we must check zone_tuples also.
-		for _, tuples := range []*tupleList{&lPath.routerTuples, &lPath.zoneTuples} {
+		for _, tuples := range []*intfPairs{&lPath.routerTuples, &lPath.zoneTuples} {
 			for _, tuple := range *tuples {
 				in, out := tuple[0], tuple[1]
 				hasIn[in] = true
@@ -611,9 +611,9 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 			lPath.routerTuples = lPath.routerTuples[:j]
 		} else {
 			if isStart {
-				lPath.zoneTuples.push(intfTuple{startEnd, intf})
+				lPath.zoneTuples.push(intfPair{startEnd, intf})
 			} else {
-				lPath.zoneTuples.push(intfTuple{intf, startEnd})
+				lPath.zoneTuples.push(intfPair{intf, startEnd})
 			}
 			if !seenIntf {
 				seenIntf = true
@@ -661,18 +661,18 @@ func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *rou
 		zoneEq(endStore, startStore) ||
 		zoneEq(startStore, endStore) {
 		if startIntf != nil && endIntf != nil {
-			lPath.enter = []*routerIntf{startIntf}
-			lPath.leave = []*routerIntf{endIntf}
-			lPath.zoneTuples = []intfTuple{intfTuple{startIntf, endIntf}}
+			lPath.enter = intfList{startIntf}
+			lPath.leave = intfList{endIntf}
+			lPath.zoneTuples = intfPairs{{startIntf, endIntf}}
 			startStore = startIntf
 			endStore = endIntf
 		} else if startIntf != nil {
-			lPath.enter = []*routerIntf{startIntf}
-			lPath.leave = []*routerIntf{startIntf}
+			lPath.enter = intfList{startIntf}
+			lPath.leave = intfList{startIntf}
 			startStore = startIntf
 		} else {
-			lPath.enter = []*routerIntf{endIntf}
-			lPath.leave = []*routerIntf{endIntf}
+			lPath.enter = intfList{endIntf}
+			lPath.leave = intfList{endIntf}
 			endStore = endIntf
 		}
 	} else {
@@ -873,16 +873,16 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			// Remove duplicates from path tuples.
 			// Create reversed path.
 			rPath := new(loopPath)
-			adapt := func(orig, rev *tupleList) {
-				var tuples, revTuples tupleList
-				seen := make(map[intfTuple]bool)
+			adapt := func(orig, rev *intfPairs) {
+				var tuples, revTuples intfPairs
+				seen := make(map[intfPair]bool)
 				for _, tuple := range *orig {
 					if seen[tuple] {
 						continue
 					}
 					seen[tuple] = true
 					tuples.push(tuple)
-					revTuples.push(intfTuple{tuple[1], tuple[0]})
+					revTuples.push(intfPair{tuple[1], tuple[0]})
 					//             debug("Tuple: in_intf->{name}, out_intf->{name} type");
 				}
 				*orig = tuples
@@ -1212,7 +1212,7 @@ func loopPathWalk(in, out *routerIntf, loopEntry, loopExit pathStore, callAtZone
 	}
 
 	// Process paths inside cyclic graph.
-	var pathTuples tupleList
+	var pathTuples intfPairs
 	if callAtZone {
 		pathTuples = lPath.zoneTuples
 	} else {
@@ -1406,12 +1406,12 @@ func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), 
 
 type NetOrRouter interface{}
 
-var border2obj2auto = make(map[*routerIntf]map[NetOrRouter][]*routerIntf)
+var border2obj2auto = make(map[*routerIntf]map[NetOrRouter]intfList)
 
 func setAutoIntfFromBorder(border *routerIntf) {
-	var reachFromBorder func(*network, *routerIntf, map[NetOrRouter][]*routerIntf)
+	var reachFromBorder func(*network, *routerIntf, map[NetOrRouter]intfList)
 	reachFromBorder =
-		func(network *network, inIntf *routerIntf, result map[NetOrRouter][]*routerIntf) {
+		func(network *network, inIntf *routerIntf, result map[NetOrRouter]intfList) {
 			result[network] = append(result[network], inIntf)
 
 			//    debug "network->{name}: in_intf->{name}";
@@ -1446,7 +1446,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				}
 			}
 		}
-	result := make(map[NetOrRouter][]*routerIntf)
+	result := make(map[NetOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
 	for key, list := range result {
 		seen := make(map[*routerIntf]bool)
@@ -1466,7 +1466,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 // Find auto interface inside zone.
 // border is interface at border of zone.
 // src2 is unmanaged router or network inside zone.
-func autoIntfInZone(border *routerIntf, src2 NetOrRouter) []*routerIntf {
+func autoIntfInZone(border *routerIntf, src2 NetOrRouter) intfList {
 	if border2obj2auto[border] == nil {
 		setAutoIntfFromBorder(border)
 	}
