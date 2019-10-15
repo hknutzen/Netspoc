@@ -124,7 +124,7 @@ type pathObj interface {
 	getToZone1() *routerIntf
 }
 
-func (x *pathObjData) intfList() intfList         { return x.interfaces }
+func (x *pathObjData) intfList() intfList              { return x.interfaces }
 func (x *pathObjData) isActivePath() bool              { return x.activePath }
 func (x *pathObjData) setActivePath()                  { x.activePath = true }
 func (x *pathObjData) clearActivePath()                { x.activePath = false }
