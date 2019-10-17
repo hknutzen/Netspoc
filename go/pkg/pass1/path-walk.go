@@ -1404,7 +1404,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 		func(network *network, inIntf *routerIntf, result map[NetOrRouter]intfList) {
 			result[network] = append(result[network], inIntf)
 
-   		//debug("%s: %s", network.name, inIntf.name)
+			//debug("%s: %s", network.name, inIntf.name)
 			for _, intf := range network.interfaces {
 				if intf == inIntf {
 					continue

@@ -14,18 +14,22 @@ import (
 // - mark
 
 type clusterInfo struct {
-	natSet natSet
+	natSet     natSet
 	filterOnly []net.IPNet
-	mark int
+	mark       int
 }
 
-func getManagedLocalClusters() []clusterInfo{
+func getManagedLocalClusters() []clusterInfo {
 	mark := 1
 	var result []clusterInfo
 	seen := make(map[*zone]bool)
 	for _, r0 := range managedRouters {
-		if r0.managed != "local" { continue }
-		if r0.localMark != 0 { continue }
+		if r0.managed != "local" {
+			continue
+		}
+		if r0.localMark != 0 {
+			continue
+		}
 		filterOnly := r0.filterOnly
 
 		// IP/mask pairs of current cluster matching {filter_only}.
@@ -35,17 +39,23 @@ func getManagedLocalClusters() []clusterInfo{
 		// because attribute 'bind_nat' is not valid at 'local' routers.
 		natSet := r0.interfaces[0].natSet
 
-		info := clusterInfo{ natSet: natSet, mark: mark, filterOnly: filterOnly }
+		info := clusterInfo{natSet: natSet, mark: mark, filterOnly: filterOnly}
 
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
 			equal := func(f0, f []net.IPNet) bool {
-				if len(f0) != len(f) { return false }
+				if len(f0) != len(f) {
+					return false
+				}
 				for i, addr := range f {
 					addr0 := f0[i]
-					if !addr0.IP.Equal(addr.IP) { return false }
-					if !net.IP(addr0.Mask).Equal(net.IP(addr.Mask)) { return false }
+					if !addr0.IP.Equal(addr.IP) {
+						return false
+					}
+					if !net.IP(addr0.Mask).Equal(net.IP(addr.Mask)) {
+						return false
+					}
 				}
 				return true
 			}
@@ -62,7 +72,9 @@ func getManagedLocalClusters() []clusterInfo{
 					zoneCluster = []*zone{z0}
 				}
 				for _, z := range zoneCluster {
-					if seen[z] { continue }
+					if seen[z] {
+						continue
+					}
 					seen[z] = true
 
 					// All networks in local zone must match filterOnly.
@@ -70,7 +82,7 @@ func getManagedLocalClusters() []clusterInfo{
 					for _, n := range z.networks {
 						net0 := n.address(natSet)
 						ip := net0.IP
-						prefix, _ :=  net0.Mask.Size()
+						prefix, _ := net0.Mask.Size()
 						for j, net := range filterOnly {
 							i := net.IP
 							m := net.Mask
@@ -85,10 +97,16 @@ func getManagedLocalClusters() []clusterInfo{
 					}
 
 					for _, outIntf := range z.interfaces {
-						if outIntf == inIntf { continue }
+						if outIntf == inIntf {
+							continue
+						}
 						r2 := outIntf.router
-						if r2.managed != "local" { continue }
-						if r2.localMark != 0 { continue }
+						if r2.managed != "local" {
+							continue
+						}
+						if r2.localMark != 0 {
+							continue
+						}
 						walk(r2)
 					}
 				}
@@ -100,7 +118,9 @@ func getManagedLocalClusters() []clusterInfo{
 		mark++
 
 		for j, net := range filterOnly {
-			if matched[&filterOnly[j]] { continue }
+			if matched[&filterOnly[j]] {
+				continue
+			}
 			size, _ := net.Mask.Size()
 			warnMsg("Useless %s/%d in attribute 'filter_only' of %s",
 				net.IP, size, r0.name)
@@ -124,8 +144,12 @@ func MarkManagedLocal() {
 			for _, n := range list {
 				markNetworks(n.networks)
 				natNetwork := getNatNetwork(n, cluster.natSet)
-				if natNetwork.hidden { continue }
-				if natNetwork.unnumbered { continue }
+				if natNetwork.hidden {
+					continue
+				}
+				if natNetwork.unnumbered {
+					continue
+				}
 				ip := natNetwork.ip
 				prefix, _ := natNetwork.mask.Size()
 				for _, ipNet := range cluster.filterOnly {
@@ -145,7 +169,9 @@ func MarkManagedLocal() {
 
 							// Has already been processed as supernet of
 							// other network.
-							if m[mark] { break }
+							if m[mark] {
+								break
+							}
 							m[mark] = true
 
 							// debug "Filter obj->{name} at mark";
