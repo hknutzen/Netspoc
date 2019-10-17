@@ -18924,10 +18924,6 @@ sub compile {
     find_subnets_in_nat_domain($natdomains);
     check_unstable_nat_rules();
 
-    # Call after {up} relation for anonymous aggregates has
-    # been set up.
-    mark_managed_local();
-
     call_go('spoc1-go', {
         config => $config,
         start_time => $start_time,
