@@ -635,7 +635,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 //              end_intf: set if path ends at pathrestricted interface
 // Returns    : True if path was found, false otherwise.
 // Results    : Sets attributes {loop_enter}, {loop_leave}, {*_path_tuples}
-//              for found path and reversed path.
+//              for found path.
 func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *routerIntf) bool {
 	if startIntf != nil {
 		startStore = startIntf.zone
@@ -704,7 +704,6 @@ func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *rou
 	}
 
 	// Store found path.
-	// Don't store reversed path, because few path start at interface.
 	startStore.setLoopPath(endStore, lPath)
 
 	return true
@@ -771,8 +770,8 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		return intfClusterPathMark(startStore, endStore, startIntf, endIntf)
 	}
 
-	//    debug("cluster_path_mark: start_store->{name} -> end_store->{name}");
-	//    debug(" from->{name} -> to->{name}");
+	//debug("cluster_path_mark: %s -> %s", startStore, endStore);
+	//debug(" %s -> %s", from, to);
 	success := true
 
 	// Activate pathrestriction at border of loop.
@@ -863,7 +862,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			if clusterPathMark1(next, intf, to, lPath, navi) {
 				success = true
 				lPath.enter.push(intf)
-				//          debug(" enter: from->{name} -> interface->{name}");
+				//debug(" enter: %s -> %s", from, intf.name);
 			}
 		}
 
@@ -871,10 +870,8 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		if success {
 
 			// Remove duplicates from path tuples.
-			// Create reversed path.
-			rPath := new(loopPath)
-			adapt := func(orig, rev *intfPairs) {
-				var tuples, revTuples intfPairs
+			adapt := func(orig *intfPairs) {
+				var tuples intfPairs
 				seen := make(map[intfPair]bool)
 				for _, tuple := range *orig {
 					if seen[tuple] {
@@ -882,25 +879,18 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 					}
 					seen[tuple] = true
 					tuples.push(tuple)
-					revTuples.push(intfPair{tuple[1], tuple[0]})
-					//             debug("Tuple: in_intf->{name}, out_intf->{name} type");
+					//debug("Tuple: %s, %s", tuple[0].name, tuple[1].name);
 				}
 				*orig = tuples
-				*rev = revTuples
 			}
-			adapt(&lPath.routerTuples, &rPath.routerTuples)
-			adapt(&lPath.zoneTuples, &rPath.zoneTuples)
+			adapt(&lPath.routerTuples)
+			adapt(&lPath.zoneTuples)
 
 			// Remove duplicates, which occur from nested loops.
 			lPath.leave.delDupl()
 
 			// Add loop path information to start node or interface.
 			startStore.setLoopPath(endStore, lPath)
-
-			// Add data for reverse path.
-			rPath.enter = lPath.leave
-			rPath.leave = lPath.enter
-			endStore.setLoopPath(startStore, rPath)
 		}
 	}
 
@@ -1414,7 +1404,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 		func(network *network, inIntf *routerIntf, result map[NetOrRouter]intfList) {
 			result[network] = append(result[network], inIntf)
 
-			//    debug "network->{name}: in_intf->{name}";
+   		//debug("%s: %s", network.name, inIntf.name)
 			for _, intf := range network.interfaces {
 				if intf == inIntf {
 					continue
@@ -1433,7 +1423,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				defer func() { router.activePath = false }()
 				result[router] = append(result[router], intf)
 
-				//            debug "router->{name}: interface->{name}";
+				debug("%s: %s", router.name, intf.name)
 
 				for _, outIntf := range router.interfaces {
 					if outIntf == intf {
@@ -1580,16 +1570,16 @@ func pathAutoInterfaces(src *router, dst someObj) intfList {
 	result = result[:j]
 
 	bridgedSeen := false
-	for _, intf := range result {
+	for i, intf := range result {
 		if orig := intf.origMain; orig != nil {
 			// If device has virtual interface, main and virtual interface
 			// are swapped.  Swap it back here because we need the
 			// original main interface if an interface is used in a rule.
-			intf = orig
+			result[i] = orig
 		} else if l3 := intf.layer3Intf; l3 != nil {
 			// Change bridge interface to layer3 interface.
 			// Prevent duplicate layer3 interface.
-			intf = l3
+			result[i] = l3
 			bridgedSeen = true
 		}
 	}
@@ -1597,7 +1587,7 @@ func pathAutoInterfaces(src *router, dst someObj) intfList {
 		result.delDupl()
 	}
 
-	// debug("%s.[auto] = \n" + result.nameList(), src2.name);
+	//debug("%s.[auto] = \n" + result.nameList(), src2.name);
 
 	return result
 }
