@@ -156,6 +156,7 @@ func (x *ipObj) setCommon(m xMap) {
 }
 func (x *netObj) setCommon(m xMap) {
 	x.ipObj.setCommon(m)
+	x.bindNat = getStrings(m["bind_nat"])
 	x.network = convNetwork(m["network"])
 }
 
@@ -201,11 +202,16 @@ func convNetwork(x xAny) *network {
 		}
 		n.subnets = subnets
 	}
+	n.descr = getString(m["descr"])
 	n.interfaces = convRouterIntfs(m["interfaces"])
 	n.zone = convZone(m["zone"])
 	n.disabled = getBool(m["disabled"])
 	n.hasOtherSubnet = getBool(m["has_other_subnet"])
+	n.hasSubnets = getBool(m["has_subnets"])
+	n.hosts = convHosts(m["hosts"])
 	n.isAggregate = getBool(m["is_aggregate"])
+	n.isLayer3 = getBool(m["is_layer3"])
+	n.loopback = getBool(m["loopback"])
 	n.maxRoutingNet = convNetwork(m["max_routing_net"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
 	n.networks = convNetworks(m["networks"])
@@ -227,6 +233,7 @@ func convNetwork(x xAny) *network {
 	n.hasIdHosts = getBool(m["has_id_hosts"])
 	n.invisible = getBool(m["invisible"])
 	n.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
+	n.subnetOf = convNetwork(m["subnet_of"])
 	n.up = convNetwork(m["up"])
 	return n
 }
@@ -283,8 +290,23 @@ func convHost(x xAny) *host {
 	o := new(host)
 	m["ref"] = o
 	o.setCommon(m)
+	if x, ok := m["range"]; ok {
+		a := getSlice(x)
+		o.ipRange = [2]net.IP{getIP(a[0]), getIP(a[1])}
+	}
 	o.subnets = convSubnets(m["subnets"])
 	return o
+}
+func convHosts(x xAny) []*host {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	hosts := make([]*host, len(a))
+	for i, x := range a {
+		hosts[i] = convHost(x)
+	}
+	return hosts
 }
 
 func convNatSet(x xAny) natSet {
@@ -383,6 +405,7 @@ func convRouter(x xAny) *router {
 	}
 	r.generalPermit = convProtos(m["general_permit"])
 	r.loop = convLoop(m["loop"])
+	r.natDomains = convNATDomains(m["nat_domains"])
 	r.needProtect = getBool(m["need_protect"])
 	r.noGroupCode = getBool(m["no_group_code"])
 	r.noInAcl = convRouterIntf(m["no_in_acl"])
@@ -711,7 +734,11 @@ func convNATDomain(x xAny) *natDomain {
 		return r.(*natDomain)
 	}
 	d := new(natDomain)
+	m["ref"] = d
+	d.name = getString(m["name"])
 	d.natSet = convNatSet(m["nat_set"])
+	d.routers = convRouters(m["routers"])
+	d.zones = convZones(m["zones"])
 	return d
 }
 func convNATDomains(x xAny) []*natDomain {
@@ -1122,17 +1149,19 @@ func convConfig(x xAny) Config {
 		CheckRedundantRules:          getString(m["check_redundant_rules"]),
 		CheckFullyRedundantRules:     getString(m["check_fully_redundant_rules"]),
 		CheckPolicyDistributionPoint: getString(m["check_policy_distribution_point"]),
-		CheckSupernetRules:           getString(m["check_supernet_rules"]),
-		CheckTransientSupernetRules:  getString(m["check_transient_supernet_rules"]),
-		CheckUnusedGroups:            getString(m["check_unused_groups"]),
-		CheckUnusedProtocols:         getString(m["check_unused_protocols"]),
-		AutoDefaultRoute:             getBool(m["auto_default_route"]),
-		IgnoreFiles:                  getRegexp(m["ignore_files"]),
-		IPV6:                         getBool(m["ipv6"]),
-		MaxErrors:                    getInt(m["max_errors"]),
-		Verbose:                      getBool(m["verbose"]),
-		TimeStamps:                   getBool(m["time_stamps"]),
-		Pipe:                         getBool(m["pipe"]),
+		CheckSubnets:                 getString(m["check_subnets"]),
+
+		CheckSupernetRules:          getString(m["check_supernet_rules"]),
+		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
+		CheckUnusedGroups:           getString(m["check_unused_groups"]),
+		CheckUnusedProtocols:        getString(m["check_unused_protocols"]),
+		AutoDefaultRoute:            getBool(m["auto_default_route"]),
+		IgnoreFiles:                 getRegexp(m["ignore_files"]),
+		IPV6:                        getBool(m["ipv6"]),
+		MaxErrors:                   getInt(m["max_errors"]),
+		Verbose:                     getBool(m["verbose"]),
+		TimeStamps:                  getBool(m["time_stamps"]),
+		Pipe:                        getBool(m["pipe"]),
 	}
 	return c
 }

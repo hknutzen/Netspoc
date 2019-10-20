@@ -18921,9 +18921,6 @@ sub compile {
     convert_hosts_in_rules();
     group_path_rules();
 
-    find_subnets_in_nat_domain($natdomains);
-    check_unstable_nat_rules();
-
     call_go('spoc1-go', {
         config => $config,
         start_time => $start_time,

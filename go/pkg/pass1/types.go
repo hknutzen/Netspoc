@@ -13,6 +13,7 @@ type Config struct {
 	CheckRedundantRules          string
 	CheckFullyRedundantRules     string
 	CheckPolicyDistributionPoint string
+	CheckSubnets                 string
 	CheckSupernetRules           string
 	CheckTransientSupernetRules  string
 	CheckUnusedGroups            string
@@ -57,36 +58,47 @@ type natMap map[string]*network
 type network struct {
 	ipObj
 	attr             map[string]string
-	mask             net.IPMask
-	subnets          []*subnet
+	certId           string
+	descr            string
+	disabled         bool
+	dynamic          bool
+	filterAt         map[int]bool
+	hasIdHosts       bool
+	hasOtherSubnet   bool
+	hasSubnets       bool
+	hidden           bool
 	hosts            []*host
 	interfaces       []*routerIntf
-	zone             *zone
-	disabled         bool
-	hasOtherSubnet   bool
+	invisible        bool
+	ipV6             bool
 	isAggregate      bool
+	isLayer3         bool
+	loopback         bool
+	mask             net.IPMask
 	maxRoutingNet    *network
 	maxSecondaryNet  *network
 	nat              map[string]*network
-	networks         netList
-	dynamic          bool
-	hidden           bool
-	ipV6             bool
 	natTag           string
-	certId           string
-	filterAt         map[int]bool
-	hasIdHosts       bool
-	invisible        bool
+	networks         netList
 	radiusAttributes map[string]string
+	subnetOf         *network
+	subnets          []*subnet
+	unstableNat      map[natSet]netList
 	up               *network
+	zone             *zone
 }
 
 func (x *network) getNetwork() *network { return x }
 
 type netList []*network
 
+func (a *netList) push(e *network) {
+	*a = append(*a, e)
+}
+
 type netObj struct {
 	ipObj
+	bindNat []string
 	network *network
 }
 
@@ -103,6 +115,7 @@ type subnet struct {
 
 type host struct {
 	netObj
+	ipRange [2]net.IP
 	subnets []*subnet
 }
 
@@ -163,6 +176,7 @@ type router struct {
 	extendedKeys            map[string]string
 	filterOnly              []net.IPNet
 	generalPermit           []*proto
+	natDomains              []*natDomain
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -230,7 +244,6 @@ type routerIntf struct {
 
 type intfList []*routerIntf
 
-// Add element to slice.
 func (a *intfList) push(e *routerIntf) {
 	*a = append(*a, e)
 }
@@ -327,7 +340,10 @@ type area struct {
 }
 
 type natDomain struct {
-	natSet natSet
+	name    string
+	natSet  natSet
+	routers []*router
+	zones   []*zone
 }
 
 type modifiers struct {
