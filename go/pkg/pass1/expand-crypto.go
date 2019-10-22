@@ -174,10 +174,8 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 
 	var rules ruleList
 	template := groupedRule{
-		serviceRule: serviceRule{
-			src: []someObj{intf1},
-			dst: []someObj{intf2},
-		},
+		src:     []someObj{intf1},
+		dst:     []someObj{intf2},
 		srcPath: intf1.getPathNode(),
 		dstPath: intf2.getPathNode(),
 	}
@@ -191,16 +189,19 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 		}
 		if len(prt) > 0 {
 			rule := template
+			rule.serviceRule = new(serviceRule)
 			rule.prt = prt
 			rules.push(&rule)
 		}
 		rule := template
+		rule.serviceRule = new(serviceRule)
 		rule.srcRange = prtIke.src
 		rule.prt = []*proto{prtIke.dst}
 		rules.push(&rule)
 	}
 	if natTraversal != "" {
 		rule := template
+		rule.serviceRule = new(serviceRule)
 		rule.srcRange = prtNatt.src
 		rule.prt = []*proto{prtNatt.dst}
 		rules.push(&rule)

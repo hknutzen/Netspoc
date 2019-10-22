@@ -37,7 +37,7 @@ var (
 	services       map[string]*service
 
 	prtMap protoLookup
-	pRules *pathRules
+	pRules pathRules
 	sRules *serviceRules
 
 	allNetworks        netList

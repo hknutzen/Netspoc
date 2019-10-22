@@ -9,6 +9,7 @@ func main() {
 	pass1.ImportFromPerl()
 	initialErrors := pass1.ErrorCounter
 
+	pass1.GroupPathRules()
 	pass1.FindSubnetsInNatDomain(pass1.NATDomains)
 	pass1.CheckUnstableNatRules()
 	pass1.MarkManagedLocal()

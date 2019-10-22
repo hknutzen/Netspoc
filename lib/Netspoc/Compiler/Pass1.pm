@@ -18919,7 +18919,6 @@ sub compile {
 
     check_service_owner();
     convert_hosts_in_rules();
-    group_path_rules();
 
     call_go('spoc1-go', {
         config => $config,

@@ -125,14 +125,14 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 		for _, srcRange := range srcRangeList {
 			prtList := srcRange2prtList[srcRange]
 			newRule := &groupedRule{
-				serviceRule: serviceRule{
+				serviceRule: &serviceRule{
 					// This rule must only be applied to stateless routers.
 					stateless: true,
 					deny:      rule.deny,
-					src:       rule.dst,
-					dst:       rule.src,
 					prt:       prtList,
 				},
+				src:     rule.dst,
+				dst:     rule.src,
 				srcPath: dstPath,
 				dstPath: srcPath,
 			}

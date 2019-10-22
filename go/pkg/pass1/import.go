@@ -212,6 +212,7 @@ func convNetwork(x xAny) *network {
 	n.isAggregate = getBool(m["is_aggregate"])
 	n.isLayer3 = getBool(m["is_layer3"])
 	n.loopback = getBool(m["loopback"])
+	n.managedHosts = convRouterIntfs(m["managed_hosts"])
 	n.maxRoutingNet = convNetwork(m["max_routing_net"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
 	n.networks = convNetworks(m["networks"])
@@ -929,6 +930,7 @@ func convService(x xAny) *service {
 	m["ref"] = s
 	s.name = getString(m["name"])
 	s.disabled = getBool(m["disabled"])
+	s.hasUnenforceable = getBool(m["has_unenforceable"])
 	if list, ok := m["overlaps"]; ok {
 		xOverlaps := list.(xSlice)
 		overlaps := make([]*service, len(xOverlaps))
@@ -956,25 +958,37 @@ func convunexpRule(x xAny) *unexpRule {
 	}
 	r := new(unexpRule)
 	m["ref"] = r
-	r.service = convService(m["service"])
+	r.hasUser = getString(m["has_user"])
 	r.prt = convProtoOrNames(m["prt"])
+	r.service = convService(m["service"])
 	return r
 }
 
-func convRule(x xAny) *groupedRule {
+func convGroupedRule(x xAny) *groupedRule {
+	m := getMap(x)
+	s := convServiceRule(x)
+	r := new(groupedRule)
+	r.serviceRule = s
+	r.src = s.src
+	r.dst = s.dst
+	r.srcPath = convPathStore(m["src_path"])
+	r.dstPath = convPathStore(m["dst_path"])
+	return r
+}
+
+func convServiceRule(x xAny) *serviceRule {
 	m := getMap(x)
 	if r, ok := m["ref"]; ok {
-		return r.(*groupedRule)
+		return r.(*serviceRule)
 	}
-	r := new(groupedRule)
+	r := new(serviceRule)
 	m["ref"] = r
+
 	r.deny = getBool(m["deny"])
 	r.src = convSomeObjects(m["src"])
 	r.dst = convSomeObjects(m["dst"])
 	r.prt = convProtos(m["prt"])
 	r.srcRange = convProto(m["src_range"])
-	r.srcPath = convPathStore(m["src_path"])
-	r.dstPath = convPathStore(m["dst_path"])
 	if log, ok := m["log"]; ok {
 		r.log = getString(log)
 	}
@@ -984,44 +998,17 @@ func convRule(x xAny) *groupedRule {
 	r.oneway = getBool(m["oneway"])
 	r.overlaps = getBool(m["overlaps"])
 	r.rule = convunexpRule(m["rule"])
-	r.someNonSecondary = getBool(m["some_non_secondary"])
-	r.somePrimary = getBool(m["some_primary"])
 	return r
 }
 
-func convGroupedRules(x xAny) []*groupedRule {
-	if x == nil {
-		return nil
-	}
-	a := getSlice(x)
-	rules := make([]*groupedRule, len(a))
-	for i, x := range a {
-		rules[i] = convRule(x)
-	}
-	return rules
-}
-
-func convPathRules(x xAny) *pathRules {
-	m := getMap(x)
-	r := new(pathRules)
-	r.permit = convGroupedRules(m["permit"])
-	r.deny = convGroupedRules(m["deny"])
-	return r
-}
-
-func convBaseRule(x xAny) *serviceRule {
-	r := convRule(x)
-	return &r.serviceRule
-}
-
-func convBaseRules(x xAny) []*serviceRule {
+func convServiceRuleList(x xAny) []*serviceRule {
 	if x == nil {
 		return nil
 	}
 	a := getSlice(x)
 	rules := make([]*serviceRule, len(a))
 	for i, x := range a {
-		rules[i] = convBaseRule(x)
+		rules[i] = convServiceRule(x)
 	}
 	return rules
 }
@@ -1029,8 +1016,8 @@ func convBaseRules(x xAny) []*serviceRule {
 func convServiceRules(x xAny) *serviceRules {
 	m := getMap(x)
 	r := new(serviceRules)
-	r.permit = convBaseRules(m["permit"])
-	r.deny = convBaseRules(m["deny"])
+	r.permit = convServiceRuleList(m["permit"])
+	r.deny = convServiceRuleList(m["deny"])
 	return r
 }
 
@@ -1153,6 +1140,7 @@ func convConfig(x xAny) Config {
 
 		CheckSupernetRules:          getString(m["check_supernet_rules"]),
 		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
+		CheckUnenforceable:          getString(m["check_unenforceable"]),
 		CheckUnusedGroups:           getString(m["check_unused_groups"]),
 		CheckUnusedProtocols:        getString(m["check_unused_protocols"]),
 		AutoDefaultRoute:            getBool(m["auto_default_route"]),
@@ -1188,8 +1176,8 @@ func ImportFromPerl() {
 	progress("Importing from Perl")
 
 	cryptoMap = convCryptoMap(m["crypto"])
-	denyAny6Rule = convRule(m["deny_any6_rule"])
-	denyAnyRule = convRule(m["deny_any_rule"])
+	denyAny6Rule = convGroupedRule(m["deny_any6_rule"])
+	denyAnyRule = convGroupedRule(m["deny_any_rule"])
 	InPath = getString(m["in_path"])
 	managedRouters = convRouters(m["managed_routers"])
 	NATDomains = convNATDomains(m["natdomains"])
@@ -1198,9 +1186,8 @@ func ImportFromPerl() {
 	network00v6 = convNetwork(m["network_00_v6"])
 	allNetworks = convNetworks(m["all_networks"])
 	OutDir = getString(m["out_dir"])
-	pRules = convPathRules(m["path_rules"])
-	permitAny6Rule = convRule(m["permit_any6_rule"])
-	permitAnyRule = convRule(m["permit_any_rule"])
+	permitAny6Rule = convGroupedRule(m["permit_any6_rule"])
+	permitAnyRule = convGroupedRule(m["permit_any_rule"])
 	program = getString(m["program"])
 	groups = convObjGroupMap(m["groups"])
 	protocolGroups = convprotoGroupMap(m["protocolgroups"])

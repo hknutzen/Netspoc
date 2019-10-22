@@ -507,12 +507,12 @@ func generateRoutingTree1(rule *groupedRule, isIntf string, tree routingTree) {
 			// Generate new pseudo rule otherwise.
 			pRule = &pseudoRule{
 				groupedRule: groupedRule{
-					serviceRule: serviceRule{
-						src:  src,
-						dst:  dst,
+					serviceRule: &serviceRule{
 						prt:  rule.prt,
 						rule: rule.rule,
 					},
+					src:     src,
+					dst:     dst,
 					srcPath: srcZone,
 					dstPath: dstZone,
 				},

@@ -1383,11 +1383,11 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 
 func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
 	rule := &groupedRule{
-		serviceRule: serviceRule{
-			src: []someObj{src},
-			dst: []someObj{dst},
+		serviceRule: &serviceRule{
 			prt: []*proto{prtIP},
 		},
+		src:     []someObj{src},
+		dst:     []someObj{dst},
 		srcPath: src.getPathNode(),
 		dstPath: dst.getPathNode(),
 	}

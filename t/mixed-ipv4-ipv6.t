@@ -383,10 +383,10 @@ Finding subnets in zone
 Normalizing services
 Checking service owner
 Converting hosts to subnets
-Grouping rules
-Grouped rule count: 4
 Exporting to Go
 Importing from Perl
+Grouping rules
+Grouped rule count: 4
 Finding subnets in 2 NAT domains
 Checking rules for unstable subnet relation
 Checking and marking rules with hidden or dynamic NAT

@@ -16,6 +16,7 @@ type Config struct {
 	CheckSubnets                 string
 	CheckSupernetRules           string
 	CheckTransientSupernetRules  string
+	CheckUnenforceable           string
 	CheckUnusedGroups            string
 	CheckUnusedProtocols         string
 	AutoDefaultRoute             bool
@@ -74,6 +75,7 @@ type network struct {
 	isAggregate      bool
 	isLayer3         bool
 	loopback         bool
+	managedHosts     intfList
 	mask             net.IPMask
 	maxRoutingNet    *network
 	maxSecondaryNet  *network
@@ -400,18 +402,24 @@ type objGroup struct {
 }
 
 type service struct {
-	name               string
-	disabled           bool
-	ruleCount          int
-	duplicateCount     int
-	redundantCount     int
-	hasSameDupl        map[*service]bool
-	overlaps           []*service
-	overlapsUsed       map[*service]bool
-	overlapsRestricted bool
+	name                       string
+	disabled                   bool
+	ruleCount                  int
+	duplicateCount             int
+	redundantCount             int
+	hasSameDupl                map[*service]bool
+	hasUnenforceable           bool
+	hasUnenforceableRestricted bool
+	overlaps                   []*service
+	overlapsUsed               map[*service]bool
+	overlapsRestricted         bool
+	seenEnforceable            bool
+	seenUnenforceable          map[objPair]bool
+	silentUnenforceable        bool
 }
 
 type unexpRule struct {
+	hasUser string
 	prt     []protoOrName
 	service *service
 }
@@ -440,7 +448,9 @@ type serviceRules struct {
 }
 
 type groupedRule struct {
-	serviceRule
+	*serviceRule
+	src              []someObj
+	dst              []someObj
 	srcPath          pathStore
 	dstPath          pathStore
 	someNonSecondary bool
@@ -450,7 +460,7 @@ type ruleList []*groupedRule
 
 func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 	return &groupedRule{
-		serviceRule: serviceRule{src: src, dst: dst, prt: prt}}
+		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
 }
 
 type pathRules struct {
