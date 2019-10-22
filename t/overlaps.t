@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # Enable printing of diagnostic messages.
-use constant SHOW_DIAG => 1;
+$ENV{SHOW_DIAG} = 1;
 
 use strict;
 use warnings;

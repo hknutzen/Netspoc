@@ -1211,7 +1211,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Multiple interfaces talk to policy_distribution_point';
+$title = 'Multiple interfaces talk to policy_distribution_point (1)';
 ############################################################
 
 $in = <<'END';
@@ -1242,6 +1242,61 @@ END
 $out = <<'END';
 --r1
 ! [ IP = 10.0.0.1,10.1.1.1 ]
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Multiple interfaces talk to policy_distribution_point (2)';
+############################################################
+# Find interfaces in given order n3, n4,
+# even if reversed path was already fund previously while
+# "Checking and marking rules with hidden or dynamic NAT"
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.111; } }
+network:n2 = { ip = 10.1.2.0/30; }
+network:n3 = { ip = 10.1.3.0/30; }
+network:n4 = { ip = 10.1.4.0/30; }
+network:n5 = { ip = 10.1.5.0/27; nat:h = { hidden; } }
+network:n6 = { ip = 10.1.6.0/27; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; bind_nat = h; }
+}
+router:r2 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ policy_distribution_point = host:h1;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r2.n3, interface:r2.n4; prt = tcp 22;
+ permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
+}
+END
+
+$out = <<'END';
+--r2
+! [ IP = 10.1.3.2,10.1.4.1 ]
 END
 
 test_run($title, $in, $out);

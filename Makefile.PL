@@ -23,8 +23,7 @@ my %WriteMakefileArgs = (
     "bin/remove-from-netspoc",
     "bin/rename-netspoc",
     "bin/spoc1",
-    "bin/spoc1-check",
-    "bin/spoc1-print",
+    "bin/spoc1-go",
     "bin/spoc2"
   ],
   "LICENSE" => "gpl",
@@ -59,7 +58,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "6.001",
+  "VERSION" => "6.002",
   "test" => {
     "TESTS" => "t/*.t"
   }

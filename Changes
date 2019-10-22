@@ -1,3 +1,16 @@
+6.002     2019-10-22 16:20:00+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Finding subnets in NAT domains
+   - Checking rules for unstable subnet relation
+   - Marking topology for managed = local
+   - Checking rules with hidden or dynamic NAT
+   - Setting policy distribution IP
+   - Expanding crypto rules
+   - Copy raw files
+ - Improved secondary optimization in context with dynamic NAT.
+ - Removed debug messages in add-to-netspoc and rename-netspoc.
+
 6.001     2019-10-07 13:50:09+02:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:

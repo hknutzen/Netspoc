@@ -352,7 +352,7 @@ func distributeGeneralPermit() {
 						srcList = append(srcList, idIntf.src)
 					}
 					sort.Slice(srcList, func(i, j int) bool {
-						return srcList[i].getName() < srcList[j].getName()
+						return srcList[i].String() < srcList[j].String()
 					})
 					for _, src := range srcList {
 						addRule(src)

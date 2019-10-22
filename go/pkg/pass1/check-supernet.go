@@ -6,57 +6,6 @@ import (
 	"strings"
 )
 
-func splitRulesByPath(rules []*serviceRule, where string) []*groupedRule {
-	var newRules []*groupedRule
-	for _, rule := range rules {
-		var group []someObj
-		if where == "src" {
-			group = rule.src
-		} else {
-			group = rule.dst
-		}
-		element0 := group[0]
-		path0 := element0.getPathNode()
-
-		// Check, if group has elements from different zones and must be split.
-		different := false
-		for _, el := range group[1:] {
-			if el.getPathNode() != path0 {
-				different = true
-				break
-			}
-		}
-		if different {
-			path2group := make(map[pathStore][]someObj)
-			for _, el := range group {
-				path := el.getPathNode()
-				path2group[path] = append(path2group[path], el)
-			}
-			for path, pathGroup := range path2group {
-				newRule := &groupedRule{serviceRule: *rule}
-				if where == "src" {
-					newRule.src = pathGroup
-					newRule.srcPath = path
-				} else {
-					newRule.dst = pathGroup
-					newRule.dstPath = path
-				}
-				newRules = append(newRules, newRule)
-			}
-		} else {
-			// Use unchanged group, add path info.
-			newRule := &groupedRule{serviceRule: *rule}
-			if where == "src" {
-				newRule.srcPath = path0
-			} else {
-				newRule.dstPath = path0
-			}
-			newRules = append(newRules, newRule)
-		}
-	}
-	return newRules
-}
-
 // Two zones are zoneEq, if
 // - zones are equal or
 // - both belong to the same zone cluster.
@@ -88,7 +37,7 @@ func shortNameList(list []someObj) string {
 			names = append(names, "...")
 			break
 		}
-		names = append(names, obj.getName())
+		names = append(names, obj.String())
 	}
 	return " - " + strings.Join(names, "\n - ")
 }
@@ -582,13 +531,13 @@ func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *ro
 			continue
 		}
 		var list []someObj
-		var other string
+		var oList []someObj
 		if what == "src" {
 			list = rule.src
-			other = "dst"
+			oList = rule.dst
 		} else {
 			list = rule.dst
-			other = "src"
+			oList = rule.src
 		}
 		var supernets netList
 		for _, obj := range list {
@@ -617,27 +566,32 @@ func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *ro
 			}
 		}
 		rule.zone2netMap = zone2netMap
-		pathRules := splitRulesByPath([]*serviceRule{rule}, other)
+
+		// Convert each service Rule to grouped Rule, usable for pathWalk.
+		groupInfo := splitRuleGroup(oList)
+		checkRule := new(groupedRule)
+		checkRule.serviceRule = rule
 		for _, supernet := range supernets {
-			for _, pathRule := range pathRules {
-				var otherZone *zone
-				if what == "src" {
-					otherZone = pathRule.dstPath.getZone()
-				} else {
-					otherZone = pathRule.srcPath.getZone()
-				}
+			if what == "src" {
+				checkRule.src = []someObj{supernet}
+				checkRule.srcPath = supernet.zone
+			} else {
+				checkRule.dst = []someObj{supernet}
+				checkRule.dstPath = supernet.zone
+			}
+			for _, gi := range groupInfo {
+				otherZone := gi.path.getZone()
 				if zoneEq(supernet.zone, otherZone) {
 					continue
 				}
-				checkRule := *pathRule
 				if what == "src" {
-					checkRule.src = []someObj{supernet}
-					checkRule.srcPath = supernet.zone
+					checkRule.dstPath = gi.path
+					checkRule.dst = gi.group
 				} else {
-					checkRule.dst = []someObj{supernet}
-					checkRule.dstPath = supernet.zone
+					checkRule.srcPath = gi.path
+					checkRule.src = gi.group
 				}
-				pathWalk(&checkRule, worker, "Router")
+				pathWalk(checkRule, worker, "Router")
 			}
 		}
 		rule.zone2netMap = nil
@@ -1169,9 +1123,9 @@ func CheckSupernetRules() {
 				statefulMark++
 			}
 		}
-		//		progress("Checking for missing src in supernet rules");
+		// progress("Checking for missing src in supernet rules");
 		checkMissingSupernetRules("src", checkSupernetSrcRule)
-		//		progress("Checking for missing dst in supernet rules");
+		// progress("Checking for missing dst in supernet rules");
 		checkMissingSupernetRules("dst", checkSupernetDstRule)
 		missingSupernet = nil
 	}

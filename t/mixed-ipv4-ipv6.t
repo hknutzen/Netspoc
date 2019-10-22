@@ -383,13 +383,13 @@ Finding subnets in zone
 Normalizing services
 Checking service owner
 Converting hosts to subnets
+Exporting to Go
+Importing from Perl
 Grouping rules
 Grouped rule count: 4
 Finding subnets in 2 NAT domains
 Checking rules for unstable subnet relation
-Checking rules with hidden or dynamic NAT
-Exporting to Go
-Importing from Perl
+Checking and marking rules with hidden or dynamic NAT
 Checking supernet rules
 Checking transient supernet rules
 Checking for redundant rules
@@ -397,8 +397,6 @@ Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
 Setting policy distribution IP
 Expanding crypto rules
-Exporting to Go
-Importing from Perl
 Finding routes
 Generating reverse rules for stateless routers
 Marking rules for secondary optimization

@@ -27,7 +27,7 @@ func expandProtocols(list []protoOrName, context string) []*proto {
 						typ, name, context)
 				}
 			case "protocolgroup":
-				if prtgroup, ok := protocolgroups[name]; ok {
+				if prtgroup, ok := protocolGroups[name]; ok {
 					if prtgroup.recursive {
 						errMsg("Found recursion in definition of %s", context)
 						prtgroup.elements = nil

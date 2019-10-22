@@ -1,24 +1,35 @@
 package pass1
 
 import (
+	"fmt"
 	"net"
+	"regexp"
 )
 
+type stringerList []fmt.Stringer
+
 type Config struct {
-	CheckDuplicateRules         string
-	CheckRedundantRules         string
-	CheckFullyRedundantRules    string
-	CheckSupernetRules          string
-	CheckTransientSupernetRules string
-	Verbose                     bool
-	TimeStamps                  bool
-	Pipe                        bool
-	MaxErrors                   int
-	autoDefaultRoute            bool
+	CheckDuplicateRules          string
+	CheckRedundantRules          string
+	CheckFullyRedundantRules     string
+	CheckPolicyDistributionPoint string
+	CheckSubnets                 string
+	CheckSupernetRules           string
+	CheckTransientSupernetRules  string
+	CheckUnenforceable           string
+	CheckUnusedGroups            string
+	CheckUnusedProtocols         string
+	AutoDefaultRoute             bool
+	IgnoreFiles                  *regexp.Regexp
+	IPV6                         bool
+	MaxErrors                    int
+	Verbose                      bool
+	TimeStamps                   bool
+	Pipe                         bool
 }
 
 type someObj interface {
-	getName() string
+	String() string
 	getNetwork() *network
 	getUp() someObj
 	address(nn natSet) net.IPNet
@@ -39,42 +50,57 @@ type ipObj struct {
 	up         someObj
 }
 
-func (x *ipObj) getName() string { return x.name }
-func (x *ipObj) getUp() someObj  { return x.up }
+func (x ipObj) String() string { return x.name }
+
+func (x *ipObj) getUp() someObj { return x.up }
 
 type natMap map[string]*network
 
 type network struct {
 	ipObj
 	attr             map[string]string
-	mask             net.IPMask
-	subnets          []*subnet
-	interfaces       []*routerIntf
-	zone             *zone
+	certId           string
+	descr            string
+	disabled         bool
+	dynamic          bool
+	filterAt         map[int]bool
+	hasIdHosts       bool
 	hasOtherSubnet   bool
+	hasSubnets       bool
+	hidden           bool
+	hosts            []*host
+	interfaces       []*routerIntf
+	invisible        bool
+	ipV6             bool
 	isAggregate      bool
+	isLayer3         bool
+	loopback         bool
+	managedHosts     intfList
+	mask             net.IPMask
 	maxRoutingNet    *network
 	maxSecondaryNet  *network
 	nat              map[string]*network
-	networks         netList
-	dynamic          bool
-	hidden           bool
-	ipV6             bool
 	natTag           string
-	certId           string
-	filterAt         map[int]bool
-	hasIdHosts       bool
-	invisible        bool
+	networks         netList
 	radiusAttributes map[string]string
+	subnetOf         *network
+	subnets          []*subnet
+	unstableNat      map[natSet]netList
 	up               *network
+	zone             *zone
 }
 
 func (x *network) getNetwork() *network { return x }
 
 type netList []*network
 
+func (a *netList) push(e *network) {
+	*a = append(*a, e)
+}
+
 type netObj struct {
 	ipObj
+	bindNat []string
 	network *network
 }
 
@@ -89,11 +115,17 @@ type subnet struct {
 	radiusAttributes map[string]string
 }
 
+type host struct {
+	netObj
+	ipRange [2]net.IP
+	subnets []*subnet
+}
+
 type model struct {
-	CommentChar     string
-	Class           string
+	commentChar     string
+	class           string
 	crypto          string
-	DoAuth          bool
+	doAuth          bool
 	canObjectgroup  bool
 	cryptoInContext bool
 	filter          string
@@ -132,41 +164,45 @@ type aclInfo struct {
 type router struct {
 	pathStoreData
 	pathObjData
-	name             string
-	deviceName       string
-	managed          string
-	semiManaged      bool
-	adminIP          []string
-	model            *model
-	log              map[string]string
-	logDeny          bool
-	localMark        int
-	origIntfs        []*routerIntf
-	crosslinkIntfs   []*routerIntf
-	filterOnly       []net.IPNet
-	generalPermit    []*proto
-	needProtect      bool
-	noGroupCode      bool
-	noInAcl          *routerIntf
-	noSecondaryOpt   map[*network]bool
-	hardware         []*hardware
-	origHardware     []*hardware
-	origRouter       *router
-	primaryMark      int
-	radiusAttributes map[string]string
-	routingOnly      bool
-	secondaryMark    int
-	trustPoint       string
-	vrfMembers       []*router
-	ipV6             bool
-	aclList          []*aclInfo
-	vrf              string
+	name                    string
+	deviceName              string
+	managed                 string
+	semiManaged             bool
+	adminIP                 []string
+	model                   *model
+	log                     map[string]string
+	logDeny                 bool
+	localMark               int
+	origIntfs               []*routerIntf
+	crosslinkIntfs          []*routerIntf
+	extendedKeys            map[string]string
+	filterOnly              []net.IPNet
+	generalPermit           []*proto
+	natDomains              []*natDomain
+	needProtect             bool
+	noGroupCode             bool
+	noInAcl                 *routerIntf
+	noSecondaryOpt          map[*network]bool
+	hardware                []*hardware
+	origHardware            []*hardware
+	origRouter              *router
+	policyDistributionPoint *host
+	primaryMark             int
+	radiusAttributes        map[string]string
+	routingOnly             bool
+	secondaryMark           int
+	trustPoint              string
+	ipvMembers              []*router
+	vrfMembers              []*router
+	ipV6                    bool
+	aclList                 []*aclInfo
+	vrf                     string
 
 	// This represents the router itself and is distinct from each real zone.
 	zone *zone
 }
 
-func (x *router) getName() string { return x.name }
+func (x router) String() string { return x.name }
 
 type routerIntf struct {
 	netObj
@@ -180,6 +216,7 @@ type routerIntf struct {
 	id              string
 	isHub           bool
 	hardware        *hardware
+	layer3Intf      *routerIntf
 	loop            *loop
 	loopback        bool
 	loopEntryZone   map[pathStore]pathStore
@@ -209,7 +246,6 @@ type routerIntf struct {
 
 type intfList []*routerIntf
 
-// Add element to slice.
 func (a *intfList) push(e *routerIntf) {
 	*a = append(*a, e)
 }
@@ -251,8 +287,10 @@ type pathRestriction struct {
 }
 
 type crypto struct {
-	ipsec             *ipsec
 	detailedCryptoAcl bool
+	ipsec             *ipsec
+	name              string
+	tunnels           netList
 }
 type ipsec struct {
 	name              string
@@ -272,6 +310,7 @@ type isakmp struct {
 	trustPoint     string
 	ikeVersion     int
 	lifetime       int
+	natTraversal   string
 }
 
 type zone struct {
@@ -294,7 +333,7 @@ type zone struct {
 	zoneCluster          []*zone
 }
 
-func (x *zone) getName() string { return x.name }
+func (x zone) String() string { return x.name }
 
 type area struct {
 	name   string
@@ -303,7 +342,10 @@ type area struct {
 }
 
 type natDomain struct {
-	natSet natSet
+	name    string
+	natSet  natSet
+	routers []*router
+	zones   []*zone
 }
 
 type modifiers struct {
@@ -333,20 +375,51 @@ type proto struct {
 	isUsed      bool
 	printed     string
 }
+type protoList []*proto
+
+type protoOrName interface{}
+
+type protoGroup struct {
+	name      string
+	pairs     []protoOrName
+	elements  protoList
+	recursive bool
+	isUsed    bool
+}
+
+type protoLookup struct {
+	ip    *proto
+	icmp  map[string]*proto
+	tcp   map[string]*proto
+	udp   map[string]*proto
+	proto map[string]*proto
+}
+
+type objGroup struct {
+	name     string
+	elements []someObj
+	isUsed   bool
+}
 
 type service struct {
-	name               string
-	disabled           bool
-	ruleCount          int
-	duplicateCount     int
-	redundantCount     int
-	hasSameDupl        map[*service]bool
-	overlaps           []*service
-	overlapsUsed       map[*service]bool
-	overlapsRestricted bool
+	name                       string
+	disabled                   bool
+	ruleCount                  int
+	duplicateCount             int
+	redundantCount             int
+	hasSameDupl                map[*service]bool
+	hasUnenforceable           bool
+	hasUnenforceableRestricted bool
+	overlaps                   []*service
+	overlapsUsed               map[*service]bool
+	overlapsRestricted         bool
+	seenEnforceable            bool
+	seenUnenforceable          map[objPair]bool
+	silentUnenforceable        bool
 }
 
 type unexpRule struct {
+	hasUser string
 	prt     []protoOrName
 	service *service
 }
@@ -375,7 +448,9 @@ type serviceRules struct {
 }
 
 type groupedRule struct {
-	serviceRule
+	*serviceRule
+	src              []someObj
+	dst              []someObj
 	srcPath          pathStore
 	dstPath          pathStore
 	someNonSecondary bool
@@ -385,22 +460,12 @@ type ruleList []*groupedRule
 
 func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 	return &groupedRule{
-		serviceRule: serviceRule{src: src, dst: dst, prt: prt}}
+		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
 }
 
 type pathRules struct {
 	permit ruleList
 	deny   ruleList
-}
-
-type protoOrName interface{}
-type protoList []*proto
-
-type protoGroup struct {
-	pairs     []protoOrName
-	elements  protoList
-	recursive bool
-	isUsed    bool
 }
 
 type mcastInfo struct {

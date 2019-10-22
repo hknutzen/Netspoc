@@ -1,6 +1,8 @@
 package pass1
 
-import ()
+import (
+	"fmt"
+)
 
 func findZone1(store pathStore) *zone {
 	var obj pathObj
@@ -44,7 +46,7 @@ type pathStoreData struct {
 }
 
 type pathStore interface {
-	getName() string
+	String() string
 	getPath() map[pathStore]*routerIntf
 	getPath1() map[pathStore]*routerIntf
 	getLoopEntry() map[pathStore]pathStore
@@ -102,7 +104,7 @@ func (x *pathStoreData) setLoopPath(s pathStore, i *loopPath) {
 }
 
 type pathObjData struct {
-	interfaces []*routerIntf
+	interfaces intfList
 	activePath bool
 	distance   int
 	loop       *loop
@@ -111,7 +113,7 @@ type pathObjData struct {
 }
 
 type pathObj interface {
-	intfList() []*routerIntf
+	intfList() intfList
 	isActivePath() bool
 	setActivePath()
 	clearActivePath()
@@ -122,7 +124,7 @@ type pathObj interface {
 	getToZone1() *routerIntf
 }
 
-func (x *pathObjData) intfList() []*routerIntf         { return x.interfaces }
+func (x *pathObjData) intfList() intfList              { return x.interfaces }
 func (x *pathObjData) isActivePath() bool              { return x.activePath }
 func (x *pathObjData) setActivePath()                  { x.activePath = true }
 func (x *pathObjData) clearActivePath()                { x.activePath = false }
@@ -227,17 +229,17 @@ type loop struct {
 }
 type navigation map[*loop]map[*loop]bool
 
-type intfTuple [2]*routerIntf
-type tupleList []intfTuple
+type intfPair [2]*routerIntf
+type intfPairs []intfPair
 type loopPath struct {
 	enter        intfList
 	leave        intfList
-	routerTuples tupleList
-	zoneTuples   tupleList
+	routerTuples intfPairs
+	zoneTuples   intfPairs
 }
 
 // Add element to slice.
-func (a *tupleList) push(e intfTuple) {
+func (a *intfPairs) push(e intfPair) {
 	*a = append(*a, e)
 }
 
@@ -319,7 +321,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopP
 	}
 
 	var getNext func(i *routerIntf) pathObj
-	var typeTuples *tupleList
+	var typeTuples *intfPairs
 	switch obj.(type) {
 	case *router:
 		getNext = func(i *routerIntf) pathObj { return i.zone }
@@ -354,7 +356,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopP
 
 			// ...collect path information.
 			//	    debug(" loop: in_intf->{name} -> interface->{name}");
-			typeTuples.push(intfTuple{inIntf, intf})
+			typeTuples.push(intfPair{inIntf, intf})
 			success = true
 		}
 	}
@@ -443,7 +445,7 @@ func clusterNavigation(from, to pathObj) navigation {
 }
 
 // Remove element from slice without modifying original slice.
-func (a *tupleList) deleteElement(e intfTuple) {
+func (a *intfPairs) deleteElement(e intfPair) {
 	index := -1
 	for i, x := range *a {
 		if x == e {
@@ -495,7 +497,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		isRedundancy[i] = true
 	}
 
-	delTuples := make(tupleList, 0)
+	delTuples := make(intfPairs, 0)
 
 	// Remove tuples traversing that router, where path should start/end.
 	for _, tuple := range lPath.routerTuples {
@@ -558,7 +560,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		// because path starts/ends at zone.
 		// But for other side of path, we don't know if it starts at
 		// router or zone; so we must check zone_tuples also.
-		for _, tuples := range []*tupleList{&lPath.routerTuples, &lPath.zoneTuples} {
+		for _, tuples := range []*intfPairs{&lPath.routerTuples, &lPath.zoneTuples} {
 			for _, tuple := range *tuples {
 				in, out := tuple[0], tuple[1]
 				hasIn[in] = true
@@ -609,9 +611,9 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 			lPath.routerTuples = lPath.routerTuples[:j]
 		} else {
 			if isStart {
-				lPath.zoneTuples.push(intfTuple{startEnd, intf})
+				lPath.zoneTuples.push(intfPair{startEnd, intf})
 			} else {
-				lPath.zoneTuples.push(intfTuple{intf, startEnd})
+				lPath.zoneTuples.push(intfPair{intf, startEnd})
 			}
 			if !seenIntf {
 				seenIntf = true
@@ -633,7 +635,7 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 //              end_intf: set if path ends at pathrestricted interface
 // Returns    : True if path was found, false otherwise.
 // Results    : Sets attributes {loop_enter}, {loop_leave}, {*_path_tuples}
-//              for found path and reversed path.
+//              for found path.
 func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *routerIntf) bool {
 	if startIntf != nil {
 		startStore = startIntf.zone
@@ -659,18 +661,18 @@ func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *rou
 		zoneEq(endStore, startStore) ||
 		zoneEq(startStore, endStore) {
 		if startIntf != nil && endIntf != nil {
-			lPath.enter = []*routerIntf{startIntf}
-			lPath.leave = []*routerIntf{endIntf}
-			lPath.zoneTuples = []intfTuple{intfTuple{startIntf, endIntf}}
+			lPath.enter = intfList{startIntf}
+			lPath.leave = intfList{endIntf}
+			lPath.zoneTuples = intfPairs{{startIntf, endIntf}}
 			startStore = startIntf
 			endStore = endIntf
 		} else if startIntf != nil {
-			lPath.enter = []*routerIntf{startIntf}
-			lPath.leave = []*routerIntf{startIntf}
+			lPath.enter = intfList{startIntf}
+			lPath.leave = intfList{startIntf}
 			startStore = startIntf
 		} else {
-			lPath.enter = []*routerIntf{endIntf}
-			lPath.leave = []*routerIntf{endIntf}
+			lPath.enter = intfList{endIntf}
+			lPath.leave = intfList{endIntf}
 			endStore = endIntf
 		}
 	} else {
@@ -702,7 +704,6 @@ func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *rou
 	}
 
 	// Store found path.
-	// Don't store reversed path, because few path start at interface.
 	startStore.setLoopPath(endStore, lPath)
 
 	return true
@@ -769,8 +770,8 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		return intfClusterPathMark(startStore, endStore, startIntf, endIntf)
 	}
 
-	//    debug("cluster_path_mark: start_store->{name} -> end_store->{name}");
-	//    debug(" from->{name} -> to->{name}");
+	//debug("cluster_path_mark: %s -> %s", startStore, endStore);
+	//debug(" %s -> %s", from, to);
 	success := true
 
 	// Activate pathrestriction at border of loop.
@@ -861,7 +862,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			if clusterPathMark1(next, intf, to, lPath, navi) {
 				success = true
 				lPath.enter.push(intf)
-				//          debug(" enter: from->{name} -> interface->{name}");
+				//debug(" enter: %s -> %s", from, intf.name);
 			}
 		}
 
@@ -869,36 +870,27 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		if success {
 
 			// Remove duplicates from path tuples.
-			// Create reversed path.
-			rPath := new(loopPath)
-			adapt := func(orig, rev *tupleList) {
-				var tuples, revTuples tupleList
-				seen := make(map[intfTuple]bool)
+			adapt := func(orig *intfPairs) {
+				var tuples intfPairs
+				seen := make(map[intfPair]bool)
 				for _, tuple := range *orig {
 					if seen[tuple] {
 						continue
 					}
 					seen[tuple] = true
 					tuples.push(tuple)
-					revTuples.push(intfTuple{tuple[1], tuple[0]})
-					//             debug("Tuple: in_intf->{name}, out_intf->{name} type");
+					//debug("Tuple: %s, %s", tuple[0].name, tuple[1].name);
 				}
 				*orig = tuples
-				*rev = revTuples
 			}
-			adapt(&lPath.routerTuples, &rPath.routerTuples)
-			adapt(&lPath.zoneTuples, &rPath.zoneTuples)
+			adapt(&lPath.routerTuples)
+			adapt(&lPath.zoneTuples)
 
 			// Remove duplicates, which occur from nested loops.
 			lPath.leave.delDupl()
 
 			// Add loop path information to start node or interface.
 			startStore.setLoopPath(endStore, lPath)
-
-			// Add data for reverse path.
-			rPath.enter = lPath.leave
-			rPath.leave = lPath.enter
-			endStore.setLoopPath(startStore, rPath)
 		}
 	}
 
@@ -1210,7 +1202,7 @@ func loopPathWalk(in, out *routerIntf, loopEntry, loopExit pathStore, callAtZone
 	}
 
 	// Process paths inside cyclic graph.
-	var pathTuples tupleList
+	var pathTuples intfPairs
 	if callAtZone {
 		pathTuples = lPath.zoneTuples
 	} else {
@@ -1254,7 +1246,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		msg = " Check path restrictions and crypto interfaces."
 	}
 	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
-		srcPath.getName(), dstPath.getName(), context)
+		srcPath.String(), dstPath.String(), context)
 }
 
 //#############################################################################
@@ -1278,7 +1270,7 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	fromStore, toStore := rule.srcPath, rule.dstPath
 
 	/*	debug(rule.print());
-		debug(" start: %s, %s at %s",fromStore.getName(), toStore.getName(), where)
+		debug(" start: %s, %s at %s",fromStore.String(), toStore.String(), where)
 		fun2 := fun
 		fun = func(rule *Rule, i, o *routerIntf) {
 			var inName, outName string
@@ -1391,11 +1383,11 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 
 func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
 	rule := &groupedRule{
-		serviceRule: serviceRule{
-			src: []someObj{src},
-			dst: []someObj{dst},
+		serviceRule: &serviceRule{
 			prt: []*proto{prtIP},
 		},
+		src:     []someObj{src},
+		dst:     []someObj{dst},
 		srcPath: src.getPathNode(),
 		dstPath: dst.getPathNode(),
 	}
@@ -1404,15 +1396,15 @@ func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), 
 
 type NetOrRouter interface{}
 
-var border2obj2auto = make(map[*routerIntf]map[NetOrRouter][]*routerIntf)
+var border2obj2auto = make(map[*routerIntf]map[NetOrRouter]intfList)
 
 func setAutoIntfFromBorder(border *routerIntf) {
-	var reachFromBorder func(*network, *routerIntf, map[NetOrRouter][]*routerIntf)
+	var reachFromBorder func(*network, *routerIntf, map[NetOrRouter]intfList)
 	reachFromBorder =
-		func(network *network, inIntf *routerIntf, result map[NetOrRouter][]*routerIntf) {
+		func(network *network, inIntf *routerIntf, result map[NetOrRouter]intfList) {
 			result[network] = append(result[network], inIntf)
 
-			//    debug "network->{name}: in_intf->{name}";
+			//debug("%s: %s", network.name, inIntf.name)
 			for _, intf := range network.interfaces {
 				if intf == inIntf {
 					continue
@@ -1431,7 +1423,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				defer func() { router.activePath = false }()
 				result[router] = append(result[router], intf)
 
-				//            debug "router->{name}: interface->{name}";
+				debug("%s: %s", router.name, intf.name)
 
 				for _, outIntf := range router.interfaces {
 					if outIntf == intf {
@@ -1444,7 +1436,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				}
 			}
 		}
-	result := make(map[NetOrRouter][]*routerIntf)
+	result := make(map[NetOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
 	for key, list := range result {
 		seen := make(map[*routerIntf]bool)
@@ -1464,7 +1456,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 // Find auto interface inside zone.
 // border is interface at border of zone.
 // src2 is unmanaged router or network inside zone.
-func autoIntfInZone(border *routerIntf, src2 NetOrRouter) []*routerIntf {
+func autoIntfInZone(border *routerIntf, src2 NetOrRouter) intfList {
 	if border2obj2auto[border] == nil {
 		setAutoIntfFromBorder(border)
 	}
@@ -1484,109 +1476,118 @@ func addPathrestictedIntfs(path pathStore, obj NetOrRouter) []pathStore {
 	return result
 }
 
-/*
-// src is an auto_interface or router.
+// src is [NOT IMPLEMENTED: an autoIntf or] router.
 // Result is the set of interfaces of src located at direction to dst.
-func pathAutoIntfs(src, dst) {
-    src2, managed :=
-      isAutointerface(src)
-      ? @{src}{ "object", "managed" }
-      : (src, undef)
-    dst2 := isAutointerface(dst) ? dst.object : dst
+func pathAutoInterfaces(src *router, dst someObj) intfList {
+	/*    src2, managed :=
+	        isAutointerface(src)
+	        ? @{src}{ "object", "managed" }
+	        : (src, undef)
+	      dst2 := isAutointerface(dst) ? dst.object : dst
+	*/
+	src2 := src
+	dst2 := dst
+	srcPath := src2.getPathNode()
+	dstPath := dst2.getPathNode()
+	if srcPath == dstPath {
+		return nil
+	}
 
-    srcPath := obj2path[src2] || getPathNode(src2)
-    dstPath := obj2path[dst2] || getPathNode(dst2)
-    if srcPath == dstPath { return }
+	// Check path separately for interfaces with pathrestriction,
+	// because path from inside the router to destination may be restricted.
+	fromList := addPathrestictedIntfs(srcPath, src2)
+	toList := addPathrestictedIntfs(dstPath, dst2)
+	var result intfList
+	for _, fromStore := range fromList {
+		for _, toStore := range toList {
+			if _, found := fromStore.getPath1()[toStore]; !found {
+				if !pathMark(fromStore, toStore) {
+					delete(fromStore.getPath1(), toStore)
+					continue
+				}
+			}
+			if x, ok := fromStore.(*routerIntf); ok {
+				if _, found := x.loopEntryZone[toStore]; found {
+					result.push(x)
+					continue
+				}
+			}
+			if entry, found := fromStore.getLoopEntry()[toStore]; found {
+				exit := entry.getLoopExit()[toStore]
+				enter := entry.getLoopPath()[exit].enter
+				switch x := fromStore.(type) {
+				case *zone:
+					for _, intf := range enter {
+						result = append(result, autoIntfInZone(intf, src2)...)
+					}
+				case *router:
+					result = append(result, enter...)
 
-    // Check path separately for interfaces with pathrestriction,
-    // because path from inside the router to destination may be restricted.
-    fromList := addPathrestictedIntfs(srcPath, src2)
-    toList := addPathrestictedIntfs(dstPath, dst2)
-    var result
-    for _, fromStore := range fromList {
-        for _, toStore := range toList {
-            if ! fromStore.path1[toStore] {
-                if ! pathMark(fromStore, toStore) {
-                    delete fromStore.path1[toStore]
-                    continue
-                }
-            }
-            type := ref fromStore
-            if (fromStore.loopEntryZone &&
-                fromStore.loopEntryZone[toStore])
-            {
-                push result, fromStore
-            }
-            elsif (fromStore.loopEntry &&
-                entry := fromStore.loopEntry[toStore])
-            {
-                exit := entry.loopExit[toStore]
-                enter := entry.loopEnter[exit]
-                if type == "Zone" {
-                    push result, map { autoIntfInZone($_, src2) } enter
-                }
-                else if type == "Router" {
-                    push result, enter
-                }
+				case *routerIntf:
+					// Path is only ok, if it doesn't traverse
+					// corrensponding router.
+					// Path starts inside loop.
+					// Check if some path doesn't traverse current router.
+					// Then interface is ok as [auto] interface.
+					if x.loop != nil {
+						for _, intf := range enter {
+							if intf == fromStore {
+								result.push(x)
+							}
+						}
+					}
+				}
+			} else {
+				next := fromStore.getPath1()[toStore]
+				switch fromStore.(type) {
+				case *zone:
+					result = append(result, autoIntfInZone(next, src2)...)
+				case *router:
+					result.push(next)
+				case *routerIntf:
+					// routerIntf with pathrestriction at border of loop,
+					// wont get additional path.
+				}
+			}
+		}
+	}
+	if len(result) == 0 {
+		showErrNoValidPath(srcPath, dstPath,
+			fmt.Sprintf("while resolving %s (destination is %s).",
+				src.String(), dst.String()))
+		return nil
+	}
+	result.delDupl()
 
-                // type eq 'routerIntf'
-                // Path is only ok, if it doesn't traverse
-                // corrensponding router.
-                // Path starts inside loop.
-                // Check if some path doesn't traverse current router.
-                // Then interface is ok as [auto] interface.
-                else if fromStore.loop {
-                    if grep { $_ == fromStore } enter {
-                        push result, fromStore
-                    }
-                }
-            }
-            else {
-                continue := fromStore.path1[toStore]
-                if type == "Zone" {
-                    push result, autoIntfInZone(continue, src2)
-                }
-                else if type == "Router" {
-                    push result, continue
-                }
+	// Remove tunnel interfaces, change slice in place.
+	j := 0
+	for _, intf := range result {
+		if !intf.tunnel {
+			result[j] = intf
+			j++
+		}
+	}
+	result = result[:j]
 
-                // else
-                // type eq 'routerIntf'
-                // routerIntf with pathrestriction at border of loop,
-                // wont get additional path.
-            }
-        }
-    }
-    if ! result {
-        showErrNoValidPath(srcPath, dstPath,
-                               "while resolving src.name" .
-                               " (destination is dst.name).")
-        return
-    }
-    result = grep { $_.ip != "tunnel" } unique result
+	bridgedSeen := false
+	for i, intf := range result {
+		if orig := intf.origMain; orig != nil {
+			// If device has virtual interface, main and virtual interface
+			// are swapped.  Swap it back here because we need the
+			// original main interface if an interface is used in a rule.
+			result[i] = orig
+		} else if l3 := intf.layer3Intf; l3 != nil {
+			// Change bridge interface to layer3 interface.
+			// Prevent duplicate layer3 interface.
+			result[i] = l3
+			bridgedSeen = true
+		}
+	}
+	if bridgedSeen {
+		result.delDupl()
+	}
 
-    bridgedCount := 0
-    for _, interface := range result {
+	//debug("%s.[auto] = \n" + result.nameList(), src2.name);
 
-        // If device has virtual interface, main and virtual interface
-        // are swapped.  Swap it back here because we need the
-        // original main interface if an interface is used in a rule.
-        if orig := interface.origMain {
-            interface = orig
-        }
-
-        // Change bridge interface to layer3 interface.
-        // Prevent duplicate layer3 interface.
-        else if layer3Intf := interface.layer3routerIntf {
-            interface = layer3Intf
-            bridgedCount++
-        }
-    }
-    if bridgedCount > 1 {
-        result = unique(result)
-    }
-
-//    debug("src2->{name}.[auto] = ", join ',', map {$_->{name}} result);
-    return (managed ? grep { $_.router.managed } result : result)
+	return result
 }
-*/

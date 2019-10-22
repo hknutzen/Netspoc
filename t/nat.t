@@ -765,7 +765,7 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Check rule with host and dynamic NAT';
+$title = 'Check rule with host and dynamic NAT (managed)';
 ############################################################
 
 $in = <<'END';
@@ -774,6 +774,7 @@ network:Test =  {
  nat:C = { ip = 1.9.2.0/24; dynamic;}
  host:h3 = { ip = 10.9.1.3; }
  host:h4 = { ip = 10.9.1.4; }
+ host:h5 = { ip = 10.9.1.5; nat:C = { ip = 1.9.2.55; } }
 }
 
 router:C = {
@@ -797,8 +798,8 @@ network:X = { ip = 10.8.3.0/24; }
 
 service:s1 = {
  user = network:X;
- permit src = user;   dst = host:h3;       prt = tcp 80;
- permit src = host:h4; dst = user;         prt = tcp 80;
+ permit src = user;    dst = host:h3, host:h5; prt = tcp 80;
+ permit src = host:h4; dst = user;             prt = tcp 80;
 }
 END
 
@@ -808,6 +809,10 @@ Error: host:h3 needs static translation for nat:C at router:C to be valid in rul
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Check rule with host and dynamic NAT (unmanaged)';
+############################################################
 
 $in =~ s/managed; \#1//;
 
@@ -936,10 +941,6 @@ test_run($title, $in, $out);
 $title = 'No secondary optimization with host and dynamic NAT (3)';
 ############################################################
 
-# Dynamic NAT is disabled completely at router:r2
-# if dynamic NAT is applied to at least one rule.
-# ToDo:
-# This should be checked and disabled more fine grained.
 $in = <<'END';
 network:a = { ip = 10.1.1.0/24; }
 
@@ -1086,6 +1087,249 @@ access-group t_in in interface t
 access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.9.9.4 255.255.255.252 eq 81
 access-list d_in extended deny ip any4 any4
 access-group d_in in interface d
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Optimize secondary if other router filters original address';
+############################################################
+# Still apply secondary optimization at r1, because r2 filters
+# original address.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.9.9.4/30; dynamic; }
+ host:h1 = { ip = 10.1.1.4; }
+}
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24;}
+
+router:r2 = {
+ model = IOS, FW;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+
+service:n1 = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+-- r2
+ip access-list extended n2_in
+ deny ip any host 10.1.3.2
+ permit tcp host 10.1.1.4 10.1.3.0 0.0.0.255 eq 80
+ deny ip any any
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with primary router';
+############################################################
+# No secondary optimization at r1, because detailed filtering at r2 is
+# disabled by primary r3. r3 only sees NAT address.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.9.9.4/30; dynamic; }
+ host:h1 = { ip = 10.1.1.4; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = IOS, FW;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+}
+
+router:r3 = {
+ model = ASA;
+ managed = primary;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:n1 = {
+ user = host:h1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.4 10.1.4.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+-- r2
+ip access-list extended n2_in
+ permit ip 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255
+ deny ip any any
+-- r3
+! n3_in
+access-list n3_in extended permit tcp 10.9.9.4 255.255.255.252 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with other filter in loop';
+############################################################
+# No secondary optimization at r1, because detailed filtering occurs
+# in loop, which isn't fully analyzed.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.9.9.4/30; dynamic; }
+ host:h1 = { ip = 10.1.1.4; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = IOS, FW;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; virtual = { ip = 10.1.2.9; } hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = n1; }
+}
+
+router:r3 = {
+ model = IOS, FW;
+ managed;
+ interface:n2 = { ip = 10.1.2.3; virtual = { ip = 10.1.2.9; } hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; bind_nat = n1; }
+}
+
+service:n1 = {
+ user = host:h1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.4 10.1.3.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'No secondary optimization with primary in loop';
+############################################################
+# No secondary optimization at r1, because primary router is located
+# in loop, which isn't fully analyzed.
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 10.9.9.4/30; dynamic; }
+ host:h1 = { ip = 10.1.1.4; }
+}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ model = IOS, FW;
+ managed; #
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2;  hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+router:r3 = {
+ model = ASA;
+ managed = primary;
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; bind_nat = n1; }
+}
+
+router:r4 = {
+ model = ASA;
+ managed;
+ interface:n3 = { ip = 10.1.3.4; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n4; bind_nat = n1; }
+}
+
+service:n1 = {
+ user = host:h1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp host 10.1.1.4 10.1.4.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Optimize secondary with full filter';
+############################################################
+
+$in =~ s/; #/ = full;/;
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
