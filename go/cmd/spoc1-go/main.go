@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"os"
 )
@@ -29,5 +30,6 @@ func main() {
 		pass1.PrintCode(pass1.OutDir)
 		pass1.CopyRaw(pass1.InPath, pass1.OutDir)
 	}
+	diag.Progress("Finished pass1")
 	os.Exit(pass1.ErrorCounter - initialErrors)
 }

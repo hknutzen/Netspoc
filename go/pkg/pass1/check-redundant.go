@@ -2,6 +2,8 @@ package pass1
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -262,7 +264,7 @@ func collectDuplicateRules(rule, other *expandedRule) {
 		return
 	}
 
-	if config.CheckDuplicateRules != "0" {
+	if conf.Conf.CheckDuplicateRules != "" {
 		duplicateRules = append(duplicateRules, [2]*expandedRule{rule, other})
 	}
 }
@@ -306,7 +308,7 @@ func showDuplicateRules() {
 		for _, rule := range rules {
 			msg += "\n  " + rule.print()
 		}
-		warnOrErrMsg(config.CheckDuplicateRules, msg)
+		warnOrErrMsg(conf.Conf.CheckDuplicateRules, msg)
 	}
 }
 
@@ -346,8 +348,8 @@ func showRedundantRules() {
 	}
 	redundantRules = nil
 
-	action := config.CheckRedundantRules
-	if action == "0" {
+	action := conf.Conf.CheckRedundantRules
+	if action == "" {
 		return
 	}
 	namePairs := make(namePairs, 0, len(sNames2Redundant))
@@ -370,8 +372,8 @@ func showRedundantRules() {
 }
 
 func showFullyRedundantRules() {
-	action := config.CheckFullyRedundantRules
-	if action == "0" {
+	action := conf.Conf.CheckFullyRedundantRules
+	if action == "" {
 		return
 	}
 	sNames := make([]string, 0, len(services))
@@ -615,7 +617,7 @@ func findRedundantRules(cmpHash, chgHash ruleTree) int {
 }
 
 func CheckRedundantRules() {
-	progress("Checking for redundant rules")
+	diag.Progress("Checking for redundant rules")
 	count := 0
 	dcount := 0
 	rcount := 0

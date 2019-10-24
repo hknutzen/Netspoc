@@ -3,6 +3,8 @@ package pass1
 import (
 	"fmt"
 	"github.com/Sereal/Sereal/Go/sereal"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"io/ioutil"
 	"net"
 	"os"
@@ -1129,28 +1131,38 @@ func convIsakmp(x xAny) *isakmp {
 	return c
 }
 
-func convConfig(x xAny) Config {
-	m := getMap(x)
-	c := Config{
-		CheckDuplicateRules:          getString(m["check_duplicate_rules"]),
-		CheckRedundantRules:          getString(m["check_redundant_rules"]),
-		CheckFullyRedundantRules:     getString(m["check_fully_redundant_rules"]),
-		CheckPolicyDistributionPoint: getString(m["check_policy_distribution_point"]),
-		CheckSubnets:                 getString(m["check_subnets"]),
+func getTriState(x xAny) conf.TriState {
+	var result conf.TriState
+	result.Set(getString(x))
+	return result
+}
 
-		CheckSupernetRules:          getString(m["check_supernet_rules"]),
-		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
-		CheckUnenforceable:          getString(m["check_unenforceable"]),
-		CheckUnusedGroups:           getString(m["check_unused_groups"]),
-		CheckUnusedProtocols:        getString(m["check_unused_protocols"]),
-		AutoDefaultRoute:            getBool(m["auto_default_route"]),
-		IgnoreFiles:                 getRegexp(m["ignore_files"]),
-		IPV6:                        getBool(m["ipv6"]),
-		MaxErrors:                   getInt(m["max_errors"]),
-		Verbose:                     getBool(m["verbose"]),
-		TimeStamps:                  getBool(m["time_stamps"]),
-		Pipe:                        getBool(m["pipe"]),
-	}
+func convConfig(x xAny) *conf.Config {
+	m := getMap(x)
+	c := new(conf.Config)
+	c.CheckDuplicateRules = getTriState(m["check_duplicate_rules"])
+	c.CheckFullyRedundantRules = getTriState(m["check_fully_redundant_rules"])
+	c.CheckPolicyDistributionPoint =
+		getTriState(m["check_policy_distribution_point"])
+	c.CheckRedundantRules = getTriState(m["check_redundant_rules"])
+	c.CheckServiceUnknownOwner = getTriState(m["check_service_unknown_owner"])
+	c.CheckServiceMultiOwner = getTriState(m["check_service_multi_owner"])
+	c.CheckSubnets = getTriState(m["check_subnets"])
+	c.CheckSupernetRules = getTriState(m["check_supernet_rules"])
+	c.CheckTransientSupernetRules =
+		getTriState(m["check_transient_supernet_rules"])
+	c.CheckUnenforceable = getTriState(m["check_unenforceable"])
+	c.CheckUnusedGroups = getTriState(m["check_unused_groups"])
+	c.CheckUnusedOwners = getTriState(m["check_unused_owners"])
+	c.CheckUnusedProtocols = getTriState(m["check_unused_protocols"])
+
+	c.AutoDefaultRoute = getBool(m["auto_default_route"])
+	c.IgnoreFiles = getRegexp(m["ignore_files"])
+	c.IPV6 = getBool(m["ipv6"])
+	c.MaxErrors = getInt(m["max_errors"])
+	c.Verbose = getBool(m["verbose"])
+	c.TimeStamps = getBool(m["time_stamps"])
+	c.Pipe = getBool(m["pipe"])
 	return c
 }
 
@@ -1171,9 +1183,9 @@ func ImportFromPerl() {
 	if err != nil {
 		panic(err)
 	}
-	config = convConfig(m["config"])
-	startTime = time.Unix(int64(m["start_time"].(int)), 0)
-	progress("Importing from Perl")
+	conf.Conf = convConfig(m["config"])
+	conf.StartTime = time.Unix(int64(m["start_time"].(int)), 0)
+	diag.Progress("Importing from Perl")
 
 	cryptoMap = convCryptoMap(m["crypto"])
 	denyAny6Rule = convGroupedRule(m["deny_any6_rule"])

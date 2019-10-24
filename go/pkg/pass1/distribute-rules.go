@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
@@ -405,7 +406,7 @@ func distributeGeneralPermit() {
 }
 
 func RulesDistribution() {
-	progress("Distributing rules")
+	diag.Progress("Distributing rules")
 
 	// Deny rules
 	for _, rule := range pRules.deny {

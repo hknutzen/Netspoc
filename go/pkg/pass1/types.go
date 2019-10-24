@@ -3,30 +3,9 @@ package pass1
 import (
 	"fmt"
 	"net"
-	"regexp"
 )
 
 type stringerList []fmt.Stringer
-
-type Config struct {
-	CheckDuplicateRules          string
-	CheckRedundantRules          string
-	CheckFullyRedundantRules     string
-	CheckPolicyDistributionPoint string
-	CheckSubnets                 string
-	CheckSupernetRules           string
-	CheckTransientSupernetRules  string
-	CheckUnenforceable           string
-	CheckUnusedGroups            string
-	CheckUnusedProtocols         string
-	AutoDefaultRoute             bool
-	IgnoreFiles                  *regexp.Regexp
-	IPV6                         bool
-	MaxErrors                    int
-	Verbose                      bool
-	TimeStamps                   bool
-	Pipe                         bool
-}
 
 type someObj interface {
 	String() string

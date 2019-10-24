@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -210,7 +211,7 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 }
 
 func ExpandCrypto() {
-	progress("Expanding crypto rules")
+	diag.Progress("Expanding crypto rules")
 	var managedCryptoHubs []*router
 	hubSeen := make(map[*router]bool)
 	id2intf := make(map[string]intfList)

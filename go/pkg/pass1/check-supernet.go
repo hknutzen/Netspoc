@@ -2,6 +2,8 @@ package pass1
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"strings"
 )
@@ -217,7 +219,7 @@ func checkSupernetInZone(rule *groupedRule, where string, intf *routerIntf, zone
 		objects[i] = n
 	}
 	warnOrErrMsg(
-		config.CheckSupernetRules,
+		conf.Conf.CheckSupernetRules,
 		"This %ssupernet rule would permit unexpected access:\n"+
 			"  %s\n"+
 			" Generated ACL at %s would permit access"+
@@ -850,7 +852,7 @@ func pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 // In order to avoid this, a warning is generated if the implied rule is not
 // explicitly defined.
 func checkTransientSupernetRules() {
-	progress("Checking transient supernet rules")
+	diag.Progress("Checking transient supernet rules")
 	rules := sRules.permit
 
 	isLeafZone := markLeafZones()
@@ -926,7 +928,7 @@ func checkTransientSupernetRules() {
 		return
 	}
 
-	printType := config.CheckTransientSupernetRules
+	printType := conf.Conf.CheckTransientSupernetRules
 
 	// Search rules having supernet as dst.
 	for _, rule1 := range rules {
@@ -1036,7 +1038,7 @@ func checkTransientSupernetRules() {
 			}
 		}
 	}
-	//    progress("Transient check is ready");
+	//    diag.Progress("Transient check is ready");
 }
 
 // Handling of supernet rules created by genReverseRules.
@@ -1114,8 +1116,8 @@ func markStateful(zone *zone, mark int) {
 }
 
 func CheckSupernetRules() {
-	if config.CheckSupernetRules != "0" {
-		progress("Checking supernet rules")
+	if conf.Conf.CheckSupernetRules != "" {
+		diag.Progress("Checking supernet rules")
 		statefulMark := 1
 		for _, zone := range zones {
 			if zone.statefulMark == 0 {
@@ -1123,13 +1125,13 @@ func CheckSupernetRules() {
 				statefulMark++
 			}
 		}
-		// progress("Checking for missing src in supernet rules");
+		// diag.Progress("Checking for missing src in supernet rules");
 		checkMissingSupernetRules("src", checkSupernetSrcRule)
-		// progress("Checking for missing dst in supernet rules");
+		// diag.Progress("Checking for missing dst in supernet rules");
 		checkMissingSupernetRules("dst", checkSupernetDstRule)
 		missingSupernet = nil
 	}
-	if config.CheckTransientSupernetRules != "0" {
+	if conf.Conf.CheckTransientSupernetRules != "" {
 		checkTransientSupernetRules()
 	}
 }

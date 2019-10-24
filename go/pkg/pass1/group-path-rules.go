@@ -3,6 +3,8 @@ package pass1
 import (
 	"bytes"
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 	"strings"
@@ -128,7 +130,7 @@ func showUnenforceable() {
 			(service.seenUnenforceable == nil || !service.seenEnforceable) {
 			warnMsg("Useless attribute 'has_unenforceable' at %s", context)
 		}
-		if config.CheckUnenforceable == "" {
+		if conf.Conf.CheckUnenforceable == "" {
 			continue
 		}
 		if service.disabled {
@@ -141,7 +143,7 @@ func showUnenforceable() {
 
 			// Don't warn on empty service without any expanded rules.
 			if service.seenUnenforceable != nil || service.silentUnenforceable {
-				warnOrErrMsg(config.CheckUnenforceable,
+				warnOrErrMsg(conf.Conf.CheckUnenforceable,
 					"%s is fully unenforceable", context)
 			}
 			continue
@@ -169,7 +171,7 @@ func showUnenforceable() {
 		}
 		if list != nil {
 			sort.Strings(list)
-			warnOrErrMsg(config.CheckUnenforceable,
+			warnOrErrMsg(conf.Conf.CheckUnenforceable,
 				"%s has unenforceable rules:\n"+
 					" %s",
 				context, strings.Join(list, "\n "))
@@ -268,7 +270,7 @@ func splitRulesByPath(rules []*serviceRule) ruleList {
 }
 
 func GroupPathRules() {
-	progress("Grouping rules")
+	diag.Progress("Grouping rules")
 
 	// Split grouped rules such, that all elements of src and dst
 	// have identical srcPath/dstPath.
