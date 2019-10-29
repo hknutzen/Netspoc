@@ -382,9 +382,9 @@ Distributing NAT
 Finding subnets in zone
 Normalizing services
 Checking service owner
-Converting hosts to subnets
 Exporting to Go
 Importing from Perl
+Converting hosts to subnets
 Grouping rules
 Grouped rule count: 4
 Finding subnets in 2 NAT domains
@@ -403,6 +403,7 @@ Marking rules for secondary optimization
 Distributing rules
 Saving 6 old files of '' to subdirectory '.prev'
 Printing intermediate code
+Finished pass1
 Reused 2 files from previous run
 Finished
 -- r1

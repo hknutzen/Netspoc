@@ -49,7 +49,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Duplicate rule from host range and combined ip hosts';
+$title = 'Redundant rule from host range and combined ip hosts';
 ############################################################
 
 $in = <<'END';
@@ -76,8 +76,11 @@ service:test = {
 END
 
 $out = <<'END';
-Warning: Duplicate rules in service:test and service:test:
-  permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
+Warning: Redundant rules in service:test compared to service:test:
+  permit src=host:h4; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
+  permit src=host:h5; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
 --r
 ip access-list extended n1_in
  deny ip any host 10.1.2.1

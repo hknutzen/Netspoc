@@ -18918,7 +18918,6 @@ sub compile {
     abort_on_error();
 
     check_service_owner();
-    convert_hosts_in_rules();
 
     call_go('spoc1-go', {
         config => $config,

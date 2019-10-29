@@ -18,6 +18,12 @@ type someObj interface {
 	setCommon(m xMap) // for importFromPerl
 }
 
+type srvObj interface {
+	String() string
+	getNetwork() *network
+	setCommon(m xMap) // for importFromPerl
+}
+
 type ipObj struct {
 	name       string
 	ip         net.IP
@@ -61,6 +67,7 @@ type network struct {
 	nat              map[string]*network
 	natTag           string
 	networks         netList
+	owner            *owner
 	radiusAttributes map[string]string
 	subnetOf         *network
 	subnets          []*subnet
@@ -80,7 +87,9 @@ func (a *netList) push(e *network) {
 type netObj struct {
 	ipObj
 	bindNat []string
+	nat     map[string]net.IP
 	network *network
+	owner   *owner
 }
 
 func (x *netObj) getNetwork() *network { return x.network }
@@ -88,7 +97,6 @@ func (x *netObj) getNetwork() *network { return x.network }
 type subnet struct {
 	netObj
 	mask             net.IPMask
-	nat              map[string]net.IP
 	id               string
 	ldapId           string
 	radiusAttributes map[string]string
@@ -96,8 +104,11 @@ type subnet struct {
 
 type host struct {
 	netObj
-	ipRange [2]net.IP
-	subnets []*subnet
+	id               string
+	ipRange          [2]net.IP
+	ldapId           string
+	radiusAttributes map[string]string
+	subnets          []*subnet
 }
 
 type model struct {
@@ -201,7 +212,6 @@ type routerIntf struct {
 	loopEntryZone   map[pathStore]pathStore
 	loopZoneBorder  bool
 	mainIntf        *routerIntf
-	nat             map[string]net.IP
 	natSet          natSet
 	origMain        *routerIntf
 	pathRestrict    []*pathRestriction
@@ -232,6 +242,10 @@ func (a *intfList) push(e *routerIntf) {
 type idIntf struct {
 	*routerIntf
 	src *subnet
+}
+
+type owner struct {
+	name string
 }
 
 type routing struct {
@@ -405,11 +419,13 @@ type unexpRule struct {
 
 type serviceRule struct {
 	deny                 bool
-	src                  []someObj
-	dst                  []someObj
+	src                  []srvObj
+	dst                  []srvObj
 	prt                  protoList
 	srcRange             *proto
 	log                  string
+	srcNet               bool
+	dstNet               bool
 	rule                 *unexpRule
 	stateless            bool
 	statelessICMP        bool

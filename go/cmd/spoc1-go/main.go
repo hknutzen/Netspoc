@@ -10,13 +10,14 @@ func main() {
 	pass1.ImportFromPerl()
 	initialErrors := pass1.ErrorCounter
 
-	pass1.GroupPathRules()
+	pRules, dRules := pass1.ConvertHostsInRules()
+	pass1.GroupPathRules(pRules, dRules)
 	pass1.FindSubnetsInNatDomain(pass1.NATDomains)
 	pass1.CheckUnstableNatRules()
 	pass1.MarkManagedLocal()
 	pass1.CheckDynamicNatRules(pass1.NATDomains, pass1.NATTag2natType)
 	pass1.CheckUnusedGroups()
-	pass1.CheckSupernetRules()
+	pass1.CheckSupernetRules(pRules)
 	pass1.CheckRedundantRules()
 
 	pass1.RemoveSimpleDuplicateRules()

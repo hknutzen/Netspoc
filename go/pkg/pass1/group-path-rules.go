@@ -249,7 +249,7 @@ func splitRuleGroup(group []someObj) []groupWithPath {
 	return result
 }
 
-func splitRulesByPath(rules []*serviceRule) ruleList {
+func splitRulesByPath(rules ruleList) ruleList {
 	var newRules ruleList
 	for _, sRule := range rules {
 		sGroupInfo := splitRuleGroup(sRule.src)
@@ -257,7 +257,7 @@ func splitRulesByPath(rules []*serviceRule) ruleList {
 		for _, sInfo := range sGroupInfo {
 			for _, dInfo := range dGroupInfo {
 				rule := new(groupedRule)
-				rule.serviceRule = sRule
+				rule.serviceRule = sRule.serviceRule
 				rule.srcPath = sInfo.path
 				rule.dstPath = dInfo.path
 				rule.src = sInfo.group
@@ -269,18 +269,18 @@ func splitRulesByPath(rules []*serviceRule) ruleList {
 	return newRules
 }
 
-func GroupPathRules() {
+func GroupPathRules(p, d ruleList) {
 	diag.Progress("Grouping rules")
 
 	// Split grouped rules such, that all elements of src and dst
 	// have identical srcPath/dstPath.
-	process := func(sRules []*serviceRule) ruleList {
+	process := func(sRules ruleList) ruleList {
 		gRules := splitRulesByPath(sRules)
 		gRules = removeUnenforceableRules(gRules)
 		return gRules
 	}
-	pRules.permit = process(sRules.permit)
-	pRules.deny = process(sRules.deny)
+	pRules.permit = process(p) //sRules.permit)
+	pRules.deny = process(d)   //sRules.deny)
 	info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
 
 	showUnenforceable()

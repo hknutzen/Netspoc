@@ -43,49 +43,64 @@ END
 test_run($title, $in, $out, '--ipv6');
 
 #############################################################
-$title = 'Check IPv6 increment_ip';
+$title = 'Too large IPv6 range';
 #############################################################
 
 $in = <<'END';
 network:n1 = { ip = 1000::0/16;
- host:host1 = {
-  range = 1000::FFFF:FFFF:FFFF:FFFF:FFFF:FFF0 - 1000:0001::0;
- }
+ host:h1 = { range = 1000::FFFF:FFFF:FFFF:FF00 - 1000::0001:0:0:0:0; }
+}
+END
+
+$out = <<'END';
+Error: IP range of host:h1 is too large. It must fit into /64 network.
+END
+
+test_err($title, $in, $out, '--ipv6');
+
+#############################################################
+$title = 'Split IPv6 ranges';
+#############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::0/16;
+ host:h1 = { range = 1000::FFFF:FFFF:FF00 - 1000::0001:0:0:B; }
+ host:h2 = { range = 1000::FFFF:FFF0 - 1000::0001:0000:0000; }
+ host:h3 = { range = 1000::fff0 - 1000::1:4; }
 }
 
-network:n2 = { ip = 2000::0/48;
- host:host2 = {
-  range = 2000::FFFF:FFFF:FFFF:FFF0 - 2000::0001:0000:0000:0000:0000;
- }
-}
-
-network:n3 = { ip = 3000::0/80;
- host:host3 = {
-  range = 3000::FFFF:FFF0 - 3000::0001:0000:0000;
+network:n2 = { ip = 2000::0/80;
+ host:h = {
+  range = 2000::FFF0 - 2000::FFFF;
  }
 }
 
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = 1000::0001; hardware = E1;}
- interface:n2 = {ip = 2000::0001; hardware = E2;}
- interface:n3 = {ip = 3000::0001; hardware = E3;}
+ interface:n1 = {ip = 1000::0001; hardware = n1;}
+ interface:n2 = {ip = 2000::0001; hardware = n2;}
 }
 
 service:test1 = {
- user = network:n1;
+ user = host:h1, host:h2, host:h3;
  permit src = user;
- dst = network:n2;
+ dst = host:h;
  prt = tcp 80-90;
 }
 END
 
 $out = <<'END';
 -- ipv6/r1
-ipv6 access-list E1_in
- deny ipv6 any host 2000::1
- permit tcp 1000::/16 2000::/48 range 80 90
+ipv6 access-list n1_in
+ permit tcp 1000::ffff:ffff:ff00/120 2000::fff0/124 range 80 90
+ permit tcp 1000::1:0:0:0/125 2000::fff0/124 range 80 90
+ permit tcp 1000::1:0:0:8/126 2000::fff0/124 range 80 90
+ permit tcp 1000::ffff:fff0/124 2000::fff0/124 range 80 90
+ permit tcp host 1000::1:0:0 2000::fff0/124 range 80 90
+ permit tcp 1000::fff0/124 2000::fff0/124 range 80 90
+ permit tcp 1000::1:0/126 2000::fff0/124 range 80 90
+ permit tcp host 1000::1:4 2000::fff0/124 range 80 90
  deny ipv6 any any
 END
 

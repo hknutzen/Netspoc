@@ -527,8 +527,9 @@ func checkSupernetDstRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 }
 
 // Check missing supernet of each serviceRule.
-func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *routerIntf)) {
-	for _, rule := range sRules.permit {
+func checkMissingSupernetRules(rules ruleList, what string,
+	worker func(r *groupedRule, i, o *routerIntf)) {
+	for _, rule := range rules {
 		if rule.noCheckSupernetRules {
 			continue
 		}
@@ -569,10 +570,9 @@ func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *ro
 		}
 		rule.zone2netMap = zone2netMap
 
-		// Convert each service Rule to grouped Rule, usable for pathWalk.
 		groupInfo := splitRuleGroup(oList)
 		checkRule := new(groupedRule)
-		checkRule.serviceRule = rule
+		checkRule.serviceRule = rule.serviceRule
 		for _, supernet := range supernets {
 			if what == "src" {
 				checkRule.src = []someObj{supernet}
@@ -851,14 +851,13 @@ func pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 // which may be undesired.
 // In order to avoid this, a warning is generated if the implied rule is not
 // explicitly defined.
-func checkTransientSupernetRules() {
+func checkTransientSupernetRules(rules ruleList) {
 	diag.Progress("Checking transient supernet rules")
-	rules := sRules.permit
 
 	isLeafZone := markLeafZones()
 
 	// Build mapping from supernet to service rules having supernet as src.
-	supernet2rules := make(map[*network][]*serviceRule)
+	supernet2rules := make(map[*network]ruleList)
 
 	// Mapping from zone to supernets found in src of rules.
 	zone2supernets := make(map[*zone][]*network)
@@ -972,7 +971,7 @@ func checkTransientSupernetRules() {
 					if !matchPrtList(rule1.prt, rule2.prt) {
 						continue
 					}
-					getSrcRange := func(rule *serviceRule) *proto {
+					getSrcRange := func(rule *groupedRule) *proto {
 						result := rule.srcRange
 						if result == nil {
 							result = prtIP
@@ -1115,7 +1114,7 @@ func markStateful(zone *zone, mark int) {
 	}
 }
 
-func CheckSupernetRules() {
+func CheckSupernetRules(p ruleList) {
 	if conf.Conf.CheckSupernetRules != "" {
 		diag.Progress("Checking supernet rules")
 		statefulMark := 1
@@ -1126,12 +1125,12 @@ func CheckSupernetRules() {
 			}
 		}
 		// diag.Progress("Checking for missing src in supernet rules");
-		checkMissingSupernetRules("src", checkSupernetSrcRule)
+		checkMissingSupernetRules(p, "src", checkSupernetSrcRule)
 		// diag.Progress("Checking for missing dst in supernet rules");
-		checkMissingSupernetRules("dst", checkSupernetDstRule)
+		checkMissingSupernetRules(p, "dst", checkSupernetDstRule)
 		missingSupernet = nil
 	}
 	if conf.Conf.CheckTransientSupernetRules != "" {
-		checkTransientSupernetRules()
+		checkTransientSupernetRules(p)
 	}
 }
