@@ -570,8 +570,8 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 	}
 
 	rule2range := make(map[*ciscoRule][2]int)
-	for _, sorted := range key2rules {
-		if len(sorted) < 2 {
+	for _, list := range key2rules {
+		if len(list) < 2 {
 			continue
 		}
 
@@ -580,12 +580,12 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		// overlaps, because they have been split in function
 		// 'orderRanges'. There can't be sub-ranges, because they have
 		// been deleted as redundant already.
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].prt.ports[0] < sorted[j].prt.ports[0]
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].prt.ports[0] < list[j].prt.ports[0]
 		})
-		ruleA := sorted[0]
+		ruleA := list[0]
 		a1, a2 := ruleA.prt.ports[0], ruleA.prt.ports[1]
-		for _, ruleB := range sorted[1:] {
+		for _, ruleB := range list[1:] {
 			b1, b2 := ruleB.prt.ports[0], ruleB.prt.ports[1]
 
 			// Found adjacent port ranges.
@@ -779,24 +779,31 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 }
 
 /*
- Purpose    : Create a list of IP/mask objects from a map of IP/mask objects.
+ Purpose    : Create a list of IP/mask objects from IP/mask objects
+              of src/dst of rules.
               Adjacent IP/mask objects are combined to larger objects.
               It is assumed, that no duplicate or redundant IP/mask objects
               are given.
- Parameters : m - map with IP/mask objects as keys and rules as values.
+ Parameters : r - rules
+              isDst - Take IP/mask objects from dst of rule
               ipNet2obj - map of all known IP/mask objects
  Result     : Returns slice of sorted and combined IP/mask objects.
-              Parameter m is changed to reflect combined IP/mask objects.
 */
-func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipNet {
+func combineAdjacentIPMask(r []*ciscoRule, isDst bool, ipNet2obj name2ipNet) []*ipNet {
 
-	// Take objects from keys of map.
+	// Take objects from src/dst of rules.
 	// Sort by IP address. Adjacent networks will be adjacent elements then.
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
-	elements := make([]*ipNet, 0, len(m))
-	for element := range m {
-		elements = append(elements, element)
+	elements := make([]*ipNet, 0, len(r))
+	for _, rule := range r {
+		var elem *ipNet
+		if isDst {
+			elem = rule.dst
+		} else {
+			elem = rule.src
+		}
+		elements = append(elements, elem)
 	}
 	sort.Slice(elements, func(i, j int) bool {
 		return bytes.Compare(elements[i].IP, elements[j].IP) == -1
@@ -829,11 +836,6 @@ func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipN
 		copy(elements[i+1:], elements[i+2:]) // Shift [:i+2] left one index.
 		elements = elements[:len(elements)-1]
 
-		// Add new element and remove left and rigth parts.
-		m[upElement] = m[element1]
-		delete(m, element1)
-		delete(m, element2)
-
 		if i > 0 {
 			up2Mask := net.CIDRMask(prefix-1, bits)
 
@@ -855,8 +857,6 @@ func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipN
 	}
 	return elements
 }
-
-const minObjectGroupSize = 2
 
 type objGroup struct {
 	name       string
@@ -893,66 +893,29 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 			srcRange, prt *proto
 			log           string
 		}
-		groupRuleTree := make(map[key]map[*ipNet]*ciscoRule)
+		key2rules := make(map[key][]*ciscoRule)
 
 		// Find groups of rules with identical
 		// deny, srcRange, prt, log, src/dst and different dst/src.
 		for _, rule := range rules {
-			deny := rule.deny
-			srcRange := rule.srcRange
-			prt := rule.prt
-			log := rule.log
-			this := rule.src
-			that := rule.dst
+			var that *ipNet
 			if thisIsDst {
-				this, that = that, this
+				that = rule.src
+			} else {
+				that = rule.dst
 			}
-			k := key{deny, that, srcRange, prt, log}
-			m, ok := groupRuleTree[k]
-			if !ok {
-				m = make(map[*ipNet]*ciscoRule)
-				groupRuleTree[k] = m
-			}
-			m[this] = rule
-		}
-
-		// Find groups >= minObjectGroupSize,
-		// mark rules belonging to one group.
-		type glueType struct {
-
-			// Indicator, that group has already been added to some rule.
-			active bool
-
-			// object => rule, ...
-			obj2rule map[*ipNet]*ciscoRule
-		}
-		groupGlue := make(map[*ciscoRule]*glueType)
-		for _, href := range groupRuleTree {
-
-			// href is {dst/src => rule, ...}
-			if len(href) < minObjectGroupSize {
-				continue
-			}
-
-			glue := glueType{obj2rule: href}
-
-			// All this rules have identical deny, srcRange, prt
-			// and dst/src and shall be replaced by a single new
-			// rule referencing an object group.
-			for _, rule := range href {
-				groupGlue[rule] = &glue
-			}
+			k := key{rule.deny, that, rule.srcRange, rule.prt, rule.log}
+			key2rules[k] = append(key2rules[k], rule)
 		}
 
 		// Find group with identical elements
 		// or define a new one
 		// or return combined network.
 		// Returns ipNet object with empty IP, representing a group.
-		getGroup := func(m map[*ipNet]*ciscoRule) *ipNet {
+		getGroup := func(list []*ciscoRule) *ipNet {
 
-			// Get sorted and combined list of objects from map of objects.
-			// Map is adjusted, if objects are combined.
-			elements := combineAdjacentIPMask(m, ipNet2obj)
+			// Get sorted and combined list of objects from list of objects.
+			elements := combineAdjacentIPMask(list, thisIsDst, ipNet2obj)
 			size := len(elements)
 
 			// If all elements have been combined into one single network,
@@ -974,8 +937,8 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 					href := group.eltNameMap
 
 					// Check elements for equality.
-					for key := range m {
-						if _, ok := href[key.name]; !ok {
+					for _, elem := range elements {
+						if _, ok := href[elem.name]; !ok {
 							continue SEARCH
 						}
 					}
@@ -987,24 +950,37 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 
 			// No group found, build new group.
 			group := createGroup(elements, aclInfo, routerData)
-			namesInGroup := make(map[string]bool, len(m))
-			for element := range m {
-				namesInGroup[element.name] = true
+			namesInGroup := make(map[string]bool, len(elements))
+			for _, elem := range elements {
+				namesInGroup[elem.name] = true
 			}
 			group.eltNameMap = namesInGroup
 			key2group[key] = append(key2group[key], group)
 			return group.ref
 		}
 
-		// Build new list of rules using object groups.
-		newRules := make(ciscoRules, 0)
+		rule2rules := make(map[*ciscoRule][]*ciscoRule)
+		for _, list := range key2rules {
+			if len(list) < 2 {
+				continue
+			}
+
+			// First rule will use object group.
+			rule2rules[list[0]] = list
+
+			// All other rules will be deleted.
+			for _, rule := range list[1:] {
+				rule.deleted = true
+			}
+		}
+
+		var newRules ciscoRules
 		for _, rule := range rules {
-			if glue, ok := groupGlue[rule]; ok {
-				if glue.active {
-					continue
-				}
-				glue.active = true
-				groupOrObj := getGroup(glue.obj2rule)
+			if rule.deleted {
+				continue
+			}
+			if list := rule2rules[rule]; list != nil {
+				groupOrObj := getGroup(list)
 				if thisIsDst {
 					rule.dst = groupOrObj
 				} else {
