@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.002'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.003'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -624,7 +624,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;""''\n]+)/gc) {
+    if ($input =~ m/\G([^;\n]+)/gc) {
         return $1;
     }
     else {

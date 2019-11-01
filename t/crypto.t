@@ -1563,7 +1563,7 @@ network:customers1 = {
   authentication-server-group = LDAP_1;
  }
  host:example1 = {
-  ldap_id = CN=example1,OU=VPN,DC=example,DC=com;
+  ldap_id = CN=example1,OU="my" VPN,DC=example,DC=com;
   range = 10.99.1.8 - 10.99.1.15;
  }
 }
@@ -1677,14 +1677,14 @@ webvpn
 --
 ldap attribute-map LDAP_1
  map-name memberOf Group-Policy
- map-value memberOf CN=example1,OU=VPN,DC=example,DC=com VPN-group-1
+ map-value memberOf "CN=example1,OU=\"my\" VPN,DC=example,DC=com" VPN-group-1
 aaa-server LDAP_2 protocol ldap
 aaa-server LDAP_2 host X
  ldap-attribute-map LDAP_2
 ldap attribute-map LDAP_2
  map-name memberOf Group-Policy
- map-value memberOf CN=example2a,OU=VPN,DC=example,DC=com VPN-group-2
- map-value memberOf CN=example2b,OU=VPN,DC=example,DC=com VPN-group-3
+ map-value memberOf "CN=example2a,OU=VPN,DC=example,DC=com" VPN-group-2
+ map-value memberOf "CN=example2b,OU=VPN,DC=example,DC=com" VPN-group-3
 END
 test_run($title, $in, $out);
 
