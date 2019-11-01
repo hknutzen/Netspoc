@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+6.003     2019-11-01 12:24:45+01:00 Europe/Berlin
+
+ - map-value of ldap attribute-map is written as double quoted string now.
+
 6.002     2019-10-22 16:20:00+02:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:
