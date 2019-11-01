@@ -107,6 +107,15 @@ func createPrtObj(descr string) *proto {
 	return &prt
 }
 
+func getPrtObj(name string, prt2obj name2Proto) *proto {
+	obj, ok := prt2obj[name]
+	if !ok {
+		obj = createPrtObj(name)
+		prt2obj[name] = obj
+	}
+	return obj
+}
+
 func getNet00Addr(ipv6 bool) string {
 	if ipv6 {
 		return "::/0"
@@ -198,9 +207,9 @@ func markSupernetsOfNeedProtect(needProtect []*ipNet) {
 
 // Needed for model=Linux.
 func addTCPUDPIcmp(prt2obj name2Proto) {
-	_ = prt("tcp 1 65535", prt2obj)
-	_ = prt("udp 1 65535", prt2obj)
-	_ = prt("icmp", prt2obj)
+	_ = getPrtObj("tcp 1 65535", prt2obj)
+	_ = getPrtObj("udp 1 65535", prt2obj)
+	_ = getPrtObj("icmp", prt2obj)
 }
 
 // Set {up} relation from port range to the smallest port range which
@@ -300,7 +309,7 @@ func orderRanges(protocol string, prt2obj name2Proto, up *proto) {
 }
 
 func setupPrtRelation(prt2obj name2Proto) {
-	prtIP := prt("ip", prt2obj)
+	prtIP := getPrtObj("ip", prt2obj)
 	icmpUp, ok := prt2obj["icmp"]
 	if !ok {
 		icmpUp = prtIP
@@ -625,18 +634,9 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 
 			// Process rule with joined port ranges.
 			if ports, ok := rule2range[rule]; ok {
-				protocol := rule.prt.protocol
-				key := protocol + " " +
+				name := rule.prt.protocol + " " +
 					strconv.Itoa(ports[0]) + " " + strconv.Itoa(ports[1])
-
-				// Try to find existing prt with matching range.
-				// This is needed for findObjectgroups to work.
-				newPrt, found := prt2obj[key]
-				if !found {
-					newPrt = &proto{protocol: protocol, ports: ports}
-					prt2obj[key] = newPrt
-				}
-				rule.prt = newPrt
+				rule.prt = getPrtObj(name, prt2obj)
 			}
 			rules[j] = rule
 			j++
@@ -2217,7 +2217,7 @@ func convertRuleObjects(rules []*jcode.Rule, ipNet2obj name2ipNet, prt2obj name2
 		prtList := prtList(rule.Prt, prt2obj)
 		var srcRange *proto
 		if rule.SrcRange != "" {
-			srcRange = prt(rule.SrcRange, prt2obj)
+			srcRange = getPrtObj(rule.SrcRange, prt2obj)
 		}
 		hasLog = hasLog || rule.Log != ""
 		for _, src := range srcList {
@@ -2266,19 +2266,10 @@ func ipNetList(names []string, ipNet2obj name2ipNet) []*ipNet {
 	return result
 }
 
-func prt(name string, prt2obj name2Proto) *proto {
-	obj, ok := prt2obj[name]
-	if !ok {
-		obj = createPrtObj(name)
-		prt2obj[name] = obj
-	}
-	return obj
-}
-
 func prtList(names []string, prt2obj name2Proto) []*proto {
 	result := make([]*proto, len(names))
 	for i, name := range names {
-		result[i] = prt(name, prt2obj)
+		result[i] = getPrtObj(name, prt2obj)
 	}
 	return result
 }
