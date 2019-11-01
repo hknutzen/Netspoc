@@ -613,7 +613,9 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 	}
 
 	if changed {
-		var newRules ciscoRules
+
+		// Change slice in place.
+		j := 0
 		for _, rule := range rules {
 
 			// Ignore deleted rules
@@ -629,16 +631,17 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 
 				// Try to find existing prt with matching range.
 				// This is needed for findObjectgroups to work.
-				newPrt, ok := prt2obj[key]
-				if !ok {
+				newPrt, found := prt2obj[key]
+				if !found {
 					newPrt = &proto{protocol: protocol, ports: ports}
 					prt2obj[key] = newPrt
 				}
 				rule.prt = newPrt
 			}
-			newRules.push(rule)
+			rules[j] = rule
+			j++
 		}
-		rules = newRules
+		rules = rules[:j]
 	}
 	return rules
 }
