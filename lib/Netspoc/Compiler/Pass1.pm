@@ -624,7 +624,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;""''\n]+)/gc) {
+    if ($input =~ m/\G([^;\n]+)/gc) {
         return $1;
     }
     else {

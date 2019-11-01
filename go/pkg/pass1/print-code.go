@@ -964,8 +964,8 @@ func printAsavpn(fh *os.File, router *router) {
 		fmt.Fprintln(fh, "ldap attribute-map", name)
 		fmt.Fprintln(fh, " map-name memberOf Group-Policy")
 		for _, entry := range ldapMap[name] {
-			fmt.Fprintf(fh, " map-value memberOf \"%s\" %s\n",
-				entry.dn, entry.gpName)
+			dn := strings.ReplaceAll(entry.dn, `"`, `\"`)
+			fmt.Fprintf(fh, " map-value memberOf \"%s\" %s\n", dn, entry.gpName)
 		}
 	}
 }
