@@ -578,7 +578,6 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		key2rules[k] = append(key2rules[k], rule)
 	}
 
-	rule2range := make(map[*ciscoRule][2]int)
 	for _, list := range key2rules {
 		if len(list) < 2 {
 			continue
@@ -593,6 +592,7 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 			return list[i].prt.ports[0] < list[j].prt.ports[0]
 		})
 		ruleA := list[0]
+		proto := ruleA.prt.protocol
 		a1, a2 := ruleA.prt.ports[0], ruleA.prt.ports[1]
 		for _, ruleB := range list[1:] {
 			b1, b2 := ruleB.prt.ports[0], ruleB.prt.ports[1]
@@ -600,19 +600,12 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 			// Found adjacent port ranges.
 			if a2+1 == b1 {
 
-				// Extend range of previous two or more elements.
-				if ports, ok := rule2range[ruleA]; ok {
+				// Add extended protocol.
+				b1 = a1
+				name := proto + " " + strconv.Itoa(a1) + " " + strconv.Itoa(b2)
+				ruleB.prt = getPrtObj(name, prt2obj)
 
-					ports[1] = b2
-					rule2range[ruleB] = ports
-					delete(rule2range, ruleA)
-				} else {
-
-					// Combine ranges of $ruleA and $ruleB.
-					rule2range[ruleB] = [...]int{a1, b2}
-				}
-
-				// Mark previous rule as deleted.
+				// Mark other rule as deleted.
 				ruleA.deleted = true
 				changed = true
 			}
@@ -626,20 +619,10 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		// Change slice in place.
 		j := 0
 		for _, rule := range rules {
-
-			// Ignore deleted rules
-			if rule.deleted {
-				continue
+			if !rule.deleted {
+				rules[j] = rule
+				j++
 			}
-
-			// Process rule with joined port ranges.
-			if ports, ok := rule2range[rule]; ok {
-				name := rule.prt.protocol + " " +
-					strconv.Itoa(ports[0]) + " " + strconv.Itoa(ports[1])
-				rule.prt = getPrtObj(name, prt2obj)
-			}
-			rules[j] = rule
-			j++
 		}
 		rules = rules[:j]
 	}
