@@ -240,8 +240,7 @@ $out = <<'END';
 --filter
 ip access-list extended GigabitEthernet0/1_in
  deny ip any host 10.9.1.1
- permit ip 10.9.2.0 0.0.0.255 10.9.1.0 0.0.0.255
- permit ip 10.9.3.0 0.0.0.255 10.9.1.0 0.0.0.255
+ permit ip 10.9.2.0 0.0.1.255 10.9.1.0 0.0.0.255
  deny ip any any
 --
 ip access-list extended Tunnel1_in

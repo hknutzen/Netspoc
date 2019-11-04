@@ -53,8 +53,7 @@ ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.0.0.0 0.255.255.255 10.9.9.0 0.0.0.255 eq 80
  permit tcp 10.1.1.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 81
- permit tcp 10.3.3.0 0.0.0.127 10.9.9.0 0.0.0.255 eq 81
- permit tcp 10.3.3.128 0.0.0.127 10.9.9.0 0.0.0.255 eq 81
+ permit tcp 10.3.3.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 81
  deny ip any any
 END
 
@@ -77,8 +76,7 @@ $out = <<'END';
 ip access-list extended VLAN1_in
  deny ip any host 10.9.9.1
  permit tcp 10.3.3.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 80
- permit tcp 10.3.3.0 0.0.0.127 10.9.9.0 0.0.0.255 eq 81
- permit tcp 10.3.3.128 0.0.0.127 10.9.9.0 0.0.0.255 eq 81
+ permit tcp 10.3.3.0 0.0.0.255 10.9.9.0 0.0.0.255 eq 81
  deny ip any any
 END
 

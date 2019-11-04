@@ -1070,14 +1070,12 @@ $out = <<"END";
 --r1
 ip access-list extended n2_in
  deny ip any host 10.1.4.1
- permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
- permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.2.0 0.0.1.255 10.1.4.0 0.0.0.255 range 80 81
  deny ip any any
 --r2
 ip access-list extended n3_in
  deny ip any host 10.1.4.2
- permit tcp 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
- permit tcp 10.1.3.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
+ permit tcp 10.1.2.0 0.0.1.255 10.1.4.0 0.0.0.255 range 80 81
  permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 range 80 81
  deny ip any any
 END

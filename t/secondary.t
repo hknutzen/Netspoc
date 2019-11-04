@@ -119,8 +119,7 @@ ip access-list extended t1_in
 ip access-list extended t2_in
  deny ip any host 10.1.5.1
  permit ip 10.1.2.0 0.0.0.255 10.1.3.0 0.0.0.255
- permit ip 10.1.2.0 0.0.0.255 10.1.4.0 0.0.0.255
- permit ip 10.1.2.0 0.0.0.255 10.1.5.0 0.0.0.255
+ permit ip 10.1.2.0 0.0.0.255 10.1.4.0 0.0.1.255
  deny ip any any
 --
 ip access-list extended t3_in

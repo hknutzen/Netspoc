@@ -16,17 +16,17 @@ $title = 'Order of elements';
 # Order of elements in ACL should be the same as in service.
 
 $in = <<'END';
-network:n0 = { ip = 10.1.0.0/24; }
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-network:n4 = { ip = 10.1.4.0/24; }
-network:n5 = { ip = 10.1.5.0/24; }
-network:n6 = { ip = 10.1.6.0/24; }
-network:n7 = { ip = 10.1.7.0/24; }
-network:n8 = { ip = 10.1.8.0/24; }
-network:n9 = { ip = 10.1.9.0/24; }
-network:n10 = { ip = 10.1.10.0/24; }
+network:n0 = { ip = 10.1.0.0/25; }
+network:n1 = { ip = 10.1.1.0/25; }
+network:n2 = { ip = 10.1.2.0/25; }
+network:n3 = { ip = 10.1.3.0/25; }
+network:n4 = { ip = 10.1.4.0/25; }
+network:n5 = { ip = 10.1.5.0/25; }
+network:n6 = { ip = 10.1.6.0/25; }
+network:n7 = { ip = 10.1.7.0/25; }
+network:n8 = { ip = 10.1.8.0/25; }
+network:n9 = { ip = 10.1.9.0/25; }
+network:n10 = { ip = 10.1.10.0/25; }
 
 
 router:r1 = {
@@ -71,16 +71,16 @@ $out = <<'END';
 --r1
 ip access-list extended n1_in
  deny ip any host 10.1.0.1
- permit ip 10.1.1.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.2.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.3.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.4.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.5.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.9.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.8.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.7.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.6.0 0.0.0.255 10.1.0.0 0.0.0.255
- permit ip 10.1.10.0 0.0.0.255 10.1.0.0 0.0.0.255
+ permit ip 10.1.1.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.2.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.3.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.4.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.5.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.9.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.8.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.7.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.6.0 0.0.0.127 10.1.0.0 0.0.0.127
+ permit ip 10.1.10.0 0.0.0.127 10.1.0.0 0.0.0.127
  deny ip any any
 END
 

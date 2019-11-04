@@ -41,8 +41,8 @@ $out = <<'END';
 ip access-list extended ethernet0_in
  deny ip any host 192.168.1.1
  permit tcp host 10.1.1.15 192.168.1.0 0.0.0.255 eq 80
- permit tcp 10.1.1.32 0.0.0.3 192.168.1.0 0.0.0.255 eq 80
  permit tcp 10.1.1.16 0.0.0.15 192.168.1.0 0.0.0.255 eq 80
+ permit tcp 10.1.1.32 0.0.0.3 192.168.1.0 0.0.0.255 eq 80
  deny ip any any
 END
 
@@ -231,9 +231,7 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
 END
 
-Test::More->builder->todo_start($title);
 test_warn($title, $in, $out);
-Test::More->builder->todo_end;
 
 ############################################################
 done_testing;

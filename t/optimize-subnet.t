@@ -96,7 +96,7 @@ END
 test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
-$title = 'Combined hosts prevent optimal object group';
+$title = "Combined hosts don't prevent optimal object group";
 ############################################################
 
 $in = <<'END';
@@ -149,9 +149,7 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 END
 
-Test::More->builder->todo_start($title);
 test_run($title, $in, $out);
-Test::More->builder->todo_end;
 
 ############################################################
 $title = 'Optimize subnet of NAT network in zone';

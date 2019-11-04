@@ -3272,10 +3272,8 @@ ip access-list extended ACL-Split-Tunnel
 ip access-list extended ACL-crypto-filter
  deny ip any host 10.99.2.1
  deny ip any host 10.99.3.1
- permit udp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 eq 123
- permit udp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 eq 123
- permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.0.255 established
- permit tcp 10.1.1.0 0.0.0.255 10.99.3.0 0.0.0.255 established
+ permit udp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.1.255 eq 123
+ permit tcp 10.1.1.0 0.0.0.255 10.99.2.0 0.0.1.255 established
  deny ip any any
 interface Virtual-Template1 type tunnel
  ip access-group ACL-crypto-filter in
