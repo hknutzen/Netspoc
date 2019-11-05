@@ -629,7 +629,8 @@ func FindSubnetsInNatDomain(domains []*natDomain) {
 	dom2Part := findNatPartitions(domains)
 
 	part2Doms := make(map[int][]*natDomain)
-	for dom, part := range dom2Part {
+	for _, dom := range domains {
+		part := dom2Part[dom]
 		part2Doms[part] = append(part2Doms[part], dom)
 	}
 	part2Nets := make(map[int]netList)
