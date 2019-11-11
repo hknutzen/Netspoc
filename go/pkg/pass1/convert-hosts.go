@@ -201,6 +201,102 @@ func convertHosts() {
 			}
 		}
 
+		// Find adjacent subnets which build a larger subnet.
+		s, bits := n.mask.Size()
+		networkSize := bitstrLen - s
+		for i := 0; i < len(subnetAref); i++ {
+			ip2subnet := subnetAref[i]
+			if ip2subnet == nil {
+				continue
+			}
+			mask := net.CIDRMask(bitstrLen-i, bits)
+
+			// Identify next supernet.
+			upSubnetSize := i + 1
+			upMask := net.CIDRMask(bitstrLen-upSubnetSize, bits)
+
+			// Network mask and supernet mask differ in one bit.
+			// This bit distinguishes left and right subnet of supernet:
+			// mask (/30)                   255.255.255.11111100
+			// xor upmask (/29)            ^255.255.255.11111000
+			// equals next bit             =  0.  0.  0.00000100
+			// left subnet  10.0.0.16/30 ->  10.  0.  0.00010000
+			// right subnet 10.0.0.20/30 ->  10.  0.  0.00010100
+			next := make(net.IP, len(mask))
+			for i := 0; i < len(mask); i++ {
+				next[i] = upMask[i] ^ mask[i]
+			}
+
+			for ipStr, s := range ip2subnet {
+				ip := net.IP(ipStr)
+
+				// Don't combine subnets with NAT
+				// ToDo: This would be possible if all NAT addresses
+				// match too.
+				if len(s.nat) != 0 {
+					continue
+				}
+
+				// Don't combine subnets having radius-ID.
+				if s.id != "" {
+					continue
+				}
+
+				// Only take the left part of two adjacent subnets,
+				// where lowest network bit is zero.
+				if !ip.Mask(mask).Equal(ip.Mask(upMask)) {
+					continue
+				}
+
+				nextIp := make(net.IP, len(ip))
+				for i := 0; i < len(ip); i++ {
+					nextIp[i] = ip[i] | next[i]
+				}
+
+				// Find corresponding right part
+				neighbor := ip2subnet[string(nextIp)]
+				if neighbor == nil {
+					continue
+				}
+
+				s.neighbor = neighbor
+				neighbor.hasNeighbor = true
+				var up someObj
+
+				if upSubnetSize >= networkSize {
+
+					// Larger subnet is whole network.
+					up = n
+				} else {
+					if upSubnetSize < len(subnetAref) {
+						if upSub, ok := subnetAref[upSubnetSize][string(ip)]; ok {
+							up = upSub
+						}
+					}
+					if up == nil {
+						pos := strings.Index(s.name, ":")
+						name := "autoSubnet" + s.name[pos:]
+						u := new(subnet)
+						u.name = name
+						u.network = n
+						u.ip = ip
+						u.mask = upMask
+						u.up = s.up
+						upIP2subnet := subnetAref[upSubnetSize]
+						if upIP2subnet == nil {
+							upIP2subnet = make(map[string]*subnet)
+							subnetAref[upSubnetSize] = upIP2subnet
+						}
+						upIP2subnet[string(ip)] = u
+						n.subnets = append(n.subnets, u)
+						up = u
+					}
+				}
+				s.up = up
+				neighbor.up = up
+			}
+		}
+
 		// Attribute .up has been set for all subnets now.
 		// Do the same for unmanaged interfaces.
 		for _, intf := range n.interfaces {
@@ -210,6 +306,59 @@ func convertHosts() {
 			}
 		}
 	}
+}
+
+// Find adjacent subnets and substitute them by their enclosing subnet.
+func combineSubnets(subnets []*subnet) []someObj {
+	m := make(map[*subnet]bool)
+	for _, s := range subnets {
+		m[s] = true
+	}
+	var extra []*subnet
+	var networks netList
+	for {
+		for _, s := range subnets {
+			neighbor := s.neighbor
+			if neighbor == nil {
+				continue
+			}
+			if _, ok := m[neighbor]; !ok {
+				continue
+			}
+			delete(m, s)
+			delete(m, neighbor)
+			up := s.up
+			switch x := up.(type) {
+			case *network:
+				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
+				networks.push(x)
+			case *subnet:
+				m[x] = true
+				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
+				extra = append(extra, x)
+			}
+		}
+		if extra != nil {
+
+			// Try again to combine subnets with extra subnets.
+			// This version isn't optimized.
+			subnets = append(subnets, extra...)
+			extra = nil
+		} else {
+			break
+		}
+	}
+
+	var result []someObj
+	for _, s := range subnets {
+		if m[s] {
+			result = append(result, s)
+		}
+	}
+	for _, n := range networks {
+		result = append(result, n)
+	}
+	return result
 }
 
 //#######################################################################
@@ -255,14 +404,15 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 		cRules := make(ruleList, 0, len(rules))
 		for _, rule := range rules {
 			processList := func(list []srvObj, context string) []someObj {
-				var cList []someObj
+				var other []someObj
+				var subnets []*subnet
 				subnet2host := make(map[*subnet]*host)
 				for _, obj := range list {
 					switch x := obj.(type) {
 					case *network:
-						cList = append(cList, x)
+						other = append(other, x)
 					case *routerIntf:
-						cList = append(cList, x)
+						other = append(other, x)
 					case *host:
 						for _, s := range x.subnets {
 
@@ -281,18 +431,24 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 											" because both have identical address",
 										n.name, s.name)
 								}
-								cList = append(cList, n)
-							} else if other := subnet2host[s]; other != nil {
+								other = append(other, n)
+							} else if h := subnet2host[s]; h != nil {
 								warnMsg("%s and %s overlap in %s of %s",
-									x.name, other.name, context, rule.rule.service.name)
+									x.name, h.name, context, rule.rule.service.name)
 							} else {
 								subnet2host[s] = x
-								cList = append(cList, s)
+								if s.neighbor != nil || s.hasNeighbor {
+									subnets = append(subnets, s)
+								} else {
+									// Subnet can't be combined.
+									other = append(other, s)
+								}
 							}
 						}
 					}
 				}
-				return cList
+				other = append(other, combineSubnets(subnets)...)
+				return other
 			}
 			if rule.srcNet {
 				rule.src = applySrcDstModifier(rule.src)

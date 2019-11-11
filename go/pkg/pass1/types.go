@@ -97,8 +97,10 @@ func (x *netObj) getNetwork() *network { return x.network }
 type subnet struct {
 	netObj
 	mask             net.IPMask
+	hasNeighbor      bool
 	id               string
 	ldapId           string
+	neighbor         *subnet
 	radiusAttributes map[string]string
 }
 
