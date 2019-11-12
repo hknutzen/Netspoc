@@ -21,6 +21,7 @@ func main() {
 	pass1.CheckRedundantRules()
 
 	pass1.RemoveSimpleDuplicateRules()
+	pass1.CombineSubnetsInRules()
 	pass1.SetPolicyDistributionIP()
 	pass1.ExpandCrypto()
 	pass1.FindActiveRoutes()

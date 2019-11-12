@@ -395,6 +395,7 @@ Checking transient supernet rules
 Checking for redundant rules
 Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
+Combining adjacent subnets
 Setting policy distribution IP
 Expanding crypto rules
 Finding routes

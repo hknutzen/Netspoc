@@ -309,11 +309,29 @@ func convertHosts() {
 }
 
 // Find adjacent subnets and substitute them by their enclosing subnet.
-func combineSubnets(subnets []*subnet) []someObj {
+func combineSubnets(list []someObj) []someObj {
 	m := make(map[*subnet]bool)
-	for _, s := range subnets {
-		m[s] = true
+	var subnets []*subnet
+
+	// Find subnets in list and remove them in place.
+	j := 0
+	for _, obj := range list {
+		if s, ok := obj.(*subnet); ok {
+			if s.neighbor != nil || s.hasNeighbor {
+				subnets = append(subnets, s)
+				m[s] = true
+				continue
+			}
+		}
+		list[j] = obj
+		j++
 	}
+	list = list[:j]
+	if subnets == nil {
+		return list
+	}
+
+	// Combine found subnets.
 	var networks netList
 	again := true
 	for again {
@@ -342,16 +360,16 @@ func combineSubnets(subnets []*subnet) []someObj {
 		}
 	}
 
-	var result []someObj
+	// Add combined subnets to list again.
 	for _, s := range subnets {
 		if m[s] {
-			result = append(result, s)
+			list = append(list, s)
 		}
 	}
 	for _, n := range networks {
-		result = append(result, n)
+		list = append(list, n)
 	}
-	return result
+	return list
 }
 
 //#######################################################################
@@ -397,15 +415,14 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 		cRules := make(ruleList, 0, len(rules))
 		for _, rule := range rules {
 			processList := func(list []srvObj, context string) []someObj {
-				var other []someObj
-				var subnets []*subnet
+				var result []someObj
 				subnet2host := make(map[*subnet]*host)
 				for _, obj := range list {
 					switch x := obj.(type) {
 					case *network:
-						other = append(other, x)
+						result = append(result, x)
 					case *routerIntf:
-						other = append(other, x)
+						result = append(result, x)
 					case *host:
 						for _, s := range x.subnets {
 
@@ -424,24 +441,18 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 											" because both have identical address",
 										n.name, s.name)
 								}
-								other = append(other, n)
+								result = append(result, n)
 							} else if h := subnet2host[s]; h != nil {
 								warnMsg("%s and %s overlap in %s of %s",
 									x.name, h.name, context, rule.rule.service.name)
 							} else {
 								subnet2host[s] = x
-								if s.neighbor != nil || s.hasNeighbor {
-									subnets = append(subnets, s)
-								} else {
-									// Subnet can't be combined.
-									other = append(other, s)
-								}
+								result = append(result, s)
 							}
 						}
 					}
 				}
-				other = append(other, combineSubnets(subnets)...)
-				return other
+				return result
 			}
 			if rule.srcNet {
 				rule.src = applySrcDstModifier(rule.src)
@@ -458,4 +469,16 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 		return cRules
 	}
 	return process(sRules.permit), process(sRules.deny)
+}
+
+func CombineSubnetsInRules() {
+	diag.Progress("Combining adjacent subnets")
+	process := func(rules ruleList) {
+		for _, r := range rules {
+			r.src = combineSubnets(r.src)
+			r.dst = combineSubnets(r.dst)
+		}
+	}
+	process(pRules.permit)
+	process(pRules.deny)
 }

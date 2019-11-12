@@ -76,8 +76,11 @@ service:test = {
 END
 
 $out = <<'END';
-Warning: Duplicate rules in service:test and service:test:
-  permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
+Warning: Redundant rules in service:test compared to service:test:
+  permit src=host:h4; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
+  permit src=host:h5; dst=network:n2; prt=tcp 80; of service:test
+< permit src=host:r4-5; dst=network:n2; prt=tcp 80; of service:test
 --r
 ip access-list extended n1_in
  deny ip any host 10.1.2.1
@@ -228,9 +231,7 @@ Warning: Redundant rules in service:test compared to service:test:
 < permit src=host:r6-7; dst=network:n2; prt=tcp 80; of service:test
 END
 
-Test::More->builder->todo_start($title);
 test_warn($title, $in, $out);
-Test::More->builder->todo_end;
 
 ############################################################
 done_testing;
