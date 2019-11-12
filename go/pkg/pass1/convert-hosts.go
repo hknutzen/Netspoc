@@ -314,10 +314,11 @@ func combineSubnets(subnets []*subnet) []someObj {
 	for _, s := range subnets {
 		m[s] = true
 	}
-	var extra []*subnet
 	var networks netList
-	for {
-		for _, s := range subnets {
+	again := true
+	for again {
+		again = false
+		for i, s := range subnets {
 			neighbor := s.neighbor
 			if neighbor == nil {
 				continue
@@ -333,19 +334,11 @@ func combineSubnets(subnets []*subnet) []someObj {
 				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
 				networks.push(x)
 			case *subnet:
-				m[x] = true
 				//debug("Combined %s, %s to %s", s.name, neighbor.name, x.name)
-				extra = append(extra, x)
+				m[x] = true
+				subnets[i] = x
+				again = true
 			}
-		}
-		if extra != nil {
-
-			// Try again to combine subnets with extra subnets.
-			// This version isn't optimized.
-			subnets = append(subnets, extra...)
-			extra = nil
-		} else {
-			break
 		}
 	}
 
