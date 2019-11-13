@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
@@ -78,7 +79,7 @@ func disableSecondOptForDynHostNet(n *network, tag string, p intfPairs) {
 // 2. Check host rule with dynamic NAT.
 // 3. Check for partially applied hidden or dynamic NAT on path.
 func CheckDynamicNatRules(natDoms []*natDomain, natTag2natType map[string]string) {
-	progress("Checking and marking rules with hidden or dynamic NAT")
+	diag.Progress("Checking and marking rules with hidden or dynamic NAT")
 
 	// 1. Collect hidden or dynamic NAT tags that
 	//    a) are active inside natSet (i.e. NAT domain),

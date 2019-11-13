@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net"
@@ -86,7 +88,7 @@ func printRoutes(fh *os.File, router *router) {
 	ipv6 := router.ipV6
 	model := router.model
 	vrf := router.vrf
-	doAutoDefaultRoute := config.AutoDefaultRoute
+	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
 	zeroIp := getZeroIp(ipv6)
 	cryptoType := model.crypto
 	asaCrypto := cryptoType == "ASA"
@@ -2291,10 +2293,10 @@ func checkOutputDir(dir string) {
 
 // Print generated code for each managed router.
 func printCode(dir string) {
-	progress("Printing intermediate code")
+	diag.Progress("Printing intermediate code")
 
 	var toPass2 *os.File
-	if config.Pipe {
+	if conf.Conf.Pipe {
 		toPass2 = os.Stdout
 	} else {
 		devlist := dir + "/.devlist"

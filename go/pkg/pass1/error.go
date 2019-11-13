@@ -2,13 +2,13 @@ package pass1
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"os"
 	"strings"
-	"time"
 )
 
 func info(format string, args ...interface{}) {
-	if config.Verbose {
+	if conf.Conf.Verbose {
 		string := fmt.Sprintf(format, args...)
 		fmt.Fprintln(os.Stderr, string)
 	}
@@ -20,7 +20,7 @@ func debug(format string, args ...interface{}) {
 
 func checkAbort() {
 	ErrorCounter++
-	if ErrorCounter >= config.MaxErrors {
+	if ErrorCounter >= conf.Conf.MaxErrors {
 		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
 		os.Exit(ErrorCounter)
 	}
@@ -51,20 +51,11 @@ func warnMsg(format string, args ...interface{}) {
 	fmt.Fprintln(os.Stderr, string)
 }
 
-func warnOrErrMsg(errType, format string, args ...interface{}) {
+func warnOrErrMsg(errType conf.TriState, format string, args ...interface{}) {
 	if errType == "warn" {
 		warnMsg(format, args...)
 	} else {
 		errMsg(format, args...)
-	}
-}
-
-func progress(msg string) {
-	if config.Verbose {
-		if config.TimeStamps {
-			msg = fmt.Sprintf("%3.0fs %s", time.Since(startTime).Seconds(), msg)
-		}
-		info(msg)
 	}
 }
 

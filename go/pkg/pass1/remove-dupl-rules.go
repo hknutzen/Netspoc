@@ -5,7 +5,7 @@ import (
 )
 
 func RemoveSimpleDuplicateRules() {
-	progress("Removing simple duplicate rules")
+	diag.Progress("Removing simple duplicate rules")
 
 	// Change slice in place.
 	process := func(rules ruleList) {

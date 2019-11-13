@@ -2,6 +2,8 @@ package pass1
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"strings"
 )
@@ -217,7 +219,7 @@ func checkSupernetInZone(rule *groupedRule, where string, intf *routerIntf, zone
 		objects[i] = n
 	}
 	warnOrErrMsg(
-		config.CheckSupernetRules,
+		conf.Conf.CheckSupernetRules,
 		"This %ssupernet rule would permit unexpected access:\n"+
 			"  %s\n"+
 			" Generated ACL at %s would permit access"+
@@ -525,8 +527,9 @@ func checkSupernetDstRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 }
 
 // Check missing supernet of each serviceRule.
-func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *routerIntf)) {
-	for _, rule := range sRules.permit {
+func checkMissingSupernetRules(rules ruleList, what string,
+	worker func(r *groupedRule, i, o *routerIntf)) {
+	for _, rule := range rules {
 		if rule.noCheckSupernetRules {
 			continue
 		}
@@ -567,10 +570,9 @@ func checkMissingSupernetRules(what string, worker func(r *groupedRule, i, o *ro
 		}
 		rule.zone2netMap = zone2netMap
 
-		// Convert each service Rule to grouped Rule, usable for pathWalk.
 		groupInfo := splitRuleGroup(oList)
 		checkRule := new(groupedRule)
-		checkRule.serviceRule = rule
+		checkRule.serviceRule = rule.serviceRule
 		for _, supernet := range supernets {
 			if what == "src" {
 				checkRule.src = []someObj{supernet}
@@ -849,14 +851,13 @@ func pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 // which may be undesired.
 // In order to avoid this, a warning is generated if the implied rule is not
 // explicitly defined.
-func checkTransientSupernetRules() {
-	progress("Checking transient supernet rules")
-	rules := sRules.permit
+func checkTransientSupernetRules(rules ruleList) {
+	diag.Progress("Checking transient supernet rules")
 
 	isLeafZone := markLeafZones()
 
 	// Build mapping from supernet to service rules having supernet as src.
-	supernet2rules := make(map[*network][]*serviceRule)
+	supernet2rules := make(map[*network]ruleList)
 
 	// Mapping from zone to supernets found in src of rules.
 	zone2supernets := make(map[*zone][]*network)
@@ -926,7 +927,7 @@ func checkTransientSupernetRules() {
 		return
 	}
 
-	printType := config.CheckTransientSupernetRules
+	printType := conf.Conf.CheckTransientSupernetRules
 
 	// Search rules having supernet as dst.
 	for _, rule1 := range rules {
@@ -970,7 +971,7 @@ func checkTransientSupernetRules() {
 					if !matchPrtList(rule1.prt, rule2.prt) {
 						continue
 					}
-					getSrcRange := func(rule *serviceRule) *proto {
+					getSrcRange := func(rule *groupedRule) *proto {
 						result := rule.srcRange
 						if result == nil {
 							result = prtIP
@@ -1036,7 +1037,7 @@ func checkTransientSupernetRules() {
 			}
 		}
 	}
-	//    progress("Transient check is ready");
+	//    diag.Progress("Transient check is ready");
 }
 
 // Handling of supernet rules created by genReverseRules.
@@ -1113,9 +1114,9 @@ func markStateful(zone *zone, mark int) {
 	}
 }
 
-func CheckSupernetRules() {
-	if config.CheckSupernetRules != "0" {
-		progress("Checking supernet rules")
+func CheckSupernetRules(p ruleList) {
+	if conf.Conf.CheckSupernetRules != "" {
+		diag.Progress("Checking supernet rules")
 		statefulMark := 1
 		for _, zone := range zones {
 			if zone.statefulMark == 0 {
@@ -1123,13 +1124,13 @@ func CheckSupernetRules() {
 				statefulMark++
 			}
 		}
-		// progress("Checking for missing src in supernet rules");
-		checkMissingSupernetRules("src", checkSupernetSrcRule)
-		// progress("Checking for missing dst in supernet rules");
-		checkMissingSupernetRules("dst", checkSupernetDstRule)
+		// diag.Progress("Checking for missing src in supernet rules");
+		checkMissingSupernetRules(p, "src", checkSupernetSrcRule)
+		// diag.Progress("Checking for missing dst in supernet rules");
+		checkMissingSupernetRules(p, "dst", checkSupernetDstRule)
 		missingSupernet = nil
 	}
-	if config.CheckTransientSupernetRules != "0" {
-		checkTransientSupernetRules()
+	if conf.Conf.CheckTransientSupernetRules != "" {
+		checkTransientSupernetRules(p)
 	}
 }

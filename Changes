@@ -1,3 +1,12 @@
+6.004     2019-11-13 10:54:53+01:00 Europe/Berlin
+
+ - Adjacent IP networks are now combined also for IOS.
+   This leads to shorter ACLs.
+ - More redundant rules are found, because adjacent subnets are
+   combined later, after check for redundant rules now.
+ - Migrated another part from Perl to Go:
+   - Converting hosts to subnets
+
 6.003     2019-11-01 12:24:45+01:00 Europe/Berlin
 
  - map-value of ldap attribute-map is written as double quoted string now.

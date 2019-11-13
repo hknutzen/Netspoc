@@ -3,6 +3,8 @@ package pass1
 import (
 	"bytes"
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 	"strings"
@@ -128,7 +130,7 @@ func showUnenforceable() {
 			(service.seenUnenforceable == nil || !service.seenEnforceable) {
 			warnMsg("Useless attribute 'has_unenforceable' at %s", context)
 		}
-		if config.CheckUnenforceable == "" {
+		if conf.Conf.CheckUnenforceable == "" {
 			continue
 		}
 		if service.disabled {
@@ -141,7 +143,7 @@ func showUnenforceable() {
 
 			// Don't warn on empty service without any expanded rules.
 			if service.seenUnenforceable != nil || service.silentUnenforceable {
-				warnOrErrMsg(config.CheckUnenforceable,
+				warnOrErrMsg(conf.Conf.CheckUnenforceable,
 					"%s is fully unenforceable", context)
 			}
 			continue
@@ -169,7 +171,7 @@ func showUnenforceable() {
 		}
 		if list != nil {
 			sort.Strings(list)
-			warnOrErrMsg(config.CheckUnenforceable,
+			warnOrErrMsg(conf.Conf.CheckUnenforceable,
 				"%s has unenforceable rules:\n"+
 					" %s",
 				context, strings.Join(list, "\n "))
@@ -247,7 +249,7 @@ func splitRuleGroup(group []someObj) []groupWithPath {
 	return result
 }
 
-func splitRulesByPath(rules []*serviceRule) ruleList {
+func splitRulesByPath(rules ruleList) ruleList {
 	var newRules ruleList
 	for _, sRule := range rules {
 		sGroupInfo := splitRuleGroup(sRule.src)
@@ -255,7 +257,7 @@ func splitRulesByPath(rules []*serviceRule) ruleList {
 		for _, sInfo := range sGroupInfo {
 			for _, dInfo := range dGroupInfo {
 				rule := new(groupedRule)
-				rule.serviceRule = sRule
+				rule.serviceRule = sRule.serviceRule
 				rule.srcPath = sInfo.path
 				rule.dstPath = dInfo.path
 				rule.src = sInfo.group
@@ -267,18 +269,18 @@ func splitRulesByPath(rules []*serviceRule) ruleList {
 	return newRules
 }
 
-func GroupPathRules() {
-	progress("Grouping rules")
+func GroupPathRules(p, d ruleList) {
+	diag.Progress("Grouping rules")
 
 	// Split grouped rules such, that all elements of src and dst
 	// have identical srcPath/dstPath.
-	process := func(sRules []*serviceRule) ruleList {
+	process := func(sRules ruleList) ruleList {
 		gRules := splitRulesByPath(sRules)
 		gRules = removeUnenforceableRules(gRules)
 		return gRules
 	}
-	pRules.permit = process(sRules.permit)
-	pRules.deny = process(sRules.deny)
+	pRules.permit = process(p) //sRules.permit)
+	pRules.deny = process(d)   //sRules.deny)
 	info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
 
 	showUnenforceable()

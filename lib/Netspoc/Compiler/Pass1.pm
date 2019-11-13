@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.003'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.004'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -18918,7 +18918,6 @@ sub compile {
     abort_on_error();
 
     check_service_owner();
-    convert_hosts_in_rules();
 
     call_go('spoc1-go', {
         config => $config,

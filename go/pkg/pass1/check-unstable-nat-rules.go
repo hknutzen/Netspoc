@@ -1,7 +1,11 @@
 package pass1
 
+import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
+)
+
 func CheckUnstableNatRules() {
-	progress("Checking rules for unstable subnet relation")
+	diag.Progress("Checking rules for unstable subnet relation")
 	process := func(l ruleList) {
 		for _, rule := range l {
 			getUnstable := func(l []someObj) netList {

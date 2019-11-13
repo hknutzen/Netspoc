@@ -3,6 +3,8 @@ package pass1
 import (
 	"bytes"
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
@@ -417,7 +419,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if printType := config.CheckSubnets; printType != "" {
+			if printType := conf.Conf.CheckSubnets; printType != "" {
 
 				// Take original bignet, because currently
 				// there's no method to specify a natted network
@@ -621,13 +623,14 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 // 2. If rule has src or dst with attribute {has_other_subnet},
 //    it is later checked for missing supernets.
 func FindSubnetsInNatDomain(domains []*natDomain) {
-	progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
+	diag.Progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
 
 	// Mapping from NAT domain to ID of NAT partition.
 	dom2Part := findNatPartitions(domains)
 
 	part2Doms := make(map[int][]*natDomain)
-	for dom, part := range dom2Part {
+	for _, dom := range domains {
+		part := dom2Part[dom]
 		part2Doms[part] = append(part2Doms[part], dom)
 	}
 	part2Nets := make(map[int]netList)

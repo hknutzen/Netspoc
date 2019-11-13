@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -733,7 +734,7 @@ func generateRoutingInfo(tree routingTree) {
 //############################################################################
 // Purpose  : Generate and store routing information for all managed interfaces.
 func FindActiveRoutes() {
-	progress("Finding routes")
+	diag.Progress("Finding routes")
 
 	// Mark interfaces of unmanaged routers such that no routes are collected.
 	for _, router := range getIpv4Ipv6Routers() {

@@ -67,6 +67,7 @@ go/pkg/pass1/check-redundant.go
 go/pkg/pass1/check-supernet.go
 go/pkg/pass1/check-unstable-nat-rules.go
 go/pkg/pass1/check-unused-groups.go
+go/pkg/pass1/convert-hosts.go
 go/pkg/pass1/copy-raw.go
 go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go

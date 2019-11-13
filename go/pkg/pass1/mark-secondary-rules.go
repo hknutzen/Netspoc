@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 )
 
@@ -322,7 +323,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 }
 
 func MarkSecondaryRules() {
-	progress("Marking rules for secondary optimization")
+	diag.Progress("Marking rules for secondary optimization")
 
 	secondaryMark := 1
 	primaryMark := 1

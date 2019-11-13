@@ -1,5 +1,10 @@
 package pass1
 
+import (
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
+)
+
 //#############################################################################
 // Find IP of each device, reachable from policy distribution point.
 //#############################################################################
@@ -9,9 +14,9 @@ package pass1
 // This address is added as a comment line to each generated code file.
 // This is to be used later when approving the generated code file.
 func SetPolicyDistributionIP() {
-	progress("Setting policy distribution IP")
+	diag.Progress("Setting policy distribution IP")
 
-	needAll := config.CheckPolicyDistributionPoint
+	needAll := conf.Conf.CheckPolicyDistributionPoint
 	var pdpRouters []*router
 	seen := make(map[*router]bool)
 	var missing stringerList
@@ -21,7 +26,7 @@ func SetPolicyDistributionIP() {
 				pdpRouters = append(pdpRouters, r)
 				continue
 			}
-			if needAll == "0" {
+			if needAll == "" {
 				continue
 			}
 			if seen[r] {

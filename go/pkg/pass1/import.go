@@ -3,6 +3,8 @@ package pass1
 import (
 	"fmt"
 	"github.com/Sereal/Sereal/Go/sereal"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"io/ioutil"
 	"net"
 	"os"
@@ -147,6 +149,8 @@ func (x *ipObj) setCommon(m xMap) {
 		x.tunnel = true
 	case "bridged":
 		x.bridged = true
+	case "":
+		break
 	default:
 		x.ip = net.IP(s)
 	}
@@ -158,6 +162,8 @@ func (x *netObj) setCommon(m xMap) {
 	x.ipObj.setCommon(m)
 	x.bindNat = getStrings(m["bind_nat"])
 	x.network = convNetwork(m["network"])
+	x.nat = convIPNat(m["nat"])
+	x.owner = convOwner(m["owner"])
 }
 
 func convNetNat(x xAny) natMap {
@@ -262,7 +268,6 @@ func convSubnet(x xAny) *subnet {
 	m["ref"] = s
 	s.setCommon(m)
 	s.mask = m["mask"].([]byte)
-	s.nat = convIPNat(m["nat"])
 	s.id = getString(m["id"])
 	s.ldapId = getString(m["ldap_id"])
 	s.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
@@ -295,6 +300,9 @@ func convHost(x xAny) *host {
 		a := getSlice(x)
 		o.ipRange = [2]net.IP{getIP(a[0]), getIP(a[1])}
 	}
+	o.id = getString(m["id"])
+	o.ldapId = getString(m["ldap_id"])
+	o.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	o.subnets = convSubnets(m["subnets"])
 	return o
 }
@@ -500,7 +508,6 @@ func convRouterIntf(x xAny) *routerIntf {
 	i.loopback = getBool(m["loopback"])
 	i.loopZoneBorder = getBool(m["loop_zone_border"])
 	i.mainIntf = convRouterIntf(m["main_interface"])
-	i.nat = convIPNat(m["nat"])
 	i.natSet = convNatSet(m["nat_set"])
 	i.origMain = convRouterIntf(m["orig_main"])
 	i.pathRestrict = convPathRestricts(m["path_restrict"])
@@ -658,6 +665,30 @@ func convSomeObjects(x xAny) []someObj {
 	return objects
 }
 
+func convSrvObj(x xAny) srvObj {
+	m := getMap(x)
+
+	// Don't check name, because managed host is also stored as interface.
+	if _, ok := m["router"]; ok {
+		return convRouterIntf(x)
+	}
+	if _, ok := m["network"]; ok {
+		return convHost(x)
+	}
+	return convNetwork(x)
+}
+func convSrvObjects(x xAny) []srvObj {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	objects := make([]srvObj, len(a))
+	for i, x := range a {
+		objects[i] = convSrvObj(x)
+	}
+	return objects
+}
+
 var attrList []string = []string{"overlaps", "unknown_owner", "multi_owner", "has_unenforceable"}
 
 func convAttr(m xMap) map[string]string {
@@ -752,6 +783,20 @@ func convNATDomains(x xAny) []*natDomain {
 		l[i] = convNATDomain(x)
 	}
 	return l
+}
+
+func convOwner(x xAny) *owner {
+	if x == nil {
+		return nil
+	}
+	m := getMap(x)
+	if r, ok := m["ref"]; ok {
+		return r.(*owner)
+	}
+	o := new(owner)
+	m["ref"] = o
+	o.name = getString(m["name"])
+	return o
 }
 
 func convModifiers(x xAny) modifiers {
@@ -964,15 +1009,12 @@ func convunexpRule(x xAny) *unexpRule {
 	return r
 }
 
-func convGroupedRule(x xAny) *groupedRule {
-	m := getMap(x)
+func convAnyRule(x xAny) *groupedRule {
 	s := convServiceRule(x)
 	r := new(groupedRule)
 	r.serviceRule = s
-	r.src = s.src
-	r.dst = s.dst
-	r.srcPath = convPathStore(m["src_path"])
-	r.dstPath = convPathStore(m["dst_path"])
+	r.src = []someObj{s.src[0].(*network)}
+	r.dst = []someObj{s.dst[0].(*network)}
 	return r
 }
 
@@ -985,13 +1027,15 @@ func convServiceRule(x xAny) *serviceRule {
 	m["ref"] = r
 
 	r.deny = getBool(m["deny"])
-	r.src = convSomeObjects(m["src"])
-	r.dst = convSomeObjects(m["dst"])
+	r.src = convSrvObjects(m["src"])
+	r.dst = convSrvObjects(m["dst"])
 	r.prt = convProtos(m["prt"])
 	r.srcRange = convProto(m["src_range"])
 	if log, ok := m["log"]; ok {
 		r.log = getString(log)
 	}
+	r.srcNet = getBool(m["src_net"])
+	r.dstNet = getBool(m["dst_net"])
 	r.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
 	r.stateless = getBool(m["stateless"])
 	r.statelessICMP = getBool(m["stateless_icmp"])
@@ -1129,28 +1173,38 @@ func convIsakmp(x xAny) *isakmp {
 	return c
 }
 
-func convConfig(x xAny) Config {
-	m := getMap(x)
-	c := Config{
-		CheckDuplicateRules:          getString(m["check_duplicate_rules"]),
-		CheckRedundantRules:          getString(m["check_redundant_rules"]),
-		CheckFullyRedundantRules:     getString(m["check_fully_redundant_rules"]),
-		CheckPolicyDistributionPoint: getString(m["check_policy_distribution_point"]),
-		CheckSubnets:                 getString(m["check_subnets"]),
+func getTriState(x xAny) conf.TriState {
+	var result conf.TriState
+	result.Set(getString(x))
+	return result
+}
 
-		CheckSupernetRules:          getString(m["check_supernet_rules"]),
-		CheckTransientSupernetRules: getString(m["check_transient_supernet_rules"]),
-		CheckUnenforceable:          getString(m["check_unenforceable"]),
-		CheckUnusedGroups:           getString(m["check_unused_groups"]),
-		CheckUnusedProtocols:        getString(m["check_unused_protocols"]),
-		AutoDefaultRoute:            getBool(m["auto_default_route"]),
-		IgnoreFiles:                 getRegexp(m["ignore_files"]),
-		IPV6:                        getBool(m["ipv6"]),
-		MaxErrors:                   getInt(m["max_errors"]),
-		Verbose:                     getBool(m["verbose"]),
-		TimeStamps:                  getBool(m["time_stamps"]),
-		Pipe:                        getBool(m["pipe"]),
-	}
+func convConfig(x xAny) *conf.Config {
+	m := getMap(x)
+	c := new(conf.Config)
+	c.CheckDuplicateRules = getTriState(m["check_duplicate_rules"])
+	c.CheckFullyRedundantRules = getTriState(m["check_fully_redundant_rules"])
+	c.CheckPolicyDistributionPoint =
+		getTriState(m["check_policy_distribution_point"])
+	c.CheckRedundantRules = getTriState(m["check_redundant_rules"])
+	c.CheckServiceUnknownOwner = getTriState(m["check_service_unknown_owner"])
+	c.CheckServiceMultiOwner = getTriState(m["check_service_multi_owner"])
+	c.CheckSubnets = getTriState(m["check_subnets"])
+	c.CheckSupernetRules = getTriState(m["check_supernet_rules"])
+	c.CheckTransientSupernetRules =
+		getTriState(m["check_transient_supernet_rules"])
+	c.CheckUnenforceable = getTriState(m["check_unenforceable"])
+	c.CheckUnusedGroups = getTriState(m["check_unused_groups"])
+	c.CheckUnusedOwners = getTriState(m["check_unused_owners"])
+	c.CheckUnusedProtocols = getTriState(m["check_unused_protocols"])
+
+	c.AutoDefaultRoute = getBool(m["auto_default_route"])
+	c.IgnoreFiles = getRegexp(m["ignore_files"])
+	c.IPV6 = getBool(m["ipv6"])
+	c.MaxErrors = getInt(m["max_errors"])
+	c.Verbose = getBool(m["verbose"])
+	c.TimeStamps = getBool(m["time_stamps"])
+	c.Pipe = getBool(m["pipe"])
 	return c
 }
 
@@ -1171,13 +1225,13 @@ func ImportFromPerl() {
 	if err != nil {
 		panic(err)
 	}
-	config = convConfig(m["config"])
-	startTime = time.Unix(int64(m["start_time"].(int)), 0)
-	progress("Importing from Perl")
+	conf.Conf = convConfig(m["config"])
+	conf.StartTime = time.Unix(int64(m["start_time"].(int)), 0)
+	diag.Progress("Importing from Perl")
 
 	cryptoMap = convCryptoMap(m["crypto"])
-	denyAny6Rule = convGroupedRule(m["deny_any6_rule"])
-	denyAnyRule = convGroupedRule(m["deny_any_rule"])
+	denyAny6Rule = convAnyRule(m["deny_any6_rule"])
+	denyAnyRule = convAnyRule(m["deny_any_rule"])
 	InPath = getString(m["in_path"])
 	managedRouters = convRouters(m["managed_routers"])
 	NATDomains = convNATDomains(m["natdomains"])
@@ -1186,8 +1240,8 @@ func ImportFromPerl() {
 	network00v6 = convNetwork(m["network_00_v6"])
 	allNetworks = convNetworks(m["all_networks"])
 	OutDir = getString(m["out_dir"])
-	permitAny6Rule = convGroupedRule(m["permit_any6_rule"])
-	permitAnyRule = convGroupedRule(m["permit_any_rule"])
+	permitAny6Rule = convAnyRule(m["permit_any6_rule"])
+	permitAnyRule = convAnyRule(m["permit_any_rule"])
 	program = getString(m["program"])
 	groups = convObjGroupMap(m["groups"])
 	protocolGroups = convprotoGroupMap(m["protocolgroups"])

@@ -1,11 +1,12 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"sort"
 )
 
 func CheckUnusedGroups() {
-	if printType := config.CheckUnusedGroups; printType != "0" {
+	if printType := conf.Conf.CheckUnusedGroups; printType != "" {
 		// Check groups
 		names := make([]string, 0, len(groups))
 		for name := range groups {
@@ -31,7 +32,7 @@ func CheckUnusedGroups() {
 			}
 		}
 	}
-	if printType := config.CheckUnusedProtocols; printType != "0" {
+	if printType := conf.Conf.CheckUnusedProtocols; printType != "" {
 		names := make([]string, 0, len(protocols))
 		for name := range protocols {
 			names = append(names, name)

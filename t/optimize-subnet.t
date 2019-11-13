@@ -96,7 +96,7 @@ END
 test_run($title, $in, $out, '--check_redundant_rules=0');
 
 ############################################################
-$title = 'Combined hosts prevent optimal object group';
+$title = "Combined hosts prevent optimal object group";
 ############################################################
 
 $in = <<'END';

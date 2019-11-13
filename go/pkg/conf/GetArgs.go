@@ -40,13 +40,13 @@ import (
 )
 
 // Type for command line flag with value 0|1|warn
-type triState string
+type TriState string
 
-func (v *triState) String() string { return string(*v) }
-func (v *triState) Set(s string) error {
+func (v *TriState) String() string { return string(*v) }
+func (v *TriState) Set(s string) error {
 	switch strings.ToLower(s) {
-	case "0", "no", "f", "false":
-		*v = "no"
+	case "", "0", "no", "f", "false":
+		*v = ""
 	case "1", "e", "err", "error":
 		*v = "err"
 	case "w", "warn", "warning":
@@ -58,7 +58,7 @@ func (v *triState) Set(s string) error {
 }
 
 // Needed for gen/gpflag to work, mostly for pflag compatibility.
-func (v triState) Type() string { return "tristate" }
+func (v TriState) Type() string { return "tristate" }
 
 // Type for additional name to existing flag with inverted boolean value.
 type invFlag struct{ flag *flag.Flag }
@@ -80,19 +80,19 @@ func (v invFlag) Type() string { return "invFlag" }
 
 // Config holds program flags.
 type Config struct {
-	CheckUnusedGroups            triState
-	CheckUnusedOwners            triState
-	CheckUnusedProtocols         triState
-	CheckSubnets                 triState
-	CheckUnenforceable           triState
-	CheckDuplicateRules          triState
-	CheckRedundantRules          triState
-	CheckFullyRedundantRules     triState
-	CheckServiceUnknownOwner     triState
-	CheckServiceMultiOwner       triState
-	CheckSupernetRules           triState
-	CheckTransientSupernetRules  triState
-	CheckPolicyDistributionPoint triState
+	CheckDuplicateRules          TriState
+	CheckFullyRedundantRules     TriState
+	CheckPolicyDistributionPoint TriState
+	CheckRedundantRules          TriState
+	CheckServiceMultiOwner       TriState
+	CheckServiceUnknownOwner     TriState
+	CheckSubnets                 TriState
+	CheckSupernetRules           TriState
+	CheckTransientSupernetRules  TriState
+	CheckUnenforceable           TriState
+	CheckUnusedGroups            TriState
+	CheckUnusedOwners            TriState
+	CheckUnusedProtocols         TriState
 	AutoDefaultRoute             bool
 	ConcurrencyPass1             int
 	ConcurrencyPass2             int

@@ -107,6 +107,15 @@ func createPrtObj(descr string) *proto {
 	return &prt
 }
 
+func getPrtObj(name string, prt2obj name2Proto) *proto {
+	obj, ok := prt2obj[name]
+	if !ok {
+		obj = createPrtObj(name)
+		prt2obj[name] = obj
+	}
+	return obj
+}
+
 func getNet00Addr(ipv6 bool) string {
 	if ipv6 {
 		return "::/0"
@@ -198,9 +207,9 @@ func markSupernetsOfNeedProtect(needProtect []*ipNet) {
 
 // Needed for model=Linux.
 func addTCPUDPIcmp(prt2obj name2Proto) {
-	_ = prt("tcp 1 65535", prt2obj)
-	_ = prt("udp 1 65535", prt2obj)
-	_ = prt("icmp", prt2obj)
+	_ = getPrtObj("tcp 1 65535", prt2obj)
+	_ = getPrtObj("udp 1 65535", prt2obj)
+	_ = getPrtObj("icmp", prt2obj)
 }
 
 // Set {up} relation from port range to the smallest port range which
@@ -300,7 +309,7 @@ func orderRanges(protocol string, prt2obj name2Proto, up *proto) {
 }
 
 func setupPrtRelation(prt2obj name2Proto) {
-	prtIP := prt("ip", prt2obj)
+	prtIP := getPrtObj("ip", prt2obj)
 	icmpUp, ok := prt2obj["icmp"]
 	if !ok {
 		icmpUp = prtIP
@@ -550,7 +559,6 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		srcRange   *proto
 		log, proto string
 	}
-	changed := false
 	key2rules := make(map[key]ciscoRules)
 	for _, rule := range rules {
 
@@ -568,10 +576,9 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		}
 		key2rules[k] = append(key2rules[k], rule)
 	}
-
-	rule2range := make(map[*ciscoRule][2]int)
-	for _, sorted := range key2rules {
-		if len(sorted) < 2 {
+	changed := false
+	for _, list := range key2rules {
+		if len(list) < 2 {
 			continue
 		}
 
@@ -580,30 +587,24 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		// overlaps, because they have been split in function
 		// 'orderRanges'. There can't be sub-ranges, because they have
 		// been deleted as redundant already.
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].prt.ports[0] < sorted[j].prt.ports[0]
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].prt.ports[0] < list[j].prt.ports[0]
 		})
-		ruleA := sorted[0]
+		ruleA := list[0]
+		proto := ruleA.prt.protocol
 		a1, a2 := ruleA.prt.ports[0], ruleA.prt.ports[1]
-		for _, ruleB := range sorted[1:] {
+		for _, ruleB := range list[1:] {
 			b1, b2 := ruleB.prt.ports[0], ruleB.prt.ports[1]
 
 			// Found adjacent port ranges.
 			if a2+1 == b1 {
 
-				// Extend range of previous two or more elements.
-				if ports, ok := rule2range[ruleA]; ok {
+				// Add extended protocol.
+				b1 = a1
+				name := proto + " " + strconv.Itoa(a1) + " " + strconv.Itoa(b2)
+				ruleB.prt = getPrtObj(name, prt2obj)
 
-					ports[1] = b2
-					rule2range[ruleB] = ports
-					delete(rule2range, ruleA)
-				} else {
-
-					// Combine ranges of $ruleA and $ruleB.
-					rule2range[ruleB] = [...]int{a1, b2}
-				}
-
-				// Mark previous rule as deleted.
+				// Mark other rule as deleted.
 				ruleA.deleted = true
 				changed = true
 			}
@@ -613,32 +614,16 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 	}
 
 	if changed {
-		var newRules ciscoRules
+
+		// Change slice in place.
+		j := 0
 		for _, rule := range rules {
-
-			// Ignore deleted rules
-			if rule.deleted {
-				continue
+			if !rule.deleted {
+				rules[j] = rule
+				j++
 			}
-
-			// Process rule with joined port ranges.
-			if ports, ok := rule2range[rule]; ok {
-				protocol := rule.prt.protocol
-				key := protocol + " " +
-					strconv.Itoa(ports[0]) + " " + strconv.Itoa(ports[1])
-
-				// Try to find existing prt with matching range.
-				// This is needed for findObjectgroups to work.
-				newPrt, ok := prt2obj[key]
-				if !ok {
-					newPrt = &proto{protocol: protocol, ports: ports}
-					prt2obj[key] = newPrt
-				}
-				rule.prt = newPrt
-			}
-			newRules.push(rule)
 		}
-		rules = newRules
+		rules = rules[:j]
 	}
 	return rules
 }
@@ -779,35 +764,40 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 }
 
 /*
- Purpose    : Create a list of IP/mask objects from a map of IP/mask objects.
-              Adjacent IP/mask objects are combined to larger objects.
+ Purpose    : Adjacent IP/mask objects are combined to larger objects.
               It is assumed, that no duplicate or redundant IP/mask objects
               are given.
- Parameters : m - map with IP/mask objects as keys and rules as values.
+ Parameters : r - rules
+              isDst - Take IP/mask objects from dst of rule
               ipNet2obj - map of all known IP/mask objects
- Result     : Returns slice of sorted and combined IP/mask objects.
-              Parameter m is changed to reflect combined IP/mask objects.
+ Result     : Returns rules with combined IP/mask objects.
 */
-func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipNet {
+func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet) []*ciscoRule {
 
-	// Take objects from keys of map.
+	// Take and change objects from src/dst of rules.
+	var get func(*ciscoRule)*ipNet
+	var set func(*ciscoRule, *ipNet)
+	if isDst {
+		get = func(r *ciscoRule) *ipNet { return r.dst }
+		set = func(r *ciscoRule, e *ipNet) { r.dst = e }
+	} else {
+		get = func(r *ciscoRule) *ipNet { return r.src }
+		set = func(r *ciscoRule, e *ipNet) { r.src = e }
+	}
+
 	// Sort by IP address. Adjacent networks will be adjacent elements then.
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
-	elements := make([]*ipNet, 0, len(m))
-	for element := range m {
-		elements = append(elements, element)
-	}
-	sort.Slice(elements, func(i, j int) bool {
-		return bytes.Compare(elements[i].IP, elements[j].IP) == -1
+	sort.Slice(rules, func(i, j int) bool {
+		return bytes.Compare(get(rules[i]).IP, get(rules[j]).IP) == -1
 	})
 
 	// Find left and rigth part with identical mask and combine them
 	// into next larger network.
 	// Compare up to last but one element.
-	for i := 0; i < len(elements)-1; i++ {
-		element1 := elements[i]
-		element2 := elements[i+1]
+	for i := 0; i < len(rules)-1; i++ {
+		element1 := get(rules[i])
+		element2 := get(rules[i+1])
 		mask := element1.Mask
 		if bytes.Compare(mask, element2.Mask) != 0 {
 			continue
@@ -823,16 +813,12 @@ func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipN
 		upElement := getIPObj(ip1, upMask, ipNet2obj)
 
 		// Substitute left part by combined network.
-		elements[i] = upElement
+		set(rules[i], upElement)
 
-		// Remove right part at [i+1].
-		copy(elements[i+1:], elements[i+2:]) // Shift [:i+2] left one index.
-		elements = elements[:len(elements)-1]
-
-		// Add new element and remove left and rigth parts.
-		m[upElement] = m[element1]
-		delete(m, element1)
-		delete(m, element2)
+		// Mark right part as deleted and remove it at [i+1].
+		rules[i+1].deleted = true
+		copy(rules[i+1:], rules[i+2:]) // Shift [:i+2] left one index.
+		rules = rules[:len(rules)-1]
 
 		if i > 0 {
 			up2Mask := net.CIDRMask(prefix-1, bits)
@@ -846,17 +832,15 @@ func combineAdjacentIPMask(m map[*ipNet]*ciscoRule, ipNet2obj name2ipNet) []*ipN
 
 		// Only one element left.
 		// Condition of for-loop isn't effective, because of 'i--' below.
-		if i >= len(elements)-1 {
+		if i >= len(rules)-1 {
 			break
 		}
 
 		// Compare current network again.
 		i--
 	}
-	return elements
+	return rules
 }
-
-const minObjectGroupSize = 2
 
 type objGroup struct {
 	name       string
@@ -871,6 +855,7 @@ type groupKey struct {
 	first string
 }
 
+// Find object groups and/or adjacent IP networks in set of rules.
 func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 	ipNet2obj := aclInfo.ipNet2obj
 
@@ -878,6 +863,7 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 	if routerData.objGroupsMap == nil {
 		routerData.objGroupsMap = make(map[groupKey][]*objGroup)
 	}
+	doObjectgroup := routerData.doObjectgroup
 	key2group := routerData.objGroupsMap
 
 	// Leave 'intfRules' untouched, because
@@ -887,60 +873,44 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 
 	// Find object-groups in src / dst of rules.
 	for _, thisIsDst := range []bool{false, true} {
+
 		type key struct {
 			deny          bool
 			that          *ipNet
 			srcRange, prt *proto
 			log           string
 		}
-		groupRuleTree := make(map[key]map[*ipNet]*ciscoRule)
+		key2rules := make(map[key][]*ciscoRule)
 
 		// Find groups of rules with identical
 		// deny, srcRange, prt, log, src/dst and different dst/src.
 		for _, rule := range rules {
-			deny := rule.deny
-			srcRange := rule.srcRange
-			prt := rule.prt
-			log := rule.log
-			this := rule.src
-			that := rule.dst
+			var that *ipNet
 			if thisIsDst {
-				this, that = that, this
+				that = rule.src
+			} else {
+				that = rule.dst
 			}
-			k := key{deny, that, srcRange, prt, log}
-			m, ok := groupRuleTree[k]
-			if !ok {
-				m = make(map[*ipNet]*ciscoRule)
-				groupRuleTree[k] = m
-			}
-			m[this] = rule
+			k := key{rule.deny, that, rule.srcRange, rule.prt, rule.log}
+			key2rules[k] = append(key2rules[k], rule)
 		}
 
-		// Find groups >= minObjectGroupSize,
-		// mark rules belonging to one group.
-		type glueType struct {
-
-			// Indicator, that group has already been added to some rule.
-			active bool
-
-			// object => rule, ...
-			obj2rule map[*ipNet]*ciscoRule
-		}
-		groupGlue := make(map[*ciscoRule]*glueType)
-		for _, href := range groupRuleTree {
-
-			// href is {dst/src => rule, ...}
-			if len(href) < minObjectGroupSize {
+		rule2rules := make(map[*ciscoRule][]*ciscoRule)
+		for _, list := range key2rules {
+			if len(list) < 2 {
 				continue
 			}
+			combined := combineAdjacentIPMask(list, thisIsDst, ipNet2obj)
 
-			glue := glueType{obj2rule: href}
+			if doObjectgroup {
 
-			// All this rules have identical deny, srcRange, prt
-			// and dst/src and shall be replaced by a single new
-			// rule referencing an object group.
-			for _, rule := range href {
-				groupGlue[rule] = &glue
+				// First rule will use object group.
+				rule2rules[list[0]] = combined
+
+				// All other rules will be deleted.
+				for _, rule := range list[1:] {
+					rule.deleted = true
+				}
 			}
 		}
 
@@ -948,11 +918,26 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 		// or define a new one
 		// or return combined network.
 		// Returns ipNet object with empty IP, representing a group.
-		getGroup := func(m map[*ipNet]*ciscoRule) *ipNet {
+		getGroup := func(list []*ciscoRule) *ipNet {
 
-			// Get sorted and combined list of objects from map of objects.
-			// Map is adjusted, if objects are combined.
-			elements := combineAdjacentIPMask(m, ipNet2obj)
+			// Get list of objects from list of rules.
+			// Also find smallest object for lookup below.
+			elements := make([]*ipNet, len(list))
+			var smallest *ipNet
+			for i, rule := range list {
+				var el *ipNet
+				if thisIsDst {
+					el = rule.dst
+				} else {
+					el = rule.src
+				}
+				if smallest == nil {
+					smallest = el
+				} else if bytes.Compare(el.IP, smallest.IP) == -1 {
+					smallest = el
+				}
+				elements[i] = el
+			}
 			size := len(elements)
 
 			// If all elements have been combined into one single network,
@@ -961,11 +946,10 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				return elements[0]
 			}
 
-			// Use size and first element as keys for efficient lookup.
+			// Use size and smallest element as keys for efficient lookup.
 			// Name of element is used, because elements are regenerated
 			// between processing of different ACLs.
-			first := elements[0]
-			key := groupKey{size, first.name}
+			key := groupKey{size, smallest.name}
 
 			// Search group with identical elements.
 			if groups, ok := key2group[key]; ok {
@@ -974,8 +958,8 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 					href := group.eltNameMap
 
 					// Check elements for equality.
-					for key := range m {
-						if _, ok := href[key.name]; !ok {
+					for _, elem := range elements {
+						if _, ok := href[elem.name]; !ok {
 							continue SEARCH
 						}
 					}
@@ -987,24 +971,22 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 
 			// No group found, build new group.
 			group := createGroup(elements, aclInfo, routerData)
-			namesInGroup := make(map[string]bool, len(m))
-			for element := range m {
-				namesInGroup[element.name] = true
+			namesInGroup := make(map[string]bool, len(elements))
+			for _, elem := range elements {
+				namesInGroup[elem.name] = true
 			}
 			group.eltNameMap = namesInGroup
 			key2group[key] = append(key2group[key], group)
 			return group.ref
 		}
 
-		// Build new list of rules using object groups.
-		newRules := make(ciscoRules, 0)
+		var newRules ciscoRules
 		for _, rule := range rules {
-			if glue, ok := groupGlue[rule]; ok {
-				if glue.active {
-					continue
-				}
-				glue.active = true
-				groupOrObj := getGroup(glue.obj2rule)
+			if rule.deleted {
+				continue
+			}
+			if list := rule2rules[rule]; list != nil {
+				groupOrObj := getGroup(list)
 				if thisIsDst {
 					rule.dst = groupOrObj
 				} else {
@@ -2238,7 +2220,7 @@ func convertRuleObjects(rules []*jcode.Rule, ipNet2obj name2ipNet, prt2obj name2
 		prtList := prtList(rule.Prt, prt2obj)
 		var srcRange *proto
 		if rule.SrcRange != "" {
-			srcRange = prt(rule.SrcRange, prt2obj)
+			srcRange = getPrtObj(rule.SrcRange, prt2obj)
 		}
 		hasLog = hasLog || rule.Log != ""
 		for _, src := range srcList {
@@ -2287,19 +2269,10 @@ func ipNetList(names []string, ipNet2obj name2ipNet) []*ipNet {
 	return result
 }
 
-func prt(name string, prt2obj name2Proto) *proto {
-	obj, ok := prt2obj[name]
-	if !ok {
-		obj = createPrtObj(name)
-		prt2obj[name] = obj
-	}
-	return obj
-}
-
 func prtList(names []string, prt2obj name2Proto) []*proto {
 	result := make([]*proto, len(names))
 	for i, name := range names {
-		result[i] = prt(name, prt2obj)
+		result[i] = getPrtObj(name, prt2obj)
 	}
 	return result
 }
@@ -2399,7 +2372,7 @@ func prepareACLs(path string) *routerData {
 			addPermit := rawInfo.AddPermit == 1
 			addDeny := rawInfo.AddDeny == 1
 			addProtectRules(aclInfo, hasFinalPermit || addPermit)
-			if doObjectgroup && rawInfo.IsCryptoACL != 1 {
+			if rawInfo.IsCryptoACL != 1 {
 				findObjectgroups(aclInfo, routerData)
 			}
 			if len(filterOnly) > 0 && !addPermit {

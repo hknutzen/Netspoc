@@ -1,15 +1,10 @@
 package pass1
 
-import (
-	"time"
-)
+import ()
 
 var (
 	version string
 
-	config Config
-
-	startTime    time.Time
 	ErrorCounter int
 
 	// will become local variable when conversion to Go is finished
