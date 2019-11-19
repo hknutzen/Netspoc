@@ -821,4 +821,58 @@ END
 test_group($title, $in, 'any:[area:n2-lo]', $out);
 
 ############################################################
+$title = 'Object group together with adjacent IP addresses';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24;
+ host:h6 = { ip = 10.1.4.6; }
+ host:h7 = { ip = 10.1.4.7; } }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:lo = { ip = 10.1.0.99; loopback; }
+ interface:n3;
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = host:h6, host:h7; prt = tcp 25, tcp 80;
+}
+service:s2 = {
+ user = interface:r1.lo;
+ permit src = user; dst = host:h6, host:h7; prt = tcp 25;
+}
+END
+
+$out = <<'END';
+-- r2
+! n3_in
+object-group network g0
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+object-group network g1
+ network-object host 10.1.0.99
+ network-object 10.1.1.0 255.255.255.0
+ network-object 10.1.2.0 255.255.255.0
+access-list n3_in extended permit tcp object-group g0 10.1.4.6 255.255.255.254 eq 80
+access-list n3_in extended permit tcp object-group g1 10.1.4.6 255.255.255.254 eq 25
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

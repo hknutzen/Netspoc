@@ -234,4 +234,64 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Must not combine list in place';
+############################################################
+# List of src objects is referenced from two different path rules.
+# If combineSubnets is applied twice on the same list,
+# we would get garbadge.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:h20 = { ip = 10.1.1.20; }
+ host:h21 = { ip = 10.1.1.21; }
+ host:h22 = { ip = 10.1.1.22; }
+ host:h23 = { ip = 10.1.1.23; }
+ host:h24 = { ip = 10.1.1.24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n2, network:n3;
+ permit src = user; dst = host:h22, host:h23, host:h24; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n2_in
+object-group network g0
+ network-object 10.1.1.22 255.255.255.254
+ network-object host 10.1.1.24
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 object-group g0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+-- r2
+! n3_in
+object-group network g0
+ network-object 10.1.1.22 255.255.255.254
+ network-object host 10.1.1.24
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 object-group g0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;

@@ -311,10 +311,10 @@ func convertHosts() {
 // Find adjacent subnets and substitute them by their enclosing subnet.
 func combineSubnets(list []someObj) []someObj {
 	m := make(map[*subnet]bool)
+	var others []someObj
 	var subnets []*subnet
 
-	// Find subnets in list and remove them in place.
-	j := 0
+	// Find subnets in list.
 	for _, obj := range list {
 		if s, ok := obj.(*subnet); ok {
 			if s.neighbor != nil || s.hasNeighbor {
@@ -323,12 +323,10 @@ func combineSubnets(list []someObj) []someObj {
 				continue
 			}
 		}
-		list[j] = obj
-		j++
+		others = append(others, obj)
 	}
-	list = list[:j]
 	if subnets == nil {
-		return list
+		return others
 	}
 
 	// Combine found subnets.
@@ -360,16 +358,16 @@ func combineSubnets(list []someObj) []someObj {
 		}
 	}
 
-	// Add combined subnets to list again.
+	// Add combined subnets to others again.
 	for _, s := range subnets {
 		if m[s] {
-			list = append(list, s)
+			others = append(others, s)
 		}
 	}
 	for _, n := range networks {
-		list = append(list, n)
+		others = append(others, n)
 	}
-	return list
+	return others
 }
 
 //#######################################################################
