@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+6.005     2019-11-19 16:12:38+01:00 Europe/Berlin
+
+ - Fixed bug in combineSubnets after migration from Perl to Go.
+   List of addresses is no longer changed in place.
+   The same list of addresses may be referenced by different rules.
+   If the same list was changed multiple times in place, this
+   sometimes led to duplicate or even missing elements in list.
+
 6.004     2019-11-13 10:54:53+01:00 Europe/Berlin
 
  - Adjacent IP networks are now combined also for IOS.
