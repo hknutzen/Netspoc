@@ -902,21 +902,19 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 			}
 			combined := combineAdjacentIPMask(list, thisIsDst, ipNet2obj)
 
-			if doObjectgroup {
+			if len(combined) > 1 && doObjectgroup {
 
 				// First rule will use object group.
-				rule2rules[list[0]] = combined
+				rule2rules[combined[0]] = combined
 
 				// All other rules will be deleted.
-				for _, rule := range list[1:] {
+				for _, rule := range combined[1:] {
 					rule.deleted = true
 				}
 			}
 		}
 
-		// Find group with identical elements
-		// or define a new one
-		// or return combined network.
+		// Find group with identical elements or define a new one.
 		// Returns ipNet object with empty IP, representing a group.
 		getGroup := func(list []*ciscoRule) *ipNet {
 
@@ -939,12 +937,6 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				elements[i] = el
 			}
 			size := len(elements)
-
-			// If all elements have been combined into one single network,
-			// don't create a group, but take single element as result.
-			if size == 1 {
-				return elements[0]
-			}
 
 			// Use size and smallest element as keys for efficient lookup.
 			// Name of element is used, because elements are regenerated
@@ -986,11 +978,11 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				continue
 			}
 			if list := rule2rules[rule]; list != nil {
-				groupOrObj := getGroup(list)
+				group := getGroup(list)
 				if thisIsDst {
-					rule.dst = groupOrObj
+					rule.dst = group
 				} else {
-					rule.src = groupOrObj
+					rule.src = group
 				}
 			}
 			newRules.push(rule)
