@@ -104,7 +104,7 @@ sub change_attribute_src_code_at {
 
     # Start changing at $sub_name.
     # Do nothing, if $sub_name can't be found, e.g. virtual interface.
-    if ($sub_name) {
+     if ($sub_name) {
         $code =~ m/ ^[^#]* \Q$sub_name\E (?=[\s;=#]) /gmx or return;
     }
 
@@ -124,7 +124,7 @@ sub change_attribute_src_code_at {
     };
     my $read_token = sub {
         $skip_space_and_comment->();
-        $code =~ /\G [^=,;\s#]* /gcx;
+        $code =~ /\G [^,;\s#]+ /gcx or die("Parse error: Token expected");
     };
     my $read_attr_body;
     $read_attr_body = sub {
