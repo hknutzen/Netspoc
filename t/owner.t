@@ -127,7 +127,7 @@ $title = 'Redundant owner at bridged network';
 $in =~ s|(network:VLAN_40_41/41 = \{)|$1 owner = xx; |;
 
 $out = <<'END';
-Warning: Useless owner:xx at any:[network:VLAN_40_41/41],
+Warning: Useless owner:xx at network:VLAN_40_41/41,
  it was already inherited from area:all
 END
 
@@ -168,12 +168,12 @@ router:asa2 = {
 END
 
 $out = <<'END';
-Warning: Useless owner:x at area:a3,
- it was already inherited from area:a2
 Warning: Useless owner:x at area:a1,
  it was already inherited from area:all
 Warning: Useless owner:x at area:a2,
  it was already inherited from area:all
+Warning: Useless owner:x at area:a3,
+ it was already inherited from area:a2
 END
 
 test_warn($title, $in, $out);
@@ -348,8 +348,8 @@ END
 $out = <<"END";
 Error: owner:a1 has attribute \'show_all\', but doesn\'t own whole topology.
  Missing:
- - any:[network:n2]
- - any:[network:n3]
+ - network:n2
+ - network:n3
 END
 
 test_err($title, $in, $out);
@@ -410,7 +410,8 @@ END
 $out = <<"END";
 Error: owner:all has attribute \'show_all\', but doesn\'t own whole topology.
  Missing:
- - any:[network:n2]
+ - network:n2
+ - network:Internet
 END
 
 test_err($title, $in, $out);
@@ -651,6 +652,137 @@ service:s1 = {
 END
 
 $out = <<'END';
+END
+
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
+
+############################################################
+$title = 'Inherit owner';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+
+any:10_1-16 = { ip = 10.1.0.0/16; link = network:n1; owner = o1; }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h5 = { ip = 10.1.1.5; }
+}
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24; owner = o2;
+ host:h10 = { ip = 10.1.2.10; }
+ host:h11 = { ip = 10.1.2.11; owner = o3; }
+}
+
+service:s1 = {
+ user = interface:asa1.n1;
+ permit src = user; dst = host:h5, host:h10, host:h11; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: service:s1 has multiple owners:
+ o1, o2, o3
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Automatic owner at implicit aggregate';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:asa1.n1;
+ permit src = any:[network:n1]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
+
+############################################################
+$title = 'Automatic owner at implicit aggregate in zone cluster';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; owner = o1; nat:n2 = { ip = 10.1.12.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+service:s1 = {
+ user = interface:r2.n2;
+ permit src = any:[network:n1]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+END
+
+test_warn($title, $in, $out, '--check_service_unknown_owner=warn');
+
+############################################################
+$title = 'No automatic owner at implicit aggregate in zone cluster';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; nat:n2 = { ip = 10.1.12.0/24; } }
+
+router:r1 = {
+ interface:n1 = { bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+
+service:s1 = {
+ user = interface:r2.n2;
+ permit src = any:[network:n1]; dst = user; prt = icmp 8;
+}
+END
+
+$out = <<'END';
+Warning: Unknown owner for any:[network:n1] in service:s1
+Warning: Unknown owner for any:[network:n1] in service:s1
 END
 
 test_warn($title, $in, $out, '--check_service_unknown_owner=warn');

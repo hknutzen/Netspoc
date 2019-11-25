@@ -2,25 +2,25 @@
 
 =head1 NAME
 
-export-netspoc - Export data from Netspoc for use in Netspoc-Web
+    export-netspoc - Export data from Netspoc for use in Netspoc-Web
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzen@gmail.com>
-(c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
+    (c) 2019 by Heinz Knutzen <heinz.knutzen@gmail.com>
+    (c) 2014 by Daniel Brunkhorst <daniel.brunkhorst@web.de>
 
 https://github.com/hknutzen/Netspoc-Web
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 =cut
 
@@ -623,8 +623,7 @@ sub setup_part_owners {
         }
     }
 
-    # Add owner and part_owner of network to enclosing aggregates,
-    # networks and zone.
+    # Add owner and part_owner of network to enclosing aggregates and networks.
     for my $network (values %networks) {
         $network->{disabled} and next;
         my @owners;
@@ -649,7 +648,6 @@ sub setup_part_owners {
             $add_part_owner->($up);
             $up = $up->{up};
         }
-        $add_part_owner->($network->{zone});
     }
 
     # Substitute hash by array in attribute {part_owners}.
@@ -660,9 +658,6 @@ sub setup_part_owners {
         }
     }
     for my $zone (@all_zones) {
-        if (my $hash = $zone->{part_owners}) {
-            $zone->{part_owners} = [ values %$hash ];
-        }
         for my $obj (values %{ $zone->{ipmask2aggregate} }) {
             if (my $hash = $obj->{part_owners}) {
 
@@ -711,26 +706,15 @@ sub setup_outer_owners {
         $owner2outer_owners{$owner} = \%new_hash;
     };
 
-    # Collect outer owners for each zone and all objects inside zone.
+    # Collect outer owners for all objects inside zone.
     for my $zone (@all_zones) {
         my @zone_owners;
-        my $zone_owner = $zone->{owner};
-        if ($zone_owner) {
-            push @zone_owners, $zone_owner;
-        }
 
         # {watching_owners} holds list of owners, that have been
         # inherited from areas.
         if (my $watching = $zone->{watching_owners}) {
-            my @outer_owners = @$watching;
-            if ($zone_owner and $zone_owner->{hide_from_outer_owners}) {
-                @outer_owners = grep { $_->{show_hidden_owners} } @outer_owners;
-            }
-            if ($zone_owner) {
-                $intersect_outer_owners->($zone_owner, \@outer_owners);
-            }
-            push @zone_owners, @outer_owners;
-            $zone->{outer_owners} = \@outer_owners;
+            @zone_owners = @$watching;
+            $zone->{outer_owners} = $watching;
         }
 
         for my $network (@{ add_subnetworks($zone->{networks}) },
@@ -886,42 +870,41 @@ sub export_assets {
     progress("Export assets");
     my %result;
 
-    my $export_networks = sub {
-        my ($networks, $owner, $own_zone) = @_;
-        my %sub_result;
-        for my $net (@$networks) {
-            next if $net->{ip} eq 'tunnel';
-            if ($net->{loopback}) {
+    # Returns hash with network name(s) as key and list of hosts / interfaces
+    # as value.
+    my $export_network = sub {
+        my ($net, $owner, $own_net) = @_;
+        return {} if $net->{ip} eq 'tunnel';
+        if ($net->{loopback}) {
+            my $sub_result;
 
-                # Show loopback interface as network in assets.
-                for my $interface (@{ $net->{interfaces} }) {
-                    $all_objects{$interface} = $interface;
-                    my $intf_name = $interface->{name};
-                    $sub_result{$intf_name} = [];
-                }
-                next;
+            # Show loopback interface as network in assets.
+            for my $interface (@{ $net->{interfaces} }) {
+                $all_objects{$interface} = $interface;
+                my $intf_name = $interface->{name};
+                $sub_result->{$intf_name} = [];
             }
-            $all_objects{$net} = $net;
-            my $net_name = $net->{name};
-
-            # Export hosts and interfaces.
-            my @childs = (@{ $net->{hosts} }, @{ $net->{interfaces} });
-
-            # Show only own childs in foreign network.
-            if (!$own_zone) {
-                my $net_owner = owner_for_object($net) || '';
-                if ($net_owner ne $owner) {
-                    @childs =
-                        grep({ my $o = owner_for_object($_); $o and $o eq $owner }
-                             @childs);
-                }
-            }
-
-            @all_objects{@childs} = @childs;
-            @childs = sort map { $_->{name} } @childs;
-            $sub_result{$net_name} = \@childs;
+            return $sub_result;
         }
-        return \%sub_result;
+        $all_objects{$net} = $net;
+        my $net_name = $net->{name};
+
+        # Export hosts and interfaces.
+        my @childs = (@{ $net->{hosts} }, @{ $net->{interfaces} });
+
+        # Show only own childs in foreign network.
+        if (not $own_net) {
+            my $net_owner = owner_for_object($net) || '';
+            if ($net_owner ne $owner) {
+                @childs =
+                    grep({ my $o = owner_for_object($_); $o and $o eq $owner }
+                         @childs);
+            }
+        }
+
+        @all_objects{@childs} = @childs;
+        @childs = sort map { $_->{name} } @childs;
+        return { $net_name => \@childs };
     };
 
     # Different zones can use the same name from ipmask2aggregate
@@ -949,28 +932,27 @@ sub export_assets {
         my $zone_name = $any ? $any->{name} : $zone->{name};
 #        debug "$zone_name";
         my $networks = add_subnetworks($zone->{networks});
-        for my $owner (owner_for_object($zone),
-                       outer_owners_for_object($zone))
-        {
-#            debug "- $owner";
-            $add_networks_hash->(
-                $owner,
-                $zone_name,
-                $export_networks->($networks, $owner, 1));
-        }
-        for my $owner (part_owners_for_object($zone)) {
 
-            # Show only own or part_owned networks in foreign zone.
-            my $own_networks =
-                [ grep
-                  { grep({ $owner eq $_ }
-                         owner_for_object($_), part_owners_for_object($_)) }
-                  @$networks ];
-#            debug "- $_->{name}" for @$own_networks;
-            $add_networks_hash->(
-                $owner,
-                $zone_name,
-                $export_networks->($own_networks, $owner, 0));
+        for my $network (@$networks) {
+#            debug " $network->{name}";
+            for my $owner (owner_for_object($network),
+                           outer_owners_for_object($network))
+            {
+#                debug "- outer $owner";
+                $add_networks_hash->(
+                    $owner,
+                    $zone_name,
+                    $export_network->($network, $owner, 1));
+            }
+            for my $owner (part_owners_for_object($network)) {
+
+                # Show only own or part_owned networks in foreign zone.
+#                debug "- part $owner";
+                $add_networks_hash->(
+                    $owner,
+                    $zone_name,
+                    $export_network->($network, $owner, 0));
+            }
         }
     }
 

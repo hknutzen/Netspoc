@@ -100,7 +100,7 @@ END
 
 $out = <<'END';
 Warning: Useless owner:t1 at network:Trans2,
- it was already inherited from any:[network:Trans2]
+ it was already inherited from any:Trans1
 END
 
 test_warn($title, $in, $out);

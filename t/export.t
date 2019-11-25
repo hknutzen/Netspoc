@@ -123,9 +123,6 @@ $out = <<END;
                "host:B10",
                "interface:asa.Big",
                "interface:u.Big"
-            ],
-            "network:Sub" : [
-               "interface:u.Sub"
             ]
          }
       }
