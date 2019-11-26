@@ -123,9 +123,6 @@ $out = <<END;
                "host:B10",
                "interface:asa.Big",
                "interface:u.Big"
-            ],
-            "network:Sub" : [
-               "interface:u.Sub"
             ]
          }
       }
@@ -188,9 +185,7 @@ $out = <<END;
 --owner/y/service_lists
 {
    "owner" : [],
-   "user" : [
-      "test"
-   ],
+   "user" : [],
    "visible" : []
 }
 --owner/z/service_lists
@@ -327,7 +322,6 @@ $out = <<END;
 {
    "owner" : [],
    "user" : [
-      "test",
       "test2"
    ],
    "visible" : []
@@ -349,7 +343,7 @@ test_run($title, $in, $out);
 $title = 'Inversed inheritance for zone';
 ############################################################
 
-# any:n2-3 inherits owner:b from enclosing networks n1, n2.
+# any:a inherits owner:a from enclosing networks n1, n2.
 # Unnumbered network is ignored.
 
 $in = <<'END';
@@ -392,6 +386,63 @@ $out = <<END;
       "ip" : "10.1.2.0/255.255.255.0",
       "owner" : "a",
       "zone" : "any:a"
+   }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Must not inhert inversed inherited owner';
+############################################################
+# Inherit real owner to empty aggregate.
+
+$in = <<'END';
+owner:a = { admins = a@example.com; }
+owner:b = { admins = b@example.com; }
+
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+any:a1-23 = { ip = 10.1.0.0/23; link = network:n1; }
+any:empty-23 = { ip = 10.2.0.0/23; link = network:n1; }
+any:a-14 = { ip = 10.0.0.0/14; link = network:n1; }
+any:a-8 = { ip = 10.0.0.0/8; link = network:n1; owner = b; }
+
+router:r = {
+ interface:n1;
+}
+END
+
+$out = <<END;
+-- objects
+{
+   "any:a-14" : {
+      "ip" : "10.0.0.0/255.252.0.0",
+      "owner" : "a",
+      "zone" : "any:[network:n1]"
+   },
+   "any:a-8" : {
+      "ip" : "10.0.0.0/255.0.0.0",
+      "owner" : "b",
+      "zone" : "any:[network:n1]"
+   },
+   "any:a1-23" : {
+      "ip" : "10.1.0.0/255.255.254.0",
+      "owner" : "a",
+      "zone" : "any:[network:n1]"
+   },
+   "any:empty-23" : {
+      "ip" : "10.2.0.0/255.255.254.0",
+      "owner" : "b",
+      "zone" : "any:[network:n1]"
+   },
+   "interface:r.n1" : {
+      "ip" : "short",
+      "owner" : "a"
+   },
+   "network:n1" : {
+      "ip" : "10.1.1.0/255.255.255.0",
+      "owner" : "a",
+      "zone" : "any:[network:n1]"
    }
 }
 END

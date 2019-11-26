@@ -1587,7 +1587,7 @@ router:softclients1 = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  radius_attributes = {
-  banner = Willkommen;
+  banner = Willkommen zurück;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
@@ -1623,6 +1623,32 @@ network:customers2 = {
 }
 END
 
+my $clients3 = <<'END';
+router:softclients3 = {
+ interface:internet = { spoke = crypto:vpn2; }
+ interface:customers3;
+}
+network:customers3 = {
+ ip = 10.99.3.0/24;
+ cert_id = cert.example.com;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint2;
+  authentication-server-group = LDAPGROUP_3;
+  authorization-server-group = LDAPGROUP_3;
+  check-subject-name = cn;
+ }
+
+ host:VPN_Org1 = {
+  range = 10.99.3.0 - 10.99.3.63;
+  ldap_id = CN=ROL-Org1;
+ }
+ host:VPN_Org2 = {
+  range = 10.99.3.64 - 10.99.3.96;
+  ldap_id = CN=ROL-Org2;
+ }
+}
+END
+
 ############################################################
 $title = 'Crypto definitions with router fragments';
 ############################################################
@@ -1641,7 +1667,7 @@ END
 test_run($title, $in, $in);
 
 ############################################################
-$title = 'Take one of multiple crypto networks';
+$title = 'Take one of multiple crypto networks (1)';
 ############################################################
 
 my $service = <<'END';
@@ -1660,11 +1686,44 @@ router:softclients1 = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  radius_attributes = {
-  banner = Willkommen;
+  banner = Willkommen zurück;
  }
  host:id:bar@domain.x = {
   ip = 10.99.1.11;
   radius_attributes = { banner = Willkommen zu Hause; }
+ }
+}
+END
+. $service;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Take one of multiple crypto networks (2)';
+############################################################
+
+$service = <<'END';
+service:test1 = {
+ user = host:id:@domain.y.customers2;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+END
+
+$in = $topo . $clients1 . $clients2 . $service;
+$out = $topo . <<'END'
+router:softclients2 = {
+ interface:internet = { spoke = crypto:vpn2; }
+ interface:customers2;
+}
+network:customers2 = {
+ ip = 10.99.2.0/24;
+ radius_attributes = {
+  vpn-idle-timeout = 120;
+  trust-point = ASDM_TrustPoint2;
+ }
+
+ host:id:@domain.y = {
+  range = 10.99.2.64 - 10.99.2.127;
+  radius_attributes = { vpn-idle-timeout = 40; trust-point = ASDM_TrustPoint3; }
  }
 }
 END
@@ -1692,10 +1751,46 @@ router:softclients1 = {
 network:customers1 = {
  ip = 10.99.1.0/24;
  radius_attributes = {
-  banner = Willkommen;
+  banner = Willkommen zurück;
  }
  host:id:foo@domain.x = {
   ip = 10.99.1.10;
+ }
+}
+END
+. $service;
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Host with ldap_id';
+############################################################
+
+$service = <<'END';
+service:test1 = {
+ user = host:VPN_Org1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+END
+
+$in = $topo . $clients1 . $clients3 . $service;
+$out = $topo . <<'END'
+router:softclients3 = {
+ interface:internet = { spoke = crypto:vpn2; }
+ interface:customers3;
+}
+network:customers3 = {
+ ip = 10.99.3.0/24;
+ cert_id = cert.example.com;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint2;
+  authentication-server-group = LDAPGROUP_3;
+  authorization-server-group = LDAPGROUP_3;
+  check-subject-name = cn;
+ }
+
+ host:VPN_Org1 = {
+  range = 10.99.3.0 - 10.99.3.63;
+  ldap_id = CN=ROL-Org1;
  }
 }
 END

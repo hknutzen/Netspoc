@@ -1,3 +1,8 @@
+6.006     2019-11-26 12:43:20+01:00 Europe/Berlin
+
+ - Attribute 'owner' is supported now at aggregate with IP.
+   All matching networks inherit owner from enclosing aggregate.
+
 6.005     2019-11-19 16:12:38+01:00 Europe/Berlin
 
  - Fixed bug in combineSubnets after migration from Perl to Go.

@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.005'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.006'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -2704,7 +2704,7 @@ sub read_aggregate {
         for my $key (sort keys %$aggregate) {
             next
               if grep({ $key eq $_ }
-                qw( name ip mask link is_aggregate private nat));
+                qw(name ip mask link is_aggregate private nat owner));
             err_msg("Must not use attribute '$key' if IP is set for $name");
         }
     }
@@ -4034,6 +4034,12 @@ sub link_owners {
     }
     for my $area (values %areas) {
         link_to_owner($area);
+        if (my $owner = $area->{owner}) {
+            if ($owner->{only_watch}) {
+                delete $area->{owner};
+                $area->{watching_owner} = $owner;
+            }
+        }
         if (my $router_attributes = $area->{router_attributes}) {
             link_to_real_owner($router_attributes);
         }
@@ -6458,172 +6464,141 @@ sub normalize_services {
 ##############################################################################
 
 sub propagate_owners {
-    my %zone_got_net_owners;
-    my %clusters;
-  ZONE:
+
+    # Inversed inheritance: If an aggregate has no direct owner and if
+    # all contained toplevel networks have the same owner,
+    # then set owner of this zone to the one owner.
+    my %agg_got_net_owner;
+    my %seen;
     for my $zone (@zones) {
-        if (my $cluster = $zone->{zone_cluster}) {
-            $clusters{$cluster} = $cluster;
-        }
+        next if $seen{$zone};
+        my $cluster = $zone->{zone_cluster};
+      AGGREGATE:
+        for my $key (keys %{ $zone->{ipmask2aggregate} }) {
+            my $aggregate = $zone->{ipmask2aggregate}->{$key};
 
-        # If an explicit owner was set, it has been set for
-        # the whole cluster in link_aggregates.
-        next if $zone->{owner};
+            # If an explicit owner was set, it has been set for
+            # the whole cluster in link_aggregates.
+            next if $aggregate->{owner};
 
-        # Inversed inheritance: If a zone has no direct owner and if
-        # all contained real toplevel networks have the same owner,
-        # then set owner of this zone to the one owner.
-        my $owner;
-        for my $network (@{ $zone->{networks} }) {
-            my $net_owner = $network->{owner};
-            next ZONE if not $net_owner;
-            if ($owner) {
-                next ZONE if $net_owner ne $owner;
+            my $owner;
+            my @contained;
+            if ($cluster) {
+                for my $zone2 (@$cluster) {
+                    $seen{$zone2}++;
+                    if (my $more =
+                        $zone2->{ipmask2aggregate}->{$key}->{networks})
+                    {
+                        push(@contained, @$more);
+                    }
+                }
+            }
+            elsif (my $more = $aggregate->{networks}) {
+                push(@contained, @$more);
+            }
+            for my $network (@contained) {
+                my $net_owner = $network->{owner};
+                next AGGREGATE if not $net_owner;
+                if ($owner) {
+                    next AGGREGATE if $net_owner ne $owner;
+                }
+                else {
+                    $owner = $net_owner;
+                }
+            }
+            $owner or next;
+#           debug("Inversed inherit: $aggregate->{name} $owner->{name}");
+            if ($cluster) {
+                for my $zone2 (@$cluster) {
+                    my $agg2 = $zone2->{ipmask2aggregate}->{$key};
+                    $agg2->{owner} = $owner;
+                    $agg_got_net_owner{$agg2} = 1;
+                }
             }
             else {
-                $owner = $net_owner;
+                $aggregate->{owner} = $owner;
+                $agg_got_net_owner{$aggregate} = 1;
             }
-        }
-        if ($owner) {
-
-#            debug("Inversed inherit: $zone->{name} $owner->{name}");
-            $zone->{owner} = $owner;
-            $zone_got_net_owners{$zone} = 1;
         }
     }
 
-    # Check for consistent implicit owners of zone clusters.
-    # Implicit owner from networks is only valid, if the same owner
-    # is found for all zones of cluster.
-    for my $cluster (values %clusters) {
-        my @implicit_owner_zones = grep { $zone_got_net_owners{$_} } @$cluster
-          or next;
-        if (
-            not (
-                @implicit_owner_zones == @$cluster
-                and equal(map { $_->{owner} } @implicit_owner_zones)
-            )
-          )
-        {
-            delete $_->{owner} for @implicit_owner_zones;
-
-#            debug("Reset owner");
-#            debug($_->{name}) for @implicit_owner_zones;
-        }
-    }
-
-    {
-        my %zone2owner2node;
-
-        # Prepare check for redundant owner of zone in respect to some area.
-        # Artificially add zone owner.
-        # This simplifies check for redundant owners.
-        for my $zone (@zones) {
-            my $hash = $zone2owner2node{$zone} = {};
-            my $owner = $zone->{owner} or next;
-            $hash->{$owner} = $zone;
-        }
-
-        # Propagate owners from areas to zones.
-        # - Zone inherits owner from smallest enclosing area having
-        #   an owner without attribute {only_watch}.
-        # - Zone inherits {watching_owners} from all enclosing areas.
-        # Check for redundant owners of zones and areas.
-        for my $area (@ascending_areas) {
-            my $owner = $area->{owner} or next;
-            $owner->{is_used} = 1;
-            my $redundant;
-            for my $zone (@{ $area->{zones} }) {
-#                debug "$area->{name} $zone->{name}";
-                my $hash = $zone2owner2node{$zone};
-                if (my $small_area = $hash->{$owner}) {
-                    $redundant->{$small_area} = $small_area;
-                }
-                $hash->{$owner} = $area;
-                if (not ($owner->{only_watch} or
-                         $zone->{owner} or
-
-                         # Owner of loopback zone will be fixed below.
-                         # Don't add it here, so owner will get added
-                         # to {watching_owners}.
-                         $zone->{loopback}))
-                {
-                    $zone->{owner} = $owner;
-                }
-            }
-            if ($redundant) {
-                for my $small_area (sort by_name values %$redundant) {
-                    warn_msg("Useless $owner->{name} at $small_area->{name},\n",
-                             " it was already inherited from $area->{name}");
-                }
-            }
-        }
-
-        # Convert intermediate hash to list {watching_owners}.
-        for my $zone (@zones) {
-            my $hash = $zone2owner2node{$zone};
-
-            # Remove artificially added zone owner from hash.
-            if (my $owner = $zone->{owner}) {
-                delete $hash->{$owner};
-            }
-            keys %$hash or next;
-            $zone->{watching_owners} = [ map { $_->{owner} } values %$hash ];
-        }
-    }
-
-    # $upper_node: directly enclosing node of current $node.
-    my $inherit = sub {
-        my ($node, $upper_node) = @_;
-        my $upper_owner = $upper_node->{owner};
-        $upper_owner->{is_used} = 1 if $upper_owner;
-        if (my $owner = $node->{owner}) {
-            $owner->{is_used} = 1;
-            if ($upper_owner and $owner eq $upper_owner) {
-                if (not $zone_got_net_owners{$upper_node}) {
-                    warn_msg(
-                        "Useless $owner->{name} at $node->{name},\n",
-                        " it was already inherited from $upper_node->{name}"
-                    );
-                }
-            }
-        }
-        elsif ($upper_owner) {
-            $node->{owner} = $upper_owner;
-        }
+    my $get_up = sub {
+        my ($obj) = @_;
+        return $obj->{network} || $obj->{up} ||
+            ($obj->{zone} && $obj->{zone}->{in_area}) || $obj->{in_area}
     };
 
-    # Propagate owner from network to hosts/interfaces.
-    my $owner_to_hosts = sub {
+    my %inherited;
+    my %checked;
+    my $inherit_owner = sub {
+        my ($obj) = @_;
+        if (not $obj) {
+            return;
+        }
+        my $owner = $obj->{owner};
+        if (my $upper = $inherited{$obj}) {
+            return $owner, $upper;
+        }
+
+        # Don't send inversed inherited owner down to enclosed empty
+        # aggregates.
+        if ($agg_got_net_owner{$obj}) {
+            return __SUB__->($get_up->($obj));
+        }
+
+        if ($owner) {
+            if(not $checked{$obj}++) {
+                my ($owner2, $upper) = __SUB__->($get_up->($obj));
+                if ($owner2 and $owner2 eq $owner) {
+                    warn_msg(
+                        "Useless $owner->{name} at $obj->{name},\n",
+                        " it was already inherited from $upper->{name}");
+                }
+            }
+            $owner->{is_used} = 1;
+            return $owner, $obj;
+        }
+
+        my $up = $get_up->($obj) or return (undef, $obj);
+        ($owner, my $upper) = __SUB__->($up);
+        $inherited{$obj} = $upper;
+        $obj->{owner} = $owner;
+        return $owner, $upper;
+    };
+
+    my $process_subnets = sub {
         my ($network) = @_;
+        if (my $subnets = $network->{networks}) {
+            for my $subnet (@$subnets) {
+                __SUB__->($subnet);
+            }
+        }
         for my $host (@{ $network->{hosts} }) {
-            $inherit->($host, $network);
+            $inherit_owner->($host);
         }
         for my $interface (@{ $network->{interfaces} }) {
             my $router = $interface->{router};
             if (not ($router->{managed} or $router->{routing_only})) {
-                $inherit->($interface, $network);
+                $inherit_owner->($interface);
             }
         }
+        $inherit_owner->($network);
     };
 
-    # Propagate owner recursively from network to subnetworks.
-    my $owner_to_subnets = sub {
-        my ($network) = @_;
-        if (my $subnets = $network->{networks}) {
-            for my $subnet (@$subnets) {
-                $inherit->($subnet, $network);
-                __SUB__->($subnet);
+    for my $network (@networks) {
+        $process_subnets->($network);
+    }
+
+    # Collect list of owners and watching_owners from areas at
+    # zones in attribute {watching_owners} needed in export-netspoc.
+    my %zone2owner2seen;
+    for my $area (@ascending_areas) {
+        my $owner = $area->{watching_owner} || $area->{owner} or next;
+        $owner->{is_used} = 1;
+        for my $zone (@{ $area->{zones} }) {
+            if (not $zone2owner2seen{$zone}->{$owner}++) {
+                push @{$zone->{watching_owners}}, $owner;
             }
-        }
-        $owner_to_hosts->($network);
-    };
-
-    # Propagate owner from zone to networks.
-    for my $zone (@zones) {
-        for my $network (@{ $zone->{networks} }) {
-            $inherit->($network, $zone);
-            $owner_to_subnets->($network);
         }
     }
 
@@ -6631,15 +6606,16 @@ sub propagate_owners {
     for my $owner (sort by_name values %owners) {
         $owner->{show_all} or next;
         my @invalid;
-        for my $zone (@zones) {
-            next if $zone->{is_tunnel};
-            if (my $zone_owner = $zone->{owner}) {
-                next if $zone_owner eq $owner;
+        for my $network (@networks) {
+            if (my $net_owner = $network->{owner}) {
+                next if $net_owner eq $owner;
             }
+            my $zone = $network->{zone};
+            next if $zone->{is_tunnel};
             if (my $watching_owners = $zone->{watching_owners}) {
                 next if grep { $_ eq $owner } @$watching_owners;
             }
-            push @invalid, $zone;
+            push @invalid, $network;
         }
         if (@invalid) {
             err_msg(
@@ -6672,6 +6648,7 @@ sub propagate_owners {
         }
     }
 
+    # Set owner for interfaces of managed routers.
     for my $router (@managed_routers, @routing_only_routers) {
         my $owner = $router->{owner} or next;
         $owner->{is_used} = 1;
@@ -6696,40 +6673,30 @@ sub propagate_owners {
             $network->{zone}->{owner} = $owner if $managed;
         }
     }
-
-    # Propagate owner from enclosing network or zone to aggregate.
-    for my $zone (@zones) {
-        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-            next if $aggregate->{owner};
-            my $up = $aggregate;
-            while ($up = $up->{up}) {
-                $up->{is_aggregate} or last;
-            }
-            my $owner = ($up ? $up : $zone)->{owner} or next;
-            $aggregate->{owner} = $owner;
-        }
-    }
 }
 
 ##############################################################################
 # Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
-#            $obj : Network (or zone, area from recursion)
-# Comment  : Caches found value or 0 at area and zone.
+#            $obj : Network (or area from recursion)
+# Comment  : Caches found value or 0 at enclosing supernets and areas.
 # Returns  : Value of attribute or 0
 sub inherit_attr {
     my ($attr, $obj) = @_;
     if (defined (my $val = $obj->{$attr})) {
         return $val;
     }
-    my $up = ($obj->{up} || $obj->{zone} || $obj->{in_area}) or return 0;
-    return $obj->{$attr} = $up && inherit_attr($attr, $up) || 0;
+    my $up = ($obj->{up} ||
+              ($obj->{zone} && $obj->{zone}->{in_area}) ||
+              $obj->{in_area})
+        or return 0;
+    return $obj->{$attr} = inherit_attr($attr, $up);
 }
 
 ##############################################################################
 # Parameter: $attr: overlaps | unknown_owner | multi_owner | has_unenforceable
 #            $obj: host, interface, network, aggregate
 # Purpose  : Find attribute at corresponding network or inherit it from
-#            enclosing network, zone or area.
+#            enclosing network, aggregate or area.
 # Returns  : Value of attribute or 0.
 sub get_attr {
     my ($attr, $obj) = @_;
@@ -10074,10 +10041,7 @@ sub link_aggregates {
         # This is an optimization to prevent the creation of many aggregates 0/0
         # if only inheritance of NAT from area to network is needed.
         if (is_zero_ip($mask)) {
-            for my $attr (qw(overlaps unknown_owner multi_owner
-                             has_unenforceable owner nat
-                             no_check_supernet_rules))
-            {
+            for my $attr (qw(nat no_check_supernet_rules)) {
                 if (defined(my $v = delete $aggregate->{$attr})) {
                     for my $zone2 ($cluster ? @$cluster : ($zone)) {
                         $zone2->{$attr} = $v;
@@ -10127,7 +10091,13 @@ sub duplicate_aggregate_to_cluster {
             ip           => $aggregate->{ip},
             mask         => $aggregate->{mask},
         );
-        $aggregate2->{invisible} = 1 if $aggregate->{invisible};
+        for my $attr (qw(overlaps unknown_owner multi_owner
+                         has_unenforceable owner invisible))
+        {
+            if (my $val = $aggregate->{$attr}) {
+                $aggregate2->{$attr} = $val;
+            }
+        }
 
         # Link new aggregate object and cluster
         if ($implicit) {

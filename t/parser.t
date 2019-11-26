@@ -955,7 +955,6 @@ END
 
 $out = <<'END';
 Error: Must not use attribute 'has_unenforceable' if IP is set for any:n
-Error: Must not use attribute 'owner' if IP is set for any:n
 END
 
 test_err($title, $in, $out);
