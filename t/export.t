@@ -185,9 +185,7 @@ $out = <<END;
 --owner/y/service_lists
 {
    "owner" : [],
-   "user" : [
-      "test"
-   ],
+   "user" : [],
    "visible" : []
 }
 --owner/z/service_lists
@@ -324,7 +322,6 @@ $out = <<END;
 {
    "owner" : [],
    "user" : [
-      "test",
       "test2"
    ],
    "visible" : []
@@ -346,7 +343,7 @@ test_run($title, $in, $out);
 $title = 'Inversed inheritance for zone';
 ############################################################
 
-# any:n2-3 inherits owner:b from enclosing networks n1, n2.
+# any:a inherits owner:a from enclosing networks n1, n2.
 # Unnumbered network is ignored.
 
 $in = <<'END';
