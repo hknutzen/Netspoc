@@ -6465,69 +6465,10 @@ sub normalize_services {
 
 sub propagate_owners {
 
-    my %inherited;
-    my %checked;
-    my $inherit_owner = sub {
-        my ($obj) = @_;
-        if (my $owner = $obj->{owner}) {
-            if (my $upper = $inherited{$obj}) {
-                return ($owner, $upper);
-            }
-            if(not $checked{$obj}++) {
-                if (my $up = ($obj->{network} ||
-                              $obj->{up} ||
-                              ($obj->{zone} && $obj->{zone}->{in_area}) ||
-                              $obj->{in_area}))
-                {
-                    my ($owner2, $upper) = __SUB__->($up);
-                    if ($owner2 and $owner2 eq $owner) {
-                        warn_msg(
-                            "Useless $owner->{name} at $obj->{name},\n",
-                            " it was already inherited from $upper->{name}");
-                    }
-                }
-            }
-            $owner->{is_used} = 1;
-            return ($owner, $obj);
-        }
-        my $up = ($obj->{network} ||
-                  $obj->{up} ||
-                  ($obj->{zone} && $obj->{zone}->{in_area}) ||
-                  $obj->{in_area})
-            or return undef, $obj;
-
-        my ($owner, $upper) = __SUB__->($up);
-        $inherited{$obj} = $upper;
-        $obj->{owner} = $owner;
-        return $owner, $upper;
-    };
-
-    my $process_subnets = sub {
-        my ($network) = @_;
-        if (my $subnets = $network->{networks}) {
-            for my $subnet (@$subnets) {
-                __SUB__->($subnet);
-            }
-        }
-        for my $host (@{ $network->{hosts} }) {
-            $inherit_owner->($host);
-        }
-        for my $interface (@{ $network->{interfaces} }) {
-            my $router = $interface->{router};
-            if (not ($router->{managed} or $router->{routing_only})) {
-                $inherit_owner->($interface);
-            }
-        }
-        $inherit_owner->($network);
-    };
-
-    for my $network (@networks) {
-        $process_subnets->($network);
-    }
-
     # Inversed inheritance: If an aggregate has no direct owner and if
     # all contained toplevel networks have the same owner,
     # then set owner of this zone to the one owner.
+    my %agg_got_net_owner;
     my %seen;
     for my $zone (@zones) {
         next if $seen{$zone};
@@ -6569,13 +6510,83 @@ sub propagate_owners {
 #           debug("Inversed inherit: $aggregate->{name} $owner->{name}");
             if ($cluster) {
                 for my $zone2 (@$cluster) {
-                    $zone2->{ipmask2aggregate}->{$key}->{owner} = $owner;
+                    my $agg2 = $zone2->{ipmask2aggregate}->{$key};
+                    $agg2->{owner} = $owner;
+                    $agg_got_net_owner{$agg2} = 1;
                 }
             }
             else {
                 $aggregate->{owner} = $owner;
+                $agg_got_net_owner{$aggregate} = 1;
             }
         }
+    }
+
+    my $get_up = sub {
+        my ($obj) = @_;
+        return $obj->{network} || $obj->{up} ||
+            ($obj->{zone} && $obj->{zone}->{in_area}) || $obj->{in_area}
+    };
+
+    my %inherited;
+    my %checked;
+    my $inherit_owner = sub {
+        my ($obj) = @_;
+        if (not $obj) {
+            return undef, undef;
+        }
+        my $owner = $obj->{owner};
+        if (my $upper = $inherited{$obj}) {
+            return $owner, $upper;
+        }
+
+        # Don't send inversed inherited owner down to enclosed empty
+        # aggregates.
+        if ($agg_got_net_owner{$obj}) {
+            return __SUB__->($get_up->($obj));
+        }
+
+        if ($owner) {
+            if(not $checked{$obj}++) {
+                my ($owner2, $upper) = __SUB__->($get_up->($obj));
+                if ($owner2 and $owner2 eq $owner) {
+                    warn_msg(
+                        "Useless $owner->{name} at $obj->{name},\n",
+                        " it was already inherited from $upper->{name}");
+                }
+            }
+            $owner->{is_used} = 1;
+            return $owner, $obj;
+        }
+
+        my $up = $get_up->($obj) or return undef, $obj;
+        ($owner, my $upper) = __SUB__->($up);
+        $inherited{$obj} = $upper;
+        $obj->{owner} = $owner;
+        return $owner, $upper;
+    };
+
+    my $process_subnets = sub {
+        my ($network) = @_;
+        if (my $subnets = $network->{networks}) {
+            for my $subnet (@$subnets) {
+                __SUB__->($subnet);
+            }
+        }
+        for my $host (@{ $network->{hosts} }) {
+            $inherit_owner->($host);
+        }
+        for my $interface (@{ $network->{interfaces} }) {
+            my $router = $interface->{router};
+            if (not ($router->{managed} or $router->{routing_only})) {
+                $inherit_owner->($interface);
+            }
+        }
+        $inherit_owner->($network);
+    };
+
+    for my $network (@networks) {
+        $process_subnets->($network);
     }
 
     # Collect list of owners and watching_owners from areas at
