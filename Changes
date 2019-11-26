@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.006     2019-11-26 12:43:20+01:00 Europe/Berlin
+
  - Attribute 'owner' is supported now at aggregate with IP.
    All matching networks inherit owner from enclosing aggregate.
 
