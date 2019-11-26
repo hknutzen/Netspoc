@@ -6533,7 +6533,7 @@ sub propagate_owners {
     my $inherit_owner = sub {
         my ($obj) = @_;
         if (not $obj) {
-            return undef, undef;
+            return;
         }
         my $owner = $obj->{owner};
         if (my $upper = $inherited{$obj}) {
@@ -6559,7 +6559,7 @@ sub propagate_owners {
             return $owner, $obj;
         }
 
-        my $up = $get_up->($obj) or return undef, $obj;
+        my $up = $get_up->($obj) or return (undef, $obj);
         ($owner, my $upper) = __SUB__->($up);
         $inherited{$obj} = $upper;
         $obj->{owner} = $owner;
