@@ -18,13 +18,28 @@ type someObj interface {
 	setCommon(m xMap) // for importFromPerl
 }
 
-type srvObj interface {
+type ownedObj struct {
+	owner *owner
+}
+
+func (x *ownedObj) getOwner() *owner  { return x.owner }
+func (x *ownedObj) setOwner(o *owner) { x.owner = o }
+
+type ownerer interface {
+	getOwner() *owner
+	setOwner(o *owner)
 	String() string
+}
+
+type srvObj interface {
+	ownerer
+	getAttr(attr string) string
 	getNetwork() *network
 	setCommon(m xMap) // for importFromPerl
 }
 
 type ipObj struct {
+	ownedObj
 	name       string
 	ip         net.IP
 	unnumbered bool
@@ -67,7 +82,6 @@ type network struct {
 	nat              map[string]*network
 	natTag           string
 	networks         netList
-	owner            *owner
 	radiusAttributes map[string]string
 	subnetOf         *network
 	subnets          []*subnet
@@ -89,7 +103,6 @@ type netObj struct {
 	bindNat []string
 	nat     map[string]net.IP
 	network *network
-	owner   *owner
 }
 
 func (x *netObj) getNetwork() *network { return x.network }
@@ -154,6 +167,7 @@ type aclInfo struct {
 }
 
 type router struct {
+	ownedObj
 	pathStoreData
 	pathObjData
 	name                    string
@@ -247,7 +261,9 @@ type idIntf struct {
 }
 
 type owner struct {
-	name string
+	name    string
+	isUsed  bool
+	showAll bool
 }
 
 type routing struct {
@@ -319,22 +335,36 @@ type zone struct {
 	inArea               *area
 	ipmask2aggregate     map[string]*network // Key: string(ip) + string(mask)
 	ipmask2net           map[string]netList
+	isTunnel             bool
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string
 	primaryMark          int
 	secondaryMark        int
 	statefulMark         int
+	watchingOwners       []*owner
 	zoneCluster          []*zone
 }
 
 func (x zone) String() string { return x.name }
 
-type area struct {
-	name   string
-	attr   map[string]string
-	inArea *area
+type routerAttributes struct {
+	ownedObj
+	name string
 }
+
+type area struct {
+	ownedObj
+	name             string
+	attr             map[string]string
+	inArea           *area
+	managedRouters   []*router
+	routerAttributes *routerAttributes
+	watchingOwner    *owner
+	zones            []*zone
+}
+
+func (x area) String() string { return x.name }
 
 type natDomain struct {
 	name    string
@@ -405,12 +435,17 @@ type service struct {
 	hasSameDupl                map[*service]bool
 	hasUnenforceable           bool
 	hasUnenforceableRestricted bool
+	multiOwner                 bool
 	overlaps                   []*service
 	overlapsUsed               map[*service]bool
 	overlapsRestricted         bool
+	owners                     []*owner
 	seenEnforceable            bool
 	seenUnenforceable          map[objPair]bool
 	silentUnenforceable        bool
+	subOwner                   *owner
+	unknownOwner               bool
+	user                       []srvObj
 }
 
 type unexpRule struct {
@@ -428,6 +463,7 @@ type serviceRule struct {
 	log                  string
 	srcNet               bool
 	dstNet               bool
+	reversed             bool
 	rule                 *unexpRule
 	stateless            bool
 	statelessICMP        bool

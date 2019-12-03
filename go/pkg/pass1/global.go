@@ -25,6 +25,7 @@ var (
 
 	cryptoMap      map[string]*crypto
 	groups         map[string]*objGroup
+	owners         map[string]*owner
 	protocols      map[string]*proto
 	protocolGroups map[string]*protoGroup
 	routers        map[string]*router
@@ -36,6 +37,7 @@ var (
 	sRules *serviceRules
 
 	allNetworks        netList
+	ascendingAreas     []*area
 	managedRouters     []*router
 	routingOnlyRouters []*router
 	zones              []*zone

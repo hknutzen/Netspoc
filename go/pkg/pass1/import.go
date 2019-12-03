@@ -154,6 +154,7 @@ func (x *ipObj) setCommon(m xMap) {
 	default:
 		x.ip = net.IP(s)
 	}
+	x.owner = convOwner(m["owner"])
 	if up, ok := m["up"]; ok {
 		x.up = convSomeObj(up)
 	}
@@ -163,7 +164,6 @@ func (x *netObj) setCommon(m xMap) {
 	x.bindNat = getStrings(m["bind_nat"])
 	x.network = convNetwork(m["network"])
 	x.nat = convIPNat(m["nat"])
-	x.owner = convOwner(m["owner"])
 }
 
 func convNetNat(x xAny) natMap {
@@ -428,6 +428,7 @@ func convRouter(x xAny) *router {
 	}
 	r.hardware = convHardwareList(m["hardware"])
 	r.origHardware = convHardwareList(m["orig_hardware"])
+	r.owner = convOwner(m["owner"])
 	r.ipvMembers = convRouters(m["ipv_members"])
 	r.vrfMembers = convRouters(m["vrf_members"])
 	r.origRouter = convRouter(m["orig_router"])
@@ -675,7 +676,11 @@ func convSrvObj(x xAny) srvObj {
 	if _, ok := m["network"]; ok {
 		return convHost(x)
 	}
-	return convNetwork(x)
+	if _, ok := m["ip"]; ok {
+		return convNetwork(x)
+	}
+	// Ignore area; was rejected with error message any way.
+	return nil
 }
 func convSrvObjects(x xAny) []srvObj {
 	if x == nil {
@@ -683,9 +688,14 @@ func convSrvObjects(x xAny) []srvObj {
 	}
 	a := getSlice(x)
 	objects := make([]srvObj, len(a))
-	for i, x := range a {
-		objects[i] = convSrvObj(x)
+	j := 0
+	for _, x := range a {
+		if obj := convSrvObj(x); obj != nil {
+			objects[j] = obj
+			j++
+		}
 	}
+	objects = objects[0:j]
 	return objects
 }
 
@@ -704,6 +714,17 @@ func convAttr(m xMap) map[string]string {
 	return result
 }
 
+func convRouterAttributes(x xAny) *routerAttributes {
+	if x == nil {
+		return nil
+	}
+	m := getMap(x)
+	a := new(routerAttributes)
+	a.name = getString(m["name"])
+	a.owner = convOwner(m["owner"])
+	return a
+}
+
 func convArea(x xAny) *area {
 	if x == nil {
 		return nil
@@ -717,7 +738,23 @@ func convArea(x xAny) *area {
 	a.name = getString(m["name"])
 	a.inArea = convArea(m["in_area"])
 	a.attr = convAttr(m)
+	a.managedRouters = convRouters(m["managed_routers"])
+	a.owner = convOwner(m["owner"])
+	a.routerAttributes = convRouterAttributes(m["router_attributes"])
+	a.watchingOwner = convOwner(m["watching_owner"])
+	a.zones = convZones(m["zones"])
 	return a
+}
+func convAreas(x xAny) []*area {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	l := make([]*area, len(a))
+	for i, x := range a {
+		l[i] = convArea(x)
+	}
+	return l
 }
 
 func convZone(x xAny) *zone {
@@ -737,6 +774,7 @@ func convZone(x xAny) *zone {
 	z.inArea = convArea(m["in_area"])
 	z.interfaces = convRouterIntfs(m["interfaces"])
 	z.ipmask2aggregate = convNetNat(m["ipmask2aggregate"])
+	z.isTunnel = getBool(m["is_tunnel"])
 	z.loop = convLoop(m["loop"])
 	z.natDomain = convNATDomain(m["nat_domain"])
 	z.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
@@ -796,7 +834,16 @@ func convOwner(x xAny) *owner {
 	o := new(owner)
 	m["ref"] = o
 	o.name = getString(m["name"])
+	o.showAll = getBool(m["show_all"])
 	return o
+}
+func convOwnerMap(x xAny) map[string]*owner {
+	m := getMap(x)
+	n := make(map[string]*owner)
+	for name, elt := range m {
+		n[name] = convOwner(elt)
+	}
+	return n
 }
 
 func convModifiers(x xAny) modifiers {
@@ -985,6 +1032,10 @@ func convService(x xAny) *service {
 		s.overlaps = overlaps
 		s.overlapsUsed = make(map[*service]bool)
 	}
+	s.multiOwner = getBool(m["multi_owner"])
+	s.subOwner = convOwner(m["sub_owner"])
+	s.unknownOwner = getBool(m["unknown_owner"])
+	s.user = convSrvObjects(m["user"])
 	return s
 }
 func convServiceMap(x xAny) map[string]*service {
@@ -1037,6 +1088,7 @@ func convServiceRule(x xAny) *serviceRule {
 	r.srcNet = getBool(m["src_net"])
 	r.dstNet = getBool(m["dst_net"])
 	r.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
+	r.reversed = getBool(m["reversed"])
 	r.stateless = getBool(m["stateless"])
 	r.statelessICMP = getBool(m["stateless_icmp"])
 	r.oneway = getBool(m["oneway"])
@@ -1229,6 +1281,7 @@ func ImportFromPerl() {
 	conf.StartTime = time.Unix(int64(m["start_time"].(int)), 0)
 	diag.Progress("Importing from Perl")
 
+	ascendingAreas = convAreas(m["ascending_areas"])
 	cryptoMap = convCryptoMap(m["crypto"])
 	denyAny6Rule = convAnyRule(m["deny_any6_rule"])
 	denyAnyRule = convAnyRule(m["deny_any_rule"])
@@ -1240,6 +1293,7 @@ func ImportFromPerl() {
 	network00v6 = convNetwork(m["network_00_v6"])
 	allNetworks = convNetworks(m["all_networks"])
 	OutDir = getString(m["out_dir"])
+	owners = convOwnerMap(m["owners"])
 	permitAny6Rule = convAnyRule(m["permit_any6_rule"])
 	permitAnyRule = convAnyRule(m["permit_any_rule"])
 	program = getString(m["program"])

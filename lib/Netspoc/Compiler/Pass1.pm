@@ -18887,8 +18887,6 @@ sub compile {
     # Abort now, if there had been syntax errors and simple semantic errors.
     abort_on_error();
 
-    check_service_owner();
-
     call_go('spoc1-go', {
         config => $config,
         start_time => $start_time,
@@ -18909,13 +18907,15 @@ sub compile {
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         groups => \%groups,
-        services   => \%services,
+        owners => \%owners,
+        services => \%services,
         service_rules => \%service_rules,
         natdomains => $natdomains,
         nat_tag2nat_type => $nat_tag2nat_type,
         network_00 => $network_00,
         network_00_v6 => $network_00_v6,
         all_networks => \@networks,
+        ascending_areas => \@ascending_areas,
         permit_any_rule => $permit_any_rule,
         permit_any6_rule => $permit_any6_rule,
         deny_any_rule => $deny_any_rule,

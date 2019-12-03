@@ -381,9 +381,9 @@ Preparing fast path traversal
 Distributing NAT
 Finding subnets in zone
 Normalizing services
-Checking service owner
 Exporting to Go
 Importing from Perl
+Checking service owner
 Converting hosts to subnets
 Grouping rules
 Grouped rule count: 4

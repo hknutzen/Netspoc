@@ -10,6 +10,7 @@ func main() {
 	pass1.ImportFromPerl()
 	initialErrors := pass1.ErrorCounter
 
+	pass1.CheckServiceOwner()
 	pRules, dRules := pass1.ConvertHostsInRules()
 	pass1.GroupPathRules(pRules, dRules)
 	pass1.FindSubnetsInNatDomain(pass1.NATDomains)

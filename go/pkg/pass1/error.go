@@ -82,3 +82,7 @@ func (l stringerList) nameList() string {
 	}
 	return " - " + strings.Join(names, "\n - ")
 }
+
+func (l stringList) nameList() string {
+	return " - " + strings.Join(l, "\n - ")
+}
