@@ -5370,6 +5370,7 @@ sub get_auto_intf {
     # Restore effect of split router from transformation in
     # split_semi_managed_router and move_locked_interfaces.
     $object = $object->{orig_router} || $object;
+    return () if $object->{disabled};
 
     $managed ||= 0;
     my $result = $auto_interfaces{$object}->{$managed};
@@ -5388,7 +5389,6 @@ sub get_auto_intf {
             object  => $object,
         );
         $result->{managed} = $managed if $managed;
-        $result->{disabled} = 1 if $object->{disabled};
         $auto_interfaces{$object}->{$managed} = $result;
 
 #       debug($result->{name});
@@ -5467,7 +5467,6 @@ sub expand_group1 {
                 $result = $intersection;
             }
             for my $element (@compl) {
-                next if $element->{disabled};
                 delete $result->{$element}
                   or warn_msg("Useless delete of $element->{name} in $context");
             }
@@ -5519,7 +5518,6 @@ sub expand_group1 {
                     $name, "interface:[..].[$selector] of $context", $ipv6);
                 my %router_seen;
                 for my $object (@$sub_objects) {
-                    next if $object->{disabled};
                     $object->{is_used} = 1;
                     my $type = ref $object;
                     if ($type eq 'Network') {
@@ -5669,7 +5667,7 @@ sub expand_group1 {
 
             # interface:name.name
             elsif (my $interface = $interfaces{"$name.$ext"}) {
-                push @objects, $interface;
+                push @objects, $interface if not $interface->{disabled};
             }
             else {
                 err_msg("Can't resolve $type:$name.$ext in $context");
@@ -5678,7 +5676,7 @@ sub expand_group1 {
             # Silently remove unnumbered, bridged and tunnel interfaces
             # from automatic groups.
             push @objects,
-              grep { $_->{ip} ne 'tunnel' }
+              grep { $_->{ip} ne 'tunnel' and not $_->{disabled} }
               $visible
               ? grep { $_->{ip} !~ /^(?:unnumbered|bridged)$/ } @check
               : @check;
@@ -5686,7 +5684,6 @@ sub expand_group1 {
         elsif (ref $name) {
             my $sub_objects = [
                 map { $_->{is_used} = 1; $_; }
-                  grep { not($_->{disabled}) }
                   @{ expand_group1($name, "$type:[..] of $context", $ipv6) }
             ];
             my $get_aggregates = sub {
@@ -5871,6 +5868,7 @@ sub expand_group1 {
                 err_msg("Can't resolve $type:$name in $context");
                 next;
             }
+            next if $object->{disabled};
             $ext and
                 err_msg("Unexpected '.$ext' after $type:$name in $context");
 
@@ -5955,16 +5953,6 @@ sub expand_group {
     my $aref =
         expand_group1($obref, $context, $ipv6, 'visible', $with_subnets);
     remove_duplicates($aref, $context);
-
-    # Ignore disabled objects.
-    my $changed;
-    for my $object (@$aref) {
-        if ($object->{disabled}) {
-            $object  = undef;
-            $changed = 1;
-        }
-    }
-    $aref = [ grep { defined $_ } @$aref ] if $changed;
     return $aref;
 }
 
