@@ -775,7 +775,7 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet) []*ciscoRule {
 
 	// Take and change objects from src/dst of rules.
-	var get func(*ciscoRule)*ipNet
+	var get func(*ciscoRule) *ipNet
 	var set func(*ciscoRule, *ipNet)
 	if isDst {
 		get = func(r *ciscoRule) *ipNet { return r.dst }
