@@ -5709,7 +5709,7 @@ sub expand_group1 {
                                 @$zones) ];
             };
             my $get_networks = sub {
-                my ($object) = @_;
+                my ($object, $with_subnets) = @_;
                 my @objects;
                 my $type = ref $object;
                 if ($type eq 'Host' or $type eq 'Interface') {
@@ -5767,7 +5767,6 @@ sub expand_group1 {
             if ($type eq 'host') {
                 my $managed = $ext;
                 my @hosts;
-                $with_subnets = undef;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
@@ -5782,18 +5781,12 @@ sub expand_group1 {
                               "Unexpected interface in host:[..] of $context";
                         }
                     }
-                    elsif (my $networks = $get_networks->($object)) {
-                        my $add_all_hosts = sub {
-                            my ($network) = @_;
+                    elsif (my $networks = $get_networks->($object, 1)) {
+                        for my $network (@$networks) {
                             push @hosts, @{ $network->{hosts} };
                             if (my $managed_hosts = $network->{managed_hosts}) {
                                 push @hosts, @$managed_hosts;
                             }
-                            my $subnets = $network->{networks} or return;
-                            __SUB__->($_) for @$subnets;
-                        };
-                        for my $network (@$networks) {
-                            $add_all_hosts->($network);
                         }
                     }
                     else {
@@ -5809,7 +5802,7 @@ sub expand_group1 {
             elsif ($type eq 'network') {
                 my @list;
                 for my $object (@$sub_objects) {
-                    if (my $networks = $get_networks->($object)) {
+                    if (my $networks = $get_networks->($object, $with_subnets)) {
 
                         # Silently remove crosslink network from
                         # automatic groups.
@@ -5840,7 +5833,7 @@ sub expand_group1 {
                     {
                         push @list, @$aggregates;
                     }
-                    elsif (my $networks = $get_networks->($object)) {
+                    elsif (my $networks = $get_networks->($object, 0)) {
                         push @list,
                           map({ get_any($_->{zone}, $ip, $mask, $visible) }
                               @$networks);

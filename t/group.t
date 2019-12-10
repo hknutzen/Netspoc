@@ -142,6 +142,49 @@ END
 test_group($title, $in, 'network:[any:[network:n3sub]]', $out);
 
 ############################################################
+$title = 'Automatic hosts together with automatic network with subnets';
+############################################################
+
+$in = $topo;
+
+$out = <<'END';
+10.1.1.10	host:h1
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'host:[network:n1],network:[network:n3]', $out);
+
+############################################################
+$title = 'Automatic hosts in rule';
+############################################################
+
+$in = $topo . <<'END';
+service:s1 = {
+ user = host:[network:n3] &!host:h3c;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n3_in
+object-group network g0
+ network-object 10.1.3.10 255.255.255.254
+ network-object 10.1.3.12 255.255.255.252
+ network-object host 10.1.3.26
+ network-object host 10.1.3.33
+ network-object host 10.1.3.65
+ network-object 10.1.3.66 255.255.255.254
+ network-object host 10.1.3.73
+access-list n3_in extended permit tcp object-group g0 10.1.2.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'No subnets in automatic network in rule';
 ############################################################
 
