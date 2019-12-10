@@ -5899,7 +5899,7 @@ sub expand_group1 {
 
                     $elements =
                       expand_group1($object->{elements}, "$type:$name", $ipv6,
-                                    $visible);
+                                    $visible, $with_subnets);
 
                     # Private group must not reference private element of other
                     # context.

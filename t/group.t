@@ -114,6 +114,21 @@ END
 test_group($title, $in, 'network:[network:n3]', $out);
 
 ############################################################
+$title = 'Automatic network with subnets from group';
+############################################################
+
+$in = $topo . <<'END';
+group:g1 = network:[network:n3];
+END
+
+$out = <<'END';
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
 $title = 'Automatic network with subnets from any';
 ############################################################
 
