@@ -37,10 +37,11 @@ func getInt(x xAny) int {
 	switch i := x.(type) {
 	case nil:
 		return 0
-	case string:
-		n, err := strconv.Atoi(i)
+	case string, []byte:
+		s := getString(i)
+		n, err := strconv.Atoi(s)
 		if err != nil {
-			panic(fmt.Errorf("Can't covert to int: %v", i))
+			panic(fmt.Errorf("Can't covert to int: %v", s))
 		}
 		return n
 	case int:
