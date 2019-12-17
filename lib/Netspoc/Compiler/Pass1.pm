@@ -10887,7 +10887,7 @@ sub check_area_subset_relations {
                     err_msg("Overlapping $small->{name} and $next->{name}\n",
                             " - both areas contain $obj->{name},\n",
                             " - only 1. area contains $obj2->{name},\n",
-                            " - only 2. ares contains $obj3->{name}");
+                            " - only 2. area contains $obj3->{name}");
                     next LARGER;
                 }
             }
