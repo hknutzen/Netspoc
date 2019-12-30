@@ -290,31 +290,6 @@ END
 test_run($title, $in, $out, '--ipv6');
 
 ############################################################
-$title = 'Access managed host from enclosing network';
-############################################################
-
-$in = <<'END';
-network:N = {
- ip = ::a01:100/120;
- host:h1 = { managed; model = Linux; ip = ::a01:10b; hardware = eth0; }
-}
-
-service:test = {
- user = network:N;
- permit src = user; dst = host:h1; prt = tcp 80;
-}
-END
-
-$out = <<'END';
---ipv6/host:h1
-:eth0_self -
--A eth0_self -j ACCEPT -s ::a01:100/120 -d ::a01:10b -p tcp --dport 80
--A INPUT -j eth0_self -i eth0
-END
-
-test_run($title, $in, $out, '--ipv6');
-
-############################################################
 $title = 'Crypto tunnel to directly connected software clients';
 ############################################################
 

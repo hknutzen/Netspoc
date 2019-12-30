@@ -196,11 +196,10 @@ my %router_info = (
         },
     },
     Linux => {
-        routing          => 'iproute',
-        filter           => 'iptables',
-        has_io_acl       => 1,
-        comment_char     => '#',
-        can_managed_host => 1,
+        routing      => 'iproute',
+        filter       => 'iptables',
+        has_io_acl   => 1,
+        comment_char => '#',
     },
 );
 for my $model (keys %router_info) {
@@ -1056,59 +1055,8 @@ sub read_model {
     return $info;
 }
 
-# List of all managed routers.
-my @managed_routers;
-
 # List of router fragments, split from crypto routers.
 my @router_fragments;
-
-# Managed host is stored internally as an interface.
-# The interface gets an artificial router.
-# Both, router and interface get name "host:xx".
-sub host_as_interface {
-    my ($host)  = @_;
-    my $name    = $host->{name};
-    my $model   = delete $host->{model};
-    my $hw_name = delete $host->{hardware};
-    if (not $model) {
-        err_msg("Missing 'model' for managed $host->{name}");
-
-        # Prevent further errors.
-        $model = $host->{model} = { name => 'unknown' };
-    }
-    elsif (not $model->{can_managed_host}) {
-        err_msg("Must not use model $model->{name} at managed $name");
-    }
-    if (not $hw_name) {
-        err_msg("Missing 'hardware' for $name");
-    }
-
-    # Use device_name with "host:.." prefix to prevent name clash with
-    # real routers.
-    my $device_name =
-      $host->{server_name} ? "host:$host->{server_name}" : $name;
-    my $router = new('Router', name => $name, device_name => $device_name);
-    $router->{managed} = delete $host->{managed};
-    $router->{model}   = $model;
-    my $interface = new('Interface', %$host);
-    $interface->{router} = $router;
-    my $hardware = { name => $hw_name, interfaces => [$interface] };
-    $interface->{hardware}        = $hardware;
-    $interface->{routing}         = $routing_info{manual};
-    $interface->{is_managed_host} = 1;
-    $router->{interfaces}         = [$interface];
-    $router->{hardware}           = [$hardware];
-    if ($read_ipv6) {
-        $router->{ipv6} = 1;
-        $interface->{ipv6} = 1;
-    }
-
-    # Don't add to %routers
-    # - Name lookup isn't needed.
-    # - Linking with network isn't needed.
-    push @managed_routers, $router;
-    return $interface;
-}
 
 # Read definition of host.
 # Is called while definition of network is read.
@@ -1144,28 +1092,6 @@ sub read_host {
             my $owner = read_assign(\&read_identifier);
             add_attribute($host, owner => $owner);
         }
-
-        elsif ($token eq 'managed') {
-            my $managed = read_managed();
-
-            # Currently, only simple 'managed' attribute,
-            # because 'secondary' and 'local' isn't supported by Linux.
-            $managed eq 'standard'
-              or error_atline("Only 'managed=standard' is supported");
-            add_attribute($host, managed => $managed);
-        }
-        elsif ($token eq 'model') {
-            my $model = read_model();
-            add_attribute($host, model => $model);
-        }
-        elsif ($token eq 'hardware') {
-            my $hardware = read_assign(\&read_name);
-            add_attribute($host, hardware => $hardware);
-        }
-        elsif ($token eq 'server_name') {
-            my $server_name = read_assign(\&read_name);
-            add_attribute($host, server_name => $server_name);
-        }
         elsif ($token eq 'ldap_id') {
             my $ldap_id = read_assign(\&read_string);
             add_attribute($host, ldap_id => $ldap_id);
@@ -1199,25 +1125,6 @@ sub read_host {
     $host->{ip} xor $host->{range}
       or err_msg("$name needs exactly one of attributes 'ip' and 'range'");
 
-    if ($host->{managed}) {
-        my %ok = (
-            name        => 1,
-            ip          => 1,
-            nat         => 1,
-            file        => 1,
-            private     => 1,
-            managed     => 1,
-            model       => 1,
-            hardware    => 1,
-            server_name => 1
-        );
-        for my $key (sort keys %$host) {
-            next if $ok{$key};
-            err_msg("Managed $name must not have attribute '$key'");
-        }
-        $host->{ip} ||= 'short';
-        return host_as_interface($host);
-    }
     if ($host->{id}) {
         $host->{radius_attributes} ||= {};
         if (delete $host->{ldap_id}) {
@@ -1391,19 +1298,8 @@ sub read_network {
             my $host = read_host("host:$host_name", $net_name);
             $host->{network} = $network;
             $host->{ipv6} = 1 if $read_ipv6;
-            if (is_host($host)) {
-                push @{ $network->{hosts} }, $host;
-                $host_name = (split_typed_name($host->{name}))[1];
-            }
-
-            # Managed host is stored as interface internally.
-            else {
-                push @{ $network->{interfaces} }, $host;
-                check_interface_ip($host, $network);
-
-                # For use in expand_group.
-                push @{ $network->{managed_hosts} }, $host;
-            }
+            push @{ $network->{hosts} }, $host;
+            $host_name = (split_typed_name($host->{name}))[1];
 
             if (my $other = $hosts{$host_name}) {
                 my $where     = $current_file;
@@ -4692,12 +4588,11 @@ sub check_ip_addresses {
         # but not with managed host.
         my @subnets = split_ip_range(@$range);
         my $is_subnet = 1 == @subnets && !is_host_mask($subnets[0]->[1]);
-        next if $is_subnet and not $network->{managed_hosts};
+        next if $is_subnet;
 
         my ($low, $high) = @$range;
         for (my $ip = $low ; $ip le $high ; $ip = increment_ip($ip)) {
             if (my $other_device = $ip2obj{$ip}) {
-                next if $is_subnet and not $other_device->{is_managed_host};
                 err_msg("Duplicate IP address for $other_device->{name}",
                         " and $host->{name}");
             }
@@ -4894,7 +4789,7 @@ sub disable_behind {
 }
 
 # Lists of network objects which are left over after disabling.
-#my @managed_routers;	# defined above
+my @managed_routers;
 my @routing_only_routers;
 my @routers;
 my @networks;
@@ -5765,28 +5660,17 @@ sub expand_group1 {
                 return \@objects;
             };
             if ($type eq 'host') {
-                my $managed = $ext;
-                my @hosts;
                 for my $object (@$sub_objects) {
                     my $type = ref $object;
                     if ($type eq 'Host') {
-                        push @hosts, $object;
+                        push @objects, $object;
                     }
                     elsif ($type eq 'Interface') {
-                        if ($object->{is_managed_host}) {
-                            push @hosts, $object;
-                        }
-                        else {
-                            err_msg
-                              "Unexpected interface in host:[..] of $context";
-                        }
+                        err_msg("Unexpected interface in host:[..] of $context");
                     }
                     elsif (my $networks = $get_networks->($object, 1)) {
                         for my $network (@$networks) {
-                            push @hosts, @{ $network->{hosts} };
-                            if (my $managed_hosts = $network->{managed_hosts}) {
-                                push @hosts, @$managed_hosts;
-                            }
+                            push @objects, @{ $network->{hosts} };
                         }
                     }
                     else {
@@ -5794,10 +5678,6 @@ sub expand_group1 {
                           "Unexpected type '$type' in host:[..] of $context";
                     }
                 }
-                if ($managed) {
-                    @hosts = grep { $_->{is_managed_host} } @hosts;
-                }
-                push @objects, @hosts;
             }
             elsif ($type eq 'network') {
                 my @list;
@@ -6300,21 +6180,6 @@ sub check_private_service {
     }
 }
 
-# Add managed hosts of networks and aggregates.
-sub add_managed_hosts {
-    my ($aref, $context) = @_;
-    my @extra;
-    for my $object (@$aref) {
-        my $managed_hosts = $object->{managed_hosts} or next;
-        push @extra, @$managed_hosts;
-    }
-    if (@extra) {
-        push @$aref, @extra;
-        remove_duplicates($aref, $context);
-    }
-    return $aref;
-}
-
 sub normalize_src_dst_list {
     my ($rule, $user, $context, $ipv6) = @_;
     $user_object->{elements} = $user;
@@ -6379,8 +6244,6 @@ sub normalize_service_rules {
                 check_private_service($service, $src_list, $dst_list);
                 my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
                 if ($simple_prt_list) {
-                    $dst_list = add_managed_hosts($dst_list,
-                                                  "dst of rule in $context");
                     my $rule = {
                         src  => $src_list,
                         dst  => $dst_list,
@@ -6396,9 +6259,6 @@ sub normalize_service_rules {
                     my ($src_list, $dst_list) = $modifiers->{reversed}
                                               ? ($dst_list, $src_list)
                                               : ($src_list, $dst_list);
-
-                    $dst_list = add_managed_hosts($dst_list,
-                                                  "dst of rule in $context");
                     my $rule = {
                         src  => $src_list,
                         dst  => $dst_list,
@@ -7090,12 +6950,6 @@ sub collect_unenforceable {
                 elsif ($dst->{is_aggregate} and is_zero_ip($dst->{mask})) {
                     next;
                 }
-            }
-
-            # Network or aggregate was only used for its managed_hosts
-            # to be added automatically in expand_group.
-            elsif ($dst->{managed_hosts}) {
-                next;
             }
             $service->{seen_unenforceable}->{$src}->{$dst} ||= [ $src, $dst ];
         }
@@ -8970,11 +8824,6 @@ sub find_subnets_in_zone {
         # Remove subnets of non-aggregate networks.
         $zone->{networks} =
           [ grep { not $max_up_net{$_} } @{ $zone->{networks} } ];
-
-        # Propagate managed hosts to aggregates.
-        for my $aggregate (values %{ $zone->{ipmask2aggregate} }) {
-            add_managed_hosts_to_aggregate($aggregate);
-        }
     }
 
     # It is valid to have an aggregate in a zone which has no matching
@@ -9820,37 +9669,6 @@ sub link_reroute_permit {
     }
 }
 
-##############################################################################
-# Purpose  :
-sub add_managed_hosts_to_aggregate {
-    my ($aggregate) = @_;
-
-    # Collect managed hosts of sub-networks.
-    my $networks = $aggregate->{networks};
-    if (@$networks) {
-        for my $network (@$networks) {
-            my $managed_hosts = $network->{managed_hosts} or next;
-            push(@{ $aggregate->{managed_hosts} }, @$managed_hosts);
-        }
-    }
-
-    # Collect matching managed hosts of all networks of zone.
-    # Ignore sub-networks of aggregate, because they would have been
-    # found in $networks above.
-    else {
-        my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
-        my $zone = $aggregate->{zone};
-        for my $network (@{ $zone->{networks} }) {
-            next if $network->{mask} gt $mask;
-            my $managed_hosts = $network->{managed_hosts} or next;
-            push(
-                @{ $aggregate->{managed_hosts} },
-                grep { match_ip($_->{ip}, $ip, $mask) } @$managed_hosts
-            );
-        }
-    }
-}
-
 ####################################################################
 # Borders of security zones are
 # a) interfaces of managed devices and
@@ -9949,7 +9767,6 @@ sub link_implicit_aggregate_to_zone {
     }
 
     link_aggregate_to_zone($aggregate, $zone, $key);
-    add_managed_hosts_to_aggregate($aggregate);
 }
 
 ##############################################################################

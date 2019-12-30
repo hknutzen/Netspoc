@@ -17,12 +17,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24;
  host:h3a = { range = 10.1.3.10-10.1.3.15; }
  host:h3b = { ip = 10.1.3.26; }
- host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
 network:n3sub = { ip = 10.1.3.64/27; subnet_of = network:n3;
  host:h3c = { ip = 10.1.3.66; }
  host:h3d = { range = 10.1.3.65 - 10.1.3.67; }
- host:h3m2 = { managed; model = Linux; ip = 10.1.3.73; hardware = eth0; }
 }
 
 router:u = {
@@ -60,9 +58,7 @@ END
 $out = <<'END';
 10.1.1.10	host:h1
 10.1.3.26	host:h3b
-10.1.3.33	host:h3m
 10.1.3.65-10.1.3.67	host:h3d
-10.1.3.73	host:h3m2
 END
 
 test_group($title, $in, 'host:[network:n1, network:n3]', $out, '-unused');
@@ -76,10 +72,9 @@ $in = $topo;
 $out = <<'END';
 10.1.1.10	host:h1
 10.1.3.10-10.1.3.15	host:h3a
-10.1.3.73	host:h3m2
 END
 
-test_group($title, $in, 'host:[network:n1, host:h3a, host:h3m2]', $out);
+test_group($title, $in, 'host:[network:n1, host:h3a]', $out);
 
 ############################################################
 $title = 'Redundant from automatic hosts';
@@ -173,10 +168,8 @@ object-group network g0
  network-object 10.1.3.10 255.255.255.254
  network-object 10.1.3.12 255.255.255.252
  network-object host 10.1.3.26
- network-object host 10.1.3.33
  network-object host 10.1.3.65
  network-object 10.1.3.66 255.255.255.254
- network-object host 10.1.3.73
 access-list n3_in extended permit tcp object-group g0 10.1.2.0 255.255.255.0 eq 80
 access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
@@ -233,10 +226,8 @@ group:g1 =
  network:n3,
  host:h3a,
  host:h3b,
- host:h3m,
  host:h3c,
  host:h3d,
- host:h3m2,
 ;
 END
 
@@ -246,10 +237,8 @@ $out = <<'END';
 10.1.3.0/24	network:n3
 10.1.3.10-10.1.3.15	host:h3a
 10.1.3.26	host:h3b
-10.1.3.33	host:h3m
 10.1.3.65-10.1.3.67	host:h3d
 10.1.3.66	host:h3c
-10.1.3.73	host:h3m2
 END
 
 test_group($title, $in, 'group:g1', $out);
@@ -422,7 +411,6 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24;
  host:h3a = { range = 10.1.3.10-10.1.3.15; }
  host:h3b = { ip = 10.1.3.26; }
- host:h3m = { managed; model = Linux; ip = 10.1.3.33; hardware = eth0; }
 }
 
 router:r1 = {
@@ -457,7 +445,6 @@ network:n2
 host:h1
 # host:[network:n3]
 host:h3b
-host:h3m
 END
 
 test_group($title, $in, $groups, $out, '-name -unused');
