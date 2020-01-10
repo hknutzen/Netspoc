@@ -50,7 +50,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must define either anchor or  border';
+$title = 'Must define either anchor or border';
 ############################################################
 
 $in = $topo . <<'END';
