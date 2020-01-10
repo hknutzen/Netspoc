@@ -194,33 +194,31 @@ func (obj *zone) getPathNode() pathStore {
 
 // This is used in cut-netspoc and if pathWalk is called early to
 // expand auto interfaces.
-/*
-func (obj *Host) getPathNode() pathObj {
+func (obj *host) getPathNode() pathStore {
 	return obj.network.zone
 }
 
-// This is used, if called from groupPathRules.
-func (obj *Autointerface) getPathNode() pathObj {
+// This is used, if called from expandAutoIntfWithDstList.
+func (obj *autoIntf) getPathNode() pathStore {
 	object := obj.object
-	switch object.(type) {
+	switch x := object.(type) {
 	case *network:
 
 		// This will be refined later, if real interface is known.
-		return object.zone
-	case *Router:
-		if object.managed || object.semiManaged {
+		return x.zone
+	case *router:
+		if x.managed != "" || x.semiManaged {
 
 			// This will be refined later, if real interface has pathrestriction.
-			return object
+			return x
 		} else {
 
 			// Take arbitrary interface to find zone.
-			return object.interfaces[0].network.zone
+			return x.interfaces[0].network.zone
 		}
 	}
 	return nil
 }
-*/
 
 type loop struct {
 	exit        pathObj
@@ -1394,14 +1392,12 @@ func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), 
 	pathWalk(rule, f, where)
 }
 
-type NetOrRouter interface{}
-
-var border2obj2auto = make(map[*routerIntf]map[NetOrRouter]intfList)
+var border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
 
 func setAutoIntfFromBorder(border *routerIntf) {
-	var reachFromBorder func(*network, *routerIntf, map[NetOrRouter]intfList)
+	var reachFromBorder func(*network, *routerIntf, map[netOrRouter]intfList)
 	reachFromBorder =
-		func(network *network, inIntf *routerIntf, result map[NetOrRouter]intfList) {
+		func(network *network, inIntf *routerIntf, result map[netOrRouter]intfList) {
 			result[network] = append(result[network], inIntf)
 
 			//debug("%s: %s", network.name, inIntf.name)
@@ -1423,7 +1419,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				defer func() { router.activePath = false }()
 				result[router] = append(result[router], intf)
 
-				debug("%s: %s", router.name, intf.name)
+				//debug("%s: %s", router.name, intf.name)
 
 				for _, outIntf := range router.interfaces {
 					if outIntf == intf {
@@ -1436,7 +1432,7 @@ func setAutoIntfFromBorder(border *routerIntf) {
 				}
 			}
 		}
-	result := make(map[NetOrRouter]intfList)
+	result := make(map[netOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
 	for key, list := range result {
 		seen := make(map[*routerIntf]bool)
@@ -1456,17 +1452,16 @@ func setAutoIntfFromBorder(border *routerIntf) {
 // Find auto interface inside zone.
 // border is interface at border of zone.
 // src2 is unmanaged router or network inside zone.
-func autoIntfInZone(border *routerIntf, src2 NetOrRouter) intfList {
+func autoIntfInZone(border *routerIntf, src2 netOrRouter) intfList {
 	if border2obj2auto[border] == nil {
 		setAutoIntfFromBorder(border)
 	}
 	return border2obj2auto[border][src2]
 }
 
-func addPathrestictedIntfs(path pathStore, obj NetOrRouter) []pathStore {
+func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
 	result := []pathStore{path}
-	switch x := path.(type) {
-	case *router:
+	if x, ok := obj.(*router); ok {
 		for _, intf := range getIntf(x) {
 			if intf.pathRestrict != nil {
 				result = append(result, intf)
@@ -1476,28 +1471,24 @@ func addPathrestictedIntfs(path pathStore, obj NetOrRouter) []pathStore {
 	return result
 }
 
-// src is [NOT IMPLEMENTED: an autoIntf or] router.
 // Result is the set of interfaces of src located at direction to dst.
-func pathAutoInterfaces(src *router, dst someObj) intfList {
-	/*    src2, managed :=
-	        isAutointerface(src)
-	        ? @{src}{ "object", "managed" }
-	        : (src, undef)
-	      dst2 := isAutointerface(dst) ? dst.object : dst
-	*/
-	src2 := src
-	dst2 := dst
-	srcPath := src2.getPathNode()
-	dstPath := dst2.getPathNode()
+func pathRouterInterfaces(src *router, dst someObj) intfList {
+	srcPath := src.getPathNode()
+	dstPath := dst.getPathNode()
 	if srcPath == dstPath {
 		return nil
 	}
 
+	toList := []pathStore{dstPath}
+	return findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
+}
+
+func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName, dstName string, src2 netOrRouter) intfList {
+	var result intfList
+
 	// Check path separately for interfaces with pathrestriction,
 	// because path from inside the router to destination may be restricted.
 	fromList := addPathrestictedIntfs(srcPath, src2)
-	toList := addPathrestictedIntfs(dstPath, dst2)
-	var result intfList
 	for _, fromStore := range fromList {
 		for _, toStore := range toList {
 			if _, found := fromStore.getPath1()[toStore]; !found {
@@ -1554,7 +1545,7 @@ func pathAutoInterfaces(src *router, dst someObj) intfList {
 	if len(result) == 0 {
 		showErrNoValidPath(srcPath, dstPath,
 			fmt.Sprintf("while resolving %s (destination is %s).",
-				src.String(), dst.String()))
+				srcName, dstName))
 		return nil
 	}
 	result.delDupl()
@@ -1587,7 +1578,7 @@ func pathAutoInterfaces(src *router, dst someObj) intfList {
 		result.delDupl()
 	}
 
-	//debug("%s.[auto] = \n" + result.nameList(), src2.name);
+	//debug("%s = \n"+result.nameList(), srcName)
 
 	return result
 }

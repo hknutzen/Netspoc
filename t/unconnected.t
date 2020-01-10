@@ -220,7 +220,7 @@ Error: IPv4 topology has unconnected parts:
 Error: No valid path
  from router:r3
  to any:[network:n2]
- while resolving interface:r3.[auto] (destination is any:[network:n2]).
+ while resolving interface:r3.[auto] (destination is network:n2).
  Check path restrictions and crypto interfaces.
 END
 

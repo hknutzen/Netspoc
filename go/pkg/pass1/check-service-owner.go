@@ -415,20 +415,23 @@ func CheckServiceOwner() {
 					// if objects of user and objects of rules are swapped.
 					var userOwner *owner
 					simpleUser := true
-					for _, user := range svc.user {
-						owner := user.getOwner()
-						if owner == nil {
+					for _, user := range svc.expandedUser {
+						var o *owner
+						if obj, ok := user.(srvObj); ok {
+							o = obj.getOwner()
+						}
+						if o == nil {
 							simpleUser = false
 							break
 						}
 						if userOwner == nil {
-							userOwner = owner
-						} else if userOwner != owner {
+							userOwner = o
+						} else if userOwner != o {
 							simpleUser = false
 							break
 						}
 					}
-					if simpleUser {
+					if simpleUser && userOwner != nil {
 						warnMsg("Useless use of attribute 'multi_owner' at %s\n"+
 							" All 'user' objects belong to single %s.\n"+
 							" Either swap objects of 'user' and objects of rules,\n"+

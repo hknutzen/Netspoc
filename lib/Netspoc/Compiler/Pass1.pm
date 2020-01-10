@@ -6,7 +6,7 @@ Netspoc - A Network Security Policy Compiler
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2020 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -2239,10 +2239,7 @@ sub read_router {
             $layer3_seen{$layer3_name} = $layer3_intf;
         }
 
-        # Delete secondary interface of layer3 interface.
-        # This prevents irritating error messages later.
         if (keys %layer3_seen) {
-            my $changed;
             for my $interface (@{ $router->{interfaces} }) {
                 my $main = $interface->{main_interface} or next;
                 if ($main->{is_layer3}) {
@@ -2250,12 +2247,10 @@ sub read_router {
                         "Layer3 $main->{name} must not have",
                         " secondary $interface->{name}"
                     );
-                    $interface = undef;
-                    $changed   = 1;
+                    $interface->{disabled} = 1;
+                    $interface->{loopback} = 1;
                 }
             }
-            $router->{interfaces} = [ grep { $_ } @{ $router->{interfaces} } ]
-              if $changed;
         }
 
         if ($bridged and $router->{routing}) {
@@ -12919,6 +12914,7 @@ sub link_crypto {
         else {
             err_msg("Unknown type '$type' for $name");
             $error = 1;
+            $crypto->{type} = undef;
         }
     }
     return $error;
@@ -18681,15 +18677,12 @@ sub compile {
     # been set up.
     link_reroute_permit();
 
-    normalize_services();
-    # Abort now, if there had been syntax errors and simple semantic errors.
-    abort_on_error();
-
     call_go('spoc1-go', {
         config => $config,
         start_time => $start_time,
         program => $program,
         version => $version,
+        error_counter => $error_counter,
         prt_hash => \%prt_hash,
         prt_ah => $prt_ah,
         prt_bootpc => $prt_bootpc,
@@ -18700,12 +18693,22 @@ sub compile {
         prt_natt => $prt_natt,
         prt_udp => $prt_udp,
         range_tcp_established => $range_tcp_established,
+
+        known_log => \%known_log,
         xxrp_info => \%xxrp_info,
+
+        aggregates => \%aggregates,
+        areas => \%areas,
         crypto => \%crypto,
+        groups => \%groups,
+        hosts => \%hosts,
+        interfaces => \%interfaces,
+        networks => \%networks,
+        owners => \%owners,
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
-        groups => \%groups,
-        owners => \%owners,
+        routers => \%routers,
+        routers6 => \%routers6,
         services => \%services,
         service_rules => \%service_rules,
         natdomains => $natdomains,
@@ -18748,7 +18751,7 @@ sub call_go {
                 die "bad pipe: $!";
             }
             else {
-                $error_counter += $? >> 8;
+                $error_counter = $? >> 8;
             }
         }
     }

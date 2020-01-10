@@ -106,7 +106,7 @@ func getOrigPrt(rule *expandedRule) *proto {
 # Expand rules and check them for redundancy
 ########################################################################*/
 
-// Derive reduced 'local_up' relation from 'up' relation between protocols.
+// Derive reduced 'localUp' relation from 'up' relation between protocols.
 // Reduced relation has only protocols that are referenced in list of rules.
 // New relation is used in findRedundantRules.
 // We get better performance compared to original relation, because

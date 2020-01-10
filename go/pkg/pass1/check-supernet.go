@@ -102,7 +102,7 @@ func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, net
 			}
 		}
 	}
-	key := string(ip) + string(mask)
+	key := ipmask{string(ip), string(mask)}
 	aggregate := zone.ipmask2aggregate[key]
 	if aggregate != nil && !aggregate.invisible {
 		if inNetHash(aggregate) {
@@ -134,7 +134,7 @@ func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, net
 		}
 	}
 	if zone.ipmask2net == nil {
-		zone.ipmask2net = make(map[string]netList)
+		zone.ipmask2net = make(map[ipmask]netList)
 	}
 	zone.ipmask2net[key] = result
 	return result

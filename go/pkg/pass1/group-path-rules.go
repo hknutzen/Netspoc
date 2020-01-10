@@ -101,12 +101,6 @@ func collectUnenforceable(rule *groupedRule) {
 						}
 					}
 				}
-			} else if d, ok := dst.(*network); ok {
-				if d.managedHosts != nil {
-					// Network or aggregate was only used for its managed_hosts
-					// to be added automatically in expand_group.
-					continue
-				}
 			}
 			if service.seenUnenforceable == nil {
 				service.seenUnenforceable = make(map[objPair]bool)
@@ -218,6 +212,9 @@ type groupWithPath struct {
 }
 
 func splitRuleGroup(group []someObj) []groupWithPath {
+	if len(group) == 0 {
+		return nil
+	}
 
 	// Check if group has elements from different zones and must be split.
 	path0 := group[0].getPathNode()

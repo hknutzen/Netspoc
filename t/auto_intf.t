@@ -256,7 +256,7 @@ service:s = {
 END
 
 $out = <<'END';
-Warning: Ignoring short interface:u.b1 in dst of rule in service:s
+Warning: Ignoring interface:u.b1 without IP address in dst of rule in service:s
 --r1
 ! [ ACL ]
 ip access-list extended e1_in
@@ -909,10 +909,10 @@ ip access-list extended n3_in
  permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.4.2 host 10.1.3.2 eq 22
  permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
- permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
- permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
  deny ip any any
 --
 ip access-list extended n4_in
@@ -920,18 +920,18 @@ ip access-list extended n4_in
  permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.4.2 host 10.1.3.2 eq 22
  permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
- permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
- permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.1 host 10.1.2.2 eq 22
  permit tcp host 10.1.1.1 host 10.1.3.1 eq 22
  permit tcp host 10.1.4.2 host 10.1.2.2 eq 22
  permit tcp host 10.1.4.2 host 10.1.3.1 eq 22
- permit tcp host 10.1.1.2 host 10.1.3.1 eq 22
  permit tcp host 10.1.1.2 host 10.1.2.2 eq 22
- permit tcp host 10.1.2.1 host 10.1.3.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.3.1 eq 22
  permit tcp host 10.1.2.1 host 10.1.2.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.3.1 eq 22
  deny ip any any
 END
 
@@ -987,19 +987,19 @@ access-group n2_in in interface n2
 --r4
 ! [ ACL ]
 ip access-list extended n3_in
- permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
- permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
  permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
  deny ip any any
 --
 ip access-list extended n4_in
- permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.2 host 10.1.3.2 eq 22
- permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
+ permit tcp host 10.1.1.2 host 10.1.4.1 eq 22
  permit tcp host 10.1.2.1 host 10.1.3.2 eq 22
+ permit tcp host 10.1.2.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.1.1 host 10.1.3.2 eq 22
  permit tcp host 10.1.1.1 host 10.1.4.1 eq 22
  permit tcp host 10.1.4.2 host 10.1.4.1 eq 22
@@ -1487,7 +1487,7 @@ service:test = {
 END
 
 $out = <<"END";
-Error: Unexpected type 'Host' in interface:[..] of user of service:test
+Error: Unexpected 'host:h1' in interface:[..].[auto] of user of service:test
 END
 
 test_err($title, $in, $out);
@@ -1540,9 +1540,9 @@ service:s = {
 END
 
 $out = <<"END";
-Error: Unexpected type 'Autointerface' in host:[..] of user of service:s
-Error: Unexpected type 'Autointerface' in network:[..] of user of service:s
-Error: Unexpected type 'Autointerface' in any:[..] of user of service:s
+Error: Unexpected 'interface:r1.[auto]' in host:[..] of user of service:s
+Error: Unexpected 'interface:r1.[auto]' in network:[..] of user of service:s
+Error: Unexpected 'interface:r1.[auto]' in any:[..] of user of service:s
 END
 
 test_err($title, $in, $out);

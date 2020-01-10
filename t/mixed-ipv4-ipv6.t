@@ -380,9 +380,9 @@ Preparing security zones and areas
 Preparing fast path traversal
 Distributing NAT
 Finding subnets in zone
-Normalizing services
 Exporting to Go
 Importing from Perl
+Normalizing services
 Checking service owner
 Converting hosts to subnets
 Grouping rules

@@ -469,7 +469,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Larger  intermediate aggregate';
+$title = 'Larger intermediate aggregate';
 ############################################################
 
 $in = <<'END';
@@ -3257,6 +3257,50 @@ Error: any:a1 and network:n2 have identical IP/mask in any:[network:n2]
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Ignore duplicate aggregates from nested aggregate definition';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+group:clients = any:[network:n1];
+
+service:s1 = {
+ user = any:[ ip = 10.1.0.0/16 & group:clients ];
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n3_in
+access-list n3_in extended permit tcp 10.1.0.0 255.255.0.0 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Zone cluster with keyword foreach';

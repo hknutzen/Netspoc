@@ -210,7 +210,7 @@ permit src = user; dst = network:n1; prt = ip;
 END
 
 $out = <<'END';
-Error: Unexpected interface in host:[..] of user of service:s1
+Error: Unexpected 'interface:r1.n1' in host:[..] of user of service:s1
 END
 
 test_err($title, $in, $out);
@@ -299,8 +299,6 @@ END
 
 $out = <<'END';
 Error: Intersection needs at least one element which is not complement in user of service:s1
-Warning: Useless delete of network:n1 in user of service:s1
-Warning: Useless delete of network:n2 in user of service:s1
 END
 
 test_err($title, $in, $out);
