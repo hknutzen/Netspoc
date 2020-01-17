@@ -48,8 +48,10 @@ func (r *expandedRule) print() string {
 	if r.stateless {
 		extra += " stateless"
 	}
-	if r.rule.service != nil {
-		extra += " of " + r.rule.service.name
+	var ipV6 bool
+	if s := r.rule.service; s != nil {
+		extra += " of " + s.name
+		ipV6 = s.ipV6
 	}
 	var action string
 	if r.deny {
@@ -58,8 +60,12 @@ func (r *expandedRule) print() string {
 		action = "permit"
 	}
 	origPrt := getOrigPrt(r)
+	pName := origPrt.name
+	if ipV6 {
+		pName = strings.Replace(pName, "icmp", "icmpv6", 1)
+	}
 	return fmt.Sprintf("%s src=%s; dst=%s; prt=%s;%s",
-		action, r.src.String(), r.dst.String(), origPrt.name, extra)
+		action, r.src.String(), r.dst.String(), pName, extra)
 }
 
 func isSubRange(p *proto, o *proto) bool {
