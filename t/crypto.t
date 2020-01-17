@@ -1397,7 +1397,7 @@ $out = <<'END';
 10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
 END
 
-test_group($title, $in, 'host:[area:all]', $out, '-unused');
+test_group($title, $in, 'host:[area:all]', $out, '-unused'); # No IPv6 test
 
 ############################################################
 $title = 'Mark ID hosts as used even if only network is used (2)';

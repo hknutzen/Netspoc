@@ -144,6 +144,9 @@ sub adjust_testfile {
             my @words = split(/(\s+)/, $line);
             for my $word (@words) {
 
+                # Ignore SNMP MIB like 1.3.6.1.4.1.311.20.2.2
+                next if $word =~ /(\d+\.){5}/;
+
                 # Assume addresses beginning with 255 to be masks.
                 $word =~ s/(255\.\d+\.\d+\.\d+)/
                            ipv6_ntoa(maskanyto6(inet_aton($1)))/eg;
@@ -202,6 +205,9 @@ sub adjust_testfile {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
         }
 
+        # Convert syntax with prefix in interface ip
+        $line =~ s/^ ip address ($ipv6\/\d+)( secondary)?$/ ipv6 address $1/;
+
         # Convert mask to prefix in exported JSON data.
         if ($line =~ s/( : ")($ipv6)\/($ipv6)/$1$2!$3/) {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
@@ -246,27 +252,27 @@ sub adjust_testfile {
         # Alter test subroutine, if it is defined within the testfile.
         elsif ($filename =~
                /cut-netspoc.t|print-service.t|add-to-netspoc.t/) {
-            $line =~ s/ -q/ -q -ipv6/;
+            $line =~ s/ -q/ -q --ipv6/;
         }
-        # Add -ipv6 option to the test call otherwise.
+        # Add --ipv6 option to the test call otherwise.
         else {
             if ($filename =~ /export.t|concurrency.t/ and $line =~ / -q/) {
-                $line =~ s/-q/-q -ipv6/;
+                $line =~ s/-q/-q --ipv6/;
             }
             elsif ($filename =~ /concurrency.t/ and $line =~ m'my \$path') {
                 $line =~ s|out_dir|out_dir/ipv6|;
             }
             elsif ($filename =~ /options.t/ and $line =~ /undef,/) {
-                $line =~ s/undef,/'-ipv6',/;
+                $line =~ s/undef,/'--ipv6',/;
             }
             elsif ($line =~ /test_/) {
-                # Add -ipv6 option with other options specified.
+                # Add --ipv6 option with other options specified.
                 if ($line =~/'\)/) {
-                    $line =~ s/'\);/ -ipv6'\);/;
+                    $line =~ s/'\);/ --ipv6'\);/;
                 }
-                # Add -ipv6 option with no other options specified.
+                # Add --ipv6 option with no other options specified.
                 else {
-                    $line =~ s/\);/, '-ipv6'\);/;
+                    $line =~ s/\);/, '--ipv6'\);/;
                 }
             }
         }
