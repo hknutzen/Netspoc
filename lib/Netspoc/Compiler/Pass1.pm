@@ -18673,10 +18673,6 @@ sub compile {
     my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
     find_subnets_in_zone();
 
-    # Call after find_subnets_in_zone, where $zone->{networks} has
-    # been set up.
-    link_reroute_permit();
-
     call_go('spoc1-go', {
         config => $config,
         start_time => $start_time,

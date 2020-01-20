@@ -343,6 +343,7 @@ type routerIntf struct {
 	redundancyType  string
 	redundant       bool
 	reroutePermit   []someObj
+	reroutePermitNames []*parsedObjRef
 	routeInZone     map[*network]intfList
 	routes          map[*routerIntf]netMap
 	routing         *routing

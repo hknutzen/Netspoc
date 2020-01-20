@@ -555,7 +555,7 @@ func convRouterIntf(x xAny) *routerIntf {
 	i.redundancyIntfs = convRouterIntfs(m["redundancy_interfaces"])
 	i.redundancyType = getString(m["redundancy_type"])
 	i.redundant = getBool(m["redundant"])
-	i.reroutePermit = convSomeObjects(m["reroute_permit"])
+	i.reroutePermitNames = convParsedObjRefs(m["reroute_permit"])
 	if x, ok := m["routes"]; ok {
 		m1 := getMap(x)
 		n1 := make(map[*routerIntf]netMap)

@@ -8,6 +8,9 @@ import (
 func main() {
 	pass1.ImportFromPerl()
 
+	// Call after findSubnetsInZone, where zone.networks has
+	// been set up.
+	pass1.LinkReroutePermit()
 	pass1.NormalizeServices()
 	pass1.AbortOnError()
 
