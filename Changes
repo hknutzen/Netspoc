@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+ - Migrated more parts from Perl to Go:
+   - Finding subnets in zone
+   - Normalizing services (with expandGroup)
+   - Checking service owner
+   - LinkReroutePermit
+ - Removed support for managed hosts,
+   i.e generating iptables rules for Linux servers.
+ - Fixed RemoveSimpleDuplicateRules, now really removes.
+
 6.006     2019-11-26 12:43:20+01:00 Europe/Berlin
 
  - Attribute 'owner' is supported now at aggregate with IP.
