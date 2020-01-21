@@ -317,42 +317,42 @@ func (x router) String() string { return x.name }
 type routerIntf struct {
 	netObj
 	pathStoreData
-	router          *router
-	crypto          *crypto
-	dhcpClient      bool
-	dhcpServer      bool
-	hub             []*crypto
-	spoke           *crypto
-	id              string
-	isHub           bool
-	isManagedHost   bool
-	hardware        *hardware
-	layer3Intf      *routerIntf
-	loop            *loop
-	loopback        bool
-	loopEntryZone   map[pathStore]pathStore
-	loopZoneBorder  bool
-	mainIntf        *routerIntf
-	natSet          natSet
-	origMain        *routerIntf
-	pathRestrict    []*pathRestriction
-	peer            *routerIntf
-	peerNetworks    netList
-	realIntf        *routerIntf
-	redundancyIntfs []*routerIntf
-	redundancyType  string
-	redundant       bool
-	reroutePermit   []someObj
+	router             *router
+	crypto             *crypto
+	dhcpClient         bool
+	dhcpServer         bool
+	hub                []*crypto
+	spoke              *crypto
+	id                 string
+	isHub              bool
+	isManagedHost      bool
+	hardware           *hardware
+	layer3Intf         *routerIntf
+	loop               *loop
+	loopback           bool
+	loopEntryZone      map[pathStore]pathStore
+	loopZoneBorder     bool
+	mainIntf           *routerIntf
+	natSet             natSet
+	origMain           *routerIntf
+	pathRestrict       []*pathRestriction
+	peer               *routerIntf
+	peerNetworks       netList
+	realIntf           *routerIntf
+	redundancyIntfs    []*routerIntf
+	redundancyType     string
+	redundant          bool
+	reroutePermit      []someObj
 	reroutePermitNames []*parsedObjRef
-	routeInZone     map[*network]intfList
-	routes          map[*routerIntf]netMap
-	routing         *routing
-	rules           ruleList
-	intfRules       ruleList
-	outRules        ruleList
-	idRules         map[string]*idIntf
-	toZone1         pathObj
-	zone            *zone
+	routeInZone        map[*network]intfList
+	routes             map[*routerIntf]netMap
+	routing            *routing
+	rules              ruleList
+	intfRules          ruleList
+	outRules           ruleList
+	idRules            map[string]*idIntf
+	toZone1            pathObj
+	zone               *zone
 }
 
 type intfList []*routerIntf

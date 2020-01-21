@@ -18671,7 +18671,6 @@ sub compile {
     &set_zone();
     &setpath();
     my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
-    find_subnets_in_zone();
 
     call_go('spoc1-go', {
         config => $config,

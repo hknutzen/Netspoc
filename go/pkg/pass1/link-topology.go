@@ -10,12 +10,12 @@ func LinkReroutePermit() {
 		ipv6 := z.ipV6
 		for _, intf := range z.interfaces {
 			group := expandGroup(intf.reroutePermitNames,
-				"'reroute_permit' of " + intf.name,
+				"'reroute_permit' of "+intf.name,
 				ipv6, false)
 			for _, obj := range group {
 				n, ok := obj.(*network)
-				if ok && ! n.isAggregate {
-					if ! zoneEq(n.zone, z) {
+				if ok && !n.isAggregate {
+					if !zoneEq(n.zone, z) {
 						errMsg("Invalid reroute_permit for %s at %s:"+
 							" different security zones", n, intf)
 					} else {

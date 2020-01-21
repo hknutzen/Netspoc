@@ -8,6 +8,7 @@ import (
 func main() {
 	pass1.ImportFromPerl()
 
+	pass1.FindSubnetsInZone()
 	// Call after findSubnetsInZone, where zone.networks has
 	// been set up.
 	pass1.LinkReroutePermit()
