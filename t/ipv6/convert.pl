@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use lib 't/ipv6';
+use lib '.';
 use Test_IPv6;
 
 

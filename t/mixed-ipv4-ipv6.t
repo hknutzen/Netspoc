@@ -379,11 +379,11 @@ Linking topology
 Preparing security zones and areas
 Preparing fast path traversal
 Distributing NAT
+Exporting to Go
+Importing from Perl
 Finding subnets in zone
 Normalizing services
 Checking service owner
-Exporting to Go
-Importing from Perl
 Converting hosts to subnets
 Grouping rules
 Grouped rule count: 4

@@ -21,14 +21,14 @@ func debug(format string, args ...interface{}) {
 func checkAbort() {
 	ErrorCounter++
 	if ErrorCounter >= conf.Conf.MaxErrors {
-		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
+		//		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
 		os.Exit(ErrorCounter)
 	}
 }
 
-func abortOnError() {
+func AbortOnError() {
 	if ErrorCounter > 0 {
-		fmt.Fprintf(os.Stderr, "Aborted with %d errors\n", ErrorCounter)
+		//		fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", ErrorCounter)
 		os.Exit(ErrorCounter)
 	}
 }
@@ -40,7 +40,7 @@ func errMsg(format string, args ...interface{}) {
 }
 
 func internalErr(format string, args ...interface{}) {
-	abortOnError()
+	AbortOnError()
 	string := "Internal error: " + fmt.Sprintf(format, args...)
 	fmt.Fprintln(os.Stderr, string)
 	checkAbort()
@@ -81,4 +81,8 @@ func (l stringerList) nameList() string {
 		names.push(x.String())
 	}
 	return " - " + strings.Join(names, "\n - ")
+}
+
+func (l stringList) nameList() string {
+	return " - " + strings.Join(l, "\n - ")
 }

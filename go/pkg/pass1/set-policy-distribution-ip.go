@@ -152,7 +152,7 @@ func SetPolicyDistributionIP() {
 		} else {
 
 			// debug("%s: %d", router->{name}, len(intfMap));
-			frontList := pathAutoInterfaces(r, pdp)
+			frontList := pathRouterInterfaces(r, pdp)
 
 			// If multiple management interfaces were found, take that which is
 			// directed to policy_distribution_point.

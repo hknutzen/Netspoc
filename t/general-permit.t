@@ -184,42 +184,4 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Managed host';
-############################################################
-
-$in = <<'END';
-area:all = {
- anchor = network:n1;
- auto_border;
- router_attributes = { general_permit = icmp; }
-}
-
-network:n1 = {
- ip = 10.1.1.160/27;
-
- host:h1 = { ip = 10.1.1.166;
-  managed; model = Linux;
-  hardware = eth0;
- }
-}
-
-service:test = {
- user = host:h1;
- permit src =   network:n1;
-        dst =   user;
-        prt =   tcp 111;
-}
-END
-
-$out = <<'END';
---host:h1
-:eth0_self -
--A eth0_self -j ACCEPT -s 10.1.1.160/27 -d 10.1.1.166 -p tcp --dport 111
--A eth0_self -j ACCEPT -p icmp
--A INPUT -j eth0_self -i eth0
-END
-
-test_run($title, $in, $out);
-
-############################################################
 done_testing;

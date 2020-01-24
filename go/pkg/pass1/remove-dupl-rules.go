@@ -8,7 +8,7 @@ func RemoveSimpleDuplicateRules() {
 	diag.Progress("Removing simple duplicate rules")
 
 	// Change slice in place.
-	process := func(rules ruleList) {
+	process := func(rules ruleList) ruleList {
 		type key struct {
 			src someObj
 			dst someObj
@@ -33,8 +33,8 @@ func RemoveSimpleDuplicateRules() {
 			rules[j] = r
 			j++
 		}
-		rules = rules[:j]
+		return rules[:j]
 	}
-	process(pRules.permit)
-	process(pRules.deny)
+	pRules.permit = process(pRules.permit)
+	pRules.deny = process(pRules.deny)
 }

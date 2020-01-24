@@ -50,7 +50,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Must define either anchor or  border';
+$title = 'Must define either anchor or border';
 ############################################################
 
 $in = $topo . <<'END';
@@ -195,7 +195,7 @@ $out = <<'END';
 Error: Overlapping area:a2 and area:a2x
  - both areas contain any:[network:n2],
  - only 1. area contains any:[network:n3],
- - only 2. ares contains any:[network:n1]
+ - only 2. area contains any:[network:n1]
 END
 
 test_err($title, $in, $out);
@@ -404,7 +404,7 @@ $out = <<'END';
 Error: Overlapping area:a2 and area:a1
  - both areas contain router:asa1,
  - only 1. area contains any:[network:n1],
- - only 2. ares contains any:[network:n2]
+ - only 2. area contains any:[network:n2]
 END
 
 test_err($title, $in, $out);
@@ -426,7 +426,7 @@ $out = <<'END';
 Error: Overlapping area:a1 and area:a2
  - both areas contain any:[network:n2],
  - only 1. area contains router:asa1,
- - only 2. ares contains any:[network:n5]
+ - only 2. area contains any:[network:n5]
 END
 
 test_err($title, $in, $out);

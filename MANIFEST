@@ -64,6 +64,7 @@ go/pkg/jcode/types.go
 go/pkg/pass1/address.go
 go/pkg/pass1/check-dyn-nat-rules.go
 go/pkg/pass1/check-redundant.go
+go/pkg/pass1/check-service-owner.go
 go/pkg/pass1/check-supernet.go
 go/pkg/pass1/check-unstable-nat-rules.go
 go/pkg/pass1/check-unused-groups.go
@@ -72,12 +73,17 @@ go/pkg/pass1/copy-raw.go
 go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go
 go/pkg/pass1/expand-crypto.go
-go/pkg/pass1/find-subnets-in-nat-domain.go
+go/pkg/pass1/expand-group.go
+go/pkg/pass1/find-subnets.go
+go/pkg/pass1/get-aggregates.go
+go/pkg/pass1/get-attr.go
 go/pkg/pass1/global.go
 go/pkg/pass1/group-path-rules.go
 go/pkg/pass1/import.go
+go/pkg/pass1/link-topology.go
 go/pkg/pass1/mark-managed-local.go
 go/pkg/pass1/mark-secondary-rules.go
+go/pkg/pass1/normalize-services.go
 go/pkg/pass1/path-walk.go
 go/pkg/pass1/print-code.go
 go/pkg/pass1/protocol.go
@@ -139,7 +145,6 @@ t/local-filter.t
 t/local-opt.t
 t/log.t
 t/loopback.t
-t/managed-host.t
 t/mixed-ipv4-ipv6.t
 t/nat.t
 t/optimize-subnet.t

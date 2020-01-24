@@ -257,7 +257,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: 'short' interface:u1.dummy (from .[auto])
+Error: interface:u1.dummy without IP address (from .[auto])
  must not be used in rule of service:s1
 END
 

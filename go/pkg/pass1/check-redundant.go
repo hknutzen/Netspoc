@@ -48,8 +48,10 @@ func (r *expandedRule) print() string {
 	if r.stateless {
 		extra += " stateless"
 	}
-	if r.rule.service != nil {
-		extra += " of " + r.rule.service.name
+	var ipV6 bool
+	if s := r.rule.service; s != nil {
+		extra += " of " + s.name
+		ipV6 = s.ipV6
 	}
 	var action string
 	if r.deny {
@@ -58,8 +60,12 @@ func (r *expandedRule) print() string {
 		action = "permit"
 	}
 	origPrt := getOrigPrt(r)
+	pName := origPrt.name
+	if ipV6 {
+		pName = strings.Replace(pName, "icmp", "icmpv6", 1)
+	}
 	return fmt.Sprintf("%s src=%s; dst=%s; prt=%s;%s",
-		action, r.src.String(), r.dst.String(), origPrt.name, extra)
+		action, r.src.String(), r.dst.String(), pName, extra)
 }
 
 func isSubRange(p *proto, o *proto) bool {
@@ -102,72 +108,11 @@ func getOrigPrt(rule *expandedRule) *proto {
 	return prt
 }
 
-func getAttrFromArea(attr string, obj *area) string {
-	if v, ok := obj.attr[attr]; ok {
-		return v
-	}
-	if a := obj.inArea; a != nil {
-		v := getAttrFromArea(attr, a)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
-		return v
-	}
-	return ""
-}
-
-func getAttrFromZone(attr string, obj *zone) string {
-	if v, ok := obj.attr[attr]; ok {
-		return v
-	}
-	if a := obj.inArea; a != nil {
-		v := getAttrFromArea(attr, a)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
-		return v
-	}
-	return ""
-}
-
-func getAttrFromNetwork(attr string, obj *network) string {
-	if v, ok := obj.attr[attr]; ok {
-		return v
-	}
-	if up := obj.up; up != nil {
-		v := getAttrFromNetwork(attr, up)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
-		return v
-	}
-	zone := obj.zone
-	v := getAttrFromZone(attr, zone)
-	if obj.attr == nil {
-		obj.attr = make(map[string]string)
-	}
-	obj.attr[attr] = v
-	return v
-}
-
-func (obj *network) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj)
-}
-func (obj *subnet) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj.network)
-}
-func (obj *routerIntf) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj.network)
-}
-
 /*########################################################################
 # Expand rules and check them for redundancy
 ########################################################################*/
 
-// Derive reduced 'local_up' relation from 'up' relation between protocols.
+// Derive reduced 'localUp' relation from 'up' relation between protocols.
 // Reduced relation has only protocols that are referenced in list of rules.
 // New relation is used in findRedundantRules.
 // We get better performance compared to original relation, because

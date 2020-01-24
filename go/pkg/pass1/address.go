@@ -11,7 +11,7 @@ func getHostMask(ip net.IP, ipv6 bool) net.IPMask {
 	return net.CIDRMask(32, 32)
 }
 
-var zeroIP = net.ParseIP("0.0.0.0")
+var zeroIP = net.ParseIP("0.0.0.0").To4()
 var zeroIPv6 = net.ParseIP("::")
 
 func getZeroIp(ipv6 bool) net.IP {

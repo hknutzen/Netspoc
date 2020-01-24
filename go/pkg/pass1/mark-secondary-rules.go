@@ -150,14 +150,18 @@ type conflictInfo = struct {
 
 // Collect conflicting rules and supernet rules for check_conflict below.
 func collectConflict(rule *groupedRule, srcZones, dstZones []*zone, src, dst []someObj, conflict map[conflictKey]*conflictInfo, isPrimary bool) {
+	allNoCheck := true
 	allEstablished := true
 	for _, p := range rule.prt {
-		if p.modifiers.noCheckSupernetRules {
-			return
+		if p.modifiers == nil || !p.modifiers.noCheckSupernetRules {
+			allNoCheck = false
 		}
 		if !p.established {
 			allEstablished = false
 		}
+	}
+	if allNoCheck {
+		return
 	}
 	collect := func(zones, otherZones []*zone, list []someObj, isSrc bool) {
 		for _, zone := range zones {
@@ -248,7 +252,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 	for key, val := range conflict {
 		isSrc, isPrimary := key.isSrc, key.isPrimary
 		supernetMap := val.supernets
-		if supernetMap == nil {
+		if len(supernetMap) == 0 {
 			continue
 		}
 		rules := val.rules
@@ -307,13 +311,14 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					} else {
 						rule1.someNonSecondary = false
 					}
-					/*					name1 := ""
-										if s := rule1.rule.service; s != nil {
-											name1 = s.name
-										}
-										debug("%s isSrc:%v", name1, isSrc)
-										debug(rule1.print())
-										debug("%s < %s", network.name, supernet.name)
+					/*
+						name1 := ""
+						if s := rule1.rule.service; s != nil {
+							name1 = s.name
+						}
+						debug("%s isSrc:%v", name1, isSrc)
+						debug(rule1.print())
+						debug("%s < %s", network.name, supernet.name)
 					*/
 					continue RULE
 				}
