@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.007     2020-01-24 11:56:11+01:00 Europe/Berlin
+
  - Migrated more parts from Perl to Go:
    - Finding subnets in zone
    - Normalizing services (with expandGroup)
