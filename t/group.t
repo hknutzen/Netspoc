@@ -622,6 +622,26 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Can\'t resolve object in group';
+############################################################
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; }
+
+group:g1 = host:h1;
+
+service:s1 = {
+ user = network:n;
+ permit src = user; dst = group:g1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Error: Can't resolve host:h1 in group:g1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unexpected type in group';
 ############################################################
 $in = <<'END';
