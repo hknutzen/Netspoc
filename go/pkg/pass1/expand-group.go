@@ -16,15 +16,25 @@ func expandTypedName(typ, name, ctx string, ipv6 bool) groupObj {
 	var obj ipVxGroupObj
 	switch typ {
 	case "host":
-		obj = hosts[name]
+		if x := hosts[name]; x != nil {
+			obj = x
+		}
 	case "network":
-		obj = networks[name]
+		if x := networks[name]; x != nil {
+			obj = x
+		}
 	case "any":
-		obj = aggregates[name]
+		if x := aggregates[name]; x != nil {
+			obj = x
+		}
 	case "group":
-		obj = groups[name]
+		if x := groups[name]; x != nil {
+			obj = x
+		}
 	case "area":
-		obj = areas[name]
+		if x := areas[name]; x != nil {
+			obj = x
+		}
 	}
 	if obj == nil {
 		return nil

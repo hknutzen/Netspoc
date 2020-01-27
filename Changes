@@ -1,3 +1,9 @@
+6.008     2020-01-27 16:53:30+01:00 Europe/Berlin
+
+ - Fixed panic when accessing unknown object in group or rule.
+   Shows readable error message again:
+   "Error: Can't resolve ... in ..."
+
 6.007     2020-01-24 11:56:11+01:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:
