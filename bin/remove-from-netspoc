@@ -83,7 +83,7 @@ use Encode;
 my $quiet;
 
 my %valid_type =
-    map { $_ => 1 } qw(network host interface any group area service);
+    map { $_ => 1 } qw(network host interface any group area);
 
 my %remove;
 

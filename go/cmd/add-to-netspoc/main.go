@@ -87,7 +87,6 @@ var validType = map[string]bool{
 	"any":       true,
 	"group":     true,
 	"area":      true,
-	"service":   true,
 }
 
 var addTo = make(map[string]string)

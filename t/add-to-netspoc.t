@@ -209,6 +209,25 @@ test_add($title, $in, 'network:n1 network:n1a network:n3 network:n4', $out);
 test_rmv($title, $out, 'network:n1a network:n4', $in);
 
 ############################################################
+$title = 'area in automatic group';
+############################################################
+
+$in = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & area:a1, ],
+;
+END
+
+$out = <<'END';
+group:abc =
+ any:[ ip = 10.1.0.0/16 & area:a1, area:a2, ],
+;
+END
+
+test_add($title, $in, 'area:a1 area:a2', $out);
+test_rmv($title, $out, 'area:a2', $in);
+
+############################################################
 $title = 'in service, but not in area and pathrestriction';
 ############################################################
 
