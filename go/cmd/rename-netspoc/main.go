@@ -40,10 +40,23 @@ var aliases = map[string][]string{
 	"network": {"interface"},
 }
 
+func getTypeAndName(objName string) (string, string) {
+	pair := strings.SplitN(objName, ":", 2)
+	if len(pair) != 2 {
+		abort.Msg("Missing type in '%s'", objName)
+	}
+	return pair[0], pair[1]
+}
+
 var subst = make(map[string]map[string]string)
 
 // Fill subst with mapping from search to replace for given type.
-func setupSubst(objType string, search string, replace string) {
+func setupSubst(old, new string) {
+	objType, search := getTypeAndName(old)
+	newType, replace := getTypeAndName(new)
+	if objType != newType {
+		abort.Msg("Types must be identical in\n - %s\n - %s", old, new)
+	}
 	if !globalType[objType] {
 		abort.Msg("Unknown type %s", objType)
 	}
@@ -202,16 +215,7 @@ func processInput(input *filetree.Context) {
 	file.Close()
 }
 
-func getTypeAndName(objName string) (string, string) {
-	r := regexp.MustCompile(`^(\w+):(.*)$`)
-	res := r.FindStringSubmatch(objName)
-	if len(res) != 3 {
-		abort.Msg("Missing type in '%s'", objName)
-	}
-	return res[1], res[2]
-}
-
-func setupPattern(pattern []string) {
+func setupPairs(pattern []string) {
 	for len(pattern) > 0 {
 		old := pattern[0]
 		if len(pattern) < 2 {
@@ -219,17 +223,11 @@ func setupPattern(pattern []string) {
 		}
 		new := pattern[1]
 		pattern = pattern[2:]
-
-		oldType, oldName := getTypeAndName(old)
-		newType, newName := getTypeAndName(new)
-		if oldType != newType {
-			abort.Msg("Types must be identical in\n - %s\n - %s", old, new)
-		}
-		setupSubst(oldType, oldName, newName)
+		setupSubst(old, new)
 	}
 }
 
-func readPattern(path string) {
+func readPairs(path string) {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		abort.Msg("Can't %s", err)
@@ -238,7 +236,7 @@ func readPattern(path string) {
 	if len(pattern) == 0 {
 		abort.Msg("Missing pattern in %s", path)
 	}
-	setupPattern(pattern)
+	setupPairs(pattern)
 }
 
 func main() {
@@ -261,19 +259,19 @@ func main() {
 		pflag.Usage()
 		os.Exit(1)
 	}
-	inPath := args[0]
+	path := args[0]
 
 	// Initialize search/replace pairs.
 	if *fromFile != "" {
-		readPattern(*fromFile)
+		readPairs(*fromFile)
 	}
 	if len(args) > 1 {
-		setupPattern(args[1:])
+		setupPairs(args[1:])
 	}
 	// Initialize Conf, especially attribute IgnoreFiles.
 	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, inPath)
+	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.
-	filetree.Walk(inPath, processInput)
+	filetree.Walk(path, processInput)
 }
