@@ -174,7 +174,7 @@ func process(input string) (int, string) {
 				re := regexp.MustCompile(
 					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
 				if re.MatchString(prefix) {
-					m = match(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)\n`)
+					m = match(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)(?:\n|$)`)
 				}
 				if m != nil {
 					// Add new entry to separate line with same indentation.
@@ -236,7 +236,7 @@ func process(input string) (int, string) {
 				copy.WriteString(m[0])
 				inList = true
 			}
-		} else if m = match(`^.*\n`); m != nil {
+		} else if m = match(`^(?:.*\n|.+$)`); m != nil {
 			// Ignore rest of line if nothing matches.
 			copy.WriteString(m[0])
 		} else {

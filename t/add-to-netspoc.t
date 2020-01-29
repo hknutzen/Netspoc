@@ -351,6 +351,27 @@ END
 test_add($title, $in, 'host:a host:a1', $out);
 
 ############################################################
+$title = 'List terminates at EOF';
+############################################################
+
+$in = "group:g = host:a;";
+
+$out = <<'END';
+group:g = host:a,
+          host:b;
+END
+
+test_add($title, $in, 'host:a host:b', $out);
+
+############################################################
+$title = 'Unchanged list  at EOF';
+############################################################
+
+$in = "group:g = host:a;";
+
+test_add($title, $in, 'host:x host:b', $in);
+
+############################################################
 $title = 'Find group after commented group';
 ############################################################
 
