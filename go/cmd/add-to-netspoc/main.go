@@ -80,8 +80,6 @@ import (
 	"strings"
 )
 
-var quiet = false
-
 var validType = map[string]bool{
 	"network":   true,
 	"host":      true,
