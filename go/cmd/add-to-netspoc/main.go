@@ -315,7 +315,7 @@ func main() {
 	}
 	path := args[0]
 
-	// Initialize search/replace pairs.
+	// Initialize search/add pairs.
 	if *fromFile != "" {
 		readPairs(*fromFile)
 	}
