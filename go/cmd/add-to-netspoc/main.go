@@ -101,7 +101,7 @@ func checkName(typedName string) {
 	}
 	re := regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
 	if m := re.FindStringSubmatch(pair[1]); m != nil {
-		abort.Msg("Invalid character \"%s\" in typedName", m[0])
+		abort.Msg("Invalid character '%s' in %s", m[0], typedName)
 	}
 }
 
