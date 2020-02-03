@@ -325,7 +325,6 @@ type routerIntf struct {
 	spoke              *crypto
 	id                 string
 	isHub              bool
-	isManagedHost      bool
 	hardware           *hardware
 	layer3Intf         *routerIntf
 	loop               *loop

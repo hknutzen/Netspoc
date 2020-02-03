@@ -537,7 +537,6 @@ func convRouterIntf(x xAny) *routerIntf {
 	i.spoke = convCrypto(m["spoke"])
 	i.id = getString(m["id"])
 	i.isHub = getBool(m["is_hub"])
-	i.isManagedHost = getBool(m["is_managed_host"])
 	if i.router != nil && (i.router.managed != "" || i.router.routingOnly) {
 		i.hardware = convHardware(m["hardware"])
 	}
