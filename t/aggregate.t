@@ -223,7 +223,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:n1_20_00; }
 
 service:s1 = {
   user = any:[ip=10.1.0.0/22 & network:n1_16];
@@ -239,6 +239,33 @@ $out = <<"END";
 Warning: Redundant rules in service:s1 compared to service:s2:
   permit src=any:[ip=10.1.0.0/22 & network:n1_20_16]; dst=network:n2; prt=tcp 80; of service:s1
 < permit src=network:n1_20_00; dst=network:n2; prt=tcp 80; of service:s2
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Find subnet relation even with intermediate aggregates';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.0.0/16; host:h1 = { range = 10.1.1.0 - 10.1.1.255; } }
+any:n1-17 = { ip = 10.1.0.0/17; link = network:n2; }
+any:n1-20 = { ip = 10.1.0.0/20; link = network:n1; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; }
+}
+END
+
+$out = <<"END";
+Warning: network:n1 is subnet of network:n2
+ in nat_domain:[network:n1].
+ If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+Warning: IP of host:h1 overlaps with subnet network:n1 in nat_domain:[network:n1]
 END
 
 test_warn($title, $in, $out);
