@@ -537,7 +537,6 @@ func convRouterIntf(x xAny) *routerIntf {
 	i.spoke = convCrypto(m["spoke"])
 	i.id = getString(m["id"])
 	i.isHub = getBool(m["is_hub"])
-	i.isManagedHost = getBool(m["is_managed_host"])
 	if i.router != nil && (i.router.managed != "" || i.router.routingOnly) {
 		i.hardware = convHardware(m["hardware"])
 	}
@@ -1263,26 +1262,6 @@ func convServiceRule(x xAny) *serviceRule {
 	return r
 }
 
-func convServiceRuleList(x xAny) []*serviceRule {
-	if x == nil {
-		return nil
-	}
-	a := getSlice(x)
-	rules := make([]*serviceRule, len(a))
-	for i, x := range a {
-		rules[i] = convServiceRule(x)
-	}
-	return rules
-}
-
-func convServiceRules(x xAny) *serviceRules {
-	m := getMap(x)
-	r := new(serviceRules)
-	r.permit = convServiceRuleList(m["permit"])
-	r.deny = convServiceRuleList(m["deny"])
-	return r
-}
-
 func convRadiusAttributes(x xAny) map[string]string {
 	if x == nil {
 		return nil
@@ -1489,7 +1468,6 @@ func ImportFromPerl() {
 	routers = convRouterMap(m["routers"])
 	routers6 = convRouterMap(m["routers6"])
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
-	//	sRules = convServiceRules(m["service_rules"])
 	services = convServiceMap(m["services"])
 	version = getString(m["version"])
 	xxrpInfo = convXXRPInfo(m["xxrp_info"])

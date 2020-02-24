@@ -1,3 +1,9 @@
+6.009     2020-02-24 12:00:10+01:00 Europe/Berlin
+
+ - Fixed check for unexpected subnet relation.
+   With network:n1 < any:a2 < network:n3, relation n1 < n3 is recognized now.
+ - Migrated program 'remove-from-netspoc' from Perl to Go.
+
 6.008     2020-01-27 16:53:30+01:00 Europe/Berlin
 
  - Fixed panic when accessing unknown object in group or rule.

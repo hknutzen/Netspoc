@@ -3,29 +3,27 @@ package main
 /*
 =head1 NAME
 
-add-to-netspoc - Augment one or more objects in netspoc files
+remove-from-netspoc - Remove one || more objects from netspoc files
 
 =head1 SYNOPSIS
 
-add-to-netspoc [options] FILE|DIR PAIR ...
+remove-from-netspoc [options] FILE|DIR OBJECT ...
 
 =head1 DESCRIPTION
 
-This program reads a netspoc configuration and one or more
-PAIRS. It augments given object by specified new object in
-each file. Changes are done in place, no backup files are created. But
-only changed files are touched.
+This program reads a netspoc configuration && one || more OBJECTS. It
+removes specified objects in each file. Changes are done in place, no
+backup files are created. But only changed files are touched.
 
-=head1 PAIR
+=head1 OBJECT
 
-A PAIR is a tuple of typed names "type1:NAME1" "type2:NAME2".
-Occurences of "type1:NAME1" are searched and
-replaced by "type1:NAME1, type2:NAME2".
-Changes are applied only in group definitions and
-in implicit groups inside rules, i.e. after "user =", "src =", "dst = ".
-Multiple PAIRS can be applied in a single run of add-to-netspoc.
+An OBJECT is a typed name "type:NAME". Occurences of
+"type:NAME" are removed. Changes are applied only in group
+definitions && in implicit groups inside rules, i.e. after "user =",
+"src =", "dst = ".  Multiple OBJECTS can be removed in a single run of
+remove-from-netspoc.
 
-The following types can be used in PAIRS:
+The following types can be used in OBJECTS:
 B<network host interface any group>.
 
 =head1 OPTIONS
@@ -34,7 +32,7 @@ B<network host interface any group>.
 
 =item B<-f> file
 
-Read PAIRS from file.
+Read OBJECTS from file.
 
 =item B<-q>
 
@@ -42,13 +40,17 @@ Quiet, don't print status messages.
 
 =item B<-help>
 
-Prints a brief help message and exits.
+Prints a brief help message && exits.
+
+=item B<-man>
+
+Prints the manual page && exits.
 
 =back
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2018 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -63,7 +65,7 @@ MERCHANTABILITY || FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along
-with this program; if not, write to the Free Software Foundation, Inc.,
+with this program; if !, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
@@ -89,7 +91,7 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var addTo = make(map[string]string)
+var remove = make(map[string]bool)
 
 func checkName(typedName string) {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -105,17 +107,18 @@ func checkName(typedName string) {
 	}
 }
 
-// Fill addTo with old => new pairs.
-func setupAddTo(old, new string) {
-	checkName(old)
-	checkName(new)
-	addTo[old] = new
+func setupObjects(objects []string) {
+	for _, object := range objects {
+		checkName(object)
+		remove[object] = true
+	}
 }
 
 // Find occurence of typed name in list of objects:
-// - group:<name> = <typed name>, ... <typed name>
-// - src =
-// - dst =
+// - group:<name> = <typed name>, ... <typed name>;
+// - src = ...;
+// - dst = ...;
+// - user = ...;
 // but ignore typed name in definition:
 // - <typed name> =
 func process(input string) (int, string) {
@@ -123,7 +126,6 @@ func process(input string) (int, string) {
 	inList := false
 	var copy strings.Builder
 	copy.Grow(len(input))
-	substDone := false
 
 	// Match pattern in input and skip matched pattern.
 	match := func(pattern string) []string {
@@ -149,20 +151,15 @@ func process(input string) (int, string) {
 				if m := match(`^\[(?:auto|all)\]`); m != nil {
 					object += m[0]
 				}
-				new := addTo[object]
-				if new == "" {
+				if !remove[object] {
 					copy.WriteString(space)
 					copy.WriteString(object)
-					substDone = false
 					continue
 				}
 				changed++
-				substDone = true
-				copy.WriteString(space)
 
-				// Check if current line has only one entry, possibly
-				// preceeded by start of list.
-				var m []string
+				// Check if current line has only one entry, then remove
+				// whole line including comment.
 				var prefix string
 				processed := copy.String()
 				idx := strings.LastIndex(processed, "\n")
@@ -171,28 +168,52 @@ func process(input string) (int, string) {
 				} else {
 					prefix = processed
 				}
-				re := regexp.MustCompile(
-					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
-				if re.MatchString(prefix) {
-					m = match(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)(?:\n|$)`)
+				if strings.TrimSpace(prefix) == "" {
+					if m := match(`^[ \t]*(,?)[ \t]*(?:[#].*)?(?:\n|$)`); m != nil {
+						// Ready, if comma seen.
+						if m[1] != "" {
+							continue
+						}
+					}
 				}
-				if m != nil {
-					// Add new entry to separate line with same indentation.
-					delim, comment := m[1], m[2]
-					indent := strings.Repeat(" ", len([]rune(prefix)))
-					copy.WriteString(object)
-					copy.WriteString(",")
-					copy.WriteString(comment)
-					copy.WriteString("\n")
-					copy.WriteString(indent)
-					copy.WriteString(new)
-					copy.WriteString(delim)
-					copy.WriteString("\n")
-				} else {
-					// Add new entry on same line separated by white space.
-					copy.WriteString(object)
-					copy.WriteString(", ")
-					copy.WriteString(new)
+				if m := match(`^\s*;`); m != nil {
+					// Remove leading comma, if removed object is followed
+					// by semicolon.
+					trailing := m[0]
+					re := regexp.MustCompile(`,\s*$`)
+					processed := re.ReplaceAllString(processed, "")
+					copy.Reset()
+					copy.WriteString(processed)
+					copy.WriteString(trailing)
+					inList = false
+					continue
+				}
+				if space != "" && space[0] == '\n' {
+
+					// Retain indentation of removed object if it is first
+					// object in line and is followed by other object in
+					// same line.
+					if ok, _ := regexp.MatchString(`^[ \t]*,[ \t]*\w`, input); ok {
+						match(`^[ \t]*,[ \t]*`)
+						copy.WriteString(space)
+						continue
+					}
+				}
+
+				// Object with leading whitespace will be removed.
+				// Also remove comma in current or some following
+				// line if only separated by comment and whitespace.
+				for {
+
+					if m := match(`^\s*,`); m != nil {
+						// Remove found comma. Don't remove EOL.
+						break
+					} else if m := match(`^\s*[#].*\n`); m != nil {
+						// Skip and retain comment at end of line.
+						copy.WriteString(m[0])
+					} else {
+						break
+					}
 				}
 			} else {
 				//  Check if list continues.
@@ -207,21 +228,16 @@ func process(input string) (int, string) {
 					`^\s*\]`,
 					// Negation / intersection.
 					`^\s*[&!]`,
-					// Comma.
-					`^\s*,`} {
+					// Comma, include trailing whitespace to EOL.
+					`^\s*,(?:[ \t]*\n)?`,
+					// Description.
+					`^\s*description\s*=.*\n`} {
 					if m = match(p); m != nil {
 						break
 					}
 				}
 				if m != nil {
 					copy.WriteString(m[0])
-					if substDone {
-						trimmed := strings.TrimLeft(m[0], " \t")
-						if trimmed[0] == '&' {
-							fmt.Fprintln(os.Stderr,
-								"Warning: Substituted in intersection")
-						}
-					}
 				} else {
 					// Everything else terminates list.
 					inList = false
@@ -269,28 +285,16 @@ func processInput(input *filetree.Context) {
 	file.Close()
 }
 
-func setupPairs(pairs []string) {
-	for len(pairs) > 0 {
-		old := pairs[0]
-		if len(pairs) == 1 {
-			abort.Msg("Missing 2nd. element for '%s'", old)
-		}
-		new := pairs[1]
-		pairs = pairs[2:]
-		setupAddTo(old, new)
-	}
-}
-
-func readPairs(path string) {
+func readObjects(path string) {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		abort.Msg("Can't %s", err)
 	}
-	pairs := strings.Fields(string(bytes))
-	if len(pairs) == 0 {
-		abort.Msg("Missing pairs in %s", path)
+	objects := strings.Fields(string(bytes))
+	if len(objects) == 0 {
+		abort.Msg("Missing objects in %s", path)
 	}
-	setupPairs(pairs)
+	setupObjects(objects)
 }
 
 func main() {
@@ -298,13 +302,13 @@ func main() {
 	// Setup custom usage function.
 	pflag.Usage = func() {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR PAIR ...\n", os.Args[0])
+			"Usage: %s [options] FILE|DIR OBJECT ...\n", os.Args[0])
 		pflag.PrintDefaults()
 	}
 
 	// Command line flags
 	quiet := pflag.BoolP("quiet", "q", false, "Don't show number of changes")
-	fromFile := pflag.StringP("file", "f", "", "Read pairs from file")
+	fromFile := pflag.StringP("file", "f", "", "Read OBJECTS from file")
 	pflag.Parse()
 
 	// Argument processing
@@ -315,18 +319,18 @@ func main() {
 	}
 	path := args[0]
 
-	// Initialize search/add pairs.
+	// Initialize to be removed objects.
 	if *fromFile != "" {
-		readPairs(*fromFile)
+		readObjects(*fromFile)
 	}
 	if len(args) > 1 {
-		setupPairs(args[1:])
+		setupObjects(args[1:])
 	}
 
 	// Initialize config, especially "ignoreFiles'.
 	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Do substitution.
+	// Do removal.
 	filetree.Walk(path, processInput)
 }

@@ -47,6 +47,8 @@ examples/realistic/realistic
 examples/topology
 go/cmd/add-to-netspoc/add-to-netspoc
 go/cmd/add-to-netspoc/main.go
+go/cmd/remove-from-netspoc/main.go
+go/cmd/remove-from-netspoc/remove-from-netspoc
 go/cmd/rename-netspoc/main.go
 go/cmd/rename-netspoc/rename-netspoc
 go/cmd/spoc1-go/main.go

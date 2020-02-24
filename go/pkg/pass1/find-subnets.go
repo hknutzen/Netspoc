@@ -608,13 +608,36 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
+			// No check needed for unexpected subnet relation.
+			if subnet.isAggregate {
+				continue
+			}
+
+			// Use next larger non aggregate network when checking for
+			// unexpected subnet relation.
+		REALNET:
+			for natBignet.isAggregate || !visible[natBignet] {
+				identList := identical[natBignet]
+				for _, identNet := range identList {
+					if visible[identNet] && !identNet.isAggregate {
+						natBignet = identNet
+						break REALNET
+					}
+				}
+				natBignet = isIn[natBignet]
+				if natBignet == nil {
+					continue SUBNET
+				}
+			}
+			bignet = origNet[natBignet]
+			sameZone = bignet.zone == subnet.zone
+
 			if printType := conf.Conf.CheckSubnets; printType != "" {
 
 				// Take original bignet, because currently
 				// there's no method to specify a natted network
 				// as value of subnet_of.
-				if !(bignet.isAggregate || subnet.isAggregate ||
-					bignet.hasSubnets || natSubnet.subnetOf == bignet ||
+				if !(bignet.hasSubnets || natSubnet.subnetOf == bignet ||
 					natSubnet.isLayer3) {
 
 					// Prevent multiple error messages in
