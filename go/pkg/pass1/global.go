@@ -82,8 +82,9 @@ var asaVpnAttributes = map[string]int{
 	"split-tunnel-policy":      groupPolicy,
 
 	// tunnel-group general-attributes
-	"authentication-server-group": tgGeneral,
-	"authorization-server-group":  tgGeneral,
-	"authorization-required":      tgGeneral,
-	"username-from-certificate":   tgGeneral,
+	"authentication-server-group":                 tgGeneral,
+	"authorization-server-group":                  tgGeneral,
+	"authorization-required":                      tgGeneral,
+	"username-from-certificate":                   tgGeneral,
+	"password-management_password-expire-in-days": tgGeneral,
 }

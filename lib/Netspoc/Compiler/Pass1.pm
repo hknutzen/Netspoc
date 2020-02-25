@@ -13124,10 +13124,11 @@ my %asa_vpn_attributes = (
     'split-tunnel-policy'         => {},
 
     # tunnel-group general-attributes
-    'authentication-server-group' => { tg_general => 1 },
-    'authorization-server-group'  => { tg_general => 1 },
-    'authorization-required'      => { tg_general => 1 },
-    'username-from-certificate'   => { tg_general => 1 },
+    'authentication-server-group'                 => { tg_general => 1 },
+    'authorization-server-group'                  => { tg_general => 1 },
+    'authorization-required'                      => { tg_general => 1 },
+    'username-from-certificate'                   => { tg_general => 1 },
+    'password-management_password-expire-in-days' => { tg_general => 1 },
 );
 
 sub verify_asa_vpn_attributes {

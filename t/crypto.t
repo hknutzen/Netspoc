@@ -996,7 +996,8 @@ network:customers2 = {
                         check-subject-name = ou;
                         authorization-server-group = LDAP_1;
                         username-from-certificate = CN;
-                        authorization-required; }
+                        authorization-required;
+                        password-management_password-expire-in-days = 91; }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
@@ -1155,6 +1156,7 @@ tunnel-group VPN-tunnel-domain.x general-attributes
  default-group-policy VPN-group-domain.x
  authorization-required
  authorization-server-group LDAP_1
+ password-management password-expire-in-days 91
  username-from-certificate CN
 tunnel-group VPN-tunnel-domain.x ipsec-attributes
  ikev1 trust-point ASDM_TrustPoint2
