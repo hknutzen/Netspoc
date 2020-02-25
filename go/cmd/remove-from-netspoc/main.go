@@ -50,7 +50,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2018 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -114,7 +114,7 @@ func setupObjects(objects []string) {
 	}
 }
 
-// Find occurence of typed name in list of objects:
+// Find occurrence of typed name in list of objects:
 // - group:<name> = <typed name>, ... <typed name>;
 // - src = ...;
 // - dst = ...;
@@ -127,9 +127,27 @@ func process(input string) (int, string) {
 	var copy strings.Builder
 	copy.Grow(len(input))
 
+	comment := regexp.MustCompile(`^\s*[#].*\n`)
+	typedName := regexp.MustCompile(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`)
+	extension := regexp.MustCompile(`^\[(?:auto|all)\]`)
+	commaEOL := regexp.MustCompile(`^[ \t]*(,?)[ \t]*(?:[#].*)?(?:\n|$)`)
+	semicolon := regexp.MustCompile(`^\s*;`)
+	commaSpace := regexp.MustCompile(`^[ \t]*,[ \t]*`)
+	comma := regexp.MustCompile(`^\s*,`)
+	startAuto := regexp.MustCompile(`^\s*\w+:\[`)
+	managedAuto := regexp.MustCompile(`^\s*managed\s*&`)
+	ipAuto := regexp.MustCompile(`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`)
+	endAuto := regexp.MustCompile(`^\s*\]`)
+	negation := regexp.MustCompile(`^\s*[!]`)
+	intersection := regexp.MustCompile(`^\s*[&]`)
+	commaSpaceEOL := regexp.MustCompile(`^\s*,(?:[ \t]*\n)?`)
+	description := regexp.MustCompile(`^\s*description\s*=.*\n`)
+	startGroup := regexp.MustCompile(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`)
+	equalSign := regexp.MustCompile(`^\s*=[ \t]*`)
+	restToEOL := regexp.MustCompile(`^(?:.*\n|.+$)`)
+
 	// Match pattern in input and skip matched pattern.
-	match := func(pattern string) []string {
-		re := regexp.MustCompile(pattern)
+	match := func(re *regexp.Regexp) []string {
 		matches := re.FindStringSubmatch(input)
 		if matches == nil {
 			return nil
@@ -140,15 +158,15 @@ func process(input string) (int, string) {
 	}
 
 	for {
-		if m := match(`^\s*[#].*\n`); m != nil {
+		if m := match(comment); m != nil {
 			// Ignore comment.
 			copy.WriteString(m[0])
 		} else if inList {
 			// Find next "type:name".
-			if m := match(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`); m != nil {
+			if m := match(typedName); m != nil {
 				space := m[1]
 				object := m[2]
-				if m := match(`^\[(?:auto|all)\]`); m != nil {
+				if m := match(extension); m != nil {
 					object += m[0]
 				}
 				if !remove[object] {
@@ -169,14 +187,14 @@ func process(input string) (int, string) {
 					prefix = processed
 				}
 				if strings.TrimSpace(prefix) == "" {
-					if m := match(`^[ \t]*(,?)[ \t]*(?:[#].*)?(?:\n|$)`); m != nil {
+					if m := match(commaEOL); m != nil {
 						// Ready, if comma seen.
 						if m[1] != "" {
 							continue
 						}
 					}
 				}
-				if m := match(`^\s*;`); m != nil {
+				if m := match(semicolon); m != nil {
 					// Remove leading comma, if removed object is followed
 					// by semicolon.
 					trailing := m[0]
@@ -194,7 +212,7 @@ func process(input string) (int, string) {
 					// object in line and is followed by other object in
 					// same line.
 					if ok, _ := regexp.MatchString(`^[ \t]*,[ \t]*\w`, input); ok {
-						match(`^[ \t]*,[ \t]*`)
+						match(commaSpace)
 						copy.WriteString(space)
 						continue
 					}
@@ -205,10 +223,10 @@ func process(input string) (int, string) {
 				// line if only separated by comment and whitespace.
 				for {
 
-					if m := match(`^\s*,`); m != nil {
+					if m := match(comma); m != nil {
 						// Remove found comma. Don't remove EOL.
 						break
-					} else if m := match(`^\s*[#].*\n`); m != nil {
+					} else if m := match(comment); m != nil {
 						// Skip and retain comment at end of line.
 						copy.WriteString(m[0])
 					} else {
@@ -216,23 +234,11 @@ func process(input string) (int, string) {
 					}
 				}
 			} else {
-				//  Check if list continues.
-				for _, p := range []string{
-					// Start of automatic group.
-					`^\s*\w+:\[`,
-					// Managed automatic group.
-					`^\s*managed\s*&`,
-					// IP for automatic group.
-					`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`,
-					// End of automatic group.
-					`^\s*\]`,
-					// Negation / intersection.
-					`^\s*[&!]`,
-					// Comma, include trailing whitespace to EOL.
-					`^\s*,(?:[ \t]*\n)?`,
-					// Description.
-					`^\s*description\s*=.*\n`} {
-					if m = match(p); m != nil {
+				// Check if list continues.
+				for _, re := range []*regexp.Regexp{
+					startAuto, managedAuto, ipAuto, endAuto,
+					negation, intersection, commaSpaceEOL, description} {
+					if m = match(re); m != nil {
 						break
 					}
 				}
@@ -243,16 +249,16 @@ func process(input string) (int, string) {
 					inList = false
 				}
 			}
-		} else if m = match(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`); m != nil {
+		} else if m = match(startGroup); m != nil {
 			// Find start of group.
 			copy.WriteString(m[0])
 
 			// Find equal sign.
-			if m = match(`^\s*=[ \t]*`); m != nil {
+			if m = match(equalSign); m != nil {
 				copy.WriteString(m[0])
 				inList = true
 			}
-		} else if m = match(`^(?:.*\n|.+$)`); m != nil {
+		} else if m = match(restToEOL); m != nil {
 			// Ignore rest of line if nothing matches.
 			copy.WriteString(m[0])
 		} else {
