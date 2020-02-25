@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+ - New radius-attribute "password-management_password-expire-in-days = NUM"
+   generates "password-management password-expire-in-days NUM"
+   in tunnel-group general-attributes
+ - Improved runtime performance for commands
+   add-to-netspoc and remove-from netspoc.
+
 6.009     2020-02-24 12:00:10+01:00 Europe/Berlin
 
  - Fixed check for unexpected subnet relation.
