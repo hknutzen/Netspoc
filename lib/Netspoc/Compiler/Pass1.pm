@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.009'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.010'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -13124,10 +13124,11 @@ my %asa_vpn_attributes = (
     'split-tunnel-policy'         => {},
 
     # tunnel-group general-attributes
-    'authentication-server-group' => { tg_general => 1 },
-    'authorization-server-group'  => { tg_general => 1 },
-    'authorization-required'      => { tg_general => 1 },
-    'username-from-certificate'   => { tg_general => 1 },
+    'authentication-server-group'                 => { tg_general => 1 },
+    'authorization-server-group'                  => { tg_general => 1 },
+    'authorization-required'                      => { tg_general => 1 },
+    'username-from-certificate'                   => { tg_general => 1 },
+    'password-management_password-expire-in-days' => { tg_general => 1 },
 );
 
 sub verify_asa_vpn_attributes {

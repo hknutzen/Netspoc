@@ -48,7 +48,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -112,7 +112,7 @@ func setupAddTo(old, new string) {
 	addTo[old] = new
 }
 
-// Find occurence of typed name in list of objects:
+// Find occurrence of typed name in list of objects:
 // - group:<name> = <typed name>, ... <typed name>
 // - src =
 // - dst =
@@ -125,9 +125,23 @@ func process(input string) (int, string) {
 	copy.Grow(len(input))
 	substDone := false
 
+	comment := regexp.MustCompile(`^\s*[#].*\n`)
+	typedName := regexp.MustCompile(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`)
+	extension := regexp.MustCompile(`^\[(?:auto|all)\]`)
+	commaSemiEOL := regexp.MustCompile(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)(?:\n|$)`)
+	comma := regexp.MustCompile(`^\s*,`)
+	startAuto := regexp.MustCompile(`^\s*\w+:\[`)
+	managedAuto := regexp.MustCompile(`^\s*managed\s*&`)
+	ipAuto := regexp.MustCompile(`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`)
+	endAuto := regexp.MustCompile(`^\s*\]`)
+	negation := regexp.MustCompile(`^\s*[!]`)
+	intersection := regexp.MustCompile(`^\s*[&]`)
+	startGroup := regexp.MustCompile(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`)
+	equalSign := regexp.MustCompile(`^\s*=[ \t]*`)
+	restToEOL := regexp.MustCompile(`^(?:.*\n|.+$)`)
+
 	// Match pattern in input and skip matched pattern.
-	match := func(pattern string) []string {
-		re := regexp.MustCompile(pattern)
+	match := func(re *regexp.Regexp) []string {
 		matches := re.FindStringSubmatch(input)
 		if matches == nil {
 			return nil
@@ -138,15 +152,15 @@ func process(input string) (int, string) {
 	}
 
 	for {
-		if m := match(`^\s*[#].*\n`); m != nil {
+		if m := match(comment); m != nil {
 			// Ignore comment.
 			copy.WriteString(m[0])
 		} else if inList {
 			// Find next "type:name".
-			if m := match(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`); m != nil {
+			if m := match(typedName); m != nil {
 				space := m[1]
 				object := m[2]
-				if m := match(`^\[(?:auto|all)\]`); m != nil {
+				if m := match(extension); m != nil {
 					object += m[0]
 				}
 				new := addTo[object]
@@ -174,7 +188,7 @@ func process(input string) (int, string) {
 				re := regexp.MustCompile(
 					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
 				if re.MatchString(prefix) {
-					m = match(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)(?:\n|$)`)
+					m = match(commaSemiEOL)
 				}
 				if m != nil {
 					// Add new entry to separate line with same indentation.
@@ -195,21 +209,11 @@ func process(input string) (int, string) {
 					copy.WriteString(new)
 				}
 			} else {
-				//  Check if list continues.
-				for _, p := range []string{
-					// Start of automatic group.
-					`^\s*\w+:\[`,
-					// Managed automatic group.
-					`^\s*managed\s*&`,
-					// IP for automatic group.
-					`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`,
-					// End of automatic group.
-					`^\s*\]`,
-					// Negation / intersection.
-					`^\s*[&!]`,
-					// Comma.
-					`^\s*,`} {
-					if m = match(p); m != nil {
+				// Check if list continues.
+				for _, re := range []*regexp.Regexp{
+					startAuto, managedAuto, ipAuto, endAuto,
+					negation, intersection, comma} {
+					if m = match(re); m != nil {
 						break
 					}
 				}
@@ -227,16 +231,16 @@ func process(input string) (int, string) {
 					inList = false
 				}
 			}
-		} else if m = match(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`); m != nil {
+		} else if m = match(startGroup); m != nil {
 			// Find start of group.
 			copy.WriteString(m[0])
 
 			// Find equal sign.
-			if m = match(`^\s*=[ \t]*`); m != nil {
+			if m = match(equalSign); m != nil {
 				copy.WriteString(m[0])
 				inList = true
 			}
-		} else if m = match(`^(?:.*\n|.+$)`); m != nil {
+		} else if m = match(restToEOL); m != nil {
 			// Ignore rest of line if nothing matches.
 			copy.WriteString(m[0])
 		} else {

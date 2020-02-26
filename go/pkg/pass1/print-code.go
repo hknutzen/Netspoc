@@ -554,17 +554,22 @@ func printTunnelGroupRa(fh *os.File, id, idName string, attributes map[string]st
 	// Select attributes for tunnel-group general-attributes.
 	keys := make([]string, 0, len(attributes))
 	for k, _ := range attributes {
-		keys = append(keys, k)
+		if spec := asaVpnAttributes[k]; spec == tgGeneral {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		if spec := asaVpnAttributes[key]; spec == tgGeneral {
-			out := key
-			if value := attributes[key]; value != "" {
-				out += " " + value
-			}
-			tunnelGenAtt = append(tunnelGenAtt, out)
+		out := key
+
+		// Replace "_" by " " in keys,
+		// e.g. password-management_password-expire-in-days =>
+		//      "password-management password-expire-in-days"
+		out = strings.Replace(out, "_", " ", -1)
+		if value := attributes[key]; value != "" {
+			out += " " + value
 		}
+		tunnelGenAtt = append(tunnelGenAtt, out)
 	}
 
 	tunnelGroupName := "VPN-tunnel-" + idName
