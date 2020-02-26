@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.010     2020-02-26 12:16:00+01:00 Europe/Berlin
+
  - New radius-attribute "password-management_password-expire-in-days = NUM"
    generates "password-management password-expire-in-days NUM"
    in tunnel-group general-attributes
