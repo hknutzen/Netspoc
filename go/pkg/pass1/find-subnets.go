@@ -441,11 +441,13 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			for _, n := range list {
 				if visible[n] {
 					filtered.push(n)
-					hasIdentical[n] = true
 				}
 			}
-			if len(filtered) == 0 {
+			if len(filtered) <= 1 {
 				continue
+			}
+			for _, n := range filtered {
+				hasIdentical[n] = true
 			}
 
 			// If list has been fully analyzed once, don't check it again.
@@ -468,7 +470,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					// if identical IP address occurrs in different zones.
 					other.hasOtherSubnet = true
 					n.hasOtherSubnet = true
-					//debug("identical %s %s", n.name, other.name)
+					//debug("identical %s %s", n, other)
 				} else if natOther.dynamic && natNetwork.dynamic {
 
 					// Dynamic NAT of different networks
@@ -598,6 +600,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			} else {
 				// Mark network having subnet in other zone.
 				markNetworkAndPending(bignet)
+				//debug("%s > %s", bignet, subnet)
 
 				// Mark aggregate that has other *supernet*.
 				// In this situation, addresses of aggregate
@@ -605,6 +608,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				// zone.
 				if subnet.isAggregate {
 					markNetworkAndPending(subnet)
+					//debug("%s ~ %s", subnet, bignet)
 				}
 			}
 
