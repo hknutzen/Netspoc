@@ -368,7 +368,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	// Analyze isIn and 'identical' relation for different NAT domains.
 
 	// Mapping from subnet to bignet in same zone.
-	// Bignet must be marked, if subnet is marked later with hasOthersubnet.
+	// Bignet must be marked, if subnet is marked later with hasOtherSubnet.
 	pendingOtherSubnet := make(map[*network]netList)
 	var markNetworkAndPending func(*network)
 	markNetworkAndPending = func(n *network) {
