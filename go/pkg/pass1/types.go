@@ -366,9 +366,14 @@ type idIntf struct {
 }
 
 type owner struct {
-	name    string
-	isUsed  bool
-	showAll bool
+	admins              stringList
+	extendedBy          []*owner
+	hideFromOuterOwners bool
+	isUsed              bool
+	name                string
+	showAll             bool
+	showHiddenOwners    bool
+	watchers            stringList
 }
 
 type routing struct {
@@ -571,6 +576,8 @@ type service struct {
 	ipVxObj
 	privateObj
 	name                       string
+	description                string
+	disableAt                  string
 	disabled                   bool
 	foreach                    bool
 	rules                      []*unexpRule
