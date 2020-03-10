@@ -323,6 +323,13 @@ type router struct {
 
 func (x router) String() string { return x.name }
 
+type loop struct {
+	exit        pathObj
+	distance    int
+	clusterExit pathObj
+	redirect    *loop
+}
+
 type routerIntf struct {
 	netObj
 	pathStoreData
@@ -356,6 +363,7 @@ type routerIntf struct {
 	routes             map[*routerIntf]netMap
 	routing            *routing
 	rules              ruleList
+	splitOther         *routerIntf
 	intfRules          ruleList
 	outRules           ruleList
 	idRules            map[string]*idIntf
@@ -417,6 +425,7 @@ type pathRestriction struct {
 	activePath bool
 	elements   []*routerIntf
 	name       string
+	deleted []*pathRestriction
 }
 
 type crypto struct {
@@ -478,6 +487,7 @@ type zone struct {
 	primaryMark          int
 	secondaryMark        int
 	statefulMark         int
+	toZone1              *routerIntf
 	unmanagedRouters     []*router
 	watchingOwners       []*owner
 	zoneCluster          []*zone
@@ -687,4 +697,124 @@ type pathRules struct {
 type mcastInfo struct {
 	v4 []string
 	v6 []string
+}
+
+//###################################################################
+// Efficient path traversal.
+//###################################################################
+
+type pathStoreData struct {
+	path      map[pathStore]*routerIntf
+	path1     map[pathStore]*routerIntf
+	loopEntry map[pathStore]pathStore
+	loopExit  map[pathStore]pathStore
+	loopPath  map[pathStore]*loopPath
+}
+
+type pathStore interface {
+	String() string
+	getPath() map[pathStore]*routerIntf
+	getPath1() map[pathStore]*routerIntf
+	getLoopEntry() map[pathStore]pathStore
+	getLoopExit() map[pathStore]pathStore
+	getLoopPath() map[pathStore]*loopPath
+	setPath(pathStore, *routerIntf)
+	setPath1(pathStore, *routerIntf)
+	setLoopEntry(pathStore, pathStore)
+	setLoopExit(pathStore, pathStore)
+	setLoopPath(pathStore, *loopPath)
+	getZone() *zone
+}
+
+func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
+func (x *pathStoreData) getPath1() map[pathStore]*routerIntf   { return x.path1 }
+func (x *pathStoreData) getLoopEntry() map[pathStore]pathStore { return x.loopEntry }
+func (x *pathStoreData) getLoopExit() map[pathStore]pathStore  { return x.loopExit }
+func (x *pathStoreData) getLoopPath() map[pathStore]*loopPath  { return x.loopPath }
+
+func (x *pathStoreData) setPath(s pathStore, i *routerIntf) {
+	if x.path == nil {
+		x.path = make(map[pathStore]*routerIntf)
+	}
+	x.path[s] = i
+}
+func (x *pathStoreData) setPath1(s pathStore, i *routerIntf) {
+	if x.path1 == nil {
+		x.path1 = make(map[pathStore]*routerIntf)
+	}
+	x.path1[s] = i
+}
+func (x *pathStoreData) setLoopEntry(s pathStore, e pathStore) {
+	if x.loopEntry == nil {
+		x.loopEntry = make(map[pathStore]pathStore)
+	}
+	x.loopEntry[s] = e
+}
+func (x *routerIntf) setLoopEntryZone(s pathStore, e pathStore) {
+	if x.loopEntryZone == nil {
+		x.loopEntryZone = make(map[pathStore]pathStore)
+	}
+	x.loopEntryZone[s] = e
+}
+func (x *pathStoreData) setLoopExit(s pathStore, e pathStore) {
+	if x.loopExit == nil {
+		x.loopExit = make(map[pathStore]pathStore)
+	}
+	x.loopExit[s] = e
+}
+func (x *pathStoreData) setLoopPath(s pathStore, i *loopPath) {
+	if x.loopPath == nil {
+		x.loopPath = make(map[pathStore]*loopPath)
+	}
+	x.loopPath[s] = i
+}
+
+type pathObjData struct {
+	interfaces intfList
+	activePath bool
+	distance   int
+	loop       *loop
+	navi       map[pathObj]navigation
+	toZone1    *routerIntf
+}
+
+type pathObj interface {
+	String() string
+	intfList() intfList
+	isActivePath() bool
+	setActivePath()
+	clearActivePath()
+	setDistance(int)
+	getDistance() int
+	setLoop(*loop)
+	getLoop() *loop
+	getNavi() map[pathObj]navigation
+	setNavi(pathObj, navigation)
+	setToZone1(*routerIntf)
+	getToZone1() *routerIntf
+}
+
+func (x *pathObjData) intfList() intfList              { return x.interfaces }
+func (x *pathObjData) isActivePath() bool              { return x.activePath }
+func (x *pathObjData) setActivePath()                  { x.activePath = true }
+func (x *pathObjData) clearActivePath()                { x.activePath = false }
+func (x *pathObjData) getDistance() int                { return x.distance }
+func (x *pathObjData) setDistance(dist int)            { x.distance = dist }
+func (x *pathObjData) getLoop() *loop                  { return x.loop }
+func (x *pathObjData) getNavi() map[pathObj]navigation { return x.navi }
+func (x *pathObjData) getToZone1() *routerIntf         { return x.toZone1 }
+
+func (x *pathObjData) setLoop(newLoop *loop) {
+	x.loop = newLoop
+}
+
+func (x *pathObjData) setNavi(o pathObj, n navigation) {
+	if x.navi == nil {
+		x.navi = make(map[pathObj]navigation)
+	}
+	x.navi[o] = n
+}
+
+func (x *pathObjData) setToZone1(intfToZone1 *routerIntf) {
+	x.toZone1 = intfToZone1
 }
