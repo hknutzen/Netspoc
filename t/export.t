@@ -3700,12 +3700,18 @@ $out = <<'END';
    "n3a",
    "n4"
 ]
+--owner/all/nat_set
+[]
 --owner/n23/no_nat_set
 [
    "n2a",
    "n3",
    "n3a",
    "n4"
+]
+--owner/n23/nat_set
+[
+   "n2"
 ]
 --owner/n4/no_nat_set
 [
@@ -3714,17 +3720,31 @@ $out = <<'END';
    "n3",
    "n3a"
 ]
+--owner/n4/nat_set
+[
+   "n4"
+]
 --owner/h2/no_nat_set
 [
    "n3",
    "n3a",
    "n4"
 ]
+--owner/h2/nat_set
+[
+   "n2",
+   "n2a"
+]
 --owner/h3/no_nat_set
 [
    "n2",
    "n2a",
    "n4"
+]
+--owner/h3/nat_set
+[
+   "n3",
+   "n3a"
 ]
 END
 
@@ -3757,6 +3777,8 @@ $out = <<'END';
    "h1",
    "h2"
 ]
+--owner/all/nat_set
+[]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
@@ -3800,6 +3822,8 @@ $out = <<'END';
    "h2",
    "n1"
 ]
+--owner/o/nat_set
+[]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
@@ -3835,6 +3859,10 @@ END
 $out = <<'END';
 --owner/o/no_nat_set
 []
+--owner/o/nat_set
+[
+   "n1"
+]
 END
 
 test_run($title, $in, $out);	# No IPv6 test

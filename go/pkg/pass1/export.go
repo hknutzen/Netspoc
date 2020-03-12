@@ -955,7 +955,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 // with previous version.
 //#####################################################################
 func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[string]string, pInfo, oInfo xOwner) {
-	diag.Progress("Export no-NAT-sets")
+	diag.Progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
 	allNatTags := make(map[string]bool)
 	for _, n := range networks {
@@ -993,6 +993,7 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 		allNatList.push(tag)
 	}
 	for ownerName, _ := range owners {
+		natList := make(stringList, 0)
 		noNatList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
@@ -1001,8 +1002,10 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 			for d, _ := range doms {
 				natSets = append(natSets, d.natSet)
 			}
-			combined :=
-				combineNatSets(natSets, natTag2multinatDef, natTag2natType)
+			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
+			for tag, _ := range *combined {
+				natList.push(tag)
+			}
 			for _, tag := range allNatList {
 				if _, ok := (*combined)[tag]; !ok {
 					noNatList.push(tag)
@@ -1011,9 +1014,11 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 		} else {
 			noNatList = allNatList
 		}
+		sort.Strings(natList)
 		sort.Strings(noNatList)
 
 		createDirs("owner/" + ownerName)
+		exportJson("owner/"+ownerName+"/nat_set", natList)
 		exportJson("owner/"+ownerName+"/no_nat_set", noNatList)
 	}
 }
