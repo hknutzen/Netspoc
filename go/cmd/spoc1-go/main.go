@@ -8,6 +8,7 @@ import (
 func main() {
 	pass1.ImportFromPerl()
 
+	NATDomains, NATTag2natType, _ := pass1.DistributeNatInfo()
 	pass1.FindSubnetsInZone()
 	// Call after findSubnetsInZone, where zone.networks has
 	// been set up.
@@ -18,10 +19,10 @@ func main() {
 	pass1.CheckServiceOwner()
 	pRules, dRules := pass1.ConvertHostsInRules()
 	pass1.GroupPathRules(pRules, dRules)
-	pass1.FindSubnetsInNatDomain(pass1.NATDomains)
+	pass1.FindSubnetsInNatDomain(NATDomains)
 	pass1.CheckUnstableNatRules()
 	pass1.MarkManagedLocal()
-	pass1.CheckDynamicNatRules(pass1.NATDomains, pass1.NATTag2natType)
+	pass1.CheckDynamicNatRules(NATDomains, NATTag2natType)
 	pass1.CheckUnusedGroups()
 	pass1.CheckSupernetRules(pRules)
 	pass1.CheckRedundantRules()

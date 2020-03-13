@@ -268,6 +268,7 @@ func convNetwork(x xAny) *network {
 		n.filterAt = p
 	}
 	n.hasIdHosts = getBool(m["has_id_hosts"])
+	n.identity = getBool(m["identity"])
 	n.invisible = getBool(m["invisible"])
 	n.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	n.subnetOf = convNetwork(m["subnet_of"])
@@ -387,6 +388,7 @@ func convModel(x xAny) *model {
 	}
 	d := new(model)
 	m["ref"] = d
+	d.name = getString(m["name"])
 	d.commentChar = getString(m["comment_char"])
 	d.class = getString(m["class"])
 	d.crypto = getString(m["crypto"])
@@ -439,6 +441,7 @@ func convRouter(x xAny) *router {
 	r.semiManaged = getBool(m["semi_managed"])
 	r.routingOnly = getBool(m["routing_only"])
 	r.adminIP = getStrings(m["admin_ip"])
+	r.aclUseRealIp = getBool(m["acl_use_real_ip"])
 	r.model = convModel(m["model"])
 	r.log = getMapStringString(m["log"])
 	r.logDeny = getBool(m["log_deny"])
@@ -665,6 +668,7 @@ func convHardware(x xAny) *hardware {
 	h := new(hardware)
 	m["ref"] = h
 	h.interfaces = convRouterIntfs(m["interfaces"])
+	h.bindNat = getStrings(m["bind_nat"])
 	h.crosslink = getBool(m["crosslink"])
 	h.loopback = getBool(m["loopback"])
 	h.name = getString(m["name"])
@@ -1483,9 +1487,6 @@ func ImportFromPerl() {
 	interfaces = convIntfMap(m["interfaces"])
 	knownLog = getMapStringBool(m["known_log"])
 	managedRouters = convRouters(m["managed_routers"])
-	NATDomains = convNATDomains(m["natdomains"])
-	NATTag2natType = getMapStringString(m["nat_tag2nat_type"])
-	natTag2multinatDef = convMapStringNetNat(m["nat_tag2multinat_def"])
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
 	networks = convNetworkMap(m["networks"])

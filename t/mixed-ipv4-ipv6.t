@@ -378,9 +378,9 @@ Arranging protocols
 Linking topology
 Preparing security zones and areas
 Preparing fast path traversal
-Distributing NAT
 Exporting to Go
 Importing from Perl
+Distributing NAT
 Finding subnets in zone
 Normalizing services
 Checking service owner

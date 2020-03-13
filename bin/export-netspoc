@@ -1225,14 +1225,8 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-my ($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def) =
-    distribute_nat_info();
-
 
 call_go('export-netspoc-go', {
-    natdomains => $natdomains,
-    nat_tag2nat_type => $nat_tag2nat_type,
-    nat_tag2multinat_def => $nat_tag2multinat_def,
     in_path => $netspoc_data,
     out_dir => ($out_dir || ''),
         });

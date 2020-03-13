@@ -1486,13 +1486,14 @@ func copyPolicyFile(inPath, outDir string) {
 }
 
 func Export() {
+	natDomains, natTag2natType, multiNAT := DistributeNatInfo()
 	FindSubnetsInZone()
 	adaptOwnerNames()
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := normalizeServicesForExport()
 	propagateOwners()
-	FindSubnetsInNatDomain(NATDomains)
+	FindSubnetsInNatDomain(natDomains)
 	setupZones()
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
@@ -1505,7 +1506,7 @@ func Export() {
 	exportServices(expSvcList)
 	exportUsersAndServiceLists(expSvcList, pInfo, oInfo)
 	exportObjects()
-	exportNoNatSet(natTag2multinatDef, NATTag2natType, pInfo, oInfo)
+	exportNoNatSet(multiNAT, natTag2natType, pInfo, oInfo)
 	copyPolicyFile(InPath, OutDir)
 	diag.Progress("Ready")
 }

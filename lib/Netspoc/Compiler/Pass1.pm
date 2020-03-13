@@ -17246,7 +17246,7 @@ sub prepare_real_ip_nat {
             keys %$effective == keys %$seen or next;
             for my $nat_tag (keys %$effective) {
                 my $nat = $seen->{$nat_tag} or next EQ;
-                $nat eq $effective->{$nat_tag} or next EQ;
+#                $nat eq $effective->{$nat_tag} or next EQ;
             }
             push @{ $effective2hw_list{$seen} }, $hardware;
             next HARDWARE;
@@ -18672,11 +18672,8 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
 
     call_go('spoc1-go', {
-        natdomains => $natdomains,
-        nat_tag2nat_type => $nat_tag2nat_type,
         in_path => $in_path,
         out_dir => ($out_dir || ''),
             });

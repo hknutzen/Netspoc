@@ -164,6 +164,7 @@ type network struct {
 	hasSubnets       bool
 	hidden           bool
 	hosts            []*host
+	identity         bool
 	interfaces       []*routerIntf
 	invisible        bool
 	isAggregate      bool
@@ -237,6 +238,7 @@ type model struct {
 	cryptoInContext bool
 	filter          string
 	logModifiers    map[string]string
+	name            string
 	needAcl         bool
 	hasIoAcl        bool
 	noCryptoFilter  bool
@@ -278,6 +280,7 @@ type router struct {
 	deviceName              string
 	managed                 string
 	semiManaged             bool
+	aclUseRealIp            bool
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
@@ -290,6 +293,7 @@ type router struct {
 	filterOnly              []net.IPNet
 	generalPermit           []*proto
 	natDomains              []*natDomain
+	natTags                 map[*natDomain]stringList
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -392,6 +396,7 @@ type hardware struct {
 	crosslink  bool
 	loopback   bool
 	name       string
+	bindNat    []string
 	natSet     natSet
 	dstNatSet  natSet
 	needOutAcl bool
