@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Distributing NAT
+   - Most parts of program 'export-netspoc'
+ - Fixed minor bug in check for identical network in other NAT domain.
+   This prevented an optimization in few cases.
+ - export-netspoc now generates files 'nat_set' additionally to 'no_nat_set'
+   for each owner, in preparation for equivalent change in Netspoc-Web.
+
 6.010     2020-02-26 12:16:00+01:00 Europe/Berlin
 
  - New radius-attribute "password-management_password-expire-in-days = NUM"
