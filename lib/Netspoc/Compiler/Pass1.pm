@@ -17246,7 +17246,7 @@ sub prepare_real_ip_nat {
             keys %$effective == keys %$seen or next;
             for my $nat_tag (keys %$effective) {
                 my $nat = $seen->{$nat_tag} or next EQ;
-#                $nat eq $effective->{$nat_tag} or next EQ;
+                $nat eq $effective->{$nat_tag} or next EQ;
             }
             push @{ $effective2hw_list{$seen} }, $hardware;
             next HARDWARE;
