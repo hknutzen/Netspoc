@@ -7,10 +7,6 @@ var (
 
 	ErrorCounter int
 
-	// will become local variable when conversion to Go is finished
-	NATDomains     []*natDomain
-	NATTag2natType map[string]string
-
 	prtAh               *proto
 	prtBootpc           *proto
 	prtBootps           *proto

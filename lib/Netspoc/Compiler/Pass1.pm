@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.010'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.011'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -113,6 +113,7 @@ our @EXPORT = qw(
   single_path_walk
   get_nat_network
   address
+  call_go
 );
 
 
@@ -18671,9 +18672,18 @@ sub compile {
     &mark_disabled();
     &set_zone();
     &setpath();
-    my ($natdomains, $nat_tag2nat_type) = distribute_nat_info();
 
     call_go('spoc1-go', {
+        in_path => $in_path,
+        out_dir => ($out_dir || ''),
+            });
+
+    abort_on_error();
+}
+
+sub call_go {
+    my ($what, $extra) = @_;
+    my $data = {
         config => $config,
         start_time => $start_time,
         program => $program,
@@ -18706,8 +18716,6 @@ sub compile {
         routers => \%routers,
         routers6 => \%routers6,
         services => \%services,
-        natdomains => $natdomains,
-        nat_tag2nat_type => $nat_tag2nat_type,
         network_00 => $network_00,
         network_00_v6 => $network_00_v6,
         all_networks => \@networks,
@@ -18719,15 +18727,10 @@ sub compile {
         managed_routers => \@managed_routers,
         routing_only_routers => \@routing_only_routers,
         zones => \@zones,
-        in_path => $in_path,
-        out_dir => ($out_dir || ''),
-            });
-
-    abort_on_error();
-}
-
-sub call_go {
-    my ($what, $data) = @_;
+    };
+    while (my($k, $v) = each %$extra) {
+        $data->{$k} = $v;
+    }
     progress "Exporting to Go";
     my $e = Sereal::Encoder->new({max_recursion_depth => 30000});
     if ($config->{export}) {

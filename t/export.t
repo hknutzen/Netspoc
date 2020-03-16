@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Differences;
+use JSON;
 use IPC::Run3;
 use File::Temp qw/ tempdir /;
 use lib 't';
@@ -49,6 +50,13 @@ sub test_run {
         open(my $out_fh, '<', "$out_dir/$fname") or die "Can't open $fname";
         my $output = <$out_fh>;
         close($out_fh);
+
+        # Compare JSON, if expected data looks like JSON.
+        if ($block =~ /^ \s* [\{\[]/x) {
+            $block = from_json($block);
+            $output = from_json($output)
+        }
+
         eq_or_diff($output, $block, "$title: $fname");
     }
     return;
@@ -474,7 +482,6 @@ $out = <<END;
 {
    "any:a" : {
       "ip" : "0.0.0.0",
-      "owner" : null,
       "zone" : "any:a"
    },
    "interface:r.n1" : {
@@ -553,16 +560,13 @@ $out = <<END;
    "any:a" : {
       "ip" : "0.0.0.0",
       "is_supernet" : 1,
-      "owner" : null,
       "zone" : "any:a"
    },
    "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : null
+      "ip" : "10.1.1.1"
    },
    "interface:r2.n2" : {
-      "ip" : "10.1.2.2",
-      "owner" : null
+      "ip" : "10.1.2.2"
    },
    "interface:u.n1" : {
       "ip" : "short",
@@ -982,18 +986,15 @@ $out = <<'END';
    "any:[ip=10.140.0.0/16 & network:t1]" : {
       "ip" : "10.140.0.0/255.255.0.0",
       "is_supernet" : 1,
-      "owner" : null,
       "zone" : "any:[network:t1]"
    },
    "any:c2" : {
       "ip" : "10.140.0.0/255.255.0.0",
       "is_supernet" : 1,
-      "owner" : null,
       "zone" : "any:[network:t2]"
    },
    "network:n1" : {
       "ip" : "10.1.54.0/255.255.255.0",
-      "owner" : null,
       "zone" : "any:[network:n1]"
    }
 }
@@ -1447,7 +1448,6 @@ $out = <<'END';
    },
    "network:n1" : {
       "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : null,
       "zone" : "any:[network:n1]"
    },
    "network:v1" : {
@@ -2233,12 +2233,10 @@ $out = <<'END';
       "zone" : "any:[network:n1]"
    },
    "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : null
+      "ip" : "10.1.1.1"
    },
    "interface:r1.n2" : {
-      "ip" : "10.1.2.1",
-      "owner" : null
+      "ip" : "10.1.2.1"
    },
    "interface:r2.n1" : {
       "ip" : "10.1.1.2",
@@ -2381,8 +2379,7 @@ $out = <<END;
          "D2" : "10.9.9.0/255.255.255.192",
          "H" : "hidden",
          "S" : "10.8.8.10"
-      },
-      "owner" : null
+      }
    },
    "host:h2" : {
       "ip" : "10.1.1.11",
@@ -2391,8 +2388,7 @@ $out = <<END;
          "D2" : "10.9.9.0/255.255.255.192",
          "H" : "hidden",
          "S" : "10.8.8.11"
-      },
-      "owner" : null
+      }
    },
    "interface:r1.n1" : {
       "ip" : "10.1.1.1",
@@ -2401,8 +2397,7 @@ $out = <<END;
          "D2" : "10.9.9.0/255.255.255.192",
          "H" : "hidden",
          "S" : "10.8.8.1"
-      },
-      "owner" : null
+      }
    },
    "network:n1" : {
       "ip" : "10.1.1.0/255.255.255.0",
@@ -2412,12 +2407,10 @@ $out = <<END;
          "H" : "hidden",
          "S" : "10.8.8.0/255.255.255.0"
       },
-      "owner" : null,
       "zone" : "any:[network:n1]"
    },
    "network:n2" : {
       "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : null,
       "zone" : "any:[network:n2]"
    }
 }
@@ -2450,12 +2443,10 @@ $out = <<END;
 --objects
 {
    "interface:r1.n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : null
+      "ip" : "10.1.1.0/255.255.255.0"
    },
    "network:n2" : {
       "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : null,
       "zone" : "any:[network:n2]"
    }
 }
@@ -2488,12 +2479,10 @@ $out = <<END;
 --objects
 {
    "host:h1" : {
-      "ip" : "10.1.1.10-10.1.1.17",
-      "owner" : null
+      "ip" : "10.1.1.10-10.1.1.17"
    },
    "network:n2" : {
       "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : null,
       "zone" : "any:[network:n2]"
    }
 }
@@ -2664,12 +2653,10 @@ $out = <<END;
    },
    "interface:r2.l1" : {
       "ip" : "10.9.9.9",
-      "owner" : null,
       "zone" : "any:[interface:r2.l1]"
    },
    "interface:r3.n4" : {
-      "ip" : "10.1.4.1",
-      "owner" : null
+      "ip" : "10.1.4.1"
    },
    "network:n1" : {
       "ip" : "10.1.1.0/255.255.255.0",
@@ -2782,21 +2769,17 @@ $out = <<END;
 {
    "interface:r1.l1" : {
       "ip" : "10.9.9.1",
-      "owner" : null,
       "zone" : "any:[interface:r1.l1]"
    },
    "interface:r1.l2" : {
       "ip" : "10.9.9.2",
-      "owner" : null,
       "zone" : "any:[interface:r1.l2]"
    },
    "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : null
+      "ip" : "10.1.1.1"
    },
    "interface:r1.n2" : {
-      "ip" : "10.1.2.1",
-      "owner" : null
+      "ip" : "10.1.2.1"
    },
    "interface:r2.l3" : {
       "ip" : "10.9.9.3",
@@ -3642,7 +3625,7 @@ $title = 'Invalid options and arguments';
 ############################################################
 
 $out = <<'END';
-Usage: bin/export-netspoc [-q] netspoc-data out-directory
+Usage: bin/export-netspoc [-q] [-ipv6] netspoc-data out-directory
 END
 
 my %in2out = (
@@ -3717,12 +3700,18 @@ $out = <<'END';
    "n3a",
    "n4"
 ]
+--owner/all/nat_set
+[]
 --owner/n23/no_nat_set
 [
    "n2a",
    "n3",
    "n3a",
    "n4"
+]
+--owner/n23/nat_set
+[
+   "n2"
 ]
 --owner/n4/no_nat_set
 [
@@ -3731,17 +3720,31 @@ $out = <<'END';
    "n3",
    "n3a"
 ]
+--owner/n4/nat_set
+[
+   "n4"
+]
 --owner/h2/no_nat_set
 [
    "n3",
    "n3a",
    "n4"
 ]
+--owner/h2/nat_set
+[
+   "n2",
+   "n2a"
+]
 --owner/h3/no_nat_set
 [
    "n2",
    "n2a",
    "n4"
+]
+--owner/h3/nat_set
+[
+   "n3",
+   "n3a"
 ]
 END
 
@@ -3774,6 +3777,8 @@ $out = <<'END';
    "h1",
    "h2"
 ]
+--owner/all/nat_set
+[]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
@@ -3817,6 +3822,8 @@ $out = <<'END';
    "h2",
    "n1"
 ]
+--owner/o/nat_set
+[]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
@@ -3852,9 +3859,106 @@ END
 $out = <<'END';
 --owner/o/no_nat_set
 []
+--owner/o/nat_set
+[
+   "n1"
+]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
+$title = 'Must not mark as is_supernet, if invisible identical subnet';
+############################################################
+
+$in = <<'END';
+owner:all = { admins = all@example.com; }
+area:all = { anchor = network:n1a; owner = all; }
+
+network:n1a = {
+ ip = 10.1.1.0/24;
+ nat:hide_a = { hidden; }
+}
+
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = hide_b; }
+ interface:n1b = { ip = 10.1.1.2; hardware = n1b; bind_nat = hide_a; }
+}
+
+network:n1b = {
+ ip = 10.1.1.0/24;
+ subnet_of = network:n1-super;
+}
+router:u = {
+ interface:n1b;
+ interface:n1-super;
+}
+network:n1-super = {
+ ip = 10.1.0.0/16;
+ nat:hide_b = { hidden; }
+}
+END
+
+$out = <<'END';
+--objects
+{
+ "interface:r1.n1a": {
+  "ip": "10.1.1.1",
+  "nat": {
+   "hide_a": "hidden"
+  }
+ },
+ "interface:r1.n1b": {
+  "ip": "10.1.1.2",
+  "nat": {
+   "hide_b": "hidden"
+  }
+ },
+ "interface:u.n1-super": {
+  "ip": "short",
+  "nat": {
+   "hide_b": "hidden"
+  },
+  "owner": "all"
+ },
+ "interface:u.n1b": {
+  "ip": "short",
+  "nat": {
+   "hide_b": "hidden"
+  },
+  "owner": "all"
+ },
+ "network:n1-super": {
+  "ip": "10.1.0.0/255.255.0.0",
+  "nat": {
+   "hide_b": "hidden"
+  },
+  "owner": "all",
+  "zone": "any:[network:n1b]"
+ },
+ "network:n1a": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "nat": {
+   "hide_a": "hidden"
+  },
+  "owner": "all",
+  "zone": "any:[network:n1a]"
+ },
+ "network:n1b": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "nat": {
+   "hide_b": "hidden"
+  },
+  "owner": "all",
+  "zone": "any:[network:n1b]"
+ }
+}
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 done_testing;

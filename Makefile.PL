@@ -17,6 +17,7 @@ my %WriteMakefileArgs = (
     "bin/add-to-netspoc",
     "bin/cut-netspoc",
     "bin/export-netspoc",
+    "bin/export-netspoc-go",
     "bin/netspoc",
     "bin/print-group",
     "bin/print-service",
@@ -58,7 +59,7 @@ my %WriteMakefileArgs = (
     "Test::More" => 0,
     "lib" => 0
   },
-  "VERSION" => "6.010",
+  "VERSION" => "6.011",
   "test" => {
     "TESTS" => "t/*.t"
   }

@@ -187,6 +187,26 @@ func convNetNat(x xAny) natMap {
 	}
 	return n
 }
+func convNetNatList(x xAny) []natMap {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	result := make([]natMap, len(a))
+	for i, elt := range a {
+		result[i] = convNetNat(elt)
+	}
+	return result
+}
+
+func convMapStringNetNat(x xAny) map[string][]natMap {
+	m := getMap(x)
+	n := make(map[string][]natMap)
+	for k, v := range m {
+		n[getString(k)] = convNetNatList(v)
+	}
+	return n
+}
 
 func convIPNat(x xAny) map[string]net.IP {
 	m := getMap(x)
@@ -248,6 +268,7 @@ func convNetwork(x xAny) *network {
 		n.filterAt = p
 	}
 	n.hasIdHosts = getBool(m["has_id_hosts"])
+	n.identity = getBool(m["identity"])
 	n.invisible = getBool(m["invisible"])
 	n.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	n.subnetOf = convNetwork(m["subnet_of"])
@@ -367,6 +388,7 @@ func convModel(x xAny) *model {
 	}
 	d := new(model)
 	m["ref"] = d
+	d.name = getString(m["name"])
 	d.commentChar = getString(m["comment_char"])
 	d.class = getString(m["class"])
 	d.crypto = getString(m["crypto"])
@@ -419,6 +441,7 @@ func convRouter(x xAny) *router {
 	r.semiManaged = getBool(m["semi_managed"])
 	r.routingOnly = getBool(m["routing_only"])
 	r.adminIP = getStrings(m["admin_ip"])
+	r.aclUseRealIp = getBool(m["acl_use_real_ip"])
 	r.model = convModel(m["model"])
 	r.log = getMapStringString(m["log"])
 	r.logDeny = getBool(m["log_deny"])
@@ -645,6 +668,7 @@ func convHardware(x xAny) *hardware {
 	h := new(hardware)
 	m["ref"] = h
 	h.interfaces = convRouterIntfs(m["interfaces"])
+	h.bindNat = getStrings(m["bind_nat"])
 	h.crosslink = getBool(m["crosslink"])
 	h.loopback = getBool(m["loopback"])
 	h.name = getString(m["name"])
@@ -909,8 +933,24 @@ func convOwner(x xAny) *owner {
 	o := new(owner)
 	m["ref"] = o
 	o.name = getString(m["name"])
+	o.admins = getStrings(m["admins"])
+	o.watchers = getStrings(m["watchers"])
+	o.extendedBy = convOwners(m["extended_by"])
+	o.hideFromOuterOwners = getBool(m["hide_from_outer_owners"])
+	o.showHiddenOwners = getBool(m["show_hidden_owners"])
 	o.showAll = getBool(m["show_all"])
 	return o
+}
+func convOwners(x xAny) []*owner {
+	if x == nil {
+		return nil
+	}
+	a := getSlice(x)
+	l := make([]*owner, len(a))
+	for i, x := range a {
+		l[i] = convOwner(x)
+	}
+	return l
 }
 func convOwnerMap(x xAny) map[string]*owner {
 	m := getMap(x)
@@ -1169,6 +1209,8 @@ func convService(x xAny) *service {
 	s := new(service)
 	m["ref"] = s
 	s.name = getString(m["name"])
+	s.description = getString(m["description"])
+	s.disableAt = getString(m["disable_at"])
 	s.disabled = getBool(m["disabled"])
 	s.foreach = getBool(m["foreach"])
 	s.hasUnenforceable = getBool(m["has_unenforceable"])
@@ -1228,6 +1270,9 @@ func convUnexpRules(x xAny) []*unexpRule {
 }
 
 func convAnyRule(x xAny) *groupedRule {
+	if x == nil {
+		return nil
+	}
 	s := convServiceRule(x)
 	r := new(groupedRule)
 	r.serviceRule = s
@@ -1442,8 +1487,6 @@ func ImportFromPerl() {
 	interfaces = convIntfMap(m["interfaces"])
 	knownLog = getMapStringBool(m["known_log"])
 	managedRouters = convRouters(m["managed_routers"])
-	NATDomains = convNATDomains(m["natdomains"])
-	NATTag2natType = getMapStringString(m["nat_tag2nat_type"])
 	network00 = convNetwork(m["network_00"])
 	network00v6 = convNetwork(m["network_00_v6"])
 	networks = convNetworkMap(m["networks"])

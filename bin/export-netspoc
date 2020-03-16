@@ -36,13 +36,15 @@ use Netspoc::Compiler::Pass1;
 use open qw(:std :utf8);
 
 sub usage {
-    die "Usage: $0 [-q] netspoc-data out-directory\n";
+    die "Usage: $0 [-q] [-ipv6] netspoc-data out-directory\n";
 }
 my $quiet;
 my $ipv6;
+my $export;
 
 # Argument processing.
-GetOptions ('quiet!' => \$quiet, 'ipv6' => \$ipv6) or usage();
+GetOptions('quiet!' => \$quiet, 'ipv6' => \$ipv6, 'export' => \$export)
+    or usage();
 my $netspoc_data = shift @ARGV or usage();
 my $out_dir = shift @ARGV or usage();
 @ARGV and usage();
@@ -1215,7 +1217,7 @@ sub copy_policy_file {
 
 $config =
     combine_config({time_stamps => 1, max_errors => 9999,
-                    verbose => !$quiet, ipv6 => $ipv6? 1 : 0 });
+                    verbose => !$quiet, ipv6 => $ipv6 , export => $export});
 init_global_vars();
 read_file_or_dir($netspoc_data);
 order_protocols();
@@ -1223,27 +1225,8 @@ link_topology();
 mark_disabled();
 set_zone();
 setpath();
-my ($natdomains, $nat_tag2nat_type, $nat_tag2multinat_def) =
-    distribute_nat_info();
-find_subnets_in_zone();
 
-# Copy of %services with those services split, that have different 'user'.
-my $normalized_services = normalize_services_for_export();
-propagate_owners();
-find_subnets_in_nat_domain($natdomains);
-adapt_owner_names();
-setup_zones();
-setup_part_owners();
-setup_outer_owners();
-setup_service_info($normalized_services);
-
-# Export data
-create_dirs('');
-export_owners();
-export_assets();
-my $owner2type2shash = export_services($normalized_services);
-export_users_and_service_lists($owner2type2shash);
-export_objects();
-export_no_nat_set($nat_tag2multinat_def, $nat_tag2nat_type);
-copy_policy_file();
-progress("Ready");
+call_go('export-netspoc-go', {
+    in_path => $netspoc_data,
+    out_dir => ($out_dir || ''),
+        });
