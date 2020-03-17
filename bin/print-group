@@ -288,7 +288,7 @@ sub try_expand {
 
 # Expand group definition.
 # We don't know if this expands to IPv4 or IPv6 addresses,
-# so we try both IPv4 and IPv6 in first cycle.
+# so we try both IPv4 and IPv6.
 my ($elements, $err) = try_expand($parsed, 1);
 $elements or ($elements, $err) = try_expand($parsed, 0);
 $elements or die $err;
