@@ -25,20 +25,7 @@ sub test_group {
     # Prepare command line.
     # Propagate options to perl process.
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/print-group $options $filename";
-
-    # Put group into file if it contains multiple lines.
-    if ($group =~ /\n/) {
-        my ($group_fh, $filename) = tempfile(UNLINK => 1);
-        print $group_fh $group;
-        close $group_fh;
-        $cmd .= " -f $filename";
-    }
-
-    # Add single group on command line.
-    else {
-        $cmd .= " '$group'";
-    }
+    my $cmd = "$^X $perl_opt -I lib bin/print-group $options $filename '$group'";
 
     my ($stdout, $stderr);
     run3($cmd, \undef, \$stdout, \$stderr);
