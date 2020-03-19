@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Migrated more parts from Perl to Go:
+   - Most parts of program 'print-group'
+
 6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:

@@ -1453,7 +1453,7 @@ func convConfig(x xAny) *conf.Config {
 	return c
 }
 
-func ImportFromPerl() {
+func ImportFromPerl() xMap {
 	var bytes []byte
 	var err error
 	if len(os.Args) > 1 {
@@ -1515,4 +1515,7 @@ func ImportFromPerl() {
 	version = getString(m["version"])
 	xxrpInfo = convXXRPInfo(m["xxrp_info"])
 	zones = convZones(m["zones"])
+
+	// Return map for local processing.
+	return m
 }
