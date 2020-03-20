@@ -1095,7 +1095,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
- policy_distribution_point = host:h10;
+  policy_distribution_point = host:h10;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }

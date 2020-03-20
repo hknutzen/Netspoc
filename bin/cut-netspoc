@@ -736,7 +736,7 @@ progress('Removing referenced policy_distribution_point');
 for my $router (values %routers, values %routers6) {
     $router->{is_used} or next;
     $router->{policy_distribution_point} or next;
-    $router->{src_code} =~ /^[^#]policy_distribution_point/m or next;
+    $router->{src_code} =~ /^[^#]*policy_distribution_point/m or next;
     remove_attribute_src_code('policy_distribution_point', $router);
 }
 
