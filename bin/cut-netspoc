@@ -415,11 +415,11 @@ for my $zone (@all_zones) {
     }
 }
 
-# Mark zones having attributes that influence their networks.
+# Mark zones having NAT attribute that influence their networks.
 for my $network (values %networks) {
     $network->{is_used} or next;
     my $zone = $network->{zone};
-    grep { $zone->{$_} } qw(has_unenforceable nat no_in_acl) or next;
+    $zone->{nat} or next;
     my $zero_ip = get_zero_ip($zone->{ipv6});
     my $aggregate0 = $zone->{ipmask2aggregate}->{"$zero_ip$zero_ip"};
     $aggregate0->{is_used} = 1;
