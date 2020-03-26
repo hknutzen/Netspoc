@@ -1643,7 +1643,7 @@ network:customers3 = {
   ldap_id = CN=ROL-Org1;
  }
  host:VPN_Org2 = {
-  range = 10.99.3.64 - 10.99.3.96;
+  range = 10.99.3.64 - 10.99.3.95;
   ldap_id = CN=ROL-Org2;
  }
 }
