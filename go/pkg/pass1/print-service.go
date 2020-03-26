@@ -110,7 +110,7 @@ func prtInfo(srcRange, prt *proto) string {
 				desc += " " + s
 			}
 		}
-    }
+	}
 	return desc
 }
 
@@ -139,7 +139,6 @@ func PrintService(m xMap) {
 		natSet = &m
 	}
 
-
 	NormalizeServices()
 	permitRules, denyRules := ConvertHostsInRules()
 	GroupPathRules(permitRules, denyRules)
@@ -147,16 +146,16 @@ func PrintService(m xMap) {
 
 	nameMap := make(map[string]bool)
 	for _, name := range srvNames {
-		nameMap[name] = true;
+		nameMap[name] = true
 	}
 
 	// Collect expanded rules.
 	type rule struct {
-		deny bool
-		src someObj
-		dst someObj
+		deny     bool
+		src      someObj
+		dst      someObj
 		srcRange *proto
-		prt *proto
+		prt      *proto
 	}
 	s2rules := make(map[string][]rule)
 	collect := func(rules ruleList) {
@@ -164,7 +163,9 @@ func PrintService(m xMap) {
 			sName := r.rule.service.name
 			sName = strings.TrimPrefix(sName, "service:")
 			if len(nameMap) != 0 {
-				if !nameMap[sName] { continue }
+				if !nameMap[sName] {
+					continue
+				}
 			}
 			for _, src := range r.src {
 				for _, dst := range r.dst {
@@ -172,11 +173,11 @@ func PrintService(m xMap) {
 						s2rules[sName] = append(
 							s2rules[sName],
 							rule{
-								deny: r.deny,
-								src: src,
-								dst: dst,
+								deny:     r.deny,
+								src:      src,
+								dst:      dst,
 								srcRange: r.srcRange,
-								prt: prt })
+								prt:      prt})
 					}
 				}
 			}

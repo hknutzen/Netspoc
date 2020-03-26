@@ -12891,6 +12891,7 @@ sub link_ipsec {
         else {
             err_msg("Unknown key_exchange type '$type' for $ipsec->{name}");
             $error = 1;
+            $ipsec->{key_exchange} = undef;
         }
     }
     return $error;
@@ -18709,8 +18710,11 @@ sub call_go {
         groups => \%groups,
         hosts => \%hosts,
         interfaces => \%interfaces,
+        ipsec => \%ipsec,
+        isakmp => \%isakmp,
         networks => \%networks,
         owners => \%owners,
+        pathrestrictions => \@pathrestrictions,
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         routers => \%routers,

@@ -26,6 +26,8 @@ var (
 	groups         map[string]*objGroup
 	hosts          map[string]*host
 	interfaces     map[string]*routerIntf
+	ipsecMap       map[string]*ipsec
+	isakmpMap      map[string]*isakmp
 	networks       map[string]*network
 	owners         map[string]*owner
 	protocols      map[string]*proto
@@ -42,6 +44,7 @@ var (
 	allNetworks        netList
 	ascendingAreas     []*area
 	managedRouters     []*router
+	pathrestrictions   []*pathRestriction
 	routingOnlyRouters []*router
 	zones              []*zone
 

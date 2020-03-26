@@ -527,6 +527,8 @@ func convPathRestrict(x xAny) *pathRestriction {
 	}
 	r := new(pathRestriction)
 	m["ref"] = r
+	r.name = getString(m["name"])
+	r.elements = convRouterIntfs(m["elements"])
 	return r
 }
 func convPathRestricts(x xAny) []*pathRestriction {
@@ -806,13 +808,16 @@ func convArea(x xAny) *area {
 	}
 	a := new(area)
 	m["ref"] = a
-	a.border = convRouterIntfs(m["border"])
 	a.name = getString(m["name"])
 	a.inArea = convArea(m["in_area"])
 	a.ipV6 = getBool(m["ipv6"])
+	a.anchor = convNetwork(m["anchor"])
 	a.attr = convAttr(m)
+	a.border = convRouterIntfs(m["border"])
 	a.disabled = getBool(m["disabled"])
+	a.inclusiveBorder = convRouterIntfs(m["inclusive_border"])
 	a.managedRouters = convRouters(m["managed_routers"])
+	a.nat = convNetNat(m["nat"])
 	a.owner = convOwner(m["owner"])
 	a.private = getString(m["private"])
 	a.routerAttributes = convRouterAttributes(m["router_attributes"])
@@ -871,8 +876,11 @@ func convZone(x xAny) *zone {
 	z.ipmask2aggregate = convIPMask2Agg(m["ipmask2aggregate"])
 	z.ipV6 = getBool(m["ipv6"])
 	z.isTunnel = getBool(m["is_tunnel"])
+	z.name = getString(m["name"])
+	z.link = convNetwork(m["link"])
 	z.loop = convLoop(m["loop"])
 	z.loopback = getBool(m["loopback"])
+	z.nat = convNetNat(m["nat"])
 	z.natDomain = convNATDomain(m["nat_domain"])
 	z.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
 	z.partition = getString(m["partition"])
@@ -1382,6 +1390,14 @@ func convIpsec(x xAny) *ipsec {
 	c.pfsGroup = getString(m["pfs_group"])
 	return c
 }
+func convIpsecMap(x xAny) map[string]*ipsec {
+	m := getMap(x)
+	n := make(map[string]*ipsec)
+	for name, xIpsec := range m {
+		n[name] = convIpsec(xIpsec)
+	}
+	return n
+}
 
 func convXXRP(x xAny) *xxrp {
 	m := getMap(x)
@@ -1416,6 +1432,14 @@ func convIsakmp(x xAny) *isakmp {
 	c.lifetime = getInt(m["lifetime"])
 	c.natTraversal = getString(m["nat_traversal"])
 	return c
+}
+func convIsakmpMap(x xAny) map[string]*isakmp {
+	m := getMap(x)
+	n := make(map[string]*isakmp)
+	for name, xIsakmp := range m {
+		n[name] = convIsakmp(xIsakmp)
+	}
+	return n
 }
 
 func getTriState(x xAny) conf.TriState {
@@ -1485,6 +1509,8 @@ func ImportFromPerl() xMap {
 	hosts = convHostMap(m["hosts"])
 	InPath = getString(m["in_path"])
 	interfaces = convIntfMap(m["interfaces"])
+	ipsecMap = convIpsecMap(m["ipsec"])
+	isakmpMap = convIsakmpMap(m["isakmp"])
 	knownLog = getMapStringBool(m["known_log"])
 	managedRouters = convRouters(m["managed_routers"])
 	network00 = convNetwork(m["network_00"])
@@ -1496,6 +1522,7 @@ func ImportFromPerl() xMap {
 	permitAnyRule = convAnyRule(m["permit_any_rule"])
 	program = getString(m["program"])
 	groups = convObjGroupMap(m["groups"])
+	pathrestrictions = convPathRestricts(m["pathrestrictions"])
 	protocolGroups = convprotoGroupMap(m["protocolgroups"])
 	protocols = convProtoMap(m["protocols"])
 	prtMap = convProtoLookup(m["prt_hash"])

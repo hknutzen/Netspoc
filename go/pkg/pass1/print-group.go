@@ -214,7 +214,6 @@ func tryExpand(parsed []*parsedObjRef, ipv6 bool) (groupObjList, string) {
 	}
 }
 
-
 func PrintGroup(m xMap) {
 
 	DistributeNatInfo()
@@ -305,8 +304,8 @@ func PrintGroup(m xMap) {
 
 	// Collect IP address, name, owner.
 	type objInfo struct {
-		addr string
-		name string
+		addr  string
+		name  string
 		owner string
 	}
 	infoList := make([]objInfo, len(elements))
