@@ -6,6 +6,9 @@ use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile /;
 
+# Add "bin/" because cut-netspoc calls cut-netspoc-go in same directory.
+$ENV{PATH} = "bin/:$ENV{PATH}";
+
 sub test_run {
     my ($title, $input, $expected, @services) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
