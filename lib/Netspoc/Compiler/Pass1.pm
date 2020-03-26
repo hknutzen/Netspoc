@@ -18714,7 +18714,7 @@ sub call_go {
         isakmp => \%isakmp,
         networks => \%networks,
         owners => \%owners,
-        pathrestrictions => \@pathrestrictions,
+        pathrestrictions => \%pathrestrictions,
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         routers => \%routers,

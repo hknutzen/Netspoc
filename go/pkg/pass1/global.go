@@ -20,21 +20,22 @@ var (
 	knownLog map[string]bool
 	xxrpInfo map[string]*xxrp
 
-	aggregates     map[string]*network
-	areas          map[string]*area
-	cryptoMap      map[string]*crypto
-	groups         map[string]*objGroup
-	hosts          map[string]*host
-	interfaces     map[string]*routerIntf
-	ipsecMap       map[string]*ipsec
-	isakmpMap      map[string]*isakmp
-	networks       map[string]*network
-	owners         map[string]*owner
-	protocols      map[string]*proto
-	protocolGroups map[string]*protoGroup
-	routers        map[string]*router
-	routers6       map[string]*router
-	services       map[string]*service
+	aggregates       map[string]*network
+	areas            map[string]*area
+	cryptoMap        map[string]*crypto
+	groups           map[string]*objGroup
+	hosts            map[string]*host
+	interfaces       map[string]*routerIntf
+	ipsecMap         map[string]*ipsec
+	isakmpMap        map[string]*isakmp
+	networks         map[string]*network
+	owners           map[string]*owner
+	pathrestrictions map[string]*pathRestriction
+	protocols        map[string]*proto
+	protocolGroups   map[string]*protoGroup
+	routers          map[string]*router
+	routers6         map[string]*router
+	services         map[string]*service
 
 	prtMap  protoLookup
 	pRules  pathRules
@@ -44,7 +45,6 @@ var (
 	allNetworks        netList
 	ascendingAreas     []*area
 	managedRouters     []*router
-	pathrestrictions   []*pathRestriction
 	routingOnlyRouters []*router
 	zones              []*zone
 

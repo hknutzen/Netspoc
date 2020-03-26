@@ -74,7 +74,7 @@ func getSource(m xMap) {
 		"aggregates", "areas",
 		"crypto", "ipsec", "isakmp",
 		"groups", "networks",
-		"protocols", "protocolgroups",
+		"pathrestrictions", "protocols", "protocolgroups",
 		"routers", "routers6", "services",
 	}
 	for _, g := range global {
@@ -1005,8 +1005,8 @@ func CutNetspoc(m xMap) {
 	sort.Slice(rDefs, func(i, j int) bool {
 		return srcIndex[rDefs[i]] < srcIndex[rDefs[j]]
 	})
-	used := 0
 	for _, r := range rDefs {
+		used := 0
 		for i, intf := range r.elements {
 			if intf.isUsed {
 				used++

@@ -542,6 +542,14 @@ func convPathRestricts(x xAny) []*pathRestriction {
 	}
 	return list
 }
+func convPathRestrictMap(x xAny) map[string]*pathRestriction {
+	m := getMap(x)
+	n := make(map[string]*pathRestriction)
+	for name, xRestrict := range m {
+		n[name] = convPathRestrict(xRestrict)
+	}
+	return n
+}
 
 func convRouterIntf(x xAny) *routerIntf {
 	if x == nil {
@@ -1522,7 +1530,7 @@ func ImportFromPerl() xMap {
 	permitAnyRule = convAnyRule(m["permit_any_rule"])
 	program = getString(m["program"])
 	groups = convObjGroupMap(m["groups"])
-	pathrestrictions = convPathRestricts(m["pathrestrictions"])
+	pathrestrictions = convPathRestrictMap(m["pathrestrictions"])
 	protocolGroups = convprotoGroupMap(m["protocolgroups"])
 	protocols = convProtoMap(m["protocols"])
 	prtMap = convProtoLookup(m["prt_hash"])
