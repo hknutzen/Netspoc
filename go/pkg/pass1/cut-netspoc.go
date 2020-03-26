@@ -122,7 +122,7 @@ func changeAttributeSrcCodeAt(attr string, ob hasSrc, subName, replace string) {
 	// either at new line or directly behind subName.
 	re := regexp.MustCompile(`(?m)(?:^|\A)[^#]*?\b\Q` + attr + `\E[\s;=#]`)
 	if !match(re) {
-		panic("Can't find " + attr)
+		panic(fmt.Sprintf("Can't find %s in %s", attr, ob))
 	}
 
 	// Unread last character.
@@ -144,7 +144,7 @@ func changeAttributeSrcCodeAt(attr string, ob hasSrc, subName, replace string) {
 		skipSpaceAndComment()
 		re := regexp.MustCompile(`\A[^,;\s#]+`)
 		if !match(re) {
-			panic("Parse error: Token expected")
+			panic(fmt.Sprintf("Parse error: Token expected in %s", ob))
 		}
 	}
 	var readAttrBody func()
@@ -729,9 +729,8 @@ func CutNetspoc(m xMap) {
 			}
 
 			// Remove unused nat tags referenced in attribute bind_nat.
-			// interface:routerName.netName --> interface:netName
-			intfName :=
-				"interface:" + strings.TrimPrefix(intf.network.name, "network:")
+			name := intf.name
+			intfName := "interface:" + name[strings.Index(name, ".")+1:]
 			if tags := intf.bindNat; tags != nil {
 				var used stringList
 				for _, tag := range tags {

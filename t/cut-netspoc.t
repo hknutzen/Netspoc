@@ -960,6 +960,53 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Remove bind_nat only once at interface with virtual';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 1.9.9.2/32; dynamic; } }
+
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  virtual = { ip = 10.1.1.2; }
+  hardware = n1;
+  bind_nat = n2;
+ }
+ interface:lo = { ip = 10.9.9.2; loopback; hardware = lo; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.lo; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  virtual = { ip = 10.1.1.2; }
+  hardware = n1;
+ }
+ interface:lo = { ip = 10.9.9.2; loopback; hardware = lo; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.lo; prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Used aggregate with owner';
 ############################################################
 
