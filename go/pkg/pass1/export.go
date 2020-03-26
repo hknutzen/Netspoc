@@ -198,32 +198,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 	}
 }
 
-//#####################################################################
-// Setup zones
-//#####################################################################
-
-// We can't use global variable aggregates because it only holds named
-// aggregates. But we need unnamed aggregates like any:[network:XX]
-// as well.
-var allZones []*zone
-
-func setupZones() {
-	diag.Progress("Setup zones")
-	seen := make(map[*zone]bool)
-	for _, n := range networks {
-		if n.disabled {
-			continue
-		}
-		z := n.zone
-		if seen[z] {
-			continue
-		}
-		seen[z] = true
-		// debug("%s in %s", n.name, z.name)
-		allZones = append(allZones, z)
-	}
-}
-
 // Zone with network 0/0 doesn't have an aggregate 0/0.
 func getZoneName(z *zone) string {
 	ip := getZeroIp(z.ipV6)
@@ -855,7 +829,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 	}
 
 	// Collect outer owners for all objects inside zone.
-	for _, z := range allZones {
+	for _, z := range zones {
 		var zoneOwners []*owner
 
 		// watchingOwners holds list of owners, that have been
@@ -1124,7 +1098,7 @@ func exportAssets(pInfo, oInfo xOwner) {
 		}
 	}
 
-	for _, z := range allZones {
+	for _, z := range zones {
 
 		// All aggregates can be used in rules.
 		for _, agg := range z.ipmask2aggregate {
@@ -1494,7 +1468,6 @@ func Export() {
 	expSvcList := normalizeServicesForExport()
 	propagateOwners()
 	FindSubnetsInNatDomain(natDomains)
-	setupZones()
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
 	setupServiceInfo(expSvcList, pInfo, oInfo)
