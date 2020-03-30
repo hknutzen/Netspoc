@@ -1010,6 +1010,84 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregates and network0/0 in zone cluster';
+############################################################
+
+# Use unique value of attribute zone for aggregates and network0/0.
+
+$in = <<'END';
+owner:x = { admins = guest; show_all; }
+area:all = { owner = x; anchor = network:DMZ; }
+
+network:Big = {
+ ip = 10.1.0.0/16;
+ nat:inet = { ip = 1.1.0.0/16; }
+}
+
+router:asa = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:Big = { ip = 10.1.0.1; hardware = outside; }
+ interface:DMZ = { ip = 10.9.9.1; hardware = dmz; }
+}
+
+network:DMZ = { ip = 10.9.9.0/24; }
+
+router:inet = {
+ interface:DMZ;
+ interface:Internet = { bind_nat = inet; }
+}
+
+network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+
+END
+
+$out = <<'END';
+-- objects
+{
+ "interface:asa.Big": {
+  "ip": "10.1.0.1",
+  "nat": {
+   "inet": "1.1.0.1"
+  }
+ },
+ "interface:asa.DMZ": {
+  "ip": "10.9.9.1"
+ },
+ "interface:inet.DMZ": {
+  "ip": "short",
+  "owner": "x"
+ },
+ "interface:inet.Internet": {
+  "ip": "short",
+  "owner": "x"
+ },
+ "network:Big": {
+  "ip": "10.1.0.0/255.255.0.0",
+  "nat": {
+   "inet": "1.1.0.0/255.255.0.0"
+  },
+  "owner": "x",
+  "zone": "any:[network:Big]"
+ },
+ "network:DMZ": {
+  "ip": "10.9.9.0/255.255.255.0",
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
+ },
+ "network:Internet": {
+  "ip": "0.0.0.0/0.0.0.0",
+  "is_supernet": 1,
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
+ }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Nested only_watch';
 ############################################################
 

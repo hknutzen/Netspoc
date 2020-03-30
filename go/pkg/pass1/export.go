@@ -1315,13 +1315,10 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 		return
 	}
 	z := n.zone
-	if n.isAggregate {
-		if c := z.zoneCluster; c != nil {
+	if c := z.zoneCluster; c != nil {
 
-			// Get deterministic zone for multiple aggregates with
-			// identical name from zone cluster.
-			z = c[0]
-		}
+		// Get deterministic zone for aggregates and networks in zone cluster.
+		z = c[0]
 	}
 	desc["zone"] = getZoneName(z)
 
