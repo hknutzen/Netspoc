@@ -304,5 +304,48 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Prevent duplicate hosts from zone cluster in area';
+############################################################
+
+$in = <<'END';
+area:n1-2 = { border = interface:r2.n2; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = host:[area:n1-2];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n2_in
+object-group network g0
+ network-object host 10.1.1.10
+ network-object host 10.1.2.10
+access-list n2_in extended permit tcp object-group g0 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;

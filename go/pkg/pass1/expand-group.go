@@ -463,7 +463,18 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 				var zones []*zone
 				switch x := obj.(type) {
 				case *area:
-					zones = append(zones, x.zones...)
+					seen := make(map[*zone]bool)
+					for _, z := range x.zones {
+						if c := z.zoneCluster; c != nil {
+							z = c[0]
+							if seen[z] {
+								continue
+							} else {
+								seen[z] = true
+							}
+						}
+						zones = append(zones, z)
+					}
 				case *network:
 					if x.isAggregate {
 						zones = append(zones, x.zone)
