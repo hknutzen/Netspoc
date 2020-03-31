@@ -12,7 +12,7 @@ func cond(t bool, s1, s2 string) string {
 	return s2
 }
 
-func expandTypedName(typ, name, ctx string, ipv6 bool) groupObj {
+func expandTypedName(typ, name string) ipVxGroupObj {
 	var obj ipVxGroupObj
 	switch typ {
 	case "host":
@@ -38,12 +38,6 @@ func expandTypedName(typ, name, ctx string, ipv6 bool) groupObj {
 	}
 	if obj == nil {
 		return nil
-	}
-	if ipv6 != obj.isIPv6() {
-		expected := cond(ipv6, "IPv6", "IPv4")
-		found := cond(obj.isIPv6(), "IPv6", "IPv4")
-		errMsg("Must not reference %s %s in %s context %s",
-			found, obj, expected, ctx)
 	}
 	return obj
 }
@@ -634,9 +628,16 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 
 			// An object named simply 'type:name'.
 			name := name.(string)
-			obj := expandTypedName(typ, name, ctx, ipv6)
+			obj := expandTypedName(typ, name)
 			if obj == nil {
 				errMsg("Can't resolve %s:%s in %s", typ, name, ctx)
+				continue
+			}
+			if ipv6 != obj.isIPv6() {
+				expected := cond(ipv6, "6", "4")
+				found := cond(obj.isIPv6(), "6", "4")
+				errMsg("Must not reference IPv%s %s in IPv%s context %s",
+					found, obj, expected, ctx)
 				continue
 			}
 			if obj.isDisabled() {

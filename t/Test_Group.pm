@@ -6,6 +6,7 @@ use Test::More;
 use Test::Differences;
 use IPC::Run3;
 use File::Temp qw/ tempfile /;
+use Test_Netspoc qw(prepare_in_dir);
 
 our @ISA    = qw(Exporter);
 our @EXPORT = qw(test_group);
@@ -16,16 +17,12 @@ sub test_group {
     my ($title, $input, $group, $expected, $options) = @_;
     $options ||= '';
     $options = "$default_options $options";
-
-    # Prepare input file.
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
+    my $in_dir = prepare_in_dir($input);
 
     # Prepare command line.
     # Propagate options to perl process.
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/print-group $options $filename '$group'";
+    my $cmd = "$^X $perl_opt -I lib bin/print-group $options $in_dir '$group'";
 
     my ($stdout, $stderr);
     run3($cmd, \undef, \$stdout, \$stderr);

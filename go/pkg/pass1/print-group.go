@@ -180,6 +180,8 @@ func printAddress(obj groupObj, ns natSet) string {
 }
 
 func captureStderr(f func()) string {
+
+	// Buffers up to 64k.
 	r, w, err := os.Pipe()
 	if err != nil {
 		panic(err)
@@ -200,18 +202,16 @@ func captureStderr(f func()) string {
 }
 
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
-func tryExpand(parsed []*parsedObjRef, ipv6 bool) (groupObjList, string) {
+func tryExpand(parsed []*parsedObjRef, ipv6 bool) groupObjList {
 	var expanded groupObjList
-	conf.Conf.MaxErrors = 9999
-	ErrorCounter = 0
 	stderr := captureStderr(func() {
 		expanded = expandGroup(parsed, "print-group", ipv6, true)
 	})
-	if ErrorCounter > 0 {
-		return nil, stderr
-	} else {
-		return expanded, ""
+	if ErrorCounter > 0 && strings.Contains(stderr, "Must not reference IPv") {
+		return nil
 	}
+	fmt.Fprint(os.Stderr, stderr)
+	return expanded
 }
 
 func PrintGroup(m xMap) {
@@ -282,13 +282,13 @@ func PrintGroup(m xMap) {
 
 	// Expand group definition.
 	// We don't know if this expands to IPv4 or IPv6 addresses,
-	// so we try both  IPv4 and IPv6.
-	elements, msg := tryExpand(parsed, true)
+	// so we try both IPv4 and IPv6.
+	ipVx := conf.Conf.IPV6
+	conf.Conf.MaxErrors = 9999
+	elements := tryExpand(parsed, ipVx)
 	if elements == nil {
-		elements, msg = tryExpand(parsed, false)
-	}
-	if elements == nil {
-		abort.Msg(msg)
+		ErrorCounter = 0
+		elements = expandGroup(parsed, "print-group", !ipVx, true)
 	}
 
 	if showUnused {
