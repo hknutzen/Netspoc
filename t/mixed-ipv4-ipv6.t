@@ -140,6 +140,7 @@ END
 $out = <<'END';
 Error: Must not reference IPv4 network:n1 in IPv6 context user of service:s2
 Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service:s2
+Warning: Must not define service:s2 with empty users and empty rules
 END
 
 test_err($title, $in, $out);
