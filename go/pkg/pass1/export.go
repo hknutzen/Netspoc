@@ -910,7 +910,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 }
 
 //#####################################################################
-// Export no-NAT-set
+// Export NAT-set
 // - Relate each network to its owner and part_owners.
 // - Build a nat_set for each owner by combining nat_sets of
 //   NAT domains of all own networks.
@@ -924,14 +924,10 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 //   map to 'hidden' then ignore hidden in combined nat-set.
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
-//
-// Before export, NAT-set is inverted to no-NAT-set for compatibility
-// with previous version.
 //#####################################################################
-func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[string]string, pInfo, oInfo xOwner) {
+func exportNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[string]string, pInfo, oInfo xOwner) {
 	diag.Progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
-	allNatTags := make(map[string]bool)
 	for _, n := range networks {
 		if n.disabled {
 			continue
@@ -956,19 +952,9 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 		add(stringList{ownerForObject(n)})
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
-		if set := n.nat; set != nil {
-			for tag, _ := range set {
-				allNatTags[tag] = true
-			}
-		}
-	}
-	allNatList := make(stringList, 0, len(allNatTags))
-	for tag, _ := range allNatTags {
-		allNatList.push(tag)
 	}
 	for ownerName, _ := range owners {
 		natList := make(stringList, 0)
-		noNatList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
 			// Build union of all natSets of found NAT domains.
@@ -980,20 +966,11 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 			for tag, _ := range *combined {
 				natList.push(tag)
 			}
-			for _, tag := range allNatList {
-				if _, ok := (*combined)[tag]; !ok {
-					noNatList.push(tag)
-				}
-			}
-		} else {
-			noNatList = allNatList
 		}
 		sort.Strings(natList)
-		sort.Strings(noNatList)
 
 		createDirs("owner/" + ownerName)
 		exportJson("owner/"+ownerName+"/nat_set", natList)
-		exportJson("owner/"+ownerName+"/no_nat_set", noNatList)
 	}
 }
 
@@ -1476,7 +1453,7 @@ func Export() {
 	exportServices(expSvcList)
 	exportUsersAndServiceLists(expSvcList, pInfo, oInfo)
 	exportObjects()
-	exportNoNatSet(multiNAT, natTag2natType, pInfo, oInfo)
+	exportNatSet(multiNAT, natTag2natType, pInfo, oInfo)
 	copyPolicyFile(InPath, OutDir)
 	diag.Progress("Ready")
 }

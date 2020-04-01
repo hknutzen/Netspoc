@@ -3731,7 +3731,7 @@ $title = 'Preserve real NAT together with hidden NAT';
 ############################################################
 
 # Must preserve nat:n2 when combined with hidden nat:n3
-# in no_nat_set of owner:n23.
+# in nat_set of owner:n23.
 # But nat:n2a isn't preserved when combined with non hidden nat:n3a.
 
 $in = <<'END';
@@ -3770,54 +3770,20 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/all/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n3",
-   "n3a",
-   "n4"
-]
 --owner/all/nat_set
 []
---owner/n23/no_nat_set
-[
-   "n2a",
-   "n3",
-   "n3a",
-   "n4"
-]
 --owner/n23/nat_set
 [
    "n2"
 ]
---owner/n4/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n3",
-   "n3a"
-]
 --owner/n4/nat_set
 [
-   "n4"
-]
---owner/h2/no_nat_set
-[
-   "n3",
-   "n3a",
    "n4"
 ]
 --owner/h2/nat_set
 [
    "n2",
    "n2a"
-]
---owner/h3/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n4"
 ]
 --owner/h3/nat_set
 [
@@ -3850,11 +3816,6 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/all/no_nat_set
-[
-   "h1",
-   "h2"
-]
 --owner/all/nat_set
 []
 END
@@ -3894,12 +3855,6 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/o/no_nat_set
-[
-   "h1",
-   "h2",
-   "n1"
-]
 --owner/o/nat_set
 []
 END
@@ -3935,8 +3890,6 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/o/no_nat_set
-[]
 --owner/o/nat_set
 [
    "n1"

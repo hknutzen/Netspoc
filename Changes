@@ -4,6 +4,9 @@
    - Most parts of program 'print-group'
    - Most parts of program 'print-service'
    - Most parts of program 'cut-netspoc'
+ - 'print-group' no longer supports option '-f'.
+ - Prevent duplicate hosts from zone cluster in area
+   in automatic group 'host:[area:some-area]'.
 
 6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
 
