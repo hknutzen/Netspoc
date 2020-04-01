@@ -7,6 +7,10 @@
  - 'print-group' no longer supports option '-f'.
  - Prevent duplicate hosts from zone cluster in area
    in automatic group 'host:[area:some-area]'.
+ - 'export-netspoc' no longer generates files 'no_nat_set'.
+   Netspoc-Web only uses 'nat_set' now.
+
+
 
 6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
 

@@ -2007,7 +2007,6 @@ $out = <<'END';
    ],
    "all@example.com" : [
       "all",
-      "all_ex",
       "o1",
       "o2",
       "o2s1",
@@ -2016,28 +2015,15 @@ $out = <<'END';
       "o4"
    ],
    "o1@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
+      "o1"
    ],
    "o2@example.com" : [
-      "all_ex",
-      "o1",
       "o2",
       "o2s1",
-      "o2s2",
-      "o4"
+      "o2s2"
    ],
    "o2s1@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
+      "o2s1"
    ],
    "o2s2@other" : [
       "o2s2"
@@ -2046,11 +2032,6 @@ $out = <<'END';
       "o3"
    ],
    "o4@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
       "o4"
    ]
 }
