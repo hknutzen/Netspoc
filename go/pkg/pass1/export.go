@@ -251,10 +251,8 @@ type xOwner map[srvObj][]*owner
 
 func xOwnersForObject(ob srvObj, x xOwner) stringList {
 	var result stringList
-	if l := x[ob]; l != nil {
-		for _, ow := range l {
-			result.push(ow.name)
-		}
+	for _, ow := range x[ob] {
+		result.push(ow.name)
 	}
 	return result
 }
