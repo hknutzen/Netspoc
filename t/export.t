@@ -3776,7 +3776,7 @@ END
 test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
-$title = 'Activate hidden NAT tags in combined no-nat-set';
+$title = 'Remove hidden NAT tags in combined nat-set';
 ############################################################
 
 $in = <<'END';
@@ -3804,7 +3804,7 @@ END
 test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
-$title = 'Must not activate NAT tag used in two multi NAT sets';
+$title = 'Remove NAT tag used in two multi NAT sets';
 ############################################################
 
 $in = <<'END';
@@ -3838,6 +3838,54 @@ END
 $out = <<'END';
 --owner/o/nat_set
 []
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
+$title = 'Remove NAT tag used in two multi NAT sets (2)';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@example.com; }
+owner:o2 = { admins = a2@example.com; }
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h1 = { hidden; }
+ owner = o1;
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ nat:t1 = { ip = 10.9.2.0/24; }
+ nat:h2 = { hidden; }
+ owner = o2;
+}
+
+network:n3 = {
+ ip = 10.1.3.0/24;
+ owner = o1;
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = t1; }
+}
+END
+
+$out = <<'END';
+--owner/o1/nat_set
+[]
+--owner/o2/nat_set
+[
+   "h1"
+]
 END
 
 test_run($title, $in, $out);	# No IPv6 test

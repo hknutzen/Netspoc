@@ -1096,15 +1096,18 @@ func combineNatSets(sets []natSet, multi map[string][]natMap, natType map[string
 	seen := make(map[string]bool)
 	for _, set := range sets {
 		for tag, _ := range *set {
-			if seen[tag] {
-				continue
-			}
 			if list := multi[tag]; list != nil {
 				for _, multiNatMap := range list {
+					allSeen := true
 					for tag, _ := range multiNatMap {
-						seen[tag] = true
+						if !seen[tag] {
+							allSeen = false
+							seen[tag] = true
+						}
 					}
-					activeMulti = append(activeMulti, multiNatMap)
+					if !allSeen {
+						activeMulti = append(activeMulti, multiNatMap)
+					}
 				}
 			} else {
 				combined[tag] = true
@@ -1128,7 +1131,7 @@ func combineNatSets(sets []natSet, multi map[string][]natMap, natType map[string
 			delete(combined, tag)
 		}
 		for i, multiNatMap := range activeMulti {
-			var active string
+			active := ""
 			for tag, _ := range multiNatMap {
 				if (*set)[tag] {
 					active = tag
@@ -1144,7 +1147,7 @@ func combineNatSets(sets []natSet, multi map[string][]natMap, natType map[string
 	ignore := make(map[string]bool)
 	toAdd := make(map[string]bool)
 	for _, m := range activeMultiSets {
-		var add string
+		add := ""
 
 		// Analyze active and inactive tags.
 		if !m[""] {
