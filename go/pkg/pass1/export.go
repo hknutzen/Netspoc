@@ -1376,6 +1376,25 @@ func exportOwners(eInfo map[*owner][]*owner) {
 		export(eOwners, "name", "extended_by")
 	}
 
+	// Remove owners visible for wildcard addresses '[all]@domain' from
+	// all emails 'user@domain' matching that wildcard.
+	domain2owners := make(map[string]map[string]bool)
+	for email, oMap := range email2owners {
+		l := strings.SplitN(email, "@", 2)
+		if len(l) == 2 && l[0] == "[all]" {
+			domain := l[1]
+			domain2owners[domain] = oMap
+		}
+	}
+	for email, oMap := range email2owners {
+		l := strings.SplitN(email, "@", 2)
+		if len(l) == 2 && l[0] != "[all]" {
+			for owner, _ := range domain2owners[l[1]] {
+				delete(oMap, owner)
+			}
+		}
+	}
+
 	// Create owner array from owner map.
 	email2oList := make(map[string]stringList)
 	for e, m := range email2owners {

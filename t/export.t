@@ -2007,33 +2007,18 @@ $out = <<'END';
    ],
    "all@example.com" : [
       "all",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o3",
-      "o4"
+      "o3"
    ],
-   "o1@example.com" : [
-      "o1"
-   ],
-   "o2@example.com" : [
-      "o2",
-      "o2s1",
-      "o2s2"
-   ],
-   "o2s1@example.com" : [
-      "o2s1"
-   ],
+   "o1@example.com" : [],
+   "o2@example.com" : [],
+   "o2s1@example.com" : [],
    "o2s2@other" : [
       "o2s2"
    ],
    "o3@sub.example.com" : [
       "o3"
    ],
-   "o4@example.com" : [
-      "o4"
-   ]
+   "o4@example.com" : []
 }
 END
 
