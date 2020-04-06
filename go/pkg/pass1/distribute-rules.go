@@ -241,10 +241,14 @@ func addRouterAcls() {
 				// Current router is used as default router even for
 				// some internal networks.
 				if len(intf.reroutePermit) != 0 {
-					netList := intf.reroutePermit
+					nList := intf.reroutePermit
+					objList := make([]someObj, len(nList))
+					for i, n := range nList {
+						objList[i] = n
+					}
 					rule := newRule(
 						[]someObj{getNetwork00(ipv6)},
-						netList,
+						objList,
 						[]*proto{prtIP},
 					)
 

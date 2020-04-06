@@ -4,7 +4,6 @@ author:
   - 'Heinz Knutzen <heinz.knutzen@dataport.de>'
 build_requires:
   Carp: '0'
-  File::Path: '0'
   File::Spec::Functions: '0'
   File::Temp: '0'
   IPC::Run3: '0'
@@ -23,9 +22,11 @@ meta-spec:
 name: Netspoc
 requires:
   Capture::Tiny: '0'
+  Digest::SHA: '0'
   Encode: '0'
   Exporter: '0'
   File::Basename: '0'
+  File::Path: '0'
   Getopt::Long: '0'
   IO::Pipe: '0'
   JSON: '0'
@@ -39,6 +40,6 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
-version: '6.011'
+version: '6.012'
 x_generated_by_perl: v5.30.0
 x_serialization_backend: 'YAML::Tiny version 1.73'

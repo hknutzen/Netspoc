@@ -6,6 +6,7 @@ use Test::More;
 use Test::Differences;
 use lib 't';
 use Test_Netspoc;
+use Test_Group;
 
 my ($title, $in, $out);
 
@@ -139,6 +140,7 @@ END
 $out = <<'END';
 Error: Must not reference IPv4 network:n1 in IPv6 context user of service:s2
 Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service:s2
+Warning: Must not define service:s2 with empty users and empty rules
 END
 
 test_err($title, $in, $out);
@@ -535,6 +537,79 @@ access-group n1_in in interface n1
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'print-group: Automatically select IPv4 in IPv4';
+############################################################
+
+$in = <<'END';
+--file
+area:all = { anchor = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = { interface:n1; }
+--ipv6
+area:all6 = { anchor = network:n2; }
+network:n2 = { ip = 1000::abcd:0001:0/112;}
+router:r1 = { interface:n2; }
+END
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+END
+
+test_group($title, $in, 'network:[area:all]', $out);
+
+############################################################
+$title = 'print-group: Automatically select IPv6 in IPv4';
+############################################################
+
+$out = <<'END';
+1000::abcd:1:0/112	network:n2
+END
+
+test_group($title, $in, 'network:[area:all6]', $out);
+
+############################################################
+$title = 'print-group: interface:..[all] selects IPv4 in IPv4';
+############################################################
+
+$out = <<'END';
+short	interface:r1.n1
+END
+
+test_group($title, $in, 'interface:r1.[all]', $out);
+
+############################################################
+$title = 'print-group: Automatically select IPv4 in IPv6';
+############################################################
+$in =~ s/--file/--ipv4/g;
+$in =~ s/--ipv6/--file/g;
+
+$out = <<'END';
+10.1.1.0/24	network:n1
+END
+
+test_group($title, $in, 'network:[area:all]', $out, '--ipv6');
+
+############################################################
+$title = 'print-group: Automatically select IPv6 in IPv6';
+############################################################
+
+$out = <<'END';
+1000::abcd:1:0/112	network:n2
+END
+
+test_group($title, $in, 'network:[area:all6]', $out, '--ipv6');
+
+############################################################
+$title = 'print-group: interface:..[all] selects IPv6 in IPv6';
+############################################################
+
+$out = <<'END';
+short	interface:r1.n2
+END
+
+test_group($title, $in, 'interface:r1.[all]', $out, '--ipv6');
 
 ############################################################
 done_testing;

@@ -198,32 +198,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 	}
 }
 
-//#####################################################################
-// Setup zones
-//#####################################################################
-
-// We can't use global variable aggregates because it only holds named
-// aggregates. But we need unnamed aggregates like any:[network:XX]
-// as well.
-var allZones []*zone
-
-func setupZones() {
-	diag.Progress("Setup zones")
-	seen := make(map[*zone]bool)
-	for _, n := range networks {
-		if n.disabled {
-			continue
-		}
-		z := n.zone
-		if seen[z] {
-			continue
-		}
-		seen[z] = true
-		// debug("%s in %s", n.name, z.name)
-		allZones = append(allZones, z)
-	}
-}
-
 // Zone with network 0/0 doesn't have an aggregate 0/0.
 func getZoneName(z *zone) string {
 	ip := getZeroIp(z.ipV6)
@@ -277,10 +251,8 @@ type xOwner map[srvObj][]*owner
 
 func xOwnersForObject(ob srvObj, x xOwner) stringList {
 	var result stringList
-	if l := x[ob]; l != nil {
-		for _, ow := range l {
-			result.push(ow.name)
-		}
+	for _, ow := range x[ob] {
+		result.push(ow.name)
 	}
 	return result
 }
@@ -855,7 +827,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 	}
 
 	// Collect outer owners for all objects inside zone.
-	for _, z := range allZones {
+	for _, z := range zones {
 		var zoneOwners []*owner
 
 		// watchingOwners holds list of owners, that have been
@@ -936,7 +908,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 }
 
 //#####################################################################
-// Export no-NAT-set
+// Export NAT-set
 // - Relate each network to its owner and part_owners.
 // - Build a nat_set for each owner by combining nat_sets of
 //   NAT domains of all own networks.
@@ -950,14 +922,10 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 //   map to 'hidden' then ignore hidden in combined nat-set.
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
-//
-// Before export, NAT-set is inverted to no-NAT-set for compatibility
-// with previous version.
 //#####################################################################
-func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[string]string, pInfo, oInfo xOwner) {
+func exportNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[string]string, pInfo, oInfo xOwner) {
 	diag.Progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
-	allNatTags := make(map[string]bool)
 	for _, n := range networks {
 		if n.disabled {
 			continue
@@ -982,19 +950,9 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 		add(stringList{ownerForObject(n)})
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
-		if set := n.nat; set != nil {
-			for tag, _ := range set {
-				allNatTags[tag] = true
-			}
-		}
-	}
-	allNatList := make(stringList, 0, len(allNatTags))
-	for tag, _ := range allNatTags {
-		allNatList.push(tag)
 	}
 	for ownerName, _ := range owners {
 		natList := make(stringList, 0)
-		noNatList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
 			// Build union of all natSets of found NAT domains.
@@ -1006,20 +964,11 @@ func exportNoNatSet(natTag2multinatDef map[string][]natMap, natTag2natType map[s
 			for tag, _ := range *combined {
 				natList.push(tag)
 			}
-			for _, tag := range allNatList {
-				if _, ok := (*combined)[tag]; !ok {
-					noNatList.push(tag)
-				}
-			}
-		} else {
-			noNatList = allNatList
 		}
 		sort.Strings(natList)
-		sort.Strings(noNatList)
 
 		createDirs("owner/" + ownerName)
 		exportJson("owner/"+ownerName+"/nat_set", natList)
-		exportJson("owner/"+ownerName+"/no_nat_set", noNatList)
 	}
 }
 
@@ -1124,7 +1073,7 @@ func exportAssets(pInfo, oInfo xOwner) {
 		}
 	}
 
-	for _, z := range allZones {
+	for _, z := range zones {
 
 		// All aggregates can be used in rules.
 		for _, agg := range z.ipmask2aggregate {
@@ -1341,13 +1290,10 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 		return
 	}
 	z := n.zone
-	if n.isAggregate {
-		if c := z.zoneCluster; c != nil {
+	if c := z.zoneCluster; c != nil {
 
-			// Get deterministic zone for multiple aggregates with
-			// identical name from zone cluster.
-			z = c[0]
-		}
+		// Get deterministic zone for aggregates and networks in zone cluster.
+		z = c[0]
 	}
 	desc["zone"] = getZoneName(z)
 
@@ -1430,8 +1376,8 @@ func exportOwners(eInfo map[*owner][]*owner) {
 		export(eOwners, "name", "extended_by")
 	}
 
-	// Add owners of wildcard addresses '[all]@domain' to all emails
-	// 'user@domain' matching that wildcard.
+	// Remove owners visible for wildcard addresses '[all]@domain' from
+	// all emails 'user@domain' matching that wildcard.
 	domain2owners := make(map[string]map[string]bool)
 	for email, oMap := range email2owners {
 		l := strings.SplitN(email, "@", 2)
@@ -1444,7 +1390,7 @@ func exportOwners(eInfo map[*owner][]*owner) {
 		l := strings.SplitN(email, "@", 2)
 		if len(l) == 2 && l[0] != "[all]" {
 			for owner, _ := range domain2owners[l[1]] {
-				oMap[owner] = true
+				delete(oMap, owner)
 			}
 		}
 	}
@@ -1494,7 +1440,6 @@ func Export() {
 	expSvcList := normalizeServicesForExport()
 	propagateOwners()
 	FindSubnetsInNatDomain(natDomains)
-	setupZones()
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
 	setupServiceInfo(expSvcList, pInfo, oInfo)
@@ -1506,7 +1451,7 @@ func Export() {
 	exportServices(expSvcList)
 	exportUsersAndServiceLists(expSvcList, pInfo, oInfo)
 	exportObjects()
-	exportNoNatSet(multiNAT, natTag2natType, pInfo, oInfo)
+	exportNatSet(multiNAT, natTag2natType, pInfo, oInfo)
 	copyPolicyFile(InPath, OutDir)
 	diag.Progress("Ready")
 }

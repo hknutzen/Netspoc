@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.011'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.012'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -12891,6 +12891,7 @@ sub link_ipsec {
         else {
             err_msg("Unknown key_exchange type '$type' for $ipsec->{name}");
             $error = 1;
+            $ipsec->{key_exchange} = undef;
         }
     }
     return $error;
@@ -18709,8 +18710,11 @@ sub call_go {
         groups => \%groups,
         hosts => \%hosts,
         interfaces => \%interfaces,
+        ipsec => \%ipsec,
+        isakmp => \%isakmp,
         networks => \%networks,
         owners => \%owners,
+        pathrestrictions => \%pathrestrictions,
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         routers => \%routers,

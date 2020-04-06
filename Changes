@@ -1,3 +1,19 @@
+6.012     2020-04-06 13:46:43+02:00 Europe/Berlin
+
+ - Migrated more parts from Perl to Go:
+   - Most parts of program 'print-group'
+   - Most parts of program 'print-service'
+   - Most parts of program 'cut-netspoc'
+ - 'print-group' no longer supports option '-f'.
+ - Prevent duplicate hosts from zone cluster in area
+   in automatic group 'host:[area:some-area]'.
+ - 'export-netspoc' no longer generates files 'no_nat_set',
+   because Netspoc-Web only uses 'nat_set' now.
+ - 'export-netspoc' creates shorter file 'emails'.
+   Owners that are visible from wildcard address already,
+   are not added for emails matching that wildcard.
+   Netspoc-Web now merges owners of wildcard address for matching owners.
+
 6.011     2020-03-16 09:13:38+01:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:

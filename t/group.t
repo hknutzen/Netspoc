@@ -346,111 +346,7 @@ END
 
 test_group($title, $in, 'network:[any:[network:n1]]', $out, '-unused');
 
-############################################################
-$title = 'Print multiple groups at once';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:über = { ip = 10.1.3.0/24; }
-
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:über = { ip = 10.1.3.1; hardware = n3; }
-}
-
-group:g1 = network:n1, network:n2;
-group:g2 = network:n2, network:über;
-group:g3 = network:n1, network:n2, network:über;
-END
-
-$groups = <<'END';
-group:g1
-group:g2
-interface:r1.[all]
-group:g3
-group:g1, network:über
-END
-
-$out = <<'END';
-# group:g1
-network:n1
-network:n2
-# group:g2
-network:n2
-network:über
-# interface:r1.[all]
-interface:r1.n1
-interface:r1.n2
-interface:r1.über
-# group:g3
-network:n1
-network:n2
-network:über
-# group:g1, network:über
-network:n1
-network:n2
-network:über
-END
-
-test_group($title, $in, $groups, $out, '-name');
-
-############################################################
-$title = 'Unused elements of multiple groups';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24;
- host:h3a = { range = 10.1.3.10-10.1.3.15; }
- host:h3b = { ip = 10.1.3.26; }
-}
-
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-router:r2 = {
- managed;
- model = ASA;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
-}
-
-service:s = {
- user = host:h3a;
- permit src = network:n1; dst = user; prt = tcp 80;
-}
-END
-
-$groups = <<'END';
-network:n1, network:n2, network:n3
-host:[network:n1]
-host:[network:n3]
-END
-
-$out = <<'END';
-# network:n1, network:n2, network:n3
-network:n2
-# host:[network:n1]
-host:h1
-# host:[network:n3]
-host:h3b
-END
-
-test_group($title, $in, $groups, $out, '-name -unused');
-
-############################################################
-$title = 'NAT, negotiated, unnumbered, short, auto';
-############################################################
-
+### Topology for multiple tests.
 $in = <<'END';
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -489,50 +385,71 @@ router:r2 = {
 network:k1 = { ip = 10.2.2.0/24; }
 END
 
-$groups = <<'END';
-network:n1
-host:h1s, host:h1d
-network:n2
-host:h2
-network:n3
-host:h3
-network:t1
-interface:r1.[all]
-interface:r1.[auto]
-interface:r1.t1
-interface:r2.[all]
-END
+
+############################################################
+$title = 'Dynamic NAT for network and static NAT for host';
+############################################################
 
 $out = <<'END';
-# network:n1
 10.9.1.0/28	network:n1
-# host:h1s, host:h1d
 10.9.1.0/28	host:h1d
 10.9.1.10	host:h1s
-# network:n2
+END
+test_group($title, $in, 'network:n1, host:h1s, host:h1d', $out, '-nat k1');
+
+############################################################
+$title = 'Static NAT for network and host';
+############################################################
+
+$out = <<'END';
 10.9.2.0/24	network:n2
-# host:h2
 10.9.2.10	host:h2
-# network:n3
+END
+test_group($title, $in, 'network:n2,host:h2', $out, '-nat k1');
+
+############################################################
+$title = 'Hidden NAT for network and host';
+############################################################
+
+$out = <<'END';
 hidden	network:n3
-# host:h3
 hidden	host:h3
-# network:t1
+END
+test_group($title, $in, 'network:n3,host:h3', $out, '-nat k1');
+
+############################################################
+$title = 'Unnumbered network';
+############################################################
+
+$out = <<'END';
 unnumbered	network:t1
-# interface:r1.[all]
+END
+test_group($title, $in, 'network:t1', $out, '-nat k1');
+
+############################################################
+$title = '[all], [auto] and real interface together';
+############################################################
+
+$out = <<'END';
 10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
 hidden	interface:r1.n3
-# interface:r1.[auto]
 unknown	interface:r1.[auto]
-# interface:r1.t1
 unnumbered	interface:r1.t1
-# interface:r2.[all]
+END
+test_group($title, $in,
+           'interface:r1.[all],interface:r1.[auto],interface:r1.t1',
+           $out, '-nat k1');
+
+############################################################
+$title = 'Short interface';
+############################################################
+
+$out = <<'END';
 short	interface:r2.t1
 short	interface:r2.k1
 END
-
-test_group($title, $in, $groups, $out, '-nat k1');
+test_group($title, $in, 'interface:r2.[all]', $out);
 
 ############################################################
 $title = 'Show owner';

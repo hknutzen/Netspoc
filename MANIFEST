@@ -9,11 +9,14 @@ README
 README.md
 bin/add-to-netspoc
 bin/cut-netspoc
+bin/cut-netspoc-go
 bin/export-netspoc
 bin/export-netspoc-go
 bin/netspoc
 bin/print-group
+bin/print-group-go
 bin/print-service
+bin/print-service-go
 bin/remove-from-netspoc
 bin/rename-netspoc
 bin/spoc1
@@ -48,8 +51,14 @@ examples/realistic/realistic
 examples/topology
 go/cmd/add-to-netspoc/add-to-netspoc
 go/cmd/add-to-netspoc/main.go
+go/cmd/cut-netspoc/cut-netspoc
+go/cmd/cut-netspoc/main.go
 go/cmd/export-netspoc/export-netspoc
 go/cmd/export-netspoc/main.go
+go/cmd/print-group/main.go
+go/cmd/print-group/print-group
+go/cmd/print-service/main.go
+go/cmd/print-service/print-service
 go/cmd/remove-from-netspoc/main.go
 go/cmd/remove-from-netspoc/remove-from-netspoc
 go/cmd/rename-netspoc/main.go
@@ -75,6 +84,7 @@ go/pkg/pass1/check-unstable-nat-rules.go
 go/pkg/pass1/check-unused-groups.go
 go/pkg/pass1/convert-hosts.go
 go/pkg/pass1/copy-raw.go
+go/pkg/pass1/cut-netspoc.go
 go/pkg/pass1/distribute-rules.go
 go/pkg/pass1/error.go
 go/pkg/pass1/expand-crypto.go
@@ -93,6 +103,8 @@ go/pkg/pass1/nat.go
 go/pkg/pass1/normalize-services.go
 go/pkg/pass1/path-walk.go
 go/pkg/pass1/print-code.go
+go/pkg/pass1/print-group.go
+go/pkg/pass1/print-service.go
 go/pkg/pass1/protocol.go
 go/pkg/pass1/remove-dupl-rules.go
 go/pkg/pass1/reverse-rules.go

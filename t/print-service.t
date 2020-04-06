@@ -6,6 +6,9 @@ use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile /;
 
+# Add "bin/" because print-service calls print-service-go in same directory.
+$ENV{PATH} = "bin/:$ENV{PATH}";
+
 sub test_run {
     my ($title, $input, $args, $expected) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);

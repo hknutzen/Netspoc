@@ -47,7 +47,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2020 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -84,12 +84,13 @@ use Pod::Usage;
 # Argument processing
 ####################################################################
 
-my ($nat_net, $ipv6, $show_name, $quiet, $help, $man);
+my ($nat_net, $ipv6, $show_name, $quiet, $help, $man, $export);
 
 GetOptions ( 'nat=s'  => \$nat_net,
              'ipv6'   => \$ipv6,
              'name'   => \$show_name,
              'quiet!' => \$quiet,
+             export   => \$export,
 	     'help|?' => \$help,
 	     man => \$man,
 	     ) or pod2usage(2);
@@ -100,80 +101,23 @@ my $in_path = shift @ARGV or pod2usage(2);
 my @names = @ARGV;
 
 ####################################################################
-# Subroutines
-####################################################################
-
-my $nat_set;
-
-sub obj_info {
-    my ($obj) = @_;
-    if ($show_name) {
-        return $obj->{name};
-    }
-    my ($ip, $mask) = @{ address($obj, $nat_set) };
-    my $prefix_len = mask2prefix($mask);
-    my $bitstr_len = length($mask) * 8;
-    return(print_ip($ip) . ($prefix_len == $bitstr_len ? '' : "/$prefix_len"));
-}
-
-sub prt_info {
-    my ($src_range, $prt) = @_;
-    my $desc = my $ptype = $prt->{proto};
-    if ($ptype eq 'tcp' or $ptype eq 'udp') {
-        my $port_code = sub {
-            my ($range_obj) = @_;
-            my ($v1, $v2) = @{ $range_obj->{range} };
-            if ($v1 == $v2) {
-                return $v1;
-            }
-            elsif ($v1 == 1 and $v2 == 65535) {
-                return;
-            }
-            else {
-                return "$v1-$v2";
-            }
-        };
-        my $sport = $src_range && $port_code->($src_range);
-        my $dport = $port_code->($prt);
-        if ($sport) {
-            $desc .= " $sport:$dport";
-        }
-        elsif ($dport) {
-            $desc .= " $dport";
-        }
-    }
-    elsif ($ptype eq 'icmp') {
-        if (defined(my $type = $prt->{type})) {
-            if (defined(my $code = $prt->{code})) {
-                $desc .= " $type/$code";
-            }
-            else {
-                $desc .= " $type";
-            }
-        }
-    }
-    return $desc;
-}
-
-####################################################################
 # Main program
 ####################################################################
 
 my $file_config = &read_config($in_path);
 $config = combine_config($file_config, { verbose => !$quiet,
-                                         ipv6 => $ipv6? 1 : 0 });
+                                         ipv6 => $ipv6,
+                                         export => $export });
 init_global_vars();
 
 # Read and process Netspoc configuration file or directory.
 &read_file_or_dir($in_path);
 
-my %names;
 if (@names) {
     for my $name (@names) {
         $name = decode_utf8($name, 1);
         $name =~ s/^service://;
         $services{$name} or die "Unknown service '$name'\n";
-        $names{$name} = 1;
     }
 }
 &order_protocols();
@@ -181,50 +125,10 @@ if (@names) {
 &mark_disabled();
 &set_zone();
 &setpath();
-&distribute_nat_info();
-find_subnets_in_zone();
-&abort_on_error();
 
-# Find network for resolving NAT addresses.
-if($nat_net) {
-    my $net = $networks{$nat_net} or
-        die "Unknown network:$nat_net of option '-n'\n";
-    $nat_set = $net->{zone}->{nat_domain}->{nat_set};
-}
-
-# Expand services
-my %service2rules;
-normalize_services();
-convert_hosts_in_rules();
-group_path_rules();
-&abort_on_error();
-for my $rule (@{ $path_rules{deny} }, @{ $path_rules{permit} }) {
-    my $service_name = $rule->{rule}->{service}->{name};
-    $service_name =~ s/^service://;
-    if (keys %names) {
-        $names{$service_name} or next;
-    }
-    my $aref = $service2rules{$service_name} ||= [];
-    my ($src_list, $dst_list, $prt_list) = @{$rule}{qw(src dst prt)};
-    for my $src (@$src_list) {
-        for my $dst (@$dst_list) {
-            for my $prt (@$prt_list) {
-                    push @$aref, { %$rule,
-                                   src => $src,
-                                   dst => $dst,
-                                   prt => $prt };
-            }
-        }
-    }
-}
-for my $service_name (sort keys %service2rules) {
-    for my $rule (@{ $service2rules{$service_name} }) {
-        my ($deny, $src, $dst, $src_range, $prt) =
-            @{$rule}{qw(deny src dst src_range prt)};
-        my $action   = $deny ? 'deny' : 'permit';
-        my $src_info = obj_info($src);
-        my $dst_info = obj_info($dst);
-        my $prt_info = prt_info($src_range, $prt);
-        print "$service_name:$action $src_info $dst_info $prt_info\n";
-    }
-}
+call_go('print-service-go', {
+    in_path => $in_path,
+    nat_net => $nat_net || '',
+    service_names => \@names,
+    show_name => !!$show_name,
+        });

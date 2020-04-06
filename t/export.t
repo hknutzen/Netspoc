@@ -1010,6 +1010,84 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregates and network0/0 in zone cluster';
+############################################################
+
+# Use unique value of attribute zone for aggregates and network0/0.
+
+$in = <<'END';
+owner:x = { admins = guest; show_all; }
+area:all = { owner = x; anchor = network:DMZ; }
+
+network:Big = {
+ ip = 10.1.0.0/16;
+ nat:inet = { ip = 1.1.0.0/16; }
+}
+
+router:asa = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:Big = { ip = 10.1.0.1; hardware = outside; }
+ interface:DMZ = { ip = 10.9.9.1; hardware = dmz; }
+}
+
+network:DMZ = { ip = 10.9.9.0/24; }
+
+router:inet = {
+ interface:DMZ;
+ interface:Internet = { bind_nat = inet; }
+}
+
+network:Internet = { ip = 0.0.0.0/0; has_subnets; }
+
+END
+
+$out = <<'END';
+-- objects
+{
+ "interface:asa.Big": {
+  "ip": "10.1.0.1",
+  "nat": {
+   "inet": "1.1.0.1"
+  }
+ },
+ "interface:asa.DMZ": {
+  "ip": "10.9.9.1"
+ },
+ "interface:inet.DMZ": {
+  "ip": "short",
+  "owner": "x"
+ },
+ "interface:inet.Internet": {
+  "ip": "short",
+  "owner": "x"
+ },
+ "network:Big": {
+  "ip": "10.1.0.0/255.255.0.0",
+  "nat": {
+   "inet": "1.1.0.0/255.255.0.0"
+  },
+  "owner": "x",
+  "zone": "any:[network:Big]"
+ },
+ "network:DMZ": {
+  "ip": "10.9.9.0/255.255.255.0",
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
+ },
+ "network:Internet": {
+  "ip": "0.0.0.0/0.0.0.0",
+  "is_supernet": 1,
+  "owner": "x",
+  "zone": "any:[network:DMZ]"
+ }
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Nested only_watch';
 ############################################################
 
@@ -1929,52 +2007,18 @@ $out = <<'END';
    ],
    "all@example.com" : [
       "all",
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o3",
-      "o4"
+      "o3"
    ],
-   "o1@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
-   ],
-   "o2@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
-   ],
-   "o2s1@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
-   ],
+   "o1@example.com" : [],
+   "o2@example.com" : [],
+   "o2s1@example.com" : [],
    "o2s2@other" : [
       "o2s2"
    ],
    "o3@sub.example.com" : [
       "o3"
    ],
-   "o4@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
-   ]
+   "o4@example.com" : []
 }
 END
 
@@ -3653,7 +3697,7 @@ $title = 'Preserve real NAT together with hidden NAT';
 ############################################################
 
 # Must preserve nat:n2 when combined with hidden nat:n3
-# in no_nat_set of owner:n23.
+# in nat_set of owner:n23.
 # But nat:n2a isn't preserved when combined with non hidden nat:n3a.
 
 $in = <<'END';
@@ -3692,54 +3736,20 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/all/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n3",
-   "n3a",
-   "n4"
-]
 --owner/all/nat_set
 []
---owner/n23/no_nat_set
-[
-   "n2a",
-   "n3",
-   "n3a",
-   "n4"
-]
 --owner/n23/nat_set
 [
    "n2"
 ]
---owner/n4/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n3",
-   "n3a"
-]
 --owner/n4/nat_set
 [
-   "n4"
-]
---owner/h2/no_nat_set
-[
-   "n3",
-   "n3a",
    "n4"
 ]
 --owner/h2/nat_set
 [
    "n2",
    "n2a"
-]
---owner/h3/no_nat_set
-[
-   "n2",
-   "n2a",
-   "n4"
 ]
 --owner/h3/nat_set
 [
@@ -3751,7 +3761,7 @@ END
 test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
-$title = 'Activate hidden NAT tags in combined no-nat-set';
+$title = 'Remove hidden NAT tags in combined nat-set';
 ############################################################
 
 $in = <<'END';
@@ -3772,11 +3782,6 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/all/no_nat_set
-[
-   "h1",
-   "h2"
-]
 --owner/all/nat_set
 []
 END
@@ -3784,7 +3789,7 @@ END
 test_run($title, $in, $out);	# No IPv6 test
 
 ############################################################
-$title = 'Must not activate NAT tag used in two multi NAT sets';
+$title = 'Remove NAT tag used in two multi NAT sets';
 ############################################################
 
 $in = <<'END';
@@ -3816,14 +3821,56 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/o/no_nat_set
-[
-   "h1",
-   "h2",
-   "n1"
-]
 --owner/o/nat_set
 []
+END
+
+test_run($title, $in, $out);	# No IPv6 test
+
+############################################################
+$title = 'Remove NAT tag used in two multi NAT sets (2)';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = a1@example.com; }
+owner:o2 = { admins = a2@example.com; }
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { ip = 10.9.1.0/24; }
+ nat:h1 = { hidden; }
+ owner = o1;
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ nat:t1 = { ip = 10.9.2.0/24; }
+ nat:h2 = { hidden; }
+ owner = o2;
+}
+
+network:n3 = {
+ ip = 10.1.3.0/24;
+ owner = o1;
+}
+
+router:r1 =  {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = t1; }
+}
+END
+
+$out = <<'END';
+--owner/o1/nat_set
+[]
+--owner/o2/nat_set
+[
+   "h1"
+]
 END
 
 test_run($title, $in, $out);	# No IPv6 test
@@ -3857,8 +3904,6 @@ router:r1 = {
 END
 
 $out = <<'END';
---owner/o/no_nat_set
-[]
 --owner/o/nat_set
 [
    "n1"

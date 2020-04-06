@@ -37,6 +37,7 @@ type netOrRouter interface{}
 
 type autoIntf struct {
 	privateObj
+	usedObj
 	managed bool
 	name    string
 	object  netOrRouter
@@ -52,7 +53,6 @@ func (x autoIntf) isDisabled() bool {
 	}
 	return false
 }
-func (x autoIntf) setUsed() {}
 
 type groupObj interface {
 	isDisabled() bool
@@ -75,8 +75,10 @@ type srvObj interface {
 	ownerer
 	String() string
 	getAttr(attr string) string
-	getPrivate() string
 	getNetwork() *network
+	getPrivate() string
+	getUsed() bool
+	setUsed()
 	setCommon(m xMap) // for importFromPerl
 }
 type srvObjList []srvObj
@@ -125,7 +127,8 @@ type usedObj struct {
 	isUsed bool
 }
 
-func (x *usedObj) setUsed() { x.isUsed = true }
+func (x *usedObj) getUsed() bool { return x.isUsed }
+func (x *usedObj) setUsed()      { x.isUsed = true }
 
 type ownerer interface {
 	getOwner() *owner
@@ -191,6 +194,7 @@ func (x *network) getUp() someObj {
 	}
 	return x.up
 }
+func (x *network) intfList() intfList { return x.interfaces }
 
 type netList []*network
 
@@ -274,6 +278,7 @@ type router struct {
 	ipVxObj
 	ownedObj
 	privateObj
+	usedObj
 	pathStoreData
 	pathObjData
 	name                    string
@@ -345,7 +350,7 @@ type routerIntf struct {
 	redundancyIntfs    []*routerIntf
 	redundancyType     string
 	redundant          bool
-	reroutePermit      []someObj
+	reroutePermit      netList
 	reroutePermitNames []*parsedObjRef
 	routeInZone        map[*network]intfList
 	routes             map[*routerIntf]netMap
@@ -410,15 +415,19 @@ type hardware struct {
 
 type pathRestriction struct {
 	activePath bool
+	elements   []*routerIntf
+	name       string
 }
 
 type crypto struct {
+	usedObj
 	detailedCryptoAcl bool
 	ipsec             *ipsec
 	name              string
 	tunnels           netList
 }
 type ipsec struct {
+	usedObj
 	name              string
 	isakmp            *isakmp
 	lifetime          *[2]int
@@ -428,6 +437,7 @@ type ipsec struct {
 	pfsGroup          string
 }
 type isakmp struct {
+	usedObj
 	name           string
 	authentication string
 	encryption     string
@@ -459,7 +469,9 @@ type zone struct {
 	ipmask2aggregate     map[ipmask]*network
 	ipmask2net           map[ipmask]netList
 	isTunnel             bool
+	link                 *network
 	loopback             bool
+	nat                  map[string]*network
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string
@@ -485,10 +497,13 @@ type area struct {
 	ipVxObj
 	usedObj
 	name             string
+	anchor           *network
 	attr             map[string]string
+	inclusiveBorder  []*routerIntf
 	border           []*routerIntf
 	inArea           *area
 	managedRouters   []*router
+	nat              map[string]*network
 	routerAttributes *routerAttributes
 	watchingOwner    *owner
 	zones            []*zone
@@ -514,6 +529,7 @@ type modifiers struct {
 }
 
 type proto struct {
+	usedObj
 	name            string
 	proto           string
 	icmpType        int
@@ -530,7 +546,6 @@ type proto struct {
 	up              *proto
 	localUp         *proto
 	hasNeighbor     bool
-	isUsed          bool
 	printed         string
 }
 type protoList []*proto
@@ -548,11 +563,11 @@ type complexProto struct {
 type protoOrName interface{}
 
 type protoGroup struct {
+	usedObj
 	name      string
 	pairs     []protoOrName
 	elements  protoList
 	recursive bool
-	isUsed    bool
 }
 
 type protoLookup struct {

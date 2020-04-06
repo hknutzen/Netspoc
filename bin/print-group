@@ -6,20 +6,15 @@ print-group - Show elements of a netspoc group definition
 
 =head1 SYNOPSIS
 
-print-group [options] FILE|DIR ['group:name,...']
+print-group [options] FILE|DIR 'group:name,...'
 
 =head1 DESCRIPTION
 
-This program prints the elements of one or more netspoc group
-definitions.  By default it reads a group definition from command line
-and shows a line with IP/prefixlen and name for each element separated
-by tab character. Group is a simple group, some automatic group, or a
-union or intersection or complement of simpler groups.
-
-With option B<-f>, group definitions are read from a file with a
-single group definition per line. In the output, a comment line is
-prepended to elements of each group. The format of this comment line
-is a B<#> character followed by the corresponding input line.
+This program prints the elements of a netspoc group definition which
+is read from command line.
+By default it shows a line with IP/prefixlen and name for each element
+separated by tab character. Group is a simple group, some automatic
+group, or a union or intersection or complement of simpler groups.
 
 =head1 OPTIONS
 
@@ -48,11 +43,6 @@ Show owner of elements.
 =item B<-ipv6>
 
 Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
-
-=item B<-f> FILE
-
-Read group definitions from FILE, one definition per line.
-If B<-> is specified, read from standard input.
 
 =item B<-quiet>
 
@@ -105,114 +95,31 @@ use Pod::Usage;
 
 # VERSION: inserted by DZP::OurPkgVersion
 
-# Take higher bits from network NAT, lower bits from original IP.
-# This works with and without NAT.
-sub nat {
-    my ($ip, $network) = @_;
-    return($network->{ip} | $ip & ~ $network->{mask});
-}
-
-# Print IP address of $obj in context of $nat_set.
-sub print_address {
-    my ($obj, $nat_set) = @_;
-    my $type = ref $obj;
-    if ($type eq 'Network') {
-        $obj = get_nat_network($obj, $nat_set);
-        my $ip = $obj->{ip};
-        if ($ip eq 'unnumbered') {
-            return $ip;
-        }
-        elsif ($obj->{hidden}) {
-            return 'hidden';
-        }
-        else {
-            my $prefix = mask2prefix($obj->{mask});
-            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
-                                    ? '' : "/$prefix");
-        }
-    }
-    elsif ($type eq 'Host' or $type eq 'Interface') {
-        my $network = get_nat_network($obj->{network}, $nat_set);
-        if ($network->{dynamic}) {
-            my $nat_tag = $network->{nat_tag};
-            if ($obj->{nat} and (my $ip = $obj->{nat}->{$nat_tag})) {
-
-                # Single static NAT IP for this object.
-                return print_ip($ip);
-            }
-            elsif ($network->{hidden}) {
-                return 'hidden';
-            }
-            else {
-
-                # Dynamic NAT, take whole network.
-                my $ip = $network->{ip};
-                my $prefix = mask2prefix($network->{mask});
-                return print_ip($ip) . ($prefix ==
-                                        ($config->{ipv6} ? 128 : 32)
-                                        ? '' : "/$prefix");
-            }
-        }
-        elsif (my $range = $obj->{range}) {
-            return
-                join('-', map { print_ip(nat($_, $network)) } @$range);
-        }
-        elsif ($obj->{ip} =~ /unnumbered|short|bridged/) {
-            return $obj->{ip};
-        }
-        elsif ($obj->{ip} eq 'negotiated') {
-
-            # Take whole network.
-            my $ip = $network->{ip};
-            my $prefix = mask2prefix($network->{mask});
-            return print_ip($ip) . ($prefix == ($config->{ipv6} ? 128 : 32)
-                                    ? '' : "/$prefix");
-        }
-        else {
-            return print_ip(nat($obj->{ip}, $network));
-        }
-    }
-    elsif ($type eq 'Autointerface') {
-        return 'unknown';
-    }
-}
-
 ####################################################################
 # Argument processing
 ####################################################################
 
-my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $groups_file,
-    $quiet, $help, $ipv6, $man);
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner,
+    $quiet, $help, $ipv6, $man, $export);
 
 GetOptions ( 'nat=s'  => \$nat_net,
-	     'unused' => \$show_unused,
-	     'ip!'    => \$show_ip,
-	     'name!'  => \$show_name,
+             'unused' => \$show_unused,
+             'ip!'    => \$show_ip,
+             'name!'  => \$show_name,
              'owner!' => \$show_owner,
-             'f=s'    => \$groups_file,
              'quiet!' => \$quiet,
-	     'help|?' => \$help,
-             'ipv6'   => \$ipv6,
-	     man => \$man,
+             'help|?' => \$help,
+             ipv6     => \$ipv6,
+             export   => \$export,
+             man      => \$man,
 	     ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
 $show_ip or $show_name or $show_ip = $show_name = 1;
 
 my $in_path = shift @ARGV or pod2usage(2);
-my @groups;
-if ($groups_file) {
-
-    ## no critic ProhibitTwoArgOpen
-    open(my $fh, $groups_file) or die "Can't open $groups_file: $!\n";
-    @groups = <$fh>;
-    close $fh;
-}
-else {
-    my $definition = shift @ARGV or pod2usage(2);
-    $definition = decode_utf8($definition, 1);
-    push @groups, $definition;
-}
+my $definition = shift @ARGV or pod2usage(2);
+$definition = decode_utf8($definition, 1);
 
 @ARGV and pod2usage(2);
 
@@ -221,149 +128,31 @@ else {
 ####################################################################
 
 my $file_config = &read_config($in_path);
-$config = combine_config($file_config, { verbose => !$quiet,
-                                         ipv6 => $ipv6? 1 : 0 });
+$config = combine_config($file_config,
+                         {verbose => !$quiet, ipv6 => $ipv6, export => $export});
 init_global_vars();
 
 # Parse group definition(s).
-for (my $i = 0; $i < @groups; $i++) {
-    my $definition = $groups[$i];
-    chomp $definition;
-    my $line = $i + 1;
-    $input = "$definition;";
-    $current_file =
-        $groups_file ? "line $line of file $groups_file" : 'group definition';
-    my $parsed = read_union(';');
-    skip_space_and_comment();
-    pos $input == length $input or die "Invalid group specification\n";
-    $groups[$i] = [$definition, $parsed];
-}
+$input = "$definition;";
+$current_file = 'group definition';
+my $parsed = read_union(';');
+skip_space_and_comment();
+pos $input == length $input or die "Invalid group specification\n";
 
 # Read and process Netspoc configuration file or directory.
-&read_file_or_dir($in_path);
-&link_topology();
-&mark_disabled();
-&set_zone();
-&setpath();
-&distribute_nat_info();
-find_subnets_in_zone();
-&abort_on_error();
+read_file_or_dir($in_path);
+order_protocols();
+link_topology();
+mark_disabled();
+set_zone();
+setpath();
 
-# Find network for resolving NAT addresses.
-my $nat_set;
-if($nat_net) {
-    $nat_net =~ s/^network://;
-    my $net = $networks{$nat_net} or
-        die "Unknown network:$nat_net of option '-nat'\n";
-    $nat_set = $net->{zone}->{nat_domain}->{nat_set};
-}
-
-# Prepare finding unused objects by marking used objects.
-my %used;
-if ($show_unused) {
-    order_protocols();
-    normalize_services();
-    abort_on_error();
-    for my $action (qw(permit deny)) {
-        my $rules = $service_rules{$action} or next;
-        for my $rule (@$rules) {
-            for my $what (qw(src dst)) {
-                my $group = $rule->{$what};
-                for my $obj (@$group) {
-                    $used{$obj} = 1;
-                    if (is_host($obj) or is_interface($obj)) {
-                        $used{$obj->{network}} = 1;
-                    }
-                    elsif (is_network($obj) and $obj->{has_id_hosts}) {
-                        for my $host (@{ $obj->{hosts} }) {
-                            $used{$host} = 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-if ($show_owner) {
-    propagate_owners();
-}
-
-# Try to expand group as IPv4 or IPv6, but don't abort on error.
-sub try_expand {
-    my ($parsed, $ipv6) = @_;
-    my $expanded;
-    my ($stderr, $success) =
-        capture_stderr {
-            my $result;
-            eval {
-                $Netspoc::Compiler::Pass1::error_counter = 0;
-                $expanded = expand_group($parsed, "print-group",
-                                         $ipv6, 'with_subnets');
-                abort_on_error();
-                $result = 1;
-            };
-            if ($@) {
-                warn $@;
-            }
-            $result;
-    };
-    if ($success) {
-        return $expanded;
-    }
-    else {
-        return(undef, $stderr);
-    }
-}
-
-# Expand group definition(s).
-# We don't know if this expands to IPv4 or IPv6 addresses,
-# so we try both in first cycle.
-my $search_ipv6;
-for my $aref (@groups) {
-    my ($definition, $parsed) = @$aref;
-    my ($elements, $err);
-    if (not defined $search_ipv6) {
-        $search_ipv6 = 1;
-        ($elements, $err) = try_expand($parsed, $search_ipv6);
-        if (not $elements) {
-            $search_ipv6 = 0;
-            redo;
-        }
-    }
-    else {
-        ($elements, $err) = try_expand($parsed, $search_ipv6);
-        $elements or die $err;
-    }
-
-    if ($show_unused) {
-        $elements = [ grep { not $used{$_} } @$elements ];
-    }
-
-    # Collect IP address, name, owner.
-    my @info = map { my $v = [ print_address($_, $nat_set),
-                               $_->{name} ];
-                     push @$v, $_->{owner}->{name} if $show_owner && $_->{owner};
-                     $v } @$elements;
-
-    # Prepend group definition as comment.
-    if ($groups_file) {
-        print "# $definition\n";
-    }
-
-    # Sort by IP address and print results.
-    for my $aref (sort { $a->[0] cmp $b->[0] } @info) {
-        my ($address, $name, $owner) = @$aref;
-        my @result;
-        if ($show_ip) {
-            push @result, $address;
-        }
-        if ($show_name) {
-            push @result, $name;
-        }
-        if ($show_owner) {
-            $owner ||= 'none';
-            push @result, $owner;
-        }
-        print join("\t", @result), "\n";
-    }
-}
+call_go('print-group-go', {
+    in_path => $in_path,
+    nat_net => $nat_net || '',
+    parsed => $parsed,
+    show_ip => $show_ip,
+    show_name => $show_name,
+    show_owner => !!$show_owner,
+    show_unused => !!$show_unused,
+        });
