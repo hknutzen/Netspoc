@@ -151,8 +151,8 @@ call_go('print-group-go', {
     in_path => $in_path,
     nat_net => $nat_net || '',
     parsed => $parsed,
-    show_ip => $show_ip,
-    show_name => $show_name,
+    show_ip => !!$show_ip,
+    show_name => !!$show_name,
     show_owner => !!$show_owner,
     show_unused => !!$show_unused,
         });

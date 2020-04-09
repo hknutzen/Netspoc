@@ -473,6 +473,39 @@ END
 test_group($title, $in, 'network:n1, network:n2', $out, '-owner');
 
 ############################################################
+$title = 'Show owner and only name';
+############################################################
+
+$out = <<'END';
+network:n1	owner:o
+network:n2	none
+END
+
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-name -owner');
+
+############################################################
+$title = 'Show only name';
+############################################################
+
+$out = <<'END';
+network:n1
+network:n2
+END
+
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-name');
+
+############################################################
+$title = 'Show only ip';
+############################################################
+
+$out = <<'END';
+10.1.1.0/24
+10.1.2.0/24
+END
+
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-ip');
+
+############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
 # Don't show warning "unused group:g2
