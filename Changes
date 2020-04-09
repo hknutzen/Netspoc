@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ -Fixed options '-name' and '-ip' of command 'print-group'.
+
 6.012     2020-04-06 13:46:43+02:00 Europe/Berlin
 
  - Migrated more parts from Perl to Go:
