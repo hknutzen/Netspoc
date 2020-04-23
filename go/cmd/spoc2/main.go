@@ -2668,12 +2668,11 @@ func tryPrev(devicePath, dir, prev string) bool {
 			return false
 		}
 	}
-	cmd := exec.Command("cp", "-p", prevFile, codeFile)
-	if cmd.Run() != nil {
+	if err := os.Link(prevFile, codeFile); err != nil {
 		return false
 	}
 
-	// File was found and copied successfully.
+	// File was found and hardlink was created successfully.
 	diag.Msg("Reused .prev/" + devicePath)
 	return true
 }
