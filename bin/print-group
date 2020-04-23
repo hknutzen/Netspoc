@@ -13,8 +13,9 @@ print-group [options] FILE|DIR 'group:name,...'
 This program prints the elements of a netspoc group definition which
 is read from command line.
 By default it shows a line with IP/prefixlen and name for each element
-separated by tab character. Group is a simple group, some automatic
-group, or a union or intersection or complement of simpler groups.
+separated by TAB character.
+Group is a simple group, some automatic group, some object or
+a union or intersection or complement of simpler groups.
 
 =head1 OPTIONS
 
@@ -40,6 +41,10 @@ Show only IP address of elements.
 
 Show owner of elements.
 
+=item B<-admins>
+
+Show admins of elements as comma separated list.
+
 =item B<-ipv6>
 
 Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
@@ -60,7 +65,7 @@ Prints the manual page and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2020 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -99,19 +104,20 @@ use Pod::Usage;
 # Argument processing
 ####################################################################
 
-my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner,
+my ($nat_net, $show_unused, $show_ip, $show_name, $show_owner, $show_admins,
     $quiet, $help, $ipv6, $man, $export);
 
-GetOptions ( 'nat=s'  => \$nat_net,
-             'unused' => \$show_unused,
-             'ip!'    => \$show_ip,
-             'name!'  => \$show_name,
-             'owner!' => \$show_owner,
-             'quiet!' => \$quiet,
-             'help|?' => \$help,
-             ipv6     => \$ipv6,
-             export   => \$export,
-             man      => \$man,
+GetOptions ( 'nat=s'  =>  \$nat_net,
+             'unused' =>  \$show_unused,
+             'ip!'    =>  \$show_ip,
+             'name!'  =>  \$show_name,
+             'owner!' =>  \$show_owner,
+             'admins!' => \$show_admins,
+             'quiet!' =>  \$quiet,
+             'help|?' =>  \$help,
+             ipv6     =>  \$ipv6,
+             export   =>  \$export,
+             man      =>  \$man,
 	     ) or pod2usage(2);
 pod2usage(1) if $help;
 pod2usage(-exitstatus => 0, -verbose => 2) if $man;
@@ -154,5 +160,6 @@ call_go('print-group-go', {
     show_ip => !!$show_ip,
     show_name => !!$show_name,
     show_owner => !!$show_owner,
+    show_admins => !!$show_admins,
     show_unused => !!$show_unused,
         });

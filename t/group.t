@@ -506,6 +506,45 @@ END
 test_group($title, $in, 'network:[any:[network:n1]]', $out, '-ip');
 
 ############################################################
+$title = 'Show owner and admins';
+############################################################
+
+$in = <<'END';
+owner:o1 = { admins = o1@b.c; }
+owner:o2 = { admins = o2a@d.e.f, o2b@g.h.i; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n3 = { ip = 10.1.3.0/24; owner = o1; }
+router:r = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+END
+
+$out = <<'END';
+network:n1	owner:o1	o1@b.c
+network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
+network:n3	owner:o1	o1@b.c
+END
+
+test_group($title, $in, 'network:n1, network:n2, network:n3', $out,
+           '-name -owner -admins');
+
+############################################################
+$title = 'Show only name and admins';
+############################################################
+
+$out = <<'END';
+network:n1	o1@b.c
+network:n2	o2a@d.e.f,o2b@g.h.i
+network:n3	o1@b.c
+END
+
+test_group($title, $in, 'network:n1, network:n2, network:n3', $out,
+           '-name -admins');
+
+############################################################
 $title = 'Mark group in empty rule as used';
 ############################################################
 # Don't show warning "unused group:g2

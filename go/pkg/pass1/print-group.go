@@ -11,16 +11,13 @@ print-group [options] FILE|DIR ["group:name,..."]
 
 =head1 DESCRIPTION
 
-This program prints the elements of one || more netspoc group
-definitions.  By default it reads a group definition from command line
-&& shows a line with IP/prefixlen && name for each element separated
-by tab character. Group is a simple group, some automatic group, || a
-union || intersection || complement of simpler groups.
-
-With option B<-f>, group definitions are read from a file with a
-single group definition per line. In the output, a comment line is
-prepended to elements of each group. The format of this comment line
-is a B<#> character followed by the corresponding input line.
+This program prints the elements of one or more Netspoc group
+definitions.
+By default it reads a group definition from command line
+and shows a line with IP/prefixlen and name for each element separated
+by TAB character.
+Group is a simple group, some automatic group, some object or
+a union or intersection or complement of simpler groups.
 
 =head1 OPTIONS
 
@@ -46,14 +43,13 @@ Show only IP address of elements.
 
 Show owner of elements.
 
+=item B<-admins>
+
+Show admins of elements as comma separated list.
+
 =item B<-ipv6>
 
 Expect IPv6 definitions everywhere except in subdirectory "ipv4/".
-
-=item B<-f> FILE
-
-Read group definitions from FILE, one definition per line.
-If B<-> is specified, read from standard input.
 
 =item B<-quiet>
 
@@ -224,6 +220,7 @@ func PrintGroup(m xMap) {
 	showIP := getBool(m["show_ip"])
 	showName := getBool(m["show_name"])
 	showOwner := getBool(m["show_owner"])
+	showAdmins := getBool(m["show_admins"])
 	showUnused := getBool(m["show_unused"])
 
 	// Find network for resolving NAT addresses.
@@ -302,33 +299,36 @@ func PrintGroup(m xMap) {
 		elements = elements[:j]
 	}
 
-	// Collect IP address, name, owner.
+	// Collect IP address, name, owner, admins.
 	type objInfo struct {
-		addr  string
-		name  string
-		owner string
+		addr   string
+		name   string
+		owner  string
+		admins string
 	}
 	infoList := make([]objInfo, len(elements))
 	for i, ob := range elements {
-		info := objInfo{
-			addr: printAddress(ob, natSet),
-			name: ob.String(),
+		info := &infoList[i]
+		info.addr = printAddress(ob, natSet)
+		info.name = ob.String()
+		if !(showOwner || showAdmins) {
+			continue
 		}
-		if showOwner {
-			var ow *owner
-			switch x := ob.(type) {
-			case srvObj:
-				ow = x.getOwner()
-			case *area:
-				ow = x.owner
-			}
-			if ow != nil {
-				info.owner = ow.name
-			} else {
-				info.owner = "none"
+		var ow *owner
+		switch x := ob.(type) {
+		case srvObj:
+			ow = x.getOwner()
+		case *area:
+			ow = x.owner
+		}
+		if ow == nil {
+			info.owner = "none"
+		} else {
+			info.owner = ow.name
+			if showAdmins {
+				info.admins = strings.Join(ow.admins, ",")
 			}
 		}
-		infoList[i] = info
 	}
 
 	// Sort by printed IP address.
@@ -347,6 +347,9 @@ func PrintGroup(m xMap) {
 		}
 		if showOwner {
 			result.push(info.owner)
+		}
+		if showAdmins {
+			result.push(info.admins)
 		}
 		fmt.Println(strings.Join(result, "\t"))
 	}
