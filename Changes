@@ -1,6 +1,11 @@
 {{$NEXT}}
 
- -Fixed options '-name' and '-ip' of command 'print-group'.
+6.013     2020-04-23 16:54:09+02:00 Europe/Berlin
+
+ - Use hardlink when reusing code file from prevoious run.
+ - Added new option '-admins' to command 'print-group'
+   to show admins of owners of elements as comma separated list.
+ - Fixed options '-name' and '-ip' of command 'print-group'.
 
 6.012     2020-04-06 13:46:43+02:00 Europe/Berlin
 
