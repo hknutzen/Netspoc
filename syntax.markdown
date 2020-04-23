@@ -216,16 +216,16 @@ here `<object set>` must expand to networks.
 ## Set of objects
 
     <object set>   ::= <intersection> | <object set> , <intersection>
-    <intersection> ::= <network object> | <intersection> & <complement>
-                                        | <complement> & <intersection>
-    <complement>   ::= <network object> | ! <network object>
+    <intersection> ::= <object> | <intersection> & <complement>
+                                | <complement> & <intersection>
+    <complement>   ::= <object> | ! <object>
 
-    <network object> ::= host:<name>
-                       | network:<network name>
-                       | any:<name>
-                       | interface:<router name>.<network name>[.<name>]
-                       | group:<name>
-                       | <auto group>
+    <object> ::= host:<name>
+               | network:<network name>
+               | any:<name>
+               | interface:<router name>.<network name>[.<name>]
+               | group:<name>
+               | <auto group>
 
 ## Automatic group
 
@@ -238,7 +238,7 @@ here `<object set>` must expand to networks.
 
     <selector> ::= auto | all
     <object set with area> is like <object set>
-      but with additional area:<name> allowed in <network object>
+      but with additional area:<name> allowed in <object>
 
 
 ## Group definition
@@ -307,7 +307,7 @@ with
           [ log = <name>(, <name>)*; ]
 
       <object set with 'user'> is like <object set>
-       but with additional keyword 'user' allowed in <network object>
+       but with additional keyword 'user' allowed in <object>
 
       <date> ::= a date with format YYYY-MM-DD
 
