@@ -71,6 +71,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
       network:<network name> = {
          [ <description> ]
          ip = <ip-net>; | unnumbered;
+         <control service attr>*
          <network NAT> *
          [ subnet_of = network:<network name>; ]
          [ has_subnets;                ]
@@ -79,6 +80,11 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ partition = <name>;         ]
          <host definition> *
       }
+
+    <control service attr> ::=
+      ( overlaps | unknown_owner | multi_owner | has_unenforceable )
+      =
+      ( restrict | enable | ok );
 
     <network NAT> ::=
       nat:<name> = {
@@ -100,10 +106,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          ip = <ip>; | range = <ip>-<ip>;
          [ owner = <name>;            ]
          <host NAT> *
-         [ managed;                   ]
-         [ model = Linux;             ]
-         [ server_name = <name>;      ]
-         [ hardware = <external name>;]
       }
 
     <host NAT> ::= nat:<name> = { ip = <ip>; }
@@ -186,14 +188,8 @@ here `<object set>` must expand to networks.
          [ owner = <name>;          ]
          <control service attr>*
          <network NAT> *
-         [ has_unenforceable;       ]
          [ no_check_supernet_rules; ]
       }
-
-      <control service attr> ::=
-         ( overlaps | unknown_owner | multi_owner | has_unenforceable )
-         =
-         ( restrict | enable | ok );
 
 ## Area definition
 
@@ -432,6 +428,7 @@ correspondig network and VPN router definition.
         [ authorization-server-group = <string>;  ]
         [ authorization-required;                 ]
         [ username-from-certificate = <string>;   ]
+        [ password-management_password-expire-in-days = <string>; ]
         [ split-tunnel-policy = tunnelall | tunnelspecified; ]
       }
 
