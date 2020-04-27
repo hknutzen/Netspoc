@@ -210,25 +210,19 @@ func process(input string) (int, string) {
 				}
 			} else {
 				// Check if list continues.
+				inList = false
 				for _, re := range []*regexp.Regexp{
 					startAuto, managedAuto, ipAuto, endAuto,
 					negation, intersection, comma} {
 					if m = match(re); m != nil {
-						break
-					}
-				}
-				if m != nil {
-					copy.WriteString(m[0])
-					if substDone {
-						trimmed := strings.TrimLeft(m[0], " \t")
-						if trimmed[0] == '&' {
+						inList = true
+						copy.WriteString(m[0])
+						if substDone && re == intersection {
 							fmt.Fprintln(os.Stderr,
 								"Warning: Substituted in intersection")
 						}
+						break
 					}
-				} else {
-					// Everything else terminates list.
-					inList = false
 				}
 			}
 		} else if m = match(startGroup); m != nil {
