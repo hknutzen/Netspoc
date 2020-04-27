@@ -176,7 +176,6 @@ func process(input string) (int, string) {
 
 				// Check if current line has only one entry, possibly
 				// preceeded by start of list.
-				var m []string
 				var prefix string
 				processed := copy.String()
 				idx := strings.LastIndex(processed, "\n")
@@ -185,6 +184,7 @@ func process(input string) (int, string) {
 				} else {
 					prefix = processed
 				}
+				var m []string
 				re := regexp.MustCompile(
 					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
 				if re.MatchString(prefix) {
@@ -214,7 +214,7 @@ func process(input string) (int, string) {
 				for _, re := range []*regexp.Regexp{
 					startAuto, managedAuto, ipAuto, endAuto,
 					negation, intersection, comma} {
-					if m = match(re); m != nil {
+					if m := match(re); m != nil {
 						inList = true
 						copy.WriteString(m[0])
 						if substDone && re == intersection {
@@ -225,7 +225,7 @@ func process(input string) (int, string) {
 					}
 				}
 			}
-		} else if m = match(startGroup); m != nil {
+		} else if m := match(startGroup); m != nil {
 			// Find start of group.
 			copy.WriteString(m[0])
 
@@ -234,7 +234,7 @@ func process(input string) (int, string) {
 				copy.WriteString(m[0])
 				inList = true
 			}
-		} else if m = match(restToEOL); m != nil {
+		} else if m := match(restToEOL); m != nil {
 			// Ignore rest of line if nothing matches.
 			copy.WriteString(m[0])
 		} else {
