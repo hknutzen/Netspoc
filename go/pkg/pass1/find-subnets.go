@@ -652,8 +652,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					warnOrErrMsg(printType,
 						"%s is subnet of %s\n"+
 							" in %s.\n"+
-							" If desired, either declare attribute"+
-							" 'subnet_of' or attribute 'has_subnets'",
+							" If desired, declare attribute 'subnet_of'",
 						natName(natSubnet), natName(natBignet), domain.name)
 				}
 			}

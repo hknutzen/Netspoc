@@ -388,7 +388,7 @@ END
 $out = <<'END';
 Warning: nat:C of network:Test is subnet of network:X
  in nat_domain:[network:X].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 END
 
 test_warn($title, $in, $out);
@@ -457,10 +457,10 @@ END
 $out = <<'END';
 Warning: network:n1sub is subnet of network:n1
  in nat_domain:[network:t1].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 Warning: network:n2sub is subnet of network:n2
  in nat_domain:[network:t2].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 END
 
 test_warn($title, $in, $out);
