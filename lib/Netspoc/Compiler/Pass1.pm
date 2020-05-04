@@ -778,7 +778,7 @@ sub read_typed_name {
         }
         else {
             skip_char_direct('[');
-            if (($interface or $type eq 'host') and check('managed')) {
+            if ($interface and check('managed')) {
                 $ext = 1;
                 skip '&';
             }
