@@ -119,10 +119,10 @@ func (p *parser) user() *ast.User {
 	return a
 }
 
-func (p *parser) objectRef(typ, name string) ast.Element {
+func (p *parser) namedRef(typ, name string) ast.Element {
 	start := p.pos
 	p.next()
-	a := new(ast.ObjectRef)
+	a := new(ast.NamedRef)
 	a.Start = start
 	a.Typ = typ
 	a.Name = name
@@ -132,17 +132,17 @@ func (p *parser) objectRef(typ, name string) ast.Element {
 
 func (p *parser) hostRef(typ, name string) ast.Element {
 	p.verifyHostname(name)
-	return p.objectRef(typ, name)
+	return p.namedRef(typ, name)
 }
 
 func (p *parser) networkRef(typ, name string) ast.Element {
 	p.verifyNetworkName(name)
-	return p.objectRef(typ, name)
+	return p.namedRef(typ, name)
 }
 
 func (p *parser) simpleRef(typ, name string) ast.Element {
 	p.verifySimpleName(name)
-	return p.objectRef(typ, name)
+	return p.namedRef(typ, name)
 }
 
 func (p *parser) selector() string {

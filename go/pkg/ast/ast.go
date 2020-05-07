@@ -61,7 +61,7 @@ type TypedElt struct {
 	Typ string
 }
 
-type ObjectRef struct {
+type NamedRef struct {
 	TypedElt
 	Name string
 }
@@ -113,7 +113,11 @@ type TopBase struct {
 func (a *TopBase) Fname() string     { return a.fname }
 func (a *TopBase) SetFname(n string) { a.fname = n }
 
-type Group struct {
+type TopList struct {
 	TopBase
 	Elements []Element
+}
+
+type Group struct {
+	TopList
 }
