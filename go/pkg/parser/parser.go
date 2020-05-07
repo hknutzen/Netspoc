@@ -39,11 +39,6 @@ func (p *parser) next() {
 	p.pos, p.tok = p.scanner.Token()
 }
 
-// Advance to the next token, without skipping whitespace.
-func (p *parser) nextDirect() {
-	p.pos, p.tok = p.scanner.TokenDirect()
-}
-
 func (p *parser) syntaxErr(format string, args ...interface{}) {
 	p.scanner.SyntaxErr(format, args...)
 }
@@ -151,8 +146,6 @@ func (p *parser) simpleRef(typ, name string) ast.Element {
 }
 
 func (p *parser) selector() string {
-	p.nextDirect()
-	p.expect("[")
 	result := p.tok
 	if !(result == "auto" || result == "all") {
 		p.syntaxErr("Expected [auto|all]")
@@ -171,8 +164,9 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	net := name[i+1:]
 	err := !isRouterName(router)
 	start := p.pos
+	p.next()
 	var ext string
-	if net == "" {
+	if net == "[" {
 		ext = p.selector()
 	} else {
 		i := strings.Index(net, ".")
@@ -182,7 +176,6 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 			net = net[:i]
 		}
 		err = err || !isNetworkName(net)
-		p.next()
 	}
 	if err {
 		p.syntaxErr("Interface name expected")
@@ -255,9 +248,7 @@ func (p *parser) intfAuto(start int, typ string) ast.Element {
 		p.expect("&")
 	}
 	list := p.union("]")
-	if p.tok != "." {
-		p.syntaxErr("Expected '.'")
-	}
+	p.expect(".[")
 	s := p.selector()
 	a := new(ast.IntfAuto)
 	a.Start = start
@@ -305,10 +296,9 @@ func (p *parser) extendedName() ast.Element {
 		return p.user()
 	}
 	typ, name := p.typedName()
-	if name == "" {
+	if name == "[" {
 		start := p.pos
-		p.nextDirect()
-		p.expect("[")
+		p.next()
 		m, found := autoGroupType[typ]
 		if !found {
 			p.syntaxErr("Unexpected automatic group")

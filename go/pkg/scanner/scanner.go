@@ -177,13 +177,25 @@ func (s *Scanner) scan(check func(rune) bool) (int, string) {
 //
 func (s *Scanner) Token() (int, string) {
 	s.skipWhitespace()
-	return s.scan(isTokenChar)
-}
 
-// TokenDirect is like Token, but without skipping whitespace in front
-// of token.
-//
-func (s *Scanner) TokenDirect() (int, string) {
+	// current token start
+	pos := s.offset
+
+	// determine token value
+	ch := s.ch
+	s.next()
+
+	if isTokenChar(ch) {
+		for isTokenChar(s.ch) {
+			s.next()
+		}
+		// Token may end with '['.
+		if s.ch == '[' {
+			s.next()
+		}
+	}
+	return pos, string(s.src[pos:s.offset])
+
 	return s.scan(isTokenChar)
 }
 
