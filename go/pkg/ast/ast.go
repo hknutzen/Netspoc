@@ -117,7 +117,3 @@ type Group struct {
 	TopBase
 	Elements []Element
 }
-
-type File struct {
-	Toplevel []Toplevel
-}

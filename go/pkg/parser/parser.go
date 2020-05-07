@@ -427,18 +427,16 @@ func (p *parser) toplevel() ast.Toplevel {
 // ----------------------------------------------------------------------------
 // Source files
 
-func (p *parser) file() *ast.File {
+func (p *parser) file() []ast.Toplevel {
 	var list []ast.Toplevel
 	for p.tok != "" {
 		list = append(list, p.toplevel())
 	}
 
-	return &ast.File{
-		Toplevel: list,
-	}
+	return list
 }
 
-func ParseFile(src []byte, fname string) *ast.File {
+func ParseFile(src []byte, fname string) []ast.Toplevel {
 	p := new(parser)
 	p.init(src, fname)
 	return p.file()
