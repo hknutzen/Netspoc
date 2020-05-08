@@ -81,7 +81,6 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	p.element("", l[0], "")
-	p.indent++
 	for _, el := range l[1:] {
 		switch x := el.(type) {
 		case *ast.Complement:
@@ -90,7 +89,6 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 			p.element("& ", el, "")
 		}
 	}
-	p.indent--
 	p.print(post)
 }
 
