@@ -21,6 +21,25 @@ func (p *printer) print(line string) {
 	p.output = append(p.output, '\n')
 }
 
+func isShort(l []ast.Element) string {
+	if len(l) == 1 {
+		el := l[0]
+		if x, ok := el.(*ast.NamedRef); ok {
+			return x.Typ + ":" + x.Name
+		}
+	}
+	return ""
+}
+
+func (p *printer) subElements(pre string, l []ast.Element, stop string) {
+	if name := isShort(l); name != "" {
+		p.print(pre + name + stop)
+	} else {
+		p.print(pre)
+		p.elList(l, stop)
+	}
+}
+
 func (p *printer) element(pre string, el ast.Element, post string) {
 	switch x := el.(type) {
 	case *ast.NamedRef:
@@ -36,23 +55,21 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		}
 		p.print(pre + x.Typ + ":" + x.Router + "." + net + ext + post)
 	case *ast.SimpleAuto:
-		p.print(pre + x.Typ + ":[")
-		p.elList(x.Elements, "]"+post)
+		out := pre + x.Typ + ":["
+		p.subElements(out, x.Elements, "]"+post)
 	case *ast.AggAuto:
-		out := x.Typ + ":["
+		out := pre + x.Typ + ":["
 		if n := x.Net; n != nil {
-			out += "ip = " + n.String() + " &"
+			out += "ip = " + n.String() + " & "
 		}
-		p.print(pre + out)
-		p.elList(x.Elements, "]"+post)
+		p.subElements(out, x.Elements, "]"+post)
 	case *ast.IntfAuto:
-		out := x.Typ + ":["
+		out := pre + x.Typ + ":["
 		stop := "].[" + x.Selector + "]" + post
 		if x.Managed {
-			out += "managed &"
+			out += "managed & "
 		}
-		p.print(pre + out)
-		p.elList(x.Elements, stop)
+		p.subElements(out, x.Elements, stop)
 	case *ast.Intersection:
 		p.intersection(pre, x.List, post)
 	case *ast.Complement:
