@@ -219,7 +219,7 @@ func expandIntersection(name interface{}, ctx string, ipv6, visible, withSubnets
 // Parameter 'withSubnets' controls if subnets of networks will be
 // added to result.
 func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets bool) groupObjList {
-	var result groupObjList
+	result := make(groupObjList, 0)
 	for _, part := range list {
 		typ, name, ext := part.typ, part.name, part.ext
 		if typ == "&" {
@@ -708,12 +708,16 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 	return result
 }
 
-// Parameter withSubnets is set, if called from command "print-group".
-// This changes the result of network:[any|area|network:..]:
-// For each resulting network, all subnets of this network in same zone
-// are added.
-func expandGroup(l []*parsedObjRef, ctx string, ipv6, withSubnets bool) groupObjList {
-	result := expandGroup1(l, ctx, ipv6, true, withSubnets)
+// Parameter showAll is set, if called from command "print-group".
+// This changes the result of
+// 1. network:[any|area|network:..]:
+//    For each resulting network, all subnets of this network in same
+//    zone are added.
+//    Crosslink networks are no longer suppressed.
+// 2. interface:[..].[all]:
+//    Unnumbered and bridged interfaces are no longer suppressed.
+func expandGroup(l []*parsedObjRef, ctx string, ipv6, showAll bool) groupObjList {
+	result := expandGroup1(l, ctx, ipv6, !showAll, showAll)
 	return removeDuplicates(result, ctx)
 }
 

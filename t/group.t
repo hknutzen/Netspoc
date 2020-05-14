@@ -427,7 +427,7 @@ END
 test_group($title, $in, 'network:t1', $out, '-nat k1');
 
 ############################################################
-$title = '[all], [auto] and real interface together';
+$title = 'Show unnumbered from [all], show [auto] interface';
 ############################################################
 
 $out = <<'END';
@@ -438,7 +438,7 @@ unknown	interface:r1.[auto]
 unnumbered	interface:r1.t1
 END
 test_group($title, $in,
-           'interface:r1.[all],interface:r1.[auto],interface:r1.t1',
+           'interface:r1.[all],interface:r1.[auto]',
            $out, '-nat k1');
 
 ############################################################
@@ -450,6 +450,50 @@ short	interface:r2.t1
 short	interface:r2.k1
 END
 test_group($title, $in, 'interface:r2.[all]', $out);
+
+
+############################################################
+$title = 'Empty group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+ group:g1 = ;
+END
+
+$out = <<'END';
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
+$title = 'Show bridged interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1/right = { ip = 10.1.1.2; }
+}
+END
+
+$out = <<'END';
+10.1.1.2	interface:r.n1/right
+bridged	interface:bridge.n1/right
+END
+
+test_group($title, $in, 'interface:[network:n1/right].[all]', $out);
 
 ############################################################
 $title = 'Show owner';
