@@ -233,7 +233,7 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 		} else if typ == "user" {
 			result = append(result, userObj.elements...)
 		} else if typ == "interface" {
-			var check groupObjList
+			var check intfList
 			switch x := part.name.(type) {
 			case []*parsedObjRef:
 				if ext, ok := part.ext.(*string); ok {
@@ -424,27 +424,10 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 
 			// Silently remove unnumbered, bridged and tunnel interfaces
 			// from automatic groups.
-			for _, obj := range check {
-				switch x := obj.(type) {
-				case *network:
-					if x.tunnel {
-						continue
-					}
-					if x.disabled {
-						continue
-					}
-					if visible && (x.unnumbered || x.bridged) {
-						continue
-					}
-				case *routerIntf:
-					if x.tunnel {
-						continue
-					}
-					if visible && (x.unnumbered || x.bridged) {
-						continue
-					}
+			for _, intf := range check {
+				if !(intf.tunnel || visible && (intf.unnumbered || intf.bridged)) {
+					result.push(intf)
 				}
-				result.push(obj)
 			}
 		} else if list, ok := name.([]*parsedObjRef); ok {
 			subObjects := expandGroup1(list,
