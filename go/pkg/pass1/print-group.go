@@ -273,7 +273,7 @@ func PrintGroup(m xMap) {
 		process(sRules.deny)
 	}
 
-	if showOwner {
+	if showOwner || showAdmins {
 		propagateOwners()
 	}
 
