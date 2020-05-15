@@ -157,6 +157,7 @@ func (s *Scanner) skipWhitespace() {
 }
 
 func (s *Scanner) scan(check func(rune) bool) (int, string) {
+	s.skipWhitespace()
 
 	// current token start
 	pos := s.offset
@@ -176,27 +177,13 @@ func (s *Scanner) scan(check func(rune) bool) (int, string) {
 // token literal string. The source end is indicated by "".
 //
 func (s *Scanner) Token() (int, string) {
-	s.skipWhitespace()
-
-	// current token start
-	pos := s.offset
-
-	// determine token value
-	ch := s.ch
-	s.next()
-
-	if isTokenChar(ch) {
-		for isTokenChar(s.ch) {
-			s.next()
-		}
-		// Token may end with '['.
-		if s.ch == '[' {
-			s.next()
-		}
+	pos, tok := s.scan(isTokenChar)
+	// Token may end with '['.
+	if s.ch == '[' {
+		s.next()
+		tok = tok + "["
 	}
-	return pos, string(s.src[pos:s.offset])
-
-	return s.scan(isTokenChar)
+	return pos, tok
 }
 
 // Number scans the next numeric token consisting solely of ASCII
@@ -204,7 +191,6 @@ func (s *Scanner) Token() (int, string) {
 // string. The source end is indicated by "".
 //
 func (s *Scanner) Number() (int, string) {
-	s.skipWhitespace()
 	return s.scan(isDecimal)
 }
 
