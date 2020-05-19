@@ -613,7 +613,7 @@ sub read_identifier {
 # Used for reading hardware name, model, admins, watchers.
 sub read_name {
     skip_space_and_comment;
-    if ($input =~ m/(\G[^;,\s""'']+)/gc) {
+    if ($input =~ m/(\G[^;,\s""''\#]+)/gc) {
         return $1;
     }
     else {
@@ -624,7 +624,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;\n]+)/gc) {
+    if ($input =~ m/\G([^;\#\n]+)/gc) {
         return $1;
     }
     else {
@@ -885,8 +885,8 @@ sub add_description {
     check 'description' or return;
     skip '=';
 
-    # Read up to end of line, but ignore ';' at EOL.
-    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
+    # Read up to comment or end of line, but ignore ';' at EOL.
+    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*(?=$|\#)/gcm) {
         $obj->{description} = $1;
     }
 }

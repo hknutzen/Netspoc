@@ -2100,7 +2100,7 @@ router:asa1 = {
 group:g = ;
 
 service:s1 = {
- description = test; test, test;
+ description = test; test, test;# With comment
  user = network:n1;
  permit src = user; dst = group:g; prt = udp 162;
 }
