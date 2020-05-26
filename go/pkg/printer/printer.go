@@ -8,9 +8,17 @@ import (
 )
 
 type printer struct {
+	src []byte // Original source code with comments.
 	// Current state
 	output []byte // raw printer result
 	indent int    // current indentation
+}
+
+func (p *printer) init(src []byte) {
+	if src[len(src)-1] != 0x0a {
+		src = append(src, 0x0a)
+	}
+	p.src = src
 }
 
 func (p *printer) print(line string) {
@@ -41,6 +49,7 @@ func (p *printer) subElements(pre string, l []ast.Element, stop string) {
 }
 
 func (p *printer) element(pre string, el ast.Element, post string) {
+	p.PreComment(el)
 	switch x := el.(type) {
 	case *ast.NamedRef:
 		p.print(pre + x.Typ + ":" + x.Name + post)
@@ -101,22 +110,18 @@ func (p *printer) elList(l []ast.Element, stop string) {
 	p.print(stop)
 }
 
-func (p *printer) description(d *ast.Description) {
-	if d != nil {
-		if s := d.Text; s != "" {
-			p.print("description = " + s)
-		}
-	}
-}
-
-func (p *printer) topList(n ast.TopList) {
+func (p *printer) topList(n *ast.TopList) {
+	p.comment(p.PreComment(n))
 	p.print(n.Name + " =")
-	p.description(n.Description)
+	if d := n.Description; d != nil {
+		p.comment(p.PreComment(d))
+		p.print("description = " + d.Text)
+	}
 	p.elList(n.Elements, ";")
 }
 
 func (p *printer) group(g *ast.Group) {
-	p.topList(g.TopList)
+	p.topList(&g.TopList)
 }
 
 func (p *printer) toplevel(t ast.Toplevel) {
@@ -128,8 +133,9 @@ func (p *printer) toplevel(t ast.Toplevel) {
 	}
 }
 
-func File(l []ast.Toplevel) {
+func File(l []ast.Toplevel, src []byte) {
 	p := new(printer)
+	p.init(src)
 	for _, t := range l {
 		p.toplevel(t)
 	}

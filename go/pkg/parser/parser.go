@@ -345,6 +345,7 @@ func (p *parser) intersection() ast.Element {
 }
 
 // Read comma separated list of objects stopped by stopToken.
+// Read at least one element.
 // Return AST with list of read elements.
 func (p *parser) union(stopToken string) []ast.Element {
 	var union []ast.Element

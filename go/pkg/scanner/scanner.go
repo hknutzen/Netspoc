@@ -63,7 +63,6 @@ func (s *Scanner) next() {
 // of the file.
 //
 func (s *Scanner) Init(src []byte, fname string) {
-	// Explicitly initialize all fields since a scanner may be reused.
 	s.src = src
 	s.fname = fname
 
@@ -200,4 +199,19 @@ func (s *Scanner) ToEOL() (int, string) {
 		s.next()
 	}
 	return pos, string(s.src[pos:s.offset])
+}
+
+func (s *Scanner) ToEOLorComment() (int, string) {
+	pos := s.offset
+	for s.ch != '\n' && s.ch != '#' && s.ch >= 0 {
+		s.next()
+	}
+	return pos, string(s.src[pos:s.offset])
+}
+
+func (s *Scanner) Lookup(pos int) rune {
+	if pos >= len(s.src) {
+		return -1
+	}
+	return rune(s.src[pos])
 }
