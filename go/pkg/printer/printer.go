@@ -44,12 +44,11 @@ func (p *printer) subElements(pre string, l []ast.Element, stop string) {
 		p.print(pre + name + stop)
 	} else {
 		p.print(pre)
-		p.elList(l, stop)
+		p.elementList(l, stop)
 	}
 }
 
 func (p *printer) element(pre string, el ast.Element, post string) {
-	p.PreComment(el)
 	switch x := el.(type) {
 	case *ast.NamedRef:
 		p.print(pre + x.Typ + ":" + x.Name + post)
@@ -101,33 +100,52 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	p.print(post)
 }
 
-func (p *printer) elList(l []ast.Element, stop string) {
+func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
-	for _, el := range l {
-		p.element("", el, ",")
+	for i, el := range l {
+		post := ","
+		p.comment(p.PreCommentX(el, ",", i == 0))
+		trailing, after := p.PostComment(el, ",;")
+		if trailing != "" {
+			post += " " + trailing
+		}
+		p.element("", el, post)
+		p.comment(head1(after))
 	}
 	p.indent--
 	p.print(stop)
 }
 
-func (p *printer) topList(n *ast.TopList) {
-	p.comment(p.PreComment(n))
-	p.print(n.Name + " =")
+func (p *printer) topList(n *ast.TopList, first bool) {
+	p.comment(p.PreCommentX(n, "", first))
+	pos := n.Pos() + len(n.Name)
+	trailing, after := p.FindCommentAfter(pos, "=")
+	post := " ="
+	if trailing != "" {
+		post += " " + trailing
+	}
+	p.print(n.Name + post)
 	if d := n.Description; d != nil {
 		p.comment(p.PreComment(d))
-		p.print("description = " + d.Text)
+		trailing, after = p.PostComment(d, "=")
+		post := ""
+		if trailing != "" {
+			post += " " + trailing
+		}
+		p.print("description = " + d.Text + post)
 	}
-	p.elList(n.Elements, ";")
+	p.comment(headN1(after))
+	p.elementList(n.Elements, ";")
 }
 
-func (p *printer) group(g *ast.Group) {
-	p.topList(&g.TopList)
+func (p *printer) group(g *ast.Group, first bool) {
+	p.topList(&g.TopList, first)
 }
 
-func (p *printer) toplevel(t ast.Toplevel) {
+func (p *printer) toplevel(t ast.Toplevel, first bool) {
 	switch x := t.(type) {
 	case *ast.Group:
-		p.group(x)
+		p.group(x, first)
 	default:
 		panic(fmt.Sprintf("Unknown type: %v", t))
 	}
@@ -136,8 +154,18 @@ func (p *printer) toplevel(t ast.Toplevel) {
 func File(l []ast.Toplevel, src []byte) {
 	p := new(printer)
 	p.init(src)
-	for _, t := range l {
-		p.toplevel(t)
+
+	// N-1 comment blocks at top of file.
+	_, after := p.FindCommentAfter(0, "")
+	p.comment(headN1(after))
+
+	// Toplevel declarations.
+	// First one gets only one comment block.
+	for i, t := range l {
+		p.toplevel(t, i == 0)
 	}
+
+	// N-1 comment blocks at bottom of file
+	p.comment(tailN1(p.FindCommentBefore(len(p.src), ",;")))
 	fmt.Print(string(p.output))
 }

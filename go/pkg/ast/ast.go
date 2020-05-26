@@ -56,6 +56,8 @@ type User struct {
 	Base
 }
 
+func (a *User) End() int { return a.Pos() + len("user") }
+
 type TypedElt struct {
 	Base
 	Typ string
@@ -65,6 +67,8 @@ type NamedRef struct {
 	TypedElt
 	Name string
 }
+
+func (a *NamedRef) End() int { return a.Pos() + len(a.Typ) + 1 + len(a.Name) }
 
 type IntfRef struct {
 	TypedElt
@@ -93,10 +97,14 @@ type Complement struct {
 	Element Element
 }
 
+func (a *Complement) End() int { return a.Element.End() }
+
 type Intersection struct {
 	Base
 	List []Element
 }
+
+func (a *Intersection) End() int { return a.List[len(a.List)-1].End() }
 
 type Description struct {
 	Base

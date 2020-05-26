@@ -56,8 +56,17 @@ func (p *parser) check(tok string) bool {
 	if p.tok != tok {
 		return false
 	}
-	p.next() // make progress
+	p.next()
 	return true
+}
+
+func (p *parser) checkPos(tok string) int {
+	if p.tok != tok {
+		return -1
+	}
+	end := p.pos + len(tok)
+	p.next()
+	return end
 }
 
 func isSimpleName(n string) bool {
@@ -115,7 +124,6 @@ func (p *parser) user() *ast.User {
 	p.next()
 	a := new(ast.User)
 	a.Start = start
-	a.Next = p.pos
 	return a
 }
 
@@ -126,7 +134,6 @@ func (p *parser) namedRef(typ, name string) ast.Element {
 	a.Start = start
 	a.Typ = typ
 	a.Name = name
-	a.Next = p.pos
 	return a
 }
 
@@ -145,14 +152,14 @@ func (p *parser) simpleRef(typ, name string) ast.Element {
 	return p.namedRef(typ, name)
 }
 
-func (p *parser) selector() string {
+func (p *parser) selector() (string, int) {
 	result := p.tok
 	if !(result == "auto" || result == "all") {
 		p.syntaxErr("Expected [auto|all]")
 	}
 	p.next()
-	p.expect("]")
-	return result
+	pos := p.expect("]")
+	return result, pos + 1
 }
 
 func (p *parser) intfRef(typ, name string) ast.Element {
@@ -166,8 +173,9 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	start := p.pos
 	p.next()
 	var ext string
+	var end int
 	if net == "[" {
-		ext = p.selector()
+		ext, end = p.selector()
 	} else {
 		i := strings.Index(net, ".")
 		if i != -1 {
@@ -176,6 +184,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 			net = net[:i]
 		}
 		err = err || !isNetworkName(net)
+		end = start + len(name)
 	}
 	if err {
 		p.syntaxErr("Interface name expected")
@@ -186,17 +195,17 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	a.Router = router
 	a.Network = net   // If Network is "",
 	a.Extension = ext // then Extension contains selector.
-	a.Next = p.pos
+	a.Next = end
 	return a
 }
 
 func (p *parser) simpleAuto(start int, typ string) ast.Element {
-	list := p.union("]")
+	list, end := p.union("]")
 	a := new(ast.SimpleAuto)
 	a.Start = start
 	a.Typ = typ
 	a.Elements = list
-	a.Next = p.pos
+	a.Next = end
 	return a
 }
 
@@ -231,13 +240,13 @@ func (p *parser) aggAuto(start int, typ string) ast.Element {
 		n = p.ipPrefix()
 		p.expect("&")
 	}
-	list := p.union("]")
+	list, end := p.union("]")
 	a := new(ast.AggAuto)
 	a.Start = start
 	a.Typ = typ
 	a.Net = n
 	a.Elements = list
-	a.Next = p.pos
+	a.Next = end
 	return a
 }
 
@@ -247,16 +256,16 @@ func (p *parser) intfAuto(start int, typ string) ast.Element {
 		m = true
 		p.expect("&")
 	}
-	list := p.union("]")
+	list, _ := p.union("]")
 	p.expect(".[")
-	s := p.selector()
+	s, end := p.selector()
 	a := new(ast.IntfAuto)
 	a.Start = start
 	a.Typ = typ
 	a.Managed = m
 	a.Selector = s
 	a.Elements = list
-	a.Next = p.pos
+	a.Next = end
 	return a
 }
 
@@ -319,7 +328,6 @@ func (p *parser) complement() ast.Element {
 		a := new(ast.Complement)
 		a.Start = start
 		a.Element = el
-		a.Next = p.pos
 		return a
 	} else {
 		return p.extendedName()
@@ -337,7 +345,6 @@ func (p *parser) intersection() ast.Element {
 		a := new(ast.Intersection)
 		a.Start = start
 		a.List = intersection
-		a.Next = p.pos
 		return a
 	} else {
 		return intersection[0]
@@ -346,21 +353,26 @@ func (p *parser) intersection() ast.Element {
 
 // Read comma separated list of objects stopped by stopToken.
 // Read at least one element.
-// Return AST with list of read elements.
-func (p *parser) union(stopToken string) []ast.Element {
+// Return list of ASTs of read elements
+// and position after stopToken.
+func (p *parser) union(stopToken string) ([]ast.Element, int) {
 	var union []ast.Element
 	union = append(union, p.intersection())
+	var end int
 
-	for !p.check(stopToken) {
+	for {
+		if end = p.checkPos(stopToken); end >= 0 {
+			break
+		}
 		p.expect(",")
 
 		// Allow trailing comma.
-		if p.check(stopToken) {
+		if end = p.checkPos(stopToken); end >= 0 {
 			break
 		}
 		union = append(union, p.intersection())
 	}
-	return union
+	return union, end
 }
 
 func (p *parser) description() *ast.Description {
@@ -369,13 +381,14 @@ func (p *parser) description() *ast.Description {
 		if p.tok != "=" {
 			p.syntaxErr("Expected '='")
 		}
-		p.pos, p.tok = p.scanner.ToEOL()
+		p.pos, p.tok = p.scanner.ToEOLorComment()
 		text := p.tok
+		end := p.pos + len(text)
 		p.next()
 		a := new(ast.Description)
 		a.Start = start
 		a.Text = text
-		a.Next = p.pos
+		a.Next = end
 		return a
 	}
 	return nil
@@ -388,15 +401,16 @@ func (p *parser) group() ast.Toplevel {
 	p.expect("=")
 	description := p.description()
 	var list []ast.Element
-	if !p.check(";") {
-		list = p.union(";")
+	var end int
+	if end = p.checkPos(";"); end < 0 {
+		list, end = p.union(";")
 	}
 	a := new(ast.Group)
 	a.Start = start
 	a.Name = name
 	a.Description = description
 	a.Elements = list
-	a.Next = p.pos
+	a.Next = end
 	return a
 }
 

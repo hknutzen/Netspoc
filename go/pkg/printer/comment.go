@@ -25,10 +25,14 @@ func (p *printer) Lookup(pos int) rune {
 	return rune(p.src[pos])
 }
 
-func (p *printer) ReadCommentOrWhitespace(pos int) (int, string) {
+func (p *printer) ReadCommentOrWhitespaceAfter(
+	pos int, ignore string) (int, string) {
+
 	start := pos
+READ:
 	for pos < len(p.src) {
-		switch rune(p.src[pos]) {
+		c := rune(p.src[pos])
+		switch c {
 		case ' ', '\t', '\n', '\r':
 			// Whitespace
 			pos++
@@ -42,35 +46,47 @@ func (p *printer) ReadCommentOrWhitespace(pos int) (int, string) {
 				pos++
 			}
 		default:
-			break
+			// Check to be ignored character.
+			if strings.IndexRune(ignore, c) == -1 {
+				break READ
+			}
+			pos++
 		}
 	}
 	return pos, string(p.src[start:pos])
 }
 
-func (p *printer) ReadCommentOrWhitespaceBefore(pos int) (int, string) {
+func (p *printer) ReadCommentOrWhitespaceBefore(
+	pos int, ignore string) (int, string) {
+
 	end := pos
 	pos--
-OUTER:
+READ:
 	for pos >= 0 {
-		switch rune(p.src[pos]) {
+		c := rune(p.src[pos])
+		switch c {
 		case ' ', '\t', '\n', '\r':
 			// Whitespace
 			pos--
 		default:
+			// Check to be ignored character.
+			if strings.IndexRune(ignore, c) != -1 {
+				pos--
+				continue READ
+			}
 			// Check backwards for comment.
 			i := pos
 			for {
 				switch p.src[i] {
 				case '#':
 					pos = i - 1
-					continue OUTER
+					continue READ
 				case '\n':
-					break OUTER
+					break READ
 				default:
 					i--
 					if i < 0 {
-						break OUTER
+						break READ
 					}
 				}
 			}
@@ -79,20 +95,13 @@ OUTER:
 	return pos, string(p.src[pos+1 : end])
 }
 
-// Find comments in source beginning at position 'pos'.
+// Find comment lines in source beginning at position 'pos'
+// up to first empty line.
 // Ignore characters in 'ignore'.
 // These are ignored and won't terminate sequences of comments.
-// Blocks of comment lines are separated
-// - by one or more empty lines or
-// - first comment is on same line behind some token
-//   and following comments are on separate lines.
 // Returns
-// 1. A slice of blocks of comments.
-// - If a block is preceeded / succeeded by an empty line, an empty
-//   block is prepended / appended.
-// - Multiple empty lines without any comment are ignored.
-//   In this case, return value ist nil.
-// 2. Position of following token
+// 1. Comment in same line after 'pos'.
+// 2. One or more comment lines in new line after pos.
 /*
 Examples:
 
@@ -117,47 +126,56 @@ host:h1, #c1
 #c2c
 */
 //
-func (p *printer) FindComment(pos int, ignore string) [][]string {
+func (p *printer) FindCommentAfter(pos int, ignore string) (string, [][]string) {
 
+	var first string
 	var result [][]string
 	var block []string
 	trailing := true
 	for {
-		end, com := p.ReadCommentOrWhitespace(pos)
+		end, com := p.ReadCommentOrWhitespaceAfter(pos, ignore)
 		lines := strings.Split(com, "\n")
 
 		// 'lines' is known to have at least one element.
 		// Comment line is known to end with "\n", even at EOF.
-		// (Has been added by scanner if missing.)
+		// (Has been added if missing.)
 		// So, any comment would result in at least two lines.
 
 		// Process all lines except last one.
 		last := len(lines) - 1
 		for _, line := range lines[:last] {
 			// Check if line contains comment.
-			if i := strings.Index(line, "#"); i != -1 {
-				block = append(block, line[i:]) // Ignore leading whitespace
-			} else if trailing {
-				block = append(block, "")
+			if idx := strings.Index(line, "#"); idx != -1 {
+				line = line[idx:] // Ignore leading whitespace
+				if trailing {
+					first = line
+				} else {
+					block = append(block, line)
+				}
 			} else {
-				result = append(result, block)
-				block = nil
+				// Found empty line, separating blocks of comment lines.
+				if block != nil || result == nil {
+					result = append(result, block)
+					block = nil
+				}
 			}
 			trailing = false
 		}
 
-		// Process last line. It doesn't end with "\n".
-		// This is known to be only whitespace.
-		// Comment line is known to end with "\n", even at EOF.
-		// (Has been added by scanner if missing.)
+		// Ignore last line. It doesn't end with "\n"
+		// and is known to be only whitespace.
 
 		// To be ignored character follows.
 		if strings.IndexRune(ignore, p.Lookup(end)) != -1 {
-			pos = end
+			pos = end + 1
 			continue
 		}
-		return result
+		return first, append(result, block)
 	}
+}
+
+func (p *printer) PostComment(n ast.Node, ign string) (string, [][]string) {
+	return p.FindCommentAfter(n.End(), ign)
 }
 
 func (p *printer) FindCommentBefore(pos int, ignore string) [][]string {
@@ -165,42 +183,52 @@ func (p *printer) FindCommentBefore(pos int, ignore string) [][]string {
 	var result [][]string
 	var block []string
 
-	for {
-		start, com := p.ReadCommentOrWhitespaceBefore(pos)
+	start, com := p.ReadCommentOrWhitespaceBefore(pos, ignore)
 
-		// Lookup previous character.
-		var prev rune
-		if start > 0 {
-			prev = p.Lookup(start - 1)
+	// Lookup previous character.
+	// Check
+	var prev rune
+	if start > 0 {
+		prev = p.Lookup(start - 1)
+	} else {
+		prev = '\n'
+	}
+
+	lines := strings.Split(com, "\n")
+	// Ignore last line without trailing "\n".
+	lines = lines[:len(lines)-1]
+	// Ignore trailing comment or whitespace in first line.
+	if prev != '\n' && len(lines) > 0 {
+		lines = lines[1:]
+	}
+	for _, line := range lines {
+		if idx := strings.Index(line, "#"); idx != -1 {
+			// Line contains comment.
+			block = append(block, line[idx:]) // Ignore leading whitespace
 		} else {
-			prev = '\n'
-		}
-
-		lines := strings.Split(com, "\n")
-		for i, line := range lines {
-			if idx := strings.Index(line, "#"); idx != -1 {
-				// Line contains comment.
-				block = append(block, line[idx:]) // Ignore leading whitespace
-			} else if !(i == 0 && prev != '\n') {
-				// Found empty line, separating blocks of comment lines.
-				if block != nil {
-					result = append(result, block)
-					block = nil
-				}
+			// Found empty line, separating blocks of comment lines.
+			if block != nil {
+				result = append(result, block)
+				block = nil
 			}
 		}
-
-		// Check previous ASCII character.
-		if strings.IndexRune(ignore, prev) != -1 {
-			pos = start - 1
-			continue
-		}
-		return result
 	}
+
+	return append(result, block)
 }
 
 func (p *printer) PreComment(n ast.Node) [][]string {
 	return p.FindCommentBefore(n.Pos(), "")
+}
+
+func head1(blocks [][]string) [][]string {
+	l := len(blocks)
+	switch l {
+	case 0, 1:
+		return nil
+	default:
+		return [][]string{blocks[0]}
+	}
 }
 
 func headN1(blocks [][]string) [][]string {
@@ -213,22 +241,31 @@ func headN1(blocks [][]string) [][]string {
 
 func tail1(blocks [][]string) [][]string {
 	l := len(blocks)
-	if l == 0 {
+	switch l {
+	case 0:
 		return nil
+	case 1:
+		return blocks
+	default:
+		blocks[l-2] = nil
+		return blocks[l-2:]
 	}
-	return blocks[l-1:]
 }
 
 func tailN1(blocks [][]string) [][]string {
-	l := len(blocks)
-	if l == 0 {
+	switch len(blocks) {
+	case 0:
 		return nil
+	case 1:
+		return blocks
+	default:
+		blocks[0] = nil
+		return blocks
 	}
-	return blocks[1:]
 }
 
-func (p *printer) PreCommentX(n ast.Node, first bool) [][]string {
-	comm := p.FindCommentBefore(n.Pos(), "")
+func (p *printer) PreCommentX(n ast.Node, ign string, first bool) [][]string {
+	comm := p.FindCommentBefore(n.Pos(), ign)
 	if first {
 		return tail1(comm)
 	}
