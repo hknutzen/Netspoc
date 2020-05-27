@@ -572,7 +572,7 @@ END
 test_rmv($title, $out, "-f $filename", $in);
 
 ############################################################
-$title = 'Ambiguous pairs';
+$title = 'Add multiple entries to one object';
 ############################################################
 
 $in = <<'END';
@@ -583,10 +583,15 @@ service:s = {
 END
 
 $out = <<'END';
-Error: Can't add two elements to group:g: host:a, host:b
+service:s = {
+ user = group:g,
+        host:a,
+        host:b;
+ permit src = user; dst = host:x; prt tcp 80;
+}
 END
 
-err_add($title, $in, 'group:g host:a group:g host:b', $out);
+test_add($title, $in, 'group:g host:a group:g host:b', $out);
 
 ############################################################
 $title = 'Element to remove does not exist';

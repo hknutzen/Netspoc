@@ -89,7 +89,7 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var addTo = make(map[string]string)
+var addTo = make(map[string][]string)
 
 func checkName(typedName string) {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -109,10 +109,7 @@ func checkName(typedName string) {
 func setupAddTo(old, new string) {
 	checkName(old)
 	checkName(new)
-	if other := addTo[old]; other != "" {
-		abort.Msg("Can't add two elements to %s: %s, %s", old, other, new)
-	}
-	addTo[old] = new
+	addTo[old] = append(addTo[old], new)
 }
 
 // Find occurrence of typed name in list of objects:
@@ -166,8 +163,8 @@ func process(input string) (int, string) {
 				if m := match(extension); m != nil {
 					object += m[0]
 				}
-				new := addTo[object]
-				if new == "" {
+				add := addTo[object]
+				if add == nil {
 					copy.WriteString(space)
 					copy.WriteString(object)
 					substDone = false
@@ -194,22 +191,31 @@ func process(input string) (int, string) {
 					m = match(commaSemiEOL)
 				}
 				if m != nil {
-					// Add new entry to separate line with same indentation.
+					// Add new entries to separate line with same indentation.
 					delim, comment := m[1], m[2]
 					indent := strings.Repeat(" ", len([]rune(prefix)))
 					copy.WriteString(object)
 					copy.WriteString(",")
 					copy.WriteString(comment)
 					copy.WriteString("\n")
-					copy.WriteString(indent)
-					copy.WriteString(new)
-					copy.WriteString(delim)
-					copy.WriteString("\n")
+					last := len(add) - 1
+					for i, new := range add {
+						copy.WriteString(indent)
+						copy.WriteString(new)
+						if i == last {
+							copy.WriteString(delim)
+						} else {
+							copy.WriteString(",")
+						}
+						copy.WriteString("\n")
+					}
 				} else {
-					// Add new entry on same line separated by white space.
+					// Add new entries on same line separated by white space.
 					copy.WriteString(object)
-					copy.WriteString(", ")
-					copy.WriteString(new)
+					for _, new := range add {
+						copy.WriteString(", ")
+						copy.WriteString(new)
+					}
 				}
 			} else {
 				// Check if list continues.
