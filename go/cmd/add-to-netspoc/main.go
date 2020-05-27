@@ -109,6 +109,9 @@ func checkName(typedName string) {
 func setupAddTo(old, new string) {
 	checkName(old)
 	checkName(new)
+	if other := addTo[old]; other != "" {
+		abort.Msg("Can't add two elements to %s: %s, %s", old, other, new)
+	}
 	addTo[old] = new
 }
 
