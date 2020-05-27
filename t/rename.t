@@ -96,6 +96,19 @@ END
 test_err($title, '', 'host:x network:y ', $out);
 
 ############################################################
+$title = 'Ambiguous replace object';
+############################################################
+
+$in = <<'END';
+END
+
+$out = <<'END';
+Error: Ambiguous substitution for group:g: group:x, group:y
+END
+
+test_err($title, $in, 'group:g group:x group:g group:y', $out);
+
+############################################################
 $title = 'Rename network';
 ############################################################
 

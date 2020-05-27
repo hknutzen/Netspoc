@@ -60,11 +60,15 @@ func setupSubst(old, new string) {
 	if !globalType[objType] {
 		abort.Msg("Unknown type %s", objType)
 	}
-	addSubst := func(objType, search, replace string) {
-		subMap, ok := subst[objType]
+	addSubst := func(typ, search, replace string) {
+		subMap, ok := subst[typ]
 		if !ok {
 			subMap = make(map[string]string)
-			subst[objType] = subMap
+			subst[typ] = subMap
+		}
+		if other := subMap[search]; other != "" {
+			abort.Msg("Ambiguous substitution for %s:%s: %s:%s, %s:%s",
+				typ, search, typ, other, typ, replace)
 		}
 		subMap[search] = replace
 	}
