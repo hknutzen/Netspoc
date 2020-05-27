@@ -170,7 +170,7 @@ func process(input string) (int, string) {
 					substDone = false
 					continue
 				}
-				changed++
+				changed += len(add)
 				substDone = true
 				copy.WriteString(space)
 
