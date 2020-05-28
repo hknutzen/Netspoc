@@ -294,9 +294,6 @@ func readPairs(path string) {
 		abort.Msg("Can't %s", err)
 	}
 	pairs := strings.Fields(string(bytes))
-	if len(pairs) == 0 {
-		abort.Msg("Missing pairs in %s", path)
-	}
 	setupPairs(pairs)
 }
 
