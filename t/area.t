@@ -284,8 +284,8 @@ group:g1 = network:[area:a1];
 END
 
 $out = <<'END';
-10.1.1.0/24	network:n1
 10.1.2.0/24	network:n2
+10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
 END
 
@@ -311,8 +311,8 @@ group:g1 = network:[area:a1];
 END
 
 $out = <<'END';
-10.1.1.0/24	network:n1
 10.1.2.0/24	network:n2
+10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
 END
 
@@ -350,8 +350,8 @@ group:g1 = network:[area:a1];
 END
 
 $out = <<'END';
-10.1.1.0/24	network:n1
 10.1.2.0/24	network:n2
+10.1.1.0/24	network:n1
 10.1.3.0/24	network:n3
 END
 

@@ -237,8 +237,8 @@ $out = <<'END';
 10.1.3.0/24	network:n3
 10.1.3.10-10.1.3.15	host:h3a
 10.1.3.26	host:h3b
-10.1.3.65-10.1.3.67	host:h3d
 10.1.3.66	host:h3c
+10.1.3.65-10.1.3.67	host:h3d
 END
 
 test_group($title, $in, 'group:g1', $out);
@@ -392,8 +392,8 @@ $title = 'Dynamic NAT for network and static NAT for host';
 
 $out = <<'END';
 10.9.1.0/28	network:n1
-10.9.1.0/28	host:h1d
 10.9.1.10	host:h1s
+10.9.1.0/28	host:h1d
 END
 test_group($title, $in, 'network:n1, host:h1s, host:h1d', $out, '-nat k1');
 
@@ -434,8 +434,8 @@ $out = <<'END';
 10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
 hidden	interface:r1.n3
-unknown	interface:r1.[auto]
 unnumbered	interface:r1.t1
+unknown	interface:r1.[auto]
 END
 test_group($title, $in,
            'interface:r1.[all],interface:r1.[auto]',
@@ -489,8 +489,8 @@ router:r = {
 END
 
 $out = <<'END';
-10.1.1.2	interface:r.n1/right
 bridged	interface:bridge.n1/right
+10.1.1.2	interface:r.n1/right
 END
 
 test_group($title, $in, 'interface:[network:n1/right].[all]', $out);
@@ -883,8 +883,8 @@ group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
 END
 
 $out = <<'END';
-10.1.3.0	interface:r2.n3
 10.1.4.0	network:n4
+10.1.3.0	interface:r2.n3
 10.7.7.0	interface:r2.n5
 END
 

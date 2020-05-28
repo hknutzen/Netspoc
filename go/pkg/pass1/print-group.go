@@ -95,7 +95,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"sort"
 	"strings"
 )
 
@@ -299,57 +298,35 @@ func PrintGroup(m xMap) {
 		elements = elements[:j]
 	}
 
-	// Collect IP address, name, owner, admins.
-	type objInfo struct {
-		addr   string
-		name   string
-		owner  string
-		admins string
-	}
-	infoList := make([]objInfo, len(elements))
-	for i, ob := range elements {
-		info := &infoList[i]
-		info.addr = printAddress(ob, natSet)
-		info.name = ob.String()
-		if !(showOwner || showAdmins) {
-			continue
-		}
-		var ow *owner
-		switch x := ob.(type) {
-		case srvObj:
-			ow = x.getOwner()
-		case *area:
-			ow = x.owner
-		}
-		if ow == nil {
-			info.owner = "none"
-		} else {
-			info.owner = ow.name
-			if showAdmins {
-				info.admins = strings.Join(ow.admins, ",")
-			}
-		}
-	}
-
-	// Sort by printed IP address.
-	sort.SliceStable(infoList, func(i, j int) bool {
-		return infoList[i].addr < infoList[j].addr
-	})
-
-	// Print results.
-	for _, info := range infoList {
+	// Print IP address, name, owner, admins.
+	for _, ob := range elements {
 		var result stringList
 		if showIP {
-			result.push(info.addr)
+			result.push(printAddress(ob, natSet))
 		}
 		if showName {
-			result.push(info.name)
+			result.push(ob.String())
 		}
-		if showOwner {
-			result.push(info.owner)
-		}
-		if showAdmins {
-			result.push(info.admins)
+		if showOwner || showAdmins {
+			var ow *owner
+			switch x := ob.(type) {
+			case srvObj:
+				ow = x.getOwner()
+			case *area:
+				ow = x.owner
+			}
+			oName := "none"
+			admins := ""
+			if ow != nil {
+				oName = ow.name
+				admins = strings.Join(ow.admins, ",")
+			}
+			if showOwner {
+				result.push(oName)
+			}
+			if showAdmins {
+				result.push(admins)
+			}
 		}
 		fmt.Println(strings.Join(result, "\t"))
 	}
