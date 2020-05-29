@@ -6,7 +6,7 @@ package scanner
 
 import (
 	"fmt"
-	//	"os"
+	"os"
 	"regexp"
 	"unicode"
 	"unicode/utf8"
@@ -112,9 +112,8 @@ func (s *Scanner) context() string {
 func (s *Scanner) SyntaxErr(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	msg = "Syntax error: " + msg + s.context()
-	panic(msg)
-	//	fmt.Fprintln(os.Stderr, msg)
-	//	os.Exit(1)
+	fmt.Fprintln(os.Stderr, msg)
+	os.Exit(1)
 }
 
 func lower(ch rune) rune     { return ('a' - 'A') | ch } // returns lower-case ch iff ch is ASCII letter

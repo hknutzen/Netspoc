@@ -25,8 +25,7 @@ func (p *printer) Lookup(pos int) rune {
 	return rune(p.src[pos])
 }
 
-func (p *printer) ReadCommentOrWhitespaceAfter(
-	pos int, ignore string) (int, string) {
+func (p *printer) ReadCommentOrWhitespaceAfter(pos int, ign string) string {
 
 	start := pos
 READ:
@@ -47,17 +46,17 @@ READ:
 			}
 		default:
 			// Check to be ignored character.
-			if strings.IndexRune(ignore, c) == -1 {
+			if strings.IndexRune(ign, c) == -1 {
 				break READ
 			}
 			pos++
 		}
 	}
-	return pos, string(p.src[start:pos])
+	return string(p.src[start:pos])
 }
 
 func (p *printer) ReadCommentOrWhitespaceBefore(
-	pos int, ignore string) (int, string) {
+	pos int, ignore string) string {
 
 	end := pos
 	pos--
@@ -92,133 +91,67 @@ READ:
 			}
 		}
 	}
-	return pos, string(p.src[pos+1 : end])
+	return string(p.src[pos+1 : end])
 }
 
-// Find comment lines in source beginning at position 'pos'
-// up to first empty line.
-// Ignore characters in 'ignore'.
-// These are ignored and won't terminate sequences of comments.
-// Returns
-// 1. Comment in same line after 'pos'.
-// 2. One or more comment lines in new line after pos.
-/*
-Examples:
-
-host:h1 #1
-,#2
-host:h2;
-=>
-host:h1, #1
-#2
-host:h2,
-;
----
-host:h #c1
-      ,#c2a
-      ;#c2b
-#c2c
-=>
-host:h1, #c1
-#c2a
-#c2b
-;
-#c2c
-*/
-//
-func (p *printer) FindCommentAfter(pos int, ignore string) (string, [][]string) {
-
+func splitComments(com string, ign string) (string, [][]string) {
 	var first string
 	var result [][]string
 	var block []string
 	trailing := true
-	for {
-		end, com := p.ReadCommentOrWhitespaceAfter(pos, ignore)
-		lines := strings.Split(com, "\n")
 
-		// 'lines' is known to have at least one element.
-		// Comment line is known to end with "\n", even at EOF.
-		// (Has been added if missing.)
-		// So, any comment would result in at least two lines.
+	lines := strings.Split(com, "\n")
 
-		// Process all lines except last one.
-		last := len(lines) - 1
-		for _, line := range lines[:last] {
-			// Check if line contains comment.
-			if idx := strings.Index(line, "#"); idx != -1 {
-				line = line[idx:] // Ignore leading whitespace
-				if trailing {
-					first = line
-				} else {
-					block = append(block, line)
-				}
+	// 'lines' is known to have at least one element.
+	// Comment line is known to end with "\n", even at EOF.
+	// (Has been added if missing.)
+	// So, any comment would result in at least two lines.
+
+	// Ignore last line without trailing "\n".
+	lines = lines[:len(lines)-1]
+	for _, line := range lines {
+		if idx := strings.Index(line, "#"); idx != -1 {
+			// Line contains comment.
+			line = line[idx:] // Ignore leading whitespace
+			if trailing {
+				first = line
 			} else {
-				// Found empty line, separating blocks of comment lines.
-				if block != nil || result == nil {
-					result = append(result, block)
-					block = nil
-				}
+				block = append(block, line)
 			}
-			trailing = false
+		} else if strings.IndexAny(line, ign) == -1 &&
+			!trailing && block != nil {
+			// Found empty line, separating blocks of comment lines.
+			// Line with ignored characters isn't empty.
+			result = append(result, block)
+			block = nil
 		}
-
-		// Ignore last line. It doesn't end with "\n"
-		// and is known to be only whitespace.
-
-		// To be ignored character follows.
-		if strings.IndexRune(ignore, p.Lookup(end)) != -1 {
-			pos = end + 1
-			continue
-		}
-		return first, append(result, block)
+		trailing = false
 	}
+
+	return first, append(result, block)
+}
+
+// Find comment lines in source beginning at position 'pos'
+// up to first empty line.
+// Ignore characters in 'ign'.
+// These are ignored and won't terminate sequences of comments.
+// Returns
+// 1. Comment in same line after 'pos'.
+// 2. Blocks of one or more comment lines separated by new line.
+//
+func (p *printer) FindCommentAfter(pos int, ign string) (string, [][]string) {
+	com := p.ReadCommentOrWhitespaceAfter(pos, ign)
+	return splitComments(com, ign)
 }
 
 func (p *printer) PostComment(n ast.Node, ign string) (string, [][]string) {
 	return p.FindCommentAfter(n.End(), ign)
 }
 
-func (p *printer) FindCommentBefore(pos int, ignore string) [][]string {
-
-	var result [][]string
-	var block []string
-
-	start, com := p.ReadCommentOrWhitespaceBefore(pos, ignore)
-
-	// Lookup previous character.
-	// Check
-	var prev rune
-	if start > 0 {
-		prev = p.Lookup(start - 1)
-	} else {
-		prev = '\n'
-	}
-
-	lines := strings.Split(com, "\n")
-	// Ignore last line without trailing "\n".
-	lines = lines[:len(lines)-1]
-	// Ignore trailing comment or whitespace in first line.
-	if prev != '\n' && len(lines) > 0 {
-		lines = lines[1:]
-	}
-	for _, line := range lines {
-		if idx := strings.Index(line, "#"); idx != -1 {
-			// Line contains comment.
-			block = append(block, line[idx:]) // Ignore leading whitespace
-		} else {
-			// Found empty line, separating blocks of comment lines.
-			if block != nil {
-				result = append(result, block)
-				block = nil
-			}
-		}
-	}
-
-	return append(result, block)
-}
-
-func (p *printer) PreComment(n ast.Node) [][]string {
-	return p.FindCommentBefore(n.Pos(), "")
+func (p *printer) FindCommentBefore(pos int, ign string) [][]string {
+	com := p.ReadCommentOrWhitespaceBefore(pos, ign)
+	_, result := splitComments(com, ign)
+	return result
 }
 
 func head1(blocks [][]string) [][]string {

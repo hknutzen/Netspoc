@@ -15,17 +15,22 @@ type printer struct {
 }
 
 func (p *printer) init(src []byte) {
-	if src[len(src)-1] != 0x0a {
+
+	// Add \n at end of last line.
+	l := len(src)
+	if l > 0 && src[l-1] != 0x0a {
 		src = append(src, 0x0a)
 	}
 	p.src = src
 }
 
 func (p *printer) print(line string) {
-	for i := 0; i < p.indent; i++ {
-		p.output = append(p.output, ' ')
+	if line != "" {
+		for i := 0; i < p.indent; i++ {
+			p.output = append(p.output, ' ')
+		}
+		p.output = append(p.output, []byte(line)...)
 	}
-	p.output = append(p.output, []byte(line)...)
 	p.output = append(p.output, '\n')
 }
 
@@ -88,14 +93,27 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 }
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
-	p.element("", l[0], "")
+	// First element already gets pre comment from union.
+	trailing, after := p.PostComment(l[0], "&!")
+	if trailing != "" {
+		trailing = " " + trailing
+	}
+	p.element("", l[0], trailing)
+	p.comment(head1(after))
 	for _, el := range l[1:] {
-		switch x := el.(type) {
-		case *ast.Complement:
-			p.element("&! ", x.Element, "")
-		default:
-			p.element("& ", el, "")
+		pre := "&"
+		if x, ok := el.(*ast.Complement); ok {
+			pre += "!"
+			el = x.Element
 		}
+		pre += " "
+		p.comment(p.PreCommentX(el, "&!", false))
+		trailing, after := p.PostComment(el, "&!,;")
+		if trailing != "" {
+			trailing = " " + trailing
+		}
+		p.element(pre, el, trailing)
+		p.comment(head1(after))
 	}
 	p.print(post)
 }
@@ -103,14 +121,19 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
 	for i, el := range l {
-		post := ","
 		p.comment(p.PreCommentX(el, ",", i == 0))
-		trailing, after := p.PostComment(el, ",;")
-		if trailing != "" {
-			post += " " + trailing
+		post := ","
+		if _, ok := el.(*ast.Intersection); ok {
+			// Intersection already prints comments of its elements.
+			p.element("", el, post)
+		} else {
+			trailing, after := p.PostComment(el, ",;")
+			if trailing != "" {
+				post += " " + trailing
+			}
+			p.element("", el, post)
+			p.comment(head1(after))
 		}
-		p.element("", el, post)
-		p.comment(head1(after))
 	}
 	p.indent--
 	p.print(stop)
@@ -126,15 +149,12 @@ func (p *printer) topList(n *ast.TopList, first bool) {
 	}
 	p.print(n.Name + post)
 	if d := n.Description; d != nil {
-		p.comment(p.PreComment(d))
+		p.comment(p.FindCommentBefore(d.Pos(), "="))
 		trailing, after = p.PostComment(d, "=")
-		post := ""
-		if trailing != "" {
-			post += " " + trailing
-		}
-		p.print("description = " + d.Text + post)
+		p.print("description =" + d.Text + trailing)
 	}
 	p.comment(headN1(after))
+
 	p.elementList(n.Elements, ";")
 }
 
@@ -151,21 +171,29 @@ func (p *printer) toplevel(t ast.Toplevel, first bool) {
 	}
 }
 
-func File(l []ast.Toplevel, src []byte) {
+func File(list []ast.Toplevel, src []byte) {
 	p := new(printer)
 	p.init(src)
 
-	// N-1 comment blocks at top of file.
-	_, after := p.FindCommentAfter(0, "")
-	p.comment(headN1(after))
-
-	// Toplevel declarations.
-	// First one gets only one comment block.
-	for i, t := range l {
-		p.toplevel(t, i == 0)
+	first, after := p.FindCommentAfter(0, "")
+	if first != "" {
+		p.print(first)
 	}
+	if len(list) == 0 {
+		p.comment(after)
+	} else {
 
-	// N-1 comment blocks at bottom of file
-	p.comment(tailN1(p.FindCommentBefore(len(p.src), ",;")))
+		// N-1 comment blocks at top of file.
+		p.comment(headN1(after))
+
+		// Toplevel declarations.
+		// First one gets only one comment block.
+		for i, t := range list {
+			p.toplevel(t, i == 0)
+		}
+
+		// N-1 comment blocks at bottom of file
+		p.comment(tailN1(p.FindCommentBefore(len(p.src), ",;")))
+	}
 	fmt.Print(string(p.output))
 }

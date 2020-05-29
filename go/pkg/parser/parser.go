@@ -307,11 +307,11 @@ func (p *parser) extendedName() ast.Element {
 	typ, name := p.typedName()
 	if name == "[" {
 		start := p.pos
-		p.next()
 		m, found := autoGroupType[typ]
 		if !found {
 			p.syntaxErr("Unexpected automatic group")
 		}
+		p.next()
 		return m(p, start, typ)
 	}
 	m, found := elementType[typ]
