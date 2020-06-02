@@ -349,6 +349,7 @@ network:n1 = {
  nat:n1 = { hidden; }
  has_subnets;
  host:h65 = { ip = 10.1.1.65; }
+ host:h66 = { ip = 10.1.1.66; }
 }
 network:n1sub = { ip = 10.1.1.64/26; nat:n1sub = { ip = 10.1.2.64/26; } }
 
@@ -361,6 +362,7 @@ END
 
 $out = <<'END';
 Warning: IP of host:h65 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
+Warning: IP of host:h66 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
 END
 
 test_warn($title, $in, $out);

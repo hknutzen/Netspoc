@@ -85,11 +85,11 @@ func checkSubnets(n, subnet *network, context string) {
 					}
 				}
 			}
+			where := subnet.name
 			if context != "" {
-				context = " in " + context
+				where += " in " + context
 			}
-			warnMsg("IP of %s overlaps with subnet %s%s",
-				object.name, subnet.name, context)
+			warnMsg("IP of %s overlaps with subnet %s", object.name, where)
 		}
 	}
 	for _, intf := range n.interfaces {
