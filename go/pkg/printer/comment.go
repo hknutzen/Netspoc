@@ -18,13 +18,6 @@ func (p *printer) comment(blocks [][]string) {
 	}
 }
 
-func (p *printer) Lookup(pos int) rune {
-	if pos >= len(p.src) {
-		return -1
-	}
-	return rune(p.src[pos])
-}
-
 func (p *printer) ReadCommentOrWhitespaceAfter(pos int, ign string) string {
 
 	start := pos
