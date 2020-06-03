@@ -1,8 +1,6 @@
 // Package parser implements a parser for source files of Netspoc
-// policy language.  Input may be provided in a variety of forms (see
-// the various Parse* functions); the output is an abstract syntax
-// tree (AST) representing the Netspoc source. The parser is invoked
-// through one of the Parse* functions.
+// policy language.  The output is an abstract syntax
+// tree (AST) representing the Netspoc source.
 //
 package parser
 
