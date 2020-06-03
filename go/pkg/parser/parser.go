@@ -39,6 +39,11 @@ func (p *parser) next() {
 	p.pos, p.tok = p.scanner.Token()
 }
 
+// Advance to the next token, but take "-" and ":" as separator.
+func (p *parser) nextPort() {
+	p.pos, p.tok = p.scanner.SimpleToken()
+}
+
 func (p *parser) syntaxErr(format string, args ...interface{}) {
 	p.scanner.SyntaxErr(format, args...)
 }
@@ -120,10 +125,9 @@ func isRouterName(n string) bool {
 }
 
 func (p *parser) user() *ast.User {
-	start := p.pos
-	p.next()
 	a := new(ast.User)
-	a.Start = start
+	a.Start = p.pos
+	p.next()
 	return a
 }
 
@@ -269,6 +273,18 @@ func (p *parser) intfAuto(start int, typ string) ast.Element {
 	return a
 }
 
+func (p *parser) checkTypedName() (string, string) {
+	tok := p.tok
+	i := strings.Index(tok, ":")
+	if i == -1 {
+		return "", ""
+	}
+	typ := tok[:i]
+	name := tok[i+1:]
+	p.next()
+	return typ, name
+}
+
 func (p *parser) typedName() (string, string) {
 	tok := p.tok
 	i := strings.Index(tok, ":")
@@ -301,7 +317,7 @@ func init() {
 }
 
 func (p *parser) extendedName() ast.Element {
-	if p.check("user") {
+	if p.tok == "user" {
 		return p.user()
 	}
 	typ, name := p.typedName()
@@ -395,22 +411,188 @@ func (p *parser) description() *ast.Description {
 }
 
 func (p *parser) group() ast.Toplevel {
-	start := p.pos
-	name := p.tok
+	a := new(ast.Group)
+	a.Start = p.pos
+	a.Name = p.tok
 	p.next()
 	p.expect("=")
-	description := p.description()
-	var list []ast.Element
-	var end int
-	if end = p.checkPos(";"); end < 0 {
-		list, end = p.union(";")
+	a.Description = p.description()
+	if a.Next = p.checkPos(";"); a.Next < 0 {
+		a.Elements, a.Next = p.union(";")
 	}
-	a := new(ast.Group)
-	a.Start = start
-	a.Name = name
-	a.Description = description
-	a.Elements = list
-	a.Next = end
+	return a
+}
+
+func (p *parser) name() string {
+	result := p.tok
+	p.next()
+	return result
+}
+
+func (p *parser) assignNameList() ([]string, int) {
+	p.expect("=")
+	var list []string
+	list = append(list, p.name())
+	var end int
+	for {
+		if end = p.checkPos(";"); end >= 0 {
+			break
+		}
+		p.expect(",")
+
+		// Allow trailing comma.
+		if end = p.checkPos(";"); end >= 0 {
+			break
+		}
+		list = append(list, p.name())
+	}
+	return list, end
+}
+
+func (p *parser) attribute() *ast.Attribute {
+	a := new(ast.Attribute)
+	a.Start = p.pos
+	a.Name = p.name()
+	if a.Next = p.checkPos(";"); a.Next < 0 {
+		a.Values, a.Next = p.assignNameList()
+	}
+	return a
+}
+
+func (p *parser) protoDetail() (string, int) {
+	token := p.tok
+	start := p.pos
+	switch token {
+	case ":", "-":
+	default:
+		_, err := strconv.Atoi(p.tok)
+		if err != nil {
+			p.syntaxErr("Number expected")
+		}
+	}
+	p.nextPort()
+	return token, start + len(token)
+}
+
+func (p *parser) protoDetails() ([]string, int) {
+	var result []string
+	var end int
+	for {
+		if p.tok == "," || p.tok == ";" {
+			break
+		}
+		token, after := p.protoDetail()
+		result = append(result, token)
+		end = after
+	}
+	return result, end
+}
+
+func (p *parser) simpleProtocol() *ast.SimpleProtocol {
+	a := new(ast.SimpleProtocol)
+	a.Start = p.pos
+	a.Proto = p.tok
+	p.nextPort()
+	a.Details, a.Next = p.protoDetails()
+	if a.Details == nil {
+		a.Next = a.Start + len(a.Proto)
+	}
+	return a
+}
+
+func (p *parser) protocol() ast.Protocol {
+	start := p.pos
+	if typ, name := p.checkTypedName(); typ != "" {
+		a := new(ast.NamedRef)
+		a.Start = start
+		a.Typ = typ
+		a.Name = name
+		return a
+	}
+	return p.simpleProtocol()
+}
+
+func (p *parser) protoList() ([]ast.Protocol, int) {
+	var list []ast.Protocol
+	list = append(list, p.protocol())
+	var end int
+	for {
+		if end = p.checkPos(";"); end >= 0 {
+			break
+		}
+		p.expect(",")
+
+		// Allow trailing comma.
+		if end = p.checkPos(";"); end >= 0 {
+			break
+		}
+		list = append(list, p.protocol())
+	}
+	return list, end
+}
+
+func (p *parser) rule() *ast.Rule {
+	a := new(ast.Rule)
+	a.Start = p.pos
+	switch p.tok {
+	case "deny":
+		a.Deny = true
+		fallthrough
+	case "permit":
+		p.next()
+		p.expect("src")
+		p.expect("=")
+		a.Src, _ = p.union(";")
+		p.expect("dst")
+		p.expect("=")
+		a.Dst, _ = p.union(";")
+		p.expect("prt")
+		p.expect("=")
+		a.Prt, a.Next = p.protoList()
+		if p.check("log") {
+			p.expect("=")
+			a.Log, a.Next = p.assignNameList()
+		}
+	default:
+		p.syntaxErr("Expected 'permit' or 'deny'")
+	}
+	return a
+}
+
+func (p *parser) service() ast.Toplevel {
+	a := new(ast.Service)
+	a.Start = p.pos
+	a.Name = p.tok
+	p.next()
+	p.expect("=")
+	p.expect("{")
+	a.Description = p.description()
+ATTR:
+	for {
+		switch p.tok {
+		case "user":
+			break ATTR
+		default:
+			a.Attributes = append(a.Attributes, p.attribute())
+		}
+	}
+	p.expect("user")
+	p.expect("=")
+	if p.check("foreach") {
+		a.Foreach = true
+	}
+	a.User, _ = p.union(";")
+RULES:
+	for {
+		switch p.tok {
+		case "}":
+			a.Next = p.pos
+			p.next()
+			break RULES
+		default:
+			a.Rules = append(a.Rules, p.rule())
+		}
+	}
 	return a
 }
 
@@ -419,7 +601,8 @@ var globalType = map[string]func(*parser) ast.Toplevel{
 	//	"network": parser.network,
 	//	"any":     parser.aggregate,
 	//	"area":    parser.area,
-	"group": (*parser).group,
+	"service": (*parser).service,
+	"group":   (*parser).group,
 }
 
 func (p *parser) toplevel() ast.Toplevel {

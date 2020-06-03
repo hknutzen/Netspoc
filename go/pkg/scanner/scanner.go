@@ -140,6 +140,13 @@ func isTokenChar(ch rune) bool {
 	}
 }
 
+func isSimpleChar(ch rune) bool {
+	if isLetter(ch) || isDigit(ch) {
+		return true
+	}
+	return false
+}
+
 func (s *Scanner) skipWhitespace() {
 	for {
 		switch s.ch {
@@ -184,12 +191,8 @@ func (s *Scanner) Token() (int, string) {
 	return pos, tok
 }
 
-// Number scans the next numeric token consisting solely of ASCII
-// digits. It returns the token position and the token literal
-// string. The source end is indicated by "".
-//
-func (s *Scanner) Number() (int, string) {
-	return s.scan(isDecimal)
+func (s *Scanner) SimpleToken() (int, string) {
+	return s.scan(isSimpleChar)
 }
 
 func (s *Scanner) ToEOL() (int, string) {
@@ -206,11 +209,4 @@ func (s *Scanner) ToEOLorComment() (int, string) {
 		s.next()
 	}
 	return pos, string(s.src[pos:s.offset])
-}
-
-func (s *Scanner) Lookup(pos int) rune {
-	if pos >= len(s.src) {
-		return -1
-	}
-	return rune(s.src[pos])
 }

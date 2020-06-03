@@ -87,8 +87,10 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		p.intersection(pre, x.List, post)
 	case *ast.Complement:
 		p.element("! ", x.Element, post)
+	case *ast.User:
+		p.print(pre + "user" + post)
 	default:
-		panic(fmt.Sprintf("Unknown element: %v", el))
+		panic(fmt.Sprintf("Unknown element: %T", el))
 	}
 }
 
@@ -162,10 +164,115 @@ func (p *printer) group(g *ast.Group, first bool) {
 	p.topList(&g.TopList, first)
 }
 
+func (p *printer) attribute(a *ast.Attribute) {
+	// Short attribute without values.
+	if len(a.Values) == 0 {
+		p.print(a.Name + ";")
+		return
+	}
+	// Try to put name and values in one line.
+	out := a.Name + " = "
+	for i, v := range a.Values {
+		if i != 0 {
+			out += ", "
+		}
+		out += v
+	}
+	out += ";"
+	if len(out) < 60 || len(a.Values) == 1 {
+		p.print(out)
+		return
+	}
+	// Put many or long values into separate lines.
+	p.print(a.Name + " = ")
+	p.indent++
+	for _, v := range a.Values {
+		p.print(v + ",")
+	}
+	p.indent--
+	p.print(";")
+}
+
+func (p *printer) protocol(el ast.Element, post string) {
+	var out string
+	switch x := el.(type) {
+	case *ast.NamedRef:
+		out = x.Typ + ":" + x.Name
+	case *ast.SimpleProtocol:
+		out = x.Proto
+		for _, d := range x.Details {
+			out += " " + d
+		}
+	}
+	p.print(out + post)
+}
+
+func (p *printer) protocolList(l []ast.Protocol) {
+	p.indent++
+	for i, el := range l {
+		p.comment(p.PreCommentX(el, ",", i == 0))
+		post := ","
+		trailing, after := p.PostComment(el, ",;")
+		if trailing != "" {
+			post += " " + trailing
+		}
+		p.protocol(el, post)
+		p.comment(head1(after))
+	}
+	p.indent--
+	p.print(";")
+}
+
+func (p *printer) rule(n *ast.Rule) {
+	action := "permit"
+	if n.Deny {
+		action = "deny  "
+	}
+	p.print(action)
+	p.indent++
+	p.print("src =")
+	p.elementList(n.Src, ";")
+	p.print("dst =")
+	p.elementList(n.Dst, ";")
+	p.print("prt =")
+	p.protocolList(n.Prt)
+	p.indent--
+}
+
+func (p *printer) service(n *ast.Service, first bool) {
+	p.comment(p.PreCommentX(n, "", first))
+	pos := n.Pos() + len(n.Name)
+	trailing, after := p.FindCommentAfter(pos, "={")
+	post := " = {"
+	if trailing != "" {
+		post += " " + trailing
+	}
+	p.print(n.Name + post)
+	p.indent++
+	if d := n.Description; d != nil {
+		p.comment(p.FindCommentBefore(d.Pos(), "="))
+		trailing, after = p.PostComment(d, "=")
+		p.print("description =" + d.Text + trailing)
+	}
+	p.comment(after)
+	for _, a := range n.Attributes {
+		p.attribute(a)
+	}
+	p.print("user =")
+	p.elementList(n.User, ";")
+	p.indent--
+	for _, r := range n.Rules {
+		p.rule(r)
+	}
+	p.print("}")
+}
+
 func (p *printer) toplevel(t ast.Toplevel, first bool) {
 	switch x := t.(type) {
 	case *ast.Group:
 		p.group(x, first)
+	case *ast.Service:
+		p.service(x, first)
 	default:
 		panic(fmt.Sprintf("Unknown type: %v", t))
 	}

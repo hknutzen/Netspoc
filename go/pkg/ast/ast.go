@@ -36,6 +36,10 @@ type Element interface {
 	//	ElemNode()
 }
 
+type Protocol interface {
+	Node
+}
+
 // All toplevel nodes implement the Toplevel interface.
 type Toplevel interface {
 	Node
@@ -46,11 +50,15 @@ type Toplevel interface {
 
 type Base struct {
 	Start int
-	Next  int
 }
 
 func (a *Base) Pos() int { return a.Start }
-func (a *Base) End() int { return a.Next }
+
+type withEnd struct {
+	Next int
+}
+
+func (a *withEnd) End() int { return a.Next }
 
 type User struct {
 	Base
@@ -72,6 +80,7 @@ func (a *NamedRef) End() int { return a.Pos() + len(a.Typ) + 1 + len(a.Name) }
 
 type IntfRef struct {
 	TypedElt
+	withEnd
 	Router    string
 	Network   string
 	Extension string
@@ -79,6 +88,7 @@ type IntfRef struct {
 
 type SimpleAuto struct {
 	TypedElt
+	withEnd
 	Elements []Element
 }
 
@@ -108,11 +118,13 @@ func (a *Intersection) End() int { return a.List[len(a.List)-1].End() }
 
 type Description struct {
 	Base
+	withEnd
 	Text string
 }
 
 type TopBase struct {
 	Base
+	withEnd
 	Name        string
 	Description *Description
 	fname       string
@@ -128,4 +140,36 @@ type TopList struct {
 
 type Group struct {
 	TopList
+}
+
+type Attribute struct {
+	Base
+	withEnd
+	Name   string
+	Values []string
+}
+
+type SimpleProtocol struct {
+	Base
+	withEnd
+	Proto   string
+	Details []string
+}
+
+type Rule struct {
+	Base
+	withEnd
+	Deny bool
+	Src  []Element
+	Dst  []Element
+	Prt  []Protocol
+	Log  []string
+}
+
+type Service struct {
+	TopBase
+	Attributes []*Attribute
+	User       []Element
+	Foreach    bool
+	Rules      []*Rule
 }
