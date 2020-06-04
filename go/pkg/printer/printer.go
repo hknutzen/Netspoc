@@ -142,7 +142,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 
 	// Short attribute without values.
 	if len(n.Values) == 0 {
-		p.print(n.Name + ";")
+		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
 		return
 	}
 	// Try to put name and values in one line.
@@ -151,18 +151,19 @@ func (p *printer) attribute(n *ast.Attribute) {
 		if i != 0 {
 			out += ", "
 		}
-		out += v
+		out += v.Value
 	}
-	out += ";"
+	out += ";" + p.TrailingComment(n, ",;")
 	if len(out) < 60 || len(n.Values) == 1 {
 		p.print(out)
 		return
 	}
 	// Put many or long values into separate lines.
-	p.print(n.Name + " = ")
+	p.print(n.Name + " =")
 	p.indent++
 	for _, v := range n.Values {
-		p.print(v + ",")
+		p.comment(p.PreComment(v, ","))
+		p.print(v.Value + "," + p.TrailingComment(v, ",;"))
 	}
 	p.indent--
 	p.print(";")
