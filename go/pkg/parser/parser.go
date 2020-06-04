@@ -414,10 +414,18 @@ func (p *parser) name() string {
 	return result
 }
 
-func (p *parser) assignNameList() ([]string, int) {
+func (p *parser) value() *ast.Value {
+	a := new(ast.Value)
+	a.Start = p.pos
+	a.Value = p.tok
+	p.next()
+	return a
+}
+
+func (p *parser) assignValueList() ([]*ast.Value, int) {
 	p.expect("=")
-	var list []string
-	list = append(list, p.name())
+	var list []*ast.Value
+	list = append(list, p.value())
 	var end int
 	for {
 		if end = p.checkPos(";"); end >= 0 {
@@ -429,7 +437,7 @@ func (p *parser) assignNameList() ([]string, int) {
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
-		list = append(list, p.name())
+		list = append(list, p.value())
 	}
 	return list, end
 }
@@ -439,7 +447,7 @@ func (p *parser) attribute() *ast.Attribute {
 	a.Start = p.pos
 	a.Name = p.name()
 	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.Values, a.Next = p.assignNameList()
+		a.Values, a.Next = p.assignValueList()
 	}
 	return a
 }
@@ -536,7 +544,7 @@ func (p *parser) rule() *ast.Rule {
 		a.Prt, a.Next = p.protoList()
 		if p.check("log") {
 			p.expect("=")
-			a.Log, a.Next = p.assignNameList()
+			a.Log, a.Next = p.assignValueList()
 		}
 	default:
 		p.syntaxErr("Expected 'permit' or 'deny'")

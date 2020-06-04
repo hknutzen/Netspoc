@@ -18,25 +18,25 @@ func (p *printer) comment(blocks [][]string) {
 	}
 }
 
-func (p *printer) ReadCommentOrWhitespaceAfter(pos int, ign string) string {
-
-	start := pos
+func (p *printer) ReadTrailingComment(pos int, ign string) string {
 READ:
 	for pos < len(p.src) {
 		c := rune(p.src[pos])
 		switch c {
-		case ' ', '\t', '\n', '\r':
+		case ' ', '\t', '\r':
 			// Whitespace
 			pos++
 		case '#':
 			// Comment
+			start := pos
 			pos++
-			for {
+			for pos < len(p.src) {
 				if rune(p.src[pos]) == '\n' {
 					break
 				}
 				pos++
 			}
+			return string(p.src[start:pos])
 		default:
 			// Check to be ignored character.
 			if strings.IndexRune(ign, c) == -1 {
@@ -45,9 +45,28 @@ READ:
 			pos++
 		}
 	}
-	return string(p.src[start:pos])
+	return ""
 }
 
+// Find trailing comment in source beginning at position 'pos'.
+// Ignore characters in 'ign' when searching for comment.
+// Returns
+// Found trailing comment with one preceeding whitespace or
+// empty string.
+//
+func (p *printer) TrailingCommentAt(pos int, ign string) string {
+	trailing := p.ReadTrailingComment(pos, ign)
+	if trailing != "" {
+		trailing = " " + trailing
+	}
+	return trailing
+}
+
+func (p *printer) TrailingComment(n ast.Node, ign string) string {
+	return p.TrailingCommentAt(n.End(), ign)
+}
+
+// Read one or more lines of comment and whitespace.
 func (p *printer) ReadCommentOrWhitespaceBefore(
 	pos int, ignore string) string {
 
@@ -68,23 +87,27 @@ READ:
 			}
 			// Check backwards for comment.
 			i := pos
-			for {
+			for i >= 0 {
 				switch p.src[i] {
 				case '#':
 					pos = i - 1
 					continue READ
 				case '\n':
 					break READ
-				default:
-					i--
-					if i < 0 {
-						break READ
-					}
 				}
+				i--
 			}
+			break READ
 		}
 	}
-	return string(p.src[pos+1 : end])
+	pos++
+	result := string(p.src[pos:end])
+
+	// First line of file must not be recognized as trailing comment.
+	if pos == 0 {
+		result = "\n" + result
+	}
+	return result
 }
 
 func splitComments(com string, ign string) (string, [][]string) {
@@ -124,84 +147,9 @@ func splitComments(com string, ign string) (string, [][]string) {
 	return first, append(result, block)
 }
 
-// Find comment lines in source beginning at position 'pos'
-// up to first empty line.
-// Ignore characters in 'ign'.
-// These are ignored and won't terminate sequences of comments.
-// Returns
-// 1. Comment in same line after 'pos'.
-// 2. Blocks of one or more comment lines separated by new line.
-//
-func (p *printer) FindCommentAfter(pos int, ign string) (string, [][]string) {
-	com := p.ReadCommentOrWhitespaceAfter(pos, ign)
-	return splitComments(com, ign)
-}
-
-func (p *printer) TrailingComment(n ast.Node, ign string) string {
-	trailing, _ := p.FindCommentAfter(n.End(), ign)
-	if trailing != "" {
-		trailing = " " + trailing
-	}
-	return trailing
-}
-
-func (p *printer) FindCommentBefore(pos int, ign string) [][]string {
-	com := p.ReadCommentOrWhitespaceBefore(pos, ign)
+func (p *printer) PreComment(n ast.Node, ign string) {
+	com := p.ReadCommentOrWhitespaceBefore(n.Pos(), ign)
+	// Ignore trailing comment in first line.
 	_, result := splitComments(com, ign)
-	return result
-}
-
-func head1(blocks [][]string) [][]string {
-	l := len(blocks)
-	switch l {
-	case 0, 1:
-		return nil
-	default:
-		return [][]string{blocks[0]}
-	}
-}
-
-func headN1(blocks [][]string) [][]string {
-	l := len(blocks)
-	if l == 0 {
-		return nil
-	}
-	return blocks[0 : l-1]
-}
-
-func tail1(blocks [][]string) [][]string {
-	l := len(blocks)
-	switch l {
-	case 0:
-		return nil
-	case 1:
-		return blocks
-	default:
-		blocks[l-2] = nil
-		return blocks[l-2:]
-	}
-}
-
-func tailN1(blocks [][]string) [][]string {
-	switch len(blocks) {
-	case 0:
-		return nil
-	case 1:
-		return blocks
-	default:
-		blocks[0] = nil
-		return blocks
-	}
-}
-
-func (p *printer) PreComment(n ast.Node, ign string) [][]string {
-	return p.FindCommentBefore(n.Pos(), ign)
-}
-
-func (p *printer) PreCommentX(n ast.Node, ign string, first bool) [][]string {
-	comm := p.FindCommentBefore(n.Pos(), ign)
-	if first {
-		return tail1(comm)
-	}
-	return tailN1(comm)
+	p.comment(result)
 }

@@ -151,11 +151,18 @@ type Group struct {
 	TopList
 }
 
+type Value struct {
+	Base
+	Value string
+}
+
+func (a *Value) End() int { return a.Pos() + len("a.Name") }
+
 type Attribute struct {
 	Base
 	withEnd
 	Name   string
-	Values []string
+	Values []*Value
 }
 
 type SimpleProtocol struct {
@@ -172,7 +179,7 @@ type Rule struct {
 	Src  []Element
 	Dst  []Element
 	Prt  []Protocol
-	Log  []string
+	Log  []*Value
 }
 
 type Service struct {

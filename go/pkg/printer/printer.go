@@ -226,31 +226,18 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
-func (p *printer) toplevel(n ast.Toplevel, first bool) {
-	comm := p.FindCommentBefore(n.Pos(), "")
-	if first {
-		comm = tail1(comm)
-	} else {
-		comm = tailN1(comm)
-	}
-	p.comment(comm)
-	var sep, ign string
-	if n.IsList() {
-		sep = " ="
-		ign = "="
-	} else {
-		sep = " = {"
-		ign = "={"
+func (p *printer) toplevel(n ast.Toplevel) {
+	p.PreComment(n, "")
+	sep := " ="
+	if !n.IsList() {
+		sep += " {"
 	}
 	pos := n.Pos() + len(n.GetName())
-	trailing, _ := p.FindCommentAfter(pos, ign)
-	post := sep
-	if trailing != "" {
-		post += " " + trailing
-	}
-	p.print(n.GetName() + post)
+	trailing := p.TrailingCommentAt(pos, sep)
+	p.print(n.GetName() + sep + trailing)
+
 	if d := n.GetDescription(); d != nil {
-		p.comment(p.FindCommentBefore(d.Pos(), ign))
+		p.PreComment(d, sep)
 		trailing = p.TrailingComment(d, "=")
 		p.print("description =" + d.Text + trailing)
 	}
@@ -269,25 +256,9 @@ func File(list []ast.Toplevel, src []byte) {
 	p := new(printer)
 	p.init(src)
 
-	first, after := p.FindCommentAfter(0, "")
-	if first != "" {
-		p.print(first)
+	for _, t := range list {
+		p.toplevel(t)
 	}
-	if len(list) == 0 {
-		p.comment(after)
-	} else {
 
-		// N-1 comment blocks at top of file.
-		p.comment(headN1(after))
-
-		// Toplevel declarations.
-		// First one gets only one comment block.
-		for i, t := range list {
-			p.toplevel(t, i == 0)
-		}
-
-		// All comment blocks at bottom of file
-		p.comment(p.FindCommentBefore(len(p.src), ",;"))
-	}
 	fmt.Print(string(p.output))
 }
