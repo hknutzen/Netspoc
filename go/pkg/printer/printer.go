@@ -36,9 +36,11 @@ func (p *printer) print(line string) {
 
 func isShort(l []ast.Element) string {
 	if len(l) == 1 {
-		el := l[0]
-		if x, ok := el.(*ast.NamedRef); ok {
+		switch x := l[0].(type) {
+		case *ast.NamedRef:
 			return x.Typ + ":" + x.Name
+		case *ast.User:
+			return "user"
 		}
 	}
 	return ""
@@ -215,7 +217,11 @@ func (p *printer) service(n *ast.Service) {
 	for _, a := range n.Attributes {
 		p.attribute(a)
 	}
-	p.print("user =")
+	user := "user ="
+	if n.Foreach {
+		user += " foreach"
+	}
+	p.print(user)
 	p.elementList(n.User, ";")
 	p.indent--
 	for _, r := range n.Rules {
