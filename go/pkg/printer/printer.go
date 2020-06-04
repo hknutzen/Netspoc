@@ -204,6 +204,9 @@ func (p *printer) rule(n *ast.Rule) {
 	p.elementList(n.Dst, ";")
 	p.print("prt =")
 	p.protocolList(n.Prt)
+	if a := n.Log; a != nil {
+		p.attribute(a)
+	}
 	p.indent--
 }
 

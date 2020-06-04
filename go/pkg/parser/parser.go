@@ -542,8 +542,9 @@ func (p *parser) rule() *ast.Rule {
 		p.expect("prt")
 		p.expect("=")
 		a.Prt, a.Next = p.protoList()
-		if p.check("log") {
-			a.Log, a.Next = p.assignValueList()
+		if p.tok == "log" {
+			a.Log = p.attribute()
+			a.Next = a.Log.Next
 		}
 	default:
 		p.syntaxErr("Expected 'permit' or 'deny'")

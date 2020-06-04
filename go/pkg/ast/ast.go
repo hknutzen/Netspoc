@@ -179,7 +179,7 @@ type Rule struct {
 	Src  []Element
 	Dst  []Element
 	Prt  []Protocol
-	Log  []*Value
+	Log  *Attribute
 }
 
 type Service struct {
