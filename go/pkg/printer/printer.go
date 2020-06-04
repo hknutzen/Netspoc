@@ -274,7 +274,7 @@ func (p *printer) toplevel(t ast.Toplevel, first bool) {
 	case *ast.Service:
 		p.service(x, first)
 	default:
-		panic(fmt.Sprintf("Unknown type: %v", t))
+		panic(fmt.Sprintf("Unknown type: %T", t))
 	}
 }
 
