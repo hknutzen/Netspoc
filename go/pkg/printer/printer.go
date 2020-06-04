@@ -147,6 +147,8 @@ func (p *printer) group(g *ast.Group) {
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
+	p.comment(p.PreComment(n, ""))
+
 	// Short attribute without values.
 	if len(n.Values) == 0 {
 		p.print(n.Name + ";")
@@ -205,6 +207,7 @@ func (p *printer) protocolList(l []ast.Protocol) {
 }
 
 func (p *printer) rule(n *ast.Rule) {
+	p.comment(p.PreComment(n, ""))
 	action := "permit"
 	if n.Deny {
 		action = "deny  "
