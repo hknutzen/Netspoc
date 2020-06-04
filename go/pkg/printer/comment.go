@@ -137,8 +137,9 @@ func (p *printer) FindCommentAfter(pos int, ign string) (string, [][]string) {
 	return splitComments(com, ign)
 }
 
-func (p *printer) PostComment(n ast.Node, ign string) (string, [][]string) {
-	return p.FindCommentAfter(n.End(), ign)
+func (p *printer) TrailingComment(n ast.Node, ign string) string {
+	trailing, _ := p.FindCommentAfter(n.End(), ign)
+	return trailing
 }
 
 func (p *printer) FindCommentBefore(pos int, ign string) [][]string {
@@ -188,6 +189,10 @@ func tailN1(blocks [][]string) [][]string {
 		blocks[0] = nil
 		return blocks
 	}
+}
+
+func (p *printer) PreComment(n ast.Node, ign string) [][]string {
+	return p.FindCommentBefore(n.Pos(), ign)
 }
 
 func (p *printer) PreCommentX(n ast.Node, ign string, first bool) [][]string {

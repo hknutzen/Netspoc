@@ -96,12 +96,11 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
-	trailing, after := p.PostComment(l[0], "&!")
+	trailing := p.TrailingComment(l[0], "&!")
 	if trailing != "" {
 		trailing = " " + trailing
 	}
 	p.element("", l[0], trailing)
-	p.comment(head1(after))
 	for _, el := range l[1:] {
 		pre := "&"
 		if x, ok := el.(*ast.Complement); ok {
@@ -109,32 +108,30 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 			el = x.Element
 		}
 		pre += " "
-		p.comment(p.PreCommentX(el, "&!", false))
-		trailing, after := p.PostComment(el, "&!,;")
+		p.comment(p.PreComment(el, "&!"))
+		trailing := p.TrailingComment(el, "&!,;")
 		if trailing != "" {
 			trailing = " " + trailing
 		}
 		p.element(pre, el, trailing)
-		p.comment(head1(after))
 	}
 	p.print(post)
 }
 
 func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
-	for i, el := range l {
-		p.comment(p.PreCommentX(el, ",", i == 0))
+	for _, el := range l {
+		p.comment(p.PreComment(el, ","))
 		post := ","
 		if _, ok := el.(*ast.Intersection); ok {
 			// Intersection already prints comments of its elements.
 			p.element("", el, post)
 		} else {
-			trailing, after := p.PostComment(el, ",;")
+			trailing := p.TrailingComment(el, ",;")
 			if trailing != "" {
 				post += " " + trailing
 			}
 			p.element("", el, post)
-			p.comment(head1(after))
 		}
 	}
 	p.indent--
@@ -194,15 +191,14 @@ func (p *printer) protocol(el ast.Element, post string) {
 
 func (p *printer) protocolList(l []ast.Protocol) {
 	p.indent++
-	for i, el := range l {
-		p.comment(p.PreCommentX(el, ",", i == 0))
+	for _, el := range l {
+		p.comment(p.PreComment(el, ","))
 		post := ","
-		trailing, after := p.PostComment(el, ",;")
+		trailing := p.TrailingComment(el, ",;")
 		if trailing != "" {
 			post += " " + trailing
 		}
 		p.protocol(el, post)
-		p.comment(head1(after))
 	}
 	p.indent--
 	p.print(";")
@@ -249,7 +245,7 @@ func (p *printer) toplevel(n ast.Toplevel, first bool) {
 		ign = "={"
 	}
 	pos := n.Pos() + len(n.GetName())
-	trailing, after := p.FindCommentAfter(pos, ign)
+	trailing, _ := p.FindCommentAfter(pos, ign)
 	post := sep
 	if trailing != "" {
 		post += " " + trailing
@@ -257,10 +253,9 @@ func (p *printer) toplevel(n ast.Toplevel, first bool) {
 	p.print(n.GetName() + post)
 	if d := n.GetDescription(); d != nil {
 		p.comment(p.FindCommentBefore(d.Pos(), ign))
-		trailing, after = p.PostComment(d, "=")
+		trailing = p.TrailingComment(d, "=")
 		p.print("description =" + d.Text + trailing)
 	}
-	p.comment(headN1(after))
 
 	switch x := n.(type) {
 	case *ast.Group:
@@ -293,8 +288,8 @@ func File(list []ast.Toplevel, src []byte) {
 			p.toplevel(t, i == 0)
 		}
 
-		// N-1 comment blocks at bottom of file
-		p.comment(tailN1(p.FindCommentBefore(len(p.src), ",;")))
+		// All comment blocks at bottom of file
+		p.comment(p.FindCommentBefore(len(p.src), ",;"))
 	}
 	fmt.Print(string(p.output))
 }
