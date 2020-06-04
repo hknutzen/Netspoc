@@ -141,27 +141,12 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 	p.print(stop)
 }
 
-func (p *printer) topList(n *ast.TopList, first bool) {
-	p.comment(p.PreCommentX(n, "", first))
-	pos := n.Pos() + len(n.Name)
-	trailing, after := p.FindCommentAfter(pos, "=")
-	post := " ="
-	if trailing != "" {
-		post += " " + trailing
-	}
-	p.print(n.Name + post)
-	if d := n.Description; d != nil {
-		p.comment(p.FindCommentBefore(d.Pos(), "="))
-		trailing, after = p.PostComment(d, "=")
-		p.print("description =" + d.Text + trailing)
-	}
-	p.comment(headN1(after))
-
+func (p *printer) topList(n *ast.TopList) {
 	p.elementList(n.Elements, ";")
 }
 
-func (p *printer) group(g *ast.Group, first bool) {
-	p.topList(&g.TopList, first)
+func (p *printer) group(g *ast.Group) {
+	p.topList(&g.TopList)
 }
 
 func (p *printer) attribute(a *ast.Attribute) {
@@ -239,22 +224,8 @@ func (p *printer) rule(n *ast.Rule) {
 	p.indent--
 }
 
-func (p *printer) service(n *ast.Service, first bool) {
-	p.comment(p.PreCommentX(n, "", first))
-	pos := n.Pos() + len(n.Name)
-	trailing, after := p.FindCommentAfter(pos, "={")
-	post := " = {"
-	if trailing != "" {
-		post += " " + trailing
-	}
-	p.print(n.Name + post)
+func (p *printer) service(n *ast.Service) {
 	p.indent++
-	if d := n.Description; d != nil {
-		p.comment(p.FindCommentBefore(d.Pos(), "="))
-		trailing, after = p.PostComment(d, "=")
-		p.print("description =" + d.Text + trailing)
-	}
-	p.comment(after)
 	for _, a := range n.Attributes {
 		p.attribute(a)
 	}
@@ -267,14 +238,37 @@ func (p *printer) service(n *ast.Service, first bool) {
 	p.print("}")
 }
 
-func (p *printer) toplevel(t ast.Toplevel, first bool) {
-	switch x := t.(type) {
+func (p *printer) toplevel(n ast.Toplevel, first bool) {
+	p.comment(p.PreCommentX(n, "", first))
+	var sep, ign string
+	if n.IsList() {
+		sep = " ="
+		ign = "="
+	} else {
+		sep = " = {"
+		ign = "={"
+	}
+	pos := n.Pos() + len(n.GetName())
+	trailing, after := p.FindCommentAfter(pos, ign)
+	post := sep
+	if trailing != "" {
+		post += " " + trailing
+	}
+	p.print(n.GetName() + post)
+	if d := n.GetDescription(); d != nil {
+		p.comment(p.FindCommentBefore(d.Pos(), ign))
+		trailing, after = p.PostComment(d, "=")
+		p.print("description =" + d.Text + trailing)
+	}
+	p.comment(headN1(after))
+
+	switch x := n.(type) {
 	case *ast.Group:
-		p.group(x, first)
+		p.group(x)
 	case *ast.Service:
-		p.service(x, first)
+		p.service(x)
 	default:
-		panic(fmt.Sprintf("Unknown type: %T", t))
+		panic(fmt.Sprintf("Unknown type: %T", n))
 	}
 }
 
