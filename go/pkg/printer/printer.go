@@ -105,7 +105,7 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 			el = x.Element
 		}
 		pre += " "
-		p.comment(p.PreComment(el, "&!"))
+		p.PreComment(el, "&!")
 		trailing := p.TrailingComment(el, "&!,;")
 		p.element(pre, el, trailing)
 	}
@@ -115,7 +115,7 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
 	for _, el := range l {
-		p.comment(p.PreComment(el, ","))
+		p.PreComment(el, ",")
 		post := ","
 		if _, ok := el.(*ast.Intersection); ok {
 			// Intersection already prints comments of its elements.
@@ -138,7 +138,7 @@ func (p *printer) group(g *ast.Group) {
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
-	p.comment(p.PreComment(n, ""))
+	p.PreComment(n, "")
 
 	// Short attribute without values.
 	if len(n.Values) == 0 {
@@ -162,7 +162,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 	p.print(n.Name + " =")
 	p.indent++
 	for _, v := range n.Values {
-		p.comment(p.PreComment(v, ","))
+		p.PreComment(v, ",")
 		p.print(v.Value + "," + p.TrailingComment(v, ",;"))
 	}
 	p.indent--
@@ -186,7 +186,7 @@ func (p *printer) protocol(el ast.Element, post string) {
 func (p *printer) protocolList(l []ast.Protocol) {
 	p.indent++
 	for _, el := range l {
-		p.comment(p.PreComment(el, ","))
+		p.PreComment(el, ",")
 		post := ","
 		trailing := p.TrailingComment(el, ",;")
 		p.protocol(el, post+trailing)
@@ -196,7 +196,7 @@ func (p *printer) protocolList(l []ast.Protocol) {
 }
 
 func (p *printer) rule(n *ast.Rule) {
-	p.comment(p.PreComment(n, ""))
+	p.PreComment(n, "")
 	action := "permit"
 	if n.Deny {
 		action = "deny  "
@@ -227,7 +227,13 @@ func (p *printer) service(n *ast.Service) {
 }
 
 func (p *printer) toplevel(n ast.Toplevel, first bool) {
-	p.comment(p.PreCommentX(n, "", first))
+	comm := p.FindCommentBefore(n.Pos(), "")
+	if first {
+		comm = tail1(comm)
+	} else {
+		comm = tailN1(comm)
+	}
+	p.comment(comm)
 	var sep, ign string
 	if n.IsList() {
 		sep = " ="
