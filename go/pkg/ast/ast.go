@@ -43,6 +43,10 @@ type Protocol interface {
 // All toplevel nodes implement the Toplevel interface.
 type Toplevel interface {
 	Node
+	GetDescription() *Description
+	GetName() string
+	IsList() bool
+	Fname() string
 	SetFname(string)
 }
 
@@ -130,13 +134,18 @@ type TopBase struct {
 	fname       string
 }
 
-func (a *TopBase) Fname() string     { return a.fname }
-func (a *TopBase) SetFname(n string) { a.fname = n }
+func (a *TopBase) GetName() string              { return a.Name }
+func (a *TopBase) GetDescription() *Description { return a.Description }
+func (a *TopBase) IsList() bool                 { return false }
+func (a *TopBase) Fname() string                { return a.fname }
+func (a *TopBase) SetFname(n string)            { a.fname = n }
 
 type TopList struct {
 	TopBase
 	Elements []Element
 }
+
+func (a *TopList) IsList() bool { return true }
 
 type Group struct {
 	TopList
