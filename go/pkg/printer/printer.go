@@ -96,8 +96,7 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
-	trailing := p.TrailingComment(l[0], "&!")
-	p.element("", l[0], trailing)
+	p.element("", l[0], p.TrailingComment(l[0], "&!"))
 	for _, el := range l[1:] {
 		pre := "&"
 		if x, ok := el.(*ast.Complement); ok {
@@ -106,8 +105,7 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 		}
 		pre += " "
 		p.PreComment(el, "&!")
-		trailing := p.TrailingComment(el, "&!,;")
-		p.element(pre, el, trailing)
+		p.element(pre, el, p.TrailingComment(el, "&!,;"))
 	}
 	p.print(post)
 }
@@ -121,8 +119,7 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 			// Intersection already prints comments of its elements.
 			p.element("", el, post)
 		} else {
-			trailing := p.TrailingComment(el, ",;")
-			p.element("", el, post+trailing)
+			p.element("", el, post+p.TrailingComment(el, ",;"))
 		}
 	}
 	p.indent--
@@ -187,9 +184,7 @@ func (p *printer) protocolList(l []ast.Protocol) {
 	p.indent++
 	for _, el := range l {
 		p.PreComment(el, ",")
-		post := ","
-		trailing := p.TrailingComment(el, ",;")
-		p.protocol(el, post+trailing)
+		p.protocol(el, ","+p.TrailingComment(el, ",;"))
 	}
 	p.indent--
 	p.print(";")
@@ -233,13 +228,11 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		sep += " {"
 	}
 	pos := n.Pos() + len(n.GetName())
-	trailing := p.TrailingCommentAt(pos, sep)
-	p.print(n.GetName() + sep + trailing)
+	p.print(n.GetName() + sep + p.TrailingCommentAt(pos, sep))
 
 	if d := n.GetDescription(); d != nil {
 		p.PreComment(d, sep)
-		trailing = p.TrailingComment(d, "=")
-		p.print("description =" + d.Text + trailing)
+		p.print("description =" + d.Text + p.TrailingComment(d, "="))
 	}
 
 	switch x := n.(type) {
