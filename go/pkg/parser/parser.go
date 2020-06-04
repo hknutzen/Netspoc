@@ -130,12 +130,11 @@ func (p *parser) user() *ast.User {
 }
 
 func (p *parser) namedRef(typ, name string) ast.Element {
-	start := p.pos
-	p.next()
 	a := new(ast.NamedRef)
-	a.Start = start
+	a.Start = p.pos
 	a.Typ = typ
 	a.Name = name
+	p.next()
 	return a
 }
 
@@ -165,6 +164,10 @@ func (p *parser) selector() (string, int) {
 }
 
 func (p *parser) intfRef(typ, name string) ast.Element {
+	start := p.pos
+	a := new(ast.IntfRef)
+	a.Start = start
+	a.Typ = typ
 	i := strings.Index(name, ".")
 	if i == -1 {
 		p.syntaxErr("Interface name expected")
@@ -172,7 +175,6 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	router := name[:i]
 	net := name[i+1:]
 	err := !isRouterName(router)
-	start := p.pos
 	p.next()
 	var ext string
 	var end int
@@ -191,23 +193,18 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	if err {
 		p.syntaxErr("Interface name expected")
 	}
-	a := new(ast.IntfRef)
-	a.Start = start
-	a.Typ = typ
 	a.Router = router
-	a.Network = net   // If Network is "",
+	a.Network = net   // If Network is "[",
 	a.Extension = ext // then Extension contains selector.
 	a.Next = end
 	return a
 }
 
 func (p *parser) simpleAuto(start int, typ string) ast.Element {
-	list, end := p.union("]")
 	a := new(ast.SimpleAuto)
 	a.Start = start
 	a.Typ = typ
-	a.Elements = list
-	a.Next = end
+	a.Elements, a.Next = p.union("]")
 	return a
 }
 
@@ -236,38 +233,29 @@ func (p *parser) ipPrefix() *net.IPNet {
 }
 
 func (p *parser) aggAuto(start int, typ string) ast.Element {
-	var n *net.IPNet
-	if p.check("ip") {
-		p.check("=")
-		n = p.ipPrefix()
-		p.expect("&")
-	}
-	list, end := p.union("]")
 	a := new(ast.AggAuto)
 	a.Start = start
 	a.Typ = typ
-	a.Net = n
-	a.Elements = list
-	a.Next = end
+	if p.check("ip") {
+		p.check("=")
+		a.Net = p.ipPrefix()
+		p.expect("&")
+	}
+	a.Elements, a.Next = p.union("]")
 	return a
 }
 
 func (p *parser) intfAuto(start int, typ string) ast.Element {
-	m := false
-	if p.check("managed") {
-		m = true
-		p.expect("&")
-	}
-	list, _ := p.union("]")
-	p.expect(".[")
-	s, end := p.selector()
 	a := new(ast.IntfAuto)
 	a.Start = start
 	a.Typ = typ
-	a.Managed = m
-	a.Selector = s
-	a.Elements = list
-	a.Next = end
+	if p.check("managed") {
+		a.Managed = true
+		p.expect("&")
+	}
+	a.Elements, _ = p.union("]")
+	p.expect(".[")
+	a.Selector, a.Next = p.selector()
 	return a
 }
 
@@ -338,10 +326,9 @@ func (p *parser) extendedName() ast.Element {
 func (p *parser) complement() ast.Element {
 	start := p.pos
 	if p.check("!") {
-		el := p.extendedName()
 		a := new(ast.Complement)
 		a.Start = start
-		a.Element = el
+		a.Element = p.extendedName()
 		return a
 	} else {
 		return p.extendedName()
