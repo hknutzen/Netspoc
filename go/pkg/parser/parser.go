@@ -543,7 +543,6 @@ func (p *parser) rule() *ast.Rule {
 		p.expect("=")
 		a.Prt, a.Next = p.protoList()
 		if p.check("log") {
-			p.expect("=")
 			a.Log, a.Next = p.assignValueList()
 		}
 	default:
