@@ -139,6 +139,9 @@ func (p *printer) FindCommentAfter(pos int, ign string) (string, [][]string) {
 
 func (p *printer) TrailingComment(n ast.Node, ign string) string {
 	trailing, _ := p.FindCommentAfter(n.End(), ign)
+	if trailing != "" {
+		trailing = " " + trailing
+	}
 	return trailing
 }
 

@@ -97,9 +97,6 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
 	trailing := p.TrailingComment(l[0], "&!")
-	if trailing != "" {
-		trailing = " " + trailing
-	}
 	p.element("", l[0], trailing)
 	for _, el := range l[1:] {
 		pre := "&"
@@ -110,9 +107,6 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 		pre += " "
 		p.comment(p.PreComment(el, "&!"))
 		trailing := p.TrailingComment(el, "&!,;")
-		if trailing != "" {
-			trailing = " " + trailing
-		}
 		p.element(pre, el, trailing)
 	}
 	p.print(post)
@@ -128,10 +122,7 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 			p.element("", el, post)
 		} else {
 			trailing := p.TrailingComment(el, ",;")
-			if trailing != "" {
-				post += " " + trailing
-			}
-			p.element("", el, post)
+			p.element("", el, post+trailing)
 		}
 	}
 	p.indent--
@@ -197,10 +188,7 @@ func (p *printer) protocolList(l []ast.Protocol) {
 		p.comment(p.PreComment(el, ","))
 		post := ","
 		trailing := p.TrailingComment(el, ",;")
-		if trailing != "" {
-			post += " " + trailing
-		}
-		p.protocol(el, post)
+		p.protocol(el, post+trailing)
 	}
 	p.indent--
 	p.print(";")
