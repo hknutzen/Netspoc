@@ -149,29 +149,29 @@ func (p *printer) group(g *ast.Group) {
 	p.topList(&g.TopList)
 }
 
-func (p *printer) attribute(a *ast.Attribute) {
+func (p *printer) attribute(n *ast.Attribute) {
 	// Short attribute without values.
-	if len(a.Values) == 0 {
-		p.print(a.Name + ";")
+	if len(n.Values) == 0 {
+		p.print(n.Name + ";")
 		return
 	}
 	// Try to put name and values in one line.
-	out := a.Name + " = "
-	for i, v := range a.Values {
+	out := n.Name + " = "
+	for i, v := range n.Values {
 		if i != 0 {
 			out += ", "
 		}
 		out += v
 	}
 	out += ";"
-	if len(out) < 60 || len(a.Values) == 1 {
+	if len(out) < 60 || len(n.Values) == 1 {
 		p.print(out)
 		return
 	}
 	// Put many or long values into separate lines.
-	p.print(a.Name + " = ")
+	p.print(n.Name + " = ")
 	p.indent++
-	for _, v := range a.Values {
+	for _, v := range n.Values {
 		p.print(v + ",")
 	}
 	p.indent--
