@@ -53,12 +53,15 @@ func isShort(l []ast.Node) string {
 	return ""
 }
 
-func (p *printer) subElements(pre string, l []ast.Node, stop string) {
+func (p *printer) subElements(p1, p2 string, l []ast.Node, stop string) {
 	if name := isShort(l); name != "" {
-		p.print(pre + name + stop)
+		p.print(p1 + p2 + name + stop)
 	} else {
-		p.print(pre)
+		p.print(p1 + p2)
+		ind := len(p1)
+		p.indent += ind
 		p.elementList(l, stop)
+		p.indent -= ind
 	}
 }
 
@@ -77,21 +80,20 @@ func (p *printer) element(pre string, el ast.Node, post string) {
 		}
 		p.print(pre + x.Typ + ":" + x.Router + "." + net + ext + post)
 	case *ast.SimpleAuto:
-		out := pre + x.Typ + ":["
-		p.subElements(out, x.Elements, "]"+post)
+		p.subElements(pre, x.Typ+":[", x.Elements, "]"+post)
 	case *ast.AggAuto:
-		out := pre + x.Typ + ":["
+		p2 := x.Typ + ":["
 		if n := x.Net; n != nil {
-			out += "ip = " + n.String() + " & "
+			p2 += "ip = " + n.String() + " & "
 		}
-		p.subElements(out, x.Elements, "]"+post)
+		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:
-		out := pre + x.Typ + ":["
+		p2 := x.Typ + ":["
 		stop := "].[" + x.Selector + "]" + post
 		if x.Managed {
-			out += "managed & "
+			p2 += "managed & "
 		}
-		p.subElements(out, x.Elements, stop)
+		p.subElements(pre, p2, x.Elements, stop)
 	case *ast.Intersection:
 		p.intersection(pre, x.List, post)
 	case *ast.Complement:
