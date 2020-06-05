@@ -30,16 +30,6 @@ type Node interface {
 	End() int // position of first character immediately after the node
 }
 
-// All element nodes implement the Element interface.
-type Element interface {
-	Node
-	//	ElemNode()
-}
-
-type Protocol interface {
-	Node
-}
-
 // All toplevel nodes implement the Toplevel interface.
 type Toplevel interface {
 	Node
@@ -93,7 +83,7 @@ type IntfRef struct {
 type SimpleAuto struct {
 	TypedElt
 	withEnd
-	Elements []Element
+	Elements []Node
 }
 
 type AggAuto struct {
@@ -108,14 +98,14 @@ type IntfAuto struct {
 
 type Complement struct {
 	Base
-	Element Element
+	Element Node
 }
 
 func (a *Complement) End() int { return a.Element.End() }
 
 type Intersection struct {
 	Base
-	List []Element
+	List []Node
 }
 
 func (a *Intersection) End() int { return a.List[len(a.List)-1].End() }
@@ -142,7 +132,7 @@ func (a *TopBase) SetFname(n string)            { a.fname = n }
 
 type TopList struct {
 	TopBase
-	Elements []Element
+	Elements []Node
 }
 
 func (a *TopList) IsList() bool { return true }
@@ -156,13 +146,13 @@ type Value struct {
 	Value string
 }
 
-func (a *Value) End() int { return a.Pos() + len("a.Name") }
+func (a *Value) End() int { return a.Pos() + len(a.Value) }
 
 type Attribute struct {
 	Base
 	withEnd
 	Name   string
-	Values []*Value
+	Values []Node
 }
 
 type SimpleProtocol struct {
@@ -176,16 +166,16 @@ type Rule struct {
 	Base
 	withEnd
 	Deny bool
-	Src  []Element
-	Dst  []Element
-	Prt  []Protocol
+	Src  []Node
+	Dst  []Node
+	Prt  []Node
 	Log  *Attribute
 }
 
 type Service struct {
 	TopBase
 	Attributes []*Attribute
-	User       []Element
+	User       []Node
 	Foreach    bool
 	Rules      []*Rule
 }

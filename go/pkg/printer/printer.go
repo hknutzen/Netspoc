@@ -34,7 +34,14 @@ func (p *printer) print(line string) {
 	p.output = append(p.output, '\n')
 }
 
-func isShort(l []ast.Element) string {
+func (p *printer) emptyLine() {
+	l := len(p.output)
+	if l < 2 || p.output[l-1] != '\n' || p.output[l-2] != '\n' {
+		p.output = append(p.output, '\n')
+	}
+}
+
+func isShort(l []ast.Node) string {
 	if len(l) == 1 {
 		switch x := l[0].(type) {
 		case *ast.NamedRef:
@@ -46,7 +53,7 @@ func isShort(l []ast.Element) string {
 	return ""
 }
 
-func (p *printer) subElements(pre string, l []ast.Element, stop string) {
+func (p *printer) subElements(pre string, l []ast.Node, stop string) {
 	if name := isShort(l); name != "" {
 		p.print(pre + name + stop)
 	} else {
@@ -55,7 +62,7 @@ func (p *printer) subElements(pre string, l []ast.Element, stop string) {
 	}
 }
 
-func (p *printer) element(pre string, el ast.Element, post string) {
+func (p *printer) element(pre string, el ast.Node, post string) {
 	switch x := el.(type) {
 	case *ast.NamedRef:
 		p.print(pre + x.Typ + ":" + x.Name + post)
@@ -96,9 +103,11 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 	}
 }
 
-func (p *printer) intersection(pre string, l []ast.Element, post string) {
+func (p *printer) intersection(pre string, l []ast.Node, post string) {
 	// First element already gets pre comment from union.
-	p.element("", l[0], p.TrailingComment(l[0], "&!"))
+	p.element(pre, l[0], p.TrailingComment(l[0], "&!"))
+	ind := len(pre)
+	p.indent += ind
 	for _, el := range l[1:] {
 		pre := "&"
 		if x, ok := el.(*ast.Complement); ok {
@@ -110,9 +119,10 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 		p.element(pre, el, p.TrailingComment(el, "&!,;"))
 	}
 	p.print(post)
+	p.indent -= ind
 }
 
-func (p *printer) elementList(l []ast.Element, stop string) {
+func (p *printer) elementList(l []ast.Node, stop string) {
 	p.indent++
 	for _, el := range l {
 		p.PreComment(el, ",")
@@ -136,60 +146,62 @@ func (p *printer) group(g *ast.Group) {
 	p.topList(&g.TopList)
 }
 
+func (p *printer) namedList(
+	name string, l []ast.Node, show func(*printer, string, ast.Node, string)) {
+
+	// Put first value on same line with name.
+	pre := name + " = "
+	ind := len(pre)
+	first := l[0]
+	rest := l[1:]
+	var post string
+	if len(rest) == 0 {
+		post = ";"
+	} else {
+		post = ","
+	}
+	show(p, pre, first, post+p.TrailingComment(first, ",;"))
+
+	// Show other lines with same indentation as first line.
+	if len(rest) != 0 {
+		p.indent += ind
+		for _, v := range rest {
+			p.PreComment(v, ",")
+			show(p, "", v, ","+p.TrailingComment(v, ",;"))
+		}
+		p.print(";")
+		p.indent -= ind
+	}
+}
+
 func (p *printer) attribute(n *ast.Attribute) {
 	p.PreComment(n, "")
+	l := n.Values
 
 	// Short attribute without values.
-	if len(n.Values) == 0 {
+	if len(l) == 0 {
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
 		return
 	}
-	// Try to put name and values in one line.
-	out := n.Name + " = "
-	for i, v := range n.Values {
-		if i != 0 {
-			out += ", "
-		}
-		out += v.Value
-	}
-	out += ";" + p.TrailingComment(n, ",;")
-	if len(out) < 60 || len(n.Values) == 1 {
-		p.print(out)
-		return
-	}
-	// Put many or long values into separate lines.
-	p.print(n.Name + " =")
-	p.indent++
-	for _, v := range n.Values {
-		p.PreComment(v, ",")
-		p.print(v.Value + "," + p.TrailingComment(v, ",;"))
-	}
-	p.indent--
-	p.print(";")
+
+	p.namedList(n.Name, l, func(p *printer, pre string, l ast.Node, post string) {
+		a := l.(*ast.Value)
+		p.print(pre + a.Value + post)
+	})
 }
 
-func (p *printer) protocol(el ast.Element, post string) {
-	var out string
+func (p *printer) protocol(pre string, el ast.Node, post string) {
+	out := pre
 	switch x := el.(type) {
 	case *ast.NamedRef:
-		out = x.Typ + ":" + x.Name
+		out += x.Typ + ":" + x.Name
 	case *ast.SimpleProtocol:
-		out = x.Proto
+		out += x.Proto
 		for _, d := range x.Details {
 			out += " " + d
 		}
 	}
 	p.print(out + post)
-}
-
-func (p *printer) protocolList(l []ast.Protocol) {
-	p.indent++
-	for _, el := range l {
-		p.PreComment(el, ",")
-		p.protocol(el, ","+p.TrailingComment(el, ",;"))
-	}
-	p.indent--
-	p.print(";")
 }
 
 func (p *printer) rule(n *ast.Rule) {
@@ -198,35 +210,34 @@ func (p *printer) rule(n *ast.Rule) {
 	if n.Deny {
 		action = "deny  "
 	}
-	p.print(action)
-	p.indent++
-	p.print("src =")
-	p.elementList(n.Src, ";")
-	p.print("dst =")
-	p.elementList(n.Dst, ";")
-	p.print("prt =")
-	p.protocolList(n.Prt)
+	ind := len(action) + 1
+	p.namedList(action+" src", n.Src, (*printer).element)
+	p.indent += ind
+	p.namedList("dst", n.Dst, (*printer).element)
+	p.namedList("prt", n.Prt, (*printer).protocol)
 	if a := n.Log; a != nil {
 		p.attribute(a)
 	}
-	p.indent--
+	p.indent -= ind
 }
 
 func (p *printer) service(n *ast.Service) {
 	p.indent++
+	p.emptyLine()
 	for _, a := range n.Attributes {
 		p.attribute(a)
 	}
-	user := "user ="
+	p.emptyLine()
 	if n.Foreach {
-		user += " foreach"
+		p.print("user = foreach")
+		p.elementList(n.User, ";")
+	} else {
+		p.namedList("user", n.User, (*printer).element)
 	}
-	p.print(user)
-	p.elementList(n.User, ";")
-	p.indent--
 	for _, r := range n.Rules {
 		p.rule(r)
 	}
+	p.indent--
 	p.print("}")
 }
 
@@ -240,8 +251,11 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	p.print(n.GetName() + sep + p.TrailingCommentAt(pos, sep))
 
 	if d := n.GetDescription(); d != nil {
+		p.indent++
 		p.PreComment(d, sep)
 		p.print("description =" + d.Text + p.TrailingComment(d, "="))
+		p.indent--
+		p.emptyLine()
 	}
 
 	switch x := n.(type) {
@@ -258,8 +272,12 @@ func File(list []ast.Toplevel, src []byte) {
 	p := new(printer)
 	p.init(src)
 
-	for _, t := range list {
+	for i, t := range list {
 		p.toplevel(t)
+		// Add empty line between output.
+		if i != len(list)-1 {
+			p.print("")
+		}
 	}
 
 	fmt.Print(string(p.output))

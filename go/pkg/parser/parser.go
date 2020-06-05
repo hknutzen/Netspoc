@@ -129,7 +129,7 @@ func (p *parser) user() *ast.User {
 	return a
 }
 
-func (p *parser) namedRef(typ, name string) ast.Element {
+func (p *parser) namedRef(typ, name string) ast.Node {
 	a := new(ast.NamedRef)
 	a.Start = p.pos
 	a.Typ = typ
@@ -138,17 +138,17 @@ func (p *parser) namedRef(typ, name string) ast.Element {
 	return a
 }
 
-func (p *parser) hostRef(typ, name string) ast.Element {
+func (p *parser) hostRef(typ, name string) ast.Node {
 	p.verifyHostname(name)
 	return p.namedRef(typ, name)
 }
 
-func (p *parser) networkRef(typ, name string) ast.Element {
+func (p *parser) networkRef(typ, name string) ast.Node {
 	p.verifyNetworkName(name)
 	return p.namedRef(typ, name)
 }
 
-func (p *parser) simpleRef(typ, name string) ast.Element {
+func (p *parser) simpleRef(typ, name string) ast.Node {
 	p.verifySimpleName(name)
 	return p.namedRef(typ, name)
 }
@@ -163,7 +163,7 @@ func (p *parser) selector() (string, int) {
 	return result, pos + 1
 }
 
-func (p *parser) intfRef(typ, name string) ast.Element {
+func (p *parser) intfRef(typ, name string) ast.Node {
 	start := p.pos
 	a := new(ast.IntfRef)
 	a.Start = start
@@ -200,7 +200,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	return a
 }
 
-func (p *parser) simpleAuto(start int, typ string) ast.Element {
+func (p *parser) simpleAuto(start int, typ string) ast.Node {
 	a := new(ast.SimpleAuto)
 	a.Start = start
 	a.Typ = typ
@@ -232,7 +232,7 @@ func (p *parser) ipPrefix() *net.IPNet {
 	return nil
 }
 
-func (p *parser) aggAuto(start int, typ string) ast.Element {
+func (p *parser) aggAuto(start int, typ string) ast.Node {
 	a := new(ast.AggAuto)
 	a.Start = start
 	a.Typ = typ
@@ -245,7 +245,7 @@ func (p *parser) aggAuto(start int, typ string) ast.Element {
 	return a
 }
 
-func (p *parser) intfAuto(start int, typ string) ast.Element {
+func (p *parser) intfAuto(start int, typ string) ast.Node {
 	a := new(ast.IntfAuto)
 	a.Start = start
 	a.Typ = typ
@@ -282,7 +282,7 @@ func (p *parser) typedName() (string, string) {
 	return typ, name
 }
 
-var elementType = map[string]func(*parser, string, string) ast.Element{
+var elementType = map[string]func(*parser, string, string) ast.Node{
 	"host":      (*parser).hostRef,
 	"network":   (*parser).networkRef,
 	"interface": (*parser).intfRef,
@@ -291,10 +291,10 @@ var elementType = map[string]func(*parser, string, string) ast.Element{
 	"group":     (*parser).simpleRef,
 }
 
-var autoGroupType map[string]func(*parser, int, string) ast.Element
+var autoGroupType map[string]func(*parser, int, string) ast.Node
 
 func init() {
-	autoGroupType = map[string]func(*parser, int, string) ast.Element{
+	autoGroupType = map[string]func(*parser, int, string) ast.Node{
 		"host":      (*parser).simpleAuto,
 		"network":   (*parser).simpleAuto,
 		"interface": (*parser).intfAuto,
@@ -302,7 +302,7 @@ func init() {
 	}
 }
 
-func (p *parser) extendedName() ast.Element {
+func (p *parser) extendedName() ast.Node {
 	if p.tok == "user" {
 		return p.user()
 	}
@@ -323,7 +323,7 @@ func (p *parser) extendedName() ast.Element {
 	return m(p, typ, name)
 }
 
-func (p *parser) complement() ast.Element {
+func (p *parser) complement() ast.Node {
 	start := p.pos
 	if p.check("!") {
 		a := new(ast.Complement)
@@ -335,8 +335,8 @@ func (p *parser) complement() ast.Element {
 	}
 }
 
-func (p *parser) intersection() ast.Element {
-	var intersection []ast.Element
+func (p *parser) intersection() ast.Node {
+	var intersection []ast.Node
 	start := p.pos
 	intersection = append(intersection, p.complement())
 	for p.check("&") {
@@ -356,8 +356,8 @@ func (p *parser) intersection() ast.Element {
 // Read at least one element.
 // Return list of ASTs of read elements
 // and position after stopToken.
-func (p *parser) union(stopToken string) ([]ast.Element, int) {
-	var union []ast.Element
+func (p *parser) union(stopToken string) ([]ast.Node, int) {
+	var union []ast.Node
 	union = append(union, p.intersection())
 	var end int
 
@@ -422,9 +422,9 @@ func (p *parser) value() *ast.Value {
 	return a
 }
 
-func (p *parser) assignValueList() ([]*ast.Value, int) {
+func (p *parser) assignValueList() ([]ast.Node, int) {
 	p.expect("=")
-	var list []*ast.Value
+	var list []ast.Node
 	list = append(list, p.value())
 	var end int
 	for {
@@ -493,7 +493,7 @@ func (p *parser) simpleProtocol() *ast.SimpleProtocol {
 	return a
 }
 
-func (p *parser) protocol() ast.Protocol {
+func (p *parser) protocol() ast.Node {
 	start := p.pos
 	if typ, name := p.checkTypedName(); typ != "" {
 		a := new(ast.NamedRef)
@@ -505,8 +505,8 @@ func (p *parser) protocol() ast.Protocol {
 	return p.simpleProtocol()
 }
 
-func (p *parser) protoList() ([]ast.Protocol, int) {
-	var list []ast.Protocol
+func (p *parser) protoList() ([]ast.Node, int) {
+	var list []ast.Node
 	list = append(list, p.protocol())
 	var end int
 	for {
