@@ -7,17 +7,6 @@ import (
 	"strings"
 )
 
-func (p *printer) comment(blocks [][]string) {
-	for i, block := range blocks {
-		if i != 0 {
-			p.print("")
-		}
-		for _, line := range block {
-			p.print(line)
-		}
-	}
-}
-
 func (p *printer) ReadTrailingComment(pos int, ign string) string {
 READ:
 	for pos < len(p.src) {
@@ -66,22 +55,53 @@ func (p *printer) TrailingComment(n ast.Node, ign string) string {
 	return p.TrailingCommentAt(n.End(), ign)
 }
 
-// Read one or more lines of comment and whitespace.
-func (p *printer) ReadCommentOrWhitespaceBefore(
-	pos int, ignore string) string {
+func normalizeComments(com string, ign string) []string {
+	var result []string
+	empty := true
 
+	lines := strings.Split(com, "\n")
+
+	// 'lines' is known to have at least one element.
+	// Comment line is known to end with "\n", even at EOF.
+	// (Has been added if missing.)
+	// So, any comment would result in at least two lines.
+
+	// Ignore last entry having no trailing "\n".
+	for _, line := range lines[:len(lines)-1] {
+		if idx := strings.Index(line, "#"); idx != -1 {
+			// Line contains comment.
+			line = line[idx:] // Ignore leading whitespace
+			result = append(result, line)
+			empty = false
+		} else if strings.IndexAny(line, ign) == -1 && !empty {
+			// Found empty line, separating blocks of comment lines.
+			// Line with ignored characters isn't empty.
+			result = append(result, "")
+			empty = true
+		}
+	}
+	return result
+}
+
+// Read one or more lines of comment and whitespace.
+// Ignore trailing comment or trailing whitespace of previous statement.
+func (p *printer) ReadCommentOrWhitespaceBefore(pos int, ign string) []string {
+	line1 := 0
 	end := pos
 	pos--
 READ:
 	for pos >= 0 {
 		c := rune(p.src[pos])
 		switch c {
-		case ' ', '\t', '\n', '\r':
+		case '\n':
+			line1 = pos
+			fallthrough
+		case ' ', '\t', '\r':
 			// Whitespace
 			pos--
 		default:
 			// Check to be ignored character.
-			if strings.IndexRune(ignore, c) != -1 {
+			if strings.IndexRune(ign, c) != -1 {
 				pos--
 				continue READ
 			}
@@ -101,55 +121,25 @@ READ:
 		}
 	}
 	pos++
-	result := string(p.src[pos:end])
 
-	// First line of file must not be recognized as trailing comment.
-	if pos == 0 {
-		result = "\n" + result
+	// Ignore trailing comment or trailing whitespace of previous line.
+	if pos > 0 && p.src[pos-1] != '\n' && line1 != 0 {
+		pos = line1 + 1
 	}
-	return result
+	return normalizeComments(string(p.src[pos:end]), ign)
 }
 
-func splitComments(com string, ign string) (string, [][]string) {
-	var first string
-	var result [][]string
-	var block []string
-	trailing := true
-
-	lines := strings.Split(com, "\n")
-
-	// 'lines' is known to have at least one element.
-	// Comment line is known to end with "\n", even at EOF.
-	// (Has been added if missing.)
-	// So, any comment would result in at least two lines.
-
-	// Ignore last line without trailing "\n".
-	lines = lines[:len(lines)-1]
+func (p *printer) comment(lines []string) {
 	for _, line := range lines {
-		if idx := strings.Index(line, "#"); idx != -1 {
-			// Line contains comment.
-			line = line[idx:] // Ignore leading whitespace
-			if trailing {
-				first = line
-			} else {
-				block = append(block, line)
-			}
-		} else if strings.IndexAny(line, ign) == -1 &&
-			!trailing && block != nil {
-			// Found empty line, separating blocks of comment lines.
-			// Line with ignored characters isn't empty.
-			result = append(result, block)
-			block = nil
-		}
-		trailing = false
+		p.print(line)
 	}
-
-	return first, append(result, block)
 }
 
 func (p *printer) PreComment(n ast.Node, ign string) {
-	com := p.ReadCommentOrWhitespaceBefore(n.Pos(), ign)
-	// Ignore trailing comment in first line.
-	_, result := splitComments(com, ign)
-	p.comment(result)
+	lines := p.ReadCommentOrWhitespaceBefore(n.Pos(), ign)
+	p.comment(lines)
+}
+
+func (p *printer) hasPreComment(n ast.Node, ign string) bool {
+	return p.ReadCommentOrWhitespaceBefore(n.Pos(), ign) != nil
 }

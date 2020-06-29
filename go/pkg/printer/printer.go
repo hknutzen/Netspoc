@@ -151,18 +151,24 @@ func (p *printer) group(g *ast.Group) {
 func (p *printer) namedList(
 	name string, l []ast.Node, show func(*printer, string, ast.Node, string)) {
 
-	// Put first value on same line with name.
+	// Put first value on same line with name, if it has no comment.
+	first := l[0]
+	var rest []ast.Node
 	pre := name + " = "
 	ind := len(pre)
-	first := l[0]
-	rest := l[1:]
-	var post string
-	if len(rest) == 0 {
-		post = ";"
+	if p.hasPreComment(first, ",") {
+		p.print(pre[:ind-1])
+		rest = l
 	} else {
-		post = ","
+		rest = l[1:]
+		var post string
+		if len(rest) == 0 {
+			post = ";"
+		} else {
+			post = ","
+		}
+		show(p, pre, first, post+p.TrailingComment(first, ",;"))
 	}
-	show(p, pre, first, post+p.TrailingComment(first, ",;"))
 
 	// Show other lines with same indentation as first line.
 	if len(rest) != 0 {
