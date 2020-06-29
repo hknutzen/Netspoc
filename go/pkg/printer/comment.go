@@ -123,8 +123,12 @@ READ:
 	pos++
 
 	// Ignore trailing comment or trailing whitespace of previous line.
-	if pos > 0 && p.src[pos-1] != '\n' && line1 != 0 {
-		pos = line1 + 1
+	if pos > 0 && line1 != 0 {
+		switch p.src[pos-1] {
+		case '\n', '=':
+		default:
+			pos = line1 + 1
+		}
 	}
 	return normalizeComments(string(p.src[pos:end]), ign)
 }
