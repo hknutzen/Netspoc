@@ -1055,7 +1055,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 			// Mark path at interface we go to (step in opposite path direction).
 
 /*			// debugging
-			var b string // Meike: braucht eine get string if not nil - function!
+			var b string
 			if toOut != nil {
 				b = toOut.String()
 			} else {
