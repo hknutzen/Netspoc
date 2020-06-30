@@ -345,7 +345,7 @@ func (p *parser) intersection() ast.Node {
 	if len(intersection) > 1 {
 		a := new(ast.Intersection)
 		a.Start = start
-		a.List = intersection
+		a.Elements = intersection
 		return a
 	} else {
 		return intersection[0]
@@ -422,9 +422,9 @@ func (p *parser) value() *ast.Value {
 	return a
 }
 
-func (p *parser) assignValueList() ([]ast.Node, int) {
+func (p *parser) assignValueList() ([]*ast.Value, int) {
 	p.expect("=")
-	var list []ast.Node
+	var list []*ast.Value
 	list = append(list, p.value())
 	var end int
 	for {

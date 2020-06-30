@@ -28,6 +28,9 @@ import (
 type Node interface {
 	Pos() int // position of first character belonging to the node
 	End() int // position of first character immediately after the node
+	getType() string
+	getName() string
+	Normalize()
 }
 
 // All toplevel nodes implement the Toplevel interface.
@@ -46,7 +49,9 @@ type Base struct {
 	Start int
 }
 
-func (a *Base) Pos() int { return a.Start }
+func (a *Base) Pos() int        { return a.Start }
+func (a *Base) getType() string { return "" }
+func (a *Base) getName() string { return "" }
 
 type withEnd struct {
 	Next int
@@ -65,12 +70,15 @@ type TypedElt struct {
 	Typ string
 }
 
+func (a *TypedElt) getType() string { return a.Typ }
+
 type NamedRef struct {
 	TypedElt
 	Name string
 }
 
-func (a *NamedRef) End() int { return a.Pos() + len(a.Typ) + 1 + len(a.Name) }
+func (a *NamedRef) End() int        { return a.Pos() + len(a.Typ) + 1 + len(a.Name) }
+func (a *NamedRef) getName() string { return a.Name }
 
 type IntfRef struct {
 	TypedElt
@@ -78,6 +86,14 @@ type IntfRef struct {
 	Router    string
 	Network   string
 	Extension string
+}
+
+func (a *IntfRef) getName() string {
+	r := a.Router + "." + a.Network
+	if e := a.Extension; e != "" {
+		r += "." + e
+	}
+	return r
 }
 
 type SimpleAuto struct {
@@ -105,10 +121,10 @@ func (a *Complement) End() int { return a.Element.End() }
 
 type Intersection struct {
 	Base
-	List []Node
+	Elements []Node
 }
 
-func (a *Intersection) End() int { return a.List[len(a.List)-1].End() }
+func (a *Intersection) End() int { return a.Elements[len(a.Elements)-1].End() }
 
 type Description struct {
 	Base
@@ -152,7 +168,7 @@ type Attribute struct {
 	Base
 	withEnd
 	Name   string
-	Values []Node
+	Values []*Value
 }
 
 type SimpleProtocol struct {

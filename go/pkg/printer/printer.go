@@ -95,7 +95,7 @@ func (p *printer) element(pre string, el ast.Node, post string) {
 		}
 		p.subElements(pre, p2, x.Elements, stop)
 	case *ast.Intersection:
-		p.intersection(pre, x.List, post)
+		p.intersection(pre, x.Elements, post)
 	case *ast.Complement:
 		p.element("! ", x.Element, post)
 	case *ast.User:
@@ -192,10 +192,16 @@ func (p *printer) attribute(n *ast.Attribute) {
 		return
 	}
 
-	p.namedList(n.Name, l, func(p *printer, pre string, l ast.Node, post string) {
-		a := l.(*ast.Value)
-		p.print(pre + a.Value + post)
-	})
+	// Convert type of slice, so we can use func namedList.
+	nodes := make([]ast.Node, len(l))
+	for i, v := range l {
+		nodes[i] = v
+	}
+	p.namedList(
+		n.Name, nodes, func(p *printer, pre string, l ast.Node, post string) {
+			a := l.(*ast.Value)
+			p.print(pre + a.Value + post)
+		})
 }
 
 func (p *printer) protocol(pre string, el ast.Node, post string) {
