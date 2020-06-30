@@ -41,7 +41,7 @@ func (p *printer) emptyLine() {
 	}
 }
 
-func isShort(l []ast.Node) string {
+func isShort(l []ast.Element) string {
 	if len(l) == 1 {
 		switch x := l[0].(type) {
 		case *ast.NamedRef:
@@ -53,7 +53,7 @@ func isShort(l []ast.Node) string {
 	return ""
 }
 
-func (p *printer) subElements(p1, p2 string, l []ast.Node, stop string) {
+func (p *printer) subElements(p1, p2 string, l []ast.Element, stop string) {
 	if name := isShort(l); name != "" {
 		p.print(p1 + p2 + name + stop)
 	} else {
@@ -65,7 +65,7 @@ func (p *printer) subElements(p1, p2 string, l []ast.Node, stop string) {
 	}
 }
 
-func (p *printer) element(pre string, el ast.Node, post string) {
+func (p *printer) element(pre string, el ast.Element, post string) {
 	switch x := el.(type) {
 	case *ast.NamedRef:
 		p.print(pre + x.Typ + ":" + x.Name + post)
@@ -105,7 +105,7 @@ func (p *printer) element(pre string, el ast.Node, post string) {
 	}
 }
 
-func (p *printer) intersection(pre string, l []ast.Node, post string) {
+func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
 	p.element(pre, l[0], p.TrailingComment(l[0], "&!"))
 	ind := len(pre)
@@ -124,7 +124,7 @@ func (p *printer) intersection(pre string, l []ast.Node, post string) {
 	p.indent -= ind
 }
 
-func (p *printer) elementList(l []ast.Node, stop string) {
+func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
 	for _, el := range l {
 		p.PreComment(el, ",")
@@ -149,11 +149,12 @@ func (p *printer) group(g *ast.Group) {
 }
 
 func (p *printer) namedList(
-	name string, l []ast.Node, show func(*printer, string, ast.Node, string)) {
+	name string, l []ast.Element,
+	show func(*printer, string, ast.Element, string)) {
 
 	// Put first value on same line with name, if it has no comment.
 	first := l[0]
-	var rest []ast.Node
+	var rest []ast.Element
 	pre := name + " = "
 	ind := len(pre)
 	if p.hasPreComment(first, ",") {
@@ -193,18 +194,18 @@ func (p *printer) attribute(n *ast.Attribute) {
 	}
 
 	// Convert type of slice, so we can use func namedList.
-	nodes := make([]ast.Node, len(l))
+	nodes := make([]ast.Element, len(l))
 	for i, v := range l {
 		nodes[i] = v
 	}
 	p.namedList(
-		n.Name, nodes, func(p *printer, pre string, l ast.Node, post string) {
+		n.Name, nodes, func(p *printer, pre string, l ast.Element, post string) {
 			a := l.(*ast.Value)
 			p.print(pre + a.Value + post)
 		})
 }
 
-func (p *printer) protocol(pre string, el ast.Node, post string) {
+func (p *printer) protocol(pre string, el ast.Element, post string) {
 	out := pre
 	switch x := el.(type) {
 	case *ast.NamedRef:

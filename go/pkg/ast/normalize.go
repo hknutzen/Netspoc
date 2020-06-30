@@ -32,7 +32,7 @@ func findIPv4(n string) int {
 	return 0
 }
 
-func sortElem(l []Node) {
+func sortElem(l []Element) {
 	sort.SliceStable(l, func(i, j int) bool {
 		t1 := typeOrder[l[i].getType()]
 		t2 := typeOrder[l[j].getType()]
@@ -56,7 +56,7 @@ func sortAttr(l []*Attribute) {
 	})
 }
 
-func normalize(l []Node) {
+func normalize(l []Element) {
 	for _, n := range l {
 		n.Normalize()
 	}
@@ -93,7 +93,7 @@ func (a *Attribute) Normalize() {
 func (a *Rule) Normalize() {
 	normalize(a.Src)
 	normalize(a.Dst)
-	normalize(a.Prt)
+	//normalize(a.Prt)
 	if attr := a.Log; attr != nil {
 		attr.Normalize()
 	}
