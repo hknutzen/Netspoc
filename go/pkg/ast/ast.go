@@ -131,9 +131,11 @@ type Intersection struct {
 	Elements []Element
 }
 
-func (a *Intersection) End() int        { return a.Elements[len(a.Elements)-1].End() }
-func (a *Intersection) getType() string { return "" }
-func (a *Intersection) getName() string { return "" }
+func (a *Intersection) End() int {
+	return a.Elements[len(a.Elements)-1].End()
+}
+func (a *Intersection) getType() string { return a.Elements[0].getType() }
+func (a *Intersection) getName() string { return a.Elements[0].getType() }
 
 type Description struct {
 	Base
