@@ -195,7 +195,7 @@ type SimpleProtocol struct {
 }
 
 // Define methods of interface 'Elements', so we can sort and output
-// protocols together with named protocols and protocolgroups.
+// simple protocols together with named protocols and protocolgroups.
 func (a *SimpleProtocol) getType() string { return "" }
 func (a *SimpleProtocol) getName() string { return a.Proto }
 

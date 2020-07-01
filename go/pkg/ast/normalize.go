@@ -7,6 +7,7 @@ import (
 	"net"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -47,6 +48,47 @@ func sortElem(l []Element) {
 			return n1 < n2
 		}
 		return i1 < i2
+	})
+}
+
+// Place named protocols before simple protocols.
+var protoOrder = map[string]int{
+	"protocolgroup": -2,
+	"protocol":      -1,
+}
+
+func sortProto(l []Element) {
+	sort.Slice(l, func(i, j int) bool {
+		t1 := protoOrder[l[i].getType()]
+		t2 := protoOrder[l[j].getType()]
+		if t1 != t2 {
+			return t1 < t2
+		}
+		if t1 != 0 {
+			// Named protocol or protocolgroup.
+			n1 := l[i].getName()
+			n2 := l[j].getName()
+			return n1 < n2
+		}
+		// Simple protocol
+		a1 := l[i].(*SimpleProtocol)
+		a2 := l[j].(*SimpleProtocol)
+		p1 := a1.Proto
+		p2 := a2.Proto
+		if p1 != p2 {
+			return p1 < p2
+		}
+		for i, d1 := range a1.Details {
+			if i >= len(a2.Details) {
+				return false
+			}
+			if d2 := a2.Details[i]; d1 != d2 {
+				n1, _ := strconv.Atoi(d1)
+				n2, _ := strconv.Atoi(d2)
+				return n1 < n2
+			}
+		}
+		return false
 	})
 }
 
@@ -93,7 +135,7 @@ func (a *Attribute) Normalize() {
 func (a *Rule) Normalize() {
 	normalize(a.Src)
 	normalize(a.Dst)
-	//normalize(a.Prt)
+	sortProto(a.Prt)
 	if attr := a.Log; attr != nil {
 		attr.Normalize()
 	}
