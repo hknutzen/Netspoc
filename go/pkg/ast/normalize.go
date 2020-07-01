@@ -73,19 +73,64 @@ func sortProto(l []Element) {
 		// Simple protocol
 		a1 := l[i].(*SimpleProtocol)
 		a2 := l[j].(*SimpleProtocol)
+		// icmp < ip < proto < tcp < udp
 		p1 := a1.Proto
 		p2 := a2.Proto
 		if p1 != p2 {
 			return p1 < p2
 		}
-		for i, d1 := range a1.Details {
-			if i >= len(a2.Details) {
+		var n1, n2 []int
+		if p1 == "tcp" || p1 == "udp" {
+			conv := func(l []string) []int {
+				getPorts := func(s string) (int, int) {
+					p := strings.Split(s, "-")
+					switch len(p) {
+					case 0:
+						return 1, 65535
+					case 1:
+						n1, _ := strconv.Atoi(p[0])
+						return n1, n1
+					default:
+						n1, _ := strconv.Atoi(p[0])
+						n2, _ := strconv.Atoi(p[1])
+						return n1, n2
+					}
+				}
+				s := strings.Join(l, "")
+				sp := strings.Split(s, ":")
+				var s1, s2, p1, p2 int
+				switch len(sp) {
+				case 0:
+					s1, s2 = getPorts("")
+					p1, p2 = getPorts("")
+				case 1:
+					s1, s2 = getPorts("")
+					p1, p2 = getPorts(sp[0])
+				default:
+					s1, s2 = getPorts(sp[0])
+					p1, p2 = getPorts(sp[1])
+				}
+				return []int{p1, p2, s1, s2}
+			}
+			n1 = conv(a1.Details)
+			n2 = conv(a2.Details)
+		} else {
+			conv := func(l []string) []int {
+				r := make([]int, len(l))
+				for i, d1 := range l {
+					r[i], _ = strconv.Atoi(d1)
+				}
+				return r
+			}
+			n1 = conv(a1.Details)
+			n2 = conv(a2.Details)
+		}
+		for i, d1 := range n1 {
+			if i >= len(n2) {
 				return false
 			}
-			if d2 := a2.Details[i]; d1 != d2 {
-				n1, _ := strconv.Atoi(d1)
-				n2, _ := strconv.Atoi(d2)
-				return n1 < n2
+			if d2 := n2[i]; d1 != d2 {
+				return d1 < d2
 			}
 		}
 		return false
