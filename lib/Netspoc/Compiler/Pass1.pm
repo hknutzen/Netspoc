@@ -1074,7 +1074,6 @@ sub read_host {
     $host->{name} = $name;
     skip '=';
     skip '{';
-    add_description($host);
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -1475,7 +1474,6 @@ sub read_interface {
     my $virtual;
     skip '=';
     skip '{';
-    add_description($interface);
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
