@@ -102,7 +102,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <host definition> ::=
       host:<name> = {
-         [ <description> ]
          ip = <ip>; | range = <ip>-<ip>;
          [ owner = <name>;            ]
          <host NAT> *
@@ -144,7 +143,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
 
     <interface definition> ::=
       interface:<network name> = {
-         [ <description> ]
          [ ip = ( <ip>(, <ip>)* | unnumbered | negotiated ); ]
          <secondary interface definition> *
          [ <virtual interface definition>       ]
@@ -353,25 +351,27 @@ where `<object set>` must expand to interfaces.
 
     <ipsec definition> ::=
       ipsec:<name> = {
-         key_exchange = isakmp:<name>;
-         esp_encryption = ( aes | aes192 | aes256 | des | 3des | none );
-         esp_authentication = ( md5 | sha | sha256 | sha384 | sha512 | none );
-         ah = ( md5 | sha |sha256 | sha384 | sha512 | none );
-         pfs_group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 | none );
-         lifetime = [ <int> <timeunit> ] [ <int> kilobytes ];
+        [ <description> ]
+        key_exchange = isakmp:<name>;
+        esp_encryption = ( aes | aes192 | aes256 | des | 3des | none );
+        esp_authentication = ( md5 | sha | sha256 | sha384 | sha512 | none );
+        ah = ( md5 | sha |sha256 | sha384 | sha512 | none );
+        pfs_group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 | none );
+        lifetime = [ <int> <timeunit> ] [ <int> kilobytes ];
       }
 
     <isakmp definition> ::=
       isakmp:<name> = {
-         ike_version = ( 1 | 2 );
-         identity = ( address | fqdn );
-         nat_traversal = ( on | additional | off );
-         authentication = ( preshare | rsasig );
-         encryption = ( aes | aes192 | aes256 | des | 3des );
-         hash = ( md5 | sha | sha256 | sha384 | sha512 );
-         group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 );
-         lifetime = <int> <timeunit>;
-         trust_point = <name>;
+        [ <description> ]
+        ike_version = ( 1 | 2 );
+        identity = ( address | fqdn );
+        nat_traversal = ( on | additional | off );
+        authentication = ( preshare | rsasig );
+        encryption = ( aes | aes192 | aes256 | des | 3des );
+        hash = ( md5 | sha | sha256 | sha384 | sha512 );
+        group = ( 1 | 2 | 5 | 14 | 15 | 16 | 19 | 20 | 21 | 24 );
+        lifetime = <int> <timeunit>;
+        trust_point = <name>;
       }
 
 with
