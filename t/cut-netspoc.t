@@ -1856,7 +1856,6 @@ network:n1 = {
  description = network:n1; # looks like code
  ip = 10.1.1.0/24;
  host:h10 = {
-  description = littel host;;;
   ip = 10.1.1.10;
  }
 }
