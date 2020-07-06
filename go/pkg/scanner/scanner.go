@@ -195,6 +195,36 @@ func (s *Scanner) SimpleToken() (int, string) {
 	return s.scan(isSimpleChar)
 }
 
+func (s *Scanner) TokenToSemicolon() (int, string) {
+	pos, tok := s.scan(func(ch rune) bool {
+		switch ch {
+		case ';', '\n', '#':
+			return false
+		default:
+			return true
+		}
+	})
+	if tok != "" {
+		return pos, tok
+	}
+	return s.Token()
+}
+
+func (s *Scanner) TokenToComma() (int, string) {
+	pos, tok := s.scan(func(ch rune) bool {
+		switch ch {
+		case ',', ';', '\n', '#', ' ', '\t', '\r', '"', '\'':
+			return false
+		default:
+			return true
+		}
+	})
+	if tok != "" {
+		return pos, tok
+	}
+	return s.Token()
+}
+
 func (s *Scanner) ToEOL() (int, string) {
 	pos := s.offset
 	for s.ch != '\n' && s.ch >= 0 {

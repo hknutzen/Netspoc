@@ -42,6 +42,18 @@ func (p *parser) nextPort() {
 	p.pos, p.tok = p.scanner.SimpleToken()
 }
 
+// Advance to the next token, but token contains any character except
+// ';', '#', '\n'. A single ";" may be returned.
+func (p *parser) nextSingle() {
+	p.pos, p.tok = p.scanner.TokenToSemicolon()
+}
+
+// Advance to the next token, but token contains any character except
+// ',', ';', '#', '\n'. A single "," or ";" may be returned.
+func (p *parser) nextMulti() {
+	p.pos, p.tok = p.scanner.TokenToComma()
+}
+
 func (p *parser) syntaxErr(format string, args ...interface{}) {
 	p.scanner.SyntaxErr(format, args...)
 }
@@ -53,6 +65,13 @@ func (p *parser) expect(tok string) int {
 	}
 	p.next() // make progress
 	return pos
+}
+
+func (p *parser) expectSpecial(tok string, getNext func(*parser)) {
+	if p.tok != tok {
+		p.syntaxErr("Expected '%s'", tok)
+	}
+	getNext(p)
 }
 
 func (p *parser) check(tok string) bool {
@@ -414,46 +433,69 @@ func (p *parser) name() string {
 	return result
 }
 
-func (p *parser) value() *ast.Value {
+func (p *parser) value(multi bool, nextSpecial func(*parser)) *ast.Value {
 	a := new(ast.Value)
 	a.Start = p.pos
 	a.Value = p.tok
-	p.next()
+	nextSpecial(p)
+	for multi && !(p.tok == "," || p.tok == ";") {
+		a.Value += " " + p.tok
+		nextSpecial(p)
+	}
 	return a
 }
 
-func (p *parser) valueList() ([]*ast.Value, int) {
+func (p *parser) valueList(
+	multi bool, nextSpecial func(*parser)) ([]*ast.Value, int) {
 	var list []*ast.Value
-	list = append(list, p.value())
+	list = append(list, p.value(multi, nextSpecial))
 	var end int
 	for {
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
-		p.expect(",")
+		p.expectSpecial(",", nextSpecial)
 
 		// Allow trailing comma.
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
-		list = append(list, p.value())
+		list = append(list, p.value(multi, nextSpecial))
 	}
 	return list, end
 }
 
-func (p *parser) complexValue() ([]*ast.Attribute, int) {
+func (p *parser) complexValue(
+	nextSpecial func(*parser)) ([]*ast.Attribute, int) {
 	var list []*ast.Attribute
 	var end int
 	for {
 		if end = p.checkPos("}"); end >= 0 {
 			break
 		}
-		list = append(list, p.attribute())
+		list = append(list, p.specialAttribute(nextSpecial))
 	}
 	return list, end
 }
 
-func (p *parser) attribute() *ast.Attribute {
+var specialTokenAttr = map[string]func(*parser){
+	"ldap_id":     (*parser).nextSingle,
+	"ldap_append": (*parser).nextSingle,
+	"admins":      (*parser).nextMulti,
+	"watchers":    (*parser).nextMulti,
+}
+
+var specialSubTokenAttr = map[string]func(*parser){
+	"radius_attributes": (*parser).nextSingle,
+}
+
+var multiTokenAttr = map[string]bool{
+	"general_permit": true,
+	"range":          true,
+	"lifetime":       true,
+}
+
+func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
 	a := new(ast.Attribute)
 	a.Start = p.pos
 	a.Name = p.name()
@@ -461,13 +503,23 @@ func (p *parser) attribute() *ast.Attribute {
 		a.Next = end
 		return a
 	}
-	p.expect("=")
+	if n := specialTokenAttr[a.Name]; n != nil {
+		nextSpecial = n
+	}
+	p.expectSpecial("=", nextSpecial)
 	if p.check("{") {
-		a.ComplexValue, a.Next = p.complexValue()
+		if n := specialSubTokenAttr[a.Name]; n != nil {
+			nextSpecial = n
+		}
+		a.ComplexValue, a.Next = p.complexValue(nextSpecial)
 	} else {
-		a.ValueList, a.Next = p.valueList()
+		a.ValueList, a.Next = p.valueList(multiTokenAttr[a.Name], nextSpecial)
 	}
 	return a
+}
+
+func (p *parser) attribute() *ast.Attribute {
+	return p.specialAttribute((*parser).next)
 }
 
 func (p *parser) protoDetail() (string, int) {
@@ -628,13 +680,17 @@ func (p *parser) topStruct() ast.Toplevel {
 }
 
 var globalType = map[string]func(*parser) ast.Toplevel{
-	"router":  (*parser).topStruct,
-	"network": (*parser).topStruct,
-	"any":     (*parser).topStruct,
-	"area":    (*parser).topStruct,
-	"owner":   (*parser).topStruct,
-	"service": (*parser).service,
-	"group":   (*parser).group,
+	"router":          (*parser).topStruct,
+	"network":         (*parser).topStruct,
+	"any":             (*parser).topStruct,
+	"area":            (*parser).topStruct,
+	"owner":           (*parser).topStruct,
+	"service":         (*parser).service,
+	"group":           (*parser).group,
+	"pathrestriction": (*parser).group,
+	"crypto":          (*parser).topStruct,
+	"ipsec":           (*parser).topStruct,
+	"isakmp":          (*parser).topStruct,
 }
 
 func (p *parser) toplevel() ast.Toplevel {
