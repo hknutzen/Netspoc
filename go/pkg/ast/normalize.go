@@ -171,10 +171,14 @@ func (a *TopList) Normalize() {
 }
 
 func (a *Attribute) Normalize() {
-	vals := a.Values
+	vals := a.ValueList
 	sort.Slice(vals, func(i, j int) bool {
 		return vals[i].Value < vals[j].Value
 	})
+	for _, attr := range a.ComplexValue {
+		attr.Normalize()
+	}
+	sortAttr(a.ComplexValue)
 }
 
 func (a *Rule) Normalize() {

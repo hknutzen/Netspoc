@@ -422,8 +422,7 @@ func (p *parser) value() *ast.Value {
 	return a
 }
 
-func (p *parser) assignValueList() ([]*ast.Value, int) {
-	p.expect("=")
+func (p *parser) valueList() ([]*ast.Value, int) {
 	var list []*ast.Value
 	list = append(list, p.value())
 	var end int
@@ -442,12 +441,31 @@ func (p *parser) assignValueList() ([]*ast.Value, int) {
 	return list, end
 }
 
+func (p *parser) complexValue() ([]*ast.Attribute, int) {
+	var list []*ast.Attribute
+	var end int
+	for {
+		if end = p.checkPos("}"); end >= 0 {
+			break
+		}
+		list = append(list, p.attribute())
+	}
+	return list, end
+}
+
 func (p *parser) attribute() *ast.Attribute {
 	a := new(ast.Attribute)
 	a.Start = p.pos
 	a.Name = p.name()
-	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.Values, a.Next = p.assignValueList()
+	if end := p.checkPos(";"); end >= 0 {
+		a.Next = end
+		return a
+	}
+	p.expect("=")
+	if p.check("{") {
+		a.ComplexValue, a.Next = p.complexValue()
+	} else {
+		a.ValueList, a.Next = p.valueList()
 	}
 	return a
 }
@@ -552,22 +570,39 @@ func (p *parser) rule() *ast.Rule {
 	return a
 }
 
-func (p *parser) service() ast.Toplevel {
-	a := new(ast.Service)
+func (p *parser) topStructWithoutAttributes() ast.TopStruct {
+	var a ast.TopStruct
 	a.Start = p.pos
 	a.Name = p.tok
 	p.next()
 	p.expect("=")
 	p.expect("{")
 	a.Description = p.description()
-ATTR:
+	return a
+}
+
+func (p *parser) attributes() ([]*ast.Attribute, int) {
+	result := make([]*ast.Attribute, 0)
+	var end int
 	for {
-		switch p.tok {
-		case "user":
-			break ATTR
-		default:
-			a.Attributes = append(a.Attributes, p.attribute())
+		if p.tok == "}" {
+			end = p.pos
+			p.next()
+			break
 		}
+		result = append(result, p.attribute())
+	}
+	return result, end
+}
+
+func (p *parser) service() ast.Toplevel {
+	a := new(ast.Service)
+	a.TopStruct = p.topStructWithoutAttributes()
+	for {
+		if p.tok == "user" {
+			break
+		}
+		a.Attributes = append(a.Attributes, p.attribute())
 	}
 	p.expect("user")
 	p.expect("=")
@@ -575,25 +610,29 @@ ATTR:
 		a.Foreach = true
 	}
 	a.User, _ = p.union(";")
-RULES:
 	for {
-		switch p.tok {
-		case "}":
+		if p.tok == "}" {
 			a.Next = p.pos
 			p.next()
-			break RULES
-		default:
-			a.Rules = append(a.Rules, p.rule())
+			break
 		}
+		a.Rules = append(a.Rules, p.rule())
 	}
 	return a
 }
 
+func (p *parser) topStruct() ast.Toplevel {
+	a := p.topStructWithoutAttributes()
+	a.Attributes, a.Next = p.attributes()
+	return &a
+}
+
 var globalType = map[string]func(*parser) ast.Toplevel{
-	//	"router":  parser.router,
-	//	"network": parser.network,
-	//	"any":     parser.aggregate,
-	//	"area":    parser.area,
+	"router":  (*parser).topStruct,
+	"network": (*parser).topStruct,
+	"any":     (*parser).topStruct,
+	"area":    (*parser).topStruct,
+	"owner":   (*parser).topStruct,
 	"service": (*parser).service,
 	"group":   (*parser).group,
 }

@@ -153,7 +153,6 @@ type TopBase struct {
 
 func (a *TopBase) GetName() string              { return a.Name }
 func (a *TopBase) GetDescription() *Description { return a.Description }
-func (a *TopBase) IsList() bool                 { return false }
 func (a *TopBase) Fname() string                { return a.fname }
 func (a *TopBase) SetFname(n string)            { a.fname = n }
 
@@ -163,6 +162,13 @@ type TopList struct {
 }
 
 func (a *TopList) IsList() bool { return true }
+
+type TopStruct struct {
+	TopBase
+	Attributes []*Attribute
+}
+
+func (a *TopStruct) IsList() bool { return false }
 
 type Group struct {
 	TopList
@@ -183,8 +189,10 @@ func (a *Value) getName() string { return a.Value }
 type Attribute struct {
 	Base
 	withEnd
-	Name   string
-	Values []*Value
+	Name string
+	// Only one of those fields may be filled.
+	ValueList    []*Value
+	ComplexValue []*Attribute
 }
 
 type SimpleProtocol struct {
@@ -210,9 +218,8 @@ type Rule struct {
 }
 
 type Service struct {
-	TopBase
-	Attributes []*Attribute
-	User       []Element
-	Foreach    bool
-	Rules      []*Rule
+	TopStruct
+	User    []Element
+	Foreach bool
+	Rules   []*Rule
 }
