@@ -433,12 +433,12 @@ func (p *parser) name() string {
 	return result
 }
 
-func (p *parser) value(multi bool, nextSpecial func(*parser)) *ast.Value {
+func (p *parser) value(hasSpace bool, nextSpecial func(*parser)) *ast.Value {
 	a := new(ast.Value)
 	a.Start = p.pos
 	a.Value = p.tok
 	nextSpecial(p)
-	for multi && !(p.tok == "," || p.tok == ";") {
+	for hasSpace && !(p.tok == "," || p.tok == ";") {
 		a.Value += " " + p.tok
 		nextSpecial(p)
 	}
@@ -489,7 +489,7 @@ var specialSubTokenAttr = map[string]func(*parser){
 	"radius_attributes": (*parser).nextSingle,
 }
 
-var multiTokenAttr = map[string]bool{
+var hasWhitespaceAttr = map[string]bool{
 	"general_permit": true,
 	"range":          true,
 	"lifetime":       true,
@@ -513,7 +513,7 @@ func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
 		}
 		a.ComplexValue, a.Next = p.complexValue(nextSpecial)
 	} else {
-		a.ValueList, a.Next = p.valueList(multiTokenAttr[a.Name], nextSpecial)
+		a.ValueList, a.Next = p.valueList(hasWhitespaceAttr[a.Name], nextSpecial)
 	}
 	return a
 }
