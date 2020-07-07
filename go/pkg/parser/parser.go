@@ -383,10 +383,9 @@ func (p *parser) intersection() ast.Element {
 // and position after stopToken.
 func (p *parser) union(stopToken string) ([]ast.Element, int) {
 	var union []ast.Element
-	union = append(union, p.intersection())
 	var end int
-
 	for {
+		union = append(union, p.intersection())
 		if end = p.checkPos(stopToken); end >= 0 {
 			break
 		}
@@ -396,7 +395,6 @@ func (p *parser) union(stopToken string) ([]ast.Element, int) {
 		if end = p.checkPos(stopToken); end >= 0 {
 			break
 		}
-		union = append(union, p.intersection())
 	}
 	return union, end
 }
@@ -418,19 +416,6 @@ func (p *parser) description() *ast.Description {
 		return a
 	}
 	return nil
-}
-
-func (p *parser) topList() ast.Toplevel {
-	a := new(ast.TopList)
-	a.Start = p.pos
-	a.Name = p.tok
-	p.next()
-	p.expect("=")
-	a.Description = p.description()
-	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.Elements, a.Next = p.union(";")
-	}
-	return a
 }
 
 func (p *parser) name() string {
@@ -553,6 +538,34 @@ func (p *parser) attribute() *ast.Attribute {
 	return p.specialAttribute((*parser).next)
 }
 
+func (p *parser) topListHead() ast.TopBase {
+	var a ast.TopBase
+	a.Start = p.pos
+	a.Name = p.tok
+	p.next()
+	p.expect("=")
+	a.Description = p.description()
+	return a
+}
+
+func (p *parser) topList() ast.Toplevel {
+	a := new(ast.TopList)
+	a.TopBase = p.topListHead()
+	if a.Next = p.checkPos(";"); a.Next < 0 {
+		a.Elements, a.Next = p.union(";")
+	}
+	return a
+}
+
+func (p *parser) protocolgroup() ast.Toplevel {
+	a := new(ast.Protocolgroup)
+	a.TopBase = p.topListHead()
+	if a.Next = p.checkPos(";"); a.Next < 0 {
+		a.ValueList, a.Next = p.valueList((*parser).protocol, (*parser).next)
+	}
+	return a
+}
+
 func (p *parser) namedUnion() *ast.NamedUnion {
 	a := new(ast.NamedUnion)
 	a.Start = p.pos
@@ -588,7 +601,7 @@ func (p *parser) rule() *ast.Rule {
 	return a
 }
 
-func (p *parser) topStructWithoutAttributes() ast.TopStruct {
+func (p *parser) topStructHead() ast.TopStruct {
 	var a ast.TopStruct
 	a.Start = p.pos
 	a.Name = p.tok
@@ -615,7 +628,7 @@ func (p *parser) attributes() ([]*ast.Attribute, int) {
 
 func (p *parser) service() ast.Toplevel {
 	a := new(ast.Service)
-	a.TopStruct = p.topStructWithoutAttributes()
+	a.TopStruct = p.topStructHead()
 	for {
 		if p.tok == "user" {
 			break
@@ -644,7 +657,7 @@ func (p *parser) service() ast.Toplevel {
 }
 
 func (p *parser) topStruct() ast.Toplevel {
-	a := p.topStructWithoutAttributes()
+	a := p.topStructHead()
 	a.Attributes, a.Next = p.attributes()
 	return &a
 }
@@ -656,7 +669,7 @@ var globalType = map[string]func(*parser) ast.Toplevel{
 	"area":            (*parser).topStruct,
 	"group":           (*parser).topList,
 	"protocol":        (*parser).topList,
-	"protocolgroup":   (*parser).topList,
+	"protocolgroup":   (*parser).protocolgroup,
 	"pathrestriction": (*parser).topList,
 	"service":         (*parser).service,
 	"owner":           (*parser).topStruct,

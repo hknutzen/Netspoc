@@ -140,8 +140,18 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 	p.print(stop)
 }
 
-func (p *printer) topList(n *ast.TopList) {
-	p.elementList(n.Elements, ";")
+func (p *printer) topElementList(l []ast.Element) {
+	p.elementList(l, ";")
+}
+
+func (p *printer) topProtocolList(l []*ast.Value) {
+	p.indent++
+	for _, el := range l {
+		p.PreComment(el, ",")
+		p.print(el.Value + "," + p.TrailingComment(el, ",;"))
+	}
+	p.indent--
+	p.print(";")
 }
 
 func (p *printer) namedList(
@@ -179,6 +189,21 @@ func (p *printer) namedList(
 	}
 }
 
+func (p *printer) namedValueList(name string, l []*ast.Value) {
+
+	// Convert type of slice, so we can use func namedList.
+	nodes := make([]ast.Element, len(l))
+	for i, v := range l {
+		nodes[i] = v
+	}
+	p.namedList(
+		name, nodes,
+		func(p *printer, pre string, l ast.Element, post string) {
+			a := l.(*ast.Value)
+			p.print(pre + a.Value + post)
+		})
+}
+
 func (p *printer) complexValue(name string, l []*ast.Attribute) {
 	p.print(name + " = {")
 	p.indent++
@@ -192,18 +217,7 @@ func (p *printer) complexValue(name string, l []*ast.Attribute) {
 func (p *printer) attribute(n *ast.Attribute) {
 	p.PreComment(n, "")
 	if l := n.ValueList; l != nil {
-
-		// Convert type of slice, so we can use func namedList.
-		nodes := make([]ast.Element, len(l))
-		for i, v := range l {
-			nodes[i] = v
-		}
-		p.namedList(
-			n.Name, nodes,
-			func(p *printer, pre string, l ast.Element, post string) {
-				a := l.(*ast.Value)
-				p.print(pre + a.Value + post)
-			})
+		p.namedValueList(n.Name, l)
 	} else if l := n.ComplexValue; l != nil {
 		p.complexValue(n.Name, l)
 	} else {
@@ -286,7 +300,9 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	case *ast.TopStruct:
 		p.topStruct(x)
 	case *ast.TopList:
-		p.topList(x)
+		p.topElementList(x.Elements)
+	case *ast.Protocolgroup:
+		p.topProtocolList(x.ValueList)
 	case *ast.Service:
 		p.service(x)
 	default:

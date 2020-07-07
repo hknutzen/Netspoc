@@ -170,6 +170,10 @@ func (a *TopList) Normalize() {
 	normalize(a.Elements)
 }
 
+func (a *Protocolgroup) Normalize() {
+	sortProto(a.ValueList)
+}
+
 func (a *NamedUnion) Normalize() {
 	normalize(a.Elements)
 }
