@@ -197,18 +197,6 @@ type Attribute struct {
 	ComplexValue []*Attribute
 }
 
-type SimpleProtocol struct {
-	Base
-	withEnd
-	Proto   string
-	Details []string
-}
-
-// Define methods of interface 'Elements', so we can sort and output
-// simple protocols together with named protocols and protocolgroups.
-func (a *SimpleProtocol) getType() string { return "" }
-func (a *SimpleProtocol) getName() string { return a.Proto }
-
 type Rule struct {
 	Base
 	withEnd
