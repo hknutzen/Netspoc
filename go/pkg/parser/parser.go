@@ -414,8 +414,8 @@ func (p *parser) description() *ast.Description {
 	return nil
 }
 
-func (p *parser) group() ast.Toplevel {
-	a := new(ast.Group)
+func (p *parser) topList() ast.Toplevel {
+	a := new(ast.TopList)
 	a.Start = p.pos
 	a.Name = p.tok
 	p.next()
@@ -433,24 +433,44 @@ func (p *parser) name() string {
 	return result
 }
 
-func (p *parser) value(hasSpace bool, nextSpecial func(*parser)) *ast.Value {
+func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
 	a := new(ast.Value)
 	a.Start = p.pos
 	a.Value = p.tok
 	nextSpecial(p)
-	for hasSpace && !(p.tok == "," || p.tok == ";") {
+	return a
+}
+
+func (p *parser) addMulti(a *ast.Value, nextSpecial func(*parser)) {
+	for !(p.tok == "," || p.tok == ";") {
 		a.Value += " " + p.tok
 		nextSpecial(p)
+	}
+}
+
+func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
+	a := p.value(nextSpecial)
+	p.addMulti(a, nextSpecial)
+	return a
+}
+
+func (p *parser) protocol(nextSpecial func(*parser)) *ast.Value {
+	nextSpecial = (*parser).nextPort
+	a := p.value(nextSpecial)
+	if strings.Index(a.Value, ":") == -1 {
+		p.addMulti(a, nextSpecial)
 	}
 	return a
 }
 
 func (p *parser) valueList(
-	multi bool, nextSpecial func(*parser)) ([]*ast.Value, int) {
+	getValue func(*parser, func(*parser)) *ast.Value,
+	nextSpecial func(*parser)) ([]*ast.Value, int) {
+
 	var list []*ast.Value
-	list = append(list, p.value(multi, nextSpecial))
 	var end int
 	for {
+		list = append(list, getValue(p, nextSpecial))
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
@@ -460,7 +480,6 @@ func (p *parser) valueList(
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
-		list = append(list, p.value(multi, nextSpecial))
 	}
 	return list, end
 }
@@ -483,16 +502,18 @@ var specialTokenAttr = map[string]func(*parser){
 	"ldap_append": (*parser).nextSingle,
 	"admins":      (*parser).nextMulti,
 	"watchers":    (*parser).nextMulti,
+	"range":       (*parser).nextPort,
 }
 
 var specialSubTokenAttr = map[string]func(*parser){
 	"radius_attributes": (*parser).nextSingle,
 }
 
-var hasWhitespaceAttr = map[string]bool{
-	"general_permit": true,
-	"range":          true,
-	"lifetime":       true,
+var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
+	"prt":            (*parser).protocol,
+	"general_permit": (*parser).protocol,
+	"lifetime":       (*parser).multiValue,
+	"range":          (*parser).multiValue,
 }
 
 func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
@@ -513,85 +534,17 @@ func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
 		}
 		a.ComplexValue, a.Next = p.complexValue(nextSpecial)
 	} else {
-		a.ValueList, a.Next = p.valueList(hasWhitespaceAttr[a.Name], nextSpecial)
+		getValue := specialValueAttr[a.Name]
+		if getValue == nil {
+			getValue = (*parser).value
+		}
+		a.ValueList, a.Next = p.valueList(getValue, nextSpecial)
 	}
 	return a
 }
 
 func (p *parser) attribute() *ast.Attribute {
 	return p.specialAttribute((*parser).next)
-}
-
-func (p *parser) protoDetail() (string, int) {
-	token := p.tok
-	start := p.pos
-	switch token {
-	case ":", "-":
-	default:
-		_, err := strconv.Atoi(p.tok)
-		if err != nil {
-			p.syntaxErr("Number expected")
-		}
-	}
-	p.nextPort()
-	return token, start + len(token)
-}
-
-func (p *parser) protoDetails() ([]string, int) {
-	var result []string
-	var end int
-	for {
-		if p.tok == "," || p.tok == ";" {
-			break
-		}
-		token, after := p.protoDetail()
-		result = append(result, token)
-		end = after
-	}
-	return result, end
-}
-
-func (p *parser) simpleProtocol() *ast.SimpleProtocol {
-	a := new(ast.SimpleProtocol)
-	a.Start = p.pos
-	a.Proto = p.tok
-	p.nextPort()
-	a.Details, a.Next = p.protoDetails()
-	if a.Details == nil {
-		a.Next = a.Start + len(a.Proto)
-	}
-	return a
-}
-
-func (p *parser) protocol() ast.Element {
-	start := p.pos
-	if typ, name := p.checkTypedName(); typ != "" {
-		a := new(ast.NamedRef)
-		a.Start = start
-		a.Typ = typ
-		a.Name = name
-		return a
-	}
-	return p.simpleProtocol()
-}
-
-func (p *parser) protoList() ([]ast.Element, int) {
-	var list []ast.Element
-	list = append(list, p.protocol())
-	var end int
-	for {
-		if end = p.checkPos(";"); end >= 0 {
-			break
-		}
-		p.expect(",")
-
-		// Allow trailing comma.
-		if end = p.checkPos(";"); end >= 0 {
-			break
-		}
-		list = append(list, p.protocol())
-	}
-	return list, end
 }
 
 func (p *parser) rule() *ast.Rule {
@@ -609,9 +562,11 @@ func (p *parser) rule() *ast.Rule {
 		p.expect("dst")
 		p.expect("=")
 		a.Dst, _ = p.union(";")
-		p.expect("prt")
-		p.expect("=")
-		a.Prt, a.Next = p.protoList()
+		if p.tok != "prt" {
+			p.syntaxErr("Expected 'prt'")
+		}
+		a.Prt = p.attribute()
+		a.Next = a.Prt.Next
 		if p.tok == "log" {
 			a.Log = p.attribute()
 			a.Next = a.Log.Next
@@ -680,14 +635,16 @@ func (p *parser) topStruct() ast.Toplevel {
 }
 
 var globalType = map[string]func(*parser) ast.Toplevel{
-	"router":          (*parser).topStruct,
 	"network":         (*parser).topStruct,
+	"router":          (*parser).topStruct,
 	"any":             (*parser).topStruct,
 	"area":            (*parser).topStruct,
-	"owner":           (*parser).topStruct,
+	"group":           (*parser).topList,
+	"protocol":        (*parser).topList,
+	"protocolgroup":   (*parser).topList,
+	"pathrestriction": (*parser).topList,
 	"service":         (*parser).service,
-	"group":           (*parser).group,
-	"pathrestriction": (*parser).group,
+	"owner":           (*parser).topStruct,
 	"crypto":          (*parser).topStruct,
 	"ipsec":           (*parser).topStruct,
 	"isakmp":          (*parser).topStruct,

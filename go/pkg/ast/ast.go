@@ -5,6 +5,7 @@ package ast
 
 import (
 	"net"
+	"strings"
 )
 
 // ----------------------------------------------------------------------------
@@ -170,10 +171,6 @@ type TopStruct struct {
 
 func (a *TopStruct) IsList() bool { return false }
 
-type Group struct {
-	TopList
-}
-
 type Value struct {
 	Base
 	Value string
@@ -183,8 +180,16 @@ func (a *Value) End() int { return a.Pos() + len(a.Value) }
 
 // Define methods of interface 'Elements', so we can sort and output
 // attribute values like other elements.
-func (a *Value) getType() string { return "" }
-func (a *Value) getName() string { return a.Value }
+func (a *Value) getType() string {
+	i := strings.Index(a.Value, ":")
+	if i == -1 {
+		return ""
+	}
+	return a.Value[:i]
+}
+func (a *Value) getName() string {
+	return a.Value[strings.Index(a.Value, ":")+1:]
+}
 
 type Attribute struct {
 	Base
@@ -213,7 +218,7 @@ type Rule struct {
 	Deny bool
 	Src  []Element
 	Dst  []Element
-	Prt  []Element
+	Prt  *Attribute
 	Log  *Attribute
 }
 

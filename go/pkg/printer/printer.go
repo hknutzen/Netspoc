@@ -144,10 +144,6 @@ func (p *printer) topList(n *ast.TopList) {
 	p.elementList(n.Elements, ";")
 }
 
-func (p *printer) group(g *ast.Group) {
-	p.topList(&g.TopList)
-}
-
 func (p *printer) namedList(
 	name string, l []ast.Element,
 	show func(*printer, string, ast.Element, string)) {
@@ -215,21 +211,6 @@ func (p *printer) attribute(n *ast.Attribute) {
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
 		return
 	}
-
-}
-
-func (p *printer) protocol(pre string, el ast.Element, post string) {
-	out := pre
-	switch x := el.(type) {
-	case *ast.NamedRef:
-		out += x.Typ + ":" + x.Name
-	case *ast.SimpleProtocol:
-		out += x.Proto
-		for _, d := range x.Details {
-			out += " " + d
-		}
-	}
-	p.print(out + post)
 }
 
 func (p *printer) rule(n *ast.Rule) {
@@ -242,7 +223,7 @@ func (p *printer) rule(n *ast.Rule) {
 	p.namedList(action+" src", n.Src, (*printer).element)
 	p.indent += ind
 	p.namedList("dst", n.Dst, (*printer).element)
-	p.namedList("prt", n.Prt, (*printer).protocol)
+	p.attribute(n.Prt)
 	if a := n.Log; a != nil {
 		p.attribute(a)
 	}
@@ -298,8 +279,8 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	switch x := n.(type) {
 	case *ast.TopStruct:
 		p.topStruct(x)
-	case *ast.Group:
-		p.group(x)
+	case *ast.TopList:
+		p.topList(x)
 	case *ast.Service:
 		p.service(x)
 	default:

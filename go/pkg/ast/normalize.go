@@ -57,7 +57,7 @@ var protoOrder = map[string]int{
 	"protocol":      -1,
 }
 
-func sortProto(l []Element) {
+func sortProto(l []*Value) {
 	sort.Slice(l, func(i, j int) bool {
 		t1 := protoOrder[l[i].getType()]
 		t2 := protoOrder[l[j].getType()]
@@ -71,11 +71,11 @@ func sortProto(l []Element) {
 			return n1 < n2
 		}
 		// Simple protocol
-		a1 := l[i].(*SimpleProtocol)
-		a2 := l[j].(*SimpleProtocol)
+		d1 := strings.Split(l[i].Value, " ")
+		d2 := strings.Split(l[j].Value, " ")
 		// icmp < ip < proto < tcp < udp
-		p1 := a1.Proto
-		p2 := a2.Proto
+		p1 := d1[0]
+		p2 := d2[0]
 		if p1 != p2 {
 			return p1 < p2
 		}
@@ -112,8 +112,8 @@ func sortProto(l []Element) {
 				}
 				return []int{p1, p2, s1, s2}
 			}
-			n1 = conv(a1.Details)
-			n2 = conv(a2.Details)
+			n1 = conv(d1[1:])
+			n2 = conv(d2[1:])
 		} else {
 			conv := func(l []string) []int {
 				r := make([]int, len(l))
@@ -122,8 +122,8 @@ func sortProto(l []Element) {
 				}
 				return r
 			}
-			n1 = conv(a1.Details)
-			n2 = conv(a2.Details)
+			n1 = conv(d1[1:])
+			n2 = conv(d2[1:])
 		}
 		for i, d1 := range n1 {
 			if i >= len(n2) {
@@ -184,7 +184,7 @@ func (a *Attribute) Normalize() {
 func (a *Rule) Normalize() {
 	normalize(a.Src)
 	normalize(a.Dst)
-	sortProto(a.Prt)
+	sortProto(a.Prt.ValueList)
 	if attr := a.Log; attr != nil {
 		attr.Normalize()
 	}
