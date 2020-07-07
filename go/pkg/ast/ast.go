@@ -197,19 +197,26 @@ type Attribute struct {
 	ComplexValue []*Attribute
 }
 
+type NamedUnion struct {
+	Base
+	withEnd
+	Name     string
+	Elements []Element
+}
+
 type Rule struct {
 	Base
 	withEnd
 	Deny bool
-	Src  []Element
-	Dst  []Element
+	Src  *NamedUnion
+	Dst  *NamedUnion
 	Prt  *Attribute
 	Log  *Attribute
 }
 
 type Service struct {
 	TopStruct
-	User    []Element
+	User    *NamedUnion
 	Foreach bool
 	Rules   []*Rule
 }

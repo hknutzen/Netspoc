@@ -170,6 +170,10 @@ func (a *TopList) Normalize() {
 	normalize(a.Elements)
 }
 
+func (a *NamedUnion) Normalize() {
+	normalize(a.Elements)
+}
+
 func (a *Attribute) Normalize() {
 	vals := a.ValueList
 	sort.Slice(vals, func(i, j int) bool {
@@ -182,8 +186,8 @@ func (a *Attribute) Normalize() {
 }
 
 func (a *Rule) Normalize() {
-	normalize(a.Src)
-	normalize(a.Dst)
+	a.Src.Normalize()
+	a.Dst.Normalize()
 	sortProto(a.Prt.ValueList)
 	if attr := a.Log; attr != nil {
 		attr.Normalize()
@@ -195,7 +199,7 @@ func (a *Service) Normalize() {
 		attr.Normalize()
 	}
 	sortAttr(a.Attributes)
-	normalize(a.User)
+	a.User.Normalize()
 	for _, r := range a.Rules {
 		r.Normalize()
 	}

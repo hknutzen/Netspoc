@@ -213,16 +213,22 @@ func (p *printer) attribute(n *ast.Attribute) {
 	}
 }
 
+func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
+	p.PreComment(n, "")
+	p.namedList(pre+n.Name, n.Elements, (*printer).element)
+}
+
 func (p *printer) rule(n *ast.Rule) {
 	p.PreComment(n, "")
 	action := "permit"
 	if n.Deny {
 		action = "deny  "
 	}
-	ind := len(action) + 1
-	p.namedList(action+" src", n.Src, (*printer).element)
+	action += " "
+	ind := len(action)
+	p.namedUnion(action, n.Src)
 	p.indent += ind
-	p.namedList("dst", n.Dst, (*printer).element)
+	p.namedUnion("", n.Dst)
 	p.attribute(n.Prt)
 	if a := n.Log; a != nil {
 		p.attribute(a)
@@ -239,9 +245,9 @@ func (p *printer) service(n *ast.Service) {
 	p.emptyLine()
 	if n.Foreach {
 		p.print("user = foreach")
-		p.elementList(n.User, ";")
+		p.elementList(n.User.Elements, ";")
 	} else {
-		p.namedList("user", n.User, (*printer).element)
+		p.namedUnion("", n.User)
 	}
 	for _, r := range n.Rules {
 		p.rule(r)

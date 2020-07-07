@@ -74,6 +74,12 @@ func (p *parser) expectSpecial(tok string, getNext func(*parser)) {
 	getNext(p)
 }
 
+func (p *parser) expectLeave(tok string) {
+	if p.tok != tok {
+		p.syntaxErr("Expected '%s'", tok)
+	}
+}
+
 func (p *parser) check(tok string) bool {
 	if p.tok != tok {
 		return false
@@ -547,6 +553,15 @@ func (p *parser) attribute() *ast.Attribute {
 	return p.specialAttribute((*parser).next)
 }
 
+func (p *parser) namedUnion() *ast.NamedUnion {
+	a := new(ast.NamedUnion)
+	a.Start = p.pos
+	a.Name = p.name()
+	p.expect("=")
+	a.Elements, a.Next = p.union(";")
+	return a
+}
+
 func (p *parser) rule() *ast.Rule {
 	a := new(ast.Rule)
 	a.Start = p.pos
@@ -556,15 +571,11 @@ func (p *parser) rule() *ast.Rule {
 		fallthrough
 	case "permit":
 		p.next()
-		p.expect("src")
-		p.expect("=")
-		a.Src, _ = p.union(";")
-		p.expect("dst")
-		p.expect("=")
-		a.Dst, _ = p.union(";")
-		if p.tok != "prt" {
-			p.syntaxErr("Expected 'prt'")
-		}
+		p.expectLeave("src")
+		a.Src = p.namedUnion()
+		p.expectLeave("dst")
+		a.Dst = p.namedUnion()
+		p.expectLeave("prt")
 		a.Prt = p.attribute()
 		a.Next = a.Prt.Next
 		if p.tok == "log" {
@@ -611,12 +622,16 @@ func (p *parser) service() ast.Toplevel {
 		}
 		a.Attributes = append(a.Attributes, p.attribute())
 	}
-	p.expect("user")
+	u := new(ast.NamedUnion)
+	u.Start = p.pos
+	p.expectLeave("user")
+	u.Name = p.name()
 	p.expect("=")
 	if p.check("foreach") {
 		a.Foreach = true
 	}
-	a.User, _ = p.union(";")
+	u.Elements, u.Next = p.union(";")
+	a.User = u
 	for {
 		if p.tok == "}" {
 			a.Next = p.pos
