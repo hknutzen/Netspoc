@@ -168,6 +168,13 @@ type Protocolgroup struct {
 
 func (a *Protocolgroup) IsList() bool { return true }
 
+type Protocol struct {
+	TopBase
+	Value string
+}
+
+func (a *Protocol) IsList() bool { return true }
+
 type TopStruct struct {
 	TopBase
 	Attributes []*Attribute

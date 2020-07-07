@@ -144,6 +144,12 @@ func (p *printer) topElementList(l []ast.Element) {
 	p.elementList(l, ";")
 }
 
+func (p *printer) topProtocol(n *ast.Protocol) {
+	p.indent++
+	p.print(n.Value + ";" + p.TrailingComment(n, ";"))
+	p.indent--
+}
+
 func (p *printer) topProtocolList(l []*ast.Value) {
 	p.indent++
 	for _, el := range l {
@@ -301,6 +307,8 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.topStruct(x)
 	case *ast.TopList:
 		p.topElementList(x.Elements)
+	case *ast.Protocol:
+		p.topProtocol(x)
 	case *ast.Protocolgroup:
 		p.topProtocolList(x.ValueList)
 	case *ast.Service:

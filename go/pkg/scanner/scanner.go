@@ -120,7 +120,7 @@ func lower(ch rune) rune     { return ('a' - 'A') | ch } // returns lower-case c
 func isDecimal(ch rune) bool { return '0' <= ch && ch <= '9' }
 
 func isLetter(ch rune) bool {
-	return 'a' <= lower(ch) && lower(ch) <= 'z' ||
+	return 'a' <= lower(ch) && lower(ch) <= 'z' || ch == '_' ||
 		ch >= utf8.RuneSelf && unicode.IsLetter(ch)
 }
 
@@ -133,7 +133,7 @@ func isTokenChar(ch rune) bool {
 		return true
 	}
 	switch ch {
-	case '-', '_', '.', ':', '/', '@':
+	case '-', '.', ':', '/', '@':
 		return true
 	default:
 		return false

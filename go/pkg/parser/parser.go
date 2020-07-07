@@ -445,7 +445,7 @@ func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
 	return a
 }
 
-func (p *parser) protocol(nextSpecial func(*parser)) *ast.Value {
+func (p *parser) protocolRef(nextSpecial func(*parser)) *ast.Value {
 	nextSpecial = (*parser).nextPort
 	a := p.value(nextSpecial)
 	if strings.Index(a.Value, ":") == -1 {
@@ -501,8 +501,8 @@ var specialSubTokenAttr = map[string]func(*parser){
 }
 
 var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
-	"prt":            (*parser).protocol,
-	"general_permit": (*parser).protocol,
+	"prt":            (*parser).protocolRef,
+	"general_permit": (*parser).protocolRef,
 	"lifetime":       (*parser).multiValue,
 	"range":          (*parser).multiValue,
 }
@@ -561,8 +561,22 @@ func (p *parser) protocolgroup() ast.Toplevel {
 	a := new(ast.Protocolgroup)
 	a.TopBase = p.topListHead()
 	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.ValueList, a.Next = p.valueList((*parser).protocol, (*parser).next)
+		a.ValueList, a.Next = p.valueList((*parser).protocolRef, (*parser).next)
 	}
+	return a
+}
+
+func (p *parser) protocol() ast.Toplevel {
+	a := new(ast.Protocol)
+	a.TopBase = p.topListHead()
+	for p.tok != ";" {
+		if a.Value != "" && p.tok != "," {
+			a.Value += " "
+		}
+		a.Value += p.tok
+		p.nextPort()
+	}
+	a.Next = p.expect(";")
 	return a
 }
 
@@ -668,7 +682,7 @@ var globalType = map[string]func(*parser) ast.Toplevel{
 	"any":             (*parser).topStruct,
 	"area":            (*parser).topStruct,
 	"group":           (*parser).topList,
-	"protocol":        (*parser).topList,
+	"protocol":        (*parser).protocol,
 	"protocolgroup":   (*parser).protocolgroup,
 	"pathrestriction": (*parser).topList,
 	"service":         (*parser).service,
