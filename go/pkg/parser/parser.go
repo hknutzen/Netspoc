@@ -14,8 +14,8 @@ import (
 
 // The parser structure holds the parser's internal state.
 type parser struct {
-	scanner scanner.Scanner
-	fname   string
+	scanner  scanner.Scanner
+	fileName string
 
 	// Next token
 	pos int    // token position
@@ -24,7 +24,7 @@ type parser struct {
 
 func (p *parser) init(src []byte, fname string) {
 	p.scanner.Init(src, fname)
-	p.fname = fname
+	p.fileName = fname
 
 	p.next()
 }
@@ -663,7 +663,7 @@ func (p *parser) toplevel() ast.Toplevel {
 		p.syntaxErr("Unknown global definition")
 	}
 	ast := m(p)
-	ast.SetFname(p.fname)
+	ast.SetFileName(p.fileName)
 	return ast
 }
 
@@ -679,8 +679,8 @@ func (p *parser) file() []ast.Toplevel {
 	return list
 }
 
-func ParseFile(src []byte, fname string) []ast.Toplevel {
+func ParseFile(src []byte, fileName string) []ast.Toplevel {
 	p := new(parser)
-	p.init(src, fname)
+	p.init(src, fileName)
 	return p.file()
 }

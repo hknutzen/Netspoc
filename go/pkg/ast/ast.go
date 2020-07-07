@@ -42,8 +42,8 @@ type Toplevel interface {
 	GetDescription() *Description
 	GetName() string
 	IsList() bool
-	Fname() string
-	SetFname(string)
+	FileName() string
+	SetFileName(string)
 }
 
 // ----------------------------------------------------------------------------
@@ -149,13 +149,13 @@ type TopBase struct {
 	withEnd
 	Name        string
 	Description *Description
-	fname       string
+	fileName    string
 }
 
 func (a *TopBase) GetName() string              { return a.Name }
 func (a *TopBase) GetDescription() *Description { return a.Description }
-func (a *TopBase) Fname() string                { return a.fname }
-func (a *TopBase) SetFname(n string)            { a.fname = n }
+func (a *TopBase) FileName() string             { return a.fileName }
+func (a *TopBase) SetFileName(n string)         { a.fileName = n }
 
 type TopList struct {
 	TopBase
