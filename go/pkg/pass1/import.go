@@ -1495,18 +1495,6 @@ func convConfig(x xAny) *conf.Config {
 	return c
 }
 
-func convVirtualInterfaces(x xAny) []*routerIntf {
-	if x == nil {
-		return nil
-	}
-	a := getSlice(x)
-	l := make([]*routerIntf, len(a))
-	for i, x := range a {
-		l[i] = convRouterIntf(x)
-	}
-	return l
-}
-
 func ImportFromPerl() xMap {
 	var bytes []byte
 	var err error
@@ -1572,7 +1560,7 @@ func ImportFromPerl() xMap {
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
 	services = convServiceMap(m["services"])
 	version = getString(m["version"])
-	virtualInterfaces = convVirtualInterfaces(m["virtual_interfaces"])
+	virtualInterfaces = convRouterIntfs(m["virtual_interfaces"])
 	xxrpInfo = convXXRPInfo(m["xxrp_info"])
 	zones = convZones(m["zones"])
 

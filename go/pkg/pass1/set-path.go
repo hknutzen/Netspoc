@@ -37,7 +37,7 @@ func findDistsAndLoops() {
 		var partitionRouters []*router
 
 		// Zone is part of previously processed partition.
-		if z.getToZone1() != nil || z.getLoop() != nil {
+		if z.toZone1 != nil || z.loop != nil {
 			continue
 		}
 
@@ -46,8 +46,7 @@ func findDistsAndLoops() {
 
 		// Second parameter stands for not existing starting interface.
 		// Value must be "false" and unequal to any interface.
-		var max int
-		max, _, partitionRouters = setpathObj(zone1, zone1.toZone1, startDistance)
+		max, _, partitionRouters := setpathObj(zone1, nil, startDistance)
 
 		// Use other distance values in disconnected partition.
 		// Otherwise pathmark would erroneously find a path between
@@ -58,8 +57,7 @@ func findDistsAndLoops() {
 		partition2Routers[zone1] = partitionRouters
 	}
 
-	var unconnectedPartitions []*zone
-	unconnectedPartitions = extractPartitionsConnectedBySplitRouter(partitions,
+	unconnectedPartitions := extractPartitionsConnectedBySplitRouter(partitions,
 		partition2Routers)
 	checkProperPartitionUsage(unconnectedPartitions)
 }
@@ -80,15 +78,15 @@ func setpathObj(obj pathObj, intfToZone1 *routerIntf,
 
 	var partitionRouters []*router
 
-/*	//debug
-	var intfToZone1Name string
-	if intfToZone1 != nil {
-		intfToZone1Name = intfToZone1.String()
-	}
-	debug("--%d: %s -->  %s", distToZone1, obj.String(), intfToZone1Name); //*/
+	/*	//debug
+		var intfToZone1Name string
+		if intfToZone1 != nil {
+			intfToZone1Name = intfToZone1.String()
+		}
+		debug("--%d: %s -->  %s", distToZone1, obj.String(), intfToZone1Name); //*/
 
 	// Return from recursion if loop was found.
-	if obj.isActivePath() == true {
+	if obj.isActivePath() {
 
 		// Create unique loop marker, which will be added to all loop members.
 		newDistance := obj.getDistance() + 1
@@ -197,8 +195,8 @@ func extractPartitionsConnectedBySplitRouter(partitions []*zone,
 	router2partition := make(map[*router]*zone)
 	partition2splitCrypto := make(map[*zone][]*router)
 
-	for partition := range partition2Routers {
-		for  _, r := range partition2Routers[partition] {
+	for partition, routers := range partition2Routers {
+		for _, r := range routers {
 			router2partition[r] = partition
 			if r.origRouter != nil {
 				partition2splitCrypto[partition] =
@@ -229,9 +227,7 @@ Partition:
 
 func checkProperPartitionUsage(unconnectedPartitions []*zone) {
 
-	var partitions2PartitionTags = make(map[*zone][]string)
-	partitions2PartitionTags = mapPartitions2PartitionTags()
-
+	partitions2PartitionTags := mapPartitions2PartitionTags()
 
 	// Several Partition Tags for single zone - generate error.
 	for zone1 := range partitions2PartitionTags {
@@ -245,7 +241,7 @@ func checkProperPartitionUsage(unconnectedPartitions []*zone) {
 	var unconnectedIPv6Partitions []*zone
 	var unconnectedIPv4Partitions []*zone
 	for _, unconnectedPartition := range unconnectedPartitions {
-		if unconnectedPartition.ipVxObj.isIPv6() == true {
+		if unconnectedPartition.ipVxObj.isIPv6() {
 			unconnectedIPv6Partitions = append(unconnectedIPv6Partitions,
 				unconnectedPartition)
 		} else {
@@ -301,8 +297,7 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 	if len(unconnectedPartitions) > 1 {
 		var unnamedUnconnectedPartitions []*zone
 		for _, unconnectedPartition := range unconnectedPartitions {
-			if _, exists := partitions2PartitionTags[unconnectedPartition];
-			!exists {
+			if _, exists := partitions2PartitionTags[unconnectedPartition]; !exists {
 				unnamedUnconnectedPartitions = append(unnamedUnconnectedPartitions,
 					unconnectedPartition)
 			}
@@ -314,13 +309,13 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 			} else {
 				ipVersion = "IPv4"
 			}
-			var zone1Names []string
+			var zone1Names stringList
 			for _, zone1 := range unnamedUnconnectedPartitions {
-				zone1Names = append(zone1Names, zone1.name)
+				zone1Names.push(zone1.name)
 			}
-			errMsg("%s topology has unconnected parts:\n - " +
+			errMsg("%s topology has unconnected parts:\n"+
 				"%s\n Use partition attribute, if intended.",
-				ipVersion, strings.Join(zone1Names, "\n - "))
+				ipVersion, zone1Names.nameList())
 		}
 	}
 }
@@ -328,12 +323,12 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 /* processLoops includes node objects and interfaces of nested loops
 /* in the containing loop; adds loop cluster exits; adjusts distances of
 /* loop nodes.*/
- func processLoops() {
+func processLoops() {
 
 	var pathNodeRouters []*router
 	pathNodeRouters = getPathNodeRouters()
 
-	var pathNodeObjects [] pathObj
+	var pathNodeObjects []pathObj
 	for _, zone := range zones {
 		pathNodeObjects = append(pathNodeObjects, zone)
 	}
@@ -366,10 +361,10 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 			myIntf.loop = findOuterLoop(myIntf.loop)
 		}
 	}
- }
+}
 
-func findOuterLoop (l *loop) *loop {
-	for true {
+func findOuterLoop(l *loop) *loop {
+	for {
 		if l.redirect != nil {
 			l = l.redirect
 			continue
@@ -384,7 +379,7 @@ func findOuterLoop (l *loop) *loop {
 /* in cactus graphs. Finds exit node of loop cluster or single loop in
 /* direction to zone1; adds this exit node as marker to all loop
 /* objects of the cluster.*/
- func setLoopClusterExit(myLoop *loop) pathObj {
+func setLoopClusterExit(myLoop *loop) pathObj {
 
 	if myLoop.clusterExit != nil {
 		return myLoop.clusterExit
@@ -396,7 +391,7 @@ func findOuterLoop (l *loop) *loop {
 	if exitNode.getLoop() == myLoop {
 
 		/*debug("Loop %s, %d is in cluster %s",
-			exit.String(), myLoop.distance, exit.String());//*/
+		exit.String(), myLoop.distance, exit.String());//*/
 		myLoop.clusterExit = exitNode
 		//		return myLoop.clusterExit
 		return exitNode
@@ -406,7 +401,7 @@ func findOuterLoop (l *loop) *loop {
 	clusterExit := setLoopClusterExit(exitNode.getLoop())
 
 	/*debug("Loop %s, %d is in cluster %s", exit.String(),
-		myLoop.distance, cluster.String());//*/
+	myLoop.distance, cluster.String());//*/
 	myLoop.clusterExit = clusterExit
 	return myLoop.clusterExit
 }
@@ -446,13 +441,13 @@ func checkPathrestrictions() {
 		// node is a zone.
 		// This needs special handling during path_mark and path_walk.
 		for _, intf := range restrict.elements {
-			if intf.loop == nil && intf.zone.getLoop() != nil {
+			if intf.loop == nil && intf.zone.loop != nil {
 				intf.loopZoneBorder = true
 			}
 		}
 
 		if pathrestrictionHasNoEffect(restrict) {
-			warnMsg("Useless %s.\n All interfaces are unmanaged and located " +
+			warnMsg("Useless %s.\n All interfaces are unmanaged and located "+
 				"inside the same security zone", restrict.name)
 			restrict.elements = nil
 		}
@@ -475,13 +470,12 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 	for _, intf := range restrict.elements {
 		loop := getIntfLoop(intf)
 
-
 		if loop == nil && intf.splitOther != nil {
 			loop = movePathrestrictionToLoopIntfOfSplitRouter(intf)
 		}
 
 		if loop == nil {
-			warnMsg("Ignoring %s at %s\n because it isn't located " +
+			warnMsg("Ignoring %s at %s\n because it isn't located "+
 				"inside cyclic graph", restrict.name, intf.name)
 			misplacedRestricts = append(misplacedRestricts, intf)
 			continue
@@ -491,8 +485,8 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 		cluster := loop.clusterExit
 		if prevCluster != nil {
 			if cluster != prevCluster {
-				warnMsg("Ignoring %s having elements from different loops:\n" +
-					" - %s\n - %s",	restrict.name, prevInterface.name, intf.name)
+				warnMsg("Ignoring %s having elements from different loops:\n"+
+					" - %s\n - %s", restrict.name, prevInterface.name, intf.name)
 				misplacedRestricts = restrict.elements
 				break
 			}
@@ -511,20 +505,17 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 func movePathrestrictionToLoopIntfOfSplitRouter(intf *routerIntf) *loop {
 	other := intf.splitOther
 
-	if other.zone.getLoop() != nil {
+	if other.zone.loop != nil {
 
-		loop := other.zone.getLoop()
+		loop := other.zone.loop
 		rlist := intf.pathRestrict
-/*		// debug
-		var restrictNames []string
-		for _, restrict := range rlist {
-			restrictNames = append(restrictNames, restrict.name)
-		}
-		debug("Move %s from %s to %s", strings.Join(restrictNames, ", "),
-			intf.name, other.name);//*/
+
 		intf.pathRestrict = nil
 		other.pathRestrict = rlist
+
+		//debug("Move pathrestrictions from %s to %s", intf.name, other.name)
 		for _, restrict := range other.pathRestrict {
+			//debug(" - %s", restrict.name)
 			restrictedIntfs := restrict.elements
 			substituteIntf(restrictedIntfs, intf, other)
 		}
@@ -536,9 +527,10 @@ func movePathrestrictionToLoopIntfOfSplitRouter(intf *routerIntf) *loop {
 // Substitute a routerInterface within a slice.
 func substituteIntf(slice []*routerIntf, oldIntf *routerIntf,
 	newIntf *routerIntf) {
-	for i := 0 ; i < len(slice) ; i++ {
-		if slice[i] == oldIntf {
+	for i, intf := range slice {
+		if intf == oldIntf {
 			slice[i] = newIntf
+			break
 		}
 	}
 }
@@ -547,8 +539,8 @@ func removeIntfsfromPathRestriction(restrict *pathRestriction,
 	toBeDeleted []*routerIntf) {
 
 	for _, intf := range toBeDeleted {
-		restrict.elements = deleteIntfFromSlice(restrict.elements, intf)
-		intf.pathRestrict = deletePathRestrictionFromSlice(intf.pathRestrict,
+		restrict.elements = deleteIntfFrom(restrict.elements, intf)
+		intf.pathRestrict = deletePathRestrictionFrom(intf.pathRestrict,
 			restrict)
 		if len(intf.pathRestrict) == 0 {
 			intf.pathRestrict = nil
@@ -556,7 +548,7 @@ func removeIntfsfromPathRestriction(restrict *pathRestriction,
 	}
 }
 
-func deleteIntfFromSlice(slice []*routerIntf, intf *routerIntf) []*routerIntf {
+func deleteIntfFrom(slice []*routerIntf, intf *routerIntf) []*routerIntf {
 	for index, sliceIntf := range slice {
 		if intf == sliceIntf {
 			return append(slice[:index], slice[(index+1):]...)
@@ -570,7 +562,7 @@ func pathrestrictionHasNoEffect(restrict *pathRestriction) bool {
 
 	// Pathrestrictions at managed routers do most probably have an effect.
 	for _, intf := range restrict.elements {
-		if intf.router.managed != "" || intf.router.routingOnly == true {
+		if intf.router.managed != "" || intf.router.routingOnly {
 			return false
 		}
 	}
@@ -587,41 +579,27 @@ func pathrestrictionHasNoEffect(restrict *pathRestriction) bool {
 func restrictSpansDifferentZonesOrZoneclusters(restrict *pathRestriction) bool {
 
 	var restrictZones []*zone
-	var restrictZoneClusters [][]*zone
 
+	referenceZone := restrict.elements[0].zone
 	for _, intf := range restrict.elements {
-		if intf.zone != nil {
+		if intf.zone != referenceZone {
 			restrictZones = append(restrictZones, intf.zone)
 		}
 	}
+	if len(restrictZones) == 0 {
+		return false
+	}
 
+	referenceCluster := referenceZone.zoneCluster
 	for _, restrictZone := range restrictZones {
-		if restrictZone.zoneCluster != nil {
-			restrictZoneClusters = append(restrictZoneClusters,
-				restrictZone.zoneCluster)
-		}
-	}
-
-	// Check for different unclustered zones
-	if len(restrictZoneClusters) == 0 {
-		referenceZone := restrictZones[0]
-		for _, otherZone := range restrictZones {
-			if otherZone != referenceZone {
-				return true
-			}
-		}
-	}
-
-	if len(restrictZoneClusters) > 0 {
-		if len(restrictZoneClusters) != len(restrictZones) {
+		if !areEqualZoneClusters(restrictZone.zoneCluster, referenceCluster) {
 			return true
 		}
-		referenceZoneCluster := restrictZoneClusters[0]
-		for _, otherZoneCluster := range restrictZoneClusters {
-			if !areEqualZoneClusters(referenceZoneCluster, otherZoneCluster) {
-				return true
-			}
-		}
+	}
+
+	// Different zones without cluster.
+	if referenceCluster == nil {
+		return true
 	}
 	return false
 }
@@ -629,10 +607,11 @@ func restrictSpansDifferentZonesOrZoneclusters(restrict *pathRestriction) bool {
 // Pathrestrictions in loops with > 1 zone cluster affect ACLs.
 func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
 
-	referenceLoop := getIntfLoop(restrict.elements[0])
-	referenceCluster := restrict.elements[0].zone.zoneCluster
+	referenceIntf := restrict.elements[0]
+	referenceLoop := getIntfLoop(referenceIntf)
+	referenceCluster := referenceIntf.zone.zoneCluster
 	if len(referenceCluster) == 0 {
-		referenceCluster = append(referenceCluster, restrict.elements[0].zone)
+		referenceCluster = append(referenceCluster, referenceIntf.zone)
 	}
 
 	for _, z := range referenceCluster {
@@ -650,8 +629,8 @@ func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
 						continue
 					}
 				}
-				if zone2.getLoop() != nil {
-					if referenceLoop == zone2.getLoop() {
+				if zone2.loop != nil {
+					if referenceLoop == zone2.loop {
 						return true
 					}
 				}
@@ -661,35 +640,28 @@ func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
 	return false
 }
 
+/* check, whether two zone cluster pointers reference the same cluster*/
 func areEqualZoneClusters(cluster1 []*zone, cluster2 []*zone) bool {
 	if len(cluster1) != len(cluster2) {
 		return false
 	}
-	sort.Sort(zoneNameSorter(cluster1))
-	sort.Sort(zoneNameSorter(cluster2))
-	for index := 0; index < len(cluster1); index++ {
-		if cluster1[index] != cluster2[index] {
+	for index, z := range cluster1 {
+		if z != cluster2[index] {
 			return false
 		}
 	}
 	return true
 }
 
-type zoneNameSorter []*zone
-
-func (a zoneNameSorter) Len() int           { return len(a) }
-func (a zoneNameSorter) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a zoneNameSorter) Less(i, j int) bool { return a[i].name < a[j].name }
-
 func getIntfLoop(intf *routerIntf) *loop {
-	if intf.loop != nil {
-		return intf.loop
+	if loop := intf.router.loop; loop != nil {
+		return loop
 	}
-	if intf.router.getLoop() != nil {
-		return intf.router.getLoop()
+	if loop := intf.router.loop; loop != nil {
+		return loop
 	}
-	if intf.zone.getLoop() != nil {
-		return intf.zone.getLoop()
+	if loop := intf.zone.loop; loop != nil {
+		return loop
 	}
 	return nil
 }
@@ -697,7 +669,7 @@ func getIntfLoop(intf *routerIntf) *loop {
 /* checkVirtualInterfaces assures interfaces with identical virtual IP
 /* are located inside the same loop.*/
 func checkVirtualInterfaces() {
-	var seen = make(map[string]bool)
+	var seen = make(map[*routerIntf]bool)
 
 	for _, intf := range virtualInterfaces {
 		if intf.redundancyIntfs == nil {
@@ -709,20 +681,22 @@ func checkVirtualInterfaces() {
 		}
 
 		// Loops inside a security zone are not known and can not be checked
-		if intf.router.managed == "" &&  !intf.router.semiManaged {
+		if intf.router.managed == "" && !intf.router.semiManaged {
 			continue
 		}
 
-		if seen[intf.netObj.ipObj.ip.String()] == true {
+		if seen[intf] {
 			continue
 		} else {
-			seen[intf.netObj.ipObj.ip.String()] = true
+			for _, redundancyIntf := range intf.redundancyIntfs {
+				seen[redundancyIntf] = true
+			}
 		}
 
 		// Check whether all virtual interfaces are part of a loop.
 		var err bool
 		for _, virtIntf := range intf.redundancyIntfs {
-			if virtIntf.router.getLoop() == nil {
+			if virtIntf.router.loop == nil {
 				errMsg("%s must be located inside cyclic sub-graph", virtIntf.name)
 				err = true
 			}
@@ -738,14 +712,14 @@ func checkVirtualInterfaces() {
 
 		// Check whether all virtual interfaces are part of same loop.
 		referenceLoop := intf.redundancyIntfs[0].loop
-		for _, virtIntf := range intf.redundancyIntfs {
+		for _, virtIntf := range intf.redundancyIntfs[1:] {
 			if referenceLoop != virtIntf.loop {
-				var virtIntfNames []string
+				var virtIntfNames stringList
 				for _, virtIntf := range intf.redundancyIntfs {
-					virtIntfNames = append(virtIntfNames, virtIntf.name)
+					virtIntfNames.push(virtIntf.name)
 				}
-				errMsg("Virtual interfaces\n %s\n must all be part of the " +
-					"same cyclic sub-graph", strings.Join(virtIntfNames, ", "))
+				errMsg("Virtual interfaces\n%s\n must all be part of the "+
+					"same cyclic sub-graph", virtIntfNames.nameList())
 				break
 			}
 		}
@@ -754,15 +728,14 @@ func checkVirtualInterfaces() {
 
 func removeRedundantPathrestrictions() {
 
-	intf2restrictions := make(map[*routerIntf]map[
-		*pathRestriction]*pathRestriction)
+	intf2restrictions := make(map[*routerIntf]map[*pathRestriction]bool)
 	for _, restrict := range effectivePathrestrictions {
 		for _, element := range restrict.elements {
 			if intf2restrictions[element] == nil {
 				intf2restrictions[element] = make(
-					map[*pathRestriction]*pathRestriction)
+					map[*pathRestriction]bool)
 			}
-			intf2restrictions[element][restrict] = restrict
+			intf2restrictions[element][restrict] = true
 		}
 	}
 
@@ -779,9 +752,9 @@ func removeRedundantPathrestrictions() {
 				continue
 			}
 			superset := restrict.deleted
-			oName := make([]string, 0, len(superset))
+			var oName stringList
 			for _, containingRestrict := range superset {
-				oName = append(oName, containingRestrict.name)
+				oName.push(containingRestrict.name)
 			}
 			sort.Strings(oName)
 			names := strings.Join(oName, ", ")
@@ -790,17 +763,17 @@ func removeRedundantPathrestrictions() {
 		}
 	}
 
+	var part []*pathRestriction
 	for _, restrict := range effectivePathrestrictions {
 		if restrict.deleted != nil {
-			effectivePathrestrictions = deletePathRestrictionFromSlice(
-				effectivePathrestrictions, restrict)
+			part = append(part, restrict)
 		}
 	}
+	effectivePathrestrictions = part
 }
 
 func findContainingPathRestrictions(restrict *pathRestriction,
-	intf2restrictions map[*routerIntf]map[
-		*pathRestriction]*pathRestriction) []*pathRestriction {
+	intf2restrictions map[*routerIntf]map[*pathRestriction]bool) []*pathRestriction {
 
 	if len(restrict.elements) == 0 {
 		return nil
@@ -811,8 +784,7 @@ func findContainingPathRestrictions(restrict *pathRestriction,
 	// collect potential superset pathrestrictions:
 	// Restrictions of equal/bigger size sharing Intf1
 	var potentialSupersets []*pathRestriction
-	restrictsWithIntf1 := intf2restrictions[intf1]
-	for _, otherRestrict := range restrictsWithIntf1 {
+	for otherRestrict := range intf2restrictions[intf1] {
 		if len(otherRestrict.elements) >= len(restrict.elements) {
 			potentialSupersets = append(potentialSupersets, otherRestrict)
 		}
@@ -821,10 +793,9 @@ func findContainingPathRestrictions(restrict *pathRestriction,
 		return nil
 	}
 
-	restrictedIntfs := restrict.elements
 	superset := potentialSupersets
 
-	for _, intfX := range restrictedIntfs {
+	for _, intfX := range restrict.elements {
 		if intfX == intf1 {
 			continue
 		}
@@ -841,7 +812,7 @@ func findContainingPathRestrictions(restrict *pathRestriction,
 			if restrict2.deleted != nil {
 				continue
 			}
-			if restrictsWithIntfX[restrict2] != nil {
+			if restrictsWithIntfX[restrict2] {
 				nextSuperset = append(nextSuperset, restrict2)
 			}
 		}
@@ -855,20 +826,20 @@ func findContainingPathRestrictions(restrict *pathRestriction,
 	return superset
 }
 
-func deletePathrestrictionFromInterfaces (restrict *pathRestriction) {
-    elements := restrict.elements
-    for _, intf := range elements {
-		 intf.pathRestrict = deletePathRestrictionFromSlice(
-			 intf.pathRestrict, restrict)
+func deletePathrestrictionFromInterfaces(restrict *pathRestriction) {
+	elements := restrict.elements
+	for _, intf := range elements {
+		intf.pathRestrict = deletePathRestrictionFrom(
+			intf.pathRestrict, restrict)
 
-		 // Delete empty array to speed up checks in cluster_path_mark.
-		 if len(intf.pathRestrict) == 0 {
-			 intf.pathRestrict = nil
-		 }
-    }
+		// Delete empty array to speed up checks in clusterPathMark.
+		if len(intf.pathRestrict) == 0 {
+			intf.pathRestrict = nil
+		}
+	}
 }
 
-func deletePathRestrictionFromSlice(
+func deletePathRestrictionFrom(
 	slice []*pathRestriction, pathRestr *pathRestriction) []*pathRestriction {
 	for index, slicePathRestr := range slice {
 		if pathRestr == slicePathRestr {
@@ -879,7 +850,7 @@ func deletePathRestrictionFromSlice(
 }
 
 // Collect routers that are path objects because they connect zones
-func getPathNodeRouters () []*router {
+func getPathNodeRouters() []*router {
 	var pathRouters []*router
 	for _, pathRouter := range allRouters {
 		if pathRouter.managed != "" || pathRouter.semiManaged {

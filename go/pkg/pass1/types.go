@@ -487,7 +487,6 @@ type zone struct {
 	primaryMark          int
 	secondaryMark        int
 	statefulMark         int
-	toZone1              *routerIntf
 	unmanagedRouters     []*router
 	watchingOwners       []*owner
 	zoneCluster          []*zone

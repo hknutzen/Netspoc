@@ -877,17 +877,17 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 			store.setPath1(toStore, toOut)
 		}
 
-		/*
-			// for debugging
+
+/*			// for debugging
 			var debuggingPathAttr string
 			if fromIn != nil || startAtZone {
 				debuggingPathAttr = "path"
 			} else {
 				debuggingPathAttr = "path1"
 			}
-			debug("loop %s: %s -> %s", debuggingPathAttr, store.String(), toStore.String())
-			//end debugging
-		*/
+			debug("loop %s: %s -> %s", debuggingPathAttr, store, toStore)
+			//end debugging*/
+
 		// Collect path information at beginning of loop path (start_store).
 		// Loop paths beginning at loop node can differ depending on the way
 		// the node is entered (interface with/without pathrestriction,
@@ -1055,14 +1055,14 @@ func pathMark(fromStore, toStore pathStore) bool {
 			// Mark path at interface we go to (step in opposite path direction).
 
 /*			// debugging
-			var b string
+			var toOutName string
 			if toOut != nil {
-				b = toOut.String()
+				toOutName = toOut.String()
 			} else {
-				b = ""
+				toOutName = ""
 			}
-			debug("path: %s -> %s b", toIn.String(), toStore.String(), b)
-*/			// end debugging
+			debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
+			// end debugging */
 
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
