@@ -44,8 +44,10 @@ var (
 
 	allNetworks        netList
 	ascendingAreas     []*area
+	allRouters         []*router
 	managedRouters     []*router
 	routingOnlyRouters []*router
+	virtualInterfaces  []*routerIntf
 	zones              []*zone
 
 	InPath string

@@ -18670,7 +18670,6 @@ sub compile {
     &link_topology();
     &mark_disabled();
     &set_zone();
-    &setpath();
 
     call_go('spoc1-go', {
         in_path => $in_path,
@@ -18716,6 +18715,7 @@ sub call_go {
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         routers => \%routers,
+        all_routers => \@routers,
         routers6 => \%routers6,
         services => \%services,
         network_00 => $network_00,
@@ -18728,6 +18728,7 @@ sub call_go {
         deny_any6_rule => $deny_any6_rule,
         managed_routers => \@managed_routers,
         routing_only_routers => \@routing_only_routers,
+        virtual_interfaces => \@virtual_interfaces,
         zones => \@zones,
     };
     while (my($k, $v) = each %$extra) {
