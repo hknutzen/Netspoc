@@ -38,8 +38,8 @@ func (p *parser) next() {
 }
 
 // Advance to the next token, but take "-" and ":" as separator.
-func (p *parser) nextPort() {
-	p.pos, p.tok = p.scanner.SimpleToken()
+func (p *parser) nextRange() {
+	p.pos, p.tok = p.scanner.RangeToken()
 }
 
 // Advance to the next token, but token contains any character except
@@ -446,7 +446,7 @@ func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
 }
 
 func (p *parser) protocolRef(nextSpecial func(*parser)) *ast.Value {
-	nextSpecial = (*parser).nextPort
+	nextSpecial = (*parser).nextRange
 	a := p.value(nextSpecial)
 	if strings.Index(a.Value, ":") == -1 {
 		p.addMulti(a, nextSpecial)
@@ -493,7 +493,7 @@ var specialTokenAttr = map[string]func(*parser){
 	"ldap_append": (*parser).nextSingle,
 	"admins":      (*parser).nextMulti,
 	"watchers":    (*parser).nextMulti,
-	"range":       (*parser).nextPort,
+	"range":       (*parser).nextRange,
 }
 
 var specialSubTokenAttr = map[string]func(*parser){
@@ -574,7 +574,7 @@ func (p *parser) protocol() ast.Toplevel {
 			a.Value += " "
 		}
 		a.Value += p.tok
-		p.nextPort()
+		p.nextRange()
 	}
 	a.Next = p.expect(";")
 	return a

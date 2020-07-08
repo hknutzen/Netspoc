@@ -140,11 +140,16 @@ func isTokenChar(ch rune) bool {
 	}
 }
 
-func isSimpleChar(ch rune) bool {
+func isRangeTokenChar(ch rune) bool {
 	if isLetter(ch) || isDigit(ch) {
 		return true
 	}
-	return false
+	switch ch {
+	case '.', '/', '@':
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Scanner) skipWhitespace() {
@@ -191,8 +196,8 @@ func (s *Scanner) Token() (int, string) {
 	return pos, tok
 }
 
-func (s *Scanner) SimpleToken() (int, string) {
-	return s.scan(isSimpleChar)
+func (s *Scanner) RangeToken() (int, string) {
+	return s.scan(isRangeTokenChar)
 }
 
 func (s *Scanner) TokenToSemicolon() (int, string) {
