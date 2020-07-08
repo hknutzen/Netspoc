@@ -318,7 +318,7 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	}
 }
 
-func File(list []ast.Toplevel, src []byte) {
+func File(list []ast.Toplevel, src []byte) []byte {
 	p := new(printer)
 	p.init(src)
 
@@ -330,5 +330,5 @@ func File(list []ast.Toplevel, src []byte) {
 		}
 	}
 
-	fmt.Print(string(p.output))
+	return p.output
 }
