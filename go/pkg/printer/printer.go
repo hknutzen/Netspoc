@@ -15,12 +15,6 @@ type printer struct {
 }
 
 func (p *printer) init(src []byte) {
-
-	// Add \n at end of last line.
-	l := len(src)
-	if l > 0 && src[l-1] != 0x0a {
-		src = append(src, 0x0a)
-	}
 	p.src = src
 }
 

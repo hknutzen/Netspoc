@@ -60,12 +60,6 @@ func normalizeComments(com string, ign string) []string {
 	empty := true
 
 	lines := strings.Split(com, "\n")
-
-	// 'lines' is known to have at least one element.
-	// Comment line is known to end with "\n", even at EOF.
-	// (Has been added if missing.)
-	// So, any comment would result in at least two lines.
-
 	// Ignore last entry having no trailing "\n".
 	for _, line := range lines[:len(lines)-1] {
 		if idx := strings.Index(line, "#"); idx != -1 {
