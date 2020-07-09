@@ -5,7 +5,6 @@ package ast
 
 import (
 	"net"
-	"strings"
 )
 
 // ----------------------------------------------------------------------------
@@ -183,19 +182,6 @@ type Value struct {
 }
 
 func (a *Value) End() int { return a.Pos() + len(a.Value) }
-
-// Define methods of interface 'Elements', so we can sort and output
-// attribute values like other elements.
-func (a *Value) getType() string {
-	i := strings.Index(a.Value, ":")
-	if i == -1 {
-		return ""
-	}
-	return a.Value[:i]
-}
-func (a *Value) getName() string {
-	return a.Value[strings.Index(a.Value, ":")+1:]
-}
 
 type Attribute struct {
 	Base

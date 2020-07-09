@@ -51,6 +51,18 @@ func sortElem(l []Element) {
 	})
 }
 
+func getType(v string) string {
+	i := strings.Index(v, ":")
+	if i == -1 {
+		return ""
+	}
+	return v[:i]
+}
+
+func getName(v string) string {
+	return v[strings.Index(v, ":")+1:]
+}
+
 // Place named protocols before simple protocols.
 var protoOrder = map[string]int{
 	"protocolgroup": -2,
@@ -59,20 +71,19 @@ var protoOrder = map[string]int{
 
 func sortProto(l []*Value) {
 	sort.Slice(l, func(i, j int) bool {
-		t1 := protoOrder[l[i].getType()]
-		t2 := protoOrder[l[j].getType()]
-		if t1 != t2 {
-			return t1 < t2
+		v1 := l[i].Value
+		v2 := l[j].Value
+		o1 := protoOrder[getType(v1)]
+		o2 := protoOrder[getType(v2)]
+		if o1 != o2 {
+			return o1 < o2
 		}
-		if t1 != 0 {
-			// Named protocol or protocolgroup.
-			n1 := l[i].getName()
-			n2 := l[j].getName()
-			return n1 < n2
+		if o1 != 0 {
+			return getName(v1) < getName(v2)
 		}
 		// Simple protocol
-		d1 := strings.Split(l[i].Value, " ")
-		d2 := strings.Split(l[j].Value, " ")
+		d1 := strings.Split(v1, " ")
+		d2 := strings.Split(v2, " ")
 		// icmp < ip < proto < tcp < udp
 		p1 := d1[0]
 		p2 := d2[0]

@@ -154,9 +154,7 @@ func (p *printer) topProtocolList(l []*ast.Value) {
 	p.print(";")
 }
 
-func (p *printer) namedList(
-	name string, l []ast.Element,
-	show func(*printer, string, ast.Element, string)) {
+func (p *printer) namedList(name string, l []ast.Element) {
 
 	// Put first value on same line with name, if it has no comment.
 	first := l[0]
@@ -174,7 +172,7 @@ func (p *printer) namedList(
 		} else {
 			post = ","
 		}
-		show(p, pre, first, post+p.TrailingComment(first, ",;"))
+		p.element(pre, first, post+p.TrailingComment(first, ",;"))
 	}
 
 	// Show other lines with same indentation as first line.
@@ -182,26 +180,49 @@ func (p *printer) namedList(
 		p.indent += ind
 		for _, v := range rest {
 			p.PreComment(v, ",")
-			show(p, "", v, ","+p.TrailingComment(v, ",;"))
+			p.element("", v, ","+p.TrailingComment(v, ",;"))
 		}
 		p.print(";")
 		p.indent -= ind
 	}
 }
 
+func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
+	p.PreComment(n, "")
+	p.namedList(pre+n.Name, n.Elements)
+}
+
 func (p *printer) namedValueList(name string, l []*ast.Value) {
 
-	// Convert type of slice, so we can use func namedList.
-	nodes := make([]ast.Element, len(l))
-	for i, v := range l {
-		nodes[i] = v
+	// Put first value on same line with name, if it has no comment.
+	first := l[0]
+	var rest []*ast.Value
+	pre := name + " = "
+	ind := len(pre)
+	if p.hasPreComment(first, ",") {
+		p.print(pre[:ind-1])
+		rest = l
+	} else {
+		rest = l[1:]
+		var post string
+		if len(rest) == 0 {
+			post = ";"
+		} else {
+			post = ","
+		}
+		p.print(pre + first.Value + post + p.TrailingComment(first, ",;"))
 	}
-	p.namedList(
-		name, nodes,
-		func(p *printer, pre string, l ast.Element, post string) {
-			a := l.(*ast.Value)
-			p.print(pre + a.Value + post)
-		})
+
+	// Show other lines with same indentation as first line.
+	if len(rest) != 0 {
+		p.indent += ind
+		for _, v := range rest {
+			p.PreComment(v, ",")
+			p.print(v.Value + "," + p.TrailingComment(v, ",;"))
+		}
+		p.print(";")
+		p.indent -= ind
+	}
 }
 
 func (p *printer) complexValue(name string, l []*ast.Attribute) {
@@ -225,11 +246,6 @@ func (p *printer) attribute(n *ast.Attribute) {
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
 		return
 	}
-}
-
-func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
-	p.PreComment(n, "")
-	p.namedList(pre+n.Name, n.Elements, (*printer).element)
 }
 
 func (p *printer) rule(n *ast.Rule) {
