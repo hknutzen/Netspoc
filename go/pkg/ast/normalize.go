@@ -1,4 +1,4 @@
-// Normalize AST before printing.
+// Sort list elements of AST before printing.
 //
 package ast
 
@@ -20,11 +20,13 @@ var typeOrder = map[string]int{
 	"host":      6,
 }
 
-var ipv4Regex = regexp.MustCompile(`\d+_\d+_\d+_\d+`)
+// Find rightmost matching IP.
+var ipv4Regex = regexp.MustCompile(`(?:\d+_)*(\d+_\d+_\d+_\d+)`)
 
 func findIPv4(n string) int {
-	if m := ipv4Regex.FindString(n); m != "" {
-		m = strings.ReplaceAll(m, "_", ".")
+	l := ipv4Regex.FindStringSubmatch(n)
+	if l != nil {
+		m := strings.ReplaceAll(l[1], "_", ".")
 		if ip := net.ParseIP(m); ip != nil {
 			ip = ip.To4()
 			return int(binary.BigEndian.Uint32(ip))
