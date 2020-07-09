@@ -282,7 +282,7 @@ func (p *printer) topStruct(n *ast.TopStruct) {
 func (p *printer) toplevel(n ast.Toplevel) {
 	p.PreComment(n, "")
 	sep := " ="
-	if !n.IsList() {
+	if n.IsStruct() {
 		sep += " {"
 	}
 	pos := n.Pos() + len(n.GetName())

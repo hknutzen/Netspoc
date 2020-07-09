@@ -38,7 +38,7 @@ type Toplevel interface {
 	Node
 	GetDescription() *Description
 	GetName() string
-	IsList() bool
+	IsStruct() bool
 	FileName() string
 	SetFileName(string)
 }
@@ -149,6 +149,7 @@ type TopBase struct {
 	fileName    string
 }
 
+func (a *TopBase) IsStruct() bool               { return false }
 func (a *TopBase) GetName() string              { return a.Name }
 func (a *TopBase) GetDescription() *Description { return a.Description }
 func (a *TopBase) FileName() string             { return a.fileName }
@@ -159,28 +160,22 @@ type TopList struct {
 	Elements []Element
 }
 
-func (a *TopList) IsList() bool { return true }
-
 type Protocolgroup struct {
 	TopBase
 	ValueList []*Value
 }
-
-func (a *Protocolgroup) IsList() bool { return true }
 
 type Protocol struct {
 	TopBase
 	Value string
 }
 
-func (a *Protocol) IsList() bool { return true }
-
 type TopStruct struct {
 	TopBase
 	Attributes []*Attribute
 }
 
-func (a *TopStruct) IsList() bool { return false }
+func (a *TopStruct) IsStruct() bool { return true }
 
 type Value struct {
 	Base
