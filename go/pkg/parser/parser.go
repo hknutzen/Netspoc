@@ -284,18 +284,6 @@ func (p *parser) intfAuto(start int, typ string) ast.Element {
 	return a
 }
 
-func (p *parser) checkTypedName() (string, string) {
-	tok := p.tok
-	i := strings.Index(tok, ":")
-	if i == -1 {
-		return "", ""
-	}
-	typ := tok[:i]
-	name := tok[i+1:]
-	p.next()
-	return typ, name
-}
-
 func (p *parser) typedName() (string, string) {
 	tok := p.tok
 	i := strings.Index(tok, ":")
