@@ -11,24 +11,18 @@ import (
 // Two zones are zoneEq, if
 // - zones are equal or
 // - both belong to the same zone cluster.
-func zoneEq(zone1, zone2 *zone) bool {
-	if zone1 == zone2 {
+func zoneEq(z1, z2 *zone) bool {
+	if z1 == z2 {
 		return true
 	}
-	c1 := zone1.zoneCluster
-	if len(c1) == 0 {
+	c1 := z1.zoneCluster
+	c2 := z2.zoneCluster
+	if len(c1) == 0 || len(c2) == 0 {
 		return false
 	}
-	c2 := zone2.zoneCluster
-	if len(c1) != len(c2) {
-		return false
-	}
-	for i, z1 := range c1 {
-		if z1 != c2[i] {
-			return false
-		}
-	}
-	return true
+	// Each zone of a cluster references the same slice, so it is
+	// sufficient to compare first element.
+	return c1[0] == c2[0]
 }
 
 // Print abbreviated list of names in messages.
