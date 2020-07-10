@@ -600,48 +600,25 @@ func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
 
 	referenceIntf := restrict.elements[0]
 	referenceLoop := getIntfLoop(referenceIntf)
+	if referenceLoop == nil {
+		return false
+	}
 	referenceCluster := referenceIntf.zone.zoneCluster
 	if len(referenceCluster) == 0 {
-		referenceCluster = append(referenceCluster, referenceIntf.zone)
+		referenceCluster = []*zone{referenceIntf.zone}
 	}
 
 	for _, z := range referenceCluster {
 		for _, zoneIntf := range z.interfaces {
-			r := zoneIntf.router
-
-			for _, intf2 := range r.interfaces {
-				zone2 := intf2.zone
-				if zone2 == z {
-					continue
-				}
-				if zone2.zoneCluster != nil {
-
-					if areEqualZoneClusters(referenceCluster, zone2.zoneCluster) {
-						continue
-					}
-				}
-				if zone2.loop != nil {
-					if referenceLoop == zone2.loop {
-						return true
-					}
+			for _, intf2 := range zoneIntf.router.interfaces {
+				z2 := intf2.zone
+				if !zoneEq(z2, z) && referenceLoop == z2.loop {
+					return true
 				}
 			}
 		}
 	}
 	return false
-}
-
-/* check, whether two zone cluster pointers reference the same cluster*/
-func areEqualZoneClusters(cluster1 []*zone, cluster2 []*zone) bool {
-	if len(cluster1) != len(cluster2) {
-		return false
-	}
-	for index, z := range cluster1 {
-		if z != cluster2[index] {
-			return false
-		}
-	}
-	return true
 }
 
 func getIntfLoop(intf *routerIntf) *loop {
