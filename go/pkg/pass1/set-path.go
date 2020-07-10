@@ -622,7 +622,7 @@ func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
 }
 
 func getIntfLoop(intf *routerIntf) *loop {
-	if loop := intf.router.loop; loop != nil {
+	if loop := intf.loop; loop != nil {
 		return loop
 	}
 	if loop := intf.router.loop; loop != nil {
