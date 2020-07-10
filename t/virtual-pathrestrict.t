@@ -403,7 +403,10 @@ $in =~ s/(hardware = t1;)/$1 disabled;/g;
 
 $out = <<'END';
 Error: Virtual interfaces
- interface:r1.a.virtual, interface:r2.a.virtual, interface:r3.a.virtual, interface:r4.a.virtual
+ - interface:r1.a.virtual
+ - interface:r2.a.virtual
+ - interface:r3.a.virtual
+ - interface:r4.a.virtual
  must all be part of the same cyclic sub-graph
 END
 

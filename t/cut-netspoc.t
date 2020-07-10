@@ -1387,14 +1387,6 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Remove router_attributes (2)';
-############################################################
-
-$in =~ s/general_permit/#general_permit/;
-
-test_run($title, $in, $out);
-
-############################################################
 $title = 'Remove unused tags of bind_nat';
 ############################################################
 
@@ -1856,7 +1848,6 @@ network:n1 = {
  description = network:n1; # looks like code
  ip = 10.1.1.0/24;
  host:h10 = {
-  description = littel host;;;
   ip = 10.1.1.10;
  }
 }

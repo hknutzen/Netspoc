@@ -237,8 +237,8 @@ $out = <<'END';
 10.1.3.0/24	network:n3
 10.1.3.10-10.1.3.15	host:h3a
 10.1.3.26	host:h3b
-10.1.3.65-10.1.3.67	host:h3d
 10.1.3.66	host:h3c
+10.1.3.65-10.1.3.67	host:h3d
 END
 
 test_group($title, $in, 'group:g1', $out);
@@ -392,8 +392,8 @@ $title = 'Dynamic NAT for network and static NAT for host';
 
 $out = <<'END';
 10.9.1.0/28	network:n1
-10.9.1.0/28	host:h1d
 10.9.1.10	host:h1s
+10.9.1.0/28	host:h1d
 END
 test_group($title, $in, 'network:n1, host:h1s, host:h1d', $out, '-nat k1');
 
@@ -427,18 +427,18 @@ END
 test_group($title, $in, 'network:t1', $out, '-nat k1');
 
 ############################################################
-$title = '[all], [auto] and real interface together';
+$title = 'Show unnumbered from [all], show [auto] interface';
 ############################################################
 
 $out = <<'END';
 10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
 hidden	interface:r1.n3
-unknown	interface:r1.[auto]
 unnumbered	interface:r1.t1
+unknown	interface:r1.[auto]
 END
 test_group($title, $in,
-           'interface:r1.[all],interface:r1.[auto],interface:r1.t1',
+           'interface:r1.[all],interface:r1.[auto]',
            $out, '-nat k1');
 
 ############################################################
@@ -450,6 +450,50 @@ short	interface:r2.t1
 short	interface:r2.k1
 END
 test_group($title, $in, 'interface:r2.[all]', $out);
+
+
+############################################################
+$title = 'Empty group';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+ group:g1 = ;
+END
+
+$out = <<'END';
+END
+
+test_group($title, $in, 'group:g1', $out);
+
+############################################################
+$title = 'Show bridged interface';
+############################################################
+
+$in = <<'END';
+network:n1/left = { ip = 10.1.1.0/24; }
+
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+
+network:n1/right = { ip = 10.1.1.0/24; }
+
+router:r = {
+ interface:n1/right = { ip = 10.1.1.2; }
+}
+END
+
+$out = <<'END';
+bridged	interface:bridge.n1/right
+10.1.1.2	interface:r.n1/right
+END
+
+test_group($title, $in, 'interface:[network:n1/right].[all]', $out);
 
 ############################################################
 $title = 'Show owner';
@@ -515,20 +559,22 @@ owner:o2 = { admins = o2a@d.e.f, o2b@g.h.i; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 network:n2 = { ip = 10.1.2.0/24; owner = o2; }
 network:n3 = { ip = 10.1.3.0/24; owner = o1; }
+network:n3a = { ip = 10.1.3.0/25; subnet_of = network:n3; }
 router:r = {
  interface:n1;
  interface:n2;
  interface:n3;
+ interface:n3a;
 }
 END
 
 $out = <<'END';
 network:n1	owner:o1	o1@b.c
 network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
-network:n3	owner:o1	o1@b.c
+network:n3a	owner:o1	o1@b.c
 END
 
-test_group($title, $in, 'network:n1, network:n2, network:n3', $out,
+test_group($title, $in, 'network:n1, network:n2, network:n3a', $out,
            '-name -owner -admins');
 
 ############################################################
@@ -538,10 +584,10 @@ $title = 'Show only name and admins';
 $out = <<'END';
 network:n1	o1@b.c
 network:n2	o2a@d.e.f,o2b@g.h.i
-network:n3	o1@b.c
+network:n3a	o1@b.c
 END
 
-test_group($title, $in, 'network:n1, network:n2, network:n3', $out,
+test_group($title, $in, 'network:n1, network:n2, network:n3a', $out,
            '-name -admins');
 
 ############################################################
@@ -837,8 +883,8 @@ group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
 END
 
 $out = <<'END';
-10.1.3.0	interface:r2.n3
 10.1.4.0	network:n4
+10.1.3.0	interface:r2.n3
 10.7.7.0	interface:r2.n5
 END
 

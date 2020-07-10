@@ -44,7 +44,7 @@ use IO::Pipe;
 use NetAddr::IP::Util;
 use Regexp::IPv6 qw($IPv6_re);
 
-our $VERSION = '6.013'; # VERSION: inserted by DZP::OurPkgVersion
+our $VERSION = '6.014'; # VERSION: inserted by DZP::OurPkgVersion
 my $program = 'Netspoc';
 my $version = __PACKAGE__->VERSION || 'devel';
 
@@ -613,7 +613,7 @@ sub read_identifier {
 # Used for reading hardware name, model, admins, watchers.
 sub read_name {
     skip_space_and_comment;
-    if ($input =~ m/(\G[^;,\s""'']+)/gc) {
+    if ($input =~ m/(\G[^;,\s""''\#]+)/gc) {
         return $1;
     }
     else {
@@ -624,7 +624,7 @@ sub read_name {
 # Used for reading radius attributes.
 sub read_string {
     skip_space_and_comment;
-    if ($input =~ m/\G([^;\n]+)/gc) {
+    if ($input =~ m/\G([^;\#\n]+)/gc) {
         return $1;
     }
     else {
@@ -778,7 +778,7 @@ sub read_typed_name {
         }
         else {
             skip_char_direct('[');
-            if (($interface or $type eq 'host') and check('managed')) {
+            if ($interface and check('managed')) {
                 $ext = 1;
                 skip '&';
             }
@@ -885,8 +885,8 @@ sub add_description {
     check 'description' or return;
     skip '=';
 
-    # Read up to end of line, but ignore ';' at EOL.
-    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*$/gcm) {
+    # Read up to comment or end of line, but ignore ';' at EOL.
+    if($input =~ m/\G[ \t]*(.*?)[ \t]*;?[ \t]*(?=$|\#)/gcm) {
         $obj->{description} = $1;
     }
 }
@@ -989,6 +989,7 @@ sub read_radius_attributes {
         skip ';';
         add_attribute($result, $token => $val);
     }
+    keys %$result or error_atline("'radius_attributes' must not be empty");
     return $result;
 }
 
@@ -1074,7 +1075,6 @@ sub read_host {
     $host->{name} = $name;
     skip '=';
     skip '{';
-    add_description($host);
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -1475,7 +1475,6 @@ sub read_interface {
     my $virtual;
     skip '=';
     skip '{';
-    add_description($interface);
     while (1) {
         my $token = read_token();
         if ($token eq '}') {
@@ -2632,6 +2631,7 @@ sub read_router_attributes {
             syntax_err("Unexpected attribute");
         }
     }
+    keys %$result > 1 or error_atline("'router_attributes' must not be empty");
     return $result;
 }
 
@@ -18672,7 +18672,6 @@ sub compile {
     &link_topology();
     &mark_disabled();
     &set_zone();
-    &setpath();
 
     call_go('spoc1-go', {
         in_path => $in_path,
@@ -18718,6 +18717,7 @@ sub call_go {
         protocols  => \%protocols,
         protocolgroups  => \%protocolgroups,
         routers => \%routers,
+        all_routers => \@routers,
         routers6 => \%routers6,
         services => \%services,
         network_00 => $network_00,
@@ -18730,6 +18730,7 @@ sub call_go {
         deny_any6_rule => $deny_any6_rule,
         managed_routers => \@managed_routers,
         routing_only_routers => \@routing_only_routers,
+        virtual_interfaces => \@virtual_interfaces,
         zones => \@zones,
     };
     while (my($k, $v) = each %$extra) {

@@ -426,6 +426,7 @@ func convLoop(x xAny) *loop {
 }
 
 func convRouter(x xAny) *router {
+
 	if x == nil {
 		return nil
 	}
@@ -615,6 +616,7 @@ func convRouterIntf(x xAny) *routerIntf {
 		}
 		i.idRules = n
 	}
+	i.splitOther = convRouterIntf(m["split_other"])
 	i.toZone1 = convPathObj(m["to_zone1"])
 	i.zone = convZone(m["zone"])
 	return i
@@ -973,6 +975,14 @@ func convOwnerMap(x xAny) map[string]*owner {
 	n := make(map[string]*owner)
 	for name, elt := range m {
 		n[name] = convOwner(elt)
+	}
+	return n
+}
+func convPathrestrictionMap(x xAny) map[string]*pathRestriction {
+	m := getMap(x)
+	n := make(map[string]*pathRestriction)
+	for name, elt := range m {
+		n[name] = convPathRestrict(elt)
 	}
 	return n
 }
@@ -1508,6 +1518,7 @@ func ImportFromPerl() xMap {
 
 	aggregates = convNetworkMap(m["aggregates"])
 	allNetworks = convNetworks(m["all_networks"])
+	allRouters = convRouters(m["all_routers"])
 	areas = convAreaMap(m["areas"])
 	ascendingAreas = convAreas(m["ascending_areas"])
 	cryptoMap = convCryptoMap(m["crypto"])
@@ -1526,6 +1537,7 @@ func ImportFromPerl() xMap {
 	networks = convNetworkMap(m["networks"])
 	OutDir = getString(m["out_dir"])
 	owners = convOwnerMap(m["owners"])
+	pathrestrictions = convPathrestrictionMap(m["pathrestrictions"])
 	permitAny6Rule = convAnyRule(m["permit_any6_rule"])
 	permitAnyRule = convAnyRule(m["permit_any_rule"])
 	program = getString(m["program"])
@@ -1548,6 +1560,7 @@ func ImportFromPerl() xMap {
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
 	services = convServiceMap(m["services"])
 	version = getString(m["version"])
+	virtualInterfaces = convRouterIntfs(m["virtual_interfaces"])
 	xxrpInfo = convXXRPInfo(m["xxrp_info"])
 	zones = convZones(m["zones"])
 

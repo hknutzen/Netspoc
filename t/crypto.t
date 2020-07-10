@@ -1395,8 +1395,8 @@ END
 
 $out = <<'END';
 10.99.2.0-10.99.2.63	host:id:domain.x.customers2
-10.99.2.128-10.99.2.191	host:id:zzz.customers2
 10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
+10.99.2.128-10.99.2.191	host:id:zzz.customers2
 END
 
 test_group($title, $in, 'host:[area:all]', $out, '-unused'); # No IPv6 test

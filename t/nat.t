@@ -349,6 +349,7 @@ network:n1 = {
  nat:n1 = { hidden; }
  has_subnets;
  host:h65 = { ip = 10.1.1.65; }
+ host:h66 = { ip = 10.1.1.66; }
 }
 network:n1sub = { ip = 10.1.1.64/26; nat:n1sub = { ip = 10.1.2.64/26; } }
 
@@ -361,6 +362,7 @@ END
 
 $out = <<'END';
 Warning: IP of host:h65 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
+Warning: IP of host:h66 overlaps with subnet network:n1sub in nat_domain:[interface:r1.l]
 END
 
 test_warn($title, $in, $out);
@@ -388,7 +390,7 @@ END
 $out = <<'END';
 Warning: nat:C of network:Test is subnet of network:X
  in nat_domain:[network:X].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 END
 
 test_warn($title, $in, $out);
@@ -457,10 +459,10 @@ END
 $out = <<'END';
 Warning: network:n1sub is subnet of network:n1
  in nat_domain:[network:t1].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 Warning: network:n2sub is subnet of network:n2
  in nat_domain:[network:t2].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 END
 
 test_warn($title, $in, $out);

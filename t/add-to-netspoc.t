@@ -7,27 +7,43 @@ use Test::Differences;
 use IPC::Run3;
 use File::Temp qw(tempfile);
 
-sub test_run {
-    my ($what, $title, $input, $args, $expected) = @_;
+sub run {
+    my ($what, $input, $args) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
-
     my $cmd = "$what -q $filename $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $? >> 8;
     $stderr ||= '';
-    if ($status != 0) {
-        diag("Unexpected failure:\n$stderr");
-        fail($title);
-    }
-
+    $stderr =~ s/\Q$filename\E/INPUT/g;
     open(my $fh, '<', $filename) or die("Can't open $filename: $!\n");
     local $/ = undef;
     my $output = <$fh>;
     close($fh);
+    return($status, $output, $stderr);
+}
+
+sub test_run {
+    my ($what, $title, $input, $args, $expected) = @_;
+    my ($status, $output, $stderr) = run($what, $input, $args);
+    if ($status != 0) {
+        diag("Unexpected failure:\n$stderr");
+        fail($title);
+    }
     eq_or_diff("$stderr$output", $expected, $title);
+}
+
+sub test_err {
+    my ($what, $title, $input, $args, $expected) = @_;
+    my ($status, $output, $stderr) = run($what, $input, $args);
+    if ($status == 0) {
+        diag("Unexpected success\n");
+        fail($title);
+    }
+    $stderr =~ s/Aborted\n$//;
+    eq_or_diff($stderr, $expected, $title);
 }
 
 sub test_add {
@@ -36,10 +52,22 @@ sub test_add {
     test_run('bin/add-to-netspoc', $title, $input, $args, $expected);
 }
 
+sub err_add {
+    my ($title, $input, $args, $expected) = @_;
+    $title = "Add: $title";
+    test_err('bin/add-to-netspoc', $title, $input, $args, $expected);
+}
+
 sub test_rmv {
     my ($title, $input, $args, $expected) = @_;
     $title = "Remove: $title";
     test_run('bin/remove-from-netspoc',  $title, $input, $args, $expected);
+}
+
+sub err_rmv {
+    my ($title, $input, $args, $expected) = @_;
+    $title = "Remove: $title";
+    test_err('bin/remove-from-netspoc',  $title, $input, $args, $expected);
 }
 
 my ($title, $in, $out);
@@ -542,6 +570,28 @@ host:abc;
 END
 
 test_rmv($title, $out, "-f $filename", $in);
+
+############################################################
+$title = 'Add multiple entries to one object';
+############################################################
+
+$in = <<'END';
+service:s = {
+ user = group:g;
+ permit src = user; dst = host:x; prt tcp 80;
+}
+END
+
+$out = <<'END';
+service:s = {
+ user = group:g,
+        host:a,
+        host:b;
+ permit src = user; dst = host:x; prt tcp 80;
+}
+END
+
+test_add($title, $in, 'group:g host:a group:g host:b', $out);
 
 ############################################################
 $title = 'Element to remove does not exist';

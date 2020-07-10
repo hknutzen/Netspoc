@@ -33,113 +33,6 @@ func findZone1(store pathStore) *zone {
 	}
 }
 
-//###################################################################
-// Efficient path traversal.
-//###################################################################
-
-type pathStoreData struct {
-	path      map[pathStore]*routerIntf
-	path1     map[pathStore]*routerIntf
-	loopEntry map[pathStore]pathStore
-	loopExit  map[pathStore]pathStore
-	loopPath  map[pathStore]*loopPath
-}
-
-type pathStore interface {
-	String() string
-	getPath() map[pathStore]*routerIntf
-	getPath1() map[pathStore]*routerIntf
-	getLoopEntry() map[pathStore]pathStore
-	getLoopExit() map[pathStore]pathStore
-	getLoopPath() map[pathStore]*loopPath
-	setPath(pathStore, *routerIntf)
-	setPath1(pathStore, *routerIntf)
-	setLoopEntry(pathStore, pathStore)
-	setLoopExit(pathStore, pathStore)
-	setLoopPath(pathStore, *loopPath)
-	getZone() *zone
-}
-
-func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
-func (x *pathStoreData) getPath1() map[pathStore]*routerIntf   { return x.path1 }
-func (x *pathStoreData) getLoopEntry() map[pathStore]pathStore { return x.loopEntry }
-func (x *pathStoreData) getLoopExit() map[pathStore]pathStore  { return x.loopExit }
-func (x *pathStoreData) getLoopPath() map[pathStore]*loopPath  { return x.loopPath }
-
-func (x *pathStoreData) setPath(s pathStore, i *routerIntf) {
-	if x.path == nil {
-		x.path = make(map[pathStore]*routerIntf)
-	}
-	x.path[s] = i
-}
-func (x *pathStoreData) setPath1(s pathStore, i *routerIntf) {
-	if x.path1 == nil {
-		x.path1 = make(map[pathStore]*routerIntf)
-	}
-	x.path1[s] = i
-}
-func (x *pathStoreData) setLoopEntry(s pathStore, e pathStore) {
-	if x.loopEntry == nil {
-		x.loopEntry = make(map[pathStore]pathStore)
-	}
-	x.loopEntry[s] = e
-}
-func (x *routerIntf) setLoopEntryZone(s pathStore, e pathStore) {
-	if x.loopEntryZone == nil {
-		x.loopEntryZone = make(map[pathStore]pathStore)
-	}
-	x.loopEntryZone[s] = e
-}
-func (x *pathStoreData) setLoopExit(s pathStore, e pathStore) {
-	if x.loopExit == nil {
-		x.loopExit = make(map[pathStore]pathStore)
-	}
-	x.loopExit[s] = e
-}
-func (x *pathStoreData) setLoopPath(s pathStore, i *loopPath) {
-	if x.loopPath == nil {
-		x.loopPath = make(map[pathStore]*loopPath)
-	}
-	x.loopPath[s] = i
-}
-
-type pathObjData struct {
-	interfaces intfList
-	activePath bool
-	distance   int
-	loop       *loop
-	navi       map[pathObj]navigation
-	toZone1    *routerIntf
-}
-
-type pathObj interface {
-	intfList() intfList
-	isActivePath() bool
-	setActivePath()
-	clearActivePath()
-	getDistance() int
-	getLoop() *loop
-	getNavi() map[pathObj]navigation
-	setNavi(pathObj, navigation)
-	getToZone1() *routerIntf
-}
-
-func (x *pathObjData) intfList() intfList              { return x.interfaces }
-func (x *pathObjData) isActivePath() bool              { return x.activePath }
-func (x *pathObjData) setActivePath()                  { x.activePath = true }
-func (x *pathObjData) clearActivePath()                { x.activePath = false }
-func (x *pathObjData) getDistance() int                { return x.distance }
-func (x *pathObjData) getLoop() *loop                  { return x.loop }
-func (x *pathObjData) getNavi() map[pathObj]navigation { return x.navi }
-func (x *pathObjData) getToZone1() *routerIntf         { return x.toZone1 }
-
-func (x *pathObjData) setNavi(o pathObj, n navigation) {
-	if x.navi == nil {
-		x.navi = make(map[pathObj]navigation)
-	}
-	x.navi[o] = n
-}
-
 //#############################################################################
 // Purpose   : Provide path node objects for objects specified as src or dst.
 // Parameter : Source or destination object from an elementary rule.
@@ -220,11 +113,6 @@ func (obj *autoIntf) getPathNode() pathStore {
 	return nil
 }
 
-type loop struct {
-	exit        pathObj
-	distance    int
-	clusterExit pathObj
-}
 type navigation map[*loop]map[*loop]bool
 
 type intfPair [2]*routerIntf
@@ -977,6 +865,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 	// toOut interfaces and connect them with loop path.
 	if success {
 		var store pathStore
+
 		if fromIn != nil {
 			store = fromIn
 		} else {
@@ -988,7 +877,17 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 			store.setPath1(toStore, toOut)
 		}
 
-		//        debug "loop path_attr: path_store->{name} -> to_store->{name}";
+
+/*			// for debugging
+			var debuggingPathAttr string
+			if fromIn != nil || startAtZone {
+				debuggingPathAttr = "path"
+			} else {
+				debuggingPathAttr = "path1"
+			}
+			debug("loop %s: %s -> %s", debuggingPathAttr, store, toStore)
+			//end debugging*/
+
 		// Collect path information at beginning of loop path (start_store).
 		// Loop paths beginning at loop node can differ depending on the way
 		// the node is entered (interface with/without pathrestriction,
@@ -1019,7 +918,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 //             - {path} of subsequent interfaces on path.
 func pathMark(fromStore, toStore pathStore) bool {
 
-	//   debug("path_mark from_store->{name} --> to_store->{name}");
+//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
 	var from, to pathObj
 	switch x := fromStore.(type) {
 	case *routerIntf:
@@ -1046,8 +945,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 	// Follow paths from source and destination towards zone1 until they meet.
 	for {
 
-		//debug("Dist: from->{distance} from->{name} -> ",
-		//      "Dist: to->{distance} to->{name}");
+//		debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
 
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
@@ -1104,7 +1002,17 @@ func pathMark(fromStore, toStore pathStore) bool {
 			}
 
 			// Mark path at the interface we came from (step in path direction)
-			//           debug('pAth: ', from_in ? from_in->{name}:'', "from_store->{name} -> from_out->{name}");
+
+/*			// debugging
+			var a string
+			if fromIn != nil {
+				a = fromIn.String()
+			} else {
+				a = ""
+			}
+			debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
+*/			// end debugging
+
 			if fromIn != nil {
 				fromIn.setPath(toStore, fromOut)
 			} else {
@@ -1145,7 +1053,17 @@ func pathMark(fromStore, toStore pathStore) bool {
 			}
 
 			// Mark path at interface we go to (step in opposite path direction).
-			//           debug("path: to_in->{name} -> to_store->{name}".(to_out ? to_out->{name}:''));
+
+/*			// debugging
+			var toOutName string
+			if toOut != nil {
+				toOutName = toOut.String()
+			} else {
+				toOutName = ""
+			}
+			debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
+			// end debugging */
+
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
 			toLoop = to.getLoop()

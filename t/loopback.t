@@ -212,7 +212,7 @@ END
 $out = <<'END';
 Warning: interface:r.m is subnet of network:n
  in nat_domain:[network:n].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 END
 
 test_warn($title, $in, $out);

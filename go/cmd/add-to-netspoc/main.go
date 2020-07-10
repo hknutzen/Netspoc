@@ -89,7 +89,7 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var addTo = make(map[string]string)
+var addTo = make(map[string][]string)
 
 func checkName(typedName string) {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -109,7 +109,7 @@ func checkName(typedName string) {
 func setupAddTo(old, new string) {
 	checkName(old)
 	checkName(new)
-	addTo[old] = new
+	addTo[old] = append(addTo[old], new)
 }
 
 // Find occurrence of typed name in list of objects:
@@ -163,20 +163,19 @@ func process(input string) (int, string) {
 				if m := match(extension); m != nil {
 					object += m[0]
 				}
-				new := addTo[object]
-				if new == "" {
+				add := addTo[object]
+				if add == nil {
 					copy.WriteString(space)
 					copy.WriteString(object)
 					substDone = false
 					continue
 				}
-				changed++
+				changed += len(add)
 				substDone = true
 				copy.WriteString(space)
 
 				// Check if current line has only one entry, possibly
 				// preceeded by start of list.
-				var m []string
 				var prefix string
 				processed := copy.String()
 				idx := strings.LastIndex(processed, "\n")
@@ -185,53 +184,57 @@ func process(input string) (int, string) {
 				} else {
 					prefix = processed
 				}
+				var m []string
 				re := regexp.MustCompile(
 					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
 				if re.MatchString(prefix) {
 					m = match(commaSemiEOL)
 				}
 				if m != nil {
-					// Add new entry to separate line with same indentation.
+					// Add new entries to separate line with same indentation.
 					delim, comment := m[1], m[2]
 					indent := strings.Repeat(" ", len([]rune(prefix)))
 					copy.WriteString(object)
 					copy.WriteString(",")
 					copy.WriteString(comment)
 					copy.WriteString("\n")
-					copy.WriteString(indent)
-					copy.WriteString(new)
-					copy.WriteString(delim)
-					copy.WriteString("\n")
+					last := len(add) - 1
+					for i, new := range add {
+						copy.WriteString(indent)
+						copy.WriteString(new)
+						if i == last {
+							copy.WriteString(delim)
+						} else {
+							copy.WriteString(",")
+						}
+						copy.WriteString("\n")
+					}
 				} else {
-					// Add new entry on same line separated by white space.
+					// Add new entries on same line separated by white space.
 					copy.WriteString(object)
-					copy.WriteString(", ")
-					copy.WriteString(new)
+					for _, new := range add {
+						copy.WriteString(", ")
+						copy.WriteString(new)
+					}
 				}
 			} else {
 				// Check if list continues.
+				inList = false
 				for _, re := range []*regexp.Regexp{
 					startAuto, managedAuto, ipAuto, endAuto,
 					negation, intersection, comma} {
-					if m = match(re); m != nil {
-						break
-					}
-				}
-				if m != nil {
-					copy.WriteString(m[0])
-					if substDone {
-						trimmed := strings.TrimLeft(m[0], " \t")
-						if trimmed[0] == '&' {
+					if m := match(re); m != nil {
+						inList = true
+						copy.WriteString(m[0])
+						if substDone && re == intersection {
 							fmt.Fprintln(os.Stderr,
 								"Warning: Substituted in intersection")
 						}
+						break
 					}
-				} else {
-					// Everything else terminates list.
-					inList = false
 				}
 			}
-		} else if m = match(startGroup); m != nil {
+		} else if m := match(startGroup); m != nil {
 			// Find start of group.
 			copy.WriteString(m[0])
 
@@ -240,7 +243,7 @@ func process(input string) (int, string) {
 				copy.WriteString(m[0])
 				inList = true
 			}
-		} else if m = match(restToEOL); m != nil {
+		} else if m := match(restToEOL); m != nil {
 			// Ignore rest of line if nothing matches.
 			copy.WriteString(m[0])
 		} else {
@@ -291,9 +294,6 @@ func readPairs(path string) {
 		abort.Msg("Can't %s", err)
 	}
 	pairs := strings.Fields(string(bytes))
-	if len(pairs) == 0 {
-		abort.Msg("Missing pairs in %s", path)
-	}
 	setupPairs(pairs)
 }
 

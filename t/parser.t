@@ -10,7 +10,7 @@ use Test_Netspoc;
 my ($title, $in, $out, $topo);
 
 ############################################################
-$title = "Unknown model for managed router";
+$title = "Invalid IP address";
 ############################################################
 
 $in = <<'END';
@@ -135,6 +135,25 @@ END
 
 $out = <<'END';
 Syntax error: Unexpected token at line 5 of STDIN, near "x:y<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid hardware name with comment character";
+############################################################
+
+$in = <<'END';
+router:R = {
+ managed;
+ model = ASA;
+ interface:N = { ip = 10.1.1.1; hardware = e0#3; }
+}
+network:N = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Expected ';' at line 5 of STDIN, near "}<--HERE-->"
 END
 
 test_err($title, $in, $out);
@@ -779,6 +798,20 @@ END
 
 $out = <<'END';
 Syntax error: String expected at line 1 of STDIN, near "a = <--HERE-->; } }"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad radius attribute with comment character";
+############################################################
+
+$in = <<'END';
+network:n1 = { radius_attributes = { banner = Welcome #two; } }
+END
+
+$out = <<'END';
+Syntax error: Expected ';' at line 1 of STDIN, near "#two<--HERE-->; } }"
 END
 
 test_err($title, $in, $out);

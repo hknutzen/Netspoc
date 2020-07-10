@@ -264,7 +264,7 @@ END
 $out = <<"END";
 Warning: network:n1 is subnet of network:n2
  in nat_domain:[network:n1].
- If desired, either declare attribute 'subnet_of' or attribute 'has_subnets'
+ If desired, declare attribute 'subnet_of'
 Warning: IP of host:h1 overlaps with subnet network:n1 in nat_domain:[network:n1]
 END
 

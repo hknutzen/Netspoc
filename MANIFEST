@@ -109,6 +109,7 @@ go/pkg/pass1/protocol.go
 go/pkg/pass1/remove-dupl-rules.go
 go/pkg/pass1/reverse-rules.go
 go/pkg/pass1/routes.go
+go/pkg/pass1/set-path.go
 go/pkg/pass1/set-policy-distribution-ip.go
 go/pkg/pass1/types.go
 lib/Netspoc/Compiler/Common.pm
