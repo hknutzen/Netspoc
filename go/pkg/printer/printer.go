@@ -5,6 +5,7 @@ package printer
 import (
 	"fmt"
 	"github.com/hknutzen/spoc-parser/ast"
+	"strings"
 )
 
 type printer struct {
@@ -225,14 +226,79 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	}
 }
 
-func (p *printer) complexValue(name string, l []*ast.Attribute) {
-	p.print(name + " = {")
-	p.indent++
-	for _, a := range l {
-		p.attribute(a)
+const maxLineLength = 80
+const maxDefLength = 200
+
+func (p *printer) isLong(line string, max int) bool {
+	return p.indent+len(line) > max
+}
+
+func (p *printer) getValueList(line string, l []*ast.Value, max int) string {
+	for _, v := range l {
+		if p.hasPreComment(v, ",") {
+			return ""
+		}
+		if p.TrailingComment(v, ",;") != "" {
+			return ""
+		}
+		if line[len(line)-1] != ' ' {
+			line += ","
+		}
+		line += v.Value
+		if p.isLong(line, max) {
+			return ""
+		}
 	}
-	p.indent--
-	p.print("}")
+	return line + ";"
+}
+
+func (p *printer) getAttrList(line string, l []*ast.Attribute, max int) string {
+	for _, a := range l {
+		line += " "
+		if line = p.getAttr(line, a, max); line == "" {
+			return ""
+		}
+		if p.isLong(line, max) {
+			return ""
+		}
+	}
+	return line + " }"
+}
+
+func (p *printer) getAttr(pre string, n *ast.Attribute, max int) string {
+	if p.hasPreComment(n, "") {
+		return ""
+	}
+	if l := n.ValueList; l != nil {
+		return p.getValueList(pre+n.Name+" = ", l, max)
+	}
+	if l := n.ComplexValue; l != nil {
+		return p.getAttrList(pre+n.Name+" = {", l, max)
+	} else {
+		if p.TrailingComment(n, ",;") != "" {
+			return ""
+		}
+		return (pre + n.Name + ";")
+	}
+}
+
+func (p *printer) complexValue(name string, l []*ast.Attribute) {
+	pre := name + " = {"
+	max := maxLineLength
+	if strings.Index(name, ":") != -1 {
+		max = maxDefLength
+	}
+	if line := p.getAttrList(pre, l, max); line != "" {
+		p.print(line)
+	} else {
+		p.print(pre)
+		p.indent++
+		for _, a := range l {
+			p.attribute(a)
+		}
+		p.indent--
+		p.print("}")
+	}
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
