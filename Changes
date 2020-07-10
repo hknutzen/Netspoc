@@ -1,5 +1,24 @@
 {{$NEXT}}
 
+6.014     2020-07-10 14:50:58+02:00 Europe/Berlin
+
+ - Fixed option '-admins' of command 'print-group':
+   Now shows admins of an object, even if owner was inherited.
+ - Command 'print-group' now shows
+   - unnumbered and bridged interfaces from automatic group and
+   - crosslink networks.
+ - Command 'print-group' now shows result unsorted, in original order.
+ - Command 'add-to-netspoc' now allows to add multiple elements
+   to the same object in one run,
+   e.g. "add-to-netspoc file group:g host:a group:g host:b"
+ - Simplified syntax of Netspoc for easier migration from Perl to Go.
+   - 'radius_attributes' and 'router_attributes' are only accepted
+     if not empty.
+   - Attribute 'description' is only accepted at toplevel definitions.
+     It is no longer valid at host and interface definition.
+ - Migrated more parts from Perl to Go:
+   - Preparing fast path traversal
+
 6.013     2020-04-23 16:54:09+02:00 Europe/Berlin
 
  - Use hardlink when reusing code file from prevoious run.
