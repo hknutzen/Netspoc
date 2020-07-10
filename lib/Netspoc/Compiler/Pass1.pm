@@ -989,6 +989,7 @@ sub read_radius_attributes {
         skip ';';
         add_attribute($result, $token => $val);
     }
+    keys %$result or error_atline("'radius_attributes' must not be empty");
     return $result;
 }
 
@@ -2630,6 +2631,7 @@ sub read_router_attributes {
             syntax_err("Unexpected attribute");
         }
     }
+    keys %$result > 1 or error_atline("'router_attributes' must not be empty");
     return $result;
 }
 
