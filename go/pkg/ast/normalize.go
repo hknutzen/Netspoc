@@ -21,7 +21,7 @@ var typeOrder = map[string]int{
 }
 
 // Find rightmost matching IP.
-var ipv4Regex = regexp.MustCompile(`(?:\d+_)*(\d+_\d+_\d+_\d+)`)
+var ipv4Regex = regexp.MustCompile(`(?:^|[-_])(\d+_\d+_\d+_\d+)`)
 
 func findIPv4(n string) int {
 	l := ipv4Regex.FindStringSubmatch(n)
