@@ -576,30 +576,21 @@ func pathrestrictionHasNoEffect(restrict *pathRestriction) bool {
 }
 
 // Pathrestrictions spanning more than one zone/zone cluster affect ACLs.
-func restrictSpansDifferentZonesOrZoneclusters(restrict *pathRestriction) bool {
-
-	var restrictZones []*zone
-
-	referenceZone := restrict.elements[0].zone
-	for _, intf := range restrict.elements {
-		if intf.zone != referenceZone {
-			restrictZones = append(restrictZones, intf.zone)
+func restrictSpansDifferentZonesOrZoneclusters(r *pathRestriction) bool {
+	getZoneOrCluster := func(intf *routerIntf) *zone {
+		z := intf.zone
+		if c := z.zoneCluster; c != nil {
+			// Each zone of a cluster references the same slice, so it is
+			// sufficient to compare first element.
+			z = c[0]
 		}
+		return z
 	}
-	if len(restrictZones) == 0 {
-		return false
-	}
-
-	referenceCluster := referenceZone.zoneCluster
-	for _, restrictZone := range restrictZones {
-		if !areEqualZoneClusters(restrictZone.zoneCluster, referenceCluster) {
+	reference := getZoneOrCluster(r.elements[0])
+	for _, intf := range r.elements[1:] {
+		if getZoneOrCluster(intf) != reference {
 			return true
 		}
-	}
-
-	// Different zones without cluster.
-	if referenceCluster == nil {
-		return true
 	}
 	return false
 }
