@@ -36,6 +36,10 @@ func (p *printer) emptyLine() {
 	}
 }
 
+func utfLen(s string) int {
+	return len([]rune(s))
+}
+
 func isShort(l []ast.Element) string {
 	if len(l) == 1 {
 		switch x := l[0].(type) {
@@ -53,7 +57,7 @@ func (p *printer) subElements(p1, p2 string, l []ast.Element, stop string) {
 		p.print(p1 + p2 + name + stop)
 	} else {
 		p.print(p1 + p2)
-		ind := len(p1)
+		ind := utfLen(p1)
 		p.indent += ind
 		p.elementList(l, stop)
 		p.indent -= ind
@@ -103,7 +107,7 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
 	p.element(pre, l[0], p.TrailingComment(l[0], "&!"))
-	ind := len(pre)
+	ind := utfLen(pre)
 	p.indent += ind
 	for _, el := range l[1:] {
 		pre := "&"
@@ -161,7 +165,7 @@ func (p *printer) namedList(name string, l []ast.Element) {
 	first := l[0]
 	var rest []ast.Element
 	pre := name + " = "
-	ind := len(pre)
+	ind := utfLen(pre)
 	if p.hasPreComment(first, ",") {
 		p.print(pre[:ind-1])
 		rest = l
@@ -199,7 +203,7 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	first := l[0]
 	var rest []*ast.Value
 	pre := name + " = "
-	ind := len(pre)
+	ind := utfLen(pre)
 	if p.hasPreComment(first, ",") {
 		p.print(pre[:ind-1])
 		rest = l
@@ -226,79 +230,15 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	}
 }
 
-const maxLineLength = 80
-const maxDefLength = 200
-
-func (p *printer) isLong(line string, max int) bool {
-	return p.indent+len(line) > max
-}
-
-func (p *printer) getValueList(line string, l []*ast.Value, max int) string {
-	for _, v := range l {
-		if p.hasPreComment(v, ",") {
-			return ""
-		}
-		if p.TrailingComment(v, ",;") != "" {
-			return ""
-		}
-		if line[len(line)-1] != ' ' {
-			line += ","
-		}
-		line += v.Value
-		if p.isLong(line, max) {
-			return ""
-		}
-	}
-	return line + ";"
-}
-
-func (p *printer) getAttrList(line string, l []*ast.Attribute, max int) string {
-	for _, a := range l {
-		line += " "
-		if line = p.getAttr(line, a, max); line == "" {
-			return ""
-		}
-		if p.isLong(line, max) {
-			return ""
-		}
-	}
-	return line + " }"
-}
-
-func (p *printer) getAttr(pre string, n *ast.Attribute, max int) string {
-	if p.hasPreComment(n, "") {
-		return ""
-	}
-	if l := n.ValueList; l != nil {
-		return p.getValueList(pre+n.Name+" = ", l, max)
-	}
-	if l := n.ComplexValue; l != nil {
-		return p.getAttrList(pre+n.Name+" = {", l, max)
-	} else {
-		if p.TrailingComment(n, ",;") != "" {
-			return ""
-		}
-		return (pre + n.Name + ";")
-	}
-}
-
 func (p *printer) complexValue(name string, l []*ast.Attribute) {
 	pre := name + " = {"
-	max := maxLineLength
-	if strings.Index(name, ":") != -1 {
-		max = maxDefLength
+	p.print(pre)
+	p.indent++
+	for _, a := range l {
+		p.attribute(a)
 	}
-	if line := p.getAttrList(pre, l, max); line != "" {
-		p.print(line)
-	} else {
-		p.print(pre)
-		p.indent++
-		for _, a := range l {
-			p.attribute(a)
-		}
-		p.indent--
-		p.print("}")
-	}
+	p.indent--
+	p.print("}")
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
@@ -310,7 +250,6 @@ func (p *printer) attribute(n *ast.Attribute) {
 	} else {
 		// Short attribute without values.
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
-		return
 	}
 }
 
@@ -352,14 +291,93 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
+type attrIndent struct {
+	name   int
+	values map[string]int
+}
+
+func getMaxIndent(l []*ast.Attribute, ind attrIndent) attrIndent {
+	for _, a := range l {
+		if len := utfLen(a.Name); len > ind.name {
+			ind.name = len
+		}
+		for _, a2 := range a.ComplexValue {
+			if max, found := ind.values[a2.Name]; found {
+				len := -1
+				for _, v := range a2.ValueList {
+					len += 2 + utfLen(v.Value)
+				}
+				if len > max {
+					ind.values[a2.Name] = len
+				}
+			}
+		}
+	}
+	return ind
+}
+
+func (p *printer) getValueList(l []*ast.Value) string {
+	line := ""
+	for _, v := range l {
+		if line != "" {
+			line += ", "
+		}
+		line += v.Value
+	}
+	return line + ";"
+}
+
+func (p *printer) getAttr(n *ast.Attribute, ind attrIndent) string {
+	if l := n.ValueList; l != nil {
+		v := p.getValueList(l)
+		if max := ind.values[n.Name]; max > 0 {
+			if len := utfLen(v); len < max {
+				v += strings.Repeat(" ", max-len)
+			}
+		}
+		return n.Name + " = " + v
+	}
+	if l := n.ComplexValue; l != nil {
+		return n.Name + " = {" + p.getAttrList(l, ind)
+	} else {
+		return n.Name + ";"
+	}
+}
+
+func (p *printer) getAttrList(l []*ast.Attribute, ind attrIndent) string {
+	var line string
+	for _, a := range l {
+		line += " " + p.getAttr(a, ind)
+	}
+	return line
+}
+
+func (p *printer) indentedAttribute(n *ast.Attribute, ind attrIndent) {
+	p.PreComment(n, "")
+	if l := n.ComplexValue; l != nil {
+		name := n.Name
+		if len := utfLen(name); len < ind.name {
+			name += strings.Repeat(" ", ind.name-len)
+		}
+		p.print(name + " = {" + p.getAttrList(l, ind) + " }" +
+			p.TrailingComment(n, "}"))
+	} else {
+		// Short attribute without values.
+		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
+	}
+}
+
 func (p *printer) network(n *ast.Network) {
 	p.indent++
 	for _, a := range n.Attributes {
 		p.attribute(a)
 	}
+	max := getMaxIndent(n.Hosts, attrIndent{values: map[string]int{"ip": 0}})
 	for _, a := range n.Hosts {
-		p.attribute(a)
+		p.indentedAttribute(a, max)
 	}
+	p.indent--
+	p.print("}")
 }
 
 func (p *printer) topStruct(n *ast.TopStruct) {
