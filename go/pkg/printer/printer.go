@@ -380,6 +380,19 @@ func (p *printer) network(n *ast.Network) {
 	p.print("}")
 }
 
+func (p *printer) router(n *ast.Router) {
+	p.indent++
+	for _, a := range n.Attributes {
+		p.attribute(a)
+	}
+	max := getMaxIndent(n.Interfaces, attrIndent{})
+	for _, a := range n.Interfaces {
+		p.indentedAttribute(a, max)
+	}
+	p.indent--
+	p.print("}")
+}
+
 func (p *printer) topStruct(n *ast.TopStruct) {
 	p.indent++
 	for _, a := range n.Attributes {
@@ -419,6 +432,8 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.service(x)
 	case *ast.Network:
 		p.network(x)
+	case *ast.Router:
+		p.router(x)
 	default:
 		panic(fmt.Sprintf("Unknown type: %T", n))
 	}

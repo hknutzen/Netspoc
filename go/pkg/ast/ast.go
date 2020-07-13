@@ -220,3 +220,8 @@ type Network struct {
 	TopStruct
 	Hosts []*Attribute
 }
+
+type Router struct {
+	TopStruct
+	Interfaces []*Attribute
+}

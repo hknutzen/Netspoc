@@ -676,6 +676,23 @@ func (p *parser) network() ast.Toplevel {
 	return a
 }
 
+func (p *parser) router() ast.Toplevel {
+	a := new(ast.Router)
+	a.TopStruct = p.topStructHead()
+	for {
+		if p.tok == "}" {
+			a.Next = p.pos
+			p.next()
+			break
+		} else if strings.HasPrefix(p.tok, "interface:") {
+			a.Interfaces = append(a.Interfaces, p.attribute())
+		} else {
+			a.Attributes = append(a.Attributes, p.attribute())
+		}
+	}
+	return a
+}
+
 func (p *parser) topStruct() ast.Toplevel {
 	a := p.topStructHead()
 	a.Attributes, a.Next = p.attributeList()
@@ -684,7 +701,7 @@ func (p *parser) topStruct() ast.Toplevel {
 
 var globalType = map[string]func(*parser) ast.Toplevel{
 	"network":         (*parser).network,
-	"router":          (*parser).topStruct,
+	"router":          (*parser).router,
 	"any":             (*parser).topStruct,
 	"area":            (*parser).topStruct,
 	"group":           (*parser).topList,
