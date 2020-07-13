@@ -253,6 +253,14 @@ func (p *printer) attribute(n *ast.Attribute) {
 	}
 }
 
+func (p *printer) attributeList(l []*ast.Attribute) {
+	p.indent++
+	for _, a := range l {
+		p.attribute(a)
+	}
+	p.indent--
+}
+
 func (p *printer) rule(n *ast.Rule) {
 	p.PreComment(n, "")
 	action := "permit"
@@ -272,12 +280,10 @@ func (p *printer) rule(n *ast.Rule) {
 }
 
 func (p *printer) service(n *ast.Service) {
+	p.emptyLine()
+	p.attributeList(n.Attributes)
+	p.emptyLine()
 	p.indent++
-	p.emptyLine()
-	for _, a := range n.Attributes {
-		p.attribute(a)
-	}
-	p.emptyLine()
 	if n.Foreach {
 		p.print("user = foreach")
 		p.elementList(n.User.Elements, ";")
@@ -348,38 +354,29 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 	}
 }
 
-func (p *printer) network(n *ast.Network) {
+func (p *printer) indentedAttributeList(l []*ast.Attribute) {
 	p.indent++
-	for _, a := range n.Attributes {
-		p.attribute(a)
-	}
-	max := getMaxIndent(n.Hosts)
-	for _, a := range n.Hosts {
+	max := getMaxIndent(l)
+	for _, a := range l {
 		p.indentedAttribute(a, max)
 	}
 	p.indent--
+}
+
+func (p *printer) network(n *ast.Network) {
+	p.attributeList(n.Attributes)
+	p.indentedAttributeList(n.Hosts)
 	p.print("}")
 }
 
 func (p *printer) router(n *ast.Router) {
-	p.indent++
-	for _, a := range n.Attributes {
-		p.attribute(a)
-	}
-	max := getMaxIndent(n.Interfaces)
-	for _, a := range n.Interfaces {
-		p.indentedAttribute(a, max)
-	}
-	p.indent--
+	p.attributeList(n.Attributes)
+	p.indentedAttributeList(n.Interfaces)
 	p.print("}")
 }
 
 func (p *printer) topStruct(n *ast.TopStruct) {
-	p.indent++
-	for _, a := range n.Attributes {
-		p.attribute(a)
-	}
-	p.indent--
+	p.attributeList(n.Attributes)
 	p.print("}")
 }
 
