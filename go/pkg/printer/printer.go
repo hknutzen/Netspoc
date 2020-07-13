@@ -297,18 +297,6 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
-func getMaxIndent(l []*ast.Attribute) int {
-	max := 0
-	for _, a := range l {
-		if a.ComplexValue != nil {
-			if len := utfLen(a.Name); len > max {
-				max = len
-			}
-		}
-	}
-	return max
-}
-
 func (p *printer) getValueList(l []*ast.Value) string {
 	line := ""
 	for _, v := range l {
@@ -354,24 +342,67 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 	}
 }
 
-func (p *printer) indentedAttributeList(l []*ast.Attribute) {
-	p.indent++
-	max := getMaxIndent(l)
+func getMaxAndNoIndent(
+	l []*ast.Attribute, simple map[string]bool) (int, map[*ast.Attribute]bool) {
+
+	max := 0
+	noIndent := make(map[*ast.Attribute]bool)
+ATTR:
 	for _, a := range l {
-		p.indentedAttribute(a, max)
+		if l2 := a.ComplexValue; l2 != nil {
+			for _, a2 := range l2 {
+				if !simple[a2.Name] {
+					noIndent[a] = true
+					continue ATTR
+				}
+			}
+			if len := utfLen(a.Name); len > max {
+				max = len
+			}
+		}
+	}
+	return max, noIndent
+}
+
+func (p *printer) indentedAttributeList(
+	l []*ast.Attribute, simple map[string]bool) {
+
+	p.indent++
+	max, noIndent := getMaxAndNoIndent(l, simple)
+	for _, a := range l {
+		if noIndent[a] {
+			p.attribute(a)
+		} else {
+			p.indentedAttribute(a, max)
+		}
 	}
 	p.indent--
 }
 
+var simpleHostAttr = map[string]bool{
+	"ip":    true,
+	"range": true,
+	"owner": true,
+}
+
 func (p *printer) network(n *ast.Network) {
 	p.attributeList(n.Attributes)
-	p.indentedAttributeList(n.Hosts)
-	p.print("}")
+	p.indentedAttributeList(n.Hosts, simpleHostAttr)
+}
+
+var simpleIntfAttr = map[string]bool{
+	"ip":         true,
+	"unnumbered": true,
+	"negotiated": true,
+	"hardware":   true,
+	"loopback":   true,
+	"vip":        true,
+	"owner":      true,
 }
 
 func (p *printer) router(n *ast.Router) {
 	p.attributeList(n.Attributes)
-	p.indentedAttributeList(n.Interfaces)
+	p.indentedAttributeList(n.Interfaces, simpleIntfAttr)
 	p.print("}")
 }
 
