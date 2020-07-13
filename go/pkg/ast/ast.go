@@ -215,3 +215,8 @@ type Service struct {
 	Foreach bool
 	Rules   []*Rule
 }
+
+type Network struct {
+	TopStruct
+	Hosts []*Attribute
+}

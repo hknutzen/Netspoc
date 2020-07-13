@@ -352,6 +352,16 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
+func (p *printer) network(n *ast.Network) {
+	p.indent++
+	for _, a := range n.Attributes {
+		p.attribute(a)
+	}
+	for _, a := range n.Hosts {
+		p.attribute(a)
+	}
+}
+
 func (p *printer) topStruct(n *ast.TopStruct) {
 	p.indent++
 	for _, a := range n.Attributes {
@@ -389,6 +399,8 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.topProtocolList(x.ValueList)
 	case *ast.Service:
 		p.service(x)
+	case *ast.Network:
+		p.network(x)
 	default:
 		panic(fmt.Sprintf("Unknown type: %T", n))
 	}

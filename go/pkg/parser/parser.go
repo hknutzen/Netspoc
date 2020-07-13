@@ -615,7 +615,7 @@ func (p *parser) topStructHead() ast.TopStruct {
 	return a
 }
 
-func (p *parser) attributes() ([]*ast.Attribute, int) {
+func (p *parser) attributeList() ([]*ast.Attribute, int) {
 	result := make([]*ast.Attribute, 0)
 	var end int
 	for {
@@ -659,14 +659,31 @@ func (p *parser) service() ast.Toplevel {
 	return a
 }
 
+func (p *parser) network() ast.Toplevel {
+	a := new(ast.Network)
+	a.TopStruct = p.topStructHead()
+	for {
+		if p.tok == "}" {
+			a.Next = p.pos
+			p.next()
+			break
+		} else if strings.HasPrefix(p.tok, "host:") {
+			a.Hosts = append(a.Hosts, p.attribute())
+		} else {
+			a.Attributes = append(a.Attributes, p.attribute())
+		}
+	}
+	return a
+}
+
 func (p *parser) topStruct() ast.Toplevel {
 	a := p.topStructHead()
-	a.Attributes, a.Next = p.attributes()
+	a.Attributes, a.Next = p.attributeList()
 	return &a
 }
 
 var globalType = map[string]func(*parser) ast.Toplevel{
-	"network":         (*parser).topStruct,
+	"network":         (*parser).network,
 	"router":          (*parser).topStruct,
 	"any":             (*parser).topStruct,
 	"area":            (*parser).topStruct,
