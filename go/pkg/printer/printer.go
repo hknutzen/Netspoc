@@ -197,6 +197,8 @@ func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
 	p.namedList(pre+n.Name, n.Elements)
 }
 
+const shortList = 40
+
 func (p *printer) namedValueList(name string, l []*ast.Value) {
 
 	// Put first value on same line with name, if it has no comment.
@@ -207,6 +209,8 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	if p.hasPreComment(first, ",") {
 		p.print(pre[:ind-1])
 		rest = l
+	} else if line := p.getValueList(l); utfLen(line) <= shortList {
+		p.print(pre + line + p.TrailingComment(l[len(l)-1], ",;"))
 	} else {
 		rest = l[1:]
 		var post string
@@ -246,7 +250,12 @@ func (p *printer) attribute(n *ast.Attribute) {
 	if l := n.ValueList; l != nil {
 		p.namedValueList(n.Name, l)
 	} else if l := n.ComplexValue; l != nil {
-		p.complexValue(n.Name, l)
+		name := n.Name
+		if name == "virtual" || strings.Index(name, ":") != -1 {
+			p.print(name + " = {" + p.getAttrList(l) + " }")
+		} else {
+			p.complexValue(name, l)
+		}
 	} else {
 		// Short attribute without values.
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
@@ -313,7 +322,7 @@ func (p *printer) getAttr(n *ast.Attribute) string {
 		return n.Name + " = " + p.getValueList(l)
 	}
 	if l := n.ComplexValue; l != nil {
-		return n.Name + " = {" + p.getAttrList(l)
+		return n.Name + " = {" + p.getAttrList(l) + " }"
 	} else {
 		return n.Name + ";"
 	}
@@ -371,7 +380,7 @@ func (p *printer) indentedAttributeList(
 	max, noIndent := getMaxAndNoIndent(l, simple)
 	for _, a := range l {
 		if noIndent[a] {
-			p.attribute(a)
+			p.complexValue(a.Name, a.ComplexValue)
 		} else {
 			p.indentedAttribute(a, max)
 		}
@@ -388,6 +397,7 @@ var simpleHostAttr = map[string]bool{
 func (p *printer) network(n *ast.Network) {
 	p.attributeList(n.Attributes)
 	p.indentedAttributeList(n.Hosts, simpleHostAttr)
+	p.print("}")
 }
 
 var simpleIntfAttr = map[string]bool{
