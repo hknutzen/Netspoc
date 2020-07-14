@@ -197,7 +197,6 @@ func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
 	p.namedList(pre+n.Name, n.Elements)
 }
 
-const shortList = 60
 const shortName = 10
 
 func (p *printer) namedValueList(name string, l []*ast.Value) {
@@ -207,16 +206,15 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	var rest []*ast.Value
 	pre := name + " = "
 	var ind int
-	if p.hasPreComment(first, ",") {
+	if p.hasPreComment(first, ",") ||
+		(len(name) > shortName && len(l) > 1) {
+
 		p.print(pre[:len(pre)-1])
-		rest = l
 		ind = 1
-	} else if line := getValueList(l); utfLen(line) <= shortList {
+		rest = l
+	} else if name == "model" || len(l) == 1 {
+		line := getValueList(l)
 		p.print(pre + line + p.TrailingComment(l[len(l)-1], ",;"))
-	} else if len(name) > shortName {
-		p.print(pre[:len(pre)-1])
-		ind = 1
-		rest = l
 	} else {
 		ind = utfLen(pre)
 		rest = l[1:]
