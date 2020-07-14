@@ -395,7 +395,7 @@ loop using the information from the redirect variable of the loop
 object.
 
 Finally, Netspoc clusters all cactus graph loops by adding a reference
-to the exit node of the whole cluster as `cluster_exit` to all loop
+to the exit node of the whole cluster as `clusterExit` to all loop
 objects of the cluster.
 
 *Possible addition: Picture of clustering*
@@ -538,7 +538,7 @@ interfaces of managed routers, but often located inside zones. As
 routing information needs to be generated for every source and
 destination pair defined in the rule set, precalculating a general
 next hop routing information at zone borders accelerates the process
-of route finding. Therefore, `set_routes_in_zone` determines next hop
+of route finding. Therefore, `setRoutesInZone` determines next hop
 interfaces to every network of a zone for all zone interfaces.  After
 the function call, every border interface of the zone holds following
 information:
@@ -636,12 +636,12 @@ needs to be considered in the pseudo rule by additional information:
 
 Every pseudo rule is now processed to generate rule specific routing
 information. First, route paths for the rules (source,destination)
-pair are found via `path_mark`. The way this function works has been
+pair are found via `pathMark`. The way this function works has been
 briefly touched opon [above](#path_finding) and will be explained in
 detail below. For an abstract zone and router topology, it stores in
 every interface on a path from source to destination the next
 interface in direction to destination. After the path has been found,
-every zone of the path is visited again by `path_walk`. This function
+every zone of the path is visited again by `pathWalk`. This function
 applies a given function to every zone or router on path. As it is
 repeatedly used within Netspoc, is is described in general
 [below](#path_walk). In this case, the called function collects a pair
@@ -662,7 +662,7 @@ destinations are processed several times, for example to generate ACL
 or routing information for interfaces on a rules path.
 
 To avoid unnecessary calculations, every path is explored only once,
-using the `path_mark` function and information is stored to reconstruct
+using the `pathMark` function and information is stored to reconstruct
 the path from.
 
 Basically, path mark finds paths from source to destination as has
@@ -678,7 +678,7 @@ attribute is also created within the source object. Thus, the path can
 easily be reconstructed whenever it is to be traversed again. A simple
 example of path mark is depicted in the figure below.
 
-{% include image.html src="./images/path_mark-simple.png" title="Path_mark:" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
+{% include image.html src="./images/path_mark-simple.png" title="pathMark:" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
 
 Due to special cases like pathrestrictions and loops, the basic
 algorithm described above has several extensions, that are supposed to
@@ -713,14 +713,14 @@ entering interface, indicating that is is required to pass a loop to
 get to the next interface stored in the path variable.
 
 Of course, the path through the loop still needs to be detected, using
-function `cluster_path_mark`. Usually, loop topologies would have
+function `clusterPathMark`. Usually, loop topologies would have
 pathrestrictions attached. As pathrestrictions require checks
 and tests that obfuscate the underlying algorithm, first assume a
 topology without pathrestrictions to explain it:
 
-{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During path_mark, a loop node (r4) was found. path_mark stores the path information in the next interface of the linear path and calls cluster_path_mark to find the paths from loop exit node (r1) to the detected loop node." %}
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During pathMark, a loop node (r4) was found. pathMark stores the path information in the next interface of the linear path and calls clusterPathMark to find the paths from loop exit node (r1) to the detected loop node." %}
 
-`cluster_path_mark` is called with a pair of loop nodes that specify
+`clusterPathMark` is called with a pair of loop nodes that specify
 start and end node of a path through the cluster. If neither source
 nor destination are located within the loop, the start node is the
 loop exit node, and the end node is the node where the loop is entered
@@ -736,7 +736,7 @@ starts and ends as well as an array of tuples describing the
 path. Every tuple holds [entrance interface, exit interface, router
 flag] for a loop node on path.
 
-{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
+{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="ClusterPathMark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
 {% include table.html no="3." img="./images/cluster_path_mark-simple3.png" txt="As the recursion stack is processed, path information isgenerated and stored within the first node on loop path from source to destination (r1)." %}
 
@@ -750,10 +750,10 @@ actually and necessarily passed on the path from source to destination.
 
 {% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only Loop1 Exit, Loop1, Loop3 and Loop5 need to be passed on a way from source to destination." %}
 
-To identify these loops, `cluster_navigation` is called with the nodes
+To identify these loops, `clusterNavigation` is called with the nodes
 where the loop cluster is entered and left as arguments.  It
 identifies paths through the loop cluster in a way similar to the
-basic `path_mark` algorithm. Beginning at the loops of the given
+basic `pathMark` algorithm. Beginning at the loops of the given
 nodes, steps are iteratively taken towards lower distances. Within
 every step, a new loop is entered, and a navigation lookup hash is
 filled. It stores for every loop those loops that are purposeful to
@@ -766,7 +766,7 @@ the topology above, following hash would be generated:
     Loop1 Exit -> Loop1 Exit, Loop1
 
 The navigation hash is then attached to start node and can be used to
-limit search space during cluster path mark: Whenever a new node is to
+limit search space during `clusterPathMark`: Whenever a new node is to
 be entered during depth first search, the loop of the actual node can
 be looked up in the navigation hash. If the loop of the next node is
 not within the set of purposeful loops, the node to enter can not lie
@@ -778,10 +778,10 @@ space.
 As soon as pathrestrictions are added to the topology, lots of special
 cases and side effects have to be considered when marking paths.
 
-A closer look at pathrestrictions during `path_mark` will follow soon!
+A closer look at pathrestrictions during `pathMark` will follow soon!
 Just some notes for now:
 
-* Within every step on the loop path (in `cluster_path_mark`)
+* Within every step on the loop path (in `clusterPathMark`)
   pathrestrictions need to be checked. Normal pathrestrictions must be
   activated at first occurrence, and path exploration must be stopped
   at second occurrence. At optimized pathrestrictions it must be
@@ -803,11 +803,11 @@ Just some notes for now:
   routes might be found for the interfaces router and zone.) Thus,
   when checking pathrestrictions, reachability of the zone is of
   interest. As the loop node that is given as loop exit node to the
-  `cluster_path_mark` function is a router, additional checks need to
+  `clusterPathMark` function is a router, additional checks need to
   be performed.
 
 
-#### Path_walk {#path_walk}
+#### PathWalk {#path_walk}
 
 For a given rule, path walk applies a function that is specified
 within the arguments at every router or zone node of the path from
@@ -816,12 +816,12 @@ all over the programm to generate and collect information like static
 routes or ACLs.
 
 If the path for the rules (source, destination) pair is not yet known,
-`path_walk` calls `path_mark` to calculate it.
+`pathWalk` calls `pathMark` to calculate it.
 
 Then, every node of the path is visited, following the path
 information stored at the interfaces, and the given function is called
 at every router or zone node, depending on the arguments given.
 
-As with `path_mark`, loop paths are processed in a single iteration
+As with `pathMark`, loop paths are processed in a single iteration
 step of the basic algorithm, processing the path information stored in
 the first node of the loop path.
