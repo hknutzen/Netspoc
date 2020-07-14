@@ -470,57 +470,6 @@ the same loop.
 
 {% include image.html src="./images/virtual_interface.png" title="Virtual IP:" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
 
-### Optimize Pathrestrictions
-
-Netspoc finds paths between source and destination by walking from
-both towards `zone1` until a common node is found. We have seen before
-that Netspoc is guided by distance values that have been attached to
-every router and zone. Loops are subsumed by single distance values,
-with the loop exit node being referenced within every loop node
-(**Finding loop paths**). Therefore, whenever a loop is entered during
-pathfinding, Netspoc knows which node is the node to proceed with on
-the path towards `zone1`. Obviously, Netspoc still needs to examine
-every loop in detail to find all paths from entrance to exit node to
-generate ACLs for the managed routers inside the loop. In the figure
-below, Netspoc would then find two paths from loop entrance to loop
-exit node, marked by the green and the red arrow.
-
-{% include image.html src="./images/find_loop_paths1.png" title = "Finding loop paths:" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
-
-Path exploration inside loops can be a very expensive step, especially
-with big and nested cycles. It is therefore a good idea to stop
-examining invalid paths as early as possible, which is why we have a
-closer look at pathrestrictions now. Imagine a pathrestriction was
-added to the topology (**Loop partitioning**, 1). Then, the red path
-from figure **Finding loop paths** is no longer valid. Currently,
-pathrestrictions are referenced in every participating interface
-object and contains information about participating interfaces
-only. Netspoc therefore would have to follow the red path until the
-pathrestrictions second interface is reached to find the path to be
-invalid. To save these steps, Netspoc divides loops with
-pathrestrictions into partitions and stores at every pathrestricted
-interface the partitions that can be reached when the interface is
-passed from router to zone (zone direction) or from zone to router
-(router direction). In doing so, Netspoc can decide at the first
-pathrestricted interface, whether a certain destination can or can not
-be reached on the path passing the interface.
-
-{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:" description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
-
-To receive loop partitioning, every pathrestriction interface that is
-located within a cycle is considered. The loop path is traversed from
-the interface until another interface of the same pathrestriction is
-reached. Nodes that are visited during traversal lie in between both
-pathrestrictions and are labeled with a unique partition
-number. Within the adjacent interface objects, this partition number
-is stored to keep track on the partitions that can be reached from the
-interfaces. Obviously, every interface can border two partitions,
-which is why two numbers are stored in every interface object: one for
-zone and one for router direction.  Consequently, loop path traversal
-has to be performed twice per interface, if the interface has not been
-found before during a traversal starting from another interface of the same
-pathrestriction.
-
 ## Finding active routes {#find_routes}
 
 After the elementary rule set has been optimized, static routing
