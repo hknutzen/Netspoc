@@ -4,7 +4,7 @@ package printer
 
 import (
 	"fmt"
-	"github.com/hknutzen/spoc-parser/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
 )
 

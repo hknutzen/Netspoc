@@ -5,8 +5,8 @@
 package parser
 
 import (
-	"github.com/hknutzen/spoc-parser/ast"
-	"github.com/hknutzen/spoc-parser/scanner"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/scanner"
 	"net"
 	"strconv"
 	"strings"

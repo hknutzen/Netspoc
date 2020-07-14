@@ -3,7 +3,7 @@
 package printer
 
 import (
-	"github.com/hknutzen/spoc-parser/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
 )
 
