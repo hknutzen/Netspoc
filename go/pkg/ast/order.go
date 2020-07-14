@@ -21,7 +21,6 @@ var typeOrder = map[string]int{
 }
 
 var ipv4NameRegex = regexp.MustCompile(`(?:^|[-_])(\d+_\d+_\d+_\d+)`)
-var ipv4StartRegex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+`)
 
 func ipV4ToInt(s string) int {
 	if ip := net.ParseIP(s); ip != nil {
@@ -38,23 +37,6 @@ func findIPv4InName(s string) int {
 		return ipV4ToInt(m)
 	}
 	return 0
-}
-
-func sortHosts(l []*Attribute) {
-	getIPv4 := func(host *Attribute) int {
-		for _, a := range host.ComplexValue {
-			if a.Name == "ip" || a.Name == "range" {
-				list := a.ValueList
-				if len(list) == 1 {
-					return ipV4ToInt(ipv4StartRegex.FindString(list[0].Value))
-				}
-			}
-		}
-		return 0
-	}
-	sort.SliceStable(l, func(i, j int) bool {
-		return getIPv4(l[i]) < getIPv4(l[j])
-	})
 }
 
 func sortElem(l []Element) {
@@ -244,6 +226,29 @@ func (a *Service) Order() {
 	}
 }
 
+var ipv4StartRegex = regexp.MustCompile(`^\d+\.\d+\.\d+\.\d+`)
+
+func sortByIP(l []*Attribute) {
+	getIPv4 := func(host *Attribute) int {
+		for _, a := range host.ComplexValue {
+			if a.Name == "ip" || a.Name == "range" {
+				list := a.ValueList
+				if len(list) >= 1 {
+					return ipV4ToInt(ipv4StartRegex.FindString(list[0].Value))
+				}
+			}
+		}
+		return 0
+	}
+	sort.SliceStable(l, func(i, j int) bool {
+		return getIPv4(l[i]) < getIPv4(l[j])
+	})
+}
+
 func (a *Network) Order() {
-	sortHosts(a.Hosts)
+	sortByIP(a.Hosts)
+}
+
+func (a *Router) Order() {
+	sortByIP(a.Interfaces)
 }
