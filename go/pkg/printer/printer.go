@@ -197,21 +197,28 @@ func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
 	p.namedList(pre+n.Name, n.Elements)
 }
 
-const shortList = 40
+const shortList = 60
+const shortName = 10
 
 func (p *printer) namedValueList(name string, l []*ast.Value) {
 
-	// Put first value on same line with name, if it has no comment.
+	// Put first value(s) on same line with name, if it has no comment.
 	first := l[0]
 	var rest []*ast.Value
 	pre := name + " = "
-	ind := utfLen(pre)
+	var ind int
 	if p.hasPreComment(first, ",") {
-		p.print(pre[:ind-1])
+		p.print(pre[:len(pre)-1])
 		rest = l
+		ind = 1
 	} else if line := p.getValueList(l); utfLen(line) <= shortList {
 		p.print(pre + line + p.TrailingComment(l[len(l)-1], ",;"))
+	} else if len(name) > shortName {
+		p.print(pre[:len(pre)-1])
+		ind = 1
+		rest = l
 	} else {
+		ind = utfLen(pre)
 		rest = l[1:]
 		var post string
 		if len(rest) == 0 {
@@ -229,8 +236,13 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 			p.PreComment(v, ",")
 			p.print(v.Value + "," + p.TrailingComment(v, ",;"))
 		}
-		p.print(";")
-		p.indent -= ind
+		if ind == 1 {
+			p.indent -= ind
+			p.print(";")
+		} else {
+			p.print(";")
+			p.indent -= ind
+		}
 	}
 }
 
