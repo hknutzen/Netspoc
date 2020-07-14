@@ -314,7 +314,7 @@ group:g1 # g1 trailing
 
 # g1 post def
 
-description = This is a fine group; # desc
+description = This is a fine group;      # desc
 # desc post
 
 # desc post 2

@@ -394,8 +394,8 @@ func (p *parser) description() *ast.Description {
 			p.syntaxErr("Expected '='")
 		}
 		p.pos, p.tok = p.scanner.ToEOLorComment()
-		// Prevent two spaces when printing.
-		text := strings.TrimSuffix(p.tok, " ")
+		// Prevent two spaces before comment when printing.
+		text := strings.TrimRight(p.tok, " ")
 		end := p.pos + len(text)
 		p.next()
 		a := new(ast.Description)
