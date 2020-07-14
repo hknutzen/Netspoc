@@ -178,72 +178,72 @@ func sortAttr(l []*Attribute) {
 	})
 }
 
-func normalize(l []Element) {
+func order(l []Element) {
 	for _, n := range l {
-		n.Normalize()
+		n.Order()
 	}
 	sortElem(l)
 }
 
-func (a *Base) Normalize() {}
+func (a *Base) Order() {}
 
-func (a *SimpleAuto) Normalize() {
-	normalize(a.Elements)
+func (a *SimpleAuto) Order() {
+	order(a.Elements)
 }
 
-func (a *Complement) Normalize() {
-	a.Element.Normalize()
+func (a *Complement) Order() {
+	a.Element.Order()
 }
 
-func (a *Intersection) Normalize() {
+func (a *Intersection) Order() {
 	for _, n := range a.Elements {
-		n.Normalize()
+		n.Order()
 	}
 }
 
-func (a *TopList) Normalize() {
-	normalize(a.Elements)
+func (a *TopList) Order() {
+	order(a.Elements)
 }
 
-func (a *Protocolgroup) Normalize() {
+func (a *Protocolgroup) Order() {
 	sortProto(a.ValueList)
 }
 
-func (a *NamedUnion) Normalize() {
-	normalize(a.Elements)
+func (a *NamedUnion) Order() {
+	order(a.Elements)
 }
 
-func (a *Attribute) Normalize() {
+func (a *Attribute) Order() {
 	vals := a.ValueList
 	sort.Slice(vals, func(i, j int) bool {
 		return vals[i].Value < vals[j].Value
 	})
 	for _, attr := range a.ComplexValue {
-		attr.Normalize()
+		attr.Order()
 	}
 	sortAttr(a.ComplexValue)
 }
 
-func (a *Rule) Normalize() {
-	a.Src.Normalize()
-	a.Dst.Normalize()
+func (a *Rule) Order() {
+	a.Src.Order()
+	a.Dst.Order()
 	sortProto(a.Prt.ValueList)
 	if attr := a.Log; attr != nil {
-		attr.Normalize()
+		attr.Order()
 	}
 }
 
-func (a *Service) Normalize() {
+func (a *Service) Order() {
 	for _, attr := range a.Attributes {
-		attr.Normalize()
+		attr.Order()
 	}
 	sortAttr(a.Attributes)
-	a.User.Normalize()
+	a.User.Order()
 	for _, r := range a.Rules {
-		r.Normalize()
+		r.Order()
 	}
 }
 
-func (a *Network) Normalize() {
+func (a *Network) Order() {
 	sortHosts(a.Hosts)
 }

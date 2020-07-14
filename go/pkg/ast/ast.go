@@ -24,7 +24,7 @@ import (
 type Node interface {
 	Pos() int // position of first character belonging to the node
 	End() int // position of first character immediately after the node
-	Normalize()
+	Order()
 }
 
 type Element interface {
