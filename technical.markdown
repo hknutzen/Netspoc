@@ -14,8 +14,8 @@ author: Meike Bruns
 On this page, we are going to develop a technical netspoc
 documentation describing how Nespoc works
 internally. The structure of this documentation will follow the
-Netspoc programm procedure, providing a general overview over the
-programm as well as orientation when contributing to the source
+Netspoc program procedure, providing a general overview over the
+program as well as orientation when contributing to the source
 code. Network architectures are represented and processed by Netspoc
 as graphs, with routers and networks as nodes and interfaces as
 edges. For better understanding, several pictures are included in this
@@ -81,7 +81,7 @@ rule definition.
     area:a1 = {
       border = interface:R1.n1;
       inclusive_border = interface:R3.n2;
-    }      
+    }
 
 {% include image.html src="./images/area.png" title="" description="Areas contain security zones and managed routers." %}
 
@@ -96,7 +96,7 @@ elements and border interfaces of a zone object. References to the
 zone are set in the collected objects. Zone attributes are set
 according to the properties of the included networks.
 
-                
+
 ### Identifying zone clusters
 
 Netspoc generates a topology representation to find paths between
@@ -119,7 +119,7 @@ created. Then a depth first search is conducted, starting at the zone
 and stopping at managed routers to collect all zones of the cluster.
 If the cluster contains a single zone only, it is deleted.
 
-* * * 
+* * *
 The following three steps are not part of zone/area generation,
 but are placed inside the set_zone function in source code and
 therefore included here.
@@ -127,7 +127,7 @@ therefore included here.
 
 ### Apply no_in_acl declaration
 
-Netspoc allows router interfaces to be tagged as `no_in_acl` 
+Netspoc allows router interfaces to be tagged as `no_in_acl`
 interfaces, indicating that no ACL is supposed to be generated at the
 tagged interface but at the other (outgoing) interfaces of the router
 instead. Netspoc distinguishes between logical interface and hardware,
@@ -143,7 +143,7 @@ routers other hardware objects to need outgoing ACLs.
 Networks just connecting managed routers may be marked as crosslink
 networks during topology declaration:
 
-    network:crosslink_network = {ip = 10.2.2.1; crosslink;} 
+    network:crosslink_network = {ip = 10.2.2.1; crosslink;}
 
 Routers connected by crosslink networks act as a single router,
 causing ACLs to be needed only at the outer interfaces of a
@@ -159,7 +159,7 @@ routers with weakest filter strength. The hardware of the appropriate
 interfaces is then tagged with the crosslink flag, indicating that no
 ACL needs to be generated.
 
-### Cluster crosslinked routers 
+### Cluster crosslinked routers
 
 Firewalls recognize, whether the destination of a data packet is the
 firewalls interface with IP = 10.1.1.1. or the network with IP =
@@ -240,7 +240,7 @@ Of course, proper subset relations have to hold not only for zones,
 but also for routers. For most of the routers, proper subset relation
 has been assured already by proving subset relations for the
 surrounding zones. If routers are placed at the border of an area
-though, subset relations can be violated: 
+though, subset relations can be violated:
 
 {% include image.html src="./images/areas_overlapping_router.png" title="" description="Overlapping areas with router as intersection." %}
 
@@ -337,7 +337,7 @@ loop nodes, except for the loop exit to `zone1`.
 
 {% include image.html src="./images/find_paths.png" title="Path finding in Netspoc:" description="Paths are found by walking from source and destination towards zone1 until the connecting node is found." %}
 
-### Identifying distances and loops 
+### Identifying distances and loops
 
 Netspoc now conducts the depth first search from a randomly chosen
 `zone1`. Within every zone and router object reached, the distance
@@ -396,7 +396,7 @@ object.
 
 Finally, Netspoc clusters all cactus graph loops by adding a reference
 to the exit node of the whole cluster as `cluster_exit` to all loop
-objects of the cluster. 
+objects of the cluster.
 
 *Possible addition: Picture of clustering*
 
@@ -448,18 +448,18 @@ For this reason, Netspoc policy language allows to model virtual IP addresses:
     network:n2 = {ip = 10.1.2.0/24;}
 
     router:r1 = {
-     interface:n1 = {ip = 10.1.1.11; 
-                     virtual = {ip = 10.1.1.1; type = HSPR} 
-                     hardware Ethernet1;} 
+     interface:n1 = {ip = 10.1.1.11;
+                     virtual = {ip = 10.1.1.1; type = HSPR}
+                     hardware Ethernet1;}
      interface: n2 = {ip = 10.1.2.1; hardware = Ethernet2;}
-    } 
+    }
 
     router:r2 = {
      interface:n1 = {ip = 10.1.1.12;
-                     virtual = {ip = 10.1.1.1; type = HSPR} 
-                     hardware Ethernet1;} 
+                     virtual = {ip = 10.1.1.1; type = HSPR}
+                     hardware Ethernet1;}
      interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
-    } 
+    }
 
 Within the graph representation of topology, the virtual IP address is
 included more than once, with an additional virtual interface at every
@@ -541,9 +541,9 @@ next hop routing information at zone borders accelerates the process
 of route finding. Therefore, `set_routes_in_zone` determines next hop
 interfaces to every network of a zone for all zone interfaces.  After
 the function call, every border interface of the zone holds following
-information: 
+information:
 
-* Which networks can be reached?  
+* Which networks can be reached?
 
 * What is the next interface (next hop interface) on the path to these
   networks?
@@ -614,7 +614,7 @@ therefore tagged as deleted.
     rule2: action = permit, source = r1.n2, dest = n6, prt = tcp 80 - deleted
 
 When the rule for rule1 is created, contains the source and destinarion pair of
-both rule1 and rule2. 
+both rule1 and rule2.
 
     pseudo rule: action: permit, source: n2, dest: n6, prt: ---
     src networks: n2, dst networks: n6
@@ -655,11 +655,11 @@ Next hop information is generated then for zone interface pairs and
 single zone interfaces, using the zones general next hop information
 generated before.
 
-### Working on paths 
+### Working on paths
 
 Throughout the Netspoc program workflow, paths from rule sources to
 destinations are processed several times, for example to generate ACL
-or routing information for interfaces on a rules path. 
+or routing information for interfaces on a rules path.
 
 To avoid unnecessary calculations, every path is explored only once,
 using the `path_mark` function and information is stored to reconstruct
@@ -763,7 +763,7 @@ the topology above, following hash would be generated:
     Loop5      -> Loop5
     Loop3      -> Loop3, Loop5
     Loop1      -> Loop1, Loop3
-    Loop1 Exit -> Loop1 Exit, Loop1    
+    Loop1 Exit -> Loop1 Exit, Loop1
 
 The navigation hash is then attached to start node and can be used to
 limit search space during cluster path mark: Whenever a new node is to
@@ -825,12 +825,3 @@ at every router or zone node, depending on the arguments given.
 As with `path_mark`, loop paths are processed in a single iteration
 step of the basic algorithm, processing the path information stored in
 the first node of the loop path.
-
-
-
-
- 
-
-
-
-
