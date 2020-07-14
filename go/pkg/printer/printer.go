@@ -211,7 +211,7 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 		p.print(pre[:len(pre)-1])
 		rest = l
 		ind = 1
-	} else if line := p.getValueList(l); utfLen(line) <= shortList {
+	} else if line := getValueList(l); utfLen(line) <= shortList {
 		p.print(pre + line + p.TrailingComment(l[len(l)-1], ",;"))
 	} else if len(name) > shortName {
 		p.print(pre[:len(pre)-1])
@@ -264,7 +264,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 	} else if l := n.ComplexValue; l != nil {
 		name := n.Name
 		if name == "virtual" || strings.Index(name, ":") != -1 {
-			p.print(name + " = {" + p.getAttrList(l) + " }")
+			p.print(name + " = {" + getAttrList(l) + " }")
 		} else {
 			p.complexValue(name, l)
 		}
@@ -318,7 +318,7 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
-func (p *printer) getValueList(l []*ast.Value) string {
+func getValueList(l []*ast.Value) string {
 	line := ""
 	for _, v := range l {
 		if line != "" {
@@ -329,21 +329,21 @@ func (p *printer) getValueList(l []*ast.Value) string {
 	return line + ";"
 }
 
-func (p *printer) getAttr(n *ast.Attribute) string {
+func getAttr(n *ast.Attribute) string {
 	if l := n.ValueList; l != nil {
-		return n.Name + " = " + p.getValueList(l)
+		return n.Name + " = " + getValueList(l)
 	}
 	if l := n.ComplexValue; l != nil {
-		return n.Name + " = {" + p.getAttrList(l) + " }"
+		return n.Name + " = {" + getAttrList(l) + " }"
 	} else {
 		return n.Name + ";"
 	}
 }
 
-func (p *printer) getAttrList(l []*ast.Attribute) string {
+func getAttrList(l []*ast.Attribute) string {
 	var line string
 	for _, a := range l {
-		line += " " + p.getAttr(a)
+		line += " " + getAttr(a)
 	}
 	return line
 }
@@ -355,7 +355,7 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.print(name + " = {" + p.getAttrList(l) + " }" +
+		p.print(name + " = {" + getAttrList(l) + " }" +
 			p.TrailingComment(n, "}"))
 	} else {
 		// Short attribute without values.
