@@ -33,6 +33,7 @@ sub test_run {
         fail($title);
         return
     }
+    $stderr =~ s/Changed INPUT\n$//;
     eq_or_diff("$stderr$output", $expected, $title);
 }
 
@@ -384,6 +385,25 @@ group:g1 =
 
  # pre h
  host:h
+;
+END
+
+$out = <<'END';
+group:g1 =
+ # pre h
+ host:h,
+;
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Comment after first line of group definition';
+############################################################
+
+$in = <<'END';
+group:g1 = # pre h
+ host:h,
 ;
 END
 

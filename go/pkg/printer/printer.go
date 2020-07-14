@@ -434,13 +434,20 @@ func (p *printer) topStruct(n *ast.TopStruct) {
 func (p *printer) toplevel(n ast.Toplevel) {
 	p.PreComment(n, "")
 	sep := " ="
+	trailing := ""
+	d := n.GetDescription()
 	if n.IsStruct() {
 		sep += " {"
 	}
-	pos := n.Pos() + len(n.GetName())
-	p.print(n.GetName() + sep + p.TrailingCommentAt(pos, sep))
+	if n.IsStruct() || d != nil {
+		pos := n.Pos() + len(n.GetName())
+		// Don't print trailing comment for list without description. It
+		// will be printed as PreComment of first element.
+		trailing = p.TrailingCommentAt(pos, sep)
+	}
+	p.print(n.GetName() + sep + trailing)
 
-	if d := n.GetDescription(); d != nil {
+	if d != nil {
 		p.indent++
 		p.PreComment(d, sep)
 		p.print("description =" + d.Text + p.TrailingComment(d, "="))
