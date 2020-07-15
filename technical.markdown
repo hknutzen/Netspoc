@@ -681,9 +681,9 @@ from recursion and collects path information. In contrast to the basic
 algorithm, path information is not stored within the interfaces on
 path but within the first node of the loop. It holds for every
 possible path through the loop the interfaces where the loop path
-starts and ends as well as an array of tuples describing the
-path. Every tuple holds [entrance interface, exit interface, router
-flag] for a loop node on path.
+starts and ends as well as tuples describing the path. Every tuple
+holds [entrance interface, exit interface] of a router or zone node on
+loop path.
 
 {% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="ClusterPathMark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
