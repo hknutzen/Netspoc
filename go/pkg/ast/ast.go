@@ -29,14 +29,15 @@ type Node interface {
 
 type Element interface {
 	Node
-	getType() string
-	getName() string
+	GetType() string
+	GetName() string
 }
 
 type Toplevel interface {
 	Node
-	GetDescription() *Description
 	GetName() string
+	SetName(string)
+	GetDescription() *Description
 	IsStruct() bool
 	FileName() string
 	SetFileName(string)
@@ -61,16 +62,16 @@ type User struct {
 }
 
 func (a *User) End() int        { return a.Pos() + len("user") }
-func (a *User) getType() string { return "" }
-func (a *User) getName() string { return "" }
+func (a *User) GetType() string { return "" }
+func (a *User) GetName() string { return "" }
 
 type TypedElt struct {
 	Base
-	Typ string
+	Type string
 }
 
-func (a *TypedElt) getType() string { return a.Typ }
-func (a *TypedElt) getName() string { return "" }
+func (a *TypedElt) GetType() string { return a.Type }
+func (a *TypedElt) GetName() string { return "" }
 
 type NamedRef struct {
 	TypedElt
@@ -78,9 +79,9 @@ type NamedRef struct {
 }
 
 func (a *NamedRef) End() int {
-	return a.Pos() + len(a.Typ) + 1 + len(a.Name)
+	return a.Pos() + len(a.Type) + 1 + len(a.Name)
 }
-func (a *NamedRef) getName() string { return a.Name }
+func (a *NamedRef) GetName() string { return a.Name }
 
 type IntfRef struct {
 	TypedElt
@@ -90,7 +91,7 @@ type IntfRef struct {
 	Extension string
 }
 
-func (a *IntfRef) getName() string {
+func (a *IntfRef) GetName() string {
 	r := a.Router + "." + a.Network
 	if e := a.Extension; e != "" {
 		r += "." + e
@@ -120,8 +121,8 @@ type Complement struct {
 }
 
 func (a *Complement) End() int        { return a.Element.End() }
-func (a *Complement) getType() string { return "" }
-func (a *Complement) getName() string { return "" }
+func (a *Complement) GetType() string { return "" }
+func (a *Complement) GetName() string { return "" }
 
 type Intersection struct {
 	Base
@@ -131,8 +132,8 @@ type Intersection struct {
 func (a *Intersection) End() int {
 	return a.Elements[len(a.Elements)-1].End()
 }
-func (a *Intersection) getType() string { return a.Elements[0].getType() }
-func (a *Intersection) getName() string { return a.Elements[0].getType() }
+func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
+func (a *Intersection) GetName() string { return a.Elements[0].GetType() }
 
 type Description struct {
 	Base
@@ -150,6 +151,7 @@ type TopBase struct {
 
 func (a *TopBase) IsStruct() bool               { return false }
 func (a *TopBase) GetName() string              { return a.Name }
+func (a *TopBase) SetName(n string)             { a.Name = n }
 func (a *TopBase) GetDescription() *Description { return a.Description }
 func (a *TopBase) FileName() string             { return a.fileName }
 func (a *TopBase) SetFileName(n string)         { a.fileName = n }

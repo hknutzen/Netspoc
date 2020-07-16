@@ -3,13 +3,16 @@ package main
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strings"
 )
 
@@ -49,6 +52,7 @@ func getTypeAndName(objName string) (string, string) {
 }
 
 var subst = make(map[string]map[string]string)
+var changes = 0
 
 // Fill subst with mapping from search to replace for given type.
 func setupSubst(old, new string) {
@@ -80,143 +84,168 @@ func setupSubst(old, new string) {
 	}
 }
 
-func substitute(objType string, name string) string {
-	if objType == "host" && strings.HasPrefix(name, "id:") {
-		// ID host is extended by network name: host:id:a.b@c.d.net_name
-		parts := strings.Split(name, ".")
-		network := parts[len(parts)-1]
-		host := strings.Join(parts[:len(parts)-1], ".")
-		if replace, ok := subst["host"][host]; ok {
-			host = replace
-			name = host + "." + network
-		}
-		if replace, ok := subst["network"][network]; ok {
-			network = replace
-			name = host + "." + network
-		}
-	} else if objType == "interface" && strings.Count(name, ".") > 0 {
-		// Reference to interface ouside the definition of router.
-		parts := strings.Split(name, ".")
-		router := parts[0]
-		network := parts[1]
-		ext := ""
-		if len(parts) > 2 {
-			ext = "." + parts[2]
-		}
-		if replace, ok := subst["router"][router]; ok {
-			router = replace
-			name = router + "." + network + ext
-		}
-		if replace, ok := subst["network"][network]; ok {
-			network = replace
-			name = router + "." + network + ext
-		}
-	} else if replace, ok := subst[objType][name]; ok {
+func substitute(typ, name string) string {
+	if replace, ok := subst[typ][name]; ok {
+		changes++
 		return replace
+	}
+	if typ == "network" || typ == "interface" {
+		// Ignore right part of bridged network.
+		parts := strings.SplitN(name, "/", 2)
+		if len(parts) == 2 {
+			if replace, ok := subst[typ][parts[0]]; ok {
+				changes++
+				return replace + "/" + parts[1]
+			}
+		}
 	}
 	return name
 }
 
-func process(input string) (int, string) {
-	changed := 0
-	typelist := ""
-	var copy strings.Builder
-	copy.Grow(len(input))
-
-	// Iteratively parse inputstring
-	comment := regexp.MustCompile(`^\s*[#].*\n`)
-	nothing := regexp.MustCompile(`^.*\n`)
-	declaration := regexp.MustCompile(`^(.*?)(\w+)(:)([-\w\p{L}.\@:]+)`)
-	list := regexp.MustCompile(`^(.*?)([-\w]+)(\s*=[ \t]*)`)
-	listelem := regexp.MustCompile(`^(\s*)([-\w\p{L}.\@:]+)`)
-	comma := regexp.MustCompile(`^\s*,\s*`)
-
-	// Match pattern in input and skip matched pattern.
-	match := func(pattern *regexp.Regexp) []string {
-		matches := pattern.FindStringSubmatch(input)
-		if matches == nil {
-			return nil
+func element(n ast.Element) {
+	typ := n.GetType()
+	if typ == "interface" {
+		if intf, ok := n.(*ast.IntfRef); ok {
+			intf.Router = substitute("router", intf.Router)
+			intf.Network = substitute("network", intf.Network)
+			return
 		}
-		skip := len(matches[0])
-		input = input[skip:]
-		return matches
 	}
-
-	for {
-		if m := match(comment); m != nil {
-			// Ignore comment.
-			copy.WriteString(m[0])
-		} else if typelist != "" {
-			// Handle list of names after "name = "
-			// Read list element.
-			if m := match(listelem); m != nil {
-				copy.WriteString(m[1])
-				name := m[2]
-				new := substitute(typelist, name)
-				copy.WriteString(new)
-				if new != name {
-					changed++
-				}
-			} else if m := match(comma); m != nil {
-				// Read comma.
-				copy.WriteString(m[0])
-			} else {
-				// Everything else terminates list.
-				typelist = ""
+	switch obj := n.(type) {
+	case *ast.NamedRef:
+		name := obj.Name
+		if typ == "host" && strings.HasPrefix(name, "id:") {
+			// ID host is extended by network name: host:id:a.b@c.d.net_name
+			parts := strings.Split(name, ".")
+			network := parts[len(parts)-1]
+			host := strings.Join(parts[:len(parts)-1], ".")
+			if replace, ok := subst["host"][host]; ok {
+				host = replace
 			}
-		} else if m := match(declaration); m != nil {
-			// Find next "type:name".
-			copy.WriteString(m[1])
-			copy.WriteString(m[2])
-			copy.WriteString(m[3])
-			objType := m[2]
-			name := m[4]
-			new := substitute(objType, name)
-			copy.WriteString(new)
-			if new != name {
-				changed++
+			if replace, ok := subst["network"][network]; ok {
+				network = replace
 			}
-		} else if m := match(list); m != nil {
-			// Find "type = name".
-			copy.WriteString(m[1])
-			copy.WriteString(m[2])
-			copy.WriteString(m[3])
-			objType := m[2]
-			if subst[objType] != nil {
-				typelist = m[2]
+			name = host + "." + network
+			if name != obj.Name {
+				obj.Name = name
+				changes++
 			}
-		} else if m := match(nothing); m != nil {
-			// Ignore rest of line if nothing matches.
-			copy.WriteString(m[0])
 		} else {
-			// Terminate, if everything has been processed.
-			break
+			obj.Name = substitute(typ, name)
+		}
+	case *ast.SimpleAuto:
+		elementList(obj.Elements)
+	case *ast.AggAuto:
+		elementList(obj.Elements)
+	case *ast.IntfAuto:
+		elementList(obj.Elements)
+	case *ast.Intersection:
+		elementList(obj.Elements)
+	case *ast.Complement:
+		element(obj.Element)
+	}
+}
+
+func elementList(l []ast.Element) {
+	for _, n := range l {
+		element(n)
+	}
+}
+
+func substTypedName(v string) string {
+	parts := strings.SplitN(v, ":", 2)
+	if len(parts) == 2 {
+		typ, name := parts[0], parts[1]
+		replace := substitute(typ, name)
+		return typ + ":" + replace
+	}
+	return v
+}
+
+func value(n *ast.Value) {
+	n.Value = substTypedName(n.Value)
+}
+
+func valueList(l []*ast.Value) {
+	for _, n := range l {
+		value(n)
+	}
+}
+
+func attribute(n *ast.Attribute) {
+	if m := subst[n.Name]; m != nil {
+		for _, v := range n.ValueList {
+			if replace, ok := m[v.Value]; ok {
+				v.Value = replace
+				changes++
+			}
+		}
+	} else {
+		n.Name = substTypedName(n.Name)
+	}
+	valueList(n.ValueList)
+	attributeList(n.ComplexValue)
+}
+
+func attributeList(l []*ast.Attribute) {
+	for _, n := range l {
+		attribute(n)
+	}
+}
+func toplevel(n ast.Toplevel) {
+	n.SetName(substTypedName(n.GetName()))
+	switch x := n.(type) {
+	case *ast.TopList:
+		elementList(x.Elements)
+	case *ast.Protocolgroup:
+		valueList(x.ValueList)
+	case *ast.TopStruct:
+		attributeList(x.Attributes)
+	case *ast.Service:
+		attributeList(x.Attributes)
+		elementList(x.User.Elements)
+		for _, r := range x.Rules {
+			elementList(r.Src.Elements)
+			elementList(r.Dst.Elements)
+			valueList(r.Prt.ValueList)
+		}
+	case *ast.Network:
+		attributeList(x.Attributes)
+		for _, h := range x.Hosts {
+			h.Name = substTypedName(h.Name)
+			attributeList(h.ComplexValue)
+		}
+	case *ast.Router:
+		attributeList(x.Attributes)
+		for _, intf := range x.Interfaces {
+			intf.Name = substTypedName(intf.Name)
+			attributeList(intf.ComplexValue)
 		}
 	}
-	return changed, copy.String()
+}
+
+func process(l []ast.Toplevel) int {
+	for _, n := range l {
+		toplevel(n)
+	}
+	return changes
 }
 
 func processInput(input *filetree.Context) {
-	count, copy := process(input.Data)
+	source := []byte(input.Data)
+	path := input.Path
+	nodes := parser.ParseFile(source, path)
+	count := process(nodes)
 	if count == 0 {
 		return
 	}
 
-	path := input.Path
 	diag.Info("%d changes in %s", count, path)
-	err := os.Remove(path)
+	copy := printer.File(nodes, source)
+	err := fileop.Overwrite(path, copy)
 	if err != nil {
-		abort.Msg("Can't remove %s: %s", path, err)
+		abort.Msg("%v", err)
 	}
-	file, err := os.Create(path)
-	if err != nil {
-		abort.Msg("Can't create %s: %s", path, err)
-	}
-	_, err = file.WriteString(copy)
-	if err != nil {
-		abort.Msg("Can't write to %s: %s", path, err)
-	}
-	file.Close()
 }
 
 func setupPairs(pattern []string) {

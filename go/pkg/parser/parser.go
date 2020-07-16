@@ -157,7 +157,7 @@ func (p *parser) user() *ast.User {
 func (p *parser) namedRef(typ, name string) ast.Element {
 	a := new(ast.NamedRef)
 	a.Start = p.pos
-	a.Typ = typ
+	a.Type = typ
 	a.Name = name
 	p.next()
 	return a
@@ -192,7 +192,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	start := p.pos
 	a := new(ast.IntfRef)
 	a.Start = start
-	a.Typ = typ
+	a.Type = typ
 	i := strings.Index(name, ".")
 	if i == -1 {
 		p.syntaxErr("Interface name expected")
@@ -228,7 +228,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 func (p *parser) simpleAuto(start int, typ string) ast.Element {
 	a := new(ast.SimpleAuto)
 	a.Start = start
-	a.Typ = typ
+	a.Type = typ
 	a.Elements, a.Next = p.union("]")
 	return a
 }
@@ -260,7 +260,7 @@ func (p *parser) ipPrefix() *net.IPNet {
 func (p *parser) aggAuto(start int, typ string) ast.Element {
 	a := new(ast.AggAuto)
 	a.Start = start
-	a.Typ = typ
+	a.Type = typ
 	if p.check("ip") {
 		p.check("=")
 		a.Net = p.ipPrefix()
@@ -273,7 +273,7 @@ func (p *parser) aggAuto(start int, typ string) ast.Element {
 func (p *parser) intfAuto(start int, typ string) ast.Element {
 	a := new(ast.IntfAuto)
 	a.Start = start
-	a.Typ = typ
+	a.Type = typ
 	if p.check("managed") {
 		a.Managed = true
 		p.expect("&")

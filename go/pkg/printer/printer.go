@@ -44,7 +44,7 @@ func isShort(l []ast.Element) string {
 	if len(l) == 1 {
 		switch x := l[0].(type) {
 		case *ast.NamedRef:
-			return x.Typ + ":" + x.Name
+			return x.Type + ":" + x.Name
 		case *ast.User:
 			return "user"
 		}
@@ -67,7 +67,7 @@ func (p *printer) subElements(p1, p2 string, l []ast.Element, stop string) {
 func (p *printer) element(pre string, el ast.Element, post string) {
 	switch x := el.(type) {
 	case *ast.NamedRef:
-		p.print(pre + x.Typ + ":" + x.Name + post)
+		p.print(pre + x.Type + ":" + x.Name + post)
 	case *ast.IntfRef:
 		ext := x.Extension
 		net := x.Network
@@ -77,17 +77,17 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		} else if ext != "" {
 			ext = "." + ext
 		}
-		p.print(pre + x.Typ + ":" + x.Router + "." + net + ext + post)
+		p.print(pre + x.Type + ":" + x.Router + "." + net + ext + post)
 	case *ast.SimpleAuto:
-		p.subElements(pre, x.Typ+":[", x.Elements, "]"+post)
+		p.subElements(pre, x.Type+":[", x.Elements, "]"+post)
 	case *ast.AggAuto:
-		p2 := x.Typ + ":["
+		p2 := x.Type + ":["
 		if n := x.Net; n != nil {
 			p2 += "ip = " + n.String() + " & "
 		}
 		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:
-		p2 := x.Typ + ":["
+		p2 := x.Type + ":["
 		stop := "].[" + x.Selector + "]" + post
 		if x.Managed {
 			p2 += "managed & "

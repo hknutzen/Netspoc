@@ -41,13 +41,13 @@ func findIPv4InName(s string) int {
 
 func sortElem(l []Element) {
 	sort.SliceStable(l, func(i, j int) bool {
-		t1 := typeOrder[l[i].getType()]
-		t2 := typeOrder[l[j].getType()]
+		t1 := typeOrder[l[i].GetType()]
+		t2 := typeOrder[l[j].GetType()]
 		if t1 != t2 {
 			return t1 < t2
 		}
-		n1 := l[i].getName()
-		n2 := l[j].getName()
+		n1 := l[i].GetName()
+		n2 := l[j].GetName()
 		i1 := findIPv4InName(n1)
 		i2 := findIPv4InName(n2)
 		if i1 == i2 {
