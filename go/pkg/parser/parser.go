@@ -213,7 +213,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 			net = net[:i]
 		}
 		err = err || !isNetworkName(net)
-		end = start + len(name)
+		end = start + len(typ) + 1 + len(name)
 	}
 	if err {
 		p.syntaxErr("Interface name expected")

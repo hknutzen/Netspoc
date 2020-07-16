@@ -405,12 +405,41 @@ $in = <<'END';
 group:g1 = # pre h
  host:h,
 ;
+group:g2 = host:h1, # post h1
+host:h2
+;
 END
 
 $out = <<'END';
 group:g1 =
  # pre h
  host:h,
+;
+
+group:g2 =
+ host:h1, # post h1
+ host:h2,
+;
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Comment after interface';
+############################################################
+
+$in = <<'END';
+group:g1 = interface:r1.Test, # comment1
+interface:r2.[ auto ] , # comment2
+interface:[network:n1].[all ], # comment3
+;
+END
+
+$out = <<'END';
+group:g1 =
+ interface:[network:n1].[all], # comment3
+ interface:r1.Test, # comment1
+ interface:r2.[auto], # comment2
 ;
 END
 
