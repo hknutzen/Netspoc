@@ -163,11 +163,15 @@ func (p *printer) topProtocolList(l []*ast.Value) {
 }
 
 func (p *printer) namedList(name string, l []ast.Element) {
+	pre := name + " = "
+	if len(l) == 0 {
+		p.print(pre + ";")
+		return
+	}
 
 	// Put first value on same line with name, if it has no comment.
 	first := l[0]
 	var rest []ast.Element
-	pre := name + " = "
 	ind := utfLen(pre)
 	if p.hasPreComment(first, ",") {
 		p.print(pre[:ind-1])
