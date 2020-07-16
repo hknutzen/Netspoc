@@ -324,7 +324,9 @@ host:h1, # after first
 # post first
 
 # Second
-host:h2,; # after second
+host:h2, # after second
+# IGNORED
+;
 END
 
 $out = <<'END';

@@ -550,34 +550,9 @@ END
 $out = <<'END';
 group:g1 =
  host:a,
- #c
-
 ;
+
 group:g2 =
- #c
-;
-END
-
-test_rmv($title, $in, 'host:b', $out);
-
-############################################################
-$title = 'No trailing comma after comment';
-############################################################
-
-$in = <<'END';
-group:g1 =
- host:a,
- host:b #b
- #c
- # invalid comma behind ';' for test
-;
-END
-
-$out = <<'END';
-group:g1 =
- host:a,
- #c
- # invalid comma behind ';' for test
 ;
 END
 
