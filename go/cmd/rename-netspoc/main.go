@@ -224,7 +224,7 @@ func toplevel(n ast.Toplevel) {
 	}
 }
 
-func process(l []ast.Toplevel) int {
+func processFile(l []ast.Toplevel) int {
 	for _, n := range l {
 		toplevel(n)
 	}
@@ -235,7 +235,7 @@ func processInput(input *filetree.Context) {
 	source := []byte(input.Data)
 	path := input.Path
 	nodes := parser.ParseFile(source, path)
-	count := process(nodes)
+	count := processFile(nodes)
 	if count == 0 {
 		return
 	}

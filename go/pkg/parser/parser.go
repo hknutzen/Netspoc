@@ -749,3 +749,17 @@ func ParseFile(src []byte, fileName string) []ast.Toplevel {
 	p.init(src, fileName)
 	return p.file()
 }
+
+// ----------------------------------------------------------------------------
+// From string
+
+func ParseUnion(src []byte) []ast.Element {
+	src = append(src, ';')
+	p := new(parser)
+	p.init(src, "")
+	list, end := p.union(";")
+	if end != len(src) {
+		p.syntaxErr(`Unexpected content after ";"`)
+	}
+	return list
+}
