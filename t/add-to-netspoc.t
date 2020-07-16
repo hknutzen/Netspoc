@@ -327,9 +327,7 @@ END
 
 $out2 = <<'END';
 group:abc =
- any:[ip = 10.1.0.0/16 &
-  area:a1,
- ],
+ any:[ip = 10.1.0.0/16 & area:a1],
 ;
 END
 
@@ -572,7 +570,7 @@ group:g1 =
  host:b #b
  #c
  # invalid comma behind ';' for test
-;,
+;
 END
 
 $out = <<'END';
@@ -580,7 +578,7 @@ group:g1 =
  host:a,
  #c
  # invalid comma behind ';' for test
-;,
+;
 END
 
 test_rmv($title, $in, 'host:b', $out);
@@ -602,9 +600,11 @@ END
 
 $out = <<'END';
 service:s1 = {
+
  user = ;
  permit src = host:c,
-              host:d;
+              host:d,
+              ;
         dst = user;
         prt = tcp 80 90;
 }
@@ -758,6 +758,7 @@ END
 $out = <<'END';
 group:g1 =
  description = host:a, host:b, ;
+
  host:a,
 ;
 END
