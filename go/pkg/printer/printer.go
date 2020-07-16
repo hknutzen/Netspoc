@@ -54,6 +54,9 @@ func isShort(l []ast.Element) string {
 
 func (p *printer) subElements(p1, p2 string, l []ast.Element, stop string) {
 	if name := isShort(l); name != "" {
+		if !strings.HasSuffix(p2, "[") {
+			p2 += " "
+		}
 		p.print(p1 + p2 + name + stop)
 	} else {
 		p.print(p1 + p2)
@@ -83,14 +86,14 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 	case *ast.AggAuto:
 		p2 := x.Type + ":["
 		if n := x.Net; n != nil {
-			p2 += "ip = " + n.String() + " & "
+			p2 += "ip = " + n.String() + " &"
 		}
 		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:
 		p2 := x.Type + ":["
 		stop := "].[" + x.Selector + "]" + post
 		if x.Managed {
-			p2 += "managed & "
+			p2 += "managed &"
 		}
 		p.subElements(pre, p2, x.Elements, stop)
 	case *ast.Intersection:
