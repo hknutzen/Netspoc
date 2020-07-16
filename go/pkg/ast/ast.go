@@ -92,11 +92,13 @@ type IntfRef struct {
 }
 
 func (a *IntfRef) GetName() string {
-	r := a.Router + "." + a.Network
-	if e := a.Extension; e != "" {
-		r += "." + e
+	n := a.Router + "." + a.Network
+	if a.Network == "[" {
+		n += a.Extension + "]"
+	} else if e := a.Extension; e != "" {
+		n += "." + e
 	}
-	return r
+	return n
 }
 
 type SimpleAuto struct {
