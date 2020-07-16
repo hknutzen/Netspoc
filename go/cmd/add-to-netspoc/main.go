@@ -118,7 +118,7 @@ func setupAddTo(old, new string) {
 	addTo[old] = append(addTo[old], list...)
 }
 
-func element(n ast.Element) []ast.Element {
+func addToElement(n ast.Element) []ast.Element {
 	switch obj := n.(type) {
 	case *ast.NamedRef, *ast.IntfRef:
 		name := obj.GetType() + ":" + obj.GetName()
@@ -136,7 +136,7 @@ func element(n ast.Element) []ast.Element {
 func elementList(l *([]ast.Element)) {
 	var add []ast.Element
 	for _, n := range *l {
-		add = append(add, element(n)...)
+		add = append(add, addToElement(n)...)
 	}
 	changes += len(add)
 	*l = append(*l, add...)
