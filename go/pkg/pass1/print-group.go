@@ -188,12 +188,19 @@ func captureStderr(f func()) string {
 		os.Stderr = stderr
 	}()
 
+	// Copy output in a separate goroutine so printing can't block
+	// indefinitely.
+	outC := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		io.Copy(&buf, r)
+		outC <- buf.String()
+	}()
+
 	f()
 
 	w.Close()
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	return buf.String()
+	return <-outC
 }
 
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
