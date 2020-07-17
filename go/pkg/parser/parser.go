@@ -64,7 +64,7 @@ func (p *parser) expect(tok string) int {
 		p.syntaxErr("Expected '%s'", tok)
 	}
 	p.next() // make progress
-	return pos
+	return pos + len(tok)
 }
 
 func (p *parser) expectSpecial(tok string, getNext func(*parser)) {
@@ -185,7 +185,7 @@ func (p *parser) selector() (string, int) {
 	}
 	p.next()
 	pos := p.expect("]")
-	return result, pos + 1
+	return result, pos
 }
 
 func (p *parser) intfRef(typ, name string) ast.Element {
@@ -620,7 +620,7 @@ func (p *parser) attributeList() ([]*ast.Attribute, int) {
 	var end int
 	for {
 		if p.tok == "}" {
-			end = p.pos
+			end = p.pos + 1
 			p.next()
 			break
 		}
@@ -650,7 +650,7 @@ func (p *parser) service() ast.Toplevel {
 	a.User = u
 	for {
 		if p.tok == "}" {
-			a.Next = p.pos
+			a.Next = p.pos + 1
 			p.next()
 			break
 		}
@@ -664,7 +664,7 @@ func (p *parser) network() ast.Toplevel {
 	a.TopStruct = p.topStructHead()
 	for {
 		if p.tok == "}" {
-			a.Next = p.pos
+			a.Next = p.pos + 1
 			p.next()
 			break
 		} else if strings.HasPrefix(p.tok, "host:") {
@@ -681,7 +681,7 @@ func (p *parser) router() ast.Toplevel {
 	a.TopStruct = p.topStructHead()
 	for {
 		if p.tok == "}" {
-			a.Next = p.pos
+			a.Next = p.pos + 1
 			p.next()
 			break
 		} else if strings.HasPrefix(p.tok, "interface:") {

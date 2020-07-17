@@ -977,6 +977,46 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Network with trailing comment in first line';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; } # comment
+network:n1 = {
+ ip = 10.1.1.0/24; } # IGNORED
+network:n1 = { # comment
+ ip = 10.1.1.0/24; }
+network:n1 = # comment
+{ ip = 10.1.1.0/24; }
+network:n1 # comment
+= { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+network:n1 = { # comment
+ ip = 10.1.1.0/24;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+}
+
+network:n1 = { # comment
+ ip = 10.1.1.0/24;
+}
+
+network:n1 = { # comment
+ ip = 10.1.1.0/24;
+}
+
+network:n1 = { # comment
+ ip = 10.1.1.0/24;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Managed router';
 ############################################################
 

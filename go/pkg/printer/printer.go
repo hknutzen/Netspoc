@@ -3,6 +3,7 @@
 package printer
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
@@ -446,11 +447,17 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	if n.IsStruct() {
 		sep += " {"
 	}
+	// Don't print trailing comment for list without description. It
+	// will already be printed as PreComment of first element.
 	if n.IsStruct() || d != nil {
 		pos := n.Pos() + len(n.GetName())
-		// Don't print trailing comment for list without description. It
-		// will be printed as PreComment of first element.
 		trailing = p.TrailingCommentAt(pos, sep)
+		// Show trailing comment after closing "}" if whole definition
+		// is at one line.
+		end := n.End()
+		if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
+			trailing = p.TrailingCommentAt(n.End(), "")
+		}
 	}
 	p.print(n.GetName() + sep + trailing)
 
