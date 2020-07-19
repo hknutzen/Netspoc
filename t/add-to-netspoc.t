@@ -356,7 +356,6 @@ END
 
 $out = <<'END';
 service:x = {
-
  user = interface:r.x,
         host:b,
         host:y,
@@ -385,7 +384,6 @@ END
 
 $out2 = <<'END';
 service:x = {
-
  user = interface:r.x,
         host:b,
         ;
@@ -575,7 +573,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = ;
  permit src = host:c,
               host:d,
@@ -685,7 +682,6 @@ END
 
 $out = <<'END';
 service:s = {
-
  user = group:g,
         host:a,
         host:b,

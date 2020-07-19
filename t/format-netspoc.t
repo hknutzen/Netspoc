@@ -763,7 +763,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = foreach
   host:h1,
   host:h2,
@@ -792,7 +791,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = group:g1
         &! host:h1
         ;
@@ -817,7 +815,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = host:[
          network:n1,
          network:n2,
@@ -845,7 +842,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = host:[
          network:[area:a]
          &! network:[
@@ -889,7 +885,6 @@ END
 
 $out = <<'END';
 service:s1 = {
-
  user = network:n1;
  permit src = user;
         dst = network:n2;

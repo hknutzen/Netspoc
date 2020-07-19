@@ -307,9 +307,11 @@ func (p *printer) rule(n *ast.Rule) {
 }
 
 func (p *printer) service(n *ast.Service) {
-	p.emptyLine()
-	p.attributeList(n.Attributes)
-	p.emptyLine()
+	if l := n.Attributes; l != nil {
+		p.emptyLine()
+		p.attributeList(l)
+		p.emptyLine()
+	}
 	p.indent++
 	if n.Foreach {
 		p.print("user = foreach")
