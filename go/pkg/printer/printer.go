@@ -143,19 +143,63 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 	p.print(stop)
 }
 
-func (p *printer) topElementList(l []ast.Element) {
-	p.elementList(l, ";")
+func (p *printer) getTrailing(n ast.Toplevel) string {
+	trailing := ""
+	pos := n.Pos() + len(n.GetName())
+	trailing = p.TrailingCommentAt(pos, "={")
+	// Show trailing comment found after closing "}" if whole
+	// definition is at one line.
+	end := n.End()
+	if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
+		trailing = p.TrailingCommentAt(end, "")
+	}
+	return trailing
+}
+
+func (p *printer) description(n ast.Toplevel) {
+	if d := n.GetDescription(); d != nil {
+		p.indent++
+		p.PreComment(d, "={")
+		p.print("description =" + d.Text + p.TrailingComment(d, "="))
+		p.indent--
+		p.emptyLine()
+	}
+}
+
+func (p *printer) topListHead(n ast.Toplevel) {
+	trailing := ""
+	if d := n.GetDescription(); d != nil {
+		trailing = p.getTrailing(n)
+	}
+	p.print(n.GetName() + " =" + trailing)
+	p.description(n)
+}
+
+func (p *printer) topElementList(n *ast.TopList) {
+	p.topListHead(n)
+	p.elementList(n.Elements, ";")
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	p.indent++
-	p.print(n.Value + ";" + p.TrailingComment(n, ";"))
-	p.indent--
+	trailing := p.TrailingCommentAt(n.Pos()+len(n.GetName()), "=")
+	proto := n.Value + ";" + p.TrailingComment(n, ";")
+	// Print name and value on different lines, if protocol has
+	// description or trailing comment.
+	if n.GetDescription() != nil || trailing != "" {
+		p.print(n.Name + " =" + trailing)
+		p.description(n)
+		p.indent++
+		p.print(proto)
+		p.indent--
+	} else {
+		p.print(n.Name + " = " + proto)
+	}
 }
 
-func (p *printer) topProtocolList(l []*ast.Value) {
+func (p *printer) topProtocolList(n *ast.Protocolgroup) {
+	p.topListHead(n)
 	p.indent++
-	for _, el := range l {
+	for _, el := range n.ValueList {
 		p.PreComment(el, ",")
 		p.print(el.Value + "," + p.TrailingComment(el, ",;"))
 	}
@@ -306,7 +350,13 @@ func (p *printer) rule(n *ast.Rule) {
 	p.indent -= ind
 }
 
+func (p *printer) topStructHead(n ast.Toplevel) {
+	p.print(n.GetName() + " = {" + p.getTrailing(n))
+	p.description(n)
+}
+
 func (p *printer) service(n *ast.Service) {
+	p.topStructHead(n)
 	if l := n.Attributes; l != nil {
 		p.emptyLine()
 		p.attributeList(l)
@@ -415,6 +465,7 @@ var simpleHostAttr = map[string]bool{
 }
 
 func (p *printer) network(n *ast.Network) {
+	p.topStructHead(n)
 	p.attributeList(n.Attributes)
 	p.indentedAttributeList(n.Hosts, simpleHostAttr)
 	p.print("}")
@@ -431,55 +482,29 @@ var simpleIntfAttr = map[string]bool{
 }
 
 func (p *printer) router(n *ast.Router) {
+	p.topStructHead(n)
 	p.attributeList(n.Attributes)
 	p.indentedAttributeList(n.Interfaces, simpleIntfAttr)
 	p.print("}")
 }
 
 func (p *printer) topStruct(n *ast.TopStruct) {
+	p.topStructHead(n)
 	p.attributeList(n.Attributes)
 	p.print("}")
 }
 
 func (p *printer) toplevel(n ast.Toplevel) {
 	p.PreComment(n, "")
-	sep := " ="
-	trailing := ""
-	d := n.GetDescription()
-	if n.IsStruct() {
-		sep += " {"
-	}
-	// Don't print trailing comment for list without description. It
-	// will already be printed as PreComment of first element.
-	if n.IsStruct() || d != nil {
-		pos := n.Pos() + len(n.GetName())
-		trailing = p.TrailingCommentAt(pos, sep)
-		// Show trailing comment after closing "}" if whole definition
-		// is at one line.
-		end := n.End()
-		if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
-			trailing = p.TrailingCommentAt(n.End(), "")
-		}
-	}
-	p.print(n.GetName() + sep + trailing)
-
-	if d != nil {
-		p.indent++
-		p.PreComment(d, sep)
-		p.print("description =" + d.Text + p.TrailingComment(d, "="))
-		p.indent--
-		p.emptyLine()
-	}
-
 	switch x := n.(type) {
 	case *ast.TopStruct:
 		p.topStruct(x)
 	case *ast.TopList:
-		p.topElementList(x.Elements)
+		p.topElementList(x)
 	case *ast.Protocol:
 		p.topProtocol(x)
 	case *ast.Protocolgroup:
-		p.topProtocolList(x.ValueList)
+		p.topProtocolList(x)
 	case *ast.Service:
 		p.service(x)
 	case *ast.Network:

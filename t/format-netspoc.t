@@ -1186,4 +1186,38 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Protocol definition';
+############################################################
+
+$in = <<'END';
+protocol:http =
+tcp 80;
+
+protocol:BGP = tcp 179, no_check_supernet_rules;
+
+protocol:all_ip = # trailing
+ ip;
+protocol:all_icmp =
+ description = icmp with any typa and code
+ icmp;
+
+END
+
+$out = <<'END';
+protocol:http = tcp 80;
+
+protocol:BGP = tcp 179, no_check_supernet_rules;
+
+protocol:all_ip = # trailing
+ ip;
+
+protocol:all_icmp =
+ description = icmp with any typa and code
+
+ icmp;
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
