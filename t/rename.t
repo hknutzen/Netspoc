@@ -381,6 +381,37 @@ END
 test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
 
 ############################################################
+$title = 'Rename service';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ unknown_owner;
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+service:x1 = {
+
+ unknown_owner;
+ overlaps = service:s2,
+            service:x3,
+            ;
+
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+END
+
+test_run($title, $in, 'service:s1 service:x1 service:s3 service:x3', $out);
+
+############################################################
 $title = 'Rename loopback interface';
 ############################################################
 
