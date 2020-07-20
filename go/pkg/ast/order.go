@@ -249,6 +249,27 @@ func (a *Network) Order() {
 	sortByIP(a.Hosts)
 }
 
+// Only sort successive vip interfaces.
 func (a *Router) Order() {
-	sortByIP(a.Interfaces)
+	start := -1
+	for i, intf := range a.Interfaces {
+		vip := false
+		for _, a := range intf.ComplexValue {
+			if a.Name == "vip" {
+				vip = true
+				break
+			}
+		}
+		if vip {
+			if start == -1 {
+				start = i
+			}
+		} else if start != -1 {
+			sortByIP(a.Interfaces[start:i])
+			start = -1
+		}
+	}
+	if start != -1 {
+		sortByIP(a.Interfaces[start:])
+	}
 }

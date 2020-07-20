@@ -1052,17 +1052,6 @@ $out = <<'END';
 router:r1 = {
  managed;
  model = ASA, VPN, CONTEXT;
- interface:n3       = { unnumbered; }
- interface:n1 = {
-  ip = 10.1.1.1,
-       10.1.1.2,
-       ;
-  hardware = n1;
-  virtual = { ip = 10.1.1.3; type = HSRPv2; }
-  routing = manual;
- }
- interface:lo       = { ip = 10.1.4.128; hardware = lo; loopback; }
- interface:n5       = { ip = 10.1.5.1; hardware = n5; }
  interface:n7 = {
   ip = 10.1.7.1;
   hardware = n7;
@@ -1071,33 +1060,59 @@ router:r1 = {
         ;
   no_check;
  }
+ interface:n1 = {
+  ip = 10.1.1.1,
+       10.1.1.2,
+       ;
+  hardware = n1;
+  virtual = { ip = 10.1.1.3; type = HSRPv2; }
+  routing = manual;
+ }
+ interface:n3       = { unnumbered; }
  interface:log-name = { ip = 10.1.9.1; hardware = ln; }
+ interface:n5       = { ip = 10.1.5.1; hardware = n5; }
+ interface:lo       = { ip = 10.1.4.128; hardware = lo; loopback; }
 }
 END
 
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Unmanaged router';
+$title = 'Sort successive vip interfaces';
 ############################################################
 
 $in = <<'END';
 router:u1 = {
- interface:lo = { ip = 10.1.4.128; owner = o2; vip; }
  interface:n7 = { ip = 10.1.1.7; owner = o1; }
+ interface:lo = { ip = 10.1.4.128; owner = o2; vip; }
+ interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
- interface:n1 = { ip = 10.1.1.1; owner = o1; loopback; }
+}
+router:u2 = {
+ interface:v2 = { ip = 10.1.4.128; owner = o2; vip; }
+ interface:v1 = { ip = 10.1.4.127; owner = o2; vip; }
+ interface:n7 = { ip = 10.1.1.7; owner = o1; }
+ interface:lo = { ip = 10.1.1.4; owner = o2; vip; }
+ interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
 }
 END
 
 $out = <<'END';
 router:u1 = {
+ interface:n7    = { ip = 10.1.1.7; owner = o1; }
+ interface:n1    = { ip = 10.1.1.1; owner = o1; vip; }
+ interface:lo    = { ip = 10.1.4.128; owner = o2; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
- interface:n1    = { ip = 10.1.1.1; owner = o1; loopback; }
- interface:n7    = { ip = 10.1.1.7; owner = o1; }
- interface:lo    = { ip = 10.1.4.128; owner = o2; vip; }
+}
+
+router:u2 = {
+ interface:v1 = { ip = 10.1.4.127; owner = o2; vip; }
+ interface:v2 = { ip = 10.1.4.128; owner = o2; vip; }
+ interface:n7 = { ip = 10.1.1.7; owner = o1; }
+ interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
+ interface:lo = { ip = 10.1.1.4; owner = o2; vip; }
 }
 END
 
