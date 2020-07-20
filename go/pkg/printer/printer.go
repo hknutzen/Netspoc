@@ -528,5 +528,7 @@ func File(list []ast.Toplevel, src []byte) []byte {
 		}
 	}
 
+	// Print comments in empty file and at end of file.
+	p.comment(p.ReadCommentOrWhitespaceBefore(len(p.src), ""))
 	return p.output
 }

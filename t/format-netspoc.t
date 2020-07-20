@@ -77,17 +77,26 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'If only comments in file, they are ignored';
+$title = 'Only comments in file';
 ############################################################
 
 $in = <<'END';
+
 # c1
   #c1b
 
+
 #c2
+
+
 END
 
 $out = <<'END';
+# c1
+#c1b
+
+#c2
+
 END
 
 test_run($title, $in, $out);
@@ -97,7 +106,7 @@ $title = 'Empty group';
 ############################################################
 
 $in = <<'END';
-group:g1 = ;
+group:g1 = ; # IGNORED
 END
 
 $out = <<'END';
@@ -327,6 +336,7 @@ host:h1, # after first
 host:h2, # after second
 # IGNORED
 ;
+# At end
 END
 
 $out = <<'END';
@@ -354,6 +364,7 @@ group:g1 = # g1 trailing
  # Second
  host:h2, # after second
 ;
+# At end
 END
 
 test_run($title, $in, $out);
