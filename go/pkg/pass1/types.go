@@ -425,7 +425,7 @@ type pathRestriction struct {
 	activePath bool
 	elements   []*routerIntf
 	name       string
-	deleted []*pathRestriction
+	deleted    []*pathRestriction
 }
 
 type crypto struct {

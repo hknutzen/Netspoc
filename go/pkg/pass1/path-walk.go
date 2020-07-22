@@ -877,8 +877,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 			store.setPath1(toStore, toOut)
 		}
 
-
-/*			// for debugging
+		/*
 			var debuggingPathAttr string
 			if fromIn != nil || startAtZone {
 				debuggingPathAttr = "path"
@@ -886,7 +885,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 				debuggingPathAttr = "path1"
 			}
 			debug("loop %s: %s -> %s", debuggingPathAttr, store, toStore)
-			//end debugging*/
+		*/
 
 		// Collect path information at beginning of loop path (start_store).
 		// Loop paths beginning at loop node can differ depending on the way
@@ -918,7 +917,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 //             - {path} of subsequent interfaces on path.
 func pathMark(fromStore, toStore pathStore) bool {
 
-//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
+	//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
 	var from, to pathObj
 	switch x := fromStore.(type) {
 	case *routerIntf:
@@ -945,7 +944,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 	// Follow paths from source and destination towards zone1 until they meet.
 	for {
 
-//		debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
+		// debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
 
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
@@ -1003,16 +1002,15 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 			// Mark path at the interface we came from (step in path direction)
 
-/*			// debugging
-			var a string
-			if fromIn != nil {
-				a = fromIn.String()
-			} else {
-				a = ""
-			}
-			debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
-*/			// end debugging
-
+			/*
+				var a string
+				if fromIn != nil {
+					a = fromIn.String()
+				} else {
+					a = ""
+				}
+				debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
+			*/
 			if fromIn != nil {
 				fromIn.setPath(toStore, fromOut)
 			} else {
@@ -1054,15 +1052,16 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 			// Mark path at interface we go to (step in opposite path direction).
 
-/*			// debugging
-			var toOutName string
-			if toOut != nil {
-				toOutName = toOut.String()
-			} else {
-				toOutName = ""
-			}
-			debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
-			// end debugging */
+			/*
+				var toOutName string
+				if toOut != nil {
+					toOutName = toOut.String()
+				} else {
+					toOutName = ""
+				}
+				debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
+				// end debugging
+			*/
 
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
