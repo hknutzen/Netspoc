@@ -905,6 +905,18 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 	return success
 }
 
+// Remove partially marked path.
+func removePath(fromStore, toStore pathStore) {
+	pathMap := fromStore.getPath1()
+	out := pathMap[toStore]
+	delete(pathMap, toStore)
+	for out != nil {
+		pathMap = out.getPath()
+		out = pathMap[toStore]
+		delete(pathMap, toStore)
+	}
+}
+
 //#############################################################################
 // Purpose   : Find and mark path from source to destination.
 // Parameter : from_store - Object, where path starts.
@@ -942,6 +954,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 	var fromIn, toOut *routerIntf
 
 	// Follow paths from source and destination towards zone1 until they meet.
+PATH:
 	for {
 
 		// debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
@@ -962,8 +975,12 @@ func pathMark(fromStore, toStore pathStore) bool {
 		}
 
 		// Paths meet inside a loop.
-		if fromLoop != nil && toLoop != nil && fromLoop.clusterExit == toLoop.clusterExit {
-			return connectClusterPath(from, to, fromIn, toOut, fromStore, toStore)
+		if fromLoop != nil && toLoop != nil &&
+			fromLoop.clusterExit == toLoop.clusterExit {
+			if connectClusterPath(from, to, fromIn, toOut, fromStore, toStore) {
+				return true
+			}
+			break PATH
 		}
 
 		// Otherwise, take a step towards zone1 from the more distant node.
@@ -982,7 +999,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if fromLoop == nil {
-					return false
+					break PATH
 				}
 
 				// Get next interface behind loop from loop cluster exit.
@@ -991,12 +1008,12 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if fromOut == nil {
-					return false
+					break PATH
 				}
 
 				// Mark loop path towards next interface.
 				if !connectClusterPath(from, exit, fromIn, fromOut, fromStore, toStore) {
-					return false
+					break PATH
 				}
 			}
 
@@ -1032,7 +1049,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if toLoop == nil {
-					return false
+					break PATH
 				}
 
 				// Get next interface behind loop from loop cluster exit.
@@ -1041,12 +1058,12 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if toIn == nil {
-					return false
+					break PATH
 				}
 
 				// Mark loop path towards next interface.
 				if !connectClusterPath(entry, to, toIn, toOut, fromStore, toStore) {
-					return false
+					break PATH
 				}
 			}
 
@@ -1071,6 +1088,9 @@ func pathMark(fromStore, toStore pathStore) bool {
 			toOut = toIn
 		}
 	}
+	// Remove partially marked path.
+	removePath(fromStore, toStore)
+	return false
 }
 
 //#############################################################################
@@ -1164,18 +1184,6 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		srcPath.String(), dstPath.String(), context)
 }
 
-// Remove partially marked path.
-func removePath(fromStore, toStore pathStore) {
-	pathMap := fromStore.getPath1()
-	out := pathMap[toStore]
-	delete(pathMap, toStore)
-	for out != nil {
-		pathMap = out.getPath()
-		out = pathMap[toStore]
-		delete(pathMap, toStore)
-	}
-}
-
 //#############################################################################
 // Purpose    : For a given rule, visit every node on path from rules source
 //              to its destination. At every second node (every router or
@@ -1215,7 +1223,6 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	// Identify path from source to destination if not known.
 	if _, found := fromStore.getPath1()[toStore]; !found {
 		if !pathMark(fromStore, toStore) {
-			removePath(fromStore, toStore)
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
@@ -1426,7 +1433,6 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 		for _, toStore := range toList {
 			if _, found := fromStore.getPath1()[toStore]; !found {
 				if !pathMark(fromStore, toStore) {
-					delete(fromStore.getPath1(), toStore)
 					continue
 				}
 			}
