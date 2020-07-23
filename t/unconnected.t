@@ -299,11 +299,6 @@ Error: No valid path
  to any:[network:t2]
  for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:t1]
- to any:[network:t2]
- for rule permit src=network:t1; dst=network:t2; prt=tcp; of service:s1
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
@@ -388,11 +383,6 @@ Error: No valid path
  to any:[network:n3]
  for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
  Source and destination objects are located in different topology partitions: part1, part2.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n3]
- for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
- Source and destination objects are located in different topology partitions: part1, part2.
 END
 
 test_err($title, $in, $out);
@@ -454,11 +444,6 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: No valid path
- from any:[network:n3]
- to any:[network:n4]
- for rule permit src=interface:r2.n3; dst=network:n4; prt=tcp 80; of service:s1
- Source and destination objects are located in different topology partitions: part1, part2.
 Error: No valid path
  from interface:r2.n3
  to any:[network:n4]

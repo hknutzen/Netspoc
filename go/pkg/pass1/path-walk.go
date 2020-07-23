@@ -1185,6 +1185,7 @@ func removePath(fromStore, toStore pathStore) {
 //              where - 'Router' or 'Zone', specifies where the function gets
 //              called, default is 'Router'.
 func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), where string) {
+	atZone := where == "Zone"
 
 	// Extract path store objects (zone/router/pathrestricted interface).
 	// These are typically zone or router objects:
@@ -1215,9 +1216,13 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	if _, found := fromStore.getPath1()[toStore]; !found {
 		if !pathMark(fromStore, toStore) {
 			removePath(fromStore, toStore)
+			// No need to show error message when finding static routes,
+			// because this will be shown again when distributing rules.
+			if !atZone {
+				showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
+			}
 
 			// Abort, if path does not exist.
-			showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
 			return
 		}
 	}
@@ -1230,7 +1235,6 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	}
 
 	// Set flag whether to call function at first node visited (in 1.iteration)
-	atZone := where == "Zone"
 	callIt := isRouter != atZone
 
 	var in *routerIntf

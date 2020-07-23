@@ -137,11 +137,6 @@ Error: No valid path
  to any:[network:rgt]
  for rule permit src=network:lft; dst=network:rgt; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:lft]
- to any:[network:rgt]
- for rule permit src=network:lft; dst=network:rgt; prt=tcp 80; of service:test
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
@@ -1192,11 +1187,6 @@ Error: No valid path
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n5]
- for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
@@ -1304,11 +1294,6 @@ Error: No valid path
 Error: No valid path
  from any:[network:n1]
  to any:[network:n5]
- for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
- Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=tcp 90; of service:s2
  Check path restrictions and crypto interfaces.
 END
@@ -1383,16 +1368,6 @@ service:test = {
 END
 
 $out = <<"END";
-Error: No valid path
- from any:[network:n1]
- to any:[network:n3]
- for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
- Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n2]
- to any:[network:n3]
- for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
- Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:n1]
  to router:r3
