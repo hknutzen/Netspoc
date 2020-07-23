@@ -5,7 +5,8 @@ use warnings;
 use Carp;
 
 our @ISA    = qw(Exporter);
-our @EXPORT = qw(test_run test_warn test_err test_reuse_prev prepare_in_dir);
+our @EXPORT = qw(test_run test_warn test_err test_reuse_prev
+                 prepare_in_dir prepare_out_dir);
 
 use Test::More;
 use Test::Differences;

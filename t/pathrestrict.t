@@ -1192,6 +1192,11 @@ Error: No valid path
  to any:[network:n5]
  for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=ip; of service:s1
+ Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
@@ -1230,6 +1235,187 @@ Warning: Ignoring pathrestriction:p1 with only interface:r1.n2
 END
 
 test_warn($title, $in, $out);
+
+############################################################
+$title = "Show 'no valid path' for both services";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+
+pathrestriction:p1 =
+ interface:r3.n3,
+ interface:r3.n4,
+ interface:r3.n5,
+;
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n5;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n5;
+        prt = tcp 90;
+}
+END
+
+$out = <<"END";
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n5]
+ for rule permit src=network:n1; dst=network:n5; prt=tcp 90; of service:s2
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out, undef, prepare_out_dir());
+
+############################################################
+$title = "Show 'no valid' path for both sources";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:t1 = { ip = 10.9.1.0/24; }
+network:t2 = { ip = 10.9.2.0/24; }
+network:t3 = { ip = 10.5.6.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.3; hardware = t2; }
+}
+
+router:filter1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:t2 = { ip = 10.9.2.1; hardware = t2; }
+ interface:t3 = { ip = 10.5.6.1; hardware = t3; }
+}
+router:filter2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:t2 = { ip = 10.9.2.2; hardware = t2; }
+ interface:t3 = { ip = 10.5.6.2; hardware = t3; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:t3 = { ip = 10.5.6.7; hardware = t3; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+pathrestriction:restrict1 =
+ interface:filter1.t2,
+ interface:r3.t3,
+;
+pathrestriction:restrict2 =
+ interface:filter2.t2,
+ interface:r3.t3,
+;
+
+service:test = {
+ user = network:n1, network:n2;
+ permit src = user; dst = interface:r3.n3; prt = tcp 80;
+}
+END
+
+$out = <<"END";
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n2]
+ to any:[network:n3]
+ for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to router:r3
+ for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n2]
+ to router:r3
+ for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n1]
+ to router:r3
+ for rule permit src=network:n1; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+Error: No valid path
+ from any:[network:n2]
+ to router:r3
+ for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
+ Check path restrictions and crypto interfaces.
+END
+
+test_err($title, $in, $out, undef, prepare_out_dir());
 
 ###########################################################
 done_testing;

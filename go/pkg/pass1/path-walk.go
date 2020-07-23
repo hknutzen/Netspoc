@@ -1164,6 +1164,18 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		srcPath.String(), dstPath.String(), context)
 }
 
+// Remove partially marked path.
+func removePath(fromStore, toStore pathStore) {
+	pathMap := fromStore.getPath1()
+	out := pathMap[toStore]
+	delete(pathMap, toStore)
+	for out != nil {
+		pathMap = out.getPath()
+		out = pathMap[toStore]
+		delete(pathMap, toStore)
+	}
+}
+
 //#############################################################################
 // Purpose    : For a given rule, visit every node on path from rules source
 //              to its destination. At every second node (every router or
@@ -1202,7 +1214,7 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	// Identify path from source to destination if not known.
 	if _, found := fromStore.getPath1()[toStore]; !found {
 		if !pathMark(fromStore, toStore) {
-			delete(fromStore.getPath1(), toStore)
+			removePath(fromStore, toStore)
 
 			// Abort, if path does not exist.
 			showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
