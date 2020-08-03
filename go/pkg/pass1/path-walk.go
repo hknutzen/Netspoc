@@ -15,21 +15,17 @@ func findZone1(store pathStore) *zone {
 		obj = x
 	}
 	for {
-		intf := obj.getToZone1()
-		if intf == nil {
-			loop := obj.getLoop()
-			if loop == nil {
-				return obj.(*zone)
-			}
-			loopExit := loop.exit
-			intf = loopExit.getToZone1()
-
-			// Zone1 is adjacent to loop.
-			if intf == nil {
-				return loopExit.(*zone)
+		if loop := obj.getLoop(); loop != nil {
+			if e := loop.exit; e != obj {
+				obj = e
+				continue
 			}
 		}
-		obj = intf.toZone1
+		if intf := obj.getToZone1(); intf != nil {
+			obj = intf.toZone1
+		} else {
+			return obj.(*zone)
+		}
 	}
 }
 
