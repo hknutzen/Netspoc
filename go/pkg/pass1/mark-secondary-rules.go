@@ -100,47 +100,83 @@ func markPrimary(zone *zone, mark int) {
 	}
 }
 
-func getZones(path pathStore, list []someObj) []*zone {
-	switch x := path.(type) {
-	case *zone:
-		return []*zone{x}
+func getNetwork(obj someObj) *network {
+	switch x := obj.(type) {
 	case *routerIntf:
-		return []*zone{x.zone}
-	case *router:
-		result := make([]*zone, 0)
-		seen := make(map[*zone]bool)
-		// Elements of list are interfaces of x.
-		// Collect attached zones without duplicates.
-		for _, obj := range list {
-			z := obj.(*routerIntf).zone
-			if !seen[z] {
-				seen[z] = true
-				result = append(result, z)
-			}
+		return x.network
+	case *subnet:
+		return x.network
+	case *network:
+		if x.hasOtherSubnet {
+			return nil
 		}
-		return result
+		return x
 	}
 	return nil
 }
 
-func haveDifferentMarks(srcZones, dstZones []*zone, getMark func(*zone) int) bool {
-	srcMarks := make(map[int]bool)
-	for _, z := range srcZones {
-		srcMarks[getMark(z)] = true
-	}
-	for _, z := range dstZones {
-		if srcMarks[getMark(z)] {
-			return false
+func getNetworks(list []someObj) []*network {
+	seen := make(map[*network]bool)
+	var result []*network
+	for _, obj := range list {
+		var n *network
+		switch x := obj.(type) {
+		case *subnet, *routerIntf:
+			n = obj.getNetwork()
+		case *network:
+			n = x
+		}
+		if !seen[n] {
+			seen[n] = true
+			result = append(result, n)
 		}
 	}
-	return true
+	return result
+}
+
+func getZone(path pathStore, list []someObj) *zone {
+	switch x := path.(type) {
+	case *zone:
+		return x
+	case *routerIntf:
+		return x.zone
+	case *router:
+		// src/dst may contain interfaces of different zones with
+		// different values of secondaryMark/primaryMark.
+		//
+		// If router is "managed = secondary", choose zone of arbitrary
+		// interface, because all zones have identical mark and
+		// for all zones hasSecondary and hasNonPrimary is set.
+		//
+		// Loopback interface can be ignored, it has unique mark.
+		if x.managed == "secondary" {
+			return x.interfaces[0].zone
+		}
+		var z, l *zone
+		for _, obj := range list {
+			intf := obj.(*routerIntf)
+			z2 := intf.zone
+			if intf.loopback {
+				l = z2
+			} else if z == nil {
+				z = z2
+			} else if z != z2 {
+				return nil
+			}
+		}
+		if z == nil {
+			return l
+		}
+		return z
+	}
+	return nil
 }
 
 type conflictKey = struct {
 	isSrc     bool
 	isPrimary bool
 	mark      int
-	zone      *zone
+	net       *network
 }
 
 type conflictInfo = struct {
@@ -149,7 +185,9 @@ type conflictInfo = struct {
 }
 
 // Collect conflicting rules and supernet rules for check_conflict below.
-func collectConflict(rule *groupedRule, srcZones, dstZones []*zone, src, dst []someObj, conflict map[conflictKey]*conflictInfo, isPrimary bool) {
+func collectConflict(rule *groupedRule, z1, z2 *zone,
+	conflict map[conflictKey]*conflictInfo, isPrimary bool) {
+
 	allNoCheck := true
 	allEstablished := true
 	for _, p := range rule.prt {
@@ -163,48 +201,49 @@ func collectConflict(rule *groupedRule, srcZones, dstZones []*zone, src, dst []s
 	if allNoCheck {
 		return
 	}
-	collect := func(zones, otherZones []*zone, list []someObj, isSrc bool) {
-		for _, zone := range zones {
-			var mark int
-			if isPrimary {
-				if !zone.hasNonPrimary {
-					continue
-				}
-				mark = zone.primaryMark
-			} else {
-				if !zone.hasSecondary {
-					continue
-				}
-				mark = zone.secondaryMark
+
+	collect := func(list, otherList []someObj, z *zone, isSrc bool) {
+		var mark int
+		if isPrimary {
+			if !z.hasNonPrimary {
+				return
 			}
-			pushed := false
-			for _, otherZone := range otherZones {
-				key := conflictKey{isSrc, isPrimary, mark, otherZone}
-				info, found := conflict[key]
-				if !found {
-					info = &conflictInfo{supernets: make(map[*network]bool)}
-					conflict[key] = info
-				}
-				for _, obj := range list {
-					switch x := obj.(type) {
-					case *network:
-						if x.hasOtherSubnet {
-							if !allEstablished {
-								info.supernets[x] = true
-							}
-							continue
+			mark = z.primaryMark
+		} else {
+			if !z.hasSecondary {
+				return
+			}
+			mark = z.secondaryMark
+		}
+		pushed := false
+		for _, otherNet := range getNetworks(otherList) {
+			if otherNet == nil {
+				continue
+			}
+			key := conflictKey{isSrc, isPrimary, mark, otherNet}
+			info, found := conflict[key]
+			if !found {
+				info = &conflictInfo{supernets: make(map[*network]bool)}
+				conflict[key] = info
+			}
+			for _, obj := range list {
+				if x, ok := obj.(*network); ok {
+					if x.hasOtherSubnet {
+						if !allEstablished {
+							info.supernets[x] = true
 						}
+						continue
 					}
-					if !pushed {
-						info.rules = append(info.rules, rule)
-						pushed = true
-					}
+				}
+				if !pushed {
+					info.rules = append(info.rules, rule)
+					pushed = true
 				}
 			}
 		}
 	}
-	collect(srcZones, dstZones, src, true)
-	collect(dstZones, srcZones, dst, false)
+	collect(rule.src, rule.dst, z1, true)
+	collect(rule.dst, rule.src, z2, false)
 }
 
 // Disable secondary optimization for conflicting rules.
@@ -261,47 +300,37 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 		}
 	RULE:
 		for _, rule1 := range rules {
-			var zone1 pathStore
 			var objects []someObj
 			if isSrc {
-				zone1 = rule1.srcPath
 				objects = rule1.src
 			} else {
-				zone1 = rule1.dstPath
 				objects = rule1.dst
 			}
 			var list1 []*network
+			seen := make(map[*network]bool)
 			for _, obj := range objects {
-				var net *network
-				switch x := obj.(type) {
-				case *routerIntf:
-					net = x.network
-				case *subnet:
-					net = x.network
-				case *network:
-					if x.hasOtherSubnet {
-						continue
-					}
-					net = x
+				n := getNetwork(obj)
+				if n != nil && !seen[n] {
+					seen[n] = true
+					list1 = append(list1, n)
 				}
-				list1 = append(list1, net)
 			}
 			for supernet, _ := range supernetMap {
-				var zone2 pathStore = supernet.zone
-				if zone1 == zone2 {
-					continue
-				}
-				for _, network := range list1 {
-					isSubnet, found := cache[pair{supernet, network}]
+				var z = supernet.zone
+				for _, n := range list1 {
+					if n.zone == z {
+						continue
+					}
+					isSubnet, found := cache[pair{supernet, n}]
 					if !found {
-						ip, mask := network.ip, network.mask
+						ip, mask := n.ip, n.mask
 						prefix, _ := mask.Size()
-						natSet := network.zone.natDomain.natSet
+						natSet := n.zone.natDomain.natSet
 						obj := getNatNetwork(supernet, natSet)
 						i, m := obj.ip, obj.mask
 						p, _ := m.Size()
 						isSubnet = p < prefix && matchIp(ip, i, m)
-						cache[pair{supernet, network}] = isSubnet
+						cache[pair{supernet, n}] = isSubnet
 					}
 					if !isSubnet {
 						continue
@@ -313,12 +342,12 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					}
 					/*
 						name1 := ""
-						if s := rule1.rule.service; s != nil {
-							name1 = s.name
+						if r := rule1.rule; r != nil {
+							name1 = r.service.name
 						}
 						debug("%s isSrc:%v", name1, isSrc)
 						debug(rule1.print())
-						debug("%s < %s", network.name, supernet.name)
+						debug("%s < %s", n.name, supernet.name)
 					*/
 					continue RULE
 				}
@@ -348,24 +377,21 @@ func MarkSecondaryRules() {
 	// Collect conflicting optimizeable rules and supernet rules.
 	conflict := make(map[conflictKey]*conflictInfo)
 	for _, rule := range pRules.permit {
-		src, dst, srcPath, dstPath :=
-			rule.src, rule.dst, rule.srcPath, rule.dstPath
-
-		// Type of srcPath / dstPath is zone, interface or router.
-		// If type is router, then src/dst may contain interfaces of
-		// different zones with different values of secondaryMark/primaryMark.
-		// Only do optimization, if all interfaces would allow optimization.
-		srcZones := getZones(srcPath, src)
-		dstZones := getZones(dstPath, dst)
-		getS := func(z *zone) int { return z.secondaryMark }
-		if haveDifferentMarks(srcZones, dstZones, getS) {
-			rule.someNonSecondary = true
-			collectConflict(rule, srcZones, dstZones, src, dst, conflict, false)
+		srcZone := getZone(rule.srcPath, rule.src)
+		if srcZone == nil {
+			continue
 		}
-		getP := func(z *zone) int { return z.primaryMark }
-		if haveDifferentMarks(srcZones, dstZones, getP) {
+		dstZone := getZone(rule.dstPath, rule.dst)
+		if dstZone == nil {
+			continue
+		}
+		if srcZone.secondaryMark != dstZone.secondaryMark {
+			rule.someNonSecondary = true
+			collectConflict(rule, srcZone, dstZone, conflict, false)
+		}
+		if srcZone.primaryMark != dstZone.primaryMark {
 			rule.somePrimary = true
-			collectConflict(rule, srcZones, dstZones, src, dst, conflict, true)
+			collectConflict(rule, srcZone, dstZone, conflict, true)
 		}
 	}
 	checkConflict(conflict)
