@@ -70,7 +70,7 @@ sub err_rmv {
     test_err('bin/remove-from-netspoc',  $title, $input, $args, $expected);
 }
 
-my ($title, $in, $out);
+my ($title, $in, $out, $out2);
 
 ############################################################
 $title = 'host at network';
@@ -86,17 +86,39 @@ host:x, network:Test, host:y,
 END
 
 $out = <<'END';
-network:Test =  { ip = 10.9.1.0/24; }
-group:G = interface:r.Test, # comment
-    host:id:h@dom.top.Test,
-    network:Test,
-    host:Toast,
-host:x, network:Test, host:Toast, host:y,
-    ;
+network:Test = {
+ ip = 10.9.1.0/24;
+}
+
+group:G =
+ network:Test,
+ network:Test,
+ interface:r.Test, # comment
+ host:Toast,
+ host:Toast,
+ host:id:h@dom.top.Test,
+ host:x,
+ host:y,
+;
+END
+
+$out2 = <<'END';
+network:Test = {
+ ip = 10.9.1.0/24;
+}
+
+group:G =
+ network:Test,
+ network:Test,
+ interface:r.Test, # comment
+ host:id:h@dom.top.Test,
+ host:x,
+ host:y,
+;
 END
 
 test_add($title, $in, 'network:Test host:Toast', $out);
-test_rmv($title, $out, 'host:Toast', $in);
+test_rmv($title, $out, 'host:Toast', $out2);
 
 ############################################################
 $title = 'host after automatic group';
@@ -111,14 +133,21 @@ END
 
 $out = <<'END';
 group:abc =
- any:[ ip = 10.1.0.0/16 & network:def ],
- host:xyz,
+ any:[ip = 10.1.0.0/16 & network:def],
  host:h,
+ host:xyz,
+;
+END
+
+$out2 = <<'END';
+group:abc =
+ any:[ip = 10.1.0.0/16 & network:def],
+ host:xyz,
 ;
 END
 
 test_add($title, $in, 'host:xyz host:h', $out);
-test_rmv($title, $out, 'host:h', $in);
+test_rmv($title, $out, 'host:h', $out2);
 
 ############################################################
 $title = 'host after automatic interface';
@@ -133,14 +162,21 @@ END
 
 $out = <<'END';
 group:abc =
+ network:xyz,
  interface:r1@vrf.[auto],
  host:h,
+;
+END
+
+$out2 = <<'END';
+group:abc =
  network:xyz,
+ interface:r1@vrf.[auto],
 ;
 END
 
 test_add($title, $in, 'interface:r1@vrf.\[auto\] host:h', $out);
-test_rmv($title, $out, 'host:h', $in);
+test_rmv($title, $out, 'host:h', $out2);
 
 ############################################################
 $title = 'automatic interface after host';
@@ -155,14 +191,21 @@ END
 
 $out = <<'END';
 group:abc =
- host:h,
- interface:r1@vrf.[auto],
  network:xyz,
+ interface:r1@vrf.[auto],
+ host:h,
+;
+END
+
+$out2 = <<'END';
+group:abc =
+ network:xyz,
+ host:h,
 ;
 END
 
 test_add($title, $in, 'host:h interface:r1@vrf.\[auto\]', $out);
-test_rmv($title, $out, 'interface:r1@vrf.\[auto\]', $in);
+test_rmv($title, $out, 'interface:r1@vrf.\[auto\]', $out2);
 
 ############################################################
 $title = 'network after intersection';
@@ -177,32 +220,38 @@ END
 
 $out = <<'END';
 group:abc =
- group:g &! host:xyz,
+ group:g
+ &! host:xyz
+ ,
  network:def,
  network:n,
 ;
 END
 
+$out2 = <<'END';
+group:abc =
+ group:g
+ &! host:xyz
+ ,
+ network:def,
+;
+END
+
 test_add($title, $in, 'network:def network:n', $out);
-test_rmv($title, $out, 'network:n', $in);
+test_rmv($title, $out, 'network:n', $out2);
 
 ############################################################
-$title = 'Warn group with intersection';
+$title = 'Do not add in intersection';
 ############################################################
 
 $in = <<'END';
 group:g2 = group:g1 &! network:n2;
 END
 
-$out = <<'END';
-Warning: Substituted in intersection
-group:g2 = group:g1, group:g3 &! network:n2;
-END
-
-test_add($title, $in, 'group:g1 group:g3', $out);
+test_add($title, $in, 'group:g1 group:g3', $in);
 
 ############################################################
-$title = 'No warn group with intersection';
+$title = 'Group with intersection';
 ############################################################
 
 $in = <<'END';
@@ -210,7 +259,13 @@ group:g3 = group:g1, group:g2 &! network:n2;
 END
 
 $out = <<'END';
-group:g3 = group:g1, group:g3, group:g2 &! network:n2;
+group:g3 =
+ group:g1,
+ group:g3,
+ group:g2
+ &! network:n2
+ ,
+;
 END
 
 test_add($title, $in, 'group:g1 group:g3', $out);
@@ -228,13 +283,28 @@ END
 
 $out = <<'END';
 group:abc =
- any:[ ip = 10.1.0.0/16 & network:n1, network:n1a, network:n2,
-       network:n3, network:n4, ],
+ any:[ip = 10.1.0.0/16 &
+  network:n1,
+  network:n1a,
+  network:n2,
+  network:n3,
+  network:n4,
+ ],
+;
+END
+
+$out2 = <<'END';
+group:abc =
+ any:[ip = 10.1.0.0/16 &
+  network:n1,
+  network:n2,
+  network:n3,
+ ],
 ;
 END
 
 test_add($title, $in, 'network:n1 network:n1a network:n3 network:n4', $out);
-test_rmv($title, $out, 'network:n1a network:n4', $in);
+test_rmv($title, $out, 'network:n1a network:n4', $out2);
 
 ############################################################
 $title = 'area in automatic group';
@@ -248,12 +318,21 @@ END
 
 $out = <<'END';
 group:abc =
- any:[ ip = 10.1.0.0/16 & area:a1, area:a2, ],
+ any:[ip = 10.1.0.0/16 &
+  area:a1,
+  area:a2,
+ ],
+;
+END
+
+$out2 = <<'END';
+group:abc =
+ any:[ip = 10.1.0.0/16 & area:a1],
 ;
 END
 
 test_add($title, $in, 'area:a1 area:a2', $out);
-test_rmv($title, $out, 'area:a2', $in);
+test_rmv($title, $out, 'area:a2', $out2);
 
 ############################################################
 $title = 'in service, but not in area and pathrestriction';
@@ -277,22 +356,57 @@ END
 
 $out = <<'END';
 service:x = {
- user = interface:r.x, host:y, host:b;
- permit src = any:x, group:y; dst = user; prt = tcp;
- permit src = user; dst = any:x, group:y;
+ user = interface:r.x,
+        host:b,
+        host:y,
+        ;
+ permit src = group:y,
+              any:x,
+              ;
+        dst = user;
+        prt = tcp;
+ permit src = user;
+        dst = group:y,
+              any:x,
+              ;
         prt = tcp;
 }
+
 pathrestriction:p =
  interface:r.x,
- interface:r.y
+ interface:r.y,
 ;
+
+area:a = {
+ border = interface:r.x;
+}
+END
+
+$out2 = <<'END';
+service:x = {
+ user = interface:r.x,
+        host:b,
+        ;
+ permit src = any:x;
+        dst = user;
+        prt = tcp;
+ permit src = user;
+        dst = any:x;
+        prt = tcp;
+}
+
+pathrestriction:p =
+ interface:r.x,
+ interface:r.y,
+;
+
 area:a = {
  border = interface:r.x;
 }
 END
 
 test_add($title, $in, 'interface:r.x host:y any:x group:y', $out);
-test_rmv($title, $out, 'host:y group:y', $in);
+test_rmv($title, $out, 'host:y group:y', $out2);
 
 ############################################################
 $title = 'with indentation';
@@ -313,15 +427,18 @@ $out = <<'END';
 group:x =
  host:a,
  host:a1,
-  host:b, host:b1, host:c,
-  host:d,
-  host:d1
-  ,
-  host:e, ###
-  host:e1
-  , host:f, host:f1,
-  host:g,
-  host:g1;
+ host:b,
+ host:b1,
+ host:c,
+ host:d,
+ host:d1,
+ host:e, ###
+ host:e1,
+ host:f,
+ host:f1,
+ host:g,
+ host:g1,
+;
 END
 
 test_add($title, $in,
@@ -332,12 +449,13 @@ test_add($title, $in,
 $in = <<'END';
 group:x =
  host:a,
-  host:b, host:c,
-  host:d,
-
-  host:e, ###
+ host:b,
+ host:c,
+ host:d,
+ host:e, ###
  host:f,
-  host:g;
+ host:g,
+;
 END
 
 test_rmv($title, $out, 'host:a1 host:b1 host:d1 host:e1 host:f1 host:g1', $in);
@@ -352,28 +470,10 @@ group:g-1 = host:a,
 END
 
 $out = <<'END';
-group:g-1 = host:a,
-            host:a1,
-          ;
-END
-
-test_add($title, $in, 'host:a host:a1', $out);
-
-############################################################
-$title = 'Add on new line for single object after definition (2)';
-############################################################
-
-$in = <<'END';
-# first line
-group:g-1 = host:a,
-          ;
-END
-
-$out = <<'END';
-# first line
-group:g-1 = host:a,
-            host:a1,
-          ;
+group:g-1 =
+ host:a,
+ host:a1,
+;
 END
 
 test_add($title, $in, 'host:a host:a1', $out);
@@ -385,8 +485,10 @@ $title = 'List terminates at EOF';
 $in = "group:g = host:a;";
 
 $out = <<'END';
-group:g = host:a,
-          host:b;
+group:g =
+ host:a,
+ host:b,
+;
 END
 
 test_add($title, $in, 'host:a host:b', $out);
@@ -446,35 +548,10 @@ END
 $out = <<'END';
 group:g1 =
  host:a,
- #c
-
 ;
+
 group:g2 =
- #c
 ;
-END
-
-test_rmv($title, $in, 'host:b', $out);
-
-############################################################
-$title = 'No trailing comma after comment';
-############################################################
-
-$in = <<'END';
-group:g1 =
- host:a,
- host:b #b
- #c
- # invalid comma behind ';' for test
-;,
-END
-
-$out = <<'END';
-group:g1 =
- host:a,
- #c
- # invalid comma behind ';' for test
-;,
 END
 
 test_rmv($title, $in, 'host:b', $out);
@@ -498,7 +575,8 @@ $out = <<'END';
 service:s1 = {
  user = ;
  permit src = host:c,
-              host:d;
+              host:d,
+              ;
         dst = user;
         prt = tcp 80 90;
 }
@@ -515,11 +593,23 @@ group:BÖSE = host:Müß, host:Mass;
 END
 
 $out = <<'END';
-group:BÖSE = host:Müß, host:Muess, host:Mass, host:Maß;
+group:BÖSE =
+ host:Mass,
+ host:Maß,
+ host:Muess,
+ host:Müß,
+;
+END
+
+$out2 = <<'END';
+group:BÖSE =
+ host:Mass,
+ host:Müß,
+;
 END
 
 test_add($title, $in, 'host:Müß host:Muess host:Mass host:Maß', $out);
-test_rmv($title, $out, 'host:Muess host:Maß', $in);
+test_rmv($title, $out, 'host:Muess host:Maß', $out2);
 
 ############################################################
 $title = 'Read pairs from file';
@@ -544,10 +634,16 @@ END
 
 $out = <<'END';;
 group:g =
-interface:r.n, interface:r.n.sec, interface:r.n,
-any:aaa, group:bbb, network:xyz, host:id:xyz@dom,
-host:abc,
-network:abx;
+ group:bbb,
+ any:aaa,
+ network:abx,
+ network:xyz,
+ interface:r.n,
+ interface:r.n,
+ interface:r.n.sec,
+ host:abc,
+ host:id:xyz@dom,
+;
 END
 
 test_add($title, $in, "-f $filename", $out);
@@ -562,14 +658,16 @@ END
 print $in_fh $remove_from;
 close $in_fh;
 
-$in = <<'END';;
+$out2 = <<'END';;
 group:g =
-interface:r.n.sec,
-any:aaa, network:xyz,
-host:abc;
+ any:aaa,
+ network:xyz,
+ interface:r.n.sec,
+ host:abc,
+;
 END
 
-test_rmv($title, $out, "-f $filename", $in);
+test_rmv($title, $out, "-f $filename", $out2);
 
 ############################################################
 $title = 'Add multiple entries to one object';
@@ -578,7 +676,7 @@ $title = 'Add multiple entries to one object';
 $in = <<'END';
 service:s = {
  user = group:g;
- permit src = user; dst = host:x; prt tcp 80;
+ permit src = user; dst = host:x; prt = tcp 80;
 }
 END
 
@@ -586,8 +684,11 @@ $out = <<'END';
 service:s = {
  user = group:g,
         host:a,
-        host:b;
- permit src = user; dst = host:x; prt tcp 80;
+        host:b,
+        ;
+ permit src = user;
+        dst = host:x;
+        prt = tcp 80;
 }
 END
 
@@ -628,6 +729,7 @@ END
 $out = <<'END';
 group:g1 =
  description = host:a, host:b, ;
+
  host:a,
 ;
 END

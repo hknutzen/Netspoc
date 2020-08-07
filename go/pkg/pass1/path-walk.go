@@ -15,21 +15,17 @@ func findZone1(store pathStore) *zone {
 		obj = x
 	}
 	for {
-		intf := obj.getToZone1()
-		if intf == nil {
-			loop := obj.getLoop()
-			if loop == nil {
-				return obj.(*zone)
-			}
-			loopExit := loop.exit
-			intf = loopExit.getToZone1()
-
-			// Zone1 is adjacent to loop.
-			if intf == nil {
-				return loopExit.(*zone)
+		if loop := obj.getLoop(); loop != nil {
+			if e := loop.exit; e != obj {
+				obj = e
+				continue
 			}
 		}
-		obj = intf.toZone1
+		if intf := obj.getToZone1(); intf != nil {
+			obj = intf.toZone1
+		} else {
+			return obj.(*zone)
+		}
 	}
 }
 
@@ -877,8 +873,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 			store.setPath1(toStore, toOut)
 		}
 
-
-/*			// for debugging
+		/*
 			var debuggingPathAttr string
 			if fromIn != nil || startAtZone {
 				debuggingPathAttr = "path"
@@ -886,7 +881,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 				debuggingPathAttr = "path1"
 			}
 			debug("loop %s: %s -> %s", debuggingPathAttr, store, toStore)
-			//end debugging*/
+		*/
 
 		// Collect path information at beginning of loop path (start_store).
 		// Loop paths beginning at loop node can differ depending on the way
@@ -906,6 +901,18 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 	return success
 }
 
+// Remove partially marked path.
+func removePath(fromStore, toStore pathStore) {
+	pathMap := fromStore.getPath1()
+	out := pathMap[toStore]
+	delete(pathMap, toStore)
+	for out != nil {
+		pathMap = out.getPath()
+		out = pathMap[toStore]
+		delete(pathMap, toStore)
+	}
+}
+
 //#############################################################################
 // Purpose   : Find and mark path from source to destination.
 // Parameter : from_store - Object, where path starts.
@@ -918,7 +925,7 @@ func connectClusterPath(from, to pathObj, fromIn, toOut *routerIntf, fromStore, 
 //             - {path} of subsequent interfaces on path.
 func pathMark(fromStore, toStore pathStore) bool {
 
-//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
+	//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
 	var from, to pathObj
 	switch x := fromStore.(type) {
 	case *routerIntf:
@@ -943,9 +950,10 @@ func pathMark(fromStore, toStore pathStore) bool {
 	var fromIn, toOut *routerIntf
 
 	// Follow paths from source and destination towards zone1 until they meet.
+PATH:
 	for {
 
-//		debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
+		// debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
 
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
@@ -963,8 +971,12 @@ func pathMark(fromStore, toStore pathStore) bool {
 		}
 
 		// Paths meet inside a loop.
-		if fromLoop != nil && toLoop != nil && fromLoop.clusterExit == toLoop.clusterExit {
-			return connectClusterPath(from, to, fromIn, toOut, fromStore, toStore)
+		if fromLoop != nil && toLoop != nil &&
+			fromLoop.clusterExit == toLoop.clusterExit {
+			if connectClusterPath(from, to, fromIn, toOut, fromStore, toStore) {
+				return true
+			}
+			break PATH
 		}
 
 		// Otherwise, take a step towards zone1 from the more distant node.
@@ -983,7 +995,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if fromLoop == nil {
-					return false
+					break PATH
 				}
 
 				// Get next interface behind loop from loop cluster exit.
@@ -992,27 +1004,26 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if fromOut == nil {
-					return false
+					break PATH
 				}
 
 				// Mark loop path towards next interface.
 				if !connectClusterPath(from, exit, fromIn, fromOut, fromStore, toStore) {
-					return false
+					break PATH
 				}
 			}
 
 			// Mark path at the interface we came from (step in path direction)
 
-/*			// debugging
-			var a string
-			if fromIn != nil {
-				a = fromIn.String()
-			} else {
-				a = ""
-			}
-			debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
-*/			// end debugging
-
+			/*
+				var a string
+				if fromIn != nil {
+					a = fromIn.String()
+				} else {
+					a = ""
+				}
+				debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
+			*/
 			if fromIn != nil {
 				fromIn.setPath(toStore, fromOut)
 			} else {
@@ -1034,7 +1045,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if toLoop == nil {
-					return false
+					break PATH
 				}
 
 				// Get next interface behind loop from loop cluster exit.
@@ -1043,26 +1054,27 @@ func pathMark(fromStore, toStore pathStore) bool {
 
 				// Reached border of graph partition.
 				if toIn == nil {
-					return false
+					break PATH
 				}
 
 				// Mark loop path towards next interface.
 				if !connectClusterPath(entry, to, toIn, toOut, fromStore, toStore) {
-					return false
+					break PATH
 				}
 			}
 
 			// Mark path at interface we go to (step in opposite path direction).
 
-/*			// debugging
-			var toOutName string
-			if toOut != nil {
-				toOutName = toOut.String()
-			} else {
-				toOutName = ""
-			}
-			debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
-			// end debugging */
+			/*
+				var toOutName string
+				if toOut != nil {
+					toOutName = toOut.String()
+				} else {
+					toOutName = ""
+				}
+				debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
+				// end debugging
+			*/
 
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
@@ -1072,6 +1084,9 @@ func pathMark(fromStore, toStore pathStore) bool {
 			toOut = toIn
 		}
 	}
+	// Remove partially marked path.
+	removePath(fromStore, toStore)
+	return false
 }
 
 //#############################################################################
@@ -1174,6 +1189,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 //              where - 'Router' or 'Zone', specifies where the function gets
 //              called, default is 'Router'.
 func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), where string) {
+	atZone := where == "Zone"
 
 	// Extract path store objects (zone/router/pathrestricted interface).
 	// These are typically zone or router objects:
@@ -1203,10 +1219,13 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	// Identify path from source to destination if not known.
 	if _, found := fromStore.getPath1()[toStore]; !found {
 		if !pathMark(fromStore, toStore) {
-			delete(fromStore.getPath1(), toStore)
+			// No need to show error message when finding static routes,
+			// because this will be shown again when distributing rules.
+			if !atZone {
+				showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
+			}
 
 			// Abort, if path does not exist.
-			showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
 			return
 		}
 	}
@@ -1219,7 +1238,6 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	}
 
 	// Set flag whether to call function at first node visited (in 1.iteration)
-	atZone := where == "Zone"
 	callIt := isRouter != atZone
 
 	var in *routerIntf
@@ -1411,7 +1429,6 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 		for _, toStore := range toList {
 			if _, found := fromStore.getPath1()[toStore]; !found {
 				if !pathMark(fromStore, toStore) {
-					delete(fromStore.getPath1(), toStore)
 					continue
 				}
 			}

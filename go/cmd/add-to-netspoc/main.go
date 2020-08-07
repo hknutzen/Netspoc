@@ -70,9 +70,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
@@ -89,18 +93,20 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var addTo = make(map[string][]string)
+var addTo = make(map[string][]ast.Element)
+var changes = 0
 
 func checkName(typedName string) {
 	pair := strings.SplitN(typedName, ":", 2)
 	if len(pair) != 2 {
 		abort.Msg("Missing type in %s", typedName)
 	}
-	if !validType[pair[0]] {
+	typ, name := pair[0], pair[1]
+	if !validType[typ] {
 		abort.Msg("Can't use type in %s", typedName)
 	}
 	re := regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
-	if m := re.FindStringSubmatch(pair[1]); m != nil {
+	if m := re.FindStringSubmatch(name); m != nil {
 		abort.Msg("Invalid character '%s' in %s", m[0], typedName)
 	}
 }
@@ -108,172 +114,74 @@ func checkName(typedName string) {
 // Fill addTo with old => new pairs.
 func setupAddTo(old, new string) {
 	checkName(old)
-	checkName(new)
-	addTo[old] = append(addTo[old], new)
+	list := parser.ParseUnion([]byte(new))
+	addTo[old] = append(addTo[old], list...)
 }
 
-// Find occurrence of typed name in list of objects:
-// - group:<name> = <typed name>, ... <typed name>
-// - src =
-// - dst =
-// but ignore typed name in definition:
-// - <typed name> =
-func process(input string) (int, string) {
-	changed := 0
-	inList := false
-	var copy strings.Builder
-	copy.Grow(len(input))
-	substDone := false
-
-	comment := regexp.MustCompile(`^\s*[#].*\n`)
-	typedName := regexp.MustCompile(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`)
-	extension := regexp.MustCompile(`^\[(?:auto|all)\]`)
-	commaSemiEOL := regexp.MustCompile(`^((?:[ \t]*[,;])?)([ \t]*(?:[#].*)?)(?:\n|$)`)
-	comma := regexp.MustCompile(`^\s*,`)
-	startAuto := regexp.MustCompile(`^\s*\w+:\[`)
-	managedAuto := regexp.MustCompile(`^\s*managed\s*&`)
-	ipAuto := regexp.MustCompile(`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`)
-	endAuto := regexp.MustCompile(`^\s*\]`)
-	negation := regexp.MustCompile(`^\s*[!]`)
-	intersection := regexp.MustCompile(`^\s*[&]`)
-	startGroup := regexp.MustCompile(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`)
-	equalSign := regexp.MustCompile(`^\s*=[ \t]*`)
-	restToEOL := regexp.MustCompile(`^(?:.*\n|.+$)`)
-
-	// Match pattern in input and skip matched pattern.
-	match := func(re *regexp.Regexp) []string {
-		matches := re.FindStringSubmatch(input)
-		if matches == nil {
-			return nil
-		}
-		skip := len(matches[0])
-		input = input[skip:]
-		return matches
+func addToElement(n ast.Element) []ast.Element {
+	switch obj := n.(type) {
+	case *ast.NamedRef, *ast.IntfRef:
+		name := obj.GetType() + ":" + obj.GetName()
+		return addTo[name]
+	case *ast.SimpleAuto:
+		elementList(&obj.Elements)
+	case *ast.AggAuto:
+		elementList(&obj.Elements)
+	case *ast.IntfAuto:
+		elementList(&obj.Elements)
 	}
+	return nil
+}
 
-	for {
-		if m := match(comment); m != nil {
-			// Ignore comment.
-			copy.WriteString(m[0])
-		} else if inList {
-			// Find next "type:name".
-			if m := match(typedName); m != nil {
-				space := m[1]
-				object := m[2]
-				if m := match(extension); m != nil {
-					object += m[0]
-				}
-				add := addTo[object]
-				if add == nil {
-					copy.WriteString(space)
-					copy.WriteString(object)
-					substDone = false
-					continue
-				}
-				changed += len(add)
-				substDone = true
-				copy.WriteString(space)
+func elementList(l *([]ast.Element)) {
+	var add []ast.Element
+	for _, n := range *l {
+		add = append(add, addToElement(n)...)
+	}
+	changes += len(add)
+	*l = append(*l, add...)
+}
 
-				// Check if current line has only one entry, possibly
-				// preceeded by start of list.
-				var prefix string
-				processed := copy.String()
-				idx := strings.LastIndex(processed, "\n")
-				if idx != -1 {
-					prefix = processed[idx+1:]
-				} else {
-					prefix = processed
-				}
-				var m []string
-				re := regexp.MustCompile(
-					`^(?:[ \t]*[-\w\p{L}:]+[ \t]*=)?[ \t]*$`)
-				if re.MatchString(prefix) {
-					m = match(commaSemiEOL)
-				}
-				if m != nil {
-					// Add new entries to separate line with same indentation.
-					delim, comment := m[1], m[2]
-					indent := strings.Repeat(" ", len([]rune(prefix)))
-					copy.WriteString(object)
-					copy.WriteString(",")
-					copy.WriteString(comment)
-					copy.WriteString("\n")
-					last := len(add) - 1
-					for i, new := range add {
-						copy.WriteString(indent)
-						copy.WriteString(new)
-						if i == last {
-							copy.WriteString(delim)
-						} else {
-							copy.WriteString(",")
-						}
-						copy.WriteString("\n")
-					}
-				} else {
-					// Add new entries on same line separated by white space.
-					copy.WriteString(object)
-					for _, new := range add {
-						copy.WriteString(", ")
-						copy.WriteString(new)
-					}
-				}
-			} else {
-				// Check if list continues.
-				inList = false
-				for _, re := range []*regexp.Regexp{
-					startAuto, managedAuto, ipAuto, endAuto,
-					negation, intersection, comma} {
-					if m := match(re); m != nil {
-						inList = true
-						copy.WriteString(m[0])
-						if substDone && re == intersection {
-							fmt.Fprintln(os.Stderr,
-								"Warning: Substituted in intersection")
-						}
-						break
-					}
-				}
-			}
-		} else if m := match(startGroup); m != nil {
-			// Find start of group.
-			copy.WriteString(m[0])
-
-			// Find equal sign.
-			if m = match(equalSign); m != nil {
-				copy.WriteString(m[0])
-				inList = true
-			}
-		} else if m := match(restToEOL); m != nil {
-			// Ignore rest of line if nothing matches.
-			copy.WriteString(m[0])
-		} else {
-			// Terminate if everything has been processed.
-			break
+func toplevel(n ast.Toplevel) {
+	switch x := n.(type) {
+	case *ast.TopList:
+		if strings.HasPrefix(x.Name, "group:") {
+			elementList(&x.Elements)
+		}
+	case *ast.Service:
+		elementList(&x.User.Elements)
+		for _, r := range x.Rules {
+			elementList(&r.Src.Elements)
+			elementList(&r.Dst.Elements)
 		}
 	}
-	return changed, copy.String()
+}
+
+func processFile(l []ast.Toplevel) int {
+	for _, n := range l {
+		toplevel(n)
+	}
+	return changes
 }
 
 func processInput(input *filetree.Context) {
-	count, copy := process(input.Data)
+	source := []byte(input.Data)
+	path := input.Path
+	nodes := parser.ParseFile(source, path)
+	count := processFile(nodes)
 	if count == 0 {
 		return
 	}
-	path := input.Path
+
 	diag.Info("%d changes in %s", count, path)
-	err := os.Remove(path)
-	if err != nil {
-		abort.Msg("Can't remove %s: %s", path, err)
+	for _, n := range nodes {
+		n.Order()
 	}
-	file, err := os.Create(path)
+	copy := printer.File(nodes, source)
+	err := fileop.Overwrite(path, copy)
 	if err != nil {
-		abort.Msg("Can't create %s: %s", path, err)
+		abort.Msg("%v", err)
 	}
-	_, err = file.WriteString(copy)
-	if err != nil {
-		abort.Msg("Can't write to %s: %s", path, err)
-	}
-	file.Close()
 }
 
 func setupPairs(pairs []string) {

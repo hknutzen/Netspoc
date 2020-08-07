@@ -72,9 +72,13 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
@@ -92,6 +96,7 @@ var validType = map[string]bool{
 }
 
 var remove = make(map[string]bool)
+var changes = 0
 
 func checkName(typedName string) {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -114,181 +119,81 @@ func setupObjects(objects []string) {
 	}
 }
 
-// Find occurrence of typed name in list of objects:
-// - group:<name> = <typed name>, ... <typed name>;
-// - src = ...;
-// - dst = ...;
-// - user = ...;
-// but ignore typed name in definition:
-// - <typed name> =
-func process(input string) (int, string) {
-	changed := 0
-	inList := false
-	var copy strings.Builder
-	copy.Grow(len(input))
-
-	comment := regexp.MustCompile(`^\s*[#].*\n`)
-	typedName := regexp.MustCompile(`^(\s*)(\w+:[-\w\p{L}.\@:]+)`)
-	extension := regexp.MustCompile(`^\[(?:auto|all)\]`)
-	commaEOL := regexp.MustCompile(`^[ \t]*(,?)[ \t]*(?:[#].*)?(?:\n|$)`)
-	semicolon := regexp.MustCompile(`^\s*;`)
-	commaSpace := regexp.MustCompile(`^[ \t]*,[ \t]*`)
-	comma := regexp.MustCompile(`^\s*,`)
-	startAuto := regexp.MustCompile(`^\s*\w+:\[`)
-	managedAuto := regexp.MustCompile(`^\s*managed\s*&`)
-	ipAuto := regexp.MustCompile(`^\s*ip\s*=\s*[a-f:/0-9.]+\s*&`)
-	endAuto := regexp.MustCompile(`^\s*\]`)
-	negation := regexp.MustCompile(`^\s*[!]`)
-	intersection := regexp.MustCompile(`^\s*[&]`)
-	commaSpaceEOL := regexp.MustCompile(`^\s*,(?:[ \t]*\n)?`)
-	description := regexp.MustCompile(`^\s*description\s*=.*\n`)
-	startGroup := regexp.MustCompile(`^.*?(?:src|dst|user|group:[-\w\p{L}]+)`)
-	equalSign := regexp.MustCompile(`^\s*=[ \t]*`)
-	restToEOL := regexp.MustCompile(`^(?:.*\n|.+$)`)
-
-	// Match pattern in input and skip matched pattern.
-	match := func(re *regexp.Regexp) []string {
-		matches := re.FindStringSubmatch(input)
-		if matches == nil {
-			return nil
-		}
-		skip := len(matches[0])
-		input = input[skip:]
-		return matches
+func removeElement(n ast.Element) bool {
+	switch obj := n.(type) {
+	case *ast.NamedRef, *ast.IntfRef:
+		name := obj.GetType() + ":" + obj.GetName()
+		return remove[name]
+	case *ast.SimpleAuto:
+		elementList(&obj.Elements)
+	case *ast.AggAuto:
+		elementList(&obj.Elements)
+	case *ast.IntfAuto:
+		elementList(&obj.Elements)
 	}
+	return false
+}
 
-	for {
-		if m := match(comment); m != nil {
-			// Ignore comment.
-			copy.WriteString(m[0])
-		} else if inList {
-			// Find next "type:name".
-			if m := match(typedName); m != nil {
-				space := m[1]
-				object := m[2]
-				if m := match(extension); m != nil {
-					object += m[0]
-				}
-				if !remove[object] {
-					copy.WriteString(space)
-					copy.WriteString(object)
-					continue
-				}
-				changed++
-
-				// Check if current line has only one entry, then remove
-				// whole line including comment.
-				var prefix string
-				processed := copy.String()
-				idx := strings.LastIndex(processed, "\n")
-				if idx != -1 {
-					prefix = processed[idx+1:]
-				} else {
-					prefix = processed
-				}
-				if strings.TrimSpace(prefix) == "" {
-					if m := match(commaEOL); m != nil {
-						// Ready, if comma seen.
-						if m[1] != "" {
-							continue
-						}
-					}
-				}
-				if m := match(semicolon); m != nil {
-					// Remove leading comma, if removed object is followed
-					// by semicolon.
-					trailing := m[0]
-					re := regexp.MustCompile(`,\s*$`)
-					processed := re.ReplaceAllString(processed, "")
-					copy.Reset()
-					copy.WriteString(processed)
-					copy.WriteString(trailing)
-					inList = false
-					continue
-				}
-				if space != "" && space[0] == '\n' {
-
-					// Retain indentation of removed object if it is first
-					// object in line and is followed by other object in
-					// same line.
-					if ok, _ := regexp.MatchString(`^[ \t]*,[ \t]*\w`, input); ok {
-						match(commaSpace)
-						copy.WriteString(space)
-						continue
-					}
-				}
-
-				// Object with leading whitespace will be removed.
-				// Also remove comma in current or some following
-				// line if only separated by comment and whitespace.
-				for {
-
-					if m := match(comma); m != nil {
-						// Remove found comma. Don't remove EOL.
-						break
-					} else if m := match(comment); m != nil {
-						// Skip and retain comment at end of line.
-						copy.WriteString(m[0])
-					} else {
-						break
-					}
-				}
-			} else {
-				// Check if list continues.
-				for _, re := range []*regexp.Regexp{
-					startAuto, managedAuto, ipAuto, endAuto,
-					negation, intersection, commaSpaceEOL, description} {
-					if m = match(re); m != nil {
-						break
-					}
-				}
-				if m != nil {
-					copy.WriteString(m[0])
-				} else {
-					// Everything else terminates list.
-					inList = false
-				}
-			}
-		} else if m = match(startGroup); m != nil {
-			// Find start of group.
-			copy.WriteString(m[0])
-
-			// Find equal sign.
-			if m = match(equalSign); m != nil {
-				copy.WriteString(m[0])
-				inList = true
-			}
-		} else if m = match(restToEOL); m != nil {
-			// Ignore rest of line if nothing matches.
-			copy.WriteString(m[0])
-		} else {
-			// Terminate if everything has been processed.
-			break
+func elementList(l *([]ast.Element)) {
+	removed := 0
+	for i, n := range *l {
+		if removeElement(n) {
+			(*l)[i] = nil
+			removed++
 		}
 	}
-	return changed, copy.String()
+	if removed > 0 {
+		changes += removed
+		new := make([]ast.Element, 0, len(*l)-removed)
+		for _, n := range *l {
+			if n != nil {
+				new = append(new, n)
+			}
+		}
+		*l = new
+	}
+}
+
+func toplevel(n ast.Toplevel) {
+	switch x := n.(type) {
+	case *ast.TopList:
+		if strings.HasPrefix(x.Name, "group:") {
+			elementList(&x.Elements)
+		}
+	case *ast.Service:
+		elementList(&x.User.Elements)
+		for _, r := range x.Rules {
+			elementList(&r.Src.Elements)
+			elementList(&r.Dst.Elements)
+		}
+	}
+}
+
+func processFile(l []ast.Toplevel) int {
+	for _, n := range l {
+		toplevel(n)
+	}
+	return changes
 }
 
 func processInput(input *filetree.Context) {
-	count, copy := process(input.Data)
+	source := []byte(input.Data)
+	path := input.Path
+	nodes := parser.ParseFile(source, path)
+	count := processFile(nodes)
 	if count == 0 {
 		return
 	}
-	path := input.Path
+
 	diag.Info("%d changes in %s", count, path)
-	err := os.Remove(path)
-	if err != nil {
-		abort.Msg("Can't remove %s: %s", path, err)
+	for _, n := range nodes {
+		n.Order()
 	}
-	file, err := os.Create(path)
+	copy := printer.File(nodes, source)
+	err := fileop.Overwrite(path, copy)
 	if err != nil {
-		abort.Msg("Can't create %s: %s", path, err)
+		abort.Msg("%v", err)
 	}
-	_, err = file.WriteString(copy)
-	if err != nil {
-		abort.Msg("Can't write to %s: %s", path, err)
-	}
-	file.Close()
 }
 
 func readObjects(path string) {

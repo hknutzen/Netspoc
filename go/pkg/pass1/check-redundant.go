@@ -49,9 +49,12 @@ func (r *expandedRule) print() string {
 		extra += " stateless"
 	}
 	var ipV6 bool
-	if s := r.rule.service; s != nil {
+	origPrt := r.prt
+	if oRule := r.rule; oRule != nil {
+		s := oRule.service
 		extra += " of " + s.name
 		ipV6 = s.ipV6
+		origPrt = getOrigPrt(r)
 	}
 	var action string
 	if r.deny {
@@ -59,7 +62,6 @@ func (r *expandedRule) print() string {
 	} else {
 		action = "permit"
 	}
-	origPrt := getOrigPrt(r)
 	pName := origPrt.name
 	if ipV6 {
 		pName = strings.Replace(pName, "icmp", "icmpv6", 1)

@@ -114,18 +114,22 @@ $title = 'Rename network';
 
 $in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
-group:G = interface:r.Test, # comment
+group:G = interface:r.Test,
     host:id:h@dom.top.Test,
     network:Test,
     ;
 END
 
 $out = <<'END';
-network:Toast =  { ip = 10.9.1.0/24; }
-group:G = interface:r.Toast, # comment
-    host:id:h@dom.top.Toast,
-    network:Toast,
-    ;
+network:Toast = {
+ ip = 10.9.1.0/24;
+}
+
+group:G =
+ interface:r.Toast,
+ host:id:h@dom.top.Toast,
+ network:Toast,
+;
 END
 
 test_run($title, $in, 'network:Test network:Toast', $out);
@@ -147,6 +151,11 @@ $title = 'Rename bridged network';
 $in = <<'END';
 network:Test/a = { ip = 10.9.1.0/24; }
 network:Test/b = { ip = 10.9.1.0/24; }
+router:asa = {
+ interface:Test/a = { hardware = inside; }
+ interface:Test/b = { hardware = outside; }
+ interface:Test = { hardware = device; }
+}
 group:G = interface:r.Test,
     network:Test/a,
     network:Test/b,
@@ -155,13 +164,26 @@ group:G = interface:r.Test,
 END
 
 $out = <<'END';
-network:Toast/a = { ip = 10.9.1.0/24; }
-network:Toast/b = { ip = 10.9.1.0/24; }
-group:G = interface:r.Toast,
-    network:Toast/a,
-    network:Toast/b,
-    interface:r.Toast/b,
-    ;
+network:Toast/a = {
+ ip = 10.9.1.0/24;
+}
+
+network:Toast/b = {
+ ip = 10.9.1.0/24;
+}
+
+router:asa = {
+ interface:Toast/a = { hardware = inside; }
+ interface:Toast/b = { hardware = outside; }
+ interface:Toast   = { hardware = device; }
+}
+
+group:G =
+ interface:r.Toast,
+ network:Toast/a,
+ network:Toast/b,
+ interface:r.Toast/b,
+;
 END
 
 test_run($title, $in, 'network:Test network:Toast', $out);
@@ -180,10 +202,10 @@ END
 
 $out = <<'END';
 group:G =
-    host:id:xx@yy.zz.Test,
-    host:id:xx@yy.zz.top,
-    host:id:a.b.c.Test,
-    ;
+ host:id:xx@yy.zz.Test,
+ host:id:xx@yy.zz.top,
+ host:id:a.b.c.Test,
+;
 END
 
 test_run($title, $in,
@@ -203,33 +225,37 @@ END
 
 $out = <<'END';
 group:G =
-    host:id:xx@yy.zz.Toast,
-    host:id:xx@yy.zz.top,
-    ;
+ host:id:xx@yy.zz.Toast,
+ host:id:xx@yy.zz.top,
+;
 END
 
 test_run($title, $in,
          'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast',
          $out);
 
-###################################################
+############################################################
 $title = 'Rename network to name with leading digit';
 ############################################################
 
 $in = <<'END';
 network:Test =  { ip = 10.9.1.0/24; }
-group:G = interface:r.Test, # comment
+group:G = interface:r.Test,
     host:id:h@dom.top.Test,
     network:Test,
     ;
 END
 
 $out = <<'END';
-network:1_2_3_0_Test =  { ip = 10.9.1.0/24; }
-group:G = interface:r.1_2_3_0_Test, # comment
-    host:id:h@dom.top.1_2_3_0_Test,
-    network:1_2_3_0_Test,
-    ;
+network:1_2_3_0_Test = {
+ ip = 10.9.1.0/24;
+}
+
+group:G =
+ interface:r.1_2_3_0_Test,
+ host:id:h@dom.top.1_2_3_0_Test,
+ network:1_2_3_0_Test,
+;
 END
 
 test_run($title, $in, 'network:Test network:1_2_3_0_Test', $out);
@@ -240,14 +266,22 @@ $title = 'Rename router then network';
 
 $in = <<'END';
 router:R = { interface:NN = { ip = 10.9.1.1; } }
-network:NN
-interface:R.NN;
+network:NN = { ip = 10.9.1.0/24; }
+group:g = interface:R.NN;
 END
 
 $out = <<'END';
-router:RR = { interface:N = { ip = 10.9.1.1; } }
-network:N
-interface:RR.N;
+router:RR = {
+ interface:N = { ip = 10.9.1.1; }
+}
+
+network:N = {
+ ip = 10.9.1.0/24;
+}
+
+group:g =
+ interface:RR.N,
+;
 END
 
 test_run($title, $in, 'router:R router:RR network:NN network:N', $out);
@@ -262,19 +296,42 @@ $in = <<'END';
 router:R = { interface:n = { ip = 10.9.1.1; } }
 router:R@vrf = { interface:n = { ip = 10.9.1.2; } }
 group:G =
-interface:R.n;
+interface:R.n,
 interface:R@vrf.n;
 END
 
 $out = <<'END';
-router:RR = { interface:n = { ip = 10.9.1.1; } }
-router:r@vrf = { interface:n = { ip = 10.9.1.2; } }
+router:RR = {
+ interface:n = { ip = 10.9.1.1; }
+}
+
+router:r@vrf = {
+ interface:n = { ip = 10.9.1.2; }
+}
+
 group:G =
-interface:RR.n;
-interface:r@vrf.n;
+ interface:RR.n,
+ interface:r@vrf.n,
+;
 END
 
 test_run($title, $in, 'router:R router:RR router:R@vrf router:r@vrf', $out);
+
+############################################################
+$title = 'Rename inside automatic group';
+############################################################
+
+$in = <<'END';
+group:g = interface:[network:n1].[all];
+END
+
+$out = <<'END';
+group:g =
+ interface:[network:NN].[all],
+;
+END
+
+test_run($title, $in, 'network:n1 network:NN', $out);
 
 ############################################################
 $title = 'Rename nat';
@@ -282,27 +339,77 @@ $title = 'Rename nat';
 
 $in = <<'END';
 network:N = { ip = 1.2.3.0/24; nat:NAT-1 = {ip = 7.8.9.0; } }
-bind_nat = NAT-1;
-bind_nat = x, # comment
+router:r = {
+interface:n1 = { bind_nat = NAT-1; }
+interface:n2 = { bind_nat = x,
     y,NAT-1, z;
-bind_nat =NAT-1#comment
-    ;
-bind_nat
+}
+interface:n3 = { bind_nat =NAT-1
+    ;}
+interface:n4 = {bind_nat
 = NAT-1;
+}
+}
 END
 
 $out = <<'END';
-network:N = { ip = 1.2.3.0/24; nat:NAT-2 = {ip = 7.8.9.0; } }
-bind_nat = NAT-2;
-bind_nat = x, # comment
-    y,NAT-2, z;
-bind_nat =NAT-2#comment
-    ;
-bind_nat
-= NAT-2;
+network:N = {
+ ip = 1.2.3.0/24;
+ nat:NAT-2 = { ip = 7.8.9.0; }
+}
+
+router:r = {
+ interface:n1 = {
+  bind_nat = NAT-2;
+ }
+ interface:n2 = {
+  bind_nat = x,
+             y,
+             NAT-2,
+             z,
+             ;
+ }
+ interface:n3 = {
+  bind_nat = NAT-2;
+ }
+ interface:n4 = {
+  bind_nat = NAT-2;
+ }
+}
 END
 
 test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
+
+############################################################
+$title = 'Rename service';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ unknown_owner;
+ overlaps = service:s2, service:s3;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+
+END
+
+$out = <<'END';
+service:x1 = {
+
+ unknown_owner;
+ overlaps = service:s2,
+            service:x3,
+            ;
+
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+END
+
+test_run($title, $in, 'service:s1 service:x1 service:s3 service:x3', $out);
 
 ############################################################
 $title = 'Rename loopback interface';
@@ -317,11 +424,18 @@ group:G = interface:r1.Loopback_4,
 END
 
 $out = <<'END';
-router:r1 = { interface:Loopback = { ip = 10.9.1.1; loopback; } }
-router:r2 = { interface:Loopback = { ip = 10.9.1.2; loopback; } }
-group:G = interface:r1.Loopback,
-          interface:r2.Loopback,
-    ;
+router:r1 = {
+ interface:Loopback = { ip = 10.9.1.1; loopback; }
+}
+
+router:r2 = {
+ interface:Loopback = { ip = 10.9.1.2; loopback; }
+}
+
+group:G =
+ interface:r1.Loopback,
+ interface:r2.Loopback,
+;
 END
 
 test_run($title, $in, 'network:Loopback_4 network:Loopback', $out);
@@ -331,15 +445,27 @@ $title = 'Rename umlauts';
 ############################################################
 
 $in = <<'END';
-owner:Maaß
-owner:Wittmüß
-owner = Maaß, Wittmuess
+owner:Maaß = { admins = a@b.c; }
+owner:Wittmuess = { admins = a@b.c; }
+network:n1 = {
+ owner = Maaß, Wittmuess;
+}
 END
 
 $out = <<'END';
-owner:Maass
-owner:Wittmüß
-owner = Maass, Wittmüß
+owner:Maass = {
+ admins = a@b.c;
+}
+
+owner:Wittmüß = {
+ admins = a@b.c;
+}
+
+network:n1 = {
+ owner = Maass,
+         Wittmüß,
+         ;
+}
 END
 
 test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß',
@@ -361,23 +487,35 @@ my ($in_fh, $filename) = tempfile(UNLINK => 1);
 print $in_fh $subst;
 close $in_fh;
 
-$in = <<'END';;
-nat:ticks nat:ick
-nat:tick
+$in = <<'END';
+router:r = {
 interface:net = { bind_nat = ick,
  ticks, tick;}
-network:net = { owner = foo;
- host:abc;
+}
+network:net = { owner = foo; ip = 10.1.1.0/24;
+nat:ticks = { ip = 10.7.1.0/24; } nat:ick = { hidden; }
+nat:tick = { dynamic; }
+ host:abc = { ip = 10.1.1.10; }
 }
 END
 
 $out = <<'END';;
-nat:t2 nat:_
-nat:t1
-interface:xxxx = { bind_nat = _,
- t2, t1;}
-network:xxxx = { owner = büro;
- host:a1;
+router:r = {
+ interface:xxxx = {
+  bind_nat = _,
+             t2,
+             t1,
+             ;
+ }
+}
+
+network:xxxx = {
+ owner = büro;
+ ip = 10.1.1.0/24;
+ nat:t2 = { ip = 10.7.1.0/24; }
+ nat:_ = { hidden; }
+ nat:t1 = { dynamic; }
+ host:a1 = { ip = 10.1.1.10; }
 }
 END
 

@@ -2954,11 +2954,6 @@ Error: No valid path
  to any:[network:n3]
  for rule permit src=network:n1; dst=any:[network:n3]; prt=ip; of service:s1
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n3]
- for rule permit src=network:n1; dst=any:[network:n3]; prt=ip; of service:s1
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);

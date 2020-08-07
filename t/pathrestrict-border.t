@@ -821,11 +821,6 @@ Error: No valid path
  to any:[network:n2]
  for rule permit src=network:n1; dst=network:n2; prt=tcp 1100; of service:s1
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=network:n2; prt=tcp 1100; of service:s1
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
@@ -875,11 +870,6 @@ END
 
 # Pathrestriction must be effective even after optimizition.
 $out = <<'END';
-Error: No valid path
- from any:[network:n1]
- to any:[network:n2]
- for rule permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1
- Check path restrictions and crypto interfaces.
 Error: No valid path
  from any:[network:n1]
  to any:[network:n2]

@@ -3920,11 +3920,6 @@ Error: No valid path
  to any:[network:dmz]
  for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
  Check path restrictions and crypto interfaces.
-Error: No valid path
- from any:[network:intern]
- to any:[network:dmz]
- for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
- Check path restrictions and crypto interfaces.
 END
 
 test_err($title, $in, $out);
