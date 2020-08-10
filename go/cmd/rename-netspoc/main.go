@@ -225,6 +225,7 @@ func toplevel(n ast.Toplevel) {
 }
 
 func processFile(l []ast.Toplevel) int {
+	changes = 0
 	for _, n := range l {
 		toplevel(n)
 	}
