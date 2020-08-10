@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+6.016     2020-08-10 17:28:01+02:00 Europe/Berlin
+
+ - A wrong number of changed elements was shown from
+   'add-to-netspoc', 'remove-from-netspoc' and 'rename-netspoc'.
+   This has been fixed.
+   Unchanged files are no longer reformatted.
+
 6.015     2020-08-07 14:49:37+02:00 Europe/Berlin
 
  - Improved secondary optimization.
