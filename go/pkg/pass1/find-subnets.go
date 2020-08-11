@@ -388,26 +388,6 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	type netPair [2]*network
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
-
-		// Ignore NAT domain consisting of empty zone from unnumbered networks
-		// and surrounded by unmanaged devices.
-		// An address conflict would not be observable inside this NAT domain.
-		domainZones := domain.zones
-		if len(domainZones) == 1 {
-			zone := domainZones[0]
-			if len(zone.networks) == 0 {
-				managedSeen := false
-				for _, intf := range zone.interfaces {
-					if intf.router.managed != "" {
-						managedSeen = true
-					}
-				}
-				if !managedSeen {
-					continue
-				}
-			}
-		}
-
 		natSet := domain.natSet
 
 		// Mark networks visible in current NAT domain.

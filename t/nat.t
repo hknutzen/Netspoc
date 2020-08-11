@@ -166,19 +166,6 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Ignore duplicate IP address at unnumbered';
-############################################################
-# Address conflict is not observable at unnumbered network
-# surrounded by unmanged routers.
-
-$in =~ s/ip = 10.2.2.0\/24/unnumbered/;
-
-$out = <<'END';
-END
-
-test_warn($title, $in, $out);
-
-############################################################
 $title = 'NAT bound in wrong direction';
 ############################################################
 
@@ -4046,6 +4033,63 @@ Error: Must not use network:n1 in rule
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = 'Detect subnet relation at unnumbered network';
+############################################################
+# For both subnets no error must be shown:
+# network:n2 is no longer supernet of network:n2-sub1 / network:n2-sub2
+# This would occur, if subnet relation isn't detected at NAT domain
+# consisting only of unnumbered network.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { hidden; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n2-sub1 = { ip = 10.1.2.64/27; subnet_of = network:n2; }
+network:n2-sub2 = { ip = 10.1.2.128/27; }
+network:n3 = { ip = 10.1.3.0/24; nat:n3 = { hidden; } }
+network:n4 = { ip = 10.1.4.0/24; }
+network:t1 = { ip = 10.2.1.0/24; }
+network:t2 = { ip = 10.2.2.0/24; }
+network:t3 = { unnumbered; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n2-sub1;
+ interface:n2-sub2;
+ interface:t1;
+}
+router:r2 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:t1 = { ip = 10.2.1.1; hardware = t1; }
+ interface:t2 = { ip = 10.2.2.1; hardware = t2; }
+}
+router:r3 = {
+ interface:t2;
+ interface:t3 = { bind_nat = n1; }
+}
+router:r4 = {
+ interface:t3 = { bind_nat = n3; }
+ interface:n3;
+ interface:n4;
+}
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: network:n2-sub2 is subnet of network:n2
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Direct subnet relation changed by NAT';
