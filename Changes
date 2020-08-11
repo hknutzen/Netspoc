@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+6.017     2020-08-11 12:55:04+02:00 Europe/Berlin
+
+ - The subnet relation between two networks was not checked in NAT domain
+   consisting only of an unnumbered network.
+   Under certain conditions this led to an invalid error message
+   "network:a is no longer supernet of network:b".
+   This has been fixed.
+
 6.016     2020-08-10 17:28:01+02:00 Europe/Berlin
 
  - A wrong number of changed elements was shown from
