@@ -113,23 +113,56 @@ $title = 'Rename network';
 ############################################################
 
 $in = <<'END';
-network:Test =  { ip = 10.9.1.0/24; }
-group:G = interface:r.Test,
+network:Test =  { ip = 10.1.1.0/24; }
+group:G =
+    interface:r.Test,
+    interface:r.Test.virtual,
     host:id:h@dom.top.Test,
     network:Test,
     ;
+network:sub = { ip = 10.1.1.32/28; subnet_of = network:Test; }
+area:a = {
+ border = interface:r.Test;
+ inclusive_border = interface:r2.Test;
+}
+pathrestriction:P = interface:r1.Test, interface:r2.Test;
+router:r = {
+ interface:Test = { reroute_permit = network:Test; }
+}
 END
 
 $out = <<'END';
 network:Toast = {
- ip = 10.9.1.0/24;
+ ip = 10.1.1.0/24;
 }
 
 group:G =
  interface:r.Toast,
+ interface:r.Toast.virtual,
  host:id:h@dom.top.Toast,
  network:Toast,
 ;
+
+network:sub = {
+ ip = 10.1.1.32/28;
+ subnet_of = network:Toast;
+}
+
+area:a = {
+ border = interface:r.Toast;
+ inclusive_border = interface:r2.Toast;
+}
+
+pathrestriction:P =
+ interface:r1.Toast,
+ interface:r2.Toast,
+;
+
+router:r = {
+ interface:Toast = {
+  reroute_permit = network:Toast;
+ }
+}
 END
 
 test_run($title, $in, 'network:Test network:Toast', $out);
@@ -139,7 +172,7 @@ $title = 'Rename verbosely';
 ############################################################
 
 $out = <<'END' . $out;
-4 changes in INPUT
+12 changes in INPUT
 END
 
 test_run($title, $in, '--quiet=0 network:Test network:Toast', $out);

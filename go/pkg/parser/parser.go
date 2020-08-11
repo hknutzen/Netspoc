@@ -693,6 +693,25 @@ func (p *parser) router() ast.Toplevel {
 	return a
 }
 
+func (p *parser) area() ast.Toplevel {
+	a := new(ast.Area)
+	a.TopStruct = p.topStructHead()
+	for {
+		if p.tok == "}" {
+			a.Next = p.pos + 1
+			p.next()
+			break
+		} else if p.tok == "border" {
+			a.Border = p.namedUnion()
+		} else if p.tok == "inclusive_border" {
+			a.InclusiveBorder = p.namedUnion()
+		} else {
+			a.Attributes = append(a.Attributes, p.attribute())
+		}
+	}
+	return a
+}
+
 func (p *parser) topStruct() ast.Toplevel {
 	a := p.topStructHead()
 	a.Attributes, a.Next = p.attributeList()
@@ -703,7 +722,7 @@ var globalType = map[string]func(*parser) ast.Toplevel{
 	"network":         (*parser).network,
 	"router":          (*parser).router,
 	"any":             (*parser).topStruct,
-	"area":            (*parser).topStruct,
+	"area":            (*parser).area,
 	"group":           (*parser).topList,
 	"protocol":        (*parser).protocol,
 	"protocolgroup":   (*parser).protocolgroup,

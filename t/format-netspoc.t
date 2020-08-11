@@ -1144,16 +1144,21 @@ $title = 'Area';
 
 $in = <<'END';
 area:a1 = {
- border= interface:r1.n1, interface:r5.n5, interface:r2.n2;
+ border = interface:r3.n3, group:g3 &! interface:r1.n1;
  inclusive_border = interface:r3.n3;
+ nat:t = { hidden; }
+ owner = o;
 }
 END
 
 $out = <<'END';
 area:a1 = {
- border = interface:r1.n1,
-          interface:r5.n5,
-          interface:r2.n2,
+ nat:t = { hidden; }
+ owner = o;
+ border = interface:r3.n3,
+          group:g3
+          &! interface:r1.n1
+          ,
           ;
  inclusive_border = interface:r3.n3;
 }
@@ -1174,12 +1179,12 @@ END
 
 $out = <<'END';
 area:a1 = {
+ border = interface:r3.n3;
  inclusive_border =
   interface:r1.n1,
   interface:r5.n5,
   interface:r2.n2,
- ;
- border = interface:r3.n3;
+  ;
 }
 END
 
