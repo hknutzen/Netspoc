@@ -492,7 +492,7 @@ func (p *printer) router(n *ast.Router) {
 }
 
 func (p *printer) namedUnionIfSet(n *ast.NamedUnion) {
-	if n.Elements != nil {
+	if n != nil {
 		p.indent++
 		p.namedUnion("", n)
 		p.indent--
