@@ -762,6 +762,25 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Service with empty user, src, dst, prt';
+############################################################
+
+$in = <<'END';
+service:s1 = { user =; permit src =; dst =; prt = tcp 80; }
+END
+
+$out = <<'END';
+service:s1 = {
+ user = ;
+ permit src = ;
+        dst = ;
+        prt = tcp 80;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Service with foreach';
 ############################################################
 

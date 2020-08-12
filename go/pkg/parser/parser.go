@@ -366,21 +366,19 @@ func (p *parser) intersection() ast.Element {
 }
 
 // Read comma separated list of objects stopped by stopToken.
-// Read at least one element.
 // Return list of ASTs of read elements
 // and position after stopToken.
 func (p *parser) union(stopToken string) ([]ast.Element, int) {
 	var union []ast.Element
 	var end int
 	for {
-		union = append(union, p.intersection())
 		if end = p.checkPos(stopToken); end >= 0 {
 			break
 		}
-		p.expect(",")
-
-		// Allow trailing comma.
-		if end = p.checkPos(stopToken); end >= 0 {
+		union = append(union, p.intersection())
+		if !p.check(",") {
+			// Allow trailing comma.
+			end = p.expect(stopToken)
 			break
 		}
 	}
@@ -540,9 +538,7 @@ func (p *parser) topListHead() ast.TopBase {
 func (p *parser) topList() ast.Toplevel {
 	a := new(ast.TopList)
 	a.TopBase = p.topListHead()
-	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.Elements, a.Next = p.union(";")
-	}
+	a.Elements, a.Next = p.union(";")
 	return a
 }
 
