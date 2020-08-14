@@ -766,7 +766,7 @@ $title = 'Service with empty user, src, dst, prt';
 ############################################################
 
 $in = <<'END';
-service:s1 = { user =; permit src =; dst =; prt = tcp 80; }
+service:s1 = { user =; permit src =; dst =; prt =; }
 END
 
 $out = <<'END';
@@ -774,7 +774,7 @@ service:s1 = {
  user = ;
  permit src = ;
         dst = ;
-        prt = tcp 80;
+        prt = ;
 }
 END
 
@@ -1250,7 +1250,6 @@ protocol:all_ip = # trailing
 protocol:all_icmp =
  description = icmp with any typa and code
  icmp;
-
 END
 
 $out = <<'END';
@@ -1268,6 +1267,20 @@ protocol:all_icmp =
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Unfinished protocol definition';
+############################################################
+
+$in = <<'END';
+protocol:p = tcp
+END
+
+$out = <<'END';
+Syntax error: Expected ';' at line 2 of INPUT, at EOF
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

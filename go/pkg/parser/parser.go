@@ -88,6 +88,14 @@ func (p *parser) check(tok string) bool {
 	return true
 }
 
+func (p *parser) checkSpecial(tok string, getNext func(*parser)) bool {
+	if p.tok != tok {
+		return false
+	}
+	getNext(p)
+	return true
+}
+
 func (p *parser) checkPos(tok string) int {
 	if p.tok != tok {
 		return -1
@@ -420,7 +428,7 @@ func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
 }
 
 func (p *parser) addMulti(a *ast.Value, nextSpecial func(*parser)) {
-	for !(p.tok == "," || p.tok == ";") {
+	for !(p.tok == "," || p.tok == ";" || p.tok == "") {
 		a.Value += " " + p.tok
 		nextSpecial(p)
 	}
@@ -433,12 +441,7 @@ func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
 }
 
 func (p *parser) protocolRef(nextSpecial func(*parser)) *ast.Value {
-	nextSpecial = (*parser).nextRange
-	a := p.value(nextSpecial)
-	if strings.Index(a.Value, ":") == -1 {
-		p.addMulti(a, nextSpecial)
-	}
-	return a
+	return p.multiValue((*parser).nextRange)
 }
 
 func (p *parser) valueList(
@@ -448,14 +451,13 @@ func (p *parser) valueList(
 	var list []*ast.Value
 	var end int
 	for {
-		list = append(list, getValue(p, nextSpecial))
 		if end = p.checkPos(";"); end >= 0 {
 			break
 		}
-		p.expectSpecial(",", nextSpecial)
-
-		// Allow trailing comma.
-		if end = p.checkPos(";"); end >= 0 {
+		list = append(list, getValue(p, nextSpecial))
+		if !p.checkSpecial(",", nextSpecial) {
+			// Allow trailing comma.
+			end = p.expect(";")
 			break
 		}
 	}
@@ -545,16 +547,14 @@ func (p *parser) topList() ast.Toplevel {
 func (p *parser) protocolgroup() ast.Toplevel {
 	a := new(ast.Protocolgroup)
 	a.TopBase = p.topListHead()
-	if a.Next = p.checkPos(";"); a.Next < 0 {
-		a.ValueList, a.Next = p.valueList((*parser).protocolRef, (*parser).next)
-	}
+	a.ValueList, a.Next = p.valueList((*parser).protocolRef, (*parser).next)
 	return a
 }
 
 func (p *parser) protocol() ast.Toplevel {
 	a := new(ast.Protocol)
 	a.TopBase = p.topListHead()
-	for p.tok != ";" {
+	for p.tok != ";" && p.tok != "" {
 		if a.Value != "" && p.tok != "," {
 			a.Value += " "
 		}

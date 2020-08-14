@@ -312,18 +312,20 @@ func (p *printer) complexValue(name string, l []*ast.Attribute) {
 
 func (p *printer) attribute(n *ast.Attribute) {
 	p.PreComment(n, "")
+	name := n.Name
 	if l := n.ValueList; l != nil {
-		p.namedValueList(n.Name, l)
+		p.namedValueList(name, l)
 	} else if l := n.ComplexValue; l != nil {
-		name := n.Name
 		if name == "virtual" || strings.Index(name, ":") != -1 {
 			p.print(name + " = {" + getAttrList(l) + " }")
 		} else {
 			p.complexValue(name, l)
 		}
+	} else if name == "prt" {
+		p.print("prt = ;" + p.TrailingComment(n, ";"))
 	} else {
 		// Short attribute without values.
-		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
+		p.print(name + ";" + p.TrailingComment(n, ",;"))
 	}
 }
 
