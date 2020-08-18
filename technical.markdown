@@ -14,8 +14,8 @@ author: Meike Bruns
 On this page, we are going to develop a technical netspoc
 documentation describing how Nespoc works
 internally. The structure of this documentation will follow the
-Netspoc programm procedure, providing a general overview over the
-programm as well as orientation when contributing to the source
+Netspoc program procedure, providing a general overview over the
+program as well as orientation when contributing to the source
 code. Network architectures are represented and processed by Netspoc
 as graphs, with routers and networks as nodes and interfaces as
 edges. For better understanding, several pictures are included in this
@@ -81,7 +81,7 @@ rule definition.
     area:a1 = {
       border = interface:R1.n1;
       inclusive_border = interface:R3.n2;
-    }      
+    }
 
 {% include image.html src="./images/area.png" title="" description="Areas contain security zones and managed routers." %}
 
@@ -96,7 +96,7 @@ elements and border interfaces of a zone object. References to the
 zone are set in the collected objects. Zone attributes are set
 according to the properties of the included networks.
 
-                
+
 ### Identifying zone clusters
 
 Netspoc generates a topology representation to find paths between
@@ -119,7 +119,7 @@ created. Then a depth first search is conducted, starting at the zone
 and stopping at managed routers to collect all zones of the cluster.
 If the cluster contains a single zone only, it is deleted.
 
-* * * 
+* * *
 The following three steps are not part of zone/area generation,
 but are placed inside the set_zone function in source code and
 therefore included here.
@@ -127,7 +127,7 @@ therefore included here.
 
 ### Apply no_in_acl declaration
 
-Netspoc allows router interfaces to be tagged as `no_in_acl` 
+Netspoc allows router interfaces to be tagged as `no_in_acl`
 interfaces, indicating that no ACL is supposed to be generated at the
 tagged interface but at the other (outgoing) interfaces of the router
 instead. Netspoc distinguishes between logical interface and hardware,
@@ -143,7 +143,7 @@ routers other hardware objects to need outgoing ACLs.
 Networks just connecting managed routers may be marked as crosslink
 networks during topology declaration:
 
-    network:crosslink_network = {ip = 10.2.2.1; crosslink;} 
+    network:crosslink_network = {ip = 10.2.2.1; crosslink;}
 
 Routers connected by crosslink networks act as a single router,
 causing ACLs to be needed only at the outer interfaces of a
@@ -159,7 +159,7 @@ routers with weakest filter strength. The hardware of the appropriate
 interfaces is then tagged with the crosslink flag, indicating that no
 ACL needs to be generated.
 
-### Cluster crosslinked routers 
+### Cluster crosslinked routers
 
 Firewalls recognize, whether the destination of a data packet is the
 firewalls interface with IP = 10.1.1.1. or the network with IP =
@@ -240,7 +240,7 @@ Of course, proper subset relations have to hold not only for zones,
 but also for routers. For most of the routers, proper subset relation
 has been assured already by proving subset relations for the
 surrounding zones. If routers are placed at the border of an area
-though, subset relations can be violated: 
+though, subset relations can be violated:
 
 {% include image.html src="./images/areas_overlapping_router.png" title="" description="Overlapping areas with router as intersection." %}
 
@@ -337,7 +337,7 @@ loop nodes, except for the loop exit to `zone1`.
 
 {% include image.html src="./images/find_paths.png" title="Path finding in Netspoc:" description="Paths are found by walking from source and destination towards zone1 until the connecting node is found." %}
 
-### Identifying distances and loops 
+### Identifying distances and loops
 
 Netspoc now conducts the depth first search from a randomly chosen
 `zone1`. Within every zone and router object reached, the distance
@@ -395,8 +395,8 @@ loop using the information from the redirect variable of the loop
 object.
 
 Finally, Netspoc clusters all cactus graph loops by adding a reference
-to the exit node of the whole cluster as `cluster_exit` to all loop
-objects of the cluster. 
+to the exit node of the whole cluster as `clusterExit` to all loop
+objects of the cluster.
 
 *Possible addition: Picture of clustering*
 
@@ -448,18 +448,18 @@ For this reason, Netspoc policy language allows to model virtual IP addresses:
     network:n2 = {ip = 10.1.2.0/24;}
 
     router:r1 = {
-     interface:n1 = {ip = 10.1.1.11; 
-                     virtual = {ip = 10.1.1.1; type = HSPR} 
-                     hardware Ethernet1;} 
+     interface:n1 = {ip = 10.1.1.11;
+                     virtual = {ip = 10.1.1.1; type = HSPR}
+                     hardware Ethernet1;}
      interface: n2 = {ip = 10.1.2.1; hardware = Ethernet2;}
-    } 
+    }
 
     router:r2 = {
      interface:n1 = {ip = 10.1.1.12;
-                     virtual = {ip = 10.1.1.1; type = HSPR} 
-                     hardware Ethernet1;} 
+                     virtual = {ip = 10.1.1.1; type = HSPR}
+                     hardware Ethernet1;}
      interface: n2 = {ip = 10.1.2.2; hardware = Ethernet2;}
-    } 
+    }
 
 Within the graph representation of topology, the virtual IP address is
 included more than once, with an additional virtual interface at every
@@ -469,57 +469,6 @@ all interfaces sharing a single virtual IP address are located inside
 the same loop.
 
 {% include image.html src="./images/virtual_interface.png" title="Virtual IP:" description="Virtual IP adresses are represented in Netspoc as additional interfaces" %}
-
-### Optimize Pathrestrictions
-
-Netspoc finds paths between source and destination by walking from
-both towards `zone1` until a common node is found. We have seen before
-that Netspoc is guided by distance values that have been attached to
-every router and zone. Loops are subsumed by single distance values,
-with the loop exit node being referenced within every loop node
-(**Finding loop paths**). Therefore, whenever a loop is entered during
-pathfinding, Netspoc knows which node is the node to proceed with on
-the path towards `zone1`. Obviously, Netspoc still needs to examine
-every loop in detail to find all paths from entrance to exit node to
-generate ACLs for the managed routers inside the loop. In the figure
-below, Netspoc would then find two paths from loop entrance to loop
-exit node, marked by the green and the red arrow.
-
-{% include image.html src="./images/find_loop_paths1.png" title = "Finding loop paths:" description="To generate ACLs for managed routers inside loops, all paths from loop entrance to loop exit node have to be found." %}
-
-Path exploration inside loops can be a very expensive step, especially
-with big and nested cycles. It is therefore a good idea to stop
-examining invalid paths as early as possible, which is why we have a
-closer look at pathrestrictions now. Imagine a pathrestriction was
-added to the topology (**Loop partitioning**, 1). Then, the red path
-from figure **Finding loop paths** is no longer valid. Currently,
-pathrestrictions are referenced in every participating interface
-object and contains information about participating interfaces
-only. Netspoc therefore would have to follow the red path until the
-pathrestrictions second interface is reached to find the path to be
-invalid. To save these steps, Netspoc divides loops with
-pathrestrictions into partitions and stores at every pathrestricted
-interface the partitions that can be reached when the interface is
-passed from router to zone (zone direction) or from zone to router
-(router direction). In doing so, Netspoc can decide at the first
-pathrestricted interface, whether a certain destination can or can not
-be reached on the path passing the interface.
-
-{% include image.html src="./images/find_loop_paths.png" title="Loop partitioning:" description="The cycle is divided into different parts that can be reached from pathrestricted interfaces." %}
-
-To receive loop partitioning, every pathrestriction interface that is
-located within a cycle is considered. The loop path is traversed from
-the interface until another interface of the same pathrestriction is
-reached. Nodes that are visited during traversal lie in between both
-pathrestrictions and are labeled with a unique partition
-number. Within the adjacent interface objects, this partition number
-is stored to keep track on the partitions that can be reached from the
-interfaces. Obviously, every interface can border two partitions,
-which is why two numbers are stored in every interface object: one for
-zone and one for router direction.  Consequently, loop path traversal
-has to be performed twice per interface, if the interface has not been
-found before during a traversal starting from another interface of the same
-pathrestriction.
 
 ## Finding active routes {#find_routes}
 
@@ -538,12 +487,12 @@ interfaces of managed routers, but often located inside zones. As
 routing information needs to be generated for every source and
 destination pair defined in the rule set, precalculating a general
 next hop routing information at zone borders accelerates the process
-of route finding. Therefore, `set_routes_in_zone` determines next hop
+of route finding. Therefore, `setRoutesInZone` determines next hop
 interfaces to every network of a zone for all zone interfaces.  After
 the function call, every border interface of the zone holds following
-information: 
+information:
 
-* Which networks can be reached?  
+* Which networks can be reached?
 
 * What is the next interface (next hop interface) on the path to these
   networks?
@@ -614,7 +563,7 @@ therefore tagged as deleted.
     rule2: action = permit, source = r1.n2, dest = n6, prt = tcp 80 - deleted
 
 When the rule for rule1 is created, contains the source and destinarion pair of
-both rule1 and rule2. 
+both rule1 and rule2.
 
     pseudo rule: action: permit, source: n2, dest: n6, prt: ---
     src networks: n2, dst networks: n6
@@ -636,12 +585,12 @@ needs to be considered in the pseudo rule by additional information:
 
 Every pseudo rule is now processed to generate rule specific routing
 information. First, route paths for the rules (source,destination)
-pair are found via `path_mark`. The way this function works has been
+pair are found via `pathMark`. The way this function works has been
 briefly touched opon [above](#path_finding) and will be explained in
 detail below. For an abstract zone and router topology, it stores in
 every interface on a path from source to destination the next
 interface in direction to destination. After the path has been found,
-every zone of the path is visited again by `path_walk`. This function
+every zone of the path is visited again by `pathWalk`. This function
 applies a given function to every zone or router on path. As it is
 repeatedly used within Netspoc, is is described in general
 [below](#path_walk). In this case, the called function collects a pair
@@ -655,14 +604,14 @@ Next hop information is generated then for zone interface pairs and
 single zone interfaces, using the zones general next hop information
 generated before.
 
-### Working on paths 
+### Working on paths
 
 Throughout the Netspoc program workflow, paths from rule sources to
 destinations are processed several times, for example to generate ACL
-or routing information for interfaces on a rules path. 
+or routing information for interfaces on a rules path.
 
 To avoid unnecessary calculations, every path is explored only once,
-using the `path_mark` function and information is stored to reconstruct
+using the `pathMark` function and information is stored to reconstruct
 the path from.
 
 Basically, path mark finds paths from source to destination as has
@@ -678,7 +627,7 @@ attribute is also created within the source object. Thus, the path can
 easily be reconstructed whenever it is to be traversed again. A simple
 example of path mark is depicted in the figure below.
 
-{% include image.html src="./images/path_mark-simple.png" title="Path_mark:" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
+{% include image.html src="./images/path_mark-simple.png" title="pathMark:" description="The path from src to dst is marked iteratively, starting at both src and dst until the paths meet. In every iteration, first path information is added to the interfaces, then the pointer is moved to the next node in direction to zone 1." %}
 
 Due to special cases like pathrestrictions and loops, the basic
 algorithm described above has several extensions, that are supposed to
@@ -713,14 +662,14 @@ entering interface, indicating that is is required to pass a loop to
 get to the next interface stored in the path variable.
 
 Of course, the path through the loop still needs to be detected, using
-function `cluster_path_mark`. Usually, loop topologies would have
+function `clusterPathMark`. Usually, loop topologies would have
 pathrestrictions attached. As pathrestrictions require checks
 and tests that obfuscate the underlying algorithm, first assume a
 topology without pathrestrictions to explain it:
 
-{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During path_mark, a loop node (r4) was found. path_mark stores the path information in the next interface of the linear path and calls cluster_path_mark to find the paths from loop exit node (r1) to the detected loop node." %}
+{% include table.html no="1." img="./images/cluster_path_mark-simple1.png" txt="During pathMark, a loop node (r4) was found. pathMark stores the path information in the next interface of the linear path and calls clusterPathMark to find the paths from loop exit node (r1) to the detected loop node." %}
 
-`cluster_path_mark` is called with a pair of loop nodes that specify
+`clusterPathMark` is called with a pair of loop nodes that specify
 start and end node of a path through the cluster. If neither source
 nor destination are located within the loop, the start node is the
 loop exit node, and the end node is the node where the loop is entered
@@ -732,11 +681,11 @@ from recursion and collects path information. In contrast to the basic
 algorithm, path information is not stored within the interfaces on
 path but within the first node of the loop. It holds for every
 possible path through the loop the interfaces where the loop path
-starts and ends as well as an array of tuples describing the
-path. Every tuple holds [entrance interface, exit interface, router
-flag] for a loop node on path.
+starts and ends as well as tuples describing the path. Every tuple
+holds [entrance interface, exit interface] of a router or zone node on
+loop path.
 
-{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="Cluster_path_mark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
+{% include table.html no="2." img="./images/cluster_path_mark-simple2.png" txt="ClusterPathMark adds loop entry information to the next interface on path and performs a depth first search on loop nodes, starting at loop exit node (r1). It returns when a path (the initiating loop node) is found." %}
 
 {% include table.html no="3." img="./images/cluster_path_mark-simple3.png" txt="As the recursion stack is processed, path information isgenerated and stored within the first node on loop path from source to destination (r1)." %}
 
@@ -750,10 +699,10 @@ actually and necessarily passed on the path from source to destination.
 
 {% include image.html src="./images/cluster_navigation.png" title="Path trough a loop cluster:" description="Only Loop1 Exit, Loop1, Loop3 and Loop5 need to be passed on a way from source to destination." %}
 
-To identify these loops, `cluster_navigation` is called with the nodes
+To identify these loops, `clusterNavigation` is called with the nodes
 where the loop cluster is entered and left as arguments.  It
 identifies paths through the loop cluster in a way similar to the
-basic `path_mark` algorithm. Beginning at the loops of the given
+basic `pathMark` algorithm. Beginning at the loops of the given
 nodes, steps are iteratively taken towards lower distances. Within
 every step, a new loop is entered, and a navigation lookup hash is
 filled. It stores for every loop those loops that are purposeful to
@@ -763,10 +712,10 @@ the topology above, following hash would be generated:
     Loop5      -> Loop5
     Loop3      -> Loop3, Loop5
     Loop1      -> Loop1, Loop3
-    Loop1 Exit -> Loop1 Exit, Loop1    
+    Loop1 Exit -> Loop1 Exit, Loop1
 
 The navigation hash is then attached to start node and can be used to
-limit search space during cluster path mark: Whenever a new node is to
+limit search space during `clusterPathMark`: Whenever a new node is to
 be entered during depth first search, the loop of the actual node can
 be looked up in the navigation hash. If the loop of the next node is
 not within the set of purposeful loops, the node to enter can not lie
@@ -778,10 +727,10 @@ space.
 As soon as pathrestrictions are added to the topology, lots of special
 cases and side effects have to be considered when marking paths.
 
-A closer look at pathrestrictions during `path_mark` will follow soon!
+A closer look at pathrestrictions during `pathMark` will follow soon!
 Just some notes for now:
 
-* Within every step on the loop path (in `cluster_path_mark`)
+* Within every step on the loop path (in `clusterPathMark`)
   pathrestrictions need to be checked. Normal pathrestrictions must be
   activated at first occurrence, and path exploration must be stopped
   at second occurrence. At optimized pathrestrictions it must be
@@ -803,11 +752,11 @@ Just some notes for now:
   routes might be found for the interfaces router and zone.) Thus,
   when checking pathrestrictions, reachability of the zone is of
   interest. As the loop node that is given as loop exit node to the
-  `cluster_path_mark` function is a router, additional checks need to
+  `clusterPathMark` function is a router, additional checks need to
   be performed.
 
 
-#### Path_walk {#path_walk}
+#### PathWalk {#path_walk}
 
 For a given rule, path walk applies a function that is specified
 within the arguments at every router or zone node of the path from
@@ -816,21 +765,12 @@ all over the programm to generate and collect information like static
 routes or ACLs.
 
 If the path for the rules (source, destination) pair is not yet known,
-`path_walk` calls `path_mark` to calculate it.
+`pathWalk` calls `pathMark` to calculate it.
 
 Then, every node of the path is visited, following the path
 information stored at the interfaces, and the given function is called
 at every router or zone node, depending on the arguments given.
 
-As with `path_mark`, loop paths are processed in a single iteration
+As with `pathMark`, loop paths are processed in a single iteration
 step of the basic algorithm, processing the path information stored in
 the first node of the loop path.
-
-
-
-
- 
-
-
-
-
