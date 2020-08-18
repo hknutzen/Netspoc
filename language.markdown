@@ -885,26 +885,6 @@ Netspoc generates optimized code using object-groups for devices of
 type ASA and NX-OS.  Use router attribute `no_group_code` to
 disable this optimization.
 
-## Private configuration context
-
-The configuration for Netspoc is typically spread to multiple files
-located inside a directory. For a large topology we might have
-multiple administrators with responsibility for only part of the
-topology.
-
-The concept of 'private' configuration contexts allows to partition
-the configuration files into different areas of responsibility.  All
-definitions inside a directory or a file named "xxx.private" are
-marked as private for "xxx". All other definitions stay public.
-Private definitions have some restrictions to prevent inadvertent
-changes from other parts of a large set of configuration files:
-
-- A private network object (host, network, interface, aggregate) may
-only be referenced by private rules, groups, crypto definitions and
-pathrestrictions of the same context.
-- Only a private interface may be attached to a private network;
-both must belong to the same private context.
-
 ## Defining crypto tunnels
 
 A crypto tunnel between two interfaces is defined by marking one
