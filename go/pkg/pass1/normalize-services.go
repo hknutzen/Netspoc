@@ -199,29 +199,6 @@ func classifyProtocols(l []interface{}) (protoList, []*modifiedProto) {
 	return simple, complex
 }
 
-func checkPrivateService(s *service, srcList, dstList srvObjList) {
-	if priv := s.private; priv != "" {
-		for _, obj := range append(srcList, dstList...) {
-			if obj.getPrivate() == priv {
-				return
-			}
-		}
-		errMsg("Rule of %s %s must reference at least one object out of %s",
-			priv, s.String(), priv)
-		return
-	}
-
-	var pairs string
-	for _, obj := range append(srcList, dstList...) {
-		if obj.getPrivate() != "" {
-			pairs += "\n - " + obj.String() + " of " + obj.getPrivate()
-		}
-	}
-	if pairs != "" {
-		errMsg("Rule of public %s must not reference"+pairs, s)
-	}
-}
-
 func normalizeSrcDstList(r *unexpRule, user groupObjList, ctx string, ipv6 bool) [][2]srvObjList {
 	userObj.elements = user
 	srcList := expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
@@ -306,7 +283,6 @@ func normalizeServiceRules(s *service) {
 				if s.disabled {
 					continue
 				}
-				checkPrivateService(s, srcList, dstList)
 				if simplePrtList != nil {
 					rule := &serviceRule{
 						deny: deny,

@@ -225,7 +225,6 @@ func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 			agg.mask = mask
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
-			agg.private = z.private
 
 			linkImplicitAggregateToZone(agg, z, key)
 			if cluster != nil {

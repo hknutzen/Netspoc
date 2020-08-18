@@ -36,7 +36,7 @@ use Sereal::Encoder;
 use Netspoc::Compiler::GetArgs qw(get_args);
 use Netspoc::Compiler::File qw(
  process_file_or_dir
- *current_file *input *read_ipv6 *private $filename_encode);
+ *current_file *input *read_ipv6 $filename_encode);
 use Netspoc::Compiler::Common;
 use open qw(:std :utf8);
 use Encode;
@@ -1065,7 +1065,6 @@ my @router_fragments;
 sub read_host {
     my ($name, $network_name) = @_;
     my $host = new('Host');
-    $host->{private} = $private if $private;
     if (my ($id) = ($name =~ /^host:id:(.*)$/)) {
 
         # Make ID unique by appending name of enclosing network.
@@ -1240,7 +1239,6 @@ sub read_network {
     # name of ID-hosts.
     (my $net_name = $name) =~ s/^network://;
     my $network = new('Network', name => $name);
-    $network->{private} = $private if $private;
     if ($net_name =~ m,^(.*)/,) {
         $network->{bridged} = $1;
     }
@@ -1324,7 +1322,7 @@ sub read_network {
     my $ip = $network->{ip} or syntax_err("Missing network IP");
 
     if ($ip eq 'unnumbered') {
-        my %ok = (ip => 1, name => 1, crosslink => 1, private => 1);
+        my %ok = (ip => 1, name => 1, crosslink => 1);
 
         # Unnumbered network must not have any other attributes.
         for my $key (sort keys %$network) {
@@ -1988,9 +1986,6 @@ sub read_router {
 
                 # Link interface with network name (will be resolved later).
                 $interface->{network} = $name2;
-
-                # Set private attribute of interface.
-                $interface->{private} = $private if $private;
             }
         }
         else {
@@ -2372,9 +2367,6 @@ sub read_router {
                     $network->{nat} = $nat;
                 }
 
-                if (my $private = $interface->{private}) {
-                    $network->{private} = $private;
-                }
                 $networks{$net_name} = $network;
             }
             $interface->{network} = $net_name;
@@ -2415,7 +2407,7 @@ sub read_router {
                 network        => $net_name,
                 real_interface => $interface
             );
-            for my $key (qw(routing private bind_nat id)) {
+            for my $key (qw(routing bind_nat id)) {
                 if (my $value = $interface->{$key}) {
                     $tunnel_intf->{$key} = $value;
                 }
@@ -2439,9 +2431,6 @@ sub read_router {
                     name => "network:$net_name",
                     ip   => 'tunnel'
                     );
-                if (my $private = $interface->{private}) {
-                    $tunnel_net->{private} = $private;
-                }
                 $networks{$net_name} = $tunnel_net;
                 if ($read_ipv6) {
                     $tunnel_intf->{ipv6} = $tunnel_net->{ipv6} = 1;
@@ -2558,7 +2547,6 @@ sub read_common_net_agg_area {
 sub read_aggregate {
     my $name = shift;
     my $aggregate = new('Network', name => $name, is_aggregate => 1);
-    $aggregate->{private} = $private if $private;
     skip '=';
     skip '{';
     add_description($aggregate);
@@ -2595,7 +2583,7 @@ sub read_aggregate {
         for my $key (sort keys %$aggregate) {
             next
               if grep({ $key eq $_ }
-                qw(name ip mask link is_aggregate private nat owner));
+                qw(name ip mask link is_aggregate nat owner));
             err_msg("Must not use attribute '$key' if IP is set for $name");
         }
     }
@@ -2695,7 +2683,6 @@ sub read_group {
     my $name = shift;
     skip '=';
     my $group = new('Group', name => $name);
-    $group->{private} = $private if $private;
     add_description($group);
     my $elements = check(';') ? [] : read_union(';');
     $group->{elements} = $elements;
@@ -3026,7 +3013,6 @@ sub date_is_reached {
 sub read_service {
     my ($name) = @_;
     my $service = { name => $name, rules => [] };
-    $service->{private} = $private if $private;
     skip '=';
     skip '{';
     add_description($service);
@@ -3122,7 +3108,6 @@ sub read_pathrestriction {
     my $name = shift;
     skip '=';
     my $restriction = new('Pathrestriction', name => $name);
-    $restriction->{private} = $private if $private;
     add_description($restriction);
     $restriction->{elements} = read_union(';');
     return $restriction;
@@ -3257,7 +3242,6 @@ sub read_crypto {
     skip '=';
     skip '{';
     my $crypto = { name => $name };
-    $crypto->{private} = $private if $private;
     add_description($crypto);
     while (1) {
         my $token = read_token();
@@ -4079,21 +4063,6 @@ sub link_interfaces {
         }
 
         $interface->{network} = $network;
-
-        # Private network must be connected to private interface
-        # of same context.
-        if (my $private1 = $network->{private}) {
-            my $private2 = $interface->{private} || 'public';
-            $private1 eq $private2
-                or err_msg("$private2 $interface->{name} must not",
-                           " be connected to $private1 $network->{name}");
-        }
-
-        # Public network may connect to private interface.
-        # The owner of a private context can prevent a public network from
-        # connecting to a private interface by simply connecting an own private
-        # network to the private interface.
-
         push @{ $network->{interfaces} }, $interface;
         check_interface_ip($interface, $network);
     }
@@ -4242,7 +4211,6 @@ sub link_pathrestrictions {
         my $elements = expand_group($restrict->{elements},
                                     $restrict->{name}, $restrict->{ipv6});
         my $changed;
-        my $private = my $no_private = $restrict->{private};
         for my $obj (@$elements) {
             if (not is_interface($obj)) {
                 err_msg("$restrict->{name} must not reference $obj->{name}");
@@ -4255,26 +4223,6 @@ sub link_pathrestrictions {
             $obj->{main_interface}
               and err_msg("$restrict->{name} must not reference",
                           " secondary $obj->{name}");
-
-            # Private pathrestriction must reference at least one interface
-            # of its own context.
-            if ($private) {
-                if (my $obj_p = $obj->{private}) {
-                    $private eq $obj_p and $no_private = 0;
-                }
-            }
-
-            # Public pathrestriction must not reference private interface.
-            else {
-                if (my $obj_p = $obj->{private}) {
-                    err_msg "Public $restrict->{name} must not reference",
-                      " $obj_p $obj->{name}";
-                }
-            }
-        }
-        if ($no_private) {
-            err_msg "$private $restrict->{name} must reference",
-              " at least one interface out of $private";
         }
         if ($changed) {
             $elements = [ grep { $_ } @$elements ];
@@ -5770,20 +5718,6 @@ sub expand_group1 {
                       expand_group1($object->{elements}, "$type:$name", $ipv6,
                                     $visible, $with_subnets);
 
-                    # Private group must not reference private element of other
-                    # context.
-                    # Public group must not reference private element.
-                    my $private1 = $object->{private} || 'public';
-                    for my $element (@$elements) {
-                        if (my $private2 = $element->{private}) {
-                            $private1 eq $private2
-                              or err_msg(
-                                "$private1 $object->{name} must not",
-                                " reference $private2 $element->{name}"
-                              );
-                        }
-                    }
-
                     # Detect and remove duplicate values in group.
                     remove_duplicates($elements, "$type:$name");
 
@@ -6159,23 +6093,6 @@ sub classify_protocols {
     return [$simple_prt_list, $complex_prt_list];
 }
 
-sub check_private_service {
-    my ($service, $src_list, $dst_list) = @_;
-    my $context = $service->{name};
-    if (my $private = $service->{private}) {
-        grep({ $_->{private} and $_->{private} eq $private }
-             @$src_list, @$dst_list) or
-                 err_msg("Rule of $private $context must reference at least",
-                    " one object out of $private");
-    }
-    elsif (my @private = grep { $_->{private} } @$src_list, @$dst_list) {
-        my $pairs =
-            join("\n - ", map { "$_->{name} of $_->{private}" } @private);
-        err_msg("Rule of public $context must not reference\n",
-                " - $pairs");
-    }
-}
-
 sub normalize_src_dst_list {
     my ($rule, $user, $context, $ipv6) = @_;
     $user_object->{elements} = $user;
@@ -6237,7 +6154,6 @@ sub normalize_service_rules {
                 $rule_count++ if @$src_list or @$dst_list;
                 @$src_list and @$dst_list or next;
                 next if $service->{disabled};
-                check_private_service($service, $src_list, $dst_list);
                 my ($simple_prt_list, $complex_prt_list) = @$prt_list_pair;
                 if ($simple_prt_list) {
                     my $rule = {
@@ -9804,14 +9720,6 @@ sub link_aggregates {
         my $zone = $network->{zone};
         $zone->{link} = $network;    # only used in cut-netspoc
 
-        # Assure aggregate and network private status to be equal
-        my $private1 = $aggregate->{private} || 'public';
-        my $private2 = $network->{private};
-        $private2 ||= 'public';
-        $private1 eq $private2
-          or err_msg("$private1 $aggregate->{name} must not be linked",
-            " to $private2 $type:$name");
-
         # Assure that no other aggregate with same IP and mask exists in cluster
         my ($ip, $mask) = @{$aggregate}{qw(ip mask)};
         my $key     = "$ip$mask";
@@ -9953,9 +9861,6 @@ sub get_any {
             );
             $visible or $aggregate->{invisible} = 1;
             $aggregate->{ipv6} = 1 if $zone->{ipv6};
-            if (my $private = $zone->{private}) {
-                $aggregate->{private} = $private;
-            }
             link_implicit_aggregate_to_zone($aggregate, $zone, $key);
             duplicate_aggregate_to_cluster($aggregate, 1) if $cluster;
         }
@@ -9992,7 +9897,7 @@ sub get_any {
 ###############################################################################
 # Purpose  : Collects all elements (networks, unmanaged routers, interfaces) of
 #            a zone object and references the zone in its elements. Sets zone
-#            property flags and private status.
+#            property flags.
 # Comments : Unnumbered and tunnel networks are not referenced in zone objects,
 #            as they are no valid src or dst.
 sub set_zone1 {
@@ -10025,24 +9930,6 @@ sub set_zone1 {
     {
         $zone->{loopback} = 1;
     }
-
-    # Check network 'private' status and zone 'private' status to be equal.
-    my $private1 = $network->{private} || 'public';
-    if ($zone->{private}) {
-        my $private2 = $zone->{private};
-        if ($private1 ne $private2) {
-            my $other = $zone->{networks}->[0];
-            err_msg(
-                "Networks of $zone->{name} all must have",
-                " identical 'private' status\n",
-                " - $other->{name}: $private2\n",
-                " - $network->{name}: $private1"
-            );
-        }
-    }
-
-    # Set zone private status (attribute will be removed if value is 'public')
-    $zone->{private} = $private1;
 
     # Proceed with adjacent elements...
     for my $interface (@{ $network->{interfaces} }) {
@@ -10084,8 +9971,6 @@ sub set_zone_cluster {
     push @$zone_aref, $zone if not $zone->{is_tunnel};
     $zone->{zone_cluster} = $zone_aref;
 
-    my $private1 = $zone->{private} || 'public';
-
     # Find zone interfaces connected to semi-managed routers...
     for my $interface (@{ $zone->{interfaces} }) {
         next if $interface eq $in_interface;
@@ -10101,16 +9986,6 @@ sub set_zone_cluster {
             my $next = $out_interface->{zone};
             next if $next->{zone_cluster};             #traverse zones only once
             next if $out_interface->{main_interface};
-
-            # Check for equal private status.
-            my $private2 = $next->{private} || 'public';
-            $private1 eq $private2
-              or err_msg(
-                "Zones connected by $router->{name}",
-                " must all have identical 'private' status\n",
-                " - $zone->{name}: $private1\n",
-                " - $next->{name}: $private2"
-              );
 
             # Add adjacent zone recursively.
             set_zone_cluster($next, $out_interface, $zone_aref);
@@ -10510,11 +10385,6 @@ sub set_zones {
         # Remove zone reference from unmanaged routers (no longer needed).
         if (my $unmanaged = $zone->{unmanaged_routers}) {
             delete $_->{zone} for @$unmanaged;
-        }
-
-        # Remove private status, if 'public'
-        if ($zone->{private} and $zone->{private} eq 'public') {
-            delete $zone->{private};
         }
     }
 }
@@ -12960,11 +12830,9 @@ sub gen_tunnel_rules {
 }
 
 # Link tunnel networks with tunnel hubs.
-# ToDo: Are tunnels between different private contexts allowed?
 sub link_tunnels {
     for my $crypto (sort by_name values %crypto) {
         my $name        = $crypto->{name};
-        my $private     = $crypto->{private};
         my $real_hub    = delete $crypto2hub{$name};
         my $real_spokes = delete $crypto2spokes{$name};
         if (not $real_hub or $real_hub->{disabled}) {
@@ -13046,28 +12914,6 @@ sub link_tunnels {
                     err_msg "$router->{name} can't establish crypto",
                       " tunnel to $real_spoke->{name} with unknown IP";
                 }
-            }
-
-            if ($private) {
-                my $s_p = $real_spoke->{private};
-                my $h_p = $real_hub->{private};
-                $s_p and $s_p eq $private
-                  or $h_p and $h_p eq $private
-                  or err_msg
-                  "Tunnel $real_spoke->{name} to $real_hub->{name}",
-                  " of $private $name",
-                  " must reference at least one object",
-                  " out of $private";
-            }
-            else {
-                $real_spoke->{private}
-                  and err_msg("Tunnel of public $name must not",
-                              " reference $real_spoke->{name} of",
-                              " $real_spoke->{private}");
-                $real_hub->{private}
-                  and err_msg("Tunnel of public $name must not",
-                              " reference $real_hub->{name} of",
-                              " $real_hub->{private}");
             }
         }
     }

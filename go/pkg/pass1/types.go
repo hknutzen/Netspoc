@@ -36,7 +36,6 @@ type userInfo struct {
 type netOrRouter interface{}
 
 type autoIntf struct {
-	privateObj
 	usedObj
 	managed bool
 	name    string
@@ -56,7 +55,6 @@ func (x autoIntf) isDisabled() bool {
 
 type groupObj interface {
 	isDisabled() bool
-	getPrivate() string
 	setUsed()
 	String() string
 }
@@ -76,7 +74,6 @@ type srvObj interface {
 	String() string
 	getAttr(attr string) string
 	getNetwork() *network
-	getPrivate() string
 	getUsed() bool
 	setUsed()
 	setCommon(m xMap) // for importFromPerl
@@ -111,12 +108,6 @@ type ownedObj struct {
 func (x *ownedObj) getOwner() *owner  { return x.owner }
 func (x *ownedObj) setOwner(o *owner) { x.owner = o }
 
-type privateObj struct {
-	private string
-}
-
-func (x *privateObj) getPrivate() string { return x.private }
-
 type ipVxObj struct {
 	ipV6 bool
 }
@@ -139,7 +130,6 @@ type ipObj struct {
 	disabledObj
 	ipVxObj
 	ownedObj
-	privateObj
 	usedObj
 	name       string
 	ip         net.IP
@@ -277,7 +267,6 @@ type aclInfo struct {
 type router struct {
 	ipVxObj
 	ownedObj
-	privateObj
 	usedObj
 	pathStoreData
 	pathObjData
@@ -465,7 +454,6 @@ type ipmask struct {
 
 type zone struct {
 	ipVxObj
-	privateObj
 	pathStoreData
 	pathObjData
 	name                 string
@@ -502,7 +490,6 @@ type routerAttributes struct {
 type area struct {
 	disabledObj
 	ownedObj
-	privateObj
 	ipVxObj
 	usedObj
 	name             string
@@ -588,7 +575,6 @@ type protoLookup struct {
 }
 
 type objGroup struct {
-	privateObj
 	usedObj
 	elements        []*parsedObjRef
 	expandedClean   groupObjList
@@ -603,7 +589,6 @@ func (x objGroup) String() string   { return x.name }
 
 type service struct {
 	ipVxObj
-	privateObj
 	name                       string
 	description                string
 	disableAt                  string
