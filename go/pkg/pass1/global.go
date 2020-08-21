@@ -46,6 +46,7 @@ var (
 	ascendingAreas     []*area
 	allRouters         []*router
 	managedRouters     []*router
+	routerFragments    []*router
 	routingOnlyRouters []*router
 	virtualInterfaces  []*routerIntf
 	zones              []*zone

@@ -365,6 +365,7 @@ func CutNetspoc(m xMap) {
 
 	getSource(m)
 
+	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()

@@ -212,7 +212,7 @@ func tryExpand(parsed []*parsedObjRef, ipv6 bool) groupObjList {
 }
 
 func PrintGroup(m xMap) {
-
+	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()

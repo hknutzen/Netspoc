@@ -1416,6 +1416,7 @@ func copyPolicyFile(inPath, outDir string) {
 }
 
 func Export() {
+	MarkDisabled()
 	SetZone()
 	SetPath()
 	natDomains, natTag2natType, multiNAT := DistributeNatInfo()

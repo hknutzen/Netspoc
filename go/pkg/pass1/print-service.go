@@ -115,7 +115,7 @@ func prtInfo(srcRange, prt *proto) string {
 }
 
 func PrintService(m xMap) {
-
+	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()

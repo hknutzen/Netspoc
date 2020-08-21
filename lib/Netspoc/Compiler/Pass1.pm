@@ -18521,7 +18521,6 @@ sub compile {
     &show_read_statistics();
     &order_protocols();
     &link_topology();
-    &mark_disabled();
 
     call_go('spoc1-go', {
         in_path => $in_path,
@@ -18579,6 +18578,7 @@ sub call_go {
         deny_any_rule => $deny_any_rule,
         deny_any6_rule => $deny_any6_rule,
         managed_routers => \@managed_routers,
+        router_fragments => \@router_fragments,
         routing_only_routers => \@routing_only_routers,
         virtual_interfaces => \@virtual_interfaces,
         zones => \@zones,

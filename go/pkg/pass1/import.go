@@ -1556,6 +1556,7 @@ func ImportFromPerl() xMap {
 	rangeTCPEstablished = convProto(m["range_tcp_established"])
 	routers = convRouterMap(m["routers"])
 	routers6 = convRouterMap(m["routers6"])
+	routerFragments = convRouters(m["router_fragments"])
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
 	services = convServiceMap(m["services"])
 	version = getString(m["version"])

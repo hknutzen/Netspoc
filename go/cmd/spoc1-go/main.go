@@ -7,6 +7,7 @@ import (
 
 func main() {
 	pass1.ImportFromPerl()
+	pass1.MarkDisabled()
 	pass1.SetZone()
 	pass1.SetPath()
 	NATDomains, NATTag2natType, _ := pass1.DistributeNatInfo()
