@@ -249,11 +249,14 @@ func convNetwork(x xAny) *network {
 	n.hosts = convHosts(m["hosts"])
 	n.isAggregate = getBool(m["is_aggregate"])
 	n.isLayer3 = getBool(m["is_layer3"])
+	n.link = convNetwork(m["link"])
 	n.loopback = getBool(m["loopback"])
 	n.maxRoutingNet = convNetwork(m["max_routing_net"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
 	n.nat = convNetNat(m["nat"])
 	n.networks = convNetworks(m["networks"])
+	n.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
+	n.partition = getString(m["partition"])
 	n.dynamic = getBool(m["dynamic"])
 	n.hidden = getBool(m["hidden"])
 	n.natTag = getString(m["nat_tag"])
@@ -802,7 +805,9 @@ func convRouterAttributes(x xAny) *routerAttributes {
 	m := getMap(x)
 	a := new(routerAttributes)
 	a.name = getString(m["name"])
+	a.generalPermit = convProtos(m["general_permit"])
 	a.owner = convOwner(m["owner"])
+	a.policyDistributionPoint = convHost(m["policy_distribution_point"])
 	return a
 }
 

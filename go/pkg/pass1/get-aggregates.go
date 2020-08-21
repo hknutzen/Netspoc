@@ -167,11 +167,7 @@ func duplicateAggregateToCluster(agg *network, implicit bool) {
 func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 	if ip == nil {
 		ip = getZeroIp(z.ipV6)
-		if z.ipV6 {
-			mask = net.CIDRMask(0, 128)
-		} else {
-			mask = net.CIDRMask(0, 32)
-		}
+		mask = getZeroMask(z.ipV6)
 	}
 	key := ipmask{string(ip), string(mask)}
 	cluster := z.zoneCluster

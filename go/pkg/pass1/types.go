@@ -146,35 +146,38 @@ type natMap map[string]*network
 
 type network struct {
 	ipObj
-	attr             map[string]string
-	certId           string
-	crosslink        bool
-	descr            string
-	dynamic          bool
-	filterAt         map[int]bool
-	hasIdHosts       bool
-	hasOtherSubnet   bool
-	hasSubnets       bool
-	hidden           bool
-	hosts            []*host
-	identity         bool
-	interfaces       []*routerIntf
-	invisible        bool
-	isAggregate      bool
-	isLayer3         bool
-	loopback         bool
-	mask             net.IPMask
-	maxRoutingNet    *network
-	maxSecondaryNet  *network
-	nat              map[string]*network
-	natTag           string
-	networks         netList
-	radiusAttributes map[string]string
-	subnetOf         *network
-	subnets          []*subnet
-	unstableNat      map[natSet]netList
-	up               *network
-	zone             *zone
+	attr                 map[string]string
+	certId               string
+	crosslink            bool
+	descr                string
+	dynamic              bool
+	filterAt             map[int]bool
+	hasIdHosts           bool
+	hasOtherSubnet       bool
+	hasSubnets           bool
+	hidden               bool
+	hosts                []*host
+	identity             bool
+	interfaces           []*routerIntf
+	invisible            bool
+	isAggregate          bool
+	isLayer3             bool
+	link                 *network
+	loopback             bool
+	mask                 net.IPMask
+	maxRoutingNet        *network
+	maxSecondaryNet      *network
+	nat                  map[string]*network
+	natTag               string
+	networks             netList
+	noCheckSupernetRules bool
+	partition            string
+	radiusAttributes     map[string]string
+	subnetOf             *network
+	subnets              []*subnet
+	unstableNat          map[natSet]netList
+	up                   *network
+	zone                 *zone
 }
 
 func (x *network) getNetwork() *network { return x }
@@ -484,7 +487,9 @@ func (x zone) String() string { return x.name }
 
 type routerAttributes struct {
 	ownedObj
-	name string
+	name                    string
+	generalPermit           []*proto
+	policyDistributionPoint *host
 }
 
 type area struct {

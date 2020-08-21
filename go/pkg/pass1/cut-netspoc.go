@@ -57,7 +57,6 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"net"
 	"regexp"
 	"sort"
 	"strings"
@@ -366,6 +365,8 @@ func CutNetspoc(m xMap) {
 
 	getSource(m)
 
+	SetZone()
+	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
 	LinkReroutePermit()
@@ -462,12 +463,7 @@ func CutNetspoc(m xMap) {
 			continue
 		}
 		ip := getZeroIp(z.ipV6)
-		var mask net.IPMask
-		if z.ipV6 {
-			mask = net.CIDRMask(0, 128)
-		} else {
-			mask = net.CIDRMask(0, 32)
-		}
+		mask := getZeroMask(z.ipV6)
 		key := ipmask{string(ip), string(mask)}
 		if agg0 := z.ipmask2aggregate[key]; agg0 != nil {
 			agg0.isUsed = true

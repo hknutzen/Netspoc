@@ -116,6 +116,8 @@ func prtInfo(srcRange, prt *proto) string {
 
 func PrintService(m xMap) {
 
+	SetZone()
+	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
 	AbortOnError()

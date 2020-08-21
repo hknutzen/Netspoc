@@ -7,7 +7,8 @@ import (
 
 func main() {
 	pass1.ImportFromPerl()
-   pass1.SetPath()
+	pass1.SetZone()
+	pass1.SetPath()
 	NATDomains, NATTag2natType, _ := pass1.DistributeNatInfo()
 	pass1.FindSubnetsInZone()
 	// Call after findSubnetsInZone, where zone.networks has

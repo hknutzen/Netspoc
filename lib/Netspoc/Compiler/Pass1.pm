@@ -2649,10 +2649,6 @@ sub read_area {
             }
             add_attribute($area, $token => $elements);
         }
-        elsif ($token eq 'auto_border') {
-            skip(';');
-            $area->{auto_border} = 1;
-        }
         elsif ($token eq 'anchor') {
             my $net_name = read_network_assign($token);
             add_attribute($area, anchor => $net_name);
@@ -3995,6 +3991,30 @@ sub link_general_permit {
 }
 
 # Link areas with referenced interfaces or network.
+sub link_aggregates {
+    for my $aggregate (values %aggregates) {
+        my ($type, $name) = @{ $aggregate->{link} };
+
+        # Assure aggregates to be linked to networks only
+        if ($type ne 'network') {
+            err_msg("$aggregate->{name} must not be linked to $type:$name");
+            $aggregate->{disabled} = 1;
+            $aggregate->{link} = undef;
+            next;
+        }
+
+        # Assure aggregate link to exist/disable aggregates without active links
+        my $network = $networks{$name};
+        $aggregate->{link} = $network;
+        if (not $network) {
+            err_msg("Referencing undefined $type:$name",
+                " from $aggregate->{name}");
+            $aggregate->{disabled} = 1;
+        }
+    }
+}
+
+# Link areas with referenced interfaces or network.
 sub link_areas {
     for my $area (values %areas) {
         my $ipv6 = $area->{ipv6};
@@ -4677,6 +4697,7 @@ sub link_topology {
     link_pathrestrictions;
     link_virtual_interfaces;
     split_semi_managed_router();
+    link_aggregates();
     link_areas;
     link_subnets;
     link_owners;
@@ -6231,7 +6252,7 @@ sub propagate_owners {
             my $aggregate = $zone->{ipmask2aggregate}->{$key};
 
             # If an explicit owner was set, it has been set for
-            # the whole cluster in link_aggregates.
+            # the whole cluster in check_aggregates.
             next if $aggregate->{owner};
 
             my $owner;
@@ -9689,28 +9710,12 @@ sub link_implicit_aggregate_to_zone {
 #            objects to global @networks array.
 # Comments : Has to be called after zones have been set up. But before
 #            find_subnets_in_zone calculates {up} and {networks} relation.
-sub link_aggregates {
+sub process_aggregates {
 
     my @aggregates_in_cluster;    # Collect all aggregates inside clusters
     for my $name (sort keys %aggregates) {
         my $aggregate = $aggregates{$name};
-        my ($type, $name) = @{ $aggregate->{link} };
-
-        # Assure aggregates to be linked to networks only
-        if ($type ne 'network') {
-            err_msg("$aggregate->{name} must not be linked to $type:$name");
-            $aggregate->{disabled} = 1;
-            next;
-        }
-
-        # Assure aggregate link to exist/disable aggregates without active links
-        my $network = $networks{$name};
-        if (not $network) {
-            err_msg("Referencing undefined $type:$name",
-                " from $aggregate->{name}");
-            $aggregate->{disabled} = 1;
-            next;
-        }
+        my $network = $aggregate->{link} or next;
         if ($network->{disabled}) {
             $aggregate->{disabled} = 1;
             next;
@@ -10610,7 +10615,7 @@ sub set_zone {
     my $obj2areas = set_areas();
     check_area_subset_relations($obj2areas);
     cleanup_areas();
-    link_aggregates();
+    process_aggregates();
     inherit_attributes();
     return $obj2areas;	# For use in cut-netspoc
 }
@@ -18517,7 +18522,6 @@ sub compile {
     &order_protocols();
     &link_topology();
     &mark_disabled();
-    &set_zone();
 
     call_go('spoc1-go', {
         in_path => $in_path,

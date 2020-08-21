@@ -69,17 +69,6 @@ func exportJson(path string, data interface{}) {
 	}
 }
 
-// Take higher bits from network NAT, lower bits from original IP.
-// This works with and without NAT.
-func nat(ip net.IP, n *network) net.IP {
-	l := len(n.ip)
-	natIP := make(net.IP, l)
-	for i := 0; i < l; i++ {
-		natIP[i] = n.ip[i] | ip[i] & ^n.mask[i]
-	}
-	return natIP
-}
-
 func printNetworkIp(n *network, v6 bool) string {
 	pIP := n.ip.String()
 	var pMask string
@@ -145,10 +134,10 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return printNetworkIp(n, n.ipV6)
 			}
 			if ip := h.ip; ip != nil {
-				return nat(ip, n).String()
+				return mergeIP(ip, n).String()
 			}
 			r := h.ipRange
-			return nat(r[0], n).String() + "-" + nat(r[1], n).String()
+			return mergeIP(r[0], n).String() + "-" + mergeIP(r[1], n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)
@@ -183,7 +172,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Take whole network.
 				return printNetworkIp(n, n.ipV6)
 			default:
-				return nat(intf.ip, n).String()
+				return mergeIP(intf.ip, n).String()
 			}
 		}
 		n := x.network
@@ -201,12 +190,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 // Zone with network 0/0 doesn't have an aggregate 0/0.
 func getZoneName(z *zone) string {
 	ip := getZeroIp(z.ipV6)
-	var mask net.IPMask
-	if z.ipV6 {
-		mask = net.CIDRMask(0, 128)
-	} else {
-		mask = net.CIDRMask(0, 32)
-	}
+	mask := getZeroMask(z.ipV6)
 	if any := z.ipmask2aggregate[ipmask{string(ip), string(mask)}]; any != nil {
 		return any.name
 	} else {
@@ -1432,6 +1416,8 @@ func copyPolicyFile(inPath, outDir string) {
 }
 
 func Export() {
+	SetZone()
+	SetPath()
 	natDomains, natTag2natType, multiNAT := DistributeNatInfo()
 	FindSubnetsInZone()
 	adaptOwnerNames()
