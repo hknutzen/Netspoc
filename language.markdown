@@ -419,13 +419,9 @@ border interface. This is useful if a router has more than two
 interfaces and all but one interface X should be part of the
 area. Then define X as `inclusive_border` of this area.
 
-Alternatively use attribute `anchor` to define a starting point
-from where the area extends. Typically `anchor` is used together
-with attribute `auto_border` which restricts the area to the border
-of other areas.
-
-Use attribute `anchor` without `auto_border` to
-define an area which stretches across the whole topology.
+Alternatively use attribute `anchor` to define a starting point from
+where the area extends. Use attribute `anchor` to define an area which
+stretches across the whole topology.
 
 An area must be defined by using either attribute `anchor` or one or
 both of attributes `border` and `inclusive_border`.

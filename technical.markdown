@@ -212,12 +212,10 @@ and managed routers. If an area object contains no zones, it is deleted.
 Netspoc checks for proper border definitions during area set up.
 
 Areas may be defined by the user as anchor areas, that is, without
-border definitions, but an anchor network and the attribute
-`auto_border` instead. For these areas, depth first search starts at
-the zone containing the anchor network and stops at interfaces that
-are borders to other areas. References of these interfaces are stored
-in the anchor area object as borders.
-
+border definitions, but an anchor network instead. This is used to
+define an area containing the whole topology. Depth first search
+starting at the zone of the anchor network is used to collect all
+networks and managed routers.
 
 ### Finding subset relations
 

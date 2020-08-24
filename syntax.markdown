@@ -197,7 +197,6 @@ here `<object set>` must expand to networks.
          ( [ border = <object set>; ]
            [ inclusive_border = <object set>; ]
          ) | anchor = network:<network name>;
-         [ auto_border;    ]
          [ owner = <name>; ]
          <control service attr>*
          <network NAT> *
