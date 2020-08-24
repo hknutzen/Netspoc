@@ -4,6 +4,17 @@ import (
 	"net"
 )
 
+// Take higher bits from network NAT, lower bits from original IP.
+// This works with and without NAT.
+func mergeIP(ip net.IP, nat *network) net.IP {
+	l := len(nat.ip)
+	merged := make(net.IP, l)
+	for i := 0; i < l; i++ {
+		merged[i] = nat.ip[i] | ip[i] & ^nat.mask[i]
+	}
+	return merged
+}
+
 func getHostMask(ip net.IP, ipv6 bool) net.IPMask {
 	if ipv6 {
 		return net.CIDRMask(128, 128)
@@ -20,6 +31,13 @@ func getZeroIp(ipv6 bool) net.IP {
 	} else {
 		return zeroIP
 	}
+}
+
+func getZeroMask(ipv6 bool) net.IPMask {
+	if ipv6 {
+		return net.CIDRMask(0, 128)
+	}
+	return net.CIDRMask(0, 32)
 }
 
 func getNatNetwork(network *network, natSet natSet) *network {
@@ -61,13 +79,5 @@ func natAddress(ip net.IP, mask net.IPMask, nat map[string]net.IP, network *netw
 			return net.IPNet{IP: network.ip, Mask: network.mask}
 		}
 	}
-
-	// Take higher bits from network NAT, lower bits from original IP.
-	// This works with and without NAT.
-	n := len(network.ip)
-	natIP := make(net.IP, n)
-	for i := 0; i < n; i++ {
-		natIP[i] = network.ip[i] | ip[i] & ^network.mask[i]
-	}
-	return net.IPNet{IP: natIP, Mask: mask}
+	return net.IPNet{IP: mergeIP(ip, network), Mask: mask}
 }

@@ -7,6 +7,7 @@ META.yml
 Makefile.PL
 README
 README.md
+TODO
 bin/add-to-netspoc
 bin/cut-netspoc
 bin/cut-netspoc-go
@@ -103,6 +104,7 @@ go/pkg/pass1/global.go
 go/pkg/pass1/group-path-rules.go
 go/pkg/pass1/import.go
 go/pkg/pass1/link-topology.go
+go/pkg/pass1/mark-disabled.go
 go/pkg/pass1/mark-managed-local.go
 go/pkg/pass1/mark-secondary-rules.go
 go/pkg/pass1/nat.go
@@ -117,6 +119,7 @@ go/pkg/pass1/reverse-rules.go
 go/pkg/pass1/routes.go
 go/pkg/pass1/set-path.go
 go/pkg/pass1/set-policy-distribution-ip.go
+go/pkg/pass1/set-zone.go
 go/pkg/pass1/types.go
 go/pkg/printer/comment.go
 go/pkg/printer/printer.go
@@ -185,7 +188,6 @@ t/parser.t
 t/pathrestrict-border.t
 t/pathrestrict.t
 t/print-service.t
-t/private.t
 t/protect-interfaces.t
 t/protocols.t
 t/raw.t

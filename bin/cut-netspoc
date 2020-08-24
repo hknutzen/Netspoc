@@ -340,8 +340,5 @@ if (@ARGV) {
 
 &order_protocols();
 &link_topology();
-&mark_disabled();
-&set_zone();
-&setpath();
 
 call_go('cut-netspoc-go', {});

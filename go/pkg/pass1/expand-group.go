@@ -69,9 +69,8 @@ func getRouterAutoIntf(r *router) *autoIntf {
 	if result == nil {
 		name := "interface:" + strings.TrimPrefix(r.name, "router:") + ".[auto]"
 		result = &autoIntf{
-			name:       name,
-			object:     r,
-			privateObj: privateObj{private: r.private},
+			name:   name,
+			object: r,
 		}
 		routerAutoInterfaces[r] = result
 	}
@@ -87,10 +86,9 @@ func getNetworkAutoIntf(n *network, managed bool) *autoIntf {
 	if result == nil {
 		name := "interface:[" + n.name + "].[auto]"
 		result = &autoIntf{
-			name:       name,
-			object:     n,
-			managed:    managed,
-			privateObj: privateObj{private: n.private},
+			name:    name,
+			object:  n,
+			managed: managed,
 		}
 		networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
 	}
@@ -658,22 +656,6 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 					elements =
 						expandGroup1(grp.elements, ctx, ipv6, visible, withSubnets)
 					grp.recursive = false
-
-					// Private group must not reference private element of other
-					// context.
-					// Public group must not reference private element.
-					private1 := grp.private
-					if private1 == "" {
-						private1 = "public"
-					}
-					for _, elt := range elements {
-						if private2 := elt.getPrivate(); private2 != "" {
-							if private1 != private2 {
-								errMsg("%s %s must not reference %s %s",
-									private1, grp, private2, elt)
-							}
-						}
-					}
 
 					// Detect and remove duplicate values in group.
 					elements = removeDuplicates(elements, ctx)

@@ -8,14 +8,12 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 )
 
 type Context struct {
-	Path    string
-	Data    string
-	ipV6    bool
-	private string
+	Path string
+	Data string
+	ipV6 bool
 }
 type parser func(*Context)
 
@@ -72,15 +70,6 @@ func Walk(fname string, fn parser) {
 				// Handle ipv6 / ipv4 subdirectory or file.
 				if base == ipvDir {
 					input.ipV6 = base == "ipv6"
-				}
-
-				// Handle private directories and files.
-				if strings.HasSuffix(base, ".private") {
-					if input.private != "" {
-						abort.Msg("Nested private context is not supported:\n %s",
-							fname)
-					}
-					input.private = base
 				}
 
 				isDir := file.IsDir()

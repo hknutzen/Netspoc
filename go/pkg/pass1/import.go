@@ -168,7 +168,6 @@ func (x *ipObj) setCommon(m xMap) {
 	x.disabled = getBool(m["disabled"])
 	x.ipV6 = getBool(m["ipv6"])
 	x.owner = convOwner(m["owner"])
-	x.private = getString(m["private"])
 	x.isUsed = getBool(m["is_used"])
 }
 func (x *netObj) setCommon(m xMap) {
@@ -250,11 +249,14 @@ func convNetwork(x xAny) *network {
 	n.hosts = convHosts(m["hosts"])
 	n.isAggregate = getBool(m["is_aggregate"])
 	n.isLayer3 = getBool(m["is_layer3"])
+	n.link = convNetwork(m["link"])
 	n.loopback = getBool(m["loopback"])
 	n.maxRoutingNet = convNetwork(m["max_routing_net"])
 	n.maxSecondaryNet = convNetwork(m["max_secondary_net"])
 	n.nat = convNetNat(m["nat"])
 	n.networks = convNetworks(m["networks"])
+	n.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
+	n.partition = getString(m["partition"])
 	n.dynamic = getBool(m["dynamic"])
 	n.hidden = getBool(m["hidden"])
 	n.natTag = getString(m["nat_tag"])
@@ -485,7 +487,6 @@ func convRouter(x xAny) *router {
 	r.vrfMembers = convRouters(m["vrf_members"])
 	r.origRouter = convRouter(m["orig_router"])
 	r.policyDistributionPoint = convHost(m["policy_distribution_point"])
-	r.private = getString(m["private"])
 	r.radiusAttributes = convRadiusAttributes(m["radius_attributes"])
 	r.toZone1 = convRouterIntf(m["to_zone1"])
 	r.trustPoint = getString(m["trust_point"])
@@ -804,7 +805,9 @@ func convRouterAttributes(x xAny) *routerAttributes {
 	m := getMap(x)
 	a := new(routerAttributes)
 	a.name = getString(m["name"])
+	a.generalPermit = convProtos(m["general_permit"])
 	a.owner = convOwner(m["owner"])
+	a.policyDistributionPoint = convHost(m["policy_distribution_point"])
 	return a
 }
 
@@ -829,7 +832,6 @@ func convArea(x xAny) *area {
 	a.managedRouters = convRouters(m["managed_routers"])
 	a.nat = convNetNat(m["nat"])
 	a.owner = convOwner(m["owner"])
-	a.private = getString(m["private"])
 	a.routerAttributes = convRouterAttributes(m["router_attributes"])
 	a.isUsed = getBool(m["is_used"])
 	a.watchingOwner = convOwner(m["watching_owner"])
@@ -894,7 +896,6 @@ func convZone(x xAny) *zone {
 	z.natDomain = convNATDomain(m["nat_domain"])
 	z.noCheckSupernetRules = getBool(m["no_check_supernet_rules"])
 	z.partition = getString(m["partition"])
-	z.private = getString(m["private"])
 	z.toZone1 = convRouterIntf(m["to_zone1"])
 	z.unmanagedRouters = convRouters(m["unmanaged_routers"])
 	z.zoneCluster = convZones(m["zone_cluster"])
@@ -1215,7 +1216,6 @@ func convObjGroup(x xAny) *objGroup {
 	g.ipV6 = getBool(m["ipv6"])
 	g.isUsed = getBool(m["is_used"])
 	g.name = getString(m["name"])
-	g.private = getString(m["private"])
 	return g
 }
 func convObjGroupMap(x xAny) map[string]*objGroup {
@@ -1251,7 +1251,6 @@ func convService(x xAny) *service {
 		s.overlapsUsed = make(map[*service]bool)
 	}
 	s.multiOwner = getBool(m["multi_owner"])
-	s.private = getString(m["private"])
 	s.rules = convUnexpRules(m["rules"])
 	s.subOwner = convOwner(m["sub_owner"])
 	s.unknownOwner = getBool(m["unknown_owner"])
@@ -1557,6 +1556,7 @@ func ImportFromPerl() xMap {
 	rangeTCPEstablished = convProto(m["range_tcp_established"])
 	routers = convRouterMap(m["routers"])
 	routers6 = convRouterMap(m["routers6"])
+	routerFragments = convRouters(m["router_fragments"])
 	routingOnlyRouters = convRouters(m["routing_only_routers"])
 	services = convServiceMap(m["services"])
 	version = getString(m["version"])

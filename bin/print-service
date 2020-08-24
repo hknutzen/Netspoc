@@ -122,9 +122,6 @@ if (@names) {
 }
 &order_protocols();
 &link_topology();
-&mark_disabled();
-&set_zone();
-&setpath();
 
 call_go('print-service-go', {
     in_path => $in_path,

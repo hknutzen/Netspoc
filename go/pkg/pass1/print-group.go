@@ -121,12 +121,7 @@ func printAddress(obj groupObj, ns natSet) string {
 	// Take higher bits from network NAT, lower bits from original IP.
 	// This works with and without NAT.
 	natAddr := func(ip net.IP, n *network) string {
-		l := len(n.ip)
-		natIP := make(net.IP, l)
-		for i := 0; i < l; i++ {
-			natIP[i] = n.ip[i] | ip[i] & ^n.mask[i]
-		}
-		return natIP.String()
+		return mergeIP(ip, n).String()
 	}
 
 	switch x := obj.(type) {
@@ -217,7 +212,9 @@ func tryExpand(parsed []*parsedObjRef, ipv6 bool) groupObjList {
 }
 
 func PrintGroup(m xMap) {
-
+	MarkDisabled()
+	SetZone()
+	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
 	AbortOnError()

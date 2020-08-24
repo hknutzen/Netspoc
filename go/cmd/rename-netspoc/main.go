@@ -221,6 +221,10 @@ func toplevel(n ast.Toplevel) {
 			intf.Name = substTypedName(intf.Name)
 			attributeList(intf.ComplexValue)
 		}
+	case *ast.Area:
+		attributeList(x.Attributes)
+		elementList(x.Border.Elements)
+		elementList(x.InclusiveBorder.Elements)
 	}
 }
 

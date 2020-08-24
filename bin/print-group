@@ -149,9 +149,6 @@ pos $input == length $input or die "Invalid group specification\n";
 read_file_or_dir($in_path);
 order_protocols();
 link_topology();
-mark_disabled();
-set_zone();
-setpath();
 
 call_go('print-group-go', {
     in_path => $in_path,

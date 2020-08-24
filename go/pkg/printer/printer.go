@@ -207,6 +207,8 @@ func (p *printer) topProtocolList(n *ast.Protocolgroup) {
 	p.print(";")
 }
 
+const shortName = 10
+
 func (p *printer) namedList(name string, l []ast.Element) {
 	pre := name + " = "
 	if len(l) == 0 {
@@ -218,8 +220,11 @@ func (p *printer) namedList(name string, l []ast.Element) {
 	first := l[0]
 	var rest []ast.Element
 	ind := utfLen(pre)
-	if p.hasPreComment(first, ",") {
-		p.print(pre[:ind-1])
+	if len(name) > shortName {
+		ind = 1
+	}
+	if p.hasPreComment(first, ",") || len(l) > 1 && ind == 1 {
+		p.print(pre[:len(pre)-1])
 		rest = l
 	} else {
 		rest = l[1:]
@@ -248,8 +253,6 @@ func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
 	p.PreComment(n, "")
 	p.namedList(pre+n.Name, n.Elements)
 }
-
-const shortName = 10
 
 func (p *printer) namedValueList(name string, l []*ast.Value) {
 
@@ -309,18 +312,20 @@ func (p *printer) complexValue(name string, l []*ast.Attribute) {
 
 func (p *printer) attribute(n *ast.Attribute) {
 	p.PreComment(n, "")
+	name := n.Name
 	if l := n.ValueList; l != nil {
-		p.namedValueList(n.Name, l)
+		p.namedValueList(name, l)
 	} else if l := n.ComplexValue; l != nil {
-		name := n.Name
 		if name == "virtual" || strings.Index(name, ":") != -1 {
 			p.print(name + " = {" + getAttrList(l) + " }")
 		} else {
 			p.complexValue(name, l)
 		}
+	} else if name == "prt" {
+		p.print("prt = ;" + p.TrailingComment(n, ";"))
 	} else {
 		// Short attribute without values.
-		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
+		p.print(name + ";" + p.TrailingComment(n, ",;"))
 	}
 }
 
@@ -488,6 +493,22 @@ func (p *printer) router(n *ast.Router) {
 	p.print("}")
 }
 
+func (p *printer) namedUnionIfSet(n *ast.NamedUnion) {
+	if n != nil {
+		p.indent++
+		p.namedUnion("", n)
+		p.indent--
+	}
+}
+
+func (p *printer) area(n *ast.Area) {
+	p.topStructHead(n)
+	p.attributeList(n.Attributes)
+	p.namedUnionIfSet(n.Border)
+	p.namedUnionIfSet(n.InclusiveBorder)
+	p.print("}")
+}
+
 func (p *printer) topStruct(n *ast.TopStruct) {
 	p.topStructHead(n)
 	p.attributeList(n.Attributes)
@@ -511,6 +532,8 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.network(x)
 	case *ast.Router:
 		p.router(x)
+	case *ast.Area:
+		p.area(x)
 	default:
 		panic(fmt.Sprintf("Unknown type: %T", n))
 	}

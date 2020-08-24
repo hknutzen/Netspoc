@@ -40,6 +40,6 @@ requires:
   open: '0'
   strict: '0'
   warnings: '0'
-version: '6.017'
+version: '6.018'
 x_generated_by_perl: v5.26.0
 x_serialization_backend: 'YAML::Tiny version 1.73'

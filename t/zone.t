@@ -347,5 +347,52 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Must not accidently add zone twice to cluster';
+############################################################
+# If using 'activePath', zone:[n3] would be added twice.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+network:n4 = { ip = 10.1.4.0/24;}
+any:n1 = { link = network:n1;}
+
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; routing = dynamic; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+pathrestriction:p = interface:r1.n2, interface:r2.n2;
+
+service:s1 = {
+ user = any:n1;
+ permit src = user; dst = network:n4; prt = udp 123;
+}
+END
+
+$out = <<'END';
+--r2
+! [ Routing ]
+ip route 10.1.4.0 255.255.255.0 10.1.3.3
+END
+
+test_run($title, $in, $out);
+
+############################################################
 
 done_testing;

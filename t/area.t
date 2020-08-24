@@ -230,41 +230,6 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Area with auto_border';
-############################################################
-
-$in = $topo . <<'END';
-network:n4 = { ip = 10.1.4.0/24; }
-
-router:asa3 = {
- managed;
- model = ASA;
- interface:n2 = { ip = 10.1.2.3; hardware = n2; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
-}
-
-router:asa4 = {
- managed;
- model = ASA;
- interface:n3 = { ip = 10.1.3.3; hardware = n2; }
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
-}
-
-area:a1 = { border = interface:asa3.n4;
-            inclusive_border = interface:asa2.n2;
-}
-area:a2 = {anchor = network:n1; auto_border; }
-group:g1 = network:[area:a2];
-END
-
-$out = <<'END';
-10.1.1.0/24	network:n1
-10.1.2.0/24	network:n2
-END
-
-test_group($title, $in, 'group:g1', $out);
-
-############################################################
 $title = 'Secondary interface as area border';
 ############################################################
 
@@ -462,7 +427,7 @@ area:a2 = {
 END
 
 $out = <<'END';
-Error: Inconsistent definition of area:a1.
+Error: Inconsistent definition of area:a1 in loop.
  It is reached from outside via this path:
  - interface:asa2.n2
  - interface:asa1.n2

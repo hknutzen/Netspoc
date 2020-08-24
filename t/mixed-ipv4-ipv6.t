@@ -378,9 +378,9 @@ Netspoc, version TESTING
 Read: 2 routers, 4 networks, 1 hosts, 2 services
 Arranging protocols
 Linking topology
-Preparing security zones and areas
 Exporting to Go
 Importing from Perl
+Preparing security zones and areas
 Preparing fast path traversal
 Distributing NAT
 Finding subnets in zone

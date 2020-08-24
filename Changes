@@ -1,3 +1,13 @@
+6.018     2020-08-24 10:39:04+02:00 Europe/Berlin
+
+ - Fixed 'rename-netspoc': Interface in border or inclusive_border of area
+   is renamed now, when renaming network or router,.
+ - Migrated more parts from Perl to Go:
+   - Marking disabled parts of topology
+   - Preparing security zones and areas
+ - Private configuration contexts are no longer supported.
+ - Attribute 'auto_border' at area is no longer supported.
+
 6.017     2020-08-11 12:55:04+02:00 Europe/Berlin
 
  - The subnet relation between two networks was not checked in NAT domain

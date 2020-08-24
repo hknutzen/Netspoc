@@ -1,0 +1,6 @@
+Do we really need attribute 'zone' in router?
+- Is used for loop detection at unmanaged router. Use activePath instead.
+- Used as dummy zone for managed routers. Is value nil?
+
+Set attribute 'zoneCluster' also for simple cluster with only one element?
+Or use small function to get list of cluster elements.

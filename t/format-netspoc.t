@@ -762,6 +762,25 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Service with empty user, src, dst, prt';
+############################################################
+
+$in = <<'END';
+service:s1 = { user =; permit src =; dst =; prt =; }
+END
+
+$out = <<'END';
+service:s1 = {
+ user = ;
+ permit src = ;
+        dst = ;
+        prt = ;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Service with foreach';
 ############################################################
 
@@ -1144,16 +1163,21 @@ $title = 'Area';
 
 $in = <<'END';
 area:a1 = {
- border= interface:r1.n1, interface:r5.n5, interface:r2.n2;
+ border = interface:r3.n3, group:g3 &! interface:r1.n1;
  inclusive_border = interface:r3.n3;
+ nat:t = { hidden; }
+ owner = o;
 }
 END
 
 $out = <<'END';
 area:a1 = {
- border = interface:r1.n1,
-          interface:r5.n5,
-          interface:r2.n2,
+ nat:t = { hidden; }
+ owner = o;
+ border = interface:r3.n3,
+          group:g3
+          &! interface:r1.n1
+          ,
           ;
  inclusive_border = interface:r3.n3;
 }
@@ -1174,12 +1198,12 @@ END
 
 $out = <<'END';
 area:a1 = {
+ border = interface:r3.n3;
  inclusive_border =
   interface:r1.n1,
   interface:r5.n5,
   interface:r2.n2,
- ;
- border = interface:r3.n3;
+  ;
 }
 END
 
@@ -1226,7 +1250,6 @@ protocol:all_ip = # trailing
 protocol:all_icmp =
  description = icmp with any typa and code
  icmp;
-
 END
 
 $out = <<'END';
@@ -1244,6 +1267,20 @@ protocol:all_icmp =
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Unfinished protocol definition';
+############################################################
+
+$in = <<'END';
+protocol:p = tcp
+END
+
+$out = <<'END';
+Syntax error: Expected ';' at line 2 of INPUT, at EOF
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 done_testing;

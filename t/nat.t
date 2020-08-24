@@ -1620,11 +1620,11 @@ END
 
 $out = <<'END';
 Warning: Useless nat:C of any:x,
- it is already inherited from nat:C of area:x
+ it was already inherited from nat:C of area:x
 Warning: Useless nat:C of network:x,
- it is already inherited from nat:C of any:x
+ it was already inherited from nat:C of any:x
 Warning: Useless nat:D of network:x,
- it is already inherited from nat:D of area:x
+ it was already inherited from nat:D of area:x
 Warning: nat:D is defined, but not bound to any interface
 END
 
@@ -1678,9 +1678,42 @@ END
 
 $out = <<'END';
 Warning: Useless nat:n of network:n2a,
- it is already inherited from nat:n of network:n2
+ it was already inherited from nat:n of network:n2
 Warning: Useless nat:n of network:n2,
- it is already inherited from nat:n of area:a12
+ it was already inherited from nat:n of area:a12
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No useless NAT in zone cluster';
+############################################################
+# Warning would be shown, if NAT map was shared between zones of cluster.
+
+$in = <<'END';
+area:a12 = { border = interface:r1.n2; nat:h1 = { hidden; } }
+any:n1 = { link = network:n1; nat:h2 = { hidden; } }
+
+network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:u = {
+ interface:n1;
+ interface:n2 = { bind_nat = n; }
+}
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h2; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h1; }
+}
+END
+
+$out = <<'END';
 END
 
 test_warn($title, $in, $out);

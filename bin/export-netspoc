@@ -1222,9 +1222,6 @@ init_global_vars();
 read_file_or_dir($netspoc_data);
 order_protocols();
 link_topology();
-mark_disabled();
-set_zone();
-setpath();
 
 call_go('export-netspoc-go', {
     in_path => $netspoc_data,

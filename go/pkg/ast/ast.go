@@ -229,3 +229,9 @@ type Router struct {
 	TopStruct
 	Interfaces []*Attribute
 }
+
+type Area struct {
+	TopStruct
+	Border          *NamedUnion
+	InclusiveBorder *NamedUnion
+}
