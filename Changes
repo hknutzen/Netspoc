@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.018     2020-08-24 10:39:04+02:00 Europe/Berlin
+
  - Fixed 'rename-netspoc': Interface in border or inclusive_border of area
    is renamed now, when renaming network or router,.
  - Migrated more parts from Perl to Go:
