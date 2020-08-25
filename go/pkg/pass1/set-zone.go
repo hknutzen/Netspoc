@@ -394,6 +394,10 @@ func setAreas() map[pathObj]map[*area]bool {
 				lookup[intf] = normalBorder
 			}
 			for _, intf := range a.inclusiveBorder {
+				if _, found := lookup[intf]; found {
+					errMsg("%s is used as 'border' and 'inclusive_border' in %s",
+						intf, a)
+				}
 				lookup[intf] = inclusiveBorder
 			}
 			// Identify start interface and direction for area traversal.
