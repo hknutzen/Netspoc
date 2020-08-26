@@ -192,6 +192,13 @@ func attributeList(l []*ast.Attribute) {
 		attribute(n)
 	}
 }
+
+func namedUnion(n *ast.NamedUnion) {
+	if n != nil {
+		elementList(n.Elements)
+	}
+}
+
 func toplevel(n ast.Toplevel) {
 	n.SetName(substTypedName(n.GetName()))
 	switch x := n.(type) {
@@ -203,10 +210,10 @@ func toplevel(n ast.Toplevel) {
 		attributeList(x.Attributes)
 	case *ast.Service:
 		attributeList(x.Attributes)
-		elementList(x.User.Elements)
+		namedUnion(x.User)
 		for _, r := range x.Rules {
-			elementList(r.Src.Elements)
-			elementList(r.Dst.Elements)
+			namedUnion(r.Src)
+			namedUnion(r.Dst)
 			valueList(r.Prt.ValueList)
 		}
 	case *ast.Network:
@@ -223,8 +230,8 @@ func toplevel(n ast.Toplevel) {
 		}
 	case *ast.Area:
 		attributeList(x.Attributes)
-		elementList(x.Border.Elements)
-		elementList(x.InclusiveBorder.Elements)
+		namedUnion(x.Border)
+		namedUnion(x.InclusiveBorder)
 	}
 }
 

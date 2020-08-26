@@ -1192,13 +1192,11 @@ $title = 'Area with multiple inclusive borders';
 $in = <<'END';
 area:a1 = {
  inclusive_border= interface:r1.n1, interface:r5.n5, interface:r2.n2;
- border = interface:r3.n3;
 }
 END
 
 $out = <<'END';
 area:a1 = {
- border = interface:r3.n3;
  inclusive_border =
   interface:r1.n1,
   interface:r5.n5,

@@ -64,6 +64,23 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Must not use interface as border and inclusive_border';
+############################################################
+
+$in = $topo . <<'END';
+area:a = {
+ border = interface:asa1.n2, interface:asa2.n3;
+ inclusive_border = interface:asa2.n3;
+}
+END
+
+$out = <<'END';
+Error: interface:asa2.n3 is used as 'border' and 'inclusive_border' in area:a
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Only interface as border';
 ############################################################
 
