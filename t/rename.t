@@ -125,6 +125,9 @@ area:a = {
  border = interface:r.Test;
  inclusive_border = interface:r2.Test;
 }
+area:b = {
+ border = interface:Test.r, interface:r.Test;
+}
 pathrestriction:P = interface:r1.Test, interface:r2.Test;
 router:r = {
  interface:Test = { reroute_permit = network:Test; }
@@ -153,6 +156,12 @@ area:a = {
  inclusive_border = interface:r2.Toast;
 }
 
+area:b = {
+ border = interface:Test.r,
+          interface:r.Toast,
+          ;
+}
+
 pathrestriction:P =
  interface:r1.Toast,
  interface:r2.Toast,
@@ -172,7 +181,7 @@ $title = 'Rename verbosely';
 ############################################################
 
 $out = <<'END' . $out;
-12 changes in INPUT
+13 changes in INPUT
 END
 
 test_run($title, $in, '--quiet=0 network:Test network:Toast', $out);
