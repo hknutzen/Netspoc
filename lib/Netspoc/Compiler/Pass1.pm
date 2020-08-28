@@ -189,7 +189,6 @@ my %router_info = (
         extension           => {
             VPN => {
                 crypto           => 'ASA_VPN',
-                stateless_tunnel => 1,
                 do_auth          => 1,
             },
             CONTEXT => { crypto_in_context => 1 },
