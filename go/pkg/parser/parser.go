@@ -18,8 +18,9 @@ type parser struct {
 	fileName string
 
 	// Next token
-	pos int    // token position
-	tok string // token literal, one token look-ahead
+	pos   int    // token position
+	isSep bool   // token is single separator character
+	tok   string // token literal, one token look-ahead
 }
 
 func (p *parser) init(src []byte, fname string) {
@@ -34,24 +35,24 @@ func (p *parser) init(src []byte, fname string) {
 
 // Advance to the next token.
 func (p *parser) next() {
-	p.pos, p.tok = p.scanner.Token()
+	p.pos, p.isSep, p.tok = p.scanner.Token()
 }
 
 // Advance to the next token, but take "-" and ":" as separator.
 func (p *parser) nextRange() {
-	p.pos, p.tok = p.scanner.RangeToken()
+	p.pos, p.isSep, p.tok = p.scanner.RangeToken()
 }
 
 // Advance to the next token, but token contains any character except
 // ';', '#', '\n'. A single ";" may be returned.
 func (p *parser) nextSingle() {
-	p.pos, p.tok = p.scanner.TokenToSemicolon()
+	p.pos, p.isSep, p.tok = p.scanner.TokenToSemicolon()
 }
 
 // Advance to the next token, but token contains any character except
 // ',', ';', '#', '\n'. A single "," or ";" may be returned.
 func (p *parser) nextMulti() {
-	p.pos, p.tok = p.scanner.TokenToComma()
+	p.pos, p.isSep, p.tok = p.scanner.TokenToComma()
 }
 
 func (p *parser) syntaxErr(format string, args ...interface{}) {
@@ -103,6 +104,13 @@ func (p *parser) checkPos(tok string) int {
 	end := p.pos + len(tok)
 	p.next()
 	return end
+}
+
+func (p *parser) getNonSep() string {
+	if p.isSep {
+		p.syntaxErr("Unexpected separator '%s'", p.tok)
+	}
+	return p.tok
 }
 
 func isSimpleName(n string) bool {
@@ -396,9 +404,7 @@ func (p *parser) union(stopToken string) ([]ast.Element, int) {
 func (p *parser) description() *ast.Description {
 	start := p.pos
 	if p.check("description") {
-		if p.tok != "=" {
-			p.syntaxErr("Expected '='")
-		}
+		p.expectLeave("=")
 		p.pos, p.tok = p.scanner.ToEOLorComment()
 		// Prevent two spaces before comment when printing.
 		text := strings.TrimRight(p.tok, " ")
@@ -414,7 +420,7 @@ func (p *parser) description() *ast.Description {
 }
 
 func (p *parser) name() string {
-	result := p.tok
+	result := p.getNonSep()
 	p.next()
 	return result
 }
@@ -422,7 +428,7 @@ func (p *parser) name() string {
 func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
 	a := new(ast.Value)
 	a.Start = p.pos
-	a.Value = p.tok
+	a.Value = p.getNonSep()
 	nextSpecial(p)
 	return a
 }

@@ -166,7 +166,7 @@ func (s *Scanner) skipWhitespace() {
 	}
 }
 
-func (s *Scanner) scan(check func(rune) bool) (int, string) {
+func (s *Scanner) scan(check func(rune) bool) (int, bool, string) {
 	s.skipWhitespace()
 
 	// current token start
@@ -174,34 +174,36 @@ func (s *Scanner) scan(check func(rune) bool) (int, string) {
 
 	// determine token value
 	ch := s.ch
+	isSeparator := true
 	s.next()
 	if check(ch) {
+		isSeparator = false
 		for check(s.ch) {
 			s.next()
 		}
 	}
-	return pos, string(s.src[pos:s.offset])
+	return pos, isSeparator, string(s.src[pos:s.offset])
 }
 
 // Token scans the next token and returns the token position and the
 // token literal string. The source end is indicated by "".
 //
-func (s *Scanner) Token() (int, string) {
-	pos, tok := s.scan(isTokenChar)
+func (s *Scanner) Token() (int, bool, string) {
+	pos, isSep, tok := s.scan(isTokenChar)
 	// Token may end with '['.
-	if s.ch == '[' {
+	if !isSep && s.ch == '[' {
 		s.next()
 		tok = tok + "["
 	}
-	return pos, tok
+	return pos, isSep, tok
 }
 
-func (s *Scanner) RangeToken() (int, string) {
+func (s *Scanner) RangeToken() (int, bool, string) {
 	return s.scan(isRangeTokenChar)
 }
 
-func (s *Scanner) TokenToSemicolon() (int, string) {
-	pos, tok := s.scan(func(ch rune) bool {
+func (s *Scanner) TokenToSemicolon() (int, bool, string) {
+	return s.scan(func(ch rune) bool {
 		switch ch {
 		case ';', '\n', '#':
 			return false
@@ -209,14 +211,10 @@ func (s *Scanner) TokenToSemicolon() (int, string) {
 			return true
 		}
 	})
-	if tok != "" {
-		return pos, tok
-	}
-	return s.Token()
 }
 
-func (s *Scanner) TokenToComma() (int, string) {
-	pos, tok := s.scan(func(ch rune) bool {
+func (s *Scanner) TokenToComma() (int, bool, string) {
+	return s.scan(func(ch rune) bool {
 		switch ch {
 		case ',', ';', '\n', '#', ' ', '\t', '\r', '"', '\'':
 			return false
@@ -224,10 +222,6 @@ func (s *Scanner) TokenToComma() (int, string) {
 			return true
 		}
 	})
-	if tok != "" {
-		return pos, tok
-	}
-	return s.Token()
 }
 
 func (s *Scanner) ToEOL() (int, string) {

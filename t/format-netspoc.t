@@ -762,6 +762,56 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Service with invalid attribute';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ overlaps = service:s2,,;
+ user = host:h1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Syntax error: Unexpected separator ',' at line 2 of INPUT, near "service:s2,,<--HERE-->;"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Service without user';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Syntax error: Expected '=' at line 2 of INPUT, near "src<--HERE--> = user"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Service without rule';
+############################################################
+
+$in = <<'END';
+service:s1 = { user = host:h1; }
+END
+
+$out = <<'END';
+service:s1 = {
+ user = host:h1;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Service with empty user, src, dst, prt';
 ############################################################
 
