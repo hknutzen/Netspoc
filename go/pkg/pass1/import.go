@@ -1105,7 +1105,6 @@ func convProtoOrName(x xAny) protoOrName {
 	default:
 		panic(fmt.Errorf("Expected (*)xSlice or xMap but got %v", u))
 	}
-	return nil
 }
 func convProtoOrNames(x xAny) []protoOrName {
 	a := getSlice(x)
@@ -1155,7 +1154,6 @@ func convIntfExt(x xAny) interface{} {
 	default:
 		return getString(x)
 	}
-	return nil
 }
 
 func convAggExt(x xAny) *aggExt {
