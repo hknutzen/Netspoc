@@ -235,8 +235,8 @@ func checkCrosslink() map[*router]bool {
 				continue
 			}
 			if nonSecondaryIntfCount(hw.interfaces) != 1 {
-				errMsg("Crosslink %s must be the only network\n",
-					" connected to %s of %s", n, hw.name, r)
+				errMsg("Crosslink %s must be the only network"+
+					" connected to hardware '%s' of %s", n, hw.name, r)
 			}
 
 			strength := crosslinkStrength[r.managed]
