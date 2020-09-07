@@ -330,7 +330,10 @@ func printRoutes(fh *os.File, router *router) {
 				m = make(map[*routerIntf][]netInfo)
 				intf2hop2netInfos[hopInfo.intf] = m
 			}
-			info := netInfo{net.IPNet{ip, net.CIDRMask(prefix, bitstrLen)}, noOpt}
+			info := netInfo{
+				net.IPNet{IP: ip, Mask: net.CIDRMask(prefix, bitstrLen)},
+				noOpt,
+			}
 			m[hopInfo.hop] = append(m[hopInfo.hop], info)
 		}
 	}
@@ -366,7 +369,10 @@ func printRoutes(fh *os.File, router *router) {
 			// But still generate routes for small networks
 			// with supernet behind other hop.
 			hop2nets := intf2hop2netInfos[maxIntf]
-			nets := []netInfo{{net.IPNet{zeroIp, net.CIDRMask(0, bitstrLen)}, false}}
+			nets := []netInfo{{
+				net.IPNet{IP: zeroIp, Mask: net.CIDRMask(0, bitstrLen)},
+				false,
+			}}
 			for _, net := range hop2nets[maxHop] {
 				if net.noOpt {
 					nets = append(nets, net)

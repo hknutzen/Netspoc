@@ -117,7 +117,7 @@ func convertHosts() {
 			name := host.name
 			id := host.id
 			if ip := host.ip; ip != nil {
-				nets = []net.IPNet{{ip, getHostMask(ip, ipv6)}}
+				nets = []net.IPNet{{IP: ip, Mask: getHostMask(ip, ipv6)}}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
