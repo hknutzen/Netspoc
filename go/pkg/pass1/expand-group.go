@@ -234,10 +234,6 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 			var check intfList
 			switch x := part.name.(type) {
 			case []*parsedObjRef:
-				if ext, ok := part.ext.(*string); ok {
-					errMsg("Must not use interface:[..].%s in %s", ext, ctx)
-					continue
-				}
 				auto, _ := part.ext.(*autoExt)
 				selector, managed := auto.selector, auto.managed
 				subObjects := expandGroup1(

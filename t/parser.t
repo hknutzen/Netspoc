@@ -591,6 +591,20 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Unexpected network name in interfaces of network";
+############################################################
+
+$in = <<'END';
+group:g1 = interface:[network:n1].n2;
+END
+
+$out = <<'END';
+Syntax error: Expected '[' at line 1 of STDIN, near "interface:[network:n1].n<--HERE-->2"
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Bad group name";
 ############################################################
 
