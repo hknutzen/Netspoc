@@ -95,7 +95,7 @@ END
 
 $out = <<'END';
 Error: Missing 'lifetime' for ipsec:aes256SHA
-Syntax error: Missing 'key_exchange' for ipsec:aes256SHA at line 3 of STDIN, near "}<--HERE-->"
+Error: Missing 'key_exchange' for ipsec:aes256SHA
 END
 
 test_err($title, $in, $out);
@@ -109,11 +109,11 @@ ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 100 foo;
 }
-}
 END
 
 $out = <<'END';
-Syntax error: Time unit or 'kilobytes' expected at line 3 of STDIN, near "foo<--HERE-->;"
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
 END
 
 test_err($title, $in, $out);
@@ -132,7 +132,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown key_exchange type 'xyz' for ipsec:aes256SHA
+Error: Must only use isakmp type in 'key_exchange' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
 END
 
 test_err($title, $in, $out);
@@ -151,7 +152,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Can't resolve reference to isakmp:abc for ipsec:aes256SHA
+Error: Can't resolve reference to isakmp:abc in ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
 END
 
 test_err($title, $in, $out);
@@ -165,7 +167,7 @@ crypto:c = {}
 END
 
 $out = <<'END';
-Syntax error: Missing 'type' for crypto:c at line 1 of STDIN, near "crypto:c = {}<--HERE-->"
+Error: Missing 'type' for crypto:c
 END
 
 test_err($title, $in, $out);
@@ -180,7 +182,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown type 'xyz' for crypto:c
+Error: Must only use ipsec type in 'type' of crypto:c
+Error: Missing 'type' for crypto:c
 END
 
 test_err($title, $in, $out);
@@ -195,7 +198,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Can't resolve reference to ipsec:abc for crypto:c
+Error: Can't resolve reference to ipsec:abc in crypto:c
+Error: Missing 'type' for crypto:c
 END
 
 test_err($title, $in, $out);
@@ -247,7 +251,7 @@ network:clients = {
 END
 
 $out = <<'END';
-Error: Crypto hub must not be unnumbered interface at line 34 of STDIN
+Error: Crypto hub interface:asavpn.n1 must have IP address
 END
 
 test_err($title, $in, $out);
@@ -659,7 +663,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Must use hub = crypto:vpn exactly once, not at both
+Error: Must use 'hub = crypto:vpn' exactly once, not at both
  - interface:asavpn1.dmz
  - interface:asavpn2.dmz
 END
@@ -718,7 +722,7 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Interface with attribute 'spoke' must not have secondary interfaces at line 53 of STDIN
+Error: interface:softclients.trans with attribute 'spoke' must not have secondary interfaces
 END
 
 test_err($title, $in, $out);
@@ -791,9 +795,9 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Only 1 crypto spoke allowed.
- Ignoring spoke at softclients.tunnel:softclients.
-Warning: No spokes have been defined for crypto:vpn2
+Error: Must not define crypto spoke at more than one interface:
+ - interface:softclients.intern1
+ - interface:softclients.intern2
 END
 
 test_err($title, $in, $out);
@@ -842,8 +846,9 @@ network:customers1 = {
 END
 
 $out = <<'END';
-Error: Only 1 crypto spoke allowed.
- Ignoring spoke at softclients.tunnel:softclients.
+Error: Must not define crypto spoke at more than one interface:
+ - interface:softclients.intern1
+ - interface:softclients.intern2
 END
 
 test_err($title, $in, $out);
@@ -909,12 +914,8 @@ network:clients = {
 END
 
 $out = <<'END';
-Error: interface:asavpn.n1 references unknown crypto:vpn
-Error: interface:softclients.n1 references unknown crypto:vpn
-Error: IPv4 topology has unconnected parts:
- - any:[network:n1]
- - any:[network:clients]
- Use partition attribute, if intended.
+Error: Can't resolve reference to crypto:vpn in 'hub' of interface:asavpn.n1
+Error: Can't resolve reference to crypto:vpn in 'spoke' of interface:softclients.n1
 END
 
 test_err($title, $in, $out);
@@ -1399,7 +1400,7 @@ $out = <<'END';
 10.99.2.128-10.99.2.191	host:id:zzz.customers2
 END
 
-test_group($title, $in, 'host:[area:all]', $out, '-unused'); # No IPv6 test
+test_group($title, $in, 'host:[area:all]', $out, '--unused'); # No IPv6 test
 
 ############################################################
 $title = 'Mark ID hosts as used even if only network is used (2)';
@@ -1419,7 +1420,7 @@ $out = <<'END';
 10.99.1.254	host:id:unused@domain.x.customers1
 END
 
-test_group($title, $in, 'host:[area:all]', $out, '-unused');
+test_group($title, $in, 'host:[area:all]', $out, '--unused');
 
 ############################################################
 $title = 'ASA, VPN in CONTEXT';
@@ -3620,39 +3621,6 @@ access-list inside_in extended permit udp host 10.254.254.6 eq 500 host 1.2.3.2 
 access-list inside_in extended permit udp host 10.254.254.6 eq 4500 host 1.2.3.2 eq 4500
 access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
-END
-
-test_run($title, $in, $out);
-
-############################################################
-$title = 'Create crypto ACL even no rule is defined';
-############################################################
-
-$in = $topo . <<'END';
-service:test = {
- user = network:lan1;
- permit src = user; dst = host:netspoc; prt = tcp 80;
- permit src = host:netspoc; dst = user; prt = udp 123;
-}
-END
-
-$out = <<'END';
---asavpn
-! crypto-1.2.3.129
-access-list crypto-1.2.3.129 extended permit ip any4 10.10.10.0 255.255.255.0
-crypto map crypto-outside 1 set peer 1.2.3.129
-crypto map crypto-outside 1 match address crypto-1.2.3.129
-crypto map crypto-outside 1 set ikev1 transform-set Trans1
-crypto map crypto-outside 1 set pfs group2
-crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
-tunnel-group 1.2.3.129 type ipsec-l2l
-tunnel-group 1.2.3.129 ipsec-attributes
- ikev1 trust-point ASDM_TrustPoint3
- ikev1 user-authentication none
-crypto ca certificate map cert@example.com 10
- subject-name attr ea eq cert@example.com
-tunnel-group-map cert@example.com 10 1.2.3.129
-crypto map crypto-outside interface outside
 END
 
 test_run($title, $in, $out);

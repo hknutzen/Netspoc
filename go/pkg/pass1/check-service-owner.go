@@ -187,7 +187,7 @@ func propagateOwners() {
 
 	// Check owner with attribute showAll.
 	var errList stringList
-	for _, o := range owners {
+	for _, o := range symTable.owner {
 		if !o.showAll {
 			continue
 		}
@@ -267,7 +267,7 @@ func propagateOwners() {
 	// Propagate owner of loopback interface to loopback network and
 	// loopback zone. Even reset owners to undef, if loopback interface
 	// has no owner.
-	for _, r := range routers {
+	for _, r := range getIpv4Ipv6Routers() {
 		for _, intf := range r.interfaces {
 			if !intf.loopback {
 				continue
@@ -488,7 +488,7 @@ func CheckServiceOwner() {
 	// Show unused owners.
 	if printType := conf.Conf.CheckUnusedOwners; printType != "" {
 		var unused stringList
-		for _, o := range owners {
+		for _, o := range symTable.owner {
 			if !o.isUsed {
 				unused.push(o.name)
 			}

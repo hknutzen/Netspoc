@@ -216,8 +216,8 @@ func ExpandCrypto() {
 	hubSeen := make(map[*router]bool)
 	id2intf := make(map[string]intfList)
 
-	sorted := make([]*crypto, 0, len(cryptoMap))
-	for _, c := range cryptoMap {
+	sorted := make([]*crypto, 0, len(symTable.crypto))
+	for _, c := range symTable.crypto {
 		sorted = append(sorted, c)
 	}
 	sort.Slice(sorted, func(i, j int) bool {

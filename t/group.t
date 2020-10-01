@@ -61,7 +61,7 @@ $out = <<'END';
 10.1.3.65-10.1.3.67	host:h3d
 END
 
-test_group($title, $in, 'host:[network:n1, network:n3]', $out, '-unused');
+test_group($title, $in, 'host:[network:n1, network:n3]', $out, '--unused');
 
 ############################################################
 $title = 'Automatic hosts';
@@ -344,7 +344,7 @@ $out = <<'END';
 10.1.1.0/24	network:n1
 END
 
-test_group($title, $in, 'network:[any:[network:n1]]', $out, '-unused');
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-u');
 
 ### Topology for multiple tests.
 $in = <<'END';
@@ -395,7 +395,7 @@ $out = <<'END';
 10.9.1.10	host:h1s
 10.9.1.0/28	host:h1d
 END
-test_group($title, $in, 'network:n1, host:h1s, host:h1d', $out, '-nat k1');
+test_group($title, $in, 'network:n1, host:h1s, host:h1d', $out, '--nat k1');
 
 ############################################################
 $title = 'Static NAT for network and host';
@@ -405,7 +405,7 @@ $out = <<'END';
 10.9.2.0/24	network:n2
 10.9.2.10	host:h2
 END
-test_group($title, $in, 'network:n2,host:h2', $out, '-nat k1');
+test_group($title, $in, 'network:n2,host:h2', $out, '--nat k1');
 
 ############################################################
 $title = 'Hidden NAT for network and host';
@@ -415,7 +415,7 @@ $out = <<'END';
 hidden	network:n3
 hidden	host:h3
 END
-test_group($title, $in, 'network:n3,host:h3', $out, '-nat k1');
+test_group($title, $in, 'network:n3,host:h3', $out, '--nat k1');
 
 ############################################################
 $title = 'Unnumbered network';
@@ -424,7 +424,7 @@ $title = 'Unnumbered network';
 $out = <<'END';
 unnumbered	network:t1
 END
-test_group($title, $in, 'network:t1', $out, '-nat k1');
+test_group($title, $in, 'network:t1', $out, '--nat k1');
 
 ############################################################
 $title = 'Show unnumbered from [all], show [auto] interface';
@@ -439,7 +439,7 @@ unknown	interface:r1.[auto]
 END
 test_group($title, $in,
            'interface:r1.[all],interface:r1.[auto]',
-           $out, '-nat k1');
+           $out, '--nat k1');
 
 ############################################################
 $title = 'Short interface';
@@ -514,7 +514,7 @@ $out = <<'END';
 10.1.2.0/24	network:n2	none
 END
 
-test_group($title, $in, 'network:n1, network:n2', $out, '-owner');
+test_group($title, $in, 'network:n1, network:n2', $out, '--owner');
 
 ############################################################
 $title = 'Show owner and only name';
@@ -525,7 +525,7 @@ network:n1	owner:o
 network:n2	none
 END
 
-test_group($title, $in, 'network:[any:[network:n1]]', $out, '-name -owner');
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '-n -o');
 
 ############################################################
 $title = 'Show only name';
@@ -536,7 +536,7 @@ network:n1
 network:n2
 END
 
-test_group($title, $in, 'network:[any:[network:n1]]', $out, '-name');
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '--name');
 
 ############################################################
 $title = 'Show only ip';
@@ -547,7 +547,7 @@ $out = <<'END';
 10.1.2.0/24
 END
 
-test_group($title, $in, 'network:[any:[network:n1]]', $out, '-ip');
+test_group($title, $in, 'network:[any:[network:n1]]', $out, '--ip');
 
 ############################################################
 $title = 'Show owner and admins';
@@ -575,7 +575,7 @@ network:n3a	owner:o1	o1@b.c
 END
 
 test_group($title, $in, 'network:n1, network:n2, network:n3a', $out,
-           '-name -owner -admins');
+           '--name --owner --admins');
 
 ############################################################
 $title = 'Show only name and admins';
@@ -588,7 +588,7 @@ network:n3a	o1@b.c
 END
 
 test_group($title, $in, 'network:n1, network:n2, network:n3a', $out,
-           '-name -admins');
+           '--name -a');
 
 ############################################################
 $title = 'Mark group in empty rule as used';
@@ -692,7 +692,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: Can't resolve foo:bar in group:g1
+Syntax error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
 END
 
 test_err($title, $in, $out);
@@ -713,8 +713,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: Unexpected area:[..] in group:g1
-Error: Unexpected foo:[..] in group:g1
+Syntax error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
 END
 
 test_err($title, $in, $out);
@@ -888,7 +887,7 @@ $out = <<'END';
 10.7.7.0	interface:r2.n5
 END
 
-test_group($title, $in, 'group:g1', $out, '-nat n1');
+test_group($title, $in, 'group:g1', $out, '--nat n1');
 
 ############################################################
 $title = 'Must not ignore aggregate with only loopback network';
@@ -917,6 +916,20 @@ $out = <<'END';
 END
 
 test_group($title, $in, 'any:[area:n2-lo]', $out);
+
+############################################################
+$title = 'Unexpected content after ";"';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Syntax error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
+END
+
+test_group_err($title, $in, 'network:n1; INVALID', $out);
 
 ############################################################
 $title = 'Object group together with adjacent IP addresses';

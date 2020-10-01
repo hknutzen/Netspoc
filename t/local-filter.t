@@ -24,7 +24,7 @@ router:d32 = {
 END
 
 $out = <<"END";
-Error: IP and mask don\'t match at line 5 of STDIN
+Error: IP and mask of 10.62.0.0/8 don't match in 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);

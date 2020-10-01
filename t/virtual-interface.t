@@ -25,7 +25,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: No virtual IP supported for negotiated interface at line 7 of STDIN
+Error: No virtual IP supported for negotiated interface:r1.n1
 END
 
 test_err($title, $in, $out);

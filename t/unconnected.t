@@ -36,10 +36,6 @@ END
 
 $out = <<'END';
 Error: Referencing undefined network:n2 from interface:r.n2
-Error: router:r isn't connected to any network
-Error: network:n1 isn't connected to any router
-Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out);

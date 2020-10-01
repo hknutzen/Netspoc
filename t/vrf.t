@@ -314,7 +314,7 @@ Error: Missing attribute 'policy_distribution_point' for 1 devices:
  - at least one instance of router:r1
 END
 
-test_err($title, $in, $out, '-check_policy_distribution_point=1');
+test_err($title, $in, $out, '--check_policy_distribution_point=1');
 
 ############################################################
 

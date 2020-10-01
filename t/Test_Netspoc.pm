@@ -77,16 +77,14 @@ sub run {
     my ($stderr, $success) =
         capture_stderr {
             my $result;
-            eval {
-
-                # Copy unchanged arguments.
-                my $args2 = [ @$args ];
-                Netspoc::Compiler::Pass1::compile($args);
-                system('spoc2', @$args2) if $out_dir;
-                $result = 1;
-            };
-            if($@) {
-                warn $@;
+            if (system('spoc1', @$args) == 0) {
+                if ($out_dir) {
+                    if (system('spoc2', @$args) == 0) {
+                        $result = 1;
+                    }
+                } else {
+                    $result = 1;
+                }
             };
             $result;
     };
@@ -263,6 +261,9 @@ sub test_err {
 
     # Cleanup error message.
     $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
+
+    # Remove 'Usage' message after error message.
+    $stderr =~ s/\nUsage: .*/\n/ms;
 
     # Normalize input path: remove temp. dir.
     $stderr =~ s/\Q$in_dir\E\///g;

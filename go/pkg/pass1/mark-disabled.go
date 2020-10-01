@@ -55,7 +55,7 @@ func disableBehind(in *routerIntf) {
 
 func MarkDisabled() {
 	var disabled intfList
-	for _, intf := range interfaces {
+	for _, intf := range symTable.routerIntf {
 		if intf.disabled {
 			disabled.push(intf)
 		}
@@ -109,7 +109,7 @@ func MarkDisabled() {
 	}
 
 	// Disable area, where all interfaces or anchor are disabled.
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		if anchor := a.anchor; anchor != nil {
 			if anchor.disabled {
 				a.disabled = true
@@ -237,14 +237,14 @@ func MarkDisabled() {
 	}
 
 	// Find networks not connected to any router.
-	for _, n := range networks {
+	for _, n := range symTable.network {
 		if n.disabled {
 			continue
 		}
 		if seen[n] {
 			continue
 		}
-		if len(networks) > 1 || len(routers) > 0 {
+		if len(symTable.network) > 1 || len(symTable.router) > 0 {
 			errMsg("%s isn't connected to any router", n)
 			n.disabled = true
 			for _, h := range n.hosts {

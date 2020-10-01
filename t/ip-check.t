@@ -58,7 +58,7 @@ network:n1 = {
 END
 
 $out = <<"END";
-Error: Invalid IP range at line 3 of STDIN
+Error: Invalid IP range in host:r1
 END
 
 test_err($title, $in, $out);
@@ -256,11 +256,10 @@ network:n1 = {
 END
 
 $out = <<"END";
-Warning: Ignoring undefined network:n2 from attribute 'subnet_of'
- of network:n1
+Error: Referencing undefined network:n2 in 'subnet_of' of network:n1
 END
 
-test_warn($title, $in, $out);
+test_err($title, $in, $out);
 
 ############################################################
 

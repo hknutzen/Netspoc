@@ -18,7 +18,7 @@ network:n1 = { ip = 10.1.1.0o/24; }
 END
 
 $out = <<'END';
-Syntax error: IP address expected at line 1 of STDIN, near "10.1.1.0o/24<--HERE-->; }"
+Error: invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
 END
 
 test_err($title, $in, $out);
@@ -37,7 +37,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown router model at line 3 of STDIN
+Error: Unknown model in router:R: foo
 END
 
 test_err($title, $in, $out);
@@ -74,8 +74,8 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown extension foo at line 3 of STDIN
-Error: Unknown extension bar at line 3 of STDIN
+Error: Unknown extension in 'model' of router:R: foo
+Error: Unknown extension in 'model' of router:R: bar
 END
 
 test_err($title, $in, $out);
@@ -114,7 +114,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 4 of STDIN, near "xyz<--HERE-->;"
+Error: Unexpected attribute in router:R: xyz
 END
 
 test_err($title, $in, $out);
@@ -134,7 +134,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 5 of STDIN, near "x:y<--HERE-->;"
+Error: Unexpected attribute in router:R: x:y
 END
 
 test_err($title, $in, $out);
@@ -153,7 +153,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 5 of STDIN, near "}<--HERE-->"
+Syntax error: Expected ';' at line 5 of STDIN, near "--HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -237,7 +237,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "foo<--HERE--> }"
+Syntax error: Expected '=' at line 2 of STDIN, near "foo --HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -254,7 +254,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "primary:p<--HERE--> = {} }"
+Error: Unexpected attribute in interface:R.N: primary:p
 END
 
 test_err($title, $in, $out);
@@ -290,7 +290,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Missing IP address at line 2 of STDIN
+Error: Missing IP in secondary:second of interface:R.N
 END
 
 test_err($title, $in, $out);
@@ -307,7 +307,8 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected attribute 'ip' at line 2 of STDIN, near "foo<--HERE-->; } }"
+Error: Unexpected attribute in secondary:second of interface:R.N: foo
+Error: Missing IP in secondary:second of interface:R.N
 END
 
 test_err($title, $in, $out);
@@ -341,7 +342,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Negotiated interface must not have secondary IP address at line 2 of STDIN
+Error: interface:R.N without IP address must not have secondary address
 END
 
 test_err($title, $in, $out);
@@ -358,7 +359,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Short interface must not have secondary IP address at line 2 of STDIN
+Error: interface:R.N without IP address must not have secondary address
 END
 
 test_err($title, $in, $out);
@@ -375,7 +376,8 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "foo<--HERE-->; } }"
+Error: Unexpected attribute in 'virtual' of interface:R.N: foo
+Error: Missing IP in 'virtual' of interface:R.N
 END
 
 test_err($title, $in, $out);
@@ -389,7 +391,7 @@ network = {
 END
 
 $out = <<'END';
-Syntax error: Typed name expected at line 1 of STDIN, near "network<--HERE--> = {"
+Syntax error: Typed name expected at line 1 of STDIN, near "--HERE-->network"
 END
 
 test_err($title, $in, $out);
@@ -403,49 +405,51 @@ networkX:n1 = {
 END
 
 $out = <<'END';
-Syntax error: Unknown global definition at line 1 of STDIN, near "networkX:n1<--HERE--> = {"
+Syntax error: Unknown global definition at line 1 of STDIN, near "--HERE-->networkX:n1"
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in network name";
+$title = "Invalid character in network name";
 ############################################################
 
 $in = <<'END';
-network:n1@vrf123 = {
+network:n1@vrf123 = {}
 END
 
 $out = <<'END';
-Syntax error: Invalid token at line 1 of STDIN, near "network:n1@vrf123<--HERE--> = {"
+Error: Invalid identifier in definition of 'network:n1@vrf123'
+Error: Missing IP address for network:n1@vrf123
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in router name";
+$title = "Invalid character in router name";
 ############################################################
 
 $in = <<'END';
-router:r1/bridged-part = {
+router:r1/bridged-part = {}
 END
 
 $out = <<'END';
-Syntax error: Invalid token at line 1 of STDIN, near "router:r1/bridged-part<--HERE--> = {"
+Error: Invalid identifier in definition of 'router:r1/bridged-part'
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid separator in area name";
+$title = "Invalid character in area name";
 ############################################################
 
 $in = <<'END';
-area:a1@vrf123 = {
+area:a1@vrf123 = {}
 END
 
 $out = <<'END';
-Syntax error: Invalid token at line 1 of STDIN, near "area:a1@vrf123<--HERE--> = {"
+Error: Invalid identifier in definition of 'area.a1@vrf123'
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a1@vrf123
 END
 
 test_err($title, $in, $out);
@@ -459,7 +463,7 @@ network:n1
 END
 
 $out = <<'END';
-Syntax error: Unexpected end of file at line 1 of STDIN, near "network:n1<--HERE-->"
+Syntax error: Expected '=' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -473,7 +477,7 @@ network:n1 = { owner = }
 END
 
 $out = <<'END';
-Syntax error: Identifier expected at line 1 of STDIN, near "owner = <--HERE-->}"
+Syntax error: Unexpected separator '}' at line 1 of STDIN, near "owner = --HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -484,16 +488,17 @@ $title = "String expected";
 
 $in = <<'END';
 owner:o1 = { admins = ; }
+network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: String expected at line 1 of STDIN, near "admins = <--HERE-->; }"
+Error: List of values expected in 'admins' of owner:o1
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Comma expected in union of values";
+$title = "Comma expected in union of values (1)";
 ############################################################
 
 $in = <<'END';
@@ -501,13 +506,13 @@ group:g1 = host:h1 host:h2;
 END
 
 $out = <<'END';
-Syntax error: Comma expected in union of values at line 1 of STDIN, near "host:h2<--HERE-->;"
+Syntax error: Expected ';' at line 1 of STDIN, near "host:h1 --HERE-->host:h2"
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Comma expected in list of values";
+$title = "Comma expected in list of values (2)";
 ############################################################
 
 $in = <<'END';
@@ -515,7 +520,7 @@ owner:o = { admins = a@b.c x@y.z; }
 END
 
 $out = <<'END';
-Syntax error: Comma expected in list of values at line 1 of STDIN, near "x@y.z<--HERE-->; }"
+Syntax error: Expected ';' at line 1 of STDIN, near "a@b.c --HERE-->x@y.z"
 END
 
 test_err($title, $in, $out);
@@ -529,35 +534,85 @@ group:g1 = host;
 END
 
 $out = <<'END';
-Syntax error: Typed name expected at line 1 of STDIN, near "host<--HERE-->;"
+Syntax error: Typed name expected at line 1 of STDIN, near "group:g1 = --HERE-->host"
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Bad hostname";
+$title = "Bad hostname in definition";
 ############################################################
 
 $in = <<'END';
-group:g1 = host:id:;
+network:n1 = { ip = 10.1.1.0/24; host:id: = { ip = 10.1.1.10; } }
 END
 
 $out = <<'END';
-Syntax error: Hostname expected at line 1 of STDIN, near "host:id:<--HERE-->;"
+Error: Invalid name in definition of 'host:id:'
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Bad network name";
+$title = "Bad hostname in reference";
 ############################################################
 
 $in = <<'END';
-group:g1 = network:n1@vrf;
+service:s1 = {
+ user = network:n1, host:id:;
+ permit src = user; dst = user; prt = ip;
+}
+network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Name or bridged name expected at line 1 of STDIN, near "network:n1@vrf<--HERE-->;"
+Error: Can't resolve host:id: in user of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad network name in definition";
+############################################################
+
+$in = <<'END';
+network:n1@vrf = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Invalid identifier in definition of 'network:n1@vrf'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Bad network name in reference";
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ user = network:n1, network:n1@vrf:;
+ permit src = user; dst = user; prt = ip;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve network:n1@vrf: in user of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Empty interface name';
+############################################################
+
+$in = <<'END';
+group:g1 = interface:;
+END
+
+$out = <<'END';
+Syntax error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:"
 END
 
 test_err($title, $in, $out);
@@ -571,7 +626,41 @@ group:g1 = interface:r;
 END
 
 $out = <<'END';
-Syntax error: Interface name expected at line 1 of STDIN, near "interface:r<--HERE-->;"
+Syntax error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:r"
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Invalid interface names";
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ user = network:n1, interface:r1., interface:r1.n1@vrf2, interface:r.n.123.nn;
+ permit src = user; dst = user; prt = ip;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Can't resolve interface:r1. in user of service:s1
+Error: Can't resolve interface:r1.n1@vrf2 in user of service:s1
+Error: Can't resolve interface:r.n.123.nn in user of service:s1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Missing [any|all]';
+############################################################
+
+$in = <<'END';
+group:g1 = interface:r1.[ ;
+END
+
+$out = <<'END';
+Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r1.[ --HERE-->;"
 END
 
 test_err($title, $in, $out);
@@ -585,7 +674,7 @@ group:g1 = interface:r.[foo];
 END
 
 $out = <<'END';
-Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[foo<--HERE-->]"
+Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[--HERE-->foo]"
 END
 
 test_err($title, $in, $out);
@@ -599,21 +688,21 @@ group:g1 = interface:[network:n1].n2;
 END
 
 $out = <<'END';
-Syntax error: Expected '[' at line 1 of STDIN, near "interface:[network:n1].n<--HERE-->2"
+Syntax error: Expected '.[' at line 1 of STDIN, near "interface:[network:n1]--HERE-->.n2"
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Bad group name";
+$title = "Bad group name in definition";
 ############################################################
 
 $in = <<'END';
-group:g1 = group:a@b;
+group:a@b = ;
 END
 
 $out = <<'END';
-Syntax error: Name expected at line 1 of STDIN, near "group:a@b<--HERE-->;"
+Error: Invalid identifier in definition of 'group.a@b'
 END
 
 test_err($title, $in, $out);
@@ -627,7 +716,7 @@ network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Valid name expected at line 1 of STDIN, near "nat:a+b<--HERE--> = { ip"
+Syntax error: Expected '=' at line 1 of STDIN, near "nat:a--HERE-->+b"
 END
 
 test_err($title, $in, $out);
@@ -638,26 +727,46 @@ $title = "Bad VPN id";
 
 $in = <<'END';
 router:r = {
- interface:x = { id = a.b.c; }
+ interface:n1 = { id = a.b.c; }
 }
+network:n1 = { unnumbered; }
 END
 
 $out = <<'END';
-Syntax error: Id expected (a@b.c) at line 2 of STDIN, near "id = <--HERE-->a.b.c"
+Error: Invalid 'id' in interface:r.n1: a.b.c
+Error: Attribute 'id' is only valid with 'spoke' at interface:r.n1
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = "Ignore cert_id";
+############################################################
+
+$in = <<'END';
+network:n = { ip = 10.1.1.0/24; cert_id = a.b.c; }
+END
+
+$out = <<'END';
+Warning: Ignoring 'cert_id' at network:n
+END
+
+test_warn($title, $in, $out);
 
 ############################################################
 $title = "Bad cert_id";
 ############################################################
 
 $in = <<'END';
-network:n = { ip = 10.1.1.0/24; cert_id = @b.c; }
+network:n = {
+ ip = 10.1.1.0/24; cert_id = @b.c;
+ host:h = { ip = 10.1.1.1; ldap_id = a@b.c; }
+}
 END
 
 $out = <<'END';
-Syntax error: Domain name expected at line 1 of STDIN, near "cert_id = <--HERE-->@b.c"
+Error: Attribute 'ldap_Id' must only be used together with IP range at host:h
+Error: Domain name expected in attribute 'cert_id' of network:n
 END
 
 test_err($title, $in, $out);
@@ -675,7 +784,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' or '=' at line 2 of STDIN, near "xxx<--HERE-->;"
+Syntax error: Expected '=' at line 2 of STDIN, near "managed --HERE-->xxx"
 END
 
 test_err($title, $in, $out);
@@ -693,7 +802,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Expected value: secondary|standard|full|primary|local|routing_only at line 2 of STDIN
+Error: Invalid value for 'managed' of router:r: xxx
 END
 
 test_err($title, $in, $out);
@@ -704,12 +813,13 @@ $title = "Bad typed name as attribute of host";
 
 $in = <<'END';
 network:n = {
+ ip = 10.1.1.0/24;
  host:h = { ip = 10.1.1.1; xy:z; }
 }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "xy:z<--HERE-->; }"
+Error: Unexpected attribute in host:h: xy:z
 END
 
 test_err($title, $in, $out);
@@ -725,7 +835,7 @@ network:n = {
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "10.1.1.1; ;<--HERE--> }"
+Syntax error: Unexpected separator ';' at line 2 of STDIN, near "10.1.1.1; --HERE-->; }"
 END
 
 test_err($title, $in, $out);
@@ -739,7 +849,8 @@ network:n = { xy:z; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "xy:z<--HERE-->; }"
+Error: Unexpected attribute in network:n: xy:z
+Error: Missing IP address for network:n
 END
 
 test_err($title, $in, $out);
@@ -753,7 +864,7 @@ network:n = { ; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "network:n = { ;<--HERE--> }"
+Syntax error: Unexpected separator ';' at line 1 of STDIN, near "network:n = { --HERE-->; }"
 END
 
 test_err($title, $in, $out);
@@ -767,7 +878,7 @@ network:n = { }
 END
 
 $out = <<'END';
-Syntax error: Missing network IP at line 1 of STDIN, near "network:n = { }<--HERE-->"
+Error: Missing IP address for network:n
 END
 
 test_err($title, $in, $out);
@@ -781,9 +892,9 @@ network:n = { ip = 10.1.1.0/24; unnumbered; ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Duplicate IP address at line 1 of STDIN
-Error: Duplicate attribute 'ip' at line 1 of STDIN
-Error: Duplicate attribute 'mask' at line 1 of STDIN
+Error: Duplicate attribute 'ip' in network:n
+Error: Unnumbered network:n must not have attribute 'ip'
+Error: Unnumbered network:n must not have attribute 'ip'
 END
 
 test_err($title, $in, $out);
@@ -797,21 +908,39 @@ network:n1 = { nat:n = { } }
 END
 
 $out = <<'END';
-Syntax error: Missing IP address at line 1 of STDIN, near "nat:n = { }<--HERE--> }"
+Error: Missing IP address in nat:n of network:n1
+Error: Missing IP address for network:n1
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Bad radius attribute";
+$title = "Ignoring radius attribute";
 ############################################################
 
 $in = <<'END';
-network:n1 = { radius_attributes = { a = ; } }
+network:n1 = { ip = 10.1.1.0/24; radius_attributes = { a = b; } }
 END
 
 $out = <<'END';
-Syntax error: String expected at line 1 of STDIN, near "a = <--HERE-->; } }"
+Warning: Ignoring 'radius_attributes' at network:n1
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = "Bad identifier in radius attribute";
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24; radius_attributes = { a.1 = 1; }
+ host:id:a@b.c = { ip = 10.1.1.1; }
+}
+END
+
+$out = <<'END';
+Error: Invalid identifier 'a.1' in radius_attributes of network:n1
 END
 
 test_err($title, $in, $out);
@@ -825,7 +954,7 @@ network:n1 = { radius_attributes = { banner = Welcome #two; } }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, near "#two<--HERE-->; } }"
+Syntax error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -836,12 +965,29 @@ $title = "Unexpected NAT attribute";
 
 $in = <<'END';
 network:n = {
- nat:n = { ip = 10.1.1.0/24; xyz; }
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/24; xyz; }
 }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 2 of STDIN, near "xyz<--HERE-->; }"
+Error: Unexpected attribute in nat:n of network:n: xyz
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Service without user';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Syntax error: Expected '=' at line 2 of STDIN, near "permit --HERE-->src"
 END
 
 test_err($title, $in, $out);
@@ -852,10 +998,15 @@ $title = "Must not use 'user' outside of rule";
 
 $in = <<'END';
 group:g1 = user;
+network:n1 = { ip = 10.1.1.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = group:g1; prt = tcp 80;
+}
 END
 
 $out = <<'END';
-Syntax error: Unexpected reference to 'user' at line 1 of STDIN, near "user<--HERE-->;"
+Error: Unexpected reference to 'user' in group:g1
 END
 
 test_err($title, $in, $out);
@@ -920,7 +1071,7 @@ network:n1 = {
 END
 
 $out = <<"END";
-Error: Must only use network name in 'subnet_of' at line 4 of STDIN
+Error: Must only use network name in 'subnet_of' of network:n1
 END
 
 test_err($title, $in, $out);
@@ -940,7 +1091,8 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Attribute 'subnet_of' is only valid for loopback interface at line 6 of STDIN
+Error: Attribute 'subnet_of' must not be used at interface:r.n
+ It is only valid together with attribute 'loopback'
 END
 
 test_err($title, $in, $out);
@@ -950,25 +1102,14 @@ $title = 'Unexpected token in aggregate';
 ############################################################
 
 $in = <<'END';
-any:n = { xyz; }
+any:n = { xyz; x:yz; link = network:n1; }
+network:n1 = { ip = 10.1.2.0/24; }
+
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Unexpected typed name in aggregate';
-############################################################
-
-$in = <<'END';
-any:n = { x:yz; }
-END
-
-$out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "x:yz<--HERE-->; }"
+Error: Unexpected attribute in any:n: xyz
+Error: Unexpected attribute in any:n: x:yz
 END
 
 test_err($title, $in, $out);
@@ -979,16 +1120,17 @@ $title = "Aggregate without attribute 'link'";
 
 $in = <<'END';
 any:n = { }
+network:n1 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Attribute 'link' must be defined for any:n at line 1 of STDIN, near "any:n = { }<--HERE-->"
+Error: Attribute 'link' must be defined for any:n
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Invalid atttribute at aggregate with IP";
+$title = "Invalid attribute at aggregate with IP";
 ############################################################
 
 $in = <<'END';
@@ -1007,7 +1149,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = "Valid atttribute at aggregate with IP 0.0.0.0";
+$title = "Valid attribute at aggregate with IP 0.0.0.0";
 ############################################################
 
 $in = <<'END';
@@ -1027,6 +1169,24 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = "Untyped name in anchor";
+############################################################
+
+$in = <<'END';
+area:n = {
+ anchor = n;
+}
+network:n = { ip = 10.1.1.0/24; }
+END
+
+$out = <<'END';
+Error: Typed name expected in 'anchor' of area:n
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:n
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = "Invalid attribute in router_attributes";
 ############################################################
 
@@ -1039,7 +1199,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected attribute at line 3 of STDIN, near "xyz<--HERE-->; }"
+Error: Unexpected attribute in router_attributes of area:n: xyz
 END
 
 test_err($title, $in, $out);
@@ -1049,25 +1209,13 @@ $title = 'Unexpected token in area';
 ############################################################
 
 $in = <<'END';
-area:n = { xyz; }
+area:n = { xyz; anchor = network:n; x:yz; }
+network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Unexpected typed name in area';
-############################################################
-
-$in = <<'END';
-area:n = { x:yz; }
-END
-
-$out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "x:yz<--HERE-->; }"
+Error: Unexpected attribute in area:n: xyz
+Error: Unexpected attribute in area:n: x:yz
 END
 
 test_err($title, $in, $out);
@@ -1081,7 +1229,8 @@ crypto:c = { xyz; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+Error: Unexpected attribute in crypto:c: xyz
+Error: Missing 'type' for crypto:c
 END
 
 test_err($title, $in, $out);
@@ -1092,10 +1241,12 @@ $title = 'Unexpected token in owner';
 
 $in = <<'END';
 owner:o = { xyz; }
+network:n1 = { ip = 10.1.1.0/24; owner = o; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected token at line 1 of STDIN, near "xyz<--HERE-->; }"
+Error: Unexpected attribute in owner:o: xyz
+Error: Missing attribute 'admins' in owner:o of network:n1
 END
 
 test_err($title, $in, $out);
@@ -1130,7 +1281,7 @@ service:s = {
 END
 
 $out = <<'END';
-Error: The sub-expressions of union in src of service:s equally must
+Error: The sub-expressions of union in 'src' of service:s equally must
  either reference 'user' or must not reference 'user'
 END
 
@@ -1151,8 +1302,26 @@ service:s1 = {
 END
 
 $out = <<'END';
-Error: The sub-expressions of union in dst of service:s1 equally must
+Error: The sub-expressions of union in 'dst' of service:s1 equally must
  either reference 'user' or must not reference 'user'
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Invalid attribute syntax in service';
+############################################################
+
+$in = <<'END';
+service:s1 = {
+ overlaps = service:s2,,;
+ user = host:h1;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Syntax error: Unexpected separator ',' at line 2 of STDIN, near "service:s2,--HERE-->,;"
 END
 
 test_err($title, $in, $out);
@@ -1161,7 +1330,7 @@ test_err($title, $in, $out);
 $title = "Invalid attribute at service";
 ############################################################
 
-$in = <<'END';
+$in = $topo . <<'END';
 service:s1 = {
  xyz;
  user = network:n1;
@@ -1170,7 +1339,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Expected some valid attribute or definition of 'user' at line 2 of STDIN, near "xyz<--HERE-->;"
+Error: Unexpected attribute in service:s1: xyz
 END
 
 test_err($title, $in, $out);
@@ -1187,7 +1356,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Expected 'permit' or 'deny' at line 3 of STDIN, near "allow<--HERE--> src"
+Syntax error: Expected 'permit' or 'deny' at line 3 of STDIN, near " --HERE-->allow"
 END
 
 test_err($title, $in, $out);
@@ -1204,7 +1373,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Warning: Rule of service:s1 should reference 'user' in 'src' and 'dst'
+Warning: Each rule of service:s1 should reference 'user' in 'src' and 'dst'
  because service has keyword 'foreach'
 -- r
 ! n1_in
@@ -1301,7 +1470,7 @@ router:r = {
 END
 
 $out = <<'END';
-Error: Must only use 'host' in 'policy_distribution_point' of router:r
+Error: Must only use host name in 'policy_distribution_point' of router:r
 END
 
 test_err($title, $in, $out);

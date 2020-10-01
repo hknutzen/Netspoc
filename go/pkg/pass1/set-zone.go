@@ -208,7 +208,7 @@ func checkCrosslink() map[*router]bool {
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
-	for _, n := range networks {
+	for _, n := range symTable.network {
 		if !n.crosslink || n.disabled {
 			continue
 		}
@@ -369,7 +369,7 @@ type bLookup map[*routerIntf]borderType
 func setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		sortedAreas = append(sortedAreas, a)
 	}
 	sort.Slice(sortedAreas, func(i, j int) bool {
@@ -578,7 +578,7 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 
 	// Fill global list of areas.
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		if !a.disabled {
 			ascendingAreas = append(ascendingAreas, a)
 		}
@@ -676,8 +676,8 @@ func processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
-	aggList := make(netList, 0, len(aggregates))
-	for _, agg := range aggregates {
+	aggList := make(netList, 0, len(symTable.aggregate))
+	for _, agg := range symTable.aggregate {
 		if agg.link != nil {
 			aggList.push(agg)
 		}
@@ -995,6 +995,9 @@ func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
 					subNat.mask = n.mask
 				}
 
+				if n.nat == nil {
+					n.nat = make(map[string]*network)
+				}
 				n.nat[tag] = &subNat
 			}
 		}

@@ -237,7 +237,7 @@ $title = 'Invalid time limit at service';
 $in =~ s/disable_at =.*/disable_at = 1-Jan-2020;/;
 
 $out = <<"END";
-Syntax error: Date expected as yyyy-mm-dd at line 15 of STDIN, near "1-Jan-2020;<--HERE-->"
+Error: Date expected as yyyy-mm-dd in 'disable_at' of service:s
 END
 
 test_err($title, $in, $out);

@@ -14,8 +14,7 @@ sub run {
     my ($input) = @_;
     my $in_dir = prepare_in_dir($input);
     my $out_dir = tempdir( CLEANUP => 1 );
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -q $in_dir $out_dir";
+    my $cmd = "bin/export-netspoc -q $in_dir $out_dir";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     return($stderr, $out_dir);
@@ -3669,19 +3668,22 @@ $title = 'Invalid options and arguments';
 ############################################################
 
 $out = <<'END';
-Usage: bin/export-netspoc [-q] [-ipv6] netspoc-data out-directory
+Usage: bin/export-netspoc [options] netspoc-data out-directory
+
+  -6, --ipv6    Expect IPv6 definitions
+  -q, --quiet   Don't print progress messages
 END
 
 my %in2out = (
     ''      => $out,
-    '-foo'  => "Unknown option: foo\n$out",
+    '--foo'  => "unknown flag: --foo\n$out",
     'a'     => $out,
     'a b c' => $out
 );
 
 for my $args (sort keys %in2out) {
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc $args";
+    my $cmd = "bin/export-netspoc $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $?;

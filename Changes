@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Attribute 'identity' no longer supported in isakmp definition.
+   Was ignored anyway.
+
 6.019     2020-08-26 11:00:46+02:00 Europe/Berlin
 
  - Fixed nil pointer dereference in 'rename-netspoc' caused by

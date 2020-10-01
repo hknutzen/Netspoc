@@ -186,8 +186,8 @@ END
 $out = <<'END';
 Warning: Duplicate 'a' in log of service:t
 Warning: Duplicate 'b' in log of service:t
-Warning: Duplicate 'c' in log of service:t
 Warning: Duplicate 'b' in log of service:t
+Warning: Duplicate 'c' in log of service:t
 END
 
 test_warn($title, $in, $out);

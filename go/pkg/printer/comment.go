@@ -80,6 +80,9 @@ func normalizeComments(com string, ign string) []string {
 // Read one or more lines of comment and whitespace.
 // Ignore trailing comment or trailing whitespace of previous statement.
 func (p *printer) ReadCommentOrWhitespaceBefore(pos int, ign string) []string {
+	if p.src == nil {
+		return nil
+	}
 	line1 := 0
 	end := pos
 	pos--

@@ -109,6 +109,8 @@ type SimpleAuto struct {
 	Elements []Element
 }
 
+func (a *SimpleAuto) GetElements() []Element { return a.Elements }
+
 type AggAuto struct {
 	SimpleAuto
 	Net *net.IPNet
@@ -117,6 +119,11 @@ type IntfAuto struct {
 	SimpleAuto
 	Managed  bool
 	Selector string
+}
+
+type AutoElem interface {
+	GetType() string
+	GetElements() []Element
 }
 
 type Complement struct {

@@ -174,7 +174,8 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Redefining interface:r1.n1.5th at line 8 of STDIN
+Error: Duplicate attribute 'secondary:5th' in interface:n1 of router:r1
+Error: Duplicate definition of interface:r1.n1.5th in router:r1
 END
 
 test_err($title, $in, $out);
@@ -195,7 +196,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Redefining interface:r1.n1.2 at line 7 of STDIN
+Error: Duplicate definition of interface:r1.n1.2 in router:r1
 END
 
 test_err($title, $in, $out);
@@ -217,7 +218,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Redefining interface:r1.n1.virtual at line 8 of STDIN
+Error: Duplicate definition of interface:r1.n1.virtual in router:r1
 END
 
 test_err($title, $in, $out);

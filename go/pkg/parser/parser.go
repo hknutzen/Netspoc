@@ -38,9 +38,14 @@ func (p *parser) next() {
 	p.pos, p.isSep, p.tok = p.scanner.Token()
 }
 
-// Advance to the next token, but take "-" and ":" as separator.
-func (p *parser) nextRange() {
-	p.pos, p.isSep, p.tok = p.scanner.RangeToken()
+// Advance to the next token, but take "-", "/" and ":" as separator.
+func (p *parser) nextProto() {
+	p.pos, p.isSep, p.tok = p.scanner.ProtoToken()
+}
+
+// Advance to the next token, but take "-" as separator.
+func (p *parser) nextIPRange() {
+	p.pos, p.isSep, p.tok = p.scanner.IPRangeToken()
 }
 
 // Advance to the next token, but token contains any character except
@@ -56,7 +61,7 @@ func (p *parser) nextMulti() {
 }
 
 func (p *parser) syntaxErr(format string, args ...interface{}) {
-	p.scanner.SyntaxErr(format, args...)
+	p.scanner.SyntaxErr(p.pos, format, args...)
 }
 
 func (p *parser) expect(tok string) int {
@@ -108,59 +113,14 @@ func (p *parser) checkPos(tok string) int {
 
 func (p *parser) getNonSep() string {
 	if p.isSep {
-		p.syntaxErr("Unexpected separator '%s'", p.tok)
-	}
-	return p.tok
-}
-
-func isSimpleName(n string) bool {
-	return n != "" && strings.IndexAny(n, ".:/@") == -1
-}
-
-func isDomain(n string) bool {
-	for _, part := range strings.Split(n, ".") {
-		if !isSimpleName(part) {
-			return false
+		if p.tok == "" {
+			// At EOF
+			p.syntaxErr("Expected something")
+		} else {
+			p.syntaxErr("Unexpected separator '%s'", p.tok)
 		}
 	}
-	return n != ""
-}
-
-func (p *parser) verifyHostname(name string) {
-	err := false
-	if strings.HasPrefix(name, "id:") {
-		id := name[3:]
-		i := strings.Index(id, "@")
-		// Leading "@" is ok.
-		err = i > 0 && !isDomain(id[:i]) || !isDomain(id[i+1:])
-	} else {
-		err = !isSimpleName(name)
-	}
-	if err {
-		p.syntaxErr("Hostname expected")
-	}
-}
-
-func isNetworkName(n string) bool {
-	i := strings.Index(n, "/")
-	return (i == -1 || isSimpleName(n[:i])) && isSimpleName(n[i+1:])
-}
-
-func (p *parser) verifyNetworkName(n string) {
-	if !isNetworkName(n) {
-		p.syntaxErr("Name or bridged name expected")
-	}
-}
-
-func (p *parser) verifySimpleName(n string) {
-	if !isSimpleName(n) {
-		p.syntaxErr("Name expected")
-	}
-}
-
-func isRouterName(n string) bool {
-	i := strings.Index(n, "@")
-	return (i == -1 || isSimpleName(n[:i])) && isSimpleName(n[i+1:])
+	return p.tok
 }
 
 func (p *parser) user() *ast.User {
@@ -177,21 +137,6 @@ func (p *parser) namedRef(typ, name string) ast.Element {
 	a.Name = name
 	p.next()
 	return a
-}
-
-func (p *parser) hostRef(typ, name string) ast.Element {
-	p.verifyHostname(name)
-	return p.namedRef(typ, name)
-}
-
-func (p *parser) networkRef(typ, name string) ast.Element {
-	p.verifyNetworkName(name)
-	return p.namedRef(typ, name)
-}
-
-func (p *parser) simpleRef(typ, name string) ast.Element {
-	p.verifySimpleName(name)
-	return p.namedRef(typ, name)
 }
 
 func (p *parser) selector() (string, int) {
@@ -215,7 +160,6 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	}
 	router := name[:i]
 	net := name[i+1:]
-	err := !isRouterName(router)
 	p.next()
 	var ext string
 	var end int
@@ -225,14 +169,9 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 		i := strings.Index(net, ".")
 		if i != -1 {
 			ext = net[i+1:]
-			err = err || !isSimpleName(ext)
 			net = net[:i]
 		}
-		err = err || !isNetworkName(net)
 		end = start + len(typ) + 1 + len(name)
-	}
-	if err {
-		p.syntaxErr("Interface name expected")
 	}
 	a.Router = router
 	a.Network = net   // If Network is "[",
@@ -312,12 +251,12 @@ func (p *parser) typedName() (string, string) {
 }
 
 var elementType = map[string]func(*parser, string, string) ast.Element{
-	"host":      (*parser).hostRef,
-	"network":   (*parser).networkRef,
+	"host":      (*parser).namedRef,
+	"network":   (*parser).namedRef,
 	"interface": (*parser).intfRef,
-	"any":       (*parser).simpleRef,
-	"area":      (*parser).simpleRef,
-	"group":     (*parser).simpleRef,
+	"any":       (*parser).namedRef,
+	"area":      (*parser).namedRef,
+	"group":     (*parser).namedRef,
 }
 
 var autoGroupType map[string]func(*parser, int, string) ast.Element
@@ -447,7 +386,7 @@ func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
 }
 
 func (p *parser) protocolRef(nextSpecial func(*parser)) *ast.Value {
-	return p.multiValue((*parser).nextRange)
+	return p.multiValue((*parser).nextProto)
 }
 
 func (p *parser) valueList(
@@ -472,7 +411,7 @@ func (p *parser) valueList(
 
 func (p *parser) complexValue(
 	nextSpecial func(*parser)) ([]*ast.Attribute, int) {
-	var list []*ast.Attribute
+	list := make([]*ast.Attribute, 0)
 	var end int
 	for {
 		if end = p.checkPos("}"); end >= 0 {
@@ -488,7 +427,7 @@ var specialTokenAttr = map[string]func(*parser){
 	"ldap_append": (*parser).nextSingle,
 	"admins":      (*parser).nextMulti,
 	"watchers":    (*parser).nextMulti,
-	"range":       (*parser).nextRange,
+	"range":       (*parser).nextIPRange,
 }
 
 var specialSubTokenAttr = map[string]func(*parser){
@@ -565,7 +504,7 @@ func (p *parser) protocol() ast.Toplevel {
 			a.Value += " "
 		}
 		a.Value += p.tok
-		p.nextRange()
+		p.nextProto()
 	}
 	a.Next = p.expect(";")
 	return a
@@ -737,25 +676,17 @@ var globalType = map[string]func(*parser) ast.Toplevel{
 }
 
 func (p *parser) toplevel() ast.Toplevel {
-	typ, name := p.typedName()
-
-	// Check for xxx:xxx | router:xx@xx | network:xx/xx
-	if !(typ == "router" && isRouterName(name) ||
-		typ == "network" && isNetworkName(name) || isSimpleName(name)) {
-		p.syntaxErr("Invalid token")
-	}
+	typ, _ := p.typedName()
 	m, found := globalType[typ]
 	if !found {
 		p.syntaxErr("Unknown global definition")
 	}
-	ast := m(p)
-	ast.SetFileName(p.fileName)
-	return ast
+	n := m(p)
+	n.SetFileName(p.fileName)
+	return n
 }
 
-// ----------------------------------------------------------------------------
-// Source files
-
+// Read source files
 func (p *parser) file() []ast.Toplevel {
 	var list []ast.Toplevel
 	for p.tok != "" {
@@ -771,13 +702,11 @@ func ParseFile(src []byte, fileName string) []ast.Toplevel {
 	return p.file()
 }
 
-// ----------------------------------------------------------------------------
-// From string
-
+// Read from string
 func ParseUnion(src []byte) []ast.Element {
 	src = append(src, ';')
 	p := new(parser)
-	p.init(src, "")
+	p.init(src, "command line")
 	list, end := p.union(";")
 	if end != len(src) {
 		p.syntaxErr(`Unexpected content after ";"`)

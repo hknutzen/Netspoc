@@ -59,11 +59,8 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: host:h1 not allowed in attribute 'reroute_permit' of interface:r1.n1
-Error: interface:r1.n1 not allowed in attribute 'reroute_permit' of interface:r1.n1
-Error: interface:r1.[auto] not allowed in attribute 'reroute_permit' of interface:r1.n1
-Error: any:n1 not allowed in attribute 'reroute_permit' of interface:r1.n1
-Error: any:[ip=10.0.0.0/8 & network:n1] not allowed in attribute 'reroute_permit' of interface:r1.n1
+Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
+Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
 END
 
 test_err($title, $in, $out);
@@ -187,71 +184,10 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Useless use of attribute reroute_permit together with no_in_acl at interface:r1.n2
+Warning: Useless use of attribute 'reroute_permit' together with 'no_in_acl' at interface:r1.n2
 END
 
-test_err($title, $in, $out);
-
-
-############################################################
-$title = 'Multiple networks from automatic group';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:u = {
- interface:n1;
- interface:n2;
- interface:n3 = { ip = 10.1.3.1; }
-}
-network:n3 = { ip = 10.1.3.0/24; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n3 = {
-  ip = 10.1.3.2;
-  hardware = n3;
-  reroute_permit = network:[any:[network:n1]];
- }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
-}
-network:n4 = { ip = 10.1.4.0/24; }
-END
-
-$out = <<'END';
--- r1
-! n3_in
-object-group network g0
- network-object 10.1.1.0 255.255.255.0
- network-object 10.1.2.0 255.255.254.0
-access-list n3_in extended permit ip any4 object-group g0
-access-list n3_in extended deny ip any4 any4
-access-group n3_in in interface n3
-END
-
-test_run($title, $in, $out);
-
-############################################################
-$title = 'Multiple networks from automatic group (Linux)';
-############################################################
-
-$in =~ s/ASA/Linux/;
-
-$out = <<'END';
--- r1
-:c1 -
--A c1 -j ACCEPT -d 10.1.2.0/23
--A c1 -j ACCEPT -d 10.1.1.0/24
---
-:n3_self -
--A INPUT -j n3_self -i n3
-:n3_n3 -
--A n3_n3 -g c1 -d 10.1.0.0/22
--A FORWARD -j n3_n3 -i n3 -o n3
-END
-
-test_run($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 done_testing;

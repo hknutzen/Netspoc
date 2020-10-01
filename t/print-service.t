@@ -6,17 +6,13 @@ use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile /;
 
-# Add "bin/" because print-service calls print-service-go in same directory.
-$ENV{PATH} = "bin/:$ENV{PATH}";
-
 sub test_run {
     my ($title, $input, $args, $expected) = @_;
     my ($in_fh, $filename) = tempfile(UNLINK => 1);
     print $in_fh $input;
     close $in_fh;
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
 
-    my $cmd = "$^X $perl_opt -I lib bin/print-service -q $filename $args";
+    my $cmd = "bin/print-service -q $filename $args";
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
@@ -94,7 +90,7 @@ s1:permit 10.1.9.10 10.1.3.2 icmp
 s1:permit 10.1.2.0/24 10.1.3.2 icmp
 END
 
-test_run($title, $in, '-nat n3 service:s1', $out);
+test_run($title, $in, '--nat n3 service:s1', $out);
 
 ############################################################
 $title = 'All services';
@@ -133,7 +129,7 @@ s1:permit network:n1 network:n3 ip
 s2:permit network:n2 network:n3 tcp
 END
 
-test_run($title, $in, '-name service:s1 service:s2', $out);
+test_run($title, $in, '--name service:s1 service:s2', $out);
 
 ############################################################
 done_testing;

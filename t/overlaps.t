@@ -117,8 +117,8 @@ service:test1a = {
 END
 
 $out = <<"END";
-Warning: Unknown service:test2 in attribute 'overlaps' of service:test1a
-Error: Unexpected type 'serv' in attribute 'overlaps' of service:test1a
+Warning: Unknown 'service:test2' in attribute 'overlaps' of service:test1a
+Error: Expected type 'service:' in attribute 'overlaps' of service:test1a
 END
 
 test_err($title, $in, $out);

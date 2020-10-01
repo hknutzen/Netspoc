@@ -140,7 +140,6 @@ END
 $out = <<'END';
 Error: Must not reference IPv4 network:n1 in IPv6 context user of service:s2
 Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service:s2
-Warning: Must not define service:s2 with empty users and empty rules
 END
 
 test_err($title, $in, $out);
@@ -177,8 +176,8 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Must not reference IPv4 host:netspoc in IPv6 context router:r1
-Error: Must not reference IPv6 host:pdp6 in IPv4 context router_attributes of area:a
+Error: Must not reference IPv4 host:netspoc in IPv6 context 'policy_distribution_point' of router:r1
+Error: Must not reference IPv6 host:pdp6 in IPv4 context 'policy_distribution_point' of router_attributes of area:a
 END
 
 test_err($title, $in, $out);
@@ -377,9 +376,6 @@ $out = <<'END';
 Netspoc, version TESTING
 Read: 2 routers, 4 networks, 1 hosts, 2 services
 Arranging protocols
-Linking topology
-Exporting to Go
-Importing from Perl
 Preparing security zones and areas
 Preparing fast path traversal
 Distributing NAT

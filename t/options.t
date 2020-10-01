@@ -26,6 +26,8 @@ check_unused_groups = 1;
 
 ignore_files = ^foo$;
 max_errors = 2;
+# Option 'verbose' gets overwritten by default option '--quiet'
+# when running tests.
 verbose = 1;
 time_stamps = 0;
 -- foo
@@ -67,7 +69,7 @@ check_unused_groups = errors;
 END
 
 $out = <<'END';
-Error: Invalid value for check_unused_groups in config, expected '0|1|warn'
+Error: Invalid value for check_unused_groups in config: errors
 Aborted
 END
 
@@ -115,9 +117,7 @@ $in = <<'END';
 END
 
 $out = <<'END';
-Error: Invalid value for option check_unused_groups, expected '0|1|warn'
-Aborted
-
+Error: invalid argument "foo" for "--check_unused_groups" flag: Expected 0|1|warn but got foo
 END
 
 test_err($title, $in, $out, '--check_unused_groups=foo');
@@ -130,8 +130,7 @@ $in = <<'END';
 END
 
 $out = <<'END';
-Unknown option: foo
-
+Error: unknown flag: --foo
 END
 
 test_err($title, $in, $out, '--foo=foo');

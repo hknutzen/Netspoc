@@ -165,7 +165,7 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 			}
 		}
 		addRule(inIntf, rule)
-	} else if !intfRules && model.hasIoAcl {
+	} else if !intfRules && model.hasIoACL {
 		// Remember outgoing interface.
 		m := inIntf.hardware.ioRules
 		if m == nil {
@@ -194,7 +194,7 @@ func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
 	result := make([]someObj, len(ipList))
 	for i, s := range ipList {
 		ip := net.ParseIP(s)
-		result[i] = &network{ipObj: ipObj{ip: ip}, mask: getHostMask(ip, ipV6)}
+		result[i] = &network{ipObj: ipObj{ip: ip}, mask: getHostMask(ipV6)}
 	}
 	return result
 }
@@ -202,7 +202,7 @@ func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
 func addRouterAcls() {
 	for _, router := range managedRouters {
 		ipv6 := router.ipV6
-		hasIoAcl := router.model.hasIoAcl
+		hasIoACL := router.model.hasIoACL
 		hardwareList := router.hardware
 		for _, hardware := range hardwareList {
 
@@ -216,7 +216,7 @@ func addRouterAcls() {
 				// networks are attached to the same hardware.
 				//
 				// Substitute or set rules for each outgoing interface.
-				if hasIoAcl {
+				if hasIoACL {
 					for _, outHardware := range hardwareList {
 						if hardware == outHardware {
 							continue
@@ -253,7 +253,7 @@ func addRouterAcls() {
 					)
 
 					// Prepend to all other rules.
-					if hasIoAcl {
+					if hasIoACL {
 
 						// Incoming and outgoing interface are equal.
 						m := hardware.ioRules

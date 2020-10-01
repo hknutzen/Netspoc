@@ -114,22 +114,22 @@ func prtInfo(srcRange, prt *proto) string {
 	return desc
 }
 
-func PrintService(m xMap) {
+func PrintService(
+	path string, srvNames []string, natNet string, showName bool) {
+
+	ReadNetspoc(path)
 	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
 	AbortOnError()
-	natNet := getString(m["nat_net"])
-	showName := getBool(m["show_name"])
-	srvNames := getStrings(m["service_names"])
 
 	// Find network for resolving NAT addresses.
 	var natSet natSet
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
-		if net := networks[natNet]; net != nil {
+		if net := symTable.network[natNet]; net != nil {
 			natSet = net.zone.natDomain.natSet
 		} else {
 			abort.Msg("Unknown network:%s of option '-n'", natNet)
@@ -148,7 +148,14 @@ func PrintService(m xMap) {
 
 	nameMap := make(map[string]bool)
 	for _, name := range srvNames {
+		name = strings.TrimPrefix(name, "service:")
+		if _, found := symTable.service[name]; !found {
+			errMsg("Unknown service:%s", name)
+		}
 		nameMap[name] = true
+	}
+	if len(srvNames) != 0 && len(nameMap) == 0 {
+		return
 	}
 
 	// Collect expanded rules.
@@ -164,10 +171,8 @@ func PrintService(m xMap) {
 		for _, r := range rules {
 			sName := r.rule.service.name
 			sName = strings.TrimPrefix(sName, "service:")
-			if len(nameMap) != 0 {
-				if !nameMap[sName] {
-					continue
-				}
+			if len(nameMap) != 0 && !nameMap[sName] {
+				continue
 			}
 			for _, src := range r.src {
 				for _, dst := range r.dst {
