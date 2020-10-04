@@ -320,7 +320,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 		p.namedValueList(name, l)
 	} else if l := n.ComplexValue; l != nil {
 		if name == "virtual" || strings.Index(name, ":") != -1 {
-			p.print(name + " = {" + getAttrList(l) + " }")
+			p.print(name + getAttrList(l) + p.TrailingComment(n, "}"))
 		} else {
 			p.complexValue(name, l)
 		}
@@ -359,6 +359,17 @@ func (p *printer) rule(n *ast.Rule) {
 }
 
 func (p *printer) topStructHead(n ast.Toplevel) {
+	p.print(n.GetName() + " = {")
+	p.description(n)
+}
+
+func hasTrailingComplexAttr(n *ast.TopStruct) bool {
+	l := n.Attributes
+	last := len(l) - 1
+	return last != -1 && l[last].ComplexValue != nil
+}
+
+func (p *printer) topStructHeadWithComment(n ast.Toplevel) {
 	p.print(n.GetName() + " = {" + p.getTrailing(n))
 	p.description(n)
 }
@@ -400,7 +411,7 @@ func getAttr(n *ast.Attribute) string {
 		return n.Name + " = " + getValueList(l)
 	}
 	if l := n.ComplexValue; l != nil {
-		return n.Name + " = {" + getAttrList(l) + " }"
+		return n.Name + getAttrList(l)
 	} else {
 		return n.Name + ";"
 	}
@@ -411,7 +422,7 @@ func getAttrList(l []*ast.Attribute) string {
 	for _, a := range l {
 		line += " " + getAttr(a)
 	}
-	return line
+	return " = {" + line + " }"
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
@@ -421,8 +432,7 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.print(name + " = {" + getAttrList(l) + " }" +
-			p.TrailingComment(n, "}"))
+		p.print(name + getAttrList(l) + p.TrailingComment(n, "}"))
 	} else {
 		// Short attribute without values.
 		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
@@ -473,7 +483,11 @@ var simpleHostAttr = map[string]bool{
 }
 
 func (p *printer) network(n *ast.Network) {
-	p.topStructHead(n)
+	if n.Hosts != nil || hasTrailingComplexAttr(&n.TopStruct) {
+		p.topStructHead(n)
+	} else {
+		p.topStructHeadWithComment(n)
+	}
 	p.attributeList(n.Attributes)
 	p.indentedAttributeList(n.Hosts, simpleHostAttr)
 	p.print("}")
@@ -513,7 +527,11 @@ func (p *printer) area(n *ast.Area) {
 }
 
 func (p *printer) topStruct(n *ast.TopStruct) {
-	p.topStructHead(n)
+	if hasTrailingComplexAttr(n) {
+		p.topStructHead(n)
+	} else {
+		p.topStructHeadWithComment(n)
+	}
 	p.attributeList(n.Attributes)
 	p.print("}")
 }
@@ -542,17 +560,61 @@ func (p *printer) toplevel(n ast.Toplevel) {
 	}
 }
 
+func isSimpleNet(t ast.Toplevel) bool {
+	if n, ok := t.(*ast.Network); ok {
+		if n.Hosts == nil && n.Description == nil {
+			for _, a := range n.Attributes {
+				switch a.Name {
+				case "ip", "owner", "crosslink", "unnumbered":
+				default:
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func (p *printer) simpleNetList(l []*ast.Network) {
+	max := 0
+	for _, a := range l {
+		if len := utfLen(a.Name); len > max {
+			max = len
+		}
+	}
+	for _, a := range l {
+		name := a.Name
+		if len := utfLen(name); len < max {
+			name += strings.Repeat(" ", max-len)
+		}
+		p.PreComment(a, "")
+		p.print(name + getAttrList(a.Attributes) + p.TrailingComment(a, "}"))
+	}
+}
+
 func File(list []ast.Toplevel, src []byte) []byte {
 	p := new(printer)
 	p.init(src)
 
+	var simple []*ast.Network
 	for i, t := range list {
+		if isSimpleNet(t) {
+			simple = append(simple, t.(*ast.Network))
+			continue
+		}
+		if simple != nil {
+			p.simpleNetList(simple)
+			p.print("")
+			simple = nil
+		}
 		p.toplevel(t)
 		// Add empty line between output.
 		if i != len(list)-1 {
 			p.print("")
 		}
 	}
+	p.simpleNetList(simple)
 
 	// Print comments in empty file and at end of file.
 	p.comment(p.ReadCommentOrWhitespaceBefore(len(p.src), ""))
