@@ -74,9 +74,9 @@ sub run {
     my ($stderr, $success) =
         capture_stderr {
             my $result;
-            if (system('spoc1', @$args) == 0) {
+            if (system('bin/spoc1', @$args) == 0) {
                 if ($out_dir) {
-                    if (system('spoc2', @$args) == 0) {
+                    if (system('bin/spoc2', @$args) == 0) {
                         $result = 1;
                     }
                 } else {
