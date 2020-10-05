@@ -16,10 +16,7 @@ use File::Temp qw/ tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 use lib 'lib';
-use Netspoc::Compiler::Pass1;
-
-# Add "bin/" because Pass1.pm calls other programs in same directory.
-$ENV{PATH} = "bin/:$ENV{PATH}";
+use open qw(:std :utf8);
 
 my $default_options = '--quiet';
 

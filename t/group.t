@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
+use utf8;
 use Test_Group;
 use Test_Netspoc;
 
