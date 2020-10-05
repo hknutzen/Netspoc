@@ -11,6 +11,7 @@ matrix:
     allow_failures:
         - perl: dev
 before_install:
+    - gimme stable # install recent version of Go
     - git clone git://github.com/travis-perl/helpers ~/travis-perl-helpers
     - source ~/travis-perl-helpers/init
     - build-perl
