@@ -62,12 +62,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -109,9 +105,7 @@ network:n1 = {
  ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -145,9 +139,7 @@ network:n1 = {
  host:h11 = { ip = 10.1.1.11; }
  host:h12 = { ip = 10.1.1.12; }
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -178,9 +170,7 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -208,12 +198,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -246,12 +232,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = {
  ip = 10.1.3.0/24;
  nat:a2 = { ip = 10.9.8.0/24; }
@@ -298,12 +280,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = {
  ip = 10.1.3.0/24;
  nat:a2 = { ip = 10.9.8.0/24; }
@@ -347,9 +325,7 @@ network:n1 = {
  ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = {
  ip = 10.1.3.0/24;
  nat:a2 = { ip = 10.9.8.0/24; }
@@ -392,12 +368,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -427,12 +399,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -470,12 +438,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -512,12 +476,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -549,18 +509,10 @@ $title = 'Area defined by anchor, anchor ouside of path';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
-network:n4 = {
- ip = 10.1.4.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 area:all = {
  anchor = network:n4;
 }
@@ -599,18 +551,10 @@ $title = 'Area with border ouside of path';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
-network:n4 = {
- ip = 10.1.4.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 area:n1-3 = {
  inclusive_border = interface:asa3.n4;
 }
@@ -650,18 +594,10 @@ $title = 'Zone ouside of path';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.2.3.0/24;
-}
-network:n4 = {
- ip = 10.2.4.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.2.3.0/24; }
+network:n4 = { ip = 10.2.4.0/24; }
 any:n4 = { link = network:n4; }
 router:r1 = {
  managed;
@@ -739,12 +675,8 @@ END
 
 $out = <<'END';
 group:empty-area = ;
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  model = ASA;
  managed;
@@ -790,9 +722,7 @@ router:u = {
  interface:n1_sub;
  interface:n1_subsub;
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -816,25 +746,15 @@ $title = 'Mark networks inside aggregate';
 
 $in = <<'END';
 network:n0 = { ip = 10.3.0.0/24; }
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.3.3.0/24;
-}
-network:un = {
- unnumbered;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:un = { unnumbered; }
 any:n1-3 = {
  ip = 10.1.0.0/16;
  link = network:un;
 }
-network:n4 = {
- ip = 10.1.4.0/24;
-}
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  interface:n0;
  interface:n1;
@@ -869,25 +789,19 @@ $title = 'Matching aggregate without matching network';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3 = { ip = 10.1.3.1; }
 }
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n3 = { ip = 10.1.3.0/24; }
 any:10_2_0_0 = {
  ip = 10.2.0.0/16;
  link = network:n3;
@@ -907,12 +821,8 @@ $title = 'Mark unmanaged at end of path';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = {
  ip = 10.1.3.0/24;
  host:h3 = { ip = 10.1.3.10; }
@@ -946,15 +856,9 @@ $title = 'Mark 2x unmanaged at end of path';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  routing = manual;
@@ -1013,25 +917,19 @@ service:s1 = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.16/28;
-}
+network:n1 = { ip = 10.1.1.16/28; }
 router:r1 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.17; hardware = n1; }
  interface:t1 = { ip = 10.9.1.82; hardware = t1; }
 }
-network:t1 = {
- ip = 10.9.1.80/28;
-}
+network:t1 = { ip = 10.9.1.80/28; }
 router:r2 = {
  interface:t1 = { ip = 10.9.1.83; }
  interface:n2;
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 service:s1 = {
  user = network:n1;
  permit src = user;
@@ -1081,12 +979,8 @@ service:s1 = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = Linux;
@@ -1145,18 +1039,14 @@ service:test = {
 END
 
 $out = <<'END';
-network:u = {
- ip = 10.9.9.0/24;
-}
+network:u = { ip = 10.9.9.0/24; }
 router:g = {
  managed;
  model = IOS, FW;
  interface:u = { ip = 10.9.9.1; hardware = F0; }
  interface:a = { ip = 10.1.1.9; hardware = F1; }
 }
-network:a = {
- ip = 10.1.1.0/24;
-}
+network:a = { ip = 10.1.1.0/24; }
 router:r2 = {
  managed;
  model = IOS, FW;
@@ -1167,9 +1057,7 @@ router:r2 = {
   hardware = E5;
  }
 }
-network:b = {
- ip = 10.2.2.0/24;
-}
+network:b = { ip = 10.2.2.0/24; }
 service:test = {
  user = network:u;
  permit src = user;
@@ -1208,9 +1096,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = Linux;
@@ -1256,12 +1142,8 @@ $out = <<'END';
 any:n1 = {
  link = network:n1;
 }
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1313,9 +1195,7 @@ network:n1 = {
  ip = 10.1.1.0/24;
  host:h11 = { ip = 10.1.1.11; }
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1355,12 +1235,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1399,12 +1275,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1459,15 +1331,9 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = ASA;
@@ -1536,12 +1402,8 @@ router:u = {
  interface:n1b;
  interface:n1;
 }
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1591,12 +1453,8 @@ service:test = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1644,12 +1502,8 @@ service:s = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 area:a = {
  nat:h = { ip = 10.9.9.9/32; dynamic; }
  inclusive_border = interface:r1.n2;
@@ -1745,9 +1599,7 @@ $title = 'Bridged network';
 ############################################################
 
 $in = <<'END';
-network:n1/left = {
- ip = 10.1.1.0/24;
-}
+network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {
  managed;
  model = ASA;
@@ -1755,12 +1607,8 @@ router:bridge = {
  interface:n1/right = { hardware = right; }
  interface:n1       = { ip = 10.1.1.2; hardware = device; }
 }
-network:n1/right = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n1/right = { ip = 10.1.1.0/24; }
+network:n2       = { ip = 10.1.2.0/24; }
 router:asa1 = {
  managed;
  model = ASA;
@@ -1839,18 +1687,10 @@ service:s1 = {
 END
 
 $out = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n7 = {
- ip = 10.1.7.0/24;
-}
-network:n8 = {
- ip = 10.1.8.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = { ip = 10.1.8.0/24; }
 router:r1 = {
  managed;
  model = IOS;
@@ -1917,9 +1757,7 @@ crypto:vpn1 = {
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
-network:intern = {
- ip = 10.1.1.0/24;
-}
+network:intern = { ip = 10.1.1.0/24; }
 router:asavpn = {
  model = ASA, VPN;
  managed;
@@ -1936,9 +1774,7 @@ router:asavpn = {
   hardware = outside;
  }
 }
-network:dmz = {
- ip = 192.168.0.0/24;
-}
+network:dmz = { ip = 192.168.0.0/24; }
 router:extern = {
  interface:dmz = { ip = 192.168.0.1; }
  interface:internet;
@@ -2236,9 +2072,7 @@ network:n1 = {
  description = network:n1;
  ip = 10.1.1.0/24;
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
  description = description = ;
  managed;
@@ -2265,12 +2099,8 @@ network:n1 = {
  ip = 10.1.1.0/24;
  partition = part1;
 }
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = {
  ip = 10.1.4.0/24;
  partition = part2;
@@ -2310,18 +2140,10 @@ $title = 'Unenforceable rule';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
-network:n4 = {
- ip = 10.1.4.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  interface:n1;
  interface:n2;
@@ -2351,15 +2173,9 @@ $title = 'Negated auto interface';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 area:n2-3 = {
  border = interface:r1.n2;
 }
@@ -2397,15 +2213,9 @@ $title = 'Negated interface';
 ############################################################
 
 $in = <<'END';
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-network:n2 = {
- ip = 10.1.2.0/24;
-}
-network:n3 = {
- ip = 10.1.3.0/24;
-}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = IOS;
