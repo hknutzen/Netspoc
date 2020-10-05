@@ -304,7 +304,6 @@ ipsec:aes256SHA = {
 }
 
 isakmp:aes256SHA = {
- identity = address;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;

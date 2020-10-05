@@ -123,7 +123,6 @@ $title = 'Unconnected with crypto';
 
 $in = <<'END';
 isakmp:x = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;
@@ -228,7 +227,6 @@ $title = 'Path between different crypto parts';
 
 $in = <<'END';
 isakmp:x = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;

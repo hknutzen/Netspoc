@@ -472,9 +472,6 @@ type attrDescr struct {
 }
 
 var isakmpAttr = map[string]attrDescr{
-	"identity": attrDescr{
-		values: []string{"address", "fqdn"},
-	},
 	"nat_traversal": attrDescr{
 		values:   []string{"on", "additional", "off"},
 		mapEmpty: "off",
@@ -509,8 +506,6 @@ func setupIsakmp(v *ast.TopStruct, s *symbolTable) {
 	ikeVersion := ""
 	for _, a := range v.Attributes {
 		switch a.Name {
-		case "identity":
-			_ = getAttr(a, isakmpAttr, name)
 		case "nat_traversal":
 			is.natTraversal = getAttr(a, isakmpAttr, name)
 		case "authentication":

@@ -25,7 +25,6 @@ ipsec:aes256SHA = {
 }
 
 isakmp:aes256SHA = {
- identity = address;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;
@@ -48,7 +47,6 @@ ipsec:aes256SHA = {
 }
 
 isakmp:aes256SHA = {
- identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;
@@ -2589,7 +2587,6 @@ ipsec:aes256SHA = {
 
 isakmp:aes256SHA = {
  ike_version = 1;
- identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;
@@ -2609,7 +2606,6 @@ ipsec:3desSHA = {
 
 isakmp:3desSHA = {
  ike_version = 1;
- identity = address;
  authentication = preshare;
  encryption = 3des;
  hash = sha;
@@ -2862,7 +2858,6 @@ ipsec:aes256SHA = {
 
 isakmp:aes256SHA = {
  ike_version = 2;
- identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;
@@ -2882,7 +2877,6 @@ ipsec:3desSHA = {
 
 isakmp:3desSHA = {
  ike_version = 1;
- identity = address;
  authentication = rsasig;
  encryption = 3des;
  hash = sha;
@@ -3052,7 +3046,6 @@ ipsec:aes256_sha256_ikev2_psk = {
 }
 isakmp:aes256_sha256_ikev2_psk = {
  ike_version = 2;
- identity = address;
  nat_traversal = additional;
  authentication = preshare;
  encryption = aes256;
@@ -4038,7 +4031,6 @@ ipsec:aes256SHA = {
 
 isakmp:aes256SHA = {
  ike_version = 1;
- identity = address;
  nat_traversal = additional;
  authentication = rsasig;
  encryption = aes256;

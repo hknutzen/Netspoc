@@ -358,7 +358,6 @@ $title = 'Owner with "show_all" must also own VPN transfer area';
 
 $in = <<'END';
 isakmp:ikeaes256SHA = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;
