@@ -363,7 +363,6 @@ where `<object set>` must expand to interfaces.
       isakmp:<name> = {
         [ <description> ]
         ike_version = ( 1 | 2 );
-        identity = ( address | fqdn );
         nat_traversal = ( on | additional | off );
         authentication = ( preshare | rsasig );
         encryption = ( aes | aes192 | aes256 | des | 3des );
