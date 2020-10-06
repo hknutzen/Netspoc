@@ -1429,7 +1429,6 @@ $in = <<'END';
 owner:Extern_VPN = { admins = abc@d.com; }
 
 isakmp:ikeaes256SHA = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;

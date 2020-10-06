@@ -5,14 +5,16 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use File::Temp qw/ tempfile /;
+use utf8;
+use open qw(:std :utf8);
+use lib 't';
+use Test_Netspoc qw(prepare_in_dir);
 
 sub test_run {
     my ($title, $input, $expected, @services) = @_;
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
+    my $in_dir = prepare_in_dir($input);
 
-    my $cmd = "bin/cut-netspoc -q $filename";
+    my $cmd = "bin/cut-netspoc -q $in_dir";
     $cmd .= " @services" if @services;
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
@@ -211,6 +213,45 @@ service:test = {
  permit src = user;
         dst = interface:asa1.n1;
         prt = ip;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Remove unused protocolgroup';
+############################################################
+
+$in = $topo . <<'END';
+protocol:www = tcp 80;
+protocolgroup:g1 = tcp 22, tcp 23;
+protocolgroup:g2 = protocol:www, tcp 443;
+
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = protocolgroup:g2;
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+protocol:www = tcp 80;
+protocolgroup:g2 =
+ protocol:www,
+ tcp 443,
+;
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = protocolgroup:g2;
 }
 END
 
@@ -499,6 +540,57 @@ service:test = {
  permit src = user;
         dst = network:n1;
         prt = tcp;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Ignore IPv6 part of topology';
+############################################################
+
+$in = <<'END';
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
+-- ipv6/topo
+network:n3 = { ip = 1000::abcd:0001:0/112;}
+network:n4 = { ip = 1000::abcd:0002:0/112;}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n3;}
+ interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n4;}
+ interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
+}
+END
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = ip;
 }
 END
 
@@ -1744,7 +1836,6 @@ ipsec:aes256SHA = {
  lifetime = 600 sec;
 }
 isakmp:aes256SHA = {
- identity = address;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;

@@ -256,10 +256,10 @@ network:n1 = {
 END
 
 $out = <<"END";
-Error: Referencing undefined network:n2 in 'subnet_of' of network:n1
+Warning: Referencing undefined network:n2 in 'subnet_of' of network:n1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 

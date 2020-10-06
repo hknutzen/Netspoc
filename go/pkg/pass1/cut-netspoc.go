@@ -109,13 +109,15 @@ func selectInterfaces(n *ast.Router) {
 				case "reroute_permit":
 					l2 = selectReroutePermit(l2)
 					changed = true
+				case "owner":
+					l2 = nil
+					changed = true
 				}
 				if !changed || l2 != nil {
 					a2.ValueList = l2
 					attrList[j] = a2
 					j++
 				}
-
 			}
 			a.ComplexValue = attrList[:j]
 		}
@@ -168,7 +170,7 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 		r = out.router
 	}
 	r.isUsed = true
-	// debug("Used %s", r)
+	//debug("Used %s", r)
 	for _, intf := range []*routerIntf{in, out} {
 		if intf == nil {
 			continue
@@ -199,7 +201,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 		}
 		seen[obj] = true
 		if obj.getUsed() {
-			// debug("Found %s", obj)
+			//debug("Found %s", obj)
 			return true
 		}
 		r, isRouter := obj.(*router)
@@ -225,7 +227,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				obj.setUsed()
 				intf.isUsed = true
-				// debug "Marked %s + %s", obj, intf)
+				//debug("Marked %s + %s", obj, intf)
 				result = true
 			}
 		}
@@ -233,7 +235,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 	}
 
 	for _, obj := range list {
-		// debug "Connecting %s", obj)
+		//debug("Connecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
 		for _, intf := range obj.intfList() {
 			if intf.mainIntf != nil {
@@ -246,10 +248,10 @@ func markUnconnected(list netPathObjList, managed bool) {
 			} else {
 				next = intf.router
 			}
-			// debug("Try %s %s", next, intf)
+			//debug("Try %s %s", next, intf)
 			if mark(next, intf, seen) {
 				intf.isUsed = true
-				// debug("Marked %s", inf)
+				//debug("Marked %s", intf)
 			}
 		}
 	}
@@ -262,7 +264,7 @@ func markPath(src, dst *routerIntf) {
 		n.isUsed = true
 		todoUnmanaged.push(n)
 	}
-	// debug("Path %s %s", src, dst)
+	//debug("Path %s %s", src, dst)
 	singlePathWalk(src, dst, markTopology, "Router")
 }
 
@@ -287,25 +289,41 @@ func markRulesPath(p pathRules) {
 
 func CutNetspoc(path string, names []string) {
 	toplevel := parseFiles(path)
-	setupTopology(toplevel)
 
 	if len(names) > 0 {
-		for _, name := range names {
-			name = strings.TrimPrefix(name, "service:")
-			s, found := services[name]
-			if !found {
-				errMsg("Unknown service:%s", name)
+		var copy []ast.Toplevel
+		retain := make(map[string]bool)
+		for i, name := range names {
+			if !strings.HasPrefix(name, "service:") {
+				name = "service:" + name
+				names[i] = name
 			}
-			if !s.disabled {
-				isUsed["service:"+name] = true
+			retain[name] = true
+		}
+		seen := make(map[string]bool)
+		for _, top := range toplevel {
+			name := top.GetName()
+			if !strings.HasPrefix(name, "service:") {
+				copy = append(copy, top)
+			} else if retain[name] {
+				copy = append(copy, top)
+				seen[name] = true
 			}
 		}
-	} else {
-		for _, s := range symTable.service {
-			isUsed[s.name] = true
+		toplevel = copy
+		for _, name := range names {
+			if !seen[name] {
+				errMsg("Unknown service:%s", name)
+			}
 		}
 	}
 
+	setupTopology(toplevel)
+	for _, s := range symTable.service {
+		if !s.disabled {
+			isUsed[s.name] = true
+		}
+	}
 	MarkDisabled()
 	SetZone()
 	SetPath()
@@ -730,7 +748,11 @@ func CutNetspoc(path string, names []string) {
 	}
 	markRouter := func(r *router) {
 		if r.isUsed {
-			isUsed[r.name] = true
+			name := r.name
+			if r.ipV6 {
+				name = "6" + name
+			}
+			isUsed[name] = true
 			for _, intf := range getIntf(r) {
 				if intf.isUsed {
 					iName := intf.name
@@ -810,6 +832,9 @@ func CutNetspoc(path string, names []string) {
 				n.Type = "interface"
 				n.Router = intf.router.name[len("router:"):]
 				n.Network = intf.network.name[len("network:"):]
+				if intf.redundant {
+					n.Extension = "virtual"
+				}
 				l = append(l, n)
 			}
 		}
@@ -832,7 +857,11 @@ func CutNetspoc(path string, names []string) {
 
 	for _, top := range toplevel {
 		typedName := top.GetName()
-		if !isUsed[typedName] {
+		lookup := typedName
+		if strings.HasPrefix(typedName, "router:") && top.GetIPV6() {
+			lookup = "6" + lookup
+		}
+		if !isUsed[lookup] {
 			continue
 		}
 		typ, _ := splitTypedName(typedName)

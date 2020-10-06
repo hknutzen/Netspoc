@@ -1,6 +1,10 @@
 {{$NEXT}}
 
- - Attribute 'identity' no longer supported in isakmp definition.
+ - Migrated remaining parts from Perl to Go:
+   - Parsing files and directories
+   - Arranging protocols
+   - Linking topology
+ - Attribute 'identity' is no longer supported in isakmp definition.
    Was ignored anyway.
 
 6.019     2020-08-26 11:00:46+02:00 Europe/Berlin

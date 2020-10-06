@@ -668,7 +668,7 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 		case "crosslink":
 			n.crosslink = getFlag(a, name)
 		case "subnet_of":
-			n.subnetOf = getNetworkRef(a, s, n.ipV6, name)
+			n.subnetOf = tryNetworkRef(a, s, n.ipV6, name)
 		case "owner":
 			n.owner = getRealOwnerRef(a, s, name)
 		case "cert_id":
@@ -960,7 +960,7 @@ func setupArea(v *ast.Area, s *symbolTable) {
 		case "router_attributes":
 			ar.routerAttributes = getRouterAttributes(a, s, ar)
 		case "owner":
-			o := getOwnerRef(a, s, name)
+			o := tryOwnerRef(a, s, name)
 			if o != nil && o.onlyWatch {
 				ar.watchingOwner = o
 			} else {
@@ -1090,7 +1090,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		case "radius_attributes":
 			r.radiusAttributes = getRadiusAttributes(a, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = getHostRef(a, s, v6, name)
+			r.policyDistributionPoint = tryHostRef(a, s, v6, name)
 		case "general_permit":
 			r.generalPermit = getGeneralPermit(a, s, v6, name)
 		default:
@@ -1481,7 +1481,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		case "dhcp_client":
 			intf.dhcpClient = getFlag(a, name)
 		case "subnet_of":
-			subnetOf = getNetworkRef(a, s, v6, name)
+			subnetOf = tryNetworkRef(a, s, v6, name)
 		case "hub":
 			intf.hub = getCryptoRefList(a, s, name)
 		case "spoke":
@@ -1509,7 +1509,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		case "routing":
 			intf.routing = getRouting(a, name)
 		case "reroute_permit":
-			intf.reroutePermit = getNetworkRefList(a, s, v6, name)
+			intf.reroutePermit = tryNetworkRefList(a, s, v6, name)
 		case "disabled":
 			intf.disabled = getFlag(a, name)
 		case "no_check":
@@ -1890,7 +1890,7 @@ func setupService(v *ast.Service, s *symbolTable) {
 		case "sub_owner":
 			sv.subOwner = getRealOwnerRef(a, s, name)
 		case "overlaps":
-			sv.overlaps = getServiceRefList(a, s, "attribute 'overlaps' of "+name)
+			sv.overlaps = tryServiceRefList(a, s, "attribute 'overlaps' of "+name)
 		case "multi_owner":
 			sv.multiOwner = getFlag(a, name)
 		case "unknown_owner":
@@ -2650,6 +2650,18 @@ func dateIsReached(s, ctx string) bool {
 func getNetworkRef(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
 
+	return lookupNetworkRef(a, s, v6, ctx, false)
+}
+
+func tryNetworkRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
+
+	return lookupNetworkRef(a, s, v6, ctx, true)
+}
+
+func lookupNetworkRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string, warn bool) *network {
+
 	typ, name := getTypedName(a, ctx)
 	if typ == "" {
 		return nil
@@ -2661,14 +2673,18 @@ func getNetworkRef(
 	}
 	n := s.network[name]
 	if n == nil {
-		errMsg("Referencing undefined network:%s in %s", name, ctx2)
+		f := errMsg
+		if warn {
+			f = warnMsg
+		}
+		f("Referencing undefined network:%s in %s", name, ctx2)
 		return nil
 	}
 	checkV4V6CrossRef(n, v6, ctx2)
 	return n
 }
 
-func getNetworkRefList(
+func tryNetworkRefList(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) netList {
 
 	l := getValueList(a, ctx)
@@ -2688,7 +2704,7 @@ func getNetworkRefList(
 	return result
 }
 
-func getHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+func tryHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
 	typ, name := getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
 	if typ != "host" {
@@ -2715,7 +2731,7 @@ func getTypedName(a *ast.Attribute, ctx string) (string, string) {
 }
 
 func getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
-	o := getOwnerRef(a, s, ctx)
+	o := tryOwnerRef(a, s, ctx)
 	if o != nil {
 		if o.admins == nil {
 			errMsg("Missing attribute 'admins' in %s of %s", o.name, ctx)
@@ -2730,7 +2746,7 @@ func getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
 	return o
 }
 
-func getOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+func tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
 	name := getIdentifier(a, ctx)
 	o := s.owner[name]
 	if o == nil {
@@ -2796,7 +2812,7 @@ func getCryptoRefList(a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
 	return result
 }
 
-func getServiceRefList(
+func tryServiceRefList(
 	a *ast.Attribute, s *symbolTable, ctx string) []*service {
 
 	l := getValueList(a, ctx)
@@ -2962,7 +2978,7 @@ func getRouterAttributes(
 		case "owner":
 			r.owner = getRealOwnerRef(a2, s, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = getHostRef(a2, s, ar.ipV6, name)
+			r.policyDistributionPoint = tryHostRef(a2, s, ar.ipV6, name)
 		case "general_permit":
 			r.generalPermit = getGeneralPermit(a2, s, ar.ipV6, name)
 		default:
@@ -3073,7 +3089,7 @@ func addXNat(a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable,
 		case "dynamic":
 			nat.dynamic = getFlag(a2, natCtx)
 		case "subnet_of":
-			nat.subnetOf = getNetworkRef(a2, s, v6, natCtx)
+			nat.subnetOf = tryNetworkRef(a2, s, v6, natCtx)
 		default:
 			errMsg("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
