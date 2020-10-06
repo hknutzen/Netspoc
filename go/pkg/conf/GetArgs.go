@@ -346,4 +346,5 @@ func ConfigFromArgsAndFile(args []string, path string) {
 	Conf = defaultOptions(fs)
 	fs.Parse(args)
 	addConfigFromFile(path, fs)
+	setStartTime()
 }
