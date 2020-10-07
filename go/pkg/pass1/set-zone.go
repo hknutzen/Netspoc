@@ -208,7 +208,7 @@ func checkCrosslink() map[*router]bool {
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
-	for _, n := range symTable.network {
+	for _, n := range allNetworks {
 		if !n.crosslink || n.disabled {
 			continue
 		}
