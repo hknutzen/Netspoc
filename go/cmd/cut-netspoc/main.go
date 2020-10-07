@@ -19,6 +19,7 @@ func main() {
 	// Command line flags
 	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
 	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	keepOwner := pflag.BoolP("owner", "o", false, "Keep referenced owners")
 	pflag.Parse()
 
 	// Argument processing
@@ -35,5 +36,5 @@ func main() {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	pass1.CutNetspoc(path, services)
+	pass1.CutNetspoc(path, services, *keepOwner)
 }

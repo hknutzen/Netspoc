@@ -11,11 +11,11 @@ use lib 't';
 use Test_Netspoc qw(prepare_in_dir);
 
 sub test_run {
-    my ($title, $input, $expected, @services) = @_;
+    my ($title, $input, $expected, @args) = @_;
     my $in_dir = prepare_in_dir($input);
 
     my $cmd = "bin/cut-netspoc -q $in_dir";
-    $cmd .= " @services" if @services;
+    $cmd .= " @args" if @args;
     open(my $out_fh, '-|', $cmd) or die "Can't execute $cmd: $!\n";
 
     # Undef input record separator to read all output at once.
@@ -426,6 +426,36 @@ service:test = {
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Keep area with owner';
+############################################################
+
+$out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:n2 = {
+ owner = foo;
+ border = interface:asa1.n2;
+}
+owner:foo = {
+ admins = a@example.com;
+}
+service:test = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp;
+}
+END
+
+test_run($title, $in, $out, "--owner");
 
 ############################################################
 $title = 'Area with NAT';
@@ -1565,26 +1595,38 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Remove router_attributes';
+$title = 'Remove owner and policy_distribution_point from router_attributes';
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
+owner:o1 = { admins = a@example.com; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 
-area:a = {
+area:a1 = {
  inclusive_border = interface:r1.n2;
  router_attributes = {
-  general_permit = icmp 0, icmp 3, icmp 11;
+  owner = o1;
+  policy_distribution_point = host:h1;
  }
- nat:h = { ip = 10.9.9.9/32; dynamic; }
+ nat:d1 = { ip = 10.9.9.1/32; dynamic; }
+}
+
+area:a2 = {
+ border = interface:r1.n2;
+ router_attributes = {
+  owner = o1;
+  general_permit = icmp 0, icmp 3, icmp 11;
+  policy_distribution_point = host:h1;
+ }
+ nat:d2 = { ip = 10.9.9.2/32; dynamic; }
 }
 
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = outside; }
- interface:n2 = { ip = 10.1.2.1; hardware = inside; bind_nat = h; }
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; bind_nat = d2;}
+ interface:n2 = { ip = 10.1.2.1; hardware = inside; bind_nat = d1; }
 }
 
 service:s = {
@@ -1596,18 +1638,33 @@ END
 $out = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-area:a = {
- nat:h = { ip = 10.9.9.9/32; dynamic; }
+area:a1 = {
+ nat:d1 = { ip = 10.9.9.1/32; dynamic; }
  inclusive_border = interface:r1.n2;
+}
+area:a2 = {
+ router_attributes = {
+  general_permit =
+   icmp 0,
+   icmp 3,
+   icmp 11,
+  ;
+ }
+ nat:d2 = { ip = 10.9.9.2/32; dynamic; }
+ border = interface:r1.n2;
 }
 router:r1 = {
  model = ASA;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hardware = outside;
+  bind_nat = d2;
+ }
  interface:n2 = {
   ip = 10.1.2.1;
   hardware = inside;
-  bind_nat = h;
+  bind_nat = d1;
  }
 }
 service:s = {

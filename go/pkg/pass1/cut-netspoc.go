@@ -75,54 +75,23 @@ func removeAttr(ref *[]*ast.Attribute, name string) {
 	*ref = l
 }
 
-func selectHosts(n *ast.Network) {
-	nName := n.Name[len("network:"):]
+func removeSubAttr(ref *[]*ast.Attribute, name, sub string) {
 	var l []*ast.Attribute
-	for _, a := range n.Hosts {
-		hName := a.Name
-		if strings.HasPrefix(hName, "host:id:") {
-			hName += "." + nName
-		}
-		if isUsed[hName] {
-			l = append(l, a)
-			removeAttr(&a.ComplexValue, "owner")
-		}
-	}
-	n.Hosts = l
-}
-
-func selectInterfaces(n *ast.Router) {
-	name := "interface:" + n.Name[len("router:"):] + "."
-	var l []*ast.Attribute
-	for _, a := range n.Interfaces {
-		if isUsed[name+a.Name[len("interface:"):]] {
-			l = append(l, a)
-			attrList := a.ComplexValue
-			j := 0
-			for _, a2 := range attrList {
-				l2 := a2.ValueList
-				changed := false
-				switch a2.Name {
-				case "bind_nat":
-					l2 = selectBindNat(l2)
-					changed = true
-				case "reroute_permit":
-					l2 = selectReroutePermit(l2)
-					changed = true
-				case "owner":
-					l2 = nil
-					changed = true
-				}
-				if !changed || l2 != nil {
-					a2.ValueList = l2
-					attrList[j] = a2
-					j++
+	for _, a := range *ref {
+		if a.Name == name {
+			var l2 []*ast.Attribute
+			for _, a2 := range a.ComplexValue {
+				if a2.Name != sub {
+					l2 = append(l2, a2)
 				}
 			}
-			a.ComplexValue = attrList[:j]
+			a.ComplexValue = l2
+		}
+		if a.Name != name || a.ComplexValue != nil {
+			l = append(l, a)
 		}
 	}
-	n.Interfaces = l
+	*ref = l
 }
 
 func selectBindNat(l []*ast.Value) []*ast.Value {
@@ -287,7 +256,7 @@ func markRulesPath(p pathRules) {
 	}
 }
 
-func CutNetspoc(path string, names []string) {
+func CutNetspoc(path string, names []string, keepOwner bool) {
 	toplevel := parseFiles(path)
 
 	if len(names) > 0 {
@@ -398,12 +367,14 @@ func CutNetspoc(path string, names []string) {
 	}
 
 	zoneUsed := make(map[*zone]bool)
+	zoneCheck := make(map[*zone]bool)
 	for _, z := range zones {
 		for _, agg := range z.ipmask2aggregate {
 			if !agg.isUsed {
 				continue
 			}
 			zoneUsed[agg.zone] = true
+			zoneCheck[agg.zone] = true
 			// debug("Marking networks of %s in %s", agg, z")
 			for _, n := range agg.networks {
 				n.isUsed = true
@@ -418,6 +389,7 @@ func CutNetspoc(path string, names []string) {
 			continue
 		}
 		z := n.zone
+		zoneCheck[z] = true
 		if len(z.nat) == 0 {
 			continue
 		}
@@ -451,14 +423,16 @@ func CutNetspoc(path string, names []string) {
 
 	// Mark areas having NAT attribute that influence their networks.
 	for _, z := range zones {
-		if !zoneUsed[z] {
+		if !zoneCheck[z] {
 			continue
 		}
 		for _, a := range zone2areas[z] {
-			if len(a.nat) == 0 {
-				continue
+			att := a.routerAttributes
+			if len(a.nat) != 0 ||
+				keepOwner && (a.owner != nil || att != nil && att.owner != nil) {
+
+				a.isUsed = true
 			}
-			a.isUsed = true
 		}
 	}
 
@@ -707,9 +681,17 @@ func CutNetspoc(path string, names []string) {
 	}
 
 	// Collect names of marked areas, groups, protocols, protocolgroups.
+	// Collect names of marked owners.
+	markOwner := func(o *owner) {
+		if keepOwner && o != nil {
+			isUsed[o.name] = true
+		}
+	}
 	for _, a := range symTable.area {
 		if a.isUsed {
 			isUsed[a.name] = true
+			markOwner(a.owner)
+
 		}
 	}
 	for _, g := range symTable.group {
@@ -732,11 +714,13 @@ func CutNetspoc(path string, names []string) {
 	for _, n := range allNetworks {
 		if n.isUsed {
 			isUsed[n.name] = true
+			markOwner(n.owner)
 			added := false
 			for _, h := range n.hosts {
 				if h.isUsed {
 					isUsed[h.name] = true
 					added = true
+					markOwner(h.owner)
 				}
 			}
 
@@ -753,6 +737,7 @@ func CutNetspoc(path string, names []string) {
 				name = "6" + name
 			}
 			isUsed[name] = true
+			markOwner(r.owner)
 			for _, intf := range getIntf(r) {
 				if intf.isUsed {
 					iName := intf.name
@@ -761,6 +746,7 @@ func CutNetspoc(path string, names []string) {
 					// main interface.
 					iName = strings.TrimSuffix(iName, ".virtual")
 					isUsed[iName] = true
+					markOwner(intf.owner)
 				}
 			}
 		}
@@ -770,6 +756,11 @@ func CutNetspoc(path string, names []string) {
 	}
 	for _, r := range symTable.router6 {
 		markRouter(r)
+	}
+	if keepOwner {
+		for _, s := range symTable.service {
+			markOwner(s.subOwner)
+		}
 	}
 
 	// Prepare emptyGroup
@@ -849,6 +840,64 @@ func CutNetspoc(path string, names []string) {
 		name2pathrestriction[name] = n
 	}
 
+	removeOwner := func(ref *[]*ast.Attribute) {
+		if !keepOwner {
+			removeAttr(ref, "owner")
+		}
+	}
+
+	selectHosts := func(n *ast.Network) {
+		nName := n.Name[len("network:"):]
+		var l []*ast.Attribute
+		for _, a := range n.Hosts {
+			hName := a.Name
+			if strings.HasPrefix(hName, "host:id:") {
+				hName += "." + nName
+			}
+			if isUsed[hName] {
+				l = append(l, a)
+				removeOwner(&a.ComplexValue)
+			}
+		}
+		n.Hosts = l
+	}
+
+	selectInterfaces := func(n *ast.Router) {
+		name := "interface:" + n.Name[len("router:"):] + "."
+		var l []*ast.Attribute
+		for _, a := range n.Interfaces {
+			if isUsed[name+a.Name[len("interface:"):]] {
+				l = append(l, a)
+				attrList := a.ComplexValue
+				j := 0
+				for _, a2 := range attrList {
+					l2 := a2.ValueList
+					changed := false
+					switch a2.Name {
+					case "bind_nat":
+						l2 = selectBindNat(l2)
+						changed = true
+					case "reroute_permit":
+						l2 = selectReroutePermit(l2)
+						changed = true
+					case "owner":
+						if !keepOwner {
+							l2 = nil
+							changed = true
+						}
+					}
+					if !changed || l2 != nil {
+						a2.ValueList = l2
+						attrList[j] = a2
+						j++
+					}
+				}
+				a.ComplexValue = attrList[:j]
+			}
+		}
+		n.Interfaces = l
+	}
+
 	// Print marked parts of netspoc configuration.
 	// Routers and networks have been marked by markTopology.
 	// Protocols have been marked while pathRules have been processed above.
@@ -867,18 +916,22 @@ func CutNetspoc(path string, names []string) {
 		typ, _ := splitTypedName(typedName)
 		switch x := top.(type) {
 		case *ast.Network:
-			removeAttr(&x.Attributes, "owner")
+			removeOwner(&x.Attributes)
 			selectHosts(x)
 		case *ast.Router:
-			removeAttr(&x.Attributes, "owner")
+			removeOwner(&x.Attributes)
 			removeAttr(&x.Attributes, "policy_distribution_point")
 			selectInterfaces(x)
 		case *ast.Area:
-			removeAttr(&x.Attributes, "owner")
-			removeAttr(&x.Attributes, "router_attributes")
+			removeOwner(&x.Attributes)
+			removeSubAttr(&x.Attributes,
+				"router_attributes", "policy_distribution_point")
+			if !keepOwner {
+				removeSubAttr(&x.Attributes, "router_attributes", "owner")
+			}
 		case *ast.TopStruct:
 			if typ == "any" {
-				removeAttr(&x.Attributes, "owner")
+				removeOwner(&x.Attributes)
 			}
 		case *ast.TopList:
 			switch typ {
@@ -888,7 +941,9 @@ func CutNetspoc(path string, names []string) {
 				top = name2pathrestriction[typedName]
 			}
 		case *ast.Service:
-			removeAttr(&x.Attributes, "sub_owner")
+			if !keepOwner {
+				removeAttr(&x.Attributes, "sub_owner")
+			}
 			substEmptyAreas(x.User.Elements)
 			for _, r := range x.Rules {
 				substEmptyAreas(r.Src.Elements)
