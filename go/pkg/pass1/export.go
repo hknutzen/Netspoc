@@ -675,8 +675,8 @@ func setupPartOwners() xOwner {
 	// Don't handle interfaces here, because
 	// - unmanaged interface doesn't have owner and
 	// - managed interface isn't part of network.
-	for _, n := range symTable.network {
-		if n.disabled {
+	for _, n := range allNetworks {
+		if n.isAggregate {
 			continue
 		}
 		netOwner := n.owner
@@ -686,11 +686,20 @@ func setupPartOwners() xOwner {
 				add(n, ow)
 			}
 		}
+		for _, intf := range n.interfaces {
+			r := intf.router
+			if r.managed == "" && !r.routingOnly {
+				ow := intf.owner
+				if ow != nil && ow != netOwner {
+					add(n, ow)
+				}
+			}
+		}
 	}
 
 	// Add owner and partOwner of network to enclosing aggregates and networks.
-	for _, n := range symTable.network {
-		if n.disabled {
+	for _, n := range allNetworks {
+		if n.isAggregate {
 			continue
 		}
 		var owners []*owner
@@ -911,8 +920,8 @@ func exportNatSet(dir string,
 
 	diag.Progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
-	for _, n := range symTable.network {
-		if n.disabled {
+	for _, n := range allNetworks {
+		if n.isAggregate {
 			continue
 		}
 

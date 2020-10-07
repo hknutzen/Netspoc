@@ -2946,6 +2946,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Recognize unmanaged interface as part of aggregate';
+############################################################
+
+$in = <<'END';
+owner:o0 = { admins = a0@example.com; }
+owner:o1 = { admins = a1@example.com; }
+any:a = { ip = 10.0.0.0/8; link = network:n1; }
+
+router:u = {
+ interface:lo = { ip = 10.1.9.1; owner = o0; loopback; }
+ interface:n1 = { ip = 10.1.1.1; owner = o1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = any:a;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<END;
+--owner/o0/users
+{
+ "s1": [
+  "any:a"
+ ]
+}
+--owner/o1/users
+{
+ "s1": [
+  "any:a"
+ ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Disabled user, disabled in rule, disabled service';
 ############################################################
 
