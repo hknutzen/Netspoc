@@ -53,7 +53,6 @@ func setupTopology(toplevel []ast.Toplevel) {
 	initStdProtocols(sym)
 	symTable = sym
 	setupObjects(toplevel, sym)
-	orderProtocols(sym)
 	AbortOnError()
 	services = sym.service
 	linkTunnels(sym)

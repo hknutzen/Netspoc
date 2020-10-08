@@ -89,7 +89,7 @@ func initStdProtocols(sym *symbolTable) {
 
 // Order protocols. We need this to simplify optimization.
 // Additionally add internal predefined protocols.
-func orderProtocols(sym *symbolTable) {
+func OrderProtocols() {
 	diag.Progress("Arranging protocols")
 
 	// Internal protocols need to be processed before user defined protocols,
@@ -103,10 +103,10 @@ func orderProtocols(sym *symbolTable) {
 	preparePrtOrdering(prtNatt)
 	preparePrtOrdering(prtEsp)
 	preparePrtOrdering(prtAh)
-	for _, p := range sym.protocol {
+	for _, p := range symTable.protocol {
 		preparePrtOrdering(p)
 	}
-	for _, p := range sym.unnamedProto {
+	for _, p := range symTable.unnamedProto {
 		preparePrtOrdering(p)
 	}
 

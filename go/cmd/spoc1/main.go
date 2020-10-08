@@ -16,6 +16,7 @@ func main() {
 	diag.Info(program + ", version " + version)
 	pass1.ReadNetspoc(inDir)
 	pass1.ShowReadStatistics()
+	pass1.OrderProtocols()
 	pass1.MarkDisabled()
 	pass1.CheckIPAdresses()
 	pass1.SetZone()
