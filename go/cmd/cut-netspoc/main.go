@@ -34,6 +34,7 @@ func main() {
 	dummyArgs := []string{
 		fmt.Sprintf("--verbose=%v", !*quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
+		"--max_errors=9999",
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 	pass1.CutNetspoc(path, services, *keepOwner)

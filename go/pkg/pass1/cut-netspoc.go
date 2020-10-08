@@ -139,7 +139,7 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 		r = out.router
 	}
 	r.isUsed = true
-	//debug("Used %s", r)
+	debug("Used %s", r)
 	for _, intf := range []*routerIntf{in, out} {
 		if intf == nil {
 			continue
@@ -170,7 +170,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 		}
 		seen[obj] = true
 		if obj.getUsed() {
-			//debug("Found %s", obj)
+			debug("Found %s", obj)
 			return true
 		}
 		r, isRouter := obj.(*router)
@@ -196,7 +196,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				obj.setUsed()
 				intf.isUsed = true
-				//debug("Marked %s + %s", obj, intf)
+				debug("Marked %s + %s", obj, intf)
 				result = true
 			}
 		}
@@ -204,7 +204,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 	}
 
 	for _, obj := range list {
-		//debug("Connecting %s", obj)
+		debug("Connecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
 		for _, intf := range obj.intfList() {
 			if intf.mainIntf != nil {
@@ -217,10 +217,10 @@ func markUnconnected(list netPathObjList, managed bool) {
 			} else {
 				next = intf.router
 			}
-			//debug("Try %s %s", next, intf)
+			debug("Try %s %s", next, intf)
 			if mark(next, intf, seen) {
 				intf.isUsed = true
-				//debug("Marked %s", intf)
+				debug("Marked %s", intf)
 			}
 		}
 	}
@@ -233,7 +233,7 @@ func markPath(src, dst *routerIntf) {
 		n.isUsed = true
 		todoUnmanaged.push(n)
 	}
-	//debug("Path %s %s", src, dst)
+	debug("Path %s %s", src, dst)
 	singlePathWalk(src, dst, markTopology, "Router")
 }
 
