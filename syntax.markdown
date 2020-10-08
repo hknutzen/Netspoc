@@ -117,7 +117,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ managed; | managed = <filter type>;        ]
          [ model = <model>;                           ]
          [ filter_only = <ip-net>(, <ip-net>)*; ]
-         [ routing = ( EIGRP | OSPF | dynamic | manual ); ]
+         [ routing = ( EIGRP | OSPF | RIPv2 | dynamic | manual ); ]
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
          ( log:<name> [= (<ASA-modifier> | <IOS-modifier>)]; )*
@@ -155,7 +155,7 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ loopback;                            ]
          [ no_in_acl;                           ]
          [ reroute_permit = <object set>;       ]
-         [ routing = ( EIGRP | OSPF | dynamic ); ]
+         [ routing = ( EIGRP | OSPF | RIPv2 | dynamic ); ]
          [ subnet_of = network:<network name>;          ]
          [ vip;                                 ]
          [ owner = <name>;                      ]
