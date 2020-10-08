@@ -1213,6 +1213,8 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 				errMsg("Must not use 'managed = local' at %s of model %s",
 					name, r.model.name)
 			}
+		} else if r.filterOnly != nil {
+			warnMsg("Ignoring attribute 'filter_only' at %s", name)
 		}
 		if r.logDeny && !r.model.canLogDeny {
 			errMsg("Must not use attribute 'log_deny' at %s of moel %s",

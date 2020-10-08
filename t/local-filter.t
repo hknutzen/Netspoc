@@ -42,6 +42,27 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = "Ignoring attribute 'filter_only'";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.62.1.32/27; }
+router:d32 = {
+ model = ASA;
+ managed;
+ filter_only =  10.62.0.0/16;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+END
+
+
+$out = <<"END";
+Warning: Ignoring attribute 'filter_only' at router:d32
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = "Local network doesn't match filter_only attribute";
 ############################################################
 
