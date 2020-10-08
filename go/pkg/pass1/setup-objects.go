@@ -22,6 +22,14 @@ func ReadNetspoc(path string) {
 	setupTopology(toplevel)
 }
 
+func ShowReadStatistics() {
+	r := len(symTable.router) + len(symTable.router6)
+	n := len(symTable.network)
+	h := len(symTable.host)
+	s := len(symTable.service)
+	diag.Info("Read: %d routers, %d networks, %d hosts, %d services", r, n, h, s)
+}
+
 func parseFiles(path string) []ast.Toplevel {
 	var result []ast.Toplevel
 	process := func(input *filetree.Context) {
@@ -203,15 +211,6 @@ func setupObjects(l []ast.Toplevel, s *symbolTable) {
 	for _, a := range services {
 		setupService(a, s)
 	}
-	showReadStatistics(s)
-}
-
-func showReadStatistics(sym *symbolTable) {
-	r := len(sym.router) + len(sym.router6)
-	n := len(sym.network)
-	h := len(sym.host)
-	s := len(sym.service)
-	diag.Info("Read: %d routers, %d networks, %d hosts, %d services", r, n, h, s)
 }
 
 func setupProtocol(a *ast.Protocol, s *symbolTable) {

@@ -15,15 +15,13 @@ func main() {
 	inDir, outDir := conf.GetArgs()
 	diag.Info(program + ", version " + version)
 	pass1.ReadNetspoc(inDir)
+	pass1.ShowReadStatistics()
 	pass1.MarkDisabled()
 	pass1.CheckIPAdresses()
 	pass1.SetZone()
 	pass1.SetPath()
 	NATDomains, NATTag2natType, _ := pass1.DistributeNatInfo()
 	pass1.FindSubnetsInZone()
-	// Call after findSubnetsInZone, where zone.networks has
-	// been set up.
-	pass1.CheckReroutePermit()
 	pass1.NormalizeServices()
 	pass1.AbortOnError()
 

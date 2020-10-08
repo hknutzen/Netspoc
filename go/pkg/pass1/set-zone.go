@@ -19,6 +19,7 @@ func SetZone() map[pathObj]map[*area]bool {
 	checkAreaSubsetRelations(objInArea)
 	processAggregates()
 	inheritAttributes()
+	checkReroutePermit()
 	return objInArea // For use in cut-netspoc
 }
 
@@ -1054,6 +1055,20 @@ func cleanupAfterInheritance(natSeen map[*network]bool) {
 		}
 		if len(m) == 0 {
 			n.nat = nil
+		}
+	}
+}
+
+// Reroute permit is not allowed between different security zones.
+func checkReroutePermit() {
+	for _, z := range zones {
+		for _, intf := range z.interfaces {
+			for _, n := range intf.reroutePermit {
+				if !zoneEq(n.zone, z) {
+					errMsg("Invalid reroute_permit for %s at %s:"+
+						" different security zones", n, intf)
+				}
+			}
 		}
 	}
 }
