@@ -58,7 +58,7 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'No routing = manual at bridge';
+$title = 'No attribute routing at bridge';
 ############################################################
 
 $in = <<'END';
@@ -69,14 +69,15 @@ router:bridge = {
  managed;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
- interface:n1/left  = { hardware = left; }
+ interface:n1/left  = { hardware = left; routing = OSPF; }
  interface:n1/right = { hardware = right; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Must not apply attribute 'routing' to bridge router:bridge
+Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
+Warning: Ignoring attribute 'routing' of router:bridge
 END
 
 test_err($title, $in, $out);

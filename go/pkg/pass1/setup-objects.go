@@ -1170,30 +1170,19 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			errMsg("Must not use VRF at %s of model %s", name, r.model.name)
 		}
 
-		for _, intf := range r.interfaces {
+		// Inherit attribute 'routing' to interfaces.
+		if routingDefault != nil {
+			inherited := false
+			for _, intf := range r.interfaces {
+				if intf.routing == nil &&
+					!(intf.unnumbered || intf.bridged || intf.loopback) {
 
-			// Don't allow 'routing=manual' at single interface, because
-			// approve would remove manual routes otherwise.
-			// Approve only leaves routes unchanged, if Netspoc generates
-			// no routes at all.
-			if routing := intf.routing; routing != nil {
-				if routing.name == "manual" {
-					warnMsg(
-						"'routing=manual' must only be applied to router, not to %s",
-						intf.name)
+					intf.routing = routingDefault
+					inherited = true
 				}
 			}
-
-			// Interface inherits routing attribute from router.
-			if routingDefault != nil && intf.routing == nil {
-				intf.routing = routingDefault
-			}
-			if rt := intf.routing; rt != nil && intf.unnumbered {
-				rtName := rt.name
-				if rtName != "manual" && rtName != "dynamic" {
-					errMsg("Routing %s not supported for unnumbered %s",
-						rtName, intf.name)
-				}
+			if !inherited {
+				warnMsg("Ignoring attribute 'routing' of %s", name)
 			}
 		}
 	}
@@ -1272,7 +1261,6 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		hasCrypto := false
 		isCryptoHub := false
 		hasBindNat := false
-		bridged := false
 		for _, intf := range r.interfaces {
 			if intf.hub != nil || intf.spoke != nil {
 				hasCrypto = true
@@ -1284,26 +1272,17 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			if intf.hub != nil {
 				isCryptoHub = true
 			}
-			if intf.noCheck && (intf.hub == nil || !r.model.doAuth) {
-				intf.noCheck = false
-				warnMsg("Ignoring attribute 'no_check' at %s", intf)
-			}
 			if intf.bindNat != nil {
 				hasBindNat = true
 			}
 			// Link bridged interfaces with corresponding layer3 device.
 			// Used in findAutoInterfaces.
 			if intf.bridged {
-				bridged = true
 				layer3Name := intf.name[len("interface:"):]
 				idx := strings.Index(layer3Name, "/")
 				layer3Name = layer3Name[:idx]
 				intf.layer3Intf = s.routerIntf[layer3Name]
 			}
-		}
-
-		if bridged && routingDefault != nil {
-			errMsg("Must not apply attribute 'routing' to bridge %s", name)
 		}
 
 		checkNoInAcl(r)
@@ -1342,30 +1321,6 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		// Unmanaged device.
 		if r.owner != nil {
 			warnMsg("Ignoring attribute 'owner' at unmanaged %s", name)
-		}
-		bridged := false
-		for _, intf := range r.interfaces {
-			if intf.hub != nil {
-				for _, c := range intf.hub {
-					delete(crypto2hub, c)
-				}
-				errMsg("Unmanaged %s must not use attribute 'hub'", intf)
-			}
-			if intf.bindNat != nil {
-				r.semiManaged = true
-			}
-			if intf.reroutePermit != nil {
-				intf.reroutePermit = nil
-				warnMsg("Ignoring attribute 'reroute_permit' at unmanaged %s", intf)
-			}
-			if intf.bridged {
-				bridged = true
-			}
-		}
-
-		// Unmanaged bridge would complicate generation of static routes.
-		if bridged {
-			errMsg("Bridged interfaces must not be used at unmanged %s", name)
 		}
 	}
 
@@ -1695,19 +1650,9 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 	} else if intf.id != "" {
 		errMsg("Attribute 'id' is only valid with 'spoke' at %s", intf)
 	}
-	if l := intf.hub; l != nil {
-		if intf.unnumbered || intf.negotiated || intf.short || intf.bridged {
-			errMsg("Crypto hub %s must have IP address", intf)
-		}
-		for _, c := range l {
-			if other, found := crypto2hub[c]; found {
-				errMsg("Must use 'hub = %s' exactly once, not at both\n"+
-					" - %s\n"+
-					" - %s", c.name, other, intf)
-			} else {
-				crypto2hub[c] = intf
-			}
-		}
+	if intf.noCheck && (intf.hub == nil || !r.model.doAuth) {
+		intf.noCheck = false
+		warnMsg("Ignoring attribute 'no_check' at %s", intf)
 	}
 	if secondaryList != nil {
 		if intf.negotiated || intf.short || intf.bridged {
@@ -1771,7 +1716,49 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		if vip {
 			errMsg("Must not use attribute 'vip' at %s of managed router", name)
 		}
+
+		// Don't allow 'routing=manual' at single interface, because
+		// approve would remove manual routes otherwise.
+		// Approve only leaves routes unchanged, if Netspoc generates
+		// no routes at all.
+		if rt := intf.routing; rt != nil && rt.name == "manual" {
+			warnMsg("'routing=manual' must only be applied to router, not to %s",
+				intf.name)
+		}
+
+		if l := intf.hub; l != nil {
+			if intf.unnumbered || intf.negotiated || intf.short || intf.bridged {
+				errMsg("Crypto hub %s must have IP address", intf)
+			}
+			for _, c := range l {
+				if other, found := crypto2hub[c]; found {
+					errMsg("Must use 'hub = %s' exactly once, not at both\n"+
+						" - %s\n"+
+						" - %s", c.name, other, intf)
+				} else {
+					crypto2hub[c] = intf
+				}
+			}
+		}
+	} else {
+		// Unmanaged device.
+		if intf.bindNat != nil {
+			r.semiManaged = true
+		}
+		if intf.reroutePermit != nil {
+			intf.reroutePermit = nil
+			warnMsg("Ignoring attribute 'reroute_permit' at unmanaged %s", intf)
+		}
+		if intf.hub != nil {
+			warnMsg("Ignoring attribute 'hub' at unmanaged %s", intf)
+			intf.hub = nil
+		}
+		// Unmanaged bridge would complicate generation of static routes.
+		if intf.bridged {
+			errMsg("Unmanaged %s must not be bridged", intf)
+		}
 	}
+
 	for _, s := range secondaryList {
 		s.mainIntf = intf
 		s.bindNat = intf.bindNat

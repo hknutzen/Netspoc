@@ -57,10 +57,11 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unmanaged interface:r.n1 must not use attribute 'hub'
+Warning: Ignoring attribute 'hub' at unmanaged interface:r.n1
+Warning: No hub has been defined for crypto:c
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Unmanaged bridge interfaces';
