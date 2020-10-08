@@ -21,14 +21,14 @@ func debug(format string, args ...interface{}) {
 func checkAbort() {
 	ErrorCounter++
 	if ErrorCounter >= conf.Conf.MaxErrors {
-		//		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
+		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
 		os.Exit(ErrorCounter)
 	}
 }
 
 func AbortOnError() {
 	if ErrorCounter > 0 {
-		//		fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", ErrorCounter)
+		fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", ErrorCounter)
 		os.Exit(ErrorCounter)
 	}
 }
