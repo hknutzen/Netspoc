@@ -434,6 +434,7 @@ type crypto struct {
 	detailedCryptoAcl bool
 	ipsec             *ipsec
 	name              string
+	hub               *routerIntf
 	tunnels           netList
 }
 type ipsec struct {

@@ -1041,8 +1041,6 @@ func setupPathrestriction(v *ast.TopList, s *symbolTable) {
 	addPathrestriction(name, elements)
 }
 
-var crypto2hub = make(map[*crypto]*routerIntf)
-
 func setupRouter(v *ast.Router, s *symbolTable) {
 	name := v.Name
 	v6 := v.IPV6
@@ -1731,12 +1729,12 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 				errMsg("Crypto hub %s must have IP address", intf)
 			}
 			for _, c := range l {
-				if other, found := crypto2hub[c]; found {
+				if c.hub != nil {
 					errMsg("Must use 'hub = %s' exactly once, not at both\n"+
 						" - %s\n"+
-						" - %s", c.name, other, intf)
+						" - %s", c.name, c.hub, intf)
 				} else {
-					crypto2hub[c] = intf
+					c.hub = intf
 				}
 			}
 		}
@@ -3357,7 +3355,7 @@ func linkTunnels(s *symbolTable) {
 		return sorted[i].name < sorted[j].name
 	})
 	for _, cr := range sorted {
-		realHub := crypto2hub[cr]
+		realHub := cr.hub
 		if realHub == nil || realHub.disabled {
 			warnMsg("No hub has been defined for %s", cr.name)
 			continue
