@@ -444,12 +444,17 @@ func CheckServiceOwner() {
 			if printType := conf.Conf.CheckServiceMultiOwner; printType != "" {
 				var names stringList
 				ok := true
+				seen := make(map[string]bool)
 				for obj, _ := range objects {
 					if obj.getOwner() != nil {
 						if obj.getAttr("multi_owner") != "ok" {
 							ok = false
 						}
-						names.push(strings.TrimPrefix(obj.getOwner().name, "owner:"))
+						name := obj.getOwner().name[len("owner:"):]
+						if !seen[name] {
+							names.push(name)
+							seen[name] = true
+						}
 					}
 				}
 
