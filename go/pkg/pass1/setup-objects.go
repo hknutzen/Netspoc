@@ -1166,19 +1166,24 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			errMsg("Must not use VRF at %s of model %s", name, r.model.name)
 		}
 
-		// Inherit attribute 'routing' to interfaces.
-		if routingDefault != nil {
-			inherited := false
-			for _, intf := range r.interfaces {
-				if intf.routing == nil &&
-					!(intf.unnumbered || intf.bridged || intf.loopback) {
-
-					intf.routing = routingDefault
-					inherited = true
+		for _, intf := range r.interfaces {
+			// Inherit attribute 'routing' to interfaces.
+			if routingDefault != nil {
+				if intf.routing == nil {
+					if intf.bridged {
+						errMsg("Attribute 'routing' not supported for bridge %s", name)
+					} else if !intf.loopback {
+						intf.routing = routingDefault
+					}
 				}
 			}
-			if !inherited {
-				warnMsg("Ignoring attribute 'routing' of %s", name)
+			if rt := intf.routing; rt != nil && intf.unnumbered {
+				switch rt.name {
+				case "manual", "dynamic":
+				default:
+					errMsg("Routing '%s' not supported for unnumbered %s",
+						rt.name, intf.name)
+				}
 			}
 		}
 	}

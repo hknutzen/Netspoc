@@ -77,7 +77,7 @@ END
 
 $out = <<'END';
 Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
-Warning: Ignoring attribute 'routing' of router:bridge
+Error: Attribute 'routing' not supported for bridge router:bridge
 END
 
 test_err($title, $in, $out);
