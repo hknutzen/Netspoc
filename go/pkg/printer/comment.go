@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (p *printer) ReadTrailingComment(pos int, ign string) string {
+func (p *printer) readTrailingComment(pos int, ign string) string {
 READ:
 	for pos < len(p.src) {
 		c := rune(p.src[pos])
@@ -44,7 +44,7 @@ READ:
 // empty string.
 //
 func (p *printer) TrailingCommentAt(pos int, ign string) string {
-	trailing := p.ReadTrailingComment(pos, ign)
+	trailing := p.readTrailingComment(pos, ign)
 	if trailing != "" {
 		trailing = " " + trailing
 	}
