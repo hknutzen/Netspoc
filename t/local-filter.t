@@ -57,10 +57,13 @@ END
 
 
 $out = <<"END";
-Warning: Ignoring attribute 'filter_only' at router:d32
+Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'managed = local'
 END
 
+Test::More->builder->
+    todo_start("Must not silently ignore 'filter_only'");
 test_warn($title, $in, $out);
+Test::More->builder->todo_end;
 
 ############################################################
 $title = "Local network doesn't match filter_only attribute";
