@@ -1,3 +1,12 @@
+6.020     2020-10-12 12:46:49+02:00 Europe/Berlin
+
+ - Migrated remaining parts from Perl to Go:
+   - Parsing files and directories
+   - Arranging protocols
+   - Linking topology
+ - Attribute 'identity' is no longer supported in isakmp definition.
+   Was ignored anyway.
+
 6.019     2020-08-26 11:00:46+02:00 Europe/Berlin
 
  - Fixed nil pointer dereference in 'rename-netspoc' caused by

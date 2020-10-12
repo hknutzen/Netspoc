@@ -60,7 +60,7 @@ foo:x =
 END
 
 $out = <<'END';
-Syntax error: Unknown global definition at line 1 of INPUT, near "foo:x<--HERE--> ="
+Syntax error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 END
 
 test_err($title, $in, $out);
@@ -206,90 +206,6 @@ group:g1 =
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Missing [any|all]';
-############################################################
-
-$in = <<'END';
-group:g1 = interface:r1.[ ;
-END
-
-$out = <<'END';
-Syntax error: Expected [auto|all] at line 1 of INPUT, near "interface:r1.[ ;<--HERE-->"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid group name';
-############################################################
-
-$in = <<'END';
-group:g1@2 = ;
-END
-
-$out = <<'END';
-Syntax error: Invalid token at line 1 of INPUT, near "group:g1@2<--HERE--> = ;"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Empty interface name';
-############################################################
-
-$in = <<'END';
-group:g1 = interface:;
-END
-
-$out = <<'END';
-Syntax error: Interface name expected at line 1 of INPUT, near "interface:<--HERE-->;"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Missing network in interface name';
-############################################################
-
-$in = <<'END';
-group:g1 = interface:r1.;
-END
-
-$out = <<'END';
-Syntax error: Interface name expected at line 1 of INPUT, near "interface:r1.;<--HERE-->"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Invalid network in interface name';
-############################################################
-
-$in = <<'END';
-group:g1 = interface:r1.n1@vrf2;
-END
-
-$out = <<'END';
-Syntax error: Interface name expected at line 1 of INPUT, near "interface:r1.n1@vrf2;<--HERE-->"
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Multiple extensions in interface name';
-############################################################
-
-$in = <<'END';
-group:g1 = interface:r1.n1.1.2;
-END
-
-$out = <<'END';
-Syntax error: Interface name expected at line 1 of INPUT, near "interface:r1.n1.1.2;<--HERE-->"
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 $title = 'With umlauts';
@@ -762,6 +678,22 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Service without rule';
+############################################################
+
+$in = <<'END';
+service:s1 = { user = host:h1; }
+END
+
+$out = <<'END';
+service:s1 = {
+ user = host:h1;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Service with empty user, src, dst, prt';
 ############################################################
 
@@ -900,11 +832,12 @@ service:s1 = {
         dst = network:n2;
         prt = tcp 80, tcp 700, udp 70, tcp 55-59, tcp 20:1024-65535,
               tcp 54 : 64-74,
-              tcp 20 : 64-74,
+              tcp 20 : 64- 74,
               udp 123,
-              icmp 3 3,
-              icmp 4 3,
-              icmp 3 4,
+              icmp 3/3,
+              icmp 4 / 3,
+              icmp 3 /4,
+              icmp 8,
               proto 43,
               proto 54,
               protocol:smtp, protocol:ftp,
@@ -921,9 +854,10 @@ service:s1 = {
         prt = protocolgroup:ftp-active,
               protocol:ftp,
               protocol:smtp,
-              icmp 3 3,
-              icmp 3 4,
-              icmp 4 3,
+              icmp 3 / 3,
+              icmp 3 / 4,
+              icmp 4 / 3,
+              icmp 8,
               proto 43,
               proto 54,
               tcp 55 - 59,
@@ -1002,40 +936,126 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Aggregate with trailing comment in first line';
+############################################################
+
+$in = <<'END';
+any:a1 = { link = network:n1; } # comment
+any:a1 = { link = network:n1; nat:x = { identity; } } # comment
+any:a1 = {
+ link = network:n1; } # IGNORED
+any:a1 = { # comment
+ link = network:n1; }
+any:a1 = # comment
+{ link = network:n1; }
+any:a1 # comment
+= { link = network:n1; }
+END
+
+$out = <<'END';
+any:a1 = { # comment
+ link = network:n1;
+}
+
+any:a1 = {
+ link = network:n1;
+ nat:x = { identity; } # comment
+}
+
+any:a1 = {
+ link = network:n1;
+}
+
+any:a1 = { # comment
+ link = network:n1;
+}
+
+any:a1 = { # comment
+ link = network:n1;
+}
+
+any:a1 = { # comment
+ link = network:n1;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Network with trailing comment in first line';
 ############################################################
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; } # comment
-network:n1 = {
- ip = 10.1.1.0/24; } # IGNORED
-network:n1 = { # comment
- ip = 10.1.1.0/24; }
-network:n1 = # comment
-{ ip = 10.1.1.0/24; }
-network:n1 # comment
-= { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; nat:x = { identity; } } # comment
+network:n1 = { nat:x = { identity; } ip = 10.1.1.0/24; } # comment
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.1; } } # comment
 END
 
 $out = <<'END';
+network:n1 = { ip = 10.1.1.0/24; } # comment
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:x = { identity; } # comment
+}
+
 network:n1 = { # comment
+ nat:x = { identity; }
  ip = 10.1.1.0/24;
 }
 
 network:n1 = {
  ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; } # comment
 }
+END
 
-network:n1 = { # comment
+test_run($title, $in, $out);
+
+############################################################
+$title = 'Short networks printed in one line and without blank line';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ # IGNORED
  ip = 10.1.1.0/24;
 }
+network:nn2 = {
+ ip = 10.1.2.0/24; }# After n2
 
-network:n1 = { # comment
- ip = 10.1.1.0/24;
+# Before n3
+network:nnn3 = { ip = 10.1.3.0/24; owner = o; }
+network:nnnn4 = { ip = 10.1.4.0/24; crosslink; } # After n4
+
+network:nnnnn5 = {
+ip = 10.1.5.0/24; crosslink; owner = o; }
+network:nnn6 = { ip = 10.1.6.0/24; host:h6 = { ip = 10.1.6.10; } }
+network:nnn7 = { ip = 10.1.7.0/24; }
+
+network:n8 = { ip = 10.1.8.0/24; }
+any:a = { link = network:n5; }
+END
+
+$out = <<'END';
+network:n1     = { ip = 10.1.1.0/24; }
+network:nn2    = { ip = 10.1.2.0/24; } # After n2
+# Before n3
+network:nnn3   = { ip = 10.1.3.0/24; owner = o; }
+network:nnnn4  = { ip = 10.1.4.0/24; crosslink; } # After n4
+network:nnnnn5 = { ip = 10.1.5.0/24; crosslink; owner = o; }
+
+network:nnn6 = {
+ ip = 10.1.6.0/24;
+ host:h6 = { ip = 10.1.6.10; }
 }
 
-network:n1 = { # comment
- ip = 10.1.1.0/24;
+network:nnn7 = { ip = 10.1.7.0/24; }
+network:n8   = { ip = 10.1.8.0/24; }
+
+any:a = {
+ link = network:n5;
 }
 END
 
@@ -1102,7 +1122,7 @@ $title = 'Sort successive vip interfaces';
 
 $in = <<'END';
 router:u1 = {
- interface:n7 = { ip = 10.1.1.7; owner = o1; }
+ interface:n7 = { owner = o1; ip = 10.1.1.7; }
  interface:lo = { ip = 10.1.4.128; owner = o2; vip; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
  interface:unnum = { unnumbered; }
@@ -1119,7 +1139,7 @@ END
 
 $out = <<'END';
 router:u1 = {
- interface:n7    = { ip = 10.1.1.7; owner = o1; }
+ interface:n7    = { owner = o1; ip = 10.1.1.7; }
  interface:n1    = { ip = 10.1.1.1; owner = o1; vip; }
  interface:lo    = { ip = 10.1.4.128; owner = o2; vip; }
  interface:unnum = { unnumbered; }
@@ -1246,7 +1266,7 @@ protocol:BGP = tcp 179, no_check_supernet_rules;
 protocol:all_ip = # trailing
  ip;
 protocol:all_icmp =
- description = icmp with any typa and code
+ description = icmp with any typ and code
  icmp;
 END
 
@@ -1259,26 +1279,12 @@ protocol:all_ip = # trailing
  ip;
 
 protocol:all_icmp =
- description = icmp with any typa and code
+ description = icmp with any typ and code
 
  icmp;
 END
 
 test_run($title, $in, $out);
-
-############################################################
-$title = 'Unfinished protocol definition';
-############################################################
-
-$in = <<'END';
-protocol:p = tcp
-END
-
-$out = <<'END';
-Syntax error: Expected ';' at line 2 of INPUT, at EOF
-END
-
-test_err($title, $in, $out);
 
 ############################################################
 done_testing;

@@ -27,7 +27,9 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Invalid attributes 'dhcp_server', 'no_in_acl', 'routing' for bridged interface at line 7 of STDIN
+Error: Attribute 'no_in_acl' not supported for bridged interface:bridge.n1/left
+Error: Attribute 'dhcp_server' not supported for bridged interface:bridge.n1/left
+Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
 END
 
 test_err($title, $in, $out);
@@ -50,13 +52,13 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Invalid attributes 'routing' for bridged interface at line 7 of STDIN
+Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'No routing = manual at bridge';
+$title = 'No attribute routing at bridge';
 ############################################################
 
 $in = <<'END';
@@ -67,14 +69,15 @@ router:bridge = {
  managed;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
- interface:n1/left  = { hardware = left; }
+ interface:n1/left  = { hardware = left; routing = OSPF; }
  interface:n1/right = { hardware = right; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Must not apply attribute 'routing' to bridge router:bridge
+Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
+Error: Attribute 'routing' not supported for bridge router:bridge
 END
 
 test_err($title, $in, $out);
@@ -94,7 +97,7 @@ router:bridge = {
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside; }
- interface:n1/right = { hardware = outside; }
+ interface:n1/right = { hardware = outside; bind_nat = x; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 END
@@ -172,7 +175,7 @@ router:bridge = {
 network:n1/right = { ip = 10.1.1.0/24; }
 
 router:r1 = {
- interface:n1/right;
+ interface:n1/right = { ip = 10.1.1.2; }
  interface:n1;
 }
 network:n1 = { ip = 10.2.2.0/24; }
@@ -224,7 +227,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Must define interface:bridge.n1 for corresponding bridge interfaces
+Error: Must define interface:n1 at router:bridge for corresponding bridge interfaces
 END
 
 test_err($title, $in, $out);
@@ -247,7 +250,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Layer3 interface:bridge.n1 must not have secondary interface:bridge.n1.2
+Error: Layer3 interface:bridge.n1 must not have secondary or virtual IP
 END
 
 test_err($title, $in, $out);
@@ -359,9 +362,9 @@ network:n1/right = { unnumbered; }
 END
 
 $out = <<'END';
-Error: Unnumbered network:n1/left must not have attribute 'bridged'
-Error: Layer3 interface:bridge.n1 must not be unnumbered
-Error: Unnumbered network:n1/right must not have attribute 'bridged'
+Error: Unnumbered network:n1/left must not be bridged
+Error: Unnumbered network:n1/right must not be bridged
+Error: Layer3 interface:bridge.n1 must have IP address
 Error: interface:bridge.n1/left must not be linked to unnumbered network:n1/left
 Error: interface:bridge.n1/right must not be linked to unnumbered network:n1/right
 END
@@ -608,7 +611,7 @@ network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {
  model = ASA;
  managed;
- interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1 = { ip = 10.1.1.1; hardware = device; loopback; }
  interface:n1/left  = { hardware = left; }
  interface:n1/right = { hardware = right; }
 }

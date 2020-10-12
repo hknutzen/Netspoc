@@ -15,7 +15,7 @@ import (
 
 type clusterInfo struct {
 	natSet     natSet
-	filterOnly []net.IPNet
+	filterOnly []*net.IPNet
 	mark       int
 }
 
@@ -44,7 +44,7 @@ func getManagedLocalClusters() []clusterInfo {
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
-			equal := func(f0, f []net.IPNet) bool {
+			equal := func(f0, f []*net.IPNet) bool {
 				if len(f0) != len(f) {
 					return false
 				}
@@ -88,7 +88,7 @@ func getManagedLocalClusters() []clusterInfo {
 							m := net.Mask
 							p, _ := m.Size()
 							if prefix >= p && matchIp(ip, i, m) {
-								matched[&filterOnly[j]] = true
+								matched[filterOnly[j]] = true
 								continue NETWORK
 							}
 						}
@@ -118,7 +118,7 @@ func getManagedLocalClusters() []clusterInfo {
 		mark++
 
 		for j, net := range filterOnly {
-			if matched[&filterOnly[j]] {
+			if matched[filterOnly[j]] {
 				continue
 			}
 			size, _ := net.Mask.Size()

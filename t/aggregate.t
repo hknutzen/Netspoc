@@ -3118,7 +3118,7 @@ any:Trans = { link = router:r1; }
 END
 
 $out = <<'END';
-Error: any:Trans must not be linked to router:r1
+Error: Must only use network name in 'link' of any:Trans
 END
 
 test_err($title, $in, $out);
@@ -3133,7 +3133,7 @@ any:Trans = { link = network:n2; }
 END
 
 $out = <<'END';
-Error: Referencing undefined network:n2 from any:Trans
+Error: Referencing undefined network:n2 in 'link' of any:Trans
 END
 
 test_err($title, $in, $out);

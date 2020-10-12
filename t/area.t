@@ -85,11 +85,11 @@ $title = 'Only interface as border';
 ############################################################
 
 $in = $topo . <<'END';
-area:a = { inclusive_border = network:n1; }
+area:a = { inclusive_border = network:n1; border = interface:asa1.n2; }
 END
 
 $out = <<'END';
-Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
+Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 END
 
 test_err($title, $in, $out);
@@ -99,13 +99,13 @@ $title = 'No automatic interface as border';
 ############################################################
 
 $in = $topo . <<'END';
-area:a = { inclusive_border = interface:r1.[all]; }
-area:b = { border = interface:r2.[auto]; }
+area:a = { inclusive_border = interface:asa1.[all] &! interface:asa1.n2; }
+area:b = { border = interface:asa2.[auto]; }
 END
 
 $out = <<'END';
-Error: Must only use interface names in 'inclusive_border' at line 18 of STDIN
-Error: Must only use interface names in 'border' at line 19 of STDIN
+Error: Unexpected 'interface:asa2.[auto]' in 'border' of area:b
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:b
 END
 
 test_err($title, $in, $out);
@@ -121,7 +121,8 @@ area:a = { border = interface:r1.n1; }
 END
 
 $out = <<'END';
-Error: Referencing unmanaged interface:r1.n1 from area:a
+Error: Must not reference unmanaged interface:r1.n1 in 'border' of area:a
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
 END
 
 test_err($title, $in, $out);

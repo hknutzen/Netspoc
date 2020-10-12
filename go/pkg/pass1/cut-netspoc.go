@@ -56,164 +56,63 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"regexp"
-	"sort"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
+	"os"
 	"strings"
 )
 
-type hasSrc interface {
+var isUsed = make(map[string]bool)
+
+func removeAttr(ref *[]*ast.Attribute, name string) {
+	var l []*ast.Attribute
+	for _, a := range *ref {
+		if a.Name != name {
+			l = append(l, a)
+		}
+	}
+	*ref = l
 }
 
-var srcCode = make(map[hasSrc]string)
-var srcIndex = make(map[hasSrc]int)
-
-func getSource(m xMap) {
-	global := []string{
-		"aggregates", "areas",
-		"crypto", "ipsec", "isakmp",
-		"groups", "networks",
-		"pathrestrictions", "protocols", "protocolgroups",
-		"routers", "routers6", "services",
-	}
-	for _, g := range global {
-		for _, xOb := range getMap(m[g]) {
-			m := getMap(xOb)
-			if ob := m["ref"]; ob != nil {
-				if s := m["src_code"]; s != nil {
-					srcCode[ob] = getString(s)
-					srcIndex[ob] = getInt(m["src_index"])
+func removeSubAttr(ref *[]*ast.Attribute, name, sub string) {
+	var l []*ast.Attribute
+	for _, a := range *ref {
+		if a.Name == name {
+			var l2 []*ast.Attribute
+			for _, a2 := range a.ComplexValue {
+				if a2.Name != sub {
+					l2 = append(l2, a2)
 				}
 			}
+			a.ComplexValue = l2
+		}
+		if a.Name != name || a.ComplexValue != nil {
+			l = append(l, a)
 		}
 	}
+	*ref = l
 }
 
-func changeAttributeSrcCodeAt(attr string, ob hasSrc, subName, replace string) {
-	code := srcCode[ob]
-	input := code
-
-	// Current position inside code.
-	pos := 0
-
-	// Match pattern in input and skip matched pattern; update pos
-	match := func(re *regexp.Regexp) bool {
-		loc := re.FindStringIndex(input)
-		if loc == nil {
-			return false
-		}
-		skip := loc[1]
-		input = input[skip:]
-		pos += skip
-		return true
-	}
-
-	// Start changing at subName.
-	// Do nothing, if subName can't be found, e.g. virtual interface.
-	if subName != "" {
-		re := regexp.MustCompile(`(?m)^[^#]*\Q` + subName + `\E[\s;=#]`)
-		if !match(re) {
-			return
+func selectBindNat(l []*ast.Value) []*ast.Value {
+	var result []*ast.Value
+	for _, v := range l {
+		if isUsed["nat:"+v.Value] {
+			result = append(result, v)
 		}
 	}
+	return result
 
-	// Find attribute outside of comment,
-	// either at new line or directly behind subName.
-	re := regexp.MustCompile(`(?m)(?:^|\A)[^#]*?\b\Q` + attr + `\E[\s;=#]`)
-	if !match(re) {
-		panic(fmt.Sprintf("Can't find %s in %s", attr, ob))
-	}
-
-	// Unread last character.
-	pos--
-	input = code[pos:]
-	start := pos - len(attr)
-
-	// Helper functions to parse attribute value.
-	skipSpaceAndComment := func() {
-		re := regexp.MustCompile(`\A(?m:(?:[#].*$)|\s*)*`)
-		match(re)
-	}
-	check := func(what string) bool {
-		skipSpaceAndComment()
-		re := regexp.MustCompile(`\A\Q` + what + `\E`)
-		return match(re)
-	}
-	readToken := func() {
-		skipSpaceAndComment()
-		re := regexp.MustCompile(`\A[^,;\s#]+`)
-		if !match(re) {
-			panic(fmt.Sprintf("Parse error: Token expected in %s", ob))
-		}
-	}
-	var readAttrBody func()
-	readAttrBody = func() {
-		if check(";") {
-
-			// Attribute has no value; finished.
-			return
-		}
-		if check("=") {
-
-			// Read complex value.
-			if check("{") {
-				if check("description") {
-					check("=")
-					re := regexp.MustCompile(`\A.*?\n`)
-					match(re)
-				}
-				for {
-					if check("}") {
-						break
-					}
-					readToken()
-					readAttrBody()
-				}
-			} else {
-
-				// Read comma separated list of values.
-				for {
-					if check(";") {
-						break
-					}
-					readToken()
-					check(",")
-				}
-			}
-		}
-	}
-	readAttrBody()
-	end := pos
-
-	// Remove leading white space and trailing line break.
-	if replace == "" {
-
-		// Find trailing line break.
-		re := regexp.MustCompile(`\A[ \t]*(?:[#].*)?(?:\n|\z)`)
-		match(re)
-		end = pos
-
-		// Find leading white space.
-	FIND:
-		for start > 0 {
-			switch code[start-1] {
-			case ' ', '\t':
-				start--
-				continue
-			default:
-				break FIND
-			}
-		}
-	}
-	srcCode[ob] = code[:start] + replace + code[end:]
 }
 
-func removeAttributeSrcCodeAt(attr string, object hasSrc, subName string) {
-	changeAttributeSrcCodeAt(attr, object, subName, "")
-}
-
-func removeAttributeSrcCode(attr string, object hasSrc) {
-	changeAttributeSrcCodeAt(attr, object, "", "")
+func selectReroutePermit(l []*ast.Value) []*ast.Value {
+	var result []*ast.Value
+	for _, v := range l {
+		if isUsed[v.Value] {
+			result = append(result, v)
+		}
+	}
+	return result
 }
 
 type netPathObj interface {
@@ -240,7 +139,7 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 		r = out.router
 	}
 	r.isUsed = true
-	// debug("Used %s", r)
+	//debug("Used %s", r)
 	for _, intf := range []*routerIntf{in, out} {
 		if intf == nil {
 			continue
@@ -271,7 +170,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 		}
 		seen[obj] = true
 		if obj.getUsed() {
-			// debug("Found %s", obj)
+			//debug("Found %s", obj)
 			return true
 		}
 		r, isRouter := obj.(*router)
@@ -297,7 +196,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				obj.setUsed()
 				intf.isUsed = true
-				// debug "Marked %s + %s", obj, intf)
+				//debug("Marked %s + %s", obj, intf)
 				result = true
 			}
 		}
@@ -305,7 +204,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 	}
 
 	for _, obj := range list {
-		// debug "Connecting %s", obj)
+		//debug("Connecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
 		for _, intf := range obj.intfList() {
 			if intf.mainIntf != nil {
@@ -318,10 +217,10 @@ func markUnconnected(list netPathObjList, managed bool) {
 			} else {
 				next = intf.router
 			}
-			// debug("Try %s %s", next, intf)
+			//debug("Try %s %s", next, intf)
 			if mark(next, intf, seen) {
 				intf.isUsed = true
-				// debug("Marked %s", inf)
+				//debug("Marked %s", intf)
 			}
 		}
 	}
@@ -334,24 +233,20 @@ func markPath(src, dst *routerIntf) {
 		n.isUsed = true
 		todoUnmanaged.push(n)
 	}
-	// debug("Path %s %s", src, dst)
+	//debug("Path %s %s", src, dst)
 	singlePathWalk(src, dst, markTopology, "Router")
 }
 
-func getUsedNatTags() map[string]bool {
-	result := make(map[string]bool)
+func markUsedNatTags() {
 	for _, n := range allNetworks {
-		if !n.isUsed {
-			continue
-		}
-		nat := n.nat
-		for tag, natNet := range nat {
-			if !natNet.identity {
-				result[tag] = true
+		if n.isUsed {
+			for tag, natNet := range n.nat {
+				if !natNet.identity {
+					isUsed["nat:"+tag] = true
+				}
 			}
 		}
 	}
-	return result
 }
 
 // Mark path between endpoints of rules.
@@ -361,16 +256,48 @@ func markRulesPath(p pathRules) {
 	}
 }
 
-func CutNetspoc(m xMap) {
+func CutNetspoc(path string, names []string, keepOwner bool) {
+	toplevel := parseFiles(path)
 
-	getSource(m)
+	if len(names) > 0 {
+		var copy []ast.Toplevel
+		retain := make(map[string]bool)
+		for i, name := range names {
+			if !strings.HasPrefix(name, "service:") {
+				name = "service:" + name
+				names[i] = name
+			}
+			retain[name] = true
+		}
+		seen := make(map[string]bool)
+		for _, top := range toplevel {
+			name := top.GetName()
+			if !strings.HasPrefix(name, "service:") {
+				copy = append(copy, top)
+			} else if retain[name] {
+				copy = append(copy, top)
+				seen[name] = true
+			}
+		}
+		toplevel = copy
+		for _, name := range names {
+			if !seen[name] {
+				errMsg("Unknown service:%s", name)
+			}
+		}
+	}
 
+	setupTopology(toplevel)
+	for _, s := range symTable.service {
+		if !s.disabled {
+			isUsed[s.name] = true
+		}
+	}
 	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
-	LinkReroutePermit()
 	NormalizeServices()
 	permitRules, denyRules := ConvertHostsInRules()
 	GroupPathRules(permitRules, denyRules)
@@ -409,7 +336,7 @@ func CutNetspoc(m xMap) {
 	collectRules(sRules.deny)
 
 	// Mark NAT tags referenced in networks used in rules.
-	usedNat := getUsedNatTags()
+	markUsedNatTags()
 
 	// Collect objects, that are referenced, but not visible in rules:
 	// Networks, interfaces, hosts, aggregates from negated part of intersection.
@@ -426,26 +353,28 @@ func CutNetspoc(m xMap) {
 			addLater.push(intf)
 		}
 	}
-	for _, x := range networks {
+	for _, x := range symTable.network {
 		collectNegated(x)
 	}
-	for _, x := range hosts {
+	for _, x := range symTable.host {
 		collectNegated(x)
 	}
-	for _, x := range interfaces {
+	for _, x := range symTable.routerIntf {
 		collectNegated(x)
 	}
-	for _, x := range aggregates {
+	for _, x := range symTable.aggregate {
 		collectNegated(x)
 	}
 
 	zoneUsed := make(map[*zone]bool)
+	zoneCheck := make(map[*zone]bool)
 	for _, z := range zones {
 		for _, agg := range z.ipmask2aggregate {
 			if !agg.isUsed {
 				continue
 			}
 			zoneUsed[agg.zone] = true
+			zoneCheck[agg.zone] = true
 			// debug("Marking networks of %s in %s", agg, z")
 			for _, n := range agg.networks {
 				n.isUsed = true
@@ -455,11 +384,12 @@ func CutNetspoc(m xMap) {
 	}
 
 	// Mark zones having attributes that influence their networks.
-	for _, n := range networks {
+	for _, n := range symTable.network {
 		if !n.isUsed {
 			continue
 		}
 		z := n.zone
+		zoneCheck[z] = true
 		if len(z.nat) == 0 {
 			continue
 		}
@@ -493,20 +423,22 @@ func CutNetspoc(m xMap) {
 
 	// Mark areas having NAT attribute that influence their networks.
 	for _, z := range zones {
-		if !zoneUsed[z] {
+		if !zoneCheck[z] {
 			continue
 		}
 		for _, a := range zone2areas[z] {
-			if len(a.nat) == 0 {
-				continue
+			att := a.routerAttributes
+			if len(a.nat) != 0 ||
+				keepOwner && (a.owner != nil || att != nil && att.owner != nil) {
+
+				a.isUsed = true
 			}
-			a.isUsed = true
 		}
 	}
 
 	// Mark interfaces / networks which are referenced by used areas.
 	var emptyAreas stringList
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		if !a.isUsed {
 			continue
 		}
@@ -531,7 +463,7 @@ func CutNetspoc(m xMap) {
 			}
 			if !used {
 				a.isUsed = false
-				emptyAreas.push(a.name)
+				emptyAreas.push(a.name[len("area:"):])
 				continue
 			}
 
@@ -547,7 +479,7 @@ func CutNetspoc(m xMap) {
 	}
 
 	// Mark networks having NAT attributes that influence their subnets.
-	for _, n := range networks {
+	for _, n := range symTable.network {
 		if !n.isUsed {
 			continue
 		}
@@ -631,7 +563,7 @@ func CutNetspoc(m xMap) {
 	}
 
 	// Mark bridge and bridged networks.
-	for _, n := range networks {
+	for _, n := range symTable.network {
 		if !n.isUsed {
 			continue
 		}
@@ -697,10 +629,10 @@ func CutNetspoc(m xMap) {
 			}
 		}
 	}
-	for _, r := range routers {
+	for _, r := range symTable.router {
 		mark1(r)
 	}
-	for _, r := range routers6 {
+	for _, r := range symTable.router6 {
 		mark1(r)
 	}
 
@@ -725,50 +657,13 @@ func CutNetspoc(m xMap) {
 				main.isUsed = true
 			}
 
-			// Remove unused nat tags referenced in attribute bind_nat.
-			name := intf.name
-			intfName := "interface:" + name[strings.Index(name, ".")+1:]
-			if tags := intf.bindNat; tags != nil {
-				var used stringList
-				for _, tag := range tags {
-					if usedNat[tag] {
-						used.push(tag)
-					}
-				}
-				if used == nil {
-					removeAttributeSrcCodeAt("bind_nat", r, intfName)
-				} else if len(tags) != len(used) {
-					newList := strings.Join(used, ", ")
-					newCode := "bind_nat = " + newList + ";"
-					changeAttributeSrcCodeAt("bind_nat", r, intfName, newCode)
-				}
-			}
-
-			// Remove unused networks referenced in attribute reroute_permit.
-			attr := "reroute_permit"
-			if l := intf.reroutePermit; l != nil {
-				var used stringList
-				for _, n := range l {
-					if n.isUsed {
-						used.push(n.name)
-					}
-				}
-				if used == nil {
-					removeAttributeSrcCodeAt(attr, r, intfName)
-				} else if len(l) != len(used) {
-					newList := strings.Join(used, ", ")
-					newCode := attr + " = " + newList + ";"
-					changeAttributeSrcCodeAt(attr, r, intfName, newCode)
-				}
-			}
-
 			// Mark crypto definitions which are referenced by
 			// already marked interfaces.
 			for _, crypto := range intf.hub {
-				crypto.isUsed = true
+				isUsed[crypto.name] = true
 				typ := crypto.ipsec
-				typ.isUsed = true
-				typ.isakmp.isUsed = true
+				isUsed[typ.name] = true
+				isUsed[typ.isakmp.name] = true
 			}
 
 			// Mark networks referenced by interfaces
@@ -778,263 +673,285 @@ func CutNetspoc(m xMap) {
 			}
 		}
 	}
-	for _, r := range routers {
+	for _, r := range symTable.router {
 		mark2(r)
 	}
-	for _, r := range routers6 {
+	for _, r := range symTable.router6 {
 		mark2(r)
 	}
 
-	// Remove definitions of unused hosts from networks.
-	diag.Progress("Removing unused hosts")
-	for _, n := range networks {
-		if !n.isUsed {
-			continue
+	// Collect names of marked areas, groups, protocols, protocolgroups.
+	// Collect names of marked owners.
+	markOwner := func(o *owner) {
+		if keepOwner && o != nil {
+			isUsed[o.name] = true
 		}
-		hosts := n.hosts
+	}
+	for _, a := range symTable.area {
+		if a.isUsed {
+			isUsed[a.name] = true
+			markOwner(a.owner)
 
-		// Retain at least one host of network with ID hosts.
-		if n.hasIdHosts {
-			used := false
-			for _, h := range hosts {
+		}
+	}
+	for _, g := range symTable.group {
+		if g.isUsed {
+			isUsed[g.name] = true
+		}
+	}
+	for _, p := range symTable.protocol {
+		if p.isUsed {
+			isUsed[p.name] = true
+		}
+	}
+	for _, p := range symTable.protocolgroup {
+		if p.isUsed {
+			isUsed[p.name] = true
+		}
+	}
+
+	// Collect names of marked networks, aggregates, routers, interfaces.
+	for _, n := range allNetworks {
+		if n.isUsed {
+			isUsed[n.name] = true
+			markOwner(n.owner)
+			added := false
+			for _, h := range n.hosts {
 				if h.isUsed {
-					used = true
-					break
+					isUsed[h.name] = true
+					added = true
+					markOwner(h.owner)
 				}
 			}
-			if !used {
-				hosts[0].isUsed = true
+
+			// Retain at least one host of network with ID hosts.
+			if n.hasIdHosts && !added && len(n.hosts) > 0 {
+				isUsed[n.hosts[0].name] = true
 			}
 		}
-
-		for _, h := range hosts {
-			if h.isUsed {
-				continue
+	}
+	markRouter := func(r *router) {
+		if r.isUsed {
+			name := r.name
+			if r.ipV6 {
+				name = "6" + name
 			}
-			name := h.name
-
-			// Remove trailing network name of ID-host.
-			if i := strings.LastIndex(name, "."); i != -1 {
-				name = name[:i]
+			isUsed[name] = true
+			markOwner(r.owner)
+			for _, intf := range getIntf(r) {
+				if intf.isUsed {
+					iName := intf.name
+					isUsed[iName] = true
+					// Ignore extension if virtual interface is used as
+					// main interface.
+					iName = strings.TrimSuffix(iName, ".virtual")
+					isUsed[iName] = true
+					markOwner(intf.owner)
+				}
 			}
-			removeAttributeSrcCode(name, n)
 		}
 	}
-
-	// Remove definitions of unused interfaces from routers
-	diag.Progress("Removing unused interfaces")
-	removeIntf := func(r *router) {
-		if !r.isUsed {
-			return
+	for _, r := range symTable.router {
+		markRouter(r)
+	}
+	for _, r := range symTable.router6 {
+		markRouter(r)
+	}
+	if keepOwner {
+		for _, s := range symTable.service {
+			markOwner(s.subOwner)
 		}
-		for _, intf := range getIntf(r) {
-			if intf.isUsed {
-				continue
-			}
-			if intf.tunnel {
-				continue
-			}
-
-			// Ignore secondary and virtual interfaces.
-			if intf.mainIntf != nil {
-				continue
-			}
-
-			// Remove name of router and optional extension
-			// in "interface:router.network", "interface:router.network.virtual",
-			// "interface:router.loopback" or "interface:router.loopback.virtual"
-			name := intf.name
-			tail := name[strings.Index(name, ".")+1:]
-			name = "interface:" + strings.TrimSuffix(tail, ".virtual")
-			removeAttributeSrcCode(name, r)
-		}
-	}
-	for _, r := range routers {
-		removeIntf(r)
-	}
-	for _, r := range routers6 {
-		removeIntf(r)
-	}
-
-	// Remove one or multiple occurences of attribute 'owner'.
-	// Multiple from embedded host or interface definiton.
-	diag.Progress("Removing referenced owners")
-
-	// Must not match attribute 'unknown_owner = restrict;'
-	ownerPattern := regexp.MustCompile(`(?m)^[^#]*\bowner[ ]*=`)
-	type userer interface {
-		getUsed() bool
-		setUsed()
-	}
-	removeOwner := func(ob userer) {
-		if !ob.getUsed() {
-			return
-		}
-		if srcCode[ob] == "" {
-			return
-		}
-
-		for ownerPattern.MatchString(srcCode[ob]) {
-			removeAttributeSrcCode("owner", ob)
-		}
-	}
-	for _, x := range networks {
-		removeOwner(x)
-	}
-	for _, x := range routers {
-		removeOwner(x)
-	}
-	for _, x := range routers6 {
-		removeOwner(x)
-	}
-	for _, x := range areas {
-		removeOwner(x)
-	}
-	for _, x := range aggregates {
-		removeOwner(x)
-	}
-
-	// Remove attribute 'sub_owner'.
-	diag.Progress("Removing referenced sub_owners")
-	for _, s := range services {
-		if s.subOwner != nil {
-			removeAttributeSrcCode("sub_owner", s)
-		}
-	}
-
-	// Remove attribute 'router_attributes'
-	// with 'owner', 'policy_distribution_point' and 'general_permit'.
-	for _, a := range areas {
-		if a.isUsed && a.routerAttributes != nil {
-			removeAttributeSrcCode("router_attributes", a)
-		}
-	}
-
-	// Remove attribute 'policy_distribution_point'
-	diag.Progress("Removing referenced policy_distribution_point")
-	pdpPattern := regexp.MustCompile("^[^#]*policy_distribution_point")
-	removePdp := func(r *router) {
-		if r.isUsed && r.policyDistributionPoint != nil &&
-			pdpPattern.MatchString(srcCode[r]) {
-			removeAttributeSrcCode("policy_distribution_point", r)
-		}
-	}
-	for _, r := range routers {
-		removePdp(r)
-	}
-	for _, r := range routers6 {
-		removePdp(r)
 	}
 
 	// Prepare emptyGroup
-	var emptyGroup string
+	var emptyGroupRef *ast.NamedRef
 	if emptyAreas != nil {
-		emptyGroup = "group:empty-area"
-		fmt.Println(emptyGroup + " = ;")
+		name := "empty-area"
+		emptyGroupRef = new(ast.NamedRef)
+		emptyGroupRef.Type = "group"
+		emptyGroupRef.Name = name
+		fmt.Println("group:" + name + " = ;")
 	}
 
-	substEmptyAreas := func(ob hasSrc) {
-		for _, name := range emptyAreas {
-			srcCode[ob] = strings.ReplaceAll(srcCode[ob], name, emptyGroup)
+	substEmptyAreas := func(elemList []ast.Element) {
+		if emptyAreas == nil {
+			return
 		}
+		needSubst := func(name string) bool {
+			for _, name2 := range emptyAreas {
+				if name == name2 {
+					return true
+				}
+			}
+			return false
+		}
+		var substList func(l []ast.Element)
+		substList = func(l []ast.Element) {
+			for i, el := range l {
+				switch x := el.(type) {
+				case *ast.NamedRef:
+					if x.Type == "area" && needSubst(x.Name) {
+						l[i] = emptyGroupRef
+					}
+				case *ast.SimpleAuto:
+					substList(x.Elements)
+				case *ast.AggAuto:
+					substList(x.Elements)
+				case *ast.IntfAuto:
+					substList(x.Elements)
+				case *ast.Intersection:
+					substList(x.Elements)
+				case *ast.Complement:
+					l2 := []ast.Element{x.Element}
+					substList(l2)
+					x.Element = l2[0]
+				}
+			}
+		}
+		substList(elemList)
+	}
+
+	// Source of pathrestrictions can't be used literally,
+	// but must be reconstructed from internal data structure.
+	name2pathrestriction := make(map[string]*ast.TopList)
+	for _, pr := range pathrestrictions {
+		elemList := pr.elements
+		var l []ast.Element
+		for _, intf := range elemList {
+			if intf.isUsed {
+				n := new(ast.IntfRef)
+				n.Type = "interface"
+				n.Router = intf.router.name[len("router:"):]
+				n.Network = intf.network.name[len("network:"):]
+				if intf.redundant {
+					n.Extension = "virtual"
+				}
+				l = append(l, n)
+			}
+		}
+		if len(l) < 2 {
+			continue
+		}
+		n := new(ast.TopList)
+		name := pr.name
+		n.Name = name
+		n.Elements = l
+		isUsed[name] = true
+		name2pathrestriction[name] = n
+	}
+
+	removeOwner := func(ref *[]*ast.Attribute) {
+		if !keepOwner {
+			removeAttr(ref, "owner")
+		}
+	}
+
+	selectHosts := func(n *ast.Network) {
+		nName := n.Name[len("network:"):]
+		var l []*ast.Attribute
+		for _, a := range n.Hosts {
+			hName := a.Name
+			if strings.HasPrefix(hName, "host:id:") {
+				hName += "." + nName
+			}
+			if isUsed[hName] {
+				l = append(l, a)
+				removeOwner(&a.ComplexValue)
+			}
+		}
+		n.Hosts = l
+	}
+
+	selectInterfaces := func(n *ast.Router) {
+		name := "interface:" + n.Name[len("router:"):] + "."
+		var l []*ast.Attribute
+		for _, a := range n.Interfaces {
+			if isUsed[name+a.Name[len("interface:"):]] {
+				l = append(l, a)
+				attrList := a.ComplexValue
+				j := 0
+				for _, a2 := range attrList {
+					l2 := a2.ValueList
+					changed := false
+					switch a2.Name {
+					case "bind_nat":
+						l2 = selectBindNat(l2)
+						changed = true
+					case "reroute_permit":
+						l2 = selectReroutePermit(l2)
+						changed = true
+					case "owner":
+						if !keepOwner {
+							l2 = nil
+							changed = true
+						}
+					}
+					if !changed || l2 != nil {
+						a2.ValueList = l2
+						attrList[j] = a2
+						j++
+					}
+				}
+				a.ComplexValue = attrList[:j]
+			}
+		}
+		n.Interfaces = l
 	}
 
 	// Print marked parts of netspoc configuration.
 	// Routers and networks have been marked by markTopology.
 	// Protocols have been marked while pathRules have been processed above.
 	// Groups and protocolroups objects have been marked during NormalizeServices.
-	var defs []userer
-	add := func(ob userer) {
+	var active []ast.Toplevel
 
-		// There are some internal objects without srcCode.
-		if ob.getUsed() && srcCode[ob] != "" {
-			defs = append(defs, ob)
+	for _, top := range toplevel {
+		typedName := top.GetName()
+		lookup := typedName
+		if strings.HasPrefix(typedName, "router:") && top.GetIPV6() {
+			lookup = "6" + lookup
 		}
-	}
-	for _, x := range routers {
-		add(x)
-	}
-	for _, x := range routers6 {
-		add(x)
-	}
-	for _, x := range networks {
-		add(x)
-	}
-	for _, x := range aggregates {
-		add(x)
-	}
-	for _, x := range areas {
-		add(x)
-	}
-	for _, x := range groups {
-		add(x)
-	}
-	for _, x := range protocols {
-		add(x)
-	}
-	for _, x := range protocolGroups {
-		add(x)
-	}
-	for _, x := range isakmpMap {
-		add(x)
-	}
-	for _, x := range ipsecMap {
-		add(x)
-	}
-	for _, x := range cryptoMap {
-		add(x)
-	}
-
-	sort.Slice(defs, func(i, j int) bool {
-		return srcIndex[defs[i]] < srcIndex[defs[j]]
-	})
-	for _, ob := range defs {
-		substEmptyAreas(ob)
-		fmt.Println(srcCode[ob])
-	}
-
-	// Source of pathrestrictions can't be used literally,
-	// but must be reconstructed from internal data structure.
-	var rDefs []*pathRestriction
-	for _, r := range pathrestrictions {
-		rDefs = append(rDefs, r)
-	}
-	sort.Slice(rDefs, func(i, j int) bool {
-		return srcIndex[rDefs[i]] < srcIndex[rDefs[j]]
-	})
-	for _, r := range rDefs {
-		used := 0
-		for i, intf := range r.elements {
-			if intf.isUsed {
-				used++
-			} else {
-				r.elements[i] = nil
-			}
-		}
-		if used < 2 {
+		if !isUsed[lookup] {
 			continue
 		}
-		fmt.Println(r.name + " =")
-		for _, intf := range r.elements {
-			if intf != nil && !intf.tunnel {
-				fmt.Println(" " + intf.name + ",")
+		typ, _ := splitTypedName(typedName)
+		switch x := top.(type) {
+		case *ast.Network:
+			removeOwner(&x.Attributes)
+			selectHosts(x)
+		case *ast.Router:
+			removeOwner(&x.Attributes)
+			removeAttr(&x.Attributes, "policy_distribution_point")
+			selectInterfaces(x)
+		case *ast.Area:
+			removeOwner(&x.Attributes)
+			removeSubAttr(&x.Attributes,
+				"router_attributes", "policy_distribution_point")
+			if !keepOwner {
+				removeSubAttr(&x.Attributes, "router_attributes", "owner")
+			}
+		case *ast.TopStruct:
+			if typ == "any" {
+				removeOwner(&x.Attributes)
+			}
+		case *ast.TopList:
+			switch typ {
+			case "group":
+				substEmptyAreas(x.Elements)
+			case "pathrestriction":
+				top = name2pathrestriction[typedName]
+			}
+		case *ast.Service:
+			if !keepOwner {
+				removeAttr(&x.Attributes, "sub_owner")
+			}
+			substEmptyAreas(x.User.Elements)
+			for _, r := range x.Rules {
+				substEmptyAreas(r.Src.Elements)
+				substEmptyAreas(r.Dst.Elements)
 			}
 		}
-		fmt.Println(";")
+		active = append(active, top)
 	}
-
-	// All unwanted services have already been deleted above.
-	var sDefs []*service
-	for _, s := range services {
-		sDefs = append(sDefs, s)
-	}
-	sort.Slice(sDefs, func(i, j int) bool {
-		return srcIndex[sDefs[i]] < srcIndex[sDefs[j]]
-	})
-	for _, s := range sDefs {
-		if !s.disabled {
-			substEmptyAreas(s)
-			fmt.Println(srcCode[s])
-		}
-	}
+	out := printer.File(active, nil)
+	os.Stdout.Write(out)
 }

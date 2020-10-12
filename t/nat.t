@@ -48,11 +48,11 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Duplicate NAT definition nat:n at area:n1
-Error: Duplicate NAT definition nat:n at any:n1
-Error: Duplicate NAT definition nat:n at network:n1
-Error: Duplicate NAT definition nat:n at host:h1
-Error: Duplicate NAT definition nat:n at interface:r.n1
+Error: Duplicate attribute 'nat:n' in network:n1
+Error: Duplicate attribute 'nat:n' in host:h1
+Error: Duplicate attribute 'nat:n' in any:n1
+Error: Duplicate attribute 'nat:n' in interface:n1 of router:r
+Error: Duplicate attribute 'nat:n' in area:n1
 END
 
 test_err($title, $in, $out);
@@ -74,10 +74,9 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Hidden NAT must not use attribute dynamic at line 3 of STDIN
-Error: Hidden NAT must not use attribute identity at line 3 of STDIN
-Error: Hidden NAT must not use attribute ip at line 3 of STDIN
-Error: Hidden NAT must not use attribute mask at line 3 of STDIN
+Error: Hidden NAT must not use attribute 'ip' in nat:n of network:n1
+Error: Hidden NAT must not use attribute 'dynamic' in nat:n of network:n1
+Error: Hidden NAT must not use attribute 'identity' in nat:n of network:n1
 END
 
 test_err($title, $in, $out);
@@ -99,11 +98,8 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: Identity NAT must not use attribute dynamic at line 3 of STDIN
-Error: Identity NAT must not use attribute ip at line 3 of STDIN
-Error: Identity NAT must not use attribute mask at line 3 of STDIN
-Warning: Useless identity nat:n at network:n1
-Warning: Ignoring useless nat:n bound at router:r
+Error: Identity NAT must not use attribute 'ip' in nat:n of network:n1
+Error: Identity NAT must not use attribute 'dynamic' in nat:n of network:n1
 END
 
 test_err($title, $in, $out);
@@ -125,7 +121,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 END
 
 $out = <<'END';
-Error: No NAT supported for short interface at line 6 of STDIN
+Error: No NAT supported for interface:r.n1 without IP
 END
 
 test_err($title, $in, $out);
@@ -3898,7 +3894,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Must not use 'hidden' in nat:N of interface:r1.n1
+Error: Only 'ip' allowed in nat:N of interface:r1.n1
 END
 
 test_err($title, $in, $out);

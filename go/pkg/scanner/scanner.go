@@ -36,12 +36,12 @@ func (s *Scanner) next() {
 		r, w := rune(s.src[s.rdOffset]), 1
 		switch {
 		case r == 0:
-			s.SyntaxErr("illegal character NUL")
+			s.syntaxErr("illegal character NUL")
 		case r >= utf8.RuneSelf:
 			// not ASCII
 			r, w = utf8.DecodeRune(s.src[s.rdOffset:])
 			if r == utf8.RuneError && w == 1 {
-				s.SyntaxErr("illegal UTF-8 encoding")
+				s.syntaxErr("illegal UTF-8 encoding")
 			}
 		}
 		s.rdOffset += w
@@ -75,12 +75,15 @@ func (s *Scanner) Init(src []byte, fname string) {
 
 // Get number of current line.
 // First line has number 1.
-func (s *Scanner) currentLine() int {
+func (s *Scanner) currentLine(offset int) int {
 	pos := 0
 	line := 1
-	for pos < s.offset {
-		r, w := utf8.DecodeRune(s.src[pos:])
-		pos += w
+	if offset == len(s.src) && s.src[len(s.src)-1] == '\n' {
+		line--
+	}
+	for pos < offset {
+		r := s.src[pos]
+		pos++
 		if r == '\n' {
 			line++
 		}
@@ -88,9 +91,9 @@ func (s *Scanner) currentLine() int {
 	return line
 }
 
-func (s *Scanner) context() string {
-	pos := s.offset
-	line := s.currentLine()
+func (s *Scanner) context(offset int) string {
+	pos := offset
+	line := s.currentLine(offset)
 	c := fmt.Sprintf(" at line %d of %s, ", line, s.fname)
 	if pos == len(s.src) {
 		c += "at EOF"
@@ -100,7 +103,7 @@ func (s *Scanner) context() string {
 		pre := s.src[:pos]
 		re := regexp.MustCompile(ident + sep + "$")
 		m := re.FindSubmatch(pre)
-		c += `near "` + string(m[0]) + "<--HERE-->"
+		c += `near "` + string(m[0]) + "--HERE-->"
 		post := s.src[pos:]
 		re = regexp.MustCompile("^" + sep + ident)
 		m = re.FindSubmatch(post)
@@ -109,13 +112,16 @@ func (s *Scanner) context() string {
 	return c
 }
 
-func (s *Scanner) SyntaxErr(format string, args ...interface{}) {
+func (s *Scanner) SyntaxErr(offset int, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	msg = "Syntax error: " + msg + s.context()
+	msg = "Syntax error: " + msg + s.context(offset)
 	fmt.Fprintln(os.Stderr, msg)
 	os.Exit(1)
 }
 
+func (s *Scanner) syntaxErr(format string, args ...interface{}) {
+	s.SyntaxErr(s.offset, format, args...)
+}
 func lower(ch rune) rune     { return ('a' - 'A') | ch } // returns lower-case ch iff ch is ASCII letter
 func isDecimal(ch rune) bool { return '0' <= ch && ch <= '9' }
 
@@ -140,12 +146,24 @@ func isTokenChar(ch rune) bool {
 	}
 }
 
-func isRangeTokenChar(ch rune) bool {
+func isProtoTokenChar(ch rune) bool {
 	if isLetter(ch) || isDigit(ch) {
 		return true
 	}
 	switch ch {
-	case '.', '/', '@':
+	case '.', '@':
+		return true
+	default:
+		return false
+	}
+}
+
+func isIPRangeTokenChar(ch rune) bool {
+	if isLetter(ch) || isDigit(ch) {
+		return true
+	}
+	switch ch {
+	case '.', ':', '/', '@':
 		return true
 	default:
 		return false
@@ -166,7 +184,7 @@ func (s *Scanner) skipWhitespace() {
 	}
 }
 
-func (s *Scanner) scan(check func(rune) bool) (int, string) {
+func (s *Scanner) scan(check func(rune) bool) (int, bool, string) {
 	s.skipWhitespace()
 
 	// current token start
@@ -174,60 +192,58 @@ func (s *Scanner) scan(check func(rune) bool) (int, string) {
 
 	// determine token value
 	ch := s.ch
+	isSeparator := true
 	s.next()
 	if check(ch) {
+		isSeparator = false
 		for check(s.ch) {
 			s.next()
 		}
 	}
-	return pos, string(s.src[pos:s.offset])
+	return pos, isSeparator, string(s.src[pos:s.offset])
 }
 
 // Token scans the next token and returns the token position and the
 // token literal string. The source end is indicated by "".
 //
-func (s *Scanner) Token() (int, string) {
-	pos, tok := s.scan(isTokenChar)
+func (s *Scanner) Token() (int, bool, string) {
+	pos, isSep, tok := s.scan(isTokenChar)
 	// Token may end with '['.
-	if s.ch == '[' {
+	if !isSep && s.ch == '[' {
 		s.next()
 		tok = tok + "["
 	}
-	return pos, tok
+	return pos, isSep, tok
 }
 
-func (s *Scanner) RangeToken() (int, string) {
-	return s.scan(isRangeTokenChar)
+func (s *Scanner) ProtoToken() (int, bool, string) {
+	return s.scan(isProtoTokenChar)
 }
 
-func (s *Scanner) TokenToSemicolon() (int, string) {
-	pos, tok := s.scan(func(ch rune) bool {
+func (s *Scanner) IPRangeToken() (int, bool, string) {
+	return s.scan(isIPRangeTokenChar)
+}
+
+func (s *Scanner) TokenToSemicolon() (int, bool, string) {
+	return s.scan(func(ch rune) bool {
 		switch ch {
-		case ';', '\n', '#':
+		case ';', '\n', '#', -1:
 			return false
 		default:
 			return true
 		}
 	})
-	if tok != "" {
-		return pos, tok
-	}
-	return s.Token()
 }
 
-func (s *Scanner) TokenToComma() (int, string) {
-	pos, tok := s.scan(func(ch rune) bool {
+func (s *Scanner) TokenToComma() (int, bool, string) {
+	return s.scan(func(ch rune) bool {
 		switch ch {
-		case ',', ';', '\n', '#', ' ', '\t', '\r', '"', '\'':
+		case ',', ';', '\n', '#', ' ', '\t', '\r', '"', '\'', -1:
 			return false
 		default:
 			return true
 		}
 	})
-	if tok != "" {
-		return pos, tok
-	}
-	return s.Token()
 }
 
 func (s *Scanner) ToEOL() (int, string) {

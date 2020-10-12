@@ -14,8 +14,7 @@ sub run {
     my ($input) = @_;
     my $in_dir = prepare_in_dir($input);
     my $out_dir = tempdir( CLEANUP => 1 );
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc -q $in_dir $out_dir";
+    my $cmd = "bin/export-netspoc -q $in_dir $out_dir";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     return($stderr, $out_dir);
@@ -1430,7 +1429,6 @@ $in = <<'END';
 owner:Extern_VPN = { admins = abc@d.com; }
 
 isakmp:ikeaes256SHA = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;
@@ -2948,6 +2946,51 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Recognize unmanaged interface as part of aggregate';
+############################################################
+
+$in = <<'END';
+owner:o0 = { admins = a0@example.com; }
+owner:o1 = { admins = a1@example.com; }
+any:a = { ip = 10.0.0.0/8; link = network:n1; }
+
+router:u = {
+ interface:lo = { ip = 10.1.9.1; owner = o0; loopback; }
+ interface:n1 = { ip = 10.1.1.1; owner = o1; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = any:a;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+END
+
+$out = <<END;
+--owner/o0/users
+{
+ "s1": [
+  "any:a"
+ ]
+}
+--owner/o1/users
+{
+ "s1": [
+  "any:a"
+ ]
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 $title = 'Disabled user, disabled in rule, disabled service';
 ############################################################
 
@@ -3669,19 +3712,22 @@ $title = 'Invalid options and arguments';
 ############################################################
 
 $out = <<'END';
-Usage: bin/export-netspoc [-q] [-ipv6] netspoc-data out-directory
+Usage: bin/export-netspoc [options] netspoc-data out-directory
+
+  -6, --ipv6    Expect IPv6 definitions
+  -q, --quiet   Don't print progress messages
 END
 
 my %in2out = (
     ''      => $out,
-    '-foo'  => "Unknown option: foo\n$out",
+    '--foo'  => "unknown flag: --foo\n$out",
     'a'     => $out,
     'a b c' => $out
 );
 
 for my $args (sort keys %in2out) {
     my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "$^X $perl_opt -I lib bin/export-netspoc $args";
+    my $cmd = "bin/export-netspoc $args";
     my $stderr;
     run3($cmd, \undef, \undef, \$stderr);
     my $status = $?;

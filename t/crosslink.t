@@ -205,6 +205,28 @@ END
 test_err($title, $in, $out);
 
 ############################################################
+$title = 'Interface of crosslink network must use hardware only once';
+############################################################
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed = standard;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:cr = { ip = 10.3.3.1; hardware = n1; }
+}
+
+network:cr = { ip = 10.3.3.0/29; crosslink; }
+END
+
+$out = <<'END';
+Error: Crosslink network:cr must be the only network connected to hardware 'n1' of router:r1
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Crosslink network must not have unmanaged interface';
 ############################################################
 $in = <<'END';

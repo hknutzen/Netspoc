@@ -27,6 +27,20 @@ router:r1 = {
 END
 
 ############################################################
+$title = 'Unfinished protocol definition';
+############################################################
+
+$in = <<'END';
+protocol:p = tcp
+END
+
+$out = <<'END';
+Syntax error: Expected ';' at line 1 of STDIN, at EOF
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unknown protocol';
 ############################################################
 
@@ -36,7 +50,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown protocol 'xyz' at line 1 of STDIN
+Error: Unknown protocol in protocol:test
 END
 
 test_err($title, $in, $out);
@@ -50,13 +64,13 @@ protocol:test = tcp 80 -
 END
 
 $out = <<'END';
-Syntax error: Missing second port in port range at line 2 of STDIN, at EOF
+Syntax error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Invalid ports and port ranges';
+$title = 'Invalid ports and port ranges (1)';
 ############################################################
 
 $in = <<'END';
@@ -65,20 +79,39 @@ protocol:p2 = udp 60000 - 99999;
 protocol:p3 = udp 100100 - 100102;
 protocol:p4 = tcp 90 - 80;
 protocol:p5 = tcp 0 - 0;
-protocolgroup:g1 = tcp 77777, udp 0;
 network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Invalid port number '0' at line 1 of STDIN
-Error: Too large port number 99999 at line 2 of STDIN
-Error: Too large port number 100100 at line 3 of STDIN
-Error: Too large port number 100102 at line 3 of STDIN
-Error: Invalid port range 90-80 at line 4 of STDIN
-Error: Invalid port number '0' at line 5 of STDIN
-Error: Invalid port number '0' at line 5 of STDIN
-Error: Too large port number 77777 at line 6 of STDIN
-Error: Invalid port number '0' at line 6 of STDIN
+Error: Expected port number > 0 in protocol:p1
+Error: Expected port number < 65536 in protocol:p2
+Error: Expected port number < 65536 in protocol:p3
+Error: Expected port number < 65536 in protocol:p3
+Error: Invalid port range in protocol:p4
+Error: Expected port number > 0 in protocol:p5
+Error: Expected port number > 0 in protocol:p5
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Invalid ports and port ranges (2)';
+############################################################
+
+$in = <<'END';
+protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmp +3;
+network:n1 = { ip = 10.1.1.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = user; prt = protocolgroup:g1;
+}
+END
+
+$out = <<'END';
+Error: Expected port number < 65536 in 'tcp 77777' of protocolgroup:g1
+Error: Invalid port range in 'udp - 1' of protocolgroup:g1
+Error: Expected port number > 0 in 'udp 0' of protocolgroup:g1
+Error: Expected [TYPE [ / CODE]] in 'icmp + 3' of protocolgroup:g1
 END
 
 test_err($title, $in, $out);
@@ -117,7 +150,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unknown modifier 'src_xyz' at line 1 of STDIN
+Error: Unknown modifier 'src_xyz' in protocol:test
 END
 
 test_err($title, $in, $out);
@@ -248,7 +281,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Too large ICMP type 3000 at line 1 of STDIN
+Error: Expected number < 256 in protocol:test
 END
 
 test_err($title, $in, $out);
@@ -262,7 +295,7 @@ protocol:test = icmp 3 /
 END
 
 $out = <<'END';
-Syntax error: Expected ICMP code at line 2 of STDIN, at EOF
+Syntax error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -277,7 +310,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Too large ICMP code 999 at line 1 of STDIN
+Error: Expected number < 256 in protocol:test
 END
 
 test_err($title, $in, $out);
@@ -319,7 +352,7 @@ protocol:test = proto
 END
 
 $out = <<'END';
-Syntax error: Expected protocol number at line 2 of STDIN, at EOF
+Syntax error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -335,8 +368,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Invalid protocol number '0' at line 1 of STDIN
-Error: Too large protocol number 300 at line 2 of STDIN
+Error: Invalid protocol number '0' in protocol:test1
+Error: Expected number < 256 in protocol:test2
 END
 
 test_err($title, $in, $out);
@@ -378,8 +411,8 @@ protocol:UDP  = proto 17;
 END
 
 $out = <<'END';
-Error: Must not use 'proto 4', use 'tcp' instead at line 2 of STDIN
-Error: Must not use 'proto 17', use 'udp' instead at line 3 of STDIN
+Error: Must not use 'proto 4', use 'tcp' instead in protocol:TCP
+Error: Must not use 'proto 17', use 'udp' instead in protocol:UDP
 END
 
 test_err($title, $in, $out);
@@ -554,7 +587,7 @@ END
 $out = <<'END';
 Error: Can't resolve reference to protocol:p1 in protocolgroup:g1
 Error: Can't resolve reference to protocolgroup:g2 in protocolgroup:g1
-Error: Unknown type of foo:bar in protocolgroup:g1
+Error: Unknown protocol in 'foo:bar' of protocolgroup:g1
 Error: Can't resolve reference to protocol:p1 in service:s1
 END
 

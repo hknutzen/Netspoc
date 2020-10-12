@@ -126,7 +126,7 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		CheckUnusedOwners: "warn",
 
 		// Check for unused protocol definitions.
-		CheckUnusedProtocols: "no",
+		CheckUnusedProtocols: "",
 
 		// Allow subnets only
 		// if the enclosing network is marked as 'has_subnets' or
@@ -141,10 +141,10 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 
 		// Check for redundant rules.
 		CheckRedundantRules:      "warn",
-		CheckFullyRedundantRules: "no",
+		CheckFullyRedundantRules: "",
 
 		// Check for services where owner can't be derived.
-		CheckServiceUnknownOwner: "no",
+		CheckServiceUnknownOwner: "",
 
 		// Check for services where multiple owners have been derived.
 		CheckServiceMultiOwner: "warn",
@@ -157,7 +157,7 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 
 		// Check, that all managed routers have attribute
 		// 'policy_distribution_point', either directly or from inheritance.
-		CheckPolicyDistributionPoint: "no",
+		CheckPolicyDistributionPoint: "",
 
 		// Optimize the number of routing entries per router:
 		// For each router find the hop, where the largest
@@ -209,21 +209,26 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 	return cfg
 }
 
+func fail(err error) {
+	fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+	flag.Usage()
+	fmt.Fprintln(os.Stderr, "Aborted")
+	os.Exit(2)
+}
+
 // Read names of input file/directory and output directory from
 // passed command line arguments.
-func parseArgs() (string, string) {
-	mainFile := flag.Arg(0)
-	if mainFile == "" || flag.Arg(2) != "" {
-		abort.Msg("Expected 2 args, got %v", flag.Args())
-		flag.Usage()
-		os.Exit(2)
+func parseArgs(fs *flag.FlagSet) (string, string) {
+	mainFile := fs.Arg(0)
+	if mainFile == "" || fs.Arg(2) != "" {
+		fail(fmt.Errorf("Expected 2 args, got %v", fs.Args()))
 	}
 
 	// outDir is used to store compilation results.
 	// For each managed router with name X a corresponding file X
 	// is created in outDir.
 	// If outDir is missing, no code is generated.
-	outDir := flag.Arg(1)
+	outDir := fs.Arg(1)
 
 	// Strip trailing slash for nicer messages.
 	strings.TrimSuffix(mainFile, "/")
@@ -260,7 +265,7 @@ func readConfig(filename string) map[string]string {
 }
 
 // parseFile parses the specified configuration file and populates unset flags
-// in flag.CommandLine based on the contents of the file.
+// in fs based on the contents of the file.
 // Hidden flags are not set from file.
 func parseFile(filename string, fs *flag.FlagSet) {
 	isSet := make(map[*flag.Flag]bool)
@@ -270,8 +275,9 @@ func parseFile(filename string, fs *flag.FlagSet) {
 		isSet[f] = true
 	})
 	fs.VisitAll(func(f *flag.Flag) {
-		// Ignore inverted flags.
-		if _, found := invertedFlags[f.Name]; found {
+		// Ignore inverted flag, but also ignore inverted value from file.
+		if inv, found := invertedFlags[f.Name]; found {
+			delete(config, inv.orig)
 			return
 		}
 		val, found := config[f.Name]
@@ -313,18 +319,24 @@ var Conf *Config
 var StartTime time.Time
 
 func GetArgs() (string, string) {
+	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
 	// Setup custom usage function.
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] IN-DIR|IN-FILE [CODE-DIR]\n", os.Args[0])
-		flag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
-	Conf = defaultOptions(flag.CommandLine)
-	flag.CommandLine.Parse(os.Args[1:])
-	inPath, outDir := parseArgs()
-	addConfigFromFile(inPath, flag.CommandLine)
+	Conf = defaultOptions(fs)
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(1)
+		}
+		fail(err)
+	}
+	inPath, outDir := parseArgs(fs)
+	addConfigFromFile(inPath, fs)
 	setStartTime()
 	return inPath, outDir
 }
@@ -334,4 +346,5 @@ func ConfigFromArgsAndFile(args []string, path string) {
 	Conf = defaultOptions(fs)
 	fs.Parse(args)
 	addConfigFromFile(path, fs)
+	setStartTime()
 }

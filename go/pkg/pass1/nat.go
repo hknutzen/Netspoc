@@ -212,6 +212,20 @@ func generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
 	return multi
 }
 
+// Compare two list element wise.
+// Return true if both contain the same elements in same order.
+func bindNatEq(l1, l2 stringList) bool {
+	if len(l1) != len(l2) {
+		return false
+	}
+	for i, tag := range l1 {
+		if tag != l2[i] {
+			return false
+		}
+	}
+	return true
+}
+
 //#############################################################################
 // Purpose : Divide topology into NAT domains.
 //           Networks and NAT domain limiting routers keep references
@@ -244,20 +258,6 @@ func findNatDomains() []*natDomain {
 		z.natDomain = d
 		d.zones = append(d.zones, z)
 
-		// Compare two list element wise.
-		// Return true if both contain the same elements in same order.
-		tagsEq := func(l1, l2 stringList) bool {
-			if len(l1) != len(l2) {
-				return false
-			}
-			for i, tag := range l1 {
-				if tag != l2[i] {
-					return false
-				}
-			}
-			return true
-		}
-
 		// Find adjacent zones to proceed with.
 		for _, intf := range z.interfaces {
 
@@ -286,7 +286,7 @@ func findNatDomains() []*natDomain {
 				//debug("OUT %s", outIntf)
 
 				// Current NAT domain continues behind outIntf
-				if tagsEq(outIntf.bindNat, natTags) {
+				if bindNatEq(outIntf.bindNat, natTags) {
 
 					// Prevent deep recursion inside a single NAT domain.
 					if r.activePath {
@@ -304,7 +304,7 @@ func findNatDomains() []*natDomain {
 				// Loop found: router is already marked to limit domain.
 				// Perform consistency check.
 				if other, found := r.natTags[d]; found {
-					if tagsEq(natTags, other) {
+					if bindNatEq(natTags, other) {
 						continue
 					}
 					info := func(tags stringList) string {
@@ -966,7 +966,7 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 		for _, z := range d.zones {
 			for _, intf := range z.interfaces {
 				r := intf.router
-				if !(r.managed != "" || r.semiManaged) {
+				if r.managed == "" && !r.semiManaged {
 					continue
 				}
 

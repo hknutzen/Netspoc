@@ -78,8 +78,6 @@ $out = <<'END';
 Error: Duplicates in admins of owner:x: a@b.c
 Error: Duplicates in watchers of owner:x: b@b.c
 Error: Duplicates in admins/watchers of owner:x: b@b.c
-Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out);
@@ -259,7 +257,7 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Must not use attribute 'vip' at managed router:r1
+Error: Must not use attribute 'vip' at interface:r1.V of managed router
 END
 
 test_err($title, $in, $out);
@@ -360,7 +358,6 @@ $title = 'Owner with "show_all" must also own VPN transfer area';
 
 $in = <<'END';
 isakmp:ikeaes256SHA = {
- identity = address;
  authentication = preshare;
  encryption = aes256;
  hash = sha;
@@ -435,11 +432,11 @@ router:asa1 = {
 END
 
 $out = <<'END';
-Error: Can't resolve reference to 'xx' in attribute 'owner' of area:a1
-Error: Can't resolve reference to 'xx' in attribute 'owner' of router_attributes of area:a1
+Warning: Ignoring undefined owner:xx of area:a1
+Warning: Ignoring undefined owner:xx of router_attributes of area:a1
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Inherit owner from router_attributes of area';

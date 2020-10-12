@@ -86,9 +86,7 @@ host:x, network:Test, host:y,
 END
 
 $out = <<'END';
-network:Test = {
- ip = 10.9.1.0/24;
-}
+network:Test = { ip = 10.9.1.0/24; }
 
 group:G =
  network:Test,
@@ -103,9 +101,7 @@ group:G =
 END
 
 $out2 = <<'END';
-network:Test = {
- ip = 10.9.1.0/24;
-}
+network:Test = { ip = 10.9.1.0/24; }
 
 group:G =
  network:Test,

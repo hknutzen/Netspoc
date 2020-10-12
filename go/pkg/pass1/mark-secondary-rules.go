@@ -340,15 +340,15 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					} else {
 						rule1.someNonSecondary = false
 					}
-					/*
-						name1 := ""
-						if r := rule1.rule; r != nil {
-							name1 = r.service.name
-						}
-						debug("%s isSrc:%v", name1, isSrc)
-						debug(rule1.print())
-						debug("%s < %s", n.name, supernet.name)
-					*/
+
+					//name1 := ""
+					//if r := rule1.rule; r != nil {
+					//	name1 = r.service.name
+					//}
+					//debug("%s isSrc:%v", name1, isSrc)
+					//debug(rule1.print())
+					//debug("%s < %s", n.name, supernet.name)
+
 					continue RULE
 				}
 			}

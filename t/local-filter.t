@@ -24,7 +24,7 @@ router:d32 = {
 END
 
 $out = <<"END";
-Error: IP and mask don\'t match at line 5 of STDIN
+Error: IP and mask of 10.62.0.0/8 don't match in 'filter_only' of router:d32
 END
 
 test_err($title, $in, $out);
@@ -40,6 +40,30 @@ Error: Missing attribute 'filter_only' for router:d32
 END
 
 test_err($title, $in, $out);
+
+############################################################
+$title = "Ignoring attribute 'filter_only'";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.62.1.32/27; }
+router:d32 = {
+ model = ASA;
+ managed;
+ filter_only =  10.62.0.0/16;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+END
+
+
+$out = <<"END";
+Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'managed = local'
+END
+
+Test::More->builder->
+    todo_start("Must not silently ignore 'filter_only'");
+test_warn($title, $in, $out);
+Test::More->builder->todo_end;
 
 ############################################################
 $title = "Local network doesn't match filter_only attribute";

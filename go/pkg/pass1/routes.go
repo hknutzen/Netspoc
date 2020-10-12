@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-var routingInfo map[string]*routing
-
 func intfListEq(l1, l2 []*routerIntf) bool {
 	if len(l1) != len(l2) {
 		return false
@@ -22,11 +20,11 @@ func intfListEq(l1, l2 []*routerIntf) bool {
 }
 
 func getIpv4Ipv6Routers() []*router {
-	result := make([]*router, 0, len(routers)+len(routers6))
-	for _, r := range routers {
+	result := make([]*router, 0, len(symTable.router)+len(symTable.router6))
+	for _, r := range symTable.router {
 		result = append(result, r)
 	}
-	for _, r := range routers6 {
+	for _, r := range symTable.router6 {
 		result = append(result, r)
 	}
 	return result

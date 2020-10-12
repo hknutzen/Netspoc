@@ -26,7 +26,9 @@ router:r = {
 END
 
 $out =  <<"END";
-Error: Invalid attributes 'dhcp_server', 'disabled', 'no_in_acl', 'routing' for loopback interface at line 7 of STDIN
+Error: Attribute 'no_in_acl' not supported for loopback interface:r.l
+Error: Attribute 'dhcp_server' not supported for loopback interface:r.l
+Error: Attribute 'routing' not supported for loopback interface:r.l
 END
 
 test_err($title, $in, $out);
@@ -48,7 +50,7 @@ router:r = {
 END
 
 $out =  <<"END";
-Error: Loopback interface must not be unnumbered at line 7 of STDIN
+Error: Attribute 'unnumbered' not supported for loopback interface:r.l
 END
 
 test_err($title, $in, $out);
@@ -63,13 +65,13 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:l = {
-  ip = 10.1.1.2, 10.1.1.3; loopback; virtual = { ip = 10.1.1.9; }
+  ip = 10.1.1.2, 10.1.1.3; loopback;
  }
 }
 END
 
 $out =  <<"END";
-Error: Loopback interface must not have secondary IP address at line 7 of STDIN
+Error: Secondary or virtual IP not supported for loopback interface:r.l
 END
 
 test_err($title, $in, $out);
@@ -90,7 +92,7 @@ router:r = {
 END
 
 $out =  <<"END";
-Error: Loopback interface must not have secondary IP address at line 7 of STDIN
+Error: Secondary or virtual IP not supported for loopback interface:r.l
 END
 
 test_err($title, $in, $out);

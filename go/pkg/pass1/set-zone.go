@@ -19,6 +19,7 @@ func SetZone() map[pathObj]map[*area]bool {
 	checkAreaSubsetRelations(objInArea)
 	processAggregates()
 	inheritAttributes()
+	checkReroutePermit()
 	return objInArea // For use in cut-netspoc
 }
 
@@ -208,7 +209,7 @@ func checkCrosslink() map[*router]bool {
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
-	for _, n := range networks {
+	for _, n := range allNetworks {
 		if !n.crosslink || n.disabled {
 			continue
 		}
@@ -235,8 +236,8 @@ func checkCrosslink() map[*router]bool {
 				continue
 			}
 			if nonSecondaryIntfCount(hw.interfaces) != 1 {
-				errMsg("Crosslink %s must be the only network\n",
-					" connected to %s of %s", n, hw.name, r)
+				errMsg("Crosslink %s must be the only network"+
+					" connected to hardware '%s' of %s", n, hw.name, r)
 			}
 
 			strength := crosslinkStrength[r.managed]
@@ -369,7 +370,7 @@ type bLookup map[*routerIntf]borderType
 func setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		sortedAreas = append(sortedAreas, a)
 	}
 	sort.Slice(sortedAreas, func(i, j int) bool {
@@ -578,7 +579,7 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 
 	// Fill global list of areas.
-	for _, a := range areas {
+	for _, a := range symTable.area {
 		if !a.disabled {
 			ascendingAreas = append(ascendingAreas, a)
 		}
@@ -676,8 +677,8 @@ func processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
-	aggList := make(netList, 0, len(aggregates))
-	for _, agg := range aggregates {
+	aggList := make(netList, 0, len(symTable.aggregate))
+	for _, agg := range symTable.aggregate {
 		if agg.link != nil {
 			aggList.push(agg)
 		}
@@ -995,6 +996,9 @@ func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
 					subNat.mask = n.mask
 				}
 
+				if n.nat == nil {
+					n.nat = make(map[string]*network)
+				}
 				n.nat[tag] = &subNat
 			}
 		}
@@ -1051,6 +1055,20 @@ func cleanupAfterInheritance(natSeen map[*network]bool) {
 		}
 		if len(m) == 0 {
 			n.nat = nil
+		}
+	}
+}
+
+// Reroute permit is not allowed between different security zones.
+func checkReroutePermit() {
+	for _, z := range zones {
+		for _, intf := range z.interfaces {
+			for _, n := range intf.reroutePermit {
+				if !zoneEq(n.zone, z) {
+					errMsg("Invalid reroute_permit for %s at %s:"+
+						" different security zones", n, intf)
+				}
+			}
 		}
 	}
 }

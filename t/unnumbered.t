@@ -23,9 +23,9 @@ network:u = {
 END
 
 $out = <<'END';
+Error: Unnumbered network:u must not have attribute 'nat:x'
 Error: Unnumbered network:u must not have attribute 'has_subnets'
 Error: Unnumbered network:u must not have host definition
-Error: Unnumbered network:u must not have nat definition
 END
 
 test_err($title, $in, $out);

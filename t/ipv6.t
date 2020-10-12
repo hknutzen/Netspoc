@@ -24,8 +24,9 @@ router:r1 = {
  interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
 }
 
+group:g1 = network:n1;
 service:test1 = {
- user = network:n1;
+ user = group:g1;
  permit src = user;
  dst = network:n2;
  prt = tcp 80-90;
@@ -303,7 +304,6 @@ ipsec:aes256SHA = {
 }
 
 isakmp:aes256SHA = {
- identity = address;
  authentication = rsasig;
  encryption = aes256;
  hash = sha;
@@ -364,13 +364,13 @@ END
 test_run($title, $in, $out, '--ipv6');
 
 #############################################################
-$title = 'IPv6 interface in IPv4 topology';
+$title = 'IPv6 network and interface in IPv4 topology';
 #############################################################
 
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24;}
-network:n2 = { ip = 10.2.2.0/24;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
 
 router:r1 = {
  managed;
@@ -387,70 +387,14 @@ service:test1 = {
 }
 END
 $out = <<'END';
-Syntax error: IP address expected at line 8 of STDIN, near "1000::abcd:0002:1<--HERE-->; hardware"
+Error: IPv4 address expected in 'ip' of network:n2
+Error: IPv4 address expected in 'ip' of interface:r1.n2
 END
 
 test_err($title, $in, $out);
 
 #############################################################
-$title = 'IPv4 interface in IPv6 topology';
-#############################################################
-
-$in = <<'END';
-network:n1 = { ip = 1000::abcd:0001:0/112;}
-network:n2 = { ip = 1000::abcd:0002:0/112;}
-
-router:r1 = {
- managed;
- model = IOS, FW;
- interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
- interface:n2 = {ip = 10.2.2.1; hardware = E2;}
-}
-
-service:test1 = {
- user = network:n1;
- permit src = user;
- dst = network:n2;
- prt = tcp 80-90;
-}
-END
-$out = <<'END';
-Syntax error: IPv6 address expected at line 8 of STDIN, near "10.2.2.1<--HERE-->; hardware"
-END
-
-test_err($title, $in, $out, '--ipv6');
-
-#############################################################
-$title = 'IPv6 network in IPv4 topology';
-#############################################################
-
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24;}
-network:n2 = { ip = 1000::abcd:0002:0000/112;}
-
-router:r1 = {
- managed;
- model = IOS, FW;
- interface:n1 = {ip = 10.1.1.1; hardware = E1;}
- interface:n2 = {ip = 10.2.2.1; hardware = E2;}
-}
-
-service:test1 = {
- user = network:n1;
- permit src = user;
- dst = network:n2;
- prt = tcp 80-90;
-}
-END
-$out = <<'END';
-Syntax error: IP address expected at line 2 of STDIN, near "1000::abcd:0002:0000/112<--HERE-->;}"
-END
-
-test_err($title, $in, $out);
-
-#############################################################
-$title = 'IPv4 network in IPv6 topology';
+$title = 'IPv4 network and interface in IPv6 topology';
 #############################################################
 
 $in = <<'END';
@@ -461,7 +405,7 @@ router:r1 = {
  managed;
  model = IOS, FW;
  interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
- interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
+ interface:n2 = {ip = 10.2.2.1; hardware = E2;}
 }
 
 service:test1 = {
@@ -472,7 +416,8 @@ service:test1 = {
 }
 END
 $out = <<'END';
-Syntax error: IPv6 address expected at line 2 of STDIN, near "10.2.2.0/24<--HERE-->;}"
+Error: IPv6 address expected in 'ip' of network:n2
+Error: IPv6 address expected in 'ip' of interface:r1.n2
 END
 
 test_err($title, $in, $out, '--ipv6');
@@ -487,7 +432,7 @@ protocol:ICMPv6  = proto 58;
 END
 
 $out = <<'END';
-Error: Must not use 'proto 58', use 'icmpv6' instead at line 2 of STDIN
+Error: Must not use 'proto 58', use 'icmpv6' instead in protocol:ICMPv6
 END
 
 test_err($title, $in, $out, '--ipv6');
@@ -502,10 +447,39 @@ protocol:ICMP  = icmp;
 END
 
 $out = <<'END';
-Error: Must use 'icmp' only with IPv4 at line 2 of STDIN
+Error: Must not be used with IPv6: protocol:ICMP
 END
 
 test_err($title, $in, $out, '--ipv6');
+
+############################################################
+$title = "Use icmpv6 in general_permit of router_attributes of area";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
+}
+area:a = {
+ anchor = network:n1;
+ router_attributes = { general_permit = icmpv6; }
+}
+END
+
+$out = <<'END';
+-- ipv6/r1
+ipv6 access-list E1_in
+ permit icmp any any
+ deny ipv6 any any
+END
+
+test_run($title, $in, $out, '--ipv6');
 
 ############################################################
  $title = 'Convert and check IPv4 tests';

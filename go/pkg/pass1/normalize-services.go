@@ -199,10 +199,15 @@ func classifyProtocols(l []interface{}) (protoList, []*modifiedProto) {
 	return simple, complex
 }
 
-func normalizeSrcDstList(r *unexpRule, user groupObjList, ctx string, ipv6 bool) [][2]srvObjList {
-	userObj.elements = user
+func normalizeSrcDstList(
+	r *unexpRule, l groupObjList, s *service) [][2]srvObjList {
+
+	ctx := s.name
+	ipv6 := s.ipV6
+	userObj.elements = l
 	srcList := expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
 	dstList := expandGroupInRule(r.dst, "dst of rule in "+ctx, ipv6)
+	userObj.elements = nil
 
 	// Expand auto interfaces in srcList.
 	expSrcList, extraSrcDst := substituteAutoIntf(srcList, dstList, ctx)
@@ -265,13 +270,13 @@ func normalizeServiceRules(s *service) {
 		if log != "" {
 			log = checkLog(log, ctx)
 		}
-		prtList := splitProtocols(expandProtocols(uRule.prt, ctx))
+		prtList := splitProtocols(uRule.prt)
 		if prtList == nil {
 			continue
 		}
 		simplePrtList, complexPrtList := classifyProtocols(prtList)
 		process := func(elt groupObjList) {
-			srcDstListPairs := normalizeSrcDstList(uRule, elt, ctx, ipv6)
+			srcDstListPairs := normalizeSrcDstList(uRule, elt, s)
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
@@ -344,11 +349,11 @@ func NormalizeServices() {
 	diag.Progress("Normalizing services")
 
 	var names stringList
-	for n, _ := range services {
+	for n, _ := range symTable.service {
 		names.push(n)
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		normalizeServiceRules(services[n])
+		normalizeServiceRules(symTable.service[n])
 	}
 }

@@ -80,9 +80,7 @@ func getOrigPrt(rule *expandedRule) *proto {
 	prt := rule.prt
 	proto := prt.proto
 	oRule := rule.rule
-	service := oRule.service
-	list := expandProtocols(oRule.prt, service.name)
-	for _, oPrt := range list {
+	for _, oPrt := range oRule.prt {
 		if proto != oPrt.proto {
 			continue
 		}

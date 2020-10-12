@@ -83,7 +83,7 @@ close($fh);
 # - insert arguments and
 # - add Perl options for testing.
 $script =~ s/"\$\@"/$in_dir $out_dir/g;
-$script =~ s/(spoc1)/$^X $perl_opt -I lib bin\/$1 -q/g;
+$script =~ s/(spoc1)/bin\/$1 -q/g;
 $script =~ s/(spoc2)/bin\/$1 -q/g;
 my $cmd = "bash -c '$script'";
 

@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"net"
 	"strings"
 )
@@ -16,23 +17,23 @@ func expandTypedName(typ, name string) ipVxGroupObj {
 	var obj ipVxGroupObj
 	switch typ {
 	case "host":
-		if x := hosts[name]; x != nil {
+		if x := symTable.host[name]; x != nil {
 			obj = x
 		}
 	case "network":
-		if x := networks[name]; x != nil {
+		if x := symTable.network[name]; x != nil {
 			obj = x
 		}
 	case "any":
-		if x := aggregates[name]; x != nil {
+		if x := symTable.aggregate[name]; x != nil {
 			obj = x
 		}
 	case "group":
-		if x := groups[name]; x != nil {
+		if x := symTable.group[name]; x != nil {
 			obj = x
 		}
 	case "area":
-		if x := areas[name]; x != nil {
+		if x := symTable.area[name]; x != nil {
 			obj = x
 		}
 	}
@@ -116,23 +117,24 @@ func removeDuplicates(list groupObjList, ctx string) groupObjList {
 	return list
 }
 
-func expandIntersection(name interface{}, ctx string, ipv6, visible, withSubnets bool) groupObjList {
-	list, _ := name.([]*parsedObjRef)
+func expandIntersection(
+	l []ast.Element, ctx string, ipv6, visible, withSubnets bool) groupObjList {
+
 	var nonCompl []groupObjList
 	var compl groupObjList
-	for _, el := range list {
-		var el1 *parsedObjRef
-		if el.typ == "!" {
-			el1, _ = el.name.(*parsedObjRef)
+	for _, el := range l {
+		var el1 ast.Element
+		if x, ok := el.(*ast.Complement); ok {
+			el1 = x.Element
 		} else {
 			el1 = el
 		}
-		subResult := expandGroup1([]*parsedObjRef{el1},
+		subResult := expandGroup1([]ast.Element{el1},
 			"intersection of "+ctx, ipv6, visible, withSubnets)
 		for _, obj := range subResult {
 			obj.setUsed()
 		}
-		if el.typ == "!" {
+		if _, ok := el.(*ast.Complement); ok {
 			compl = append(compl, subResult...)
 		} else {
 			nonCompl = append(nonCompl, subResult)
@@ -180,28 +182,22 @@ func expandIntersection(name interface{}, ctx string, ipv6, visible, withSubnets
 
 		// Reconstruct visual representation of original group.
 		var printable stringList
-		for _, desc := range list {
+		for _, a := range l {
 			var info string
-			if desc.typ == "!" {
+			if x, ok := a.(*ast.Complement); ok {
 				info = "!"
-				desc = desc.name.(*parsedObjRef)
+				a = x.Element
 			} else {
 				info = " "
 			}
-			info += desc.typ + ":"
-			if x, ok := desc.name.(string); ok {
-				info += x
+			info += a.GetType() + ":"
+			if name := a.GetName(); name != "" {
+				info += name
 			} else {
 				info += "[..]"
 			}
-			if desc.typ == "interface" {
-				info += "."
-				switch x := desc.ext.(type) {
-				case string:
-					info += x
-				case *autoExt:
-					info += "[" + x.selector + "]"
-				}
+			if x, ok := a.(*ast.IntfAuto); ok {
+				info += ".[" + x.Selector + "]"
 			}
 			printable.push(info)
 		}
@@ -216,259 +212,267 @@ func expandIntersection(name interface{}, ctx string, ipv6, visible, withSubnets
 // Visible result from automatic group will be cleaned from duplicates.
 // Parameter 'withSubnets' controls if subnets of networks will be
 // added to result.
-func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets bool) groupObjList {
+func expandGroup1(list []ast.Element, ctx string, ipv6,
+	visible, withSubnets bool) groupObjList {
+
+	// Silently remove unnumbered, bridged and tunnel interfaces from
+	// automatic groups.
+	check := func(intf *routerIntf) bool {
+		return !(intf.tunnel || visible && (intf.unnumbered || intf.bridged))
+	}
 	result := make(groupObjList, 0)
-	for _, part := range list {
-		typ, name, ext := part.typ, part.name, part.ext
-		if typ == "&" {
+	for _, el := range list {
+		switch x := el.(type) {
+		case *ast.Intersection:
 			subResult :=
-				expandIntersection(part.name, ctx, ipv6, visible, withSubnets)
+				expandIntersection(x.Elements, ctx, ipv6, visible, withSubnets)
 			result = append(result, subResult...)
-		} else if typ == "!" {
+		case *ast.Complement:
 			errMsg(
 				"Complement (!) is only supported as part of intersection in %s",
 				ctx)
-		} else if typ == "user" {
-			result = append(result, userObj.elements...)
-		} else if typ == "interface" {
-			var check intfList
-			switch x := part.name.(type) {
-			case []*parsedObjRef:
-				if ext, ok := part.ext.(*string); ok {
-					errMsg("Must not use interface:[..].%s in %s", ext, ctx)
-					continue
-				}
-				auto, _ := part.ext.(*autoExt)
-				selector, managed := auto.selector, auto.managed
-				subObjects := expandGroup1(
-					x, "interface:[..].["+selector+"] of "+ctx,
-					ipv6, false, false)
-				routerSeen := make(map[*router]bool)
-				for _, obj := range subObjects {
-					obj.setUsed()
-					switch x := obj.(type) {
-					case *network:
-						if selector == "all" {
-							if x.isAggregate {
+		case *ast.User:
+			l := userObj.elements
+			if l == nil {
+				errMsg("Unexpected reference to 'user' in %s", ctx)
+			}
+			result = append(result, l...)
+			userObj.used = true
+		case *ast.IntfAuto:
+			selector, managed := x.Selector, x.Managed
+			subObjects := expandGroup1(
+				x.Elements, "interface:[..].["+selector+"] of "+ctx,
+				ipv6, false, false)
+			routerSeen := make(map[*router]bool)
+			for _, obj := range subObjects {
+				obj.setUsed()
+				switch x := obj.(type) {
+				case *network:
+					if selector == "all" {
+						if x.isAggregate {
 
-								// We can't simply take
-								// aggregate -> networks -> interfaces,
-								// because subnets may be missing.
-								if size, _ := x.mask.Size(); size != 0 {
-									errMsg("Must not use interface:[..].[all]\n"+
-										" with %s having ip/mask\n"+
-										" in %s", x.name, ctx)
+							// We can't simply take
+							// aggregate -> networks -> interfaces,
+							// because subnets may be missing.
+							if size, _ := x.mask.Size(); size != 0 {
+								errMsg("Must not use interface:[..].[all]\n"+
+									" with %s having ip/mask\n"+
+									" in %s", x.name, ctx)
+							}
+							for _, intf := range x.zone.interfaces {
+								r := intf.router
+								if (r.managed != "" || r.routingOnly) && check(intf) {
+									result.push(intf)
 								}
-								for _, intf := range x.zone.interfaces {
-									r := intf.router
-									if r.managed != "" || r.routingOnly {
-										check.push(intf)
-									}
-								}
-							} else if managed {
+							}
+						} else if managed {
 
-								// Find managed interfaces of non aggregate network.
-								for _, intf := range x.interfaces {
-									r := intf.router
-									if r.managed != "" || r.routingOnly {
-										check.push(intf)
-									}
-								}
-							} else {
-
-								// Find all interfaces of non aggregate network.
-								for _, intf := range x.interfaces {
-									check.push(intf)
+							// Find managed interfaces of non aggregate network.
+							for _, intf := range x.interfaces {
+								r := intf.router
+								if (r.managed != "" || r.routingOnly) && check(intf) {
+									result.push(intf)
 								}
 							}
 						} else {
-							if x.isAggregate {
-								errMsg("Must not use interface:[any:..].[auto] in %s",
-									ctx)
-							} else if a := getNetworkAutoIntf(x, managed); a != nil {
+
+							// Find all interfaces of non aggregate network.
+							for _, intf := range x.interfaces {
+								if check(intf) {
+									result.push(intf)
+								}
+							}
+						}
+					} else {
+						if x.isAggregate {
+							errMsg("Must not use interface:[any:..].[auto] in %s",
+								ctx)
+						} else if a := getNetworkAutoIntf(x, managed); a != nil {
+							result.push(a)
+						}
+					}
+				case *routerIntf:
+					r := x.router
+					if routerSeen[r] {
+						continue
+					}
+					routerSeen[r] = true
+					if managed && r.managed == "" && !r.routingOnly {
+						// Do nothing.
+					} else if selector == "all" {
+						for _, intf := range getIntf(r) {
+							if check(intf) {
+								result.push(intf)
+							}
+						}
+					} else if a := getRouterAutoIntf(r); a != nil {
+						result.push(a)
+					}
+				case *area:
+					var routers []*router
+
+					// Prevent duplicates and border routers.
+					seen := make(map[*router]bool)
+
+					// Don't add routers at border of this area.
+					for _, intf := range x.border {
+						seen[intf.router] = true
+					}
+
+					// Add routers at border of security zones inside
+					// current area.
+					for _, z := range x.zones {
+						for _, intf := range z.interfaces {
+							r := intf.router
+							if !seen[r] {
+								seen[r] = true
+								routers = append(routers, r)
+							}
+						}
+					}
+					if managed {
+
+						// Remove semi managed routers.
+						j := 0
+						for _, r := range routers {
+							if r.managed != "" || r.routingOnly {
+								routers[j] = r
+								j++
+							}
+						}
+						routers = routers[:j]
+					} else {
+						for _, z := range x.zones {
+							for _, r := range z.unmanagedRouters {
+								routers = append(routers, r)
+							}
+						}
+					}
+					if selector == "all" {
+						for _, r := range routers {
+							for _, intf := range getIntf(r) {
+								if check(intf) {
+									result.push(intf)
+								}
+							}
+						}
+					} else {
+						for _, r := range routers {
+							if a := getRouterAutoIntf(r); a != nil {
 								result.push(a)
 							}
 						}
-					case *routerIntf:
-						r := x.router
+					}
+				case *autoIntf:
+					obj := x.object
+					if r, ok := obj.(*router); ok {
 						if routerSeen[r] {
 							continue
 						}
 						routerSeen[r] = true
-						if managed && r.managed == "" && !r.routingOnly {
-							// Do nothing.
+						if managed && !(r.managed != "" || r.routingOnly) {
+
+							// This router has no managed interfaces.
 						} else if selector == "all" {
 							for _, intf := range getIntf(r) {
-								check.push(intf)
-							}
-						} else if a := getRouterAutoIntf(r); a != nil {
-							result.push(a)
-						}
-					case *area:
-						var routers []*router
-
-						// Prevent duplicates and border routers.
-						seen := make(map[*router]bool)
-
-						// Don't add routers at border of this area.
-						for _, intf := range x.border {
-							seen[intf.router] = true
-						}
-
-						// Add routers at border of security zones inside
-						// current area.
-						for _, z := range x.zones {
-							for _, intf := range z.interfaces {
-								r := intf.router
-								if !seen[r] {
-									seen[r] = true
-									routers = append(routers, r)
+								if check(intf) {
+									result.push(intf)
 								}
-							}
-						}
-						if managed {
-
-							// Remove semi managed routers.
-							j := 0
-							for _, r := range routers {
-								if r.managed != "" || r.routingOnly {
-									routers[j] = r
-									j++
-								}
-							}
-							routers = routers[:j]
-						} else {
-							for _, z := range x.zones {
-								for _, r := range z.unmanagedRouters {
-									routers = append(routers, r)
-								}
-							}
-						}
-						if selector == "all" {
-							for _, r := range routers {
-								for _, intf := range getIntf(r) {
-									check.push(intf)
-								}
-							}
-						} else {
-							for _, r := range routers {
-								if a := getRouterAutoIntf(r); a != nil {
-									result.push(a)
-								}
-							}
-						}
-					case *autoIntf:
-						obj := x.object
-						if r, ok := obj.(*router); ok {
-							if routerSeen[r] {
-								continue
-							}
-							routerSeen[r] = true
-							if managed && !(r.managed != "" || r.routingOnly) {
-
-								// This router has no managed interfaces.
-							} else if selector == "all" {
-								for _, intf := range getIntf(r) {
-									check.push(intf)
-								}
-							} else if a := getRouterAutoIntf(r); a != nil {
-								result.push(a)
-							}
-						} else {
-							errMsg("Can't use %s inside interface:[..].[%s] of %s",
-								x, selector, ctx)
-						}
-					default:
-						errMsg("Unexpected '%s' in interface:[..].[%s] of %s",
-							obj, selector, ctx)
-					}
-				}
-			case string:
-				name := x
-				switch x := part.ext.(type) {
-				case *autoExt:
-					// interface:name.[xxx]
-					selector := x.selector
-					var r *router
-					if ipv6 {
-						r = routers6[name]
-					} else {
-						r = routers[name]
-					}
-					if r != nil {
-						if selector == "all" {
-							for _, intf := range getIntf(r) {
-								check.push(intf)
 							}
 						} else if a := getRouterAutoIntf(r); a != nil {
 							result.push(a)
 						}
 					} else {
-						errMsg("Can't resolve %s:%s.[%s] in %s",
-							part.typ, name, selector, ctx)
+						errMsg("Can't use %s inside interface:[..].[%s] of %s",
+							x, selector, ctx)
 					}
-				case string:
-					// interface:name.name
-					if intf, _ := interfaces[name+"."+x]; intf != nil {
-						if !intf.disabled {
-							result.push(intf)
+				default:
+					errMsg("Unexpected '%s' in interface:[..].[%s] of %s",
+						obj, selector, ctx)
+				}
+			}
+		case *ast.IntfRef:
+			if x.Network == "[" {
+				// interface:name.[xxx]
+				selector := x.Extension
+				var r *router
+				if ipv6 {
+					r = symTable.router6[x.Router]
+				} else {
+					r = symTable.router[x.Router]
+				}
+				if r != nil {
+					if selector == "all" {
+						for _, intf := range getIntf(r) {
+							if check(intf) {
+								result.push(intf)
+							}
 						}
-					} else {
-						errMsg("Can't resolve %s:%s.%s in %s",
-							part.typ, name, x, ctx)
+					} else if a := getRouterAutoIntf(r); a != nil {
+						result.push(a)
 					}
+				} else {
+					errMsg("Can't resolve %s:%s.[%s] in %s",
+						x.Type, x.Router, x.Extension, ctx)
+				}
+			} else {
+				// interface:name.name
+				name := x.Router + "." + x.Network
+				if e := x.Extension; e != "" {
+					name += "." + e
+				}
+				if intf, found := symTable.routerIntf[name]; found {
+					if !intf.disabled {
+						result.push(intf)
+					}
+				} else {
+					errMsg("Can't resolve %s:%s in %s", x.Type, name, ctx)
 				}
 			}
-
-			// Silently remove unnumbered, bridged and tunnel interfaces
-			// from automatic groups.
-			for _, intf := range check {
-				if !(intf.tunnel || visible && (intf.unnumbered || intf.bridged)) {
-					result.push(intf)
-				}
-			}
-		} else if list, ok := name.([]*parsedObjRef); ok {
-			subObjects := expandGroup1(list,
-				typ+":[..] of "+ctx, ipv6, false, false)
+		case ast.AutoElem:
+			subObjects := expandGroup1(x.GetElements(),
+				x.GetType()+":[..] of "+ctx, ipv6, false, false)
 			for _, obj := range subObjects {
 				obj.setUsed()
 			}
 
-			getAggregates := func(obj groupObj, ip net.IP, mask net.IPMask) netList {
-				var zones []*zone
-				switch x := obj.(type) {
-				case *area:
-					seen := make(map[*zone]bool)
-					for _, z := range x.zones {
-						if c := z.zoneCluster; c != nil {
-							z = c[0]
-							if seen[z] {
-								continue
-							} else {
-								seen[z] = true
-							}
-						}
-						zones = append(zones, z)
-					}
-				case *network:
-					if x.isAggregate {
-						zones = append(zones, x.zone)
-					}
-				}
-				if zones == nil {
-					return nil
-				}
-				result := netList{}
-				for _, z := range zones {
+			getAggregates :=
+				func(obj groupObj, ip net.IP, mask net.IPMask) netList {
 
-					// Silently ignore loopback aggregate.
-					if z.loopback {
-						continue
+					var zones []*zone
+					switch x := obj.(type) {
+					case *area:
+						seen := make(map[*zone]bool)
+						for _, z := range x.zones {
+							if c := z.zoneCluster; c != nil {
+								z = c[0]
+								if seen[z] {
+									continue
+								} else {
+									seen[z] = true
+								}
+							}
+							zones = append(zones, z)
+						}
+					case *network:
+						if x.isAggregate {
+							zones = append(zones, x.zone)
+						}
 					}
-					result = append(result, getAny(z, ip, mask, visible)...)
+					if zones == nil {
+						return nil
+					}
+					result := netList{}
+					for _, z := range zones {
+
+						// Silently ignore loopback aggregate.
+						if z.loopback {
+							continue
+						}
+						result = append(result, getAny(z, ip, mask, visible)...)
+					}
+					return result
 				}
-				return result
-			}
 			getNetworks := func(obj groupObj, withSubnets bool) netList {
 				result := netList{}
 				switch x := obj.(type) {
@@ -525,7 +529,8 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 				}
 				return result
 			}
-			if typ == "host" {
+			switch x.GetType() {
+			case "host":
 				for _, obj := range subObjects {
 					switch x := obj.(type) {
 					case *host:
@@ -545,7 +550,7 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 						errMsg("Unexpected '%s' in host:[..] of %s", obj, ctx)
 					}
 				}
-			} else if typ == "network" {
+			case "network":
 
 				// Ignore duplicate networks resulting from different
 				// interfaces connected to the same network.
@@ -568,12 +573,13 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 						errMsg("Unexpected '%s' in network:[..] of %s", obj, ctx)
 					}
 				}
-			} else if typ == "any" {
+			case "any":
+				x := x.(*ast.AggAuto)
 				var ip net.IP
 				var mask net.IPMask
-				if ext != nil {
-					info := ext.(*aggExt)
-					ip, mask = info.ip, info.mask
+				if n := x.Net; n != nil {
+					ip = getVxIP(n.IP, ipv6, "any:[..]", ctx)
+					mask = n.Mask
 				}
 
 				// Ignore duplicate aggregates resulting
@@ -602,25 +608,19 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 						errMsg("Unexpected '%s' in any:[..] of %s", obj, ctx)
 					}
 				}
-			} else {
-				errMsg("Unexpected %s:[..] in %s", typ, ctx)
+			default:
+				errMsg("Unexpected %s:[..] in %s", x.GetType(), ctx)
 			}
-		} else {
-
+		case *ast.NamedRef:
 			// An object named simply 'type:name'.
-			name := name.(string)
+			typ := x.Type
+			name := x.Name
 			obj := expandTypedName(typ, name)
 			if obj == nil {
 				errMsg("Can't resolve %s:%s in %s", typ, name, ctx)
 				continue
 			}
-			if ipv6 != obj.isIPv6() {
-				expected := cond(ipv6, "6", "4")
-				found := cond(obj.isIPv6(), "6", "4")
-				errMsg("Must not reference IPv%s %s in IPv%s context %s",
-					found, obj, expected, ctx)
-				continue
-			}
+			checkV4V6CrossRef(obj, ipv6, ctx)
 			if obj.isDisabled() {
 				continue
 			}
@@ -647,9 +647,14 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 					// Group has not been converted from names to references.
 
 					// Mark group as used.
-					grp.setUsed()
+					grp.isUsed = true
 
 					ctx := typ + ":" + name
+
+					// 'user' must not be referenced in group.
+					user := userObj.elements
+					userObj.elements = nil
+					defer func() { userObj.elements = user }()
 
 					// Add marker for detection of recursive group definition.
 					grp.recursive = true
@@ -690,6 +695,15 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 	return result
 }
 
+func checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
+	if ipv6 != obj.isIPv6() {
+		expected := cond(ipv6, "6", "4")
+		found := cond(obj.isIPv6(), "6", "4")
+		errMsg("Must not reference IPv%s %s in IPv%s context %s",
+			found, obj, expected, ctx)
+	}
+}
+
 // Parameter showAll is set, if called from command "print-group".
 // This changes the result of
 // 1. network:[any|area|network:..]:
@@ -698,12 +712,12 @@ func expandGroup1(list []*parsedObjRef, ctx string, ipv6, visible, withSubnets b
 //    Crosslink networks are no longer suppressed.
 // 2. interface:[..].[all]:
 //    Unnumbered and bridged interfaces are no longer suppressed.
-func expandGroup(l []*parsedObjRef, ctx string, ipv6, showAll bool) groupObjList {
+func expandGroup(l []ast.Element, ctx string, ipv6, showAll bool) groupObjList {
 	result := expandGroup1(l, ctx, ipv6, !showAll, showAll)
 	return removeDuplicates(result, ctx)
 }
 
-func expandGroupInRule(l []*parsedObjRef, ctx string, ipv6 bool) groupObjList {
+func expandGroupInRule(l []ast.Element, ctx string, ipv6 bool) groupObjList {
 	list := expandGroup(l, ctx, ipv6, false)
 
 	// Ignore unusable objects.

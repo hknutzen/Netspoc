@@ -41,6 +41,8 @@ type Toplevel interface {
 	IsStruct() bool
 	FileName() string
 	SetFileName(string)
+	GetIPV6() bool
+	SetIPV6()
 }
 
 // ----------------------------------------------------------------------------
@@ -107,6 +109,8 @@ type SimpleAuto struct {
 	Elements []Element
 }
 
+func (a *SimpleAuto) GetElements() []Element { return a.Elements }
+
 type AggAuto struct {
 	SimpleAuto
 	Net *net.IPNet
@@ -115,6 +119,11 @@ type IntfAuto struct {
 	SimpleAuto
 	Managed  bool
 	Selector string
+}
+
+type AutoElem interface {
+	GetType() string
+	GetElements() []Element
 }
 
 type Complement struct {
@@ -149,6 +158,7 @@ type TopBase struct {
 	Name        string
 	Description *Description
 	fileName    string
+	IPV6        bool
 }
 
 func (a *TopBase) IsStruct() bool               { return false }
@@ -157,6 +167,8 @@ func (a *TopBase) SetName(n string)             { a.Name = n }
 func (a *TopBase) GetDescription() *Description { return a.Description }
 func (a *TopBase) FileName() string             { return a.fileName }
 func (a *TopBase) SetFileName(n string)         { a.fileName = n }
+func (a *TopBase) GetIPV6() bool                { return a.IPV6 }
+func (a *TopBase) SetIPV6()                     { a.IPV6 = true }
 
 type TopList struct {
 	TopBase

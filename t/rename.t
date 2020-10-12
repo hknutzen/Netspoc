@@ -135,9 +135,7 @@ router:r = {
 END
 
 $out = <<'END';
-network:Toast = {
- ip = 10.1.1.0/24;
-}
+network:Toast = { ip = 10.1.1.0/24; }
 
 group:G =
  interface:r.Toast,
@@ -206,13 +204,8 @@ group:G = interface:r.Test,
 END
 
 $out = <<'END';
-network:Toast/a = {
- ip = 10.9.1.0/24;
-}
-
-network:Toast/b = {
- ip = 10.9.1.0/24;
-}
+network:Toast/a = { ip = 10.9.1.0/24; }
+network:Toast/b = { ip = 10.9.1.0/24; }
 
 router:asa = {
  interface:Toast/a = { hardware = inside; }
@@ -289,9 +282,7 @@ group:G = interface:r.Test,
 END
 
 $out = <<'END';
-network:1_2_3_0_Test = {
- ip = 10.9.1.0/24;
-}
+network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
 
 group:G =
  interface:r.1_2_3_0_Test,
@@ -317,9 +308,7 @@ router:RR = {
  interface:N = { ip = 10.9.1.1; }
 }
 
-network:N = {
- ip = 10.9.1.0/24;
-}
+network:N = { ip = 10.9.1.0/24; }
 
 group:g =
  interface:RR.N,
@@ -503,11 +492,7 @@ owner:Wittmüß = {
  admins = a@b.c;
 }
 
-network:n1 = {
- owner = Maass,
-         Wittmüß,
-         ;
-}
+network:n1 = { owner = Maass, Wittmüß; }
 END
 
 test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß',

@@ -511,7 +511,7 @@ func checkSupernetDstRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 		}
 		checkSupernetInZone(rule, "dst", inIntf, zone, false)
 	}
-	if r.model.hasIoAcl {
+	if r.model.hasIoACL {
 		check(outIntf)
 	} else {
 		for _, intf := range r.interfaces {

@@ -91,7 +91,9 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"io"
 	"net"
 	"os"
@@ -101,7 +103,7 @@ import (
 // Print IP address of obj in context of natSet.
 func printAddress(obj groupObj, ns natSet) string {
 	netAddr := func(n *network) string {
-		return prefixCode(net.IPNet{IP: n.ip, Mask: n.mask})
+		return prefixCode(&net.IPNet{IP: n.ip, Mask: n.mask})
 	}
 	dynamicAddr := func(m map[string]net.IP, n *network) string {
 		tag := n.natTag
@@ -199,7 +201,7 @@ func captureStderr(f func()) string {
 }
 
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
-func tryExpand(parsed []*parsedObjRef, ipv6 bool) groupObjList {
+func tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
 	var expanded groupObjList
 	stderr := captureStderr(func() {
 		expanded = expandGroup(parsed, "print-group", ipv6, true)
@@ -211,26 +213,27 @@ func tryExpand(parsed []*parsedObjRef, ipv6 bool) groupObjList {
 	return expanded
 }
 
-func PrintGroup(m xMap) {
+func PrintGroup(path, group, natNet string,
+	showIP, showName, showOwner, showAdmins, showUnused bool) {
+
+	if !(showIP || showName) {
+		showIP = true
+		showName = true
+	}
+	parsed := parser.ParseUnion([]byte(group))
+	ReadNetspoc(path)
 	MarkDisabled()
 	SetZone()
 	SetPath()
 	DistributeNatInfo()
 	FindSubnetsInZone()
 	AbortOnError()
-	natNet := getString(m["nat_net"])
-	parsed := convParsedObjRefs(m["parsed"])
-	showIP := getBool(m["show_ip"])
-	showName := getBool(m["show_name"])
-	showOwner := getBool(m["show_owner"])
-	showAdmins := getBool(m["show_admins"])
-	showUnused := getBool(m["show_unused"])
 
 	// Find network for resolving NAT addresses.
 	var natSet natSet
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
-		if net := networks[natNet]; net != nil {
+		if net := symTable.network[natNet]; net != nil {
 			natSet = net.zone.natDomain.natSet
 		} else {
 			abort.Msg("Unknown network:%s of option '-nat'", natNet)

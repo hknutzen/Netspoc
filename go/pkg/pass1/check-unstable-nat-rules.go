@@ -49,7 +49,9 @@ func CheckUnstableNatRules() {
 					check(unstableSrc, inIntf, true)
 					check(unstableDst, inIntf, false)
 				}
-				if outIntf != nil && outIntf.router.model.stateless {
+				if outIntf != nil && outIntf.router.model != nil &&
+					outIntf.router.model.stateless {
+
 					stateless := false
 				PRT:
 					for _, prt := range rule.prt {

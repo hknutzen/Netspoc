@@ -14,6 +14,7 @@ $title = "Owner at unmanaged router";
 ############################################################
 
 $in = <<'END';
+owner:o = { admins = a@example.com; }
 router:r = {
  owner = o;
  interface:n1 = { ip = 10.1.1.1; }
@@ -23,6 +24,7 @@ END
 
 $out = <<'END';
 Warning: Ignoring attribute 'owner' at unmanaged router:r
+Warning: Unused owner:o
 END
 
 test_warn($title, $in, $out);
@@ -32,6 +34,22 @@ $title = "Crypto hub at unmanaged router";
 ############################################################
 
 $in = <<'END';
+ipsec:i = {
+ key_exchange = isakmp:i;
+ lifetime = 600 sec;
+}
+
+isakmp:i = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 86400 sec;
+}
+
+crypto:c = {
+ type = ipsec:i;
+}
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hub = crypto:c; }
 }
@@ -39,10 +57,11 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Unmanaged interface:r.n1 must not use attribute 'hub'
+Warning: Ignoring attribute 'hub' at unmanaged interface:r.n1
+Warning: No hub has been defined for crypto:c
 END
 
-test_err($title, $in, $out);
+test_warn($title, $in, $out);
 
 ############################################################
 $title = 'Unmanaged bridge interfaces';
@@ -59,7 +78,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Error: Bridged interfaces must not be used at unmanged router:bridge
+Error: network:n1/right and network:n1/left must be connected by bridge
 Error: network:n1/right and network:n1/left have identical IP/mask in any:[network:n1/left]
 END
 

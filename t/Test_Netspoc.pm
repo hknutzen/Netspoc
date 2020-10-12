@@ -16,10 +16,7 @@ use File::Temp qw/ tempdir /;
 use File::Spec::Functions qw/ file_name_is_absolute splitpath catdir catfile /;
 use File::Path 'make_path';
 use lib 'lib';
-use Netspoc::Compiler::Pass1;
-
-# Add "bin/" because Pass1.pm calls other programs in same directory.
-$ENV{PATH} = "bin/:$ENV{PATH}";
+use open qw(:std :utf8);
 
 my $default_options = '--quiet';
 
@@ -77,16 +74,14 @@ sub run {
     my ($stderr, $success) =
         capture_stderr {
             my $result;
-            eval {
-
-                # Copy unchanged arguments.
-                my $args2 = [ @$args ];
-                Netspoc::Compiler::Pass1::compile($args);
-                system('spoc2', @$args2) if $out_dir;
-                $result = 1;
-            };
-            if($@) {
-                warn $@;
+            if (system('bin/spoc1', @$args) == 0) {
+                if ($out_dir) {
+                    if (system('bin/spoc2', @$args) == 0) {
+                        $result = 1;
+                    }
+                } else {
+                    $result = 1;
+                }
             };
             $result;
     };
@@ -263,6 +258,9 @@ sub test_err {
 
     # Cleanup error message.
     $stderr =~ s/\nAborted with \d+ error\(s\)$//ms;
+
+    # Remove 'Usage' message after error message.
+    $stderr =~ s/\nUsage: .*/\n/ms;
 
     # Normalize input path: remove temp. dir.
     $stderr =~ s/\Q$in_dir\E\///g;

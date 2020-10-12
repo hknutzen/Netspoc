@@ -5,6 +5,7 @@ use warnings;
 use Test::More;
 use Test::Differences;
 use lib 't';
+use utf8;
 use Test_Netspoc;
 
 my ($title, $in, $out);
@@ -29,10 +30,10 @@ router:r1 = {
 END
 
 $out = <<'END';
-Error: Invalid IP address at line 1 of STDIN
-Error: Invalid IP address at line 2 of STDIN
-Error: Invalid IP address at line 3 of STDIN
-Error: Invalid IP address at line 4 of STDIN
+Error: invalid CIDR address: 999.1.1.0/24 in 'ip' of network:n1
+Error: invalid CIDR address: 10.888.1.0/24 in 'ip' of network:n2
+Error: invalid CIDR address: 10.1.777.0/24 in 'ip' of network:n3
+Error: invalid CIDR address: 10.1.1.666/32 in 'ip' of network:n4
 END
 
 test_err($title, $in, $out);
@@ -46,7 +47,7 @@ network:n1 = { ip = १.२.३.४/32; } # 1.2.3.4 in DEVANAGARI
 END
 
 $out = <<"END";
-Syntax error: IP address expected at line 1 of STDIN, near \"\x{967}.\x{968}.\x{969}.\x{96a}/32<--HERE-->; } #\"
+Error: invalid CIDR address: \x{967}.\x{968}.\x{969}.\x{96a}/32 in 'ip' of network:n1
 END
 
 test_err($title, $in, $out);
@@ -145,7 +146,7 @@ protocol:ICMP  = proto 1;
 END
 
 $out = <<'END';
-Error: Must not use 'proto 1', use 'icmp' instead at line 2 of STDIN
+Error: Must not use 'proto 1', use 'icmp' instead in protocol:ICMP
 END
 
 test_err($title, $in, $out);
@@ -160,7 +161,7 @@ protocol:ICMPv6  = icmpv6;
 END
 
 $out = <<'END';
-Error: Must use 'icmpv6' only with IPv6 at line 2 of STDIN
+Error: Must not be used with IPv4: protocol:ICMPv6
 END
 
 test_err($title, $in, $out);
