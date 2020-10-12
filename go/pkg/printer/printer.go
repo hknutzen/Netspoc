@@ -144,7 +144,7 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 }
 
 func (p *printer) getTrailing(n ast.Toplevel) string {
-	if p.src == nil {
+	if p.src == nil || n.Pos() == n.End() {
 		return ""
 	}
 	trailing := ""
