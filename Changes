@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.020     2020-10-12 12:46:49+02:00 Europe/Berlin
+
  - Migrated remaining parts from Perl to Go:
    - Parsing files and directories
    - Arranging protocols
