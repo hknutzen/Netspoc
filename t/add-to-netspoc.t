@@ -77,6 +77,7 @@ $title = 'host at network';
 ############################################################
 
 $in = <<'END';
+################# Comment in first line must not be appended to added item.
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test, # comment
     host:id:h@dom.top.Test,
@@ -86,6 +87,7 @@ host:x, network:Test, host:y,
 END
 
 $out = <<'END';
+################# Comment in first line must not be appended to added item.
 network:Test = { ip = 10.9.1.0/24; }
 
 group:G =
@@ -101,6 +103,7 @@ group:G =
 END
 
 $out2 = <<'END';
+################# Comment in first line must not be appended to added item.
 network:Test = { ip = 10.9.1.0/24; }
 
 group:G =

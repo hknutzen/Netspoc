@@ -3,6 +3,7 @@
 package printer
 
 import (
+	"bytes"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
 )
@@ -51,8 +52,37 @@ func (p *printer) TrailingCommentAt(pos int, ign string) string {
 	return trailing
 }
 
+func (p *printer) hasSource(n ast.Node) bool {
+	if p.src == nil {
+		return false
+	}
+	if _, ok := n.(ast.Toplevel); ok {
+		return n.Pos() != n.End()
+	} else {
+		return n.Pos() != 0
+	}
+}
+
 func (p *printer) TrailingComment(n ast.Node, ign string) string {
+	if !p.hasSource(n) {
+		return ""
+	}
 	return p.TrailingCommentAt(n.End(), ign)
+}
+
+func (p *printer) getTrailing(n ast.Toplevel) string {
+	if !p.hasSource(n) {
+		return ""
+	}
+	pos := n.Pos() + len(n.GetName())
+	trailing := p.TrailingCommentAt(pos, "={")
+	// Show trailing comment found after closing "}" if whole
+	// definition is at one line.
+	end := n.End()
+	if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
+		trailing = p.TrailingCommentAt(end, "")
+	}
+	return trailing
 }
 
 func normalizeComments(com string, ign string) []string {

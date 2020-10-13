@@ -1258,25 +1258,26 @@ $title = 'Protocol definition';
 ############################################################
 
 $in = <<'END';
+protocol:all_ip = # trailing for toplevel at pos 0.
+ ip;
+
 protocol:http =
 tcp 80;
 
 protocol:BGP = tcp 179, no_check_supernet_rules;
 
-protocol:all_ip = # trailing
- ip;
 protocol:all_icmp =
  description = icmp with any typ and code
  icmp;
 END
 
 $out = <<'END';
+protocol:all_ip = # trailing for toplevel at pos 0.
+ ip;
+
 protocol:http = tcp 80;
 
 protocol:BGP = tcp 179, no_check_supernet_rules;
-
-protocol:all_ip = # trailing
- ip;
 
 protocol:all_icmp =
  description = icmp with any typ and code

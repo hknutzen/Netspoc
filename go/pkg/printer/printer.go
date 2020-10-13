@@ -3,7 +3,6 @@
 package printer
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
@@ -141,22 +140,6 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 	}
 	p.indent--
 	p.print(stop)
-}
-
-func (p *printer) getTrailing(n ast.Toplevel) string {
-	if p.src == nil || n.Pos() == n.End() {
-		return ""
-	}
-	trailing := ""
-	pos := n.Pos() + len(n.GetName())
-	trailing = p.TrailingCommentAt(pos, "={")
-	// Show trailing comment found after closing "}" if whole
-	// definition is at one line.
-	end := n.End()
-	if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
-		trailing = p.TrailingCommentAt(end, "")
-	}
-	return trailing
 }
 
 func (p *printer) description(n ast.Toplevel) {
