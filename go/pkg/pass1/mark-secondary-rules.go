@@ -187,18 +187,14 @@ type conflictInfo = struct {
 func collectConflict(rule *groupedRule, z1, z2 *zone,
 	conflict map[conflictKey]*conflictInfo, isPrimary bool) {
 
-	allNoCheck := true
+	if rule.noCheckSupernetRules {
+		return
+	}
 	allEstablished := true
 	for _, p := range rule.prt {
-		if p.modifiers == nil || !p.modifiers.noCheckSupernetRules {
-			allNoCheck = false
-		}
 		if !p.established {
 			allEstablished = false
 		}
-	}
-	if allNoCheck {
-		return
 	}
 
 	collect := func(list, otherList []someObj, z *zone, isSrc bool) {
