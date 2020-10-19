@@ -195,7 +195,6 @@ func (a *netList) push(e *network) {
 type netObj struct {
 	ipObj
 	usedObj
-	bindNat []string
 	nat     map[string]net.IP
 	network *network
 	up      someObj
@@ -331,6 +330,7 @@ type routerIntf struct {
 	netObj
 	pathStoreData
 	router          *router
+	bindNat         []string
 	crypto          *crypto
 	dhcpClient      bool
 	dhcpServer      bool

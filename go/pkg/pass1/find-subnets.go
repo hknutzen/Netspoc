@@ -68,19 +68,22 @@ func checkSubnets(n, subnet *network, context string) {
 		return
 	}
 	subIp, subMask := subnet.ip, subnet.mask
-	check := func(ip1, ip2 net.IP, object netObj) {
+	check := func(ip1, ip2 net.IP, obj groupObj) {
 		if matchIp(ip1, subIp, subMask) ||
 			ip2 != nil &&
 				(matchIp(ip2, subIp, subMask) ||
-					bytes.Compare(ip1, subIp) != -1 && bytes.Compare(subIp, ip2) != -1) {
+					bytes.Compare(ip1, subIp) != -1 &&
+						bytes.Compare(subIp, ip2) != -1) {
 
 			// NAT to an interface address (masquerading) is allowed.
-			if tags := object.bindNat; tags != nil {
-				if tag2 := subnet.natTag; tag2 != "" {
-					for _, tag := range tags {
-						if tag == tag2 &&
-							object.ip.Equal(subnet.ip) && isHostMask(subnet.mask) {
-							return
+			if intf, ok := obj.(*routerIntf); ok {
+				if tags := intf.bindNat; tags != nil {
+					if tag2 := subnet.natTag; tag2 != "" {
+						for _, tag := range tags {
+							if tag == tag2 &&
+								intf.ip.Equal(subnet.ip) && isHostMask(subnet.mask) {
+								return
+							}
 						}
 					}
 				}
@@ -89,7 +92,7 @@ func checkSubnets(n, subnet *network, context string) {
 			if context != "" {
 				where += " in " + context
 			}
-			warnMsg("IP of %s overlaps with subnet %s", object.name, where)
+			warnMsg("IP of %s overlaps with subnet %s", obj, where)
 		}
 	}
 	for _, intf := range n.interfaces {
@@ -97,14 +100,14 @@ func checkSubnets(n, subnet *network, context string) {
 			intf.bridged {
 			continue
 		}
-		check(intf.ip, nil, intf.netObj)
+		check(intf.ip, nil, intf)
 	}
 	for _, host := range n.hosts {
 		if ip := host.ip; ip != nil {
-			check(ip, nil, host.netObj)
+			check(ip, nil, host)
 		} else {
 			r := host.ipRange
-			check(r[0], r[1], host.netObj)
+			check(r[0], r[1], host)
 		}
 	}
 }
