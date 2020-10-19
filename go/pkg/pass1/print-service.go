@@ -117,6 +117,7 @@ func prtInfo(srcRange, prt *proto) string {
 func PrintService(
 	path string, srvNames []string, natNet string, showName bool) {
 
+	c := startSpoc()
 	ReadNetspoc(path)
 	MarkDisabled()
 	SetZone()
@@ -143,7 +144,8 @@ func PrintService(
 
 	NormalizeServices()
 	permitRules, denyRules := ConvertHostsInRules()
-	GroupPathRules(permitRules, denyRules)
+	c.groupPathRules(permitRules, denyRules)
+	c.finish()
 	AbortOnError()
 
 	nameMap := make(map[string]bool)

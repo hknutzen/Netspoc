@@ -3,8 +3,6 @@ package pass1
 import ()
 
 var (
-	version string
-
 	ErrorCounter int
 
 	prtAh               *proto

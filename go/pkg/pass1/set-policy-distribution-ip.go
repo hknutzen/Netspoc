@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 )
 
 //#############################################################################
@@ -13,8 +12,8 @@ import (
 // to manage the device from a central policy distribution point (PDP).
 // This address is added as a comment line to each generated code file.
 // This is to be used later when approving the generated code file.
-func SetPolicyDistributionIP() {
-	diag.Progress("Setting policy distribution IP")
+func (c *spoc) SetPolicyDistributionIP() {
+	c.progress("Setting policy distribution IP")
 
 	needAll := conf.Conf.CheckPolicyDistributionPoint
 	var pdpRouters []*router
@@ -56,7 +55,7 @@ func SetPolicyDistributionIP() {
 	collect(managedRouters)
 	collect(routingOnlyRouters)
 	if count := len(missing); count > 0 {
-		warnOrErrMsg(needAll,
+		c.warnOrErr(needAll,
 			"Missing attribute 'policy_distribution_point' for %d devices:\n"+
 				missing.nameList(),
 			count)
@@ -202,7 +201,7 @@ func SetPolicyDistributionIP() {
 		}
 	}
 	if len(unreachable) > 0 {
-		warnMsg("Missing rules to reach %d devices from"+
+		c.warn("Missing rules to reach %d devices from"+
 			" policy_distribution_point:\n"+unreachable.nameList(),
 			len(unreachable))
 	}

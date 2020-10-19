@@ -307,7 +307,7 @@ func natToLoopbackOk(loopbackNetwork, natNetwork *network) bool {
 	return allDeviceOk == deviceCount
 }
 
-func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
+func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	// List of all networks and NAT networks having an IP address.
 	// We need this in deterministic order.
@@ -470,7 +470,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					error = true
 				}
 				if error {
-					errMsg("%s and %s have identical IP/mask\n"+
+					c.err("%s and %s have identical IP/mask\n"+
 						" in %s",
 						natName(natNetwork), natName(natOther), domain.name)
 				}
@@ -817,8 +817,8 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 // 1. If set, this prevents secondary optimization.
 // 2. If rule has src or dst with attribute {has_other_subnet},
 //    it is later checked for missing supernets.
-func FindSubnetsInNatDomain(domains []*natDomain) {
-	diag.Progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
+func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
+	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
 
 	// Mapping from NAT domain to ID of NAT partition.
 	dom2Part := findNatPartitions(domains)
@@ -842,6 +842,6 @@ func FindSubnetsInNatDomain(domains []*natDomain) {
 	}
 	sort.Ints(partList)
 	for _, part := range partList {
-		findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
+		c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
 	}
 }

@@ -1,11 +1,9 @@
 package pass1
 
-import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-)
+import ()
 
-func CheckUnstableNatRules() {
-	diag.Progress("Checking rules for unstable subnet relation")
+func (c *spoc) checkUnstableNatRules() {
+	c.progress("Checking rules for unstable subnet relation")
 	process := func(l ruleList) {
 		for _, rule := range l {
 			getUnstable := func(l []someObj) netList {
@@ -36,7 +34,7 @@ func CheckUnstableNatRules() {
 					} else {
 						rule.dst = []someObj{n}
 					}
-					errMsg("Must not use %s in rule\n"+
+					c.err("Must not use %s in rule\n"+
 						" %s,\n"+
 						" because it is no longer supernet of\n"+
 						"%s\n"+

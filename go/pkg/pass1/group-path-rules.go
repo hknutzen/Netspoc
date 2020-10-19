@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 	"strings"
@@ -110,7 +109,7 @@ func collectUnenforceable(rule *groupedRule) {
 	}
 }
 
-func showUnenforceable() {
+func (c *spoc) showUnenforceable() {
 	names := make([]string, 0, len(services))
 	for name, _ := range services {
 		names = append(names, name)
@@ -122,7 +121,7 @@ func showUnenforceable() {
 
 		if service.hasUnenforceable &&
 			(service.seenUnenforceable == nil || !service.seenEnforceable) {
-			warnMsg("Useless attribute 'has_unenforceable' at %s", context)
+			c.warn("Useless attribute 'has_unenforceable' at %s", context)
 		}
 		if conf.Conf.CheckUnenforceable == "" {
 			continue
@@ -137,7 +136,7 @@ func showUnenforceable() {
 
 			// Don't warn on empty service without any expanded rules.
 			if service.seenUnenforceable != nil || service.silentUnenforceable {
-				warnOrErrMsg(conf.Conf.CheckUnenforceable,
+				c.warnOrErr(conf.Conf.CheckUnenforceable,
 					"%s is fully unenforceable", context)
 			}
 			continue
@@ -152,7 +151,7 @@ func showUnenforceable() {
 				if srcAttr == "restrict" && dstAttr == "restrict" {
 					if !service.hasUnenforceableRestricted {
 						service.hasUnenforceableRestricted = true
-						warnMsg("Must not use attribute 'has_unenforceable' at %s",
+						c.warn("Must not use attribute 'has_unenforceable' at %s",
 							context)
 					}
 				} else {
@@ -165,7 +164,7 @@ func showUnenforceable() {
 		}
 		if list != nil {
 			sort.Strings(list)
-			warnOrErrMsg(conf.Conf.CheckUnenforceable,
+			c.warnOrErr(conf.Conf.CheckUnenforceable,
 				"%s has unenforceable rules:\n"+
 					" %s",
 				context, strings.Join(list, "\n "))
@@ -266,8 +265,8 @@ func splitRulesByPath(rules ruleList) ruleList {
 	return newRules
 }
 
-func GroupPathRules(p, d ruleList) {
-	diag.Progress("Grouping rules")
+func (c *spoc) groupPathRules(p, d ruleList) {
+	c.progress("Grouping rules")
 
 	// Split grouped rules such, that all elements of src and dst
 	// have identical srcPath/dstPath.
@@ -278,7 +277,7 @@ func GroupPathRules(p, d ruleList) {
 	}
 	pRules.permit = process(p) //sRules.permit)
 	pRules.deny = process(d)   //sRules.deny)
-	info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
+	c.info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
 
-	showUnenforceable()
+	c.showUnenforceable()
 }

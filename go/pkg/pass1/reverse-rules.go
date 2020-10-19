@@ -1,8 +1,6 @@
 package pass1
 
-import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-)
+import ()
 
 //#############################################################################
 // Generate reverse rules for stateless packet filters:
@@ -149,8 +147,8 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 	return append(rules, extraRules...)
 }
 
-func GenReverseRules() {
-	diag.Progress("Generating reverse rules for stateless routers")
+func (c *spoc) genReverseRules() {
+	c.progress("Generating reverse rules for stateless routers")
 	pRules.deny = genReverseRules1(pRules.deny)
 	pRules.permit = genReverseRules1(pRules.permit)
 }

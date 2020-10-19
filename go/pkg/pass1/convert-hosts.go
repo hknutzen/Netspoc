@@ -474,8 +474,8 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 	return process(sRules.permit), process(sRules.deny)
 }
 
-func CombineSubnetsInRules() {
-	diag.Progress("Combining adjacent subnets")
+func (c *spoc) combineSubnetsInRules() {
+	c.progress("Combining adjacent subnets")
 	process := func(rules ruleList) {
 		for _, r := range rules {
 			r.src = combineSubnets(r.src)

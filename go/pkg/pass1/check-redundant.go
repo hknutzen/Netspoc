@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -139,10 +138,10 @@ func setLocalPrtRelation(rules []*groupedRule) {
 	}
 }
 
-var duplicateRules [][2]*expandedRule
-
 // Returns true, if overlap should be ignored.
-func checkAttrOverlaps(service, oservice *service, rule *expandedRule) bool {
+func (c *spoc) checkAttrOverlaps(
+	service, oservice *service, rule *expandedRule) bool {
+
 	srcAttr := rule.src.getAttr("overlaps")
 	dstAttr := rule.dst.getAttr("overlaps")
 	overlapsUsed := func() bool {
@@ -158,7 +157,7 @@ func checkAttrOverlaps(service, oservice *service, rule *expandedRule) bool {
 		if srcAttr == "restrict" && dstAttr == "restrict" {
 			if !service.overlapsRestricted {
 				service.overlapsRestricted = true
-				warnMsg("Must not use attribute 'overlaps' at %s", service.name)
+				c.warn("Must not use attribute 'overlaps' at %s", service.name)
 			}
 			return false
 		}
@@ -170,7 +169,9 @@ func checkAttrOverlaps(service, oservice *service, rule *expandedRule) bool {
 	return false
 }
 
-func collectDuplicateRules(rule, other *expandedRule) {
+func (c *spoc) collectDuplicateRules(
+	rule, other *expandedRule, collect *[][2]*expandedRule) {
+
 	svc := rule.rule.service
 
 	// Mark duplicate rules in both services.
@@ -204,119 +205,83 @@ func collectDuplicateRules(rule, other *expandedRule) {
 		return
 	}
 
-	if checkAttrOverlaps(svc, osvc, rule) ||
-		checkAttrOverlaps(osvc, svc, rule) {
+	if c.checkAttrOverlaps(svc, osvc, rule) ||
+		c.checkAttrOverlaps(osvc, svc, rule) {
 		return
 	}
 
 	if conf.Conf.CheckDuplicateRules != "" {
-		duplicateRules = append(duplicateRules, [2]*expandedRule{rule, other})
+		*collect = append(*collect, [2]*expandedRule{rule, other})
 	}
 }
 
-type twoNames [2]string
-type namePairs []twoNames
+type twoSvc [2]*service
 
-func (s namePairs) sort() {
-	sort.Slice(s, func(i, j int) bool {
-		switch strings.Compare(s[i][0], s[j][0]) {
-		case -1:
-			return true
-		case 1:
-			return false
-		}
-		return strings.Compare(s[i][1], s[j][1]) == -1
-	})
-}
-
-func showDuplicateRules() {
-	if duplicateRules == nil {
-		return
-	}
-	sNames2Duplicate := make(map[twoNames][]*expandedRule)
-	for _, pair := range duplicateRules {
+func (c *spoc) showDuplicateRules(collected [][2]*expandedRule) {
+	twoSvc2Duplicate := make(map[twoSvc][]*expandedRule)
+	for _, pair := range collected {
 		rule, other := pair[0], pair[1]
-		key := twoNames{rule.rule.service.name, other.rule.service.name}
-		sNames2Duplicate[key] = append(sNames2Duplicate[key], rule)
+		key := twoSvc{rule.rule.service, other.rule.service}
+		twoSvc2Duplicate[key] = append(twoSvc2Duplicate[key], rule)
 	}
-	duplicateRules = nil
-
-	namePairs := make(namePairs, 0, len(sNames2Duplicate))
-	for pair := range sNames2Duplicate {
-		namePairs = append(namePairs, pair)
-	}
-	namePairs.sort()
-	for _, pair := range namePairs {
-		sName, oName := pair[0], pair[1]
-		rules := sNames2Duplicate[pair]
-		msg := "Duplicate rules in " + sName + " and " + oName + ":"
+	for key, rules := range twoSvc2Duplicate {
+		msg := "Duplicate rules in " + key[0].name + " and " + key[1].name + ":"
 		for _, rule := range rules {
 			msg += "\n  " + rule.print()
 		}
-		warnOrErrMsg(conf.Conf.CheckDuplicateRules, msg)
+		c.warnOrErr(conf.Conf.CheckDuplicateRules, msg)
 	}
 }
 
-var redundantRules [][2]*expandedRule
+func (c *spoc) collectRedundantRules(
+	rule, other *expandedRule, collect *[][2]*expandedRule) int {
 
-func collectRedundantRules(rule, other *expandedRule, countRef *int) {
 	service := rule.rule.service
+	count := 0
 
 	// Count each redundant rule only once.
 	if !rule.redundant {
 		rule.redundant = true
-		*countRef++
+		count++
 		service.redundantCount++
 	}
 
 	if rule.overlaps && other.overlaps {
-		return
+		return count
 	}
 
-	if checkAttrOverlaps(service, other.rule.service, rule) {
-		return
+	if !c.checkAttrOverlaps(service, other.rule.service, rule) {
+		*collect = append(*collect, [2]*expandedRule{rule, other})
 	}
-
-	redundantRules = append(redundantRules, [2]*expandedRule{rule, other})
+	return count
 }
 
-func showRedundantRules() {
-	if redundantRules == nil {
-		return
-	}
-
-	sNames2Redundant := make(map[twoNames][][2]*expandedRule)
-	for _, pair := range redundantRules {
-		rule, other := pair[0], pair[1]
-		key := twoNames{rule.rule.service.name, other.rule.service.name}
-		sNames2Redundant[key] = append(sNames2Redundant[key], pair)
-	}
-	redundantRules = nil
-
+func (c *spoc) showRedundantRules(collected [][2]*expandedRule) {
 	action := conf.Conf.CheckRedundantRules
 	if action == "" {
 		return
 	}
-	namePairs := make(namePairs, 0, len(sNames2Redundant))
-	for pair := range sNames2Redundant {
-		namePairs = append(namePairs, pair)
+	twoSvc2Redundant := make(map[twoSvc][][2]*expandedRule)
+	for _, pair := range collected {
+		rule, other := pair[0], pair[1]
+		key := twoSvc{rule.rule.service, other.rule.service}
+		twoSvc2Redundant[key] = append(twoSvc2Redundant[key], pair)
 	}
-	namePairs.sort()
-	for _, pair := range namePairs {
-		sName, oName := pair[0], pair[1]
-		rulePairs := sNames2Redundant[pair]
-		msg := "Redundant rules in " + sName + " compared to " + oName + ":\n  "
-		var list []string
+	for key, rulePairs := range twoSvc2Redundant {
+		msg :=
+			"Redundant rules in " + key[0].name +
+				" compared to " + key[1].name + ":\n  "
+		var list stringList
 		for _, pair := range rulePairs {
-			list = append(list, pair[0].print()+"\n< "+pair[1].print())
+			list.push(pair[0].print() + "\n< " + pair[1].print())
 		}
 		sort.Strings(list)
 		msg += strings.Join(list, "\n  ")
-		warnOrErrMsg(action, msg)
+		c.warnOrErr(action, msg)
 	}
 }
 
-func showFullyRedundantRules() {
+func (c *spoc) showFullyRedundantRules() {
 	action := conf.Conf.CheckFullyRedundantRules
 	if action == "" {
 		return
@@ -342,11 +307,11 @@ func showFullyRedundantRules() {
 		for service := range service.hasSameDupl {
 			keep[service] = true
 		}
-		warnOrErrMsg(action, service.name+" is fully redundant")
+		c.warnOrErr(action, service.name+" is fully redundant")
 	}
 }
 
-func warnUnusedOverlaps() {
+func (c *spoc) warnUnusedOverlaps() {
 	var errList []string
 	for _, service := range services {
 		if service.disabled {
@@ -366,7 +331,7 @@ func warnUnusedOverlaps() {
 	}
 	sort.Strings(errList)
 	for _, msg := range errList {
-		warnMsg(msg)
+		c.warn(msg)
 	}
 }
 
@@ -391,7 +356,7 @@ func expandRules(rules []*groupedRule) []*expandedRule {
 	return result
 }
 
-// Build rule tree from nested maps.
+// Build rule tree of nested maps.
 // Leaf node has rule as value.
 type ruleTree1 map[*proto]*expandedRule
 type ruleTree2 map[someObj]ruleTree1
@@ -445,7 +410,8 @@ func (tree ruleTree) add(stateless bool) ruleTree5 {
 // Rule tree is a nested map for ordering all rules.
 // Put attributes with small value set first, to get a more
 // memory efficient tree with few branches at root.
-func buildRuleTree(rules []*expandedRule) (ruleTree, int) {
+func (c *spoc) buildRuleTree(
+	rules []*expandedRule, collect *[][2]*expandedRule) (ruleTree, int) {
 	count := 0
 	ruleTree := make(ruleTree)
 
@@ -469,13 +435,13 @@ func buildRuleTree(rules []*expandedRule) (ruleTree, int) {
 
 		if otherRule, found := leafMap[rule.prt]; found {
 			if rule.log != otherRule.log {
-				errMsg(
+				c.err(
 					"Duplicate rules must have identical log attribute:\n %s\n %s",
 					otherRule.print(), rule.print())
 			}
 
 			// Found identical rule.
-			collectDuplicateRules(rule, otherRule)
+			c.collectDuplicateRules(rule, otherRule, collect)
 			count++
 		} else {
 			leafMap[rule.prt] = rule
@@ -489,7 +455,10 @@ func buildRuleTree(rules []*expandedRule) (ruleTree, int) {
 	return ruleTree, count
 }
 
-func findRedundantRules(cmpHash, chgHash ruleTree) int {
+func (c *spoc) findRedundantRules(
+	cmpHash ruleTree, collect *[][2]*expandedRule) int {
+
+	chgHash := cmpHash
 	count := 0
 	for stateless, chgHash := range chgHash {
 		for {
@@ -514,7 +483,7 @@ func findRedundantRules(cmpHash, chgHash ruleTree) int {
 																				chgRule &&
 																				cmpRule.log ==
 																					chgRule.log {
-																				collectRedundantRules(chgRule, cmpRule, &count)
+																				count += c.collectRedundantRules(chgRule, cmpRule, collect)
 																			}
 																		}
 																		prt = prt.localUp
@@ -561,61 +530,44 @@ func findRedundantRules(cmpHash, chgHash ruleTree) int {
 	return count
 }
 
-func CheckRedundantRules() {
-	diag.Progress("Checking for redundant rules")
+func (c *spoc) checkRedundantRules() {
+	c.progress("Checking for redundant rules")
+
+	// Sorts error messages before output.
+	c2 := c.sortingSpoc()
+
+	var collectDupl, collectRedun [][2]*expandedRule
 	count := 0
 	dcount := 0
 	rcount := 0
 
-	// Process rules in chunks to reduce memory usage.
-	// Rules with different src_path / dst_path can't be
-	// redundant to each other.
-	// Keep deterministic order of rules.
-	index := 0
-	path2index := make(map[pathStore]int)
-	key2rules := make(map[int][]*groupedRule)
+	// Process rules in chunks to reduce memory usage and allow
+	// concurrent processing. Rules with different srcPath / dstPath
+	// can't be redundant to each other.
+	type pathPair [2]pathStore
+	path2rules := make(map[pathPair][]*groupedRule)
 	add := func(rules []*groupedRule) {
 		for _, rule := range rules {
-			key, ok := path2index[rule.srcPath]
-			if !ok {
-				key = index
-				index++
-				path2index[rule.srcPath] = key
-			}
-			key2rules[key] = append(key2rules[key], rule)
+			key := pathPair{rule.srcPath, rule.dstPath}
+			path2rules[key] = append(path2rules[key], rule)
 		}
 	}
 	add(pRules.deny)
 	add(pRules.permit)
-
-	for key := 0; key < index; key++ {
-		rules := key2rules[key]
-		index := 0
-		path2index := make(map[pathStore]int)
-		key2rules := make(map[int][]*groupedRule)
-		for _, rule := range rules {
-			key, ok := path2index[rule.dstPath]
-			if !ok {
-				key = index
-				index++
-				path2index[rule.dstPath] = key
-			}
-			key2rules[key] = append(key2rules[key], rule)
-		}
-		for key := 0; key < index; key++ {
-			rules := key2rules[key]
-			expandedRules := expandRules(rules)
-			count += len(expandedRules)
-			ruleTree, deleted := buildRuleTree(expandedRules)
-			dcount += deleted
-			setLocalPrtRelation(rules)
-			rcount += findRedundantRules(ruleTree, ruleTree)
-		}
+	for _, rules := range path2rules {
+		expandedRules := expandRules(rules)
+		count += len(expandedRules)
+		ruleTree, deleted := c2.buildRuleTree(expandedRules, &collectDupl)
+		dcount += deleted
+		setLocalPrtRelation(rules)
+		rcount += c2.findRedundantRules(ruleTree, &collectRedun)
 	}
-	showDuplicateRules()
-	showRedundantRules()
-	warnUnusedOverlaps()
-	showFullyRedundantRules()
-	info("Expanded rule count: %d; duplicate: %d; redundant: %d",
+
+	c2.showDuplicateRules(collectDupl)
+	c2.showRedundantRules(collectRedun)
+	c2.finish()
+	c.warnUnusedOverlaps()
+	c.showFullyRedundantRules()
+	c.info("Expanded rule count: %d; duplicate: %d; redundant: %d",
 		count, dcount, rcount)
 }

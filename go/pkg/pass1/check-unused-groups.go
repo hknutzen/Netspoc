@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-func CheckUnusedGroups() {
+func (c *spoc) checkUnusedGroups() {
 	if printType := conf.Conf.CheckUnusedGroups; printType != "" {
 		// Check groups
 		names := make([]string, 0, len(symTable.group))
@@ -16,7 +16,7 @@ func CheckUnusedGroups() {
 		for _, name := range names {
 			group := symTable.group[name]
 			if !group.isUsed {
-				warnOrErrMsg(printType, "unused "+group.name)
+				c.warnOrErr(printType, "unused "+group.name)
 			}
 		}
 		// Check protocolGroups
@@ -28,7 +28,7 @@ func CheckUnusedGroups() {
 		for _, name := range names {
 			group := symTable.protocolgroup[name]
 			if !group.isUsed {
-				warnOrErrMsg(printType, "unused "+group.name)
+				c.warnOrErr(printType, "unused "+group.name)
 			}
 		}
 	}
@@ -41,7 +41,7 @@ func CheckUnusedGroups() {
 		for _, name := range names {
 			prt := symTable.protocol[name]
 			if !prt.isUsed {
-				warnOrErrMsg(printType, "unused "+prt.name)
+				c.warnOrErr(printType, "unused "+prt.name)
 			}
 		}
 	}

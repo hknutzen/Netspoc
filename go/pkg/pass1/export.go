@@ -1428,6 +1428,7 @@ func copyPolicyFile(inPath, outDir string) {
 }
 
 func Export(inDir, outDir string) {
+	c := startSpoc()
 	ReadNetspoc(inDir)
 	MarkDisabled()
 	SetZone()
@@ -1439,7 +1440,7 @@ func Export(inDir, outDir string) {
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := normalizeServicesForExport()
 	propagateOwners()
-	FindSubnetsInNatDomain(natDomains)
+	c.findSubnetsInNatDomain(natDomains)
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
 	setupServiceInfo(expSvcList, pInfo, oInfo)

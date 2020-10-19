@@ -19,7 +19,7 @@ type clusterInfo struct {
 	mark       int
 }
 
-func getManagedLocalClusters() []clusterInfo {
+func (c *spoc) getManagedLocalClusters() []clusterInfo {
 	mark := 1
 	var result []clusterInfo
 	seen := make(map[*zone]bool)
@@ -60,7 +60,7 @@ func getManagedLocalClusters() []clusterInfo {
 				return true
 			}
 			if !equal(filterOnly, r.filterOnly) {
-				errMsg(
+				c.err(
 					"%s and %s must have identical values in attribute 'filter_only'",
 					r0.name, r.name)
 			}
@@ -92,7 +92,7 @@ func getManagedLocalClusters() []clusterInfo {
 								continue NETWORK
 							}
 						}
-						errMsg("%s doesn't match attribute 'filter_only' of %s",
+						c.err("%s doesn't match attribute 'filter_only' of %s",
 							n.name, r.name)
 					}
 
@@ -122,7 +122,7 @@ func getManagedLocalClusters() []clusterInfo {
 				continue
 			}
 			size, _ := net.Mask.Size()
-			warnMsg("Useless %s/%d in attribute 'filter_only' of %s",
+			c.warn("Useless %s/%d in attribute 'filter_only' of %s",
 				net.IP, size, r0.name)
 		}
 	}
@@ -133,11 +133,11 @@ func getManagedLocalClusters() []clusterInfo {
 // managed=local devices.
 // A network is marked by adding the number of the corresponding
 // managed=local cluster as key to a hash in attribute {filter_at}.
-func MarkManagedLocal() {
+func (c *spoc) markManagedLocal() {
 	network00.filterAt = make(map[int]bool)
 	network00v6.filterAt = make(map[int]bool)
 
-	for _, cluster := range getManagedLocalClusters() {
+	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
 		var markNetworks func(netList)
 		markNetworks = func(list netList) {
