@@ -556,7 +556,6 @@ type proto struct {
 	statelessICMP   bool
 	up              *proto
 	localUp         *proto
-	hasNeighbor     bool
 }
 type protoList []*proto
 

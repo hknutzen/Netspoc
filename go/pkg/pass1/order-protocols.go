@@ -117,7 +117,6 @@ func OrderProtocols() {
 // Set 'up' relation from port range to the smallest port range which
 // includes it.
 // If no including range is found, link it with next larger protocol.
-// Set attribute 'hasNeighbor' to range adjacent to upper port.
 // Find overlapping ranges and split one of them to eliminate the overlap.
 // Set attribute 'split' at original range, referencing pair of split ranges.
 func orderRanges(l protoList, up *proto) {
@@ -142,17 +141,10 @@ func orderRanges(l protoList, up *proto) {
 			b := l[i]
 			b1, b2 := b.ports[0], b.ports[1]
 
-			// Neighbors
-			// aaaabbbb
-			if a2+1 == b1 {
-				// Mark protocol as candidate for joining of port ranges during
-				// optimization.
-				a.hasNeighbor = true
-				b.hasNeighbor = true
-			}
-
 			// Not related.
 			// aaaa    bbbbb
+			// or neighbors
+			// aaaabbbb
 			if a2 < b1 {
 				return i
 			}
@@ -233,8 +225,6 @@ func orderRanges(l protoList, up *proto) {
 					name:  jcode.GenPortName(pr, a1, a2),
 					proto: pr,
 					ports: [2]int{a1, a2},
-					// Mark for range optimization.
-					hasNeighbor: true,
 				}
 				// Insert new range at position i.
 				l = append(l, nil)
