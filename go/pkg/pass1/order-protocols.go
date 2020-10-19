@@ -36,8 +36,7 @@ func getNetwork00(ipv6 bool) *network {
 
 func initStdProtocols(sym *symbolTable) {
 	define := func(s string) *proto {
-		p := getSimpleProtocol(s, false, s)
-		return cacheUnnamedProtocol(p, sym)
+		return getSimpleProtocol(s, sym, false, s)
 	}
 	prtIP = define("ip")
 	prtTCP := define("tcp")
@@ -88,77 +87,31 @@ func initStdProtocols(sym *symbolTable) {
 }
 
 // Order protocols. We need this to simplify optimization.
-// Additionally add internal predefined protocols.
 func OrderProtocols() {
 	diag.Progress("Arranging protocols")
 
-	// Internal protocols need to be processed before user defined protocols,
-	// because we want to avoid handling of 'main' for internal protocols.
-	// prtTcp and prtUdp need to be processed before all other TCP and UDP
-	// protocols, because otherwise the range 1..65535 would get a misleading
-	// name.
-	preparePrtOrdering(prtIP)
-	preparePrtOrdering(prtUDP)
-	preparePrtOrdering(prtIke)
-	preparePrtOrdering(prtNatt)
-	preparePrtOrdering(prtEsp)
-	preparePrtOrdering(prtAh)
-	for _, p := range symTable.protocol {
-		preparePrtOrdering(p)
+	var tcp, udp, icmp, proto protoList
+	for _, p := range symTable.rangeProto {
+		switch p.proto {
+		case "tcp":
+			tcp.push(p)
+		case "udp":
+			udp.push(p)
+		}
 	}
 	for _, p := range symTable.unnamedProto {
-		preparePrtOrdering(p)
+		switch p.proto {
+		case "icmp":
+			icmp.push(p)
+		case "proto":
+			proto.push(p)
+		}
 	}
-
 	up := prtIP
-	orderRanges(prtMap.tcp, up)
-	orderRanges(prtMap.udp, up)
-	orderIcmp(prtMap.icmp, up)
-	orderProto(prtMap.proto, up)
-}
-
-// Add protocol to prtMap.
-// Link duplicate protocol definitions via attribute 'main'.
-func preparePrtOrdering(p *proto) {
-	var main *proto
-	switch p.proto {
-	case "tcp", "udp":
-		// sub protocols for src and dst ranges have already been added
-		// to prtMap in getRangeProto.
-		return
-	case "icmp":
-		t := p.icmpType
-		c := p.icmpCode
-		key := ""
-		if t != -1 {
-			key += strconv.Itoa(t)
-			if c != -1 {
-				key += "/" + strconv.Itoa(c)
-			}
-		}
-		if main = prtMap.icmp[key]; main == nil {
-			prtMap.icmp[key] = p
-		}
-	case "ip":
-		if main = prtMap.ip; main == nil {
-			prtMap.ip = p
-		}
-	default:
-		// Other protocol.
-		key := p.proto
-		if main = prtMap.proto[key]; main == nil {
-			prtMap.proto[key] = p
-		}
-	}
-	if main != nil {
-
-		// Found duplicate protocol definition. Link protocol with main.
-		// We link all duplicate protocols to the first protocol found.
-		// This assures that we always reach the main protocol from any
-		// duplicate protocol in one step via '.main'. This is used
-		// later to substitute occurrences of p with main.
-		p.main = main
-	}
+	orderRanges(tcp, up)
+	orderRanges(udp, up)
+	orderIcmp(icmp, up)
+	orderProto(proto, up)
 }
 
 // Set 'up' relation from port range to the smallest port range which
@@ -167,11 +120,7 @@ func preparePrtOrdering(p *proto) {
 // Set attribute 'hasNeighbor' to range adjacent to upper port.
 // Find overlapping ranges and split one of them to eliminate the overlap.
 // Set attribute 'split' at original range, referencing pair of split ranges.
-func orderRanges(m map[string]*proto, up *proto) {
-	l := make(protoList, 0, len(m))
-	for _, p := range m {
-		l.push(p)
-	}
+func orderRanges(l protoList, up *proto) {
 
 	// Sort by low port. If low ports are equal, sort reverse by high port.
 	// I.e. larger ranges coming first, if there are multiple ranges
@@ -314,16 +263,22 @@ func orderRanges(m map[string]*proto, up *proto) {
 }
 
 // Set 'up' relation between all ICMP protocols and to larger 'ip' protocol.
-func orderIcmp(m map[string]*proto, up *proto) {
-	// Handle 'icmp any'.
-	if p, found := m[""]; found {
-		p.up = up
-		up = p
+func orderIcmp(l protoList, up *proto) {
+	m := make(map[int]*proto)
+	for _, p := range l {
+		if t := p.icmpType; t == -1 {
+			// Handle 'icmp any'.
+			p.up = up
+			up = p
+		} else if p.icmpCode == -1 {
+			// Remember 'icmp type' as larger than 'icmp type code'.
+			m[p.icmpType] = p
+		}
 	}
-	for _, p := range m {
+	for _, p := range l {
 		if t := p.icmpType; t != -1 {
 			if p.icmpCode != -1 {
-				if u, found := m[strconv.Itoa(t)]; found {
+				if u, found := m[t]; found {
 					p.up = u
 				} else {
 					p.up = up
@@ -336,8 +291,8 @@ func orderIcmp(m map[string]*proto, up *proto) {
 }
 
 // Set 'up' relation for all numeric protocols to larger 'ip' protocol.
-func orderProto(m map[string]*proto, up *proto) {
-	for _, p := range m {
+func orderProto(l protoList, up *proto) {
+	for _, p := range l {
 		p.up = up
 	}
 }

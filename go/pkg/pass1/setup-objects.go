@@ -49,7 +49,6 @@ func parseFiles(path string) []ast.Toplevel {
 func setupTopology(toplevel []ast.Toplevel) {
 	checkDuplicate(toplevel)
 	sym := createSymbolTable()
-	prtMap = initPrtMap()
 	initStdProtocols(sym)
 	symTable = sym
 	setupObjects(toplevel, sym)
@@ -68,6 +67,8 @@ type symbolTable struct {
 	protocol map[string]*proto
 	// Unnamed protocols like "tcp 80"
 	unnamedProto map[string]*proto
+	// Port or port range referenced in tcp and udp.
+	rangeProto map[string]*proto
 	// References protocolgroup, protocol
 	protocolgroup map[string]*protoGroup
 	// References network, owner
@@ -105,6 +106,7 @@ func createSymbolTable() *symbolTable {
 	s.service = make(map[string]*service)
 	s.protocol = make(map[string]*proto)
 	s.unnamedProto = make(map[string]*proto)
+	s.rangeProto = make(map[string]*proto)
 	s.protocolgroup = make(map[string]*protoGroup)
 	s.group = make(map[string]*objGroup)
 	s.pathrestriction = make(map[string]*ast.TopList)
@@ -114,15 +116,6 @@ func createSymbolTable() *symbolTable {
 	s.ipsec = make(map[string]*ipsec)
 	s.isakmp = make(map[string]*isakmp)
 	return s
-}
-
-func initPrtMap() *protoLookup {
-	m := new(protoLookup)
-	m.icmp = make(map[string]*proto)
-	m.tcp = make(map[string]*proto)
-	m.udp = make(map[string]*proto)
-	m.proto = make(map[string]*proto)
-	return m
 }
 
 func setupObjects(l []ast.Toplevel, s *symbolTable) {
@@ -218,14 +211,17 @@ func setupProtocol(a *ast.Protocol, s *symbolTable) {
 	l := strings.Split(v, ", ")
 	def := l[0]
 	mod := l[1:]
-	p := getSimpleProtocol(def, a.IPV6, name)
+	pSimp := getSimpleProtocol(def, s, a.IPV6, name)
+	p := *pSimp
 	p.name = name
+	// Link named protocol with corresponding unnamed protocol.
+	p.main = pSimp
 	pName := name[len("protocol:"):]
-	s.protocol[pName] = p
-	addProtocolModifiers(mod, p)
+	addProtocolModifiers(mod, &p)
+	s.protocol[pName] = &p
 }
 
-func getSimpleProtocol(def string, v6 bool, ctx string) *proto {
+func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
 	p := new(proto)
 	p.name = def
 	l := strings.Split(def, " ")
@@ -238,7 +234,7 @@ func getSimpleProtocol(def string, v6 bool, ctx string) *proto {
 			errMsg("Unexpected details after %s", ctx)
 		}
 	case "tcp", "udp":
-		addPortRanges(nums, p, ctx)
+		addPortRanges(nums, p, s, ctx)
 	case "icmpv6":
 		p.proto = "icmp"
 		addICMPTypeCode(nums, p, ctx)
@@ -256,38 +252,39 @@ func getSimpleProtocol(def string, v6 bool, ctx string) *proto {
 		errMsg("Unknown protocol in %s", ctx)
 		p.proto = "ip"
 	}
+	p = cacheUnnamedProtocol(p, s)
 	return p
 }
 
-func addPortRanges(nums []string, p *proto, ctx string) {
+func addPortRanges(nums []string, p *proto, s *symbolTable, ctx string) {
 	switch len(nums) {
 	case 0:
-		p.dst = getRangeProto(1, 65535, p)
+		p.dst = getRangeProto(1, 65535, p, s)
 	case 1:
-		p.dst = getRange1(nums[0], p, ctx)
+		p.dst = getRange1(nums[0], p, s, ctx)
 	case 3:
 		if nums[1] == "-" {
-			p.dst = getRange(nums[0], nums[2], p, ctx)
+			p.dst = getRange(nums[0], nums[2], p, s, ctx)
 		} else if nums[1] == ":" {
-			p.src = getRange1(nums[0], p, ctx)
-			p.dst = getRange1(nums[2], p, ctx)
+			p.src = getRange1(nums[0], p, s, ctx)
+			p.dst = getRange1(nums[2], p, s, ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
 	case 5:
 		if nums[1] == ":" && nums[3] == "-" {
-			p.src = getRange1(nums[0], p, ctx)
-			p.dst = getRange(nums[2], nums[4], p, ctx)
+			p.src = getRange1(nums[0], p, s, ctx)
+			p.dst = getRange(nums[2], nums[4], p, s, ctx)
 		} else if nums[1] == "-" && nums[3] == ":" {
-			p.src = getRange(nums[0], nums[2], p, ctx)
-			p.dst = getRange1(nums[4], p, ctx)
+			p.src = getRange(nums[0], nums[2], p, s, ctx)
+			p.dst = getRange1(nums[4], p, s, ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
 	case 7:
 		if nums[1] == "-" && nums[3] == ":" && nums[5] == "-" {
-			p.src = getRange(nums[0], nums[2], p, ctx)
-			p.dst = getRange(nums[4], nums[6], p, ctx)
+			p.src = getRange(nums[0], nums[2], p, s, ctx)
+			p.dst = getRange(nums[4], nums[6], p, s, ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
@@ -296,33 +293,27 @@ func addPortRanges(nums []string, p *proto, ctx string) {
 	}
 }
 
-func getRange(s1, s2 string, p *proto, ctx string) *proto {
+func getRange(s1, s2 string, p *proto, s *symbolTable, ctx string) *proto {
 	n1 := getPort(s1, ctx)
 	n2 := getPort(s2, ctx)
 	if n1 > n2 {
 		errMsg("Invalid port range in %s", ctx)
 	}
-	return getRangeProto(n1, n2, p)
+	return getRangeProto(n1, n2, p, s)
 }
 
-func getRange1(s1 string, p *proto, ctx string) *proto {
+func getRange1(s1 string, p *proto, s *symbolTable, ctx string) *proto {
 	n1 := getPort(s1, ctx)
-	return getRangeProto(n1, n1, p)
+	return getRangeProto(n1, n1, p, s)
 }
 
-func getRangeProto(n1, n2 int, p *proto) *proto {
-	key := strconv.Itoa(n1) + ":" + strconv.Itoa(n2)
-	var m map[string]*proto
-	if p.proto == "tcp" {
-		m = prtMap.tcp
-	} else {
-		m = prtMap.udp
-	}
-	if p, found := m[key]; found {
+func getRangeProto(n1, n2 int, p *proto, s *symbolTable) *proto {
+	key := p.proto + " " + strconv.Itoa(n1) + " " + strconv.Itoa(n2)
+	if p, found := s.rangeProto[key]; found {
 		return p
 	}
 	p = &proto{name: p.name, proto: p.proto, ports: [2]int{n1, n2}}
-	m[key] = p
+	s.rangeProto[key] = p
 	return p
 }
 
@@ -2855,8 +2846,7 @@ func expandProtocols(
 			name := v[len("protocolgroup:"):]
 			result = append(result, expandProtocolgroup(name, s, v6, ctx)...)
 		} else {
-			p := getSimpleProtocol(v, v6, "'"+v+"' of "+ctx)
-			p = cacheUnnamedProtocol(p, s)
+			p := getSimpleProtocol(v, s, v6, "'"+v+"' of "+ctx)
 			result.push(p)
 		}
 	}
