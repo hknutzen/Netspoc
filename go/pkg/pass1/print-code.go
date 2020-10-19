@@ -1870,35 +1870,6 @@ func printRouterIntf(fh *os.File, router *router) {
 	fmt.Fprintln(fh)
 }
 
-func printPrt(prt *proto) string {
-	// Use cached result.
-	if p := prt.printed; p != "" {
-		return p
-	}
-	proto := prt.proto
-	result := proto
-
-	switch proto {
-	case "tcp", "udp":
-		for _, port := range prt.ports {
-			result += " " + strconv.Itoa(port)
-		}
-		if prt.established {
-			result += " established"
-		}
-	case "icmp", "icmpv6":
-		if t := prt.icmpType; t != -1 {
-			result += " " + strconv.Itoa(t)
-			if c := prt.icmpCode; c != -1 {
-				result += " " + strconv.Itoa(c)
-			}
-		}
-	}
-	// Cache result.
-	prt.printed = result
-	return result
-}
-
 func isHostMask(m net.IPMask) bool {
 	prefix, size := m.Size()
 	return prefix == size
@@ -2163,11 +2134,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 					newRule.Dst = getCachedAddrList(rule.dst, dstAddrCache)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
-						prtList[i] = printPrt(p)
+						prtList[i] = p.name
 					}
 					newRule.Prt = prtList
 					if srcRange := rule.srcRange; srcRange != nil {
-						newRule.SrcRange = printPrt(srcRange)
+						newRule.SrcRange = srcRange.name
 					}
 				}
 				return jRules

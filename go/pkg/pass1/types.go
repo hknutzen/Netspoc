@@ -557,7 +557,6 @@ type proto struct {
 	up              *proto
 	localUp         *proto
 	hasNeighbor     bool
-	printed         string
 }
 type protoList []*proto
 

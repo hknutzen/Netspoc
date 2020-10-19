@@ -6,6 +6,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"net"
 	"regexp"
@@ -291,6 +292,9 @@ func addPortRanges(nums []string, p *proto, s *symbolTable, ctx string) {
 	default:
 		errMsg("Invalid port range in %s", ctx)
 	}
+	if p.dst == nil {
+		p.dst = getRangeProto(1, 65535, p, s)
+	}
 }
 
 func getRange(s1, s2 string, p *proto, s *symbolTable, ctx string) *proto {
@@ -308,11 +312,11 @@ func getRange1(s1 string, p *proto, s *symbolTable, ctx string) *proto {
 }
 
 func getRangeProto(n1, n2 int, p *proto, s *symbolTable) *proto {
-	key := p.proto + " " + strconv.Itoa(n1) + " " + strconv.Itoa(n2)
+	key := jcode.GenPortName(p.proto, n1, n2)
 	if p, found := s.rangeProto[key]; found {
 		return p
 	}
-	p = &proto{name: p.name, proto: p.proto, ports: [2]int{n1, n2}}
+	p = &proto{name: key, proto: p.proto, ports: [2]int{n1, n2}}
 	s.rangeProto[key] = p
 	return p
 }
@@ -2405,18 +2409,18 @@ func getModel(a *ast.Attribute, ctx string) *model {
 var routingInfo = map[string]*routing{
 	"EIGRP": &routing{
 		name:  "EIGRP",
-		prt:   &proto{proto: "88"},
+		prt:   &proto{proto: "88", name: "proto 88"},
 		mcast: mcastInfo{v4: []string{"224.0.0.10"}, v6: []string{"ff02::a"}},
 	},
 	"OSPF": &routing{
 		name: "OSPF",
-		prt:  &proto{proto: "89"},
+		prt:  &proto{proto: "89", name: "proto 89"},
 		mcast: mcastInfo{v4: []string{"224.0.0.5", "224.0.0.6"},
 			v6: []string{"ff02::5", "ff02::6"}},
 	},
 	"RIPv2": &routing{
 		name: "RIP",
-		prt:  &proto{proto: "udp", ports: [2]int{520, 520}},
+		prt:  &proto{proto: "udp", ports: [2]int{520, 520}, name: "udp 520"},
 		mcast: mcastInfo{v4: []string{"224.0.0.9"},
 			v6: []string{"ff02::9"}},
 	},
@@ -2439,11 +2443,11 @@ func getRouting(a *ast.Attribute, ctx string) *routing {
 // Definition of redundancy protocols.
 var xxrpInfo = map[string]*xxrp{
 	"VRRP": &xxrp{
-		prt:   &proto{proto: "112"},
+		prt:   &proto{proto: "112", name: "proto 112"},
 		mcast: mcastInfo{v4: []string{"224.0.0.18"}, v6: []string{"ff02::12"}},
 	},
 	"HSRP": &xxrp{
-		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}},
+		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
 		mcast: mcastInfo{v4: []string{"224.0.0.2"},
 
 			// No official IPv6 multicast address for HSRP available,
@@ -2451,7 +2455,7 @@ var xxrpInfo = map[string]*xxrp{
 			v6: []string{"::e000:2"}},
 	},
 	"HSRPv2": &xxrp{
-		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}},
+		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
 		mcast: mcastInfo{v4: []string{"224.0.0.102"},
 			v6: []string{"ff02::66"}},
 	},
@@ -2891,31 +2895,18 @@ func genProtocolName(p *proto) string {
 	case "ip":
 		return pr
 	case "tcp", "udp":
-		portName := func(p *proto) string {
-			if p == nil {
-				return ""
-			}
-			n := p.ports
-			v1, v2 := n[0], n[1]
-			if v1 == v2 {
-				return strconv.Itoa(v1)
-			} else if v1 == 1 && v2 == 65535 {
-				return ""
+		n := p.dst.ports
+		result := jcode.GenPortName(pr, n[0], n[1])
+		if s := p.src; s != nil {
+			n := s.ports
+			sName := jcode.GenPortName(pr, n[0], n[1])
+			if result == pr {
+				result = sName + ":"
 			} else {
-				return strconv.Itoa(v1) + "-" + strconv.Itoa(v2)
+				result = sName + ":" + result[len(pr)+1:]
 			}
 		}
-		var port string
-		if s := portName(p.src); s != "" {
-			port = s + ":"
-		}
-		if d := portName(p.dst); d != "" {
-			port += d
-		}
-		if port != "" {
-			return pr + " " + port
-		}
-		return pr
+		return result
 	case "icmp":
 		result := pr
 		if p.icmpType != -1 {

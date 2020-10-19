@@ -2,8 +2,8 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"sort"
-	"strconv"
 )
 
 var network00 = &network{
@@ -45,11 +45,11 @@ func initStdProtocols(sym *symbolTable) {
 	prtNatt = define("udp 4500 : 4500")
 	prtEsp = define("proto 50")
 	prtAh = define("proto 51")
-	tcpAny := *prtTCP.dst
-	tcpAny.established = true
-	tcpAny.name = "reversed:tcp"
-	rangeTCPEstablished = &tcpAny
-	rangeTCPEstablished.up = prtTCP.dst
+	cp := *prtTCP.dst
+	cp.established = true
+	cp.name = "tcp established"
+	cp.up = prtTCP.dst
+	rangeTCPEstablished = &cp
 
 	prtBootps = define("udp 67").dst
 	prtBootpc = define("udp 68").dst
@@ -177,7 +177,7 @@ func orderRanges(l protoList, up *proto) {
 			// a and b are overlapping.
 			// aaaaa
 			//   bbbbbb
-			// Split b in two parts x and y with x included by b:
+			// Split b in two parts x and y with x included by a:
 			// aaaaa
 			//   xxxyyy
 			x1 := b1
@@ -230,7 +230,7 @@ func orderRanges(l protoList, up *proto) {
 				}
 				pr := orig.proto
 				new := &proto{
-					name:  pr + " " + strconv.Itoa(a1) + " - " + strconv.Itoa(a2),
+					name:  jcode.GenPortName(pr, a1, a2),
 					proto: pr,
 					ports: [2]int{a1, a2},
 					// Mark for range optimization.

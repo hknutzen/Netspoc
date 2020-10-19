@@ -21,3 +21,7 @@ This is already available in .hub and .spoke.
 This check doesn't work reliably:
 Error: Must use 'icmp' only with IPv4 in protocol:ICMP
 because protocol can be referenced from IPv4 and IPv6 part.
+
+Attribute proto.hasNeighbor is only set, but never used in Pass1.
+Remove comment:
+// Set attribute 'hasNeighbor' to range adjacent to upper port.
