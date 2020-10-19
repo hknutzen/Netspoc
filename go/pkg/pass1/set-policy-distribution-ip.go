@@ -64,16 +64,6 @@ func (c *spoc) SetPolicyDistributionIP() {
 		return
 	}
 
-	// Find all TCP ranges which include port 22 and 23.
-	isAdminPrt := make(map[*proto]bool)
-	for _, prt := range prtMap.tcp {
-		p1, p2 := prt.ports[0], prt.ports[1]
-		if p1 <= 22 && 22 <= p2 || p1 <= 23 && 23 <= p2 {
-			isAdminPrt[prt] = true
-		}
-	}
-	isAdminPrt[prtIP] = true
-
 	// Mapping from policy distribution host to subnets, networks and
 	// aggregates that include this host.
 	host2isPdpSrc := make(map[*host]map[someObj]bool)
@@ -110,10 +100,15 @@ func (c *spoc) SetPolicyDistributionIP() {
 			continue
 		}
 		foundPrt := false
+	PRT:
 		for _, prt := range rule.prt {
-			if isAdminPrt[prt] {
-				foundPrt = true
-				break
+			switch prt.proto {
+			case "tcp", "udp":
+				p1, p2 := prt.ports[0], prt.ports[1]
+				if p1 <= 22 && 22 <= p2 || p1 <= 23 && 23 <= p2 {
+					foundPrt = true
+					break PRT
+				}
 			}
 		}
 		if !foundPrt {
