@@ -577,14 +577,6 @@ type protoGroup struct {
 	recursive bool
 }
 
-type protoLookup struct {
-	ip    *proto
-	icmp  map[string]*proto
-	tcp   map[string]*proto
-	udp   map[string]*proto
-	proto map[string]*proto
-}
-
 type objGroup struct {
 	usedObj
 	elements        []ast.Element
