@@ -71,7 +71,7 @@ func (c *spoc) progress(msg string) {
 	if conf.Conf.Verbose {
 		if conf.Conf.TimeStamps {
 			msg =
-				fmt.Sprintf("%.1fs %s", time.Since(conf.StartTime).Seconds(), msg)
+				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)
 		}
 		c.msgChan <- spocMsg{typ: progressM, text: msg}
 	}
