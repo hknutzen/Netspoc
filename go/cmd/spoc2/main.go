@@ -64,7 +64,10 @@ type name2ipNet map[string]*ipNet
 type name2Proto map[string]*proto
 
 func createIPObj(ipNetName string) *ipNet {
-	_, net, _ := net.ParseCIDR(ipNetName)
+	_, net, e := net.ParseCIDR(ipNetName)
+	if e != nil {
+		abort.Msg("%s", e)
+	}
 	return &ipNet{IPNet: net, name: ipNetName}
 }
 
