@@ -2200,7 +2200,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	if filterOnly := router.filterOnly; filterOnly != nil {
 		list := make([]string, len(filterOnly))
 		for i, f := range filterOnly {
-			list[i] = prefixCode(f)
+			list[i] = fullPrefixCode(f)
 		}
 		result.FilterOnly = list
 	}

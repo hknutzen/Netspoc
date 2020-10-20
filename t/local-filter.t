@@ -962,6 +962,7 @@ access-group n4_in in interface n4
 END
 
 test_run($title, $in, $out);
+
 ############################################################
 $title = "general_permit";
 ############################################################
@@ -987,6 +988,46 @@ $out = <<'END';
 ! outside_in
 access-list outside_in extended permit icmp any4 any4
 access-list outside_in extended deny ip any4 10.1.0.0 255.255.0.0
+access-list outside_in extended permit ip any4 any4
+access-group outside_in in interface outside
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = "filter_only with /32";
+############################################################
+
+# Must not ignore general_permit rules at local filter.
+$in = <<'END';
+router:u = {
+ interface:vip = { ip = 10.9.9.9; vip; }
+ interface:n1;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = ASA;
+ managed = local;
+ routing = manual;
+ filter_only =  10.1.0.0/16, 10.9.9.9/32;
+ general_permit = icmp;
+ interface:n1 = { ip = 10.1.1.1; hardware = outside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = inside; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+END
+
+$out = <<'END';
+--r1
+! outside_in
+object-group network g0
+ network-object 10.1.0.0 255.255.0.0
+ network-object host 10.9.9.9
+access-list outside_in extended permit icmp any4 any4
+access-list outside_in extended deny ip any4 object-group g0
 access-list outside_in extended permit ip any4 any4
 access-group outside_in in interface outside
 END
