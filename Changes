@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.021     2020-10-21 09:56:09+02:00 Europe/Berlin
+
  - Fixed 'add-to-group':
    Don't print comment from first line of file after newly inserted element.
  - Fixed intermediate code:
