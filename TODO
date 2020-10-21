@@ -23,3 +23,5 @@ Combine intf.unnumbered, intf.negotiated, intf.tunnel, intf.short, intf.bridged
 into one single attribute with enumerated value.
 
 Define type netOrRouter interface{}  more restrictive.
+
+Move attribute statelessICMP bool of type proto to modifiers.

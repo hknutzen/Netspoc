@@ -158,46 +158,6 @@ func substituteAutoIntf(srcList, dstList groupObjList, ctx string) (srvObjList, 
 	return convertedSrc, resultPairList
 }
 
-type modifiedProto struct {
-	prt       *proto
-	src       *proto
-	modifiers *modifiers
-}
-
-func classifyProtocols(l []interface{}) (protoList, []*modifiedProto) {
-	var simple protoList
-	var complex []*modifiedProto
-	for _, p := range l {
-
-		// Use the main protocol, but remember the original one to
-		// retrieve .modifiers.
-		var prt *proto
-		var srcRange *proto
-		var m *modifiers
-		switch x := p.(type) {
-		case *complexProto:
-			srcRange, prt, m = x.src, x.dst, x.orig.modifiers
-		case *proto:
-			m = x.modifiers
-			if x.main != nil {
-				prt = x.main
-			} else {
-				prt = x
-			}
-		}
-
-		if m != nil &&
-			(m.reversed || m.stateless || m.oneway ||
-				m.srcNet || m.dstNet || m.overlaps || m.noCheckSupernetRules) ||
-			srcRange != nil || prt.statelessICMP {
-			complex = append(complex, &modifiedProto{prt, srcRange, m})
-		} else {
-			simple.push(prt)
-		}
-	}
-	return simple, complex
-}
-
 func normalizeSrcDstList(
 	r *unexpRule, l groupObjList, s *service) [][2]srvObjList {
 
@@ -269,7 +229,7 @@ func normalizeServiceRules(s *service) {
 		if log != "" {
 			log = checkLog(log, ctx)
 		}
-		prtList := splitProtocols(uRule.prt)
+		prtList := uRule.prt
 		if prtList == nil {
 			continue
 		}
