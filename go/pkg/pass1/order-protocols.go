@@ -38,21 +38,30 @@ func initStdProtocols(sym *symbolTable) {
 	define := func(s string) *proto {
 		return getSimpleProtocol(s, sym, false, s)
 	}
+	defineX := func(s string) *proto {
+		pSimp, pSrc := getSimpleProtocolAndSrcPort(s, sym, false, s)
+		p := *pSimp
+		p.name = s
+		// Link complex protocol with corresponding simple protocol.
+		p.main = pSimp
+		addProtocolModifiers(nil, &p, pSrc)
+		return &p
+	}
 	prtIP = define("ip")
 	prtTCP := define("tcp")
 	prtUDP = define("udp")
-	prtIke = define("udp 500 : 500")
-	prtNatt = define("udp 4500 : 4500")
+	prtIke = defineX("udp 500 : 500")
+	prtNatt = defineX("udp 4500 : 4500")
 	prtEsp = define("proto 50")
 	prtAh = define("proto 51")
-	cp := *prtTCP.dst
+	cp := *prtTCP
 	cp.established = true
 	cp.name = "tcp established"
-	cp.up = prtTCP.dst
+	cp.up = prtTCP
 	rangeTCPEstablished = &cp
 
-	prtBootps = define("udp 67").dst
-	prtBootpc = define("udp 68").dst
+	prtBootps = define("udp 67")
+	prtBootpc = define("udp 68")
 
 	permitAnyRule = &groupedRule{
 		src: []someObj{network00},
@@ -91,16 +100,12 @@ func OrderProtocols() {
 	diag.Progress("Arranging protocols")
 
 	var tcp, udp, icmp, proto protoList
-	for _, p := range symTable.rangeProto {
+	for _, p := range symTable.unnamedProto {
 		switch p.proto {
 		case "tcp":
 			tcp.push(p)
 		case "udp":
 			udp.push(p)
-		}
-	}
-	for _, p := range symTable.unnamedProto {
-		switch p.proto {
 		case "icmp":
 			icmp.push(p)
 		case "proto":

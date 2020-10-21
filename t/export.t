@@ -3201,11 +3201,12 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
+protocol:ntp = udp 123:123;
 service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = tcp 80-90, udp 123:123, icmp 0, icmp 3/13, proto 54;
+        prt = tcp 80-90, protocol:ntp, icmp 0, icmp 3/13, proto 54;
 }
 service:s2 = {
  user = network:n2;

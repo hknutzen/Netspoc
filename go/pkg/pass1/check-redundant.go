@@ -85,15 +85,16 @@ func getOrigPrt(rule *expandedRule) *proto {
 		}
 		switch oPrt.proto {
 		case "tcp", "udp":
-			if !isSubRange(prt, oPrt.dst) {
+			if !isSubRange(prt, oPrt) {
 				continue
 			}
 			srcRange := rule.srcRange
-			if (srcRange == nil) != (oPrt.src == nil) {
+			if (srcRange == nil) !=
+				(oPrt.modifiers == nil || oPrt.modifiers.srcRange == nil) {
 				continue
 			} else if srcRange == nil {
 				return oPrt
-			} else if isSubRange(srcRange, oPrt.src) {
+			} else if isSubRange(srcRange, oPrt.modifiers.srcRange) {
 				return oPrt
 			}
 		default:

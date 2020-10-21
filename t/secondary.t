@@ -414,9 +414,12 @@ router:r2 = {
 
 network:n3 = { ip = 10.1.3.0/24; }
 
+protocol:p1 = udp 53:1-65535;
+protocol:p2 = udp 123:1-65535;
+
 service:s1 = {
  user = network:n1;
- permit src = user; dst = network:n3; prt = udp 53:1-65535, udp 123:1-65535;
+ permit src = user; dst = network:n3; prt = protocol:p1, protocol:p2;
 }
 END
 

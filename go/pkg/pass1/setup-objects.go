@@ -68,8 +68,6 @@ type symbolTable struct {
 	protocol map[string]*proto
 	// Unnamed protocols like "tcp 80"
 	unnamedProto map[string]*proto
-	// Port or port range referenced in tcp and udp.
-	rangeProto map[string]*proto
 	// References protocolgroup, protocol
 	protocolgroup map[string]*protoGroup
 	// References network, owner
@@ -107,7 +105,6 @@ func createSymbolTable() *symbolTable {
 	s.service = make(map[string]*service)
 	s.protocol = make(map[string]*proto)
 	s.unnamedProto = make(map[string]*proto)
-	s.rangeProto = make(map[string]*proto)
 	s.protocolgroup = make(map[string]*protoGroup)
 	s.group = make(map[string]*objGroup)
 	s.pathrestriction = make(map[string]*ast.TopList)
@@ -212,17 +209,37 @@ func setupProtocol(a *ast.Protocol, s *symbolTable) {
 	l := strings.Split(v, ", ")
 	def := l[0]
 	mod := l[1:]
-	pSimp := getSimpleProtocol(def, s, a.IPV6, name)
+	pSimp, pSrc := getSimpleProtocolAndSrcPort(def, s, a.IPV6, name)
 	p := *pSimp
 	p.name = name
 	// Link named protocol with corresponding unnamed protocol.
 	p.main = pSimp
 	pName := name[len("protocol:"):]
-	addProtocolModifiers(mod, &p)
+	addProtocolModifiers(mod, &p, pSrc)
 	s.protocol[pName] = &p
 }
 
 func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
+	p, pSrc := getSimpleProtocolAndSrcPort(def, s, v6, ctx)
+	if pSrc != nil {
+		v := pSrc.ports
+		desc := strconv.Itoa(v[0])
+		if v[0] != v[1] {
+			desc += "-" + strconv.Itoa(v[1])
+		}
+		errMsg("Must not use source port '%s' in %s.\n"+
+			" Source port is only valid in named protocol",
+			desc, ctx)
+	}
+	return p
+}
+
+// Return protocol and optional protocol representing source port.
+func getSimpleProtocolAndSrcPort(
+	def string, s *symbolTable, v6 bool, ctx string) (*proto, *proto) {
+
+	var srcP *proto
+
 	p := new(proto)
 	p.name = def
 	l := strings.Split(def, " ")
@@ -235,7 +252,14 @@ func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
 			errMsg("Unexpected details after %s", ctx)
 		}
 	case "tcp", "udp":
-		addPortRanges(nums, p, s, ctx)
+		src, dst := getSrcDstRange(nums, ctx)
+		p.ports = dst
+		if src[0] != 0 {
+			cp := *p
+			srcP = &cp
+			srcP.ports = src
+			srcP = cacheUnnamedProtocol(srcP, s)
+		}
 	case "icmpv6":
 		p.proto = "icmp"
 		addICMPTypeCode(nums, p, ctx)
@@ -254,71 +278,63 @@ func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
 		p.proto = "ip"
 	}
 	p = cacheUnnamedProtocol(p, s)
-	return p
+	return p, srcP
 }
 
-func addPortRanges(nums []string, p *proto, s *symbolTable, ctx string) {
+func getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
+	var src, dst [2]int
 	switch len(nums) {
 	case 0:
-		p.dst = getRangeProto(1, 65535, p, s)
+		dst = [2]int{1, 65535}
 	case 1:
-		p.dst = getRange1(nums[0], p, s, ctx)
+		dst = getRange1(nums[0], ctx)
 	case 3:
 		if nums[1] == "-" {
-			p.dst = getRange(nums[0], nums[2], p, s, ctx)
+			dst = getRange(nums[0], nums[2], ctx)
 		} else if nums[1] == ":" {
-			p.src = getRange1(nums[0], p, s, ctx)
-			p.dst = getRange1(nums[2], p, s, ctx)
+			src = getRange1(nums[0], ctx)
+			dst = getRange1(nums[2], ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
 	case 5:
 		if nums[1] == ":" && nums[3] == "-" {
-			p.src = getRange1(nums[0], p, s, ctx)
-			p.dst = getRange(nums[2], nums[4], p, s, ctx)
+			src = getRange1(nums[0], ctx)
+			dst = getRange(nums[2], nums[4], ctx)
 		} else if nums[1] == "-" && nums[3] == ":" {
-			p.src = getRange(nums[0], nums[2], p, s, ctx)
-			p.dst = getRange1(nums[4], p, s, ctx)
+			src = getRange(nums[0], nums[2], ctx)
+			dst = getRange1(nums[4], ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
 	case 7:
 		if nums[1] == "-" && nums[3] == ":" && nums[5] == "-" {
-			p.src = getRange(nums[0], nums[2], p, s, ctx)
-			p.dst = getRange(nums[4], nums[6], p, s, ctx)
+			src = getRange(nums[0], nums[2], ctx)
+			dst = getRange(nums[4], nums[6], ctx)
 		} else {
 			errMsg("Invalid port range in %s", ctx)
 		}
 	default:
 		errMsg("Invalid port range in %s", ctx)
 	}
-	if p.dst == nil {
-		p.dst = getRangeProto(1, 65535, p, s)
+	if dst[0] == 0 {
+		dst = [2]int{1, 65535}
 	}
+	return src, dst
 }
 
-func getRange(s1, s2 string, p *proto, s *symbolTable, ctx string) *proto {
+func getRange(s1, s2 string, ctx string) [2]int {
 	n1 := getPort(s1, ctx)
 	n2 := getPort(s2, ctx)
 	if n1 > n2 {
 		errMsg("Invalid port range in %s", ctx)
 	}
-	return getRangeProto(n1, n2, p, s)
+	return [2]int{n1, n2}
 }
 
-func getRange1(s1 string, p *proto, s *symbolTable, ctx string) *proto {
+func getRange1(s1 string, ctx string) [2]int {
 	n1 := getPort(s1, ctx)
-	return getRangeProto(n1, n1, p, s)
-}
-
-func getRangeProto(n1, n2 int, p *proto, s *symbolTable) *proto {
-	key := jcode.GenPortName(p.proto, n1, n2)
-	if p, found := s.rangeProto[key]; found {
-		return p
-	}
-	p = &proto{name: key, proto: p.proto, ports: [2]int{n1, n2}}
-	s.rangeProto[key] = p
-	return p
+	return [2]int{n1, n1}
 }
 
 func getPort(s, ctx string) int {
@@ -402,8 +418,8 @@ func getNum256(s, ctx string) int {
 	return num
 }
 
-func addProtocolModifiers(l []string, p *proto) {
-	if len(l) == 0 {
+func addProtocolModifiers(l []string, p *proto, srcP *proto) {
+	if len(l) == 0 && srcP == nil {
 		return
 	}
 	m := new(modifiers)
@@ -426,6 +442,9 @@ func addProtocolModifiers(l []string, p *proto) {
 		default:
 			errMsg("Unknown modifier '%s' in %s", s, p.name)
 		}
+	}
+	if srcP != nil {
+		m.srcRange = srcP
 	}
 	p.modifiers = m
 }
@@ -2850,7 +2869,8 @@ func expandProtocols(
 			name := v[len("protocolgroup:"):]
 			result = append(result, expandProtocolgroup(name, s, v6, ctx)...)
 		} else {
-			p := getSimpleProtocol(v, s, v6, "'"+v+"' of "+ctx)
+			ctx2 := "'" + v + "' of " + ctx
+			p := getSimpleProtocol(v, s, v6, ctx2)
 			result.push(p)
 		}
 	}
@@ -2895,18 +2915,8 @@ func genProtocolName(p *proto) string {
 	case "ip":
 		return pr
 	case "tcp", "udp":
-		n := p.dst.ports
-		result := jcode.GenPortName(pr, n[0], n[1])
-		if s := p.src; s != nil {
-			n := s.ports
-			sName := jcode.GenPortName(pr, n[0], n[1])
-			if result == pr {
-				result = sName + ":"
-			} else {
-				result = sName + ":" + result[len(pr)+1:]
-			}
-		}
-		return result
+		n := p.ports
+		return jcode.GenPortName(pr, n[0], n[1])
 	case "icmp":
 		result := pr
 		if p.icmpType != -1 {
@@ -2967,24 +2977,25 @@ func getGeneralPermit(
 
 	l := getProtocolList(a, s, v6, ctx)
 	prtTCP := s.unnamedProto["tcp"]
-	for i, p := range l {
+	for _, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
 		// genReverseRules doesn't handle generally permitted protocols.
 		var reason stringList
-		if p.modifiers != nil {
-			reason.push("modifiers")
+		srcRange := false
+		if m := p.modifiers; m != nil {
+			if m.srcRange == nil {
+				reason.push("modifiers")
+			} else {
+				srcRange = true
+			}
 		}
-		if p.src != nil || p.dst != nil && p.dst != prtTCP.dst {
+		if srcRange || p.ports[0] != 0 && p != prtTCP && p.main != prtTCP {
 			reason.push("ports")
 		}
 		if reason != nil {
 			errMsg("Must not use '%s' with %s in general_permit of %s",
 				p.name, strings.Join(reason, " or "), ctx)
-		}
-		// Ony use destination port.
-		if d := p.dst; d != nil {
-			l[i] = d
 		}
 	}
 	// Sort protocols by name, so we can compare value lists of

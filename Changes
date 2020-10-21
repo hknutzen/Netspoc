@@ -1,9 +1,13 @@
 {{$NEXT}}
 
- - Fixed 'add-to-group': Don't print wrong comment after newly inserted element.
+ - Fixed 'add-to-group':
+   Don't print comment from first line of file after newly inserted element.
  - Fixed intermediate code:
    - Version number is written again.
    - Missing prefix length /32 is printed for filter_only.
+ - Language change:
+   Source port for TCP and UDP is no longer applicable unnamed protocol
+   but only to named protocol now.
 
 6.020     2020-10-12 12:46:49+02:00 Europe/Berlin
 

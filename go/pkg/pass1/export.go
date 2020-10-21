@@ -279,15 +279,17 @@ func protoDescr(l []*proto) stringList {
 				}
 			}
 			var sport string
-			if srcRange := protocol.src; srcRange != nil {
-				sport = portCode(srcRange)
+			if m := protocol.modifiers; m != nil {
+				if srcRange := m.srcRange; srcRange != nil {
+					sport = portCode(srcRange)
+				}
 			}
-			dport := portCode(protocol.dst)
+			dport := portCode(protocol)
 			if sport != "" {
 				desc += " " + sport + ":" + dport
 			} else if dport != "" {
 				desc += " " + dport
-				num = protocol.dst.ports[0]
+				num = protocol.ports[0]
 			}
 		case "icmp":
 			if t := protocol.icmpType; t != -1 {

@@ -197,15 +197,15 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 		}
 		rule := template
 		rule.serviceRule = new(serviceRule)
-		rule.srcRange = prtIke.src
-		rule.prt = []*proto{prtIke.dst}
+		rule.srcRange = prtIke.modifiers.srcRange
+		rule.prt = []*proto{prtIke.main}
 		rules.push(&rule)
 	}
 	if natTraversal != "" {
 		rule := template
 		rule.serviceRule = new(serviceRule)
-		rule.srcRange = prtNatt.src
-		rule.prt = []*proto{prtNatt.dst}
+		rule.srcRange = prtNatt.modifiers.srcRange
+		rule.prt = []*proto{prtNatt.main}
 		rules.push(&rule)
 	}
 	return rules

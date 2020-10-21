@@ -28,20 +28,22 @@ func splitProtocols(l protoList) []interface{} {
 			continue
 		}
 
-		// Collect split srcRange / dstRange pairs.
-		dstRange := p.dst
-		srcRange := p.src
+		main := p.main
+		if main == nil {
+			main = p
+		}
 
+		// Collect split srcRange / dstRange pairs.
 		// Remember original protocol as third value
 		// - if srcRange is given or
-		// - if original protocol has modifiers or
-		// - if dstRange is shared between different protocols.
+		// - if original protocol has modifiers.
 		// Cache list of triples at original protocol for re-use.
-		if srcRange != nil || p.modifiers != nil || dstRange.name != p.name {
+		if p.modifiers != nil {
+			srcRange := p.modifiers.srcRange
 			cached := p.srcDstRangeList
 			if cached == nil {
 				for _, s := range expandSplitProtocol(srcRange) {
-					for _, d := range expandSplitProtocol(dstRange) {
+					for _, d := range expandSplitProtocol(main) {
 						cached = append(cached, &complexProto{src: s, dst: d, orig: p})
 					}
 				}
@@ -51,7 +53,7 @@ func splitProtocols(l protoList) []interface{} {
 				result = append(result, c)
 			}
 		} else {
-			for _, dstSplit := range expandSplitProtocol(dstRange) {
+			for _, dstSplit := range expandSplitProtocol(main) {
 				result = append(result, dstSplit)
 			}
 		}

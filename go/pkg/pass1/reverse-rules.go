@@ -110,7 +110,7 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 				if rule.srcRange != nil {
 					newPrt = rule.srcRange
 				} else {
-					newPrt = prtUDP.dst
+					newPrt = prtUDP
 				}
 			default: // proto == "ip"
 				newPrt = prt

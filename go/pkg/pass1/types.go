@@ -537,6 +537,7 @@ type modifiers struct {
 	dstNet               bool
 	overlaps             bool
 	noCheckSupernetRules bool
+	srcRange             *proto
 }
 
 type proto struct {
@@ -546,8 +547,6 @@ type proto struct {
 	icmpType        int
 	icmpCode        int
 	modifiers       *modifiers
-	src             *proto
-	dst             *proto
 	main            *proto
 	split           *[2]*proto
 	srcDstRangeList []*complexProto
