@@ -3,7 +3,7 @@ package main
 /*
 Pass 2 of Netspoc - A Network Security Policy Compiler
 
-(C) 2019 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2020 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -64,7 +64,10 @@ type name2ipNet map[string]*ipNet
 type name2Proto map[string]*proto
 
 func createIPObj(ipNetName string) *ipNet {
-	_, net, _ := net.ParseCIDR(ipNetName)
+	_, net, e := net.ParseCIDR(ipNetName)
+	if e != nil {
+		abort.Msg("%s", e)
+	}
 	return &ipNet{IPNet: net, name: ipNetName}
 }
 
@@ -80,29 +83,51 @@ func getIPObj(ip net.IP, mask net.IPMask, ipNet2obj name2ipNet) *ipNet {
 }
 
 func createPrtObj(descr string) *proto {
-	splice := strings.Split(descr, " ")
-	protocol := splice[0]
-	prt := proto{protocol: protocol, name: descr}
-
+	var protocol string
+	detail := ""
+	if i := strings.Index(descr, " "); i == -1 {
+		protocol = descr
+	} else {
+		protocol = descr[:i]
+		detail = descr[i+1:]
+	}
+	prt := proto{name: descr, protocol: protocol}
 	switch protocol {
 	case "tcp", "udp":
-		p1, _ := strconv.Atoi(splice[1])
-		p2, _ := strconv.Atoi(splice[2])
-		prt.ports = [2]int{p1, p2}
-		if len(splice) > 3 {
-			prt.established = true
-		}
-	case "icmp":
-		if len(splice) > 1 {
-			prt.icmpType, _ = strconv.Atoi(splice[1])
-			if len(splice) > 2 {
-				prt.icmpCode, _ = strconv.Atoi(splice[2])
-			} else {
-				prt.icmpCode = -1
+		// tcp, tcp 80, tcp 80-90, tcp established
+		var p1, p2 int
+		i := strings.Index(detail, "-")
+		if i == -1 {
+			switch detail {
+			case "established":
+				prt.established = true
+				fallthrough
+			case "":
+				p1, p2 = 1, 65535
+			default:
+				p1, _ = strconv.Atoi(detail)
+				p2 = p1
 			}
 		} else {
-			prt.icmpType = -1
+			p1, _ = strconv.Atoi(detail[:i])
+			p2, _ = strconv.Atoi(detail[i+1:])
 		}
+		prt.ports = [2]int{p1, p2}
+	case "icmp":
+		// icmp, icmp 3, icmp 3/13
+		if detail == "" {
+			prt.icmpType = -1
+		} else {
+			if i := strings.Index(detail, "/"); i == -1 {
+				prt.icmpType, _ = strconv.Atoi(detail)
+				prt.icmpCode = -1
+			} else {
+				prt.icmpType, _ = strconv.Atoi(detail[:i])
+				prt.icmpCode, _ = strconv.Atoi(detail[i+1:])
+			}
+		}
+	case "proto":
+		prt.protocol = detail
 	}
 	return &prt
 }
@@ -207,8 +232,8 @@ func markSupernetsOfNeedProtect(needProtect []*ipNet) {
 
 // Needed for model=Linux.
 func addTCPUDPIcmp(prt2obj name2Proto) {
-	_ = getPrtObj("tcp 1 65535", prt2obj)
-	_ = getPrtObj("udp 1 65535", prt2obj)
+	_ = getPrtObj("tcp", prt2obj)
+	_ = getPrtObj("udp", prt2obj)
 	_ = getPrtObj("icmp", prt2obj)
 }
 
@@ -341,8 +366,8 @@ func setupPrtRelation(prt2obj name2Proto) {
 	orderRanges("tcp", prt2obj, prtIP)
 	orderRanges("udp", prt2obj, prtIP)
 
-	if tcpEstabl, ok := prt2obj["tcp 1 65535 established"]; ok {
-		up, ok := prt2obj["tcp 1 65535"]
+	if tcpEstabl, ok := prt2obj["tcp established"]; ok {
+		up, ok := prt2obj["tcp"]
 		if !ok {
 			up = prtIP
 		}
@@ -601,7 +626,7 @@ func joinRanges(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 
 				// Add extended protocol.
 				b1 = a1
-				name := proto + " " + strconv.Itoa(a1) + " " + strconv.Itoa(b2)
+				name := jcode.GenPortName(proto, a1, b2)
 				ruleB.prt = getPrtObj(name, prt2obj)
 
 				// Mark other rule as deleted.
@@ -655,8 +680,8 @@ type aclInfo struct {
 // - if the device is accessed over an IPSec tunnel
 // - and we change the ACL incrementally.
 func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRules {
-	prtEsp := prt2obj["50"]
-	prtAh := prt2obj["51"]
+	prtEsp := prt2obj["proto 50"]
+	prtAh := prt2obj["proto 51"]
 	if prtEsp == nil && prtAh == nil && !hasLog {
 		return rules
 	}
@@ -1688,8 +1713,8 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 	prt2obj := aclInfo.prt2obj
 	prtIP := prt2obj["ip"]
 	prtIcmp := prt2obj["icmp"]
-	prtTCP := prt2obj["tcp 1 65535"]
-	prtUDP := prt2obj["udp 1 65535"]
+	prtTCP := prt2obj["tcp"]
+	prtUDP := prt2obj["udp"]
 	network00 := aclInfo.network00
 
 	// Specify protocols tcp, udp, icmp in
@@ -2122,8 +2147,8 @@ func printChains(fd *os.File, routerData *routerData) {
 	prt2obj := aclInfo.prt2obj
 	prtIP := prt2obj["ip"]
 	prtIcmp := prt2obj["icmp"]
-	prtTCP := prt2obj["tcp 1 65535"]
-	prtUDP := prt2obj["udp 1 65535"]
+	prtTCP := prt2obj["tcp"]
+	prtUDP := prt2obj["udp"]
 
 	// Declare chain names.
 	for _, chain := range chains {

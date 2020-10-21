@@ -195,7 +195,6 @@ func (a *netList) push(e *network) {
 type netObj struct {
 	ipObj
 	usedObj
-	bindNat []string
 	nat     map[string]net.IP
 	network *network
 	up      someObj
@@ -331,6 +330,7 @@ type routerIntf struct {
 	netObj
 	pathStoreData
 	router          *router
+	bindNat         []string
 	crypto          *crypto
 	dhcpClient      bool
 	dhcpServer      bool
@@ -537,6 +537,7 @@ type modifiers struct {
 	dstNet               bool
 	overlaps             bool
 	noCheckSupernetRules bool
+	srcRange             *proto
 }
 
 type proto struct {
@@ -546,8 +547,6 @@ type proto struct {
 	icmpType        int
 	icmpCode        int
 	modifiers       *modifiers
-	src             *proto
-	dst             *proto
 	main            *proto
 	split           *[2]*proto
 	srcDstRangeList []*complexProto
@@ -556,8 +555,6 @@ type proto struct {
 	statelessICMP   bool
 	up              *proto
 	localUp         *proto
-	hasNeighbor     bool
-	printed         string
 }
 type protoList []*proto
 
@@ -577,14 +574,6 @@ type protoGroup struct {
 	list      stringList
 	elements  protoList
 	recursive bool
-}
-
-type protoLookup struct {
-	ip    *proto
-	icmp  map[string]*proto
-	tcp   map[string]*proto
-	udp   map[string]*proto
-	proto map[string]*proto
 }
 
 type objGroup struct {

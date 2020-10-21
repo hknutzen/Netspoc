@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"io/ioutil"
@@ -12,7 +11,7 @@ import (
 
 // Copy raw configuration files of devices into outDir for devices
 // known from topology.
-func copyRaw1(rawDir, outDir, ignoreDir string) {
+func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	ipV6 := strings.HasSuffix(outDir, "/ipv6")
 	deviceNames := make(map[string]bool)
 	for _, r := range append(managedRouters, routingOnlyRouters...) {
@@ -46,28 +45,28 @@ func copyRaw1(rawDir, outDir, ignoreDir string) {
 		cmd := exec.Command("cp", "-f", rawPath, dest)
 		err := cmd.Run()
 		if err != nil {
-			abort.Msg("Can't %v", err)
+			c.abort("Can't %v", err)
 		}
 	}
 }
 
-func CopyRaw(inPath, outDir string) {
+func (c *spoc) copyRaw(inPath, outDir string) {
 	rawDir := filepath.Join(inPath, "raw")
 	if !fileop.IsDir(rawDir) {
 		return
 	}
 	outV6 := filepath.Join(outDir, "ipv6")
 	if conf.Conf.IPV6 {
-		copyRaw1(rawDir, outV6, "ipv4")
+		c.copyRaw1(rawDir, outV6, "ipv4")
 		subDir := filepath.Join(rawDir, "ipv4")
 		if fileop.IsDir(subDir) {
-			copyRaw1(subDir, outDir, "")
+			c.copyRaw1(subDir, outDir, "")
 		}
 	} else {
-		copyRaw1(rawDir, outDir, "ipv6")
+		c.copyRaw1(rawDir, outDir, "ipv6")
 		subDir := filepath.Join(rawDir, "ipv6")
 		if fileop.IsDir(subDir) {
-			copyRaw1(subDir, outV6, "")
+			c.copyRaw1(subDir, outV6, "")
 		}
 	}
 }

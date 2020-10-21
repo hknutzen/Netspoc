@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net"
@@ -17,8 +15,6 @@ import (
 	"strings"
 	"unicode"
 )
-
-var program string
 
 func getIntf(router *router) []*routerIntf {
 	if origRouter := router.origRouter; origRouter != nil {
@@ -1874,35 +1870,6 @@ func printRouterIntf(fh *os.File, router *router) {
 	fmt.Fprintln(fh)
 }
 
-func printPrt(prt *proto) string {
-	// Use cached result.
-	if p := prt.printed; p != "" {
-		return p
-	}
-	proto := prt.proto
-	result := proto
-
-	switch proto {
-	case "tcp", "udp":
-		for _, port := range prt.ports {
-			result += " " + strconv.Itoa(port)
-		}
-		if prt.established {
-			result += " established"
-		}
-	case "icmp", "icmpv6":
-		if t := prt.icmpType; t != -1 {
-			result += " " + strconv.Itoa(t)
-			if c := prt.icmpCode; c != -1 {
-				result += " " + strconv.Itoa(c)
-			}
-		}
-	}
-	// Cache result.
-	prt.printed = result
-	return result
-}
-
 func isHostMask(m net.IPMask) bool {
 	prefix, size := m.Size()
 	return prefix == size
@@ -2167,11 +2134,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 					newRule.Dst = getCachedAddrList(rule.dst, dstAddrCache)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
-						prtList[i] = printPrt(p)
+						prtList[i] = p.name
 					}
 					newRule.Prt = prtList
 					if srcRange := rule.srcRange; srcRange != nil {
-						newRule.SrcRange = printPrt(srcRange)
+						newRule.SrcRange = srcRange.name
 					}
 				}
 				return jRules
@@ -2233,7 +2200,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	if filterOnly := router.filterOnly; filterOnly != nil {
 		list := make([]string, len(filterOnly))
 		for i, f := range filterOnly {
-			list[i] = prefixCode(f)
+			list[i] = fullPrefixCode(f)
 		}
 		result.FilterOnly = list
 	}
@@ -2254,11 +2221,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 
 // Make output directory available.
 // Move old content into subdirectory ".prev/" for reuse during pass 2.
-func checkOutputDir(dir string) {
+func (c *spoc) checkOutputDir(dir string) {
 	if !fileop.IsDir(dir) {
 		err := os.Mkdir(dir, 0777)
 		if err != nil {
-			abort.Msg("Can't %v", err)
+			c.abort("Can't %v", err)
 		}
 	} else {
 		os.Remove(dir + "/.devlist")
@@ -2271,21 +2238,21 @@ func checkOutputDir(dir string) {
 					v6files := fileop.Readdirnames(dir + "/ipv6")
 					count += len(v6files) - 1
 				}
-				info("Saving %d old files of '%s' to subdirectory '.prev'",
+				c.info("Saving %d old files of '%s' to subdirectory '.prev'",
 					count, dir)
 
 				// Try to remove file or symlink with same name.
 				os.Remove(prev)
 				err := os.Mkdir(prev, 0777)
 				if err != nil {
-					abort.Msg("Can't %v", err)
+					c.abort("Can't %v", err)
 				}
 				for i, name := range oldFiles {
 					oldFiles[i] = dir + "/" + name
 				}
 				cmd := exec.Command("mv", append(oldFiles, prev)...)
 				if err = cmd.Run(); err != nil {
-					abort.Msg("Can't mv old files to prev: %v", err)
+					c.abort("Can't mv old files to prev: %v", err)
 				}
 			}
 		}
@@ -2293,8 +2260,8 @@ func checkOutputDir(dir string) {
 }
 
 // Print generated code for each managed router.
-func printCode(dir string) {
-	diag.Progress("Printing intermediate code")
+func (c *spoc) printCode1(dir string) {
+	c.progress("Printing intermediate code")
 
 	var toPass2 *os.File
 	if conf.Conf.Pipe {
@@ -2304,7 +2271,7 @@ func printCode(dir string) {
 		var err error
 		toPass2, err = os.Create(devlist)
 		if err != nil {
-			abort.Msg("Can't %v", err)
+			c.abort("Can't %v", err)
 		}
 	}
 
@@ -2330,7 +2297,7 @@ func printCode(dir string) {
 					checkedV6Dir = true
 					err := os.Mkdir(v6dir, 0777)
 					if err != nil {
-						abort.Msg("Can't %v", err)
+						c.abort("Can't %v", err)
 					}
 				}
 			}
@@ -2339,7 +2306,7 @@ func printCode(dir string) {
 			configFile := dir + "/" + path + ".config"
 			fd, err := os.Create(configFile)
 			if err != nil {
-				abort.Msg("Can't %v", err)
+				c.abort("Can't %v", err)
 			}
 			model := r.model
 			commentChar := model.commentChar
@@ -2391,7 +2358,7 @@ func printCode(dir string) {
 			header("END", deviceName)
 			fmt.Fprintln(fd)
 			if err := fd.Close(); err != nil {
-				abort.Msg("Can't %v", err)
+				c.abort("Can't %v", err)
 			}
 
 			// Print ACLs in machine independent format into separate file.
@@ -2399,11 +2366,11 @@ func printCode(dir string) {
 			aclFile := dir + "/" + path + ".rules"
 			aclFd, err := os.Create(aclFile)
 			if err != nil {
-				abort.Msg("Can't %v", err)
+				c.abort("Can't %v", err)
 			}
 			printAcls(aclFd, vrfMembers)
 			if err := aclFd.Close(); err != nil {
-				abort.Msg("Can't %v", err)
+				c.abort("Can't %v", err)
 			}
 
 			// Send device name to pass 2, showing that processing for this
@@ -2415,7 +2382,7 @@ func printCode(dir string) {
 	printRouter(routingOnlyRouters)
 }
 
-func PrintCode(dir string) {
-	checkOutputDir(dir)
-	printCode(dir)
+func (c *spoc) printCode(dir string) {
+	c.checkOutputDir(dir)
+	c.printCode1(dir)
 }

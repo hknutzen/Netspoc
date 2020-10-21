@@ -169,9 +169,8 @@ func classifyProtocols(l []interface{}) (protoList, []*modifiedProto) {
 	var complex []*modifiedProto
 	for _, p := range l {
 
-		// If p is duplicate of an identical protocol, use the
-		// main protocol, but remember the original one to retrieve
-		// .modifiers.
+		// Use the main protocol, but remember the original one to
+		// retrieve .modifiers.
 		var prt *proto
 		var srcRange *proto
 		var m *modifiers

@@ -68,19 +68,22 @@ func checkSubnets(n, subnet *network, context string) {
 		return
 	}
 	subIp, subMask := subnet.ip, subnet.mask
-	check := func(ip1, ip2 net.IP, object netObj) {
+	check := func(ip1, ip2 net.IP, obj groupObj) {
 		if matchIp(ip1, subIp, subMask) ||
 			ip2 != nil &&
 				(matchIp(ip2, subIp, subMask) ||
-					bytes.Compare(ip1, subIp) != -1 && bytes.Compare(subIp, ip2) != -1) {
+					bytes.Compare(ip1, subIp) != -1 &&
+						bytes.Compare(subIp, ip2) != -1) {
 
 			// NAT to an interface address (masquerading) is allowed.
-			if tags := object.bindNat; tags != nil {
-				if tag2 := subnet.natTag; tag2 != "" {
-					for _, tag := range tags {
-						if tag == tag2 &&
-							object.ip.Equal(subnet.ip) && isHostMask(subnet.mask) {
-							return
+			if intf, ok := obj.(*routerIntf); ok {
+				if tags := intf.bindNat; tags != nil {
+					if tag2 := subnet.natTag; tag2 != "" {
+						for _, tag := range tags {
+							if tag == tag2 &&
+								intf.ip.Equal(subnet.ip) && isHostMask(subnet.mask) {
+								return
+							}
 						}
 					}
 				}
@@ -89,7 +92,7 @@ func checkSubnets(n, subnet *network, context string) {
 			if context != "" {
 				where += " in " + context
 			}
-			warnMsg("IP of %s overlaps with subnet %s", object.name, where)
+			warnMsg("IP of %s overlaps with subnet %s", obj, where)
 		}
 	}
 	for _, intf := range n.interfaces {
@@ -97,14 +100,14 @@ func checkSubnets(n, subnet *network, context string) {
 			intf.bridged {
 			continue
 		}
-		check(intf.ip, nil, intf.netObj)
+		check(intf.ip, nil, intf)
 	}
 	for _, host := range n.hosts {
 		if ip := host.ip; ip != nil {
-			check(ip, nil, host.netObj)
+			check(ip, nil, host)
 		} else {
 			r := host.ipRange
-			check(r[0], r[1], host.netObj)
+			check(r[0], r[1], host)
 		}
 	}
 }
@@ -307,7 +310,7 @@ func natToLoopbackOk(loopbackNetwork, natNetwork *network) bool {
 	return allDeviceOk == deviceCount
 }
 
-func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
+func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	// List of all networks and NAT networks having an IP address.
 	// We need this in deterministic order.
@@ -470,7 +473,7 @@ func findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					error = true
 				}
 				if error {
-					errMsg("%s and %s have identical IP/mask\n"+
+					c.err("%s and %s have identical IP/mask\n"+
 						" in %s",
 						natName(natNetwork), natName(natOther), domain.name)
 				}
@@ -817,8 +820,8 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 // 1. If set, this prevents secondary optimization.
 // 2. If rule has src or dst with attribute {has_other_subnet},
 //    it is later checked for missing supernets.
-func FindSubnetsInNatDomain(domains []*natDomain) {
-	diag.Progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
+func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
+	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
 
 	// Mapping from NAT domain to ID of NAT partition.
 	dom2Part := findNatPartitions(domains)
@@ -842,6 +845,6 @@ func FindSubnetsInNatDomain(domains []*natDomain) {
 	}
 	sort.Ints(partList)
 	for _, part := range partList {
-		findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
+		c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
 	}
 }

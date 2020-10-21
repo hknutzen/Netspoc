@@ -119,17 +119,19 @@ router:r1 =  {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 
+protocol:p1 = tcp 4080-4090:1-1023;
+protocol:p2 = tcp 1-1023:4080-4090;
+protocol:p3 = tcp 1024-65535:4080-4085;
+protocol:p4 = udp 1024-65535:1024-65535;
+protocol:p5 = udp 123:123;
+protocol:p6 = udp 1-511:1 - 65535;
+
 service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = tcp 4080-4090:1-1023,
-              tcp 1-1023:4080-4090,
-              tcp 1024-65535:4080-4085,
-              udp 1024-65535:1024-65535,
-              udp 123:123,
-        ;
- permit src = network:n2; dst = user; prt = udp 1-511:1 - 65535;
+        prt = protocol:p1, protocol:p2, protocol:p3, protocol:p4, protocol:p5;
+ permit src = network:n2; dst = user; prt = protocol:p6;
 }
 END
 

@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -725,8 +724,8 @@ func generateRoutingInfo(tree routingTree) {
 
 //############################################################################
 // Purpose  : Generate and store routing information for all managed interfaces.
-func FindActiveRoutes() {
-	diag.Progress("Finding routes")
+func (c *spoc) findActiveRoutes() {
+	c.progress("Finding routes")
 
 	// Mark interfaces of unmanaged routers such that no routes are collected.
 	for _, router := range getIpv4Ipv6Routers() {
@@ -748,7 +747,7 @@ func FindActiveRoutes() {
 	// Generate routing info for every pseudo rule and store it in interfaces.
 	generateRoutingInfo(tree)
 
-	checkAndConvertRoutes()
+	c.checkAndConvertRoutes()
 }
 
 // Parameters:
@@ -783,7 +782,7 @@ func fixBridgedHops(hop *routerIntf, network *network) intfList {
 	return result
 }
 
-func checkAndConvertRoutes() {
+func (c *spoc) checkAndConvertRoutes() {
 
 	// Fix routes where bridged interface without IP address is used as
 	// next hop.
@@ -855,7 +854,7 @@ func checkAndConvertRoutes() {
 					if !realPeer.short && !realPeer.negotiated {
 						hops.push(realPeer)
 					} else {
-						errMsg("%s used to reach software clients\n"+
+						c.err("%s used to reach software clients\n"+
 							" must not be directly connected to %s\n"+
 							" Connect it to some network behind next hop",
 							realPeer.name, realIntf.name)
@@ -923,7 +922,7 @@ func checkAndConvertRoutes() {
 					// for the encrypted traffic which is allowed
 					// by genTunnelRules (even for negotiated interface).
 					count := len(hops)
-					errMsg("Can't determine next hop to reach %s"+
+					c.err("Can't determine next hop to reach %s"+
 						" while moving routes\n"+
 						" of %s to %s.\n"+
 						" Exactly one route is needed,"+
@@ -1092,7 +1091,7 @@ func checkAndConvertRoutes() {
 				// Show error messages of both tests above.
 				sort.Strings(errors)
 				for _, e := range errors {
-					errMsg(e)
+					c.err(e)
 				}
 			}
 		}

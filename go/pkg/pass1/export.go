@@ -279,15 +279,17 @@ func protoDescr(l []*proto) stringList {
 				}
 			}
 			var sport string
-			if srcRange := protocol.src; srcRange != nil {
-				sport = portCode(srcRange)
+			if m := protocol.modifiers; m != nil {
+				if srcRange := m.srcRange; srcRange != nil {
+					sport = portCode(srcRange)
+				}
 			}
-			dport := portCode(protocol.dst)
+			dport := portCode(protocol)
 			if sport != "" {
 				desc += " " + sport + ":" + dport
 			} else if dport != "" {
 				desc += " " + dport
-				num = protocol.dst.ports[0]
+				num = protocol.ports[0]
 			}
 		case "icmp":
 			if t := protocol.icmpType; t != -1 {
@@ -1428,6 +1430,7 @@ func copyPolicyFile(inPath, outDir string) {
 }
 
 func Export(inDir, outDir string) {
+	c := startSpoc()
 	ReadNetspoc(inDir)
 	MarkDisabled()
 	SetZone()
@@ -1439,7 +1442,7 @@ func Export(inDir, outDir string) {
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := normalizeServicesForExport()
 	propagateOwners()
-	FindSubnetsInNatDomain(natDomains)
+	c.findSubnetsInNatDomain(natDomains)
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
 	setupServiceInfo(expSvcList, pInfo, oInfo)

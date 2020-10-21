@@ -1,11 +1,9 @@
 package pass1
 
-import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-)
+import ()
 
-func RemoveSimpleDuplicateRules() {
-	diag.Progress("Removing simple duplicate rules")
+func (c *spoc) removeSimpleDuplicateRules() {
+	c.progress("Removing simple duplicate rules")
 
 	// Change slice in place.
 	process := func(rules ruleList) ruleList {
@@ -25,7 +23,7 @@ func RemoveSimpleDuplicateRules() {
 				d := r.dst[0]
 				p := r.prt[0]
 				if seen[key{s, d, p}] {
-					diag.Msg("Removed duplicate " + r.print())
+					c.diag("Removed duplicate " + r.print())
 					continue
 				}
 				seen[key{s, d, p}] = true

@@ -3,8 +3,6 @@ package pass1
 import ()
 
 var (
-	version string
-
 	ErrorCounter int
 
 	prtAh               *proto
@@ -36,7 +34,6 @@ var (
 	//routers6 map[string]*router
 	services map[string]*service
 
-	prtMap  *protoLookup
 	pRules  pathRules
 	sRules  = new(serviceRules)
 	userObj userInfo

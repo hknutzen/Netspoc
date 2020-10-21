@@ -7,9 +7,6 @@ Or use small function to get list of cluster elements.
 
 Inefficient delElement + delTuple in path-walk.go
 
-Move bindNat from netObj to routerIntf, since we no longer support
-managed host.
-
 Message is misleading:
  err_msg("Networks need to have ID hosts because",
     " $hub_router->{name} has attribute 'do_auth':\n",
@@ -21,3 +18,8 @@ This is already available in .hub and .spoke.
 This check doesn't work reliably:
 Error: Must use 'icmp' only with IPv4 in protocol:ICMP
 because protocol can be referenced from IPv4 and IPv6 part.
+
+Combine intf.unnumbered, intf.negotiated, intf.tunnel, intf.short, intf.bridged
+into one single attribute with enumerated value.
+
+Define type netOrRouter interface{}  more restrictive.

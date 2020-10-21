@@ -117,6 +117,7 @@ go/pkg/pass1/set-path.go
 go/pkg/pass1/set-policy-distribution-ip.go
 go/pkg/pass1/set-zone.go
 go/pkg/pass1/setup-objects.go
+go/pkg/pass1/spoc.go
 go/pkg/pass1/types.go
 go/pkg/printer/comment.go
 go/pkg/printer/printer.go

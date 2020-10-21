@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
@@ -78,8 +77,10 @@ func disableSecondOptForDynHostNet(n *network, tag string, p intfPairs) {
 // 1. Check for invalid rules accessing hidden objects.
 // 2. Check host rule with dynamic NAT.
 // 3. Check for partially applied hidden or dynamic NAT on path.
-func CheckDynamicNatRules(natDoms []*natDomain, natTag2natType map[string]string) {
-	diag.Progress("Checking and marking rules with hidden or dynamic NAT")
+func (c *spoc) checkDynamicNatRules(
+	natDoms []*natDomain, natTag2natType map[string]string) {
+
+	c.progress("Checking and marking rules with hidden or dynamic NAT")
 
 	// 1. Collect hidden or dynamic NAT tags that
 	//    a) are active inside natSet (i.e. NAT domain),
@@ -257,7 +258,7 @@ func CheckDynamicNatRules(natDoms []*natDomain, natTag2natType map[string]string
 				if natNet.hidden {
 					if !hiddenSeen {
 						hiddenSeen = true
-						errMsg("%s is hidden by nat:%s in rule\n "+showRule(),
+						c.err("%s is hidden by nat:%s in rule\n "+showRule(),
 							obj.String(), natTag)
 					}
 					return
@@ -324,7 +325,7 @@ func CheckDynamicNatRules(natDoms []*natDomain, natTag2natType map[string]string
 						if reversed2 {
 							ruleTxt = "reversed rule for"
 						}
-						errMsg("%s needs static translation for nat:%s at %s"+
+						c.err("%s needs static translation for nat:%s at %s"+
 							" to be valid in %s\n "+showRule(),
 							obj.String(), natTag, r.name, ruleTxt)
 					}
@@ -388,7 +389,7 @@ func CheckDynamicNatRules(natDoms []*natDomain, natTag2natType map[string]string
 				if reversed {
 					revTxt = " reversed"
 				}
-				errMsg("Must not apply %s NAT '%s' on path\n"+
+				c.err("Must not apply %s NAT '%s' on path\n"+
 					" of%s rule\n"+
 					" %s\n"+
 					" NAT '%s' is active at\n"+

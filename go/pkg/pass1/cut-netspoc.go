@@ -257,6 +257,7 @@ func markRulesPath(p pathRules) {
 }
 
 func CutNetspoc(path string, names []string, keepOwner bool) {
+	c := startSpoc()
 	toplevel := parseFiles(path)
 
 	if len(names) > 0 {
@@ -300,7 +301,7 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 	FindSubnetsInZone()
 	NormalizeServices()
 	permitRules, denyRules := ConvertHostsInRules()
-	GroupPathRules(permitRules, denyRules)
+	c.groupPathRules(permitRules, denyRules)
 
 	// Collect objects referenced from rules.
 	// Use serviceRules here, to get also objects from unenforceable rules.
@@ -533,7 +534,8 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 	markRulesPath(pRules)
 
 	// Call this after topology has been marked.
-	ExpandCrypto()
+	c.expandCrypto()
+	c.finish()
 
 	// 1. call to mark unmanaged parts of topology.
 	// Needed to mark unmanaged crypto routers.

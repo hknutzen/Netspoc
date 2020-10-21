@@ -1,5 +1,9 @@
 package jcode
 
+import (
+	"strconv"
+)
+
 // JSON format of intermediate code written by pass1 and read by pass2.
 type RouterData struct {
 	Model         string     `json:"model"`
@@ -31,4 +35,17 @@ type Rule struct {
 	SrcRange     string   `json:"src_range,omitempty"`
 	Log          string   `json:"log,omitempty"`
 	OptSecondary int      `json:"opt_secondary,omitempty"`
+}
+
+// GenPortName is used to create name of protocol with ports printed
+// in Rule.Prt .
+// This must be identical in pass1 and pass2.
+func GenPortName(proto string, v1, v2 int) string {
+	if v1 == v2 {
+		return proto + " " + strconv.Itoa(v1)
+	} else if v1 == 1 && v2 == 65535 {
+		return proto
+	} else {
+		return proto + " " + strconv.Itoa(v1) + "-" + strconv.Itoa(v2)
+	}
 }
