@@ -157,8 +157,8 @@ func SpocMain() {
 	NormalizeServices()
 	AbortOnError()
 
-	CheckServiceOwner()
-	pRules, dRules := ConvertHostsInRules()
+	c.checkServiceOwner()
+	pRules, dRules := c.convertHostsInRules()
 	c.groupPathRules(pRules, dRules)
 	c.findSubnetsInNatDomain(NATDomains)
 	c.checkUnstableNatRules()

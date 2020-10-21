@@ -221,6 +221,7 @@ func PrintGroup(path, group, natNet string,
 		showName = true
 	}
 	parsed := parser.ParseUnion([]byte(group))
+	c := startSpoc()
 	ReadNetspoc(path)
 	MarkDisabled()
 	SetZone()
@@ -280,7 +281,7 @@ func PrintGroup(path, group, natNet string,
 	}
 
 	if showOwner || showAdmins {
-		propagateOwners()
+		c.propagateOwners()
 	}
 
 	// Expand group definition.
@@ -293,6 +294,7 @@ func PrintGroup(path, group, natNet string,
 		ErrorCounter = 0
 		elements = expandGroup(parsed, "print-group", !ipVx, true)
 	}
+	c.finish()
 
 	if showUnused {
 		j := 0

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"strings"
 )
@@ -88,19 +87,19 @@ func ipNATEqual(n1, n2 map[string]net.IP) bool {
 	return true
 }
 
-func checkHostCompatibility(obj, other *netObj) {
+func (c *spoc) checkHostCompatibility(obj, other *netObj) {
 	if !ipNATEqual(obj.nat, other.nat) {
-		errMsg("Inconsistent NAT definition for %s and %s",
+		c.err("Inconsistent NAT definition for %s and %s",
 			other.name, obj.name)
 	}
 	if obj.owner != other.owner {
-		warnMsg("Inconsistent owner definition for %s and %s",
+		c.warn("Inconsistent owner definition for %s and %s",
 			other.name, obj.name)
 	}
 }
 
-func convertHosts() {
-	diag.Progress("Converting hosts to subnets")
+func (c *spoc) convertHosts() {
+	c.progress("Converting hosts to subnets")
 	for _, n := range allNetworks {
 		if n.unnumbered || n.tunnel {
 			continue
@@ -134,16 +133,16 @@ func convertHosts() {
 				// Convert range.
 				l, err := splitIpRange(host.ipRange[0], host.ipRange[1])
 				if err != nil {
-					errMsg("%s in %s", err, name)
+					c.err("%s in %s", err, name)
 				}
 				if id != "" {
 					if len(l) > 1 {
-						errMsg("Range of %s with ID must expand to exactly one subnet",
+						c.err("Range of %s with ID must expand to exactly one subnet",
 							name)
 					} else if isHostMask(l[0].Mask) {
-						errMsg("%s with ID must not have single IP", name)
+						c.err("%s with ID must not have single IP", name)
 					} else if strings.Index(id, "@") > 0 {
-						errMsg("ID of %s must start with character '@'"+
+						c.err("ID of %s must start with character '@'"+
 							" or have no '@' at all", name)
 					}
 				}
@@ -160,7 +159,7 @@ func convertHosts() {
 				}
 
 				if other := str2subnet[string(net.IP)]; other != nil {
-					checkHostCompatibility(&host.netObj, &other.netObj)
+					c.checkHostCompatibility(&host.netObj, &other.netObj)
 					host.subnets = append(host.subnets, other)
 				} else {
 					s := new(subnet)
@@ -197,7 +196,7 @@ func convertHosts() {
 					ip = ip.Mask(mask)
 					if up := subnetAref[j][string(ip)]; up != nil {
 						subnet.up = up
-						checkHostCompatibility(&subnet.netObj, &up.netObj)
+						c.checkHostCompatibility(&subnet.netObj, &up.netObj)
 						break
 					}
 				}
@@ -415,8 +414,8 @@ func applySrcDstModifier(group []srvObj) []srvObj {
 
 var subnetWarningSeen = make(map[*subnet]bool)
 
-func ConvertHostsInRules() (ruleList, ruleList) {
-	convertHosts()
+func (c *spoc) convertHostsInRules() (ruleList, ruleList) {
+	c.convertHosts()
 	process := func(rules []*serviceRule) ruleList {
 		cRules := make(ruleList, 0, len(rules))
 		for _, rule := range rules {
@@ -442,14 +441,14 @@ func ConvertHostsInRules() (ruleList, ruleList) {
 							if bytes.Compare(s.mask, n.mask) == 0 {
 								if !n.hasIdHosts && !subnetWarningSeen[s] {
 									subnetWarningSeen[s] = true
-									warnMsg(
+									c.warn(
 										"Use %s instead of %s\n"+
 											" because both have identical address",
 										n.name, s.name)
 								}
 								result = append(result, n)
 							} else if h := subnet2host[s]; h != nil {
-								warnMsg("%s and %s overlap in %s of %s",
+								c.warn("%s and %s overlap in %s of %s",
 									x.name, h.name, context, rule.rule.service.name)
 							} else {
 								subnet2host[s] = x

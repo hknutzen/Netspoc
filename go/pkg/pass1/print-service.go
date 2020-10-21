@@ -143,7 +143,7 @@ func PrintService(
 	}
 
 	NormalizeServices()
-	permitRules, denyRules := ConvertHostsInRules()
+	permitRules, denyRules := c.convertHostsInRules()
 	c.groupPathRules(permitRules, denyRules)
 	c.finish()
 	AbortOnError()

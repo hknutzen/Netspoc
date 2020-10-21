@@ -1441,7 +1441,7 @@ func Export(inDir, outDir string) {
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := normalizeServicesForExport()
-	propagateOwners()
+	c.propagateOwners()
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := setupPartOwners()
 	oInfo, eInfo := setupOuterOwners()
@@ -1456,5 +1456,6 @@ func Export(inDir, outDir string) {
 	exportObjects(outDir)
 	exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
 	copyPolicyFile(inDir, outDir)
+	c.finish()
 	diag.Progress("Ready")
 }
