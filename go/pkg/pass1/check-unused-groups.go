@@ -2,49 +2,30 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"sort"
 )
 
 func (c *spoc) checkUnusedGroups() {
+	c = c.sortingSpoc()
 	if printType := conf.Conf.CheckUnusedGroups; printType != "" {
-		// Check groups
-		names := make([]string, 0, len(symTable.group))
-		for name := range symTable.group {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			group := symTable.group[name]
+		for _, group := range symTable.group {
 			if !group.isUsed {
 				c.warnOrErr(printType, "unused "+group.name)
 			}
 		}
-		// Check protocolGroups
-		names = names[:0]
-		for name := range symTable.protocolgroup {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			group := symTable.protocolgroup[name]
+		for _, group := range symTable.protocolgroup {
 			if !group.isUsed {
 				c.warnOrErr(printType, "unused "+group.name)
 			}
 		}
 	}
 	if printType := conf.Conf.CheckUnusedProtocols; printType != "" {
-		names := make([]string, 0, len(symTable.protocol))
-		for name := range symTable.protocol {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
-			prt := symTable.protocol[name]
+		for _, prt := range symTable.protocol {
 			if !prt.isUsed {
 				c.warnOrErr(printType, "unused "+prt.name)
 			}
 		}
 	}
+	c.finish()
 
 	// Not used any longer; free memory.
 	symTable.group = nil
