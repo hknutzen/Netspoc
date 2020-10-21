@@ -3,6 +3,7 @@ package pass1
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"strings"
@@ -14,7 +15,7 @@ import (
 //###################################################################
 
 // Convert an IP range to a set of covering net.IPNet.
-func splitIpRange(lo, hi net.IP, context string) []net.IPNet {
+func splitIpRange(lo, hi net.IP) ([]net.IPNet, error) {
 	var l, h uint64
 	var result []net.IPNet
 	if len(lo) == 4 && len(hi) == 4 {
@@ -23,15 +24,13 @@ func splitIpRange(lo, hi net.IP, context string) []net.IPNet {
 	} else {
 		lo, hi = lo.To16(), hi.To16()
 		if bytes.Compare(lo[:8], hi[:8]) != 0 {
-			errMsg("IP range of %s is too large. It must fit into /64 network.",
-				context)
-			return result
+			return result, fmt.Errorf(
+				"IP range doesn't fit into /64 network")
 		}
 		l, h = binary.BigEndian.Uint64(lo[8:]), binary.BigEndian.Uint64(hi[8:])
 	}
 	if l > h {
-		errMsg("Invalid IP range in %s", context)
-		return result
+		return result, fmt.Errorf("Invalid IP range")
 	}
 	add := func(i, m uint64) {
 		var ip net.IP
@@ -70,7 +69,7 @@ IP:
 			invMask >>= 1
 		}
 	}
-	return result
+	return result, nil
 }
 
 func ipNATEqual(n1, n2 map[string]net.IP) bool {
@@ -133,18 +132,22 @@ func convertHosts() {
 				}
 			} else {
 				// Convert range.
-				nets = splitIpRange(host.ipRange[0], host.ipRange[1], name)
+				l, err := splitIpRange(host.ipRange[0], host.ipRange[1])
+				if err != nil {
+					errMsg("%s in %s", err, name)
+				}
 				if id != "" {
-					if len(nets) > 1 {
+					if len(l) > 1 {
 						errMsg("Range of %s with ID must expand to exactly one subnet",
 							name)
-					} else if isHostMask(nets[0].Mask) {
+					} else if isHostMask(l[0].Mask) {
 						errMsg("%s with ID must not have single IP", name)
 					} else if strings.Index(id, "@") > 0 {
 						errMsg("ID of %s must start with character '@'"+
 							" or have no '@' at all", name)
 					}
 				}
+				nets = l
 			}
 
 			for _, net := range nets {

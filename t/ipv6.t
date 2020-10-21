@@ -54,7 +54,7 @@ network:n1 = { ip = 1000::0/16;
 END
 
 $out = <<'END';
-Error: IP range of host:h1 is too large. It must fit into /64 network.
+Error: IP range doesn't fit into /64 network in host:h1
 END
 
 test_err($title, $in, $out, '--ipv6');

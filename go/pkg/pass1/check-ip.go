@@ -148,7 +148,7 @@ func checkIPAddresses(n *network) {
 		}
 
 		// It is ok for subnet range to overlap with interface IP.
-		subnets := splitIpRange(lo, hi, h.name)
+		subnets, _ := splitIpRange(lo, hi)
 		if len(subnets) == 1 {
 			len, size := subnets[0].Mask.Size()
 			if len != size {
