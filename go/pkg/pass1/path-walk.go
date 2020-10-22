@@ -326,34 +326,6 @@ func clusterNavigation(from, to pathObj) navigation {
 	return navi
 }
 
-// Remove element from slice without modifying original slice.
-func (a *intfPairs) deleteElement(e intfPair) {
-	index := -1
-	for i, x := range *a {
-		if x == e {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return
-	}
-	*a = append((*a)[:index], (*a)[index+1:]...)
-}
-func (a *intfList) deleteElement(e *routerIntf) {
-	index := -1
-	for i, x := range *a {
-		if x == e {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return
-	}
-	*a = append((*a)[:index], (*a)[index+1:]...)
-}
-
 //#############################################################################
 // Purpose    : Adapt path starting/ending at zone, such that the original
 //              start/end-interface is reached.
@@ -375,21 +347,21 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 	isRedundancy := make(map[*routerIntf]bool)
 
 	// Prohibt paths traversing related redundancy interfaces.
-	for _, i := range startEnd.redundancyIntfs {
-		isRedundancy[i] = true
+	for _, intf := range startEnd.redundancyIntfs {
+		isRedundancy[intf] = true
 	}
 
-	delTuples := make(intfPairs, 0)
+	var delTuples []int
 
 	// Remove tuples traversing that router, where path should start/end.
-	for _, tuple := range lPath.routerTuples {
+	for i, tuple := range lPath.routerTuples {
 		intf := tuple[inOut]
 		if intf.router == router {
 			if intf != startEnd {
-				delTuples.push(tuple)
+				delTuples = append(delTuples, i)
 			}
 		} else if isRedundancy[intf] {
-			delTuples.push(tuple)
+			delTuples = append(delTuples, i)
 		}
 	}
 	tuples := &lPath.routerTuples
@@ -400,21 +372,23 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		changed = true
 		delIn := make(map[*routerIntf]bool)
 		delOut := make(map[*routerIntf]bool)
-		for _, tuple := range delTuples {
-			tuples.deleteElement(tuple)
-			in, out := tuple[0], tuple[1]
+		for _, idx := range delTuples {
+			tuple := (*tuples)[idx]
+			// Mark element at position idx as deleted.
+			(*tuples)[idx][0] = nil
 
 			// Mark interfaces of just removed tuple, because adjacent tuples
 			// could become dangling now.
-			delIn[out] = true
-			delOut[in] = true
+			delIn[tuple[1]] = true
+			delOut[tuple[0]] = true
 		}
 
 		// Remove mark, if non removed tuples are adjacent.
 		for _, tuple := range *tuples {
-			in, out := tuple[0], tuple[1]
-			delete(delIn, out)
-			delete(delOut, in)
+			if tuple[0] != nil {
+				delete(delIn, tuple[1])
+				delete(delOut, tuple[0])
+			}
 		}
 		if len(delIn) == 0 && len(delOut) == 0 {
 			break
@@ -424,17 +398,30 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		} else {
 			tuples = &lPath.routerTuples
 		}
-		delTuples = delTuples[0:0]
-		for _, tuple := range *tuples {
-			in, out := tuple[0], tuple[1]
-			if delIn[in] || delOut[out] {
-				delTuples.push(tuple)
+		delTuples = nil
+		for i, tuple := range *tuples {
+			if tuple[0] != nil {
+				if delIn[tuple[0]] || delOut[tuple[1]] {
+					delTuples = append(delTuples, i)
+				}
 			}
 		}
 	}
 
-	// Remove dangling interfaces from start and end of path.
 	if changed {
+
+		// Remove tuples that are marked as deleted.
+		for _, tuples := range []*intfPairs{&lPath.routerTuples, &lPath.zoneTuples} {
+			var cp intfPairs
+			for _, tuple := range *tuples {
+				if tuple[0] != nil {
+					cp.push(tuple)
+				}
+			}
+			(*tuples) = cp
+		}
+
+		// Remove dangling interfaces from start and end of path.
 		hasIn := make(map[*routerIntf]bool)
 		hasOut := make(map[*routerIntf]bool)
 

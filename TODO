@@ -5,8 +5,6 @@ Do we really need attribute 'zone' in router?
 Set attribute 'zoneCluster' also for simple cluster with only one element?
 Or use small function to get list of cluster elements.
 
-Inefficient delElement + delTuple in path-walk.go
-
 Message is misleading:
  err_msg("Networks need to have ID hosts because",
     " $hub_router->{name} has attribute 'do_auth':\n",
@@ -24,4 +22,4 @@ into one single attribute with enumerated value.
 
 Define type netOrRouter interface{}  more restrictive.
 
-Move attribute statelessICMP bool of type proto to modifiers.
+c.abort() must not proceed, but wait and terminate the main program.
