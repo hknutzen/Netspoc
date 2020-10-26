@@ -816,7 +816,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	// Source of pathrestrictions can't be used literally,
 	// but must be reconstructed from internal data structure.
 	name2pathrestriction := make(map[string]*ast.TopList)
-	for _, pr := range pathrestrictions {
+	for _, pr := range c.pathrestrictions {
 		elemList := pr.elements
 		var l []ast.Element
 		for _, intf := range elemList {

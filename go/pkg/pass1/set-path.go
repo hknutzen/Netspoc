@@ -408,17 +408,15 @@ func setLoopClusterExit(myLoop *loop) pathObj {
 	return myLoop.clusterExit
 }
 
-var effectivePathrestrictions []*pathRestriction
-
-/* checkPathrestrictions collects proper & effective pathrestrictions
-/* in a global array. Pathrestrictions have to fulfill
-/* followingrequirements:
+/* checkPathrestrictions removes pathrestrictions, that aren't proper
+/* and effective.
+/* Pathrestrictions have to fulfill following requirements:
  - Located inside or at the border of cycles.
  - At least 2 interfaces per pathrestriction.
  - Have an effect on ACL generation. */
 func (c *spoc) checkPathrestrictions() {
 
-	for _, restrict := range pathrestrictions {
+	for _, restrict := range c.pathrestrictions {
 
 		if len(restrict.elements) == 0 {
 			continue
@@ -455,12 +453,14 @@ func (c *spoc) checkPathrestrictions() {
 		}
 	}
 
-	// Collect all effective pathrestrictions.
-	for _, restrict := range pathrestrictions {
+	// Collect effective pathrestrictions.
+	var effective []*pathRestriction
+	for _, restrict := range c.pathrestrictions {
 		if restrict.elements != nil {
-			effectivePathrestrictions = append(effectivePathrestrictions, restrict)
+			effective = append(effective, restrict)
 		}
 	}
+	c.pathrestrictions = effective
 }
 
 func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
@@ -699,7 +699,7 @@ func (c *spoc) checkVirtualInterfaces() {
 func (c *spoc) removeRedundantPathrestrictions() {
 
 	intf2restrictions := make(map[*routerIntf]map[*pathRestriction]bool)
-	for _, restrict := range effectivePathrestrictions {
+	for _, restrict := range c.pathrestrictions {
 		for _, element := range restrict.elements {
 			if intf2restrictions[element] == nil {
 				intf2restrictions[element] = make(
@@ -709,7 +709,7 @@ func (c *spoc) removeRedundantPathrestrictions() {
 		}
 	}
 
-	for _, restrict := range effectivePathrestrictions {
+	for _, restrict := range c.pathrestrictions {
 		superset := findContainingPathRestrictions(restrict, intf2restrictions)
 		if superset != nil {
 			restrict.deleted = superset
@@ -717,7 +717,7 @@ func (c *spoc) removeRedundantPathrestrictions() {
 		}
 	}
 	if diag.Active() {
-		for _, restrict := range effectivePathrestrictions {
+		for _, restrict := range c.pathrestrictions {
 			if restrict.deleted == nil {
 				continue
 			}
@@ -734,12 +734,12 @@ func (c *spoc) removeRedundantPathrestrictions() {
 	}
 
 	var part []*pathRestriction
-	for _, restrict := range effectivePathrestrictions {
+	for _, restrict := range c.pathrestrictions {
 		if restrict.deleted != nil {
 			part = append(part, restrict)
 		}
 	}
-	effectivePathrestrictions = part
+	c.pathrestrictions = part
 }
 
 func findContainingPathRestrictions(restrict *pathRestriction,

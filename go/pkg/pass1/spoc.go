@@ -24,14 +24,18 @@ const (
 	checkErrM
 )
 
+type spoc struct {
+	// Collect messages.
+	msgChan chan spocMsg
+	// Report that all or some messages have been processed.
+	ready chan bool
+	// State of compiler
+	pathrestrictions []*pathRestriction
+}
+
 type spocMsg struct {
 	typ  int
 	text string
-}
-
-type spoc struct {
-	msgChan chan spocMsg
-	ready   chan bool
 }
 
 func (c *spoc) abort(format string, args ...interface{}) {

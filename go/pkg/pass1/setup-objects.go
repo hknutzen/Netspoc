@@ -1049,7 +1049,7 @@ func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
 	if len(elements) == 0 {
 		return
 	}
-	addPathrestriction(name, elements)
+	c.addPathrestriction(name, elements)
 }
 
 func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
@@ -3513,18 +3513,18 @@ func (c *spoc) linkVirtualInterfaces() {
 			r := intf.router
 			if r.managed != "" || r.routingOnly {
 				name := "auto-virtual-" + intf.ip.String()
-				addPathrestriction(name, l)
+				c.addPathrestriction(name, l)
 				break
 			}
 		}
 	}
 }
 
-func addPathrestriction(name string, l intfList) {
+func (c *spoc) addPathrestriction(name string, l intfList) {
 	pr := new(pathRestriction)
 	pr.name = name
 	pr.elements = l
-	pathrestrictions = append(pathrestrictions, pr)
+	c.pathrestrictions = append(c.pathrestrictions, pr)
 	for _, intf := range l {
 		//debug("%s at %s", name, intf)
 		// Multiple restrictions may be applied to a single interface.
