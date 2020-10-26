@@ -735,7 +735,7 @@ func (c *spoc) removeRedundantPathrestrictions() {
 
 	var part []*pathRestriction
 	for _, restrict := range c.pathrestrictions {
-		if restrict.deleted != nil {
+		if restrict.deleted == nil {
 			part = append(part, restrict)
 		}
 	}
