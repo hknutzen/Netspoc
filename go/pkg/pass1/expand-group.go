@@ -233,12 +233,12 @@ func (c *spoc) expandGroup1(
 				"Complement (!) is only supported as part of intersection in %s",
 				ctx)
 		case *ast.User:
-			l := userObj.elements
+			l := c.userObj.elements
 			if l == nil {
 				c.err("Unexpected reference to 'user' in %s", ctx)
 			}
 			result = append(result, l...)
-			userObj.used = true
+			c.userObj.used = true
 		case *ast.IntfAuto:
 			selector, managed := x.Selector, x.Managed
 			subObjects := c.expandGroup1(
@@ -653,9 +653,9 @@ func (c *spoc) expandGroup1(
 					ctx := typ + ":" + name
 
 					// 'user' must not be referenced in group.
-					user := userObj.elements
-					userObj.elements = nil
-					defer func() { userObj.elements = user }()
+					saved := c.userObj.elements
+					c.userObj.elements = nil
+					defer func() { c.userObj.elements = saved }()
 
 					// Add marker for detection of recursive group definition.
 					grp.recursive = true

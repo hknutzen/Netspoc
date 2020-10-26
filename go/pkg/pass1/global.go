@@ -17,9 +17,8 @@ var (
 
 	knownLog = make(map[string]bool)
 
-	pRules  pathRules
-	sRules  = new(serviceRules)
-	userObj userInfo
+	pRules pathRules
+	sRules = new(serviceRules)
 
 	allNetworks        netList
 	ascendingAreas     []*area
@@ -29,9 +28,6 @@ var (
 	routingOnlyRouters []*router
 	virtualInterfaces  intfList
 	zones              []*zone
-
-//	InPath string
-//	OutDir string
 )
 
 const (

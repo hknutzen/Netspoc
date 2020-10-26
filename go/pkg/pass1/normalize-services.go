@@ -168,10 +168,10 @@ func (c *spoc) normalizeSrcDstList(
 
 	ctx := s.name
 	ipv6 := s.ipV6
-	userObj.elements = l
+	c.userObj.elements = l
 	srcList := c.expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
 	dstList := c.expandGroupInRule(r.dst, "dst of rule in "+ctx, ipv6)
-	userObj.elements = nil
+	c.userObj.elements = nil
 
 	// Expand auto interfaces in srcList.
 	expSrcList, extraSrcDst := c.substituteAutoIntf(srcList, dstList, ctx)

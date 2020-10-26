@@ -31,6 +31,7 @@ type spoc struct {
 	ready chan bool
 	// State of compiler
 	pathrestrictions []*pathRestriction
+	userObj          userInfo
 }
 
 type spocMsg struct {
