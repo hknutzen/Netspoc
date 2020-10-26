@@ -709,33 +709,26 @@ func (c *spoc) removeRedundantPathrestrictions() {
 		}
 	}
 
+	var part []*pathRestriction
 	for _, restrict := range c.pathrestrictions {
 		superset := findContainingPathRestrictions(restrict, intf2restrictions)
 		if superset != nil {
-			restrict.deleted = superset
+			// Deleted restriction must not be found as supernet.
+			// Otherwise two equal pathrestrictions would both be deleted.
+			for _, element := range restrict.elements {
+				intf2restrictions[element][restrict] = false
+			}
 			deletePathrestrictionFromInterfaces(restrict)
-		}
-	}
-	if diag.Active() {
-		for _, restrict := range c.pathrestrictions {
-			if restrict.deleted == nil {
-				continue
+			if diag.Active() {
+				var oName stringList
+				for _, containing := range superset {
+					oName.push(containing.name)
+				}
+				sort.Strings(oName)
+				names := strings.Join(oName, ", ")
+				c.diag("Removed %s; is subset of %s", restrict.name, names)
 			}
-			superset := restrict.deleted
-			var oName stringList
-			for _, containingRestrict := range superset {
-				oName.push(containingRestrict.name)
-			}
-			sort.Strings(oName)
-			names := strings.Join(oName, ", ")
-			msg := "Removed " + restrict.name + "; is subset of " + names
-			c.diag(msg)
-		}
-	}
-
-	var part []*pathRestriction
-	for _, restrict := range c.pathrestrictions {
-		if restrict.deleted == nil {
+		} else {
 			part = append(part, restrict)
 		}
 	}
@@ -751,45 +744,33 @@ func findContainingPathRestrictions(restrict *pathRestriction,
 
 	intf1 := restrict.elements[0]
 
-	// collect potential superset pathrestrictions:
+	// Collect potential superset pathrestrictions:
 	// Restrictions of equal/bigger size sharing Intf1
 	var potentialSupersets []*pathRestriction
-	for otherRestrict := range intf2restrictions[intf1] {
-		if len(otherRestrict.elements) >= len(restrict.elements) {
-			potentialSupersets = append(potentialSupersets, otherRestrict)
+	for other := range intf2restrictions[intf1] {
+		if other != restrict && len(other.elements) >= len(restrict.elements) {
+			potentialSupersets = append(potentialSupersets, other)
 		}
 	}
-	if len(potentialSupersets) < 2 {
+	if potentialSupersets == nil {
 		return nil
 	}
 
 	superset := potentialSupersets
 
-	for _, intfX := range restrict.elements {
-		if intfX == intf1 {
-			continue
-		}
-
-		//remove restrictions without IntfX from superset
-		var nextSuperset []*pathRestriction
+	// Remove restrictions without IntfX from superset.
+	for _, intfX := range restrict.elements[1:] {
+		var nextSet []*pathRestriction
 		restrictsWithIntfX := intf2restrictions[intfX]
-
 		for _, restrict2 := range superset {
-
-			if restrict2 == restrict {
-				continue
-			}
-			if restrict2.deleted != nil {
-				continue
-			}
 			if restrictsWithIntfX[restrict2] {
-				nextSuperset = append(nextSuperset, restrict2)
+				nextSet = append(nextSet, restrict2)
 			}
 		}
-		superset = nextSuperset
+		superset = nextSet
 
 		// Pathrestriction is not redundant if superset is empty
-		if len(superset) == 0 {
+		if superset == nil {
 			return nil
 		}
 	}
