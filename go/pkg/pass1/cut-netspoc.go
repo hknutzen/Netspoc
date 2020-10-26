@@ -993,6 +993,5 @@ func CutNetspocMain() int {
 		c.cutNetspoc(path, services, *keepOwner)
 		close(c.msgChan)
 	}()
-	c.printMessages()
-	return ErrorCounter
+	return c.printMessages()
 }

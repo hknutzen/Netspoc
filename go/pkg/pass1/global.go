@@ -3,8 +3,6 @@ package pass1
 import ()
 
 var (
-	ErrorCounter int
-
 	prtAh               *proto
 	prtBootpc           *proto
 	prtBootps           *proto

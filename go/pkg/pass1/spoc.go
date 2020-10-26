@@ -96,26 +96,27 @@ func (c *spoc) diag(format string, args ...interface{}) {
 	}
 }
 
-func (c *spoc) printMessages() {
+func (c *spoc) printMessages() int {
+	errCounter := 0
 	for m := range c.msgChan {
 		t := m.text
 		switch m.typ {
 		case abortM:
 			fmt.Fprintln(os.Stderr, "Error: "+t)
 			fmt.Fprintln(os.Stderr, "Aborted")
-			ErrorCounter++
-			return
+			errCounter++
+			return errCounter
 		case errM:
 			fmt.Fprintln(os.Stderr, "Error: "+t)
-			ErrorCounter++
-			if ErrorCounter >= conf.Conf.MaxErrors {
-				fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
-				return
+			errCounter++
+			if errCounter >= conf.Conf.MaxErrors {
+				fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", errCounter)
+				return errCounter
 			}
 		case checkErrM:
-			if ErrorCounter > 0 {
-				fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", ErrorCounter)
-				return
+			if errCounter > 0 {
+				fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", errCounter)
+				return errCounter
 			} else {
 				c.ready <- true
 			}
@@ -127,6 +128,7 @@ func (c *spoc) printMessages() {
 			fmt.Fprintln(os.Stderr, t)
 		}
 	}
+	return errCounter
 }
 
 func (c *spoc) sortingSpoc() *spoc {
@@ -207,6 +209,5 @@ func SpocMain() int {
 		c.progress("Finished pass1")
 		close(c.msgChan)
 	}()
-	c.printMessages()
-	return ErrorCounter
+	return c.printMessages()
 }

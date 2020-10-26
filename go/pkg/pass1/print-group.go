@@ -198,7 +198,7 @@ func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
 	if <-okCh {
 		return expanded
 	} else {
-		return nil
+		return c.expandGroup(parsed, "print-group", !ipv6, true)
 	}
 }
 
@@ -278,10 +278,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 	ipVx := conf.Conf.IPV6
 	conf.Conf.MaxErrors = 9999
 	elements := c.tryExpand(parsed, ipVx)
-	if elements == nil {
-		ErrorCounter = 0
-		elements = c.expandGroup(parsed, "print-group", !ipVx, true)
-	}
 
 	if showUnused {
 		j := 0
@@ -369,6 +365,5 @@ func PrintGroupMain() int {
 		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
 		close(c.msgChan)
 	}()
-	c.printMessages()
-	return ErrorCounter
+	return c.printMessages()
 }

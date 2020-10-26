@@ -259,6 +259,5 @@ func PrintServiceMain() int {
 		c.printService(path, names, *nat, *name)
 		close(c.msgChan)
 	}()
-	c.printMessages()
-	return ErrorCounter
+	return c.printMessages()
 }

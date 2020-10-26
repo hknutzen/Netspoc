@@ -1493,6 +1493,5 @@ func ExportMain() int {
 		c.exportNetspoc(path, out)
 		close(c.msgChan)
 	}()
-	c.printMessages()
-	return ErrorCounter
+	return c.printMessages()
 }
