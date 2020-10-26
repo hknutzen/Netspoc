@@ -90,6 +90,8 @@ type symbolTable struct {
 	ipsec map[string]*ipsec
 	// References ipsec
 	crypto map[string]*crypto
+	// Log tags of routers
+	knownLog map[string]bool
 }
 
 func createSymbolTable() *symbolTable {
@@ -111,6 +113,8 @@ func createSymbolTable() *symbolTable {
 	s.crypto = make(map[string]*crypto)
 	s.ipsec = make(map[string]*ipsec)
 	s.isakmp = make(map[string]*isakmp)
+	s.knownLog = make(map[string]bool)
+
 	return s
 }
 
@@ -1230,11 +1234,14 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			if knownMod := r.model.logModifiers; knownMod != nil {
 				for name2, mod := range m {
 
-					// "": simple unmodified 'log' statement.
+					// Valid log tag.
+					// "" is simple unmodified 'log' statement.
 					if mod == "" || knownMod[mod] != "" {
+						s.knownLog[name2] = true
 						continue
 					}
 
+					// Show error message for unknown log tag.
 					var valid stringList
 					for k := range knownMod {
 						valid.push(k)
@@ -1250,9 +1257,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 							what, name2)
 					}
 				}
-
-				// Store defining log tags in global known_log.
-				collectLog(m)
 			} else {
 				var names stringList
 				for k := range m {
@@ -1955,22 +1959,32 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		ru.prt = c.expandProtocols(c.getValueList(v2.Prt, name), s, v6, name)
 		if a2 := v2.Log; a2 != nil {
 			l := c.getIdentifierList(a2, name)
-			sort.Strings(l)
-			prev := ""
-			j := 0
-			for _, tag := range l {
-				if tag == prev {
-					c.warn("Duplicate '%s' in log of %s", tag, name)
-				} else {
-					prev = tag
-					l[j] = tag
-					j++
-				}
-			}
-			ru.log = strings.Join(l[:j], ",")
+			l = c.checkLog(l, s, name)
+			ru.log = strings.Join(l, ",")
 		}
 		sv.rules = append(sv.rules, ru)
 	}
+}
+
+// Normalize list of log tags.
+// - Sort tags,
+// - remove duplicate elements and
+// - remove unknown tags, not defined at any router.
+func (c *spoc) checkLog(l stringList, s *symbolTable, ctx string) stringList {
+	var valid stringList
+	prev := ""
+	sort.Strings(l)
+	for _, tag := range l {
+		if tag == prev {
+			c.warn("Duplicate '%s' in log of %s", tag, ctx)
+		} else if !s.knownLog[tag] {
+			c.warn("Referencing unknown '%s' in log of %s", tag, ctx)
+		} else {
+			prev = tag
+			valid.push(tag)
+		}
+	}
+	return valid
 }
 
 func isUser(l []ast.Element) bool {
@@ -3142,13 +3156,6 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]net.IP, v6 bool,
 	}
 	m[name] = ip
 	return m
-}
-
-// Store defining log tags in knownLog.
-func collectLog(m map[string]string) {
-	for tag, _ := range m {
-		knownLog[tag] = true
-	}
 }
 
 func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {

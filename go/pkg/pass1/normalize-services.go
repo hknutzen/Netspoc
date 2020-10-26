@@ -2,21 +2,7 @@ package pass1
 
 import (
 	"sort"
-	"strings"
 )
-
-// Check for referencing log tags, that corresponding defining log tags exist.
-func (c *spoc) checkLog(log, ctx string) string {
-	var known stringList
-	for _, tag := range strings.Split(log, ",") {
-		if !knownLog[tag] {
-			c.warn("Referencing unknown '%s' in log of %s", tag, ctx)
-		} else {
-			known.push(tag)
-		}
-	}
-	return strings.Join(known, ",")
-}
 
 //#############################################################################
 // Purpose    : Expand auto interface to one or more real interfaces
@@ -231,9 +217,6 @@ func (c *spoc) normalizeServiceRules(s *service) {
 			store = &sRules.permit
 		}
 		log := uRule.log
-		if log != "" {
-			log = c.checkLog(log, ctx)
-		}
 		prtList := uRule.prt
 		if prtList == nil {
 			continue

@@ -13,8 +13,6 @@ var (
 	prtUDP              *proto
 	rangeTCPEstablished *proto
 
-	knownLog = make(map[string]bool)
-
 	pRules pathRules
 	sRules = new(serviceRules)
 
