@@ -53,7 +53,6 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	symTable = sym
 	c.setupObjects(toplevel, sym)
 	c.stopOnErr()
-	services = sym.service
 	c.linkTunnels(sym)
 	c.linkVirtualInterfaces()
 	splitSemiManagedRouter()

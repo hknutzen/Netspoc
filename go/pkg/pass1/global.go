@@ -17,8 +17,6 @@ var (
 
 	knownLog = make(map[string]bool)
 
-	services map[string]*service
-
 	pRules  pathRules
 	sRules  = new(serviceRules)
 	userObj userInfo

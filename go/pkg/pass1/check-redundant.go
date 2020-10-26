@@ -287,14 +287,14 @@ func (c *spoc) showFullyRedundantRules() {
 	if action == "" {
 		return
 	}
-	sNames := make([]string, 0, len(services))
-	for name := range services {
+	sNames := make([]string, 0, len(symTable.service))
+	for name := range symTable.service {
 		sNames = append(sNames, name)
 	}
 	sort.Strings(sNames)
 	keep := make(map[*service]bool)
 	for _, name := range sNames {
-		service := services[name]
+		service := symTable.service[name]
 		if keep[service] {
 			continue
 		}
@@ -314,7 +314,7 @@ func (c *spoc) showFullyRedundantRules() {
 
 func (c *spoc) warnUnusedOverlaps() {
 	var errList []string
-	for _, service := range services {
+	for _, service := range symTable.service {
 		if service.disabled {
 			continue
 		}

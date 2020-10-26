@@ -110,13 +110,13 @@ func collectUnenforceable(rule *groupedRule) {
 }
 
 func (c *spoc) showUnenforceable() {
-	names := make([]string, 0, len(services))
-	for name, _ := range services {
+	names := make([]string, 0, len(symTable.service))
+	for name, _ := range symTable.service {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		service := services[name]
+		service := symTable.service[name]
 		context := service.name
 
 		if service.hasUnenforceable &&

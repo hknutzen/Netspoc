@@ -425,12 +425,12 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	c.progress("Normalize services for export")
 	var result []*exportedSvc
 	var names stringList
-	for n, _ := range services {
+	for n, _ := range symTable.service {
 		names.push(n)
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		s := services[n]
+		s := symTable.service[n]
 		ipv6 := s.ipV6
 		sname := s.name
 		ctx := sname
