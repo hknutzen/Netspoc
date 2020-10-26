@@ -88,13 +88,12 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 */
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"io"
+	"github.com/spf13/pflag"
 	"net"
 	"os"
 	"strings"
@@ -171,49 +170,39 @@ func printAddress(obj groupObj, ns natSet) string {
 	return ""
 }
 
-func captureStderr(f func()) string {
-
-	// Buffers up to 64k.
-	r, w, err := os.Pipe()
-	if err != nil {
-		panic(err)
-	}
-
-	stderr := os.Stderr
-	os.Stderr = w
-	defer func() {
-		os.Stderr = stderr
-	}()
-
-	// Copy output in a separate goroutine so printing can't block
-	// indefinitely.
-	outC := make(chan string)
-	go func() {
-		var buf bytes.Buffer
-		io.Copy(&buf, r)
-		outC <- buf.String()
-	}()
-
-	f()
-
-	w.Close()
-	return <-outC
-}
-
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
-func tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
-	var expanded groupObjList
-	stderr := captureStderr(func() {
-		expanded = expandGroup(parsed, "print-group", ipv6, true)
-	})
-	if ErrorCounter > 0 && strings.Contains(stderr, "Must not reference IPv") {
+func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
+	c2 := *c
+	ch := make(chan spocMsg)
+	c2.msgChan = ch
+	okCh := make(chan bool)
+	go func() {
+		var l []spocMsg
+		ok := true
+		for m := range ch {
+			if m.typ == errM &&
+				strings.HasPrefix(m.text, "Must not reference IPv") {
+				ok = false
+			}
+			l = append(l, m)
+		}
+		if ok {
+			for _, m := range l {
+				c.msgChan <- m
+			}
+		}
+		okCh <- ok
+	}()
+	expanded := c2.expandGroup(parsed, "print-group", ipv6, true)
+	close(c2.msgChan)
+	if <-okCh {
+		return expanded
+	} else {
 		return nil
 	}
-	fmt.Fprint(os.Stderr, stderr)
-	return expanded
 }
 
-func PrintGroup(path, group, natNet string,
+func (c *spoc) printGroup(path, group, natNet string,
 	showIP, showName, showOwner, showAdmins, showUnused bool) {
 
 	if !(showIP || showName) {
@@ -221,14 +210,13 @@ func PrintGroup(path, group, natNet string,
 		showName = true
 	}
 	parsed := parser.ParseUnion([]byte(group))
-	c := startSpoc()
-	ReadNetspoc(path)
-	MarkDisabled()
-	SetZone()
-	SetPath()
-	DistributeNatInfo()
-	FindSubnetsInZone()
-	AbortOnError()
+	c.readNetspoc(path)
+	c.markDisabled()
+	c.setZone()
+	c.setPath()
+	c.distributeNatInfo()
+	c.findSubnetsInZone()
+	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
 	var natSet natSet
@@ -249,8 +237,8 @@ func PrintGroup(path, group, natNet string,
 	// Prepare finding unused objects by marking used objects.
 	used := make(map[groupObj]bool)
 	if showUnused {
-		NormalizeServices()
-		AbortOnError()
+		c.normalizeServices()
+		c.stopOnErr()
 		process := func(rules []*serviceRule) {
 			for _, rule := range rules {
 				processObjects := func(group []srvObj) {
@@ -289,12 +277,11 @@ func PrintGroup(path, group, natNet string,
 	// so we try both IPv4 and IPv6.
 	ipVx := conf.Conf.IPV6
 	conf.Conf.MaxErrors = 9999
-	elements := tryExpand(parsed, ipVx)
+	elements := c.tryExpand(parsed, ipVx)
 	if elements == nil {
 		ErrorCounter = 0
-		elements = expandGroup(parsed, "print-group", !ipVx, true)
+		elements = c.expandGroup(parsed, "print-group", !ipVx, true)
 	}
-	c.finish()
 
 	if showUnused {
 		j := 0
@@ -339,4 +326,49 @@ func PrintGroup(path, group, natNet string,
 		}
 		fmt.Println(strings.Join(result, "\t"))
 	}
+}
+
+func PrintGroupMain() int {
+	// Setup custom usage function.
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s [options] FILE|DIR 'group:name,...'\n", os.Args[0])
+		pflag.PrintDefaults()
+	}
+
+	// Command line flags
+	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+
+	nat := pflag.String("nat", "",
+		"Use network:name as reference when resolving IP address")
+	unused := pflag.BoolP("unused", "u", false,
+		"Show only elements not used in any rules")
+	name := pflag.BoolP("name", "n", false, "Show only name of elements")
+	ip := pflag.BoolP("ip", "i", false, "Show only IP address of elements")
+	owner := pflag.BoolP("owner", "o", false, "Show owner of elements")
+	admins := pflag.BoolP("admins", "a", false,
+		"Show admins of elements as comma separated list")
+	pflag.Parse()
+
+	// Argument processing
+	args := pflag.Args()
+	if len(args) != 2 {
+		pflag.Usage()
+		os.Exit(1)
+	}
+	path := args[0]
+	group := args[1]
+	dummyArgs := []string{
+		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--ipv6=%v", *ipv6),
+	}
+	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	c := startSpoc()
+	go func() {
+		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
+		close(c.msgChan)
+	}()
+	c.printMessages()
+	return ErrorCounter
 }

@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"sort"
 )
@@ -34,17 +33,17 @@ func getNetwork00(ipv6 bool) *network {
 	}
 }
 
-func initStdProtocols(sym *symbolTable) {
+func (c *spoc) initStdProtocols(sym *symbolTable) {
 	define := func(s string) *proto {
-		return getSimpleProtocol(s, sym, false, s)
+		return c.getSimpleProtocol(s, sym, false, s)
 	}
 	defineX := func(s string) *proto {
-		pSimp, pSrc := getSimpleProtocolAndSrcPort(s, sym, false, s)
+		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, sym, false, s)
 		p := *pSimp
 		p.name = s
 		// Link complex protocol with corresponding simple protocol.
 		p.main = pSimp
-		addProtocolModifiers(nil, &p, pSrc)
+		c.addProtocolModifiers(nil, &p, pSrc)
 		return &p
 	}
 	prtIP = define("ip")
@@ -96,8 +95,8 @@ func initStdProtocols(sym *symbolTable) {
 }
 
 // Order protocols. We need this to simplify optimization.
-func OrderProtocols() {
-	diag.Progress("Arranging protocols")
+func (c *spoc) orderProtocols() {
+	c.progress("Arranging protocols")
 
 	var tcp, udp, icmp, proto protoList
 	for _, p := range symTable.unnamedProto {

@@ -168,7 +168,7 @@ func (c *spoc) checkDynamicNatRules(
 			collect := func(r *groupedRule, inIntf, outIntf *routerIntf) {
 				pairs.push(intfPair{inIntf, outIntf})
 			}
-			pathWalk(&rule, collect, "Router")
+			c.pathWalk(&rule, collect, "Router")
 			cache[zonePair{s, d}] = pairs
 		}
 		return pairs
@@ -345,7 +345,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 					}
 				}
-				pathWalk(pathRule, check, "Router")
+				c.pathWalk(pathRule, check, "Router")
 			}()
 
 			if hiddenSeen {

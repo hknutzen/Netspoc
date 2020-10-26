@@ -10,7 +10,7 @@ import ()
 // without range checking but with checking for 'established` flag.
 //#############################################################################
 
-func genReverseRules1(rules []*groupedRule) []*groupedRule {
+func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 	var extraRules []*groupedRule
 	type pair struct {
 		srcPath pathStore
@@ -83,7 +83,7 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 				}
 			}
 
-			pathWalk(rule, markReverseRule, "Router")
+			c.pathWalk(rule, markReverseRule, "Router")
 			cache[pair{srcPath, dstPath}] = hasStatelessRouter
 		}
 		if !hasStatelessRouter {
@@ -149,6 +149,6 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 
 func (c *spoc) genReverseRules() {
 	c.progress("Generating reverse rules for stateless routers")
-	pRules.deny = genReverseRules1(pRules.deny)
-	pRules.permit = genReverseRules1(pRules.permit)
+	pRules.deny = c.genReverseRules1(pRules.deny)
+	pRules.permit = c.genReverseRules1(pRules.permit)
 }

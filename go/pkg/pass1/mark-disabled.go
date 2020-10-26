@@ -53,7 +53,7 @@ func disableBehind(in *routerIntf) {
 	}
 }
 
-func MarkDisabled() {
+func (c *spoc) markDisabled() {
 	var disabled intfList
 	for _, intf := range symTable.routerIntf {
 		if intf.disabled {
@@ -72,7 +72,7 @@ func MarkDisabled() {
 			// which seems to be part of a loop.
 			// This is dangerous, since the whole topology
 			// may be disabled by accident.
-			errMsg("%s must not be disabled,\n"+
+			c.err("%s must not be disabled,\n"+
 				" since it is part of a loop", intf)
 		}
 	}
@@ -182,7 +182,7 @@ func MarkDisabled() {
 		m1 := getModel(l[0])
 		for _, r := range l[1:] {
 			if m1 != getModel(r) {
-				errMsg("All instances of router:%s must have identical model",
+				c.err("All instances of router:%s must have identical model",
 					l[0].deviceName)
 				break
 			}
@@ -202,7 +202,7 @@ func MarkDisabled() {
 			for _, hw := range r.hardware {
 				name := hw.name
 				if r2 := sameHWDevice[name]; r2 != nil {
-					errMsg("Duplicate hardware '%s' at %s and %s",
+					c.err("Duplicate hardware '%s' at %s and %s",
 						name, r2, r)
 				} else {
 					sameHWDevice[name] = r
@@ -221,7 +221,7 @@ func MarkDisabled() {
 	seen := make(map[*network]bool)
 	for _, r := range allRouters {
 		if len(r.interfaces) == 0 {
-			errMsg("%s isn't connected to any network", r)
+			c.err("%s isn't connected to any network", r)
 			continue
 		}
 		for _, intf := range r.interfaces {
@@ -245,7 +245,7 @@ func MarkDisabled() {
 			continue
 		}
 		if len(symTable.network) > 1 || len(symTable.router) > 0 {
-			errMsg("%s isn't connected to any router", n)
+			c.err("%s isn't connected to any router", n)
 			n.disabled = true
 			for _, h := range n.hosts {
 				h.disabled = true

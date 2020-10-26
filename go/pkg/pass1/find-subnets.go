@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
@@ -63,7 +62,7 @@ func processSubnetRelation(maskIPMap map[string]map[string]*network,
 
 // All interfaces and hosts of a network must be located in that part
 // of the network which doesn't overlap with some subnet.
-func checkSubnets(n, subnet *network, context string) {
+func (c *spoc) checkSubnets(n, subnet *network, context string) {
 	if n.isAggregate || subnet.isAggregate {
 		return
 	}
@@ -92,7 +91,7 @@ func checkSubnets(n, subnet *network, context string) {
 			if context != "" {
 				where += " in " + context
 			}
-			warnMsg("IP of %s overlaps with subnet %s", obj, where)
+			c.warn("IP of %s overlaps with subnet %s", obj, where)
 		}
 	}
 	for _, intf := range n.interfaces {
@@ -117,7 +116,7 @@ func checkSubnets(n, subnet *network, context string) {
 // Mark each network with the smallest network enclosing it.
 //###################################################################
 
-func findSubnetsInZone0(z *zone) {
+func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	// Check NAT inside zone.
 	// Find networks of zone which use a NATed address inside the zone.
@@ -147,7 +146,7 @@ func findSubnetsInZone0(z *zone) {
 
 		// Found two different networks with identical IP/mask.
 		if other := ipMap[string(ip)]; other != nil {
-			errMsg("%s and %s have identical IP/mask in %s",
+			c.err("%s and %s have identical IP/mask in %s",
 				n.name, other.name, z.name)
 		} else {
 
@@ -175,7 +174,7 @@ func findSubnetsInZone0(z *zone) {
 			big.networks.push(sub)
 		}
 
-		checkSubnets(big, sub, "")
+		c.checkSubnets(big, sub, "")
 	})
 
 	// For each subnet N find the largest non-aggregate network
@@ -276,10 +275,10 @@ func findSubnetsInZone0(z *zone) {
 
 // Find subnet relation between networks inside a zone.
 // - subnet.up = bignet;
-func FindSubnetsInZone() {
-	diag.Progress("Finding subnets in zone")
+func (c *spoc) findSubnetsInZone() {
+	c.progress("Finding subnets in zone")
 	for _, z := range zones {
-		findSubnetsInZone0(z)
+		c.findSubnetsInZone0(z)
 	}
 }
 
@@ -632,7 +631,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					if natSubnet.subnetOf == nil {
 						natSubnet.subnetOf = bignet
 					}
-					warnOrErrMsg(printType,
+					c.warnOrErr(printType,
 						"%s is subnet of %s\n"+
 							" in %s.\n"+
 							" If desired, declare attribute 'subnet_of'",
@@ -641,7 +640,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 
 			if !sameZone {
-				checkSubnets(natBignet, natSubnet, domain.name)
+				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}
 	}

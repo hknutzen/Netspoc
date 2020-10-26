@@ -680,7 +680,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		// Create navigation look up hash to reduce search space in loop cluster.
 		navi := clusterNavigation(from, to)
 		if len(navi) == 0 {
-			internalErr("Empty navi")
+			panic("Empty navi")
 		}
 
 		// These attributes describe valid paths inside loop.
@@ -699,7 +699,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		}
 		allowed := navi[from.getLoop()]
 		if len(allowed) == 0 {
-			internalErr("Loop with empty navi %v -> %v", from, to)
+			panic(fmt.Sprintf("Loop with empty navi %v -> %v", from, to))
 		}
 
 		// To find paths, process every loop interface of from node.
@@ -1152,7 +1152,7 @@ func loopPathWalk(in, out *routerIntf, loopEntry, loopExit pathStore, callAtZone
 	return callIt
 }
 
-func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
+func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	zone1 := findZone1(srcPath)
 	zone2 := findZone1(dstPath)
 	var msg string
@@ -1163,7 +1163,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	} else {
 		msg = " Check path restrictions and crypto interfaces."
 	}
-	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
+	c.err("No valid path\n from %s\n to %s\n %s\n"+msg,
 		srcPath.String(), dstPath.String(), context)
 }
 
@@ -1175,7 +1175,9 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 //              fun - function to be called.
 //              where - 'Router' or 'Zone', specifies where the function gets
 //              called, default is 'Router'.
-func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), where string) {
+func (c *spoc) pathWalk(rule *groupedRule,
+	fun func(r *groupedRule, i, o *routerIntf), where string) {
+
 	atZone := where == "Zone"
 
 	// Extract path store objects (zone/router/pathrestricted interface).
@@ -1209,7 +1211,7 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
-				showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
+				c.showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
 			}
 
 			// Abort, if path does not exist.
@@ -1302,7 +1304,9 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	}
 }
 
-func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
+func (c *spoc) singlePathWalk(
+	src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
+
 	rule := &groupedRule{
 		serviceRule: &serviceRule{
 			prt: []*proto{prtIP},
@@ -1312,7 +1316,7 @@ func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), 
 		srcPath: src.getPathNode(),
 		dstPath: dst.getPathNode(),
 	}
-	pathWalk(rule, f, where)
+	c.pathWalk(rule, f, where)
 }
 
 var border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
@@ -1395,7 +1399,7 @@ func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
 }
 
 // Result is the set of interfaces of src located at direction to dst.
-func pathRouterInterfaces(src *router, dst someObj) intfList {
+func (c *spoc) pathRouterInterfaces(src *router, dst someObj) intfList {
 	srcPath := src.getPathNode()
 	dstPath := dst.getPathNode()
 	if srcPath == dstPath {
@@ -1403,10 +1407,13 @@ func pathRouterInterfaces(src *router, dst someObj) intfList {
 	}
 
 	toList := []pathStore{dstPath}
-	return findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
+	return c.findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
 }
 
-func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName, dstName string, src2 netOrRouter) intfList {
+func (c *spoc) findAutoInterfaces(
+	srcPath, dstPath pathStore, toList []pathStore,
+	srcName, dstName string, src2 netOrRouter) intfList {
+
 	var result intfList
 
 	// Check path separately for interfaces with pathrestriction,
@@ -1465,7 +1472,7 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 		}
 	}
 	if len(result) == 0 {
-		showErrNoValidPath(srcPath, dstPath,
+		c.showErrNoValidPath(srcPath, dstPath,
 			fmt.Sprintf("while resolving %s (destination is %s).",
 				srcName, dstName))
 		return nil

@@ -413,7 +413,7 @@ func (c *spoc) rulesDistribution() {
 
 	// Deny rules
 	for _, rule := range pRules.deny {
-		pathWalk(rule, distributeRule, "Router")
+		c.pathWalk(rule, distributeRule, "Router")
 	}
 
 	// Handle global permit after deny rules.
@@ -421,7 +421,7 @@ func (c *spoc) rulesDistribution() {
 
 	// Permit rules
 	for _, rule := range pRules.permit {
-		pathWalk(rule, distributeRule, "Router")
+		c.pathWalk(rule, distributeRule, "Router")
 	}
 
 	addRouterAcls()

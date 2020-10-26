@@ -124,9 +124,9 @@ func (c *spoc) convertHosts() {
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
-						errMsg("ID of %s must not start with character '@'", name)
+						c.err("ID of %s must not start with character '@'", name)
 					case -1:
-						errMsg("ID of %s must contain character '@'", name)
+						c.err("ID of %s must contain character '@'", name)
 					}
 				}
 			} else {

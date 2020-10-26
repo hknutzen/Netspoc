@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
@@ -10,22 +9,22 @@ import (
 /* SetPath adds navigation information to the nodes of the graph to
 /* enable fast path traversal; identifies loops and performs
 /* consistency checks on pathrestrictions and virtual interfaces.*/
-func SetPath() {
-	diag.Progress("Preparing fast path traversal")
-	findDistsAndLoops()
+func (c *spoc) setPath() {
+	c.progress("Preparing fast path traversal")
+	c.findDistsAndLoops()
 	processLoops()
-	checkPathrestrictions()
-	checkVirtualInterfaces()
-	removeRedundantPathrestrictions()
+	c.checkPathrestrictions()
+	c.checkVirtualInterfaces()
+	c.removeRedundantPathrestrictions()
 }
 
 /* findDistsAndLoops sets direction and distances to an arbitrary
 /* chosen start zone. Identifies loops inside the graph topology, tags
 /* nodes of a cycle with a common loop object and distance. Checks for
 /* multiple unconnected parts of topology.*/
-func findDistsAndLoops() {
+func (c *spoc) findDistsAndLoops() {
 	if len(zones) == 0 {
-		abort.Msg("topology seems to be empty")
+		c.abort("topology seems to be empty")
 	}
 
 	startDistance := 0
@@ -59,7 +58,7 @@ func findDistsAndLoops() {
 
 	unconnectedPartitions := extractPartitionsConnectedBySplitRouter(partitions,
 		partition2Routers)
-	checkProperPartitionUsage(unconnectedPartitions)
+	c.checkProperPartitionUsage(unconnectedPartitions)
 }
 
 /* setPathObj prepares efficient topology traversal, finds a path from
@@ -225,14 +224,14 @@ Partition:
 	return unconnectedPartitions
 }
 
-func checkProperPartitionUsage(unconnectedPartitions []*zone) {
+func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 
 	partitions2PartitionTags := mapPartitions2PartitionTags()
 
 	// Several Partition Tags for single zone - generate error.
 	for zone1 := range partitions2PartitionTags {
 		if len(partitions2PartitionTags[zone1]) > 1 {
-			errMsg("Several partition names in partition %s:\n - %s",
+			c.err("Several partition names in partition %s:\n - %s",
 				zone1.name, strings.Join(partitions2PartitionTags[zone1], "\n - "))
 		}
 	}
@@ -251,13 +250,13 @@ func checkProperPartitionUsage(unconnectedPartitions []*zone) {
 	}
 
 	// Named single unconneted partition - generate warning.
-	warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
-	warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
 
 	// Several Unconnected Partitions without tags - generate Error.
-	errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
 		partitions2PartitionTags)
-	errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
 		partitions2PartitionTags)
 }
 
@@ -281,17 +280,20 @@ func mapPartitions2PartitionTags() map[*zone][]string {
 	return partitions2PartitionTags
 }
 
-func warnAtNamedSingleUnconnectedPartition(unconnectedPartitions []*zone) {
+func (c *spoc) warnAtNamedSingleUnconnectedPartition(
+	unconnectedPartitions []*zone) {
+
 	if len(unconnectedPartitions) == 1 {
 		var partitionName = unconnectedPartitions[0].partition
 		if partitionName != "" {
-			warnMsg("Spare partition name for single partition %s: %s.",
+			c.warn("Spare partition name for single partition %s: %s.",
 				unconnectedPartitions[0].name, partitionName)
 		}
 	}
 }
 
-func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
+func (c *spoc) errorOnUnnamedUnconnectedPartitions(
+	unconnectedPartitions []*zone,
 	partitions2PartitionTags map[*zone][]string) {
 
 	if len(unconnectedPartitions) > 1 {
@@ -313,7 +315,7 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 			for _, zone1 := range unnamedUnconnectedPartitions {
 				zone1Names.push(zone1.name)
 			}
-			errMsg("%s topology has unconnected parts:\n"+
+			c.err("%s topology has unconnected parts:\n"+
 				"%s\n Use partition attribute, if intended.",
 				ipVersion, zone1Names.nameList())
 		}
@@ -414,7 +416,7 @@ var effectivePathrestrictions []*pathRestriction
  - Located inside or at the border of cycles.
  - At least 2 interfaces per pathrestriction.
  - Have an effect on ACL generation. */
-func checkPathrestrictions() {
+func (c *spoc) checkPathrestrictions() {
 
 	for _, restrict := range pathrestrictions {
 
@@ -424,7 +426,7 @@ func checkPathrestrictions() {
 
 		// Delete invalid elements of pathrestriction.
 		var toBeDeleted []*routerIntf
-		toBeDeleted = identifyRestrictedIntfsInWrongOrNoLoop(restrict)
+		toBeDeleted = c.identifyRestrictedIntfsInWrongOrNoLoop(restrict)
 
 		// Ignore pathrestriction with only one element.
 		if len(toBeDeleted)+1 == len(restrict.elements) {
@@ -447,7 +449,7 @@ func checkPathrestrictions() {
 		}
 
 		if pathrestrictionHasNoEffect(restrict) {
-			warnMsg("Useless %s.\n All interfaces are unmanaged and located "+
+			c.warn("Useless %s.\n All interfaces are unmanaged and located "+
 				"inside the same security zone", restrict.name)
 			restrict.elements = nil
 		}
@@ -461,7 +463,7 @@ func checkPathrestrictions() {
 	}
 }
 
-func identifyRestrictedIntfsInWrongOrNoLoop(
+func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 	restrict *pathRestriction) []*routerIntf {
 
 	var misplacedRestricts []*routerIntf
@@ -475,7 +477,7 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 		}
 
 		if loop == nil {
-			warnMsg("Ignoring %s at %s\n because it isn't located "+
+			c.warn("Ignoring %s at %s\n because it isn't located "+
 				"inside cyclic graph", restrict.name, intf.name)
 			misplacedRestricts = append(misplacedRestricts, intf)
 			continue
@@ -485,7 +487,7 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 		cluster := loop.clusterExit
 		if prevCluster != nil {
 			if cluster != prevCluster {
-				warnMsg("Ignoring %s having elements from different loops:\n"+
+				c.warn("Ignoring %s having elements from different loops:\n"+
 					" - %s\n - %s", restrict.name, prevInterface.name, intf.name)
 				misplacedRestricts = restrict.elements
 				break
@@ -636,7 +638,7 @@ func getIntfLoop(intf *routerIntf) *loop {
 
 /* checkVirtualInterfaces assures interfaces with identical virtual IP
 /* are located inside the same loop.*/
-func checkVirtualInterfaces() {
+func (c *spoc) checkVirtualInterfaces() {
 	var seen = make(map[*routerIntf]bool)
 
 	for _, intf := range virtualInterfaces {
@@ -665,7 +667,7 @@ func checkVirtualInterfaces() {
 		var err bool
 		for _, virtIntf := range intf.redundancyIntfs {
 			if virtIntf.router.loop == nil {
-				errMsg("%s must be located inside cyclic sub-graph", virtIntf.name)
+				c.err("%s must be located inside cyclic sub-graph", virtIntf.name)
 				err = true
 			}
 		}
@@ -686,7 +688,7 @@ func checkVirtualInterfaces() {
 				for _, virtIntf := range intf.redundancyIntfs {
 					virtIntfNames.push(virtIntf.name)
 				}
-				errMsg("Virtual interfaces\n%s\n must all be part of the "+
+				c.err("Virtual interfaces\n%s\n must all be part of the "+
 					"same cyclic sub-graph", virtIntfNames.nameList())
 				break
 			}
@@ -694,7 +696,7 @@ func checkVirtualInterfaces() {
 	}
 }
 
-func removeRedundantPathrestrictions() {
+func (c *spoc) removeRedundantPathrestrictions() {
 
 	intf2restrictions := make(map[*routerIntf]map[*pathRestriction]bool)
 	for _, restrict := range effectivePathrestrictions {
@@ -727,7 +729,7 @@ func removeRedundantPathrestrictions() {
 			sort.Strings(oName)
 			names := strings.Join(oName, ", ")
 			msg := "Removed " + restrict.name + "; is subset of " + names
-			diag.Msg(msg)
+			c.diag(msg)
 		}
 	}
 

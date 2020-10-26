@@ -57,8 +57,10 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
+	"github.com/spf13/pflag"
 	"os"
 	"strings"
 )
@@ -226,7 +228,7 @@ func markUnconnected(list netPathObjList, managed bool) {
 	}
 }
 
-func markPath(src, dst *routerIntf) {
+func (c *spoc) markPath(src, dst *routerIntf) {
 	for _, intf := range []*routerIntf{src, dst} {
 		n := intf.network
 		intf.isUsed = true
@@ -234,7 +236,7 @@ func markPath(src, dst *routerIntf) {
 		todoUnmanaged.push(n)
 	}
 	//debug("Path %s %s", src, dst)
-	singlePathWalk(src, dst, markTopology, "Router")
+	c.singlePathWalk(src, dst, markTopology, "Router")
 }
 
 func markUsedNatTags() {
@@ -250,14 +252,13 @@ func markUsedNatTags() {
 }
 
 // Mark path between endpoints of rules.
-func markRulesPath(p pathRules) {
+func (c *spoc) markRulesPath(p pathRules) {
 	for _, r := range append(p.deny, p.permit...) {
-		pathWalk(r, markTopology, "Router")
+		c.pathWalk(r, markTopology, "Router")
 	}
 }
 
-func CutNetspoc(path string, names []string, keepOwner bool) {
-	c := startSpoc()
+func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	toplevel := parseFiles(path)
 
 	if len(names) > 0 {
@@ -283,23 +284,23 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 		toplevel = copy
 		for _, name := range names {
 			if !seen[name] {
-				errMsg("Unknown service:%s", name)
+				c.err("Unknown service:%s", name)
 			}
 		}
 	}
 
-	setupTopology(toplevel)
+	c.setupTopology(toplevel)
 	for _, s := range symTable.service {
 		if !s.disabled {
 			isUsed[s.name] = true
 		}
 	}
-	MarkDisabled()
-	SetZone()
-	SetPath()
-	DistributeNatInfo()
-	FindSubnetsInZone()
-	NormalizeServices()
+	c.markDisabled()
+	c.setZone()
+	c.setPath()
+	c.distributeNatInfo()
+	c.findSubnetsInZone()
+	c.normalizeServices()
 	permitRules, denyRules := c.convertHostsInRules()
 	c.groupPathRules(permitRules, denyRules)
 
@@ -531,11 +532,10 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	markRulesPath(pRules)
+	c.markRulesPath(pRules)
 
 	// Call this after topology has been marked.
 	c.expandCrypto()
-	c.finish()
 
 	// 1. call to mark unmanaged parts of topology.
 	// Needed to mark unmanaged crypto routers.
@@ -627,7 +627,7 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 			if intf.tunnel {
 				peer := intf.peer
 				real := intf.realIntf
-				markPath(real, peer.realIntf)
+				c.markPath(real, peer.realIntf)
 			}
 		}
 	}
@@ -956,4 +956,43 @@ func CutNetspoc(path string, names []string, keepOwner bool) {
 	}
 	out := printer.File(active, nil)
 	os.Stdout.Write(out)
+}
+
+func CutNetspocMain() int {
+	// Setup custom usage function.
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s [options] FILE|DIR [service:name ...]\n", os.Args[0])
+		pflag.PrintDefaults()
+	}
+
+	// Command line flags
+	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	keepOwner := pflag.BoolP("owner", "o", false, "Keep referenced owners")
+	pflag.Parse()
+
+	// Argument processing
+	args := pflag.Args()
+	if len(args) == 0 {
+		pflag.Usage()
+		os.Exit(1)
+	}
+	path := args[0]
+	services := args[1:]
+
+	dummyArgs := []string{
+		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--ipv6=%v", *ipv6),
+		"--max_errors=9999",
+	}
+	conf.ConfigFromArgsAndFile(dummyArgs, path)
+
+	c := startSpoc()
+	go func() {
+		c.cutNetspoc(path, services, *keepOwner)
+		close(c.msgChan)
+	}()
+	c.printMessages()
+	return ErrorCounter
 }

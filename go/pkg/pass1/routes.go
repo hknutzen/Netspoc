@@ -629,7 +629,7 @@ func generateRoutingTree() routingTree {
 // Results    : Every interface object holds next hop routing information
 //              for the rules of original ruleset requiring a path passing the
 //              interface.
-func generateRoutingInfo(tree routingTree) {
+func (c *spoc) generateRoutingInfo(tree routingTree) {
 
 	// Process every pseudo rule. Within its {path} attribute....
 	for _, pRule := range tree {
@@ -661,7 +661,7 @@ func generateRoutingInfo(tree routingTree) {
 				pathExits = append(pathExits, inIntf)
 			}
 		}
-		pathWalk(&pRule.groupedRule, getRoutePath, "Zone")
+		c.pathWalk(&pRule.groupedRule, getRoutePath, "Zone")
 
 		// Determine routing information for every interface pair.
 		for _, tuple := range path {
@@ -745,7 +745,7 @@ func (c *spoc) findActiveRoutes() {
 	tree := generateRoutingTree()
 
 	// Generate routing info for every pseudo rule and store it in interfaces.
-	generateRoutingInfo(tree)
+	c.generateRoutingInfo(tree)
 
 	c.checkAndConvertRoutes()
 }
@@ -876,7 +876,7 @@ func (c *spoc) checkAndConvertRoutes() {
 							zoneHops.push(outIntf)
 						}
 					}
-					singlePathWalk(realIntf, peerNet, walk, "Zone")
+					c.singlePathWalk(realIntf, peerNet, walk, "Zone")
 					routeInZone := realIntf.routeInZone
 					for _, hop := range zoneHops {
 						hopNet := hop.network

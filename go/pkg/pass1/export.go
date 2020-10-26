@@ -30,9 +30,12 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/spf13/pflag"
 	"net"
 	"os"
 	"os/exec"
@@ -418,8 +421,8 @@ type exportedSvc struct {
 }
 
 // Split service, if 'user' has different values in normalized rules.
-func normalizeServicesForExport() []*exportedSvc {
-	diag.Progress("Normalize services for export")
+func (c *spoc) normalizeServicesForExport() []*exportedSvc {
+	c.progress("Normalize services for export")
 	var result []*exportedSvc
 	var names stringList
 	for n, _ := range services {
@@ -431,7 +434,7 @@ func normalizeServicesForExport() []*exportedSvc {
 		ipv6 := s.ipV6
 		sname := s.name
 		ctx := sname
-		user := expandGroup(s.user, "user of "+ctx, ipv6, false)
+		user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
 		foreach := s.foreach
 
 		type tmpRule struct {
@@ -463,7 +466,7 @@ func normalizeServicesForExport() []*exportedSvc {
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := normalizeSrcDstList(uRule, elt, s)
+				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 
@@ -1429,18 +1432,17 @@ func copyPolicyFile(inPath, outDir string) {
 	}
 }
 
-func Export(inDir, outDir string) {
-	c := startSpoc()
-	ReadNetspoc(inDir)
-	MarkDisabled()
-	SetZone()
-	SetPath()
-	natDomains, natTag2natType, multiNAT := DistributeNatInfo()
-	FindSubnetsInZone()
+func (c *spoc) exportNetspoc(inDir, outDir string) {
+	c.readNetspoc(inDir)
+	c.markDisabled()
+	c.setZone()
+	c.setPath()
+	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
+	c.findSubnetsInZone()
 	adaptOwnerNames()
 
 	// Copy of services with those services split, that have different 'user'.
-	expSvcList := normalizeServicesForExport()
+	expSvcList := c.normalizeServicesForExport()
 	c.propagateOwners()
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := setupPartOwners()
@@ -1456,6 +1458,41 @@ func Export(inDir, outDir string) {
 	exportObjects(outDir)
 	exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
 	copyPolicyFile(inDir, outDir)
-	c.finish()
-	diag.Progress("Ready")
+	c.progress("Ready")
+}
+
+func ExportMain() int {
+	// Setup custom usage function.
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s [options] netspoc-data out-directory\n\n", os.Args[0])
+		pflag.PrintDefaults()
+	}
+
+	// Command line flags
+	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	pflag.Parse()
+
+	// Argument processing
+	args := pflag.Args()
+	if len(args) != 2 {
+		pflag.Usage()
+		os.Exit(1)
+	}
+	path := args[0]
+	out := args[1]
+	dummyArgs := []string{
+		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--ipv6=%v", *ipv6),
+	}
+	conf.ConfigFromArgsAndFile(dummyArgs, path)
+
+	c := startSpoc()
+	go func() {
+		c.exportNetspoc(path, out)
+		close(c.msgChan)
+	}()
+	c.printMessages()
+	return ErrorCounter
 }

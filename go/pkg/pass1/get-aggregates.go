@@ -164,7 +164,9 @@ func duplicateAggregateToCluster(agg *network, implicit bool) {
 	}
 }
 
-func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
+func (c *spoc) getAny(
+	z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
+
 	if ip == nil {
 		ip = getZeroIp(z.ipV6)
 		mask = getZeroMask(z.ipV6)
@@ -249,7 +251,7 @@ func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 				if !nat.hidden {
 					pIp := ip.String()
 					prefix, _ := mask.Size()
-					errMsg("Must not use aggregate with IP " +
+					c.err("Must not use aggregate with IP " +
 						pIp + "/" + strconv.Itoa(prefix) +
 						" in " + z.name + "\n" +
 						" because " + aggOrNet.name +

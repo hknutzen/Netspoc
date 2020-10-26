@@ -146,7 +146,7 @@ func (c *spoc) SetPolicyDistributionIP() {
 		} else {
 
 			// debug("%s: %d", router->{name}, len(intfMap));
-			frontList := pathRouterInterfaces(r, pdp)
+			frontList := c.pathRouterInterfaces(r, pdp)
 
 			// If multiple management interfaces were found, take that which is
 			// directed to policy_distribution_point.
