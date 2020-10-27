@@ -1,8 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"sort"
 	"strings"
 )
 
@@ -456,7 +454,7 @@ func (c *spoc) checkPathrestrictions() {
 	// Collect effective pathrestrictions.
 	var effective []*pathRestriction
 	for _, restrict := range c.pathrestrictions {
-		if restrict.elements != nil {
+		if len(restrict.elements) != 0 {
 			effective = append(effective, restrict)
 		}
 	}
@@ -696,85 +694,50 @@ func (c *spoc) checkVirtualInterfaces() {
 	}
 }
 
-func (c *spoc) removeRedundantPathrestrictions() {
-
-	intf2restrictions := make(map[*routerIntf]map[*pathRestriction]bool)
-	for _, restrict := range c.pathrestrictions {
-		for _, element := range restrict.elements {
-			if intf2restrictions[element] == nil {
-				intf2restrictions[element] = make(
-					map[*pathRestriction]bool)
-			}
-			intf2restrictions[element][restrict] = true
-		}
-	}
-
-	var part []*pathRestriction
-	for _, restrict := range c.pathrestrictions {
-		superset := findContainingPathRestrictions(restrict, intf2restrictions)
-		if superset != nil {
-			// Deleted restriction must not be found as supernet.
-			// Otherwise two equal pathrestrictions would both be deleted.
-			for _, element := range restrict.elements {
-				intf2restrictions[element][restrict] = false
-			}
-			deletePathrestrictionFromInterfaces(restrict)
-			if diag.Active() {
-				var oName stringList
-				for _, containing := range superset {
-					oName.push(containing.name)
-				}
-				sort.Strings(oName)
-				names := strings.Join(oName, ", ")
-				c.diag("Removed %s; is subset of %s", restrict.name, names)
-			}
-		} else {
-			part = append(part, restrict)
-		}
-	}
-	c.pathrestrictions = part
+type prIntfKey struct {
+	pr   *pathRestriction
+	intf *routerIntf
 }
 
-func findContainingPathRestrictions(restrict *pathRestriction,
-	intf2restrictions map[*routerIntf]map[*pathRestriction]bool) []*pathRestriction {
+func (c *spoc) removeRedundantPathrestrictions() {
 
-	if len(restrict.elements) == 0 {
-		return nil
+	intf2restrictions := make(map[prIntfKey]bool)
+	for _, restrict := range c.pathrestrictions {
+		for _, element := range restrict.elements {
+			intf2restrictions[prIntfKey{pr: restrict, intf: element}] = true
+		}
 	}
 
-	intf1 := restrict.elements[0]
+	var valid []*pathRestriction
+	for _, restrict := range c.pathrestrictions {
+		other := findContainingPathRestriction(restrict, intf2restrictions)
+		if other != nil {
+			deletePathrestrictionFromInterfaces(restrict)
+			c.diag("Removed %s; is subset of %s", restrict.name, other.name)
+		} else {
+			valid = append(valid, restrict)
+		}
+	}
+	c.pathrestrictions = valid
+}
 
-	// Collect potential superset pathrestrictions:
-	// Restrictions of equal/bigger size sharing Intf1
-	var potentialSupersets []*pathRestriction
-	for other := range intf2restrictions[intf1] {
+// Find pathrestriction of equal/bigger size sharing all elements of
+// restrict.
+func findContainingPathRestriction(restrict *pathRestriction,
+	intf2restrictions map[prIntfKey]bool) *pathRestriction {
+
+OTHER:
+	for _, other := range restrict.elements[0].pathRestrict {
 		if other != restrict && len(other.elements) >= len(restrict.elements) {
-			potentialSupersets = append(potentialSupersets, other)
-		}
-	}
-	if potentialSupersets == nil {
-		return nil
-	}
-
-	superset := potentialSupersets
-
-	// Remove restrictions without IntfX from superset.
-	for _, intfX := range restrict.elements[1:] {
-		var nextSet []*pathRestriction
-		restrictsWithIntfX := intf2restrictions[intfX]
-		for _, restrict2 := range superset {
-			if restrictsWithIntfX[restrict2] {
-				nextSet = append(nextSet, restrict2)
+			for _, intf := range restrict.elements[1:] {
+				if !intf2restrictions[prIntfKey{pr: other, intf: intf}] {
+					continue OTHER
+				}
 			}
-		}
-		superset = nextSet
-
-		// Pathrestriction is not redundant if superset is empty
-		if superset == nil {
-			return nil
+			return other
 		}
 	}
-	return superset
+	return nil
 }
 
 func deletePathrestrictionFromInterfaces(restrict *pathRestriction) {
