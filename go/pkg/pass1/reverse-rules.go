@@ -149,6 +149,6 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 
 func (c *spoc) genReverseRules() {
 	c.progress("Generating reverse rules for stateless routers")
-	pRules.deny = c.genReverseRules1(pRules.deny)
-	pRules.permit = c.genReverseRules1(pRules.permit)
+	c.allPathRules.deny = c.genReverseRules1(c.allPathRules.deny)
+	c.allPathRules.permit = c.genReverseRules1(c.allPathRules.permit)
 }

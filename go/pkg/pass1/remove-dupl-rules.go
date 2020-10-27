@@ -33,6 +33,6 @@ func (c *spoc) removeSimpleDuplicateRules() {
 		}
 		return rules[:j]
 	}
-	pRules.permit = process(pRules.permit)
-	pRules.deny = process(pRules.deny)
+	c.allPathRules.permit = process(c.allPathRules.permit)
+	c.allPathRules.deny = process(c.allPathRules.deny)
 }

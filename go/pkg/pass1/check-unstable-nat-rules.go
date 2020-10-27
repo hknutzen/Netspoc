@@ -68,6 +68,6 @@ func (c *spoc) checkUnstableNatRules() {
 			c.pathWalk(rule, walk, "Router")
 		}
 	}
-	process(pRules.deny)
-	process(pRules.permit)
+	process(c.allPathRules.deny)
+	process(c.allPathRules.permit)
 }

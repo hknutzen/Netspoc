@@ -32,6 +32,7 @@ type spoc struct {
 	// State of compiler
 	pathrestrictions []*pathRestriction
 	userObj          userInfo
+	allPathRules     pathRules
 }
 
 type spocMsg struct {

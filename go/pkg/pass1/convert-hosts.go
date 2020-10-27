@@ -484,6 +484,6 @@ func (c *spoc) combineSubnetsInRules() {
 			r.dst = combineSubnets(r.dst)
 		}
 	}
-	process(pRules.permit)
-	process(pRules.deny)
+	process(c.allPathRules.permit)
+	process(c.allPathRules.deny)
 }

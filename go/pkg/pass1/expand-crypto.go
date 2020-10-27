@@ -408,7 +408,7 @@ func (c *spoc) expandCrypto() {
 					}
 
 					rules := genTunnelRules(in, out, cr.ipsec)
-					pRules.permit = append(pRules.permit, rules...)
+					c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 				}
 				gen(realSpoke, realHub)
 				gen(realHub, realSpoke)

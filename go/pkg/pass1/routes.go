@@ -573,12 +573,12 @@ func generateRoutingTree1(rule *groupedRule, isIntf string, tree routingTree) {
 //           the whole grouped rule set. As the pseudo rules are
 //           generated to determine routes, ports are omitted, and rules
 //           refering to the same src and dst zones are summarized.
-func generateRoutingTree() routingTree {
+func (c *spoc) generateRoutingTree() routingTree {
 	tree := make(routingTree)
 
 	// Special handling needed for rules grouped not at zone pairs but
 	// grouped at routers.
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 
 		// debug(rule.print())
 		if _, ok := rule.srcPath.(*zone); ok {
@@ -742,7 +742,7 @@ func (c *spoc) findActiveRoutes() {
 	}
 
 	// Generate pseudo rule set with all src dst pairs to determine routes for.
-	tree := generateRoutingTree()
+	tree := c.generateRoutingTree()
 
 	// Generate routing info for every pseudo rule and store it in interfaces.
 	c.generateRoutingInfo(tree)

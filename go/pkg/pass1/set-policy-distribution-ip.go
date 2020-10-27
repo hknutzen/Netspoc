@@ -85,7 +85,7 @@ func (c *spoc) SetPolicyDistributionIP() {
 	}
 
 	router2foundInterfaces := make(map[*router]map[*routerIntf]bool)
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 		var r *router
 		switch x := rule.dstPath.(type) {
 		case *zone:

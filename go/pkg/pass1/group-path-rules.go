@@ -275,9 +275,10 @@ func (c *spoc) groupPathRules(p, d ruleList) {
 		gRules = removeUnenforceableRules(gRules)
 		return gRules
 	}
-	pRules.permit = process(p) //sRules.permit)
-	pRules.deny = process(d)   //sRules.deny)
-	c.info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
+	c.allPathRules.permit = process(p)
+	c.allPathRules.deny = process(d)
+	count := len(c.allPathRules.permit) + len(c.allPathRules.deny)
+	c.info("Grouped rule count: %d", count)
 
 	c.showUnenforceable()
 }

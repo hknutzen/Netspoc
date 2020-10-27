@@ -412,7 +412,7 @@ func (c *spoc) rulesDistribution() {
 	c.progress("Distributing rules")
 
 	// Deny rules
-	for _, rule := range pRules.deny {
+	for _, rule := range c.allPathRules.deny {
 		c.pathWalk(rule, distributeRule, "Router")
 	}
 
@@ -420,7 +420,7 @@ func (c *spoc) rulesDistribution() {
 	distributeGeneralPermit()
 
 	// Permit rules
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 		c.pathWalk(rule, distributeRule, "Router")
 	}
 

@@ -193,8 +193,8 @@ func (c *spoc) printService(
 			}
 		}
 	}
-	collect(pRules.deny)
-	collect(pRules.permit)
+	collect(c.allPathRules.deny)
+	collect(c.allPathRules.permit)
 
 	objInfo := func(obj someObj) string {
 		if showName {

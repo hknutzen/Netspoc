@@ -553,8 +553,8 @@ func (c *spoc) checkRedundantRules() {
 			path2rules[key] = append(path2rules[key], rule)
 		}
 	}
-	add(pRules.deny)
-	add(pRules.permit)
+	add(c.allPathRules.deny)
+	add(c.allPathRules.permit)
 	for _, rules := range path2rules {
 		expandedRules := expandRules(rules)
 		count += len(expandedRules)

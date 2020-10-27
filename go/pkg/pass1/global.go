@@ -13,7 +13,6 @@ var (
 	prtUDP              *proto
 	rangeTCPEstablished *proto
 
-	pRules pathRules
 	sRules = new(serviceRules)
 
 	allNetworks        netList

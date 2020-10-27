@@ -532,7 +532,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	c.markRulesPath(pRules)
+	c.markRulesPath(c.allPathRules)
 
 	// Call this after topology has been marked.
 	c.expandCrypto()
