@@ -13,8 +13,6 @@ var (
 	prtUDP              *proto
 	rangeTCPEstablished *proto
 
-	sRules = new(serviceRules)
-
 	allNetworks        netList
 	ascendingAreas     []*area
 	allRouters         []*router

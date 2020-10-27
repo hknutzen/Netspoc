@@ -144,8 +144,8 @@ func (c *spoc) printService(
 		natSet = &m
 	}
 
-	c.normalizeServices()
-	permitRules, denyRules := c.convertHostsInRules()
+	sRules := c.normalizeServices()
+	permitRules, denyRules := c.convertHostsInRules(sRules)
 	c.groupPathRules(permitRules, denyRules)
 	c.stopOnErr()
 

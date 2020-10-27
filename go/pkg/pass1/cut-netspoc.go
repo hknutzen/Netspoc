@@ -300,8 +300,8 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	c.setPath()
 	c.distributeNatInfo()
 	c.findSubnetsInZone()
-	c.normalizeServices()
-	permitRules, denyRules := c.convertHostsInRules()
+	sRules := c.normalizeServices()
+	permitRules, denyRules := c.convertHostsInRules(sRules)
 	c.groupPathRules(permitRules, denyRules)
 
 	// Collect objects referenced from rules.

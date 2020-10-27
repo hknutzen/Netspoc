@@ -237,7 +237,7 @@ func (c *spoc) printGroup(path, group, natNet string,
 	// Prepare finding unused objects by marking used objects.
 	used := make(map[groupObj]bool)
 	if showUnused {
-		c.normalizeServices()
+		sRules := c.normalizeServices()
 		c.stopOnErr()
 		process := func(rules []*serviceRule) {
 			for _, rule := range rules {

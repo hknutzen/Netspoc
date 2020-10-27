@@ -201,7 +201,7 @@ func (c *spoc) normalizeSrcDstList(
 	return append([][2]srvObjList{{expSrcList, expDstList}}, extraResult...)
 }
 
-func (c *spoc) normalizeServiceRules(s *service) {
+func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	ipv6 := s.ipV6
 	ctx := s.name
 	user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
@@ -288,11 +288,9 @@ func (c *spoc) normalizeServiceRules(s *service) {
 	if ruleCount == 0 && len(user) == 0 {
 		c.warn("Must not define %s with empty users and empty rules", ctx)
 	}
-
-	// Result is stored in global variable sRules.
 }
 
-func (c *spoc) normalizeServices() {
+func (c *spoc) normalizeServices() *serviceRules {
 	c.progress("Normalizing services")
 
 	var names stringList
@@ -300,7 +298,9 @@ func (c *spoc) normalizeServices() {
 		names.push(n)
 	}
 	sort.Strings(names)
+	sRules := new(serviceRules)
 	for _, n := range names {
-		c.normalizeServiceRules(symTable.service[n])
+		c.normalizeServiceRules(symTable.service[n], sRules)
 	}
+	return sRules
 }

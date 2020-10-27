@@ -273,7 +273,7 @@ func (c *spoc) propagateOwners() {
 	}
 }
 
-func (c *spoc) checkServiceOwner() {
+func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 	c.progress("Checking service owner")
 	// Sort error messages before output.
 	c = c.sortingSpoc()
