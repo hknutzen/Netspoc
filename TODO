@@ -22,4 +22,7 @@ into one single attribute with enumerated value.
 
 Define type netOrRouter interface{}  more restrictive.
 
-c.abort() must not proceed, but wait and terminate the main program.
+Replace getIpv4Ipv6Routers() with c.allRouters
+
+c.routerFragments is only used once in mark-disabled.go
+Is it really needed?

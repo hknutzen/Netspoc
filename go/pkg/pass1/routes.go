@@ -737,7 +737,7 @@ func (c *spoc) findActiveRoutes() {
 	}
 
 	// Generate navigation information for routing inside zones.
-	for _, zone := range zones {
+	for _, zone := range c.allZones {
 		setRoutesInZone(zone)
 	}
 
@@ -824,8 +824,8 @@ func (c *spoc) checkAndConvertRoutes() {
 			}
 		}
 	}
-	fixBridged(managedRouters)
-	fixBridged(routingOnlyRouters)
+	fixBridged(c.managedRouters)
+	fixBridged(c.routingOnlyRouters)
 
 	checkAndConvert := func(list []*router) {
 		for _, router := range list {
@@ -1096,6 +1096,6 @@ func (c *spoc) checkAndConvertRoutes() {
 			}
 		}
 	}
-	checkAndConvert(managedRouters)
-	checkAndConvert(routingOnlyRouters)
+	checkAndConvert(c.managedRouters)
+	checkAndConvert(c.routingOnlyRouters)
 }

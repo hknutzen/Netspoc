@@ -356,7 +356,7 @@ func (c *spoc) markSecondaryRules() {
 
 	secondaryMark := 1
 	primaryMark := 1
-	for _, zone := range zones {
+	for _, zone := range c.allZones {
 		if zone.secondaryMark == 0 {
 			markSecondary(zone, secondaryMark)
 			secondaryMark++

@@ -52,8 +52,8 @@ func (c *spoc) SetPolicyDistributionIP() {
 			missing = append(missing, r)
 		}
 	}
-	collect(managedRouters)
-	collect(routingOnlyRouters)
+	collect(c.managedRouters)
+	collect(c.routingOnlyRouters)
 	if count := len(missing); count > 0 {
 		c.warnOrErr(needAll,
 			"Missing attribute 'policy_distribution_point' for %d devices:\n"+

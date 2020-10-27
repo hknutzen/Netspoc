@@ -593,6 +593,42 @@ func combineAttr(list ...map[string]string) map[string]string {
 	return result
 }
 
+const (
+	noAttr = iota
+	ownAttr
+	groupPolicy
+	tgGeneral
+)
+
+var asaVpnAttributes = map[string]int{
+
+	// Our own attributes
+	"check-subject-name":       ownAttr,
+	"check-extended-key-usage": ownAttr,
+	"trust-point":              ownAttr,
+
+	// group-policy attributes
+	"anyconnect-custom_perapp": groupPolicy,
+	"banner":                   groupPolicy,
+	"dns-server":               groupPolicy,
+	"default-domain":           groupPolicy,
+	"split-dns":                groupPolicy,
+	"wins-server":              groupPolicy,
+	"vpn-access-hours":         groupPolicy,
+	"vpn-idle-timeout":         groupPolicy,
+	"vpn-session-timeout":      groupPolicy,
+	"vpn-simultaneous-logins":  groupPolicy,
+	"vlan":                     groupPolicy,
+	"split-tunnel-policy":      groupPolicy,
+
+	// tunnel-group general-attributes
+	"authentication-server-group":                 tgGeneral,
+	"authorization-server-group":                  tgGeneral,
+	"authorization-required":                      tgGeneral,
+	"username-from-certificate":                   tgGeneral,
+	"password-management_password-expire-in-days": tgGeneral,
+}
+
 var asaVpnAttrNeedValue = map[string]bool{
 	"anyconnect-custom_perapp":  true,
 	"banner":                    true,
@@ -2378,8 +2414,8 @@ func (c *spoc) printCode1(dir string) {
 			fmt.Fprintln(toPass2, path)
 		}
 	}
-	printRouter(managedRouters)
-	printRouter(routingOnlyRouters)
+	printRouter(c.managedRouters)
+	printRouter(c.routingOnlyRouters)
 }
 
 func (c *spoc) printCode(dir string) {

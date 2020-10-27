@@ -239,8 +239,8 @@ func (c *spoc) markPath(src, dst *routerIntf) {
 	c.singlePathWalk(src, dst, markTopology, "Router")
 }
 
-func markUsedNatTags() {
-	for _, n := range allNetworks {
+func (c *spoc) markUsedNatTags() {
+	for _, n := range c.allNetworks {
 		if n.isUsed {
 			for tag, natNet := range n.nat {
 				if !natNet.identity {
@@ -338,7 +338,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	collectRules(sRules.deny)
 
 	// Mark NAT tags referenced in networks used in rules.
-	markUsedNatTags()
+	c.markUsedNatTags()
 
 	// Collect objects, that are referenced, but not visible in rules:
 	// Networks, interfaces, hosts, aggregates from negated part of intersection.
@@ -370,7 +370,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	zoneUsed := make(map[*zone]bool)
 	zoneCheck := make(map[*zone]bool)
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		for _, agg := range z.ipmask2aggregate {
 			if !agg.isUsed {
 				continue
@@ -404,7 +404,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		zoneUsed[z] = true
 	}
 
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if !zoneUsed[z] {
 			continue
 		}
@@ -415,7 +415,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	zone2areas := make(map[*zone][]*area)
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		a := z.inArea
 		for a != nil {
 			zone2areas[z] = append(zone2areas[z], a)
@@ -424,7 +424,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark areas having NAT attribute that influence their networks.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if !zoneCheck[z] {
 			continue
 		}
@@ -713,7 +713,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Collect names of marked networks, aggregates, routers, interfaces.
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.isUsed {
 			isUsed[n.name] = true
 			markOwner(n.owner)

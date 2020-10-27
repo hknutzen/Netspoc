@@ -100,7 +100,7 @@ func (c *spoc) checkHostCompatibility(obj, other *netObj) {
 
 func (c *spoc) convertHosts() {
 	c.progress("Converting hosts to subnets")
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.unnumbered || n.tunnel {
 			continue
 		}

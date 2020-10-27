@@ -43,7 +43,7 @@ a common set of NAT tags (NAT set) is effective at every network.
 func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		tags := make(stringList, 0)
 		for tag, _ := range n.nat {
 			tags.push(tag)
@@ -138,7 +138,7 @@ func markInvalidNatTransitions(multi map[string][]natMap) map[string]natMap {
 //           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 //           active at a time. As NAT:A can not be active (n2) and inactive
 //           (n1) in the same NAT domain, this restriction is needed.
-func generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
+func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
 	multi := make(map[string][]natMap)
 
 	// Check if two natMaps contain the same keys. Values can be different.
@@ -154,7 +154,7 @@ func generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
 		return true
 	}
 
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		map1 := n.nat
 		tags := make(stringList, 0)
 		for tag, _ := range map1 {
@@ -359,7 +359,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 	}
 
 	var result []*natDomain
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.natDomain != nil {
 			continue
 		}
@@ -889,7 +889,7 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 // Comment: A NAT definition for a single host/interface is only allowed,
 //          if network has a dynamic NAT definition.
 func (c *spoc) checkNatCompatibility() {
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
 			nat := obj.nat
 			if nat == nil {
@@ -931,7 +931,7 @@ func (c *spoc) checkNatCompatibility() {
 //          to their interfaces. To ensure safety, the devices interfaces
 //          need to have a fixed address.
 func (c *spoc) checkInterfacesWithDynamicNat() {
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		var tags stringList
 		for tag, _ := range n.nat {
 			tags.push(tag)
@@ -1066,7 +1066,7 @@ HARDWARE:
 func (c *spoc) prepareRealIpNatRouters(
 	multi map[string][]natMap, natType map[string]string) {
 
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		if r.aclUseRealIp {
 			c.prepareRealIpNat(r, multi, natType)
 		}
@@ -1082,7 +1082,7 @@ func (c *spoc) distributeNatInfo() (
 	c.progress("Distributing NAT")
 	natdomains := c.findNatDomains()
 	natType := c.getLookupMapForNatType()
-	multi := generateMultinatDefLookup(natType)
+	multi := c.generateMultinatDefLookup(natType)
 	natErrors := c.distributeNatTagsToNatDomains(multi, natdomains)
 	c.checkMultinatErrors(multi, natdomains)
 	c.checkNatDefinitions(natType, natdomains)

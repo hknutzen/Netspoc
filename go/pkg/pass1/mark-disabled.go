@@ -139,17 +139,17 @@ func (c *spoc) markDisabled() {
 	sort.Slice(rl, func(i, j int) bool {
 		return rl[i].name < rl[j].name
 	})
-	rl = append(rl, routerFragments...)
+	rl = append(rl, c.routerFragments...)
 
 	for _, r := range rl {
 		if r.disabled {
 			continue
 		}
-		allRouters = append(allRouters, r)
+		c.allRouters = append(c.allRouters, r)
 		if r.managed != "" {
-			managedRouters = append(managedRouters, r)
+			c.managedRouters = append(c.managedRouters, r)
 		} else if r.routingOnly {
-			routingOnlyRouters = append(routingOnlyRouters, r)
+			c.routingOnlyRouters = append(c.routingOnlyRouters, r)
 		}
 	}
 
@@ -157,7 +157,7 @@ func (c *spoc) markDisabled() {
 	// Also collect all IPv4 and IPv6 routers with same name.
 	sameIPvDevice := make(map[string][]*router)
 	sameDevice := make(map[string][]*router)
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		if r.origRouter != nil {
 			continue
 		}
@@ -219,7 +219,7 @@ func (c *spoc) markDisabled() {
 	// Don't sort by name because code shouldn't change if a network is renamed.
 	// Derive order from order of routers and interfaces.
 	seen := make(map[*network]bool)
-	for _, r := range allRouters {
+	for _, r := range c.allRouters {
 		if len(r.interfaces) == 0 {
 			c.err("%s isn't connected to any network", r)
 			continue
@@ -231,7 +231,7 @@ func (c *spoc) markDisabled() {
 			n := intf.network
 			if !seen[n] {
 				seen[n] = true
-				allNetworks.push(n)
+				c.allNetworks.push(n)
 			}
 		}
 	}
@@ -251,7 +251,7 @@ func (c *spoc) markDisabled() {
 				h.disabled = true
 			}
 		} else {
-			allNetworks.push(n)
+			c.allNetworks.push(n)
 		}
 	}
 	var vl intfList

@@ -23,7 +23,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 	mark := 1
 	var result []clusterInfo
 	seen := make(map[*zone]bool)
-	for _, r0 := range managedRouters {
+	for _, r0 := range c.managedRouters {
 		if r0.managed != "local" {
 			continue
 		}
@@ -181,7 +181,7 @@ func (c *spoc) markManagedLocal() {
 				}
 			}
 		}
-		for _, zone := range zones {
+		for _, zone := range c.allZones {
 			markNetworks(zone.networks)
 		}
 

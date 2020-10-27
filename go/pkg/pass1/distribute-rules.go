@@ -198,8 +198,8 @@ func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
 	return result
 }
 
-func addRouterAcls() {
-	for _, router := range managedRouters {
+func (c *spoc) addRouterAcls() {
+	for _, router := range c.managedRouters {
 		ipv6 := router.ipV6
 		hasIoACL := router.model.hasIoACL
 		hardwareList := router.hardware
@@ -313,8 +313,8 @@ func addRouterAcls() {
 	}
 }
 
-func distributeGeneralPermit() {
-	for _, router := range managedRouters {
+func (c *spoc) distributeGeneralPermit() {
+	for _, router := range c.managedRouters {
 		generalPermit := router.generalPermit
 		if len(generalPermit) == 0 {
 			continue
@@ -417,12 +417,12 @@ func (c *spoc) rulesDistribution() {
 	}
 
 	// Handle global permit after deny rules.
-	distributeGeneralPermit()
+	c.distributeGeneralPermit()
 
 	// Permit rules
 	for _, rule := range c.allPathRules.permit {
 		c.pathWalk(rule, distributeRule, "Router")
 	}
 
-	addRouterAcls()
+	c.addRouterAcls()
 }

@@ -11,7 +11,7 @@ import (
 func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.progress("Preparing security zones and areas")
 	c.setZones()
-	clusterZones()
+	c.clusterZones()
 	crosslinkRouters := c.checkCrosslink()
 	clusterCrosslinkRouters(crosslinkRouters)
 	objInArea := c.setAreas()
@@ -25,7 +25,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 //#############################################################################
 // Purpose  : Create new zone for every network without a zone.
 func (c *spoc) setZones() {
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.zone != nil {
 			continue
 		}
@@ -34,7 +34,7 @@ func (c *spoc) setZones() {
 		name := "any:[" + n.name + "]"
 		z := &zone{name: name, ipmask2aggregate: make(map[ipmask]*network)}
 		z.ipV6 = n.ipV6
-		zones = append(zones, z)
+		c.allZones = append(c.allZones, z)
 
 		// Collect zone elements...
 		c.setZone1(n, z, nil)
@@ -121,10 +121,10 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 //            the zones.
 // Comments : Attribute zoneCluster is only set if the cluster has more
 //            than one element.
-func clusterZones() {
+func (c *spoc) clusterZones() {
 
 	// Process remaining unclustered zones.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.zoneCluster == nil {
 
 			// Create a new cluster and collect its zones
@@ -208,7 +208,7 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if !n.crosslink || n.disabled {
 			continue
 		}
@@ -580,10 +580,10 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	// Fill global list of areas.
 	for _, a := range symTable.area {
 		if !a.disabled {
-			ascendingAreas = append(ascendingAreas, a)
+			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
 	}
-	ascendingAreas = sortBySize(ascendingAreas)
+	c.ascendingAreas = sortBySize(c.ascendingAreas)
 
 	// Get list of all zones and managed routers of an area.
 	getObjList := func(a *area) []pathObj {
@@ -656,10 +656,10 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			}
 		}
 	}
-	for _, obj := range zones {
+	for _, obj := range c.allZones {
 		process(obj)
 	}
-	for _, obj := range managedRouters {
+	for _, obj := range c.managedRouters {
 		process(obj)
 	}
 }
@@ -741,12 +741,12 @@ func (c *spoc) processAggregates() {
 		}
 
 		// Link aggragate and zone (also setting z.ipmask2aggregate)
-		linkAggregateToZone(agg, z, key)
+		c.linkAggregateToZone(agg, z, key)
 	}
 
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggInCluster {
-		duplicateAggregateToCluster(agg, false)
+		c.duplicateAggregateToCluster(agg, false)
 	}
 }
 
@@ -764,7 +764,7 @@ func (c *spoc) inheritAttributes() {
 func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 
 	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range ascendingAreas {
+	for _, a := range c.ascendingAreas {
 		c.inheritRouterAttributes(a)
 		c.inheritAreaNat(a, natSeen)
 	}
@@ -889,7 +889,7 @@ func natEqual(nat1, nat2 *network) bool {
 }
 
 func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
-	for _, z := range zones {
+	for _, z := range c.allZones {
 
 		// Find all networks and aggregates of current zone,
 		// that have NAT definitions.
@@ -1019,7 +1019,7 @@ func (c *spoc) checkAttrNoCheckSupernetRules() {
 		}
 		return errList
 	}
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.noCheckSupernetRules {
 			if bugList := checkSubnets(z.networks); bugList != nil {
 				c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
@@ -1036,7 +1036,7 @@ func (c *spoc) checkAttrNoCheckSupernetRules() {
 //    These are only needed during NAT inheritance.
 // 3. Check for useless identity NAT.
 func (c *spoc) cleanupAfterInheritance(natSeen map[*network]bool) {
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		m := n.nat
 		if m == nil {
 			continue
@@ -1061,7 +1061,7 @@ func (c *spoc) cleanupAfterInheritance(natSeen map[*network]bool) {
 
 // Reroute permit is not allowed between different security zones.
 func (c *spoc) checkReroutePermit() {
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		for _, intf := range z.interfaces {
 			for _, n := range intf.reroutePermit {
 				if !zoneEq(n.zone, z) {

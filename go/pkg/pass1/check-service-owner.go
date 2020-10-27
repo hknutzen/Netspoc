@@ -17,7 +17,7 @@ func (c *spoc) propagateOwners() {
 	// then set owner of this zone to the one owner.
 	aggGotNetOwner := make(map[*network]bool)
 	seen := make(map[*zone]bool)
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if seen[z] {
 			continue
 		}
@@ -154,14 +154,14 @@ func (c *spoc) propagateOwners() {
 		inheritOwner(n)
 	}
 
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		processSubnets(n)
 	}
 
 	// Collect list of owners and watchingOwners from areas at
 	// zones in attribute .watchingOwners. Is needed in export-netspoc.
 	zone2owner2seen := make(map[*zone]map[*owner]bool)
-	for _, area := range ascendingAreas {
+	for _, area := range c.ascendingAreas {
 		o := area.watchingOwner
 		if o == nil {
 			o = area.owner
@@ -190,7 +190,7 @@ func (c *spoc) propagateOwners() {
 		}
 		var invalid stringList
 	NETWORK:
-		for _, n := range allNetworks {
+		for _, n := range c.allNetworks {
 			if netOwner := n.owner; netOwner != nil {
 				if netOwner == o {
 					continue
@@ -218,7 +218,7 @@ func (c *spoc) propagateOwners() {
 
 	// Handle routerAttributes.owner separately.
 	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range ascendingAreas {
+	for _, a := range c.ascendingAreas {
 		attributes := a.routerAttributes
 		if attributes == nil {
 			continue
@@ -243,7 +243,7 @@ func (c *spoc) propagateOwners() {
 	}
 
 	// Set owner for interfaces of managed routers.
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		o := r.owner
 		if o == nil {
 			continue

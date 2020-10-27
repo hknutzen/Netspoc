@@ -37,7 +37,7 @@ func (c *spoc) checkSubnetOf() {
 			check(n)
 		}
 	}
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		check(n)
 		if nat := n.nat; nat != nil {
 			checkNat(nat)
@@ -52,7 +52,7 @@ func (c *spoc) checkSubnetOf() {
 
 func (c *spoc) checkIPAddressesAndBridges() {
 	prefix2net := make(map[string][]*network)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		// Group bridged networks by prefix of name.
 		if n.bridged {
 			i := strings.Index(n.name, "/")

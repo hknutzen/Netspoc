@@ -31,9 +31,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/spf13/pflag"
 	"net"
@@ -45,28 +43,28 @@ import (
 	"strings"
 )
 
-func createDirs(dir, path string) {
+func (c *spoc) createDirs(dir, path string) {
 	path = dir + "/" + path
 	err := os.MkdirAll(path, 0777)
 	if err != nil {
-		abort.Msg("Can't %v", err)
+		c.abort("Can't %v", err)
 	}
 }
 
-func exportJson(dir, path string, data interface{}) {
+func (c *spoc) exportJson(dir, path string, data interface{}) {
 	path = dir + "/" + path
 	fd, err := os.Create(path)
 	if err != nil {
-		abort.Msg("Can't %v", err)
+		c.abort("Can't %v", err)
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", " ")
 	if err := enc.Encode(data); err != nil {
-		abort.Msg("%v", err)
+		c.abort("%v", err)
 	}
 	if err := fd.Close(); err != nil {
-		abort.Msg("Can't %v", err)
+		c.abort("Can't %v", err)
 	}
 }
 
@@ -606,8 +604,8 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 // All objects referenced in rules and in networks and hosts of owners.
 var allObjects = make(map[srvObj]bool)
 
-func setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
-	diag.Progress("Setup service info")
+func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
+	c.progress("Setup service info")
 
 	for _, s := range services {
 		users := s.user
@@ -662,8 +660,8 @@ func setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 // belonging to other owners in pInfo.
 //#####################################################################
 
-func setupPartOwners() xOwner {
-	diag.Progress("Setup part owners")
+func (c *spoc) setupPartOwners() xOwner {
+	c.progress("Setup part owners")
 
 	pMap := make(map[srvObj]map[*owner]bool)
 	add := func(n *network, ow *owner) {
@@ -680,7 +678,7 @@ func setupPartOwners() xOwner {
 	// Don't handle interfaces here, because
 	// - unmanaged interface doesn't have owner and
 	// - managed interface isn't part of network.
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.isAggregate {
 			continue
 		}
@@ -703,7 +701,7 @@ func setupPartOwners() xOwner {
 	}
 
 	// Add owner and partOwner of network to enclosing aggregates and networks.
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.isAggregate {
 			continue
 		}
@@ -751,15 +749,15 @@ func setupPartOwners() xOwner {
 // from outer owners.
 // Attribute showHiddenOwners at outer owner cancels effect of
 // hideFromOuterOwners
-func setupOuterOwners() (xOwner, map[*owner][]*owner) {
-	diag.Progress("Setup outer owners")
+func (c *spoc) setupOuterOwners() (xOwner, map[*owner][]*owner) {
+	c.progress("Setup outer owners")
 
 	// Find master owner.
 	var masterOwner *owner
 	for _, ow := range symTable.owner {
 		if ow.showAll {
 			masterOwner = ow
-			diag.Progress("Found master owner: " + ow.name)
+			c.progress("Found master owner: " + ow.name)
 			break
 		}
 	}
@@ -823,7 +821,7 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 	}
 
 	// Collect outer owners for all objects inside zone.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		var zoneOwners []*owner
 
 		// watchingOwners holds list of owners, that have been
@@ -919,13 +917,13 @@ func setupOuterOwners() (xOwner, map[*owner][]*owner) {
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
 //#####################################################################
-func exportNatSet(dir string,
+func (c *spoc) exportNatSet(dir string,
 	natTag2multinatDef map[string][]natMap, natTag2natType map[string]string,
 	pInfo, oInfo xOwner) {
 
-	diag.Progress("Export NAT-sets")
+	c.progress("Export NAT-sets")
 	owner2domains := make(map[string]map[*natDomain]bool)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.isAggregate {
 			continue
 		}
@@ -966,8 +964,8 @@ func exportNatSet(dir string,
 		}
 		sort.Strings(natList)
 
-		createDirs(dir, "owner/"+ownerName)
-		exportJson(dir, "owner/"+ownerName+"/nat_set", natList)
+		c.createDirs(dir, "owner/"+ownerName)
+		c.exportJson(dir, "owner/"+ownerName+"/nat_set", natList)
 	}
 }
 
@@ -992,8 +990,8 @@ func addSubnetworks(networks netList) netList {
 	}
 }
 
-func exportAssets(dir string, pInfo, oInfo xOwner) {
-	diag.Progress("Export assets")
+func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
+	c.progress("Export assets")
 	result := make(jsonMap)
 
 	// Returns map with network name(s) as key and list of hosts / interfaces
@@ -1072,7 +1070,7 @@ func exportAssets(dir string, pInfo, oInfo xOwner) {
 		}
 	}
 
-	for _, z := range zones {
+	for _, z := range c.allZones {
 
 		// All aggregates can be used in rules.
 		for _, agg := range z.ipmask2aggregate {
@@ -1109,8 +1107,8 @@ func exportAssets(dir string, pInfo, oInfo xOwner) {
 		if assets == nil {
 			assets = jsonMap{}
 		}
-		createDirs(dir, "owner/"+owner)
-		exportJson(dir, "owner/"+owner+"/assets", assets)
+		c.createDirs(dir, "owner/"+owner)
+		c.exportJson(dir, "owner/"+owner+"/assets", assets)
 	}
 }
 
@@ -1136,8 +1134,8 @@ func getVisibleOwner(pInfo, oInfo xOwner) map[srvObj]map[string]bool {
 	return visibleOwner
 }
 
-func exportServices(dir string, list []*exportedSvc) {
-	diag.Progress("Export services")
+func (c *spoc) exportServices(dir string, list []*exportedSvc) {
+	c.progress("Export services")
 	sInfo := make(jsonMap)
 	for _, s := range list {
 
@@ -1162,13 +1160,13 @@ func exportServices(dir string, list []*exportedSvc) {
 		sname := strings.TrimPrefix(s.name, "service:")
 		sInfo[sname] = jsonMap{"details": details, "rules": s.jsonRules}
 	}
-	exportJson(dir, "services", sInfo)
+	c.exportJson(dir, "services", sInfo)
 }
 
-func exportUsersAndServiceLists(
+func (c *spoc) exportUsersAndServiceLists(
 	dir string, l []*exportedSvc, pInfo, oInfo xOwner) {
 
-	diag.Progress("Export users and service lists")
+	c.progress("Export users and service lists")
 
 	owner2type2sMap := make(map[string]map[string]map[*exportedSvc]bool)
 	for _, s := range l {
@@ -1265,9 +1263,9 @@ func exportUsersAndServiceLists(
 			sort.Strings(sNames)
 			type2snames[typ] = sNames
 		}
-		createDirs(dir, "owner/"+owner)
-		exportJson(dir, "owner/"+owner+"/service_lists", type2snames)
-		exportJson(dir, "owner/"+owner+"/users", service2users)
+		c.createDirs(dir, "owner/"+owner)
+		c.exportJson(dir, "owner/"+owner+"/service_lists", type2snames)
+		c.exportJson(dir, "owner/"+owner+"/users", service2users)
 	}
 }
 
@@ -1305,8 +1303,8 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 	}
 }
 
-func exportObjects(dir string) {
-	diag.Progress("Export objects")
+func (c *spoc) exportObjects(dir string) {
+	c.progress("Export objects")
 	result := make(jsonMap)
 	for obj, _ := range allObjects {
 		descr := make(jsonMap)
@@ -1324,15 +1322,15 @@ func exportObjects(dir string) {
 		}
 		result[obj.String()] = descr
 	}
-	exportJson(dir, "objects", result)
+	c.exportJson(dir, "objects", result)
 }
 
 //###################################################################
 // find Email -> Owner
 //###################################################################
 
-func exportOwners(outDir string, eInfo map[*owner][]*owner) {
-	diag.Progress("Export owners")
+func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
+	c.progress("Export owners")
 	email2owners := make(map[string]map[string]bool)
 	for name, ow := range symTable.owner {
 		var emails, watchers, eOwners stringList
@@ -1347,7 +1345,7 @@ func exportOwners(outDir string, eInfo map[*owner][]*owner) {
 			}
 		}
 		dir := "owner/" + name
-		createDirs(outDir, dir)
+		c.createDirs(outDir, dir)
 		add(ow.admins)
 		emails = append(emails, ow.admins...)
 		add(ow.watchers)
@@ -1370,7 +1368,7 @@ func exportOwners(outDir string, eInfo map[*owner][]*owner) {
 				m[key] = e
 				out[i] = m
 			}
-			exportJson(outDir, dir+"/"+path, out)
+			c.exportJson(outDir, dir+"/"+path, out)
 		}
 		export(emails, "email", "emails")
 		export(watchers, "email", "watchers")
@@ -1408,10 +1406,10 @@ func exportOwners(outDir string, eInfo map[*owner][]*owner) {
 		sort.Strings(l)
 		email2oList[e] = l
 	}
-	exportJson(outDir, "email", email2oList)
+	c.exportJson(outDir, "email", email2oList)
 }
 
-func copyPolicyFile(inPath, outDir string) {
+func (c *spoc) copyPolicyFile(inPath, outDir string) {
 
 	// Copy version information from this file and
 	// take modification date for all newly created files.
@@ -1422,12 +1420,12 @@ func copyPolicyFile(inPath, outDir string) {
 			"find", outDir, "-type", "f",
 			"-exec", "touch", "-r", policyFile, "{}", ";")
 		if out, err := cmd.CombinedOutput(); err != nil {
-			abort.Msg("executing \"%v\": %v\n%s", cmd, err, out)
+			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
 		}
 
 		cmd = exec.Command("cp", "-pf", policyFile, outDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			abort.Msg("executing \"%v\": %v\n%s", cmd, err, out)
+			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
 		}
 	}
 }
@@ -1445,19 +1443,19 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	expSvcList := c.normalizeServicesForExport()
 	c.propagateOwners()
 	c.findSubnetsInNatDomain(natDomains)
-	pInfo := setupPartOwners()
-	oInfo, eInfo := setupOuterOwners()
-	setupServiceInfo(expSvcList, pInfo, oInfo)
+	pInfo := c.setupPartOwners()
+	oInfo, eInfo := c.setupOuterOwners()
+	c.setupServiceInfo(expSvcList, pInfo, oInfo)
 
 	// Export data
-	createDirs(outDir, "")
-	exportOwners(outDir, eInfo)
-	exportAssets(outDir, pInfo, oInfo)
-	exportServices(outDir, expSvcList)
-	exportUsersAndServiceLists(outDir, expSvcList, pInfo, oInfo)
-	exportObjects(outDir)
-	exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
-	copyPolicyFile(inDir, outDir)
+	c.createDirs(outDir, "")
+	c.exportOwners(outDir, eInfo)
+	c.exportAssets(outDir, pInfo, oInfo)
+	c.exportServices(outDir, expSvcList)
+	c.exportUsersAndServiceLists(outDir, expSvcList, pInfo, oInfo)
+	c.exportObjects(outDir)
+	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
+	c.copyPolicyFile(inDir, outDir)
 	c.progress("Ready")
 }
 

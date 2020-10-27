@@ -764,9 +764,9 @@ func elementsInOneZone(list1, list2 []someObj) bool {
 
 // Mark zones, that are connected by only one router.  Ignore routers
 // with only one interface occuring e.g. from split crypto routers.
-func markLeafZones() map[*zone]bool {
+func (c *spoc) markLeafZones() map[*zone]bool {
 	leafZones := make(map[*zone]bool)
-	for _, zone := range zones {
+	for _, zone := range c.allZones {
 		count := 0
 		for _, intf := range zone.interfaces {
 			if len(intf.router.interfaces) > 1 {
@@ -854,7 +854,7 @@ func (c *spoc) pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 	c.progress("Checking transient supernet rules")
 
-	isLeafZone := markLeafZones()
+	isLeafZone := c.markLeafZones()
 
 	// Build mapping from supernet to service rules having supernet as src.
 	supernet2rules := make(map[*network]ruleList)
@@ -1118,7 +1118,7 @@ func (c *spoc) checkSupernetRules(p ruleList) {
 	if conf.Conf.CheckSupernetRules != "" {
 		c.progress("Checking supernet rules")
 		statefulMark := 1
-		for _, zone := range zones {
+		for _, zone := range c.allZones {
 			if zone.statefulMark == 0 {
 				markStateful(zone, statefulMark)
 				statefulMark++

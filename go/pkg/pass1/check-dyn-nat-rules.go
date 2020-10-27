@@ -89,7 +89,7 @@ func (c *spoc) checkDynamicNatRules(
 	natSet2activeTags := make(map[natSet]map[string]bool)
 	zone2dynNat := make(map[*zone]map[string]bool)
 	hasDynHost := make(map[*network]bool)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		foundDyn := false
 		tagMap := n.nat
 		if len(tagMap) == 0 {

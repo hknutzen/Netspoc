@@ -277,7 +277,7 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 // - subnet.up = bignet;
 func (c *spoc) findSubnetsInZone() {
 	c.progress("Finding subnets in zone")
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		c.findSubnetsInZone0(z)
 	}
 }
@@ -831,7 +831,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		part2Doms[part] = append(part2Doms[part], dom)
 	}
 	part2Nets := make(map[int]netList)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if n.unnumbered || n.tunnel {
 			continue
 		}

@@ -55,7 +55,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.stopOnErr()
 	c.linkTunnels(sym)
 	c.linkVirtualInterfaces()
-	splitSemiManagedRouter()
+	c.splitSemiManagedRouter()
 }
 
 type symbolTable struct {
@@ -3301,7 +3301,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	new.origRouter = orig
 	new.interfaces = intfList{intf}
 	intf.router = &new
-	routerFragments = append(routerFragments, &new)
+	c.routerFragments = append(c.routerFragments, &new)
 
 	// Don't check fragment for reachability.
 	new.policyDistributionPoint = nil
@@ -3555,7 +3555,7 @@ func (c *spoc) addPathrestriction(name string, l intfList) {
 // - original part having only interfaces without pathrestriction or bind_nat,
 // - one split part for each interface with pathrestriction or bind_nat.
 // All parts are connected by a freshly created unnumbered network.
-func splitSemiManagedRouter() {
+func (c *spoc) splitSemiManagedRouter() {
 	for _, r := range getIpv4Ipv6Routers() {
 
 		// Unmanaged router is marked as semi_managed, if
@@ -3605,7 +3605,7 @@ func splitSemiManagedRouter() {
 			nr.semiManaged = true
 			nr.origRouter = r
 			intf.router = nr
-			routerFragments = append(routerFragments, nr)
+			c.routerFragments = append(c.routerFragments, nr)
 
 			// Link current and newly created router by unnumbered network.
 			// Add reference to original interface at internal interface.

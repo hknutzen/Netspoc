@@ -10,7 +10,7 @@ import (
 func (c *spoc) setPath() {
 	c.progress("Preparing fast path traversal")
 	c.findDistsAndLoops()
-	processLoops()
+	c.processLoops()
 	c.checkPathrestrictions()
 	c.checkVirtualInterfaces()
 	c.removeRedundantPathrestrictions()
@@ -21,7 +21,7 @@ func (c *spoc) setPath() {
 /* nodes of a cycle with a common loop object and distance. Checks for
 /* multiple unconnected parts of topology.*/
 func (c *spoc) findDistsAndLoops() {
-	if len(zones) == 0 {
+	if len(c.allZones) == 0 {
 		c.abort("topology seems to be empty")
 	}
 
@@ -30,7 +30,7 @@ func (c *spoc) findDistsAndLoops() {
 	var partition2Routers = make(map[*zone][]*router)
 
 	// Find one or more connected partitions in whole topology.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		var partitionRouters []*router
 
 		// Zone is part of previously processed partition.
@@ -224,7 +224,7 @@ Partition:
 
 func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 
-	partitions2PartitionTags := mapPartitions2PartitionTags()
+	partitions2PartitionTags := c.mapPartitions2PartitionTags()
 
 	// Several Partition Tags for single zone - generate error.
 	for zone1 := range partitions2PartitionTags {
@@ -258,10 +258,10 @@ func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 		partitions2PartitionTags)
 }
 
-func mapPartitions2PartitionTags() map[*zone][]string {
+func (c *spoc) mapPartitions2PartitionTags() map[*zone][]string {
 
 	var zonesWithPartitionTag []*zone
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.partition != "" {
 			zonesWithPartitionTag = append(zonesWithPartitionTag, z)
 		}
@@ -323,77 +323,71 @@ func (c *spoc) errorOnUnnamedUnconnectedPartitions(
 /* processLoops includes node objects and interfaces of nested loops
 /* in the containing loop; adds loop cluster exits; adjusts distances of
 /* loop nodes.*/
-func processLoops() {
-
-	var pathNodeRouters []*router
-	pathNodeRouters = getPathNodeRouters()
-
-	var pathNodeObjects []pathObj
-	for _, zone := range zones {
-		pathNodeObjects = append(pathNodeObjects, zone)
-	}
-	for _, obj := range pathNodeRouters {
-		pathNodeObjects = append(pathNodeObjects, obj)
-	}
-
-	for _, obj := range pathNodeObjects {
-		myLoop := obj.getLoop()
-		if myLoop == nil {
-			continue
+func (c *spoc) processLoops() {
+	processObj := func(obj pathObj) {
+		lo := obj.getLoop()
+		if lo == nil {
+			return
 		}
 
-		myLoop = findOuterLoop(myLoop)
-		obj.setLoop(myLoop)
+		lo = findOuterLoop(lo)
+		obj.setLoop(lo)
 
 		// Needed for cactus graph loop clusters.
-		setLoopClusterExit(myLoop)
+		setLoopClusterExit(lo)
 
 		// Set distance of loop node to value of cluster exit.
-		obj.setDistance(myLoop.clusterExit.getDistance())
+		obj.setDistance(lo.clusterExit.getDistance())
 	}
 
 	// Include sub-loop IFs into containing loop with exit closest to zone1.
-	for _, pathNodeRouter := range pathNodeRouters {
-		for _, myIntf := range pathNodeRouter.intfList() {
-			if myIntf.loop == nil {
-				continue
+	processRouter := func(pathNodeRouter *router) {
+		for _, intf := range pathNodeRouter.intfList() {
+			if intf.loop != nil {
+				intf.loop = findOuterLoop(intf.loop)
 			}
-			myIntf.loop = findOuterLoop(myIntf.loop)
+		}
+	}
+
+	for _, obj := range c.allZones {
+		processObj(obj)
+	}
+	for _, obj := range c.allRouters {
+		if obj.managed != "" || obj.semiManaged {
+			processObj(obj)
+			processRouter(obj)
 		}
 	}
 }
 
-func findOuterLoop(l *loop) *loop {
+func findOuterLoop(lo *loop) *loop {
 	for {
-		if l.redirect != nil {
-			l = l.redirect
-			continue
-		} else {
-			break
+		if lo.redirect == nil {
+			return lo
 		}
+		lo = lo.redirect
 	}
-	return l
 }
 
 /* setLoopClusterExit identifies clusters of directly connected loops
 /* in cactus graphs. Finds exit node of loop cluster or single loop in
 /* direction to zone1; adds this exit node as marker to all loop
 /* objects of the cluster.*/
-func setLoopClusterExit(myLoop *loop) pathObj {
+func setLoopClusterExit(lo *loop) pathObj {
 
-	if myLoop.clusterExit != nil {
-		return myLoop.clusterExit
+	if lo.clusterExit != nil {
+		return lo.clusterExit
 	}
 
-	exitNode := myLoop.exit
+	exitNode := lo.exit
 
 	// Exit node references itself: loop cluster exit found.
-	if exitNode.getLoop() == myLoop {
+	if exitNode.getLoop() == lo {
 
 		/*debug("Loop %s, %d is in cluster %s",
-		exit.String(), myLoop.distance, exit.String());//*/
-		myLoop.clusterExit = exitNode
-		//		return myLoop.clusterExit
+		exit.String(), lo.distance, exit.String());//*/
+		lo.clusterExit = exitNode
+		//		return lo.clusterExit
 		return exitNode
 	}
 
@@ -401,9 +395,9 @@ func setLoopClusterExit(myLoop *loop) pathObj {
 	clusterExit := setLoopClusterExit(exitNode.getLoop())
 
 	/*debug("Loop %s, %d is in cluster %s", exit.String(),
-	myLoop.distance, cluster.String());//*/
-	myLoop.clusterExit = clusterExit
-	return myLoop.clusterExit
+	lo.distance, cluster.String());//*/
+	lo.clusterExit = clusterExit
+	return lo.clusterExit
 }
 
 /* checkPathrestrictions removes pathrestrictions, that aren't proper
@@ -761,15 +755,4 @@ func deletePathRestrictionFrom(
 		}
 	}
 	return slice
-}
-
-// Collect routers that are path objects because they connect zones
-func getPathNodeRouters() []*router {
-	var pathRouters []*router
-	for _, pathRouter := range allRouters {
-		if pathRouter.managed != "" || pathRouter.semiManaged {
-			pathRouters = append(pathRouters, pathRouter)
-		}
-	}
-	return pathRouters
 }
