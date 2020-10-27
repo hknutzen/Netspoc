@@ -1309,7 +1309,7 @@ func (c *spoc) singlePathWalk(
 
 	rule := &groupedRule{
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{c.prt.IP},
 		},
 		src:     []someObj{src},
 		dst:     []someObj{dst},

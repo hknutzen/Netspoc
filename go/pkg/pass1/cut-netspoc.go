@@ -988,7 +988,7 @@ func CutNetspocMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := startSpoc()
+	c := initSpoc()
 	go func() {
 		c.cutNetspoc(path, services, *keepOwner)
 		close(c.msgChan)

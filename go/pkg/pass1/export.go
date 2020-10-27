@@ -1486,7 +1486,7 @@ func ExportMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := startSpoc()
+	c := initSpoc()
 	go func() {
 		c.exportNetspoc(path, out)
 		close(c.msgChan)

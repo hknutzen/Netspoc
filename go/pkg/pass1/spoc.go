@@ -41,6 +41,15 @@ type spoc struct {
 	ascendingAreas     []*area
 	pathrestrictions   []*pathRestriction
 	virtualInterfaces  intfList
+	prt                *stdProto
+}
+
+func initSpoc() *spoc {
+	c := &spoc{
+		msgChan: make(chan spocMsg),
+		ready:   make(chan bool),
+	}
+	return c
 }
 
 type spocMsg struct {
@@ -163,14 +172,6 @@ func (c *spoc) sortingSpoc() *spoc {
 	return &c2
 }
 
-func startSpoc() *spoc {
-	c := &spoc{
-		msgChan: make(chan spocMsg),
-		ready:   make(chan bool),
-	}
-	return c
-}
-
 func (c *spoc) finish() {
 	close(c.msgChan)
 	<-c.ready
@@ -179,7 +180,7 @@ func (c *spoc) finish() {
 func SpocMain() int {
 	inDir, outDir := conf.GetArgs()
 	diag.Info(program + ", version " + version)
-	c := startSpoc()
+	c := initSpoc()
 	go func() {
 		c.readNetspoc(inDir)
 		c.showReadStatistics()

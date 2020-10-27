@@ -426,7 +426,7 @@ func (c *spoc) buildRuleTree(
 
 		if rule.deny || rule.stateless || srcRange != nil {
 			if srcRange == nil {
-				srcRange = prtIP
+				srcRange = c.prt.IP
 			}
 			midTree = ruleTree.add(rule.stateless).add(rule.deny).add(srcRange)
 		} else {
@@ -451,7 +451,7 @@ func (c *spoc) buildRuleTree(
 
 	// Insert simpleTree into ruleTree.
 	if len(simpleTree) != 0 {
-		ruleTree.add(false).add(false)[prtIP] = simpleTree
+		ruleTree.add(false).add(false)[c.prt.IP] = simpleTree
 	}
 	return ruleTree, count
 }

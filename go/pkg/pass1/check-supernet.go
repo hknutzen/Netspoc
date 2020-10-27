@@ -974,7 +974,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					getSrcRange := func(rule *groupedRule) *proto {
 						result := rule.srcRange
 						if result == nil {
-							result = prtIP
+							result = c.prt.IP
 						}
 						return result
 					}

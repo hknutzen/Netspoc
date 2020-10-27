@@ -248,7 +248,7 @@ func (c *spoc) addRouterAcls() {
 					rule := newRule(
 						[]someObj{getNetwork00(ipv6)},
 						objList,
-						[]*proto{prtIP},
+						[]*proto{c.prt.IP},
 					)
 
 					// Prepend to all other rules.
@@ -298,14 +298,14 @@ func (c *spoc) addRouterAcls() {
 				// Handle DHCP requests.
 				if intf.dhcpServer {
 					netList := []someObj{getNetwork00(ipv6)}
-					prtList := []*proto{prtBootps}
+					prtList := []*proto{c.prt.Bootps}
 					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 
 				// Handle DHCP answer.
 				if intf.dhcpClient {
 					netList := []someObj{getNetwork00(ipv6)}
-					prtList := []*proto{prtBootpc}
+					prtList := []*proto{c.prt.Bootpc}
 					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 			}

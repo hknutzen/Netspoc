@@ -641,7 +641,7 @@ var asaVpnAttrNeedValue = map[string]bool{
 	"vpn-filter":                true,
 }
 
-func printAsavpn(fh *os.File, router *router) {
+func (c *spoc) printAsavpn(fh *os.File, router *router) {
 	ipv6 := router.ipV6
 
 	globalGroupName := "global"
@@ -793,7 +793,7 @@ func printAsavpn(fh *os.File, router *router) {
 							rule = newRule(
 								objects,
 								[]someObj{getNetwork00(ipv6)},
-								[]*proto{prtIP},
+								[]*proto{c.prt.IP},
 							)
 						} else {
 							rule = denyAny
@@ -823,7 +823,7 @@ func printAsavpn(fh *os.File, router *router) {
 				rule := newRule(
 					[]someObj{src},
 					[]someObj{getNetwork00(ipv6)},
-					[]*proto{prtIP},
+					[]*proto{c.prt.IP},
 				)
 				filterName := "vpn-filter-" + idName
 				info := &aclInfo{
@@ -923,7 +923,7 @@ func printAsavpn(fh *os.File, router *router) {
 			rules := []*groupedRule{newRule(
 				objects,
 				[]someObj{getNetwork00(ipv6)},
-				[]*proto{prtIP},
+				[]*proto{c.prt.IP},
 			)}
 			idName := genIdName(id)
 			filterName := "vpn-filter-" + idName
@@ -1264,7 +1264,7 @@ func generateAcls(fh *os.File, router *router) {
 	}
 }
 
-func genCryptoRules(local, remote []*network) []*groupedRule {
+func (c *spoc) genCryptoRules(local, remote []*network) []*groupedRule {
 	src := make([]someObj, len(local))
 	for i, n := range local {
 		src[i] = n
@@ -1276,11 +1276,11 @@ func genCryptoRules(local, remote []*network) []*groupedRule {
 	return []*groupedRule{newRule(
 		src,
 		dst,
-		[]*proto{prtIP},
+		[]*proto{c.prt.IP},
 	)}
 }
 
-func printEzvpn(fh *os.File, router *router) {
+func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	interfaces := router.interfaces
 	var tunnelIntf *routerIntf
 	for _, intf := range interfaces {
@@ -1335,8 +1335,8 @@ func printEzvpn(fh *os.File, router *router) {
 		append(wanHw.subcmd, "crypto ipsec client ezvpn "+ezvpnName)
 
 	// Crypto ACL controls which traffic needs to be encrypted.
-	cryptoRules :=
-		genCryptoRules(tunnelIntf.peer.peerNetworks, []*network{getNetwork00(router.ipV6)})
+	cryptoRules := c.genCryptoRules(tunnelIntf.peer.peerNetworks,
+		[]*network{getNetwork00(router.ipV6)})
 	acls := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
@@ -1376,7 +1376,7 @@ func printEzvpn(fh *os.File, router *router) {
 
 // Print crypto ACL.
 // It controls which traffic needs to be encrypted.
-func printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, crypto *crypto) string {
+func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, crypto *crypto) string {
 	cryptoAclName := "crypto-" + suffix
 
 	// Generate crypto ACL entries.
@@ -1400,7 +1400,7 @@ func printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, crypto *crypto
 	if !isHub {
 		local, remote = remote, local
 	}
-	cryptoRules := genCryptoRules(local, remote)
+	cryptoRules := c.genCryptoRules(local, remote)
 	aclInfo := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
@@ -1510,7 +1510,7 @@ func printCaAndTunnelGroupMap(fh *os.File, id, tgName string) {
 	fmt.Fprintln(fh, "tunnel-group-map", id, "10", tgName)
 }
 
-func printStaticCryptoMap(fh *os.File, router *router, hw *hardware, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
+func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
 	model := router.model
 	cryptoType := model.crypto
 
@@ -1539,7 +1539,7 @@ func printStaticCryptoMap(fh *os.File, router *router, hw *hardware, mapName str
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
-		cryptoAclName := printCryptoAcl(fh, intf, suffix, crypto)
+		cryptoAclName := c.printCryptoAcl(fh, intf, suffix, crypto)
 		cryptoFilterName := printCryptoFilterAcl(fh, intf, suffix)
 
 		// Define crypto map.
@@ -1568,7 +1568,10 @@ func printStaticCryptoMap(fh *os.File, router *router, hw *hardware, mapName str
 	}
 }
 
-func printDynamicCryptoMap(fh *os.File, router *router, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
+func (c *spoc) printDynamicCryptoMap(
+	fh *os.File, router *router, mapName string,
+	interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
+
 	model := router.model
 	cryptoType := model.crypto
 
@@ -1593,7 +1596,7 @@ func printDynamicCryptoMap(fh *os.File, router *router, mapName string, interfac
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
-		cryptoAclName := printCryptoAcl(fh, intf, suffix, crypto)
+		cryptoAclName := c.printCryptoAcl(fh, intf, suffix, crypto)
 		cryptoFilterName := printCryptoFilterAcl(fh, intf, suffix)
 
 		// Define dynamic crypto map.
@@ -1626,7 +1629,7 @@ func ciscoCryptoWithDash(s, prefix string) string {
 	return prefix + "-" + tail
 }
 
-func printCrypto(fh *os.File, router *router) {
+func (c *spoc) printCrypto(fh *os.File, router *router) {
 	model := router.model
 	cryptoType := model.crypto
 
@@ -1670,7 +1673,7 @@ func printCrypto(fh *os.File, router *router) {
 	printHeader(fh, router, "Crypto")
 
 	if cryptoType == "EZVPN" {
-		printEzvpn(fh, router)
+		c.printEzvpn(fh, router)
 		return
 	}
 
@@ -1683,7 +1686,7 @@ func printCrypto(fh *os.File, router *router) {
 	}
 
 	if cryptoType == "ASA_VPN" {
-		printAsavpn(fh, router)
+		c.printAsavpn(fh, router)
 		return
 	}
 
@@ -1811,11 +1814,11 @@ func printCrypto(fh *os.File, router *router) {
 		mapName := "crypto-" + hwName
 
 		if static != nil {
-			printStaticCryptoMap(fh, router, hardware, mapName, static,
+			c.printStaticCryptoMap(fh, router, hardware, mapName, static,
 				ipsec2transName)
 		}
 		if dynamic != nil {
-			printDynamicCryptoMap(fh, router, mapName, dynamic,
+			c.printDynamicCryptoMap(fh, router, mapName, dynamic,
 				ipsec2transName)
 		}
 
@@ -2384,7 +2387,7 @@ func (c *spoc) printCode1(dir string) {
 				if vrouter.managed == "" {
 					continue
 				}
-				printCrypto(fd, vrouter)
+				c.printCrypto(fd, vrouter)
 				printAclPrefix(fd, vrouter)
 				generateAcls(fd, vrouter)
 				printAclSuffix(fd, vrouter)

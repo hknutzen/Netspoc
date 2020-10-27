@@ -97,11 +97,11 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 		var srcRangeList []*proto
 		srcRange2prtList := make(map[*proto][]*proto)
 		for _, prt := range newPrtGroup {
-			newSrcRange := prtIP
+			newSrcRange := c.prt.IP
 			var newPrt *proto
 			switch prt.proto {
 			case "tcp":
-				newPrt = rangeTCPEstablished
+				newPrt = c.prt.TCPEsta
 			case "udp":
 				// Swap src and dst range.
 				if !(prt.ports[0] == 1 && prt.ports[1] == 65535) {
@@ -110,7 +110,7 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 				if rule.srcRange != nil {
 					newPrt = rule.srcRange
 				} else {
-					newPrt = prtUDP
+					newPrt = c.prt.UDP
 				}
 			default: // proto == "ip"
 				newPrt = prt
@@ -136,7 +136,7 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 				srcPath: dstPath,
 				dstPath: srcPath,
 			}
-			if srcRange != prtIP {
+			if srcRange != c.prt.IP {
 				newRule.srcRange = srcRange
 			}
 

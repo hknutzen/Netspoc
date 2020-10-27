@@ -254,7 +254,7 @@ func PrintServiceMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	c := startSpoc()
+	c := initSpoc()
 	go func() {
 		c.printService(path, names, *nat, *name)
 		close(c.msgChan)

@@ -360,7 +360,7 @@ func PrintGroupMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	c := startSpoc()
+	c := initSpoc()
 	go func() {
 		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
 		close(c.msgChan)

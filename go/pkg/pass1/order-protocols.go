@@ -5,6 +5,18 @@ import (
 	"sort"
 )
 
+type stdProto struct {
+	Ah      *proto
+	Bootpc  *proto
+	Bootps  *proto
+	Esp     *proto
+	IP      *proto
+	Ike     *proto
+	Natt    *proto
+	UDP     *proto
+	TCPEsta *proto
+}
+
 var network00 = &network{
 	ipObj: ipObj{
 		name: "network:0/0",
@@ -46,34 +58,36 @@ func (c *spoc) initStdProtocols(sym *symbolTable) {
 		c.addProtocolModifiers(nil, &p, pSrc)
 		return &p
 	}
-	prtIP = define("ip")
+	prt := new(stdProto)
+	c.prt = prt
+	prt.IP = define("ip")
 	prtTCP := define("tcp")
-	prtUDP = define("udp")
-	prtIke = defineX("udp 500 : 500")
-	prtNatt = defineX("udp 4500 : 4500")
-	prtEsp = define("proto 50")
-	prtAh = define("proto 51")
+	prt.UDP = define("udp")
+	prt.Ike = defineX("udp 500 : 500")
+	prt.Natt = defineX("udp 4500 : 4500")
+	prt.Esp = define("proto 50")
+	prt.Ah = define("proto 51")
 	cp := *prtTCP
 	cp.established = true
 	cp.name = "tcp established"
 	cp.up = prtTCP
-	rangeTCPEstablished = &cp
+	prt.TCPEsta = &cp
 
-	prtBootps = define("udp 67")
-	prtBootpc = define("udp 68")
+	prt.Bootps = define("udp 67")
+	prt.Bootpc = define("udp 68")
 
 	permitAnyRule = &groupedRule{
 		src: []someObj{network00},
 		dst: []someObj{network00},
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{prt.IP},
 		},
 	}
 	permitAny6Rule = &groupedRule{
 		src: []someObj{network00v6},
 		dst: []someObj{network00v6},
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{prt.IP},
 		},
 	}
 	denyAnyRule = &groupedRule{
@@ -81,7 +95,7 @@ func (c *spoc) initStdProtocols(sym *symbolTable) {
 		dst: []someObj{network00},
 		serviceRule: &serviceRule{
 			deny: true,
-			prt:  []*proto{prtIP},
+			prt:  []*proto{prt.IP},
 		},
 	}
 	denyAny6Rule = &groupedRule{
@@ -89,7 +103,7 @@ func (c *spoc) initStdProtocols(sym *symbolTable) {
 		dst: []someObj{network00v6},
 		serviceRule: &serviceRule{
 			deny: true,
-			prt:  []*proto{prtIP},
+			prt:  []*proto{prt.IP},
 		},
 	}
 }
@@ -111,7 +125,7 @@ func (c *spoc) orderProtocols() {
 			proto.push(p)
 		}
 	}
-	up := prtIP
+	up := c.prt.IP
 	orderRanges(tcp, up)
 	orderRanges(udp, up)
 	orderIcmp(icmp, up)
