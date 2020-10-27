@@ -1588,7 +1588,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.redundant = virtual.redundant
 		intf.redundancyType = virtual.redundancyType
 		intf.redundancyId = virtual.redundancyId
-		virtualInterfaces.push(intf)
+		c.virtualInterfaces.push(intf)
 	} else if !hasIP && !intf.unnumbered && !intf.negotiated && !intf.bridged {
 		intf.short = true
 	}
@@ -3462,7 +3462,7 @@ func (c *spoc) linkVirtualInterfaces() {
 		typ string
 	}
 	net2id2type2virtual := make(map[key2]*routerIntf)
-	for _, v1 := range virtualInterfaces {
+	for _, v1 := range c.virtualInterfaces {
 		if v1.disabled {
 			continue
 		}

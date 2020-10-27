@@ -639,7 +639,7 @@ func getIntfLoop(intf *routerIntf) *loop {
 func (c *spoc) checkVirtualInterfaces() {
 	var seen = make(map[*routerIntf]bool)
 
-	for _, intf := range virtualInterfaces {
+	for _, intf := range c.virtualInterfaces {
 		if intf.redundancyIntfs == nil {
 			continue
 		}

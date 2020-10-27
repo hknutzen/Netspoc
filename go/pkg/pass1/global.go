@@ -19,7 +19,6 @@ var (
 	managedRouters     []*router
 	routerFragments    []*router
 	routingOnlyRouters []*router
-	virtualInterfaces  intfList
 	zones              []*zone
 )
 

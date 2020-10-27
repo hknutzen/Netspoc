@@ -255,10 +255,10 @@ func (c *spoc) markDisabled() {
 		}
 	}
 	var vl intfList
-	for _, intf := range virtualInterfaces {
+	for _, intf := range c.virtualInterfaces {
 		if !intf.disabled {
 			vl.push(intf)
 		}
 	}
-	virtualInterfaces = vl
+	c.virtualInterfaces = vl
 }

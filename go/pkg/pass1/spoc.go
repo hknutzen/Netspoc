@@ -30,9 +30,10 @@ type spoc struct {
 	// Report that all or some messages have been processed.
 	ready chan bool
 	// State of compiler
-	pathrestrictions []*pathRestriction
-	userObj          userInfo
-	allPathRules     pathRules
+	pathrestrictions  []*pathRestriction
+	userObj           userInfo
+	allPathRules      pathRules
+	virtualInterfaces intfList
 }
 
 type spocMsg struct {
