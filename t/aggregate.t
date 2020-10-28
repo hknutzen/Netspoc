@@ -1055,7 +1055,7 @@ END
 test_run($title, $in, $out);
 
 ############################################################
-$title = 'Multiple missing destination aggregates at one router';
+$title = 'Multiple missing destination networks at one router';
 ############################################################
 
 $topo = <<'END';
@@ -1116,6 +1116,18 @@ Warning: This supernet rule would permit unexpected access:
  - network:n2
  Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r2.trans would permit access to additional networks:
+ - network:n3
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
+ Generated ACL at interface:r2.trans would permit access to additional networks:
+ - network:n4
+ Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
 END
 
 test_warn($title, $in, $out);
@@ -1149,6 +1161,12 @@ Warning: This supernet rule would permit unexpected access:
  - network:n2
  - network:n2x
  Either replace any:[ip=10.0.0.0/9 & network:n1] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:Customer; dst=any:[ip=10.1.0.0/16 & network:n4]; prt=ip; of service:test
+ Generated ACL at interface:r2.trans would permit access to additional networks:
+ - network:n2
+ Either replace any:[ip=10.1.0.0/16 & network:n4] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 END
 
@@ -1527,7 +1545,7 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
-$title = 'Missing destination aggregates in loop';
+$title = 'Missing destination networks in loop';
 ############################################################
 
 $in = <<'END';
@@ -1595,13 +1613,14 @@ Warning: This supernet rule would permit unexpected access:
  or add above-mentioned networks to dst of rule.
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
- Generated ACL at interface:r2.t4 would permit access to additional networks:
- - network:n3
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:t2
+ - network:t3
  Either replace any:[network:n2] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
- Generated ACL at interface:r2.t3 would permit access to additional networks:
+ Generated ACL at interface:r2.t4 would permit access to additional networks:
  - network:n3
  Either replace any:[network:n2] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
@@ -1942,12 +1961,6 @@ Warning: This supernet rule would permit unexpected access:
 Warning: This supernet rule would permit unexpected access:
   permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
  Generated ACL at interface:r3.n3 would permit access from additional networks:
- - network:n3
- Either replace any:[network:n1] by smaller networks that are not supernet
- or add above-mentioned networks to src of rule.
-Warning: This reversed supernet rule would permit unexpected access:
-  permit src=any:[network:n1]; dst=interface:u.n2; prt=udp 123; of service:test
- Generated ACL at interface:r2.n3 would permit access from additional networks:
  - network:n3
  Either replace any:[network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
