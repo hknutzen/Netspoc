@@ -1319,8 +1319,6 @@ func (c *spoc) singlePathWalk(
 	c.pathWalk(rule, f, where)
 }
 
-var border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
-
 func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 	var reachFromBorder func(*network, *routerIntf, map[netOrRouter]intfList)
 	reachFromBorder =
