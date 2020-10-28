@@ -42,6 +42,7 @@ type spoc struct {
 	pathrestrictions   []*pathRestriction
 	virtualInterfaces  intfList
 	prt                *stdProto
+	border2obj2auto    map[*routerIntf]map[netOrRouter]intfList
 }
 
 func initSpoc() *spoc {

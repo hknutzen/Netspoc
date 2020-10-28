@@ -1321,69 +1321,61 @@ func (c *spoc) singlePathWalk(
 
 var border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
 
-func setAutoIntfFromBorder(border *routerIntf) {
+func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 	var reachFromBorder func(*network, *routerIntf, map[netOrRouter]intfList)
 	reachFromBorder =
-		func(network *network, inIntf *routerIntf, result map[netOrRouter]intfList) {
-			result[network] = append(result[network], inIntf)
+		func(n *network, in *routerIntf, result map[netOrRouter]intfList) {
+			result[n] = append(result[n], in)
 
-			//debug("%s: %s", network.name, inIntf.name)
-			for _, intf := range network.interfaces {
-				if intf == inIntf {
+			//debug("%s: %s", n, in)
+			for _, intf := range n.interfaces {
+				if intf == in || intf.zone != nil || intf.origMain != nil {
 					continue
 				}
-				if intf.zone != nil {
+				r := intf.router
+				if r.activePath {
 					continue
 				}
-				if intf.origMain != nil {
-					continue
-				}
-				router := intf.router
-				if router.activePath {
-					continue
-				}
-				router.activePath = true
-				defer func() { router.activePath = false }()
-				result[router] = append(result[router], intf)
+				r.activePath = true
+				defer func() { r.activePath = false }()
+				result[r] = append(result[r], intf)
 
-				//debug("%s: %s", router.name, intf.name)
-
-				for _, outIntf := range router.interfaces {
-					if outIntf == intf {
-						continue
+				//debug("%s: %s", r.name, intf.name)
+				for _, out := range r.interfaces {
+					if !(out == intf || out.origMain != nil) {
+						reachFromBorder(out.network, out, result)
 					}
-					if outIntf.origMain != nil {
-						continue
-					}
-					reachFromBorder(outIntf.network, outIntf, result)
 				}
 			}
 		}
 	result := make(map[netOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
-	for key, list := range result {
+	for key, l := range result {
 		seen := make(map[*routerIntf]bool)
 		j := 0
-		for _, intf := range list {
+		for _, intf := range l {
 			if !seen[intf] {
 				seen[intf] = true
-				list[j] = intf
+				l[j] = intf
 				j++
 			}
 		}
-		result[key] = list[:j]
+		result[key] = l[:j]
 	}
-	border2obj2auto[border] = result
+	c.border2obj2auto[border] = result
 }
 
 // Find auto interface inside zone.
 // border is interface at border of zone.
 // src2 is unmanaged router or network inside zone.
-func autoIntfInZone(border *routerIntf, src2 netOrRouter) intfList {
-	if border2obj2auto[border] == nil {
-		setAutoIntfFromBorder(border)
+func (c *spoc) autoIntfInZone(border *routerIntf, obj netOrRouter) intfList {
+	if c.border2obj2auto == nil {
+		c.border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
 	}
-	return border2obj2auto[border][src2]
+	if c.border2obj2auto[border] == nil {
+		c.setAutoIntfFromBorder(border)
+	}
+	return c.border2obj2auto[border][obj]
 }
 
 func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
@@ -1438,7 +1430,7 @@ func (c *spoc) findAutoInterfaces(
 				switch x := fromStore.(type) {
 				case *zone:
 					for _, intf := range enter {
-						result = append(result, autoIntfInZone(intf, src2)...)
+						result = append(result, c.autoIntfInZone(intf, src2)...)
 					}
 				case *router:
 					result = append(result, enter...)
@@ -1461,7 +1453,7 @@ func (c *spoc) findAutoInterfaces(
 				next := fromStore.getPath1()[toStore]
 				switch fromStore.(type) {
 				case *zone:
-					result = append(result, autoIntfInZone(next, src2)...)
+					result = append(result, c.autoIntfInZone(next, src2)...)
 				case *router:
 					result.push(next)
 				case *routerIntf:
