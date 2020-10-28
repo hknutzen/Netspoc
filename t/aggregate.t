@@ -1173,6 +1173,60 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'Warn on all missing networks of zone cluster';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n4]; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n4]; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n4] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n4]; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n3
+ Either replace any:[network:n4] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+END
+
+test_warn($title, $in, $out);
+
+############################################################
 $title = 'Multiple destination aggregates';
 ############################################################
 
@@ -1616,6 +1670,12 @@ Warning: This supernet rule would permit unexpected access:
  Generated ACL at interface:r1.n1 would permit access to additional networks:
  - network:t2
  - network:t3
+ Either replace any:[network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n2]; prt=udp 123; of service:test
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:t4
  Either replace any:[network:n2] by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 Warning: This supernet rule would permit unexpected access:

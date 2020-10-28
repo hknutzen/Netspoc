@@ -141,10 +141,9 @@ func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, net
 //        If where is 'src', then zone is attached to interface
 //        If where is 'dst', then zone is at other side of device.
 // reversed: (optional) the check is for reversed rule at stateless device
-func (c *spoc) checkSupernetInZone(
-	rule *groupedRule, where string,
-	intf *routerIntf, seen map[*zone]bool,
-	zone *zone, reversed bool) {
+func (c *spoc) checkSupernetInZone1(
+	rule *groupedRule, where string, intf *routerIntf,
+	zone *zone, seen map[*zone]bool, reversed bool) {
 
 	if zone.noCheckSupernetRules {
 		return
@@ -225,6 +224,19 @@ func (c *spoc) checkSupernetInZone(
 		where,
 		orAgg,
 	)
+}
+
+func (c *spoc) checkSupernetInZone(
+	rule *groupedRule, where string, intf *routerIntf,
+	z *zone, seen map[*zone]bool, reversed bool) {
+
+	cluster := z.zoneCluster
+	if cluster == nil {
+		cluster = []*zone{z}
+	}
+	for _, z := range cluster {
+		c.checkSupernetInZone1(rule, where, intf, z, seen, reversed)
+	}
 }
 
 // Check if path between supernet and objList is filtered by
@@ -328,7 +340,7 @@ func (c *spoc) checkSupernetSrcRule(
 		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// b), 2. zone X != zone Y
-			c.checkSupernetInZone(rule, "src", noAclIntf, seen, noAclZone, false)
+			c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, seen, false)
 		}
 	}
 
@@ -376,7 +388,7 @@ func (c *spoc) checkSupernetSrcRule(
 				} else if noAclIntf.mainIntf != nil {
 				} else {
 					// zone X != zone Y
-					c.checkSupernetInZone(rule, "src", noAclIntf, seen, noAclZone, true)
+					c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, seen, true)
 				}
 			} else {
 				// Standard incoming ACL at all interfaces.
@@ -402,7 +414,7 @@ func (c *spoc) checkSupernetSrcRule(
 					if intf.mainIntf != nil {
 						continue
 					}
-					c.checkSupernetInZone(rule, "src", intf, seen, zone, true)
+					c.checkSupernetInZone(rule, "src", intf, zone, seen, true)
 				}
 			}
 		}
@@ -415,7 +427,7 @@ func (c *spoc) checkSupernetSrcRule(
 	}
 
 	// Check if rule "supernet2 -> dst" is defined.
-	c.checkSupernetInZone(rule, "src", inIntf, seen, inZone, false)
+	c.checkSupernetInZone(rule, "src", inIntf, inZone, seen, false)
 }
 
 // If such rule is defined
@@ -472,7 +484,7 @@ func (c *spoc) checkSupernetDstRule(
 		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// zone X != zone Y
-			c.checkSupernetInZone(rule, "dst", inIntf, seen, noAclZone, false)
+			c.checkSupernetInZone(rule, "dst", inIntf, noAclZone, seen, false)
 		}
 		return
 	}
@@ -506,7 +518,7 @@ func (c *spoc) checkSupernetDstRule(
 		if intf.mainIntf != nil {
 			return
 		}
-		c.checkSupernetInZone(rule, "dst", inIntf, seen, zone, false)
+		c.checkSupernetInZone(rule, "dst", inIntf, zone, seen, false)
 	}
 	if r.model.hasIoACL {
 		check(outIntf)
