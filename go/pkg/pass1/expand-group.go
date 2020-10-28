@@ -43,18 +43,13 @@ func expandTypedName(typ, name string) ipVxGroupObj {
 	return obj
 }
 
-// Cache created autointerface objects.
-var routerAutoInterfaces = make(map[*router]*autoIntf)
-
 type networkAutoIntfKey = struct {
 	network *network
 	managed bool
 }
 
-var networkAutoInterfaces = make(map[networkAutoIntfKey]*autoIntf)
-
 // Create autoIntf from router.
-func getRouterAutoIntf(r *router) *autoIntf {
+func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 	// Restore effect of split router from transformation in
 	// split_semi_managed_router and move_locked_interfaces.
@@ -66,24 +61,24 @@ func getRouterAutoIntf(r *router) *autoIntf {
 		return nil
 	}
 
-	result := routerAutoInterfaces[r]
+	result := c.routerAutoInterfaces[r]
 	if result == nil {
 		name := "interface:" + strings.TrimPrefix(r.name, "router:") + ".[auto]"
 		result = &autoIntf{
 			name:   name,
 			object: r,
 		}
-		routerAutoInterfaces[r] = result
+		c.routerAutoInterfaces[r] = result
 	}
 	return result
 }
 
 // Create autoIntf from network.
-func getNetworkAutoIntf(n *network, managed bool) *autoIntf {
+func (c *spoc) getNetworkAutoIntf(n *network, managed bool) *autoIntf {
 	if n.disabled {
 		return nil
 	}
-	result := networkAutoInterfaces[networkAutoIntfKey{n, managed}]
+	result := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
 	if result == nil {
 		name := "interface:[" + n.name + "].[auto]"
 		result = &autoIntf{
@@ -91,7 +86,7 @@ func getNetworkAutoIntf(n *network, managed bool) *autoIntf {
 			object:  n,
 			managed: managed,
 		}
-		networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
+		c.networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
 	}
 	return result
 }
@@ -288,7 +283,7 @@ func (c *spoc) expandGroup1(
 						if x.isAggregate {
 							c.err("Must not use interface:[any:..].[auto] in %s",
 								ctx)
-						} else if a := getNetworkAutoIntf(x, managed); a != nil {
+						} else if a := c.getNetworkAutoIntf(x, managed); a != nil {
 							result.push(a)
 						}
 					}
@@ -306,7 +301,7 @@ func (c *spoc) expandGroup1(
 								result.push(intf)
 							}
 						}
-					} else if a := getRouterAutoIntf(r); a != nil {
+					} else if a := c.getRouterAutoIntf(r); a != nil {
 						result.push(a)
 					}
 				case *area:
@@ -359,7 +354,7 @@ func (c *spoc) expandGroup1(
 						}
 					} else {
 						for _, r := range routers {
-							if a := getRouterAutoIntf(r); a != nil {
+							if a := c.getRouterAutoIntf(r); a != nil {
 								result.push(a)
 							}
 						}
@@ -380,7 +375,7 @@ func (c *spoc) expandGroup1(
 									result.push(intf)
 								}
 							}
-						} else if a := getRouterAutoIntf(r); a != nil {
+						} else if a := c.getRouterAutoIntf(r); a != nil {
 							result.push(a)
 						}
 					} else {
@@ -409,7 +404,7 @@ func (c *spoc) expandGroup1(
 								result.push(intf)
 							}
 						}
-					} else if a := getRouterAutoIntf(r); a != nil {
+					} else if a := c.getRouterAutoIntf(r); a != nil {
 						result.push(a)
 					}
 				} else {

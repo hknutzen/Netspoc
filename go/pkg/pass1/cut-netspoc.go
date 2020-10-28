@@ -543,13 +543,13 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	todoUnmanaged = nil
 
 	// Mark negated auto interfaces.
-	for r, intf := range routerAutoInterfaces {
+	for r, intf := range c.routerAutoInterfaces {
 		if intf.isUsed && !r.isUsed {
 			r.isUsed = true
 			todoManaged = append(todoManaged, r)
 		}
 	}
-	for key, intf := range networkAutoInterfaces {
+	for key, intf := range c.networkAutoInterfaces {
 		n := key.network
 		if intf.isUsed && !n.isUsed {
 			n.isUsed = true

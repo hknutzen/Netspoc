@@ -30,25 +30,29 @@ type spoc struct {
 	// Report that all or some messages have been processed.
 	ready chan bool
 	// State of compiler
-	userObj            userInfo
-	allNetworks        netList
-	allRouters         []*router
-	managedRouters     []*router
-	routingOnlyRouters []*router
-	routerFragments    []*router
-	allPathRules       pathRules
-	allZones           []*zone
-	ascendingAreas     []*area
-	pathrestrictions   []*pathRestriction
-	virtualInterfaces  intfList
-	prt                *stdProto
-	border2obj2auto    map[*routerIntf]map[netOrRouter]intfList
+	userObj               userInfo
+	allNetworks           netList
+	allRouters            []*router
+	managedRouters        []*router
+	routingOnlyRouters    []*router
+	routerFragments       []*router
+	allPathRules          pathRules
+	allZones              []*zone
+	ascendingAreas        []*area
+	pathrestrictions      []*pathRestriction
+	virtualInterfaces     intfList
+	prt                   *stdProto
+	border2obj2auto       map[*routerIntf]map[netOrRouter]intfList
+	routerAutoInterfaces  map[*router]*autoIntf
+	networkAutoInterfaces map[networkAutoIntfKey]*autoIntf
 }
 
 func initSpoc() *spoc {
 	c := &spoc{
-		msgChan: make(chan spocMsg),
-		ready:   make(chan bool),
+		msgChan:               make(chan spocMsg),
+		ready:                 make(chan bool),
+		routerAutoInterfaces:  make(map[*router]*autoIntf),
+		networkAutoInterfaces: make(map[networkAutoIntfKey]*autoIntf),
 	}
 	return c
 }
