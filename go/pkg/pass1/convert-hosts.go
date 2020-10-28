@@ -412,10 +412,9 @@ func applySrcDstModifier(group []srvObj) []srvObj {
 	return append(unmodified, modified...)
 }
 
-var subnetWarningSeen = make(map[*subnet]bool)
-
 func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 	c.convertHosts()
+	subnetWarningSeen := make(map[*subnet]bool)
 	process := func(rules []*serviceRule) ruleList {
 		cRules := make(ruleList, 0, len(rules))
 		for _, rule := range rules {
