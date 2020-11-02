@@ -68,10 +68,10 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 	}
 }
 
-func printNetworkIp(n *network, v6 bool) string {
+func printNetworkIp(n *network) string {
 	pIP := n.ip.String()
 	var pMask string
-	if v6 {
+	if n.ipV6 {
 		size, _ := n.mask.Size()
 		pMask = strconv.Itoa(size)
 	} else {
@@ -110,7 +110,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 					return n.ip.String()
 				}
 			}
-			return printNetworkIp(n, n.ipV6)
+			return printNetworkIp(n)
 		}
 		ip = getIp(x)
 		for tag, natNet := range x.nat {
@@ -130,7 +130,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				}
 
 				// Dynamic NAT, take whole network.
-				return printNetworkIp(n, n.ipV6)
+				return printNetworkIp(n)
 			}
 			if ip := h.ip; ip != nil {
 				return mergeIP(ip, n).String()
@@ -158,7 +158,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				}
 
 				// Dynamic NAT, take whole network.
-				return printNetworkIp(n, n.ipV6)
+				return printNetworkIp(n)
 			}
 			switch {
 			case intf.unnumbered:
@@ -169,7 +169,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return "bridged"
 			case intf.negotiated:
 				// Take whole network.
-				return printNetworkIp(n, n.ipV6)
+				return printNetworkIp(n)
 			default:
 				return mergeIP(intf.ip, n).String()
 			}
