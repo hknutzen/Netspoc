@@ -1220,10 +1220,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 					name, r.model.name)
 			}
 		} else if r.filterOnly != nil {
-			/*c.warn(
+			c.warn(
 				"Ignoring attribute 'filter_only' at %s;"+
 					" only valid with 'managed = local'", name)
-			r.filterOnly = nil*/
+			r.filterOnly = nil
 		}
 		if r.logDeny && !r.model.canLogDeny {
 			c.err("Must not use attribute 'log_deny' at %s of moel %s",
