@@ -211,7 +211,7 @@ func SpocMain() int {
 		c.collectMessages(ch)
 		c.removeSimpleDuplicateRules()
 		c.combineSubnetsInRules()
-		c.SetPolicyDistributionIP()
+		c.setPolicyDistributionIP()
 		c.expandCrypto()
 		c.findActiveRoutes()
 		c.genReverseRules()

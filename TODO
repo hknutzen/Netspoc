@@ -26,3 +26,5 @@ Replace getIpv4Ipv6Routers() with c.allRouters
 
 c.routerFragments is only used once in mark-disabled.go
 Is it really needed?
+
+Rename zone.zoneCluster to zone.cluster

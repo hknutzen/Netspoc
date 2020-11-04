@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Show warning if filter_only is used without 'managed = local'.
+
 6.021     2020-10-21 09:56:09+02:00 Europe/Berlin
 
  - Fixed 'add-to-group':
@@ -8,7 +10,7 @@
    - Version number is written again.
    - Missing prefix length /32 is printed for filter_only.
  - Language change:
-   Source port for TCP and UDP is no longer applicable unnamed protocol
+   Source port for TCP and UDP is no longer applicable to unnamed protocol
    but only to named protocol now.
 
 6.020     2020-10-12 12:46:49+02:00 Europe/Berlin
