@@ -1288,4 +1288,35 @@ END
 test_run($title, $in, $out);
 
 ############################################################
+$title = 'Owner definition';
+############################################################
+
+$in = <<'END';
+owner:a = { admins = a@example.com; }
+owner:ab = { admins = a@example.com, b@example.com; }
+owner:abw = { watchers = w@example.com; admins = a@example.com, b@example.com; }
+END
+
+$out = <<'END';
+owner:a = {
+ admins = a@example.com;
+}
+
+owner:ab = {
+ admins = a@example.com,
+          b@example.com,
+          ;
+}
+
+owner:abw = {
+ watchers = w@example.com;
+ admins = a@example.com,
+          b@example.com,
+          ;
+}
+END
+
+test_run($title, $in, $out);
+
+############################################################
 done_testing;
