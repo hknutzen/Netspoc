@@ -749,7 +749,7 @@ func (c *spoc) setupPartOwners() xOwner {
 // from outer owners.
 // Attribute showHiddenOwners at outer owner cancels effect of
 // hideFromOuterOwners
-func (c *spoc) setupOuterOwners() (xOwner, map[*owner][]*owner) {
+func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	c.progress("Setup outer owners")
 
 	// Find master owner.
@@ -898,7 +898,11 @@ func (c *spoc) setupOuterOwners() (xOwner, map[*owner][]*owner) {
 		}
 		eInfo[ow] = sortedSlice(outerOwners)
 	}
-	return oInfo, eInfo
+	masterName := ""
+	if masterOwner != nil {
+		masterName = masterOwner.name
+	}
+	return masterName, oInfo, eInfo
 }
 
 //#####################################################################
@@ -1325,6 +1329,29 @@ func (c *spoc) exportObjects(dir string) {
 	c.exportJson(dir, "objects", result)
 }
 
+// Currently used in project internal program "kmprep".
+func (c *spoc) exportMasterOwner(dir string, masterOwner string) {
+	c.exportJson(dir, "master_owner", masterOwner)
+}
+
+// Maps zone name to names of enclosing areas.
+// Currently used in project internal program "kmprep".
+func (c *spoc) exportZone2Areas(dir string) {
+	result := make(jsonMap)
+	for _, z := range c.allZones {
+		var l stringList
+		a := z.inArea
+		for a != nil {
+			l.push(a.name[len("area:"):])
+			a = a.inArea
+		}
+		if l != nil {
+			result[getZoneName(z)] = l
+		}
+	}
+	c.exportJson(dir, "zone2areas", result)
+}
+
 //###################################################################
 // find Email -> Owner
 //###################################################################
@@ -1444,16 +1471,18 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.propagateOwners()
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := c.setupPartOwners()
-	oInfo, eInfo := c.setupOuterOwners()
+	masterOwner, oInfo, eInfo := c.setupOuterOwners()
 	c.setupServiceInfo(expSvcList, pInfo, oInfo)
 
 	// Export data
 	c.createDirs(outDir, "")
 	c.exportOwners(outDir, eInfo)
+	c.exportMasterOwner(outDir, masterOwner)
 	c.exportAssets(outDir, pInfo, oInfo)
 	c.exportServices(outDir, expSvcList)
 	c.exportUsersAndServiceLists(outDir, expSvcList, pInfo, oInfo)
 	c.exportObjects(outDir)
+	c.exportZone2Areas(outDir)
 	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
 	c.copyPolicyFile(inDir, outDir)
 	c.progress("Ready")
