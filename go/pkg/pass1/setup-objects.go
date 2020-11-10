@@ -641,6 +641,8 @@ func (c *spoc) setupCrypto(v *ast.TopStruct, s *symbolTable) {
 	s.crypto[crName] = cr
 	for _, a := range v.Attributes {
 		switch a.Name {
+		case "bind_nat":
+			cr.bindNat = c.getBindNat(a, name)
 		case "detailed_crypto_acl":
 			cr.detailedCryptoAcl = c.getFlag(a, name)
 		case "type":
@@ -1468,21 +1470,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case "virtual":
 			virtual = c.getVirtual(a, v6, name)
 		case "bind_nat":
-			l := c.getIdentifierList(a, name)
-			sort.Strings(l)
-			// Remove duplicates.
-			var seen string
-			j := 0
-			for _, tag := range l {
-				if tag == seen {
-					c.warn("Duplicate %s in 'bind_nat' of %s", tag, name)
-				} else {
-					seen = tag
-					l[j] = tag
-					j++
-				}
-			}
-			intf.bindNat = l[:j]
+			intf.bindNat = c.getBindNat(a, name)
 		case "routing":
 			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
@@ -2139,6 +2127,24 @@ func (c *spoc) getComplexValue(a *ast.Attribute, ctx string) []*ast.Attribute {
 	}
 	c.checkDuplAttr(l, aCtx)
 	return l
+}
+
+func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
+	l := c.getIdentifierList(a, ctx)
+	sort.Strings(l)
+	// Remove duplicates.
+	var seen string
+	j := 0
+	for _, tag := range l {
+		if tag == seen {
+			c.warn("Duplicate %s in 'bind_nat' of %s", tag, ctx)
+		} else {
+			seen = tag
+			l[j] = tag
+			j++
+		}
+	}
+	return l[:j]
 }
 
 func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {
@@ -3412,7 +3418,11 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 			hub.realIntf = realHub
 			hub.router = r
 			hub.network = spokeNet
-			hub.bindNat = realHub.bindNat
+			if cr.bindNat != nil {
+				hub.bindNat = cr.bindNat
+			} else {
+				hub.bindNat = realHub.bindNat
+			}
 			hub.routing = realHub.routing
 			hub.peer = spoke
 			spoke.peer = hub
