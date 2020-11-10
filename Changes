@@ -1,6 +1,21 @@
 {{$NEXT}}
 
- - Show warning if filter_only is used without 'managed = local'.
+6.022     2020-11-10 12:37:40+01:00 Europe/Berlin
+
+ - Added support for attribute 'bind_nat' at crypto definition
+   for use at crypto hub.
+   Now NAT must no longer be equal for all tunnels at crypto hub,
+   but can be defined individually for each crypto definition.
+   Syntax for this experimental feature will change.
+ - Improved performance by concurrent execution of compiler stage
+   "Checking for redundant rules".
+ - Program 'export-netspoc' now exports additional JSON files
+   master_owner, zone2areas for use in internal proggram 'kmprep'.
+ - Fix: When checking for missing supernet rules, some networks may
+   not been shown when using pathrestrictions or bind_nat inside a zone.
+ - Show warning if 'filter_only' is used without 'managed = local'.
+ - Show warning of VRFs of a single router use different values
+   for 'policy_distribution_point'.
 
 6.021     2020-10-21 09:56:09+02:00 Europe/Berlin
 
