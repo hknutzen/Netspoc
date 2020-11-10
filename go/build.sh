@@ -4,7 +4,10 @@
 # Abort on first error.
 set -e
 
+# Get version as argument or use 'devel'.
 V=${1:-devel}
+# Add version to this variable.
+NAME='github.com/hknutzen/Netspoc/go/pkg/pass1.version'
 
 # This script should be placed in "go" subdirectory, where Go sources
 # are placed.  Get directory where this script is located.
@@ -12,7 +15,8 @@ dir=$(dirname $(readlink -f $0))
 
 # Compile all commands.
 for d in $dir/cmd/*; do
-    ( cd $d; go build -ldflags="-X 'main.version=$V'" )
+    ( cd $d;
+      go build -ldflags="-X '$NAME=$V'" )
 done
 
 # Do static analysis of source code.
