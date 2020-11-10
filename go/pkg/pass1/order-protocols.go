@@ -1,10 +1,21 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"sort"
 )
+
+type stdProto struct {
+	Ah      *proto
+	Bootpc  *proto
+	Bootps  *proto
+	Esp     *proto
+	IP      *proto
+	Ike     *proto
+	Natt    *proto
+	UDP     *proto
+	TCPEsta *proto
+}
 
 var network00 = &network{
 	ipObj: ipObj{
@@ -34,47 +45,49 @@ func getNetwork00(ipv6 bool) *network {
 	}
 }
 
-func initStdProtocols(sym *symbolTable) {
+func (c *spoc) initStdProtocols(sym *symbolTable) {
 	define := func(s string) *proto {
-		return getSimpleProtocol(s, sym, false, s)
+		return c.getSimpleProtocol(s, sym, false, s)
 	}
 	defineX := func(s string) *proto {
-		pSimp, pSrc := getSimpleProtocolAndSrcPort(s, sym, false, s)
+		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, sym, false, s)
 		p := *pSimp
 		p.name = s
 		// Link complex protocol with corresponding simple protocol.
 		p.main = pSimp
-		addProtocolModifiers(nil, &p, pSrc)
+		c.addProtocolModifiers(nil, &p, pSrc)
 		return &p
 	}
-	prtIP = define("ip")
+	prt := new(stdProto)
+	c.prt = prt
+	prt.IP = define("ip")
 	prtTCP := define("tcp")
-	prtUDP = define("udp")
-	prtIke = defineX("udp 500 : 500")
-	prtNatt = defineX("udp 4500 : 4500")
-	prtEsp = define("proto 50")
-	prtAh = define("proto 51")
+	prt.UDP = define("udp")
+	prt.Ike = defineX("udp 500 : 500")
+	prt.Natt = defineX("udp 4500 : 4500")
+	prt.Esp = define("proto 50")
+	prt.Ah = define("proto 51")
 	cp := *prtTCP
 	cp.established = true
 	cp.name = "tcp established"
 	cp.up = prtTCP
-	rangeTCPEstablished = &cp
+	prt.TCPEsta = &cp
 
-	prtBootps = define("udp 67")
-	prtBootpc = define("udp 68")
+	prt.Bootps = define("udp 67")
+	prt.Bootpc = define("udp 68")
 
 	permitAnyRule = &groupedRule{
 		src: []someObj{network00},
 		dst: []someObj{network00},
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{prt.IP},
 		},
 	}
 	permitAny6Rule = &groupedRule{
 		src: []someObj{network00v6},
 		dst: []someObj{network00v6},
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{prt.IP},
 		},
 	}
 	denyAnyRule = &groupedRule{
@@ -82,7 +95,7 @@ func initStdProtocols(sym *symbolTable) {
 		dst: []someObj{network00},
 		serviceRule: &serviceRule{
 			deny: true,
-			prt:  []*proto{prtIP},
+			prt:  []*proto{prt.IP},
 		},
 	}
 	denyAny6Rule = &groupedRule{
@@ -90,14 +103,14 @@ func initStdProtocols(sym *symbolTable) {
 		dst: []someObj{network00v6},
 		serviceRule: &serviceRule{
 			deny: true,
-			prt:  []*proto{prtIP},
+			prt:  []*proto{prt.IP},
 		},
 	}
 }
 
 // Order protocols. We need this to simplify optimization.
-func OrderProtocols() {
-	diag.Progress("Arranging protocols")
+func (c *spoc) orderProtocols() {
+	c.progress("Arranging protocols")
 
 	var tcp, udp, icmp, proto protoList
 	for _, p := range symTable.unnamedProto {
@@ -112,7 +125,7 @@ func OrderProtocols() {
 			proto.push(p)
 		}
 	}
-	up := prtIP
+	up := c.prt.IP
 	orderRanges(tcp, up)
 	orderRanges(udp, up)
 	orderIcmp(icmp, up)

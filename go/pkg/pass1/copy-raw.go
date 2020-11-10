@@ -14,7 +14,7 @@ import (
 func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	ipV6 := strings.HasSuffix(outDir, "/ipv6")
 	deviceNames := make(map[string]bool)
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		if r.ipV6 == ipV6 {
 			deviceNames[r.deviceName] = true
 		}
@@ -33,11 +33,11 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 		}
 		rawPath := filepath.Join(rawDir, base)
 		if !fileop.IsRegular(rawPath) {
-			warnMsg("Ignoring path " + rawPath)
+			c.warn("Ignoring path " + rawPath)
 			continue
 		}
 		if _, found := deviceNames[base]; !found {
-			warnMsg("Found unused file " + rawPath)
+			c.warn("Found unused file " + rawPath)
 			continue
 		}
 		dest := filepath.Join(outDir, base)

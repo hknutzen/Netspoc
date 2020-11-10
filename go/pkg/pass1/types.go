@@ -426,11 +426,11 @@ type pathRestriction struct {
 	activePath bool
 	elements   []*routerIntf
 	name       string
-	deleted    []*pathRestriction
 }
 
 type crypto struct {
 	usedObj
+	bindNat           []string
 	detailedCryptoAcl bool
 	ipsec             *ipsec
 	name              string
@@ -542,30 +542,23 @@ type modifiers struct {
 
 type proto struct {
 	usedObj
-	name            string
-	proto           string
-	icmpType        int
-	icmpCode        int
-	modifiers       *modifiers
-	main            *proto
-	split           *[2]*proto
-	srcDstRangeList []*complexProto
-	ports           [2]int
-	established     bool
-	statelessICMP   bool
-	up              *proto
-	localUp         *proto
+	name          string
+	proto         string
+	icmpType      int
+	icmpCode      int
+	modifiers     *modifiers
+	main          *proto
+	split         *[2]*proto
+	ports         [2]int
+	established   bool
+	statelessICMP bool
+	up            *proto
+	localUp       *proto
 }
 type protoList []*proto
 
 func (l *protoList) push(p *proto) {
 	*l = append(*l, p)
-}
-
-type complexProto struct {
-	src  *proto
-	dst  *proto
-	orig *proto
 }
 
 type protoGroup struct {

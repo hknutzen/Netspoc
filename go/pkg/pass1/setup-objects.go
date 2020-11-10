@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
@@ -18,17 +17,17 @@ import (
 
 var symTable *symbolTable
 
-func ReadNetspoc(path string) {
+func (c *spoc) readNetspoc(path string) {
 	toplevel := parseFiles(path)
-	setupTopology(toplevel)
+	c.setupTopology(toplevel)
 }
 
-func ShowReadStatistics() {
+func (c *spoc) showReadStatistics() {
 	r := len(symTable.router) + len(symTable.router6)
 	n := len(symTable.network)
 	h := len(symTable.host)
 	s := len(symTable.service)
-	diag.Info("Read: %d routers, %d networks, %d hosts, %d services", r, n, h, s)
+	c.info("Read: %d routers, %d networks, %d hosts, %d services", r, n, h, s)
 }
 
 func parseFiles(path string) []ast.Toplevel {
@@ -47,17 +46,16 @@ func parseFiles(path string) []ast.Toplevel {
 	return result
 }
 
-func setupTopology(toplevel []ast.Toplevel) {
-	checkDuplicate(toplevel)
+func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
+	c.checkDuplicate(toplevel)
 	sym := createSymbolTable()
-	initStdProtocols(sym)
+	c.initStdProtocols(sym)
 	symTable = sym
-	setupObjects(toplevel, sym)
-	AbortOnError()
-	services = sym.service
-	linkTunnels(sym)
-	linkVirtualInterfaces()
-	splitSemiManagedRouter()
+	c.setupObjects(toplevel, sym)
+	c.stopOnErr()
+	c.linkTunnels(sym)
+	c.linkVirtualInterfaces()
+	c.splitSemiManagedRouter()
 }
 
 type symbolTable struct {
@@ -92,6 +90,8 @@ type symbolTable struct {
 	ipsec map[string]*ipsec
 	// References ipsec
 	crypto map[string]*crypto
+	// Log tags of routers
+	knownLog map[string]bool
 }
 
 func createSymbolTable() *symbolTable {
@@ -113,10 +113,12 @@ func createSymbolTable() *symbolTable {
 	s.crypto = make(map[string]*crypto)
 	s.ipsec = make(map[string]*ipsec)
 	s.isakmp = make(map[string]*isakmp)
+	s.knownLog = make(map[string]bool)
+
 	return s
 }
 
-func setupObjects(l []ast.Toplevel, s *symbolTable) {
+func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 	var ipsec []*ast.TopStruct
 	var crypto []*ast.TopStruct
 	var networks []*ast.Network
@@ -131,12 +133,12 @@ func setupObjects(l []ast.Toplevel, s *symbolTable) {
 		case *ast.Network, *ast.Router:
 		default:
 			if !isSimpleName(name) {
-				errMsg("Invalid identifier in definition of '%s.%s'", typ, name)
+				c.err("Invalid identifier in definition of '%s.%s'", typ, name)
 			}
 		}
 		switch x := a.(type) {
 		case *ast.Protocol:
-			setupProtocol(x, s)
+			c.setupProtocol(x, s)
 		case *ast.Protocolgroup:
 			l := make(stringList, 0, len(x.ValueList))
 			for _, v := range x.ValueList {
@@ -156,9 +158,9 @@ func setupObjects(l []ast.Toplevel, s *symbolTable) {
 		case *ast.TopStruct:
 			switch typ {
 			case "owner":
-				setupOwner(x, s)
+				c.setupOwner(x, s)
 			case "isakmp":
-				setupIsakmp(x, s)
+				c.setupIsakmp(x, s)
 			case "ipsec":
 				ipsec = append(ipsec, x)
 			case "crypto":
@@ -178,56 +180,56 @@ func setupObjects(l []ast.Toplevel, s *symbolTable) {
 		}
 	}
 	for _, a := range ipsec {
-		setupIpsec(a, s)
+		c.setupIpsec(a, s)
 	}
 	for _, a := range crypto {
-		setupCrypto(a, s)
+		c.setupCrypto(a, s)
 	}
 	for _, a := range networks {
-		setupNetwork(a, s)
+		c.setupNetwork(a, s)
 	}
 	for _, a := range aggregates {
-		setupAggregate(a, s)
+		c.setupAggregate(a, s)
 	}
 	for _, a := range routers {
-		setupRouter(a, s)
+		c.setupRouter(a, s)
 	}
 	for _, a := range areas {
-		setupArea(a, s)
+		c.setupArea(a, s)
 	}
 	for _, a := range pathrestrictions {
-		setupPathrestriction(a, s)
+		c.setupPathrestriction(a, s)
 	}
 	for _, a := range services {
-		setupService(a, s)
+		c.setupService(a, s)
 	}
 }
 
-func setupProtocol(a *ast.Protocol, s *symbolTable) {
+func (c *spoc) setupProtocol(a *ast.Protocol, s *symbolTable) {
 	name := a.Name
 	v := a.Value
 	l := strings.Split(v, ", ")
 	def := l[0]
 	mod := l[1:]
-	pSimp, pSrc := getSimpleProtocolAndSrcPort(def, s, a.IPV6, name)
+	pSimp, pSrc := c.getSimpleProtocolAndSrcPort(def, s, a.IPV6, name)
 	p := *pSimp
 	p.name = name
 	// Link named protocol with corresponding unnamed protocol.
 	p.main = pSimp
 	pName := name[len("protocol:"):]
-	addProtocolModifiers(mod, &p, pSrc)
+	c.addProtocolModifiers(mod, &p, pSrc)
 	s.protocol[pName] = &p
 }
 
-func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
-	p, pSrc := getSimpleProtocolAndSrcPort(def, s, v6, ctx)
+func (c *spoc) getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
+	p, pSrc := c.getSimpleProtocolAndSrcPort(def, s, v6, ctx)
 	if pSrc != nil {
 		v := pSrc.ports
 		desc := strconv.Itoa(v[0])
 		if v[0] != v[1] {
 			desc += "-" + strconv.Itoa(v[1])
 		}
-		errMsg("Must not use source port '%s' in %s.\n"+
+		c.err("Must not use source port '%s' in %s.\n"+
 			" Source port is only valid in named protocol",
 			desc, ctx)
 	}
@@ -235,7 +237,7 @@ func getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
 }
 
 // Return protocol and optional protocol representing source port.
-func getSimpleProtocolAndSrcPort(
+func (c *spoc) getSimpleProtocolAndSrcPort(
 	def string, s *symbolTable, v6 bool, ctx string) (*proto, *proto) {
 
 	var srcP *proto
@@ -249,10 +251,10 @@ func getSimpleProtocolAndSrcPort(
 	switch proto {
 	case "ip":
 		if len(nums) != 0 {
-			errMsg("Unexpected details after %s", ctx)
+			c.err("Unexpected details after %s", ctx)
 		}
 	case "tcp", "udp":
-		src, dst := getSrcDstRange(nums, ctx)
+		src, dst := c.getSrcDstRange(nums, ctx)
 		p.ports = dst
 		if src[0] != 0 {
 			cp := *p
@@ -262,60 +264,60 @@ func getSimpleProtocolAndSrcPort(
 		}
 	case "icmpv6":
 		p.proto = "icmp"
-		addICMPTypeCode(nums, p, ctx)
+		c.addICMPTypeCode(nums, p, ctx)
 		if !v6 {
-			errMsg("Must not be used with IPv4: %s", ctx)
+			c.err("Must not be used with IPv4: %s", ctx)
 		}
 	case "icmp":
-		addICMPTypeCode(nums, p, ctx)
+		c.addICMPTypeCode(nums, p, ctx)
 		if v6 {
-			errMsg("Must not be used with IPv6: %s", ctx)
+			c.err("Must not be used with IPv6: %s", ctx)
 		}
 	case "proto":
-		addProtoNr(nums, p, v6, ctx)
+		c.addProtoNr(nums, p, v6, ctx)
 	default:
-		errMsg("Unknown protocol in %s", ctx)
+		c.err("Unknown protocol in %s", ctx)
 		p.proto = "ip"
 	}
 	p = cacheUnnamedProtocol(p, s)
 	return p, srcP
 }
 
-func getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
+func (c *spoc) getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
 	var src, dst [2]int
 	switch len(nums) {
 	case 0:
 		dst = [2]int{1, 65535}
 	case 1:
-		dst = getRange1(nums[0], ctx)
+		dst = c.getRange1(nums[0], ctx)
 	case 3:
 		if nums[1] == "-" {
-			dst = getRange(nums[0], nums[2], ctx)
+			dst = c.getRange(nums[0], nums[2], ctx)
 		} else if nums[1] == ":" {
-			src = getRange1(nums[0], ctx)
-			dst = getRange1(nums[2], ctx)
+			src = c.getRange1(nums[0], ctx)
+			dst = c.getRange1(nums[2], ctx)
 		} else {
-			errMsg("Invalid port range in %s", ctx)
+			c.err("Invalid port range in %s", ctx)
 		}
 	case 5:
 		if nums[1] == ":" && nums[3] == "-" {
-			src = getRange1(nums[0], ctx)
-			dst = getRange(nums[2], nums[4], ctx)
+			src = c.getRange1(nums[0], ctx)
+			dst = c.getRange(nums[2], nums[4], ctx)
 		} else if nums[1] == "-" && nums[3] == ":" {
-			src = getRange(nums[0], nums[2], ctx)
-			dst = getRange1(nums[4], ctx)
+			src = c.getRange(nums[0], nums[2], ctx)
+			dst = c.getRange1(nums[4], ctx)
 		} else {
-			errMsg("Invalid port range in %s", ctx)
+			c.err("Invalid port range in %s", ctx)
 		}
 	case 7:
 		if nums[1] == "-" && nums[3] == ":" && nums[5] == "-" {
-			src = getRange(nums[0], nums[2], ctx)
-			dst = getRange(nums[4], nums[6], ctx)
+			src = c.getRange(nums[0], nums[2], ctx)
+			dst = c.getRange(nums[4], nums[6], ctx)
 		} else {
-			errMsg("Invalid port range in %s", ctx)
+			c.err("Invalid port range in %s", ctx)
 		}
 	default:
-		errMsg("Invalid port range in %s", ctx)
+		c.err("Invalid port range in %s", ctx)
 	}
 	if dst[0] == 0 {
 		dst = [2]int{1, 65535}
@@ -323,35 +325,35 @@ func getSrcDstRange(nums []string, ctx string) ([2]int, [2]int) {
 	return src, dst
 }
 
-func getRange(s1, s2 string, ctx string) [2]int {
-	n1 := getPort(s1, ctx)
-	n2 := getPort(s2, ctx)
+func (c *spoc) getRange(s1, s2 string, ctx string) [2]int {
+	n1 := c.getPort(s1, ctx)
+	n2 := c.getPort(s2, ctx)
 	if n1 > n2 {
-		errMsg("Invalid port range in %s", ctx)
+		c.err("Invalid port range in %s", ctx)
 	}
 	return [2]int{n1, n2}
 }
 
-func getRange1(s1 string, ctx string) [2]int {
-	n1 := getPort(s1, ctx)
+func (c *spoc) getRange1(s1 string, ctx string) [2]int {
+	n1 := c.getPort(s1, ctx)
 	return [2]int{n1, n1}
 }
 
-func getPort(s, ctx string) int {
+func (c *spoc) getPort(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
-		errMsg("Expected number in %s: %s", ctx, s)
+		c.err("Expected number in %s: %s", ctx, s)
 		return 0
 	}
 	if num <= 0 {
-		errMsg("Expected port number > 0 in %s", ctx)
+		c.err("Expected port number > 0 in %s", ctx)
 	} else if num >= 65536 {
-		errMsg("Expected port number < 65536 in %s", ctx)
+		c.err("Expected port number < 65536 in %s", ctx)
 	}
 	return num
 }
 
-func addICMPTypeCode(nums []string, p *proto, ctx string) {
+func (c *spoc) addICMPTypeCode(nums []string, p *proto, ctx string) {
 	p.icmpType = -1
 	p.icmpCode = -1
 	switch len(nums) {
@@ -359,66 +361,66 @@ func addICMPTypeCode(nums []string, p *proto, ctx string) {
 		return
 	case 3:
 		if nums[1] != "/" {
-			errMsg("Expected [TYPE [ / CODE]] in %s", ctx)
+			c.err("Expected [TYPE [ / CODE]] in %s", ctx)
 			break
 		}
-		p.icmpCode = getNum256(nums[2], ctx)
+		p.icmpCode = c.getNum256(nums[2], ctx)
 		fallthrough
 	case 1:
-		typ := getNum256(nums[0], ctx)
+		typ := c.getNum256(nums[0], ctx)
 		p.icmpType = typ
 		if typ == 0 || typ == 3 || typ == 11 {
 			p.statelessICMP = true
 		}
 	default:
-		errMsg("Expected [TYPE [ / CODE]] in %s", ctx)
+		c.err("Expected [TYPE [ / CODE]] in %s", ctx)
 	}
 }
 
-func addProtoNr(nums []string, p *proto, v6 bool, ctx string) {
+func (c *spoc) addProtoNr(nums []string, p *proto, v6 bool, ctx string) {
 	if len(nums) != 1 {
-		errMsg("Expected single protocol number in %s", ctx)
+		c.err("Expected single protocol number in %s", ctx)
 		return
 	}
 	s := nums[0]
-	switch getNum256(s, ctx) {
+	switch c.getNum256(s, ctx) {
 	case 0:
-		errMsg("Invalid protocol number '0' in %s", ctx)
+		c.err("Invalid protocol number '0' in %s", ctx)
 	case 1:
 		if !v6 {
-			errMsg("Must not use 'proto 1', use 'icmp' instead in %s", ctx)
+			c.err("Must not use 'proto 1', use 'icmp' instead in %s", ctx)
 			return
 		}
 	case 4:
-		errMsg("Must not use 'proto 4', use 'tcp' instead in %s", ctx)
+		c.err("Must not use 'proto 4', use 'tcp' instead in %s", ctx)
 		return
 	case 17:
-		errMsg("Must not use 'proto 17', use 'udp' instead in %s", ctx)
+		c.err("Must not use 'proto 17', use 'udp' instead in %s", ctx)
 		return
 	case 58:
 		if v6 {
-			errMsg("Must not use 'proto 58', use 'icmpv6' instead in %s", ctx)
+			c.err("Must not use 'proto 58', use 'icmpv6' instead in %s", ctx)
 			return
 		}
 	}
 	p.proto = s
 }
 
-func getNum256(s, ctx string) int {
+func (c *spoc) getNum256(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
-		errMsg("Expected number in %s: %s", ctx, s)
+		c.err("Expected number in %s: %s", ctx, s)
 		return -1
 	}
 	if num < 0 {
-		errMsg("Expected positive number in %s", ctx)
+		c.err("Expected positive number in %s", ctx)
 	} else if num >= 256 {
-		errMsg("Expected number < 256 in %s", ctx)
+		c.err("Expected number < 256 in %s", ctx)
 	}
 	return num
 }
 
-func addProtocolModifiers(l []string, p *proto, srcP *proto) {
+func (c *spoc) addProtocolModifiers(l []string, p *proto, srcP *proto) {
 	if len(l) == 0 && srcP == nil {
 		return
 	}
@@ -440,7 +442,7 @@ func addProtocolModifiers(l []string, p *proto, srcP *proto) {
 		case "no_check_supernet_rules":
 			m.noCheckSupernetRules = true
 		default:
-			errMsg("Unknown modifier '%s' in %s", s, p.name)
+			c.err("Unknown modifier '%s' in %s", s, p.name)
 		}
 	}
 	if srcP != nil {
@@ -449,7 +451,7 @@ func addProtocolModifiers(l []string, p *proto, srcP *proto) {
 	p.modifiers = m
 }
 
-func setupOwner(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupOwner(v *ast.TopStruct, s *symbolTable) {
 	name := v.Name
 	o := new(owner)
 	o.name = name
@@ -458,24 +460,24 @@ func setupOwner(v *ast.TopStruct, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "admins":
-			o.admins = getEmailList(a, name)
+			o.admins = c.getEmailList(a, name)
 		case "watchers":
-			o.watchers = getEmailList(a, name)
+			o.watchers = c.getEmailList(a, name)
 		case "show_all":
-			o.showAll = getFlag(a, name)
+			o.showAll = c.getFlag(a, name)
 			o.showHiddenOwners = true
 		case "only_watch":
-			o.onlyWatch = getFlag(a, name)
+			o.onlyWatch = c.getFlag(a, name)
 		case "hide_from_outer_owners":
-			o.hideFromOuterOwners = getFlag(a, name)
+			o.hideFromOuterOwners = c.getFlag(a, name)
 		case "show_hidden_owners":
-			o.showHiddenOwners = getFlag(a, name)
+			o.showHiddenOwners = c.getFlag(a, name)
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
-	removeDupl(append(o.admins, o.watchers...), "admins/watchers of "+name)
+	c.checkDuplAttr(v.Attributes, name)
+	c.removeDupl(append(o.admins, o.watchers...), "admins/watchers of "+name)
 }
 
 type attrDescr struct {
@@ -508,7 +510,7 @@ var isakmpAttr = map[string]attrDescr{
 	},
 }
 
-func setupIsakmp(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupIsakmp(v *ast.TopStruct, s *symbolTable) {
 	name := v.Name
 	is := new(isakmp)
 	is.name = name
@@ -519,24 +521,24 @@ func setupIsakmp(v *ast.TopStruct, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "nat_traversal":
-			is.natTraversal = getAttr(a, isakmpAttr, name)
+			is.natTraversal = c.getAttr(a, isakmpAttr, name)
 		case "authentication":
-			is.authentication = getAttr(a, isakmpAttr, name)
+			is.authentication = c.getAttr(a, isakmpAttr, name)
 		case "encryption":
-			is.encryption = getAttr(a, isakmpAttr, name)
+			is.encryption = c.getAttr(a, isakmpAttr, name)
 		case "hash":
-			is.hash = getAttr(a, isakmpAttr, name)
+			is.hash = c.getAttr(a, isakmpAttr, name)
 		case "ike_version":
-			ikeVersion = getAttr(a, isakmpAttr, name)
+			ikeVersion = c.getAttr(a, isakmpAttr, name)
 		case "lifetime":
-			is.lifetime = getTimeVal(a, name)
+			is.lifetime = c.getTimeVal(a, name)
 			hasLifetime = true
 		case "group":
-			is.group = getAttr(a, isakmpAttr, name)
+			is.group = c.getAttr(a, isakmpAttr, name)
 		case "trust_point":
-			is.trustPoint = getAttr(a, isakmpAttr, name)
+			is.trustPoint = c.getAttr(a, isakmpAttr, name)
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
 	if ikeVersion == "" {
@@ -545,25 +547,25 @@ func setupIsakmp(v *ast.TopStruct, s *symbolTable) {
 		is.ikeVersion, _ = strconv.Atoi(ikeVersion)
 	}
 	if is.authentication == "" {
-		errMsg("Missing 'authentication' for %s", name)
+		c.err("Missing 'authentication' for %s", name)
 	}
 	if is.encryption == "" {
-		errMsg("Missing 'encryption' for %s", name)
+		c.err("Missing 'encryption' for %s", name)
 	}
 	if is.hash == "" {
-		errMsg("Missing 'hash' for %s", name)
+		c.err("Missing 'hash' for %s", name)
 	}
 	if is.group == "" {
-		errMsg("Missing 'group' for %s", name)
+		c.err("Missing 'group' for %s", name)
 	}
 	if !hasLifetime {
-		errMsg("Missing 'lifetime' for %s", name)
+		c.err("Missing 'lifetime' for %s", name)
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 }
 
-func getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string) string {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string) string {
+	v := c.getSingleValue(a, ctx)
 	d := descr[a.Name]
 	if l := d.values; l != nil {
 		valid := false
@@ -574,7 +576,7 @@ func getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string) string {
 			}
 		}
 		if !valid {
-			errMsg("Invalid value in '%s' of %s: %s", a.Name, ctx, v)
+			c.err("Invalid value in '%s' of %s: %s", a.Name, ctx, v)
 		}
 	}
 	if v2 := d.mapEmpty; v2 != "" && v == v2 {
@@ -598,7 +600,7 @@ var ipsecAttr = map[string]attrDescr{
 	},
 }
 
-func setupIpsec(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupIpsec(v *ast.TopStruct, s *symbolTable) {
 	name := v.Name
 	is := new(ipsec)
 	is.name = name
@@ -607,31 +609,31 @@ func setupIpsec(v *ast.TopStruct, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "key_exchange":
-			is.isakmp = getIsakmpRef(a, s, name)
+			is.isakmp = c.getIsakmpRef(a, s, name)
 		case "esp_encryption":
-			is.espEncryption = getAttr(a, ipsecAttr, name)
+			is.espEncryption = c.getAttr(a, ipsecAttr, name)
 		case "esp_authentication":
-			is.espAuthentication = getAttr(a, ipsecAttr, name)
+			is.espAuthentication = c.getAttr(a, ipsecAttr, name)
 		case "ah":
-			is.ah = getAttr(a, ipsecAttr, name)
+			is.ah = c.getAttr(a, ipsecAttr, name)
 		case "pfs_group":
-			is.pfsGroup = getAttr(a, ipsecAttr, name)
+			is.pfsGroup = c.getAttr(a, ipsecAttr, name)
 		case "lifetime":
-			is.lifetime = getTimeKilobytesPair(a, name)
+			is.lifetime = c.getTimeKilobytesPair(a, name)
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 	if is.lifetime == nil {
-		errMsg("Missing 'lifetime' for %s", name)
+		c.err("Missing 'lifetime' for %s", name)
 	}
 	if is.isakmp == nil {
-		errMsg("Missing 'key_exchange' for %s", name)
+		c.err("Missing 'key_exchange' for %s", name)
 	}
 }
 
-func setupCrypto(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupCrypto(v *ast.TopStruct, s *symbolTable) {
 	name := v.Name
 	cr := new(crypto)
 	cr.name = name
@@ -639,21 +641,23 @@ func setupCrypto(v *ast.TopStruct, s *symbolTable) {
 	s.crypto[crName] = cr
 	for _, a := range v.Attributes {
 		switch a.Name {
+		case "bind_nat":
+			cr.bindNat = c.getBindNat(a, name)
 		case "detailed_crypto_acl":
-			cr.detailedCryptoAcl = getFlag(a, name)
+			cr.detailedCryptoAcl = c.getFlag(a, name)
 		case "type":
-			cr.ipsec = getIpsecRef(a, s, name)
+			cr.ipsec = c.getIpsecRef(a, s, name)
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 	if cr.ipsec == nil {
-		errMsg("Missing 'type' for %s", name)
+		c.err("Missing 'type' for %s", name)
 	}
 }
 
-func setupNetwork(v *ast.Network, s *symbolTable) {
+func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 	name := v.Name
 	netName := name[len("network:"):]
 	n := s.network[netName]
@@ -664,46 +668,46 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 		n.bridged = true
 	}
 	if i != -1 && !isSimpleName(netName[:i]) || !isSimpleName(netName[i+1:]) {
-		errMsg("Invalid identifier in definition of '%s'", name)
+		c.err("Invalid identifier in definition of '%s'", name)
 	}
 	var ldapAppend string
 	hasIP := false
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "ip":
-			n.ip, n.mask = getIpPrefix(a, v.IPV6, name)
+			n.ip, n.mask = c.getIpPrefix(a, v.IPV6, name)
 			hasIP = true
 		case "unnumbered":
-			n.unnumbered = getFlag(a, name)
+			n.unnumbered = c.getFlag(a, name)
 		case "has_subnets":
-			n.hasSubnets = getFlag(a, name)
+			n.hasSubnets = c.getFlag(a, name)
 		case "crosslink":
-			n.crosslink = getFlag(a, name)
+			n.crosslink = c.getFlag(a, name)
 		case "subnet_of":
-			n.subnetOf = tryNetworkRef(a, s, n.ipV6, name)
+			n.subnetOf = c.tryNetworkRef(a, s, n.ipV6, name)
 		case "owner":
-			n.owner = getRealOwnerRef(a, s, name)
+			n.owner = c.getRealOwnerRef(a, s, name)
 		case "cert_id":
-			n.certId = getSingleValue(a, name)
+			n.certId = c.getSingleValue(a, name)
 		case "ldap_append":
-			ldapAppend = getSingleValue(a, name)
+			ldapAppend = c.getSingleValue(a, name)
 		case "radius_attributes":
-			n.radiusAttributes = getRadiusAttributes(a, name)
+			n.radiusAttributes = c.getRadiusAttributes(a, name)
 		case "partition":
-			n.partition = getIdentifier(a, name)
+			n.partition = c.getIdentifier(a, name)
 		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			n.attr = addAttr(a, n.attr, name)
+			n.attr = c.addAttr(a, n.attr, name)
 		default:
-			if nat := addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
+			if nat := c.addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
 				n.nat = nat
 			} else {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 	for _, a := range v.Hosts {
-		h := setupHost(a, s, n)
+		h := c.setupHost(a, s, n)
 		if h.ldapId != "" {
 			h.ldapId += ldapAppend
 		}
@@ -716,34 +720,34 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 			case "crosslink", "unnumbered":
 			default:
 				if strings.HasPrefix("nat:", a.Name) {
-					errMsg("Unnumbered %s must not have NAT definition", name)
+					c.err("Unnumbered %s must not have NAT definition", name)
 				} else {
-					errMsg("Unnumbered %s must not have attribute '%s'",
+					c.err("Unnumbered %s must not have attribute '%s'",
 						name, a.Name)
 				}
 			}
 		}
 		if n.bridged {
-			errMsg("Unnumbered %s must not be bridged", name)
+			c.err("Unnumbered %s must not be bridged", name)
 		}
 		if len(n.hosts) != 0 {
-			errMsg("Unnumbered %s must not have host definition", name)
+			c.err("Unnumbered %s must not have host definition", name)
 		}
 	} else if n.bridged {
 		for _, h := range n.hosts {
 			if h.ipRange[0] != nil {
-				errMsg("Bridged %s must not have %s with range (not implemented)",
+				c.err("Bridged %s must not have %s with range (not implemented)",
 					name, h.name)
 			}
 		}
 		for _, nat := range n.nat {
 			if !nat.identity {
-				errMsg("Only identity NAT allowed for bridged %s", n.name)
+				c.err("Only identity NAT allowed for bridged %s", n.name)
 				break
 			}
 		}
 	} else if n.ip == nil && !hasIP {
-		errMsg("Missing IP address for %s", name)
+		c.err("Missing IP address for %s", name)
 	} else {
 		ip := n.ip
 		mask := n.mask
@@ -752,13 +756,13 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 			// Check compatibility of host IP and network IP/mask.
 			if h.ip != nil {
 				if !matchIp(h.ip, ip, mask) {
-					errMsg("IP of %s doesn't match IP/mask of %s", h.name, name)
+					c.err("IP of %s doesn't match IP/mask of %s", h.name, name)
 				}
 			} else {
 				// Check range.
 				if !(matchIp(h.ipRange[0], ip, mask) &&
 					matchIp(h.ipRange[1], ip, mask)) {
-					errMsg("IP range of %s doesn't match IP/mask of %s",
+					c.err("IP range of %s doesn't match IP/mask of %s",
 						h.name, name)
 				}
 			}
@@ -767,14 +771,14 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 			// after inherited NAT definitions have been processed.
 		}
 		if n.hosts != nil && n.crosslink {
-			errMsg("Crosslink %s must not have host definitions", name)
+			c.err("Crosslink %s must not have host definitions", name)
 		}
 
 		// Check NAT definitions.
 		for tag, nat := range n.nat {
 			if !nat.dynamic {
 				if bytes.Compare(nat.mask, mask) != 0 {
-					errMsg("Mask for non dynamic nat:%s must be equal to mask of %s",
+					c.err("Mask for non dynamic nat:%s must be equal to mask of %s",
 						tag, name)
 				}
 			}
@@ -795,30 +799,30 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 
 			// If one host has ldap_id, all hosts must have ldap_id.
 			if len(n.hosts) != ldapCount {
-				errMsg("All hosts must have attribute 'ldap_id' in %s", name)
+				c.err("All hosts must have attribute 'ldap_id' in %s", name)
 			}
 			if n.certId == "" {
-				errMsg("Missing attribute 'cert_id' at %s having hosts"+
+				c.err("Missing attribute 'cert_id' at %s having hosts"+
 					" with attribute 'ldap_id'", name)
 			} else if !isDomain(n.certId) {
-				errMsg("Domain name expected in attribute 'cert_id' of %s", name)
+				c.err("Domain name expected in attribute 'cert_id' of %s", name)
 			}
 
 			// Mark network.
 			n.hasIdHosts = true
 		} else {
 			if ldapAppend != "" {
-				warnMsg("Ignoring 'ldap_append' at %s", name)
+				c.warn("Ignoring 'ldap_append' at %s", name)
 			}
 			if n.certId != "" {
 				n.certId = ""
-				warnMsg("Ignoring 'cert_id' at %s", name)
+				c.warn("Ignoring 'cert_id' at %s", name)
 			}
 			if idHostsCount > 0 {
 
 				// If one host has ID, all hosts must have ID.
 				if len(n.hosts) != idHostsCount {
-					errMsg("All hosts must have ID in %s", name)
+					c.err("All hosts must have ID in %s", name)
 				}
 
 				// Mark network.
@@ -827,12 +831,12 @@ func setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 
 		if !n.hasIdHosts && n.radiusAttributes != nil {
-			warnMsg("Ignoring 'radius_attributes' at %s", name)
+			c.warn("Ignoring 'radius_attributes' at %s", name)
 		}
 	}
 }
 
-func setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
+func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	name := v.Name
 	v6 := n.ipV6
 	h := new(host)
@@ -841,7 +845,7 @@ func setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	if strings.HasPrefix(hName, "id:") {
 		id := hName[len("id:"):]
 		if !isIdHostname(id) {
-			errMsg("Invalid name in definition of '%s'", name)
+			c.err("Invalid name in definition of '%s'", name)
 		}
 		h.id = id
 		nName := n.name[len("network:"):]
@@ -849,7 +853,7 @@ func setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 		name += "." + nName
 	} else {
 		if !isSimpleName(hName) {
-			errMsg("Invalid identifier in definition of '%s'", name)
+			c.err("Invalid identifier in definition of '%s'", name)
 		}
 	}
 	h.name = name
@@ -857,52 +861,52 @@ func setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	h.network = n
 	n.hosts = append(n.hosts, h)
 
-	l := getComplexValue(v, "")
+	l := c.getComplexValue(v, "")
 	for _, a := range l {
 		switch a.Name {
 		case "ip":
-			h.ip = getIp(a, v6, name)
+			h.ip = c.getIp(a, v6, name)
 		case "range":
-			h.ipRange = getIpRange(a, v6, name)
+			h.ipRange = c.getIpRange(a, v6, name)
 		case "owner":
-			h.owner = getRealOwnerRef(a, s, name)
+			h.owner = c.getRealOwnerRef(a, s, name)
 		case "ldap_id":
-			h.ldapId = getSingleValue(a, name)
+			h.ldapId = c.getSingleValue(a, name)
 		case "radius_attributes":
-			h.radiusAttributes = getRadiusAttributes(a, name)
+			h.radiusAttributes = c.getRadiusAttributes(a, name)
 		default:
-			if nat := addIPNat(a, h.nat, v6, name); nat != nil {
+			if nat := c.addIPNat(a, h.nat, v6, name); nat != nil {
 				h.nat = nat
 			} else {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
 	if (h.ip == nil) == (h.ipRange[0] == nil) {
-		errMsg("%s needs exactly one of attributes 'ip' and 'range'", name)
+		c.err("%s needs exactly one of attributes 'ip' and 'range'", name)
 	}
 	if h.id != "" {
 		if h.ldapId != "" {
-			warnMsg("Ignoring attribute 'ldap_id' at %s", name)
+			c.warn("Ignoring attribute 'ldap_id' at %s", name)
 			h.ldapId = ""
 		}
 	} else if h.ldapId != "" {
 		if h.ipRange[0] == nil {
-			errMsg("Attribute 'ldap_Id' must only be used together with"+
+			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
 	} else if h.radiusAttributes != nil {
-		warnMsg("Ignoring 'radius_attributes' at %s", name)
+		c.warn("Ignoring 'radius_attributes' at %s", name)
 	}
 	if h.nat != nil && h.ipRange[0] != nil {
 		// Before changing this,
 		// add consistency tests in convert_hosts.
-		errMsg("No NAT supported for %s with 'range'", name)
+		c.err("No NAT supported for %s with 'range'", name)
 	}
 	return h
 }
 
-func setupAggregate(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	name := v.Name
 	v6 := v.IPV6
 	ag := new(network)
@@ -915,27 +919,27 @@ func setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "ip":
-			ag.ip, ag.mask = getIpPrefix(a, v.IPV6, name)
+			ag.ip, ag.mask = c.getIpPrefix(a, v.IPV6, name)
 		case "link":
 			hasLink = true
-			ag.link = getNetworkRef(a, s, v6, name)
+			ag.link = c.getNetworkRef(a, s, v6, name)
 		case "no_check_supernet_rules":
-			ag.noCheckSupernetRules = getFlag(a, name)
+			ag.noCheckSupernetRules = c.getFlag(a, name)
 		case "owner":
-			ag.owner = getRealOwnerRef(a, s, name)
+			ag.owner = c.getRealOwnerRef(a, s, name)
 		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			ag.attr = addAttr(a, ag.attr, name)
+			ag.attr = c.addAttr(a, ag.attr, name)
 		default:
-			if nat := addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
+			if nat := c.addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
 				ag.nat = nat
 			} else {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 	if !hasLink {
-		errMsg("Attribute 'link' must be defined for %s", name)
+		c.err("Attribute 'link' must be defined for %s", name)
 	}
 	if ag.link == nil {
 		ag.disabled = true
@@ -946,18 +950,18 @@ func setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	}
 	if size, _ := ag.mask.Size(); size != 0 {
 		if ag.noCheckSupernetRules {
-			errMsg("Must not use attribute 'no_check_supernet_rules'"+
+			c.err("Must not use attribute 'no_check_supernet_rules'"+
 				" if IP is set for %s", name)
 		}
 		if m := ag.attr; m != nil {
 			for key, _ := range m {
-				errMsg("Must not use attribute '%s' if IP is set for %s", key, name)
+				c.err("Must not use attribute '%s' if IP is set for %s", key, name)
 			}
 		}
 	}
 }
 
-func setupArea(v *ast.Area, s *symbolTable) {
+func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 	name := v.Name
 	v6 := v.IPV6
 	ar := new(area)
@@ -968,40 +972,40 @@ func setupArea(v *ast.Area, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "anchor":
-			ar.anchor = getNetworkRef(a, s, v.IPV6, name)
+			ar.anchor = c.getNetworkRef(a, s, v.IPV6, name)
 		case "router_attributes":
-			ar.routerAttributes = getRouterAttributes(a, s, ar)
+			ar.routerAttributes = c.getRouterAttributes(a, s, ar)
 		case "owner":
-			o := tryOwnerRef(a, s, name)
+			o := c.tryOwnerRef(a, s, name)
 			if o != nil && o.onlyWatch {
 				ar.watchingOwner = o
 			} else {
 				ar.owner = o
 			}
 		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			ar.attr = addAttr(a, ar.attr, name)
+			ar.attr = c.addAttr(a, ar.attr, name)
 		default:
-			if nat := addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
+			if nat := c.addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
 				ar.nat = nat
 			} else {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 	expand := func(u *ast.NamedUnion, att string) intfList {
 		if u == nil {
 			return nil
 		}
 		ctx := "'" + att + "' of " + name
-		l := expandGroup(u.Elements, ctx, v.IPV6, false)
+		l := c.expandGroup(u.Elements, ctx, v.IPV6, false)
 		result := make(intfList, 0, len(l))
 		for _, el := range l {
 			intf, ok := el.(*routerIntf)
 			if !ok {
-				errMsg("Unexpected '%s' in %s", el, ctx)
+				c.err("Unexpected '%s' in %s", el, ctx)
 			} else if intf.router.managed == "" {
-				errMsg("Must not reference unmanaged %s in %s", intf.name, ctx)
+				c.err("Must not reference unmanaged %s in %s", intf.name, ctx)
 			} else {
 				// Reverse swapped main and virtual interface.
 				if main := intf.mainIntf; main != nil {
@@ -1016,44 +1020,44 @@ func setupArea(v *ast.Area, s *symbolTable) {
 	ar.inclusiveBorder = expand(v.InclusiveBorder, "inclusive_border")
 	if (len(ar.border) != 0 || len(ar.inclusiveBorder) != 0) &&
 		ar.anchor != nil {
-		errMsg("Attribute 'anchor' must not be defined together with"+
+		c.err("Attribute 'anchor' must not be defined together with"+
 			" 'border' or 'inclusive_border' for %s", name)
 	}
 	if len(ar.border) == 0 && len(ar.inclusiveBorder) == 0 && ar.anchor == nil {
-		errMsg("At least one of attributes 'border', 'inclusive_border'"+
+		c.err("At least one of attributes 'border', 'inclusive_border'"+
 			" or 'anchor' must be defined for %s", name)
 	}
 }
 
-func setupPathrestriction(v *ast.TopList, s *symbolTable) {
+func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
 	name := v.Name
-	l := expandGroup(v.Elements, name, v.IPV6, false)
+	l := c.expandGroup(v.Elements, name, v.IPV6, false)
 	elements := make(intfList, 0, len(l))
 	for _, obj := range l {
 		intf, ok := obj.(*routerIntf)
 		if !ok {
-			errMsg("%s must not reference %s", name, obj)
+			c.err("%s must not reference %s", name, obj)
 		} else if intf.mainIntf != nil {
 			// Pathrestrictions must not be applied to secondary interfaces
-			errMsg("%s must not reference secondary %s", name, obj)
+			c.err("%s must not reference secondary %s", name, obj)
 		} else {
 			elements.push(intf)
 		}
 	}
 	switch len(elements) {
 	case 0:
-		warnMsg("Ignoring %s without elements", name)
+		c.warn("Ignoring %s without elements", name)
 	case 1:
-		warnMsg("Ignoring %s with only %s", name, elements[0])
+		c.warn("Ignoring %s with only %s", name, elements[0])
 		elements = nil
 	}
 	if len(elements) == 0 {
 		return
 	}
-	addPathrestriction(name, elements)
+	c.addPathrestriction(name, elements)
 }
 
-func setupRouter(v *ast.Router, s *symbolTable) {
+func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	name := v.Name
 	v6 := v.IPV6
 	r := new(router)
@@ -1073,43 +1077,43 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		r.deviceName = rName
 	}
 	if i != -1 && !isSimpleName(rName[:i]) || !isSimpleName(rName[i+1:]) {
-		errMsg("Invalid identifier in definition of '%s'", name)
+		c.err("Invalid identifier in definition of '%s'", name)
 	}
 	noProtectSelf := false
 	var routingDefault *routing
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "managed":
-			r.managed = getManaged(a, name)
+			r.managed = c.getManaged(a, name)
 		case "filter_only":
-			r.filterOnly = getIpPrefixList(a, v6, name)
+			r.filterOnly = c.getIpPrefixList(a, v6, name)
 		case "model":
-			r.model = getModel(a, name)
+			r.model = c.getModel(a, name)
 		case "no_group_code":
-			r.noGroupCode = getFlag(a, name)
+			r.noGroupCode = c.getFlag(a, name)
 		case "no_protect_self":
-			noProtectSelf = getFlag(a, name)
+			noProtectSelf = c.getFlag(a, name)
 		case "log_deny":
-			r.logDeny = getFlag(a, name)
+			r.logDeny = c.getFlag(a, name)
 		case "acl_use_real_ip":
-			r.aclUseRealIp = getFlag(a, name)
+			r.aclUseRealIp = c.getFlag(a, name)
 		case "routing":
-			routingDefault = getRouting(a, name)
+			routingDefault = c.getRouting(a, name)
 		case "owner":
-			r.owner = getRealOwnerRef(a, s, name)
+			r.owner = c.getRealOwnerRef(a, s, name)
 		case "radius_attributes":
-			r.radiusAttributes = getRadiusAttributes(a, name)
+			r.radiusAttributes = c.getRadiusAttributes(a, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = tryHostRef(a, s, v6, name)
+			r.policyDistributionPoint = c.tryHostRef(a, s, v6, name)
 		case "general_permit":
-			r.generalPermit = getGeneralPermit(a, s, v6, name)
+			r.generalPermit = c.getGeneralPermit(a, s, v6, name)
 		default:
-			if !addLog(a, r) {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			if !c.addLog(a, r) {
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
-	checkDuplAttr(v.Attributes, name)
+	c.checkDuplAttr(v.Attributes, name)
 
 	// Find bridged interfaces of this device and check
 	// existence of corresponding layer3 device.
@@ -1145,7 +1149,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			}
 			for name2, _ := range l3Map {
 				if !seen[name2] {
-					errMsg(
+					c.err(
 						"Must define %s at %s for corresponding bridge interfaces",
 						name2, name)
 				}
@@ -1158,12 +1162,12 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 	// to the same hardware object.
 	hwMap := make(map[string]*hardware)
 	for _, a := range v.Interfaces {
-		setupInterface(a, s, hwMap, l3Map, r)
+		c.setupInterface(a, s, hwMap, l3Map, r)
 	}
 
 	if managed := r.managed; managed != "" {
 		if r.model == nil {
-			errMsg("Missing 'model' for managed %s", name)
+			c.err("Missing 'model' for managed %s", name)
 
 			// Prevent further errors.
 			r.model = &model{name: "unknown"}
@@ -1177,7 +1181,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		}
 
 		if r.vrf != "" && !r.model.canVRF {
-			errMsg("Must not use VRF at %s of model %s", name, r.model.name)
+			c.err("Must not use VRF at %s of model %s", name, r.model.name)
 		}
 
 		for _, intf := range r.interfaces {
@@ -1185,7 +1189,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			if routingDefault != nil {
 				if intf.routing == nil {
 					if intf.bridged {
-						errMsg("Attribute 'routing' not supported for bridge %s", name)
+						c.err("Attribute 'routing' not supported for bridge %s", name)
 					} else if !intf.loopback {
 						intf.routing = routingDefault
 					}
@@ -1195,7 +1199,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 				switch rt.name {
 				case "manual", "dynamic":
 				default:
-					errMsg("Routing '%s' not supported for unnumbered %s",
+					c.err("Routing '%s' not supported for unnumbered %s",
 						rt.name, intf.name)
 				}
 			}
@@ -1211,20 +1215,20 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 
 		if managed == "local" {
 			if r.filterOnly == nil {
-				errMsg("Missing attribute 'filter_only' for %s", name)
+				c.err("Missing attribute 'filter_only' for %s", name)
 			}
 			if r.model.hasIoACL {
-				errMsg("Must not use 'managed = local' at %s of model %s",
+				c.err("Must not use 'managed = local' at %s of model %s",
 					name, r.model.name)
 			}
 		} else if r.filterOnly != nil {
-			/*warnMsg(
+			c.warn(
 				"Ignoring attribute 'filter_only' at %s;"+
 					" only valid with 'managed = local'", name)
-			r.filterOnly = nil*/
+			r.filterOnly = nil
 		}
 		if r.logDeny && !r.model.canLogDeny {
-			errMsg("Must not use attribute 'log_deny' at %s of moel %s",
+			c.err("Must not use attribute 'log_deny' at %s of moel %s",
 				name, r.model.name)
 		}
 
@@ -1232,11 +1236,14 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			if knownMod := r.model.logModifiers; knownMod != nil {
 				for name2, mod := range m {
 
-					// "": simple unmodified 'log' statement.
+					// Valid log tag.
+					// "" is simple unmodified 'log' statement.
 					if mod == "" || knownMod[mod] != "" {
+						s.knownLog[name2] = true
 						continue
 					}
 
+					// Show error message for unknown log tag.
 					var valid stringList
 					for k := range knownMod {
 						valid.push(k)
@@ -1245,16 +1252,13 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 					what := fmt.Sprintf("'log:%s = %s' at %s of model %s",
 						name2, mod, name, r.model.name)
 					if valid != nil {
-						errMsg("Invalid %s\n Expected one of: %s",
+						c.err("Invalid %s\n Expected one of: %s",
 							what, strings.Join(valid, "|"))
 					} else {
-						errMsg("Unexpected %s\n Use 'log:%s;' only.",
+						c.err("Unexpected %s\n Use 'log:%s;' only.",
 							what, name2)
 					}
 				}
-
-				// Store defining log tags in global known_log.
-				collectLog(m)
 			} else {
 				var names stringList
 				for k := range m {
@@ -1262,13 +1266,13 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 				}
 				sort.Strings(names)
 				name2 := names[0]
-				errMsg("Must not use attribute 'log:%s' at %s of model %s",
+				c.err("Must not use attribute 'log:%s' at %s of model %s",
 					name2, name, r.model.name)
 			}
 		}
 
 		if noProtectSelf && !r.model.needProtect {
-			errMsg("Must not use attribute 'no_protect_self' at %s of model %s",
+			c.err("Must not use attribute 'no_protect_self' at %s of model %s",
 				name, r.model.name)
 		}
 		if r.model.needProtect {
@@ -1283,7 +1287,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			if intf.hub != nil || intf.spoke != nil {
 				hasCrypto = true
 				if r.model.crypto == "" {
-					errMsg("Crypto not supported for %s of model %s",
+					c.err("Crypto not supported for %s of model %s",
 						name, r.model.name)
 				}
 			}
@@ -1303,42 +1307,42 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 			}
 		}
 
-		checkNoInAcl(r)
+		c.checkNoInAcl(r)
 
 		if r.aclUseRealIp {
 			if !hasBindNat {
-				warnMsg("Ignoring attribute 'acl_use_real_ip' at %s,\n"+
+				c.warn("Ignoring attribute 'acl_use_real_ip' at %s,\n"+
 					" because it has no interface with 'bind_nat'", name)
 			}
 			if !r.model.canACLUseRealIP {
-				warnMsg("Ignoring attribute 'acl_use_real_ip' at %s of model %s",
+				c.warn("Ignoring attribute 'acl_use_real_ip' at %s of model %s",
 					name, r.model.name)
 			}
 			if hasCrypto {
-				errMsg("Must not use attribute 'acl_use_real_ip' at %s"+
+				c.err("Must not use attribute 'acl_use_real_ip' at %s"+
 					" having crypto interfaces", name)
 			}
 		}
 		if r.managed == "local" {
 			if hasBindNat {
-				errMsg("Attribute 'bind_nat' is not allowed"+
+				c.err("Attribute 'bind_nat' is not allowed"+
 					" at interface of %s with 'managed = local'", name)
 			}
 		}
 		if r.model.doAuth {
 			if !isCryptoHub {
-				warnMsg("Attribute 'hub' needs to be defined"+
+				c.warn("Attribute 'hub' needs to be defined"+
 					" at some interface of %s of model %s", name, r.model.name)
 			}
 		} else {
 			if r.radiusAttributes != nil {
-				warnMsg("Ignoring 'radius_attributes' at %s", name)
+				c.warn("Ignoring 'radius_attributes' at %s", name)
 			}
 		}
 	} else {
 		// Unmanaged device.
 		if r.owner != nil {
-			warnMsg("Ignoring attribute 'owner' at unmanaged %s", name)
+			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
 		}
 	}
 
@@ -1347,7 +1351,7 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 
 		if cr := intf.spoke; cr != nil {
 			if otherSpoke != nil {
-				errMsg("Must not define crypto spoke at more than one interface:\n"+
+				c.err("Must not define crypto spoke at more than one interface:\n"+
 					" - %s\n"+
 					" - %s", otherSpoke, intf)
 				continue
@@ -1386,12 +1390,12 @@ func setupRouter(v *ast.Router, s *symbolTable) {
 		}
 
 		if (intf.spoke != nil || intf.hub != nil) && !intf.noCheck {
-			moveLockedIntf(intf)
+			c.moveLockedIntf(intf)
 		}
 	}
 }
 
-func setupInterface(v *ast.Attribute, s *symbolTable,
+func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	hwMap map[string]*hardware, l3Map map[string]bool, r *router) {
 
 	rName := r.name[len("router:"):]
@@ -1406,7 +1410,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 
 	// Allow short form of interface definition.
 	if !emptyAttr(v) {
-		l = getComplexValue(v, r.name)
+		l = c.getComplexValue(v, r.name)
 	}
 
 	var secondaryList intfList
@@ -1420,7 +1424,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		switch a.Name {
 		case "ip":
 			hasIP = true
-			ipList := getIpList(a, v6, name)
+			ipList := c.getIpList(a, v6, name)
 			intf.ip = ipList[0]
 			ipList = ipList[1:]
 
@@ -1438,81 +1442,67 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 				counter++
 			}
 		case "hardware":
-			hwName = getSingleValue(a, name)
+			hwName = c.getSingleValue(a, name)
 		case "owner":
-			intf.owner = getRealOwnerRef(a, s, name)
+			intf.owner = c.getRealOwnerRef(a, s, name)
 		case "unnumbered":
-			intf.unnumbered = getFlag(a, name)
+			intf.unnumbered = c.getFlag(a, name)
 		case "negotiated":
-			intf.negotiated = getFlag(a, name)
+			intf.negotiated = c.getFlag(a, name)
 		case "loopback":
-			intf.loopback = getFlag(a, name)
+			intf.loopback = c.getFlag(a, name)
 		case "vip":
-			vip = getFlag(a, name)
+			vip = c.getFlag(a, name)
 		case "no_in_acl":
-			intf.noInAcl = getFlag(a, name)
+			intf.noInAcl = c.getFlag(a, name)
 		case "dhcp_server":
-			intf.dhcpServer = getFlag(a, name)
+			intf.dhcpServer = c.getFlag(a, name)
 		case "dhcp_client":
-			intf.dhcpClient = getFlag(a, name)
+			intf.dhcpClient = c.getFlag(a, name)
 		case "subnet_of":
-			subnetOf = tryNetworkRef(a, s, v6, name)
+			subnetOf = c.tryNetworkRef(a, s, v6, name)
 		case "hub":
-			intf.hub = getCryptoRefList(a, s, name)
+			intf.hub = c.getCryptoRefList(a, s, name)
 		case "spoke":
-			intf.spoke = getCryptoRef(a, s, name)
+			intf.spoke = c.getCryptoRef(a, s, name)
 		case "id":
-			intf.id = getUserID(a, name)
+			intf.id = c.getUserID(a, name)
 		case "virtual":
-			virtual = getVirtual(a, v6, name)
+			virtual = c.getVirtual(a, v6, name)
 		case "bind_nat":
-			l := getIdentifierList(a, name)
-			sort.Strings(l)
-			// Remove duplicates.
-			var seen string
-			j := 0
-			for _, tag := range l {
-				if tag == seen {
-					warnMsg("Duplicate %s in 'bind_nat' of %s", tag, name)
-				} else {
-					seen = tag
-					l[j] = tag
-					j++
-				}
-			}
-			intf.bindNat = l[:j]
+			intf.bindNat = c.getBindNat(a, name)
 		case "routing":
-			intf.routing = getRouting(a, name)
+			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
-			intf.reroutePermit = tryNetworkRefList(a, s, v6, name)
+			intf.reroutePermit = c.tryNetworkRefList(a, s, v6, name)
 		case "disabled":
-			intf.disabled = getFlag(a, name)
+			intf.disabled = c.getFlag(a, name)
 		case "no_check":
-			intf.noCheck = getFlag(a, name)
+			intf.noCheck = c.getFlag(a, name)
 		default:
-			if m := addIntfNat(a, nat, v6, s, name); m != nil {
+			if m := c.addIntfNat(a, nat, v6, s, name); m != nil {
 				nat = m
 			} else if strings.HasPrefix(a.Name, "secondary:") {
-				_, name2 := splitCheckTypedName(a.Name)
+				_, name2 := c.splitCheckTypedName(a.Name)
 				intf := new(routerIntf)
 				intf.name = name + "." + name2
 				sCtx := a.Name + " of " + name
-				l := getComplexValue(a, name)
+				l := c.getComplexValue(a, name)
 				for _, a2 := range l {
 					switch a2.Name {
 					case "ip":
-						intf.ip = getIp(a2, v6, sCtx)
+						intf.ip = c.getIp(a2, v6, sCtx)
 					default:
-						errMsg("Unexpected attribute in %s: %s", sCtx, a2.Name)
+						c.err("Unexpected attribute in %s: %s", sCtx, a2.Name)
 					}
 				}
 				if intf.ip == nil {
-					errMsg("Missing IP in %s", sCtx)
+					c.err("Missing IP in %s", sCtx)
 					intf.short = true
 				}
 				secondaryList.push(intf)
 			} else {
-				errMsg("Unexpected attribute in %s: %s", name, a.Name)
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
 			}
 		}
 	}
@@ -1522,18 +1512,18 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.isLayer3 = true
 		if r.model.class == "ASA" {
 			if hwName != "device" {
-				errMsg(
+				c.err(
 					"Layer3 %s must use 'hardware' named 'device' for model 'ASA'",
 					intf)
 			}
 		}
 		if !hasIP {
-			errMsg("Layer3 %s must have IP address", intf)
+			c.err("Layer3 %s must have IP address", intf)
 			// Prevent further errors.
 			intf.disabled = true
 		}
 		if secondaryList != nil || virtual != nil {
-			errMsg("Layer3 %s must not have secondary or virtual IP", intf)
+			c.err("Layer3 %s must not have secondary or virtual IP", intf)
 			secondaryList = nil
 			virtual = nil
 		}
@@ -1551,11 +1541,11 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 	// Subsequent code becomes simpler if virtual interface is main interface.
 	if virtual != nil {
 		if intf.unnumbered {
-			errMsg("No virtual IP supported for unnumbered %s", name)
+			c.err("No virtual IP supported for unnumbered %s", name)
 		} else if intf.negotiated {
-			errMsg("No virtual IP supported for negotiated %s", name)
+			c.err("No virtual IP supported for negotiated %s", name)
 		} else if intf.bridged {
-			errMsg("No virtual IP supported for bridged %s", name)
+			c.err("No virtual IP supported for bridged %s", name)
 		}
 		if intf.ip != nil {
 
@@ -1570,15 +1560,15 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 			intf.origMain = secondary
 		}
 		if nat != nil {
-			errMsg("%s with virtual interface must not use attribute 'nat'",
+			c.err("%s with virtual interface must not use attribute 'nat'",
 				name)
 		}
 		if intf.hub != nil {
-			errMsg("%s with virtual interface must not use attribute 'hub'",
+			c.err("%s with virtual interface must not use attribute 'hub'",
 				name)
 		}
 		if intf.spoke != nil {
-			errMsg("%s with virtual interface must not use attribute 'spoke'",
+			c.err("%s with virtual interface must not use attribute 'spoke'",
 				name)
 		}
 		intf.name = virtual.name
@@ -1586,12 +1576,12 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.redundant = virtual.redundant
 		intf.redundancyType = virtual.redundancyType
 		intf.redundancyId = virtual.redundancyId
-		virtualInterfaces.push(intf)
+		c.virtualInterfaces.push(intf)
 	} else if !hasIP && !intf.unnumbered && !intf.negotiated && !intf.bridged {
 		intf.short = true
 	}
 	if nat != nil && !hasIP {
-		errMsg("No NAT supported for %s without IP", name)
+		c.err("No NAT supported for %s without IP", name)
 	}
 
 	// Attribute 'vip' is an alias for 'loopback'.
@@ -1605,76 +1595,76 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 	if intf.bridged {
 		typ = "bridged"
 		if intf.owner != nil {
-			errMsg("Attribute 'owner' not supported for %s %s", typ, name)
+			c.err("Attribute 'owner' not supported for %s %s", typ, name)
 		}
 	}
 	if (intf.loopback || intf.bridged) && !intf.isLayer3 {
 		if secondaryList != nil {
-			errMsg("Secondary or virtual IP not supported for %s %s", typ, name)
+			c.err("Secondary or virtual IP not supported for %s %s", typ, name)
 			secondaryList = nil
 			intf.origMain = nil // From virtual interface
 		}
 
 		// Most attributes are invalid for loopback interface.
 		if intf.noInAcl {
-			errMsg("Attribute 'no_in_acl' not supported for %s %s", typ, name)
+			c.err("Attribute 'no_in_acl' not supported for %s %s", typ, name)
 		}
 		if intf.noCheck {
-			errMsg("Attribute 'no_check' not supported for %s %s", typ, name)
+			c.err("Attribute 'no_check' not supported for %s %s", typ, name)
 		}
 		if intf.id != "" {
-			errMsg("Attribute 'id' not supported for %s %s", typ, name)
+			c.err("Attribute 'id' not supported for %s %s", typ, name)
 		}
 		if intf.hub != nil {
-			errMsg("Attribute 'hub' not supported for %s %s", typ, name)
+			c.err("Attribute 'hub' not supported for %s %s", typ, name)
 		}
 		if intf.spoke != nil {
-			errMsg("Attribute 'spoke' not supported for %s %s", typ, name)
+			c.err("Attribute 'spoke' not supported for %s %s", typ, name)
 		}
 		if intf.dhcpClient {
-			errMsg("Attribute 'dhcp_client' not supported for %s %s", typ, name)
+			c.err("Attribute 'dhcp_client' not supported for %s %s", typ, name)
 		}
 		if intf.dhcpServer {
-			errMsg("Attribute 'dhcp_server' not supported for %s %s", typ, name)
+			c.err("Attribute 'dhcp_server' not supported for %s %s", typ, name)
 		}
 		if intf.routing != nil {
-			errMsg("Attribute 'routing' not supported for %s %s", typ, name)
+			c.err("Attribute 'routing' not supported for %s %s", typ, name)
 		}
 		if intf.reroutePermit != nil {
-			errMsg("Attribute 'reroute_permit' not supported for %s %s", typ, name)
+			c.err("Attribute 'reroute_permit' not supported for %s %s", typ, name)
 		}
 		if intf.unnumbered {
-			errMsg("Attribute 'unnumbered' not supported for %s %s", typ, name)
+			c.err("Attribute 'unnumbered' not supported for %s %s", typ, name)
 		} else if intf.negotiated {
-			errMsg("Attribute 'negotiated' not supported for %s %s", typ, name)
+			c.err("Attribute 'negotiated' not supported for %s %s", typ, name)
 		} else if intf.short {
-			errMsg("%s %s must have IP address", typ, name)
+			c.err("%s %s must have IP address", typ, name)
 		}
 	}
 	if subnetOf != nil && !intf.loopback {
-		errMsg("Attribute 'subnet_of' must not be used at %s\n"+
+		c.err("Attribute 'subnet_of' must not be used at %s\n"+
 			" It is only valid together with attribute 'loopback'", name)
 	}
 	if intf.spoke != nil {
 		if secondaryList != nil {
-			errMsg("%s with attribute 'spoke' must not have secondary interfaces",
+			c.err("%s with attribute 'spoke' must not have secondary interfaces",
 				intf)
 			secondaryList = nil
 		}
 		if intf.hub != nil {
-			errMsg("%s with attribute 'spoke' must not have attribute 'hub'",
+			c.err("%s with attribute 'spoke' must not have attribute 'hub'",
 				intf)
 		}
 	} else if intf.id != "" {
-		errMsg("Attribute 'id' is only valid with 'spoke' at %s", intf)
+		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
 	}
 	if intf.noCheck && (intf.hub == nil || !r.model.doAuth) {
 		intf.noCheck = false
-		warnMsg("Ignoring attribute 'no_check' at %s", intf)
+		c.warn("Ignoring attribute 'no_check' at %s", intf)
 	}
 	if secondaryList != nil {
 		if intf.negotiated || intf.short || intf.bridged {
-			errMsg("%s without IP address must not have secondary address", intf)
+			c.err("%s without IP address must not have secondary address", intf)
 			secondaryList = nil
 		}
 	}
@@ -1682,12 +1672,12 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 
 		// Managed router must not have short interface.
 		if intf.short {
-			errMsg("Short definition of %s not allowed", name)
+			c.err("Short definition of %s not allowed", name)
 		}
 
 		// Interface of managed router needs to have a hardware name.
 		if hwName == "" {
-			errMsg("Missing 'hardware' for %s", name)
+			c.err("Missing 'hardware' for %s", name)
 
 			// Prevent further errors.
 			hwName = "unknown"
@@ -1699,7 +1689,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 			// need to use the same NAT binding,
 			// because NAT operates on hardware, not on logic.
 			if !bindNatEq(intf.bindNat, hw.bindNat) {
-				errMsg("All logical interfaces of %s\n"+
+				c.err("All logical interfaces of %s\n"+
 					" at %s must use identical NAT binding", hwName, r.name)
 			}
 		} else {
@@ -1726,13 +1716,13 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		// Interface of managed router must not have individual owner,
 		// because whole device is managed from one place.
 		if intf.owner != nil {
-			warnMsg("Ignoring attribute 'owner' at managed %s", intf.name)
+			c.warn("Ignoring attribute 'owner' at managed %s", intf.name)
 			intf.owner = nil
 		}
 
 		// Attribute 'vip' only supported at unmanaged router.
 		if vip {
-			errMsg("Must not use attribute 'vip' at %s of managed router", name)
+			c.err("Must not use attribute 'vip' at %s of managed router", name)
 		}
 
 		// Don't allow 'routing=manual' at single interface, because
@@ -1740,21 +1730,21 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		// Approve only leaves routes unchanged, if Netspoc generates
 		// no routes at all.
 		if rt := intf.routing; rt != nil && rt.name == "manual" {
-			warnMsg("'routing=manual' must only be applied to router, not to %s",
+			c.warn("'routing=manual' must only be applied to router, not to %s",
 				intf.name)
 		}
 
 		if l := intf.hub; l != nil {
 			if intf.unnumbered || intf.negotiated || intf.short || intf.bridged {
-				errMsg("Crypto hub %s must have IP address", intf)
+				c.err("Crypto hub %s must have IP address", intf)
 			}
-			for _, c := range l {
-				if c.hub != nil {
-					errMsg("Must use 'hub = %s' exactly once, not at both\n"+
+			for _, cr := range l {
+				if cr.hub != nil {
+					c.err("Must use 'hub = %s' exactly once, not at both\n"+
 						" - %s\n"+
-						" - %s", c.name, c.hub, intf)
+						" - %s", cr.name, cr.hub, intf)
 				} else {
-					c.hub = intf
+					cr.hub = intf
 				}
 			}
 		}
@@ -1765,15 +1755,15 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 		if intf.reroutePermit != nil {
 			intf.reroutePermit = nil
-			warnMsg("Ignoring attribute 'reroute_permit' at unmanaged %s", intf)
+			c.warn("Ignoring attribute 'reroute_permit' at unmanaged %s", intf)
 		}
 		if intf.hub != nil {
-			warnMsg("Ignoring attribute 'hub' at unmanaged %s", intf)
+			c.warn("Ignoring attribute 'hub' at unmanaged %s", intf)
 			intf.hub = nil
 		}
 		// Unmanaged bridge would complicate generation of static routes.
 		if intf.bridged {
-			errMsg("Unmanaged %s must not be bridged", intf)
+			c.err("Unmanaged %s must not be bridged", intf)
 		}
 	}
 
@@ -1838,9 +1828,9 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		if n == nil {
 			msg := "Referencing undefined network:%s from %s"
 			if intf.disabled {
-				warnMsg(msg, nName, name)
+				c.warn(msg, nName, name)
 			} else {
-				errMsg(msg, nName, name)
+				c.err(msg, nName, name)
 				intf.disabled = true
 			}
 		} else {
@@ -1848,7 +1838,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 				intf.network = n
 				n.interfaces.push(intf)
 				if !intf.short && !(hasIP && intf.ip == nil) {
-					checkInterfaceIp(intf, n)
+					c.checkInterfaceIp(intf, n)
 				}
 			}
 		}
@@ -1860,7 +1850,7 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 			for tag, info := range nat {
 				// Reject all non IP NAT attributes.
 				if info.hidden || info.identity || info.dynamic {
-					errMsg("Only 'ip' allowed in nat:%s of %s", tag, intf)
+					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
 					intf.nat[tag] = info.ip
 				}
@@ -1876,13 +1866,13 @@ func setupInterface(v *ast.Attribute, s *symbolTable,
 		name := intf.name
 		iName := name[len("interface:"):]
 		if _, found := s.routerIntf[iName]; found {
-			errMsg("Duplicate definition of %s in %s", name, r)
+			c.err("Duplicate definition of %s in %s", name, r)
 		}
 		s.routerIntf[iName] = intf
 	}
 }
 
-func setupService(v *ast.Service, s *symbolTable) {
+func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 	name := v.Name
 	v6 := v.IPV6
 	sName := name[len("service:"):]
@@ -1895,24 +1885,24 @@ func setupService(v *ast.Service, s *symbolTable) {
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "sub_owner":
-			sv.subOwner = getRealOwnerRef(a, s, name)
+			sv.subOwner = c.getRealOwnerRef(a, s, name)
 		case "overlaps":
-			sv.overlaps = tryServiceRefList(a, s, "attribute 'overlaps' of "+name)
+			sv.overlaps = c.tryServiceRefList(a, s, "attribute 'overlaps' of "+name)
 		case "multi_owner":
-			sv.multiOwner = getFlag(a, name)
+			sv.multiOwner = c.getFlag(a, name)
 		case "unknown_owner":
-			sv.unknownOwner = getFlag(a, name)
+			sv.unknownOwner = c.getFlag(a, name)
 		case "has_unenforceable":
-			sv.hasUnenforceable = getFlag(a, name)
+			sv.hasUnenforceable = c.getFlag(a, name)
 		case "disabled":
-			sv.disabled = getFlag(a, name)
+			sv.disabled = c.getFlag(a, name)
 		case "disable_at":
-			sv.disableAt = getSingleValue(a, "'disable_at' of "+name)
-			if dateIsReached(sv.disableAt, "'disable_at' of "+name) {
+			sv.disableAt = c.getSingleValue(a, "'disable_at' of "+name)
+			if c.dateIsReached(sv.disableAt, "'disable_at' of "+name) {
 				sv.disabled = true
 			}
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a.Name)
+			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
 	if sv.overlaps != nil {
@@ -1921,7 +1911,7 @@ func setupService(v *ast.Service, s *symbolTable) {
 	elements := func(a *ast.NamedUnion) []ast.Element {
 		l := a.Elements
 		if len(l) == 0 {
-			warnMsg("%s of %s is empty", a.Name, name)
+			c.warn("%s of %s is empty", a.Name, name)
 		}
 		return l
 	}
@@ -1937,13 +1927,13 @@ func setupService(v *ast.Service, s *symbolTable) {
 		}
 		ru.src = elements(v2.Src)
 		ru.dst = elements(v2.Dst)
-		srcUser := checkUserInUnion(ru.src, "'src' of "+name)
-		dstUser := checkUserInUnion(ru.dst, "'dst' of "+name)
+		srcUser := c.checkUserInUnion(ru.src, "'src' of "+name)
+		dstUser := c.checkUserInUnion(ru.dst, "'dst' of "+name)
 		if !(srcUser || dstUser) {
-			errMsg("Each rule of %s must use keyword 'user'", name)
+			c.err("Each rule of %s must use keyword 'user'", name)
 		}
 		if sv.foreach && !(srcUser && dstUser) {
-			warnMsg(
+			c.warn(
 				"Each rule of %s should reference 'user' in 'src' and 'dst'\n"+
 					" because service has keyword 'foreach'", name)
 		}
@@ -1954,25 +1944,35 @@ func setupService(v *ast.Service, s *symbolTable) {
 		} else {
 			ru.hasUser = "dst"
 		}
-		ru.prt = expandProtocols(getValueList(v2.Prt, name), s, v6, name)
+		ru.prt = c.expandProtocols(c.getValueList(v2.Prt, name), s, v6, name)
 		if a2 := v2.Log; a2 != nil {
-			l := getIdentifierList(a2, name)
-			sort.Strings(l)
-			prev := ""
-			j := 0
-			for _, tag := range l {
-				if tag == prev {
-					warnMsg("Duplicate '%s' in log of %s", tag, name)
-				} else {
-					prev = tag
-					l[j] = tag
-					j++
-				}
-			}
-			ru.log = strings.Join(l[:j], ",")
+			l := c.getIdentifierList(a2, name)
+			l = c.checkLog(l, s, name)
+			ru.log = strings.Join(l, ",")
 		}
 		sv.rules = append(sv.rules, ru)
 	}
+}
+
+// Normalize list of log tags.
+// - Sort tags,
+// - remove duplicate elements and
+// - remove unknown tags, not defined at any router.
+func (c *spoc) checkLog(l stringList, s *symbolTable, ctx string) stringList {
+	var valid stringList
+	prev := ""
+	sort.Strings(l)
+	for _, tag := range l {
+		if tag == prev {
+			c.warn("Duplicate '%s' in log of %s", tag, ctx)
+		} else if !s.knownLog[tag] {
+			c.warn("Referencing unknown '%s' in log of %s", tag, ctx)
+		} else {
+			prev = tag
+			valid.push(tag)
+		}
+	}
+	return valid
 }
 
 func isUser(l []ast.Element) bool {
@@ -1983,48 +1983,48 @@ func isUser(l []ast.Element) bool {
 	return false
 }
 
-func checkUserInUnion(l []ast.Element, ctx string) bool {
-	count := countUser(l, ctx)
+func (c *spoc) checkUserInUnion(l []ast.Element, ctx string) bool {
+	count := c.countUser(l, ctx)
 	if !(count == 0 || count == len(l)) {
-		errMsg("The sub-expressions of union in %s equally must\n"+
+		c.err("The sub-expressions of union in %s equally must\n"+
 			" either reference 'user' or must not reference 'user'", ctx)
 	}
 	return count > 0
 }
 
-func checkUserInIntersection(l []ast.Element, ctx string) bool {
-	return countUser(l, ctx) > 0
+func (c *spoc) checkUserInIntersection(l []ast.Element, ctx string) bool {
+	return c.countUser(l, ctx) > 0
 }
 
-func countUser(l []ast.Element, ctx string) int {
+func (c *spoc) countUser(l []ast.Element, ctx string) int {
 	count := 0
 	for _, el := range l {
-		if hasUser(el, ctx) {
+		if c.hasUser(el, ctx) {
 			count++
 		}
 	}
 	return count
 }
 
-func hasUser(el ast.Element, ctx string) bool {
+func (c *spoc) hasUser(el ast.Element, ctx string) bool {
 	switch x := el.(type) {
 	case *ast.User:
 		return true
 	case ast.AutoElem:
-		return checkUserInUnion(x.GetElements(), ctx)
+		return c.checkUserInUnion(x.GetElements(), ctx)
 	case *ast.Intersection:
-		return checkUserInIntersection(x.Elements, ctx)
+		return c.checkUserInIntersection(x.Elements, ctx)
 	case *ast.Complement:
-		return hasUser(x.Element, ctx)
+		return c.hasUser(x.Element, ctx)
 	default:
 		return false
 	}
 }
 
-func splitCheckTypedName(s string) (string, string) {
+func (c *spoc) splitCheckTypedName(s string) (string, string) {
 	typ, name := splitTypedName(s)
 	if !isSimpleName(name) {
-		errMsg("Invalid identifier in definition of '%s'", s)
+		c.err("Invalid identifier in definition of '%s'", s)
 	}
 	return typ, name
 }
@@ -2044,14 +2044,14 @@ func fullHostname(hName, nName string) string {
 	return name2
 }
 
-func checkDuplicate(l []ast.Toplevel) {
+func (c *spoc) checkDuplicate(l []ast.Toplevel) {
 	seen := make(map[string]string)
 	check := func(name, fName string) {
 		if where := seen[name]; where != "" {
 			if fName != where {
 				where += " and " + fName
 			}
-			errMsg("Duplicate definition of %s in %s", name, where)
+			c.err("Duplicate definition of %s in %s", name, where)
 		}
 		seen[name] = fName
 	}
@@ -2074,11 +2074,11 @@ func checkDuplicate(l []ast.Toplevel) {
 	}
 }
 
-func checkDuplAttr(l []*ast.Attribute, ctx string) {
+func (c *spoc) checkDuplAttr(l []*ast.Attribute, ctx string) {
 	seen := make(map[string]bool)
 	for _, a := range l {
 		if seen[a.Name] {
-			errMsg("Duplicate attribute '%s' in %s", a.Name, ctx)
+			c.err("Duplicate attribute '%s' in %s", a.Name, ctx)
 		} else {
 			seen[a.Name] = true
 		}
@@ -2089,24 +2089,24 @@ func emptyAttr(a *ast.Attribute) bool {
 	return a.ComplexValue == nil && a.ValueList == nil
 }
 
-func getFlag(a *ast.Attribute, ctx string) bool {
+func (c *spoc) getFlag(a *ast.Attribute, ctx string) bool {
 	if !emptyAttr(a) {
-		errMsg("No value expected for flag '%s' of %s", a.Name, ctx)
+		c.err("No value expected for flag '%s' of %s", a.Name, ctx)
 	}
 	return true
 }
 
-func getSingleValue(a *ast.Attribute, ctx string) string {
+func (c *spoc) getSingleValue(a *ast.Attribute, ctx string) string {
 	if a.ComplexValue != nil || len(a.ValueList) != 1 {
-		errMsg("Single value expected in '%s' of %s", a.Name, ctx)
+		c.err("Single value expected in '%s' of %s", a.Name, ctx)
 		return ""
 	}
 	return a.ValueList[0].Value
 }
 
-func getValueList(a *ast.Attribute, ctx string) stringList {
+func (c *spoc) getValueList(a *ast.Attribute, ctx string) stringList {
 	if a.ComplexValue != nil || a.ValueList == nil {
-		errMsg("List of values expected in '%s' of %s", a.Name, ctx)
+		c.err("List of values expected in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	result := make(stringList, 0, len(a.ValueList))
@@ -2116,32 +2116,50 @@ func getValueList(a *ast.Attribute, ctx string) stringList {
 	return result
 }
 
-func getComplexValue(a *ast.Attribute, ctx string) []*ast.Attribute {
+func (c *spoc) getComplexValue(a *ast.Attribute, ctx string) []*ast.Attribute {
 	l := a.ComplexValue
 	if l == nil || a.ValueList != nil {
-		errMsg("Structured value expected in '%s' of %s", a.Name, ctx)
+		c.err("Structured value expected in '%s' of %s", a.Name, ctx)
 	}
 	aCtx := a.Name
 	if ctx != "" {
 		aCtx += " of " + ctx
 	}
-	checkDuplAttr(l, aCtx)
+	c.checkDuplAttr(l, aCtx)
 	return l
 }
 
-func getIdentifier(a *ast.Attribute, ctx string) string {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
+	l := c.getIdentifierList(a, ctx)
+	sort.Strings(l)
+	// Remove duplicates.
+	var seen string
+	j := 0
+	for _, tag := range l {
+		if tag == seen {
+			c.warn("Duplicate %s in 'bind_nat' of %s", tag, ctx)
+		} else {
+			seen = tag
+			l[j] = tag
+			j++
+		}
+	}
+	return l[:j]
+}
+
+func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {
+	v := c.getSingleValue(a, ctx)
 	if !isSimpleName(v) {
-		errMsg("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
+		c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
 	}
 	return v
 }
 
-func getIdentifierList(a *ast.Attribute, ctx string) []string {
-	l := getValueList(a, ctx)
+func (c *spoc) getIdentifierList(a *ast.Attribute, ctx string) []string {
+	l := c.getValueList(a, ctx)
 	for _, v := range l {
 		if !isSimpleName(v) {
-			errMsg("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
+			c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
 		}
 	}
 	return l
@@ -2154,8 +2172,8 @@ func getIdentifierList(a *ast.Attribute, ctx string) []string {
 var emailRegex = regexp.MustCompile(
 	"^[\\w.!#$%&\"*+\\/=?^_\\{|}~`-]+@[\\w.-]+$")
 
-func getEmailList(a *ast.Attribute, ctx string) []string {
-	l := getValueList(a, ctx)
+func (c *spoc) getEmailList(a *ast.Attribute, ctx string) []string {
+	l := c.getValueList(a, ctx)
 	for i, m := range l {
 		switch {
 		case emailRegex.MatchString(m):
@@ -2170,12 +2188,12 @@ func getEmailList(a *ast.Attribute, ctx string) []string {
 			}
 			fallthrough
 		default:
-			errMsg("Invalid email address (ASCII only) in %s of %s: %s",
+			c.err("Invalid email address (ASCII only) in %s of %s: %s",
 				a.Name, ctx, m)
 		}
 		l[i] = strings.ToLower(m)
 	}
-	return removeDupl(l, a.Name+" of "+ctx)
+	return c.removeDupl(l, a.Name+" of "+ctx)
 }
 
 // Setup standard time units with different names and plural forms.
@@ -2195,11 +2213,11 @@ func init() {
 }
 
 // Read time value in different units, return seconds.
-func getTimeVal(a *ast.Attribute, ctx string) int {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getTimeVal(a *ast.Attribute, ctx string) int {
+	v := c.getSingleValue(a, ctx)
 	l := strings.Split(v, " ")
 	bad := func() int {
-		errMsg("Expected 'NUM sec|min|hour|day' in '%s' of %s", a.Name, ctx)
+		c.err("Expected 'NUM sec|min|hour|day' in '%s' of %s", a.Name, ctx)
 		return -1
 	}
 	if len(l) != 2 {
@@ -2217,11 +2235,11 @@ func getTimeVal(a *ast.Attribute, ctx string) int {
 	return i * factor
 }
 
-func getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
+	v := c.getSingleValue(a, ctx)
 	l := strings.Split(v, " ")
 	bad := func() int {
-		errMsg("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
+		c.err("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
 			a.Name, ctx)
 		return 0
 	}
@@ -2260,13 +2278,13 @@ func getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
 		sec = time(l[0], l[1])
 		kb = kbytes(l[2], l[3])
 	default:
-		errMsg("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
+		c.err("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
 			a.Name, ctx)
 	}
 	return &[2]int{sec, kb}
 }
 
-func removeDupl(l []string, ctx string) []string {
+func (c *spoc) removeDupl(l []string, ctx string) []string {
 	seen := make(map[string]bool)
 	var dupl stringList
 	j := 0
@@ -2280,21 +2298,21 @@ func removeDupl(l []string, ctx string) []string {
 		}
 	}
 	if dupl != nil {
-		errMsg("Duplicates in %s: %s", ctx, strings.Join(dupl, ", "))
+		c.err("Duplicates in %s: %s", ctx, strings.Join(dupl, ", "))
 	}
 	return l[:j]
 }
 
-func getManaged(a *ast.Attribute, ctx string) string {
+func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 	if emptyAttr(a) {
 		return "standard"
 	}
-	v := getSingleValue(a, ctx)
+	v := c.getSingleValue(a, ctx)
 	switch v {
 	case "secondary", "standard", "full", "primary", "local", "routing_only":
 		return v
 	}
-	errMsg("Invalid value for '%s' of %s: %s", a.Name, ctx, v)
+	c.err("Invalid value for '%s' of %s: %s", a.Name, ctx, v)
 	return ""
 }
 
@@ -2374,13 +2392,13 @@ func init() {
 	}
 }
 
-func getModel(a *ast.Attribute, ctx string) *model {
-	l := getValueList(a, ctx)
+func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
+	l := c.getValueList(a, ctx)
 	m := l[0]
 	attributes := l[1:]
 	orig, found := routerInfo[m]
 	if !found {
-		errMsg("Unknown model in %s: %s", ctx, m)
+		c.err("Unknown model in %s: %s", ctx, m)
 
 		// Prevent further errors.
 		return &model{name: m}
@@ -2417,7 +2435,7 @@ func getModel(a *ast.Attribute, ctx string) *model {
 			}
 			continue
 		FAIL:
-			errMsg("Unknown extension in '%s' of %s: %s", a.Name, ctx, att)
+			c.err("Unknown extension in '%s' of %s: %s", a.Name, ctx, att)
 		}
 		info.name += add
 	}
@@ -2450,11 +2468,11 @@ var routingInfo = map[string]*routing{
 	"manual": &routing{name: "manual"},
 }
 
-func getRouting(a *ast.Attribute, ctx string) *routing {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getRouting(a *ast.Attribute, ctx string) *routing {
+	v := c.getSingleValue(a, ctx)
 	r := routingInfo[v]
 	if r == nil {
-		errMsg("Unknown routing protocol in '%s' of %s", a.Name, ctx)
+		c.err("Unknown routing protocol in '%s' of %s", a.Name, ctx)
 	}
 	return r
 }
@@ -2480,41 +2498,41 @@ var xxrpInfo = map[string]*xxrp{
 	},
 }
 
-func getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
+func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 	virtual := new(routerIntf)
 	virtual.name = ctx + ".virtual"
 	virtual.redundant = true
 	vCtx := "'" + a.Name + "' of " + ctx
-	l := getComplexValue(a, ctx)
+	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "ip":
-			virtual.ip = getIp(a2, v6, vCtx)
+			virtual.ip = c.getIp(a2, v6, vCtx)
 		case "type":
-			t := getSingleValue(a2, vCtx)
+			t := c.getSingleValue(a2, vCtx)
 			if _, found := xxrpInfo[t]; !found {
-				errMsg("Unknown redundancy protocol in %s", vCtx)
+				c.err("Unknown redundancy protocol in %s", vCtx)
 			}
 			virtual.redundancyType = t
 		case "id":
-			id := getSingleValue(a2, vCtx)
+			id := c.getSingleValue(a2, vCtx)
 			num, err := strconv.Atoi(id)
 			if err != nil {
-				errMsg("Redundancy ID must be numeric in %s", vCtx)
+				c.err("Redundancy ID must be numeric in %s", vCtx)
 			} else if !(num >= 0 || num < 256) {
-				errMsg("Redundancy ID must be < 256 in %s", vCtx)
+				c.err("Redundancy ID must be < 256 in %s", vCtx)
 			}
 			virtual.redundancyId = id
 		default:
-			errMsg("Unexpected attribute in %s: %s", vCtx, a2.Name)
+			c.err("Unexpected attribute in %s: %s", vCtx, a2.Name)
 		}
 	}
 	if virtual.ip == nil {
-		errMsg("Missing IP in %s", vCtx)
+		c.err("Missing IP in %s", vCtx)
 		return nil
 	}
 	if virtual.redundancyId != "" && virtual.redundancyType == "" {
-		errMsg("Redundancy ID is given without redundancy protocol in %s",
+		c.err("Redundancy ID is given without redundancy protocol in %s",
 			vCtx)
 	}
 	return virtual
@@ -2535,11 +2553,11 @@ func isIdHostname(id string) bool {
 	return (i <= 0 || isDomain(id[:i])) && isDomain(id[i+1:])
 }
 
-func getUserID(a *ast.Attribute, ctx string) string {
-	id := getSingleValue(a, ctx)
+func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
+	id := c.getSingleValue(a, ctx)
 	i := strings.Index(id, "@")
 	if !(i > 0 && isDomain(id[:i]) && isDomain(id[i+1:])) {
-		errMsg("Invalid '%s' in %s: %s", a.Name, ctx, id)
+		c.err("Invalid '%s' in %s: %s", a.Name, ctx, id)
 	}
 	return id
 }
@@ -2548,84 +2566,86 @@ func isSimpleName(n string) bool {
 	return n != "" && strings.IndexAny(n, ".:/@") == -1
 }
 
-func getIp(a *ast.Attribute, v6 bool, ctx string) net.IP {
-	return convIP(getSingleValue(a, ctx), v6, a.Name, ctx)
+func (c *spoc) getIp(a *ast.Attribute, v6 bool, ctx string) net.IP {
+	return c.convIP(c.getSingleValue(a, ctx), v6, a.Name, ctx)
 }
 
-func getIpList(a *ast.Attribute, v6 bool, ctx string) []net.IP {
+func (c *spoc) getIpList(a *ast.Attribute, v6 bool, ctx string) []net.IP {
 	var result []net.IP
-	for _, v := range getValueList(a, ctx) {
-		result = append(result, convIP(v, v6, a.Name, ctx))
+	for _, v := range c.getValueList(a, ctx) {
+		result = append(result, c.convIP(v, v6, a.Name, ctx))
 	}
 	return result
 }
 
-func getIpRange(a *ast.Attribute, v6 bool, ctx string) [2]net.IP {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getIpRange(a *ast.Attribute, v6 bool, ctx string) [2]net.IP {
+	v := c.getSingleValue(a, ctx)
 	l := strings.Split(v, " - ")
 	var result [2]net.IP
 	if len(l) != 2 {
-		errMsg("Expected IP range in '%s' of %s", a.Name, ctx)
+		c.err("Expected IP range in '%s' of %s", a.Name, ctx)
 	} else {
-		result[0] = convIP(l[0], v6, a.Name, ctx)
-		result[1] = convIP(l[1], v6, a.Name, ctx)
+		result[0] = c.convIP(l[0], v6, a.Name, ctx)
+		result[1] = c.convIP(l[1], v6, a.Name, ctx)
 	}
 	return result
 }
 
-func getIpPrefix(a *ast.Attribute, v6 bool, ctx string) (net.IP, net.IPMask) {
-	v := getSingleValue(a, ctx)
-	n := convIpPrefix(v, v6, a.Name, ctx)
+func (c *spoc) getIpPrefix(a *ast.Attribute, v6 bool, ctx string) (net.IP, net.IPMask) {
+	v := c.getSingleValue(a, ctx)
+	n := c.convIpPrefix(v, v6, a.Name, ctx)
 	if n == nil {
 		return nil, nil
 	}
 	return n.IP, n.Mask
 }
 
-func getIpPrefixList(a *ast.Attribute, v6 bool, ctx string) []*net.IPNet {
+func (c *spoc) getIpPrefixList(
+	a *ast.Attribute, v6 bool, ctx string) []*net.IPNet {
+
 	var result []*net.IPNet
-	for _, v := range getValueList(a, ctx) {
-		result = append(result, convIpPrefix(v, v6, a.Name, ctx))
+	for _, v := range c.getValueList(a, ctx) {
+		result = append(result, c.convIpPrefix(v, v6, a.Name, ctx))
 	}
 	return result
 }
 
-func convIpPrefix(s string, v6 bool, name, ctx string) *net.IPNet {
+func (c *spoc) convIpPrefix(s string, v6 bool, name, ctx string) *net.IPNet {
 	ip, n, err := net.ParseCIDR(s)
 	if err != nil {
-		errMsg("%s in '%s' of %s", err, name, ctx)
+		c.err("%s in '%s' of %s", err, name, ctx)
 		return nil
 	}
 	if !n.IP.Equal(ip) {
-		errMsg("IP and mask of %s don't match in '%s' of %s", s, name, ctx)
+		c.err("IP and mask of %s don't match in '%s' of %s", s, name, ctx)
 	}
-	n.IP = getVxIP(n.IP, v6, name, ctx)
+	n.IP = c.getVxIP(n.IP, v6, name, ctx)
 	return n
 }
 
-func convIP(s string, v6 bool, name, ctx string) net.IP {
+func (c *spoc) convIP(s string, v6 bool, name, ctx string) net.IP {
 	ip := net.ParseIP(s)
 	if ip == nil {
-		errMsg("Invalid IP address in '%s' of %s: %s", name, ctx, s)
+		c.err("Invalid IP address in '%s' of %s: %s", name, ctx, s)
 		return nil
 	}
-	return getVxIP(ip, v6, name, ctx)
+	return c.getVxIP(ip, v6, name, ctx)
 }
 
-func getVxIP(ip net.IP, v6 bool, name, ctx string) net.IP {
+func (c *spoc) getVxIP(ip net.IP, v6 bool, name, ctx string) net.IP {
 	v4IP := ip.To4()
 	if v6 {
 		if v4IP != nil {
-			errMsg("IPv6 address expected in '%s' of %s", name, ctx)
+			c.err("IPv6 address expected in '%s' of %s", name, ctx)
 		}
 		return ip
 	} else if v4IP == nil {
-		errMsg("IPv4 address expected in '%s' of %s", name, ctx)
+		c.err("IPv4 address expected in '%s' of %s", name, ctx)
 	}
 	return v4IP
 }
 
-func convToMask(prefix string, v6 bool, name, ctx string) net.IPMask {
+func (c *spoc) convToMask(prefix string, v6 bool, name, ctx string) net.IPMask {
 	p, err := strconv.Atoi(prefix)
 	if err == nil {
 		size := 32
@@ -2637,115 +2657,115 @@ func convToMask(prefix string, v6 bool, name, ctx string) net.IPMask {
 			return mask
 		}
 	}
-	errMsg("Invalid prefix in '%s' of %s", name, ctx)
+	c.err("Invalid prefix in '%s' of %s", name, ctx)
 	return nil
 }
 
 // Check if given date has been reached already.
 var dateRegex = regexp.MustCompile(`^(\d\d\d\d-\d\d-\d\d)$`)
 
-func dateIsReached(s, ctx string) bool {
+func (c *spoc) dateIsReached(s, ctx string) bool {
 	l := dateRegex.FindStringSubmatch(s)
 	if l == nil {
-		errMsg("Date expected as yyyy-mm-dd in %s", ctx)
+		c.err("Date expected as yyyy-mm-dd in %s", ctx)
 		return false
 	}
 	date, _ := time.Parse("2006-01-02", s)
 	return time.Now().After(date)
 }
 
-func getNetworkRef(
+func (c *spoc) getNetworkRef(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
 
-	return lookupNetworkRef(a, s, v6, ctx, false)
+	return c.lookupNetworkRef(a, s, v6, ctx, false)
 }
 
-func tryNetworkRef(
+func (c *spoc) tryNetworkRef(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
 
-	return lookupNetworkRef(a, s, v6, ctx, true)
+	return c.lookupNetworkRef(a, s, v6, ctx, true)
 }
 
-func lookupNetworkRef(
+func (c *spoc) lookupNetworkRef(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string, warn bool) *network {
 
-	typ, name := getTypedName(a, ctx)
+	typ, name := c.getTypedName(a, ctx)
 	if typ == "" {
 		return nil
 	}
 	ctx2 := "'" + a.Name + "' of " + ctx
 	if typ != "network" {
-		errMsg("Must only use network name in %s", ctx2)
+		c.err("Must only use network name in %s", ctx2)
 		return nil
 	}
 	n := s.network[name]
 	if n == nil {
-		f := errMsg
+		f := c.err
 		if warn {
-			f = warnMsg
+			f = c.warn
 		}
 		f("Referencing undefined network:%s in %s", name, ctx2)
 		return nil
 	}
-	checkV4V6CrossRef(n, v6, ctx2)
+	c.checkV4V6CrossRef(n, v6, ctx2)
 	return n
 }
 
-func tryNetworkRefList(
+func (c *spoc) tryNetworkRefList(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) netList {
 
-	l := getValueList(a, ctx)
+	l := c.getValueList(a, ctx)
 	result := make(netList, 0, len(l))
 	ctx2 := "'" + a.Name + "' of " + ctx
 	for _, v := range l {
 		name := strings.TrimPrefix(v, "network:")
 		if len(name) == len(v) {
-			errMsg("Expected type 'network:' in %s", ctx2)
+			c.err("Expected type 'network:' in %s", ctx2)
 		} else if n, found := s.network[name]; found {
-			checkV4V6CrossRef(n, v6, ctx2)
+			c.checkV4V6CrossRef(n, v6, ctx2)
 			result = append(result, n)
 		} else {
-			warnMsg("Ignoring undefined network:%s in %s", name, ctx2)
+			c.warn("Ignoring undefined network:%s in %s", name, ctx2)
 		}
 	}
 	return result
 }
 
-func tryHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
-	typ, name := getTypedName(a, ctx)
+func (c *spoc) tryHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+	typ, name := c.getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
 	if typ != "host" {
-		errMsg("Must only use host name in %s", ctx2)
+		c.err("Must only use host name in %s", ctx2)
 		return nil
 	}
 	h := s.host[name]
 	if h == nil {
-		warnMsg("Ignoring undefined host:%s in %s", name, ctx2)
+		c.warn("Ignoring undefined host:%s in %s", name, ctx2)
 		return nil
 	}
-	checkV4V6CrossRef(h, v6, ctx2)
+	c.checkV4V6CrossRef(h, v6, ctx2)
 	return h
 }
 
-func getTypedName(a *ast.Attribute, ctx string) (string, string) {
-	v := getSingleValue(a, ctx)
+func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
+	v := c.getSingleValue(a, ctx)
 	i := strings.Index(v, ":")
 	if i == -1 {
-		errMsg("Typed name expected in '%s' of %s", a.Name, ctx)
+		c.err("Typed name expected in '%s' of %s", a.Name, ctx)
 		return "", ""
 	}
 	return v[:i], v[i+1:]
 }
 
-func getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
-	o := tryOwnerRef(a, s, ctx)
+func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+	o := c.tryOwnerRef(a, s, ctx)
 	if o != nil {
 		if o.admins == nil {
-			errMsg("Missing attribute 'admins' in %s of %s", o.name, ctx)
+			c.err("Missing attribute 'admins' in %s of %s", o.name, ctx)
 			o.admins = make([]string, 0)
 		}
 		if o.onlyWatch {
-			errMsg("%s with attribute 'only_watch' must only be used at area,\n"+
+			c.err("%s with attribute 'only_watch' must only be used at area,\n"+
 				" not at %s", o.name, ctx)
 			o.onlyWatch = false
 		}
@@ -2753,145 +2773,145 @@ func getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
 	return o
 }
 
-func tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
-	name := getIdentifier(a, ctx)
+func (c *spoc) tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+	name := c.getIdentifier(a, ctx)
 	o := s.owner[name]
 	if o == nil {
-		warnMsg("Ignoring undefined owner:%s of %s", name, ctx)
+		c.warn("Ignoring undefined owner:%s of %s", name, ctx)
 	}
 	return o
 }
 
-func getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
-	typ, name := getTypedName(a, ctx)
+func (c *spoc) getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+	typ, name := c.getTypedName(a, ctx)
 	if typ != "isakmp" {
-		errMsg("Must only use isakmp type in '%s' of %s", a.Name, ctx)
+		c.err("Must only use isakmp type in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.isakmp[name]
 	if is == nil {
-		errMsg("Can't resolve reference to isakmp:%s in %s", name, ctx)
+		c.err("Can't resolve reference to isakmp:%s in %s", name, ctx)
 	}
 	return is
 }
 
-func getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
-	typ, name := getTypedName(a, ctx)
+func (c *spoc) getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
+	typ, name := c.getTypedName(a, ctx)
 	if typ != "ipsec" {
-		errMsg("Must only use ipsec type in '%s' of %s", a.Name, ctx)
+		c.err("Must only use ipsec type in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.ipsec[name]
 	if is == nil {
-		errMsg("Can't resolve reference to ipsec:%s in %s", name, ctx)
+		c.err("Can't resolve reference to ipsec:%s in %s", name, ctx)
 	}
 	return is
 }
 
-func getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypto {
-	typ, name := getTypedName(a, ctx)
+func (c *spoc) getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypto {
+	typ, name := c.getTypedName(a, ctx)
 	if typ != "crypto" {
-		errMsg("Must only use crypto name in '%s' of %s", a.Name, ctx)
+		c.err("Must only use crypto name in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	cr := s.crypto[name]
 	if cr == nil {
-		errMsg("Can't resolve reference to crypto:%s in '%s' of %s",
+		c.err("Can't resolve reference to crypto:%s in '%s' of %s",
 			name, a.Name, ctx)
 	}
 	return cr
 }
 
-func getCryptoRefList(a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
-	l := getValueList(a, ctx)
+func (c *spoc) getCryptoRefList(a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
+	l := c.getValueList(a, ctx)
 	result := make([]*crypto, 0, len(l))
 	ctx2 := "'" + a.Name + "' of " + ctx
 	for _, v := range l {
 		name := strings.TrimPrefix(v, "crypto:")
 		if len(name) == len(v) {
-			errMsg("Expected type 'crypto:' in %s", ctx2)
+			c.err("Expected type 'crypto:' in %s", ctx2)
 		} else if cr, found := s.crypto[name]; found {
 			result = append(result, cr)
 		} else {
-			errMsg("Can't resolve reference to crypto:%s in %s", name, ctx2)
+			c.err("Can't resolve reference to crypto:%s in %s", name, ctx2)
 		}
 	}
 	return result
 }
 
-func tryServiceRefList(
+func (c *spoc) tryServiceRefList(
 	a *ast.Attribute, s *symbolTable, ctx string) []*service {
 
-	l := getValueList(a, ctx)
+	l := c.getValueList(a, ctx)
 	result := make([]*service, 0, len(l))
 	for _, v := range l {
 		name := strings.TrimPrefix(v, "service:")
 		if len(name) == len(v) {
-			errMsg("Expected type 'service:' in %s", ctx)
+			c.err("Expected type 'service:' in %s", ctx)
 		} else if s, found := s.service[name]; found {
 			result = append(result, s)
 		} else {
-			warnMsg("Unknown '%s' in %s", v, ctx)
+			c.warn("Unknown '%s' in %s", v, ctx)
 		}
 	}
 	return result
 }
 
-func getProtocolRef(name string, s *symbolTable, ctx string) *proto {
+func (c *spoc) getProtocolRef(name string, s *symbolTable, ctx string) *proto {
 	p := s.protocol[name]
 	if p == nil {
-		errMsg("Can't resolve reference to protocol:%s in %s", name, ctx)
+		c.err("Can't resolve reference to protocol:%s in %s", name, ctx)
 	} else {
 		p.isUsed = true
 	}
 	return p
 }
 
-func getProtocolList(
+func (c *spoc) getProtocolList(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
-	l := getValueList(a, ctx)
+	l := c.getValueList(a, ctx)
 	ctx2 := a.Name + " of " + ctx
-	return expandProtocols(l, s, v6, ctx2)
+	return c.expandProtocols(l, s, v6, ctx2)
 }
 
-func expandProtocols(
+func (c *spoc) expandProtocols(
 	l stringList, s *symbolTable, v6 bool, ctx string) protoList {
 
 	var result protoList
 	for _, v := range l {
 		if strings.HasPrefix(v, "protocol:") {
 			name := v[len("protocol:"):]
-			if p := getProtocolRef(name, s, ctx); p != nil {
+			if p := c.getProtocolRef(name, s, ctx); p != nil {
 				result.push(p)
 			}
 		} else if strings.HasPrefix(v, "protocolgroup:") {
 			name := v[len("protocolgroup:"):]
-			result = append(result, expandProtocolgroup(name, s, v6, ctx)...)
+			result = append(result, c.expandProtocolgroup(name, s, v6, ctx)...)
 		} else {
 			ctx2 := "'" + v + "' of " + ctx
-			p := getSimpleProtocol(v, s, v6, ctx2)
+			p := c.getSimpleProtocol(v, s, v6, ctx2)
 			result.push(p)
 		}
 	}
 	return result
 }
 
-func expandProtocolgroup(
+func (c *spoc) expandProtocolgroup(
 	name string, s *symbolTable, v6 bool, ctx string) protoList {
 
 	g, found := s.protocolgroup[name]
 	if !found {
-		errMsg("Can't resolve reference to protocolgroup:%s in %s", name, ctx)
+		c.err("Can't resolve reference to protocolgroup:%s in %s", name, ctx)
 		return nil
 	}
 	if g.recursive {
-		errMsg("Found recursion in definition of %s", ctx)
+		c.err("Found recursion in definition of %s", ctx)
 	} else if !g.isUsed {
 		g.isUsed = true
 		g.recursive = true
 		ctx2 := "protocolgroup:" + name
-		g.elements = expandProtocols(g.list, s, v6, ctx2)
+		g.elements = c.expandProtocols(g.list, s, v6, ctx2)
 		g.recursive = false
 	}
 	return g.elements
@@ -2931,14 +2951,14 @@ func genProtocolName(p *proto) string {
 	}
 }
 
-func getRadiusAttributes(a *ast.Attribute, ctx string) map[string]string {
+func (c *spoc) getRadiusAttributes(a *ast.Attribute, ctx string) map[string]string {
 	result := make(map[string]string)
 	rCtx := a.Name + " of " + ctx
-	l := getComplexValue(a, ctx)
+	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		k := a2.Name
 		if !isSimpleName(k) {
-			errMsg("Invalid identifier '%s' in %s", k, rCtx)
+			c.err("Invalid identifier '%s' in %s", k, rCtx)
 		}
 		v := ""
 		if len(a2.ValueList) == 1 {
@@ -2949,33 +2969,33 @@ func getRadiusAttributes(a *ast.Attribute, ctx string) map[string]string {
 	return result
 }
 
-func getRouterAttributes(
+func (c *spoc) getRouterAttributes(
 	a *ast.Attribute, s *symbolTable, ar *area) *routerAttributes {
 
 	ctx := ar.name
 	r := new(routerAttributes)
 	name := "router_attributes of " + ctx
 	r.name = name
-	l := getComplexValue(a, ctx)
+	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "owner":
-			r.owner = getRealOwnerRef(a2, s, name)
+			r.owner = c.getRealOwnerRef(a2, s, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = tryHostRef(a2, s, ar.ipV6, name)
+			r.policyDistributionPoint = c.tryHostRef(a2, s, ar.ipV6, name)
 		case "general_permit":
-			r.generalPermit = getGeneralPermit(a2, s, ar.ipV6, name)
+			r.generalPermit = c.getGeneralPermit(a2, s, ar.ipV6, name)
 		default:
-			errMsg("Unexpected attribute in %s: %s", name, a2.Name)
+			c.err("Unexpected attribute in %s: %s", name, a2.Name)
 		}
 	}
 	return r
 }
 
-func getGeneralPermit(
+func (c *spoc) getGeneralPermit(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
-	l := getProtocolList(a, s, v6, ctx)
+	l := c.getProtocolList(a, s, v6, ctx)
 	prtTCP := s.unnamedProto["tcp"]
 	for _, p := range l {
 		// Check for protocols not valid for general_permit.
@@ -2994,7 +3014,7 @@ func getGeneralPermit(
 			reason.push("ports")
 		}
 		if reason != nil {
-			errMsg("Must not use '%s' with %s in general_permit of %s",
+			c.err("Must not use '%s' with %s in general_permit of %s",
 				p.name, strings.Join(reason, " or "), ctx)
 		}
 	}
@@ -3004,14 +3024,14 @@ func getGeneralPermit(
 	return l
 }
 
-func addLog(a *ast.Attribute, r *router) bool {
+func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
 	}
-	_, name := splitCheckTypedName(a.Name)
+	_, name := c.splitCheckTypedName(a.Name)
 	modifier := ""
 	if !emptyAttr(a) {
-		modifier = getSingleValue(a, r.name)
+		modifier = c.getSingleValue(a, r.name)
 	}
 	m := r.log
 	if m == nil {
@@ -3022,9 +3042,9 @@ func addLog(a *ast.Attribute, r *router) bool {
 	return true
 }
 
-func addAttr(
+func (c *spoc) addAttr(
 	a *ast.Attribute, attr map[string]string, ctx string) map[string]string {
-	v := getSingleValue(a, ctx)
+	v := c.getSingleValue(a, ctx)
 	switch v {
 	case "restrict", "enable", "ok":
 		if attr == nil {
@@ -3033,56 +3053,57 @@ func addAttr(
 		attr[a.Name] = v
 		return attr
 	}
-	errMsg("Expected 'restrict', 'enable' or 'ok' in '%s' of %s", a.Name, ctx)
+	c.err("Expected 'restrict', 'enable' or 'ok' in '%s' of %s", a.Name, ctx)
 	return attr
 }
 
-func addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,
+func (c *spoc) addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,
 	s *symbolTable, ctx string) map[string]*network {
 
-	return addXNat(a, m, v6, s, ctx, getIpPrefix)
+	return c.addXNat(a, m, v6, s, ctx, c.getIpPrefix)
 }
-func addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
+func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
 	s *symbolTable, ctx string) map[string]*network {
 
-	return addXNat(a, m, v6, s, ctx,
+	return c.addXNat(a, m, v6, s, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) (net.IP, net.IPMask) {
-			ip := getSingleValue(a, ctx)
-			return convIP(ip, v6, a.Name, ctx), getHostMask(v6)
+			ip := c.getSingleValue(a, ctx)
+			return c.convIP(ip, v6, a.Name, ctx), getHostMask(v6)
 		})
 }
 
-func addXNat(a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable,
-	ctx string, getIpX func(*ast.Attribute, bool, string) (net.IP, net.IPMask),
+func (c *spoc) addXNat(
+	a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable, ctx string,
+	getIpX func(*ast.Attribute, bool, string) (net.IP, net.IPMask),
 ) map[string]*network {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, tag := splitCheckTypedName(a.Name)
+	_, tag := c.splitCheckTypedName(a.Name)
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
-	l := getComplexValue(a, ctx)
+	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "ip":
 			nat.ip, nat.mask = getIpX(a2, v6, natCtx)
 		case "hidden":
-			nat.hidden = getFlag(a2, natCtx)
+			nat.hidden = c.getFlag(a2, natCtx)
 		case "identity":
-			nat.identity = getFlag(a2, natCtx)
+			nat.identity = c.getFlag(a2, natCtx)
 		case "dynamic":
-			nat.dynamic = getFlag(a2, natCtx)
+			nat.dynamic = c.getFlag(a2, natCtx)
 		case "subnet_of":
-			nat.subnetOf = tryNetworkRef(a2, s, v6, natCtx)
+			nat.subnetOf = c.tryNetworkRef(a2, s, v6, natCtx)
 		default:
-			errMsg("Unexpected attribute in %s: %s", natCtx, a2.Name)
+			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
 	}
 	if nat.hidden {
 		for _, a2 := range l {
 			if a2.Name != "hidden" {
-				errMsg("Hidden NAT must not use attribute '%s' in %s",
+				c.err("Hidden NAT must not use attribute '%s' in %s",
 					a2.Name, natCtx)
 			}
 		}
@@ -3096,13 +3117,13 @@ func addXNat(a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable,
 	} else if nat.identity {
 		for _, a2 := range l {
 			if a2.Name != "identity" {
-				errMsg("Identity NAT must not use attribute '%s' in %s",
+				c.err("Identity NAT must not use attribute '%s' in %s",
 					a2.Name, natCtx)
 			}
 		}
 		nat.dynamic = true
 	} else if nat.ip == nil {
-		errMsg("Missing IP address in %s", natCtx)
+		c.err("Missing IP address in %s", natCtx)
 	}
 
 	// Attribute .natTag is used later to look up static translation
@@ -3118,22 +3139,22 @@ func addXNat(a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable,
 	return m
 }
 
-func addIPNat(a *ast.Attribute, m map[string]net.IP, v6 bool,
+func (c *spoc) addIPNat(a *ast.Attribute, m map[string]net.IP, v6 bool,
 	ctx string) map[string]net.IP {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, name := splitCheckTypedName(a.Name)
+	_, name := c.splitCheckTypedName(a.Name)
 	var ip net.IP
 	natCtx := a.Name + " of " + ctx
-	l := getComplexValue(a, ctx)
+	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "ip":
-			ip = getIp(a2, v6, natCtx)
+			ip = c.getIp(a2, v6, natCtx)
 		default:
-			errMsg("Unexpected attribute in %s: %s", natCtx, a2.Name)
+			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
 	}
 	if m == nil {
@@ -3143,22 +3164,15 @@ func addIPNat(a *ast.Attribute, m map[string]net.IP, v6 bool,
 	return m
 }
 
-// Store defining log tags in knownLog.
-func collectLog(m map[string]string) {
-	for tag, _ := range m {
-		knownLog[tag] = true
-	}
-}
-
-func checkInterfaceIp(intf *routerIntf, n *network) {
+func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 	if intf.unnumbered {
 		if !n.unnumbered {
-			errMsg("Unnumbered %s must not be linked to %s", intf, n)
+			c.err("Unnumbered %s must not be linked to %s", intf, n)
 		}
 		return
 	}
 	if n.unnumbered {
-		errMsg("%s must not be linked to unnumbered %s", intf, n)
+		c.err("%s must not be linked to unnumbered %s", intf, n)
 		return
 	}
 	if intf.negotiated || intf.bridged {
@@ -3172,10 +3186,10 @@ func checkInterfaceIp(intf *routerIntf, n *network) {
 	nIP := n.ip
 	mask := n.mask
 	if !matchIp(ip, nIP, mask) {
-		errMsg("%s's IP doesn't match %s's IP/mask", intf, n)
+		c.err("%s's IP doesn't match %s's IP/mask", intf, n)
 	}
 	if isHostMask(mask) {
-		warnMsg("%s has address of its network.\n"+
+		c.warn("%s has address of its network.\n"+
 			" Remove definition of %s and\n"+
 			" add attribute 'loopback' at interface definition.",
 			intf, n)
@@ -3186,10 +3200,10 @@ func checkInterfaceIp(intf *routerIntf, n *network) {
 		len, _ := mask.Size()
 		if len != 31 {
 			if bytes.Compare(ip, nIP) == 0 {
-				errMsg("%s has address of its network", intf)
+				c.err("%s has address of its network", intf)
 			}
 			if bytes.Compare(ip, getBroadcastIP(n)) == 0 {
-				errMsg("%s has broadcast address", intf)
+				c.err("%s has broadcast address", intf)
 			}
 		}
 	}
@@ -3200,7 +3214,7 @@ func checkInterfaceIp(intf *routerIntf, n *network) {
 //            ACLs operate on hardware, not on logic. Marks hardware needing
 //            outgoing ACLs.
 // Comments : Not more than 1 'no_in_acl' interface per router allowed.
-func checkNoInAcl(r *router) {
+func (c *spoc) checkNoInAcl(r *router) {
 	count := 0
 	hasCrypto := false
 	var rerouteIntf *routerIntf
@@ -3226,7 +3240,7 @@ func checkNoInAcl(r *router) {
 
 		// Assure max number of main interfaces at no_in_acl-hardware == 1.
 		if nonSecondaryIntfCount(hw.interfaces) != 1 {
-			errMsg("Only one logical interface allowed at hardware '%s' of %s\n"+
+			c.err("Only one logical interface allowed at hardware '%s' of %s\n"+
 				" because of attribute 'no_in_acl'", hw.name, r.name)
 		}
 		count++
@@ -3240,18 +3254,18 @@ func checkNoInAcl(r *router) {
 
 	// Assert maximum number of 'no_in_acl' interfaces per router
 	if count != 1 {
-		errMsg("At most one interface of %s may use flag 'no_in_acl'", r)
+		c.err("At most one interface of %s may use flag 'no_in_acl'", r)
 	}
 
 	// Assert router to support outgoing ACL
 	if !r.model.hasOutACL {
-		errMsg("%s doesn't support outgoing ACL", r)
+		c.err("%s doesn't support outgoing ACL", r)
 	}
 
 	// reroute_permit would generate permit any -> networks,
 	// but no_in_acl would generate permit any -> any anyway.
 	if r.noInAcl.reroutePermit != nil {
-		warnMsg("Useless use of attribute 'reroute_permit' together with"+
+		c.warn("Useless use of attribute 'reroute_permit' together with"+
 			" 'no_in_acl' at %s", r.noInAcl.name)
 	}
 
@@ -3259,14 +3273,14 @@ func checkNoInAcl(r *router) {
 	// In this case incoming traffic at no_in_acl interface
 	// to network N wouldn't be filtered at all.
 	if rerouteIntf != nil {
-		errMsg("Must not use attributes no_in_acl and reroute_permit"+
+		c.err("Must not use attributes no_in_acl and reroute_permit"+
 			" together at %s\n"+
 			" Add incoming and outgoing ACL line in raw file instead.", r)
 	}
 
 	// Assert router not to take part in crypto tunnels.
 	if hasCrypto {
-		errMsg(
+		c.err(
 			"Don't use attribute 'no_in_acl' together with crypto tunnel at %s",
 			r)
 	}
@@ -3283,7 +3297,7 @@ func checkNoInAcl(r *router) {
 // Hence split router into separate instances, one instance for each
 // crypto interface.
 // Split routers are tied by identical attribute .deviceName.
-func moveLockedIntf(intf *routerIntf) {
+func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	orig := intf.router
 
 	// Use different and uniqe name for each split router.
@@ -3293,7 +3307,7 @@ func moveLockedIntf(intf *routerIntf) {
 	new.origRouter = orig
 	new.interfaces = intfList{intf}
 	intf.router = &new
-	routerFragments = append(routerFragments, &new)
+	c.routerFragments = append(c.routerFragments, &new)
 
 	// Don't check fragment for reachability.
 	new.policyDistributionPoint = nil
@@ -3325,7 +3339,7 @@ func moveLockedIntf(intf *routerIntf) {
 
 		for _, intf2 := range hw.interfaces {
 			if intf2 != intf && !intf2.tunnel {
-				errMsg("Crypto %s must not share hardware with other %s",
+				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
 			}
@@ -3343,7 +3357,7 @@ func moveLockedIntf(intf *routerIntf) {
 }
 
 // Link tunnel networks with tunnel hubs.
-func linkTunnels(s *symbolTable) {
+func (c *spoc) linkTunnels(s *symbolTable) {
 	// ToDo: Check if sorting is only needed for deterministic error messages.
 	sorted := make([]*crypto, 0, len(symTable.crypto))
 	for _, c := range symTable.crypto {
@@ -3355,13 +3369,13 @@ func linkTunnels(s *symbolTable) {
 	for _, cr := range sorted {
 		realHub := cr.hub
 		if realHub == nil || realHub.disabled {
-			warnMsg("No hub has been defined for %s", cr.name)
+			c.warn("No hub has been defined for %s", cr.name)
 			continue
 		}
 		//realSpokes = [ grep { ! $_.disabled } realSpokes ]
 		tunnels := cr.tunnels
 		if len(tunnels) == 0 {
-			warnMsg("No spokes have been defined for %s", cr.name)
+			c.warn("No spokes have been defined for %s", cr.name)
 		}
 
 		isakmp := cr.ipsec.isakmp
@@ -3380,11 +3394,11 @@ func linkTunnels(s *symbolTable) {
 		// Router of type 'doAuth' can only check certificates,
 		// not pre-shared keys.
 		if model.doAuth && !needId {
-			errMsg("%s needs authentication=rsasig in %s", r, isakmp.name)
+			c.err("%s needs authentication=rsasig in %s", r, isakmp.name)
 		}
 
 		if model.crypto == "EZVPN" {
-			errMsg("Must not use %s of model '%s' as crypto hub", r, model.name)
+			c.err("Must not use %s of model '%s' as crypto hub", r, model.name)
 		}
 
 		// Generate a single tunnel from each spoke to single hub.
@@ -3404,7 +3418,11 @@ func linkTunnels(s *symbolTable) {
 			hub.realIntf = realHub
 			hub.router = r
 			hub.network = spokeNet
-			hub.bindNat = realHub.bindNat
+			if cr.bindNat != nil {
+				hub.bindNat = cr.bindNat
+			} else {
+				hub.bindNat = realHub.bindNat
+			}
 			hub.routing = realHub.routing
 			hub.peer = spoke
 			spoke.peer = hub
@@ -3419,7 +3437,7 @@ func linkTunnels(s *symbolTable) {
 
 			if realSpoke.ip == nil {
 				if !(model.doAuth || model.canDynCrypto) {
-					errMsg(
+					c.err(
 						"%s can't establish crypto tunnel to %s with unknown IP",
 						r, realSpoke)
 				}
@@ -3437,7 +3455,7 @@ func linkTunnels(s *symbolTable) {
 // - The same ID must not be used by some other group
 //   - connected to the same network
 //   - emploing the same redundancy type
-func linkVirtualInterfaces() {
+func (c *spoc) linkVirtualInterfaces() {
 
 	// Collect array of virtual interfaces with same IP at same network.
 	type key1 struct {
@@ -3454,7 +3472,7 @@ func linkVirtualInterfaces() {
 		typ string
 	}
 	net2id2type2virtual := make(map[key2]*routerIntf)
-	for _, v1 := range virtualInterfaces {
+	for _, v1 := range c.virtualInterfaces {
 		if v1.disabled {
 			continue
 		}
@@ -3468,13 +3486,13 @@ func linkVirtualInterfaces() {
 			v2 := l[0]
 			t2 := v2.redundancyType
 			if t1 != t2 {
-				errMsg("Must use identical redundancy protocol at\n"+
+				c.err("Must use identical redundancy protocol at\n"+
 					" - %s\n"+
 					" - %s", v2, v1)
 			}
 			id2 := v2.redundancyId
 			if id1 != id2 {
-				errMsg("Must use identical ID at\n"+
+				c.err("Must use identical ID at\n"+
 					" - %s\n"+
 					" - %s", v2, v1)
 			}
@@ -3483,7 +3501,7 @@ func linkVirtualInterfaces() {
 			// inside the same network.
 			if id1 != "" {
 				if v2 := net2id2type2virtual[key2{n, id1, t1}]; v2 != nil {
-					errMsg("Must use different ID at unrelated\n"+
+					c.err("Must use different ID at unrelated\n"+
 						" - %s\n"+
 						" - %s", v2, v1)
 				} else {
@@ -3511,18 +3529,18 @@ func linkVirtualInterfaces() {
 			r := intf.router
 			if r.managed != "" || r.routingOnly {
 				name := "auto-virtual-" + intf.ip.String()
-				addPathrestriction(name, l)
+				c.addPathrestriction(name, l)
 				break
 			}
 		}
 	}
 }
 
-func addPathrestriction(name string, l intfList) {
+func (c *spoc) addPathrestriction(name string, l intfList) {
 	pr := new(pathRestriction)
 	pr.name = name
 	pr.elements = l
-	pathrestrictions = append(pathrestrictions, pr)
+	c.pathrestrictions = append(c.pathrestrictions, pr)
 	for _, intf := range l {
 		//debug("%s at %s", name, intf)
 		// Multiple restrictions may be applied to a single interface.
@@ -3547,7 +3565,7 @@ func addPathrestriction(name string, l intfList) {
 // - original part having only interfaces without pathrestriction or bind_nat,
 // - one split part for each interface with pathrestriction or bind_nat.
 // All parts are connected by a freshly created unnumbered network.
-func splitSemiManagedRouter() {
+func (c *spoc) splitSemiManagedRouter() {
 	for _, r := range getIpv4Ipv6Routers() {
 
 		// Unmanaged router is marked as semi_managed, if
@@ -3597,7 +3615,7 @@ func splitSemiManagedRouter() {
 			nr.semiManaged = true
 			nr.origRouter = r
 			intf.router = nr
-			routerFragments = append(routerFragments, nr)
+			c.routerFragments = append(c.routerFragments, nr)
 
 			// Link current and newly created router by unnumbered network.
 			// Add reference to original interface at internal interface.

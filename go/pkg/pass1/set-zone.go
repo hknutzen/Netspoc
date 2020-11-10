@@ -2,31 +2,30 @@ package pass1
 
 import (
 	"bytes"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"net"
 	"sort"
 )
 
 //##############################################################################
 // Purpose  : Create zones and areas.
-func SetZone() map[pathObj]map[*area]bool {
-	diag.Progress("Preparing security zones and areas")
-	setZones()
-	clusterZones()
-	crosslinkRouters := checkCrosslink()
+func (c *spoc) setZone() map[pathObj]map[*area]bool {
+	c.progress("Preparing security zones and areas")
+	c.setZones()
+	c.clusterZones()
+	crosslinkRouters := c.checkCrosslink()
 	clusterCrosslinkRouters(crosslinkRouters)
-	objInArea := setAreas()
-	checkAreaSubsetRelations(objInArea)
-	processAggregates()
-	inheritAttributes()
-	checkReroutePermit()
+	objInArea := c.setAreas()
+	c.checkAreaSubsetRelations(objInArea)
+	c.processAggregates()
+	c.inheritAttributes()
+	c.checkReroutePermit()
 	return objInArea // For use in cut-netspoc
 }
 
 //#############################################################################
 // Purpose  : Create new zone for every network without a zone.
-func setZones() {
-	for _, n := range allNetworks {
+func (c *spoc) setZones() {
+	for _, n := range c.allNetworks {
 		if n.zone != nil {
 			continue
 		}
@@ -35,10 +34,10 @@ func setZones() {
 		name := "any:[" + n.name + "]"
 		z := &zone{name: name, ipmask2aggregate: make(map[ipmask]*network)}
 		z.ipV6 = n.ipV6
-		zones = append(zones, z)
+		c.allZones = append(c.allZones, z)
 
 		// Collect zone elements...
-		setZone1(n, z, nil)
+		c.setZone1(n, z, nil)
 
 		// Attribute isTunnel was set when zone has some tunnel networks,
 		// but must only be set, if it has only tunnel networks.
@@ -54,7 +53,7 @@ func setZones() {
 //            Sets zone attribute.
 // Comments : Unnumbered and tunnel networks are not referenced in zones,
 //            as they are no valid src or dst.
-func setZone1(n *network, z *zone, in *routerIntf) {
+func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 	// Network was processed already (= loop was found).
 	if n.zone != nil {
@@ -77,7 +76,7 @@ func setZone1(n *network, z *zone, in *routerIntf) {
 		z.hasIdHosts = true
 	}
 	if n.partition != "" && z.partition != "" {
-		errMsg("Only one partition name allowed in zone %s, but found:\n"+
+		c.err("Only one partition name allowed in zone %s, but found:\n"+
 			" - %s\n - %s",
 			z, n.partition, z.partition)
 	}
@@ -109,7 +108,7 @@ func setZone1(n *network, z *zone, in *routerIntf) {
 			// Recursively add adjacent networks.
 			for _, out := range r.interfaces {
 				if out != intf && !out.disabled {
-					setZone1(out.network, z, out)
+					c.setZone1(out.network, z, out)
 				}
 			}
 		}
@@ -122,10 +121,10 @@ func setZone1(n *network, z *zone, in *routerIntf) {
 //            the zones.
 // Comments : Attribute zoneCluster is only set if the cluster has more
 //            than one element.
-func clusterZones() {
+func (c *spoc) clusterZones() {
 
 	// Process remaining unclustered zones.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.zoneCluster == nil {
 
 			// Create a new cluster and collect its zones
@@ -204,12 +203,12 @@ var crosslinkStrength = map[string]int{
 //            filtering needed at these interfaces).
 // Returns  : Map storing crosslinked routers with attribute needProtect set.
 // Comments : Function uses hardware attributes from func checkNoInAcl.
-func checkCrosslink() map[*router]bool {
+func (c *spoc) checkCrosslink() map[*router]bool {
 	// Collect crosslinked routers with attribute needProtect.
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		if !n.crosslink || n.disabled {
 			continue
 		}
@@ -232,11 +231,11 @@ func checkCrosslink() map[*router]bool {
 
 			// Assure correct usage of crosslink network.
 			if r.managed == "" {
-				errMsg("Crosslink %s must not be connected to unmanged %s", n, r)
+				c.err("Crosslink %s must not be connected to unmanged %s", n, r)
 				continue
 			}
 			if nonSecondaryIntfCount(hw.interfaces) != 1 {
-				errMsg("Crosslink %s must be the only network"+
+				c.err("Crosslink %s must be the only network"+
 					" connected to hardware '%s' of %s", n, hw.name, r)
 			}
 
@@ -272,19 +271,19 @@ func checkCrosslink() map[*router]bool {
 		// Assure 'secondary' and 'local' are not mixed in crosslink network.
 		if weakest == crosslinkStrength["local"] &&
 			strength2intf[crosslinkStrength["secondary"]] != nil {
-			errMsg("Must not use 'managed=local' and 'managed=secondary'"+
+			c.err("Must not use 'managed=local' and 'managed=secondary'"+
 				" together\n at crosslink %s", n)
 		}
 
 		// Assure proper usage of crosslink network.
 		if outAclCount != 0 && outAclCount != len(n.interfaces) {
-			errMsg("All interfaces must equally use or not use outgoing ACLs"+
+			c.err("All interfaces must equally use or not use outgoing ACLs"+
 				" at crosslink %s", n)
 		} else if len(noInAclIntf) >= 1 {
 			z0 := noInAclIntf[0].zone
 			for _, intf := range noInAclIntf[1:] {
 				if intf.zone != z0 {
-					errMsg("All interfaces with attribute 'no_in_acl'"+
+					c.err("All interfaces with attribute 'no_in_acl'"+
 						" at routers connected by\n"+
 						" crosslink %s must be border of the same security zone", n)
 					break
@@ -367,7 +366,7 @@ type bLookup map[*routerIntf]borderType
 
 //##############################################################################s
 // Purpose  : Set up areas, assure proper border definitions.
-func setAreas() map[pathObj]map[*area]bool {
+func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
 	for _, a := range symTable.area {
@@ -381,7 +380,7 @@ func setAreas() map[pathObj]map[*area]bool {
 			continue
 		}
 		if n := a.anchor; n != nil {
-			setArea(n.zone, a, nil, nil, objInArea)
+			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
 
 			// For efficient look up if some interface is a border of current area.
@@ -396,7 +395,7 @@ func setAreas() map[pathObj]map[*area]bool {
 			}
 			for _, intf := range a.inclusiveBorder {
 				if _, found := lookup[intf]; found {
-					errMsg("%s is used as 'border' and 'inclusive_border' in %s",
+					c.err("%s is used as 'border' and 'inclusive_border' in %s",
 						intf, a)
 				}
 				lookup[intf] = inclusiveBorder
@@ -412,7 +411,7 @@ func setAreas() map[pathObj]map[*area]bool {
 
 			// Collect zones and routers of area and keep track of borders found.
 			lookup[start] = foundBorder
-			err := setArea(obj1, a, start, lookup, objInArea)
+			err := c.setArea(obj1, a, start, lookup, objInArea)
 			if err {
 				continue
 			}
@@ -432,7 +431,7 @@ func setAreas() map[pathObj]map[*area]bool {
 				}
 				l = l[:j]
 				if badIntf != nil {
-					errMsg("Unreachable %s of %s:\n%s",
+					c.err("Unreachable %s of %s:\n%s",
 						attr, a.name, badIntf.nameList())
 				}
 				return l
@@ -442,7 +441,7 @@ func setAreas() map[pathObj]map[*area]bool {
 
 			// Check whether area is empty (= consist of a single router)
 			if len(a.zones) == 0 {
-				warnMsg("%s is empty", a.name)
+				c.warn("%s is empty", a.name)
 			}
 		}
 
@@ -458,7 +457,7 @@ func setAreas() map[pathObj]map[*area]bool {
 //##############################################################################
 // Purpose  : Collect zones and routers of an area.
 // Returns  : false, or true if error was found.
-func setArea(obj pathObj, a *area, in *routerIntf,
+func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	lookup bLookup, objInArea map[pathObj]map[*area]bool) bool {
 	errPath := setArea1(obj, a, in, lookup, objInArea)
 	if errPath == nil {
@@ -471,7 +470,7 @@ func setArea(obj pathObj, a *area, in *routerIntf,
 	for i, j := 0, len(errPath)-1; i < j; i, j = i+1, j-1 {
 		errPath[i], errPath[j] = errPath[j], errPath[i]
 	}
-	errMsg("Inconsistent definition of %s in loop.\n"+
+	c.err("Inconsistent definition of %s in loop.\n"+
 		" It is reached from outside via this path:\n%s",
 		a.name, errPath.nameList())
 	return true
@@ -560,7 +559,7 @@ func nonSecondaryIntfCount(l []*routerIntf) int {
 //##############################################################################
 // Purpose : Check subset relation between areas, assure that no duplicate or
 //           overlapping areas exist
-func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
+func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 	size := func(a *area) int {
 		return len(a.zones) + len(a.managedRouters)
@@ -581,10 +580,10 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	// Fill global list of areas.
 	for _, a := range symTable.area {
 		if !a.disabled {
-			ascendingAreas = append(ascendingAreas, a)
+			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
 	}
-	ascendingAreas = sortBySize(ascendingAreas)
+	c.ascendingAreas = sortBySize(c.ascendingAreas)
 
 	// Get list of all zones and managed routers of an area.
 	getObjList := func(a *area) []pathObj {
@@ -642,7 +641,7 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 					if objInArea[obj3][small] {
 						continue
 					}
-					errMsg("Overlapping %s and %s\n"+
+					c.err("Overlapping %s and %s\n"+
 						" - both areas contain %s,\n"+
 						" - only 1. area contains %s,\n"+
 						" - only 2. area contains %s",
@@ -653,14 +652,14 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 			// Check for duplicates.
 			if len(smallList) == len(nextList) {
-				errMsg("Duplicate %s and %s", small.name, next.name)
+				c.err("Duplicate %s and %s", small.name, next.name)
 			}
 		}
 	}
-	for _, obj := range zones {
+	for _, obj := range c.allZones {
 		process(obj)
 	}
-	for _, obj := range managedRouters {
+	for _, obj := range c.managedRouters {
 		process(obj)
 	}
 }
@@ -673,7 +672,7 @@ func checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 //            to global variable allNetworks.
 // Comments : Has to be called after zones have been set up. But before
 //            findSubnetsInZone calculates .up and .networks relation.
-func processAggregates() {
+func (c *spoc) processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
@@ -708,7 +707,7 @@ func processAggregates() {
 		}
 		for _, z2 := range cluster {
 			if other := z2.ipmask2aggregate[key]; other != nil {
-				errMsg("Duplicate %s and %s in %s", other, agg, z)
+				c.err("Duplicate %s and %s in %s", other, agg, z)
 			}
 		}
 
@@ -742,39 +741,39 @@ func processAggregates() {
 		}
 
 		// Link aggragate and zone (also setting z.ipmask2aggregate)
-		linkAggregateToZone(agg, z, key)
+		c.linkAggregateToZone(agg, z, key)
 	}
 
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggInCluster {
-		duplicateAggregateToCluster(agg, false)
+		c.duplicateAggregateToCluster(agg, false)
 	}
 }
 
-func inheritAttributes() {
+func (c *spoc) inheritAttributes() {
 	natSeen := make(map[*network]bool)
-	inheritAttributesFromArea(natSeen)
-	inheritNatInZone(natSeen)
-	checkAttrNoCheckSupernetRules()
-	cleanupAfterInheritance(natSeen)
+	c.inheritAttributesFromArea(natSeen)
+	c.inheritNatInZone(natSeen)
+	c.checkAttrNoCheckSupernetRules()
+	c.cleanupAfterInheritance(natSeen)
 }
 
 //##############################################################################
 // Purpose : Assure that areas are processed in the right order and distribute
 //           area attributes to zones and managed routers.
-func inheritAttributesFromArea(natSeen map[*network]bool) {
+func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 
 	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range ascendingAreas {
-		inheritRouterAttributes(a)
-		inheritAreaNat(a, natSeen)
+	for _, a := range c.ascendingAreas {
+		c.inheritRouterAttributes(a)
+		c.inheritAreaNat(a, natSeen)
 	}
 }
 
 //##############################################################################
 // Purpose : Distribute routerAttributes from area definition to managed
 //           routers of an area.
-func inheritRouterAttributes(a *area) {
+func (c *spoc) inheritRouterAttributes(a *area) {
 
 	// Check for attributes to be inherited.
 	attr := a.routerAttributes
@@ -790,7 +789,7 @@ func inheritRouterAttributes(a *area) {
 		if p1 := attr.policyDistributionPoint; p1 != nil {
 			if p2 := r.policyDistributionPoint; p2 != nil {
 				if p1 == p2 {
-					warnMsg("Useless attribute 'policy_distribution_point' at %s,\n"+
+					c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
 						" it was already inherited from %s", r, attr.name)
 				}
 			} else {
@@ -800,7 +799,7 @@ func inheritRouterAttributes(a *area) {
 		if l1 := attr.generalPermit; l1 != nil {
 			if l2 := r.generalPermit; l2 != nil {
 				if protoListEq(l1, l2) {
-					warnMsg("Useless attribute 'general_permit' at %s,\n"+
+					c.warn("Useless attribute 'general_permit' at %s,\n"+
 						" it was already inherited from %s", r, attr.name)
 				}
 			} else {
@@ -824,7 +823,7 @@ func protoListEq(l1, l2 []*proto) bool {
 
 //#############################################################################
 // Purpose : Distribute NAT from area to zones.
-func inheritAreaNat(a *area, natSeen map[*network]bool) {
+func (c *spoc) inheritAreaNat(a *area, natSeen map[*network]bool) {
 	m := a.nat
 	if m == nil {
 		return
@@ -846,7 +845,7 @@ func inheritAreaNat(a *area, natSeen map[*network]bool) {
 			if n2 := z.nat[tag]; n2 != nil {
 
 				// ... and warn if zones NAT value holds the same attributes.
-				checkUselessNat(n1, n2, natSeen)
+				c.checkUselessNat(n1, n2, natSeen)
 				continue
 			}
 
@@ -867,14 +866,14 @@ func inheritAreaNat(a *area, natSeen map[*network]bool) {
 //           2. Mark NAT value of smaller object, so that warning is only
 //              printed once and not again if compared with some larger object.
 //              This is also used later to warn on useless identity NAT.
-func checkUselessNat(nat1, nat2 *network, natSeen map[*network]bool) {
+func (c *spoc) checkUselessNat(nat1, nat2 *network, natSeen map[*network]bool) {
 	//debug("Check useless %s -- %s", nat2.descr, nat1.descr)
 	if natSeen[nat2] {
 		return
 	}
 	natSeen[nat2] = true
 	if natEqual(nat1, nat2) {
-		warnMsg("Useless %s,\n it was already inherited from %s",
+		c.warn("Useless %s,\n it was already inherited from %s",
 			nat2.descr, nat1.descr)
 	}
 }
@@ -889,8 +888,8 @@ func natEqual(nat1, nat2 *network) bool {
 		nat1.identity == nat2.identity
 }
 
-func inheritNatInZone(natSeen map[*network]bool) {
-	for _, z := range zones {
+func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
+	for _, z := range c.allZones {
 
 		// Find all networks and aggregates of current zone,
 		// that have NAT definitions.
@@ -911,7 +910,7 @@ func inheritNatInZone(natSeen map[*network]bool) {
 			return bytes.Compare(natSupernets[i].mask, natSupernets[j].mask) == 1
 		})
 		for _, n := range natSupernets {
-			inheritNatToSubnetsInZone(n.name, n.nat, n.ip, n.mask, z, natSeen)
+			c.inheritNatToSubnetsInZone(n.name, n.nat, n.ip, n.mask, z, natSeen)
 		}
 
 		// Process zone instead of aggregate 0/0, because NAT is stored
@@ -925,7 +924,7 @@ func inheritNatInZone(natSeen map[*network]bool) {
 					delete(z.nat, tag)
 				}
 			}
-			inheritNatToSubnetsInZone(
+			c.inheritNatToSubnetsInZone(
 				z.name, z.nat, getZeroIp(z.ipV6), getZeroMask(z.ipV6), z, natSeen)
 		}
 
@@ -937,7 +936,8 @@ func inheritNatInZone(natSeen map[*network]bool) {
 //            in same zone, that are in subnet relation.
 //            If a network A is subnet of multiple networks B < C,
 //            then NAT of B is used.
-func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
+func (c *spoc) inheritNatToSubnetsInZone(
+	from string, natMap map[string]*network,
 	ip net.IP, mask net.IPMask, z *zone, natSeen map[*network]bool) {
 
 	tags := make(stringList, 0, len(natMap))
@@ -964,9 +964,9 @@ func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
 
 				// ... and warn if networks NAT value holds the
 				// same attributes.
-				checkUselessNat(nat, nNat, natSeen)
+				c.checkUselessNat(nat, nNat, natSeen)
 			} else if n.bridged && !nat.identity {
-				errMsg("Must not inherit nat:%s at bridged %s from %s",
+				c.err("Must not inherit nat:%s at bridged %s from %s",
 					tag, n, from)
 			} else {
 				// Copy NAT defintion; add description and name of original network.
@@ -986,7 +986,7 @@ func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
 
 					// Check mask of static NAT inherited from area or zone.
 					if bytes.Compare(nat.mask, n.mask) >= 1 {
-						errMsg("Must not inherit %s at %s\n"+
+						c.err("Must not inherit %s at %s\n"+
 							" because NAT network must be larger"+
 							" than translated network", nat.descr, n)
 					}
@@ -1005,7 +1005,7 @@ func inheritNatToSubnetsInZone(from string, natMap map[string]*network,
 	}
 }
 
-func checkAttrNoCheckSupernetRules() {
+func (c *spoc) checkAttrNoCheckSupernetRules() {
 	var checkSubnets func(l netList) netList
 	checkSubnets = func(l netList) netList {
 		var errList netList
@@ -1019,10 +1019,10 @@ func checkAttrNoCheckSupernetRules() {
 		}
 		return errList
 	}
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.noCheckSupernetRules {
 			if bugList := checkSubnets(z.networks); bugList != nil {
-				errMsg("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+				c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
 					" with networks having host definitions:\n%s",
 					z, bugList.nameList())
 			}
@@ -1035,8 +1035,8 @@ func checkAttrNoCheckSupernetRules() {
 // 2. Remove identity NAT entries.
 //    These are only needed during NAT inheritance.
 // 3. Check for useless identity NAT.
-func cleanupAfterInheritance(natSeen map[*network]bool) {
-	for _, n := range allNetworks {
+func (c *spoc) cleanupAfterInheritance(natSeen map[*network]bool) {
+	for _, n := range c.allNetworks {
 		m := n.nat
 		if m == nil {
 			continue
@@ -1049,7 +1049,7 @@ func cleanupAfterInheritance(natSeen map[*network]bool) {
 			if nat.identity {
 				delete(m, tag)
 				if !natSeen[nat] {
-					warnMsg("Useless identity nat:%s at %s", tag, n)
+					c.warn("Useless identity nat:%s at %s", tag, n)
 				}
 			}
 		}
@@ -1060,12 +1060,12 @@ func cleanupAfterInheritance(natSeen map[*network]bool) {
 }
 
 // Reroute permit is not allowed between different security zones.
-func checkReroutePermit() {
-	for _, z := range zones {
+func (c *spoc) checkReroutePermit() {
+	for _, z := range c.allZones {
 		for _, intf := range z.interfaces {
 			for _, n := range intf.reroutePermit {
 				if !zoneEq(n.zone, z) {
-					errMsg("Invalid reroute_permit for %s at %s:"+
+					c.err("Invalid reroute_permit for %s at %s:"+
 						" different security zones", n, intf)
 				}
 			}

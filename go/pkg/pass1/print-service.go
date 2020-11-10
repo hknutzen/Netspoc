@@ -71,6 +71,9 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/spf13/pflag"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -114,17 +117,16 @@ func prtInfo(srcRange, prt *proto) string {
 	return desc
 }
 
-func PrintService(
+func (c *spoc) printService(
 	path string, srvNames []string, natNet string, showName bool) {
 
-	c := startSpoc()
-	ReadNetspoc(path)
-	MarkDisabled()
-	SetZone()
-	SetPath()
-	DistributeNatInfo()
-	FindSubnetsInZone()
-	AbortOnError()
+	c.readNetspoc(path)
+	c.markDisabled()
+	c.setZone()
+	c.setPath()
+	c.distributeNatInfo()
+	c.findSubnetsInZone()
+	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
 	var natSet natSet
@@ -142,17 +144,16 @@ func PrintService(
 		natSet = &m
 	}
 
-	NormalizeServices()
-	permitRules, denyRules := ConvertHostsInRules()
+	sRules := c.normalizeServices()
+	permitRules, denyRules := c.convertHostsInRules(sRules)
 	c.groupPathRules(permitRules, denyRules)
-	c.finish()
-	AbortOnError()
+	c.stopOnErr()
 
 	nameMap := make(map[string]bool)
 	for _, name := range srvNames {
 		name = strings.TrimPrefix(name, "service:")
 		if _, found := symTable.service[name]; !found {
-			errMsg("Unknown service:%s", name)
+			c.err("Unknown service:%s", name)
 		}
 		nameMap[name] = true
 	}
@@ -192,8 +193,8 @@ func PrintService(
 			}
 		}
 	}
-	collect(pRules.deny)
-	collect(pRules.permit)
+	collect(c.allPathRules.deny)
+	collect(c.allPathRules.permit)
 
 	objInfo := func(obj someObj) string {
 		if showName {
@@ -220,4 +221,43 @@ func PrintService(
 				name, action, srcInfo, dstInfo, prtInfo)
 		}
 	}
+}
+
+func PrintServiceMain() int {
+	// Setup custom usage function.
+	pflag.Usage = func() {
+		fmt.Fprintf(os.Stderr,
+			"Usage: %s [options] FILE|DIR [SERVICE-NAME ...]\n", os.Args[0])
+		pflag.PrintDefaults()
+	}
+
+	// Command line flags
+	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+
+	nat := pflag.String("nat", "",
+		"Use network:name as reference when resolving IP address")
+	name := pflag.BoolP("name", "n", false, "Show name, not IP of elements")
+	pflag.Parse()
+
+	// Argument processing
+	args := pflag.Args()
+	if len(args) == 0 {
+		pflag.Usage()
+		os.Exit(1)
+	}
+	path := args[0]
+	names := args[1:]
+
+	dummyArgs := []string{
+		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--ipv6=%v", *ipv6),
+	}
+	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	c := initSpoc()
+	go func() {
+		c.printService(path, names, *nat, *name)
+		close(c.msgChan)
+	}()
+	return c.printMessages()
 }

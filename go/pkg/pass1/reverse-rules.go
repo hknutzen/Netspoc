@@ -10,7 +10,7 @@ import ()
 // without range checking but with checking for 'established` flag.
 //#############################################################################
 
-func genReverseRules1(rules []*groupedRule) []*groupedRule {
+func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 	var extraRules []*groupedRule
 	type pair struct {
 		srcPath pathStore
@@ -83,7 +83,7 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 				}
 			}
 
-			pathWalk(rule, markReverseRule, "Router")
+			c.pathWalk(rule, markReverseRule, "Router")
 			cache[pair{srcPath, dstPath}] = hasStatelessRouter
 		}
 		if !hasStatelessRouter {
@@ -97,11 +97,11 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 		var srcRangeList []*proto
 		srcRange2prtList := make(map[*proto][]*proto)
 		for _, prt := range newPrtGroup {
-			newSrcRange := prtIP
+			newSrcRange := c.prt.IP
 			var newPrt *proto
 			switch prt.proto {
 			case "tcp":
-				newPrt = rangeTCPEstablished
+				newPrt = c.prt.TCPEsta
 			case "udp":
 				// Swap src and dst range.
 				if !(prt.ports[0] == 1 && prt.ports[1] == 65535) {
@@ -110,7 +110,7 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 				if rule.srcRange != nil {
 					newPrt = rule.srcRange
 				} else {
-					newPrt = prtUDP
+					newPrt = c.prt.UDP
 				}
 			default: // proto == "ip"
 				newPrt = prt
@@ -136,7 +136,7 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 				srcPath: dstPath,
 				dstPath: srcPath,
 			}
-			if srcRange != prtIP {
+			if srcRange != c.prt.IP {
 				newRule.srcRange = srcRange
 			}
 
@@ -149,6 +149,6 @@ func genReverseRules1(rules []*groupedRule) []*groupedRule {
 
 func (c *spoc) genReverseRules() {
 	c.progress("Generating reverse rules for stateless routers")
-	pRules.deny = genReverseRules1(pRules.deny)
-	pRules.permit = genReverseRules1(pRules.permit)
+	c.allPathRules.deny = c.genReverseRules1(c.allPathRules.deny)
+	c.allPathRules.permit = c.genReverseRules1(c.allPathRules.permit)
 }

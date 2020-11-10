@@ -1,31 +1,28 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"sort"
 	"strings"
 )
 
 /* SetPath adds navigation information to the nodes of the graph to
 /* enable fast path traversal; identifies loops and performs
 /* consistency checks on pathrestrictions and virtual interfaces.*/
-func SetPath() {
-	diag.Progress("Preparing fast path traversal")
-	findDistsAndLoops()
-	processLoops()
-	checkPathrestrictions()
-	checkVirtualInterfaces()
-	removeRedundantPathrestrictions()
+func (c *spoc) setPath() {
+	c.progress("Preparing fast path traversal")
+	c.findDistsAndLoops()
+	c.processLoops()
+	c.checkPathrestrictions()
+	c.checkVirtualInterfaces()
+	c.removeRedundantPathrestrictions()
 }
 
 /* findDistsAndLoops sets direction and distances to an arbitrary
 /* chosen start zone. Identifies loops inside the graph topology, tags
 /* nodes of a cycle with a common loop object and distance. Checks for
 /* multiple unconnected parts of topology.*/
-func findDistsAndLoops() {
-	if len(zones) == 0 {
-		abort.Msg("topology seems to be empty")
+func (c *spoc) findDistsAndLoops() {
+	if len(c.allZones) == 0 {
+		c.abort("topology seems to be empty")
 	}
 
 	startDistance := 0
@@ -33,7 +30,7 @@ func findDistsAndLoops() {
 	var partition2Routers = make(map[*zone][]*router)
 
 	// Find one or more connected partitions in whole topology.
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		var partitionRouters []*router
 
 		// Zone is part of previously processed partition.
@@ -59,7 +56,7 @@ func findDistsAndLoops() {
 
 	unconnectedPartitions := extractPartitionsConnectedBySplitRouter(partitions,
 		partition2Routers)
-	checkProperPartitionUsage(unconnectedPartitions)
+	c.checkProperPartitionUsage(unconnectedPartitions)
 }
 
 /* setPathObj prepares efficient topology traversal, finds a path from
@@ -225,14 +222,14 @@ Partition:
 	return unconnectedPartitions
 }
 
-func checkProperPartitionUsage(unconnectedPartitions []*zone) {
+func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 
-	partitions2PartitionTags := mapPartitions2PartitionTags()
+	partitions2PartitionTags := c.mapPartitions2PartitionTags()
 
 	// Several Partition Tags for single zone - generate error.
 	for zone1 := range partitions2PartitionTags {
 		if len(partitions2PartitionTags[zone1]) > 1 {
-			errMsg("Several partition names in partition %s:\n - %s",
+			c.err("Several partition names in partition %s:\n - %s",
 				zone1.name, strings.Join(partitions2PartitionTags[zone1], "\n - "))
 		}
 	}
@@ -251,20 +248,20 @@ func checkProperPartitionUsage(unconnectedPartitions []*zone) {
 	}
 
 	// Named single unconneted partition - generate warning.
-	warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
-	warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
+	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
 
 	// Several Unconnected Partitions without tags - generate Error.
-	errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
 		partitions2PartitionTags)
-	errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
+	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
 		partitions2PartitionTags)
 }
 
-func mapPartitions2PartitionTags() map[*zone][]string {
+func (c *spoc) mapPartitions2PartitionTags() map[*zone][]string {
 
 	var zonesWithPartitionTag []*zone
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.partition != "" {
 			zonesWithPartitionTag = append(zonesWithPartitionTag, z)
 		}
@@ -281,17 +278,20 @@ func mapPartitions2PartitionTags() map[*zone][]string {
 	return partitions2PartitionTags
 }
 
-func warnAtNamedSingleUnconnectedPartition(unconnectedPartitions []*zone) {
+func (c *spoc) warnAtNamedSingleUnconnectedPartition(
+	unconnectedPartitions []*zone) {
+
 	if len(unconnectedPartitions) == 1 {
 		var partitionName = unconnectedPartitions[0].partition
 		if partitionName != "" {
-			warnMsg("Spare partition name for single partition %s: %s.",
+			c.warn("Spare partition name for single partition %s: %s.",
 				unconnectedPartitions[0].name, partitionName)
 		}
 	}
 }
 
-func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
+func (c *spoc) errorOnUnnamedUnconnectedPartitions(
+	unconnectedPartitions []*zone,
 	partitions2PartitionTags map[*zone][]string) {
 
 	if len(unconnectedPartitions) > 1 {
@@ -313,7 +313,7 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 			for _, zone1 := range unnamedUnconnectedPartitions {
 				zone1Names.push(zone1.name)
 			}
-			errMsg("%s topology has unconnected parts:\n"+
+			c.err("%s topology has unconnected parts:\n"+
 				"%s\n Use partition attribute, if intended.",
 				ipVersion, zone1Names.nameList())
 		}
@@ -323,77 +323,71 @@ func errorOnUnnamedUnconnectedPartitions(unconnectedPartitions []*zone,
 /* processLoops includes node objects and interfaces of nested loops
 /* in the containing loop; adds loop cluster exits; adjusts distances of
 /* loop nodes.*/
-func processLoops() {
-
-	var pathNodeRouters []*router
-	pathNodeRouters = getPathNodeRouters()
-
-	var pathNodeObjects []pathObj
-	for _, zone := range zones {
-		pathNodeObjects = append(pathNodeObjects, zone)
-	}
-	for _, obj := range pathNodeRouters {
-		pathNodeObjects = append(pathNodeObjects, obj)
-	}
-
-	for _, obj := range pathNodeObjects {
-		myLoop := obj.getLoop()
-		if myLoop == nil {
-			continue
+func (c *spoc) processLoops() {
+	processObj := func(obj pathObj) {
+		lo := obj.getLoop()
+		if lo == nil {
+			return
 		}
 
-		myLoop = findOuterLoop(myLoop)
-		obj.setLoop(myLoop)
+		lo = findOuterLoop(lo)
+		obj.setLoop(lo)
 
 		// Needed for cactus graph loop clusters.
-		setLoopClusterExit(myLoop)
+		setLoopClusterExit(lo)
 
 		// Set distance of loop node to value of cluster exit.
-		obj.setDistance(myLoop.clusterExit.getDistance())
+		obj.setDistance(lo.clusterExit.getDistance())
 	}
 
 	// Include sub-loop IFs into containing loop with exit closest to zone1.
-	for _, pathNodeRouter := range pathNodeRouters {
-		for _, myIntf := range pathNodeRouter.intfList() {
-			if myIntf.loop == nil {
-				continue
+	processRouter := func(pathNodeRouter *router) {
+		for _, intf := range pathNodeRouter.intfList() {
+			if intf.loop != nil {
+				intf.loop = findOuterLoop(intf.loop)
 			}
-			myIntf.loop = findOuterLoop(myIntf.loop)
+		}
+	}
+
+	for _, obj := range c.allZones {
+		processObj(obj)
+	}
+	for _, obj := range c.allRouters {
+		if obj.managed != "" || obj.semiManaged {
+			processObj(obj)
+			processRouter(obj)
 		}
 	}
 }
 
-func findOuterLoop(l *loop) *loop {
+func findOuterLoop(lo *loop) *loop {
 	for {
-		if l.redirect != nil {
-			l = l.redirect
-			continue
-		} else {
-			break
+		if lo.redirect == nil {
+			return lo
 		}
+		lo = lo.redirect
 	}
-	return l
 }
 
 /* setLoopClusterExit identifies clusters of directly connected loops
 /* in cactus graphs. Finds exit node of loop cluster or single loop in
 /* direction to zone1; adds this exit node as marker to all loop
 /* objects of the cluster.*/
-func setLoopClusterExit(myLoop *loop) pathObj {
+func setLoopClusterExit(lo *loop) pathObj {
 
-	if myLoop.clusterExit != nil {
-		return myLoop.clusterExit
+	if lo.clusterExit != nil {
+		return lo.clusterExit
 	}
 
-	exitNode := myLoop.exit
+	exitNode := lo.exit
 
 	// Exit node references itself: loop cluster exit found.
-	if exitNode.getLoop() == myLoop {
+	if exitNode.getLoop() == lo {
 
 		/*debug("Loop %s, %d is in cluster %s",
-		exit.String(), myLoop.distance, exit.String());//*/
-		myLoop.clusterExit = exitNode
-		//		return myLoop.clusterExit
+		exit.String(), lo.distance, exit.String());//*/
+		lo.clusterExit = exitNode
+		//		return lo.clusterExit
 		return exitNode
 	}
 
@@ -401,22 +395,20 @@ func setLoopClusterExit(myLoop *loop) pathObj {
 	clusterExit := setLoopClusterExit(exitNode.getLoop())
 
 	/*debug("Loop %s, %d is in cluster %s", exit.String(),
-	myLoop.distance, cluster.String());//*/
-	myLoop.clusterExit = clusterExit
-	return myLoop.clusterExit
+	lo.distance, cluster.String());//*/
+	lo.clusterExit = clusterExit
+	return lo.clusterExit
 }
 
-var effectivePathrestrictions []*pathRestriction
-
-/* checkPathrestrictions collects proper & effective pathrestrictions
-/* in a global array. Pathrestrictions have to fulfill
-/* followingrequirements:
+/* checkPathrestrictions removes pathrestrictions, that aren't proper
+/* and effective.
+/* Pathrestrictions have to fulfill following requirements:
  - Located inside or at the border of cycles.
  - At least 2 interfaces per pathrestriction.
  - Have an effect on ACL generation. */
-func checkPathrestrictions() {
+func (c *spoc) checkPathrestrictions() {
 
-	for _, restrict := range pathrestrictions {
+	for _, restrict := range c.pathrestrictions {
 
 		if len(restrict.elements) == 0 {
 			continue
@@ -424,7 +416,7 @@ func checkPathrestrictions() {
 
 		// Delete invalid elements of pathrestriction.
 		var toBeDeleted []*routerIntf
-		toBeDeleted = identifyRestrictedIntfsInWrongOrNoLoop(restrict)
+		toBeDeleted = c.identifyRestrictedIntfsInWrongOrNoLoop(restrict)
 
 		// Ignore pathrestriction with only one element.
 		if len(toBeDeleted)+1 == len(restrict.elements) {
@@ -447,21 +439,23 @@ func checkPathrestrictions() {
 		}
 
 		if pathrestrictionHasNoEffect(restrict) {
-			warnMsg("Useless %s.\n All interfaces are unmanaged and located "+
+			c.warn("Useless %s.\n All interfaces are unmanaged and located "+
 				"inside the same security zone", restrict.name)
 			restrict.elements = nil
 		}
 	}
 
-	// Collect all effective pathrestrictions.
-	for _, restrict := range pathrestrictions {
-		if restrict.elements != nil {
-			effectivePathrestrictions = append(effectivePathrestrictions, restrict)
+	// Collect effective pathrestrictions.
+	var effective []*pathRestriction
+	for _, restrict := range c.pathrestrictions {
+		if len(restrict.elements) != 0 {
+			effective = append(effective, restrict)
 		}
 	}
+	c.pathrestrictions = effective
 }
 
-func identifyRestrictedIntfsInWrongOrNoLoop(
+func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 	restrict *pathRestriction) []*routerIntf {
 
 	var misplacedRestricts []*routerIntf
@@ -475,7 +469,7 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 		}
 
 		if loop == nil {
-			warnMsg("Ignoring %s at %s\n because it isn't located "+
+			c.warn("Ignoring %s at %s\n because it isn't located "+
 				"inside cyclic graph", restrict.name, intf.name)
 			misplacedRestricts = append(misplacedRestricts, intf)
 			continue
@@ -485,7 +479,7 @@ func identifyRestrictedIntfsInWrongOrNoLoop(
 		cluster := loop.clusterExit
 		if prevCluster != nil {
 			if cluster != prevCluster {
-				warnMsg("Ignoring %s having elements from different loops:\n"+
+				c.warn("Ignoring %s having elements from different loops:\n"+
 					" - %s\n - %s", restrict.name, prevInterface.name, intf.name)
 				misplacedRestricts = restrict.elements
 				break
@@ -636,10 +630,10 @@ func getIntfLoop(intf *routerIntf) *loop {
 
 /* checkVirtualInterfaces assures interfaces with identical virtual IP
 /* are located inside the same loop.*/
-func checkVirtualInterfaces() {
+func (c *spoc) checkVirtualInterfaces() {
 	var seen = make(map[*routerIntf]bool)
 
-	for _, intf := range virtualInterfaces {
+	for _, intf := range c.virtualInterfaces {
 		if intf.redundancyIntfs == nil {
 			continue
 		}
@@ -665,7 +659,7 @@ func checkVirtualInterfaces() {
 		var err bool
 		for _, virtIntf := range intf.redundancyIntfs {
 			if virtIntf.router.loop == nil {
-				errMsg("%s must be located inside cyclic sub-graph", virtIntf.name)
+				c.err("%s must be located inside cyclic sub-graph", virtIntf.name)
 				err = true
 			}
 		}
@@ -686,7 +680,7 @@ func checkVirtualInterfaces() {
 				for _, virtIntf := range intf.redundancyIntfs {
 					virtIntfNames.push(virtIntf.name)
 				}
-				errMsg("Virtual interfaces\n%s\n must all be part of the "+
+				c.err("Virtual interfaces\n%s\n must all be part of the "+
 					"same cyclic sub-graph", virtIntfNames.nameList())
 				break
 			}
@@ -694,104 +688,50 @@ func checkVirtualInterfaces() {
 	}
 }
 
-func removeRedundantPathrestrictions() {
-
-	intf2restrictions := make(map[*routerIntf]map[*pathRestriction]bool)
-	for _, restrict := range effectivePathrestrictions {
-		for _, element := range restrict.elements {
-			if intf2restrictions[element] == nil {
-				intf2restrictions[element] = make(
-					map[*pathRestriction]bool)
-			}
-			intf2restrictions[element][restrict] = true
-		}
-	}
-
-	for _, restrict := range effectivePathrestrictions {
-		superset := findContainingPathRestrictions(restrict, intf2restrictions)
-		if superset != nil {
-			restrict.deleted = superset
-			deletePathrestrictionFromInterfaces(restrict)
-		}
-	}
-	if diag.Active() {
-		for _, restrict := range effectivePathrestrictions {
-			if restrict.deleted == nil {
-				continue
-			}
-			superset := restrict.deleted
-			var oName stringList
-			for _, containingRestrict := range superset {
-				oName.push(containingRestrict.name)
-			}
-			sort.Strings(oName)
-			names := strings.Join(oName, ", ")
-			msg := "Removed " + restrict.name + "; is subset of " + names
-			diag.Msg(msg)
-		}
-	}
-
-	var part []*pathRestriction
-	for _, restrict := range effectivePathrestrictions {
-		if restrict.deleted != nil {
-			part = append(part, restrict)
-		}
-	}
-	effectivePathrestrictions = part
+type prIntfKey struct {
+	pr   *pathRestriction
+	intf *routerIntf
 }
 
-func findContainingPathRestrictions(restrict *pathRestriction,
-	intf2restrictions map[*routerIntf]map[*pathRestriction]bool) []*pathRestriction {
+func (c *spoc) removeRedundantPathrestrictions() {
 
-	if len(restrict.elements) == 0 {
-		return nil
-	}
-
-	intf1 := restrict.elements[0]
-
-	// collect potential superset pathrestrictions:
-	// Restrictions of equal/bigger size sharing Intf1
-	var potentialSupersets []*pathRestriction
-	for otherRestrict := range intf2restrictions[intf1] {
-		if len(otherRestrict.elements) >= len(restrict.elements) {
-			potentialSupersets = append(potentialSupersets, otherRestrict)
+	intf2restrictions := make(map[prIntfKey]bool)
+	for _, restrict := range c.pathrestrictions {
+		for _, element := range restrict.elements {
+			intf2restrictions[prIntfKey{pr: restrict, intf: element}] = true
 		}
 	}
-	if len(potentialSupersets) < 2 {
-		return nil
-	}
 
-	superset := potentialSupersets
-
-	for _, intfX := range restrict.elements {
-		if intfX == intf1 {
-			continue
+	var valid []*pathRestriction
+	for _, restrict := range c.pathrestrictions {
+		other := findContainingPathRestriction(restrict, intf2restrictions)
+		if other != nil {
+			deletePathrestrictionFromInterfaces(restrict)
+			c.diag("Removed %s; is subset of %s", restrict.name, other.name)
+		} else {
+			valid = append(valid, restrict)
 		}
+	}
+	c.pathrestrictions = valid
+}
 
-		//remove restrictions without IntfX from superset
-		var nextSuperset []*pathRestriction
-		restrictsWithIntfX := intf2restrictions[intfX]
+// Find pathrestriction of equal/bigger size sharing all elements of
+// restrict.
+func findContainingPathRestriction(restrict *pathRestriction,
+	intf2restrictions map[prIntfKey]bool) *pathRestriction {
 
-		for _, restrict2 := range superset {
-
-			if restrict2 == restrict {
-				continue
+OTHER:
+	for _, other := range restrict.elements[0].pathRestrict {
+		if other != restrict && len(other.elements) >= len(restrict.elements) {
+			for _, intf := range restrict.elements[1:] {
+				if !intf2restrictions[prIntfKey{pr: other, intf: intf}] {
+					continue OTHER
+				}
 			}
-			if restrict2.deleted != nil {
-				continue
-			}
-			if restrictsWithIntfX[restrict2] {
-				nextSuperset = append(nextSuperset, restrict2)
-			}
-		}
-		superset = nextSuperset
-
-		// Pathrestriction is not redundant if superset is empty
-		if len(superset) == 0 {
-			return nil
+			return other
 		}
 	}
-	return superset
+	return nil
 }
 
 func deletePathrestrictionFromInterfaces(restrict *pathRestriction) {
@@ -815,15 +755,4 @@ func deletePathRestrictionFrom(
 		}
 	}
 	return slice
-}
-
-// Collect routers that are path objects because they connect zones
-func getPathNodeRouters() []*router {
-	var pathRouters []*router
-	for _, pathRouter := range allRouters {
-		if pathRouter.managed != "" || pathRouter.semiManaged {
-			pathRouters = append(pathRouters, pathRouter)
-		}
-	}
-	return pathRouters
 }

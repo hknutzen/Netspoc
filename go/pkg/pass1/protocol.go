@@ -13,50 +13,43 @@ func expandSplitProtocol(p *proto) protoList {
 	}
 }
 
-// Split protocols.
-// Result:
-// list of elements
-// - non TCP/UDP protocol
-// - dstRange of (split) TCP/UDP protocol
-// - [ srcRange, dstRange, origPrt ]
-//   of (split) protocol having src_range or main_prt.
-func splitProtocols(l protoList) []interface{} {
-	var result []interface{}
+// Split and classify protocols.
+type modifiedProto struct {
+	prt       *proto
+	src       *proto
+	modifiers *modifiers
+}
+
+func classifyProtocols(l protoList) (protoList, []*modifiedProto) {
+	var simple protoList
+	var complex []*modifiedProto
 	for _, p := range l {
-		if !(p.proto == "tcp" || p.proto == "udp") {
-			result = append(result, p)
-			continue
+
+		// Use the main protocol, but retrieve .modifiers from original.
+		m := p.modifiers
+		if p.main != nil {
+			p = p.main
 		}
 
-		main := p.main
-		if main == nil {
-			main = p
-		}
-
-		// Collect split srcRange / dstRange pairs.
-		// Remember original protocol as third value
-		// - if srcRange is given or
-		// - if original protocol has modifiers.
-		// Cache list of triples at original protocol for re-use.
-		if p.modifiers != nil {
-			srcRange := p.modifiers.srcRange
-			cached := p.srcDstRangeList
-			if cached == nil {
+		hasPorts := p.proto == "tcp" || p.proto == "udp"
+		if m != nil || p.statelessICMP {
+			if !hasPorts {
+				complex = append(complex, &modifiedProto{p, nil, m})
+			} else {
+				srcRange := m.srcRange
 				for _, s := range expandSplitProtocol(srcRange) {
-					for _, d := range expandSplitProtocol(main) {
-						cached = append(cached, &complexProto{src: s, dst: d, orig: p})
+					for _, d := range expandSplitProtocol(p) {
+						complex = append(complex, &modifiedProto{d, s, m})
 					}
 				}
-				p.srcDstRangeList = cached
-			}
-			for _, c := range cached {
-				result = append(result, c)
 			}
 		} else {
-			for _, dstSplit := range expandSplitProtocol(main) {
-				result = append(result, dstSplit)
+			if !hasPorts {
+				simple.push(p)
+			} else {
+				simple = append(simple, expandSplitProtocol(p)...)
 			}
 		}
 	}
-	return result
+	return simple, complex
 }

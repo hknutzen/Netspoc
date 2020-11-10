@@ -79,6 +79,7 @@ go/pkg/filetree/walk.go
 go/pkg/jcode/types.go
 go/pkg/parser/parser.go
 go/pkg/pass1/address.go
+go/pkg/pass1/background.go
 go/pkg/pass1/check-dyn-nat-rules.go
 go/pkg/pass1/check-ip.go
 go/pkg/pass1/check-redundant.go

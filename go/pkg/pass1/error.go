@@ -2,61 +2,13 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"os"
 	"strings"
 )
 
-func info(format string, args ...interface{}) {
-	if conf.Conf.Verbose {
-		string := fmt.Sprintf(format, args...)
-		fmt.Fprintln(os.Stderr, string)
-	}
-}
-
 func debug(format string, args ...interface{}) {
-	info(format, args...)
-}
-
-func checkAbort() {
-	ErrorCounter++
-	if ErrorCounter >= conf.Conf.MaxErrors {
-		fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", ErrorCounter)
-		os.Exit(ErrorCounter)
-	}
-}
-
-func AbortOnError() {
-	if ErrorCounter > 0 {
-		fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", ErrorCounter)
-		os.Exit(ErrorCounter)
-	}
-}
-
-func errMsg(format string, args ...interface{}) {
-	string := "Error: " + fmt.Sprintf(format, args...)
+	string := fmt.Sprintf(format, args...)
 	fmt.Fprintln(os.Stderr, string)
-	checkAbort()
-}
-
-func internalErr(format string, args ...interface{}) {
-	AbortOnError()
-	string := "Internal error: " + fmt.Sprintf(format, args...)
-	fmt.Fprintln(os.Stderr, string)
-	checkAbort()
-}
-
-func warnMsg(format string, args ...interface{}) {
-	string := "Warning: " + fmt.Sprintf(format, args...)
-	fmt.Fprintln(os.Stderr, string)
-}
-
-func warnOrErrMsg(errType conf.TriState, format string, args ...interface{}) {
-	if errType == "warn" {
-		warnMsg(format, args...)
-	} else {
-		errMsg(format, args...)
-	}
 }
 
 func (l intfList) nameList() string {

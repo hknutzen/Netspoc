@@ -12,48 +12,46 @@ import (
 // to manage the device from a central policy distribution point (PDP).
 // This address is added as a comment line to each generated code file.
 // This is to be used later when approving the generated code file.
-func (c *spoc) SetPolicyDistributionIP() {
+func (c *spoc) setPolicyDistributionIP() {
 	c.progress("Setting policy distribution IP")
 
 	needAll := conf.Conf.CheckPolicyDistributionPoint
 	var pdpRouters []*router
 	seen := make(map[*router]bool)
-	var missing stringerList
+	var missing stringList
 	collect := func(list []*router) {
 		for _, r := range list {
-			if r.policyDistributionPoint != nil {
-				pdpRouters = append(pdpRouters, r)
+			if seen[r] || r.origRouter != nil {
 				continue
 			}
-			if needAll == "" {
-				continue
-			}
-			if seen[r] {
-				continue
-			}
-			if r.origRouter != nil {
-				continue
-			}
-			if list := r.ipvMembers; list != nil {
-				found := false
-				for _, m := range list {
-					if m.policyDistributionPoint != nil {
-						found = true
-					}
+			if l := r.ipvMembers; l != nil {
+				var found *host
+				for _, m := range l {
 					seen[m] = true
+					if p := m.policyDistributionPoint; p != nil {
+						pdpRouters = append(pdpRouters, m)
+						if found != nil && found != p {
+							c.err("Instances of router:%s must not use different"+
+								" 'policy_distribution_point':\n -%s\n -%s",
+								m.deviceName, found, p)
+							break
+						} else {
+							found = p
+						}
+					}
 				}
-				if found {
-					continue
+				if found == nil && needAll != "" {
+					missing.push("at least one instance of router:" + r.deviceName)
 				}
-				r = &router{
-					name: "at least one instance of router:" + r.deviceName,
-				}
+			} else if r.policyDistributionPoint != nil {
+				pdpRouters = append(pdpRouters, r)
+			} else if needAll != "" {
+				missing.push(r.name)
 			}
-			missing = append(missing, r)
 		}
 	}
-	collect(managedRouters)
-	collect(routingOnlyRouters)
+	collect(c.managedRouters)
+	collect(c.routingOnlyRouters)
 	if count := len(missing); count > 0 {
 		c.warnOrErr(needAll,
 			"Missing attribute 'policy_distribution_point' for %d devices:\n"+
@@ -85,7 +83,7 @@ func (c *spoc) SetPolicyDistributionIP() {
 	}
 
 	router2foundInterfaces := make(map[*router]map[*routerIntf]bool)
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 		var r *router
 		switch x := rule.dstPath.(type) {
 		case *zone:
@@ -146,7 +144,7 @@ func (c *spoc) SetPolicyDistributionIP() {
 		} else {
 
 			// debug("%s: %d", router->{name}, len(intfMap));
-			frontList := pathRouterInterfaces(r, pdp)
+			frontList := c.pathRouterInterfaces(r, pdp)
 
 			// If multiple management interfaces were found, take that which is
 			// directed to policy_distribution_point.

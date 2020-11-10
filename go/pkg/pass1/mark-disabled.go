@@ -53,7 +53,7 @@ func disableBehind(in *routerIntf) {
 	}
 }
 
-func MarkDisabled() {
+func (c *spoc) markDisabled() {
 	var disabled intfList
 	for _, intf := range symTable.routerIntf {
 		if intf.disabled {
@@ -72,7 +72,7 @@ func MarkDisabled() {
 			// which seems to be part of a loop.
 			// This is dangerous, since the whole topology
 			// may be disabled by accident.
-			errMsg("%s must not be disabled,\n"+
+			c.err("%s must not be disabled,\n"+
 				" since it is part of a loop", intf)
 		}
 	}
@@ -139,17 +139,17 @@ func MarkDisabled() {
 	sort.Slice(rl, func(i, j int) bool {
 		return rl[i].name < rl[j].name
 	})
-	rl = append(rl, routerFragments...)
+	rl = append(rl, c.routerFragments...)
 
 	for _, r := range rl {
 		if r.disabled {
 			continue
 		}
-		allRouters = append(allRouters, r)
+		c.allRouters = append(c.allRouters, r)
 		if r.managed != "" {
-			managedRouters = append(managedRouters, r)
+			c.managedRouters = append(c.managedRouters, r)
 		} else if r.routingOnly {
-			routingOnlyRouters = append(routingOnlyRouters, r)
+			c.routingOnlyRouters = append(c.routingOnlyRouters, r)
 		}
 	}
 
@@ -157,7 +157,7 @@ func MarkDisabled() {
 	// Also collect all IPv4 and IPv6 routers with same name.
 	sameIPvDevice := make(map[string][]*router)
 	sameDevice := make(map[string][]*router)
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		if r.origRouter != nil {
 			continue
 		}
@@ -182,7 +182,7 @@ func MarkDisabled() {
 		m1 := getModel(l[0])
 		for _, r := range l[1:] {
 			if m1 != getModel(r) {
-				errMsg("All instances of router:%s must have identical model",
+				c.err("All instances of router:%s must have identical model",
 					l[0].deviceName)
 				break
 			}
@@ -202,7 +202,7 @@ func MarkDisabled() {
 			for _, hw := range r.hardware {
 				name := hw.name
 				if r2 := sameHWDevice[name]; r2 != nil {
-					errMsg("Duplicate hardware '%s' at %s and %s",
+					c.err("Duplicate hardware '%s' at %s and %s",
 						name, r2, r)
 				} else {
 					sameHWDevice[name] = r
@@ -219,9 +219,9 @@ func MarkDisabled() {
 	// Don't sort by name because code shouldn't change if a network is renamed.
 	// Derive order from order of routers and interfaces.
 	seen := make(map[*network]bool)
-	for _, r := range allRouters {
+	for _, r := range c.allRouters {
 		if len(r.interfaces) == 0 {
-			errMsg("%s isn't connected to any network", r)
+			c.err("%s isn't connected to any network", r)
 			continue
 		}
 		for _, intf := range r.interfaces {
@@ -231,7 +231,7 @@ func MarkDisabled() {
 			n := intf.network
 			if !seen[n] {
 				seen[n] = true
-				allNetworks.push(n)
+				c.allNetworks.push(n)
 			}
 		}
 	}
@@ -245,20 +245,20 @@ func MarkDisabled() {
 			continue
 		}
 		if len(symTable.network) > 1 || len(symTable.router) > 0 {
-			errMsg("%s isn't connected to any router", n)
+			c.err("%s isn't connected to any router", n)
 			n.disabled = true
 			for _, h := range n.hosts {
 				h.disabled = true
 			}
 		} else {
-			allNetworks.push(n)
+			c.allNetworks.push(n)
 		}
 	}
 	var vl intfList
-	for _, intf := range virtualInterfaces {
+	for _, intf := range c.virtualInterfaces {
 		if !intf.disabled {
 			vl.push(intf)
 		}
 	}
-	virtualInterfaces = vl
+	c.virtualInterfaces = vl
 }

@@ -573,12 +573,12 @@ func generateRoutingTree1(rule *groupedRule, isIntf string, tree routingTree) {
 //           the whole grouped rule set. As the pseudo rules are
 //           generated to determine routes, ports are omitted, and rules
 //           refering to the same src and dst zones are summarized.
-func generateRoutingTree() routingTree {
+func (c *spoc) generateRoutingTree() routingTree {
 	tree := make(routingTree)
 
 	// Special handling needed for rules grouped not at zone pairs but
 	// grouped at routers.
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 
 		// debug(rule.print())
 		if _, ok := rule.srcPath.(*zone); ok {
@@ -629,7 +629,7 @@ func generateRoutingTree() routingTree {
 // Results    : Every interface object holds next hop routing information
 //              for the rules of original ruleset requiring a path passing the
 //              interface.
-func generateRoutingInfo(tree routingTree) {
+func (c *spoc) generateRoutingInfo(tree routingTree) {
 
 	// Process every pseudo rule. Within its {path} attribute....
 	for _, pRule := range tree {
@@ -661,7 +661,7 @@ func generateRoutingInfo(tree routingTree) {
 				pathExits = append(pathExits, inIntf)
 			}
 		}
-		pathWalk(&pRule.groupedRule, getRoutePath, "Zone")
+		c.pathWalk(&pRule.groupedRule, getRoutePath, "Zone")
 
 		// Determine routing information for every interface pair.
 		for _, tuple := range path {
@@ -737,15 +737,15 @@ func (c *spoc) findActiveRoutes() {
 	}
 
 	// Generate navigation information for routing inside zones.
-	for _, zone := range zones {
+	for _, zone := range c.allZones {
 		setRoutesInZone(zone)
 	}
 
 	// Generate pseudo rule set with all src dst pairs to determine routes for.
-	tree := generateRoutingTree()
+	tree := c.generateRoutingTree()
 
 	// Generate routing info for every pseudo rule and store it in interfaces.
-	generateRoutingInfo(tree)
+	c.generateRoutingInfo(tree)
 
 	c.checkAndConvertRoutes()
 }
@@ -824,8 +824,8 @@ func (c *spoc) checkAndConvertRoutes() {
 			}
 		}
 	}
-	fixBridged(managedRouters)
-	fixBridged(routingOnlyRouters)
+	fixBridged(c.managedRouters)
+	fixBridged(c.routingOnlyRouters)
 
 	checkAndConvert := func(list []*router) {
 		for _, router := range list {
@@ -876,7 +876,7 @@ func (c *spoc) checkAndConvertRoutes() {
 							zoneHops.push(outIntf)
 						}
 					}
-					singlePathWalk(realIntf, peerNet, walk, "Zone")
+					c.singlePathWalk(realIntf, peerNet, walk, "Zone")
 					routeInZone := realIntf.routeInZone
 					for _, hop := range zoneHops {
 						hopNet := hop.network
@@ -1096,6 +1096,6 @@ func (c *spoc) checkAndConvertRoutes() {
 			}
 		}
 	}
-	checkAndConvert(managedRouters)
-	checkAndConvert(routingOnlyRouters)
+	checkAndConvert(c.managedRouters)
+	checkAndConvert(c.routingOnlyRouters)
 }

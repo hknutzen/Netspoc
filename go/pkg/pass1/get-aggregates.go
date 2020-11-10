@@ -12,7 +12,7 @@ import (
 // Purpose  : Link aggregate and zone via references in both objects, set
 //            aggregate properties according to those of the linked zone.
 //            Store aggregates in networks (providing all srcs and dsts).
-func linkAggregateToZone(agg *network, z *zone, key ipmask) {
+func (c *spoc) linkAggregateToZone(agg *network, z *zone, key ipmask) {
 
 	// Link aggregate with zone.
 	agg.zone = z
@@ -24,7 +24,7 @@ func linkAggregateToZone(agg *network, z *zone, key ipmask) {
 	}
 
 	// Store aggregate in global list of networks.
-	allNetworks.push(agg)
+	c.allNetworks.push(agg)
 }
 
 //#############################################################################
@@ -34,7 +34,7 @@ func linkAggregateToZone(agg *network, z *zone, key ipmask) {
 // .up is relation inside set of all networks and aggregates.
 // .networks is attribute of aggregates and networks,
 //            but value is list of networks.
-func linkImplicitAggregateToZone(agg *network, z *zone, key ipmask) {
+func (c *spoc) linkImplicitAggregateToZone(agg *network, z *zone, key ipmask) {
 
 	ip := net.IP(key.ip)
 	mask := net.IPMask(key.mask)
@@ -118,7 +118,7 @@ func linkImplicitAggregateToZone(agg *network, z *zone, key ipmask) {
 		}
 	}
 
-	linkAggregateToZone(agg, z, key)
+	c.linkAggregateToZone(agg, z, key)
 }
 
 //#############################################################################
@@ -131,7 +131,7 @@ func linkImplicitAggregateToZone(agg *network, z *zone, key ipmask) {
 //            networks matching the aggregates IP address.
 // TDOD     : Aggregate may be a non aggregate network,
 //            e.g. a network with ip/mask 0/0. ??
-func duplicateAggregateToCluster(agg *network, implicit bool) {
+func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	cluster := agg.zone.zoneCluster
 	ip := agg.ip
 	mask := agg.mask
@@ -157,14 +157,16 @@ func duplicateAggregateToCluster(agg *network, implicit bool) {
 
 		// Link new aggregate object and cluster
 		if implicit {
-			linkImplicitAggregateToZone(agg2, z, key)
+			c.linkImplicitAggregateToZone(agg2, z, key)
 		} else {
-			linkAggregateToZone(agg2, z, key)
+			c.linkAggregateToZone(agg2, z, key)
 		}
 	}
 }
 
-func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
+func (c *spoc) getAny(
+	z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
+
 	if ip == nil {
 		ip = getZeroIp(z.ipV6)
 		mask = getZeroMask(z.ipV6)
@@ -202,7 +204,7 @@ func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 
 			// Create aggregates in cluster, using the name of the network.
 			if cluster != nil {
-				duplicateAggregateToCluster(net, true)
+				c.duplicateAggregateToCluster(net, true)
 			}
 		} else {
 
@@ -222,9 +224,9 @@ func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 			agg.invisible = !visible
 			agg.ipV6 = z.ipV6
 
-			linkImplicitAggregateToZone(agg, z, key)
+			c.linkImplicitAggregateToZone(agg, z, key)
 			if cluster != nil {
-				duplicateAggregateToCluster(agg, true)
+				c.duplicateAggregateToCluster(agg, true)
 			}
 		}
 	}
@@ -249,7 +251,7 @@ func getAny(z *zone, ip net.IP, mask net.IPMask, visible bool) netList {
 				if !nat.hidden {
 					pIp := ip.String()
 					prefix, _ := mask.Size()
-					errMsg("Must not use aggregate with IP " +
+					c.err("Must not use aggregate with IP " +
 						pIp + "/" + strconv.Itoa(prefix) +
 						" in " + z.name + "\n" +
 						" because " + aggOrNet.name +

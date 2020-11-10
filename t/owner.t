@@ -476,10 +476,10 @@ router:r2 = {
 END
 
 $out = <<'END';
-Warning: Useless owner:o2 at router:r2,
- it was already inherited from router_attributes of area:a2
 Warning: Useless owner:o1 at router:r1,
  it was already inherited from router_attributes of area:all
+Warning: Useless owner:o2 at router:r2,
+ it was already inherited from router_attributes of area:a2
 END
 
 test_warn($title, $in, $out);

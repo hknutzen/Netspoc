@@ -287,14 +287,14 @@ func (c *spoc) showFullyRedundantRules() {
 	if action == "" {
 		return
 	}
-	sNames := make([]string, 0, len(services))
-	for name := range services {
+	sNames := make([]string, 0, len(symTable.service))
+	for name := range symTable.service {
 		sNames = append(sNames, name)
 	}
 	sort.Strings(sNames)
 	keep := make(map[*service]bool)
 	for _, name := range sNames {
-		service := services[name]
+		service := symTable.service[name]
 		if keep[service] {
 			continue
 		}
@@ -314,7 +314,7 @@ func (c *spoc) showFullyRedundantRules() {
 
 func (c *spoc) warnUnusedOverlaps() {
 	var errList []string
-	for _, service := range services {
+	for _, service := range symTable.service {
 		if service.disabled {
 			continue
 		}
@@ -426,7 +426,7 @@ func (c *spoc) buildRuleTree(
 
 		if rule.deny || rule.stateless || srcRange != nil {
 			if srcRange == nil {
-				srcRange = prtIP
+				srcRange = c.prt.IP
 			}
 			midTree = ruleTree.add(rule.stateless).add(rule.deny).add(srcRange)
 		} else {
@@ -451,7 +451,7 @@ func (c *spoc) buildRuleTree(
 
 	// Insert simpleTree into ruleTree.
 	if len(simpleTree) != 0 {
-		ruleTree.add(false).add(false)[prtIP] = simpleTree
+		ruleTree.add(false).add(false)[c.prt.IP] = simpleTree
 	}
 	return ruleTree, count
 }
@@ -553,8 +553,8 @@ func (c *spoc) checkRedundantRules() {
 			path2rules[key] = append(path2rules[key], rule)
 		}
 	}
-	add(pRules.deny)
-	add(pRules.permit)
+	add(c.allPathRules.deny)
+	add(c.allPathRules.permit)
 	for _, rules := range path2rules {
 		expandedRules := expandRules(rules)
 		count += len(expandedRules)

@@ -356,7 +356,7 @@ func (c *spoc) markSecondaryRules() {
 
 	secondaryMark := 1
 	primaryMark := 1
-	for _, zone := range zones {
+	for _, zone := range c.allZones {
 		if zone.secondaryMark == 0 {
 			markSecondary(zone, secondaryMark)
 			secondaryMark++
@@ -371,7 +371,7 @@ func (c *spoc) markSecondaryRules() {
 	// Don't modify a deny rule from e.g. tcp to ip.
 	// Collect conflicting optimizeable rules and supernet rules.
 	conflict := make(map[conflictKey]*conflictInfo)
-	for _, rule := range pRules.permit {
+	for _, rule := range c.allPathRules.permit {
 		srcZone := getZone(rule.srcPath, rule.src)
 		if srcZone == nil {
 			continue

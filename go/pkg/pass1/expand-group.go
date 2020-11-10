@@ -43,18 +43,13 @@ func expandTypedName(typ, name string) ipVxGroupObj {
 	return obj
 }
 
-// Cache created autointerface objects.
-var routerAutoInterfaces = make(map[*router]*autoIntf)
-
 type networkAutoIntfKey = struct {
 	network *network
 	managed bool
 }
 
-var networkAutoInterfaces = make(map[networkAutoIntfKey]*autoIntf)
-
 // Create autoIntf from router.
-func getRouterAutoIntf(r *router) *autoIntf {
+func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 	// Restore effect of split router from transformation in
 	// split_semi_managed_router and move_locked_interfaces.
@@ -66,24 +61,24 @@ func getRouterAutoIntf(r *router) *autoIntf {
 		return nil
 	}
 
-	result := routerAutoInterfaces[r]
+	result := c.routerAutoInterfaces[r]
 	if result == nil {
 		name := "interface:" + strings.TrimPrefix(r.name, "router:") + ".[auto]"
 		result = &autoIntf{
 			name:   name,
 			object: r,
 		}
-		routerAutoInterfaces[r] = result
+		c.routerAutoInterfaces[r] = result
 	}
 	return result
 }
 
 // Create autoIntf from network.
-func getNetworkAutoIntf(n *network, managed bool) *autoIntf {
+func (c *spoc) getNetworkAutoIntf(n *network, managed bool) *autoIntf {
 	if n.disabled {
 		return nil
 	}
-	result := networkAutoInterfaces[networkAutoIntfKey{n, managed}]
+	result := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
 	if result == nil {
 		name := "interface:[" + n.name + "].[auto]"
 		result = &autoIntf{
@@ -91,13 +86,13 @@ func getNetworkAutoIntf(n *network, managed bool) *autoIntf {
 			object:  n,
 			managed: managed,
 		}
-		networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
+		c.networkAutoInterfaces[networkAutoIntfKey{n, managed}] = result
 	}
 	return result
 }
 
 // Remove duplicate elements in place and warn about them.
-func removeDuplicates(list groupObjList, ctx string) groupObjList {
+func (c *spoc) removeDuplicates(list groupObjList, ctx string) groupObjList {
 	seen := make(map[groupObj]bool)
 	var duplicates stringList
 	j := 0
@@ -112,12 +107,12 @@ func removeDuplicates(list groupObjList, ctx string) groupObjList {
 	}
 	list = list[:j]
 	if duplicates != nil {
-		warnMsg("Duplicate elements in %s:\n"+duplicates.nameList(), ctx)
+		c.warn("Duplicate elements in %s:\n"+duplicates.nameList(), ctx)
 	}
 	return list
 }
 
-func expandIntersection(
+func (c *spoc) expandIntersection(
 	l []ast.Element, ctx string, ipv6, visible, withSubnets bool) groupObjList {
 
 	var nonCompl []groupObjList
@@ -129,7 +124,7 @@ func expandIntersection(
 		} else {
 			el1 = el
 		}
-		subResult := expandGroup1([]ast.Element{el1},
+		subResult := c.expandGroup1([]ast.Element{el1},
 			"intersection of "+ctx, ipv6, visible, withSubnets)
 		for _, obj := range subResult {
 			obj.setUsed()
@@ -141,7 +136,7 @@ func expandIntersection(
 		}
 	}
 	if nonCompl == nil {
-		errMsg("Intersection needs at least one element"+
+		c.err("Intersection needs at least one element"+
 			" which is not complement in %s", ctx)
 		return nil
 	}
@@ -161,7 +156,7 @@ func expandIntersection(
 	}
 	for _, el := range compl {
 		if _, found := intersect[el]; !found {
-			warnMsg("Useless delete of %s in %s", el, ctx)
+			c.warn("Useless delete of %s in %s", el, ctx)
 		} else {
 			delete(intersect, el)
 		}
@@ -201,7 +196,7 @@ func expandIntersection(
 			}
 			printable.push(info)
 		}
-		warnMsg("Empty intersection in %s:\n "+strings.Join(printable, "\n&"), ctx)
+		c.warn("Empty intersection in %s:\n "+strings.Join(printable, "\n&"), ctx)
 	}
 
 	return result
@@ -212,7 +207,8 @@ func expandIntersection(
 // Visible result from automatic group will be cleaned from duplicates.
 // Parameter 'withSubnets' controls if subnets of networks will be
 // added to result.
-func expandGroup1(list []ast.Element, ctx string, ipv6,
+func (c *spoc) expandGroup1(
+	list []ast.Element, ctx string, ipv6,
 	visible, withSubnets bool) groupObjList {
 
 	// Silently remove unnumbered, bridged and tunnel interfaces from
@@ -225,22 +221,22 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 		switch x := el.(type) {
 		case *ast.Intersection:
 			subResult :=
-				expandIntersection(x.Elements, ctx, ipv6, visible, withSubnets)
+				c.expandIntersection(x.Elements, ctx, ipv6, visible, withSubnets)
 			result = append(result, subResult...)
 		case *ast.Complement:
-			errMsg(
+			c.err(
 				"Complement (!) is only supported as part of intersection in %s",
 				ctx)
 		case *ast.User:
-			l := userObj.elements
+			l := c.userObj.elements
 			if l == nil {
-				errMsg("Unexpected reference to 'user' in %s", ctx)
+				c.err("Unexpected reference to 'user' in %s", ctx)
 			}
 			result = append(result, l...)
-			userObj.used = true
+			c.userObj.used = true
 		case *ast.IntfAuto:
 			selector, managed := x.Selector, x.Managed
-			subObjects := expandGroup1(
+			subObjects := c.expandGroup1(
 				x.Elements, "interface:[..].["+selector+"] of "+ctx,
 				ipv6, false, false)
 			routerSeen := make(map[*router]bool)
@@ -255,7 +251,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 							// aggregate -> networks -> interfaces,
 							// because subnets may be missing.
 							if size, _ := x.mask.Size(); size != 0 {
-								errMsg("Must not use interface:[..].[all]\n"+
+								c.err("Must not use interface:[..].[all]\n"+
 									" with %s having ip/mask\n"+
 									" in %s", x.name, ctx)
 							}
@@ -285,9 +281,9 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						}
 					} else {
 						if x.isAggregate {
-							errMsg("Must not use interface:[any:..].[auto] in %s",
+							c.err("Must not use interface:[any:..].[auto] in %s",
 								ctx)
-						} else if a := getNetworkAutoIntf(x, managed); a != nil {
+						} else if a := c.getNetworkAutoIntf(x, managed); a != nil {
 							result.push(a)
 						}
 					}
@@ -305,7 +301,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 								result.push(intf)
 							}
 						}
-					} else if a := getRouterAutoIntf(r); a != nil {
+					} else if a := c.getRouterAutoIntf(r); a != nil {
 						result.push(a)
 					}
 				case *area:
@@ -358,7 +354,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						}
 					} else {
 						for _, r := range routers {
-							if a := getRouterAutoIntf(r); a != nil {
+							if a := c.getRouterAutoIntf(r); a != nil {
 								result.push(a)
 							}
 						}
@@ -379,15 +375,15 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 									result.push(intf)
 								}
 							}
-						} else if a := getRouterAutoIntf(r); a != nil {
+						} else if a := c.getRouterAutoIntf(r); a != nil {
 							result.push(a)
 						}
 					} else {
-						errMsg("Can't use %s inside interface:[..].[%s] of %s",
+						c.err("Can't use %s inside interface:[..].[%s] of %s",
 							x, selector, ctx)
 					}
 				default:
-					errMsg("Unexpected '%s' in interface:[..].[%s] of %s",
+					c.err("Unexpected '%s' in interface:[..].[%s] of %s",
 						obj, selector, ctx)
 				}
 			}
@@ -408,11 +404,11 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 								result.push(intf)
 							}
 						}
-					} else if a := getRouterAutoIntf(r); a != nil {
+					} else if a := c.getRouterAutoIntf(r); a != nil {
 						result.push(a)
 					}
 				} else {
-					errMsg("Can't resolve %s:%s.[%s] in %s",
+					c.err("Can't resolve %s:%s.[%s] in %s",
 						x.Type, x.Router, x.Extension, ctx)
 				}
 			} else {
@@ -426,11 +422,11 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						result.push(intf)
 					}
 				} else {
-					errMsg("Can't resolve %s:%s in %s", x.Type, name, ctx)
+					c.err("Can't resolve %s:%s in %s", x.Type, name, ctx)
 				}
 			}
 		case ast.AutoElem:
-			subObjects := expandGroup1(x.GetElements(),
+			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, ipv6, false, false)
 			for _, obj := range subObjects {
 				obj.setUsed()
@@ -469,7 +465,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						if z.loopback {
 							continue
 						}
-						result = append(result, getAny(z, ip, mask, visible)...)
+						result = append(result, c.getAny(z, ip, mask, visible)...)
 					}
 					return result
 				}
@@ -537,7 +533,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						result.push(x)
 						continue
 					case *routerIntf:
-						errMsg("Unexpected '%s' in host:[..] of %s", x, ctx)
+						c.err("Unexpected '%s' in host:[..] of %s", x, ctx)
 						continue
 					}
 					if networks := getNetworks(obj, true); networks != nil {
@@ -547,7 +543,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 							}
 						}
 					} else {
-						errMsg("Unexpected '%s' in host:[..] of %s", obj, ctx)
+						c.err("Unexpected '%s' in host:[..] of %s", obj, ctx)
 					}
 				}
 			case "network":
@@ -570,7 +566,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 							}
 						}
 					} else {
-						errMsg("Unexpected '%s' in network:[..] of %s", obj, ctx)
+						c.err("Unexpected '%s' in network:[..] of %s", obj, ctx)
 					}
 				}
 			case "any":
@@ -578,7 +574,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 				var ip net.IP
 				var mask net.IPMask
 				if n := x.Net; n != nil {
-					ip = getVxIP(n.IP, ipv6, "any:[..]", ctx)
+					ip = c.getVxIP(n.IP, ipv6, "any:[..]", ctx)
 					mask = n.Mask
 				}
 
@@ -597,7 +593,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 						}
 					} else if l := getNetworks(obj, false); l != nil {
 						for _, n := range l {
-							for _, a := range getAny(n.zone, ip, mask, visible) {
+							for _, a := range c.getAny(n.zone, ip, mask, visible) {
 								if !seen[a] {
 									seen[a] = true
 									result.push(a)
@@ -605,11 +601,11 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 							}
 						}
 					} else {
-						errMsg("Unexpected '%s' in any:[..] of %s", obj, ctx)
+						c.err("Unexpected '%s' in any:[..] of %s", obj, ctx)
 					}
 				}
 			default:
-				errMsg("Unexpected %s:[..] in %s", x.GetType(), ctx)
+				c.err("Unexpected %s:[..] in %s", x.GetType(), ctx)
 			}
 		case *ast.NamedRef:
 			// An object named simply 'type:name'.
@@ -617,10 +613,10 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 			name := x.Name
 			obj := expandTypedName(typ, name)
 			if obj == nil {
-				errMsg("Can't resolve %s:%s in %s", typ, name, ctx)
+				c.err("Can't resolve %s:%s in %s", typ, name, ctx)
 				continue
 			}
-			checkV4V6CrossRef(obj, ipv6, ctx)
+			c.checkV4V6CrossRef(obj, ipv6, ctx)
 			if obj.isDisabled() {
 				continue
 			}
@@ -640,7 +636,7 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 
 				// Check for recursive definition.
 				if grp.recursive {
-					errMsg("Found recursion in definition of %s", ctx)
+					c.err("Found recursion in definition of %s", ctx)
 					elements = make(groupObjList, 0)
 				} else if elements == nil {
 
@@ -652,18 +648,18 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 					ctx := typ + ":" + name
 
 					// 'user' must not be referenced in group.
-					user := userObj.elements
-					userObj.elements = nil
-					defer func() { userObj.elements = user }()
+					saved := c.userObj.elements
+					c.userObj.elements = nil
+					defer func() { c.userObj.elements = saved }()
 
 					// Add marker for detection of recursive group definition.
 					grp.recursive = true
 					elements =
-						expandGroup1(grp.elements, ctx, ipv6, visible, withSubnets)
+						c.expandGroup1(grp.elements, ctx, ipv6, visible, withSubnets)
 					grp.recursive = false
 
 					// Detect and remove duplicate values in group.
-					elements = removeDuplicates(elements, ctx)
+					elements = c.removeDuplicates(elements, ctx)
 				}
 
 				// Cache result for further references to the same group
@@ -695,11 +691,11 @@ func expandGroup1(list []ast.Element, ctx string, ipv6,
 	return result
 }
 
-func checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
+func (c *spoc) checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
 	if ipv6 != obj.isIPv6() {
 		expected := cond(ipv6, "6", "4")
 		found := cond(obj.isIPv6(), "6", "4")
-		errMsg("Must not reference IPv%s %s in IPv%s context %s",
+		c.err("Must not reference IPv%s %s in IPv%s context %s",
 			found, obj, expected, ctx)
 	}
 }
@@ -712,13 +708,17 @@ func checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
 //    Crosslink networks are no longer suppressed.
 // 2. interface:[..].[all]:
 //    Unnumbered and bridged interfaces are no longer suppressed.
-func expandGroup(l []ast.Element, ctx string, ipv6, showAll bool) groupObjList {
-	result := expandGroup1(l, ctx, ipv6, !showAll, showAll)
-	return removeDuplicates(result, ctx)
+func (c *spoc) expandGroup(
+	l []ast.Element, ctx string, ipv6, showAll bool) groupObjList {
+
+	result := c.expandGroup1(l, ctx, ipv6, !showAll, showAll)
+	return c.removeDuplicates(result, ctx)
 }
 
-func expandGroupInRule(l []ast.Element, ctx string, ipv6 bool) groupObjList {
-	list := expandGroup(l, ctx, ipv6, false)
+func (c *spoc) expandGroupInRule(
+	l []ast.Element, ctx string, ipv6 bool) groupObjList {
+
+	list := c.expandGroup(l, ctx, ipv6, false)
 
 	// Ignore unusable objects.
 	j := 0
@@ -747,7 +747,7 @@ func expandGroupInRule(l []ast.Element, ctx string, ipv6 bool) groupObjList {
 			ignore = obj.String()
 		}
 		if ignore != "" {
-			warnMsg("Ignoring " + ignore + " in " + ctx)
+			c.warn("Ignoring " + ignore + " in " + ctx)
 		} else {
 			list[j] = obj
 			j++

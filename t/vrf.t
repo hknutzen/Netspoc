@@ -317,5 +317,39 @@ END
 test_err($title, $in, $out, '--check_policy_distribution_point=1');
 
 ############################################################
+$title = 'Different policy distribution point at VRF members';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;
+ host:h8 = { ip = 10.1.1.8; }
+ host:h9 = { ip = 10.1.1.9; }
+}
+router:r1@v1 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:h8;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+router:r1@v2 = {
+ managed;
+ model = NX-OS;
+ policy_distribution_point = host:h9;
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
+}
+END
+
+$out = <<'END';
+Error: Instances of router:r1 must not use different 'policy_distribution_point':
+ -host:h8
+ -host:h9
+Warning: Missing rules to reach 2 devices from policy_distribution_point:
+ - router:r1@v1
+ - router:r1@v2
+END
+
+test_err($title, $in, $out, '--check_policy_distribution_point=1');
+
+############################################################
 
 done_testing;

@@ -198,8 +198,8 @@ func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
 	return result
 }
 
-func addRouterAcls() {
-	for _, router := range managedRouters {
+func (c *spoc) addRouterAcls() {
+	for _, router := range c.managedRouters {
 		ipv6 := router.ipV6
 		hasIoACL := router.model.hasIoACL
 		hardwareList := router.hardware
@@ -248,7 +248,7 @@ func addRouterAcls() {
 					rule := newRule(
 						[]someObj{getNetwork00(ipv6)},
 						objList,
-						[]*proto{prtIP},
+						[]*proto{c.prt.IP},
 					)
 
 					// Prepend to all other rules.
@@ -298,14 +298,14 @@ func addRouterAcls() {
 				// Handle DHCP requests.
 				if intf.dhcpServer {
 					netList := []someObj{getNetwork00(ipv6)}
-					prtList := []*proto{prtBootps}
+					prtList := []*proto{c.prt.Bootps}
 					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 
 				// Handle DHCP answer.
 				if intf.dhcpClient {
 					netList := []someObj{getNetwork00(ipv6)}
-					prtList := []*proto{prtBootpc}
+					prtList := []*proto{c.prt.Bootpc}
 					hardware.intfRules.push(newRule(netList, netList, prtList))
 				}
 			}
@@ -313,8 +313,8 @@ func addRouterAcls() {
 	}
 }
 
-func distributeGeneralPermit() {
-	for _, router := range managedRouters {
+func (c *spoc) distributeGeneralPermit() {
+	for _, router := range c.managedRouters {
 		generalPermit := router.generalPermit
 		if len(generalPermit) == 0 {
 			continue
@@ -412,17 +412,17 @@ func (c *spoc) rulesDistribution() {
 	c.progress("Distributing rules")
 
 	// Deny rules
-	for _, rule := range pRules.deny {
-		pathWalk(rule, distributeRule, "Router")
+	for _, rule := range c.allPathRules.deny {
+		c.pathWalk(rule, distributeRule, "Router")
 	}
 
 	// Handle global permit after deny rules.
-	distributeGeneralPermit()
+	c.distributeGeneralPermit()
 
 	// Permit rules
-	for _, rule := range pRules.permit {
-		pathWalk(rule, distributeRule, "Router")
+	for _, rule := range c.allPathRules.permit {
+		c.pathWalk(rule, distributeRule, "Router")
 	}
 
-	addRouterAcls()
+	c.addRouterAcls()
 }

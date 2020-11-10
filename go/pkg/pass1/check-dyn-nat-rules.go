@@ -89,7 +89,7 @@ func (c *spoc) checkDynamicNatRules(
 	natSet2activeTags := make(map[natSet]map[string]bool)
 	zone2dynNat := make(map[*zone]map[string]bool)
 	hasDynHost := make(map[*network]bool)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		foundDyn := false
 		tagMap := n.nat
 		if len(tagMap) == 0 {
@@ -168,7 +168,7 @@ func (c *spoc) checkDynamicNatRules(
 			collect := func(r *groupedRule, inIntf, outIntf *routerIntf) {
 				pairs.push(intfPair{inIntf, outIntf})
 			}
-			pathWalk(&rule, collect, "Router")
+			c.pathWalk(&rule, collect, "Router")
 			cache[zonePair{s, d}] = pairs
 		}
 		return pairs
@@ -345,7 +345,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 					}
 				}
-				pathWalk(pathRule, check, "Router")
+				c.pathWalk(pathRule, check, "Router")
 			}()
 
 			if hiddenSeen {
@@ -445,6 +445,6 @@ func (c *spoc) checkDynamicNatRules(
 			}
 		}
 	}
-	process(pRules.deny)
-	process(pRules.permit)
+	process(c.allPathRules.deny)
+	process(c.allPathRules.permit)
 }

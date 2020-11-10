@@ -1,23 +1,8 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
-	"strings"
 )
-
-// Check for referencing log tags, that corresponding defining log tags exist.
-func checkLog(log, ctx string) string {
-	var known stringList
-	for _, tag := range strings.Split(log, ",") {
-		if !knownLog[tag] {
-			warnMsg("Referencing unknown '%s' in log of %s", tag, ctx)
-		} else {
-			known.push(tag)
-		}
-	}
-	return strings.Join(known, ",")
-}
 
 //#############################################################################
 // Purpose    : Expand auto interface to one or more real interfaces
@@ -34,7 +19,9 @@ type expAutoPair struct {
 
 type pathOrAuto interface{}
 
-func pathAutoInterfaces(src *autoIntf, dst pathOrAuto, origDst groupObj) intfList {
+func (c *spoc) pathAutoInterfaces(
+	src *autoIntf, dst pathOrAuto, origDst groupObj) intfList {
+
 	managed := src.managed
 	srcPath := src.getPathNode()
 
@@ -51,7 +38,7 @@ func pathAutoInterfaces(src *autoIntf, dst pathOrAuto, origDst groupObj) intfLis
 	if srcPath == dstPath {
 		return nil
 	}
-	result := findAutoInterfaces(
+	result := c.findAutoInterfaces(
 		srcPath, dstPath, toList, src.name, origDst.String(), src.object)
 	if managed {
 		j := 0
@@ -66,7 +53,9 @@ func pathAutoInterfaces(src *autoIntf, dst pathOrAuto, origDst groupObj) intfLis
 	return result
 }
 
-func expandAutoIntfWithDstList(a *autoIntf, dstList groupObjList, ctx string) []*expAutoPair {
+func (c *spoc) expandAutoIntfWithDstList(
+	a *autoIntf, dstList groupObjList, ctx string) []*expAutoPair {
+
 	path2pair := make(map[pathOrAuto]*expAutoPair)
 	var result []*expAutoPair
 	for _, dst := range dstList {
@@ -82,9 +71,9 @@ func expandAutoIntfWithDstList(a *autoIntf, dstList groupObjList, ctx string) []
 		pair, found := path2pair[path]
 		if !found {
 			var real srvObjList
-			for _, intf := range pathAutoInterfaces(a, path, dst) {
+			for _, intf := range c.pathAutoInterfaces(a, path, dst) {
 				if intf.short {
-					errMsg("%s without IP address (from .[auto])\n"+
+					c.err("%s without IP address (from .[auto])\n"+
 						" must not be used in rule of %s",
 						intf.name, ctx)
 				} else if intf.unnumbered {
@@ -128,7 +117,9 @@ func expandAutoIntfWithDstList(a *autoIntf, dstList groupObjList, ctx string) []
 	return result
 }
 
-func substituteAutoIntf(srcList, dstList groupObjList, ctx string) (srvObjList, []*expAutoPair) {
+func (c *spoc) substituteAutoIntf(
+	srcList, dstList groupObjList, ctx string) (srvObjList, []*expAutoPair) {
+
 	var convertedSrc srvObjList
 	var resultPairList []*expAutoPair
 	for _, src := range srcList {
@@ -140,7 +131,7 @@ func substituteAutoIntf(srcList, dstList groupObjList, ctx string) (srvObjList, 
 		case *autoIntf:
 			a = x
 		}
-		pairList := expandAutoIntfWithDstList(a, dstList, ctx)
+		pairList := c.expandAutoIntfWithDstList(a, dstList, ctx)
 
 		// All elements of dstList lead to same result list of interfaces.
 		if len(pairList) == 1 {
@@ -158,58 +149,18 @@ func substituteAutoIntf(srcList, dstList groupObjList, ctx string) (srvObjList, 
 	return convertedSrc, resultPairList
 }
 
-type modifiedProto struct {
-	prt       *proto
-	src       *proto
-	modifiers *modifiers
-}
-
-func classifyProtocols(l []interface{}) (protoList, []*modifiedProto) {
-	var simple protoList
-	var complex []*modifiedProto
-	for _, p := range l {
-
-		// Use the main protocol, but remember the original one to
-		// retrieve .modifiers.
-		var prt *proto
-		var srcRange *proto
-		var m *modifiers
-		switch x := p.(type) {
-		case *complexProto:
-			srcRange, prt, m = x.src, x.dst, x.orig.modifiers
-		case *proto:
-			m = x.modifiers
-			if x.main != nil {
-				prt = x.main
-			} else {
-				prt = x
-			}
-		}
-
-		if m != nil &&
-			(m.reversed || m.stateless || m.oneway ||
-				m.srcNet || m.dstNet || m.overlaps || m.noCheckSupernetRules) ||
-			srcRange != nil || prt.statelessICMP {
-			complex = append(complex, &modifiedProto{prt, srcRange, m})
-		} else {
-			simple.push(prt)
-		}
-	}
-	return simple, complex
-}
-
-func normalizeSrcDstList(
+func (c *spoc) normalizeSrcDstList(
 	r *unexpRule, l groupObjList, s *service) [][2]srvObjList {
 
 	ctx := s.name
 	ipv6 := s.ipV6
-	userObj.elements = l
-	srcList := expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
-	dstList := expandGroupInRule(r.dst, "dst of rule in "+ctx, ipv6)
-	userObj.elements = nil
+	c.userObj.elements = l
+	srcList := c.expandGroupInRule(r.src, "src of rule in "+ctx, ipv6)
+	dstList := c.expandGroupInRule(r.dst, "dst of rule in "+ctx, ipv6)
+	c.userObj.elements = nil
 
 	// Expand auto interfaces in srcList.
-	expSrcList, extraSrcDst := substituteAutoIntf(srcList, dstList, ctx)
+	expSrcList, extraSrcDst := c.substituteAutoIntf(srcList, dstList, ctx)
 
 	var extraResult [][2]srvObjList
 
@@ -231,7 +182,7 @@ func normalizeSrcDstList(
 	// Expand auto interfaces in dst of extraSrcDst.
 	for _, pair := range extraSrcDst {
 		sList, dList := pair.srcList, pair.dstList
-		expDstList, extraDstSrc := substituteAutoIntf(dList, toGrp(sList), ctx)
+		expDstList, extraDstSrc := c.substituteAutoIntf(dList, toGrp(sList), ctx)
 		extraResult = append(extraResult, [2]srvObjList{sList, expDstList})
 		for _, pair := range extraDstSrc {
 			extraResult = append(
@@ -241,7 +192,7 @@ func normalizeSrcDstList(
 
 	// Expand auto interfaces in dstList.
 	expDstList, extraDstSrc :=
-		substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
+		c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
 	for _, pair := range extraDstSrc {
 		extraResult = append(
 			extraResult, [2]srvObjList{toSrv(pair.dstList), pair.srcList})
@@ -250,10 +201,10 @@ func normalizeSrcDstList(
 	return append([][2]srvObjList{{expSrcList, expDstList}}, extraResult...)
 }
 
-func normalizeServiceRules(s *service) {
+func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	ipv6 := s.ipV6
 	ctx := s.name
-	user := expandGroup(s.user, "user of "+ctx, ipv6, false)
+	user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
 	s.expandedUser = user
 	ruleCount := 0
 
@@ -266,16 +217,13 @@ func normalizeServiceRules(s *service) {
 			store = &sRules.permit
 		}
 		log := uRule.log
-		if log != "" {
-			log = checkLog(log, ctx)
-		}
-		prtList := splitProtocols(uRule.prt)
+		prtList := uRule.prt
 		if prtList == nil {
 			continue
 		}
 		simplePrtList, complexPrtList := classifyProtocols(prtList)
 		process := func(elt groupObjList) {
-			srcDstListPairs := normalizeSrcDstList(uRule, elt, s)
+			srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
@@ -338,21 +286,21 @@ func normalizeServiceRules(s *service) {
 		}
 	}
 	if ruleCount == 0 && len(user) == 0 {
-		warnMsg("Must not define %s with empty users and empty rules", ctx)
+		c.warn("Must not define %s with empty users and empty rules", ctx)
 	}
-
-	// Result is stored in global variable sRules.
 }
 
-func NormalizeServices() {
-	diag.Progress("Normalizing services")
+func (c *spoc) normalizeServices() *serviceRules {
+	c.progress("Normalizing services")
 
 	var names stringList
 	for n, _ := range symTable.service {
 		names.push(n)
 	}
 	sort.Strings(names)
+	sRules := new(serviceRules)
 	for _, n := range names {
-		normalizeServiceRules(symTable.service[n])
+		c.normalizeServiceRules(symTable.service[n], sRules)
 	}
+	return sRules
 }

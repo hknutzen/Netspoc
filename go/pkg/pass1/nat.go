@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"sort"
 	"strings"
 )
@@ -41,10 +40,10 @@ a common set of NAT tags (NAT set) is effective at every network.
 //          This is used for more efficient check of dynamic NAT rules,
 //          so we need to check only once for each pair of src / dst zone.
 // Returns: A map, mapping NAT tag to its type: static, dynamic or hidden.
-func getLookupMapForNatType() map[string]string {
+func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		tags := make(stringList, 0)
 		for tag, _ := range n.nat {
 			tags.push(tag)
@@ -65,7 +64,7 @@ func getLookupMapForNatType() map[string]string {
 			if other := natTag2network[tag]; other != nil {
 				typ2 := getTyp(other.nat[tag])
 				if typ2 != typ1 {
-					errMsg("All definitions of nat:%s must have equal type.\n"+
+					c.err("All definitions of nat:%s must have equal type.\n"+
 						" But found\n"+
 						" - %s for %s\n"+
 						" - %s for %s", tag, typ2, other, typ1, n)
@@ -139,7 +138,7 @@ func markInvalidNatTransitions(multi map[string][]natMap) map[string]natMap {
 //           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
 //           active at a time. As NAT:A can not be active (n2) and inactive
 //           (n1) in the same NAT domain, this restriction is needed.
-func generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
+func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
 	multi := make(map[string][]natMap)
 
 	// Check if two natMaps contain the same keys. Values can be different.
@@ -155,7 +154,7 @@ func generateMultinatDefLookup(natType map[string]string) map[string][]natMap {
 		return true
 	}
 
-	for _, n := range allNetworks {
+	for _, n := range c.allNetworks {
 		map1 := n.nat
 		tags := make(stringList, 0)
 		for tag, _ := range map1 {
@@ -234,7 +233,7 @@ func bindNatEq(l1, l2 stringList) bool {
 //           routers that are domain limiting, contain references to the
 //           limited domains and store NAT tags bound to domains border
 //           interfaces.
-func findNatDomains() []*natDomain {
+func (c *spoc) findNatDomains() []*natDomain {
 
 	type key struct {
 		router   *router
@@ -321,7 +320,7 @@ func findNatDomains() []*natDomain {
 						continue
 					}
 					natErrSeen[k] = true
-					errMsg("Inconsistent NAT in loop at %s:\n"+
+					c.err("Inconsistent NAT in loop at %s:\n"+
 						" nat:%s vs. nat:%s",
 						r, names1, names2)
 					continue
@@ -353,14 +352,14 @@ func findNatDomains() []*natDomain {
 					fullTags[i] = "nat:" + tag
 				}
 				list := strings.Join(fullTags, ",")
-				warnMsg("Ignoring %s without effect, bound at every interface of %s",
+				c.warn("Ignoring %s without effect, bound at every interface of %s",
 					list, r)
 			}
 		}
 	}
 
 	var result []*natDomain
-	for _, z := range zones {
+	for _, z := range c.allZones {
 		if z.natDomain != nil {
 			continue
 		}
@@ -378,7 +377,8 @@ func findNatDomains() []*natDomain {
 
 //#############################################################################
 // Purpose : Show interfaces, where bind_nat for NAT tag is missing.
-func errMissingBindNat(inRouter *router, d *natDomain, tag string, multinatMaps []natMap) {
+func (c *spoc) errMissingBindNat(
+	inRouter *router, d *natDomain, tag string, multinatMaps []natMap) {
 
 	// Collect interfaces where bind_nat for natTag is applied correctly.
 	// First, add interface between inRouter and d.
@@ -583,7 +583,7 @@ func errMissingBindNat(inRouter *router, d *natDomain, tag string, multinatMaps 
 	}
 	natIntf = sortByNameUniq(natIntf)
 	missingIntf = sortByNameUniq(missingIntf)
-	errMsg("Incomplete 'bind_nat = %s' at\n"+
+	c.err("Incomplete 'bind_nat = %s' at\n"+
 		natIntf.nameList()+"\n"+
 		" Possibly 'bind_nat = %s' is missing at these interfaces:\n"+
 		missingIntf.nameList(),
@@ -612,7 +612,9 @@ func getNatDomainBorders(d *natDomain) intfList {
 //            invalid: Map from NAT tags t1, t2 to network,
 //                where transition from t1 to t2 is invalid.
 //            r: router where NAT transition occurs at.
-func checkForProperNatTransition(tag, tag2 string, nat natMap, invalid map[string]natMap, r *router) {
+func (c *spoc) checkForProperNatTransition(
+	tag, tag2 string, nat natMap, invalid map[string]natMap, r *router) {
+
 	natInfo := nat[tag]
 	nextInfo := nat[tag2]
 
@@ -622,18 +624,18 @@ func checkForProperNatTransition(tag, tag2 string, nat natMap, invalid map[strin
 		// Use nextInfo.name and not natInfo.name because
 		// natInfo may show wrong network, because we combined
 		// different hidden networks into natTag2multinatDdef.
-		errMsg("Must not change hidden nat:%s using nat:%s\n"+
+		c.err("Must not change hidden nat:%s using nat:%s\n"+
 			" for %s at %s", tag, tag2, nextInfo, r)
 	} else if natInfo.dynamic && !nextInfo.dynamic {
 
 		// Transition from dynamic to static NAT is invalid.
-		errMsg("Must not change dynamic nat:%s to static using nat:%s\n"+
+		c.err("Must not change dynamic nat:%s to static using nat:%s\n"+
 			" for %s at %s", tag, tag2, natInfo, r)
 	} else if n := invalid[tag][tag2]; n != nil {
 
 		// Transition from tag to tag2 is invalid,
 		// if tag occurs somewhere not grouped with tag2.
-		errMsg("Invalid transition from nat:%s to nat:%s at %s.\n"+
+		c.err("Invalid transition from nat:%s to nat:%s at %s.\n"+
 			" Reason: Both NAT tags are used grouped at %s\n"+
 			" but nat:%s is missing at %s",
 			tag, tag2, r, natInfo, tag2, n)
@@ -654,7 +656,10 @@ func checkForProperNatTransition(tag, tag2 string, nat natMap, invalid map[strin
 //             natSet.
 // Returns:    false on success,
 //             true on error, if same NAT tag is reached twice.
-func distributeNat1(inRouter *router, d *natDomain, tag string, multinatMaps []natMap, invalid map[string]natMap) bool {
+func (c *spoc) distributeNat1(
+	inRouter *router, d *natDomain, tag string,
+	multinatMaps []natMap, invalid map[string]natMap) bool {
+
 	//debug("nat:%s at %s from %s", tag, d.name, inRouter)
 
 	// Loop found or domain was processed by earlier call of distributeNat.
@@ -705,7 +710,7 @@ ROUTER:
 						if m[tag2] == nil {
 							continue
 						}
-						checkForProperNatTransition(tag, tag2, m, invalid, r)
+						c.checkForProperNatTransition(tag, tag2, m, invalid, r)
 						continue DOMAIN
 					}
 				}
@@ -713,7 +718,7 @@ ROUTER:
 
 			// tag is active within adjacent domain: proceed traversal
 			//debug("Caller %s", d.name)
-			if distributeNat1(r, outDom, tag, multinatMaps, invalid) {
+			if c.distributeNat1(r, outDom, tag, multinatMaps, invalid) {
 				return true
 			}
 		}
@@ -732,9 +737,12 @@ ROUTER:
 //             invalid: Map with pairs of NAT tags as keys,
 //                 where transition from first to second tag is invalid.
 // Returns:    true if NAT errors have occured.
-func distributeNat(in *router, d *natDomain, tag string, multinatMaps []natMap, invalid map[string]natMap) bool {
-	if distributeNat1(in, d, tag, multinatMaps, invalid) {
-		errMissingBindNat(in, d, tag, multinatMaps)
+func (c *spoc) distributeNat(
+	in *router, d *natDomain, tag string,
+	multinatMaps []natMap, invalid map[string]natMap) bool {
+
+	if c.distributeNat1(in, d, tag, multinatMaps, invalid) {
+		c.errMissingBindNat(in, d, tag, multinatMaps)
 		return true
 	}
 	return false
@@ -743,7 +751,9 @@ func distributeNat(in *router, d *natDomain, tag string, multinatMaps []natMap, 
 //#############################################################################
 // Purpose: Distribute NAT tags to domains they are active in.
 // Returns: true if NAT errors have occured.
-func distributeNatTagsToNatDomains(multi map[string][]natMap, doms []*natDomain) bool {
+func (c *spoc) distributeNatTagsToNatDomains(
+	multi map[string][]natMap, doms []*natDomain) bool {
+
 	invalid := markInvalidNatTransitions(multi)
 	var natErrors bool
 	for _, d := range doms {
@@ -752,7 +762,8 @@ func distributeNatTagsToNatDomains(multi map[string][]natMap, doms []*natDomain)
 			// debug("%s %s: %s", d.name, r, strings.Join(natTags, ",")
 			for _, tag := range natTags {
 				multinatMaps := multi[tag]
-				natErrors = natErrors || distributeNat(r, d, tag, multinatMaps, invalid)
+				natErrors =
+					natErrors || c.distributeNat(r, d, tag, multinatMaps, invalid)
 			}
 		}
 	}
@@ -762,7 +773,9 @@ func distributeNatTagsToNatDomains(multi map[string][]natMap, doms []*natDomain)
 //############################################################################
 // Purpose: For networks with multiple NAT definitions, at most one NAT
 //          definition must be active in a domain. Show error otherwise.
-func checkMultinatErrors(multi map[string][]natMap, doms []*natDomain) {
+func (c *spoc) checkMultinatErrors(
+	multi map[string][]natMap, doms []*natDomain) {
+
 	for _, d := range doms {
 		seen := make(map[string]bool)
 		natSet := *d.natSet
@@ -794,14 +807,16 @@ func checkMultinatErrors(multi map[string][]natMap, doms []*natDomain) {
 		}
 		sort.Strings(errors)
 		for _, m := range errors {
-			errMsg(m)
+			c.err(m)
 		}
 	}
 }
 
 //############################################################################
 // Purpose: Check that every NAT tag is both bound and defined somewhere.
-func checkNatDefinitions(natType map[string]string, doms []*natDomain) {
+func (c *spoc) checkNatDefinitions(
+	natType map[string]string, doms []*natDomain) {
+
 	natDefinitions := make(map[string]bool)
 	for tag, _ := range natType {
 		natDefinitions[tag] = true
@@ -818,7 +833,7 @@ func checkNatDefinitions(natType map[string]string, doms []*natDomain) {
 				// Prevent undefined value when checking NAT type later.
 				natType[tag] = "static"
 
-				warnMsg("Ignoring useless nat:%s bound at %s", tag, r)
+				c.warn("Ignoring useless nat:%s bound at %s", tag, r)
 			}
 		}
 	}
@@ -831,14 +846,14 @@ func checkNatDefinitions(natType map[string]string, doms []*natDomain) {
 	}
 	sort.Strings(messages)
 	for _, m := range messages {
-		warnMsg(m)
+		c.warn(m)
 	}
 }
 
 //############################################################################
 // Purpose:   Network which has translation with tag 'tag' must not be located
 //            in domain where this tag is active.
-func checkNatNetworkLocation(doms []*natDomain) {
+func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 	for _, d := range doms {
 		natSet := *d.natSet
 		for _, z := range d.zones {
@@ -862,7 +877,7 @@ func checkNatNetworkLocation(doms []*natDomain) {
 				}
 				sort.Strings(messages)
 				for _, m := range messages {
-					errMsg(m)
+					c.err(m)
 				}
 			}
 		}
@@ -873,8 +888,8 @@ func checkNatNetworkLocation(doms []*natDomain) {
 // Purpose: Check compatibility of host/interface and network NAT.
 // Comment: A NAT definition for a single host/interface is only allowed,
 //          if network has a dynamic NAT definition.
-func checkNatCompatibility() {
-	for _, n := range allNetworks {
+func (c *spoc) checkNatCompatibility() {
+	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
 			nat := obj.nat
 			if nat == nil {
@@ -890,11 +905,11 @@ func checkNatCompatibility() {
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {
 					if !matchIp(objIP, natNet.ip, natNet.mask) {
-						errMsg("nat:%s: IP of %s doesn't match IP/mask of %s",
+						c.err("nat:%s: IP of %s doesn't match IP/mask of %s",
 							tag, obj, n)
 					}
 				} else {
-					warnMsg(
+					c.warn(
 						"Ignoring nat:%s at %s because %s has static NAT definition",
 						tag, obj, n)
 				}
@@ -915,8 +930,8 @@ func checkNatCompatibility() {
 // Comment: "need_protect" devices use NetSPoC generated ACLs to manage access
 //          to their interfaces. To ensure safety, the devices interfaces
 //          need to have a fixed address.
-func checkInterfacesWithDynamicNat() {
-	for _, n := range allNetworks {
+func (c *spoc) checkInterfacesWithDynamicNat() {
+	for _, n := range c.allNetworks {
 		var tags stringList
 		for tag, _ := range n.nat {
 			tags.push(tag)
@@ -942,7 +957,7 @@ func checkInterfacesWithDynamicNat() {
 				for _, bindIntf := range r.interfaces {
 					for _, tag2 := range bindIntf.bindNat {
 						if tag2 == tag {
-							errMsg(
+							c.err(
 								"Must not apply dynamic nat:%s"+
 									" to %s at %s of same device.\n"+
 									" This isn't supported for model %s.",
@@ -980,7 +995,8 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 	}
 }
 
-func prepareRealIpNat(r *router, multi map[string][]natMap, natType map[string]string) {
+func (c *spoc) prepareRealIpNat(
+	r *router, multi map[string][]natMap, natType map[string]string) {
 
 	var twoEffective [2]map[string]bool
 	var twoHWList [2][]*hardware
@@ -1015,13 +1031,13 @@ HARDWARE:
 			twoHWList[i] = append(twoHWList[i], hw)
 			continue HARDWARE
 		}
-		errMsg(
+		c.err(
 			"Must not use attribute 'acl_use_real_ip' at %s\n"+
 				" having different effective NAT at more than two interfaces", r)
 		return
 	}
 	if twoEffective[1] == nil {
-		warnMsg("Useless attribute 'acl_use_real_ip' at %s", r)
+		c.warn("Useless attribute 'acl_use_real_ip' at %s", r)
 		return
 	}
 
@@ -1047,10 +1063,12 @@ HARDWARE:
 	modify(twoHWList[1], set1)
 }
 
-func prepareRealIpNatRouters(multi map[string][]natMap, natType map[string]string) {
-	for _, r := range append(managedRouters, routingOnlyRouters...) {
+func (c *spoc) prepareRealIpNatRouters(
+	multi map[string][]natMap, natType map[string]string) {
+
+	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
 		if r.aclUseRealIp {
-			prepareRealIpNat(r, multi, natType)
+			c.prepareRealIpNat(r, multi, natType)
 		}
 	}
 }
@@ -1058,21 +1076,23 @@ func prepareRealIpNatRouters(multi map[string][]natMap, natType map[string]strin
 //############################################################################
 // Purpose : Determine NAT domains and generate NAT set
 //           for every NAT domain.
-func DistributeNatInfo() ([]*natDomain, map[string]string, map[string][]natMap) {
-	diag.Progress("Distributing NAT")
-	natdomains := findNatDomains()
-	natType := getLookupMapForNatType()
-	multi := generateMultinatDefLookup(natType)
-	natErrors := distributeNatTagsToNatDomains(multi, natdomains)
-	checkMultinatErrors(multi, natdomains)
-	checkNatDefinitions(natType, natdomains)
+func (c *spoc) distributeNatInfo() (
+	[]*natDomain, map[string]string, map[string][]natMap) {
+
+	c.progress("Distributing NAT")
+	natdomains := c.findNatDomains()
+	natType := c.getLookupMapForNatType()
+	multi := c.generateMultinatDefLookup(natType)
+	natErrors := c.distributeNatTagsToNatDomains(multi, natdomains)
+	c.checkMultinatErrors(multi, natdomains)
+	c.checkNatDefinitions(natType, natdomains)
 	if !natErrors {
-		checkNatNetworkLocation(natdomains)
+		c.checkNatNetworkLocation(natdomains)
 	}
-	checkNatCompatibility()
-	checkInterfacesWithDynamicNat()
+	c.checkNatCompatibility()
+	c.checkInterfacesWithDynamicNat()
 	distributeNatSetsToInterfaces(natdomains)
-	prepareRealIpNatRouters(multi, natType)
+	c.prepareRealIpNatRouters(multi, natType)
 
 	return natdomains, natType, multi
 }

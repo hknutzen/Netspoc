@@ -171,7 +171,7 @@ func (c *spoc) verifyAsaTrustpoint(r *router, crypto *crypto) {
 }
 
 // Generate rules to permit crypto traffic between tunnel endpoints.
-func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
+func (c *spoc) genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 	natTraversal := ipsec.isakmp.natTraversal
 
 	var rules ruleList
@@ -184,10 +184,10 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 	if natTraversal == "" || natTraversal != "on" {
 		var prt []*proto
 		if ipsec.ah != "" {
-			prt = append(prt, prtAh)
+			prt = append(prt, c.prt.Ah)
 		}
 		if ipsec.espAuthentication != "" || ipsec.espEncryption != "" {
-			prt = append(prt, prtEsp)
+			prt = append(prt, c.prt.Esp)
 		}
 		if len(prt) > 0 {
 			rule := template
@@ -197,15 +197,15 @@ func genTunnelRules(intf1, intf2 *routerIntf, ipsec *ipsec) ruleList {
 		}
 		rule := template
 		rule.serviceRule = new(serviceRule)
-		rule.srcRange = prtIke.modifiers.srcRange
-		rule.prt = []*proto{prtIke.main}
+		rule.srcRange = c.prt.Ike.modifiers.srcRange
+		rule.prt = []*proto{c.prt.Ike.main}
 		rules.push(&rule)
 	}
 	if natTraversal != "" {
 		rule := template
 		rule.serviceRule = new(serviceRule)
-		rule.srcRange = prtNatt.modifiers.srcRange
-		rule.prt = []*proto{prtNatt.main}
+		rule.srcRange = c.prt.Natt.modifiers.srcRange
+		rule.prt = []*proto{c.prt.Natt.main}
 		rules.push(&rule)
 	}
 	return rules
@@ -407,8 +407,8 @@ func (c *spoc) expandCrypto() {
 						return
 					}
 
-					rules := genTunnelRules(in, out, cr.ipsec)
-					pRules.permit = append(pRules.permit, rules...)
+					rules := c.genTunnelRules(in, out, cr.ipsec)
+					c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 				}
 				gen(realSpoke, realHub)
 				gen(realHub, realSpoke)

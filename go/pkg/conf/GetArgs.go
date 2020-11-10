@@ -275,9 +275,12 @@ func parseFile(filename string, fs *flag.FlagSet) {
 		isSet[f] = true
 	})
 	fs.VisitAll(func(f *flag.Flag) {
-		// Ignore inverted flag, but also ignore inverted value from file.
+		// Ignore inverted flag.
 		if inv, found := invertedFlags[f.Name]; found {
-			delete(config, inv.orig)
+			if isSet[f] {
+				// Ignore inverted value from file.
+				delete(config, inv.orig)
+			}
 			return
 		}
 		val, found := config[f.Name]

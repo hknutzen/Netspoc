@@ -110,13 +110,13 @@ func collectUnenforceable(rule *groupedRule) {
 }
 
 func (c *spoc) showUnenforceable() {
-	names := make([]string, 0, len(services))
-	for name, _ := range services {
+	names := make([]string, 0, len(symTable.service))
+	for name, _ := range symTable.service {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		service := services[name]
+		service := symTable.service[name]
 		context := service.name
 
 		if service.hasUnenforceable &&
@@ -275,9 +275,10 @@ func (c *spoc) groupPathRules(p, d ruleList) {
 		gRules = removeUnenforceableRules(gRules)
 		return gRules
 	}
-	pRules.permit = process(p) //sRules.permit)
-	pRules.deny = process(d)   //sRules.deny)
-	c.info("Grouped rule count: %d", len(pRules.permit)+len(pRules.deny))
+	c.allPathRules.permit = process(p)
+	c.allPathRules.deny = process(d)
+	count := len(c.allPathRules.permit) + len(c.allPathRules.deny)
+	c.info("Grouped rule count: %d", count)
 
 	c.showUnenforceable()
 }

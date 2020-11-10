@@ -326,34 +326,6 @@ func clusterNavigation(from, to pathObj) navigation {
 	return navi
 }
 
-// Remove element from slice without modifying original slice.
-func (a *intfPairs) deleteElement(e intfPair) {
-	index := -1
-	for i, x := range *a {
-		if x == e {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return
-	}
-	*a = append((*a)[:index], (*a)[index+1:]...)
-}
-func (a *intfList) deleteElement(e *routerIntf) {
-	index := -1
-	for i, x := range *a {
-		if x == e {
-			index = i
-			break
-		}
-	}
-	if index == -1 {
-		return
-	}
-	*a = append((*a)[:index], (*a)[index+1:]...)
-}
-
 //#############################################################################
 // Purpose    : Adapt path starting/ending at zone, such that the original
 //              start/end-interface is reached.
@@ -375,21 +347,21 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 	isRedundancy := make(map[*routerIntf]bool)
 
 	// Prohibt paths traversing related redundancy interfaces.
-	for _, i := range startEnd.redundancyIntfs {
-		isRedundancy[i] = true
+	for _, intf := range startEnd.redundancyIntfs {
+		isRedundancy[intf] = true
 	}
 
-	delTuples := make(intfPairs, 0)
+	var delTuples []int
 
 	// Remove tuples traversing that router, where path should start/end.
-	for _, tuple := range lPath.routerTuples {
+	for i, tuple := range lPath.routerTuples {
 		intf := tuple[inOut]
 		if intf.router == router {
 			if intf != startEnd {
-				delTuples.push(tuple)
+				delTuples = append(delTuples, i)
 			}
 		} else if isRedundancy[intf] {
-			delTuples.push(tuple)
+			delTuples = append(delTuples, i)
 		}
 	}
 	tuples := &lPath.routerTuples
@@ -400,21 +372,23 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		changed = true
 		delIn := make(map[*routerIntf]bool)
 		delOut := make(map[*routerIntf]bool)
-		for _, tuple := range delTuples {
-			tuples.deleteElement(tuple)
-			in, out := tuple[0], tuple[1]
+		for _, idx := range delTuples {
+			tuple := (*tuples)[idx]
+			// Mark element at position idx as deleted.
+			(*tuples)[idx][0] = nil
 
 			// Mark interfaces of just removed tuple, because adjacent tuples
 			// could become dangling now.
-			delIn[out] = true
-			delOut[in] = true
+			delIn[tuple[1]] = true
+			delOut[tuple[0]] = true
 		}
 
 		// Remove mark, if non removed tuples are adjacent.
 		for _, tuple := range *tuples {
-			in, out := tuple[0], tuple[1]
-			delete(delIn, out)
-			delete(delOut, in)
+			if tuple[0] != nil {
+				delete(delIn, tuple[1])
+				delete(delOut, tuple[0])
+			}
 		}
 		if len(delIn) == 0 && len(delOut) == 0 {
 			break
@@ -424,17 +398,30 @@ func fixupZonePath(startEnd *routerIntf, inOut int, lPath *loopPath) {
 		} else {
 			tuples = &lPath.routerTuples
 		}
-		delTuples = delTuples[0:0]
-		for _, tuple := range *tuples {
-			in, out := tuple[0], tuple[1]
-			if delIn[in] || delOut[out] {
-				delTuples.push(tuple)
+		delTuples = nil
+		for i, tuple := range *tuples {
+			if tuple[0] != nil {
+				if delIn[tuple[0]] || delOut[tuple[1]] {
+					delTuples = append(delTuples, i)
+				}
 			}
 		}
 	}
 
-	// Remove dangling interfaces from start and end of path.
 	if changed {
+
+		// Remove tuples that are marked as deleted.
+		for _, tuples := range []*intfPairs{&lPath.routerTuples, &lPath.zoneTuples} {
+			var cp intfPairs
+			for _, tuple := range *tuples {
+				if tuple[0] != nil {
+					cp.push(tuple)
+				}
+			}
+			(*tuples) = cp
+		}
+
+		// Remove dangling interfaces from start and end of path.
 		hasIn := make(map[*routerIntf]bool)
 		hasOut := make(map[*routerIntf]bool)
 
@@ -693,7 +680,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		// Create navigation look up hash to reduce search space in loop cluster.
 		navi := clusterNavigation(from, to)
 		if len(navi) == 0 {
-			internalErr("Empty navi")
+			panic("Empty navi")
 		}
 
 		// These attributes describe valid paths inside loop.
@@ -712,7 +699,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		}
 		allowed := navi[from.getLoop()]
 		if len(allowed) == 0 {
-			internalErr("Loop with empty navi %v -> %v", from, to)
+			panic(fmt.Sprintf("Loop with empty navi %v -> %v", from, to))
 		}
 
 		// To find paths, process every loop interface of from node.
@@ -1165,7 +1152,7 @@ func loopPathWalk(in, out *routerIntf, loopEntry, loopExit pathStore, callAtZone
 	return callIt
 }
 
-func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
+func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	zone1 := findZone1(srcPath)
 	zone2 := findZone1(dstPath)
 	var msg string
@@ -1176,7 +1163,7 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 	} else {
 		msg = " Check path restrictions and crypto interfaces."
 	}
-	errMsg("No valid path\n from %s\n to %s\n %s\n"+msg,
+	c.err("No valid path\n from %s\n to %s\n %s\n"+msg,
 		srcPath.String(), dstPath.String(), context)
 }
 
@@ -1188,7 +1175,9 @@ func showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 //              fun - function to be called.
 //              where - 'Router' or 'Zone', specifies where the function gets
 //              called, default is 'Router'.
-func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), where string) {
+func (c *spoc) pathWalk(rule *groupedRule,
+	fun func(r *groupedRule, i, o *routerIntf), where string) {
+
 	atZone := where == "Zone"
 
 	// Extract path store objects (zone/router/pathrestricted interface).
@@ -1222,7 +1211,7 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 			// No need to show error message when finding static routes,
 			// because this will be shown again when distributing rules.
 			if !atZone {
-				showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
+				c.showErrNoValidPath(fromStore, toStore, "for rule "+rule.print())
 			}
 
 			// Abort, if path does not exist.
@@ -1315,84 +1304,76 @@ func pathWalk(rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf), whe
 	}
 }
 
-func singlePathWalk(src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
+func (c *spoc) singlePathWalk(
+	src, dst someObj, f func(r *groupedRule, i, o *routerIntf), where string) {
+
 	rule := &groupedRule{
 		serviceRule: &serviceRule{
-			prt: []*proto{prtIP},
+			prt: []*proto{c.prt.IP},
 		},
 		src:     []someObj{src},
 		dst:     []someObj{dst},
 		srcPath: src.getPathNode(),
 		dstPath: dst.getPathNode(),
 	}
-	pathWalk(rule, f, where)
+	c.pathWalk(rule, f, where)
 }
 
-var border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
-
-func setAutoIntfFromBorder(border *routerIntf) {
+func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 	var reachFromBorder func(*network, *routerIntf, map[netOrRouter]intfList)
 	reachFromBorder =
-		func(network *network, inIntf *routerIntf, result map[netOrRouter]intfList) {
-			result[network] = append(result[network], inIntf)
+		func(n *network, in *routerIntf, result map[netOrRouter]intfList) {
+			result[n] = append(result[n], in)
 
-			//debug("%s: %s", network.name, inIntf.name)
-			for _, intf := range network.interfaces {
-				if intf == inIntf {
+			//debug("%s: %s", n, in)
+			for _, intf := range n.interfaces {
+				if intf == in || intf.zone != nil || intf.origMain != nil {
 					continue
 				}
-				if intf.zone != nil {
+				r := intf.router
+				if r.activePath {
 					continue
 				}
-				if intf.origMain != nil {
-					continue
-				}
-				router := intf.router
-				if router.activePath {
-					continue
-				}
-				router.activePath = true
-				defer func() { router.activePath = false }()
-				result[router] = append(result[router], intf)
+				r.activePath = true
+				defer func() { r.activePath = false }()
+				result[r] = append(result[r], intf)
 
-				//debug("%s: %s", router.name, intf.name)
-
-				for _, outIntf := range router.interfaces {
-					if outIntf == intf {
-						continue
+				//debug("%s: %s", r.name, intf.name)
+				for _, out := range r.interfaces {
+					if !(out == intf || out.origMain != nil) {
+						reachFromBorder(out.network, out, result)
 					}
-					if outIntf.origMain != nil {
-						continue
-					}
-					reachFromBorder(outIntf.network, outIntf, result)
 				}
 			}
 		}
 	result := make(map[netOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
-	for key, list := range result {
+	for key, l := range result {
 		seen := make(map[*routerIntf]bool)
 		j := 0
-		for _, intf := range list {
+		for _, intf := range l {
 			if !seen[intf] {
 				seen[intf] = true
-				list[j] = intf
+				l[j] = intf
 				j++
 			}
 		}
-		result[key] = list[:j]
+		result[key] = l[:j]
 	}
-	border2obj2auto[border] = result
+	c.border2obj2auto[border] = result
 }
 
 // Find auto interface inside zone.
 // border is interface at border of zone.
 // src2 is unmanaged router or network inside zone.
-func autoIntfInZone(border *routerIntf, src2 netOrRouter) intfList {
-	if border2obj2auto[border] == nil {
-		setAutoIntfFromBorder(border)
+func (c *spoc) autoIntfInZone(border *routerIntf, obj netOrRouter) intfList {
+	if c.border2obj2auto == nil {
+		c.border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
 	}
-	return border2obj2auto[border][src2]
+	if c.border2obj2auto[border] == nil {
+		c.setAutoIntfFromBorder(border)
+	}
+	return c.border2obj2auto[border][obj]
 }
 
 func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
@@ -1408,7 +1389,7 @@ func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
 }
 
 // Result is the set of interfaces of src located at direction to dst.
-func pathRouterInterfaces(src *router, dst someObj) intfList {
+func (c *spoc) pathRouterInterfaces(src *router, dst someObj) intfList {
 	srcPath := src.getPathNode()
 	dstPath := dst.getPathNode()
 	if srcPath == dstPath {
@@ -1416,10 +1397,13 @@ func pathRouterInterfaces(src *router, dst someObj) intfList {
 	}
 
 	toList := []pathStore{dstPath}
-	return findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
+	return c.findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
 }
 
-func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName, dstName string, src2 netOrRouter) intfList {
+func (c *spoc) findAutoInterfaces(
+	srcPath, dstPath pathStore, toList []pathStore,
+	srcName, dstName string, src2 netOrRouter) intfList {
+
 	var result intfList
 
 	// Check path separately for interfaces with pathrestriction,
@@ -1444,7 +1428,7 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 				switch x := fromStore.(type) {
 				case *zone:
 					for _, intf := range enter {
-						result = append(result, autoIntfInZone(intf, src2)...)
+						result = append(result, c.autoIntfInZone(intf, src2)...)
 					}
 				case *router:
 					result = append(result, enter...)
@@ -1467,7 +1451,7 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 				next := fromStore.getPath1()[toStore]
 				switch fromStore.(type) {
 				case *zone:
-					result = append(result, autoIntfInZone(next, src2)...)
+					result = append(result, c.autoIntfInZone(next, src2)...)
 				case *router:
 					result.push(next)
 				case *routerIntf:
@@ -1478,7 +1462,7 @@ func findAutoInterfaces(srcPath, dstPath pathStore, toList []pathStore, srcName,
 		}
 	}
 	if len(result) == 0 {
-		showErrNoValidPath(srcPath, dstPath,
+		c.showErrNoValidPath(srcPath, dstPath,
 			fmt.Sprintf("while resolving %s (destination is %s).",
 				srcName, dstName))
 		return nil
