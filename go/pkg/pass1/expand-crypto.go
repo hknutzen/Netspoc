@@ -316,7 +316,7 @@ func (c *spoc) expandCrypto() {
 								netObj: netObj{
 									ipObj: ipObj{
 										name:   hub.name + "." + id,
-										tunnel: true,
+										ipType: tunnelIP,
 									},
 								},
 								natSet: natSet,
@@ -399,16 +399,17 @@ func (c *spoc) expandCrypto() {
 			// If one tunnel endpoint has no known IP address,
 			// some rules have to be added manually.
 			realSpoke := spoke.realIntf
-			if realSpoke != nil && !realSpoke.short && !realSpoke.unnumbered {
+			if realSpoke != nil &&
+				realSpoke.ipType != shortIP &&
+				realSpoke.ipType != unnumberedIP {
+
 				realHub := hub.realIntf
 				gen := func(in, out *routerIntf) {
 					// Don't generate incoming ACL from unknown address.
-					if in.negotiated {
-						return
+					if in.ipType != negotiatedIP {
+						rules := c.genTunnelRules(in, out, cr.ipsec)
+						c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 					}
-
-					rules := c.genTunnelRules(in, out, cr.ipsec)
-					c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 				}
 				gen(realSpoke, realHub)
 				gen(realHub, realSpoke)

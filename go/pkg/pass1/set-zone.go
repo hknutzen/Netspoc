@@ -62,14 +62,14 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 	// Reference zone in network and vice versa...
 	n.zone = z
-	if !(n.unnumbered || n.tunnel) { // no valid src/dst
+	if n.ipType != unnumberedIP && n.ipType != tunnelIP { // no valid src/dst
 		z.networks.push(n)
 	}
 
 	//debug("%s in %s", n, z)
 
 	// Set zone property attributes depending on network properties...
-	if n.tunnel {
+	if n.ipType == tunnelIP {
 		z.isTunnel = true
 	}
 	if n.hasIdHosts {
@@ -965,7 +965,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				// ... and warn if networks NAT value holds the
 				// same attributes.
 				c.checkUselessNat(nat, nNat, natSeen)
-			} else if n.bridged && !nat.identity {
+			} else if n.ipType == bridgedIP && !nat.identity {
 				c.err("Must not inherit nat:%s at bridged %s from %s",
 					tag, n, from)
 			} else {

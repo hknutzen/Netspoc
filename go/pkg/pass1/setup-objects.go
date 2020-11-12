@@ -665,7 +665,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 	n.ipV6 = v.IPV6
 	i := strings.Index(netName, "/")
 	if i != -1 {
-		n.bridged = true
+		n.ipType = bridgedIP
 	}
 	if i != -1 && !isSimpleName(netName[:i]) || !isSimpleName(netName[i+1:]) {
 		c.err("Invalid identifier in definition of '%s'", name)
@@ -678,7 +678,12 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 			n.ip, n.mask = c.getIpPrefix(a, v.IPV6, name)
 			hasIP = true
 		case "unnumbered":
-			n.unnumbered = c.getFlag(a, name)
+			if c.getFlag(a, name) {
+				if n.ipType == bridgedIP {
+					c.err("Unnumbered %s must not be bridged", name)
+				}
+				n.ipType = unnumberedIP
+			}
 		case "has_subnets":
 			n.hasSubnets = c.getFlag(a, name)
 		case "crosslink":
@@ -714,7 +719,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 	}
 
 	// Unnumbered network must not have any other attributes.
-	if n.unnumbered {
+	if n.ipType == unnumberedIP {
 		for _, a := range v.Attributes {
 			switch a.Name {
 			case "crosslink", "unnumbered":
@@ -727,13 +732,10 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 				}
 			}
 		}
-		if n.bridged {
-			c.err("Unnumbered %s must not be bridged", name)
-		}
 		if len(n.hosts) != 0 {
 			c.err("Unnumbered %s must not have host definition", name)
 		}
-	} else if n.bridged {
+	} else if n.ipType == bridgedIP {
 		for _, h := range n.hosts {
 			if h.ipRange[0] != nil {
 				c.err("Bridged %s must not have %s with range (not implemented)",
@@ -1188,14 +1190,14 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			// Inherit attribute 'routing' to interfaces.
 			if routingDefault != nil {
 				if intf.routing == nil {
-					if intf.bridged {
+					if intf.ipType == bridgedIP {
 						c.err("Attribute 'routing' not supported for bridge %s", name)
 					} else if !intf.loopback {
 						intf.routing = routingDefault
 					}
 				}
 			}
-			if rt := intf.routing; rt != nil && intf.unnumbered {
+			if rt := intf.routing; rt != nil && intf.ipType == unnumberedIP {
 				switch rt.name {
 				case "manual", "dynamic":
 				default:
@@ -1299,7 +1301,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			}
 			// Link bridged interfaces with corresponding layer3 device.
 			// Used in findAutoInterfaces.
-			if intf.bridged {
+			if intf.ipType == bridgedIP {
 				layer3Name := intf.name[len("interface:"):]
 				idx := strings.Index(layer3Name, "/")
 				layer3Name = layer3Name[:idx]
@@ -1361,7 +1363,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			netName := "tunnel:" + rName
 			tNet := new(network)
 			tNet.name = "network:" + netName
-			tNet.tunnel = true
+			tNet.ipType = tunnelIP
 			tNet.ipV6 = v6
 
 			// Tunnel network will later be attached to crypto hub.
@@ -1371,7 +1373,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			iName := rName + "." + netName
 			tIntf := new(routerIntf)
 			tIntf.name = "interface:" + iName
-			tIntf.tunnel = true
+			tIntf.ipType = tunnelIP
 			tIntf.crypto = cr
 			tIntf.router = r
 			tIntf.network = tNet
@@ -1419,11 +1421,11 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	var hwName string
 	var subnetOf *network
 	var nat map[string]*network
-	hasIP := false
+	ipGiven := false
 	for _, a := range l {
 		switch a.Name {
 		case "ip":
-			hasIP = true
+			ipGiven = true
 			ipList := c.getIpList(a, v6, name)
 			intf.ip = ipList[0]
 			ipList = ipList[1:]
@@ -1446,9 +1448,11 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case "owner":
 			intf.owner = c.getRealOwnerRef(a, s, name)
 		case "unnumbered":
-			intf.unnumbered = c.getFlag(a, name)
+			c.getFlag(a, name)
+			intf.ipType = unnumberedIP
 		case "negotiated":
-			intf.negotiated = c.getFlag(a, name)
+			c.getFlag(a, name)
+			intf.ipType = negotiatedIP
 		case "loopback":
 			intf.loopback = c.getFlag(a, name)
 		case "vip":
@@ -1498,7 +1502,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				}
 				if intf.ip == nil {
 					c.err("Missing IP in %s", sCtx)
-					intf.short = true
+					intf.ipType = shortIP
 				}
 				secondaryList.push(intf)
 			} else {
@@ -1517,7 +1521,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 					intf)
 			}
 		}
-		if !hasIP {
+		if !ipGiven {
 			c.err("Layer3 %s must have IP address", intf)
 			// Prevent further errors.
 			intf.disabled = true
@@ -1532,32 +1536,34 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	// Interface at bridged network
 	// - without IP is interface of bridge,
 	// - with IP is interface of router.
-	if !hasIP && strings.Index(iName, "/") != -1 && r.managed != "" {
-		intf.bridged = true
+	if !ipGiven && strings.Index(iName, "/") != -1 && r.managed != "" {
+		intf.ipType = bridgedIP
 	}
 
 	// Swap virtual interface and main interface
 	// or take virtual interface as main interface if no main IP available.
 	// Subsequent code becomes simpler if virtual interface is main interface.
 	if virtual != nil {
-		if intf.unnumbered {
+		switch intf.ipType {
+		case unnumberedIP:
 			c.err("No virtual IP supported for unnumbered %s", name)
-		} else if intf.negotiated {
+		case negotiatedIP:
 			c.err("No virtual IP supported for negotiated %s", name)
-		} else if intf.bridged {
+		case bridgedIP:
 			c.err("No virtual IP supported for bridged %s", name)
-		}
-		if intf.ip != nil {
+		default:
+			if intf.ip != nil {
 
-			// Move main IP to secondary.
-			secondary := new(routerIntf)
-			secondary.name = intf.name
-			secondary.ip = intf.ip
-			secondaryList.push(secondary)
+				// Move main IP to secondary.
+				secondary := new(routerIntf)
+				secondary.name = intf.name
+				secondary.ip = intf.ip
+				secondaryList.push(secondary)
 
-			// But we need the original main interface
-			// when handling auto interfaces.
-			intf.origMain = secondary
+				// But we need the original main interface
+				// when handling auto interfaces.
+				intf.origMain = secondary
+			}
 		}
 		if nat != nil {
 			c.err("%s with virtual interface must not use attribute 'nat'",
@@ -1577,10 +1583,10 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.redundancyType = virtual.redundancyType
 		intf.redundancyId = virtual.redundancyId
 		c.virtualInterfaces.push(intf)
-	} else if !hasIP && !intf.unnumbered && !intf.negotiated && !intf.bridged {
-		intf.short = true
+	} else if !ipGiven && intf.ipType == hasIP {
+		intf.ipType = shortIP
 	}
-	if nat != nil && !hasIP {
+	if nat != nil && !ipGiven {
 		c.err("No NAT supported for %s without IP", name)
 	}
 
@@ -1592,13 +1598,13 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	} else if intf.loopback {
 		typ = "loopback"
 	}
-	if intf.bridged {
+	if intf.ipType == bridgedIP {
 		typ = "bridged"
 		if intf.owner != nil {
 			c.err("Attribute 'owner' not supported for %s %s", typ, name)
 		}
 	}
-	if (intf.loopback || intf.bridged) && !intf.isLayer3 {
+	if (intf.loopback || intf.ipType == bridgedIP) && !intf.isLayer3 {
 		if secondaryList != nil {
 			c.err("Secondary or virtual IP not supported for %s %s", typ, name)
 			secondaryList = nil
@@ -1633,11 +1639,12 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		if intf.reroutePermit != nil {
 			c.err("Attribute 'reroute_permit' not supported for %s %s", typ, name)
 		}
-		if intf.unnumbered {
+		switch intf.ipType {
+		case unnumberedIP:
 			c.err("Attribute 'unnumbered' not supported for %s %s", typ, name)
-		} else if intf.negotiated {
+		case negotiatedIP:
 			c.err("Attribute 'negotiated' not supported for %s %s", typ, name)
-		} else if intf.short {
+		case shortIP:
 			c.err("%s %s must have IP address", typ, name)
 		}
 	}
@@ -1663,7 +1670,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		c.warn("Ignoring attribute 'no_check' at %s", intf)
 	}
 	if secondaryList != nil {
-		if intf.negotiated || intf.short || intf.bridged {
+		if intf.ipType != hasIP {
 			c.err("%s without IP address must not have secondary address", intf)
 			secondaryList = nil
 		}
@@ -1671,7 +1678,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	if r.managed != "" {
 
 		// Managed router must not have short interface.
-		if intf.short {
+		if intf.ipType == shortIP {
 			c.err("Short definition of %s not allowed", name)
 		}
 
@@ -1735,7 +1742,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 
 		if l := intf.hub; l != nil {
-			if intf.unnumbered || intf.negotiated || intf.short || intf.bridged {
+			if intf.ipType != hasIP {
 				c.err("Crypto hub %s must have IP address", intf)
 			}
 			for _, cr := range l {
@@ -1762,7 +1769,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			intf.hub = nil
 		}
 		// Unmanaged bridge would complicate generation of static routes.
-		if intf.bridged {
+		if intf.ipType == bridgedIP {
 			c.err("Unmanaged %s must not be bridged", intf)
 		}
 	}
@@ -1837,7 +1844,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			for _, intf := range append(intfList{intf}, secondaryList...) {
 				intf.network = n
 				n.interfaces.push(intf)
-				if !intf.short && !(hasIP && intf.ip == nil) {
+				if intf.ipType != shortIP && !(ipGiven && intf.ip == nil) {
 					c.checkInterfaceIp(intf, n)
 				}
 			}
@@ -3165,17 +3172,17 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]net.IP, v6 bool,
 }
 
 func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
-	if intf.unnumbered {
-		if !n.unnumbered {
+	if intf.ipType == unnumberedIP {
+		if n.ipType != unnumberedIP {
 			c.err("Unnumbered %s must not be linked to %s", intf, n)
 		}
 		return
 	}
-	if n.unnumbered {
+	if n.ipType == unnumberedIP {
 		c.err("%s must not be linked to unnumbered %s", intf, n)
 		return
 	}
-	if intf.negotiated || intf.bridged {
+	if intf.ipType != hasIP {
 		// Nothing to be checked: attribute 'bridged' is set automatically
 		// for an interface without IP and linked to bridged network.
 		return
@@ -3338,7 +3345,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 		}
 
 		for _, intf2 := range hw.interfaces {
-			if intf2 != intf && !intf2.tunnel {
+			if intf2 != intf && intf2.ipType != tunnelIP {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
@@ -3410,7 +3417,7 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 			hw := realHub.hardware
 			hub := new(routerIntf)
 			hub.name = "interface:" + rName + "." + netName
-			hub.tunnel = true
+			hub.ipType = tunnelIP
 			hub.crypto = cr
 			// Attention: shared hardware between router and orig_router.
 			hub.hardware = hw
@@ -3622,15 +3629,15 @@ func (c *spoc) splitSemiManagedRouter() {
 			iName := intf.name
 			n := new(network)
 			n.name = iName + "(split Network)"
-			n.unnumbered = true
+			n.ipType = unnumberedIP
 			intf1 := new(routerIntf)
 			intf1.name = iName + "(split1)"
-			intf1.unnumbered = true
+			intf1.ipType = unnumberedIP
 			intf1.router = r
 			intf1.network = n
 			intf2 := new(routerIntf)
 			intf2.name = iName + "(split2)"
-			intf2.unnumbered = true
+			intf2.ipType = unnumberedIP
 			intf2.router = nr
 			intf2.network = n
 			n.interfaces = intfList{intf1, intf2}

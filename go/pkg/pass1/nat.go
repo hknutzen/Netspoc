@@ -987,7 +987,7 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 
 				// debug("%s: NAT %s", d.name, intf)
 				intf.natSet = natSet
-				if (r.managed != "" || r.routingOnly) && !intf.tunnel {
+				if (r.managed != "" || r.routingOnly) && intf.ipType != tunnelIP {
 					intf.hardware.natSet = natSet
 				}
 			}

@@ -122,18 +122,23 @@ type ownerer interface {
 	setOwner(o *owner)
 }
 
+const (
+	hasIP = iota
+	negotiatedIP
+	bridgedIP
+	shortIP
+	tunnelIP
+	unnumberedIP
+)
+
 type ipObj struct {
 	disabledObj
 	ipVxObj
 	ownedObj
 	usedObj
-	name       string
-	ip         net.IP
-	unnumbered bool
-	negotiated bool
-	short      bool
-	tunnel     bool
-	bridged    bool
+	name   string
+	ip     net.IP
+	ipType int
 }
 
 func (x ipObj) String() string { return x.name }
@@ -171,7 +176,6 @@ type network struct {
 	radiusAttributes     map[string]string
 	subnetOf             *network
 	subnets              []*subnet
-	unnumbered           bool
 	unstableNat          map[natSet]netList
 	up                   *network
 	zone                 *zone

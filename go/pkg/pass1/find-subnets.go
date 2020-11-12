@@ -95,11 +95,9 @@ func (c *spoc) checkSubnets(n, subnet *network, context string) {
 		}
 	}
 	for _, intf := range n.interfaces {
-		if intf.unnumbered || intf.negotiated || intf.tunnel || intf.short ||
-			intf.bridged {
-			continue
+		if intf.ipType == hasIP {
+			check(intf.ip, nil, intf)
 		}
-		check(intf.ip, nil, intf)
 	}
 	for _, host := range n.hosts {
 		if ip := host.ip; ip != nil {
@@ -465,7 +463,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					if !natToLoopbackOk(n, natOther) {
 						error = true
 					}
-				} else if n.bridged && other.bridged {
+				} else if n.ipType == bridgedIP && other.ipType == bridgedIP {
 
 					// Parts of bridged network have identical IP by design.
 				} else {
@@ -832,7 +830,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	}
 	part2Nets := make(map[int]netList)
 	for _, n := range c.allNetworks {
-		if n.unnumbered || n.tunnel {
+		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
 			continue
 		}
 		part := dom2Part[n.zone.natDomain]

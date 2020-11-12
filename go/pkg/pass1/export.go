@@ -160,14 +160,14 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Dynamic NAT, take whole network.
 				return printNetworkIp(n)
 			}
-			switch {
-			case intf.unnumbered:
+			switch intf.ipType {
+			case unnumberedIP:
 				return "unnumbered"
-			case intf.short:
+			case shortIP:
 				return "short"
-			case intf.bridged:
+			case bridgedIP:
 				return "bridged"
-			case intf.negotiated:
+			case negotiatedIP:
 				// Take whole network.
 				return printNetworkIp(n)
 			default:
@@ -1001,7 +1001,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 	// Returns map with network name(s) as key and list of hosts / interfaces
 	// as value.
 	exportNetwork := func(net *network, owner string, ownNet bool) jsonMap {
-		if net.tunnel {
+		if net.ipType == tunnelIP {
 			return nil
 		}
 		if net.loopback {

@@ -147,7 +147,7 @@ func (c *spoc) markManagedLocal() {
 				if natNetwork.hidden {
 					continue
 				}
-				if natNetwork.unnumbered {
+				if natNetwork.ipType == unnumberedIP {
 					continue
 				}
 				ip := natNetwork.ip

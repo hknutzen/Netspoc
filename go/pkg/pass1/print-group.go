@@ -128,7 +128,7 @@ func printAddress(obj groupObj, ns natSet) string {
 	switch x := obj.(type) {
 	case *network:
 		n := getNatNetwork(x, ns)
-		if n.unnumbered {
+		if n.ipType == unnumberedIP {
 			return "unnumbered"
 		}
 		if n.hidden {
@@ -149,17 +149,14 @@ func printAddress(obj groupObj, ns natSet) string {
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
-		if x.unnumbered {
+		switch x.ipType {
+		case unnumberedIP:
 			return "unnumbered"
-		}
-		if x.short {
+		case shortIP:
 			return "short"
-		}
-		if x.bridged {
+		case bridgedIP:
 			return "bridged"
-		}
-		if x.negotiated {
-
+		case negotiatedIP:
 			// Take whole network.
 			return netAddr(n)
 		}

@@ -389,7 +389,7 @@ func printRoutes(fh *os.File, router *router) {
 			// For unnumbered and negotiated interfaces use interface name
 			// as next hop.
 			var hopAddr string
-			if intf.unnumbered || intf.negotiated || intf.tunnel {
+			if intf.ipType != hasIP {
 				hopAddr = intf.hardware.name
 			} else {
 				hopAddr = hop.ip.String()
@@ -736,7 +736,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 	aclCounter := 1
 	denyAny := getDenyAnyRule(ipv6)
 	for _, intf := range router.interfaces {
-		if !intf.tunnel {
+		if intf.ipType != tunnelIP {
 			continue
 		}
 		natSet := intf.natSet
@@ -1284,7 +1284,7 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	interfaces := router.interfaces
 	var tunnelIntf *routerIntf
 	for _, intf := range interfaces {
-		if intf.tunnel {
+		if intf.ipType == tunnelIP {
 			tunnelIntf = intf
 		}
 	}
@@ -1637,7 +1637,7 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 	var ipsecList []*ipsec
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range router.interfaces {
-		if intf.tunnel {
+		if intf.ipType == tunnelIP {
 			i := intf.crypto.ipsec
 			if seenIpsec[i] {
 				continue
@@ -1796,11 +1796,11 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 		var static, dynamic []*routerIntf
 		var haveCryptoMap = false
 		for _, intf := range hardware.interfaces {
-			if !intf.tunnel {
+			if intf.ipType != tunnelIP {
 				continue
 			}
 			real := intf.peer.realIntf
-			if real.negotiated || real.short || real.unnumbered {
+			if real.ipType != hasIP {
 				dynamic = append(dynamic, intf)
 			} else {
 				static = append(static, intf)
@@ -1847,36 +1847,39 @@ func printRouterIntf(fh *os.File, router *router) {
 		var subcmd []string
 		secondary := false
 
+	INTF:
 		for _, intf := range hardware.interfaces {
 			var addrCmd string
 			if intf.redundant {
 				continue
 			}
-			if intf.tunnel {
-				continue
-			}
-			if intf.unnumbered {
+			switch intf.ipType {
+			case tunnelIP:
+				continue INTF
+			case unnumberedIP:
 				addrCmd = "ip unnumbered X"
-			} else if intf.negotiated {
+			case negotiatedIP:
 				addrCmd = "ip address negotiated"
-			} else if model.usePrefix || ipv6 {
-				addr := intf.ip.String()
-				prefix, _ := intf.network.mask.Size()
-				if ipv6 {
-					addrCmd = "ipv6"
+			default:
+				if model.usePrefix || ipv6 {
+					addr := intf.ip.String()
+					prefix, _ := intf.network.mask.Size()
+					if ipv6 {
+						addrCmd = "ipv6"
+					} else {
+						addrCmd = "ip"
+					}
+					addrCmd += " address " + addr + "/" + strconv.Itoa(prefix)
+					if secondary {
+						addrCmd += " secondary"
+					}
 				} else {
-					addrCmd = "ip"
-				}
-				addrCmd += " address " + addr + "/" + strconv.Itoa(prefix)
-				if secondary {
-					addrCmd += " secondary"
-				}
-			} else {
-				addr := intf.ip.String()
-				mask := net.IP(intf.network.mask).String()
-				addrCmd = "ip address " + addr + " " + mask
-				if secondary {
-					addrCmd += " secondary"
+					addr := intf.ip.String()
+					mask := net.IP(intf.network.mask).String()
+					addrCmd = "ip address " + addr + " " + mask
+					if secondary {
+						addrCmd += " secondary"
+					}
 				}
 			}
 			subcmd = append(subcmd, addrCmd)

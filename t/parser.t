@@ -325,7 +325,7 @@ network:N = { unnumbered; }
 END
 
 $out = <<'END';
-Error: interface:R.N.second must not be linked to unnumbered network:N
+Error: interface:R.N without IP address must not have secondary address
 END
 
 test_err($title, $in, $out);

@@ -769,7 +769,7 @@ func fixBridgedHops(hop *routerIntf, network *network) intfList {
 		for hop2, netMap := range intf.routes {
 			for network2, _ := range netMap {
 				if network == network2 {
-					if hop2.bridged {
+					if hop2.ipType == bridgedIP {
 						result = append(result, fixBridgedHops(hop2, network)...)
 					} else {
 						result.push(hop2)
@@ -792,12 +792,12 @@ func (c *spoc) checkAndConvertRoutes() {
 				if intf.routing != nil {
 					continue
 				}
-				if !intf.network.bridged {
+				if intf.network.ipType != bridgedIP {
 					continue
 				}
 				addRoutes := make(map[*routerIntf][]*network)
 				for hop, netMap := range intf.routes {
-					if !hop.bridged {
+					if hop.ipType != bridgedIP {
 						continue
 					}
 					for network, _ := range netMap {
@@ -832,7 +832,7 @@ func (c *spoc) checkAndConvertRoutes() {
 
 			// Adjust routes through VPN tunnel to cleartext interface.
 			for _, intf := range router.interfaces {
-				if !intf.tunnel {
+				if intf.ipType != tunnelIP {
 					continue
 				}
 				realIntf := intf.realIntf
@@ -851,7 +851,7 @@ func (c *spoc) checkAndConvertRoutes() {
 
 				// Peer network is directly connected.
 				if realNet == peerNet {
-					if !realPeer.short && !realPeer.negotiated {
+					if realPeer.ipType == hasIP {
 						hops.push(realPeer)
 					} else {
 						c.err("%s used to reach software clients\n"+
@@ -973,7 +973,7 @@ func (c *spoc) checkAndConvertRoutes() {
 				var errors stringList
 
 				// Routing info not needed, because dynamic routing is in use.
-				if intf.routing != nil || intf.bridged {
+				if intf.routing != nil || intf.ipType == bridgedIP {
 					intf.routes = nil
 					continue
 				}

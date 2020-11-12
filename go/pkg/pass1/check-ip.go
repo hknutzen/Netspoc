@@ -19,7 +19,7 @@ func (c *spoc) checkSubnetOf() {
 			if ctx == "" {
 				ctx = n.name
 			}
-			if sn.unnumbered {
+			if sn.ipType == unnumberedIP {
 				c.err("Unnumbered %s must not be referenced from"+
 					" attribute 'subnet_of'\n of %s", sn, ctx)
 				// Prevent further errors;
@@ -54,25 +54,20 @@ func (c *spoc) checkIPAddressesAndBridges() {
 	prefix2net := make(map[string][]*network)
 	for _, n := range c.allNetworks {
 		// Group bridged networks by prefix of name.
-		if n.bridged {
+		if n.ipType == bridgedIP {
 			i := strings.Index(n.name, "/")
 			prefix := n.name[:i]
 			prefix2net[prefix] = append(prefix2net[prefix], n)
-			continue
-		}
-		if n.unnumbered {
+		} else if n.ipType == unnumberedIP {
 			l := n.interfaces
 			if len(l) > 2 {
 				c.err(
 					"Unnumbered %s is connected to more than two interfaces:\n%s",
 					n.name, l.nameList())
 			}
-			continue
+		} else if !(n.ipType == tunnelIP || n.loopback) {
+			c.checkIPAddresses(n)
 		}
-		if n.tunnel || n.loopback {
-			continue
-		}
-		c.checkIPAddresses(n)
 	}
 
 	// Check address conflicts for collected parts of bridged networks.
@@ -107,14 +102,14 @@ func (c *spoc) checkIPAddresses(n *network) {
 	var shortIntf intfList
 	var routeIntf *routerIntf
 	for _, intf := range n.interfaces {
-		if intf.short {
+		if intf.ipType == shortIP {
 			// Ignore short interface from split crypto router.
 			if len(intf.router.interfaces) > 1 {
 				shortIntf.push(intf)
 			}
-		} else if intf.negotiated {
+		} else if intf.ipType == negotiatedIP {
 			shortIntf.push(intf)
-		} else if !intf.bridged {
+		} else if intf.ipType != bridgedIP {
 			r := intf.router
 			if (r.managed != "" || r.routingOnly) &&
 				intf.routing == nil && !intf.isLayer3 {
@@ -214,7 +209,7 @@ func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
 			}
 			connected[n2] = true
 			for _, in := range n2.interfaces {
-				if !in.bridged {
+				if in.ipType != bridgedIP {
 					continue
 				}
 				r := in.router
@@ -230,7 +225,7 @@ func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
 					}
 				}
 				for _, out := range r.interfaces {
-					if out == in || !out.bridged {
+					if out == in || out.ipType != bridgedIP {
 						continue
 					}
 					n3 := out.network

@@ -569,11 +569,11 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		if !n.isUsed {
 			continue
 		}
-		if !n.bridged {
+		if n.ipType != bridgedIP {
 			continue
 		}
 		for _, in := range n.interfaces {
-			if !in.bridged {
+			if in.ipType != bridgedIP {
 				continue
 			}
 			in.isUsed = true
@@ -582,7 +582,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			for _, out := range bridge.interfaces {
 				if out.hardware.name == "device" && bridge.model.class == "ASA" {
 					out.isUsed = true
-				} else if out.bridged {
+				} else if out.ipType == bridgedIP {
 					out.isUsed = true
 					out.network.isUsed = true
 				}
@@ -624,7 +624,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 
 			// Mark path of crypto tunnel.
-			if intf.tunnel {
+			if intf.ipType == tunnelIP {
 				peer := intf.peer
 				real := intf.realIntf
 				c.markPath(real, peer.realIntf)

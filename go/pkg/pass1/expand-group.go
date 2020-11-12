@@ -214,7 +214,8 @@ func (c *spoc) expandGroup1(
 	// Silently remove unnumbered, bridged and tunnel interfaces from
 	// automatic groups.
 	check := func(intf *routerIntf) bool {
-		return !(intf.tunnel || visible && (intf.unnumbered || intf.bridged))
+		return !(intf.ipType == tunnelIP ||
+			visible && (intf.ipType == unnumberedIP || intf.ipType == bridgedIP))
 	}
 	result := make(groupObjList, 0)
 	for _, el := range list {
@@ -726,7 +727,7 @@ func (c *spoc) expandGroupInRule(
 		var ignore string
 		switch x := obj.(type) {
 		case *network:
-			if x.unnumbered {
+			if x.ipType == unnumberedIP {
 				ignore = "unnumbered " + x.name
 			} else if x.crosslink {
 				ignore = "crosslink " + x.name
@@ -736,11 +737,12 @@ func (c *spoc) expandGroupInRule(
 				}
 			}
 		case *routerIntf:
-			if x.bridged {
+			switch x.ipType {
+			case bridgedIP:
 				ignore = "bridged " + x.name
-			} else if x.unnumbered {
+			case unnumberedIP:
 				ignore = "unnumbered " + x.name
-			} else if x.short {
+			case shortIP:
 				ignore = x.name + " without IP address"
 			}
 		case *area:
