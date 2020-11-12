@@ -136,9 +136,8 @@ type ipObj struct {
 	ipVxObj
 	ownedObj
 	usedObj
-	name   string
-	ip     net.IP
-	ipType int
+	name string
+	ip   net.IP
 }
 
 func (x ipObj) String() string { return x.name }
@@ -161,6 +160,7 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
+	ipType               int
 	isAggregate          bool
 	isLayer3             bool
 	link                 *network
@@ -341,6 +341,7 @@ type routerIntf struct {
 	hub             []*crypto
 	spoke           *crypto
 	id              string
+	ipType          int
 	isHub           bool
 	isLayer3        bool
 	hardware        *hardware

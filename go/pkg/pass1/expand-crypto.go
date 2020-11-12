@@ -315,10 +315,10 @@ func (c *spoc) expandCrypto() {
 							routerIntf: &routerIntf{
 								netObj: netObj{
 									ipObj: ipObj{
-										name:   hub.name + "." + id,
-										ipType: tunnelIP,
+										name: hub.name + "." + id,
 									},
 								},
+								ipType: tunnelIP,
 								natSet: natSet,
 							},
 							src: s,
