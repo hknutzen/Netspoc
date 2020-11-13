@@ -1535,7 +1535,7 @@ func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, m
 		peerIp := prefixCode(peer.realIntf.address(natSet))
 		suffix := peerIp
 
-		crypto := intf.crypto
+		crypto := intf.getCrypto()
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
@@ -1592,7 +1592,7 @@ func (c *spoc) printDynamicCryptoMap(
 		id := intf.peer.id
 		suffix := id
 
-		crypto := intf.crypto
+		crypto := intf.getCrypto()
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
@@ -1638,7 +1638,7 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range router.interfaces {
 		if intf.ipType == tunnelIP {
-			i := intf.crypto.ipsec
+			i := intf.getCrypto().ipsec
 			if seenIpsec[i] {
 				continue
 			}

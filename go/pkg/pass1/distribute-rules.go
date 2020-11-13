@@ -108,7 +108,7 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 		// Outgoing rules are needed at tunnel for generating
 		// detailedCryptoAcl.
 		if outIntf.ipType == tunnelIP &&
-			outIntf.crypto.detailedCryptoAcl &&
+			outIntf.getCrypto().detailedCryptoAcl &&
 			outIntf.idRules == nil {
 			outIntf.outRules.push(rule)
 		}

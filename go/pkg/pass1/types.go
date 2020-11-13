@@ -328,9 +328,9 @@ type loop struct {
 type routerIntf struct {
 	netObj
 	pathStoreData
-	router          *router
-	bindNat         []string
-	crypto          *crypto
+	router  *router
+	bindNat []string
+	//crypto          *crypto
 	dhcpClient      bool
 	dhcpServer      bool
 	hub             []*crypto
@@ -369,6 +369,13 @@ type routerIntf struct {
 	idRules         map[string]*idIntf
 	toZone1         pathObj
 	zone            *zone
+}
+
+func (intf *routerIntf) getCrypto() *crypto {
+	if intf.isHub {
+		return intf.peer.realIntf.spoke
+	}
+	return intf.realIntf.spoke
 }
 
 type intfList []*routerIntf

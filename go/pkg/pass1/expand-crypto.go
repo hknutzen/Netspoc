@@ -468,8 +468,8 @@ func (c *spoc) expandCrypto() {
 			}
 		} else if cryptoType == "ASA" {
 			for _, intf := range r.interfaces {
-				if crypto := intf.crypto; crypto != nil {
-					c.verifyAsaTrustpoint(r, crypto)
+				if intf.ipType == tunnelIP {
+					c.verifyAsaTrustpoint(r, intf.getCrypto())
 				}
 			}
 		}

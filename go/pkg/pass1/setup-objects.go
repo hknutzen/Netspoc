@@ -1369,7 +1369,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			tIntf := new(routerIntf)
 			tIntf.name = "interface:" + iName
 			tIntf.ipType = tunnelIP
-			tIntf.crypto = cr
 			tIntf.router = r
 			tIntf.network = tNet
 			tIntf.realIntf = intf
@@ -3413,7 +3412,6 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 			hub := new(routerIntf)
 			hub.name = "interface:" + rName + "." + netName
 			hub.ipType = tunnelIP
-			hub.crypto = cr
 			// Attention: shared hardware between router and orig_router.
 			hub.hardware = hw
 			hub.isHub = true
