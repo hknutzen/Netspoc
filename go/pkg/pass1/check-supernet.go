@@ -727,8 +727,7 @@ OBJ:
 		if inList2[obj] {
 			continue
 		}
-		zone2 := obj.getZone()
-		if zone2 == zone {
+		if zoneEq(zone, obj.getZone()) {
 			continue
 		}
 		up := obj
@@ -750,8 +749,7 @@ func elementsInOneZone(list1, list2 []someObj) bool {
 	zone0 := list1[0].getZone()
 	check := func(list []someObj) bool {
 		for _, obj := range list {
-			zone := obj.getZone()
-			if !zoneEq(zone0, zone) {
+			if !zoneEq(zone0, obj.getZone()) {
 				return false
 			}
 		}
