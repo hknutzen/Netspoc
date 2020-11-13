@@ -728,7 +728,7 @@ func (c *spoc) findActiveRoutes() {
 	c.progress("Finding routes")
 
 	// Mark interfaces of unmanaged routers such that no routes are collected.
-	for _, router := range getIpv4Ipv6Routers() {
+	for _, router := range c.allRouters {
 		if router.semiManaged && !router.routingOnly {
 			for _, intf := range router.interfaces {
 				intf.routing = routingInfo["dynamic"]

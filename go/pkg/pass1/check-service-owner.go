@@ -259,16 +259,15 @@ func (c *spoc) propagateOwners() {
 	// Propagate owner of loopback interface to loopback network and
 	// loopback zone. Even reset owners to undef, if loopback interface
 	// has no owner.
-	for _, r := range getIpv4Ipv6Routers() {
+	for _, r := range c.allRouters {
 		for _, intf := range r.interfaces {
-			if !intf.loopback {
-				continue
+			if intf.loopback {
+				owner := intf.owner
+				if owner != nil {
+					owner.isUsed = true
+				}
+				intf.network.owner = owner
 			}
-			owner := intf.owner
-			if owner != nil {
-				owner.isUsed = true
-			}
-			intf.network.owner = owner
 		}
 	}
 }
