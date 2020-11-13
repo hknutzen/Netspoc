@@ -1213,7 +1213,9 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 		// Add unique zone to each managed router.
 		// This represents the router itself.
-		r.zone = new(zone)
+		z := new(zone)
+		z.cluster = []*zone{z}
+		r.zone = z
 
 		if managed == "local" {
 			if r.filterOnly == nil {

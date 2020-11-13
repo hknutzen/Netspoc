@@ -132,7 +132,10 @@ func (c *spoc) linkImplicitAggregateToZone(agg *network, z *zone, key ipmask) {
 // TDOD     : Aggregate may be a non aggregate network,
 //            e.g. a network with ip/mask 0/0. ??
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
-	cluster := agg.zone.zoneCluster
+	cluster := agg.zone.cluster
+	if len(cluster) == 1 {
+		return
+	}
 	ip := agg.ip
 	mask := agg.mask
 	key := ipmask{string(ip), string(mask)}
@@ -172,7 +175,7 @@ func (c *spoc) getAny(
 		mask = getZeroMask(z.ipV6)
 	}
 	key := ipmask{string(ip), string(mask)}
-	cluster := z.zoneCluster
+	cluster := z.cluster
 	if z.ipmask2aggregate[key] == nil {
 
 		// Check, if there is a network with same IP as the requested
@@ -188,14 +191,10 @@ func (c *spoc) getAny(
 			return nil
 		}
 		var net *network
-		if cluster != nil {
-			for _, z := range cluster {
-				if net = findNet(z); net != nil {
-					break
-				}
+		for _, z := range cluster {
+			if net = findNet(z); net != nil {
+				break
 			}
-		} else {
-			net = findNet(z)
 		}
 		if net != nil {
 
@@ -203,9 +202,7 @@ func (c *spoc) getAny(
 			net.zone.ipmask2aggregate[key] = net
 
 			// Create aggregates in cluster, using the name of the network.
-			if cluster != nil {
-				c.duplicateAggregateToCluster(net, true)
-			}
+			c.duplicateAggregateToCluster(net, true)
 		} else {
 
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
@@ -225,25 +222,22 @@ func (c *spoc) getAny(
 			agg.ipV6 = z.ipV6
 
 			c.linkImplicitAggregateToZone(agg, z, key)
-			if cluster != nil {
-				c.duplicateAggregateToCluster(agg, true)
-			}
+			c.duplicateAggregateToCluster(agg, true)
 		}
 	}
 	var result netList
-	process := func(z *zone) {
-
+	for _, z := range cluster {
 		// Ignore zone having no aggregate from unnumbered network.
 		aggOrNet := z.ipmask2aggregate[key]
 		if aggOrNet == nil {
-			return
+			continue
 		}
 
 		result.push(aggOrNet)
 
 		if visible {
 
-			// Mark aggregate as visible for find_zone_networks.
+			// Mark aggregate as visible for findZoneNetworks.
 			aggOrNet.invisible = false
 
 			// Check for error condition only if result will be visible.
@@ -259,13 +253,6 @@ func (c *spoc) getAny(
 				}
 			}
 		}
-	}
-	if cluster != nil {
-		for _, z := range cluster {
-			process(z)
-		}
-	} else {
-		process(z)
 	}
 	return result
 }

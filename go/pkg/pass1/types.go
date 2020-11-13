@@ -495,7 +495,7 @@ type zone struct {
 	statefulMark         int
 	unmanagedRouters     []*router
 	watchingOwners       []*owner
-	zoneCluster          []*zone
+	cluster              []*zone
 }
 
 func (x zone) String() string { return x.name }

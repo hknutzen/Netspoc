@@ -65,13 +65,10 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					r0.name, r.name)
 			}
 
-			for _, inIntf := range r.interfaces {
-				z0 := inIntf.zone
-				zoneCluster := z0.zoneCluster
-				if zoneCluster == nil {
-					zoneCluster = []*zone{z0}
-				}
-				for _, z := range zoneCluster {
+			for _, in := range r.interfaces {
+				z0 := in.zone
+				cluster := z0.cluster
+				for _, z := range cluster {
 					if seen[z] {
 						continue
 					}
@@ -96,18 +93,14 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 							n.name, r.name)
 					}
 
-					for _, outIntf := range z.interfaces {
-						if outIntf == inIntf {
+					for _, out := range z.interfaces {
+						if out == in {
 							continue
 						}
-						r2 := outIntf.router
-						if r2.managed != "local" {
-							continue
+						r2 := out.router
+						if r2.managed == "local" && r2.localMark == 0 {
+							walk(r2)
 						}
-						if r2.localMark != 0 {
-							continue
-						}
-						walk(r2)
 					}
 				}
 			}

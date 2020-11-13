@@ -1293,11 +1293,8 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 		return
 	}
 	z := n.zone
-	if c := z.zoneCluster; c != nil {
-
-		// Get deterministic zone for aggregates and networks in zone cluster.
-		z = c[0]
-	}
+	// Get deterministic zone for aggregates and networks in zone cluster.
+	z = z.cluster[0]
 	desc["zone"] = getZoneName(z)
 
 	// Netspoc-Web only needs info about subnets in other zone.

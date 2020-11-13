@@ -1175,7 +1175,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 					intfOk := 0
 					for _, intf := range hardware.interfaces {
 						zone := intf.zone
-						if zone.zoneCluster != nil {
+						if len(zone.cluster) > 1 {
 							break
 						}
 

@@ -7,19 +7,12 @@ import (
 
 func getZoneClusterBorders(z *zone) intfList {
 	var result intfList
-	collect := func(z *zone) {
+	for _, z := range z.cluster {
 		for _, intf := range z.interfaces {
 			if intf.router.managed != "" {
 				result.push(intf)
 			}
 		}
-	}
-	if cluster := z.zoneCluster; cluster != nil {
-		for _, z := range cluster {
-			collect(z)
-		}
-	} else {
-		collect(z)
 	}
 	return result
 }
@@ -301,7 +294,7 @@ func (c *spoc) checkDynamicNatRules(
 					}
 
 					// Only check at border router.
-					// intf would have value 'undef' if obj is
+					// intf would have value 'nil' if obj is
 					// interface of current router and src/dst of rule.
 					intf := inIntf
 					if reversed {

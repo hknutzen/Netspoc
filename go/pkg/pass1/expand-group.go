@@ -441,7 +441,7 @@ func (c *spoc) expandGroup1(
 					case *area:
 						seen := make(map[*zone]bool)
 						for _, z := range x.zones {
-							if c := z.zoneCluster; c != nil {
+							if c := z.cluster; len(c) > 1 {
 								z = c[0]
 								if seen[z] {
 									continue
@@ -673,7 +673,7 @@ func (c *spoc) expandGroup1(
 
 					// Substitute aggregate by aggregate set of zone cluster.
 					// Ignore zone having no aggregate from unnumbered network.
-					if cluster := n.zone.zoneCluster; cluster != nil {
+					if cluster := n.zone.cluster; len(cluster) > 1 {
 						key := ipmask{string(n.ip), string(n.mask)}
 						for _, z := range cluster {
 							if agg2 := z.ipmask2aggregate[key]; agg2 != nil {

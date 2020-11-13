@@ -11,17 +11,9 @@ import (
 // - zones are equal or
 // - both belong to the same zone cluster.
 func zoneEq(z1, z2 *zone) bool {
-	if z1 == z2 {
-		return true
-	}
-	c1 := z1.zoneCluster
-	c2 := z2.zoneCluster
-	if len(c1) == 0 || len(c2) == 0 {
-		return false
-	}
 	// Each zone of a cluster references the same slice, so it is
 	// sufficient to compare first element.
-	return c1[0] == c2[0]
+	return z1.cluster[0] == z2.cluster[0]
 }
 
 // Print abbreviated list of names in messages.
@@ -230,11 +222,7 @@ func (c *spoc) checkSupernetInZone(
 	rule *groupedRule, where string, intf *routerIntf,
 	z *zone, seen map[*zone]bool, reversed bool) {
 
-	cluster := z.zoneCluster
-	if cluster == nil {
-		cluster = []*zone{z}
-	}
-	for _, z := range cluster {
+	for _, z := range z.cluster {
 		c.checkSupernetInZone1(rule, where, intf, z, seen, reversed)
 	}
 }

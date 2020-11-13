@@ -18,10 +18,10 @@ func (c *spoc) propagateOwners() {
 	aggGotNetOwner := make(map[*network]bool)
 	seen := make(map[*zone]bool)
 	for _, z := range c.allZones {
-		if seen[z] {
+		cluster := z.cluster
+		if len(cluster) > 1 && seen[cluster[0]] {
 			continue
 		}
-		cluster := z.zoneCluster
 	AGGREGATE:
 		for key, agg := range z.ipmask2aggregate {
 
@@ -33,9 +33,9 @@ func (c *spoc) propagateOwners() {
 
 			var found *owner
 			var contained netList
-			if cluster != nil {
+			if len(cluster) > 1 {
+				seen[cluster[0]] = true
 				for _, z2 := range cluster {
-					seen[z2] = true
 					contained =
 						append(contained, z2.ipmask2aggregate[key].networks...)
 				}

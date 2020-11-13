@@ -570,19 +570,12 @@ func pathrestrictionHasNoEffect(restrict *pathRestriction) bool {
 }
 
 // Pathrestrictions spanning more than one zone/zone cluster affect ACLs.
+// Each zone of a cluster references the same slice, so it is
+// sufficient to compare first element.
 func restrictSpansDifferentZonesOrZoneclusters(r *pathRestriction) bool {
-	getZoneOrCluster := func(intf *routerIntf) *zone {
-		z := intf.zone
-		if c := z.zoneCluster; c != nil {
-			// Each zone of a cluster references the same slice, so it is
-			// sufficient to compare first element.
-			z = c[0]
-		}
-		return z
-	}
-	reference := getZoneOrCluster(r.elements[0])
+	ref := r.elements[0].zone.cluster[0]
 	for _, intf := range r.elements[1:] {
-		if getZoneOrCluster(intf) != reference {
+		if intf.zone.cluster[0] != ref {
 			return true
 		}
 	}
@@ -590,23 +583,22 @@ func restrictSpansDifferentZonesOrZoneclusters(r *pathRestriction) bool {
 }
 
 // Pathrestrictions in loops with > 1 zone cluster affect ACLs.
-func restrictIsInLoopWithSeveralZoneClusters(restrict *pathRestriction) bool {
+func restrictIsInLoopWithSeveralZoneClusters(r *pathRestriction) bool {
 
-	referenceIntf := restrict.elements[0]
-	referenceLoop := getIntfLoop(referenceIntf)
-	if referenceLoop == nil {
+	refIntf := r.elements[0]
+	refLoop := getIntfLoop(refIntf)
+	if refLoop == nil { // ToDo: why do we check this?
 		return false
 	}
-	referenceCluster := referenceIntf.zone.zoneCluster
-	if len(referenceCluster) == 0 {
-		referenceCluster = []*zone{referenceIntf.zone}
-	}
 
-	for _, z := range referenceCluster {
-		for _, zoneIntf := range z.interfaces {
-			for _, intf2 := range zoneIntf.router.interfaces {
+	// Process every zone in zone cluster...
+	for _, z := range refIntf.zone.cluster {
+		for _, zIntf := range z.interfaces {
+			// ...examine its neighbour zones...
+			for _, intf2 := range zIntf.router.interfaces {
 				z2 := intf2.zone
-				if !zoneEq(z2, z) && referenceLoop == z2.loop {
+				if !zoneEq(z2, z) && refLoop == z2.loop {
+					// found other zone cluster in same loop.
 					return true
 				}
 			}
