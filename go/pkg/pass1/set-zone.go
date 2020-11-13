@@ -38,12 +38,6 @@ func (c *spoc) setZones() {
 
 		// Collect zone elements...
 		c.setZone1(n, z, nil)
-
-		// Attribute isTunnel was set when zone has some tunnel networks,
-		// but must only be set, if it has only tunnel networks.
-		if z.networks != nil { // tunnel networks aren't referenced in zone
-			z.isTunnel = false
-		}
 	}
 }
 
@@ -67,11 +61,6 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	}
 
 	//debug("%s in %s", n, z)
-
-	// Set zone property attributes depending on network properties...
-	if n.ipType == tunnelIP {
-		z.isTunnel = true
-	}
 	if n.hasIdHosts {
 		z.hasIdHosts = true
 	}
@@ -151,7 +140,7 @@ func (c *spoc) clusterZones() {
 func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 	// Reference zone in cluster list and vice versa.
-	if !z.isTunnel {
+	if !z.isTunnel() {
 		*collected = append(*collected, z)
 		// Set preliminary list as marker, that this zone has been processed.
 		z.cluster = *collected
@@ -181,6 +170,12 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 			}
 		}
 	}
+}
+
+func (z *zone) isTunnel() bool {
+	return len(z.networks) == 0 && len(z.interfaces) == 2 &&
+		z.interfaces[0].ipType == tunnelIP &&
+		z.interfaces[1].ipType == tunnelIP
 }
 
 // If routers are connected by crosslink network then
@@ -501,7 +496,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	case *zone:
 		isZone = true
 		// Reference zones and managed routers in corresponding area.
-		if !x.isTunnel {
+		if !x.isTunnel() {
 			a.zones = append(a.zones, x)
 		}
 	case *router:

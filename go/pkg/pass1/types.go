@@ -483,7 +483,6 @@ type zone struct {
 	inArea               *area
 	ipmask2aggregate     map[ipmask]*network
 	ipmask2net           map[ipmask]netList
-	isTunnel             bool
 	link                 *network
 	loopback             bool
 	nat                  map[string]*network

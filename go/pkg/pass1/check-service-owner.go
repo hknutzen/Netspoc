@@ -196,10 +196,10 @@ func (c *spoc) propagateOwners() {
 					continue
 				}
 			}
-			z := n.zone
-			if z.isTunnel {
+			if n.ipType == tunnelIP {
 				continue
 			}
+			z := n.zone
 			for _, wo := range z.watchingOwners {
 				if wo == o {
 					continue NETWORK
