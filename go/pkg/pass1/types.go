@@ -492,7 +492,6 @@ type zone struct {
 	primaryMark          int
 	secondaryMark        int
 	statefulMark         int
-	unmanagedRouters     []*router
 	watchingOwners       []*owner
 	cluster              []*zone
 }

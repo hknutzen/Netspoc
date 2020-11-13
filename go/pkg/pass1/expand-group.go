@@ -340,8 +340,14 @@ func (c *spoc) expandGroup1(
 						routers = routers[:j]
 					} else {
 						for _, z := range x.zones {
-							for _, r := range z.unmanagedRouters {
-								routers = append(routers, r)
+							for _, n := range z.networks {
+								for _, intf := range n.interfaces {
+									r := intf.router
+									if !seen[r] {
+										seen[r] = true
+										routers = append(routers, r)
+									}
+								}
 							}
 						}
 					}
