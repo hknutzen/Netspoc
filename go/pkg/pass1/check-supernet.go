@@ -10,10 +10,19 @@ import (
 // Two zones are zoneEq, if
 // - zones are equal or
 // - both belong to the same zone cluster.
-func zoneEq(z1, z2 *zone) bool {
-	// Each zone of a cluster references the same slice, so it is
-	// sufficient to compare first element.
-	return z1.cluster[0] == z2.cluster[0]
+// Handles zone or router as argument.
+func zoneEq(z1, z2 pathObj) bool {
+	if z1 == z2 {
+		return true
+	}
+	if z1, ok := z1.(*zone); ok {
+		if z2, ok := z2.(*zone); ok {
+			// Each zone of a cluster references the same slice, so it is
+			// sufficient to compare first element.
+			return z1.cluster[0] == z2.cluster[0]
+		}
+	}
+	return false
 }
 
 // Print abbreviated list of names in messages.
@@ -251,27 +260,28 @@ func isFilteredAt(mark int, supernet *network, objList []someObj) bool {
 	return false
 }
 
-func (x *zone) getZone() *zone {
+// Returns zone for most objects, but router for interfaces of managed router.
+func (x *zone) getZone() pathObj {
 	return x
 }
-func (x *router) getZone() *zone {
+func (x *router) getZone() pathObj {
 	if x.managed == "" {
 		return x.interfaces[0].network.zone
 	} else {
-		return x.zone
+		return x
 	}
 }
-func (x *routerIntf) getZone() *zone {
+func (x *routerIntf) getZone() pathObj {
 	if x.router.managed == "" {
 		return x.network.zone
 	} else {
-		return x.router.zone
+		return x.router
 	}
 }
-func (x *network) getZone() *zone {
+func (x *network) getZone() pathObj {
 	return x.zone
 }
-func (x *subnet) getZone() *zone {
+func (x *subnet) getZone() pathObj {
 	return x.network.zone
 }
 
@@ -361,7 +371,10 @@ func (c *spoc) checkSupernetSrcRule(
 		// correctly back to source address.
 		// Hence reverse rules need not to be checked.
 		m1 := outZone.statefulMark
-		m2 := dstZone.statefulMark
+		m2 := 0
+		if z2, ok := dstZone.(*zone); ok {
+			m2 = z2.statefulMark
+		}
 		if m2 != 0 && m1 == m2 {
 
 			// Check case II, outgoing ACL, (B), interface Y without ACL.

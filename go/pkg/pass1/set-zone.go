@@ -87,11 +87,9 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 		if r.managed != "" || r.semiManaged {
 			intf.zone = z
 			z.interfaces.push(intf)
-		} else if r.zone == nil {
-
-			// If it's an unmanaged router, reference router in zone and v.v.
-			// Traverse each unmanaged router only once.
-			r.zone = z // added only to prevent repeated traversal.
+		} else if !r.activePath {
+			r.activePath = true
+			defer func() { r.activePath = false }()
 
 			// Recursively add adjacent networks.
 			for _, out := range r.interfaces {

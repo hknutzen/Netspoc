@@ -1210,13 +1210,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 	// Check again after "managed=routing_only" has been removed.
 	if managed := r.managed; managed != "" {
-
-		// Add unique zone to each managed router.
-		// This represents the router itself.
-		z := new(zone)
-		z.cluster = []*zone{z}
-		r.zone = z
-
 		if managed == "local" {
 			if r.filterOnly == nil {
 				c.err("Missing attribute 'filter_only' for %s", name)

@@ -72,7 +72,6 @@ type srvObj interface {
 	getNetwork() *network
 	getUsed() bool
 	setUsed()
-	//	setCommon(m xMap) // for importFromPerl
 }
 type srvObjList []srvObj
 
@@ -87,8 +86,7 @@ type someObj interface {
 	address(nn natSet) *net.IPNet
 	getAttr(attr string) string
 	getPathNode() pathStore
-	getZone() *zone
-	//setCommon(m xMap) // for importFromPerl
+	getZone() pathObj
 }
 
 type disabledObj struct {
@@ -316,9 +314,6 @@ type router struct {
 	vrfMembers              []*router
 	aclList                 []*aclInfo
 	vrf                     string
-
-	// This represents the router itself and is distinct from each real zone.
-	zone *zone
 }
 
 func (x router) String() string { return x.name }
@@ -705,7 +700,7 @@ type pathStore interface {
 	setLoopEntry(pathStore, pathStore)
 	setLoopExit(pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
-	getZone() *zone
+	getZone() pathObj
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }
