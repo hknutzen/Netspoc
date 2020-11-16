@@ -2422,6 +2422,9 @@ func (c *spoc) printCode1(dir string) {
 	}
 	printRouter(c.managedRouters)
 	printRouter(c.routingOnlyRouters)
+
+	// Send "." to indicate end of transmission.
+	fmt.Fprintln(toPass2, ".")
 }
 
 func (c *spoc) printCode(dir string) {

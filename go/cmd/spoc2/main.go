@@ -2764,9 +2764,14 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 	}
 
 	// Read to be processed files line by line.
+	pass1OK := false
 	scanner := bufio.NewScanner(deviceNamesFh)
 	for scanner.Scan() {
 		devicePath := scanner.Text()
+		if devicePath == "." {
+			pass1OK = true
+			break
+		}
 
 		if 1 >= concurrent {
 			// Process sequentially.
@@ -2803,6 +2808,9 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 	if reused > 0 {
 		diag.Info("Reused %d files from previous run", reused)
 	}
+	if pass1OK {
+		diag.Progress("Finished")
+	}
 }
 
 func pass2(dir string) {
@@ -2835,6 +2843,5 @@ func main() {
 	_, outDir := conf.GetArgs()
 	if outDir != "" {
 		pass2(outDir)
-		diag.Progress("Finished")
 	}
 }
