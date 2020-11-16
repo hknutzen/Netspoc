@@ -6,11 +6,11 @@ import (
 
 // Find cluster of zones connected by 'local' routers.
 // - Check consistency of attributes.
-// - Set unique 'local_mark' for all managed routers
+// - Set unique attribute localMark for all managed routers
 //   belonging to one cluster.
-// Returns array of cluster infos, a hash with attributes
-// - nat_set
-// - filter_only
+// Returns array of cluster infos, a map with attributes
+// - natSet
+// - filterOnly
 // - mark
 
 type clusterInfo struct {
@@ -125,7 +125,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 // Mark networks and aggregates, that are filtered at some
 // managed=local devices.
 // A network is marked by adding the number of the corresponding
-// managed=local cluster as key to a hash in attribute {filter_at}.
+// managed=local cluster as key to a map in attribute filterAt.
 func (c *spoc) markManagedLocal() {
 	network00.filterAt = make(map[int]bool)
 	network00v6.filterAt = make(map[int]bool)
@@ -167,7 +167,7 @@ func (c *spoc) markManagedLocal() {
 							}
 							m[mark] = true
 
-							// debug "Filter obj->{name} at mark";
+							// debug("Filter %s at mark", obj);
 							obj = obj.up
 						}
 					}
