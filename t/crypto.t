@@ -1832,6 +1832,7 @@ $out = <<'END';
 --r
 ! [ Routing ]
 ip route 10.99.1.0 255.255.255.0 10.9.9.2
+ip route 192.168.0.0 255.255.255.0 10.9.9.2
 --asavpn
 ! [ Routing ]
 route outside 10.1.2.0 255.255.255.0 192.168.0.2
@@ -1917,6 +1918,8 @@ Error: Two static routes for network:intern
 Error: Two static routes for network:trans
  at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
 Error: Two static routes for network:customers1
+ at interface:r.trans via interface:gw2.trans and interface:gw.trans
+Error: Two static routes for network:dmz
  at interface:r.trans via interface:gw2.trans and interface:gw.trans
 END
 

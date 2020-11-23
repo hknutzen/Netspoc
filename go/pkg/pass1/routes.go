@@ -424,7 +424,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 				nMap = make(netMap)
 				rMap[hop] = nMap
 			}
-			// debug("%s -> %s: %s", intf.name, hop.name, natNet.name)
+			// debug("%s -> %s: %s", intf, hop, natNet)
 			nMap[natNet] = true
 		}
 	}
@@ -747,7 +747,56 @@ func (c *spoc) findActiveRoutes() {
 	// Generate routing info for every pseudo rule and store it in interfaces.
 	c.generateRoutingInfo(tree)
 
+	c.addRoutingOnlyNetworks()
 	c.checkAndConvertRoutes()
+}
+
+// Add networks of locally attached zone to routing_only devices.
+// This is needed because routes between networks inside zone can't be
+// derived from packet filter rules.
+func (c *spoc) addRoutingOnlyNetworks() {
+	for _, r := range c.routingOnlyRouters {
+		directly := make(netMap)
+		for _, intf := range r.interfaces {
+			directly[intf.network] = true
+		}
+		for _, intf := range r.interfaces {
+			if intf.routing != nil {
+				continue
+			}
+			switch intf.ipType {
+			case hasIP, unnumberedIP, negotiatedIP:
+				//debug("intf %s", intf)
+				z := intf.zone
+				nMap := make(netMap)
+				for _, n := range z.networks {
+					if !directly[n] {
+						//debug("add1 %s", n)
+						nMap[n] = true
+					}
+				}
+				addEndRoutes(intf, nMap)
+				// Process other zones of cluster
+				for _, z2 := range z.cluster {
+					if z2 == z {
+						continue
+					}
+					for _, n := range z2.networks {
+						if !directly[n] {
+							c.singlePathWalk(intf, n,
+								func(_ *groupedRule, in, out *routerIntf) {
+									//debug("walk %s: %s %s", n, in, out)
+									if in == intf {
+										//debug("add2 %s", n)
+										addPathRoutes(in, out, netMap{n: true})
+									}
+								}, "Zone")
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // Parameters:
