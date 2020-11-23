@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (c *spoc) checkIPAdresses() {
+func (c *spoc) checkIPAddresses() {
 	c.checkSubnetOf()
 	c.checkIPAddressesAndBridges()
 }
@@ -66,7 +66,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 					n.name, l.nameList())
 			}
 		} else if !(n.ipType == tunnelIP || n.loopback) {
-			c.checkIPAddresses(n)
+			c.checkIPAddr(n)
 		}
 	}
 
@@ -85,14 +85,14 @@ func (c *spoc) checkIPAddressesAndBridges() {
 			}
 			dummy.hosts = append(dummy.hosts, n.hosts...)
 		}
-		c.checkIPAddresses(dummy)
+		c.checkIPAddr(dummy)
 	}
 
 	// Check collected parts of bridged networks.
 	c.checkBridgedNetworks(prefix2net)
 }
 
-func (c *spoc) checkIPAddresses(n *network) {
+func (c *spoc) checkIPAddr(n *network) {
 	ip2name := make(map[string]string)
 	redundant := make(map[string]bool)
 

@@ -191,7 +191,7 @@ func SpocMain() int {
 		c.showReadStatistics()
 		c.orderProtocols()
 		c.markDisabled()
-		c.checkIPAdresses()
+		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
 		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
