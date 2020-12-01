@@ -475,10 +475,10 @@ END
 test_warn($title, $in, $out, '--check_duplicate_rules=0');
 
 ############################################################
-$title = 'Fully redundant rule with multiple duplicates';
+$title = 'Redundant rule with multiple duplicates';
 ############################################################
-# Must not count duplicate rule multple times at s1,
-# otherwise s1 would accidently be marked as redundant.
+# Must not count duplicate rule multiple times at s1,
+# otherwise s1 would accidently be marked as fully redundant.
 
 $in = <<'END';
 network:n1 = { ip = 10.1.1.0/24; }
