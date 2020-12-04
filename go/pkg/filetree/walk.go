@@ -20,7 +20,7 @@ type parser func(*Context)
 func processFile(input *Context, fn parser) {
 	content, err := ioutil.ReadFile(input.Path)
 	if err != nil {
-		abort.Msg("Can't read %s: %s", input.Path, err)
+		abort.Msg("Can't %s", err)
 	}
 	input.Data = string(content)
 	fn(input)
