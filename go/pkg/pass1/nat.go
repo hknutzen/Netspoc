@@ -78,6 +78,42 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	return natType
 }
 
+//############################################################################
+// Purpose: Check for
+//          1. unused NAT definitions,
+//          2. useless bind_nat, referencing unknown NAT definition.
+//             Remove useless tags from bind_nat.
+func (c *spoc) checkNatDefinitions(natType map[string]string) {
+	natUsed := make(map[string]bool)
+	for _, n := range c.allNetworks {
+		for _, intf := range n.interfaces {
+			j := 0
+			l := intf.bindNat
+			for _, tag := range l {
+				if _, found := natType[tag]; found {
+					natUsed[tag] = true
+					l[j] = tag
+					j++
+				} else {
+					c.warn("Ignoring useless nat:%s bound at %s", tag, intf)
+				}
+			}
+			intf.bindNat = l[:j]
+		}
+	}
+	var messages stringList
+	for tag, _ := range natType {
+		if !natUsed[tag] {
+			messages.push(
+				"nat:" + tag + " is defined, but not bound to any interface")
+		}
+	}
+	sort.Strings(messages)
+	for _, m := range messages {
+		c.warn(m)
+	}
+}
+
 // Mark invalid NAT transitions.
 // A transition from nat:t1 to nat:t2 occurs at an interface I
 // - if nat:t1 was active previously
@@ -813,44 +849,6 @@ func (c *spoc) checkMultinatErrors(
 }
 
 //############################################################################
-// Purpose: Check that every NAT tag is both bound and defined somewhere.
-func (c *spoc) checkNatDefinitions(
-	natType map[string]string, doms []*natDomain) {
-
-	natDefinitions := make(map[string]bool)
-	for tag, _ := range natType {
-		natDefinitions[tag] = true
-	}
-	for _, d := range doms {
-		for _, r := range d.routers {
-			natTags := r.natTags[d]
-			for _, tag := range natTags {
-				if _, found := natDefinitions[tag]; found {
-					natDefinitions[tag] = false
-					continue
-				}
-
-				// Prevent undefined value when checking NAT type later.
-				natType[tag] = "static"
-
-				c.warn("Ignoring useless nat:%s bound at %s", tag, r)
-			}
-		}
-	}
-	var messages stringList
-	for tag, unused := range natDefinitions {
-		if unused {
-			messages.push(
-				fmt.Sprintf("nat:%s is defined, but not bound to any interface", tag))
-		}
-	}
-	sort.Strings(messages)
-	for _, m := range messages {
-		c.warn(m)
-	}
-}
-
-//############################################################################
 // Purpose:   Network which has translation with tag 'tag' must not be located
 //            in domain where this tag is active.
 func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
@@ -1080,12 +1078,12 @@ func (c *spoc) distributeNatInfo() (
 	[]*natDomain, map[string]string, map[string][]natMap) {
 
 	c.progress("Distributing NAT")
-	natdomains := c.findNatDomains()
 	natType := c.getLookupMapForNatType()
+	c.checkNatDefinitions(natType)
+	natdomains := c.findNatDomains()
 	multi := c.generateMultinatDefLookup(natType)
 	natErrors := c.distributeNatTagsToNatDomains(multi, natdomains)
 	c.checkMultinatErrors(multi, natdomains)
-	c.checkNatDefinitions(natType, natdomains)
 	if !natErrors {
 		c.checkNatNetworkLocation(natdomains)
 	}

@@ -528,9 +528,9 @@ END
 
 # Only first error is shown.
 $out = <<'END';
+Warning: Ignoring useless nat:E bound at interface:filter.X
 Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
  - interface:filter.X
-Warning: Ignoring useless nat:E bound at router:filter
 END
 
 test_err($title, $in, $out);
@@ -556,8 +556,39 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: Ignoring useless nat:D bound at router:filter
+Warning: Ignoring useless nat:D bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No further errors on useless NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = i; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3 = { bind_nat = h; }
+}
+router:r3 = {
+ interface:n3 = { bind_nat = h; }
+ interface:n1;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring useless nat:i bound at interface:r1.n2
+Warning: Ignoring useless nat:h bound at interface:r2.n3
+Warning: Ignoring useless nat:h bound at interface:r3.n3
 END
 
 test_warn($title, $in, $out);
@@ -744,7 +775,6 @@ END
 
 $out = <<'END';
 Warning: Ignoring nat:x without effect, bound at every interface of router:r1
-Warning: nat:x is defined, but not bound to any interface
 END
 
 test_warn($title, $in, $out);
@@ -3375,13 +3405,13 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Incomplete and useless NAT at split router';
+$title = 'Incomplete NAT at split router';
 ############################################################
 
 $in = <<'END';
 network:n0 = { ip = 10.1.0.0/24; nat:h = { hidden; } }
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:hx = { hidden; } }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
@@ -3415,7 +3445,6 @@ Error: Incomplete 'bind_nat = hx' at
  - interface:r2.n1
  Possibly 'bind_nat = hx' is missing at these interfaces:
  - interface:r3.n1
-Warning: Ignoring useless nat:hx bound at router:r2
 END
 
 test_err($title, $in, $out);
@@ -4222,6 +4251,7 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
+ interface:lo = { ip = 10.1.5.0; loopback; nat:x = { hidden; } }
  interface:n4 = { bind_nat = x; }
 }
 END
@@ -4235,6 +4265,10 @@ Error: All definitions of nat:x must have equal type.
  But found
  - static for network:n1
  - hidden for network:n3
+Error: All definitions of nat:x must have equal type.
+ But found
+ - static for network:n1
+ - hidden for interface:r1.lo
 END
 
 test_err($title, $in, $out);
