@@ -158,6 +158,17 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 		agg2.owner = agg.owner
 		agg2.attr = agg.attr
 
+		// Create copy of NAT map for zones in cluster.
+		// If same map is used, NAT tags inherited from area would be
+		// added multiple times for each cluster element.
+		if nat := agg.nat; nat != nil {
+			cpy := make(map[string]*network, len(nat))
+			for tag, n := range nat {
+				cpy[tag] = n
+			}
+			agg2.nat = cpy
+		}
+
 		// Link new aggregate object and cluster
 		if implicit {
 			c.linkImplicitAggregateToZone(agg2, z, key)

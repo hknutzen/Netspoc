@@ -337,9 +337,11 @@ network:n1 = {
 network:n1sub = { ip = 10.1.1.64/26; nat:n1sub = { ip = 10.1.2.64/26; } }
 
 router:r1 = {
- interface:n1 = { bind_nat = n1sub; }
- interface:l = { ip = 10.1.9.9; loopback; }
- interface:n1sub = { bind_nat = n1; }
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; bind_nat = n1sub; hardware = n1; }
+ interface:l = { ip = 10.1.9.9; loopback; hardware = l; }
+ interface:n1sub = { ip = 10.1.1.126; bind_nat = n1;  hardware = n1sub; }
 }
 END
 
@@ -1740,6 +1742,35 @@ router:r1 = {
 END
 
 $out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Inherit NAT to all networks in zone cluster';
+############################################################
+
+$in = <<'END';
+any:n2 = { ip = 10.1.0.0/16; link = network:n2; nat:h = { hidden; } }
+network:n1 = { ip = 10.1.1.0/24; nat:h = { hidden; } }
+network:n2 = { ip = 10.2.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2= { ip = 10.2.2.2; }
+ interface:n3 = { bind_nat = h; }
+}
+END
+
+$out = <<'END';
+Warning: Useless nat:h of network:n1,
+ it was already inherited from nat:h of any:n2
 END
 
 test_warn($title, $in, $out);
