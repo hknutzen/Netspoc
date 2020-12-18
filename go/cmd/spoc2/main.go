@@ -26,13 +26,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"github.com/json-iterator/go"
 	"io/ioutil"
 	"net"
 	"os"
@@ -2301,7 +2301,7 @@ func prepareACLs(path string) *routerData {
 	if e != nil {
 		panic(e)
 	}
-	e = jsoniter.Unmarshal(data, &jdata)
+	e = json.Unmarshal(data, &jdata)
 	if e != nil {
 		panic(e)
 	}
