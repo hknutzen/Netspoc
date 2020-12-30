@@ -6,8 +6,8 @@ A network security policy compiler.
 [![Build Status](https://travis-ci.org/hknutzen/Netspoc.svg?branch=master)](https://travis-ci.org/hknutzen/Netspoc)
 [![Coverage Status](https://coveralls.io/repos/github/hknutzen/Netspoc/badge.svg?branch=master)](https://coveralls.io/github/hknutzen/Netspoc?branch=master)
 
-We are migrating Netspoc from Perl to Go (golang).
-During this time, released CPAN packages will contain compiled binaries for Linux-x86_64 architecture. These will be installed along with Perl scripts, typically in /usr/local/bin.
+Netspoc has been migrated from Perl to Go (golang).
+Released CPAN packages will contain compiled binaries for Linux-x86_64 architecture. These will be installed along with Perl scripts, typically in /usr/local/bin.
 
 Netspoc is free software to manage all the packet filter devices inside your network topology. Filter rules for each device are generated from one central ruleset, using a description of your network topology.
 
