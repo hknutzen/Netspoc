@@ -323,7 +323,7 @@ network:other = { ip = 10.99.9.0/24; }
 END
 
 $out = <<'END';
-Error: Networks need to have ID hosts because router:asavpn has attribute 'do_auth':
+Error: Networks behind crypto tunnel to router:asavpn of model 'ASA, VPN' need to have ID hosts:
  - network:other
 END
 

@@ -367,9 +367,9 @@ func (c *spoc) expandCrypto() {
 				}
 			} else if len(encrypted) != 0 {
 				if doAuth && managed == "" {
-					c.err("Networks need to have ID hosts because"+
-						" %s has attribute 'do_auth':\n"+encrypted.nameList(),
-						hubRouter.name)
+					c.err("Networks behind crypto tunnel to %s of model '%s'"+
+						" need to have ID hosts:\n"+encrypted.nameList(),
+						hubRouter.name, hubRouter.model.name)
 				} else if needId {
 					c.err("%s needs attribute 'id', because %s"+
 						" has authentication=rsasig",
