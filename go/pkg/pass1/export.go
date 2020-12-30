@@ -292,7 +292,7 @@ func protoDescr(l []*proto) stringList {
 				desc += " " + dport
 				num = protocol.ports[0]
 			}
-		case "icmp":
+		case "icmp", "icmpv6":
 			if t := protocol.icmpType; t != -1 {
 				s := strconv.Itoa(t)
 				if c := protocol.icmpCode; c != -1 {

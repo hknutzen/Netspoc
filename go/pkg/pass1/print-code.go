@@ -2176,7 +2176,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 					newRule.Dst = getCachedAddrList(rule.dst, dstAddrCache)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
-						prtList[i] = p.name
+						if p.proto == "icmpv6" {
+							prtList[i] = "icmp" + p.name[len("icmpv6"):]
+						} else {
+							prtList[i] = p.name
+						}
 					}
 					newRule.Prt = prtList
 					if srcRange := rule.srcRange; srcRange != nil {

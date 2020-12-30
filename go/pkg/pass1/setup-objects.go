@@ -262,17 +262,8 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 			srcP.ports = src
 			srcP = cacheUnnamedProtocol(srcP, s)
 		}
-	case "icmpv6":
-		p.proto = "icmp"
+	case "icmp", "icmpv6":
 		c.addICMPTypeCode(nums, p, ctx)
-		if !v6 {
-			c.err("Must not be used with IPv4: %s", ctx)
-		}
-	case "icmp":
-		c.addICMPTypeCode(nums, p, ctx)
-		if v6 {
-			c.err("Must not be used with IPv6: %s", ctx)
-		}
 	case "proto":
 		c.addProtoNr(nums, p, v6, ctx)
 	default:
@@ -386,22 +377,12 @@ func (c *spoc) addProtoNr(nums []string, p *proto, v6 bool, ctx string) {
 	switch c.getNum256(s, ctx) {
 	case 0:
 		c.err("Invalid protocol number '0' in %s", ctx)
-	case 1:
-		if !v6 {
-			c.err("Must not use 'proto 1', use 'icmp' instead in %s", ctx)
-			return
-		}
 	case 4:
 		c.err("Must not use 'proto 4', use 'tcp' instead in %s", ctx)
 		return
 	case 17:
 		c.err("Must not use 'proto 17', use 'udp' instead in %s", ctx)
 		return
-	case 58:
-		if v6 {
-			c.err("Must not use 'proto 58', use 'icmpv6' instead in %s", ctx)
-			return
-		}
 	}
 	p.proto = s
 }
@@ -1945,7 +1926,8 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		} else {
 			ru.hasUser = "dst"
 		}
-		ru.prt = c.expandProtocols(c.getValueList(v2.Prt, name), s, v6, name)
+		ru.prt =
+			c.expandProtocolsCheckV4V6(c.getValueList(v2.Prt, name), s, v6, name)
 		if a2 := v2.Log; a2 != nil {
 			l := c.getIdentifierList(a2, name)
 			l = c.checkLog(l, s, name)
@@ -2873,7 +2855,36 @@ func (c *spoc) getProtocolList(
 
 	l := c.getValueList(a, ctx)
 	ctx2 := a.Name + " of " + ctx
-	return c.expandProtocols(l, s, v6, ctx2)
+	return c.expandProtocolsCheckV4V6(l, s, v6, ctx2)
+}
+
+func (c *spoc) expandProtocolsCheckV4V6(
+	l stringList, s *symbolTable, v6 bool, ctx string) protoList {
+
+	pl := c.expandProtocols(l, s, v6, ctx)
+	for _, p := range pl {
+		switch p.proto {
+		case "icmpv6":
+			if !v6 {
+				c.err("%s must not be used in IPv4 %s", p.name, ctx)
+			}
+		case "icmp":
+			if v6 {
+				c.err("%s must not be used in IPv6 %s", p.name, ctx)
+			}
+		case "1":
+			if !v6 {
+				c.err("'proto 1' must not be used in %s, use 'icmp' instead",
+					ctx)
+			}
+		case "58":
+			if v6 {
+				c.err("'proto 58' must not be used in %s, use 'icmpv6' instead",
+					ctx)
+			}
+		}
+	}
+	return pl
 }
 
 func (c *spoc) expandProtocols(
@@ -2938,7 +2949,7 @@ func genProtocolName(p *proto) string {
 	case "tcp", "udp":
 		n := p.ports
 		return jcode.GenPortName(pr, n[0], n[1])
-	case "icmp":
+	case "icmp", "icmpv6":
 		result := pr
 		if p.icmpType != -1 {
 			result += " " + strconv.Itoa(p.icmpType)

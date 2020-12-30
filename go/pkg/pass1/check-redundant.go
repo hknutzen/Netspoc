@@ -47,12 +47,10 @@ func (r *expandedRule) print() string {
 	if r.stateless {
 		extra += " stateless"
 	}
-	var ipV6 bool
 	origPrt := r.prt
 	if oRule := r.rule; oRule != nil {
 		s := oRule.service
 		extra += " of " + s.name
-		ipV6 = s.ipV6
 		origPrt = getOrigPrt(r)
 	}
 	var action string
@@ -62,9 +60,6 @@ func (r *expandedRule) print() string {
 		action = "permit"
 	}
 	pName := origPrt.name
-	if ipV6 {
-		pName = strings.Replace(pName, "icmp", "icmpv6", 1)
-	}
 	return fmt.Sprintf("%s src=%s; dst=%s; prt=%s;%s",
 		action, r.src.String(), r.dst.String(), pName, extra)
 }

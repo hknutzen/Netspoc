@@ -623,11 +623,12 @@ func matchPrt(prt1, prt2 *proto) bool {
 	if proto1 != proto2 {
 		return false
 	}
-	if proto1 == "tcp" || proto1 == "udp" {
+	switch proto1 {
+	case "tcp", "udp":
 		l1, h1 := prt1.ports[0], prt1.ports[1]
 		l2, h2 := prt2.ports[0], prt2.ports[1]
 		return l1 <= l2 && h2 <= h1 || l2 <= l1 && h1 <= h2
-	} else if proto1 == "icmp" {
+	case "icmp", "icmpv6":
 		type1 := prt1.icmpType
 		if type1 == -1 {
 			return true
@@ -648,7 +649,7 @@ func matchPrt(prt1, prt2 *proto) bool {
 			return true
 		}
 		return code1 == code2
-	} else {
+	default:
 		return true
 	}
 }

@@ -427,12 +427,25 @@ $title = "Must not use icmpv6 protocol as number";
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 1000::abcd:0001:0/112;}
 protocol:ICMPv6  = proto 58;
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+ dst = interface:r1.n1;
+ prt = protocol:ICMPv6;
+}
+
 END
 
 $out = <<'END';
-Error: Must not use 'proto 58', use 'icmpv6' instead in protocol:ICMPv6
+Error: 'proto 58' must not be used in service:test1, use 'icmpv6' instead
 END
 
 test_err($title, $in, $out, '--ipv6');
@@ -442,12 +455,24 @@ $title = "Must not use icmp with ipv6";
 ############################################################
 
 $in = <<'END';
+protocol:ICMP = icmp;
 network:n1 = { ip = 1000::abcd:0001:0/112;}
-protocol:ICMP  = icmp;
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+ dst = interface:r1.n1;
+ prt = protocol:ICMP;
+}
 END
 
 $out = <<'END';
-Error: Must not be used with IPv6: protocol:ICMP
+Error: protocol:ICMP must not be used in IPv6 service:test1
 END
 
 test_err($title, $in, $out, '--ipv6');

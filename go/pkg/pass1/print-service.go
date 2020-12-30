@@ -104,7 +104,7 @@ func prtInfo(srcRange, prt *proto) string {
 		} else if dport != "" {
 			desc += " " + dport
 		}
-	case "icmp":
+	case "icmp", "icmpv6":
 		if t := prt.icmpType; t != -1 {
 			s := strconv.Itoa(t)
 			if c := prt.icmpCode; c != -1 {

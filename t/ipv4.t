@@ -63,8 +63,8 @@ network:n2 = { ip = 10.2.2.0/24;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = 10.1.1.1; hardware = E1;}
- interface:n2 = {ip = 10.2.2.1; hardware = E2;}
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.2.2.1; hardware = n2;}
 }
 
 service:test1 = {
@@ -77,7 +77,7 @@ END
 
 $out = <<'END';
 -- r1
-ip access-list extended E1_in
+ip access-list extended n1_in
  deny ip any host 10.2.2.1
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 range 80 90
  deny ip any any
@@ -141,12 +141,25 @@ $title = "Must not use icmp protocol as number";
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
 protocol:ICMP  = proto 1;
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+ dst = interface:r1.n1;
+ prt = protocol:ICMP;
+}
 END
 
 $out = <<'END';
-Error: Must not use 'proto 1', use 'icmp' instead in protocol:ICMP
+Error: 'proto 1' must not be used in service:test1, use 'icmp' instead
 END
 
 test_err($title, $in, $out);
@@ -156,12 +169,52 @@ $title = "Must not use icmpv6 with ipv4";
 ############################################################
 
 $in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
 protocol:ICMPv6  = icmpv6;
+
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:test1 = {
+ user = network:n1;
+ permit src = user;
+ dst = interface:r1.n1;
+ prt = protocol:ICMPv6;
+}
 END
 
 $out = <<'END';
-Error: Must not be used with IPv4: protocol:ICMPv6
+Error: protocol:ICMPv6 must not be used in IPv4 service:test1
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = "Must not use icmpv6 with ipv4 general permit";
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.2.2.0/24;}
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = {ip = 10.2.2.1; hardware = n2;}
+}
+
+area:a = {
+ anchor = network:n1;
+ router_attributes = { general_permit = icmpv6; }
+}
+END
+
+$out = <<'END';
+Error: icmpv6 must not be used in IPv4 general_permit of router_attributes of area:a
 END
 
 test_err($title, $in, $out);
