@@ -1,30 +1,18 @@
-Do we really need attribute 'zone' in router?
-- Is used for loop detection at unmanaged router. Use activePath instead.
-- Used as dummy zone for managed routers. Is value nil?
-
-Set attribute 'zoneCluster' also for simple cluster with only one element?
-Or use small function to get list of cluster elements.
-
-Message is misleading:
- err_msg("Networks need to have ID hosts because",
-    " $hub_router->{name} has attribute 'do_auth':\n",
- Attribute 'do_auth' doesn't exist.
-
-Do we need attribute routerIntf.crypto?
-This is already available in .hub and .spoke.
-
-This check doesn't work reliably:
-Error: Must use 'icmp' only with IPv4 in protocol:ICMP
-because protocol can be referenced from IPv4 and IPv6 part.
-
-Combine intf.unnumbered, intf.negotiated, intf.tunnel, intf.short, intf.bridged
-into one single attribute with enumerated value.
-
 Define type netOrRouter interface{}  more restrictive.
 
 Replace getIpv4Ipv6Routers() with c.allRouters
+- c.allRouters is filled in markDisabled
+- used in splitSemiManagedRouter: must be called after markDisabled
+
+Merge routingOnlyRouters into managedRouters.
 
 c.routerFragments is only used once in mark-disabled.go
 Is it really needed?
 
-Rename zone.zoneCluster to zone.cluster
+Is c.virtualInterfaces really needed?
+
+NAT:
+Combine attributes 'hidden' and 'dynamic' to new attribute 'natType'
+with integer values staticNAT, dynamicNAT, hiddenNAT.
+Move NAT-Network to new type, only used in NAT.
+This type inherits type network.
