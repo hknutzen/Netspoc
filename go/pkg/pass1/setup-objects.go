@@ -1288,6 +1288,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		c.checkNoInAcl(r)
 
 		if r.aclUseRealIp {
+			natSet := make(map[string]bool)
+			r.natSet = &natSet
 			if !hasBindNat {
 				c.warn("Ignoring attribute 'acl_use_real_ip' at %s,\n"+
 					" because it has no interface with 'bind_nat'", name)

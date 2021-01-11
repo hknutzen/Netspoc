@@ -721,6 +721,10 @@ ROUTER:
 			}
 		}
 
+		if r.aclUseRealIp {
+			(*r.natSet)[tag] = true
+		}
+
 		// Check whether tag is active in adjacent NAT domains.
 	DOMAIN:
 		for _, outDom := range r.natDomains {
@@ -993,84 +997,6 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 	}
 }
 
-func (c *spoc) prepareRealIpNat(
-	r *router, multi map[string][]natMap, natType map[string]string) {
-
-	var twoEffective [2]map[string]bool
-	var twoHWList [2][]*hardware
-HARDWARE:
-	for _, hw := range r.hardware {
-
-		// Build effective list of bound NAT tags.
-		// Remove hidden NAT. This doesn't matter because errors with
-		// hidden addresses will be detected before this is used.
-		effective := make(map[string]bool)
-		for _, tag := range hw.bindNat {
-			if natType[tag] != "hidden" {
-				effective[tag] = true
-			}
-		}
-
-		// Find identical effective bound NAT tags.
-	EQ:
-		for i, seen := range twoEffective {
-			if seen == nil {
-				twoEffective[i] = effective
-			} else {
-				if len(effective) != len(seen) {
-					continue EQ
-				}
-				for tag, _ := range effective {
-					if !seen[tag] {
-						continue EQ
-					}
-				}
-			}
-			twoHWList[i] = append(twoHWList[i], hw)
-			continue HARDWARE
-		}
-		c.err(
-			"Must not use attribute 'acl_use_real_ip' at %s\n"+
-				" having different effective NAT at more than two interfaces", r)
-		return
-	}
-	if twoEffective[1] == nil {
-		c.warn("Useless attribute 'acl_use_real_ip' at %s", r)
-		return
-	}
-
-	combine := func(list []*hardware) natSet {
-		var natSets []natSet
-		for _, hw := range list {
-			natSets = append(natSets, hw.natSet)
-		}
-		return combineNatSets(natSets, multi, natType)
-	}
-	modify := func(list []*hardware, new natSet) {
-		for _, hw := range list {
-			hw.dstNatSet = new
-		}
-	}
-
-	// Found two sets of hardware having identical effective bound NAT.
-	// Combine natSets of each set of hardware.
-	// Modify dstNatSet of other set of hardware with combined natSet.
-	set1 := combine(twoHWList[0])
-	set2 := combine(twoHWList[1])
-	modify(twoHWList[0], set2)
-	modify(twoHWList[1], set1)
-}
-
-func (c *spoc) prepareRealIpNatRouters(
-	multi map[string][]natMap, natType map[string]string) {
-
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
-		if r.aclUseRealIp {
-			c.prepareRealIpNat(r, multi, natType)
-		}
-	}
-}
-
 //############################################################################
 // Purpose : Determine NAT domains and generate NAT set
 //           for every NAT domain.
@@ -1090,7 +1016,6 @@ func (c *spoc) distributeNatInfo() (
 	c.checkNatCompatibility()
 	c.checkInterfacesWithDynamicNat()
 	distributeNatSetsToInterfaces(natdomains)
-	c.prepareRealIpNatRouters(multi, natType)
 
 	return natdomains, natType, multi
 }

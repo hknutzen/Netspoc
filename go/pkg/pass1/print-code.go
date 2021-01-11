@@ -1124,10 +1124,11 @@ func printCiscoAcls(fh *os.File, router *router) {
 			continue
 		}
 
-		natSet := hardware.natSet
-		dstNatSet := hardware.dstNatSet
-		if dstNatSet == nil {
-			dstNatSet = natSet
+		var natSet natSet
+		if router.aclUseRealIp {
+			natSet = router.natSet
+		} else {
+			natSet = hardware.natSet
 		}
 
 		// Generate code for incoming and possibly for outgoing ACL.
@@ -1151,7 +1152,6 @@ func printCiscoAcls(fh *os.File, router *router) {
 					continue
 				}
 				info.natSet = natSet
-				info.dstNatSet = dstNatSet
 				info.rules = rules
 
 				// Marker: Generate protect_self rules, if available.
@@ -1222,8 +1222,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 					continue
 				}
 				info.rules = rules
-				info.natSet = dstNatSet
-				info.dstNatSet = natSet
+				info.natSet = natSet
 				info.addDeny = true
 			}
 
@@ -2020,19 +2019,12 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			if acl.isCryptoACL {
 				jACL.IsCryptoACL = 1
 			}
-			// Collect networks used in secondary optimization and
-			// cache for address calculation.
-			optAddr := make(map[*network]*natCache)
-			// Collect objects forbidden in secondary optimization and
-			// cache for address calculation.
-			noOptAddrs := make(map[someObj]*natCache)
+			// Collect networks used in secondary optimization.
+			optAddr := make(map[*network]bool)
+			// Collect objects forbidden in secondary optimization.
+			noOptAddrs := make(map[someObj]bool)
 			natSet := acl.natSet
 			addrCache := getAddrCache(natSet)
-			dstNatSet := acl.dstNatSet
-			if dstNatSet == nil {
-				dstNatSet = natSet
-			}
-			dstAddrCache := getAddrCache(dstNatSet)
 
 			// Set attribute NeedProtect in jACL.
 			// Value is list of IP addresses of to be protected interfaces.
@@ -2093,13 +2085,10 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 						standardFilter && rule.somePrimary {
 						for _, isSrc := range []bool{true, false} {
 							var objList []someObj
-							var useCache *natCache
 							if isSrc {
 								objList = rule.src
-								useCache = addrCache
 							} else {
 								objList = rule.dst
-								useCache = dstAddrCache
 							}
 							for _, obj := range objList {
 
@@ -2135,7 +2124,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									}
 									if noOpt := router.noSecondaryOpt; noOpt != nil {
 										if noOpt[net] {
-											noOptAddrs[obj] = useCache
+											noOptAddrs[obj] = true
 											continue
 										}
 									}
@@ -2157,7 +2146,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									// this could introduce new missing
 									// supernet rules.
 									if o.hasOtherSubnet {
-										noOptAddrs[obj] = useCache
+										noOptAddrs[obj] = true
 										continue
 									}
 									max := o.maxSecondaryNet
@@ -2166,14 +2155,14 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									}
 									subst = max
 								}
-								optAddr[subst] = useCache
+								optAddr[subst] = true
 							}
 						}
 						newRule.OptSecondary = 1
 					}
 
 					newRule.Src = getCachedAddrList(rule.src, addrCache)
-					newRule.Dst = getCachedAddrList(rule.dst, dstAddrCache)
+					newRule.Dst = getCachedAddrList(rule.dst, addrCache)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
 						if p.proto == "icmpv6" {
@@ -2205,16 +2194,16 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			//   grouped rules and we need to control optimization
 			//   for sinlge rules.
 			addrList := make([]string, 0, len(optAddr))
-			for n, cache := range optAddr {
-				a := getCachedAddr(n, cache)
+			for n, _ := range optAddr {
+				a := getCachedAddr(n, addrCache)
 				addrList = append(addrList, a)
 			}
 			sort.Strings(addrList)
 			jACL.OptNetworks = addrList
 
 			addrList = make([]string, 0, len(noOptAddrs))
-			for o, cache := range noOptAddrs {
-				a := getCachedAddr(o, cache)
+			for o, _ := range noOptAddrs {
+				a := getCachedAddr(o, addrCache)
 				addrList = append(addrList, a)
 			}
 			sort.Strings(addrList)

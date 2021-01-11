@@ -260,7 +260,6 @@ type natSet *map[string]bool
 type aclInfo struct {
 	name         string
 	natSet       natSet
-	dstNatSet    natSet
 	rules        ruleList
 	intfRules    ruleList
 	protectSelf  bool
@@ -297,6 +296,7 @@ type router struct {
 	generalPermit           []*proto
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList
+	natSet                  natSet // Only used if aclUseRealIp
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -419,7 +419,6 @@ type hardware struct {
 	name       string
 	bindNat    []string
 	natSet     natSet
-	dstNatSet  natSet
 	needOutAcl bool
 	noInAcl    bool
 	rules      ruleList
