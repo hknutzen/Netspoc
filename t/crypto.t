@@ -1998,15 +1998,15 @@ username foo@domain.x attributes
  vpn-filter value vpn-filter-foo@domain.x
 --
 ! outside_in
-access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
+access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 192.168.1.0 255.255.255.0 eq 84
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
 access-list outside_in extended permit tcp host 10.99.1.10 10.7.7.0 255.255.255.0 eq 81
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
 ! extern_in
-access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.2.0 255.255.255.0 eq 82
-access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.99.0 255.255.255.0 eq 83
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 82
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 10.99.1.0 255.255.255.0 eq 83
 access-list extern_in extended deny ip any4 any4
 access-group extern_in in interface extern
 END
@@ -3605,9 +3605,9 @@ ip access-list extended GigabitEthernet0_in
  deny ip any any
 --firewall
 ! outside_in
-access-list outside_in extended permit 50 host 1.2.3.2 host 1.2.3.129
-access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
-access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
+access-list outside_in extended permit 50 host 1.2.3.2 host 10.254.254.6
+access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 10.254.254.6 eq 500
+access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 10.254.254.6 eq 4500
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --

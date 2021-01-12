@@ -1079,7 +1079,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		case "log_deny":
 			r.logDeny = c.getFlag(a, name)
 		case "acl_use_real_ip":
-			r.aclUseRealIp = c.getFlag(a, name)
+			_ = c.getFlag(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1258,12 +1258,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		}
 
 		// Detailed interface processing for managed routers.
-		hasCrypto := false
 		isCryptoHub := false
 		hasBindNat := false
 		for _, intf := range r.interfaces {
 			if intf.hub != nil || intf.spoke != nil {
-				hasCrypto = true
 				if r.model.crypto == "" {
 					c.err("Crypto not supported for %s of model %s",
 						name, r.model.name)
@@ -1287,22 +1285,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 		c.checkNoInAcl(r)
 
-		if r.aclUseRealIp {
-			natSet := make(map[string]bool)
-			r.natSet = &natSet
-			if !hasBindNat {
-				c.warn("Ignoring attribute 'acl_use_real_ip' at %s,\n"+
-					" because it has no interface with 'bind_nat'", name)
-			}
-			if !r.model.canACLUseRealIP {
-				c.warn("Ignoring attribute 'acl_use_real_ip' at %s of model %s",
-					name, r.model.name)
-			}
-			if hasCrypto {
-				c.err("Must not use attribute 'acl_use_real_ip' at %s"+
-					" having crypto interfaces", name)
-			}
-		}
 		if r.managed == "local" {
 			if hasBindNat {
 				c.err("Attribute 'bind_nat' is not allowed"+
@@ -2351,7 +2333,7 @@ var routerInfo = map[string]*model{
 		},
 		statelessICMP:    true,
 		hasOutACL:        true,
-		canACLUseRealIP:  true,
+		aclUseRealIP:     true,
 		canObjectgroup:   true,
 		canDynCrypto:     true,
 		crypto:           "ASA",

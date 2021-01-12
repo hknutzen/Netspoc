@@ -1125,7 +1125,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 		}
 
 		var natSet natSet
-		if router.aclUseRealIp {
+		if model.aclUseRealIP {
 			natSet = router.natSet
 		} else {
 			natSet = hardware.natSet

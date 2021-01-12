@@ -362,9 +362,15 @@ func (c *spoc) findNatDomains() []*natDomain {
 					continue
 				}
 
-				// Mark router as domain limiting, add router as domain border.
+				// Mark router as domain limiting,
+				// 1. add router as domain border,
+				// 2. initialized NAT set for model.aclUseRealIP
 				if r.natTags == nil {
 					r.natTags = make(map[*natDomain]stringList)
+					if r.model != nil && r.model.aclUseRealIP {
+						natSet := make(map[string]bool)
+						r.natSet = &natSet
+					}
 				}
 				r.natTags[d] = natTags
 				d.routers = append(d.routers, r)
@@ -721,7 +727,7 @@ ROUTER:
 			}
 		}
 
-		if r.aclUseRealIp {
+		if r.model != nil && r.model.aclUseRealIP {
 			(*r.natSet)[tag] = true
 		}
 
@@ -989,8 +995,17 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 
 				// debug("%s: NAT %s", d.name, intf)
 				intf.natSet = natSet
-				if (r.managed != "" || r.routingOnly) && intf.ipType != tunnelIP {
-					intf.hardware.natSet = natSet
+				if r.managed != "" || r.routingOnly {
+					if r.model.aclUseRealIP {
+
+						// Set natSet of router inside NAT domain.
+						if r.natSet == nil {
+							r.natSet = natSet
+						}
+					}
+					if intf.ipType != tunnelIP {
+						intf.hardware.natSet = natSet
+					}
 				}
 			}
 		}

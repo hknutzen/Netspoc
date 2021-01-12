@@ -229,7 +229,7 @@ type model struct {
 	class            string
 	crypto           string
 	doAuth           bool
-	canACLUseRealIP  bool
+	aclUseRealIP     bool
 	canDynCrypto     bool
 	canLogDeny       bool
 	canObjectgroup   bool
@@ -282,7 +282,6 @@ type router struct {
 	deviceName              string
 	managed                 string
 	semiManaged             bool
-	aclUseRealIp            bool
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
