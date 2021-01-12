@@ -28,7 +28,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -41,6 +40,10 @@ import (
 	"strconv"
 	"strings"
 )
+
+func panicf(format string, args ...interface{}) {
+	panic(fmt.Sprintf(format, args...))
+}
 
 type ipNet struct {
 	*net.IPNet
@@ -66,7 +69,7 @@ type name2Proto map[string]*proto
 func createIPObj(ipNetName string) *ipNet {
 	_, net, e := net.ParseCIDR(ipNetName)
 	if e != nil {
-		abort.Msg("%s", e)
+		panic(e)
 	}
 	return &ipNet{IPNet: net, name: ipNetName}
 }
@@ -313,7 +316,7 @@ func orderRanges(protocol string, prt2obj name2Proto, up *proto) {
 			// aaaaa
 			//   bbbbbb
 			// uncoverable statement
-			abort.Msg(
+			panicf(
 				"Unexpected overlapping ranges [%d-%d] [%d-%d]",
 				a.ports[0], a.ports[1], b.ports[0], b.ports[1])
 		}
@@ -2468,7 +2471,7 @@ func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
 			// Reject network with mask = 0 in group.
 			// This occurs if optimization didn't work correctly.
 			if size, _ := element.Mask.Size(); size == 0 {
-				abort.Msg("Unexpected network with mask 0 in object-group")
+				panic("Unexpected network with mask 0 in object-group")
 			}
 			adr := ciscoACLAddr(element, model)
 			if model == "NX-OS" {
@@ -2642,7 +2645,7 @@ const aclMarker = "#insert "
 func printCombined(config []string, routerData *routerData, outPath string) {
 	fd, err := os.Create(outPath)
 	if err != nil {
-		abort.Msg("Can't open %s for writing: %v", outPath, err)
+		panicf("Can't open %s for writing: %v", outPath, err)
 	}
 	aclLookup := make(map[string]*aclInfo)
 	for _, acl := range routerData.acls {
@@ -2656,7 +2659,7 @@ func printCombined(config []string, routerData *routerData, outPath string) {
 			name := line[len(aclMarker):]
 			aclInfo, ok := aclLookup[name]
 			if !ok {
-				abort.Msg("Unexpected ACL %s", name)
+				panicf("Unexpected ACL %s", name)
 			}
 			printACL(fd, aclInfo, routerData)
 		} else {
@@ -2666,7 +2669,7 @@ func printCombined(config []string, routerData *routerData, outPath string) {
 	}
 
 	if err := fd.Close(); err != nil {
-		abort.Msg("Can't close %s: %v", outPath, err)
+		panic(err)
 	}
 }
 
@@ -2705,7 +2708,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 func readFileLines(filename string) []string {
 	fd, err := os.Open(filename)
 	if err != nil {
-		abort.Msg("Can't open %s for reading: %v", filename, err)
+		panic(err)
 	}
 	result := make([]string, 0)
 	scanner := bufio.NewScanner(fd)
@@ -2714,7 +2717,7 @@ func readFileLines(filename string) []string {
 		result = append(result, line)
 	}
 	if err := scanner.Err(); err != nil {
-		abort.Msg("While reading device names: %v", err)
+		panic(err)
 	}
 	return result
 }
@@ -2722,31 +2725,25 @@ func readFileLines(filename string) []string {
 type pass2Result int
 
 const (
-	fail pass2Result = iota
-	ok
+	ok pass2Result = iota
 	reuse
 )
 
 func pass2File(devicePath, dir, prev string, c chan pass2Result) {
-	success := fail
-
-	// Send ok on success
-	defer func() { c <- success }()
-
 	if tryPrev(devicePath, dir, prev) {
-		success = reuse
+		c <- reuse
 		return
 	}
 	file := dir + "/" + devicePath
 	routerData := prepareACLs(file + ".rules")
 	config := readFileLines(file + ".config")
 	printCombined(config, routerData, file)
-	success = ok
+	c <- ok
 }
 
 func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 
-	var started, generated, reused, errors int
+	var started, generated, reused int
 	concurrent := conf.Conf.ConcurrencyPass2
 	c := make(chan pass2Result, concurrent)
 	workersLeft := concurrent
@@ -2757,8 +2754,6 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 			generated++
 		case reuse:
 			reused++
-		case fail:
-			errors++
 		}
 		started--
 	}
@@ -2796,12 +2791,9 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		abort.Msg("While reading device names: %v", err)
+		panicf("While reading device names: %v", err)
 	}
 
-	if errors > 0 {
-		abort.Msg("Failed")
-	}
 	if generated > 0 {
 		diag.Info("Generated files for %d devices", generated)
 	}
@@ -2825,7 +2817,7 @@ func pass2(dir string) {
 		var err error
 		fromPass1, err = os.Open(devlist)
 		if err != nil {
-			abort.Msg("Can't open %s for reading: %v", devlist, err)
+			panic(err)
 		}
 	}
 
@@ -2835,7 +2827,7 @@ func pass2(dir string) {
 	// or remove symlink '.prev' created by newpolicy.pl.
 	err := os.RemoveAll(prev)
 	if err != nil {
-		abort.Msg("Can't remove %s: %v", prev, err)
+		panic(err)
 	}
 }
 
