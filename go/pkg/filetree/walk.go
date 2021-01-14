@@ -1,7 +1,6 @@
 package filetree
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"io/ioutil"
@@ -20,7 +19,7 @@ type parser func(*Context)
 func processFile(input *Context, fn parser) {
 	content, err := ioutil.ReadFile(input.Path)
 	if err != nil {
-		abort.Msg("Can't %s", err)
+		panic(err)
 	}
 	input.Data = string(content)
 	fn(input)
