@@ -45,7 +45,10 @@ func (c *spoc) parseFiles(path string) []ast.Toplevel {
 		}
 		result = append(result, nodes...)
 	}
-	filetree.Walk(path, process)
+	err := filetree.Walk(path, process)
+	if err != nil {
+		c.abort("%v", err)
+	}
 	return result
 }
 

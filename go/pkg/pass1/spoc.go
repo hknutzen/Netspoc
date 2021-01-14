@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"os"
 	"sort"
 	"time"
@@ -188,9 +187,14 @@ func toplevelSpoc(f func(*spoc)) (errCount int) {
 }
 
 func SpocMain() (errCount int) {
-	inDir, outDir := conf.GetArgs()
-	diag.Info(program + ", version " + version)
 	return toplevelSpoc(func(c *spoc) {
+		inDir, outDir, abort := conf.GetArgs()
+		if abort {
+			c.toStderr("Aborted")
+			c.errCount++
+			c.terminate()
+		}
+		c.info(program + ", version " + version)
 		c.readNetspoc(inDir)
 		c.showReadStatistics()
 		c.orderProtocols()

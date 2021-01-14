@@ -16,23 +16,23 @@ type Context struct {
 type parser func(*Context)
 
 // Read input from file and process it by function which is given as argument.
-func processFile(input *Context, fn parser) {
+func processFile(input *Context, fn parser) error {
 	content, err := ioutil.ReadFile(input.Path)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	input.Data = string(content)
 	fn(input)
+	return nil
 }
 
-func Walk(fname string, fn parser) {
+func Walk(fname string, fn parser) error {
 	v6 := conf.Conf.IPV6
 
 	// Handle toplevel file.
 	if !fileop.IsDir(fname) {
 		input := &Context{Path: fname, IPV6: v6}
-		processFile(input, fn)
-		return
+		return processFile(input, fn)
 	}
 
 	ipvDir := "ipv6"
@@ -54,13 +54,13 @@ func Walk(fname string, fn parser) {
 			continue
 		}
 		name := filepath.Join(fname, base)
-		var walk func(string, bool)
-		walk = func(fname string, v6 bool) {
+		var walk func(string, bool) error
+		walk = func(fname string, v6 bool) error {
 			base := path.Base(fname)
 
 			// Skip hidden and ignored file.
 			if base[0] == '.' || ignore.MatchString(base) {
-				return
+				return nil
 			}
 
 			// Handle ipv6 / ipv4 subdirectory or file.
@@ -70,8 +70,7 @@ func Walk(fname string, fn parser) {
 
 			if !fileop.IsDir(fname) {
 				input := &Context{Path: fname, IPV6: v6}
-				processFile(input, fn)
-				return
+				return processFile(input, fn)
 			}
 			files, err := ioutil.ReadDir(fname)
 			if err != nil {
@@ -80,9 +79,15 @@ func Walk(fname string, fn parser) {
 			for _, file := range files {
 				base := file.Name()
 				name := filepath.Join(fname, base)
-				walk(name, v6)
+				if err := walk(name, v6); err != nil {
+					return err
+				}
 			}
+			return nil
 		}
-		walk(name, v6)
+		if err := walk(name, v6); err != nil {
+			return err
+		}
 	}
+	return nil
 }

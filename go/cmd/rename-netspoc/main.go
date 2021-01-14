@@ -321,5 +321,8 @@ func main() {
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.
-	filetree.Walk(path, processInput)
+	err := filetree.Walk(path, processInput)
+	if err != nil {
+		abort.Msg("%v", err)
+	}
 }
