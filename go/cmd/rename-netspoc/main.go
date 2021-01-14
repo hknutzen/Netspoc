@@ -246,7 +246,10 @@ func processFile(l []ast.Toplevel) int {
 func processInput(input *filetree.Context) {
 	source := []byte(input.Data)
 	path := input.Path
-	nodes := parser.ParseFile(source, path)
+	nodes, err := parser.ParseFile(source, path)
+	if err != nil {
+		abort.Msg("%v", err)
+	}
 	count := processFile(nodes)
 	if count == 0 {
 		return
@@ -254,7 +257,7 @@ func processInput(input *filetree.Context) {
 
 	diag.Info("%d changes in %s", count, path)
 	copy := printer.File(nodes, source)
-	err := fileop.Overwrite(path, copy)
+	err = fileop.Overwrite(path, copy)
 	if err != nil {
 		abort.Msg("%v", err)
 	}

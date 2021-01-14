@@ -18,7 +18,7 @@ import (
 var symTable *symbolTable
 
 func (c *spoc) readNetspoc(path string) {
-	toplevel := parseFiles(path)
+	toplevel := c.parseFiles(path)
 	c.setupTopology(toplevel)
 }
 
@@ -30,11 +30,14 @@ func (c *spoc) showReadStatistics() {
 	c.info("Read: %d routers, %d networks, %d hosts, %d services", r, n, h, s)
 }
 
-func parseFiles(path string) []ast.Toplevel {
+func (c *spoc) parseFiles(path string) []ast.Toplevel {
 	var result []ast.Toplevel
 	process := func(input *filetree.Context) {
 		source := []byte(input.Data)
-		nodes := parser.ParseFile(source, input.Path)
+		nodes, err := parser.ParseFile(source, input.Path)
+		if err != nil {
+			c.abort("%v", err)
+		}
 		if input.IPV6 {
 			for _, n := range nodes {
 				n.SetIPV6()

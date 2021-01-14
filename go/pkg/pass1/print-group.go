@@ -67,7 +67,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -169,30 +169,16 @@ func printAddress(obj groupObj, ns natSet) string {
 
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
 func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
-	c2 := *c
-	ch := make(chan spocMsg)
-	c2.msgChan = ch
-	okCh := make(chan bool)
-	go func() {
-		var l []spocMsg
-		ok := true
-		for m := range ch {
-			if m.typ == errM &&
-				strings.HasPrefix(m.text, "Must not reference IPv") {
-				ok = false
-			}
-			l = append(l, m)
-		}
-		if ok {
-			for _, m := range l {
-				c.msgChan <- m
-			}
-		}
-		okCh <- ok
-	}()
+	c2 := c.bufferedSpoc()
 	expanded := c2.expandGroup(parsed, "print-group", ipv6, true)
-	close(c2.msgChan)
-	if <-okCh {
+	ok := true
+	for _, s := range c2.messages {
+		if strings.HasPrefix(s, "Error: Must not reference IPv") {
+			ok = false
+		}
+	}
+	if ok {
+		c.sendBuf(c2)
 		return expanded
 	} else {
 		return c.expandGroup(parsed, "print-group", !ipv6, true)
@@ -206,7 +192,10 @@ func (c *spoc) printGroup(path, group, natNet string,
 		showIP = true
 		showName = true
 	}
-	parsed := parser.ParseUnion([]byte(group))
+	parsed, err := parser.ParseUnion([]byte(group))
+	if err != nil {
+		c.abort("%v", err)
+	}
 	c.readNetspoc(path)
 	c.markDisabled()
 	c.setZone()
@@ -357,10 +346,7 @@ func PrintGroupMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

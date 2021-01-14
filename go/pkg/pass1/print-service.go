@@ -48,7 +48,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -254,10 +254,7 @@ func PrintServiceMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.printService(path, names, *nat, *name)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

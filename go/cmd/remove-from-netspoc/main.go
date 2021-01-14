@@ -50,7 +50,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -180,7 +180,10 @@ func processFile(l []ast.Toplevel) int {
 func processInput(input *filetree.Context) {
 	source := []byte(input.Data)
 	path := input.Path
-	nodes := parser.ParseFile(source, path)
+	nodes, err := parser.ParseFile(source, path)
+	if err != nil {
+		abort.Msg("%v", err)
+	}
 	count := processFile(nodes)
 	if count == 0 {
 		return
@@ -191,7 +194,7 @@ func processInput(input *filetree.Context) {
 		n.Order()
 	}
 	copy := printer.File(nodes, source)
-	err := fileop.Overwrite(path, copy)
+	err = fileop.Overwrite(path, copy)
 	if err != nil {
 		abort.Msg("%v", err)
 	}

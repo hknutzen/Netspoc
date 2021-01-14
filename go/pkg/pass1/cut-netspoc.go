@@ -35,7 +35,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -259,8 +259,7 @@ func (c *spoc) markRulesPath(p pathRules) {
 }
 
 func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
-	toplevel := parseFiles(path)
-
+	toplevel := c.parseFiles(path)
 	if len(names) > 0 {
 		var copy []ast.Toplevel
 		retain := make(map[string]bool)
@@ -988,10 +987,7 @@ func CutNetspocMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.cutNetspoc(path, services, *keepOwner)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

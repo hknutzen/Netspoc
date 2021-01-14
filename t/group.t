@@ -737,7 +737,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
+Error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
 END
 
 test_err($title, $in, $out);
@@ -758,7 +758,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
+Error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
 END
 
 test_err($title, $in, $out);
@@ -971,7 +971,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
+Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
 END
 
 test_group_err($title, $in, 'network:n1; INVALID', $out);

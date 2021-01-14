@@ -20,7 +20,6 @@ END
 $out = <<"END";
 Error: router:r isn\'t connected to any network
 Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out);

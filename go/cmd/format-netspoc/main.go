@@ -17,7 +17,10 @@ import (
 func processInput(input *filetree.Context) {
 	source := []byte(input.Data)
 	path := input.Path
-	list := parser.ParseFile(source, path)
+	list, err := parser.ParseFile(source, path)
+	if err != nil {
+		abort.Msg("%v", err)
+	}
 	for _, n := range list {
 		n.Order()
 	}
@@ -28,7 +31,7 @@ func processInput(input *filetree.Context) {
 	}
 	diag.Info("Changed %s", path)
 
-	err := fileop.Overwrite(path, copy)
+	err = fileop.Overwrite(path, copy)
 	if err != nil {
 		abort.Msg("%v", err)
 	}

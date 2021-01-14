@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2020 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2021 by Heinz Knutzen <heinz.knutzengmail.com>
     (c) 2014 by Daniel Brunkhorst <daniel.brunkhorstweb.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -1512,10 +1512,7 @@ func ExportMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.exportNetspoc(path, out)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

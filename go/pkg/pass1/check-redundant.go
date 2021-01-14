@@ -529,39 +529,39 @@ func (c *spoc) findRedundantRules(
 func (c *spoc) checkRedundantRules() {
 	c.progress("Checking for redundant rules")
 
-	// Sorts error messages before output.
-	c2 := c.sortingSpoc()
-
-	var collectDupl, collectRedun [][2]*expandedRule
 	count := 0
 	dcount := 0
 	rcount := 0
 
-	// Process rules in chunks to reduce memory usage and allow
-	// concurrent processing. Rules with different srcPath / dstPath
-	// can't be redundant to each other.
-	type pathPair [2]pathStore
-	path2rules := make(map[pathPair][]*groupedRule)
-	add := func(rules []*groupedRule) {
-		for _, rule := range rules {
-			key := pathPair{rule.srcPath, rule.dstPath}
-			path2rules[key] = append(path2rules[key], rule)
-		}
-	}
-	add(c.allPathRules.deny)
-	add(c.allPathRules.permit)
-	for _, rules := range path2rules {
-		expandedRules := expandRules(rules)
-		count += len(expandedRules)
-		ruleTree, deleted := c2.buildRuleTree(expandedRules, &collectDupl)
-		dcount += deleted
-		setLocalPrtRelation(rules)
-		rcount += c2.findRedundantRules(ruleTree, &collectRedun)
-	}
+	// Sorts error messages before output.
+	c.sortedSpoc(func(c *spoc) {
+		var collectDupl, collectRedun [][2]*expandedRule
 
-	c2.showDuplicateRules(collectDupl)
-	c2.showRedundantRules(collectRedun)
-	c2.finish()
+		// Process rules in chunks to reduce memory usage and allow
+		// concurrent processing. Rules with different srcPath / dstPath
+		// can't be redundant to each other.
+		type pathPair [2]pathStore
+		path2rules := make(map[pathPair][]*groupedRule)
+		add := func(rules []*groupedRule) {
+			for _, rule := range rules {
+				key := pathPair{rule.srcPath, rule.dstPath}
+				path2rules[key] = append(path2rules[key], rule)
+			}
+		}
+		add(c.allPathRules.deny)
+		add(c.allPathRules.permit)
+		for _, rules := range path2rules {
+			expandedRules := expandRules(rules)
+			count += len(expandedRules)
+			ruleTree, deleted := c.buildRuleTree(expandedRules, &collectDupl)
+			dcount += deleted
+			setLocalPrtRelation(rules)
+			rcount += c.findRedundantRules(ruleTree, &collectRedun)
+		}
+
+		c.showDuplicateRules(collectDupl)
+		c.showRedundantRules(collectRedun)
+	})
 	c.warnUnusedOverlaps()
 	c.showFullyRedundantRules()
 	c.info("Expanded rule count: %d; duplicate: %d; redundant: %d",

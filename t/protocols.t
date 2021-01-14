@@ -35,7 +35,7 @@ protocol:p = tcp
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -64,7 +64,7 @@ protocol:test = tcp 80 -
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -295,7 +295,7 @@ protocol:test = icmp 3 /
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -352,7 +352,7 @@ protocol:test = proto
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);

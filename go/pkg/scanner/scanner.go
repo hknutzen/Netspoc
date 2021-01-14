@@ -5,12 +5,17 @@
 package scanner
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"unicode"
 	"unicode/utf8"
 )
+
+// An AbortHandler must be provided to Scanner.Init. If a syntax error is
+// encountered, the handler is called after error message has been shown.
+//
+type AbortHandler func(e error)
 
 // A Scanner holds the scanner's internal state while processing
 // a given text. It can be allocated as part of another data
@@ -20,6 +25,7 @@ type Scanner struct {
 	// immutable state
 	src   []byte // source
 	fname string // name of source file
+	abort AbortHandler
 
 	// scanning state
 	ch       rune // current character
@@ -55,16 +61,16 @@ func (s *Scanner) next() {
 // Init prepares the scanner s to tokenize the text src by setting the
 // scanner at the beginning of src.
 //
-// Calls to Scan will invoke the error handler err if they encounter a
-// syntax error and err is not nil. Also, for each error encountered,
-// the Scanner field ErrorCount is incremented by one.
+// Calls to Scan will invoke the abort handler abort if they encounter a
+// syntax error.
 //
-// Note that Init may call err if there is an error in the first character
+// Note that Init may call abort if there is an error in the first character
 // of the file.
 //
-func (s *Scanner) Init(src []byte, fname string) {
+func (s *Scanner) Init(src []byte, fname string, ah AbortHandler) {
 	s.src = src
 	s.fname = fname
+	s.abort = ah
 
 	s.ch = ' '
 	s.offset = 0
@@ -114,9 +120,8 @@ func (s *Scanner) context(offset int) string {
 
 func (s *Scanner) SyntaxErr(offset int, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
-	msg = "Syntax error: " + msg + s.context(offset)
-	fmt.Fprintln(os.Stderr, msg)
-	os.Exit(1)
+	msg = msg + s.context(offset)
+	s.abort(errors.New(msg))
 }
 
 func (s *Scanner) syntaxErr(format string, args ...interface{}) {
