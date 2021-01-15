@@ -23,7 +23,7 @@ network:n2 = { ip = 10.2.2.0/27; }
 
 
 =TITLE=Crosslink primary and full
-=INPUT=$topo
+=INPUT=${topo}
 =SUBST=/_1/primary/
 =SUBST=/_2/full/
 =OUTPUT=
@@ -40,7 +40,7 @@ interface n2
 
 
 =TITLE=Crosslink standard and secondary
-=INPUT=$topo
+=INPUT=${topo}
 =SUBST=/_1/standard/
 =SUBST=/_2/secondary/
 =OUTPUT=
@@ -57,7 +57,7 @@ interface n2
 
 
 =TITLE=Crosslink secondary and local
-=INPUT=$topo
+=INPUT=${topo}
 =SUBST=|_1|secondary|
 =SUBST=|_2|local; filter_only = 10.2.0.0/15|
 =ERROR=
@@ -161,10 +161,8 @@ network:cr = {
 =ERROR=Error: Crosslink network:cr must not have host definitions
 
 
-############################################################
-$title = 'Interface of crosslink network must use hardware only once';
-############################################################
-$in = <<'END';
+=TITLE=Interface of crosslink network must use hardware only once
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -175,33 +173,20 @@ router:r1 = {
 }
 
 network:cr = { ip = 10.3.3.0/29; crosslink; }
-END
-
-$out = <<'END';
+=ERROR=
 Error: Crosslink network:cr must be the only network connected to hardware 'n1' of router:r1
-END
+=END=
 
-test_err($title, $in, $out);
 
-############################################################
-$title = 'Crosslink network must not have unmanaged interface';
-############################################################
-$in = <<'END';
+=TITLE=Crosslink network must not have unmanaged interface
+=INPUT=
 network:cr = { ip = 10.3.3.0/29; crosslink; }
 router:r = { interface:cr; }
-END
+=ERROR=Error: Crosslink network:cr must not be connected to unmanged router:r
 
-$out = <<'END';
-Error: Crosslink network:cr must not be connected to unmanged router:r
-END
 
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Different no_in_acl at crosslink routers';
-############################################################
-
-$in = <<'END';
+=TITLE=Different no_in_acl at crosslink routers
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -221,19 +206,13 @@ router:r2 = {
 }
 
 network:n2 = { ip = 10.2.2.0/27; }
-END
-
-$out = <<'END';
+=ERROR=
 Error: All interfaces must equally use or not use outgoing ACLs at crosslink network:cr
-END
+=END=
 
-test_err($title, $in, $out);
 
-############################################################
-$title = 'no_in_acl outside of crosslink routers';
-############################################################
-
-$in = <<'END';
+=TITLE=no_in_acl outside of crosslink routers
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -253,20 +232,14 @@ router:r2 = {
 }
 
 network:n2 = { ip = 10.2.2.0/27; }
-END
-
-$out = <<'END';
+=ERROR=
 Error: All interfaces with attribute 'no_in_acl' at routers connected by
  crosslink network:cr must be border of the same security zone
-END
+=END=
 
-test_err($title, $in, $out);
 
-############################################################
-$title = 'no_in_acl at crosslink routers at same zone';
-############################################################
-
-$in = <<'END';
+=TITLE=no_in_acl at crosslink routers at same zone
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -284,9 +257,7 @@ router:r2 = {
  interface:cr = { ip = 10.3.3.2; hardware = cr; }
  interface:n1 = { ip = 10.1.1.2; hardware = n1; no_in_acl; }
 }
-END
-
-$out = <<'END';
+=OUTPUT=
 -- r1
 ! n1_in
 access-list n1_in extended deny ip any4 host 10.3.3.2
@@ -299,15 +270,11 @@ interface cr
 interface n1
  ip address 10.1.1.2/27
  ip access-group n1_in in
-END
+=END=
 
-test_run($title, $in, $out);
 
-############################################################
-$title = 'no_in_acl at crosslink interfaces';
-############################################################
-
-$in = <<'END';
+=TITLE=no_in_acl at crosslink interfaces
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -332,9 +299,7 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<'END';
+=OUTPUT=
 -- r1
 ! n1_in
 access-list n1_in extended deny ip any4 host 10.2.2.1
@@ -360,15 +325,11 @@ interface n2
  ip address 10.2.2.1/27
  ip access-group n2_in in
  ip access-group n2_out out
-END
+=END=
 
-test_run($title, $in, $out);
 
-############################################################
-$title = 'crosslink between Linux routers';
-############################################################
-
-$in = <<'END';
+=TITLE=crosslink between Linux routers
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -393,9 +354,7 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<'END';
+=OUTPUT=
 -- r1
 :n1_self -
 -A INPUT -j n1_self -i n1
@@ -419,15 +378,11 @@ $out = <<'END';
 --
 :n2_self -
 -A INPUT -j n2_self -i n2
-END
+=END=
 
-test_run($title, $in, $out);
 
-############################################################
-$title = 'Must not use crosslink network in rule';
-############################################################
-
-$in = <<'END';
+=TITLE=Must not use crosslink network in rule
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; crosslink; }
 
 router:r = {
@@ -443,20 +398,14 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<'END';
+=WARNING=
 Warning: Ignoring crosslink network:n1 in src of rule in service:test
 Warning: Ignoring crosslink network:n2 in dst of rule in service:test
-END
+=END=
 
-test_warn($title, $in, $out);
 
-############################################################
-$title = 'Ignore from automatic group';
-############################################################
-
-$in = <<'END';
+=TITLE=Ignore from automatic group
+=INPUT=
 network:n1 = { ip = 10.1.1.0/27; }
 
 router:r1 = {
@@ -486,23 +435,17 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 
-END
-
-$out = <<'END';
+=OUTPUT=
 -r2
 ! n2_out
 access-list n2_out extended permit tcp 10.1.1.0 255.255.255.224 10.2.2.0 255.255.255.224 eq 80
 access-list n2_out extended deny ip any4 any4
 access-group n2_out out interface n2
-END
+=END=
 
-test_run($title, $in, $out);
 
-############################################################
-$title = 'Use intermediately in automatic group';
-############################################################
-
-$in = <<'END';
+=TITLE=Use intermediately in automatic group
+=INPUT=
 area:n1-cr = { border = interface:r2.cr; }
 network:n1 = { ip = 10.1.1.0/27; }
 
@@ -530,17 +473,10 @@ service:s1 = {
         dst = interface:[network:[area:n1-cr] &! network:n1].[all];
         prt = tcp 22;
 }
-END
-
-$out = <<'END';
+=OUTPUT=
 -r1
 ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.31 host 10.3.3.1 eq 22
  permit tcp 10.1.1.0 0.0.0.31 host 10.3.3.2 eq 22
  deny ip any any
-END
-
-test_run($title, $in, $out);
-
-############################################################
-done_testing;
+=END=
