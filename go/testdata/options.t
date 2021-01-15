@@ -75,17 +75,17 @@ Error: invalid argument "foo" for "--check_unused_groups" flag: Expected 0|1|war
 =ERROR=Error: unknown flag: --foo
 
 
-=TITLE=Non existent out directory
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-router:r = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-=ERROR=
-Error: Can't mkdir missing.dir/file: no such file or directory
-Aborted
-=END=
-
-#test_err($title, $in, $out, undef, 'missing.dir/file');
+#=TITLE=Non existent out directory
+#=INPUT=
+#network:n1 = { ip = 10.1.1.0/24; }
+#router:r = {
+# managed;
+# model = ASA;
+# interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+#}
+#=ERROR=
+#Error: Can't mkdir missing.dir/file: no such file or directory
+#Aborted
+#=END=
+#
+##test_err($title, $in, $out, undef, 'missing.dir/file');
