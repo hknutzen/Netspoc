@@ -25,7 +25,6 @@ func TestNetspoc(t *testing.T) {
 			log.Fatal(err)
 		}
 		for _, descr := range l {
-			log.Println(descr.Title)
 			descr := descr // capture range variable
 			t.Run(descr.Title, func(t *testing.T) {
 				runTestDescription(t, descr)
@@ -51,29 +50,33 @@ func getTestDataFiles() []string {
 }
 
 func runTestDescription(t *testing.T, d *testdata.Descr) {
-	file, err := ioutil.TempFile("", "netspoc")
+	inDir, err := ioutil.TempDir("", "spoc_input")
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer os.Remove(file.Name())
-	if _, err := file.Write([]byte(d.Input)); err != nil {
-		log.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		log.Fatal(err)
-	}
+	prepareInDir(inDir, d.Input)
+	defer os.RemoveAll(inDir)
 	os.Args = []string{"spoc1", "-q"}
 	if d.Option != "" {
 		options := strings.Split(d.Option, " ")
 		os.Args = append(os.Args, options...)
 	}
+	os.Args = append(os.Args, inDir)
 	var status int
 	stderr := captureStderr(func() { status = pass1.SpocMain() })
+	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	if status == 0 {
-		t.Error("Unexpected success")
+		if e := d.Error; e != "" {
+			t.Error("Unexpected success")
+		} else if d.Warning != "" {
+			assert.Equal(t, d.Warning, stderr)
+		} else {
+		}
 	} else {
-		re := regexp.MustCompile(`Aborted with \d+ error\(s\)\n`)
+		re := regexp.MustCompile(`\nAborted with \d+ error\(s\)`)
 		stderr = re.ReplaceAllString(stderr, "")
+		re = regexp.MustCompile(`(?ms)\nUsage: .*`)
+		stderr = re.ReplaceAllString(stderr, "\n")
 		assert.Equal(t, d.Error, stderr)
 	}
 }
@@ -101,4 +104,47 @@ func captureStderr(f func()) string {
 
 	w.Close()
 	return <-out
+}
+
+// Fill input directory with file(s).
+// 'input' is optionally preceeded by single lines of dashes
+// followed by a filename.
+// If no filenames are given, a single file named STDIN is used.
+func prepareInDir(inDir, input string) {
+	re := regexp.MustCompile(`(?ms)^-+[ ]*(\S+)[ ]*\n`)
+	il := re.FindAllStringIndex(input, -1)
+
+	write := func(pName, data string) {
+		if path.IsAbs(pName) {
+			log.Fatalf("Unexpected absolute path '%s'", pName)
+		}
+		dir, file := path.Split(pName)
+		fullDir := path.Join(inDir, dir)
+		if err := os.MkdirAll(fullDir, 0644); err != nil {
+			log.Fatal(err)
+		}
+		fullPath := path.Join(fullDir, file)
+		if err := ioutil.WriteFile(fullPath, []byte(data), 0644); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// No filename
+	if il == nil {
+		write("STDIN", input)
+	} else if il[0][0] != 0 {
+		log.Fatal("Missing file marker in first line")
+	} else {
+		for i, p := range il {
+			marker := input[p[0] : p[1]-1] // without trailing "\n"
+			pName := strings.Trim(marker, "- ")
+			start := p[1]
+			end := len(input)
+			if i+1 < len(il) {
+				end = il[i+1][0]
+			}
+			data := input[start:end]
+			write(pName, data)
+		}
+	}
 }
