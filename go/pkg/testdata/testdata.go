@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 )
 
@@ -82,11 +81,12 @@ func (s *state) parse() ([]*Descr, error) {
 					return nil, err
 				}
 			}
-			d = new(Descr)
-			d.Title, err = s.readText()
+			text, err := s.readText()
 			if err != nil {
 				return nil, err
 			}
+			d = new(Descr)
+			d.Title = strings.TrimSuffix(text, "\n")
 			seen = make(map[string]bool)
 		case "VAR":
 			if err := s.varDef(); err != nil {
@@ -112,7 +112,7 @@ func (s *state) parse() ([]*Descr, error) {
 			case "INPUT":
 				d.Input = text
 			case "OPTION":
-				d.Option = text
+				d.Option = strings.TrimSuffix(text, "\n")
 			case "OUTPUT":
 				d.Output = text
 			case "WARNING":
@@ -156,8 +156,6 @@ func (s *state) readDef() (string, error) {
 	if err == nil {
 		s.rest = s.rest[len(name)+2:]
 	}
-
-	log.Println(line)
 	return name, err
 }
 
@@ -229,7 +227,7 @@ func (s *state) readText() (string, error) {
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		return s.doVarSubst(line)
+		return s.doVarSubst(line + "\n")
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest
@@ -250,7 +248,11 @@ func (s *state) readText() (string, error) {
 	}
 }
 
+// Substitute occurrences of ${name} with corresponding value.
 func (s *state) doVarSubst(text string) (string, error) {
+	for name, val := range s.textblocks {
+		text = strings.ReplaceAll(text, "${"+name+"}", val)
+	}
 	return text, nil
 }
 
