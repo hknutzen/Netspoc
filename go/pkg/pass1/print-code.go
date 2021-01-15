@@ -1105,14 +1105,22 @@ func printIptablesAcls(fh *os.File, router *router) {
 	}
 }
 
-func printCiscoAcls(fh *os.File, router *router) {
-	model := router.model
+func printCiscoAcls(fh *os.File, r *router) {
+	model := r.model
 	filter := model.filter
-	managedLocal := router.managed == "local"
-	ipv6 := router.ipV6
+	managedLocal := r.managed == "local"
+	ipv6 := r.ipV6
 	permitAny := getPermitAnyRule(ipv6)
 
-	for _, hardware := range router.hardware {
+	getNatSet := func(r *router, s natSet) natSet {
+		if r.model.aclUseRealIP {
+			return r.natSet
+		} else {
+			return s
+		}
+	}
+
+	for _, hardware := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
 		if hardware.loopback {
@@ -1124,12 +1132,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 			continue
 		}
 
-		var natSet natSet
-		if model.aclUseRealIP {
-			natSet = router.natSet
-		} else {
-			natSet = hardware.natSet
-		}
+		natSet := getNatSet(r, hardware.natSet)
 
 		// Generate code for incoming and possibly for outgoing ACL.
 		for _, suffix := range []string{"in", "out"} {
@@ -1157,7 +1160,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 				// Marker: Generate protect_self rules, if available.
 				info.protectSelf = true
 
-				if router.needProtect {
+				if r.needProtect {
 					info.intfRules = intfRules
 				}
 				if hardware.noInAcl {
@@ -1197,14 +1200,14 @@ func printCiscoAcls(fh *os.File, router *router) {
 				// Add ACL of corresponding tunnel interfaces.
 				// We have exactly one crypto interface per hardware.
 				intf := hardware.interfaces[0]
-				if (intf.hub != nil || intf.spoke != nil) && router.model.noCryptoFilter {
-					for _, tunnelIntf := range getIntf(router) {
+				if (intf.hub != nil || intf.spoke != nil) && r.model.noCryptoFilter {
+					for _, tunnelIntf := range getIntf(r) {
 						realIntf := tunnelIntf.realIntf
 						if realIntf == nil || realIntf != intf {
 							continue
 						}
 						tunnelInfo := &aclInfo{
-							natSet:    tunnelIntf.natSet,
+							natSet:    getNatSet(r, tunnelIntf.natSet),
 							rules:     tunnelIntf.rules,
 							intfRules: tunnelIntf.intfRules,
 						}
@@ -1228,8 +1231,8 @@ func printCiscoAcls(fh *os.File, router *router) {
 
 			aclName := hardware.name + "_" + suffix
 			info.name = aclName
-			router.aclList = append(router.aclList, info)
-			printAclPlaceholder(fh, router, aclName)
+			r.aclList = append(r.aclList, info)
+			printAclPlaceholder(fh, r, aclName)
 
 			// Post-processing for hardware interface
 			if filter == "IOS" || filter == "NX-OS" {
