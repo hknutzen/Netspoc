@@ -186,22 +186,28 @@ func (s *state) readDef() (string, error) {
 			break
 		}
 	}
-	name, err := s.checkDef(line)
-	if err == nil {
-		s.rest = s.rest[len(name)+2:]
+	name := s.checkDef(line)
+	if name == "" {
+		nr := s.currentLine()
+		return "", fmt.Errorf("expected token '=...=' at line %d: %s", nr, line)
 	}
-	return name, err
+	s.rest = s.rest[len(name)+2:]
+	return name, nil
 }
 
-func (s *state) checkDef(line string) (string, error) {
-	if line[0] == '=' {
-		idx := strings.IndexByte(line[1:], byte('='))
-		if idx != -1 {
-			return line[1 : idx+1], nil
-		}
+func (s *state) checkDef(line string) string {
+	if line[0] != '=' {
+		return ""
 	}
-	nr := s.currentLine()
-	return "", fmt.Errorf("expected token '=...=' at line %d: %s", nr, line)
+	idx := strings.Index(line[1:], "=")
+	if idx == -1 {
+		return ""
+	}
+	name := line[1 : idx+1]
+	if isName(name) {
+		return name
+	}
+	return ""
 }
 
 func (s *state) substDef(d *Descr) error {
@@ -246,6 +252,15 @@ func (s *state) readVarName() (string, error) {
 	return name, nil
 }
 
+func isName(n string) bool {
+	for _, ch := range n {
+		if !(isLetter(ch) || isDecimal(ch)) {
+			return false
+		}
+	}
+	return true
+}
+
 func lower(ch rune) rune     { return ('a' - 'A') | ch }
 func isDecimal(ch rune) bool { return '0' <= ch && ch <= '9' }
 
@@ -279,7 +294,7 @@ func (s *state) readText() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if name, err := s.checkDef(line); err == nil {
+		if name := s.checkDef(line); name != "" {
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
 			}
@@ -312,7 +327,7 @@ func (s *state) getLine() (string, error) {
 // If no filename is given, preceeding filename is reused.
 // If no markers are given, a single file named STDIN is used.
 func PrepareInDir(inDir, input string) {
-	if input == "NONE" {
+	if input == "NONE\n" {
 		input = ""
 	}
 	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)
