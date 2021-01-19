@@ -9,12 +9,15 @@ import (
 )
 
 type Descr struct {
-	Title   string
-	Input   string
-	Option  string
-	Output  string
-	Warning string
-	Error   string
+	Title    string
+	Input    string
+	Option   string
+	Param    string
+	Output   string
+	Warning  string
+	Error    string
+	ShowDiag bool
+	Todo     bool
 }
 
 // State
@@ -40,6 +43,10 @@ func ParseFile(file string) ([]*Descr, error) {
 	s.rest = data
 	s.textblocks = make(map[string]string)
 	return s.parse()
+}
+
+func (s *state) currentLine() int {
+	return 1 + bytes.Count(s.src[0:len(s.src)-len(s.rest)], []byte("\n"))
 }
 
 func (s *state) parse() ([]*Descr, error) {
@@ -113,12 +120,18 @@ func (s *state) parse() ([]*Descr, error) {
 				d.Input = text
 			case "OPTION":
 				d.Option = strings.TrimSuffix(text, "\n")
+			case "PARAM":
+				d.Param = strings.TrimSuffix(text, "\n")
 			case "OUTPUT":
 				d.Output = text
 			case "WARNING":
 				d.Warning = text
 			case "ERROR":
 				d.Error = text
+			case "SHOW_DIAG":
+				d.ShowDiag = true
+			case "TODO":
+				d.Todo = true
 			default:
 				return nil, fmt.Errorf(
 					"unexpected =%s= in test with =TITLE=%s", name, d.Title)
@@ -166,7 +179,8 @@ func (s *state) checkDef(line string) (string, error) {
 			return line[1 : idx+1], nil
 		}
 	}
-	return "", errors.New("expected token '=...=' in " + line)
+	nr := s.currentLine()
+	return "", fmt.Errorf("expected token '=...=' at line %d: %s", nr, line)
 }
 
 func (s *state) substDef(d *Descr) error {
@@ -227,7 +241,14 @@ func (s *state) readText() (string, error) {
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		return s.doVarSubst(line + "\n")
+		result, err := s.doVarSubst(line)
+		if err != nil {
+			return "", err
+		}
+		if !strings.HasSuffix(result, "\n") {
+			result += "\n"
+		}
+		return result, nil
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest

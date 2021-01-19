@@ -17,16 +17,16 @@ import (
 	"testing"
 )
 
-const dataDir = "../testdata"
-
 func TestNetspoc(t *testing.T) {
-	dataFiles := getTestDataFiles()
+	dataFiles := getTestDataFiles("../testdata")
+	os.Unsetenv("SHOW_DIAG")
 	for _, file := range dataFiles {
-		l, err := testdata.ParseFile(file)
-		if err != nil {
-			log.Fatal(err)
-		}
+		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
+			l, err := testdata.ParseFile(file)
+			if err != nil {
+				log.Fatal(err)
+			}
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestNetspoc(t *testing.T) {
 	}
 }
 
-func getTestDataFiles() []string {
+func getTestDataFiles(dataDir string) []string {
 	files, err := ioutil.ReadDir(dataDir)
 	if err != nil {
 		log.Fatal(err)
@@ -54,6 +54,9 @@ func getTestDataFiles() []string {
 }
 
 func runTestDescription(t *testing.T, d *testdata.Descr) {
+	if d.Todo {
+		t.Skip("skipping TODO test")
+	}
 
 	// Prepare options.
 	os.Args = []string{"spoc1", "-q"}
@@ -82,6 +85,16 @@ func runTestDescription(t *testing.T, d *testdata.Descr) {
 		os.Args = append(os.Args, outDir)
 	}
 
+	// Add extra params for testing command line handling.
+	if d.Param != "" {
+		os.Args = append(os.Args, strings.Split(d.Param, " ")...)
+	}
+
+	if d.ShowDiag {
+		os.Setenv("SHOW_DIAG", "1")
+		defer os.Unsetenv("SHOW_DIAG")
+	}
+
 	// Call pass1 + pass2.
 	var status int
 	stderr := captureStderr(func() { status = pass1.SpocMain() })
@@ -96,7 +109,10 @@ func runTestDescription(t *testing.T, d *testdata.Descr) {
 			t.Error("Unexpected success")
 			return
 		}
-		if d.Warning != "" {
+		if d.Warning != "" || stderr != "" {
+			if d.Warning == "NONE\n" {
+				d.Warning = ""
+			}
 			assert.Equal(t, d.Warning, stderr)
 		} else if d.Output == "" {
 			t.Error("Missing output specification")
@@ -153,7 +169,7 @@ func prepareInDir(t *testing.T, inDir, input string) {
 		}
 		dir, file := path.Split(pName)
 		fullDir := path.Join(inDir, dir)
-		if err := os.MkdirAll(fullDir, 0644); err != nil {
+		if err := os.MkdirAll(fullDir, 0755); err != nil {
 			log.Fatal(err)
 		}
 		fullPath := path.Join(fullDir, file)
