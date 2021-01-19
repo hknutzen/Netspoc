@@ -337,7 +337,6 @@ func PrintGroupMain() int {
 		fs.Usage()
 		return 1
 	}
-	fs.Parse(os.Args[1:])
 
 	// Argument processing
 	args := fs.Args()
