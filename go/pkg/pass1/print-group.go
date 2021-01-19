@@ -59,10 +59,6 @@ Don't print progress messages.
 
 Prints a brief help message && exits.
 
-=item B<-man>
-
-Prints the manual page && exits.
-
 =back
 
 =head1 COPYRIGHT AND DISCLAIMER
@@ -311,33 +307,43 @@ func (c *spoc) printGroup(path, group, natNet string,
 }
 
 func PrintGroupMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] FILE|DIR 'group:name,...'\n", os.Args[0])
-		pflag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
-	nat := pflag.String("nat", "",
+	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
-	unused := pflag.BoolP("unused", "u", false,
+	unused := fs.BoolP("unused", "u", false,
 		"Show only elements not used in any rules")
-	name := pflag.BoolP("name", "n", false, "Show only name of elements")
-	ip := pflag.BoolP("ip", "i", false, "Show only IP address of elements")
-	owner := pflag.BoolP("owner", "o", false, "Show owner of elements")
-	admins := pflag.BoolP("admins", "a", false,
+	name := fs.BoolP("name", "n", false, "Show only name of elements")
+	ip := fs.BoolP("ip", "i", false, "Show only IP address of elements")
+	owner := fs.BoolP("owner", "o", false, "Show owner of elements")
+	admins := fs.BoolP("admins", "a", false,
 		"Show admins of elements as comma separated list")
-	pflag.Parse()
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
+	fs.Parse(os.Args[1:])
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) != 2 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	group := args[1]
