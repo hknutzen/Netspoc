@@ -1,118 +1,49 @@
-#!/usr/bin/perl
-
-use strict;
-use warnings;
-use Test::More;
-use Test::Differences;
-use IPC::Run3;
-use File::Temp qw(tempfile);
-
-# Disable locale, so we get non translated error message.
-delete $ENV{LANG} ;
-
-sub run {
-    my ($input, $args) = @_;
-    my ($in_fh, $filename) = tempfile(UNLINK => 1);
-    print $in_fh $input;
-    close $in_fh;
-    my $cmd = "bin/rename-netspoc -q $filename $args";
-    my $stderr;
-    run3($cmd, \undef, \undef, \$stderr);
-    my $status = $? >> 8;
-    $stderr ||= '';
-    $stderr =~ s/\Q$filename\E/INPUT/g;
-    open(my $fh, '<', $filename) or die("Can't open $filename: $!\n");
-    local $/ = undef;
-    my $output = <$fh>;
-    close($fh);
-    return($status, $output, $stderr);
-}
-
-sub test_run {
-    my ($title, $input, $args, $expected) = @_;
-    my ($status, $output, $stderr) = run($input, $args);
-    if ($status != 0) {
-        diag("Unexpected failure:\n$stderr");
-        fail($title);
-    }
-    eq_or_diff("$stderr$output", $expected, $title);
-}
-
-sub test_err {
-    my ($title, $input, $args, $expected) = @_;
-    my ($status, $output, $stderr) = run($input, $args);
-    if ($status == 0) {
-        diag("Unexpected success\n");
-        fail($title);
-    }
-    $stderr =~ s/Aborted\n$//;
-    eq_or_diff($stderr, $expected, $title);
-}
-
-my ($title, $in, $out);
 
 ############################################################
-$title = 'Unknown type in substitution';
-############################################################
-
-$out = <<'END';
+=TITLE=Unknown type in substitution
+=INPUT=NONE
+=PARAM=foo:Test foo:Toast
+=ERROR=
 Error: Unknown type foo
-END
-
-test_err($title, '', 'foo:Test foo:Toast', $out);
+=END=
 
 ############################################################
-$title = 'Missing type in substitution';
-############################################################
-
-$out = <<'END';
+=TITLE=Missing type in substitution
+=INPUT=NONE
+=PARAM=Test Toast
+=ERROR=
 Error: Missing type in 'Test'
-END
-
-test_err($title, '', 'Test Toast', $out);
+=END=
 
 ############################################################
-$title = 'Missing replace string';
-############################################################
-
-$out = <<'END';
+=TITLE=Missing replace string
+=INPUT=NONE
+=PARAM=host:x host:y host:z
+=ERROR=
 Error: Missing replace string for 'host:z'
-END
-
-test_err($title, '', 'host:x host:y host:z', $out);
+=END=
 
 ############################################################
-$title = 'Types must be indentical';
-############################################################
-
-$in = '';
-
-$out = <<'END';
+=TITLE=Types must be indentical
+=INPUT=NONE
+=PARAM=host:x network:y
+=ERROR=
 Error: Types must be identical in
  - host:x
  - network:y
-END
-
-test_err($title, '', 'host:x network:y ', $out);
+=END=
 
 ############################################################
-$title = 'Ambiguous replace object';
-############################################################
-
-$in = <<'END';
-END
-
-$out = <<'END';
+=TITLE=Ambiguous replace object
+=INPUT=NONE
+=PARAM=group:g group:x group:g group:y
+=ERROR=
 Error: Ambiguous substitution for group:g: group:x, group:y
-END
-
-test_err($title, $in, 'group:g group:x group:g group:y', $out);
+=END=
 
 ############################################################
-$title = 'Rename network';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename network
+=VAR=input
 network:Test =  { ip = 10.1.1.0/24; }
 group:G =
     interface:r.Test,
@@ -132,9 +63,9 @@ pathrestriction:P = interface:r1.Test, interface:r2.Test;
 router:r = {
  interface:Test = { reroute_permit = network:Test; }
 }
-END
-
-$out = <<'END';
+=END=
+=INPUT=${input}
+=OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
 
 group:G =
@@ -170,25 +101,21 @@ router:r = {
   reroute_permit = network:Toast;
  }
 }
-END
-
-test_run($title, $in, 'network:Test network:Toast', $out);
+=END=
+=PARAM=network:Test network:Toast
 
 ############################################################
-$title = 'Rename verbosely';
-############################################################
-
-$out = <<'END' . $out;
+=TITLE=Rename verbosely
+=INPUT=${input}
+=WARNING=
 13 changes in INPUT
-END
-
-test_run($title, $in, '--quiet=0 network:Test network:Toast', $out);
+=END=
+=OPTION=--quiet=0
+=PARAM=network:Test network:Toast
 
 ############################################################
-$title = 'Rename bridged network';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename bridged network
+=INPUT=
 network:Test/a = { ip = 10.9.1.0/24; }
 network:Test/b = { ip = 10.9.1.0/24; }
 router:asa = {
@@ -201,9 +128,8 @@ group:G = interface:r.Test,
     network:Test/b,
     interface:r.Test/b,
     ;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 network:Toast/a = { ip = 10.9.1.0/24; }
 network:Toast/b = { ip = 10.9.1.0/24; }
 
@@ -219,69 +145,53 @@ group:G =
  network:Toast/b,
  interface:r.Toast/b,
 ;
-END
-
-test_run($title, $in, 'network:Test network:Toast', $out);
+=END=
+=PARAM=network:Test network:Toast
 
 ############################################################
-$title = 'Rename ID host';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename ID host
+=INPUT=
 group:G =
     host:id:h@dom.top.Test,
     host:id:h@dom.top.top,
     host:id:dom.top.Test,
     ;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 group:G =
  host:id:xx@yy.zz.Test,
  host:id:xx@yy.zz.top,
  host:id:a.b.c.Test,
 ;
-END
-
-test_run($title, $in,
-         'host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c',
-         $out);
+=END=
+=PARAM=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
 
 ############################################################
-$title = 'Rename both, ID host and network';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename both, ID host and network
+=INPUT=
 group:G =
     host:id:h@dom.top.Test,
     host:id:h@dom.top.top,
     ;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 group:G =
  host:id:xx@yy.zz.Toast,
  host:id:xx@yy.zz.top,
 ;
-END
-
-test_run($title, $in,
-         'host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast',
-         $out);
+=END=
+=PARAM=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
 
 ############################################################
-$title = 'Rename network to name with leading digit';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename network to name with leading digit
+=INPUT=
 network:Test =  { ip = 10.9.1.0/24; }
 group:G = interface:r.Test,
     host:id:h@dom.top.Test,
     network:Test,
     ;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
 
 group:G =
@@ -289,21 +199,17 @@ group:G =
  host:id:h@dom.top.1_2_3_0_Test,
  network:1_2_3_0_Test,
 ;
-END
-
-test_run($title, $in, 'network:Test network:1_2_3_0_Test', $out);
+=END=
+=PARAM=network:Test network:1_2_3_0_Test
 
 ############################################################
-$title = 'Rename router then network';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename router then network
+=VAR=input
 router:R = { interface:NN = { ip = 10.9.1.1; } }
 network:NN = { ip = 10.9.1.0/24; }
 group:g = interface:R.NN;
-END
-
-$out = <<'END';
+=END=
+=VAR=output
 router:RR = {
  interface:N = { ip = 10.9.1.1; }
 }
@@ -313,25 +219,27 @@ network:N = { ip = 10.9.1.0/24; }
 group:g =
  interface:RR.N,
 ;
-END
-
-test_run($title, $in, 'router:R router:RR network:NN network:N', $out);
-$title = 'Rename network then router';
-test_run($title, $in, 'network:NN network:N router:R router:RR', $out);
+=END=
+=INPUT=${input}
+=OUTPUT=${output}
+=PARAM=router:R router:RR network:NN network:N
 
 ############################################################
-$title = 'Rename VRF router';
-############################################################
+=TITLE=Rename network then router
+=INPUT=${input}
+=OUTPUT=${output}
+=PARAM=network:NN network:N router:R router:RR
 
-$in = <<'END';
+############################################################
+=TITLE=Rename VRF router
+=INPUT=
 router:R = { interface:n = { ip = 10.9.1.1; } }
 router:R@vrf = { interface:n = { ip = 10.9.1.2; } }
 group:G =
 interface:R.n,
 interface:R@vrf.n;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 router:RR = {
  interface:n = { ip = 10.9.1.1; }
 }
@@ -344,31 +252,24 @@ group:G =
  interface:RR.n,
  interface:r@vrf.n,
 ;
-END
-
-test_run($title, $in, 'router:R router:RR router:R@vrf router:r@vrf', $out);
+=END=
+=PARAM=router:R router:RR router:R@vrf router:r@vrf
 
 ############################################################
-$title = 'Rename inside automatic group';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename inside automatic group
+=INPUT=
 group:g = interface:[network:n1].[all];
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 group:g =
  interface:[network:NN].[all],
 ;
-END
-
-test_run($title, $in, 'network:n1 network:NN', $out);
+=END=
+=PARAM=network:n1 network:NN
 
 ############################################################
-$title = 'Rename nat';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename nat
+=INPUT=
 network:N = { ip = 1.2.3.0/24; nat:NAT-1 = {ip = 7.8.9.0; } }
 router:r = {
 interface:n1 = { bind_nat = NAT-1; }
@@ -381,9 +282,8 @@ interface:n4 = {bind_nat
 = NAT-1;
 }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 network:N = {
  ip = 1.2.3.0/24;
  nat:NAT-2 = { ip = 7.8.9.0; }
@@ -407,25 +307,20 @@ router:r = {
   bind_nat = NAT-2;
  }
 }
-END
-
-test_run($title, $in, 'nat:NAT-1 nat:NAT-2', $out);
+=END=
+=PARAM=nat:NAT-1 nat:NAT-2
 
 ############################################################
-$title = 'Rename service';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename service
+=INPUT=
 service:s1 = {
  unknown_owner;
  overlaps = service:s2, service:s3;
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 service:x1 = {
 
  unknown_owner;
@@ -438,23 +333,19 @@ service:x1 = {
         dst = network:n2;
         prt = tcp 80;
 }
-END
-
-test_run($title, $in, 'service:s1 service:x1 service:s3 service:x3', $out);
+=END=
+=PARAM=service:s1 service:x1 service:s3 service:x3
 
 ############################################################
-$title = 'Rename loopback interface';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename loopback interface
+=INPUT=
 router:r1 = { interface:Loopback_4 = { ip = 10.9.1.1; loopback; } }
 router:r2 = { interface:Loopback_4 = { ip = 10.9.1.2; loopback; } }
 group:G = interface:r1.Loopback_4,
           interface:r2.Loopback_4,
     ;
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 router:r1 = {
  interface:Loopback = { ip = 10.9.1.1; loopback; }
 }
@@ -467,23 +358,19 @@ group:G =
  interface:r1.Loopback,
  interface:r2.Loopback,
 ;
-END
-
-test_run($title, $in, 'network:Loopback_4 network:Loopback', $out);
+=END=
+=PARAM=network:Loopback_4 network:Loopback
 
 ############################################################
-$title = 'Rename umlauts';
-############################################################
-
-$in = <<'END';
+=TITLE=Rename umlauts
+=INPUT=
 owner:Maaß = { admins = a@b.c; }
 owner:Wittmuess = { admins = a@b.c; }
 network:n1 = {
  owner = Maaß, Wittmuess;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 owner:Maass = {
  admins = a@b.c;
 }
@@ -493,28 +380,20 @@ owner:Wittmüß = {
 }
 
 network:n1 = { owner = Maass, Wittmüß; }
-END
-
-test_run($title, $in, 'owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß',
-	 $out);
+=END=
+=PARAM=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
 
 ############################################################
-$title = 'Read substitutions from file';
-############################################################
-
-my $subst = <<'END';
+=TITLE=Read substitutions from file
+=VAR=file
 host:abc host:a1
 owner:foo owner:büro
 nat:tick nat:t1
 nat:ticks nat:t2
 nat:ick nat:_
 network:net network:xxxx
-END
-my ($in_fh, $filename) = tempfile(UNLINK => 1);
-print $in_fh $subst;
-close $in_fh;
-
-$in = <<'END';
+=END=
+=INPUT=
 router:r = {
 interface:net = { bind_nat = ick,
  ticks, tick;}
@@ -524,9 +403,8 @@ nat:ticks = { ip = 10.7.1.0/24; } nat:ick = { hidden; }
 nat:tick = { dynamic; }
  host:abc = { ip = 10.1.1.10; }
 }
-END
-
-$out = <<'END';;
+=END=
+=OUTPUT=
 router:r = {
  interface:xxxx = {
   bind_nat = _,
@@ -535,7 +413,6 @@ router:r = {
              ;
  }
 }
-
 network:xxxx = {
  owner = büro;
  ip = 10.1.1.0/24;
@@ -544,19 +421,16 @@ network:xxxx = {
  nat:t1 = { dynamic; }
  host:a1 = { ip = 10.1.1.10; }
 }
-END
-
-test_run($title, $in, "-f $filename", $out);
+=END=
+=OPTION=-f file
+=TODO=
 
 ############################################################
-$title = 'Unknown file for substitutions';
-############################################################
-
-$out = <<'END';
+=TITLE=Unknown file for substitutions
+=INPUT=NONE
+=ERROR=
 Error: open missing.file: no such file or directory
-END
-
-test_err($title, '', "-f missing.file", $out);
+=END=
+=OPTION=-f missing.file
 
 ############################################################
-done_testing;
