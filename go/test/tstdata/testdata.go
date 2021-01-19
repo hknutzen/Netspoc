@@ -1,10 +1,14 @@
-package testdata
+package tstdata
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
+	"path"
+	"regexp"
 	"strings"
 )
 
@@ -30,6 +34,22 @@ type state struct {
 	src        []byte
 	rest       []byte
 	textblocks map[string]string
+}
+
+func GetFiles(dataDir string) []string {
+	files, err := ioutil.ReadDir(dataDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var names []string
+	for _, f := range files {
+		name := f.Name()
+		if strings.HasSuffix(name, ".t") {
+			name = path.Join(dataDir, name)
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // ParseFile parses the named file as a list of test descriptions.
@@ -78,10 +98,10 @@ func (s *state) parse() ([]*Descr, error) {
 			return nil, err
 		}
 		switch name {
-		case "":
+		case "": // EOF
 			err := add()
 			return result, err
-		case "TITLE":
+		case "TITLE": // Next entry.
 			if d != nil {
 				err := add()
 				if err != nil {
@@ -156,6 +176,7 @@ func (s *state) readDef() (string, error) {
 		if line == "" || line[0] == '#' {
 			if idx == -1 {
 				s.rest = s.rest[len(s.rest):]
+				// Found EOF.
 				return "", nil
 			} else {
 				s.rest = s.rest[idx+1:]
@@ -283,4 +304,51 @@ func (s *state) getLine() (string, error) {
 		return "", errors.New("unexpected end of file")
 	}
 	return string(s.rest[:idx+1]), nil
+}
+
+// Fill input directory with file(s).
+// Parts of input are marked by single lines of dashes
+// followed by a filename.
+// If no filename is given, preceeding filename is reused.
+// If no markers are given, a single file named STDIN is used.
+func PrepareInDir(inDir, input string) {
+	if input == "NONE" {
+		input = ""
+	}
+	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)
+	il := re.FindAllStringIndex(input, -1)
+
+	write := func(pName, data string) {
+		if path.IsAbs(pName) {
+			log.Fatalf("Unexpected absolute path '%s'", pName)
+		}
+		dir, file := path.Split(pName)
+		fullDir := path.Join(inDir, dir)
+		if err := os.MkdirAll(fullDir, 0755); err != nil {
+			log.Fatal(err)
+		}
+		fullPath := path.Join(fullDir, file)
+		if err := ioutil.WriteFile(fullPath, []byte(data), 0644); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	// No filename
+	if il == nil {
+		write("STDIN", input)
+	} else if il[0][0] != 0 {
+		log.Fatal("Missing file marker in first line")
+	} else {
+		for i, p := range il {
+			marker := input[p[0] : p[1]-1] // without trailing "\n"
+			pName := strings.Trim(marker, "- ")
+			start := p[1]
+			end := len(input)
+			if i+1 < len(il) {
+				end = il[i+1][0]
+			}
+			data := input[start:end]
+			write(pName, data)
+		}
+	}
 }

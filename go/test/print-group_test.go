@@ -1,41 +1,23 @@
 package netspoc_test
 
 import (
-	"bytes"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
-	"github.com/hknutzen/Netspoc/go/pkg/testdata"
+	"github.com/hknutzen/Netspoc/go/test/capture"
+	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
 	"regexp"
 	"strings"
 	"testing"
 )
 
 func TestPrintGroup(t *testing.T) {
-	dataFiles := getTestDataFiles("../testdata/print-group")
-	os.Unsetenv("SHOW_DIAG")
-	for _, file := range dataFiles {
-		file := file // capture range variable
-		t.Run(path.Base(file), func(t *testing.T) {
-			l, err := testdata.ParseFile(file)
-			if err != nil {
-				log.Fatal(err)
-			}
-			for _, descr := range l {
-				descr := descr // capture range variable
-				t.Run(descr.Title, func(t *testing.T) {
-					groupTest(t, descr)
-				})
-			}
-		})
-	}
+	runTestFiles(t, "../testdata/print-group", groupTest)
 }
 
-func groupTest(t *testing.T, d *testdata.Descr) {
+func groupTest(t *testing.T, d *tstdata.Descr) {
 	if d.Todo {
 		t.Skip("skipping TODO test")
 	}
@@ -52,7 +34,7 @@ func groupTest(t *testing.T, d *testdata.Descr) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	prepareInDir(t, inDir, d.Input)
+	tstdata.PrepareInDir(inDir, d.Input)
 	defer os.RemoveAll(inDir)
 	os.Args = append(os.Args, inDir)
 
@@ -69,8 +51,10 @@ func groupTest(t *testing.T, d *testdata.Descr) {
 	// Call print-group
 	var status int
 	var stdout string
-	stderr := capture(&os.Stderr, func() {
-		stdout = capture(&os.Stdout, func() { status = pass1.PrintGroupMain() })
+	stderr := capture.Capture(&os.Stderr, func() {
+		stdout = capture.Capture(&os.Stdout, func() {
+			status = pass1.PrintGroupMain()
+		})
 	})
 
 	// Check result.
@@ -99,29 +83,4 @@ func groupTest(t *testing.T, d *testdata.Descr) {
 		stderr = re.ReplaceAllString(stderr, "\n")
 		assert.Equal(t, d.Error, stderr)
 	}
-}
-
-func capture(std **os.File, f func()) string {
-	r, w, err := os.Pipe()
-	if err != nil {
-		panic(err)
-	}
-
-	old := *std
-	*std = w
-	defer func() {
-		*std = old
-	}()
-
-	out := make(chan string)
-	go func() {
-		var buf bytes.Buffer
-		io.Copy(&buf, r)
-		out <- buf.String()
-	}()
-
-	f()
-
-	w.Close()
-	return <-out
 }
