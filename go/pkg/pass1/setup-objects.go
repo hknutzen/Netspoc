@@ -32,11 +32,11 @@ func (c *spoc) showReadStatistics() {
 
 func (c *spoc) parseFiles(path string) []ast.Toplevel {
 	var result []ast.Toplevel
-	process := func(input *filetree.Context) {
+	process := func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		nodes, err := parser.ParseFile(source, input.Path)
 		if err != nil {
-			c.abort("%v", err)
+			return err
 		}
 		if input.IPV6 {
 			for _, n := range nodes {
@@ -44,6 +44,7 @@ func (c *spoc) parseFiles(path string) []ast.Toplevel {
 			}
 		}
 		result = append(result, nodes...)
+		return nil
 	}
 	err := filetree.Walk(path, process)
 	if err != nil {

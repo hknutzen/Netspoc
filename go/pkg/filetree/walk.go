@@ -13,7 +13,7 @@ type Context struct {
 	Data string
 	IPV6 bool
 }
-type parser func(*Context)
+type parser func(*Context) error
 
 // Read input from file and process it by function which is given as argument.
 func processFile(input *Context, fn parser) error {
@@ -22,8 +22,7 @@ func processFile(input *Context, fn parser) error {
 		return err
 	}
 	input.Data = string(content)
-	fn(input)
-	return nil
+	return fn(input)
 }
 
 func Walk(fname string, fn parser) error {
