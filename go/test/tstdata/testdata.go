@@ -159,7 +159,6 @@ func (s *state) parse() ([]*Descr, error) {
 			seen[name] = true
 		}
 	}
-	return result, nil
 }
 
 func (s *state) readDef() (string, error) {
