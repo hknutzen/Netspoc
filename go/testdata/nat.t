@@ -172,8 +172,8 @@ access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --
 ! outside_in
-access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
-access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
+access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 10.9.1.33
+access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
@@ -389,8 +389,8 @@ service:s2 = {
 =OUTPUT=
 -- asa1
 ! n2_in
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.64 255.255.255.192 eq 80
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.0 255.255.255.0 eq 81
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.64 255.255.255.192 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 81
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 =END=
@@ -874,7 +874,7 @@ access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 -- r3
 ! d_in
-access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.9.9.4 255.255.255.252 eq 81
+access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.3.3.0 255.255.255.0 eq 81
 access-list d_in extended deny ip any4 any4
 access-group d_in in interface d
 =END=
@@ -2874,29 +2874,130 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
 }
+
+service:test = {
+ user = network:n2, network:n3;
+ permit src = network:n1; dst = user; prt = tcp 80;
+ permit src = user; dst = network:n1; prt = tcp 25;
+}
 =END=
-=ERROR=
-Error: Must not use attribute 'acl_use_real_ip' at router:r1
- having different effective NAT at more than two interfaces
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.254.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 25
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 25
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=Useless acl_use_real_ip
+=TITLE=acl_use_real_ip with multi NAT tags
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1a = { ip = 2.2.1.0/24; }
+ nat:n1b = { ip = 3.2.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = {
+ ip = 10.1.4.0/24;
+ nat:n4a = { ip = 2.2.2.0/24; }
+ nat:n4b = { ip = 3.2.2.0/24; }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a; }
+}
+router:r2 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n4b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1b; }
+}
+router:r3 = {
+ interface:n3 = { bind_nat = n4a; }
+ interface:n4;
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 25;
+ permit src = network:n4; dst = user; prt = tcp 80;
+ }
+=END=
+=OUTPUT=
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 2.2.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 25
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp 2.2.2.0 255.255.255.0 2.2.1.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=acl_use_real_ip in loop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 2.2.2.0/24; } }
+
 router:r1 = {
  acl_use_real_ip;
  managed;
+ routing = manual;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h2; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
 }
-=END=
-=WARNING=
-Warning: Useless attribute 'acl_use_real_ip' at router:r1
+router:r2 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n1; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 25;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+-- r2
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
 =END=
 
 ############################################################
@@ -3278,7 +3379,7 @@ service:s1 = {
 =OUTPUT=
 --r1
 ! n2_in
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.2.64 255.255.255.192 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 =END=

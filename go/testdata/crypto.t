@@ -1717,15 +1717,15 @@ username foo@domain.x attributes
  vpn-filter value vpn-filter-foo@domain.x
 --
 ! outside_in
-access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 10.7.7.0 255.255.255.0 eq 84
+access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 192.168.1.0 255.255.255.0 eq 84
 access-list outside_in extended permit tcp host 10.99.1.10 10.1.2.0 255.255.255.0 eq 80
-access-list outside_in extended permit tcp host 10.99.1.10 10.7.7.0 255.255.255.0 eq 81
+access-list outside_in extended permit tcp host 10.99.1.10 192.168.1.0 255.255.255.0 eq 81
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
 ! extern_in
-access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.2.0 255.255.255.0 eq 82
-access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 192.168.99.0 255.255.255.0 eq 83
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 82
+access-list extern_in extended permit tcp 192.168.1.0 255.255.255.0 10.99.1.0 255.255.255.0 eq 83
 access-list extern_in extended deny ip any4 any4
 access-group extern_in in interface extern
 =END=
@@ -1921,6 +1921,78 @@ network:n2 = {
 -- asavpn
 ! [ Routing ]
 route outside 1.2.3.4 255.255.255.255 192.168.0.1
+=END=
+
+############################################################
+=TITLE=acl_use_real_ip for crypto tunnel of ASA
+=INPUT=
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 1 hour 100000 kilobytes;
+}
+
+isakmp:aes256SHA = {
+ nat_traversal = additional;
+ authentication = preshare;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point =  ASDM_TrustPoint3;
+}
+
+crypto:sts = {
+ type = ipsec:aes256SHA;
+ detailed_crypto_acl;
+ bind_nat = intern;
+}
+network:intern = {
+ ip = 10.1.1.0/24;
+ nat:intern = { ip = 192.168.2.0/24; }
+}
+
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+
+network:dmz = { ip = 1.2.3.0/25; }
+
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+
+router:vpn1 = {
+ interface:internet = { ip = 1.1.1.1; spoke = crypto:sts; }
+ interface:lan1 = {  ip = 10.99.1.1; }
+}
+network:lan1 = { ip = 10.99.1.0/24; }
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- asavpn
+! outside_in
+access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
 =END=
 
 ############################################################
@@ -3113,9 +3185,9 @@ ip access-list extended GigabitEthernet0_in
  deny ip any any
 --firewall
 ! outside_in
-access-list outside_in extended permit 50 host 1.2.3.2 host 1.2.3.129
-access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 1.2.3.129 eq 500
-access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 1.2.3.129 eq 4500
+access-list outside_in extended permit 50 host 1.2.3.2 host 10.254.254.6
+access-list outside_in extended permit udp host 1.2.3.2 eq 500 host 10.254.254.6 eq 500
+access-list outside_in extended permit udp host 1.2.3.2 eq 4500 host 10.254.254.6 eq 4500
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --
