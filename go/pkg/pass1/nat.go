@@ -661,6 +661,8 @@ func (c *spoc) checkForProperNatTransition(
 	nextInfo := nat[tag2]
 
 	// Transition from hidden NAT to any other NAT is invalid.
+	// Even hidden to hidden is not allowed, since relaxed multi NAT rules
+	// for hidden NAT could lead to inconsistent NAT set.
 	if natInfo.hidden {
 
 		// Use nextInfo.name and not natInfo.name because
