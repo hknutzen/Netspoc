@@ -232,8 +232,13 @@ func (s *state) varDef() error {
 	if err != nil {
 		return err
 	}
-	s.textblocks[name], err = s.readText()
-	return err
+	text, err := s.readText()
+	if err != nil {
+		return err
+	}
+	text = strings.TrimSuffix(text, "\n")
+	s.textblocks[name] = text
+	return nil
 }
 
 func (s *state) readVarName() (string, error) {
