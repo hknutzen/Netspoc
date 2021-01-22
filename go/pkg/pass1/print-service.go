@@ -224,27 +224,36 @@ func (c *spoc) printService(
 }
 
 func PrintServiceMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] FILE|DIR [SERVICE-NAME ...]\n", os.Args[0])
-		pflag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
-	nat := pflag.String("nat", "",
+	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
-	name := pflag.BoolP("name", "n", false, "Show name, not IP of elements")
-	pflag.Parse()
+	name := fs.BoolP("name", "n", false, "Show name, not IP of elements")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) == 0 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	names := args[1:]
