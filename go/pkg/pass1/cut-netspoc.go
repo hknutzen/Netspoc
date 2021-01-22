@@ -27,10 +27,6 @@ Quiet, don't print status messages.
 
 Prints a brief help message && exits.
 
-=item B<-man>
-
-Prints the manual page && exits.
-
 =back
 
 =head1 COPYRIGHT AND DISCLAIMER
@@ -65,7 +61,7 @@ import (
 	"strings"
 )
 
-var isUsed = make(map[string]bool)
+var isUsed map[string]bool
 
 func removeAttr(ref *[]*ast.Attribute, name string) {
 	var l []*ast.Attribute
@@ -958,24 +954,33 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 }
 
 func CutNetspocMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] FILE|DIR [service:name ...]\n", os.Args[0])
-		pflag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
-	keepOwner := pflag.BoolP("owner", "o", false, "Keep referenced owners")
-	pflag.Parse()
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	keepOwner := fs.BoolP("owner", "o", false, "Keep referenced owners")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) == 0 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	services := args[1:]
@@ -986,6 +991,10 @@ func CutNetspocMain() int {
 		"--max_errors=9999",
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
+
+	// Initialize global variables.
+	isUsed = make(map[string]bool)
+	todoUnmanaged = nil
 
 	return toplevelSpoc(func(c *spoc) {
 		c.cutNetspoc(path, services, *keepOwner)
