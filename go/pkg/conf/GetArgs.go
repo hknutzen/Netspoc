@@ -5,7 +5,7 @@ Get arguments and options from command line and config file.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(C) 2018 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2021 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -26,7 +26,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
@@ -209,19 +208,22 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 	return cfg
 }
 
-func fail(err error) {
-	fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+func showErr(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
+}
+
+func usage(format string, args ...interface{}) {
+	showErr(format, args...)
 	flag.Usage()
-	fmt.Fprintln(os.Stderr, "Aborted")
-	os.Exit(2)
 }
 
 // Read names of input file/directory and output directory from
 // passed command line arguments.
-func parseArgs(fs *flag.FlagSet) (string, string) {
+func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 	mainFile := fs.Arg(0)
 	if mainFile == "" || fs.Arg(2) != "" {
-		fail(fmt.Errorf("Expected 2 args, got %v", fs.Args()))
+		usage("Expected 2 args, got %v", fs.Args())
+		return "", "", true
 	}
 
 	// outDir is used to store compilation results.
@@ -233,16 +235,17 @@ func parseArgs(fs *flag.FlagSet) (string, string) {
 	// Strip trailing slash for nicer messages.
 	strings.TrimSuffix(mainFile, "/")
 	strings.TrimSuffix(outDir, "/")
-	return mainFile, outDir
+	return mainFile, outDir, false
 }
 
 // Reads "key = value;" pairs from config file.
 // Trailing ";" is optional.
 // Comment lines starting with "#" are ignored.
-func readConfig(filename string) map[string]string {
+func readConfig(filename string) (map[string]string, bool) {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		abort.Msg("Failed to read config file %s: %s", filename, err)
+		showErr("%v", err)
+		return nil, true
 	}
 	lines := strings.Split(string(bytes), "\n")
 	result := make(map[string]string)
@@ -253,7 +256,8 @@ func readConfig(filename string) map[string]string {
 		}
 		parts := strings.Split(line, "=")
 		if len(parts) != 2 {
-			abort.Msg("Unexpected line in %s: %s", filename, line)
+			showErr("Unexpected line in %s: %s", filename, line)
+			return nil, true
 		}
 		key, val := parts[0], parts[1]
 		key = strings.TrimSpace(key)
@@ -261,19 +265,23 @@ func readConfig(filename string) map[string]string {
 		val = strings.TrimSuffix(val, ";")
 		result[key] = val
 	}
-	return result
+	return result, false
 }
 
 // parseFile parses the specified configuration file and populates unset flags
 // in fs based on the contents of the file.
 // Hidden flags are not set from file.
-func parseFile(filename string, fs *flag.FlagSet) {
+func parseFile(filename string, fs *flag.FlagSet) bool {
 	isSet := make(map[*flag.Flag]bool)
-	config := readConfig(filename)
+	config, abort := readConfig(filename)
+	if abort {
+		return abort
+	}
 
 	fs.Visit(func(f *flag.Flag) {
 		isSet[f] = true
 	})
+	hasErr := false
 	fs.VisitAll(func(f *flag.Flag) {
 		// Ignore inverted flag.
 		if inv, found := invertedFlags[f.Name]; found {
@@ -293,21 +301,24 @@ func parseFile(filename string, fs *flag.FlagSet) {
 		}
 		err := f.Value.Set(val)
 		if err != nil {
-			abort.Msg("Invalid value for %s in %s: %s", f.Name, filename, val)
+			hasErr = true
+			showErr("Invalid value for %s in %s: %s", f.Name, filename, val)
 		}
 	})
 
 	for name := range config {
-		abort.Msg("Invalid keyword in %s: %s", filename, name)
+		showErr("Invalid keyword in %s: %s", filename, name)
+		hasErr = true
 	}
+	return hasErr
 }
 
-func addConfigFromFile(inDir string, fs *flag.FlagSet) {
+func addConfigFromFile(inDir string, fs *flag.FlagSet) bool {
 	path := inDir + "/config"
 	if !fileop.IsRegular(path) {
-		return
+		return false
 	}
-	parseFile(path, fs)
+	return parseFile(path, fs)
 }
 
 func setStartTime() {
@@ -321,7 +332,7 @@ func setStartTime() {
 var Conf *Config
 var StartTime time.Time
 
-func GetArgs() (string, string) {
+func GetArgs() (string, string, bool) {
 	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 
 	// Setup custom usage function.
@@ -334,20 +345,26 @@ func GetArgs() (string, string) {
 	Conf = defaultOptions(fs)
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == flag.ErrHelp {
-			os.Exit(1)
+			return "", "", true
 		}
-		fail(err)
+		usage("%v", err)
+		return "", "", true
 	}
-	inPath, outDir := parseArgs(fs)
-	addConfigFromFile(inPath, fs)
+	inPath, outDir, abort := parseArgs(fs)
+	if abort {
+		return "", "", true
+	}
+	if abort := addConfigFromFile(inPath, fs); abort {
+		return "", "", true
+	}
 	setStartTime()
-	return inPath, outDir
+	return inPath, outDir, false
 }
 
 func ConfigFromArgsAndFile(args []string, path string) {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	Conf = defaultOptions(fs)
-	fs.Parse(args)
+	fs.Parse(args) // No check for error needed, because arguments are fixed.
 	addConfigFromFile(path, fs)
 	setStartTime()
 }

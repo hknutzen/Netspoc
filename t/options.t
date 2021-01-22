@@ -54,7 +54,6 @@ END
 
 $out = <<'END';
 Error: Invalid keyword in config: foo
-Aborted
 END
 
 test_err($title, $in, $out);
@@ -70,7 +69,6 @@ END
 
 $out = <<'END';
 Error: Invalid value for check_unused_groups in config: errors
-Aborted
 END
 
 test_err($title, $in, $out);
@@ -86,7 +84,6 @@ END
 
 $out = <<'END';
 Error: Unexpected line in config: bla bla;
-Aborted
 END
 
 test_err($title, $in, $out);
@@ -150,7 +147,6 @@ END
 
 $out = <<'END';
 Error: Can't mkdir missing.dir/file: no such file or directory
-Aborted
 END
 
 test_err($title, $in, $out, undef, 'missing.dir/file');

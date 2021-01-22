@@ -107,8 +107,8 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 
 		// Outgoing rules are needed at tunnel for generating
 		// detailedCryptoAcl.
-		if outIntf.tunnel &&
-			outIntf.crypto.detailedCryptoAcl &&
+		if outIntf.ipType == tunnelIP &&
+			outIntf.getCrypto().detailedCryptoAcl &&
 			outIntf.idRules == nil {
 			outIntf.outRules.push(rule)
 		}
@@ -121,7 +121,7 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 			intf.rules = append(intf.rules, rule)
 		}
 	}
-	if inIntf.tunnel {
+	if inIntf.ipType == tunnelIP {
 		noCryptoFilter := model.noCryptoFilter
 
 		// Rules for single software clients are stored individually.
@@ -338,16 +338,12 @@ func (c *spoc) distributeGeneralPermit() {
 					rule = &copy
 					rule.src = []someObj{src}
 					for _, outIntf := range router.interfaces {
-						if outIntf == inIntf {
-							continue
-						}
-						if outIntf.tunnel {
-							continue
-						}
+						if outIntf != inIntf && outIntf.ipType != tunnelIP {
 
-						// Traffic traverses the device. Traffic for
-						// the device itself isn't needed at VPN hub.
-						distributeRule(rule, inIntf, outIntf)
+							// Traffic traverses the device. Traffic for
+							// the device itself isn't needed at VPN hub.
+							distributeRule(rule, inIntf, outIntf)
+						}
 					}
 				}
 				if idRules := inIntf.idRules; idRules != nil {
@@ -399,10 +395,9 @@ func (c *spoc) distributeGeneralPermit() {
 				}
 
 				// Traffic for the device itself.
-				if inIntf.bridged {
-					continue
+				if inIntf.ipType != bridgedIP {
+					distributeRule(rule, inIntf, nil)
 				}
-				distributeRule(rule, inIntf, nil)
 			}
 		}
 	}

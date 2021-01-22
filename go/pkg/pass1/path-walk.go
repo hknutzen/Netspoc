@@ -1472,7 +1472,7 @@ func (c *spoc) findAutoInterfaces(
 	// Remove tunnel interfaces, change slice in place.
 	j := 0
 	for _, intf := range result {
-		if !intf.tunnel {
+		if intf.ipType != tunnelIP {
 			result[j] = intf
 			j++
 		}

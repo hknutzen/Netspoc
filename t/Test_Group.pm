@@ -50,6 +50,10 @@ sub test_group_err {
         fail($title);
         return;
     }
+
+    # Cleanup error message.
+    $stderr =~ s/\nAborted( with \d+ error\(s\))?$//ms;
+
     eq_or_diff($stderr, $expected, $title);
     return;
 }

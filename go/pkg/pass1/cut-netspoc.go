@@ -27,15 +27,11 @@ Quiet, don't print status messages.
 
 Prints a brief help message && exits.
 
-=item B<-man>
-
-Prints the manual page && exits.
-
 =back
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -65,7 +61,7 @@ import (
 	"strings"
 )
 
-var isUsed = make(map[string]bool)
+var isUsed map[string]bool
 
 func removeAttr(ref *[]*ast.Attribute, name string) {
 	var l []*ast.Attribute
@@ -259,8 +255,7 @@ func (c *spoc) markRulesPath(p pathRules) {
 }
 
 func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
-	toplevel := parseFiles(path)
-
+	toplevel := c.parseFiles(path)
 	if len(names) > 0 {
 		var copy []ast.Toplevel
 		retain := make(map[string]bool)
@@ -569,11 +564,11 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		if !n.isUsed {
 			continue
 		}
-		if !n.bridged {
+		if n.ipType != bridgedIP {
 			continue
 		}
 		for _, in := range n.interfaces {
-			if !in.bridged {
+			if in.ipType != bridgedIP {
 				continue
 			}
 			in.isUsed = true
@@ -582,7 +577,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			for _, out := range bridge.interfaces {
 				if out.hardware.name == "device" && bridge.model.class == "ASA" {
 					out.isUsed = true
-				} else if out.bridged {
+				} else if out.ipType == bridgedIP {
 					out.isUsed = true
 					out.network.isUsed = true
 				}
@@ -624,7 +619,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 
 			// Mark path of crypto tunnel.
-			if intf.tunnel {
+			if intf.ipType == tunnelIP {
 				peer := intf.peer
 				real := intf.realIntf
 				c.markPath(real, peer.realIntf)
@@ -959,24 +954,33 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 }
 
 func CutNetspocMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] FILE|DIR [service:name ...]\n", os.Args[0])
-		pflag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
-	keepOwner := pflag.BoolP("owner", "o", false, "Keep referenced owners")
-	pflag.Parse()
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	keepOwner := fs.BoolP("owner", "o", false, "Keep referenced owners")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) == 0 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	services := args[1:]
@@ -988,10 +992,11 @@ func CutNetspocMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := initSpoc()
-	go func() {
+	// Initialize global variables.
+	isUsed = make(map[string]bool)
+	todoUnmanaged = nil
+
+	return toplevelSpoc(func(c *spoc) {
 		c.cutNetspoc(path, services, *keepOwner)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

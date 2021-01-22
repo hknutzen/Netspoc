@@ -222,8 +222,8 @@ access-list inside_in extended deny ip any4 any4
 access-group inside_in in interface inside
 --
 ! outside_in
-access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 1.1.1.23
-access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 1.1.1.16 255.255.255.240 eq 80
+access-list outside_in extended permit ip 10.9.3.0 255.255.255.0 host 10.9.1.33
+access-list outside_in extended permit tcp 10.9.3.0 255.255.255.0 10.9.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 END
@@ -337,9 +337,11 @@ network:n1 = {
 network:n1sub = { ip = 10.1.1.64/26; nat:n1sub = { ip = 10.1.2.64/26; } }
 
 router:r1 = {
- interface:n1 = { bind_nat = n1sub; }
- interface:l = { ip = 10.1.9.9; loopback; }
- interface:n1sub = { bind_nat = n1; }
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; bind_nat = n1sub; hardware = n1; }
+ interface:l = { ip = 10.1.9.9; loopback; hardware = l; }
+ interface:n1sub = { ip = 10.1.1.126; bind_nat = n1;  hardware = n1sub; }
 }
 END
 
@@ -491,8 +493,8 @@ END
 $out = <<'END';
 -- asa1
 ! n2_in
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.64 255.255.255.192 eq 80
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.9.0 255.255.255.0 eq 81
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.64 255.255.255.192 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 81
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
@@ -528,9 +530,9 @@ END
 
 # Only first error is shown.
 $out = <<'END';
+Warning: Ignoring useless nat:E bound at interface:filter.X
 Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
  - interface:filter.X
-Warning: Ignoring useless nat:E bound at router:filter
 END
 
 test_err($title, $in, $out);
@@ -556,8 +558,39 @@ network:X = { ip = 10.8.3.0/24; }
 END
 
 $out = <<'END';
-Warning: Ignoring useless nat:D bound at router:filter
+Warning: Ignoring useless nat:D bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'No further errors on useless NAT';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = i; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3 = { bind_nat = h; }
+}
+router:r3 = {
+ interface:n3 = { bind_nat = h; }
+ interface:n1;
+}
+END
+
+$out = <<'END';
+Warning: Ignoring useless nat:i bound at interface:r1.n2
+Warning: Ignoring useless nat:h bound at interface:r2.n3
+Warning: Ignoring useless nat:h bound at interface:r3.n3
 END
 
 test_warn($title, $in, $out);
@@ -744,7 +777,6 @@ END
 
 $out = <<'END';
 Warning: Ignoring nat:x without effect, bound at every interface of router:r1
-Warning: nat:x is defined, but not bound to any interface
 END
 
 test_warn($title, $in, $out);
@@ -1069,7 +1101,7 @@ access-list t_in extended deny ip any4 any4
 access-group t_in in interface t
 -- r3
 ! d_in
-access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.9.9.4 255.255.255.252 eq 81
+access-list d_in extended permit tcp 10.5.5.0 255.255.255.0 10.3.3.0 255.255.255.0 eq 81
 access-list d_in extended deny ip any4 any4
 access-group d_in in interface d
 END
@@ -1710,6 +1742,35 @@ router:r1 = {
 END
 
 $out = <<'END';
+END
+
+test_warn($title, $in, $out);
+
+############################################################
+$title = 'Inherit NAT to all networks in zone cluster';
+############################################################
+
+$in = <<'END';
+any:n2 = { ip = 10.1.0.0/16; link = network:n2; nat:h = { hidden; } }
+network:n1 = { ip = 10.1.1.0/24; nat:h = { hidden; } }
+network:n2 = { ip = 10.2.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2= { ip = 10.2.2.2; }
+ interface:n3 = { bind_nat = h; }
+}
+END
+
+$out = <<'END';
+Warning: Useless nat:h of network:n1,
+ it was already inherited from nat:h of any:n2
 END
 
 test_warn($title, $in, $out);
@@ -3375,13 +3436,13 @@ END
 test_err($title, $in, $out);
 
 ############################################################
-$title = 'Incomplete and useless NAT at split router';
+$title = 'Incomplete NAT at split router';
 ############################################################
 
 $in = <<'END';
 network:n0 = { ip = 10.1.0.0/24; nat:h = { hidden; } }
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24; nat:hx = { hidden; } }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
@@ -3415,7 +3476,6 @@ Error: Incomplete 'bind_nat = hx' at
  - interface:r2.n1
  Possibly 'bind_nat = hx' is missing at these interfaces:
  - interface:r3.n1
-Warning: Ignoring useless nat:hx bound at router:r2
 END
 
 test_err($title, $in, $out);
@@ -3484,39 +3544,145 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1, n2; }
 }
-END
 
-$out = <<'END';
-Error: Must not use attribute 'acl_use_real_ip' at router:r1
- having different effective NAT at more than two interfaces
-END
-
-test_err($title, $in, $out);
-
-############################################################
-$title = 'Useless acl_use_real_ip';
-############################################################
-
-$in = <<'END';
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
-network:n3 = { ip = 10.1.3.0/24; }
-
-router:r1 = {
- acl_use_real_ip;
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = h2; }
+service:test = {
+ user = network:n2, network:n3;
+ permit src = network:n1; dst = user; prt = tcp 80;
+ permit src = user; dst = network:n1; prt = tcp 25;
 }
 END
 
 $out = <<'END';
-Warning: Useless attribute 'acl_use_real_ip' at router:r1
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.254.0 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 25
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp 10.1.3.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 25
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
 END
 
-test_warn($title, $in, $out);
+test_run($title, $in, $out);
+
+############################################################
+$title = 'acl_use_real_ip with multi NAT tags';
+############################################################
+
+$in = <<'END';
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1a = { ip = 2.2.1.0/24; }
+ nat:n1b = { ip = 3.2.1.0/24; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = {
+ ip = 10.1.4.0/24;
+ nat:n4a = { ip = 2.2.2.0/24; }
+ nat:n4b = { ip = 3.2.2.0/24; }
+}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a; }
+}
+router:r2 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n4b; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n1b; }
+}
+router:r3 = {
+ interface:n3 = { bind_nat = n4a; }
+ interface:n4;
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 25;
+ permit src = network:n4; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 2.2.1.0 255.255.255.0 2.2.2.0 255.255.255.0 eq 25
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--
+! n3_in
+access-list n3_in extended permit tcp 2.2.2.0 255.255.255.0 2.2.1.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+END
+
+test_run($title, $in, $out);
+
+############################################################
+$title = 'acl_use_real_ip in loop';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 2.2.2.0/24; } }
+
+router:r1 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+}
+router:r2 = {
+ acl_use_real_ip;
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; bind_nat = n2; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = n1; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 25;
+ permit src = network:n2; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+-- r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+-- r2
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 25
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+END
+
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'acl_use_real_ip with outgoing ACL';
@@ -3974,7 +4140,7 @@ END
 $out = <<'END';
 --r1
 ! n2_in
-access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.9.2.64 255.255.255.192 eq 80
+access-list n2_in extended permit tcp 10.1.2.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 END
@@ -4222,6 +4388,7 @@ router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
+ interface:lo = { ip = 10.1.5.0; loopback; nat:x = { hidden; } }
  interface:n4 = { bind_nat = x; }
 }
 END
@@ -4235,6 +4402,10 @@ Error: All definitions of nat:x must have equal type.
  But found
  - static for network:n1
  - hidden for network:n3
+Error: All definitions of nat:x must have equal type.
+ But found
+ - static for network:n1
+ - hidden for interface:r1.lo
 END
 
 test_err($title, $in, $out);

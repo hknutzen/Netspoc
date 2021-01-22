@@ -38,12 +38,6 @@ func (c *spoc) setZones() {
 
 		// Collect zone elements...
 		c.setZone1(n, z, nil)
-
-		// Attribute isTunnel was set when zone has some tunnel networks,
-		// but must only be set, if it has only tunnel networks.
-		if z.networks != nil { // tunnel networks aren't referenced in zone
-			z.isTunnel = false
-		}
 	}
 }
 
@@ -62,16 +56,11 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 	// Reference zone in network and vice versa...
 	n.zone = z
-	if !(n.unnumbered || n.tunnel) { // no valid src/dst
+	if n.ipType != unnumberedIP && n.ipType != tunnelIP { // no valid src/dst
 		z.networks.push(n)
 	}
 
 	//debug("%s in %s", n, z)
-
-	// Set zone property attributes depending on network properties...
-	if n.tunnel {
-		z.isTunnel = true
-	}
 	if n.hasIdHosts {
 		z.hasIdHosts = true
 	}
@@ -98,12 +87,9 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 		if r.managed != "" || r.semiManaged {
 			intf.zone = z
 			z.interfaces.push(intf)
-		} else if r.zone == nil {
-
-			// If it's an unmanaged router, reference router in zone and v.v.
-			// Traverse each unmanaged router only once.
-			r.zone = z // added only to prevent repeated traversal.
-			z.unmanagedRouters = append(z.unmanagedRouters, r)
+		} else if !r.activePath {
+			r.activePath = true
+			defer func() { r.activePath = false }()
 
 			// Recursively add adjacent networks.
 			for _, out := range r.interfaces {
@@ -117,27 +103,26 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 //#############################################################################
 // Purpose  : Clusters zones connected by semiManaged routers. All
-//            zones of a cluster are stored in attribute zoneCluster of
+//            zones of a cluster are stored in attribute cluster of
 //            the zones.
-// Comments : Attribute zoneCluster is only set if the cluster has more
-//            than one element.
+//            Attribute cluster is also set if the cluster has only
+//            one element.
 func (c *spoc) clusterZones() {
 
 	// Process remaining unclustered zones.
 	for _, z := range c.allZones {
-		if z.zoneCluster == nil {
+		if z.cluster == nil {
 
 			// Create a new cluster and collect its zones
-			cluster := make([]*zone, 0, 1)
+			var cluster []*zone
 			getZoneCluster(z, nil, &cluster)
-
-			// Set cluster if more than current zone was found.
-			if len(cluster) > 1 {
-				for _, z2 := range cluster {
-					z2.zoneCluster = cluster
-				}
+			if cluster == nil {
+				// Zone with only tunnel was not added to cluster.
+				z.cluster = []*zone{z}
 			} else {
-				z.zoneCluster = nil
+				for _, z2 := range cluster {
+					z2.cluster = cluster
+				}
 			}
 		}
 	}
@@ -152,10 +137,10 @@ func (c *spoc) clusterZones() {
 func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 	// Reference zone in cluster list and vice versa.
-	if !z.isTunnel {
+	if !z.isTunnel() {
 		*collected = append(*collected, z)
 		// Set preliminary list as marker, that this zone has been processed.
-		z.zoneCluster = *collected
+		z.cluster = *collected
 	}
 
 	// Find zone interfaces connected to semi-managed routers...
@@ -176,12 +161,18 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 				continue
 			}
 			next := out.zone
-			if next.zoneCluster == nil {
+			if next.cluster == nil {
 				// Add adjacent zone recursively.
 				getZoneCluster(next, out, collected)
 			}
 		}
 	}
+}
+
+func (z *zone) isTunnel() bool {
+	return len(z.networks) == 0 && len(z.interfaces) == 2 &&
+		z.interfaces[0].ipType == tunnelIP &&
+		z.interfaces[1].ipType == tunnelIP
 }
 
 // If routers are connected by crosslink network then
@@ -502,7 +493,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	case *zone:
 		isZone = true
 		// Reference zones and managed routers in corresponding area.
-		if !x.isTunnel {
+		if !x.isTunnel() {
 			a.zones = append(a.zones, x)
 		}
 	case *router:
@@ -698,10 +689,8 @@ func (c *spoc) processAggregates() {
 
 		// Assure that no other aggregate with same IP and mask exists in cluster
 		key := ipmask{string(agg.ip), string(agg.mask)}
-		cluster := z.zoneCluster
-		if cluster == nil {
-			cluster = []*zone{z}
-		} else {
+		cluster := z.cluster
+		if len(cluster) > 1 {
 			// Collect aggregates inside clusters
 			aggInCluster.push(agg)
 		}
@@ -965,7 +954,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				// ... and warn if networks NAT value holds the
 				// same attributes.
 				c.checkUselessNat(nat, nNat, natSeen)
-			} else if n.bridged && !nat.identity {
+			} else if n.ipType == bridgedIP && !nat.identity {
 				c.err("Must not inherit nat:%s at bridged %s from %s",
 					tag, n, from)
 			} else {

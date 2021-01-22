@@ -10,18 +10,19 @@ import (
 // Two zones are zoneEq, if
 // - zones are equal or
 // - both belong to the same zone cluster.
-func zoneEq(z1, z2 *zone) bool {
+// Handles zone or router as argument.
+func zoneEq(z1, z2 pathObj) bool {
 	if z1 == z2 {
 		return true
 	}
-	c1 := z1.zoneCluster
-	c2 := z2.zoneCluster
-	if len(c1) == 0 || len(c2) == 0 {
-		return false
+	if z1, ok := z1.(*zone); ok {
+		if z2, ok := z2.(*zone); ok {
+			// Each zone of a cluster references the same slice, so it is
+			// sufficient to compare first element.
+			return z1.cluster[0] == z2.cluster[0]
+		}
 	}
-	// Each zone of a cluster references the same slice, so it is
-	// sufficient to compare first element.
-	return c1[0] == c2[0]
+	return false
 }
 
 // Print abbreviated list of names in messages.
@@ -230,11 +231,7 @@ func (c *spoc) checkSupernetInZone(
 	rule *groupedRule, where string, intf *routerIntf,
 	z *zone, seen map[*zone]bool, reversed bool) {
 
-	cluster := z.zoneCluster
-	if cluster == nil {
-		cluster = []*zone{z}
-	}
-	for _, z := range cluster {
+	for _, z := range z.cluster {
 		c.checkSupernetInZone1(rule, where, intf, z, seen, reversed)
 	}
 }
@@ -263,27 +260,28 @@ func isFilteredAt(mark int, supernet *network, objList []someObj) bool {
 	return false
 }
 
-func (x *zone) getZone() *zone {
+// Returns zone for most objects, but router for interfaces of managed router.
+func (x *zone) getZone() pathObj {
 	return x
 }
-func (x *router) getZone() *zone {
+func (x *router) getZone() pathObj {
 	if x.managed == "" {
 		return x.interfaces[0].network.zone
 	} else {
-		return x.zone
+		return x
 	}
 }
-func (x *routerIntf) getZone() *zone {
+func (x *routerIntf) getZone() pathObj {
 	if x.router.managed == "" {
 		return x.network.zone
 	} else {
-		return x.router.zone
+		return x.router
 	}
 }
-func (x *network) getZone() *zone {
+func (x *network) getZone() pathObj {
 	return x.zone
 }
-func (x *subnet) getZone() *zone {
+func (x *subnet) getZone() pathObj {
 	return x.network.zone
 }
 
@@ -373,7 +371,10 @@ func (c *spoc) checkSupernetSrcRule(
 		// correctly back to source address.
 		// Hence reverse rules need not to be checked.
 		m1 := outZone.statefulMark
-		m2 := dstZone.statefulMark
+		m2 := 0
+		if z2, ok := dstZone.(*zone); ok {
+			m2 = z2.statefulMark
+		}
 		if m2 != 0 && m1 == m2 {
 
 			// Check case II, outgoing ACL, (B), interface Y without ACL.
@@ -622,11 +623,12 @@ func matchPrt(prt1, prt2 *proto) bool {
 	if proto1 != proto2 {
 		return false
 	}
-	if proto1 == "tcp" || proto1 == "udp" {
+	switch proto1 {
+	case "tcp", "udp":
 		l1, h1 := prt1.ports[0], prt1.ports[1]
 		l2, h2 := prt2.ports[0], prt2.ports[1]
 		return l1 <= l2 && h2 <= h1 || l2 <= l1 && h1 <= h2
-	} else if proto1 == "icmp" {
+	case "icmp", "icmpv6":
 		type1 := prt1.icmpType
 		if type1 == -1 {
 			return true
@@ -647,7 +649,7 @@ func matchPrt(prt1, prt2 *proto) bool {
 			return true
 		}
 		return code1 == code2
-	} else {
+	default:
 		return true
 	}
 }
@@ -739,8 +741,7 @@ OBJ:
 		if inList2[obj] {
 			continue
 		}
-		zone2 := obj.getZone()
-		if zone2 == zone {
+		if zoneEq(zone, obj.getZone()) {
 			continue
 		}
 		up := obj
@@ -762,8 +763,7 @@ func elementsInOneZone(list1, list2 []someObj) bool {
 	zone0 := list1[0].getZone()
 	check := func(list []someObj) bool {
 		for _, obj := range list {
-			zone := obj.getZone()
-			if !zoneEq(zone0, zone) {
+			if !zoneEq(zone0, obj.getZone()) {
 				return false
 			}
 		}

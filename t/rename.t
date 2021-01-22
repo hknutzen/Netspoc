@@ -553,7 +553,7 @@ $title = 'Unknown file for substitutions';
 ############################################################
 
 $out = <<'END';
-Error: Can't open missing.file: no such file or directory
+Error: open missing.file: no such file or directory
 END
 
 test_err($title, '', "-f missing.file", $out);

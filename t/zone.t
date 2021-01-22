@@ -388,10 +388,103 @@ END
 $out = <<'END';
 --r2
 ! [ Routing ]
+ip route 10.1.1.0 255.255.255.0 10.1.3.1
 ip route 10.1.4.0 255.255.255.0 10.1.3.3
 END
 
 test_run($title, $in, $out);
+
+############################################################
+$title = 'Zone connected twice to routing_only router (1)';
+############################################################
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+END
+
+$out = <<'END';
+Error: Two static routes for network:n1
+ via interface:r2.n3 and interface:r2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Zone connected twice to routing_only router (2)';
+############################################################
+# Pathrestriction has no effect on traffic from router:r2,
+# hence two routes are found.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+pathrestriction:p = interface:r1.n2, interface:r2.n2;
+END
+
+$out = <<'END';
+Error: Two static routes for network:n1
+ via interface:r2.n3 and interface:r2.n2
+END
+
+test_err($title, $in, $out);
+
+############################################################
+$title = 'Zone connected twice to routing_only router (3)';
+############################################################
+# Pathrestriction is useless, hence two routes are found.
+
+$in = <<'END';
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24;}
+network:n3 = { ip = 10.1.3.0/24;}
+
+router:r1 = {
+ interface:n1;
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+pathrestriction:p = interface:r1.n2, interface:r2.n3;
+END
+
+$out = <<'END';
+Error: Two static routes for network:n1
+ via interface:r2.n3 and interface:r2.n2
+END
+
+test_err($title, $in, $out);
 
 ############################################################
 

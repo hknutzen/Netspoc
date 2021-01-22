@@ -65,6 +65,50 @@ END
 test_group($title, $in, 'host:[network:n1, network:n3]', $out, '--unused');
 
 ############################################################
+$title = 'Find unused hosts, ignore host of automatic group';
+############################################################
+# If host is only referenced in automatic group, it should be substituted
+# by expanded automatic group.
+
+$in = $topo . <<'END';
+service:s = {
+ user = network:[host:h3a], any:[host:h3c];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+10.1.1.10	host:h1
+10.1.3.10-10.1.3.15	host:h3a
+10.1.3.26	host:h3b
+10.1.3.66	host:h3c
+10.1.3.65-10.1.3.67	host:h3d
+END
+
+test_group($title, $in, 'host:[network:n1, network:n3]', $out, '--unused');
+
+############################################################
+$title = 'Find unused hosts, ignore negated element';
+############################################################
+# If host is only referenced in negation, it should be removed completely.
+
+$in = $topo . <<'END';
+group:g = host:h3a, host:h3b, host:h3c;
+service:s = {
+ user = group:g &! host:h3b;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+END
+
+$out = <<'END';
+10.1.1.10	host:h1
+10.1.3.26	host:h3b
+10.1.3.65-10.1.3.67	host:h3d
+END
+
+test_group($title, $in, 'host:[network:n1, network:n3]', $out, '--unused');
+
+############################################################
 $title = 'Automatic hosts';
 ############################################################
 
@@ -693,7 +737,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
+Error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
 END
 
 test_err($title, $in, $out);
@@ -714,7 +758,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
+Error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
 END
 
 test_err($title, $in, $out);
@@ -927,7 +971,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
+Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
 END
 
 test_group_err($title, $in, 'network:n1; INVALID', $out);

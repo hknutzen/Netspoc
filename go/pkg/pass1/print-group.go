@@ -59,15 +59,11 @@ Don't print progress messages.
 
 Prints a brief help message && exits.
 
-=item B<-man>
-
-Prints the manual page && exits.
-
 =back
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2020 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -128,7 +124,7 @@ func printAddress(obj groupObj, ns natSet) string {
 	switch x := obj.(type) {
 	case *network:
 		n := getNatNetwork(x, ns)
-		if n.unnumbered {
+		if n.ipType == unnumberedIP {
 			return "unnumbered"
 		}
 		if n.hidden {
@@ -149,17 +145,14 @@ func printAddress(obj groupObj, ns natSet) string {
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
-		if x.unnumbered {
+		switch x.ipType {
+		case unnumberedIP:
 			return "unnumbered"
-		}
-		if x.short {
+		case shortIP:
 			return "short"
-		}
-		if x.bridged {
+		case bridgedIP:
 			return "bridged"
-		}
-		if x.negotiated {
-
+		case negotiatedIP:
 			// Take whole network.
 			return netAddr(n)
 		}
@@ -172,30 +165,16 @@ func printAddress(obj groupObj, ns natSet) string {
 
 // Try to expand group as IPv4 or IPv6, but don't abort on error.
 func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
-	c2 := *c
-	ch := make(chan spocMsg)
-	c2.msgChan = ch
-	okCh := make(chan bool)
-	go func() {
-		var l []spocMsg
-		ok := true
-		for m := range ch {
-			if m.typ == errM &&
-				strings.HasPrefix(m.text, "Must not reference IPv") {
-				ok = false
-			}
-			l = append(l, m)
-		}
-		if ok {
-			for _, m := range l {
-				c.msgChan <- m
-			}
-		}
-		okCh <- ok
-	}()
+	c2 := c.bufferedSpoc()
 	expanded := c2.expandGroup(parsed, "print-group", ipv6, true)
-	close(c2.msgChan)
-	if <-okCh {
+	ok := true
+	for _, s := range c2.messages {
+		if strings.HasPrefix(s, "Error: Must not reference IPv") {
+			ok = false
+		}
+	}
+	if ok {
+		c.sendBuf(c2)
 		return expanded
 	} else {
 		return c.expandGroup(parsed, "print-group", !ipv6, true)
@@ -209,7 +188,10 @@ func (c *spoc) printGroup(path, group, natNet string,
 		showIP = true
 		showName = true
 	}
-	parsed := parser.ParseUnion([]byte(group))
+	parsed, err := parser.ParseUnion([]byte(group))
+	if err != nil {
+		c.abort("%v", err)
+	}
 	c.readNetspoc(path)
 	c.markDisabled()
 	c.setZone()
@@ -325,33 +307,42 @@ func (c *spoc) printGroup(path, group, natNet string,
 }
 
 func PrintGroupMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
 			"Usage: %s [options] FILE|DIR 'group:name,...'\n", os.Args[0])
-		pflag.PrintDefaults()
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 
-	nat := pflag.String("nat", "",
+	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
-	unused := pflag.BoolP("unused", "u", false,
+	unused := fs.BoolP("unused", "u", false,
 		"Show only elements not used in any rules")
-	name := pflag.BoolP("name", "n", false, "Show only name of elements")
-	ip := pflag.BoolP("ip", "i", false, "Show only IP address of elements")
-	owner := pflag.BoolP("owner", "o", false, "Show owner of elements")
-	admins := pflag.BoolP("admins", "a", false,
+	name := fs.BoolP("name", "n", false, "Show only name of elements")
+	ip := fs.BoolP("ip", "i", false, "Show only IP address of elements")
+	owner := fs.BoolP("owner", "o", false, "Show owner of elements")
+	admins := fs.BoolP("admins", "a", false,
 		"Show admins of elements as comma separated list")
-	pflag.Parse()
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) != 2 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	group := args[1]
@@ -360,10 +351,7 @@ func PrintGroupMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

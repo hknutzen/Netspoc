@@ -214,7 +214,8 @@ func (c *spoc) expandGroup1(
 	// Silently remove unnumbered, bridged and tunnel interfaces from
 	// automatic groups.
 	check := func(intf *routerIntf) bool {
-		return !(intf.tunnel || visible && (intf.unnumbered || intf.bridged))
+		return !(intf.ipType == tunnelIP ||
+			visible && (intf.ipType == unnumberedIP || intf.ipType == bridgedIP))
 	}
 	result := make(groupObjList, 0)
 	for _, el := range list {
@@ -339,8 +340,14 @@ func (c *spoc) expandGroup1(
 						routers = routers[:j]
 					} else {
 						for _, z := range x.zones {
-							for _, r := range z.unmanagedRouters {
-								routers = append(routers, r)
+							for _, n := range z.networks {
+								for _, intf := range n.interfaces {
+									r := intf.router
+									if !seen[r] {
+										seen[r] = true
+										routers = append(routers, r)
+									}
+								}
 							}
 						}
 					}
@@ -440,7 +447,7 @@ func (c *spoc) expandGroup1(
 					case *area:
 						seen := make(map[*zone]bool)
 						for _, z := range x.zones {
-							if c := z.zoneCluster; c != nil {
+							if c := z.cluster; len(c) > 1 {
 								z = c[0]
 								if seen[z] {
 									continue
@@ -672,7 +679,7 @@ func (c *spoc) expandGroup1(
 
 					// Substitute aggregate by aggregate set of zone cluster.
 					// Ignore zone having no aggregate from unnumbered network.
-					if cluster := n.zone.zoneCluster; cluster != nil {
+					if cluster := n.zone.cluster; len(cluster) > 1 {
 						key := ipmask{string(n.ip), string(n.mask)}
 						for _, z := range cluster {
 							if agg2 := z.ipmask2aggregate[key]; agg2 != nil {
@@ -726,7 +733,7 @@ func (c *spoc) expandGroupInRule(
 		var ignore string
 		switch x := obj.(type) {
 		case *network:
-			if x.unnumbered {
+			if x.ipType == unnumberedIP {
 				ignore = "unnumbered " + x.name
 			} else if x.crosslink {
 				ignore = "crosslink " + x.name
@@ -736,11 +743,12 @@ func (c *spoc) expandGroupInRule(
 				}
 			}
 		case *routerIntf:
-			if x.bridged {
+			switch x.ipType {
+			case bridgedIP:
 				ignore = "bridged " + x.name
-			} else if x.unnumbered {
+			case unnumberedIP:
 				ignore = "unnumbered " + x.name
-			} else if x.short {
+			case shortIP:
 				ignore = x.name + " without IP address"
 			}
 		case *area:

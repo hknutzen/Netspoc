@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"os"
 	"sort"
 	"time"
@@ -25,10 +24,11 @@ const (
 )
 
 type spoc struct {
-	// Collect messages.
-	msgChan chan spocMsg
-	// Report that all or some messages have been processed.
-	ready chan bool
+	toStderr        func(string)
+	errCount        int
+	initialErrCount int
+	messages        stringList
+	aborted         bool
 	// State of compiler
 	userObj               userInfo
 	allNetworks           netList
@@ -49,40 +49,50 @@ type spoc struct {
 
 func initSpoc() *spoc {
 	c := &spoc{
-		msgChan:               make(chan spocMsg),
-		ready:                 make(chan bool),
+		toStderr:              func(s string) { fmt.Fprintln(os.Stderr, s) },
 		routerAutoInterfaces:  make(map[*router]*autoIntf),
 		networkAutoInterfaces: make(map[networkAutoIntfKey]*autoIntf),
 	}
 	return c
 }
 
-type spocMsg struct {
-	typ  int
-	text string
+type bailout struct{}
+
+func (c *spoc) terminate() {
+	c.aborted = true
+	panic(bailout{})
+}
+
+func (c *spoc) toStderrf(format string, args ...interface{}) {
+	c.toStderr(fmt.Sprintf(format, args...))
 }
 
 func (c *spoc) abort(format string, args ...interface{}) {
-	t := fmt.Sprintf(format, args...)
-	c.msgChan <- spocMsg{typ: abortM, text: t}
-	// Wait until program has terminated.
-	<-make(chan int)
+	c.toStderrf("Error: "+format, args...)
+	c.toStderr("Aborted")
+	c.errCount++
+	c.terminate()
 }
 
-func (c *spoc) stopOnErr() bool {
-	c.msgChan <- spocMsg{typ: checkErrM}
-	// Continue or wait until program has terminated if some error was seen.
-	return <-c.ready
+func (c *spoc) stopOnErr() {
+	if c.errCount > 0 {
+		c.toStderrf("Aborted with %d error(s)", c.errCount)
+		c.terminate()
+	}
 }
 
 func (c *spoc) err(format string, args ...interface{}) {
-	t := fmt.Sprintf(format, args...)
-	c.msgChan <- spocMsg{typ: errM, text: t}
+	msg := fmt.Sprintf("Error: "+format, args...)
+	c.errCount++
+	c.toStderr(msg)
+	if c.errCount >= conf.Conf.MaxErrors {
+		c.toStderrf("Aborted after %d errors", c.errCount)
+		c.terminate()
+	}
 }
 
 func (c *spoc) warn(format string, args ...interface{}) {
-	t := fmt.Sprintf(format, args...)
-	c.msgChan <- spocMsg{typ: warnM, text: t}
+	c.toStderrf("Warning: "+format, args...)
 }
 
 func (c *spoc) warnOrErr(
@@ -97,8 +107,7 @@ func (c *spoc) warnOrErr(
 
 func (c *spoc) info(format string, args ...interface{}) {
 	if conf.Conf.Verbose {
-		t := fmt.Sprintf(format, args...)
-		c.msgChan <- spocMsg{typ: infoM, text: t}
+		c.toStderrf(format, args...)
 	}
 }
 
@@ -108,90 +117,89 @@ func (c *spoc) progress(msg string) {
 			msg =
 				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)
 		}
-		c.msgChan <- spocMsg{typ: progressM, text: msg}
+		c.toStderr(msg)
 	}
 }
 
 func (c *spoc) diag(format string, args ...interface{}) {
 	if os.Getenv("SHOW_DIAG") != "" {
-		t := fmt.Sprintf(format, args...)
-		c.msgChan <- spocMsg{typ: diagM, text: t}
+		c.toStderrf("DIAG: "+format, args...)
 	}
 }
 
-func (c *spoc) printMessages() int {
-	errCounter := 0
-	for m := range c.msgChan {
-		t := m.text
-		switch m.typ {
-		case abortM:
-			fmt.Fprintln(os.Stderr, "Error: "+t)
-			fmt.Fprintln(os.Stderr, "Aborted")
-			errCounter++
-			return errCounter
-		case errM:
-			fmt.Fprintln(os.Stderr, "Error: "+t)
-			errCounter++
-			if errCounter >= conf.Conf.MaxErrors {
-				fmt.Fprintf(os.Stderr, "Aborted after %d errors\n", errCounter)
-				return errCounter
-			}
-		case checkErrM:
-			if errCounter > 0 {
-				fmt.Fprintf(os.Stderr, "Aborted with %d error(s)\n", errCounter)
-				return errCounter
-			} else {
-				c.ready <- true
-			}
-		case warnM:
-			fmt.Fprintln(os.Stderr, "Warning: "+t)
-		case diagM:
-			fmt.Fprintln(os.Stderr, "DIAG: "+t)
-		default:
-			fmt.Fprintln(os.Stderr, t)
-		}
-	}
-	return errCounter
-}
-
-func (c *spoc) sortingSpoc() *spoc {
+func (c *spoc) bufferedSpoc() *spoc {
 	c2 := *c
-	ch := make(chan spocMsg)
-	c2.msgChan = ch
-	go func() {
-		var l []spocMsg
-		for m := range ch {
-			l = append(l, m)
-		}
-		sort.Slice(l, func(i, j int) bool {
-			if l[i].typ == l[j].typ {
-				return l[i].text < l[j].text
-			}
-			return l[i].typ < l[j].typ
-		})
-		for _, m := range l {
-			c.msgChan <- m
-		}
-		c.ready <- true
-	}()
+	c2.initialErrCount = c2.errCount
+	c2.messages = make(stringList, 0)
+	c2.toStderr = func(s string) { c2.messages.push(s) }
 	return &c2
 }
 
-func (c *spoc) finish() {
-	close(c.msgChan)
-	<-c.ready
+func (c *spoc) sendBuf(c2 *spoc) {
+	for _, msg := range c2.messages {
+		c.toStderr(msg)
+	}
+	c.errCount += c2.errCount - c2.initialErrCount
+
+	if c2.aborted {
+		c.terminate()
+	}
 }
 
-func SpocMain() int {
-	inDir, outDir := conf.GetArgs()
-	diag.Info(program + ", version " + version)
+// Sort error messages before output.
+func (c *spoc) sortedSpoc(f func(*spoc)) {
+	c2 := c.bufferedSpoc()
+	defer func() {
+		e := recover()
+		if e != nil {
+			if _, ok := e.(bailout); !ok {
+				// resume same panic if it's not a bailout
+				panic(e)
+			}
+		}
+
+		// Leave "Abort" message as last message.
+		var toSort []string
+		if c2.aborted {
+			toSort = c2.messages[:len(c2.messages)-1]
+		} else {
+			toSort = c2.messages
+		}
+		sort.Strings(toSort)
+		c.sendBuf(c2)
+	}()
+	f(c2)
+}
+
+func toplevelSpoc(f func(*spoc)) (errCount int) {
 	c := initSpoc()
-	go func() {
+	defer func() {
+		if e := recover(); e != nil {
+			if _, ok := e.(bailout); !ok {
+				// resume same panic if it's not a bailout
+				panic(e)
+			}
+		}
+		errCount = c.errCount
+	}()
+	f(c)
+	return
+}
+
+func SpocMain() (errCount int) {
+	return toplevelSpoc(func(c *spoc) {
+		inDir, outDir, abort := conf.GetArgs()
+		if abort {
+			c.toStderr("Aborted")
+			c.errCount++
+			c.terminate()
+		}
+		c.info(program + ", version " + version)
 		c.readNetspoc(inDir)
 		c.showReadStatistics()
 		c.orderProtocols()
 		c.markDisabled()
-		c.checkIPAdresses()
+		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
 		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
@@ -201,14 +209,18 @@ func SpocMain() int {
 		c.checkServiceOwner(sRules)
 		pRules, dRules := c.convertHostsInRules(sRules)
 		c.groupPathRules(pRules, dRules)
-		ch := c.startInBackground((*spoc).checkRedundantRules)
+
+		c2 := c.startInBackground(func(c *spoc) {
+			c.checkUnusedGroups()
+			c.checkRedundantRules()
+		})
 		c.findSubnetsInNatDomain(NATDomains)
 		c.checkUnstableNatRules()
 		c.markManagedLocal()
 		c.checkDynamicNatRules(NATDomains, NATTag2natType)
-		c.checkUnusedGroups()
 		c.checkSupernetRules(pRules)
-		c.collectMessages(ch)
+		c.collectMessages(c2)
+
 		c.removeSimpleDuplicateRules()
 		c.combineSubnetsInRules()
 		c.setPolicyDistributionIP()
@@ -223,7 +235,5 @@ func SpocMain() int {
 		}
 		c.stopOnErr()
 		c.progress("Finished pass1")
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

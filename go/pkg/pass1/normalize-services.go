@@ -72,14 +72,14 @@ func (c *spoc) expandAutoIntfWithDstList(
 		if !found {
 			var real srvObjList
 			for _, intf := range c.pathAutoInterfaces(a, path, dst) {
-				if intf.short {
+				switch intf.ipType {
+				case shortIP:
 					c.err("%s without IP address (from .[auto])\n"+
 						" must not be used in rule of %s",
 						intf.name, ctx)
-				} else if intf.unnumbered {
-
+				case unnumberedIP:
 					// Ignore unnumbered interfaces.
-				} else {
+				default:
 					real.push(intf)
 				}
 			}

@@ -224,7 +224,6 @@ END
 
 $out = <<'END';
 Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out);
@@ -242,7 +241,6 @@ END
 
 $out = <<'END';
 Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out, '--ipv6');

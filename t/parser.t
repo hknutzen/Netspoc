@@ -153,7 +153,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 5 of STDIN, near "--HERE-->}"
+Error: Expected ';' at line 5 of STDIN, near "--HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -237,7 +237,7 @@ network:N = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected '=' at line 2 of STDIN, near "foo --HERE-->}"
+Error: Expected '=' at line 2 of STDIN, near "foo --HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -325,7 +325,7 @@ network:N = { unnumbered; }
 END
 
 $out = <<'END';
-Error: interface:R.N.second must not be linked to unnumbered network:N
+Error: interface:R.N without IP address must not have secondary address
 END
 
 test_err($title, $in, $out);
@@ -391,7 +391,7 @@ network = {
 END
 
 $out = <<'END';
-Syntax error: Typed name expected at line 1 of STDIN, near "--HERE-->network"
+Error: Typed name expected at line 1 of STDIN, near "--HERE-->network"
 END
 
 test_err($title, $in, $out);
@@ -405,7 +405,7 @@ networkX:n1 = {
 END
 
 $out = <<'END';
-Syntax error: Unknown global definition at line 1 of STDIN, near "--HERE-->networkX:n1"
+Error: Unknown global definition at line 1 of STDIN, near "--HERE-->networkX:n1"
 END
 
 test_err($title, $in, $out);
@@ -463,7 +463,7 @@ network:n1
 END
 
 $out = <<'END';
-Syntax error: Expected '=' at line 1 of STDIN, at EOF
+Error: Expected '=' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -477,7 +477,7 @@ network:n1 = { owner = }
 END
 
 $out = <<'END';
-Syntax error: Unexpected separator '}' at line 1 of STDIN, near "owner = --HERE-->}"
+Error: Unexpected separator '}' at line 1 of STDIN, near "owner = --HERE-->}"
 END
 
 test_err($title, $in, $out);
@@ -506,7 +506,7 @@ group:g1 = host:h1 host:h2;
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, near "host:h1 --HERE-->host:h2"
+Error: Expected ';' at line 1 of STDIN, near "host:h1 --HERE-->host:h2"
 END
 
 test_err($title, $in, $out);
@@ -520,7 +520,7 @@ owner:o = { admins = a@b.c x@y.z; }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, near "a@b.c --HERE-->x@y.z"
+Error: Expected ';' at line 1 of STDIN, near "a@b.c --HERE-->x@y.z"
 END
 
 test_err($title, $in, $out);
@@ -534,7 +534,7 @@ group:g1 = host;
 END
 
 $out = <<'END';
-Syntax error: Typed name expected at line 1 of STDIN, near "group:g1 = --HERE-->host"
+Error: Typed name expected at line 1 of STDIN, near "group:g1 = --HERE-->host"
 END
 
 test_err($title, $in, $out);
@@ -612,7 +612,7 @@ group:g1 = interface:;
 END
 
 $out = <<'END';
-Syntax error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:"
+Error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:"
 END
 
 test_err($title, $in, $out);
@@ -626,7 +626,7 @@ group:g1 = interface:r;
 END
 
 $out = <<'END';
-Syntax error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:r"
+Error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:r"
 END
 
 test_err($title, $in, $out);
@@ -660,7 +660,7 @@ group:g1 = interface:r1.[ ;
 END
 
 $out = <<'END';
-Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r1.[ --HERE-->;"
+Error: Expected [auto|all] at line 1 of STDIN, near "interface:r1.[ --HERE-->;"
 END
 
 test_err($title, $in, $out);
@@ -674,7 +674,7 @@ group:g1 = interface:r.[foo];
 END
 
 $out = <<'END';
-Syntax error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[--HERE-->foo]"
+Error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[--HERE-->foo]"
 END
 
 test_err($title, $in, $out);
@@ -688,7 +688,7 @@ group:g1 = interface:[network:n1].n2;
 END
 
 $out = <<'END';
-Syntax error: Expected '.[' at line 1 of STDIN, near "interface:[network:n1]--HERE-->.n2"
+Error: Expected '.[' at line 1 of STDIN, near "interface:[network:n1]--HERE-->.n2"
 END
 
 test_err($title, $in, $out);
@@ -716,7 +716,7 @@ network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected '=' at line 1 of STDIN, near "nat:a--HERE-->+b"
+Error: Expected '=' at line 1 of STDIN, near "nat:a--HERE-->+b"
 END
 
 test_err($title, $in, $out);
@@ -784,7 +784,7 @@ network:n = { ip = 10.1.1.0/24; }
 END
 
 $out = <<'END';
-Syntax error: Expected '=' at line 2 of STDIN, near "managed --HERE-->xxx"
+Error: Expected '=' at line 2 of STDIN, near "managed --HERE-->xxx"
 END
 
 test_err($title, $in, $out);
@@ -835,7 +835,7 @@ network:n = {
 END
 
 $out = <<'END';
-Syntax error: Unexpected separator ';' at line 2 of STDIN, near "10.1.1.1; --HERE-->; }"
+Error: Unexpected separator ';' at line 2 of STDIN, near "10.1.1.1; --HERE-->; }"
 END
 
 test_err($title, $in, $out);
@@ -864,7 +864,7 @@ network:n = { ; }
 END
 
 $out = <<'END';
-Syntax error: Unexpected separator ';' at line 1 of STDIN, near "network:n = { --HERE-->; }"
+Error: Unexpected separator ';' at line 1 of STDIN, near "network:n = { --HERE-->; }"
 END
 
 test_err($title, $in, $out);
@@ -954,7 +954,7 @@ network:n1 = { radius_attributes = { banner = Welcome #two; } }
 END
 
 $out = <<'END';
-Syntax error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of STDIN, at EOF
 END
 
 test_err($title, $in, $out);
@@ -987,7 +987,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Expected '=' at line 2 of STDIN, near "permit --HERE-->src"
+Error: Expected '=' at line 2 of STDIN, near "permit --HERE-->src"
 END
 
 test_err($title, $in, $out);
@@ -1321,7 +1321,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Unexpected separator ',' at line 2 of STDIN, near "service:s2,--HERE-->,;"
+Error: Unexpected separator ',' at line 2 of STDIN, near "service:s2,--HERE-->,;"
 END
 
 test_err($title, $in, $out);
@@ -1356,7 +1356,7 @@ service:s1 = {
 END
 
 $out = <<'END';
-Syntax error: Expected 'permit' or 'deny' at line 3 of STDIN, near " --HERE-->allow"
+Error: Expected 'permit' or 'deny' at line 3 of STDIN, near " --HERE-->allow"
 END
 
 test_err($title, $in, $out);

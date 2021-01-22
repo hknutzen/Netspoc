@@ -1,12 +1,12 @@
 module github.com/hknutzen/Netspoc/go
 
-go 1.13
+go 1.14
 
 require (
-	github.com/DataDog/zstd v1.4.1 // indirect
-	github.com/Sereal/Sereal v0.0.0-20190618215532-0b8ac451a863
-	github.com/golang/snappy v0.0.1 // indirect
-	github.com/json-iterator/go v1.1.7
+	github.com/google/go-cmp v0.5.4 // indirect
 	github.com/octago/sflags v0.2.0
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.7.0 // indirect
+	gotest.tools v2.2.0+incompatible
 )

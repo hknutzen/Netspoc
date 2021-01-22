@@ -315,10 +315,10 @@ func (c *spoc) expandCrypto() {
 							routerIntf: &routerIntf{
 								netObj: netObj{
 									ipObj: ipObj{
-										name:   hub.name + "." + id,
-										tunnel: true,
+										name: hub.name + "." + id,
 									},
 								},
+								ipType: tunnelIP,
 								natSet: natSet,
 							},
 							src: s,
@@ -367,9 +367,9 @@ func (c *spoc) expandCrypto() {
 				}
 			} else if len(encrypted) != 0 {
 				if doAuth && managed == "" {
-					c.err("Networks need to have ID hosts because"+
-						" %s has attribute 'do_auth':\n"+encrypted.nameList(),
-						hubRouter.name)
+					c.err("Networks behind crypto tunnel to %s of model '%s'"+
+						" need to have ID hosts:\n"+encrypted.nameList(),
+						hubRouter.name, hubRouter.model.name)
 				} else if needId {
 					c.err("%s needs attribute 'id', because %s"+
 						" has authentication=rsasig",
@@ -399,16 +399,17 @@ func (c *spoc) expandCrypto() {
 			// If one tunnel endpoint has no known IP address,
 			// some rules have to be added manually.
 			realSpoke := spoke.realIntf
-			if realSpoke != nil && !realSpoke.short && !realSpoke.unnumbered {
+			if realSpoke != nil &&
+				realSpoke.ipType != shortIP &&
+				realSpoke.ipType != unnumberedIP {
+
 				realHub := hub.realIntf
 				gen := func(in, out *routerIntf) {
 					// Don't generate incoming ACL from unknown address.
-					if in.negotiated {
-						return
+					if in.ipType != negotiatedIP {
+						rules := c.genTunnelRules(in, out, cr.ipsec)
+						c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 					}
-
-					rules := c.genTunnelRules(in, out, cr.ipsec)
-					c.allPathRules.permit = append(c.allPathRules.permit, rules...)
 				}
 				gen(realSpoke, realHub)
 				gen(realHub, realSpoke)
@@ -467,8 +468,8 @@ func (c *spoc) expandCrypto() {
 			}
 		} else if cryptoType == "ASA" {
 			for _, intf := range r.interfaces {
-				if crypto := intf.crypto; crypto != nil {
-					c.verifyAsaTrustpoint(r, crypto)
+				if intf.ipType == tunnelIP {
+					c.verifyAsaTrustpoint(r, intf.getCrypto())
 				}
 			}
 		}

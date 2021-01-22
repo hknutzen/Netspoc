@@ -70,7 +70,7 @@ func (obj *subnet) address(nn natSet) *net.IPNet {
 
 func (obj *routerIntf) address(nn natSet) *net.IPNet {
 	network := getNatNetwork(obj.network, nn)
-	if obj.negotiated {
+	if obj.ipType == negotiatedIP {
 		return &net.IPNet{IP: network.ip, Mask: network.mask}
 	}
 	ipV6 := obj.network.ipV6

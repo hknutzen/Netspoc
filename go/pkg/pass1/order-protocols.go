@@ -112,7 +112,7 @@ func (c *spoc) initStdProtocols(sym *symbolTable) {
 func (c *spoc) orderProtocols() {
 	c.progress("Arranging protocols")
 
-	var tcp, udp, icmp, proto protoList
+	var tcp, udp, icmp, icmpv6, proto protoList
 	for _, p := range symTable.unnamedProto {
 		switch p.proto {
 		case "tcp":
@@ -121,6 +121,8 @@ func (c *spoc) orderProtocols() {
 			udp.push(p)
 		case "icmp":
 			icmp.push(p)
+		case "icmpv6":
+			icmpv6.push(p)
 		case "proto":
 			proto.push(p)
 		}
@@ -129,6 +131,7 @@ func (c *spoc) orderProtocols() {
 	orderRanges(tcp, up)
 	orderRanges(udp, up)
 	orderIcmp(icmp, up)
+	orderIcmp(icmpv6, up)
 	orderProto(proto, up)
 }
 

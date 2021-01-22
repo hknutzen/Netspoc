@@ -389,7 +389,7 @@ func printRoutes(fh *os.File, router *router) {
 			// For unnumbered and negotiated interfaces use interface name
 			// as next hop.
 			var hopAddr string
-			if intf.unnumbered || intf.negotiated || intf.tunnel {
+			if intf.ipType != hasIP {
 				hopAddr = intf.hardware.name
 			} else {
 				hopAddr = hop.ip.String()
@@ -736,7 +736,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 	aclCounter := 1
 	denyAny := getDenyAnyRule(ipv6)
 	for _, intf := range router.interfaces {
-		if !intf.tunnel {
+		if intf.ipType != tunnelIP {
 			continue
 		}
 		natSet := intf.natSet
@@ -1105,14 +1105,22 @@ func printIptablesAcls(fh *os.File, router *router) {
 	}
 }
 
-func printCiscoAcls(fh *os.File, router *router) {
-	model := router.model
+func printCiscoAcls(fh *os.File, r *router) {
+	model := r.model
 	filter := model.filter
-	managedLocal := router.managed == "local"
-	ipv6 := router.ipV6
+	managedLocal := r.managed == "local"
+	ipv6 := r.ipV6
 	permitAny := getPermitAnyRule(ipv6)
 
-	for _, hardware := range router.hardware {
+	getNatSet := func(r *router, s natSet) natSet {
+		if r.model.aclUseRealIP {
+			return r.natSet
+		} else {
+			return s
+		}
+	}
+
+	for _, hardware := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
 		if hardware.loopback {
@@ -1124,11 +1132,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 			continue
 		}
 
-		natSet := hardware.natSet
-		dstNatSet := hardware.dstNatSet
-		if dstNatSet == nil {
-			dstNatSet = natSet
-		}
+		natSet := getNatSet(r, hardware.natSet)
 
 		// Generate code for incoming and possibly for outgoing ACL.
 		for _, suffix := range []string{"in", "out"} {
@@ -1151,13 +1155,12 @@ func printCiscoAcls(fh *os.File, router *router) {
 					continue
 				}
 				info.natSet = natSet
-				info.dstNatSet = dstNatSet
 				info.rules = rules
 
 				// Marker: Generate protect_self rules, if available.
 				info.protectSelf = true
 
-				if router.needProtect {
+				if r.needProtect {
 					info.intfRules = intfRules
 				}
 				if hardware.noInAcl {
@@ -1175,7 +1178,7 @@ func printCiscoAcls(fh *os.File, router *router) {
 					intfOk := 0
 					for _, intf := range hardware.interfaces {
 						zone := intf.zone
-						if zone.zoneCluster != nil {
+						if len(zone.cluster) > 1 {
 							break
 						}
 
@@ -1197,14 +1200,14 @@ func printCiscoAcls(fh *os.File, router *router) {
 				// Add ACL of corresponding tunnel interfaces.
 				// We have exactly one crypto interface per hardware.
 				intf := hardware.interfaces[0]
-				if (intf.hub != nil || intf.spoke != nil) && router.model.noCryptoFilter {
-					for _, tunnelIntf := range getIntf(router) {
+				if (intf.hub != nil || intf.spoke != nil) && r.model.noCryptoFilter {
+					for _, tunnelIntf := range getIntf(r) {
 						realIntf := tunnelIntf.realIntf
 						if realIntf == nil || realIntf != intf {
 							continue
 						}
 						tunnelInfo := &aclInfo{
-							natSet:    tunnelIntf.natSet,
+							natSet:    getNatSet(r, tunnelIntf.natSet),
 							rules:     tunnelIntf.rules,
 							intfRules: tunnelIntf.intfRules,
 						}
@@ -1222,15 +1225,14 @@ func printCiscoAcls(fh *os.File, router *router) {
 					continue
 				}
 				info.rules = rules
-				info.natSet = dstNatSet
-				info.dstNatSet = natSet
+				info.natSet = natSet
 				info.addDeny = true
 			}
 
 			aclName := hardware.name + "_" + suffix
 			info.name = aclName
-			router.aclList = append(router.aclList, info)
-			printAclPlaceholder(fh, router, aclName)
+			r.aclList = append(r.aclList, info)
+			printAclPlaceholder(fh, r, aclName)
 
 			// Post-processing for hardware interface
 			if filter == "IOS" || filter == "NX-OS" {
@@ -1284,7 +1286,7 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	interfaces := router.interfaces
 	var tunnelIntf *routerIntf
 	for _, intf := range interfaces {
-		if intf.tunnel {
+		if intf.ipType == tunnelIP {
 			tunnelIntf = intf
 		}
 	}
@@ -1535,7 +1537,7 @@ func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, m
 		peerIp := prefixCode(peer.realIntf.address(natSet))
 		suffix := peerIp
 
-		crypto := intf.crypto
+		crypto := intf.getCrypto()
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
@@ -1592,7 +1594,7 @@ func (c *spoc) printDynamicCryptoMap(
 		id := intf.peer.id
 		suffix := id
 
-		crypto := intf.crypto
+		crypto := intf.getCrypto()
 		ipsec := crypto.ipsec
 		isakmp := ipsec.isakmp
 
@@ -1637,8 +1639,8 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 	var ipsecList []*ipsec
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range router.interfaces {
-		if intf.tunnel {
-			i := intf.crypto.ipsec
+		if intf.ipType == tunnelIP {
+			i := intf.getCrypto().ipsec
 			if seenIpsec[i] {
 				continue
 			}
@@ -1796,11 +1798,11 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 		var static, dynamic []*routerIntf
 		var haveCryptoMap = false
 		for _, intf := range hardware.interfaces {
-			if !intf.tunnel {
+			if intf.ipType != tunnelIP {
 				continue
 			}
 			real := intf.peer.realIntf
-			if real.negotiated || real.short || real.unnumbered {
+			if real.ipType != hasIP {
 				dynamic = append(dynamic, intf)
 			} else {
 				static = append(static, intf)
@@ -1847,36 +1849,39 @@ func printRouterIntf(fh *os.File, router *router) {
 		var subcmd []string
 		secondary := false
 
+	INTF:
 		for _, intf := range hardware.interfaces {
 			var addrCmd string
 			if intf.redundant {
 				continue
 			}
-			if intf.tunnel {
-				continue
-			}
-			if intf.unnumbered {
+			switch intf.ipType {
+			case tunnelIP:
+				continue INTF
+			case unnumberedIP:
 				addrCmd = "ip unnumbered X"
-			} else if intf.negotiated {
+			case negotiatedIP:
 				addrCmd = "ip address negotiated"
-			} else if model.usePrefix || ipv6 {
-				addr := intf.ip.String()
-				prefix, _ := intf.network.mask.Size()
-				if ipv6 {
-					addrCmd = "ipv6"
+			default:
+				if model.usePrefix || ipv6 {
+					addr := intf.ip.String()
+					prefix, _ := intf.network.mask.Size()
+					if ipv6 {
+						addrCmd = "ipv6"
+					} else {
+						addrCmd = "ip"
+					}
+					addrCmd += " address " + addr + "/" + strconv.Itoa(prefix)
+					if secondary {
+						addrCmd += " secondary"
+					}
 				} else {
-					addrCmd = "ip"
-				}
-				addrCmd += " address " + addr + "/" + strconv.Itoa(prefix)
-				if secondary {
-					addrCmd += " secondary"
-				}
-			} else {
-				addr := intf.ip.String()
-				mask := net.IP(intf.network.mask).String()
-				addrCmd = "ip address " + addr + " " + mask
-				if secondary {
-					addrCmd += " secondary"
+					addr := intf.ip.String()
+					mask := net.IP(intf.network.mask).String()
+					addrCmd = "ip address " + addr + " " + mask
+					if secondary {
+						addrCmd += " secondary"
+					}
 				}
 			}
 			subcmd = append(subcmd, addrCmd)
@@ -2017,19 +2022,12 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			if acl.isCryptoACL {
 				jACL.IsCryptoACL = 1
 			}
-			// Collect networks used in secondary optimization and
-			// cache for address calculation.
-			optAddr := make(map[*network]*natCache)
-			// Collect objects forbidden in secondary optimization and
-			// cache for address calculation.
-			noOptAddrs := make(map[someObj]*natCache)
+			// Collect networks used in secondary optimization.
+			optAddr := make(map[*network]bool)
+			// Collect objects forbidden in secondary optimization.
+			noOptAddrs := make(map[someObj]bool)
 			natSet := acl.natSet
 			addrCache := getAddrCache(natSet)
-			dstNatSet := acl.dstNatSet
-			if dstNatSet == nil {
-				dstNatSet = natSet
-			}
-			dstAddrCache := getAddrCache(dstNatSet)
 
 			// Set attribute NeedProtect in jACL.
 			// Value is list of IP addresses of to be protected interfaces.
@@ -2090,13 +2088,10 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 						standardFilter && rule.somePrimary {
 						for _, isSrc := range []bool{true, false} {
 							var objList []someObj
-							var useCache *natCache
 							if isSrc {
 								objList = rule.src
-								useCache = addrCache
 							} else {
 								objList = rule.dst
-								useCache = dstAddrCache
 							}
 							for _, obj := range objList {
 
@@ -2132,7 +2127,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									}
 									if noOpt := router.noSecondaryOpt; noOpt != nil {
 										if noOpt[net] {
-											noOptAddrs[obj] = useCache
+											noOptAddrs[obj] = true
 											continue
 										}
 									}
@@ -2154,7 +2149,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									// this could introduce new missing
 									// supernet rules.
 									if o.hasOtherSubnet {
-										noOptAddrs[obj] = useCache
+										noOptAddrs[obj] = true
 										continue
 									}
 									max := o.maxSecondaryNet
@@ -2163,17 +2158,21 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									}
 									subst = max
 								}
-								optAddr[subst] = useCache
+								optAddr[subst] = true
 							}
 						}
 						newRule.OptSecondary = 1
 					}
 
 					newRule.Src = getCachedAddrList(rule.src, addrCache)
-					newRule.Dst = getCachedAddrList(rule.dst, dstAddrCache)
+					newRule.Dst = getCachedAddrList(rule.dst, addrCache)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
-						prtList[i] = p.name
+						if p.proto == "icmpv6" {
+							prtList[i] = "icmp" + p.name[len("icmpv6"):]
+						} else {
+							prtList[i] = p.name
+						}
 					}
 					newRule.Prt = prtList
 					if srcRange := rule.srcRange; srcRange != nil {
@@ -2198,16 +2197,16 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			//   grouped rules and we need to control optimization
 			//   for sinlge rules.
 			addrList := make([]string, 0, len(optAddr))
-			for n, cache := range optAddr {
-				a := getCachedAddr(n, cache)
+			for n, _ := range optAddr {
+				a := getCachedAddr(n, addrCache)
 				addrList = append(addrList, a)
 			}
 			sort.Strings(addrList)
 			jACL.OptNetworks = addrList
 
 			addrList = make([]string, 0, len(noOptAddrs))
-			for o, cache := range noOptAddrs {
-				a := getCachedAddr(o, cache)
+			for o, _ := range noOptAddrs {
+				a := getCachedAddr(o, addrCache)
 				addrList = append(addrList, a)
 			}
 			sort.Strings(addrList)
@@ -2419,6 +2418,9 @@ func (c *spoc) printCode1(dir string) {
 	}
 	printRouter(c.managedRouters)
 	printRouter(c.routingOnlyRouters)
+
+	// Send "." to indicate end of transmission.
+	fmt.Fprintln(toPass2, ".")
 }
 
 func (c *spoc) printCode(dir string) {

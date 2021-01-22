@@ -78,6 +78,42 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	return natType
 }
 
+//############################################################################
+// Purpose: Check for
+//          1. unused NAT definitions,
+//          2. useless bind_nat, referencing unknown NAT definition.
+//             Remove useless tags from bind_nat.
+func (c *spoc) checkNatDefinitions(natType map[string]string) {
+	natUsed := make(map[string]bool)
+	for _, n := range c.allNetworks {
+		for _, intf := range n.interfaces {
+			j := 0
+			l := intf.bindNat
+			for _, tag := range l {
+				if _, found := natType[tag]; found {
+					natUsed[tag] = true
+					l[j] = tag
+					j++
+				} else {
+					c.warn("Ignoring useless nat:%s bound at %s", tag, intf)
+				}
+			}
+			intf.bindNat = l[:j]
+		}
+	}
+	var messages stringList
+	for tag, _ := range natType {
+		if !natUsed[tag] {
+			messages.push(
+				"nat:" + tag + " is defined, but not bound to any interface")
+		}
+	}
+	sort.Strings(messages)
+	for _, m := range messages {
+		c.warn(m)
+	}
+}
+
 // Mark invalid NAT transitions.
 // A transition from nat:t1 to nat:t2 occurs at an interface I
 // - if nat:t1 was active previously
@@ -326,9 +362,15 @@ func (c *spoc) findNatDomains() []*natDomain {
 					continue
 				}
 
-				// Mark router as domain limiting, add router as domain border.
+				// Mark router as domain limiting,
+				// 1. add router as domain border,
+				// 2. initialized NAT set for model.aclUseRealIP
 				if r.natTags == nil {
 					r.natTags = make(map[*natDomain]stringList)
+					if r.model != nil && r.model.aclUseRealIP {
+						natSet := make(map[string]bool)
+						r.natSet = &natSet
+					}
 				}
 				r.natTags[d] = natTags
 				d.routers = append(d.routers, r)
@@ -619,6 +661,8 @@ func (c *spoc) checkForProperNatTransition(
 	nextInfo := nat[tag2]
 
 	// Transition from hidden NAT to any other NAT is invalid.
+	// Even hidden to hidden is not allowed, since relaxed multi NAT rules
+	// for hidden NAT could lead to inconsistent NAT set.
 	if natInfo.hidden {
 
 		// Use nextInfo.name and not natInfo.name because
@@ -683,6 +727,10 @@ ROUTER:
 			if tag2 == tag {
 				continue ROUTER
 			}
+		}
+
+		if r.model != nil && r.model.aclUseRealIP {
+			(*r.natSet)[tag] = true
 		}
 
 		// Check whether tag is active in adjacent NAT domains.
@@ -809,44 +857,6 @@ func (c *spoc) checkMultinatErrors(
 		for _, m := range errors {
 			c.err(m)
 		}
-	}
-}
-
-//############################################################################
-// Purpose: Check that every NAT tag is both bound and defined somewhere.
-func (c *spoc) checkNatDefinitions(
-	natType map[string]string, doms []*natDomain) {
-
-	natDefinitions := make(map[string]bool)
-	for tag, _ := range natType {
-		natDefinitions[tag] = true
-	}
-	for _, d := range doms {
-		for _, r := range d.routers {
-			natTags := r.natTags[d]
-			for _, tag := range natTags {
-				if _, found := natDefinitions[tag]; found {
-					natDefinitions[tag] = false
-					continue
-				}
-
-				// Prevent undefined value when checking NAT type later.
-				natType[tag] = "static"
-
-				c.warn("Ignoring useless nat:%s bound at %s", tag, r)
-			}
-		}
-	}
-	var messages stringList
-	for tag, unused := range natDefinitions {
-		if unused {
-			messages.push(
-				fmt.Sprintf("nat:%s is defined, but not bound to any interface", tag))
-		}
-	}
-	sort.Strings(messages)
-	for _, m := range messages {
-		c.warn(m)
 	}
 }
 
@@ -987,88 +997,19 @@ func distributeNatSetsToInterfaces(doms []*natDomain) {
 
 				// debug("%s: NAT %s", d.name, intf)
 				intf.natSet = natSet
-				if (r.managed != "" || r.routingOnly) && !intf.tunnel {
-					intf.hardware.natSet = natSet
-				}
-			}
-		}
-	}
-}
+				if r.managed != "" || r.routingOnly {
+					if r.model.aclUseRealIP {
 
-func (c *spoc) prepareRealIpNat(
-	r *router, multi map[string][]natMap, natType map[string]string) {
-
-	var twoEffective [2]map[string]bool
-	var twoHWList [2][]*hardware
-HARDWARE:
-	for _, hw := range r.hardware {
-
-		// Build effective list of bound NAT tags.
-		// Remove hidden NAT. This doesn't matter because errors with
-		// hidden addresses will be detected before this is used.
-		effective := make(map[string]bool)
-		for _, tag := range hw.bindNat {
-			if natType[tag] != "hidden" {
-				effective[tag] = true
-			}
-		}
-
-		// Find identical effective bound NAT tags.
-	EQ:
-		for i, seen := range twoEffective {
-			if seen == nil {
-				twoEffective[i] = effective
-			} else {
-				if len(effective) != len(seen) {
-					continue EQ
-				}
-				for tag, _ := range effective {
-					if !seen[tag] {
-						continue EQ
+						// Set natSet of router inside NAT domain.
+						if r.natSet == nil {
+							r.natSet = natSet
+						}
+					}
+					if intf.ipType != tunnelIP {
+						intf.hardware.natSet = natSet
 					}
 				}
 			}
-			twoHWList[i] = append(twoHWList[i], hw)
-			continue HARDWARE
-		}
-		c.err(
-			"Must not use attribute 'acl_use_real_ip' at %s\n"+
-				" having different effective NAT at more than two interfaces", r)
-		return
-	}
-	if twoEffective[1] == nil {
-		c.warn("Useless attribute 'acl_use_real_ip' at %s", r)
-		return
-	}
-
-	combine := func(list []*hardware) natSet {
-		var natSets []natSet
-		for _, hw := range list {
-			natSets = append(natSets, hw.natSet)
-		}
-		return combineNatSets(natSets, multi, natType)
-	}
-	modify := func(list []*hardware, new natSet) {
-		for _, hw := range list {
-			hw.dstNatSet = new
-		}
-	}
-
-	// Found two sets of hardware having identical effective bound NAT.
-	// Combine natSets of each set of hardware.
-	// Modify dstNatSet of other set of hardware with combined natSet.
-	set1 := combine(twoHWList[0])
-	set2 := combine(twoHWList[1])
-	modify(twoHWList[0], set2)
-	modify(twoHWList[1], set1)
-}
-
-func (c *spoc) prepareRealIpNatRouters(
-	multi map[string][]natMap, natType map[string]string) {
-
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
-		if r.aclUseRealIp {
-			c.prepareRealIpNat(r, multi, natType)
 		}
 	}
 }
@@ -1080,19 +1021,18 @@ func (c *spoc) distributeNatInfo() (
 	[]*natDomain, map[string]string, map[string][]natMap) {
 
 	c.progress("Distributing NAT")
-	natdomains := c.findNatDomains()
 	natType := c.getLookupMapForNatType()
+	c.checkNatDefinitions(natType)
+	natdomains := c.findNatDomains()
 	multi := c.generateMultinatDefLookup(natType)
 	natErrors := c.distributeNatTagsToNatDomains(multi, natdomains)
 	c.checkMultinatErrors(multi, natdomains)
-	c.checkNatDefinitions(natType, natdomains)
 	if !natErrors {
 		c.checkNatNetworkLocation(natdomains)
 	}
 	c.checkNatCompatibility()
 	c.checkInterfacesWithDynamicNat()
 	distributeNatSetsToInterfaces(natdomains)
-	c.prepareRealIpNatRouters(multi, natType)
 
 	return natdomains, natType, multi
 }

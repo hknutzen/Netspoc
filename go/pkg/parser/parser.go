@@ -24,7 +24,9 @@ type parser struct {
 }
 
 func (p *parser) init(src []byte, fname string) {
-	p.scanner.Init(src, fname)
+	ah := func(e error) { p.abort(e) }
+
+	p.scanner.Init(src, fname, ah)
 	p.fileName = fname
 
 	p.next()
@@ -696,20 +698,53 @@ func (p *parser) file() []ast.Toplevel {
 	return list
 }
 
-func ParseFile(src []byte, fileName string) []ast.Toplevel {
+// A bailout panic is raised to indicate early termination.
+type bailout struct {
+	err error
+}
+
+func (p *parser) abort(e error) {
+	panic(bailout{err: e})
+}
+
+func ParseFile(src []byte, fileName string) (l []ast.Toplevel, err error) {
 	p := new(parser)
+	defer func() {
+		if e := recover(); e != nil {
+			if b, ok := e.(bailout); ok {
+				err = b.err
+			} else {
+				// resume same panic if it's not a bailout
+				panic(e)
+			}
+		}
+	}()
+
 	p.init(src, fileName)
-	return p.file()
+	l = p.file()
+	return
 }
 
 // Read from string
-func ParseUnion(src []byte) []ast.Element {
-	src = append(src, ';')
+func ParseUnion(src []byte) (l []ast.Element, err error) {
 	p := new(parser)
+	defer func() {
+		if e := recover(); e != nil {
+			if b, ok := e.(bailout); ok {
+				err = b.err
+			} else {
+				// resume same panic if it's not a bailout
+				panic(e)
+			}
+		}
+	}()
+
+	src = append(src, ';')
 	p.init(src, "command line")
 	list, end := p.union(";")
 	if end != len(src) {
 		p.syntaxErr(`Unexpected content after ";"`)
 	}
-	return list
+	l = list
+	return
 }

@@ -103,7 +103,6 @@ $out = <<END;
 Error: interface:r1.n1 must not be disabled,
  since it is part of a loop
 Error: topology seems to be empty
-Aborted
 END
 
 test_err($title, $in, $out);

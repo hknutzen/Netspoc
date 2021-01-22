@@ -72,7 +72,6 @@ type srvObj interface {
 	getNetwork() *network
 	getUsed() bool
 	setUsed()
-	//	setCommon(m xMap) // for importFromPerl
 }
 type srvObjList []srvObj
 
@@ -87,8 +86,7 @@ type someObj interface {
 	address(nn natSet) *net.IPNet
 	getAttr(attr string) string
 	getPathNode() pathStore
-	getZone() *zone
-	//setCommon(m xMap) // for importFromPerl
+	getZone() pathObj
 }
 
 type disabledObj struct {
@@ -122,18 +120,22 @@ type ownerer interface {
 	setOwner(o *owner)
 }
 
+const (
+	hasIP = iota
+	negotiatedIP
+	bridgedIP
+	shortIP
+	tunnelIP
+	unnumberedIP
+)
+
 type ipObj struct {
 	disabledObj
 	ipVxObj
 	ownedObj
 	usedObj
-	name       string
-	ip         net.IP
-	unnumbered bool
-	negotiated bool
-	short      bool
-	tunnel     bool
-	bridged    bool
+	name string
+	ip   net.IP
 }
 
 func (x ipObj) String() string { return x.name }
@@ -156,6 +158,7 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
+	ipType               int
 	isAggregate          bool
 	isLayer3             bool
 	link                 *network
@@ -171,7 +174,6 @@ type network struct {
 	radiusAttributes     map[string]string
 	subnetOf             *network
 	subnets              []*subnet
-	unnumbered           bool
 	unstableNat          map[natSet]netList
 	up                   *network
 	zone                 *zone
@@ -227,7 +229,7 @@ type model struct {
 	class            string
 	crypto           string
 	doAuth           bool
-	canACLUseRealIP  bool
+	aclUseRealIP     bool
 	canDynCrypto     bool
 	canLogDeny       bool
 	canObjectgroup   bool
@@ -258,7 +260,6 @@ type natSet *map[string]bool
 type aclInfo struct {
 	name         string
 	natSet       natSet
-	dstNatSet    natSet
 	rules        ruleList
 	intfRules    ruleList
 	protectSelf  bool
@@ -281,7 +282,6 @@ type router struct {
 	deviceName              string
 	managed                 string
 	semiManaged             bool
-	aclUseRealIp            bool
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
@@ -295,6 +295,7 @@ type router struct {
 	generalPermit           []*proto
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList
+	natSet                  natSet // Only used if aclUseRealIp
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -312,9 +313,6 @@ type router struct {
 	vrfMembers              []*router
 	aclList                 []*aclInfo
 	vrf                     string
-
-	// This represents the router itself and is distinct from each real zone.
-	zone *zone
 }
 
 func (x router) String() string { return x.name }
@@ -329,14 +327,15 @@ type loop struct {
 type routerIntf struct {
 	netObj
 	pathStoreData
-	router          *router
-	bindNat         []string
-	crypto          *crypto
+	router  *router
+	bindNat []string
+	//crypto          *crypto
 	dhcpClient      bool
 	dhcpServer      bool
 	hub             []*crypto
 	spoke           *crypto
 	id              string
+	ipType          int
 	isHub           bool
 	isLayer3        bool
 	hardware        *hardware
@@ -369,6 +368,13 @@ type routerIntf struct {
 	idRules         map[string]*idIntf
 	toZone1         pathObj
 	zone            *zone
+}
+
+func (intf *routerIntf) getCrypto() *crypto {
+	if intf.isHub {
+		return intf.peer.realIntf.spoke
+	}
+	return intf.realIntf.spoke
 }
 
 type intfList []*routerIntf
@@ -412,7 +418,6 @@ type hardware struct {
 	name       string
 	bindNat    []string
 	natSet     natSet
-	dstNatSet  natSet
 	needOutAcl bool
 	noInAcl    bool
 	rules      ruleList
@@ -478,7 +483,6 @@ type zone struct {
 	inArea               *area
 	ipmask2aggregate     map[ipmask]*network
 	ipmask2net           map[ipmask]netList
-	isTunnel             bool
 	link                 *network
 	loopback             bool
 	nat                  map[string]*network
@@ -488,9 +492,8 @@ type zone struct {
 	primaryMark          int
 	secondaryMark        int
 	statefulMark         int
-	unmanagedRouters     []*router
 	watchingOwners       []*owner
-	zoneCluster          []*zone
+	cluster              []*zone
 }
 
 func (x zone) String() string { return x.name }
@@ -702,7 +705,7 @@ type pathStore interface {
 	setLoopEntry(pathStore, pathStore)
 	setLoopExit(pathStore, pathStore)
 	setLoopPath(pathStore, *loopPath)
-	getZone() *zone
+	getZone() pathObj
 }
 
 func (x *pathStoreData) getPath() map[pathStore]*routerIntf    { return x.path }

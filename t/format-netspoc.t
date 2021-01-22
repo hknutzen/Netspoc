@@ -60,7 +60,7 @@ foo:x =
 END
 
 $out = <<'END';
-Syntax error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
+Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 END
 
 test_err($title, $in, $out);

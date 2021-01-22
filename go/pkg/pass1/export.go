@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2020 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2021 by Heinz Knutzen <heinz.knutzengmail.com>
     (c) 2014 by Daniel Brunkhorst <daniel.brunkhorstweb.de>
 
 https://github.com/hknutzen/Netspoc-Web
@@ -160,14 +160,14 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Dynamic NAT, take whole network.
 				return printNetworkIp(n)
 			}
-			switch {
-			case intf.unnumbered:
+			switch intf.ipType {
+			case unnumberedIP:
 				return "unnumbered"
-			case intf.short:
+			case shortIP:
 				return "short"
-			case intf.bridged:
+			case bridgedIP:
 				return "bridged"
-			case intf.negotiated:
+			case negotiatedIP:
 				// Take whole network.
 				return printNetworkIp(n)
 			default:
@@ -292,7 +292,7 @@ func protoDescr(l []*proto) stringList {
 				desc += " " + dport
 				num = protocol.ports[0]
 			}
-		case "icmp":
+		case "icmp", "icmpv6":
 			if t := protocol.icmpType; t != -1 {
 				s := strconv.Itoa(t)
 				if c := protocol.icmpCode; c != -1 {
@@ -1001,7 +1001,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 	// Returns map with network name(s) as key and list of hosts / interfaces
 	// as value.
 	exportNetwork := func(net *network, owner string, ownNet bool) jsonMap {
-		if net.tunnel {
+		if net.ipType == tunnelIP {
 			return nil
 		}
 		if net.loopback {
@@ -1293,11 +1293,8 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 		return
 	}
 	z := n.zone
-	if c := z.zoneCluster; c != nil {
-
-		// Get deterministic zone for aggregates and networks in zone cluster.
-		z = c[0]
-	}
+	// Get deterministic zone for aggregates and networks in zone cluster.
+	z = z.cluster[0]
 	desc["zone"] = getZoneName(z)
 
 	// Netspoc-Web only needs info about subnets in other zone.
@@ -1515,10 +1512,7 @@ func ExportMain() int {
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	c := initSpoc()
-	go func() {
+	return toplevelSpoc(func(c *spoc) {
 		c.exportNetspoc(path, out)
-		close(c.msgChan)
-	}()
-	return c.printMessages()
+	})
 }

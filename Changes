@@ -1,3 +1,18 @@
+6.023     2021-01-22 12:44:54+01:00 Europe/Berlin
+
+  - NAT for ASA is supported now with more than two interfaces.
+  - Fixed 'bind_nat' at crypto definition for ASA.
+  - Attribute 'acl_use_real_ip' is enabled for ASA per default.
+    This attribute will be removed after next version.
+  - Attribute 'bind_nat' must no longer be used at crypto hub interface.
+    Move 'bind_nat' to crypto definition instead.
+  - Protocol 'icmp' is rejected in IPv6 service and
+    'icmpv6' is rejected in IPv4 service.
+  - Networks of locally attached zone are added to routing_only devices.
+    This is needed because routes between networks inside zone can't be
+    derived from packet filter rules.
+  - Fix: Version number is added to generated code again.
+
 6.022     2020-11-10 12:37:40+01:00 Europe/Berlin
 
  - Added support for attribute 'bind_nat' at crypto definition
