@@ -1711,6 +1711,10 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			if intf.ipType != hasIP {
 				c.err("Crypto hub %s must have IP address", intf)
 			}
+			if intf.bindNat != nil {
+				c.err("Must not use 'bind_nat' at crypto hub %s\n"+
+					" Move 'bind_nat' to crypto definition instead", intf)
+			}
 			for _, cr := range l {
 				if cr.hub != nil {
 					c.err("Must use 'hub = %s' exactly once, not at both\n"+
@@ -3420,11 +3424,7 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 			hub.realIntf = realHub
 			hub.router = r
 			hub.network = spokeNet
-			if cr.bindNat != nil {
-				hub.bindNat = cr.bindNat
-			} else {
-				hub.bindNat = realHub.bindNat
-			}
+			hub.bindNat = cr.bindNat
 			hub.routing = realHub.routing
 			hub.peer = spoke
 			spoke.peer = hub

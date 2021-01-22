@@ -156,6 +156,30 @@ Warning: No hub has been defined for crypto:vpn
 =END=
 
 ############################################################
+=TITLE=No bind_nat allowed at hub
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  bind_nat = n1;
+  hardware = n1;
+ }
+}
+=ERROR=
+Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
+ Move 'bind_nat' to crypto definition instead
+=END=
+
+############################################################
 =TITLE=Unnumbered crypto interface
 =INPUT=
 ${crypto_vpn}
@@ -1673,7 +1697,6 @@ router:asavpn = {
   ip = 192.168.0.101;
   hub = crypto:vpn;
   hardware = outside;
-  bind_nat = I;
   no_check;
  }
  interface:extern = {
@@ -1705,6 +1728,7 @@ service:test2 = {
  permit src = network:intern; dst = user; prt = tcp 84;
 }
 =END=
+=SUBST=/type = ipsec:/bind_nat = I;type = ipsec:/
 =OUTPUT=
 -- asavpn
 ! vpn-filter-foo@domain.x

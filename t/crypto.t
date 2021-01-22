@@ -217,6 +217,35 @@ END
 test_warn($title, $in, $out);
 
 ############################################################
+$title = 'No bind_nat allowed at hub';
+############################################################
+
+$in = $crypto_vpn . <<'END';
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.2.0/24; } }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  bind_nat = n1;
+  hardware = n1;
+ }
+}
+END
+
+$out = <<'END';
+Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
+ Move 'bind_nat' to crypto definition instead
+END
+
+test_err($title, $in, $out);
+
+############################################################
 $title = 'Unnumbered crypto interface';
 ############################################################
 
@@ -1947,7 +1976,6 @@ router:asavpn = {
   ip = 192.168.0.101;
   hub = crypto:vpn;
   hardware = outside;
-  bind_nat = I;
   no_check;
  }
  interface:extern = {
@@ -1985,6 +2013,8 @@ service:test2 = {
  permit src = network:intern; dst = user; prt = tcp 84;
 }
 END
+
+$in =~s/(type = ipsec:)/bind_nat = I;$1/;
 
 $out = <<'END';
 -- asavpn
