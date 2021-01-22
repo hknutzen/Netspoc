@@ -1,80 +1,12 @@
-#!/usr/bin/perl
 
-use strict;
-use warnings;
-use Test::More;
-use Test::Differences;
-use JSON;
-use IPC::Run3;
-use File::Temp qw/ tempdir /;
-use lib 't';
-use Test_Netspoc qw(prepare_in_dir);
-
-sub run {
-    my ($input) = @_;
-    my $in_dir = prepare_in_dir($input);
-    my $out_dir = tempdir( CLEANUP => 1 );
-    my $cmd = "bin/export-netspoc -q $in_dir $out_dir";
-    my $stderr;
-    run3($cmd, \undef, \undef, \$stderr);
-    return($stderr, $out_dir);
-}
-
-sub test_run {
-    my ($title, $input, $expected) = @_;
-    my ($stderr, $out_dir) = run($input);
-    if ($stderr) {
-        diag("Unexpected output on STDERR:\n$stderr");
-        fail($title);
-        return;
-    }
-
-    # Blocks of expected output are split by single lines of dashes,
-    # followed by a file name.
-    my @expected = split(/^-+[ ]*(\S+)[ ]*\n/m, $expected);
-    my $first = shift @expected;
-    if ($first) {
-        diag("Missing file name in first line of output specification");
-        fail($title);
-        return;
-    }
-
-    # Undef input record separator to read all output at once.
-    local $/ = undef;
-
-    while (@expected) {
-        my $fname = shift @expected;
-        my $block = shift @expected;
-
-        open(my $out_fh, '<', "$out_dir/$fname") or die "Can't open $fname";
-        my $output = <$out_fh>;
-        close($out_fh);
-
-        # Compare JSON, if expected data looks like JSON.
-        if ($block =~ /^ \s* [\{\[]/x) {
-            $block = from_json($block);
-            $output = from_json($output)
-        }
-
-        eq_or_diff($output, $block, "$title: $fname");
-    }
-    return;
-}
-
-# Errors should not be tested during export but e.g. in owner.t
-
-my ($in, $out, $title);
-
-my $topo = <<'END';
+=VAR=topo
 owner:x = { admins = x@b.c; }
 owner:y = { admins = y@b.c; hide_from_outer_owners; }
 owner:z = { admins = z@b.c; hide_from_outer_owners; }
-
 area:all = { owner = x; anchor = network:Big; }
 any:Big  = { owner = y; link = network:Big; }
 any:Sub1 = { ip = 10.1.0.0/23; link = network:Big; }
 any:Sub2 = { ip = 10.1.1.0/25; link = network:Big; }
-
 network:Sub = { ip = 10.1.1.0/24; owner = z; subnet_of = network:Big; }
 router:u = {
  interface:Sub;
@@ -84,7 +16,6 @@ network:Big = {
  ip = 10.1.0.0/16;
  host:B10 = { ip = 10.1.0.10; owner = z; }
 }
-
 router:asa = {
  managed;
  model = ASA;
@@ -92,23 +23,19 @@ router:asa = {
  interface:Big = { ip = 10.1.0.1; hardware = outside; }
  interface:Kunde = { ip = 10.2.2.1; hardware = inside; }
 }
-
 network:Kunde = { ip = 10.2.2.0/24; }
-END
+=END=
 
 ############################################################
-$title = 'Owner of area, subnet';
-############################################################
-
-$in = <<END;
-$topo
+=TITLE=Owner of area, subnet
+=INPUT=
+${topo}
 service:test = {
  user = network:Sub;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/x/assets
 {
    "anys" : {
@@ -172,23 +99,18 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner of larger matching aggregate';
-############################################################
-
-$in = <<END;
-$topo
+=TITLE=Owner of larger matching aggregate
+=INPUT=
+${topo}
 service:test = {
  user = any:Sub1;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/y/service_lists
 {
    "owner" : [],
@@ -203,23 +125,18 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner of smaller matching aggregate';
-############################################################
-
-$in = <<END;
-$topo
+=TITLE=Owner of smaller matching aggregate
+=INPUT=
+${topo}
 service:test = {
  user = any:Sub2;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/z/service_lists
 {
    "owner" : [],
@@ -228,16 +145,12 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Network and host as user having different owner';
-############################################################
-
-$in = <<END;
-$topo
+=TITLE=Network and host as user having different owner
+=INPUT=
+${topo}
 service:test = {
  user = host:B10;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -246,9 +159,8 @@ service:test2 = {
  user = network:Big;
  permit src = user; dst = network:Kunde; prt = tcp 88;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/y/service_lists
 {
    "owner" : [],
@@ -266,16 +178,12 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Network and host in rule having different owner';
-############################################################
-
-$in = <<END;
-$topo
+=TITLE=Network and host in rule having different owner
+=INPUT=
+${topo}
 service:test = {
  user = network:Kunde;
  permit src = host:B10; dst = user; prt = tcp 80;
@@ -284,9 +192,8 @@ service:test2 = {
  user = network:Kunde;
  permit src = network:Big; dst = user; prt = tcp 88;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/y/service_lists
 {
    "owner" : [
@@ -304,16 +211,12 @@ $out = <<END;
    "user" : [],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Aggregate, network and subnet have different owner';
-############################################################
-
-($in = $topo) =~ s/host:B10 =/#host:B10 =/;
-$in .= <<END;
+=TITLE=Aggregate, network and subnet have different owner
+=INPUT=
+${topo}
 service:test = {
  user = any:Sub1;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -322,9 +225,9 @@ service:test2 = {
  user = network:Big;
  permit src = user; dst = network:Kunde; prt = tcp 88;
 }
-END
-
-$out = <<END;
+=END=
+=SUBST=/host:B10 =/#host:B10 =/
+=OUTPUT=
 --owner/y/service_lists
 {
    "owner" : [],
@@ -342,33 +245,25 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Inversed inheritance for zone';
-############################################################
-
+=TITLE=Inversed inheritance for zone
 # any:a inherits owner:a from enclosing networks n1, n2.
 # Unnumbered network is ignored.
-
-$in = <<'END';
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = a; }
 network:n3 = { unnumbered; }
 any:a = { link = network:n3; }
-
 router:r = {
  interface:n1;
  interface:n2;
  interface:n3;
 }
-
 owner:a = { admins = a@example.com; }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 -- objects
 {
    "any:a" : {
@@ -395,31 +290,24 @@ $out = <<END;
       "zone" : "any:a"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Must not inhert inversed inherited owner';
-############################################################
+=TITLE=Must not inhert inversed inherited owner
 # Inherit real owner to empty aggregate.
-
-$in = <<'END';
+=INPUT=
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
-
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 any:a1-23 = { ip = 10.1.0.0/23; link = network:n1; }
 any:empty-23 = { ip = 10.2.0.0/23; link = network:n1; }
 any:a-14 = { ip = 10.0.0.0/14; link = network:n1; }
 any:a-8 = { ip = 10.0.0.0/8; link = network:n1; owner = b; }
-
 router:r = {
  interface:n1;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 -- objects
 {
    "any:a-14" : {
@@ -452,31 +340,24 @@ $out = <<END;
       "zone" : "any:[network:n1]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'No inversed inheritance for zone';
-############################################################
-
-$in = <<'END';
+=TITLE=No inversed inheritance for zone
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = a; }
 network:n3 = { ip = 10.1.3.0/24; owner = b; }
 any:a = { link = network:n3; }
-
 router:r = {
  interface:n1;
  interface:n2;
  interface:n3;
 }
-
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 -- objects
 {
    "any:a" : {
@@ -511,28 +392,20 @@ $out = <<END;
       "zone" : "any:a"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'No inversed inheritance for zone cluster';
-############################################################
-
-$in = <<'END';
+=TITLE=No inversed inheritance for zone cluster
+=INPUT=
 any:a = { link = network:n1; }
-
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = b; }
 network:n3 = { ip = 10.1.3.0/24; }
-
 router:u = {
  interface:n1;
  interface:n2;
 }
-
 pathrestriction:p = interface:u.n1, interface:r1.n1;
-
 router:r1 = {
  managed;
  model = IOS;
@@ -540,7 +413,6 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-
 router:r2 = {
  managed;
  model = IOS;
@@ -548,12 +420,10 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
-
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 -- objects
 {
    "any:a" : {
@@ -586,47 +456,36 @@ $out = <<END;
       "zone" : "any:a"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner at nested areas';
-############################################################
-
-$in = <<'END';
+=TITLE=Owner at nested areas
+=INPUT=
 owner:x = { admins = x@b.c; watchers = w@b.c; }
 owner:y = { admins = y@b.c; }
 owner:z = { admins = z@b.c; }
-
 area:all = { anchor = network:n2; router_attributes = { owner = x; } }
 area:a1 = { border = interface:asa2.n2; owner = x;
  router_attributes = { owner = y; }
 }
 area:a2 = { border = interface:asa1.n1; owner = y; }
-
 network:n1 = {  ip = 10.1.1.0/24; owner = z; }
-
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.2.2.1; hardware = n2; }
 }
-
 network:n2 = { ip = 10.2.2.0/24; }
-
 router:asa2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.2.2.2; hardware = n2; }
  interface:n3 = { ip = 10.3.3.1; hardware = n1; }
 }
-
 network:n3 = { ip = 10.3.3.0/24; owner = y; }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/x/extended_by
 []
 --owner/y/extended_by
@@ -692,35 +551,26 @@ $out = <<'END';
       "zone" : "any:[network:n3]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Services of nested objects visible for outer owners';
-############################################################
-
-$in = <<'END';
+=TITLE=Services of nested objects visible for outer owners
+=INPUT=
 owner:all = { admins = all@example.com; }
 owner:a2  = { admins = a2@example.com; }
 owner:n2  = { admins = n2@example.com; }
 owner:n3  = { admins = n3@example.com; }
 owner:h3  = { admins = h3@example.com; }
-
 area:all  = { anchor = network:n1; owner = all; }
-
 network:n1 = { ip = 10.1.1.0/24;}
-
 router:r1 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = inside; }
  interface:n2 = { ip = 10.1.2.1; hardware = outside; }
 }
-
 any:a2 = { link =  network:n2; owner = a2; }
 network:n2 = { ip = 10.1.2.0/24; owner = n2;}
-
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3;
@@ -731,7 +581,6 @@ network:n3 = {
  owner = n3;
  host:h3 = { ip = 10.1.2.130; owner = h3; }
 }
-
 service:a2 = {
  user = network:n1;
  permit src = user; dst = any:a2; prt = tcp 80;
@@ -752,9 +601,8 @@ service:h3 = {
  user = network:n1;
  permit src = user; dst = host:h3; prt = tcp 84;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/all/service_lists
 {
    "owner" : [
@@ -815,25 +663,19 @@ $out = <<'END';
    "user" : [],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Visible services';
-############################################################
-
-$in = <<'END';
+=TITLE=Visible services
+=INPUT=
 owner:x1 = { admins = x1@example.com; }
 owner:x2 = { admins = x2@example.com; }
 owner:x3 = { admins = x3@example.com; }
 owner:x4 = { admins = x4@example.com; }
-
 owner:DA_1 = { admins = DA_1@example.com; }
 owner:DA_2 = { admins = DA_2@example.com; }
 owner:DA_3 = { admins = DA_3@example.com; }
 owner:DA_4 = { admins = DA_4@example.com; }
-
 network:n1 = { ip = 10.1.1.0/24;
  host:x1 = { ip = 10.1.1.1; owner = x1; }
  host:x2 = { ip = 10.1.1.2; owner = x2; }
@@ -852,7 +694,6 @@ router:r = {
  interface:n1 = { ip = 10.1.1.99; hardware = n1; }
  interface:n2 = { ip = 10.1.2.99; hardware = n2; }
 }
-
 service:s1 = {
  user = host:x1, host:x2, host:x3;
  permit src = user; dst = host:DA_1; prt = tcp 80;
@@ -865,9 +706,8 @@ service:s3 = {
  user = host:DA_1, host:DA_2, host:x3;
  permit src = user; dst = host:x1; prt = tcp 80;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/x1/service_lists
 {
    "owner" : [
@@ -907,19 +747,13 @@ $out = <<'END';
       "s2"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Aggregates and networks in zone cluster';
-############################################################
-
+=TITLE=Aggregates and networks in zone cluster
 # Checks deterministic values of attribute zone of aggregates.
-
-$in = <<'END';
+=INPUT=
 network:n1 = { ip = 10.1.54.0/24;}
-
 router:asa = {
  model = ASA;
  managed;
@@ -930,10 +764,8 @@ router:asa = {
 }
 network:t1 = { ip = 10.9.1.0/24; }
 network:t2 = { ip = 10.9.2.0/24; }
-
 network:link1 = { ip = 10.8.1.0/24; }
 network:link2 = { ip = 10.8.2.0/24; }
-
 router:l12 = {
  model = IOS;
  managed;
@@ -952,34 +784,28 @@ router:r2 = {
  interface:link2;
  interface:c2;
 }
-
 network:c1a = { ip = 10.0.100.16/28;}
 network:c1b = { ip = 10.0.101.16/28;}
 network:c2 = { ip = 10.137.15.0/24;}
 any:c2     = { ip = 10.140.0.0/16; link = network:c2; }
-
 pathrestriction:r1 =
  interface:r1.t1, interface:r1.c1a, interface:r1.c1b
 ;
 pathrestriction:r2 =
  interface:r2.t2, interface:r2.c2
 ;
-
 owner:o = { admins = o@b.c; }
-
 service:test = {
  sub_owner = o;
  user = any:[ip=10.140.0.0/16 & network:t1],
         any:[ip=10.140.0.0/16 & network:t2],
  ;
-
  permit src = user;
         dst = network:n1;
         prt = tcp 80;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --objects
 {
    "any:[ip=10.140.0.0/16 & network:t1]" : {
@@ -1004,25 +830,18 @@ $out = <<'END';
       "any:c2"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Aggregates and network0/0 in zone cluster';
-############################################################
-
+=TITLE=Aggregates and network0/0 in zone cluster
 # Use unique value of attribute zone for aggregates and network0/0.
-
-$in = <<'END';
+=INPUT=
 owner:x = { admins = guest; show_all; }
 area:all = { owner = x; anchor = network:DMZ; }
-
 network:Big = {
  ip = 10.1.0.0/16;
  nat:inet = { ip = 1.1.0.0/16; }
 }
-
 router:asa = {
  managed;
  model = ASA;
@@ -1030,19 +849,14 @@ router:asa = {
  interface:Big = { ip = 10.1.0.1; hardware = outside; }
  interface:DMZ = { ip = 10.9.9.1; hardware = dmz; }
 }
-
 network:DMZ = { ip = 10.9.9.0/24; }
-
 router:inet = {
  interface:DMZ;
  interface:Internet = { bind_nat = inet; }
 }
-
 network:Internet = { ip = 0.0.0.0/0; has_subnets; }
-
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- objects
 {
  "interface:asa.Big": {
@@ -1082,26 +896,20 @@ $out = <<'END';
   "zone": "any:[network:DMZ]"
  }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Nested only_watch';
-############################################################
-
-$in = <<'END';
+=TITLE=Nested only_watch
+=INPUT=
 owner:all  = { admins = all@b.c; only_watch; }
 owner:a123 = { admins = a123@b.c; }
 owner:a12  = { admins = a12@b.c; only_watch; }
 owner:a1   = { admins = a1@b.c; }
 owner:n2   = { admins = n2@b.c; }
-
 area:all  = { owner = all; anchor = network:n1; }
 area:a123 = { owner = a123; inclusive_border = interface:r2.n4; }
 area:a12  = { owner = a12; border = interface:r2.n2; }
 area:a1   = { owner = a1; border = interface:r1.n1; }
-
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
@@ -1110,13 +918,11 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 network:n2 = {
  owner = n2;
  ip = 10.1.2.0/24;
  host:h10 = { ip = 10.1.2.10; }
 }
-
 router:r2 = {
  managed;
  model = ASA;
@@ -1125,12 +931,10 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/a1/assets
 {
    "anys" : {
@@ -1275,15 +1079,11 @@ $out = <<'END';
       "name" : "all"
    }
 ]
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'only_watch part of inner owner';
-############################################################
-
-$in = <<'END';
+=TITLE=only_watch part of inner owner
+=INPUT=
 owner:all = { admins = all@b.c; only_watch; }
 owner:a1 = { admins = a1@b.c; only_watch; }
 owner:a2 = { admins = a2@b.c; only_watch; }
@@ -1292,13 +1092,11 @@ owner:a12 = { admins = a12@b.c; only_watch; }
 owner:n1 = { admins = n1@b.c; }
 owner:n2 = { admins = n2@b.c; }
 owner:h3 = { admins = h3@b.c; }
-
 area:a1 = { owner = a1; border = interface:asa1.n1; }
 area:a2 = { owner = a2; border = interface:asa1.n2; }
 area:a3 = { owner = a3; border = interface:asa1.n3; }
 area:a12 = { owner = a12; inclusive_border = interface:asa1.n3; }
 area:all = { owner = all; anchor = network:n1; }
-
 network:n1 = { ip = 10.1.1.0/24; owner = n1;
  host:h1 = { ip = 10.1.1.9; owner = n2; }
 }
@@ -1309,7 +1107,6 @@ network:n3 = { ip = 10.1.3.0/24;
  host:h3 = { ip = 10.1.3.9; owner = h3; }
  host:h3x = { ip = 10.1.3.10; }
 }
-
 router:asa1 = {
  managed;
  model = ASA;
@@ -1317,9 +1114,8 @@ router:asa1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/n1/extended_by
 [
    {
@@ -1347,37 +1143,29 @@ $out = <<'END';
       "name" : "all"
    }
 ]
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Managed interface inherits from area with show_all';
-############################################################
-
-$in = <<'END';
+=TITLE=Managed interface inherits from area with show_all
+=INPUT=
 owner:all = { admins = all@example.com; only_watch; show_all; }
 owner:n1 = { admins = n1@example.com; }
 owner:r1 = { admins = r1@example.com; }
-
 area:all = {owner = all; anchor = network:n1;}
 any:n1 = { owner = n1; link = network:n1; }
 network:n1 = {ip = 10.1.1.0/24;}
-
 router:r1 = {
  owner = r1;
  managed;
  model = Linux;
  interface:n1 = { ip = 10.1.1.1; hardware = eth0; }
 }
-
 service:s1 = {
  user = interface:r1.n1;
  permit src = user; dst = user; prt = tcp 22;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/all/service_lists
 {
    "owner" : [
@@ -1415,19 +1203,13 @@ $out = <<'END';
       "zone" : "any:n1"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner of aggregate at tunnel of unmanaged device';
-############################################################
-
+=TITLE=Owner of aggregate at tunnel of unmanaged device
 # Must not take the undefined owner of tunnel.
-
-$in = <<'END';
+=INPUT=
 owner:Extern_VPN = { admins = abc@d.com; }
-
 isakmp:ikeaes256SHA = {
  authentication = preshare;
  encryption = aes256;
@@ -1443,53 +1225,41 @@ ipsec:ipsecaes256SHA = {
  lifetime = 3600 sec;
 }
 crypto:vpn = { type = ipsec:ipsecaes256SHA; }
-
 network:n1 = { ip = 10.1.1.0/24;}
-
 router:r = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = inside; }
  interface:n2 = { ip = 192.168.1.2; hardware = outside; hub = crypto:vpn; }
 }
-
 area:vpn = { owner = Extern_VPN; inclusive_border = interface:r.n1; }
-
 network:n2 = { ip = 192.168.1.0/28;}
-
 router:dmz = {
  interface:n2 = { ip = 192.168.1.1; }
  interface:Internet;
 }
-
 network:Internet = { ip = 0.0.0.0/0; has_subnets; }
-
 router:VPN1 = {
  interface:Internet = { ip = 1.1.1.1; spoke = crypto:vpn; }
  interface:v1;
 }
 network:v1 = { ip = 10.9.1.0/24; }
-
 router:VPN2 = {
  interface:Internet = { ip = 1.1.1.2; spoke = crypto:vpn; }
  interface:v2;
 }
 network:v2 = { ip = 10.9.2.0/24; }
-
 router:VPN3 = {
  interface:Internet = { ip = 1.1.1.3; spoke = crypto:vpn; }
  interface:v3;
 }
 network:v3 = { ip = 10.9.3.0/24; }
-
-
 service:Test = {
  user = network:[any:[ip=10.9.0.0/21 & area:vpn]];
  permit src = network:n1; dst = user; prt = udp 53;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --objects
 {
    "any:[ip=10.9.0.0/21 & network:v1]" : {
@@ -1573,44 +1343,35 @@ $out = <<'END';
       "network:v3"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Split service and multi owner from auto interface';
-############################################################
-
-$in = <<'END';
+=TITLE=Split service and multi owner from auto interface
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = b; }
 network:n3 = { ip = 10.1.3.0/24; owner = c; }
 network:n4 = { ip = 10.1.4.0/24; owner = d; }
-
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 router:r = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3 = { ip = 10.1.3.1; }
 }
-
 router:asa2 = {
  managed;
  model = ASA;
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
-
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
 owner:c = { admins = c@example.com; }
 owner:d = { admins = d@example.com; }
-
 service:s1 = {
  multi_owner;
  user = network:n1, network:n4;
@@ -1620,9 +1381,8 @@ service:s2 = {
  user = network:n1, network:n4, interface:r.[auto];
  permit src = user; dst = user; prt = tcp 23;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --services
 {
    "s1(OlWkR_nb)" : {
@@ -1821,41 +1581,31 @@ $out = <<'END';
       "network:n4"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner of service with reversed rule';
-############################################################
-
-$in = <<'END';
+=TITLE=Owner of service with reversed rule
+=INPUT=
 owner:o1 = { admins = o1@b.c; }
 owner:o2 = { admins = o2@b.c; }
-
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
-
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 network:n2 = { ip = 10.1.2.0/24; owner = o2; }
-
 protocol:echo = icmp 8;
 protocol:echo-reply = icmp 0, reversed;
-
 service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
         prt = protocol:echo, protocol:echo-reply;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --services
 {
    "s1" : {
@@ -1880,23 +1630,17 @@ $out = <<'END';
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Owner without any assets';
-############################################################
-
-$in = <<'END';
+=TITLE=Owner without any assets
+=INPUT=
 owner:o = { admins = o@example.com; }
-
 owner:all = { admins = all@example.com; only_watch; show_all; }
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- email
 {
    "all@example.com" : [
@@ -1909,33 +1653,25 @@ $out = <<'END';
 }
 -- owner/o/assets
 {}
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'only_watch owner visible by show_all';
-############################################################
-
-$in = <<'END';
+=TITLE=only_watch owner visible by show_all
+=INPUT=
 owner:all = { watchers = all@example.com; only_watch; show_all; }
 owner:n1 = { admins = n1@example.com; only_watch; }
-
 area:all = { anchor = network:n1; owner = all; }
 area:n1 = { border = interface:r1.n1; owner = n1; }
-
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- email
 {
    "all@example.com" : [
@@ -1946,15 +1682,11 @@ $out = <<'END';
       "n1"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Wildcard address as watcher';
-############################################################
-
-$in = <<'END';
+=TITLE=Wildcard address as watcher
+=INPUT=
 owner:all_ex = { only_watch; watchers = [all]@example.com; }
 owner:o1 = { admins = o1@example.com; }
 owner:o2 = { admins = o2@example.com; }
@@ -1963,14 +1695,12 @@ owner:o2s2 = { admins = o2s2@other; }
 owner:o3 = { admins = o3@sub.example.com; }
 owner:o4 = { admins = o4@example.com; }
 owner:all = { admins = all@example.com; }
-
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; owner = o2; }
 network:n2s1 = { ip = 10.1.2.64/26; owner = o2s1; subnet_of = network:n2; }
 network:n2s2 = { ip = 10.1.2.128/26; owner = o2s2; subnet_of = network:n2; }
 network:n3 = { ip = 10.1.3.0/24; owner = o3; }
 network:n4 = { ip = 10.1.4.0/24; owner = o4; }
-
 router:r1 = {
  managed;
  model = ASA;
@@ -1980,19 +1710,16 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-
 router:u = {
  interface:n2;
  interface:n2s1;
  interface:n2s2;
 }
-
 area:all = { anchor = network:n1; owner = all; }
 area:a12 = { inclusive_border = interface:r1.n3; owner = all_ex; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- email
 {
    "[all]@example.com" : [
@@ -2018,39 +1745,30 @@ $out = <<'END';
    ],
    "o4@example.com" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Remove auto interface in rule';
-############################################################
+=TITLE=Remove auto interface in rule
 # Auto interface of group and auto interface of rule must be
 # identical, when rule is exported.
-
-$in = <<'END';
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 network:n2 = { ip = 10.1.2.0/24; }
-
 group:g = network:n2, interface:asa1.[auto];
-
 service:s1 = {
  user = network:n1;
  permit src = user;
         dst = group:g &! interface:asa1.[auto];
         prt = tcp 22;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- services
 {
    "s1" : {
@@ -2074,37 +1792,28 @@ $out = <<'END';
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Service with empty rule';
-############################################################
-
-$in = <<'END';
+=TITLE=Service with empty rule
+=INPUT=
 owner:all = { admins = all@example.com; only_watch; show_all; }
 owner:a = { admins = a@example.com; }
-
 area:all = {owner = all; anchor = network:n1;}
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
-
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
-
 group:g = ;
-
 service:s1 = {
  description = test; test, test;# With comment
  user = network:n1;
  permit src = user; dst = group:g; prt = udp 162;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 -- owner/all/service_lists
 {
    "owner" : [],
@@ -2155,33 +1864,25 @@ $out = <<'END';
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Split service with "foreach"';
-############################################################
-
-$in = <<'END';
+=TITLE=Split service with "foreach"
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24;}
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {ip = 10.1.1.1; hardware = n1;}
  interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
 }
-
 network:n2  = {ip = 10.1.2.0/24;}
-
 service:ping_local = {
  user = foreach interface:r1.[all];
  permit src = any:[user]; dst = user; prt = icmp 8;
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --services
 {
    "ping_local(82hHHn8T)" : {
@@ -2225,34 +1926,25 @@ $out = <<'END';
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Reference different parts of zone cluster';
-############################################################
-
-$in = <<'END';
+=TITLE=Reference different parts of zone cluster
+=INPUT=
 owner:o = {admins = a@b.c;}
 network:n1 = {ip = 10.1.1.0/24; owner = o;}
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {ip = 10.1.1.1; hardware = n1;}
  interface:n2 = {ip = 10.1.2.1; hardware = n2;}
 }
-
 router:r2 = {
  interface:n1 = {ip = 10.1.1.2;}
  interface:n2 = {ip = 10.1.2.2;}
 }
-
 network:n2 = { ip = 10.1.2.0/24; owner = o;}
-
 pathrestriction:p = interface:r1.n2, interface:r2.n2;
-
 service:s1 = {
  user = any:[network:n1];
  permit src = user; dst = interface:r1.n1; prt = tcp 80;
@@ -2261,11 +1953,10 @@ service:s2 = {
  user = any:[network:n2];
  permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-END
-
+=END=
 # any:[network:n1] and any:[network:n2] both reference the same zone.
 # Deterministically use one of them in output.
-$out = <<'END';
+=OUTPUT=
 -- objects
 {
    "any:[network:n1]" : {
@@ -2308,37 +1999,28 @@ $out = <<'END';
       "any:[network:n1]"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Protocol modifiers';
-############################################################
-
-$in = <<'END';
+=TITLE=Protocol modifiers
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {ip = 10.1.1.1; hardware = n1;}
  interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
 }
-
 network:n2  = {ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; }}
-
 protocolgroup:ping_net_both = protocol:ping_net, protocol:ping_net_reply;
 protocol:ping_net = icmp 8, src_net, dst_net, overlaps, no_check_supernet_rules;
 protocol:ping_net_reply = icmp 8, src_net, dst_net, overlaps, reversed, no_check_supernet_rules;
-
 service:ping = {
  user = host:h1;
  permit src = user; dst = host:h2; prt = protocolgroup:ping_net_both;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --services
 {
    "ping" : {
@@ -2363,15 +2045,11 @@ $out = <<END;
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Dynamic NAT';
-############################################################
-
-$in = <<'END';
+=TITLE=Dynamic NAT
+=INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:D1 = { ip = 10.9.9.0/26; dynamic; }
@@ -2385,7 +2063,6 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
-
 router:r1 = {
  managed;
  model = ASA;
@@ -2395,8 +2072,6 @@ router:r1 = {
  interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = H; }
  interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = S; }
 }
-
-
 service:s1 = {
  user = host:h1, host:h2;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -2409,9 +2084,8 @@ service:s3 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 81;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --objects
 {
    "host:h1" : {
@@ -2456,32 +2130,25 @@ $out = <<END;
       "zone" : "any:[network:n2]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Negotiated interface';
-############################################################
-
-$in = <<'END';
+=TITLE=Negotiated interface
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { negotiated; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 service:s1 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --objects
 {
    "interface:r1.n1" : {
@@ -2492,32 +2159,25 @@ $out = <<END;
       "zone" : "any:[network:n2]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Host range';
-############################################################
-
-$in = <<'END';
+=TITLE=Host range
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { range = 10.1.1.10-10.1.1.17; } }
 network:n2 = { ip = 10.1.2.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { negotiated; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 service:s1 = {
  user = host:h1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --objects
 {
    "host:h1" : {
@@ -2528,21 +2188,16 @@ $out = <<END;
       "zone" : "any:[network:n2]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'hide_from_outer_owners, show_hidden_owners';
-############################################################
-
-$in = <<'END';
+=TITLE=hide_from_outer_owners, show_hidden_owners
+=INPUT=
 owner:a =  { admins = a@example.com; }
 owner:n1 = { admins = n1@example.com; hide_from_outer_owners; show_hidden_owners; }
 owner:h1 = { admins = h1@example.com; hide_from_outer_owners; }
 owner:n2 = { admins = n2@example.com; }
 owner:h2 = { admins = h2@example.com; hide_from_outer_owners; }
-
 any:a = { link = network:n1;     owner = a; }
 network:n1 = { ip = 10.1.1.0/24; owner = n1;
  host:h1 = { ip = 10.1.1.10; owner = h1; }
@@ -2551,7 +2206,6 @@ network:n2 = { ip = 10.1.2.0/24; owner = n2;
  host:h2 = { ip = 10.1.2.10; owner = h2; }
 }
 network:n3 = { ip = 10.1.3.0/24; }
-
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2;
@@ -2564,7 +2218,6 @@ router:r2 = {
  interface:dst = { ip = 10.2.1.2; hardware = dst; }
 }
 network:dst = { ip = 10.2.1.0/24; }
-
 service:a = {
  user = any:a;
  permit src = user; dst = network:dst; prt = tcp 80;
@@ -2589,9 +2242,8 @@ service:n3 = {
  user = network:n3;
  permit src = user; dst = network:dst; prt = tcp 85;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/a/service_lists
 {
    "owner" : [],
@@ -2631,25 +2283,19 @@ $out = <<END;
    ],
    "visible" : []
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'unnumbered';
-############################################################
-
-$in = <<'END';
+=TITLE=unnumbered
+=INPUT=
 owner:all = { admins = all@example.com; }
 owner:a1 = { admins = a1@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 any:a1 = { link = network:n2; owner = a1; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { unnumbered; }
 network:n3 = { unnumbered; }
 network:n4 = { ip = 10.1.4.0/24; }
-
 router:r1 = {
  interface:n1;
  interface:n2;
@@ -2667,14 +2313,12 @@ router:r3 = {
  interface:n3 = { unnumbered; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
-
 service:s1 = {
  user = any:[ip = 10.1.3.0/24 & network:n3];
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --objects
 {
    "any:[ip=10.1.3.0/24 & network:n3]" : {
@@ -2735,21 +2379,15 @@ $out = <<END;
       }
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Managed and unmanaged loopback interface';
-############################################################
-
-$in = <<'END';
+=TITLE=Managed and unmanaged loopback interface
+=INPUT=
 owner:all = { admins = all@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
@@ -2763,7 +2401,6 @@ router:r2 = {
  interface:l3 = { ip = 10.9.9.3; loopback; hardware = Loopback3; }
  interface:l4 = { ip = 10.9.9.4; loopback; hardware = Loopback4; }
 }
-
 service:s1 = {
  user = interface:r1.l1,
         interface:r2.l3,
@@ -2772,9 +2409,8 @@ service:s1 = {
         ;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/all/assets
 {
    "anys" : {
@@ -2848,21 +2484,15 @@ $out = <<END;
       "zone" : "any:[network:n2]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Redundant loopback interfaces';
-############################################################
-
-$in = <<'END';
+=TITLE=Redundant loopback interfaces
+=INPUT=
 owner:all = { admins = all@example.com; }
 owner:nms = { admins = nms@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
@@ -2877,14 +2507,12 @@ router:r2 = {
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
  interface:l1 = { virtual = { ip = 10.9.9.1; } loopback; hardware = Loopback1; }
 }
-
 service:s1 = {
  user = interface:r1.l1.virtual, interface:r2.l1.virtual;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/all/assets
 {
    "anys" : {
@@ -2941,19 +2569,14 @@ $out = <<END;
       "zone" : "any:[network:n1]"
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Recognize unmanaged interface as part of aggregate';
-############################################################
-
-$in = <<'END';
+=TITLE=Recognize unmanaged interface as part of aggregate
+=INPUT=
 owner:o0 = { admins = a0@example.com; }
 owner:o1 = { admins = a1@example.com; }
 any:a = { ip = 10.0.0.0/8; link = network:n1; }
-
 router:u = {
  interface:lo = { ip = 10.1.9.1; owner = o0; loopback; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; }
@@ -2966,14 +2589,12 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
-
 service:s1 = {
  user = any:a;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/o0/users
 {
  "s1": [
@@ -2986,22 +2607,16 @@ $out = <<END;
   "any:a"
  ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Disabled user, disabled in rule, disabled service';
-############################################################
-
-$in = <<'END';
+=TITLE=Disabled user, disabled in rule, disabled service
+=INPUT=
 owner:all = { admins = all@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
 network:n3 = { ip = 10.1.3.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
@@ -3009,7 +2624,6 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-
 service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n1; prt = tcp 81;
@@ -3037,9 +2651,8 @@ service:s6 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 86;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --owner/all/users
 {
    "s1" : [],
@@ -3182,25 +2795,19 @@ $out = <<END;
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Protocols';
-############################################################
-
-$in = <<'END';
+=TITLE=Protocols
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-
 protocol:ntp = udp 123:123;
 service:s1 = {
  user = network:n1;
@@ -3214,9 +2821,8 @@ service:s2 = {
         dst = network:n1;
         prt = tcp, udp, icmp;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --services
 {
    "s1" : {
@@ -3266,23 +2872,17 @@ $out = <<END;
       ]
    }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Split service with user in src and dst';
-############################################################
-
-$in = <<'END';
+=TITLE=Split service with user in src and dst
+=INPUT=
 owner:all = { admins = all@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
-
 router:r1 = {
  managed;
  model = IOS;
@@ -3306,7 +2906,6 @@ service:s1 = {
  permit src = user; dst = any:[user]; prt = tcp 80;
  permit src = any:[user]; dst = user; prt = tcp 81;
 }
-
 # Internally, this is rewritten to
 # "user = network:n1, network:n2, network:n3;"
 # because number of networks is larger than number of aggregates.
@@ -3315,28 +2914,24 @@ service:s2 = {
  permit src = user; dst = network:[user]; prt = tcp 82;
  permit src = network:[user]; dst = user; prt = tcp 83;
 }
-
 service:s3 = {
  user = network:n1, network:n2, network:n3;
  permit src = user; dst = any:[user]; prt = tcp 84;
  permit src = user &! network:n1; dst = network:n1; prt = tcp 85;
 }
-
 service:s4 = {
  user = network:n1, network:n2, network:n3;
  permit src = user; dst = any:[user]; prt = tcp 86;
  permit src = network:n1; dst = user &! network:n1; prt = tcp 87;
 }
-
 service:s5 = {
  user = foreach interface:r1.n1, interface:r3.n3;
  permit src = any:[interface:[user].[all]];
         dst = any:[interface:[user].[all]];
         prt = tcp 179;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --services
 {
    "s1" : {
@@ -3569,23 +3164,17 @@ $out = <<END;
       "any:[network:n2]"
    ]
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-$title = 'Re-join split parts from auto interfaces';
-############################################################
-
-$in = <<'END';
+=TITLE=Re-join split parts from auto interfaces
+=INPUT=
 area:all = { owner = all; anchor = network:n1;}
 owner:all = { admins = a@b.c; }
-
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24;}
 network:n4 = { ip = 10.1.4.0/24;}
-
 router:r1 = {
  routing = manual;
  managed;
@@ -3607,27 +3196,23 @@ router:r3 = {
  interface:n2 = { ip = 10.1.2.3; hardware = n2; }
  interface:n3 = { ip = 10.1.3.3; hardware = n3; }
 }
-
 router:r4 = {
  managed;
  model = IOS;
  interface:n2 = { ip = 10.1.2.4; hardware = n1; }
  interface:n4 = { ip = 10.1.4.4; hardware = n2;  }
 }
-
 pathrestriction:p1 = interface:r1.n1, interface:r1.n2;
 pathrestriction:p2 = interface:r2.n1, interface:r2.n2;
 pathrestriction:p3 = interface:r3.n1, interface:r3.n2;
-
 service:s1 = {
  user = interface:r1.[auto], interface:r2.[auto];
  permit src = user;
         dst = network:n3, network:n4;
         prt = tcp 49;
 }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --services
 {
    "s1(CbJX20AY)" : {
@@ -3684,75 +3269,55 @@ $out = <<END;
       "interface:r2.n2"
    ]
 }
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Copy POLICY file';
-############################################################
-
-$in = <<'END';
+=TITLE=Copy POLICY file
+=INPUT=
 -- POLICY
 # p1234
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
-END
-
-$out = <<END;
+=END=
+=OUTPUT=
 --objects
 {}
 -- POLICY
 # p1234
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Invalid options and arguments';
-############################################################
-
-$out = <<'END';
-Usage: bin/export-netspoc [options] netspoc-data out-directory
+=TITLE=Invalid option
+=VAR=usage
+Usage: export-netspoc [options] netspoc-data out-directory
   -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
-END
-
-my %in2out = (
-    ''      => $out,
-    '--foo'  => "Error: unknown flag: --foo\n$out",
-    'a'     => $out,
-    'a b c' => $out
-);
-
-for my $args (sort keys %in2out) {
-    my $perl_opt = $ENV{HARNESS_PERL_SWITCHES} || '';
-    my $cmd = "bin/export-netspoc $args";
-    my $stderr;
-    run3($cmd, \undef, \undef, \$stderr);
-    my $status = $?;
-    if ($status == 0) {
-        diag("Unexpected success\n");
-        fail($title);
-    }
-    eq_or_diff($stderr, $in2out{$args}, qq/$title: "$args"/);
-}
+=INPUT=NONE
+=OPTION=--foo
+=ERROR=
+Error: unknown flag: --foo
+${usage}
+=END=
 
 ############################################################
-$title = 'Preserve real NAT together with hidden NAT';
-############################################################
+=TITLE=Invalid argument
+=INPUT=NONE
+=PARAM=b
+=ERROR=
+${usage}
+=END=
 
+############################################################
+=TITLE=Preserve real NAT together with hidden NAT
 # Must preserve nat:n2 when combined with hidden nat:n3
 # in nat_set of owner:n23.
 # But nat:n2a isn't preserved when combined with non hidden nat:n3a.
-
-$in = <<'END';
+=INPUT=
 owner:all = { admins = all@example.com; }
 owner:n23 = { admins = n23@example.com; }
 owner:n4  = { admins = n4@example.com; }
 owner:h2  = { admins = h2@example.com; }
 owner:h3  = { admins = h3@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
 network:n0 = {
  ip = 10.1.0.0/24;
@@ -3768,7 +3333,6 @@ network:n1 = {
 network:n2 = { ip = 10.1.2.0/24; owner = n23; host:h2 = { ip = 10.1.2.2; owner = h2; } }
 network:n3 = { ip = 10.1.3.0/24; owner = n23; host:h3 = { ip = 10.1.3.3; owner = h3; } }
 network:n4 = { ip = 10.1.4.0/24; owner = n4;}
-
 router:r1 = {
  managed;
  model = IOS;
@@ -3779,9 +3343,8 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = n3, n3a; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = n4; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/all/nat_set
 []
 --owner/n23/nat_set
@@ -3802,22 +3365,15 @@ $out = <<'END';
    "n3",
    "n3a"
 ]
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Remove hidden NAT tags in combined nat-set';
-############################################################
-
-$in = <<'END';
+=TITLE=Remove hidden NAT tags in combined nat-set
+=INPUT=
 owner:all = { admins = all@example.com; }
-
 area:all = { anchor = network:n1; owner = all; }
-
 network:n1 = { ip = 10.1.1.0/24; nat:h1 = { hidden; } }
 network:n2 = { ip = 10.1.2.0/24; nat:h2 = { hidden; } }
-
 router:r1 = {
  routing = manual;
  managed;
@@ -3825,22 +3381,16 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/all/nat_set
 []
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Remove NAT tag used in two multi NAT sets';
-############################################################
-
-$in = <<'END';
+=TITLE=Remove NAT tag used in two multi NAT sets
+=INPUT=
 owner:o = { admins = o@example.com; }
-
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:n1 = { ip = 10.9.1.0/24; } nat:h1 = { hidden; }
@@ -3854,7 +3404,6 @@ network:n4 = { ip = 10.1.4.0/24; owner = o; } # h1 of [n1,h1], h2 of [n1,h2]
 network:n5 = { ip = 10.1.5.0/24; owner = o; } # {} of [n1,h1], h2 of [n1,h2]
 # combined of [n1,h1] = {}, combined of [n1,h2] = n1
 # must be combined to {}, not to n1
-
 router:r1 = {
  managed;
  model = ASA;
@@ -3864,42 +3413,33 @@ router:r1 = {
  interface:n4 = { ip = 10.1.4.1; hardware = n4; bind_nat = h1, h2; }
  interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = h2; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/o/nat_set
 []
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Remove NAT tag used in two multi NAT sets (2)';
-############################################################
-
-$in = <<'END';
+=TITLE=Remove NAT tag used in two multi NAT sets (2)
+=INPUT=
 owner:o1 = { admins = a1@example.com; }
 owner:o2 = { admins = a2@example.com; }
-
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:h1 = { hidden; }
  owner = o1;
 }
-
 network:n2 = {
  ip = 10.1.2.0/24;
  nat:t1 = { ip = 10.9.2.0/24; }
  nat:h2 = { hidden; }
  owner = o2;
 }
-
 network:n3 = {
  ip = 10.1.3.0/24;
  owner = o1;
 }
-
 router:r1 =  {
  managed;
  model = ASA;
@@ -3908,31 +3448,23 @@ router:r1 =  {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = t1; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/o1/nat_set
 []
 --owner/o2/nat_set
 [
    "h1"
 ]
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Ignore IPv6 in combined NAT for owner';
-############################################################
-
-$in = <<'END';
+=TITLE=Ignore IPv6 in combined NAT for owner
+=INPUT=
 -- ipv4
 owner:o = { admins = o@example.com; }
-
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; owner = o; }
-
-
 router:r1  = {
  managed = secondary;
  model = ASA;
@@ -3941,36 +3473,28 @@ router:r1  = {
 }
 -- ipv6
 network:n1_v6 = { ip = 1::/64; owner = o; }
-
 router:r1 = {
  managed;
  model = ASA;
  interface:n1_v6 = { ip = 1::1; hardware = n1; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --owner/o/nat_set
 [
    "n1"
 ]
-END
-
-test_run($title, $in, $out);	# No IPv6 test
+=END=
 
 ############################################################
-$title = 'Must not mark as is_supernet, if invisible identical subnet';
-############################################################
-
-$in = <<'END';
+=TITLE=Must not mark as is_supernet, if invisible identical subnet
+=INPUT=
 owner:all = { admins = all@example.com; }
 area:all = { anchor = network:n1a; owner = all; }
-
 network:n1a = {
  ip = 10.1.1.0/24;
  nat:hide_a = { hidden; }
 }
-
 router:r1 = {
  managed;
  routing = manual;
@@ -3978,7 +3502,6 @@ router:r1 = {
  interface:n1a = { ip = 10.1.1.1; hardware = n1a; bind_nat = hide_b; }
  interface:n1b = { ip = 10.1.1.2; hardware = n1b; bind_nat = hide_a; }
 }
-
 network:n1b = {
  ip = 10.1.1.0/24;
  subnet_of = network:n1-super;
@@ -3991,9 +3514,8 @@ network:n1-super = {
  ip = 10.1.0.0/16;
  nat:hide_b = { hidden; }
 }
-END
-
-$out = <<'END';
+=END=
+=OUTPUT=
 --objects
 {
  "interface:r1.n1a": {
@@ -4047,9 +3569,6 @@ $out = <<'END';
   "zone": "any:[network:n1b]"
  }
 }
-END
-
-test_run($title, $in, $out);
+=END=
 
 ############################################################
-done_testing;

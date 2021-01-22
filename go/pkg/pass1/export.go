@@ -602,7 +602,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 }
 
 // All objects referenced in rules and in networks and hosts of owners.
-var allObjects = make(map[srvObj]bool)
+var allObjects map[srvObj]bool
 
 func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 	c.progress("Setup service info")
@@ -1486,23 +1486,32 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 }
 
 func ExportMain() int {
+	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+
 	// Setup custom usage function.
-	pflag.Usage = func() {
+	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] netspoc-data out-directory\n\n", os.Args[0])
-		pflag.PrintDefaults()
+			"Usage: %s [options] netspoc-data out-directory\n", os.Args[0])
+		fs.PrintDefaults()
 	}
 
 	// Command line flags
-	quiet := pflag.BoolP("quiet", "q", false, "Don't print progress messages")
-	ipv6 := pflag.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
-	pflag.Parse()
+	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
+	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		if err == pflag.ErrHelp {
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fs.Usage()
+		return 1
+	}
 
 	// Argument processing
-	args := pflag.Args()
+	args := fs.Args()
 	if len(args) != 2 {
-		pflag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
 	path := args[0]
 	out := args[1]
@@ -1511,6 +1520,9 @@ func ExportMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
+
+	// Initialize global variable.
+	allObjects = make(map[srvObj]bool)
 
 	return toplevelSpoc(func(c *spoc) {
 		c.exportNetspoc(path, out)
