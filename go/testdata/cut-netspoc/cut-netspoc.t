@@ -569,7 +569,9 @@ service:test = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Area with border ouside of path
@@ -610,7 +612,9 @@ service:test = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Zone ouside of path
@@ -649,7 +653,9 @@ service:s1 = {
 =INPUT=
 ${input}
 any:n4 = { link = network:n4; }
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Replace empty area by empty group
@@ -749,7 +755,9 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Mark networks inside aggregate
@@ -850,7 +858,9 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Mark unmanaged at end of path
@@ -883,7 +893,9 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Mark 2x unmanaged at end of path
@@ -917,7 +929,9 @@ service:test = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Remove interface with multiple IP addresses
@@ -1602,7 +1616,9 @@ service:test = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Handle split router from pathrestriction
@@ -1849,7 +1865,9 @@ service:test2 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Take one of multiple crypto networks (1)
@@ -2088,7 +2106,9 @@ service:s2 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Unenforceable rule
@@ -2119,7 +2139,9 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Negated auto interface
@@ -2157,7 +2179,9 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################
 =TITLE=Negated interface
@@ -2183,6 +2207,8 @@ service:s1 = {
 }
 =END=
 =INPUT=${input}
-=OUTPUT=${input}
+=OUTPUT=
+${input}
+=END=
 
 ############################################################

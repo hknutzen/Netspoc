@@ -255,15 +255,12 @@ group:g =
 ;
 =END=
 =PARAM=host:a host:b
-=TODO=How to fill INPUT without EOL?
 
 ############################################################
-=TITLE=Unchanged list  at EOF
+=TITLE=Unchanged list at EOF
 =INPUT=group:g = host:a;
 =OUTPUT=group:g = host:a;
 =PARAM=host:x host:b
-=TODO=How to fill INPUT and OUPUT without EOL?
-
 
 ############################################################
 =TITLE=Find and change umlauts

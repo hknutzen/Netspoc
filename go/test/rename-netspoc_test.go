@@ -36,7 +36,7 @@ func renameTest(t *testing.T, d *tstdata.Descr) {
 	}
 	inFile := f.Name()
 	defer os.Remove(inFile)
-	if d.Input == "NONE\n" {
+	if d.Input == "NONE" {
 		d.Input = ""
 	}
 	if err := ioutil.WriteFile(inFile, []byte(d.Input), 0644); err != nil {
@@ -70,7 +70,7 @@ func renameTest(t *testing.T, d *tstdata.Descr) {
 			return
 		}
 		if d.Warning != "" || stderr != "" {
-			if d.Warning == "NONE\n" {
+			if d.Warning == "NONE" {
 				d.Warning = ""
 			}
 			assert.Equal(t, d.Warning, stderr)

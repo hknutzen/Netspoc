@@ -65,7 +65,7 @@ func groupTest(t *testing.T, d *tstdata.Descr) {
 			return
 		}
 		if d.Warning != "" || stderr != "" {
-			if d.Warning == "NONE\n" {
+			if d.Warning == "NONE" {
 				d.Warning = ""
 			}
 			assert.Equal(t, d.Warning, stderr)

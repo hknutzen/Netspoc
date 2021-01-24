@@ -113,7 +113,7 @@ func (s *state) parse() ([]*Descr, error) {
 				return nil, err
 			}
 			d = new(Descr)
-			d.Title = strings.TrimSuffix(text, "\n")
+			d.Title = text
 			seen = make(map[string]bool)
 		case "VAR":
 			if err := s.varDef(); err != nil {
@@ -139,9 +139,9 @@ func (s *state) parse() ([]*Descr, error) {
 			case "INPUT":
 				d.Input = text
 			case "OPTION":
-				d.Option = strings.TrimSuffix(text, "\n")
+				d.Option = text
 			case "PARAM":
-				d.Param = strings.TrimSuffix(text, "\n")
+				d.Param = text
 			case "OUTPUT":
 				d.Output = text
 			case "WARNING":
@@ -285,9 +285,6 @@ func (s *state) readText() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if !strings.HasSuffix(result, "\n") {
-			result += "\n"
-		}
 		return result, nil
 	}
 	// Read multiple lines up to start of next definition
@@ -331,7 +328,7 @@ func (s *state) getLine() (string, error) {
 // If no filename is given, preceeding filename is reused.
 // If no markers are given, a single file named STDIN is used.
 func PrepareInDir(inDir, input string) {
-	if input == "NONE\n" {
+	if input == "NONE" {
 		input = ""
 	}
 	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)

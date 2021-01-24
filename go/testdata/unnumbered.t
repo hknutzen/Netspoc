@@ -108,13 +108,17 @@ ip access-list extended eth2_in
  deny ip any any
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
 =INPUT=${input}
 =SUBST=/[network:clients]/[network:unn]/
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (1)

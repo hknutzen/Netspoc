@@ -241,7 +241,9 @@ access-group n1_in in interface n1
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 =END=
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Raw files for IPv6 and IPv4
@@ -249,7 +251,9 @@ access-group n1_in in interface n1
 =SUBST=|raw/r1|raw/ipv4/r1|
 =SUBST=|raw/ipv6/r1|raw/r1|
 =OPTION=--ipv6
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Invalid file and directory in raw/ipv6

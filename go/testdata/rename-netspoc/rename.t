@@ -221,13 +221,15 @@ group:g =
 ;
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
 =PARAM=router:R router:RR network:NN network:N
 
 ############################################################
 =TITLE=Rename network then router
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
 =PARAM=network:NN network:N router:R router:RR
 
 ############################################################

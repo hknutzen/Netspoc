@@ -130,13 +130,15 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
 =OPTION=--concurrency_pass2=8
 
 ############################################################
 =TITLE=Pass 2: 3 devices with 2 jobs
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
 =OPTION=--concurrency_pass2=2
 
 
