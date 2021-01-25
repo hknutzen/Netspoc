@@ -130,7 +130,9 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 			if d.Warning == "NONE" {
 				d.Warning = ""
 			}
-			assert.Equal(t, d.Warning, stderr)
+			t.Run("Warning", func(t *testing.T) {
+				assert.Equal(t, d.Warning, stderr)
+			})
 		} else if d.Output == "" {
 			t.Error("Missing output specification")
 			return
@@ -201,7 +203,9 @@ func netspocCheck(t *testing.T, spec, dir string) {
 		}
 		blocks := device2blocks[device]
 		expected := strings.Join(blocks, "")
-		assert.Equal(t, expected, getBlocks(string(data), blocks))
+		t.Run(device, func(t *testing.T) {
+			assert.Equal(t, expected, getBlocks(string(data), blocks))
+		})
 	}
 }
 
