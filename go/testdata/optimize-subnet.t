@@ -115,7 +115,7 @@ access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
-=TODO=1
+=TODO=Combined hosts prevent optimal object group
 
 
 ############################################################
@@ -162,6 +162,6 @@ ip access-list extended outside_in
  permit ip 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
 =END=
-=TODO=1
+=TODO=Optimize subnet of NAT network in zone
 
 ############################################################
