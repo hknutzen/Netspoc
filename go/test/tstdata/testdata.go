@@ -24,6 +24,7 @@ type Descr struct {
 	Error    string
 	ShowDiag bool
 	Todo     bool
+	WithOutD bool
 }
 
 // State
@@ -158,6 +159,8 @@ func (s *state) parse() ([]*Descr, error) {
 				d.ShowDiag = true
 			case "TODO":
 				d.Todo = true
+			case "WITH_OUTDIR":
+				d.WithOutD = true
 			default:
 				return nil, fmt.Errorf(
 					"unexpected =%s= in test with =TITLE=%s", name, d.Title)

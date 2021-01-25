@@ -1088,7 +1088,7 @@ Error: No valid path
  for rule permit src=network:n1; dst=network:n5; prt=tcp 90; of service:s2
  Check path restrictions and crypto interfaces.
 =END=
-=TODO=prepare_out_dir
+=WITH_OUTDIR=true
 
 ############################################################
 =TITLE=Show 'no valid path' for both sources
@@ -1170,7 +1170,7 @@ Error: No valid path
  for rule permit src=network:n2; dst=interface:r3.n3; prt=tcp 80; of service:test
  Check path restrictions and crypto interfaces.
 =END=
-=TODO=prepare_out_dir
+=WITH_OUTDIR=true
 
 ############################################################
 =TITLE=Show 'no valid path' for sources in different loops
@@ -1249,6 +1249,6 @@ Error: No valid path
  for rule permit src=network:n2; dst=network:n3; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
 =END=
-=TODO=prepare_out_dir
+=WITH_OUTDIR=true
 
 ############################################################

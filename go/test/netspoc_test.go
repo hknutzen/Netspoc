@@ -91,7 +91,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 
 	// Prepare output directory.
 	var outDir string
-	if typ == outDirT && d.Output != "" {
+	if typ == outDirT && d.Output != "" || d.WithOutD {
 		outDir = t.TempDir()
 		os.Args = append(os.Args, outDir)
 	}
