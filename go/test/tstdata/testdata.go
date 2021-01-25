@@ -16,6 +16,7 @@ type Descr struct {
 	Title    string
 	Input    string
 	Option   string
+	FOption  string
 	Param    string
 	Output   string
 	Warning  string
@@ -140,6 +141,8 @@ func (s *state) parse() ([]*Descr, error) {
 				d.Input = text
 			case "OPTION":
 				d.Option = text
+			case "FOPTION":
+				d.FOption = text
 			case "PARAM":
 				d.Param = text
 			case "OUTPUT":

@@ -279,11 +279,6 @@ group:BÖSE =
 
 ############################################################
 =TITLE=Read pairs from file
-=VAR=pairs
-host:abc network:abx
-network:xyz host:id:xyz@dom
-any:aaa group:bbb
-interface:r.n.sec interface:r.n
 =INPUT=
 group:g =
 interface:r.n, interface:r.n.sec,
@@ -303,8 +298,12 @@ group:g =
  host:id:xyz@dom,
 ;
 =END=
-=OPTION=-f $filename
-=TODO=Can't fill file from =VAR=
+=FOPTION=
+host:abc network:abx
+network:xyz host:id:xyz@dom
+any:aaa group:bbb
+interface:r.n.sec interface:r.n
+=END
 
 ############################################################
 =TITLE=Add multiple entries to one object

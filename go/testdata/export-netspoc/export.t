@@ -3289,7 +3289,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 ############################################################
 =TITLE=Invalid option
 =VAR=usage
-Usage: export-netspoc [options] netspoc-data out-directory
+Usage: PROGRAM [options] netspoc-data out-directory
   -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =INPUT=NONE

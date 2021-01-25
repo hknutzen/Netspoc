@@ -67,35 +67,29 @@ router:r = {
 =INPUT=${input}
 =OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
-
 group:G =
  interface:r.Toast,
  interface:r.Toast.virtual,
  host:id:h@dom.top.Toast,
  network:Toast,
 ;
-
 network:sub = {
  ip = 10.1.1.32/28;
  subnet_of = network:Toast;
 }
-
 area:a = {
  border = interface:r.Toast;
  inclusive_border = interface:r2.Toast;
 }
-
 area:b = {
  border = interface:Test.r,
           interface:r.Toast,
           ;
 }
-
 pathrestriction:P =
  interface:r1.Toast,
  interface:r2.Toast,
 ;
-
 router:r = {
  interface:Toast = {
   reroute_permit = network:Toast;
@@ -132,13 +126,11 @@ group:G = interface:r.Test,
 =OUTPUT=
 network:Toast/a = { ip = 10.9.1.0/24; }
 network:Toast/b = { ip = 10.9.1.0/24; }
-
 router:asa = {
  interface:Toast/a = { hardware = inside; }
  interface:Toast/b = { hardware = outside; }
  interface:Toast   = { hardware = device; }
 }
-
 group:G =
  interface:r.Toast,
  network:Toast/a,
@@ -193,7 +185,6 @@ group:G = interface:r.Test,
 =END=
 =OUTPUT=
 network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
-
 group:G =
  interface:r.1_2_3_0_Test,
  host:id:h@dom.top.1_2_3_0_Test,
@@ -213,9 +204,7 @@ group:g = interface:R.NN;
 router:RR = {
  interface:N = { ip = 10.9.1.1; }
 }
-
 network:N = { ip = 10.9.1.0/24; }
-
 group:g =
  interface:RR.N,
 ;
@@ -245,11 +234,9 @@ interface:R@vrf.n;
 router:RR = {
  interface:n = { ip = 10.9.1.1; }
 }
-
 router:r@vrf = {
  interface:n = { ip = 10.9.1.2; }
 }
-
 group:G =
  interface:RR.n,
  interface:r@vrf.n,
@@ -290,7 +277,6 @@ network:N = {
  ip = 1.2.3.0/24;
  nat:NAT-2 = { ip = 7.8.9.0; }
 }
-
 router:r = {
  interface:n1 = {
   bind_nat = NAT-2;
@@ -324,12 +310,10 @@ service:s1 = {
 =END=
 =OUTPUT=
 service:x1 = {
-
  unknown_owner;
  overlaps = service:s2,
             service:x3,
             ;
-
  user = network:n1;
  permit src = user;
         dst = network:n2;
@@ -351,11 +335,9 @@ group:G = interface:r1.Loopback_4,
 router:r1 = {
  interface:Loopback = { ip = 10.9.1.1; loopback; }
 }
-
 router:r2 = {
  interface:Loopback = { ip = 10.9.1.2; loopback; }
 }
-
 group:G =
  interface:r1.Loopback,
  interface:r2.Loopback,
@@ -376,25 +358,15 @@ network:n1 = {
 owner:Maass = {
  admins = a@b.c;
 }
-
 owner:Wittmüß = {
  admins = a@b.c;
 }
-
 network:n1 = { owner = Maass, Wittmüß; }
 =END=
 =PARAM=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
 
 ############################################################
 =TITLE=Read substitutions from file
-=VAR=file
-host:abc host:a1
-owner:foo owner:büro
-nat:tick nat:t1
-nat:ticks nat:t2
-nat:ick nat:_
-network:net network:xxxx
-=END=
 =INPUT=
 router:r = {
 interface:net = { bind_nat = ick,
@@ -424,8 +396,14 @@ network:xxxx = {
  host:a1 = { ip = 10.1.1.10; }
 }
 =END=
-=OPTION=-f file
-=TODO=
+=FOPTION=
+host:abc host:a1
+owner:foo owner:büro
+nat:tick nat:t1
+nat:ticks nat:t2
+nat:ick nat:_
+network:net network:xxxx
+=END=
 
 ############################################################
 =TITLE=Unknown file for substitutions

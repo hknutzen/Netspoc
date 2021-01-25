@@ -18,16 +18,6 @@ func TestFormatNetspoc(t *testing.T) {
 }
 
 func formatTest(t *testing.T, d *tstdata.Descr) {
-	if d.Todo {
-		t.Skip("skipping TODO test")
-	}
-
-	// Prepare options.
-	os.Args = []string{"print-group", "-q"}
-	if d.Option != "" {
-		options := strings.Split(d.Option, " ")
-		os.Args = append(os.Args, options...)
-	}
 
 	// Prepare input file.
 	f, err := ioutil.TempFile("", "spoc_input")

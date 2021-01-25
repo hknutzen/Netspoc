@@ -323,12 +323,6 @@ group:g =
  host:id:xyz@dom,
 ;
 =END=
-=VAR=filename
-network:abx
-host:id:xyz@dom
-group:bbb
-interface:r.n
-=END=
 =OUTPUT=
 group:g =
  any:aaa,
@@ -337,8 +331,12 @@ group:g =
  host:abc,
 ;
 =END=
-=OPTION=-f $filename
-=TODO=Can't fill file from =VAR=
+=FOPTION=
+network:abx
+host:id:xyz@dom
+group:bbb
+interface:r.n
+=END=
 
 ############################################################
 =TITLE=Element to remove does not exist

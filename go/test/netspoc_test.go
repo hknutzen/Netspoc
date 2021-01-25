@@ -35,6 +35,10 @@ func runTestFiles(
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
+					if descr.Todo {
+						t.Skip("skipping TODO test")
+					}
+					prepareOptions(t, descr)
 					f(t, descr)
 				})
 			}
@@ -42,35 +46,39 @@ func runTestFiles(
 	}
 }
 
-func netspocTest(t *testing.T, d *tstdata.Descr) {
-	if d.Todo {
-		t.Skip("skipping TODO test")
-	}
+func prepareOptions(t *testing.T, d *tstdata.Descr) {
 
-	// Prepare options.
-	os.Args = []string{"spoc1", "-q"}
+	// Initialize os.Args, add default options.
+	os.Args = []string{"PROGRAM", "-q"}
+
+	// Add more options from description.
 	if d.Option != "" {
 		options := strings.Split(d.Option, " ")
 		os.Args = append(os.Args, options...)
 	}
 
-	// Prepare input directory.
-	inDir, err := ioutil.TempDir("", "spoc_input")
-	if err != nil {
-		log.Fatal(err)
+	// Prepare file for option '-f file'
+	if d.FOption != "" {
+		dir := t.TempDir()
+		name := path.Join(dir, "file")
+		if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
+			log.Fatal(err)
+		}
+		os.Args = append(os.Args, "-f", name)
 	}
+}
+
+func netspocTest(t *testing.T, d *tstdata.Descr) {
+
+	// Prepare input directory.
+	inDir := t.TempDir()
 	tstdata.PrepareInDir(inDir, d.Input)
-	defer os.RemoveAll(inDir)
 	os.Args = append(os.Args, inDir)
 
 	// Prepare output directory
 	var outDir string
 	if d.Output != "" {
-		outDir, err = ioutil.TempDir("", "spoc_output")
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer os.RemoveAll(outDir)
+		outDir = t.TempDir()
 		os.Args = append(os.Args, outDir)
 	}
 

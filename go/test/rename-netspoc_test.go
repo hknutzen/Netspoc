@@ -18,16 +18,6 @@ func TestRenameNetspoc(t *testing.T) {
 }
 
 func renameTest(t *testing.T, d *tstdata.Descr) {
-	if d.Todo {
-		t.Skip("skipping TODO test")
-	}
-
-	// Prepare options.
-	os.Args = []string{"", "-q"}
-	if d.Option != "" {
-		options := strings.Split(d.Option, " ")
-		os.Args = append(os.Args, options...)
-	}
 
 	// Prepare input file.
 	f, err := ioutil.TempFile("", "spoc_input")
@@ -79,6 +69,8 @@ func renameTest(t *testing.T, d *tstdata.Descr) {
 			return
 		}
 		if d.Output != "" {
+			// Remove empty lines.
+			out = strings.ReplaceAll(out, "\n\n", "\n")
 			assert.Equal(t, d.Output, out)
 		}
 	} else {

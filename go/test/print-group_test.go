@@ -18,16 +18,6 @@ func TestPrintGroup(t *testing.T) {
 }
 
 func groupTest(t *testing.T, d *tstdata.Descr) {
-	if d.Todo {
-		t.Skip("skipping TODO test")
-	}
-
-	// Prepare options.
-	os.Args = []string{"print-group", "-q"}
-	if d.Option != "" {
-		options := strings.Split(d.Option, " ")
-		os.Args = append(os.Args, options...)
-	}
 
 	// Prepare input directory.
 	inDir, err := ioutil.TempDir("", "spoc_input")
