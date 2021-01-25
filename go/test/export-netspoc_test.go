@@ -1,7 +1,6 @@
 package netspoc_test
 
 import (
-	"encoding/json"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"gotest.tools/assert"
 	"io/ioutil"
@@ -43,20 +42,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// Compare JSON, if expected data looks like JSON.
-			if ok, _ := regexp.MatchString(`^\s*[\{\[]`, block); ok {
-				expJSON := new(interface{})
-				gotJSON := new(interface{})
-				if err = json.Unmarshal([]byte(block), expJSON); err != nil {
-					t.Errorf("Invalid JSON in ouput: %v", err)
-				}
-				if err = json.Unmarshal(data, gotJSON); err != nil {
-					t.Errorf("Invalid JSON spec: %s", err)
-				}
-				assert.DeepEqual(t, expJSON, gotJSON)
-			} else {
-				assert.Equal(t, block, string(data))
-			}
+			assert.Equal(t, block, string(data))
 		})
 	}
 

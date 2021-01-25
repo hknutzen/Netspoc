@@ -38,66 +38,66 @@ service:test = {
 =OUTPUT=
 --owner/x/assets
 {
-   "anys" : {
-      "any:[network:Kunde]" : {
-         "networks" : {
-            "network:Kunde" : [
-               "interface:asa.Kunde"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:Kunde]": {
+   "networks": {
+    "network:Kunde": [
+     "interface:asa.Kunde"
+    ]
    }
+  }
+ }
 }
 --owner/y/assets
 {
-   "anys" : {
-      "any:Big" : {
-         "networks" : {
-            "network:Big" : [
-               "host:B10",
-               "interface:asa.Big",
-               "interface:u.Big"
-            ]
-         }
-      }
+ "anys": {
+  "any:Big": {
+   "networks": {
+    "network:Big": [
+     "host:B10",
+     "interface:asa.Big",
+     "interface:u.Big"
+    ]
    }
+  }
+ }
 }
 --owner/z/assets
 {
-   "anys" : {
-      "any:Big" : {
-         "networks" : {
-            "network:Big" : [
-               "host:B10"
-            ],
-            "network:Sub" : [
-               "interface:u.Sub"
-            ]
-         }
-      }
+ "anys": {
+  "any:Big": {
+   "networks": {
+    "network:Big": [
+     "host:B10"
+    ],
+    "network:Sub": [
+     "interface:u.Sub"
+    ]
    }
+  }
+ }
 }
 --owner/x/service_lists
 {
-   "owner" : [
-      "test"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "test"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/y/service_lists
 {
-   "owner" : [],
-   "user" : [],
-   "visible" : []
+ "owner": [],
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test"
+ ],
+ "visible": []
 }
 =END=
 
@@ -113,17 +113,17 @@ service:test = {
 =OUTPUT=
 --owner/y/service_lists
 {
-   "owner" : [],
-   "user" : [],
-   "visible" : []
+ "owner": [],
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test"
+ ],
+ "visible": []
 }
 =END=
 
@@ -139,11 +139,11 @@ service:test = {
 =OUTPUT=
 --owner/z/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test"
+ ],
+ "visible": []
 }
 =END=
 
@@ -163,20 +163,20 @@ service:test2 = {
 =OUTPUT=
 --owner/y/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test2"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test2"
+ ],
+ "visible": []
 }
 --owner/z/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test",
-      "test2"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test",
+  "test2"
+ ],
+ "visible": []
 }
 =END=
 
@@ -196,20 +196,20 @@ service:test2 = {
 =OUTPUT=
 --owner/y/service_lists
 {
-   "owner" : [
-      "test2"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "test2"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/z/service_lists
 {
-   "owner" : [
-      "test",
-      "test2"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "test",
+  "test2"
+ ],
+ "user": [],
+ "visible": []
 }
 =END=
 
@@ -230,20 +230,20 @@ service:test2 = {
 =OUTPUT=
 --owner/y/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test2"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test2"
+ ],
+ "visible": []
 }
 --owner/z/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "test",
-      "test2"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "test",
+  "test2"
+ ],
+ "visible": []
 }
 =END=
 
@@ -266,29 +266,29 @@ owner:a = { admins = a@example.com; }
 =OUTPUT=
 -- objects
 {
-   "any:a" : {
-      "ip" : "0.0.0.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   },
-   "interface:r.n1" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "interface:r.n2" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   }
+ "any:a": {
+  "ip": "0.0.0.0",
+  "owner": "a",
+  "zone": "any:a"
+ },
+ "interface:r.n1": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "interface:r.n2": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:a"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:a"
+ }
 }
 =END=
 
@@ -310,35 +310,35 @@ router:r = {
 =OUTPUT=
 -- objects
 {
-   "any:a-14" : {
-      "ip" : "10.0.0.0/255.252.0.0",
-      "owner" : "a",
-      "zone" : "any:[network:n1]"
-   },
-   "any:a-8" : {
-      "ip" : "10.0.0.0/255.0.0.0",
-      "owner" : "b",
-      "zone" : "any:[network:n1]"
-   },
-   "any:a1-23" : {
-      "ip" : "10.1.0.0/255.255.254.0",
-      "owner" : "a",
-      "zone" : "any:[network:n1]"
-   },
-   "any:empty-23" : {
-      "ip" : "10.2.0.0/255.255.254.0",
-      "owner" : "b",
-      "zone" : "any:[network:n1]"
-   },
-   "interface:r.n1" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:[network:n1]"
-   }
+ "any:a-14": {
+  "ip": "10.0.0.0/255.252.0.0",
+  "owner": "a",
+  "zone": "any:[network:n1]"
+ },
+ "any:a-8": {
+  "ip": "10.0.0.0/255.0.0.0",
+  "owner": "b",
+  "zone": "any:[network:n1]"
+ },
+ "any:a1-23": {
+  "ip": "10.1.0.0/255.255.254.0",
+  "owner": "a",
+  "zone": "any:[network:n1]"
+ },
+ "any:empty-23": {
+  "ip": "10.2.0.0/255.255.254.0",
+  "owner": "b",
+  "zone": "any:[network:n1]"
+ },
+ "interface:r.n1": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:[network:n1]"
+ }
 }
 =END=
 
@@ -360,37 +360,37 @@ owner:b = { admins = b@example.com; }
 =OUTPUT=
 -- objects
 {
-   "any:a" : {
-      "ip" : "0.0.0.0",
-      "zone" : "any:a"
-   },
-   "interface:r.n1" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "interface:r.n2" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "interface:r.n3" : {
-      "ip" : "short",
-      "owner" : "b"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   },
-   "network:n3" : {
-      "ip" : "10.1.3.0/255.255.255.0",
-      "owner" : "b",
-      "zone" : "any:a"
-   }
+ "any:a": {
+  "ip": "0.0.0.0",
+  "zone": "any:a"
+ },
+ "interface:r.n1": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "interface:r.n2": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "interface:r.n3": {
+  "ip": "short",
+  "owner": "b"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:a"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:a"
+ },
+ "network:n3": {
+  "ip": "10.1.3.0/255.255.255.0",
+  "owner": "b",
+  "zone": "any:a"
+ }
 }
 =END=
 
@@ -426,35 +426,35 @@ owner:b = { admins = b@example.com; }
 =OUTPUT=
 -- objects
 {
-   "any:a" : {
-      "ip" : "0.0.0.0",
-      "is_supernet" : 1,
-      "zone" : "any:a"
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1"
-   },
-   "interface:r2.n2" : {
-      "ip" : "10.1.2.2"
-   },
-   "interface:u.n1" : {
-      "ip" : "short",
-      "owner" : "a"
-   },
-   "interface:u.n2" : {
-      "ip" : "short",
-      "owner" : "b"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "a",
-      "zone" : "any:a"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : "b",
-      "zone" : "any:a"
-   }
+ "any:a": {
+  "ip": "0.0.0.0",
+  "is_supernet": 1,
+  "zone": "any:a"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1"
+ },
+ "interface:r2.n2": {
+  "ip": "10.1.2.2"
+ },
+ "interface:u.n1": {
+  "ip": "short",
+  "owner": "a"
+ },
+ "interface:u.n2": {
+  "ip": "short",
+  "owner": "b"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "a",
+  "zone": "any:a"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "b",
+  "zone": "any:a"
+ }
 }
 =END=
 
@@ -492,64 +492,64 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
 []
 --owner/z/extended_by
 [
-   {
-      "name" : "x"
-   },
-   {
-      "name" : "y"
-   }
+ {
+  "name": "x"
+ },
+ {
+  "name": "y"
+ }
 ]
 --email
 {
-   "w@b.c" : [
-      "x",
-      "z"
-   ],
-   "x@b.c" : [
-      "x",
-      "z"
-   ],
-   "y@b.c" : [
-      "y",
-      "z"
-   ],
-   "z@b.c" : [
-      "z"
-   ]
+ "w@b.c": [
+  "x",
+  "z"
+ ],
+ "x@b.c": [
+  "x",
+  "z"
+ ],
+ "y@b.c": [
+  "y",
+  "z"
+ ],
+ "z@b.c": [
+  "z"
+ ]
 }
 --objects
 {
-   "interface:asa1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : "y"
-   },
-   "interface:asa1.n2" : {
-      "ip" : "10.2.2.1",
-      "owner" : "y"
-   },
-   "interface:asa2.n2" : {
-      "ip" : "10.2.2.2",
-      "owner" : "x"
-   },
-   "interface:asa2.n3" : {
-      "ip" : "10.3.3.1",
-      "owner" : "x"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "z",
-      "zone" : "any:[network:n1]"
-   },
-   "network:n2" : {
-      "ip" : "10.2.2.0/255.255.255.0",
-      "owner" : "x",
-      "zone" : "any:[network:n2]"
-   },
-   "network:n3" : {
-      "ip" : "10.3.3.0/255.255.255.0",
-      "owner" : "y",
-      "zone" : "any:[network:n3]"
-   }
+ "interface:asa1.n1": {
+  "ip": "10.1.1.1",
+  "owner": "y"
+ },
+ "interface:asa1.n2": {
+  "ip": "10.2.2.1",
+  "owner": "y"
+ },
+ "interface:asa2.n2": {
+  "ip": "10.2.2.2",
+  "owner": "x"
+ },
+ "interface:asa2.n3": {
+  "ip": "10.3.3.1",
+  "owner": "x"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "z",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.2.2.0/255.255.255.0",
+  "owner": "x",
+  "zone": "any:[network:n2]"
+ },
+ "network:n3": {
+  "ip": "10.3.3.0/255.255.255.0",
+  "owner": "y",
+  "zone": "any:[network:n3]"
+ }
 }
 =END=
 
@@ -605,63 +605,63 @@ service:h3 = {
 =OUTPUT=
 --owner/all/service_lists
 {
-   "owner" : [
-      "a2",
-      "agg16",
-      "h3",
-      "n2",
-      "n3"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "a2",
+  "agg16",
+  "h3",
+  "n2",
+  "n3"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/a2/service_lists
 {
-   "owner" : [
-      "a2",
-      "agg16",
-      "h3",
-      "n2",
-      "n3"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "a2",
+  "agg16",
+  "h3",
+  "n2",
+  "n3"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/n2/service_lists
 {
-   "owner" : [
-      "a2",
-      "agg16",
-      "h3",
-      "n2",
-      "n3"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "a2",
+  "agg16",
+  "h3",
+  "n2",
+  "n3"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/n3/service_lists
 {
-   "owner" : [
-      "a2",
-      "agg16",
-      "h3",
-      "n2",
-      "n3"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "a2",
+  "agg16",
+  "h3",
+  "n2",
+  "n3"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/h3/service_lists
 {
-   "owner" : [
-      "a2",
-      "agg16",
-      "h3",
-      "n2",
-      "n3"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "a2",
+  "agg16",
+  "h3",
+  "n2",
+  "n3"
+ ],
+ "user": [],
+ "visible": []
 }
 =END=
 
@@ -710,42 +710,42 @@ service:s3 = {
 =OUTPUT=
 --owner/x1/service_lists
 {
-   "owner" : [
-      "s2",
-      "s3"
-   ],
-   "user" : [
-      "s1"
-   ],
-   "visible" : []
+ "owner": [
+  "s2",
+  "s3"
+ ],
+ "user": [
+  "s1"
+ ],
+ "visible": []
 }
 --owner/x4/service_lists
 {
-   "owner" : [],
-   "user" : [],
-   "visible" : [
-      "s1"
-   ]
+ "owner": [],
+ "user": [],
+ "visible": [
+  "s1"
+ ]
 }
 --owner/DA_1/service_lists
 {
-   "owner" : [
-      "s1"
-   ],
-   "user" : [
-      "s2",
-      "s3"
-   ],
-   "visible" : []
+ "owner": [
+  "s1"
+ ],
+ "user": [
+  "s2",
+  "s3"
+ ],
+ "visible": []
 }
 --owner/DA_4/service_lists
 {
-   "owner" : [],
-   "user" : [],
-   "visible" : [
-      "s1",
-      "s2"
-   ]
+ "owner": [],
+ "user": [],
+ "visible": [
+  "s1",
+  "s2"
+ ]
 }
 =END=
 
@@ -787,7 +787,7 @@ router:r2 = {
 network:c1a = { ip = 10.0.100.16/28;}
 network:c1b = { ip = 10.0.101.16/28;}
 network:c2 = { ip = 10.137.15.0/24;}
-any:c2     = { ip = 10.140.0.0/16; link = network:c2; }
+any:c2   = { ip = 10.140.0.0/16; link = network:c2; }
 pathrestriction:r1 =
  interface:r1.t1, interface:r1.c1a, interface:r1.c1b
 ;
@@ -798,37 +798,37 @@ owner:o = { admins = o@b.c; }
 service:test = {
  sub_owner = o;
  user = any:[ip=10.140.0.0/16 & network:t1],
-        any:[ip=10.140.0.0/16 & network:t2],
+    any:[ip=10.140.0.0/16 & network:t2],
  ;
  permit src = user;
-        dst = network:n1;
-        prt = tcp 80;
+    dst = network:n1;
+    prt = tcp 80;
 }
 =END=
 =OUTPUT=
 --objects
 {
-   "any:[ip=10.140.0.0/16 & network:t1]" : {
-      "ip" : "10.140.0.0/255.255.0.0",
-      "is_supernet" : 1,
-      "zone" : "any:[network:t1]"
-   },
-   "any:c2" : {
-      "ip" : "10.140.0.0/255.255.0.0",
-      "is_supernet" : 1,
-      "zone" : "any:[network:t2]"
-   },
-   "network:n1" : {
-      "ip" : "10.1.54.0/255.255.255.0",
-      "zone" : "any:[network:n1]"
-   }
+ "any:[ip=10.140.0.0/16 & network:t1]": {
+  "ip": "10.140.0.0/255.255.0.0",
+  "is_supernet": 1,
+  "zone": "any:[network:t1]"
+ },
+ "any:c2": {
+  "ip": "10.140.0.0/255.255.0.0",
+  "is_supernet": 1,
+  "zone": "any:[network:t2]"
+ },
+ "network:n1": {
+  "ip": "10.1.54.0/255.255.255.0",
+  "zone": "any:[network:n1]"
+ }
 }
 --owner/o/users
 {
-   "test" : [
-      "any:[ip=10.140.0.0/16 & network:t1]",
-      "any:c2"
-   ]
+ "test": [
+  "any:[ip=10.140.0.0/16 & network:t1]",
+  "any:c2"
+ ]
 }
 =END=
 
@@ -937,147 +937,147 @@ network:n4 = { ip = 10.1.4.0/24; }
 =OUTPUT=
 --owner/a1/assets
 {
-   "anys" : {
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
    }
+  }
+ }
 }
 --owner/n2/assets
 {
-   "anys" : {
-      "any:[network:n2]" : {
-         "networks" : {
-            "network:n2" : [
-               "host:h10",
-               "interface:r1.n2",
-               "interface:r2.n2"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:n2]": {
+   "networks": {
+    "network:n2": [
+     "host:h10",
+     "interface:r1.n2",
+     "interface:r2.n2"
+    ]
    }
+  }
+ }
 }
 --owner/a12/assets
 {
-   "anys" : {
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      },
-      "any:[network:n2]" : {
-         "networks" : {
-            "network:n2" : [
-               "host:h10",
-               "interface:r1.n2",
-               "interface:r2.n2"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
    }
+  },
+  "any:[network:n2]": {
+   "networks": {
+    "network:n2": [
+     "host:h10",
+     "interface:r1.n2",
+     "interface:r2.n2"
+    ]
+   }
+  }
+ }
 }
 --owner/a123/assets
 {
-   "anys" : {
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      },
-      "any:[network:n2]" : {
-         "networks" : {
-            "network:n2" : [
-               "host:h10",
-               "interface:r1.n2",
-               "interface:r2.n2"
-            ]
-         }
-      },
-      "any:[network:n3]" : {
-         "networks" : {
-            "network:n3" : [
-               "interface:r2.n3"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
    }
+  },
+  "any:[network:n2]": {
+   "networks": {
+    "network:n2": [
+     "host:h10",
+     "interface:r1.n2",
+     "interface:r2.n2"
+    ]
+   }
+  },
+  "any:[network:n3]": {
+   "networks": {
+    "network:n3": [
+     "interface:r2.n3"
+    ]
+   }
+  }
+ }
 }
 --owner/all/assets
 {
-   "anys" : {
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      },
-      "any:[network:n2]" : {
-         "networks" : {
-            "network:n2" : [
-               "host:h10",
-               "interface:r1.n2",
-               "interface:r2.n2"
-            ]
-         }
-      },
-      "any:[network:n3]" : {
-         "networks" : {
-            "network:n3" : [
-               "interface:r2.n3"
-            ]
-         }
-      },
-      "any:[network:n4]" : {
-         "networks" : {
-            "network:n4" : [
-               "interface:r2.n4"
-            ]
-         }
-      }
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
    }
+  },
+  "any:[network:n2]": {
+   "networks": {
+    "network:n2": [
+     "host:h10",
+     "interface:r1.n2",
+     "interface:r2.n2"
+    ]
+   }
+  },
+  "any:[network:n3]": {
+   "networks": {
+    "network:n3": [
+     "interface:r2.n3"
+    ]
+   }
+  },
+  "any:[network:n4]": {
+   "networks": {
+    "network:n4": [
+     "interface:r2.n4"
+    ]
+   }
+  }
+ }
 }
 --owner/a123/extended_by
 [
-   {
-      "name" : "all"
-   }
+ {
+  "name": "all"
+ }
 ]
 --owner/a12/extended_by
 []
 --owner/a1/extended_by
 [
-   {
-      "name" : "a12"
-   },
-   {
-      "name" : "a123"
-   },
-   {
-      "name" : "all"
-   }
+ {
+  "name": "a12"
+ },
+ {
+  "name": "a123"
+ },
+ {
+  "name": "all"
+ }
 ]
 --owner/all/extended_by
 []
 --owner/n2/extended_by
 [
-   {
-      "name" : "a12"
-   },
-   {
-      "name" : "a123"
-   },
-   {
-      "name" : "all"
-   }
+ {
+  "name": "a12"
+ },
+ {
+  "name": "a123"
+ },
+ {
+  "name": "all"
+ }
 ]
 =END=
 
@@ -1118,30 +1118,30 @@ router:asa1 = {
 =OUTPUT=
 --owner/n1/extended_by
 [
-   {
-      "name" : "a12"
-   },
-   {
-      "name" : "all"
-   }
+ {
+  "name": "a12"
+ },
+ {
+  "name": "all"
+ }
 ]
 --owner/n2/extended_by
 [
-   {
-      "name" : "a12"
-   },
-   {
-      "name" : "all"
-   }
+ {
+  "name": "a12"
+ },
+ {
+  "name": "all"
+ }
 ]
 --owner/h3/extended_by
 [
-   {
-      "name" : "a3"
-   },
-   {
-      "name" : "all"
-   }
+ {
+  "name": "a3"
+ },
+ {
+  "name": "all"
+ }
 ]
 =END=
 
@@ -1168,40 +1168,40 @@ service:s1 = {
 =OUTPUT=
 --owner/all/service_lists
 {
-   "owner" : [
-      "s1"
-   ],
-   "user" : [],
-   "visible" : []
+ "owner": [
+  "s1"
+ ],
+ "user": [],
+ "visible": []
 }
 --owner/all/assets
 {
-   "anys" : {
-      "any:n1" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      }
+ "anys": {
+  "any:n1": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
    }
+  }
+ }
 }
 --objects
 {
-   "any:n1" : {
-      "ip" : "0.0.0.0",
-      "owner" : "n1",
-      "zone" : "any:n1"
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : "r1"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "n1",
-      "zone" : "any:n1"
-   }
+ "any:n1": {
+  "ip": "0.0.0.0",
+  "owner": "n1",
+  "zone": "any:n1"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "owner": "r1"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "n1",
+  "zone": "any:n1"
+ }
 }
 =END=
 
@@ -1262,86 +1262,86 @@ service:Test = {
 =OUTPUT=
 --objects
 {
-   "any:[ip=10.9.0.0/21 & network:v1]" : {
-      "ip" : "10.9.0.0/255.255.248.0",
-      "is_supernet" : 1,
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v1]"
-   },
-   "any:[ip=10.9.0.0/21 & network:v2]" : {
-      "ip" : "10.9.0.0/255.255.248.0",
-      "is_supernet" : 1,
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v2]"
-   },
-   "any:[ip=10.9.0.0/21 & network:v3]" : {
-      "ip" : "10.9.0.0/255.255.248.0",
-      "is_supernet" : 1,
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v3]"
-   },
-   "interface:VPN1.v1" : {
-      "ip" : "short",
-      "owner" : "Extern_VPN"
-   },
-   "interface:VPN2.v2" : {
-      "ip" : "short",
-      "owner" : "Extern_VPN"
-   },
-   "interface:VPN3.v3" : {
-      "ip" : "short",
-      "owner" : "Extern_VPN"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "zone" : "any:[network:n1]"
-   },
-   "network:v1" : {
-      "ip" : "10.9.1.0/255.255.255.0",
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v1]"
-   },
-   "network:v2" : {
-      "ip" : "10.9.2.0/255.255.255.0",
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v2]"
-   },
-   "network:v3" : {
-      "ip" : "10.9.3.0/255.255.255.0",
-      "owner" : "Extern_VPN",
-      "zone" : "any:[network:v3]"
-   }
+ "any:[ip=10.9.0.0/21 & network:v1]": {
+  "ip": "10.9.0.0/255.255.248.0",
+  "is_supernet": 1,
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v1]"
+ },
+ "any:[ip=10.9.0.0/21 & network:v2]": {
+  "ip": "10.9.0.0/255.255.248.0",
+  "is_supernet": 1,
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v2]"
+ },
+ "any:[ip=10.9.0.0/21 & network:v3]": {
+  "ip": "10.9.0.0/255.255.248.0",
+  "is_supernet": 1,
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v3]"
+ },
+ "interface:VPN1.v1": {
+  "ip": "short",
+  "owner": "Extern_VPN"
+ },
+ "interface:VPN2.v2": {
+  "ip": "short",
+  "owner": "Extern_VPN"
+ },
+ "interface:VPN3.v3": {
+  "ip": "short",
+  "owner": "Extern_VPN"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "zone": "any:[network:n1]"
+ },
+ "network:v1": {
+  "ip": "10.9.1.0/255.255.255.0",
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v1]"
+ },
+ "network:v2": {
+  "ip": "10.9.2.0/255.255.255.0",
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v2]"
+ },
+ "network:v3": {
+  "ip": "10.9.3.0/255.255.255.0",
+  "owner": "Extern_VPN",
+  "zone": "any:[network:v3]"
+ }
 }
 --services
 {
-   "Test" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "dst",
-            "prt" : [
-               "udp 53"
-            ],
-            "src" : [
-               "network:n1"
-            ]
-         }
-      ]
+ "Test": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "udp 53"
+    ],
+    "src": [
+     "network:n1"
+    ]
    }
+  ]
+ }
 }
 --owner/Extern_VPN/users
 {
-   "Test" : [
-      "network:v1",
-      "network:v2",
-      "network:v3"
-   ]
+ "Test": [
+  "network:v1",
+  "network:v2",
+  "network:v3"
+ ]
 }
 =END=
 
@@ -1385,201 +1385,201 @@ service:s2 = {
 =OUTPUT=
 --services
 {
-   "s1(OlWkR_nb)" : {
-      "details" : {
-         "owner" : [
-            "c"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r.n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 22"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s1(aZ1_3Qf8)" : {
-      "details" : {
-         "owner" : [
-            "b"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r.n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 22"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2(6J6zzaOm)" : {
-      "details" : {
-         "owner" : [
-            "d"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n4"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 23"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2(6w6A9_c5)" : {
-      "details" : {
-         "owner" : [
-            "a"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 23"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2(VzSrSJ63)" : {
-      "details" : {
-         "owner" : [
-            "a",
-            "d"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "both",
-            "prt" : [
-               "tcp 23"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2(en0TO5Ls)" : {
-      "details" : {
-         "owner" : [
-            "b"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r.n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 23"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2(fOSUGYLe)" : {
-      "details" : {
-         "owner" : [
-            "c"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r.n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 23"
-            ],
-            "src" : []
-         }
-      ]
+ "s1(OlWkR_nb)": {
+  "details": {
+   "owner": [
+    "c"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r.n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
    }
+  ]
+ },
+ "s1(aZ1_3Qf8)": {
+  "details": {
+   "owner": [
+    "b"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r.n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2(6J6zzaOm)": {
+  "details": {
+   "owner": [
+    "d"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n4"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 23"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2(6w6A9_c5)": {
+  "details": {
+   "owner": [
+    "a"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 23"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2(VzSrSJ63)": {
+  "details": {
+   "owner": [
+    "a",
+    "d"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "both",
+    "prt": [
+     "tcp 23"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2(en0TO5Ls)": {
+  "details": {
+   "owner": [
+    "b"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r.n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 23"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2(fOSUGYLe)": {
+  "details": {
+   "owner": [
+    "c"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r.n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 23"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 --owner/a/users
 {
-   "s1(aZ1_3Qf8)" : [
-      "network:n1"
-   ],
-   "s2(6w6A9_c5)" : [
-      "interface:r.n2"
-   ],
-   "s2(VzSrSJ63)" : [
-      "network:n1",
-      "network:n4"
-   ],
-   "s2(en0TO5Ls)" : [
-      "network:n1"
-   ]
+ "s1(aZ1_3Qf8)": [
+  "network:n1"
+ ],
+ "s2(6w6A9_c5)": [
+  "interface:r.n2"
+ ],
+ "s2(VzSrSJ63)": [
+  "network:n1",
+  "network:n4"
+ ],
+ "s2(en0TO5Ls)": [
+  "network:n1"
+ ]
 }
 --owner/b/users
 {
-   "s1(aZ1_3Qf8)" : [
-      "network:n1"
-   ],
-   "s2(6w6A9_c5)" : [
-      "interface:r.n2"
-   ],
-   "s2(en0TO5Ls)" : [
-      "network:n1"
-   ]
+ "s1(aZ1_3Qf8)": [
+  "network:n1"
+ ],
+ "s2(6w6A9_c5)": [
+  "interface:r.n2"
+ ],
+ "s2(en0TO5Ls)": [
+  "network:n1"
+ ]
 }
 --owner/c/users
 {
-   "s1(OlWkR_nb)" : [
-      "network:n4"
-   ],
-   "s2(6J6zzaOm)" : [
-      "interface:r.n3"
-   ],
-   "s2(fOSUGYLe)" : [
-      "network:n4"
-   ]
+ "s1(OlWkR_nb)": [
+  "network:n4"
+ ],
+ "s2(6J6zzaOm)": [
+  "interface:r.n3"
+ ],
+ "s2(fOSUGYLe)": [
+  "network:n4"
+ ]
 }
 --owner/d/users
 {
-   "s1(OlWkR_nb)" : [
-      "network:n4"
-   ],
-   "s2(6J6zzaOm)" : [
-      "interface:r.n3"
-   ],
-   "s2(VzSrSJ63)" : [
-      "network:n1",
-      "network:n4"
-   ],
-   "s2(fOSUGYLe)" : [
-      "network:n4"
-   ]
+ "s1(OlWkR_nb)": [
+  "network:n4"
+ ],
+ "s2(6J6zzaOm)": [
+  "interface:r.n3"
+ ],
+ "s2(VzSrSJ63)": [
+  "network:n1",
+  "network:n4"
+ ],
+ "s2(fOSUGYLe)": [
+  "network:n4"
+ ]
 }
 =END=
 
@@ -1608,27 +1608,27 @@ service:s1 = {
 =OUTPUT=
 --services
 {
-   "s1" : {
-      "details" : {
-         "owner" : [
-            "o2"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "icmp 0, reversed",
-               "icmp 8"
-            ],
-            "src" : []
-         }
-      ]
+ "s1": {
+  "details": {
+   "owner": [
+    "o2"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "icmp 0, reversed",
+     "icmp 8"
+    ],
+    "src": []
    }
+  ]
+ }
 }
 =END=
 
@@ -1643,13 +1643,13 @@ network:n1 = { ip = 10.1.1.0/24; }
 =OUTPUT=
 -- email
 {
-   "all@example.com" : [
-      "all",
-      "o"
-   ],
-   "o@example.com" : [
-      "o"
-   ]
+ "all@example.com": [
+  "all",
+  "o"
+ ],
+ "o@example.com": [
+  "o"
+ ]
 }
 -- owner/o/assets
 {}
@@ -1674,13 +1674,13 @@ router:r1 = {
 =OUTPUT=
 -- email
 {
-   "all@example.com" : [
-      "all",
-      "n1"
-   ],
-   "n1@example.com" : [
-      "n1"
-   ]
+ "all@example.com": [
+  "all",
+  "n1"
+ ],
+ "n1@example.com": [
+  "n1"
+ ]
 }
 =END=
 
@@ -1722,28 +1722,28 @@ area:a1 = { border = interface:r1.n1; owner = o1; }
 =OUTPUT=
 -- email
 {
-   "[all]@example.com" : [
-      "all_ex",
-      "o1",
-      "o2",
-      "o2s1",
-      "o2s2",
-      "o4"
-   ],
-   "all@example.com" : [
-      "all",
-      "o3"
-   ],
-   "o1@example.com" : [],
-   "o2@example.com" : [],
-   "o2s1@example.com" : [],
-   "o2s2@other" : [
-      "o2s2"
-   ],
-   "o3@sub.example.com" : [
-      "o3"
-   ],
-   "o4@example.com" : []
+ "[all]@example.com": [
+  "all_ex",
+  "o1",
+  "o2",
+  "o2s1",
+  "o2s2",
+  "o4"
+ ],
+ "all@example.com": [
+  "all",
+  "o3"
+ ],
+ "o1@example.com": [],
+ "o2@example.com": [],
+ "o2s1@example.com": [],
+ "o2s2@other": [
+  "o2s2"
+ ],
+ "o3@sub.example.com": [
+  "o3"
+ ],
+ "o4@example.com": []
 }
 =END=
 
@@ -1771,26 +1771,26 @@ service:s1 = {
 =OUTPUT=
 -- services
 {
-   "s1" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 22"
-            ],
-            "src" : []
-         }
-      ]
+ "s1": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 22"
+    ],
+    "src": []
    }
+  ]
+ }
 }
 =END=
 
@@ -1816,53 +1816,53 @@ service:s1 = {
 =OUTPUT=
 -- owner/all/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "s1"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "s1"
+ ],
+ "visible": []
 }
 -- owner/all/users
 {
-   "s1" : [
-      "network:n1"
-   ]
+ "s1": [
+  "network:n1"
+ ]
 }
 -- owner/a/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "s1"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "s1"
+ ],
+ "visible": []
 }
 -- owner/a/users
 {
-   "s1" : [
-      "network:n1"
-   ]
+ "s1": [
+  "network:n1"
+ ]
 }
 -- services
 {
-   "s1" : {
-      "details" : {
-         "description" : "test; test, test",
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "src",
-            "prt" : [
-               "udp 162"
-            ],
-            "src" : []
-         }
-      ]
+ "s1": {
+  "details": {
+   "description": "test; test, test",
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "src",
+    "prt": [
+     "udp 162"
+    ],
+    "src": []
    }
+  ]
+ }
 }
 =END=
 
@@ -1885,46 +1885,46 @@ service:ping_local = {
 =OUTPUT=
 --services
 {
-   "ping_local(82hHHn8T)" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r1.n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "icmp 8"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "ping_local(x8vMymBh)" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "interface:r1.n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "icmp 8"
-            ],
-            "src" : []
-         }
-      ]
+ "ping_local(82hHHn8T)": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r1.n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "icmp 8"
+    ],
+    "src": []
    }
+  ]
+ },
+ "ping_local(x8vMymBh)": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "interface:r1.n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "icmp 8"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 =END=
 
@@ -1959,45 +1959,45 @@ service:s2 = {
 =OUTPUT=
 -- objects
 {
-   "any:[network:n1]" : {
-      "ip" : "0.0.0.0",
-      "is_supernet" : 1,
-      "owner" : "o",
-      "zone" : "any:[network:n1]"
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1"
-   },
-   "interface:r1.n2" : {
-      "ip" : "10.1.2.1"
-   },
-   "interface:r2.n1" : {
-      "ip" : "10.1.1.2",
-      "owner" : "o"
-   },
-   "interface:r2.n2" : {
-      "ip" : "10.1.2.2",
-      "owner" : "o"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "o",
-      "zone" : "any:[network:n1]"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : "o",
-      "zone" : "any:[network:n1]"
-   }
+ "any:[network:n1]": {
+  "ip": "0.0.0.0",
+  "is_supernet": 1,
+  "owner": "o",
+  "zone": "any:[network:n1]"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1"
+ },
+ "interface:r2.n1": {
+  "ip": "10.1.1.2",
+  "owner": "o"
+ },
+ "interface:r2.n2": {
+  "ip": "10.1.2.2",
+  "owner": "o"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "o",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "o",
+  "zone": "any:[network:n1]"
+ }
 }
 --owner/o/users
 {
-   "s1" : [
-      "any:[network:n1]"
-   ],
-   "s2" : [
-      "any:[network:n1]"
-   ]
+ "s1": [
+  "any:[network:n1]"
+ ],
+ "s2": [
+  "any:[network:n1]"
+ ]
 }
 =END=
 
@@ -2023,27 +2023,27 @@ service:ping = {
 =OUTPUT=
 --services
 {
-   "ping" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "host:h2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "icmp 8, dst_net, reversed, src_net",
-               "icmp 8, dst_net, src_net"
-            ],
-            "src" : []
-         }
-      ]
+ "ping": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "host:h2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "icmp 8, dst_net, reversed, src_net",
+     "icmp 8, dst_net, src_net"
+    ],
+    "src": []
    }
+  ]
+ }
 }
 =END=
 
@@ -2088,47 +2088,47 @@ service:s3 = {
 =OUTPUT=
 --objects
 {
-   "host:h1" : {
-      "ip" : "10.1.1.10",
-      "nat" : {
-         "D1" : "10.9.9.10",
-         "D2" : "10.9.9.0/255.255.255.192",
-         "H" : "hidden",
-         "S" : "10.8.8.10"
-      }
-   },
-   "host:h2" : {
-      "ip" : "10.1.1.11",
-      "nat" : {
-         "D1" : "10.9.9.0/255.255.255.192",
-         "D2" : "10.9.9.0/255.255.255.192",
-         "H" : "hidden",
-         "S" : "10.8.8.11"
-      }
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "nat" : {
-         "D1" : "10.9.9.1",
-         "D2" : "10.9.9.0/255.255.255.192",
-         "H" : "hidden",
-         "S" : "10.8.8.1"
-      }
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "nat" : {
-         "D1" : "10.9.9.0/255.255.255.192",
-         "D2" : "10.9.9.0/255.255.255.192",
-         "H" : "hidden",
-         "S" : "10.8.8.0/255.255.255.0"
-      },
-      "zone" : "any:[network:n1]"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "zone" : "any:[network:n2]"
-   }
+ "host:h1": {
+  "ip": "10.1.1.10",
+  "nat": {
+   "D1": "10.9.9.10",
+   "D2": "10.9.9.0/255.255.255.192",
+   "H": "hidden",
+   "S": "10.8.8.10"
+  }
+ },
+ "host:h2": {
+  "ip": "10.1.1.11",
+  "nat": {
+   "D1": "10.9.9.0/255.255.255.192",
+   "D2": "10.9.9.0/255.255.255.192",
+   "H": "hidden",
+   "S": "10.8.8.11"
+  }
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "nat": {
+   "D1": "10.9.9.1",
+   "D2": "10.9.9.0/255.255.255.192",
+   "H": "hidden",
+   "S": "10.8.8.1"
+  }
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "nat": {
+   "D1": "10.9.9.0/255.255.255.192",
+   "D2": "10.9.9.0/255.255.255.192",
+   "H": "hidden",
+   "S": "10.8.8.0/255.255.255.0"
+  },
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "zone": "any:[network:n2]"
+ }
 }
 =END=
 
@@ -2151,13 +2151,13 @@ service:s1 = {
 =OUTPUT=
 --objects
 {
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.0/255.255.255.0"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "zone" : "any:[network:n2]"
-   }
+ "interface:r1.n1": {
+  "ip": "10.1.1.0/255.255.255.0"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "zone": "any:[network:n2]"
+ }
 }
 =END=
 
@@ -2180,13 +2180,13 @@ service:s1 = {
 =OUTPUT=
 --objects
 {
-   "host:h1" : {
-      "ip" : "10.1.1.10-10.1.1.17"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "zone" : "any:[network:n2]"
-   }
+ "host:h1": {
+  "ip": "10.1.1.10-10.1.1.17"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "zone": "any:[network:n2]"
+ }
 }
 =END=
 
@@ -2198,7 +2198,7 @@ owner:n1 = { admins = n1@example.com; hide_from_outer_owners; show_hidden_owners
 owner:h1 = { admins = h1@example.com; hide_from_outer_owners; }
 owner:n2 = { admins = n2@example.com; }
 owner:h2 = { admins = h2@example.com; hide_from_outer_owners; }
-any:a = { link = network:n1;     owner = a; }
+any:a = { link = network:n1;   owner = a; }
 network:n1 = { ip = 10.1.1.0/24; owner = n1;
  host:h1 = { ip = 10.1.1.10; owner = h1; }
 }
@@ -2246,42 +2246,42 @@ service:n3 = {
 =OUTPUT=
 --owner/a/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "a",
-      "n2",
-      "n3"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "a",
+  "n2",
+  "n3"
+ ],
+ "visible": []
 }
 --owner/n1/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "a",
-      "h1",
-      "n1"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "a",
+  "h1",
+  "n1"
+ ],
+ "visible": []
 }
 --owner/n2/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "a",
-      "n2"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "a",
+  "n2"
+ ],
+ "visible": []
 }
 --owner/h1/service_lists
 {
-   "owner" : [],
-   "user" : [
-      "a",
-      "h1",
-      "n1"
-   ],
-   "visible" : []
+ "owner": [],
+ "user": [
+  "a",
+  "h1",
+  "n1"
+ ],
+ "visible": []
 }
 =END=
 
@@ -2321,63 +2321,63 @@ service:s1 = {
 =OUTPUT=
 --objects
 {
-   "any:[ip=10.1.3.0/24 & network:n3]" : {
-      "ip" : "10.1.3.0/255.255.255.0",
-      "is_supernet" : 1,
-      "owner" : "all",
-      "zone" : "any:[network:n3]"
-   },
-   "any:a1" : {
-      "ip" : "0.0.0.0",
-      "is_supernet" : 1,
-      "owner" : "a1",
-      "zone" : "any:a1"
-   },
-   "interface:r1.n1" : {
-      "ip" : "short",
-      "owner" : "a1"
-   },
-   "interface:r2.l1" : {
-      "ip" : "10.9.9.9",
-      "zone" : "any:[interface:r2.l1]"
-   },
-   "interface:r3.n4" : {
-      "ip" : "10.1.4.1"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "a1",
-      "zone" : "any:a1"
-   },
-   "network:n4" : {
-      "ip" : "10.1.4.0/255.255.255.0",
-      "owner" : "all",
-      "zone" : "any:[network:n4]"
-   }
+ "any:[ip=10.1.3.0/24 & network:n3]": {
+  "ip": "10.1.3.0/255.255.255.0",
+  "is_supernet": 1,
+  "owner": "all",
+  "zone": "any:[network:n3]"
+ },
+ "any:a1": {
+  "ip": "0.0.0.0",
+  "is_supernet": 1,
+  "owner": "a1",
+  "zone": "any:a1"
+ },
+ "interface:r1.n1": {
+  "ip": "short",
+  "owner": "a1"
+ },
+ "interface:r2.l1": {
+  "ip": "10.9.9.9",
+  "zone": "any:[interface:r2.l1]"
+ },
+ "interface:r3.n4": {
+  "ip": "10.1.4.1"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "a1",
+  "zone": "any:a1"
+ },
+ "network:n4": {
+  "ip": "10.1.4.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n4]"
+ }
 }
 --owner/all/assets
 {
-   "anys" : {
-      "any:[interface:r2.l1]" : {
-         "networks" : {
-            "interface:r2.l1" : []
-         }
-      },
-      "any:[network:n4]" : {
-         "networks" : {
-            "network:n4" : [
-               "interface:r3.n4"
-            ]
-         }
-      },
-      "any:a1" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      }
+ "anys": {
+  "any:[interface:r2.l1]": {
+   "networks": {
+    "interface:r2.l1": []
    }
+  },
+  "any:[network:n4]": {
+   "networks": {
+    "network:n4": [
+     "interface:r3.n4"
+    ]
+   }
+  },
+  "any:a1": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
+   }
+  }
+ }
 }
 =END=
 
@@ -2413,76 +2413,76 @@ service:s1 = {
 =OUTPUT=
 --owner/all/assets
 {
-   "anys" : {
-      "any:[interface:r1.l1]" : {
-         "networks" : {
-            "interface:r1.l1" : []
-         }
-      },
-      "any:[interface:r1.l2]" : {
-         "networks" : {
-            "interface:r1.l2" : []
-         }
-      },
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1"
-            ]
-         }
-      },
-      "any:[network:n2]" : {
-         "networks" : {
-            "interface:r2.l3" : [],
-            "interface:r2.l4" : [],
-            "network:n2" : [
-               "interface:r1.n2",
-               "interface:r2.n2"
-            ]
-         }
-      }
+ "anys": {
+  "any:[interface:r1.l1]": {
+   "networks": {
+    "interface:r1.l1": []
    }
+  },
+  "any:[interface:r1.l2]": {
+   "networks": {
+    "interface:r1.l2": []
+   }
+  },
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
+   }
+  },
+  "any:[network:n2]": {
+   "networks": {
+    "interface:r2.l3": [],
+    "interface:r2.l4": [],
+    "network:n2": [
+     "interface:r1.n2",
+     "interface:r2.n2"
+    ]
+   }
+  }
+ }
 }
 --objects
 {
-   "interface:r1.l1" : {
-      "ip" : "10.9.9.1",
-      "zone" : "any:[interface:r1.l1]"
-   },
-   "interface:r1.l2" : {
-      "ip" : "10.9.9.2",
-      "zone" : "any:[interface:r1.l2]"
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1"
-   },
-   "interface:r1.n2" : {
-      "ip" : "10.1.2.1"
-   },
-   "interface:r2.l3" : {
-      "ip" : "10.9.9.3",
-      "owner" : "all",
-      "zone" : "any:[network:n2]"
-   },
-   "interface:r2.l4" : {
-      "ip" : "10.9.9.4",
-      "owner" : "all",
-      "zone" : "any:[network:n2]"
-   },
-   "interface:r2.n2" : {
-      "ip" : "10.1.2.2",
-      "owner" : "all"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "all",
-      "zone" : "any:[network:n1]"
-   },
-   "network:n2" : {
-      "ip" : "10.1.2.0/255.255.255.0",
-      "owner" : "all",
-      "zone" : "any:[network:n2]"
-   }
+ "interface:r1.l1": {
+  "ip": "10.9.9.1",
+  "zone": "any:[interface:r1.l1]"
+ },
+ "interface:r1.l2": {
+  "ip": "10.9.9.2",
+  "zone": "any:[interface:r1.l2]"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1"
+ },
+ "interface:r2.l3": {
+  "ip": "10.9.9.3",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ },
+ "interface:r2.l4": {
+  "ip": "10.9.9.4",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ },
+ "interface:r2.n2": {
+  "ip": "10.1.2.2",
+  "owner": "all"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ }
 }
 =END=
 
@@ -2515,59 +2515,59 @@ service:s1 = {
 =OUTPUT=
 --owner/all/assets
 {
-   "anys" : {
-      "any:[network:n1]" : {
-         "networks" : {
-            "network:n1" : [
-               "interface:r1.n1",
-               "interface:r2.n1"
-            ]
-         }
-      },
-      "any:[network:virtual:l1]" : {
-         "networks" : {
-            "interface:r1.l1.virtual" : [],
-            "interface:r2.l1.virtual" : []
-         }
-      }
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1",
+     "interface:r2.n1"
+    ]
    }
+  },
+  "any:[network:virtual:l1]": {
+   "networks": {
+    "interface:r1.l1.virtual": [],
+    "interface:r2.l1.virtual": []
+   }
+  }
+ }
 }
 --owner/nms/assets
 {
-   "anys" : {
-      "any:[network:virtual:l1]" : {
-         "networks" : {
-            "interface:r1.l1.virtual" : [],
-            "interface:r2.l1.virtual" : []
-         }
-      }
+ "anys": {
+  "any:[network:virtual:l1]": {
+   "networks": {
+    "interface:r1.l1.virtual": [],
+    "interface:r2.l1.virtual": []
    }
+  }
+ }
 }
 --objects
 {
-   "interface:r1.l1.virtual" : {
-      "ip" : "10.9.9.1",
-      "owner" : "nms",
-      "zone" : "any:[network:virtual:l1]"
-   },
-   "interface:r1.n1" : {
-      "ip" : "10.1.1.1",
-      "owner" : "nms"
-   },
-   "interface:r2.l1.virtual" : {
-      "ip" : "10.9.9.1",
-      "owner" : "nms",
-      "zone" : "any:[network:virtual:l1]"
-   },
-   "interface:r2.n1" : {
-      "ip" : "10.1.1.2",
-      "owner" : "nms"
-   },
-   "network:n1" : {
-      "ip" : "10.1.1.0/255.255.255.0",
-      "owner" : "all",
-      "zone" : "any:[network:n1]"
-   }
+ "interface:r1.l1.virtual": {
+  "ip": "10.9.9.1",
+  "owner": "nms",
+  "zone": "any:[network:virtual:l1]"
+ },
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "owner": "nms"
+ },
+ "interface:r2.l1.virtual": {
+  "ip": "10.9.9.1",
+  "owner": "nms",
+  "zone": "any:[network:virtual:l1]"
+ },
+ "interface:r2.n1": {
+  "ip": "10.1.1.2",
+  "owner": "nms"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ }
 }
 =END=
 
@@ -2655,145 +2655,145 @@ service:s6 = {
 =OUTPUT=
 --owner/all/users
 {
-   "s1" : [],
-   "s2" : [],
-   "s3" : [
-      "network:n1"
-   ],
-   "s4" : [
-      "network:n1"
-   ],
-   "s5" : [
-      "network:n1"
-   ],
-   "s6" : [
-      "network:n1"
-   ]
+ "s1": [],
+ "s2": [],
+ "s3": [
+  "network:n1"
+ ],
+ "s4": [
+  "network:n1"
+ ],
+ "s5": [
+  "network:n1"
+ ],
+ "s6": [
+  "network:n1"
+ ]
 }
 --services
 {
-   "s1" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 81"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 82"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s3" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 83"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s4" : {
-      "details" : {
-         "disabled" : 1,
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 84"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s5" : {
-      "details" : {
-         "disable_at" : "3000-12-31",
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 85"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s6" : {
-      "details" : {
-         "disable_at" : "1999-12-31",
-         "disabled" : 1,
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 86"
-            ],
-            "src" : []
-         }
-      ]
+ "s1": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 81"
+    ],
+    "src": []
    }
+  ]
+ },
+ "s2": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 82"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s3": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "src",
+    "prt": [
+     "tcp 83"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s4": {
+  "details": {
+   "disabled": 1,
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 84"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s5": {
+  "details": {
+   "disable_at": "3000-12-31",
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 85"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s6": {
+  "details": {
+   "disable_at": "1999-12-31",
+   "disabled": 1,
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 86"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 =END=
 
@@ -2825,52 +2825,52 @@ service:s2 = {
 =OUTPUT=
 --services
 {
-   "s1" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n2"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "54",
-               "icmp 0",
-               "icmp 3/13",
-               "tcp 80-90",
-               "udp 123:123"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s2" : {
-      "details" : {
-         "owner" : [
-            ":unknown"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "icmp",
-               "tcp",
-               "udp"
-            ],
-            "src" : []
-         }
-      ]
+ "s1": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "54",
+     "icmp 0",
+     "icmp 3/13",
+     "tcp 80-90",
+     "udp 123:123"
+    ],
+    "src": []
    }
+  ]
+ },
+ "s2": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "icmp",
+     "tcp",
+     "udp"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 =END=
 
@@ -2934,235 +2934,235 @@ service:s5 = {
 =OUTPUT=
 --services
 {
-   "s1" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 80"
-            ],
-            "src" : []
-         },
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "dst",
-            "prt" : [
-               "tcp 81"
-            ],
-            "src" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ]
-         }
-      ]
+ "s1": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
    },
-   "s2" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "dst",
-            "prt" : [
-               "tcp 82"
-            ],
-            "src" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ]
-         },
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 83"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s3(9S8D_GxA)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 84"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s3(POpjDd32)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n1"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 85"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s4(8QEgcJW-)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 86"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s4(avp-zO-c)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [],
-            "has_user" : "dst",
-            "prt" : [
-               "tcp 87"
-            ],
-            "src" : [
-               "network:n1"
-            ]
-         }
-      ]
-   },
-   "s5(Lg5S4o3m)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n2]",
-               "any:[network:n4]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 179"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s5(iIo0gt2o)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "any:[network:n1]",
-               "any:[network:n2]"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 179"
-            ],
-            "src" : []
-         }
-      ]
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "tcp 81"
+    ],
+    "src": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ]
    }
+  ]
+ },
+ "s2": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "tcp 82"
+    ],
+    "src": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ]
+   },
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 83"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s3(9S8D_GxA)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 84"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s3(POpjDd32)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 85"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s4(8QEgcJW-)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 86"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s4(avp-zO-c)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "dst",
+    "prt": [
+     "tcp 87"
+    ],
+    "src": [
+     "network:n1"
+    ]
+   }
+  ]
+ },
+ "s5(Lg5S4o3m)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n2]",
+     "any:[network:n4]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 179"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s5(iIo0gt2o)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n1]",
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 179"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 --owner/all/users
 {
-   "s1" : [
-      "network:n1",
-      "network:n2",
-      "network:n3"
-   ],
-   "s2" : [
-      "network:n1",
-      "network:n2",
-      "network:n3"
-   ],
-   "s3(9S8D_GxA)" : [
-      "network:n1",
-      "network:n2",
-      "network:n3"
-   ],
-   "s3(POpjDd32)" : [
-      "network:n2",
-      "network:n3"
-   ],
-   "s4(8QEgcJW-)" : [
-      "network:n1",
-      "network:n2",
-      "network:n3"
-   ],
-   "s4(avp-zO-c)" : [
-      "network:n2",
-      "network:n3"
-   ],
-   "s5(Lg5S4o3m)" : [
-      "any:[network:n2]",
-      "any:[network:n4]"
-   ],
-   "s5(iIo0gt2o)" : [
-      "any:[network:n1]",
-      "any:[network:n2]"
-   ]
+ "s1": [
+  "network:n1",
+  "network:n2",
+  "network:n3"
+ ],
+ "s2": [
+  "network:n1",
+  "network:n2",
+  "network:n3"
+ ],
+ "s3(9S8D_GxA)": [
+  "network:n1",
+  "network:n2",
+  "network:n3"
+ ],
+ "s3(POpjDd32)": [
+  "network:n2",
+  "network:n3"
+ ],
+ "s4(8QEgcJW-)": [
+  "network:n1",
+  "network:n2",
+  "network:n3"
+ ],
+ "s4(avp-zO-c)": [
+  "network:n2",
+  "network:n3"
+ ],
+ "s5(Lg5S4o3m)": [
+  "any:[network:n2]",
+  "any:[network:n4]"
+ ],
+ "s5(iIo0gt2o)": [
+  "any:[network:n1]",
+  "any:[network:n2]"
+ ]
 }
 =END=
 
@@ -3215,59 +3215,59 @@ service:s1 = {
 =OUTPUT=
 --services
 {
-   "s1(CbJX20AY)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n4"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 49"
-            ],
-            "src" : []
-         }
-      ]
-   },
-   "s1(se22rxX1)" : {
-      "details" : {
-         "owner" : [
-            "all"
-         ]
-      },
-      "rules" : [
-         {
-            "action" : "permit",
-            "dst" : [
-               "network:n3"
-            ],
-            "has_user" : "src",
-            "prt" : [
-               "tcp 49"
-            ],
-            "src" : []
-         }
-      ]
+ "s1(CbJX20AY)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n4"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 49"
+    ],
+    "src": []
    }
+  ]
+ },
+ "s1(se22rxX1)": {
+  "details": {
+   "owner": [
+    "all"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n3"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 49"
+    ],
+    "src": []
+   }
+  ]
+ }
 }
 --owner/all/users
 {
-   "s1(CbJX20AY)" : [
-      "interface:r1.n2",
-      "interface:r2.n2"
-   ],
-   "s1(se22rxX1)" : [
-      "interface:r1.n1",
-      "interface:r1.n2",
-      "interface:r2.n1",
-      "interface:r2.n2"
-   ]
+ "s1(CbJX20AY)": [
+  "interface:r1.n2",
+  "interface:r2.n2"
+ ],
+ "s1(se22rxX1)": [
+  "interface:r1.n1",
+  "interface:r1.n2",
+  "interface:r2.n1",
+  "interface:r2.n2"
+ ]
 }
 =END=
 
@@ -3346,21 +3346,21 @@ router:r1 = {
 []
 --owner/n23/nat_set
 [
-   "n2"
+ "n2"
 ]
 --owner/n4/nat_set
 [
-   "n4"
+ "n4"
 ]
 --owner/h2/nat_set
 [
-   "n2",
-   "n2a"
+ "n2",
+ "n2a"
 ]
 --owner/h3/nat_set
 [
-   "n3",
-   "n3a"
+ "n3",
+ "n3a"
 ]
 =END=
 
@@ -3451,7 +3451,7 @@ router:r1 =  {
 []
 --owner/o2/nat_set
 [
-   "h1"
+ "h1"
 ]
 =END=
 
@@ -3479,7 +3479,7 @@ router:r1 = {
 =OUTPUT=
 --owner/o/nat_set
 [
-   "n1"
+ "n1"
 ]
 =END=
 
