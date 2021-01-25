@@ -76,8 +76,6 @@ Warning: Useless owner:t1 at network:Trans2,
 
 ############################################################
 =TITLE=Duplicate IP from NAT in zone
-# Must only allow traffic from network:A, but not from network:B
-# at filter1.
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
 network:B = { ip = 10.3.3.128/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -101,7 +99,7 @@ service:s1 = {
 =ERROR=
 Error: network:B and network:A have identical IP/mask at interface:filter1.Trans
 =END=
-=TODO=
+=TODO=Must only allow traffic from network:A, but not from network:B at filter1
 
 ############################################################
 =TITLE=No secondary optimization for network with subnet in other zone
