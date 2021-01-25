@@ -44,7 +44,7 @@ service:s = {
 10.1.3.26	host:h3b
 10.1.3.65-10.1.3.67	host:h3d
 =END=
-=OPTION=--unused
+=OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
 ############################################################
@@ -65,7 +65,7 @@ service:s = {
 10.1.3.66	host:h3c
 10.1.3.65-10.1.3.67	host:h3d
 =END=
-=OPTION=--unused
+=OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
 ############################################################
@@ -84,7 +84,7 @@ service:s = {
 10.1.3.26	host:h3b
 10.1.3.65-10.1.3.67	host:h3d
 =END=
-=OPTION=--unused
+=OPTIONS=--unused
 =PARAM=host:[network:n1, network:n3]
 
 ############################################################
@@ -212,7 +212,7 @@ group:Über = network:n1;
 =OUTPUT=
 10.1.1.0/24	network:n1
 =END=
-=OPTION=-u
+=OPTIONS=-u
 =PARAM=network:[any:[network:n1]]
 
 
@@ -258,7 +258,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 10.9.1.10	host:h1s
 10.9.1.0/28	host:h1d
 =END=
-=OPTION=--nat k1
+=OPTIONS=--nat k1
 =PARAM=network:n1, host:h1s, host:h1d
 
 ############################################################
@@ -268,7 +268,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 10.9.2.0/24	network:n2
 10.9.2.10	host:h2
 =END=
-=OPTION=--nat k1
+=OPTIONS=--nat k1
 =PARAM=network:n2,host:h2
 
 ############################################################
@@ -278,7 +278,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 hidden	network:n3
 hidden	host:h3
 =END=
-=OPTION=--nat k1
+=OPTIONS=--nat k1
 =PARAM=network:n3,host:h3
 
 ############################################################
@@ -287,7 +287,7 @@ hidden	host:h3
 =OUTPUT=
 unnumbered	network:t1
 =END=
-=OPTION=--nat k1
+=OPTIONS=--nat k1
 =PARAM=network:t1
 
 ############################################################
@@ -300,7 +300,7 @@ hidden	interface:r1.n3
 unnumbered	interface:r1.t1
 unknown	interface:r1.[auto]
 =END=
-=OPTION=--nat k1
+=OPTIONS=--nat k1
 =PARAM=interface:r1.[all],interface:r1.[auto]
 
 ############################################################
@@ -359,7 +359,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 10.1.1.0/24	network:n1	owner:o
 10.1.2.0/24	network:n2	none
 =END=
-=OPTION=--owner
+=OPTIONS=--owner
 =PARAM=network:n1, network:n2
 
 ############################################################
@@ -369,7 +369,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 network:n1	owner:o
 network:n2	none
 =END=
-=OPTION=-n -o
+=OPTIONS=-n -o
 =PARAM=network:[any:[network:n1]]
 
 ############################################################
@@ -379,7 +379,7 @@ network:n2	none
 network:n1
 network:n2
 =END=
-=OPTION=--name
+=OPTIONS=--name
 =PARAM=network:[any:[network:n1]]
 
 ############################################################
@@ -389,7 +389,7 @@ network:n2
 10.1.1.0/24
 10.1.2.0/24
 =END=
-=OPTION=--ip
+=OPTIONS=--ip
 =PARAM=network:[any:[network:n1]]
 
 ############################################################
@@ -414,7 +414,7 @@ network:n1	owner:o1	o1@b.c
 network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
 network:n3a	owner:o1	o1@b.c
 =END=
-=OPTION=--name --owner --admins
+=OPTIONS=--name --owner --admins
 =PARAM=network:n1, network:n2, network:n3a
 
 ############################################################
@@ -425,7 +425,7 @@ network:n1	o1@b.c
 network:n2	o2a@d.e.f,o2b@g.h.i
 network:n3a	o1@b.c
 =END=
-=OPTION=--name -a
+=OPTIONS=--name -a
 =PARAM=network:n1, network:n2, network:n3a
 
 ############################################################
@@ -457,7 +457,7 @@ group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
 10.1.3.0	interface:r2.n3
 10.7.7.0	interface:r2.n5
 =END=
-=OPTION=--nat n1
+=OPTIONS=--nat n1
 =PARAM=group:g1
 
 ############################################################

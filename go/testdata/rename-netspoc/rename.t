@@ -2,7 +2,7 @@
 ############################################################
 =TITLE=Unknown type in substitution
 =INPUT=NONE
-=PARAM=foo:Test foo:Toast
+=PARAMS=foo:Test foo:Toast
 =ERROR=
 Error: Unknown type foo
 =END=
@@ -10,7 +10,7 @@ Error: Unknown type foo
 ############################################################
 =TITLE=Missing type in substitution
 =INPUT=NONE
-=PARAM=Test Toast
+=PARAMS=Test Toast
 =ERROR=
 Error: Missing type in 'Test'
 =END=
@@ -18,7 +18,7 @@ Error: Missing type in 'Test'
 ############################################################
 =TITLE=Missing replace string
 =INPUT=NONE
-=PARAM=host:x host:y host:z
+=PARAMS=host:x host:y host:z
 =ERROR=
 Error: Missing replace string for 'host:z'
 =END=
@@ -26,7 +26,7 @@ Error: Missing replace string for 'host:z'
 ############################################################
 =TITLE=Types must be indentical
 =INPUT=NONE
-=PARAM=host:x network:y
+=PARAMS=host:x network:y
 =ERROR=
 Error: Types must be identical in
  - host:x
@@ -36,7 +36,7 @@ Error: Types must be identical in
 ############################################################
 =TITLE=Ambiguous replace object
 =INPUT=NONE
-=PARAM=group:g group:x group:g group:y
+=PARAMS=group:g group:x group:g group:y
 =ERROR=
 Error: Ambiguous substitution for group:g: group:x, group:y
 =END=
@@ -96,7 +96,7 @@ router:r = {
  }
 }
 =END=
-=PARAM=network:Test network:Toast
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename verbosely
@@ -104,8 +104,8 @@ router:r = {
 =WARNING=
 13 changes in INPUT
 =END=
-=OPTION=--quiet=0
-=PARAM=network:Test network:Toast
+=OPTIONS=--quiet=0
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename bridged network
@@ -138,7 +138,7 @@ group:G =
  interface:r.Toast/b,
 ;
 =END=
-=PARAM=network:Test network:Toast
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename ID host
@@ -156,7 +156,7 @@ group:G =
  host:id:a.b.c.Test,
 ;
 =END=
-=PARAM=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
+=PARAMS=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
 
 ############################################################
 =TITLE=Rename both, ID host and network
@@ -172,7 +172,7 @@ group:G =
  host:id:xx@yy.zz.top,
 ;
 =END=
-=PARAM=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
+=PARAMS=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
 
 ############################################################
 =TITLE=Rename network to name with leading digit
@@ -191,7 +191,7 @@ group:G =
  network:1_2_3_0_Test,
 ;
 =END=
-=PARAM=network:Test network:1_2_3_0_Test
+=PARAMS=network:Test network:1_2_3_0_Test
 
 ############################################################
 =TITLE=Rename router then network
@@ -212,14 +212,14 @@ group:g =
 =INPUT=${input}
 =OUTPUT=
 ${output}
-=PARAM=router:R router:RR network:NN network:N
+=PARAMS=router:R router:RR network:NN network:N
 
 ############################################################
 =TITLE=Rename network then router
 =INPUT=${input}
 =OUTPUT=
 ${output}
-=PARAM=network:NN network:N router:R router:RR
+=PARAMS=network:NN network:N router:R router:RR
 
 ############################################################
 =TITLE=Rename VRF router
@@ -242,7 +242,7 @@ group:G =
  interface:r@vrf.n,
 ;
 =END=
-=PARAM=router:R router:RR router:R@vrf router:r@vrf
+=PARAMS=router:R router:RR router:R@vrf router:r@vrf
 
 ############################################################
 =TITLE=Rename inside automatic group
@@ -254,7 +254,7 @@ group:g =
  interface:[network:NN].[all],
 ;
 =END=
-=PARAM=network:n1 network:NN
+=PARAMS=network:n1 network:NN
 
 ############################################################
 =TITLE=Rename nat
@@ -296,7 +296,7 @@ router:r = {
  }
 }
 =END=
-=PARAM=nat:NAT-1 nat:NAT-2
+=PARAMS=nat:NAT-1 nat:NAT-2
 
 ############################################################
 =TITLE=Rename service
@@ -320,7 +320,7 @@ service:x1 = {
         prt = tcp 80;
 }
 =END=
-=PARAM=service:s1 service:x1 service:s3 service:x3
+=PARAMS=service:s1 service:x1 service:s3 service:x3
 
 ############################################################
 =TITLE=Rename loopback interface
@@ -343,7 +343,7 @@ group:G =
  interface:r2.Loopback,
 ;
 =END=
-=PARAM=network:Loopback_4 network:Loopback
+=PARAMS=network:Loopback_4 network:Loopback
 
 ############################################################
 =TITLE=Rename umlauts
@@ -363,7 +363,7 @@ owner:Wittmüß = {
 }
 network:n1 = { owner = Maass, Wittmüß; }
 =END=
-=PARAM=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
+=PARAMS=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
 
 ############################################################
 =TITLE=Read substitutions from file
@@ -411,6 +411,6 @@ network:net network:xxxx
 =ERROR=
 Error: open missing.file: no such file or directory
 =END=
-=OPTION=-f missing.file
+=OPTIONS=-f missing.file
 
 ############################################################

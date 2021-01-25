@@ -119,7 +119,7 @@ service:pdp3 = {
 --asa2
 ! [ IP = 10.1.3.2 ]
 =END=
-=OPTION=--check_policy_distribution_point=warn
+=OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################
 =TITLE=Missing policy distribution point
@@ -145,7 +145,7 @@ service:pdp3 = {
 Warning: Missing attribute 'policy_distribution_point' for 1 devices:
  - router:asa1
 =END=
-=OPTION=--check_policy_distribution_point=warn
+=OPTIONS=--check_policy_distribution_point=warn
 
 ############################################################
 =TITLE=Overlapping areas

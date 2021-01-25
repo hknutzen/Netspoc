@@ -53,7 +53,7 @@ Aborted
 
 ############################################################
 =TITLE=Command line option overwrites config file
-=OPTION=--check_unused_groups=warn
+=OPTIONS=--check_unused_groups=warn
 =INPUT=
 -- config
 check_unused_groups = 1;
@@ -66,23 +66,25 @@ Warning: unused group:g
 
 ############################################################
 =TITLE=Invalid value for command line option
-=OPTION=--check_unused_groups=foo
+=OPTIONS=--check_unused_groups=foo
 =INPUT= #none
 =ERROR=
 Error: invalid argument "foo" for "--check_unused_groups" flag: Expected 0|1|warn but got foo
+Aborted
 =END=
 
 ############################################################
 =TITLE=Invalid command line option
-=OPTION=--foo=foo
+=OPTIONS=--foo=foo
 =INPUT= #
 =ERROR=
 Error: unknown flag: --foo
+Aborted
 =END=
 
 ############################################################
 =TITLE=Non existent out directory
-=PARAM=missing.dir/file
+=PARAMS=missing.dir/file
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r = {

@@ -197,7 +197,7 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Unknown element type at line 3 of STDIN, near "group:g1 = --HERE-->foo:bar"
+Error: Unknown element type at line 3 of INPUT, near "group:g1 = --HERE-->foo:bar"
 Aborted
 =END=
 
@@ -214,7 +214,7 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Unexpected automatic group at line 3 of STDIN, near "group:g1 = --HERE-->area:[network:n]"
+Error: Unexpected automatic group at line 3 of INPUT, near "group:g1 = --HERE-->area:[network:n]"
 Aborted
 =END=
 

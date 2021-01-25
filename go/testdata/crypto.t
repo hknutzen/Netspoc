@@ -1530,7 +1530,7 @@ network:customers3 = {
 Error: All ID hosts having domain '@domain.x' must use identical value from 'check-extended-key-usage'
 Error: All ID hosts having domain '@domain.y' must use identical value from 'check-extended-key-usage'
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=VPN ASA with internal software clients
@@ -1651,7 +1651,7 @@ access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=Missing route for VPN ASA with internal software clients

@@ -26,7 +26,7 @@ group:G =
  host:y,
 ;
 =END=
-=PARAM=host:Toast
+=PARAMS=host:Toast
 
 ############################################################
 =TITLE=host after automatic group
@@ -43,7 +43,7 @@ group:abc =
  host:xyz,
 ;
 =END=
-=PARAM=host:h
+=PARAMS=host:h
 
 ############################################################
 =TITLE=host after automatic interface
@@ -60,7 +60,7 @@ group:abc =
  interface:r1@vrf.[auto],
 ;
 =END=
-=PARAM=host:h
+=PARAMS=host:h
 
 ############################################################
 =TITLE=automatic interface after host
@@ -77,7 +77,7 @@ group:abc =
  host:h,
 ;
 =END=
-=PARAM=interface:r1@vrf.[auto]
+=PARAMS=interface:r1@vrf.[auto]
 
 ############################################################
 =TITLE=network after intersection
@@ -98,7 +98,7 @@ group:abc =
  network:def,
 ;
 =END=
-=PARAM=network:n
+=PARAMS=network:n
 
 ############################################################
 =TITLE=network in automatic group
@@ -122,7 +122,7 @@ group:abc =
  ],
 ;
 =END=
-=PARAM=network:n1a network:n4
+=PARAMS=network:n1a network:n4
 
 ############################################################
 =TITLE=area in automatic group
@@ -139,7 +139,7 @@ group:abc =
  any:[ip = 10.1.0.0/16 & area:a1],
 ;
 =END=
-=PARAM=area:a2
+=PARAMS=area:a2
 
 ############################################################
 =TITLE=in service, but not in area and pathrestriction
@@ -188,7 +188,7 @@ area:a = {
  border = interface:r.x;
 }
 =END=
-=PARAM=host:y group:y
+=PARAMS=host:y group:y
 
 ############################################################
 =TITLE=with indentation
@@ -220,7 +220,7 @@ group:x =
  host:g,
 ;
 =END=
-=PARAM=host:a1 host:b1 host:d1 host:e1 host:f1 host:g1
+=PARAMS=host:a1 host:b1 host:d1 host:e1 host:f1 host:g1
 
 ############################################################
 =TITLE=Find group after commented group
@@ -241,7 +241,7 @@ group:g2 =
  host:b,
 ;
 =END=
-=PARAM=host:a
+=PARAMS=host:a
 
 ############################################################
 =TITLE=Remove trailing comma in separate line
@@ -264,7 +264,7 @@ group:g1 =
 group:g2 =
 ;
 =END=
-=PARAM=host:b
+=PARAMS=host:b
 
 ############################################################
 =TITLE=When all elements in one list are removed, do not change next list
@@ -288,7 +288,7 @@ service:s1 = {
         prt = tcp 80 90;
 }
 =END=
-=PARAM=host:a host:b
+=PARAMS=host:a host:b
 
 ############################################################
 =TITLE=Find and change umlauts
@@ -306,7 +306,7 @@ group:BÖSE =
  host:Müß,
 ;
 =END=
-=PARAM=host:Muess host:Maß
+=PARAMS=host:Muess host:Maß
 
 ############################################################
 =TITLE=Read pairs from file
@@ -352,7 +352,7 @@ group:g1 =
  host:b,
 ;
 =END=
-=PARAM=host:c
+=PARAMS=host:c
 
 ############################################################
 =TITLE=Group with description
@@ -369,6 +369,6 @@ group:g1 =
  host:a,
 ;
 =END=
-=PARAM=host:b
+=PARAMS=host:b
 
 ############################################################

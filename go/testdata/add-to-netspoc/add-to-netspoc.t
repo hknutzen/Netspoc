@@ -24,7 +24,7 @@ group:G =
  host:y,
 ;
 =END=
-=PARAM=network:Test host:Toast
+=PARAMS=network:Test host:Toast
 
 ############################################################
 =TITLE=host after automatic group
@@ -41,7 +41,7 @@ group:abc =
  host:xyz,
 ;
 =END=
-=PARAM=host:xyz host:h
+=PARAMS=host:xyz host:h
 
 ############################################################
 =TITLE=host after automatic interface
@@ -58,7 +58,7 @@ group:abc =
  host:h,
 ;
 =END=
-=PARAM=interface:r1@vrf.[auto] host:h
+=PARAMS=interface:r1@vrf.[auto] host:h
 
 ############################################################
 =TITLE=automatic interface after host
@@ -75,7 +75,7 @@ group:abc =
  host:h,
 ;
 =END=
-=PARAM=host:h interface:r1@vrf.[auto]
+=PARAMS=host:h interface:r1@vrf.[auto]
 
 ############################################################
 =TITLE=network after intersection
@@ -94,13 +94,13 @@ group:abc =
  network:n,
 ;
 =END=
-=PARAM=network:def network:n
+=PARAMS=network:def network:n
 
 ############################################################
 =TITLE=Do not add in intersection
 =INPUT= group:g2 = group:g1 &! network:n2;
 =OUTPUT=group:g2 = group:g1 &! network:n2;
-=PARAM=group:g1 group:g3
+=PARAMS=group:g1 group:g3
 
 ############################################################
 =TITLE=Group with intersection
@@ -116,7 +116,7 @@ group:g3 =
  ,
 ;
 =END=
-=PARAM=group:g1 group:g3
+=PARAMS=group:g1 group:g3
 
 ############################################################
 =TITLE=network in automatic group
@@ -137,7 +137,7 @@ group:abc =
  ],
 ;
 =END=
-=PARAM=network:n1 network:n1a network:n3 network:n4
+=PARAMS=network:n1 network:n1a network:n3 network:n4
 
 ############################################################
 =TITLE=area in automatic group
@@ -154,7 +154,7 @@ group:abc =
  ],
 ;
 =END=
-=PARAM=area:a1 area:a2
+=PARAMS=area:a1 area:a2
 
 ############################################################
 =TITLE=in service, but not in area and pathrestriction
@@ -198,7 +198,7 @@ area:a = {
  border = interface:r.x;
 }
 =END=
-=PARAM=interface:r.x host:y any:x group:y
+=PARAMS=interface:r.x host:y any:x group:y
 
 ############################################################
 =TITLE=with indentation
@@ -229,7 +229,7 @@ group:x =
  host:g1,
 ;
 =END=
-=PARAM=host:a host:a1 host:b host:b1 host:d host:d1 host:e host:e1 host:f host:f1 host:g host:g1
+=PARAMS=host:a host:a1 host:b host:b1 host:d host:d1 host:e host:e1 host:f host:f1 host:g host:g1
 
 ############################################################
 =TITLE=Add on new line for single object after definition
@@ -243,7 +243,7 @@ group:g-1 =
  host:a1,
 ;
 =END=
-=PARAM=host:a host:a1
+=PARAMS=host:a host:a1
 
 ############################################################
 =TITLE=List terminates at EOF
@@ -254,13 +254,13 @@ group:g =
  host:b,
 ;
 =END=
-=PARAM=host:a host:b
+=PARAMS=host:a host:b
 
 ############################################################
 =TITLE=Unchanged list at EOF
 =INPUT=group:g = host:a;
 =OUTPUT=group:g = host:a;
-=PARAM=host:x host:b
+=PARAMS=host:x host:b
 
 ############################################################
 =TITLE=Find and change umlauts
@@ -275,7 +275,7 @@ group:BÖSE =
  host:Müß,
 ;
 =END=
-=PARAM=host:Müß host:Muess host:Mass host:Maß
+=PARAMS=host:Müß host:Muess host:Mass host:Maß
 
 ############################################################
 =TITLE=Read pairs from file
@@ -324,6 +324,6 @@ service:s = {
         prt = tcp 80;
 }
 =END=
-=PARAM=group:g host:a group:g host:b
+=PARAMS=group:g host:a group:g host:b
 
 ############################################################

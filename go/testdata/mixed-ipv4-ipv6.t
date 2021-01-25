@@ -52,7 +52,7 @@ access-group n1_in in interface n1
 =INPUT=${input}
 =SUBST=|ipv4/ipv6|ipv6/ipv6|
 =SUBST=|ipv4/topo/ipv6|topo|
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 # Identical output as before
 =OUTPUT=
 --r1
@@ -198,7 +198,7 @@ Aborted
 Error: topology seems to be empty
 Aborted
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Raw files for IPv4 and IPv6
@@ -250,7 +250,7 @@ ${output}
 =INPUT=${input}
 =SUBST=|raw/r1|raw/ipv4/r1|
 =SUBST=|raw/ipv6/r1|raw/r1|
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 =OUTPUT=
 ${output}
 =END=

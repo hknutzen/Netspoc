@@ -15,9 +15,10 @@ import (
 type Descr struct {
 	Title    string
 	Input    string
-	Option   string
+	Options  string
 	FOption  string
 	Param    string
+	Params   string
 	Output   string
 	Warning  string
 	Error    string
@@ -139,12 +140,14 @@ func (s *state) parse() ([]*Descr, error) {
 			switch name {
 			case "INPUT":
 				d.Input = text
-			case "OPTION":
-				d.Option = text
+			case "OPTIONS":
+				d.Options = text
 			case "FOPTION":
 				d.FOption = text
 			case "PARAM":
 				d.Param = text
+			case "PARAMS":
+				d.Params = text
 			case "OUTPUT":
 				d.Output = text
 			case "WARNING":
@@ -354,7 +357,7 @@ func PrepareInDir(inDir, input string) {
 
 	// No filename
 	if il == nil {
-		write("STDIN", input)
+		write("INPUT", input)
 	} else if il[0][0] != 0 {
 		log.Fatal("Missing file marker in first line")
 	} else {

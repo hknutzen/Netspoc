@@ -67,7 +67,7 @@ ip access-list extended outside_in
  permit icmp 10.1.7.0 0.0.0.255 10.1.2.0 0.0.0.255 8
  deny ip any any
 =END=
-=OPTION=--check_redundant_rules=0
+=OPTIONS=--check_redundant_rules=0
 
 ############################################################
 =TITLE=Combined hosts prevent optimal object group

@@ -25,7 +25,7 @@ ipv6 access-list E1_in
  permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
  deny ipv6 any any
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Too large IPv6 range
@@ -37,7 +37,7 @@ network:n1 = { ip = 1000::0/16;
 =ERROR=
 Error: IP range doesn't fit into /64 network in host:h1
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Split IPv6 ranges
@@ -78,7 +78,7 @@ ipv6 access-list n1_in
  permit tcp host 1000::1:4 2000::fff0/124 range 80 90
  deny ipv6 any any
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=IPv6 with host ranges
@@ -127,7 +127,7 @@ interface E2
  ipv6 address 1000::abcd:2:1/112
  ipv6 traffic-filter E2_in in
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=OSPF, EIGRP, HSRP, VRRP, DHCP
@@ -196,7 +196,7 @@ interface n2
  ip inspect X in
  ipv6 traffic-filter n2_in in
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Static routes
@@ -240,7 +240,7 @@ ipv6 route 1000::abcd:4:0/112 1000::abcd:3:2
 ! [ Routing ]
 ipv6 route n3 1000::abcd:1:0/112 1000::abcd:3:1
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Crypto tunnel to directly connected software clients
@@ -302,7 +302,7 @@ access-list n1_in extended permit tcp host ::a09:10a ::a01:100/120 eq 80
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=IPv6 network and interface in IPv4 topology
@@ -349,7 +349,7 @@ service:test1 = {
 Error: IPv6 address expected in 'ip' of network:n2
 Error: IPv6 address expected in 'ip' of interface:r1.n2
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Must not use icmpv6 protocol as number
@@ -371,7 +371,7 @@ service:test1 = {
 =ERROR=
 Error: 'proto 58' must not be used in service:test1, use 'icmpv6' instead
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Must not use icmp with ipv6
@@ -393,7 +393,7 @@ service:test1 = {
 =ERROR=
 Error: protocol:ICMP must not be used in IPv6 service:test1
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Use icmpv6 in general_permit of router_attributes of area
@@ -417,4 +417,4 @@ ipv6 access-list E1_in
  permit icmp any any
  deny ipv6 any any
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6

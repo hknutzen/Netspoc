@@ -81,7 +81,7 @@ service:s2 = {
         prt = tcp 81;
 }
 =END=
-=PARAM=service:s2 service:s3
+=PARAMS=service:s2 service:s3
 
 ############################################################
 =TITLE=Simple service, remove one host
@@ -379,7 +379,7 @@ service:test = {
         prt = tcp;
 }
 =END=
-=OPTION=--owner
+=OPTIONS=--owner
 
 ############################################################
 =TITLE=Area with NAT

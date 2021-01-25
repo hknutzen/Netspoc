@@ -7,7 +7,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"regexp"
@@ -16,12 +15,28 @@ import (
 	"testing"
 )
 
+const (
+	outDirT = iota
+	stdoutT
+	chgInputT
+)
+
 func TestNetspoc(t *testing.T) {
-	runTestFiles(t, "../testdata", netspocTest)
+	runTestFiles(t, "../testdata", outDirT, netspocRun, netspocCheck)
+}
+
+func netspocRun() int {
+	status := pass1.SpocMain()
+	if status == 0 {
+		pass2.Spoc2Main()
+	}
+	return status
 }
 
 func runTestFiles(
-	t *testing.T, dir string, f func(*testing.T, *tstdata.Descr)) {
+	t *testing.T, dir string, typ int,
+	f func() int,
+	check func(*testing.T, string, string)) {
 
 	dataFiles := tstdata.GetFiles(dir)
 	os.Unsetenv("SHOW_DIAG")
@@ -30,30 +45,32 @@ func runTestFiles(
 		t.Run(path.Base(file), func(t *testing.T) {
 			l, err := tstdata.ParseFile(file)
 			if err != nil {
-				log.Fatal(err)
+				t.Fatal(err)
 			}
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
-					if descr.Todo {
-						t.Skip("skipping TODO test")
-					}
-					prepareOptions(t, descr)
-					f(t, descr)
+					runTest(t, typ, descr, f, check)
 				})
 			}
 		})
 	}
 }
 
-func prepareOptions(t *testing.T, d *tstdata.Descr) {
+func runTest(t *testing.T, typ int, d *tstdata.Descr,
+	f func() int,
+	check func(*testing.T, string, string)) {
+
+	if d.Todo {
+		t.Skip("skipping TODO test")
+	}
 
 	// Initialize os.Args, add default options.
 	os.Args = []string{"PROGRAM", "-q"}
 
 	// Add more options from description.
-	if d.Option != "" {
-		options := strings.Split(d.Option, " ")
+	if d.Options != "" {
+		options := strings.Split(d.Options, " ")
 		os.Args = append(os.Args, options...)
 	}
 
@@ -62,42 +79,45 @@ func prepareOptions(t *testing.T, d *tstdata.Descr) {
 		dir := t.TempDir()
 		name := path.Join(dir, "file")
 		if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
-			log.Fatal(err)
+			t.Fatal(err)
 		}
 		os.Args = append(os.Args, "-f", name)
 	}
-}
-
-func netspocTest(t *testing.T, d *tstdata.Descr) {
 
 	// Prepare input directory.
 	inDir := t.TempDir()
 	tstdata.PrepareInDir(inDir, d.Input)
 	os.Args = append(os.Args, inDir)
 
-	// Prepare output directory
+	// Prepare output directory.
 	var outDir string
-	if d.Output != "" {
+	if typ == outDirT && d.Output != "" {
 		outDir = t.TempDir()
 		os.Args = append(os.Args, outDir)
 	}
 
-	// Add extra params for testing command line handling.
+	// Add other params to command line.
 	if d.Param != "" {
-		os.Args = append(os.Args, strings.Split(d.Param, " ")...)
+		os.Args = append(os.Args, d.Param)
+	}
+	if d.Params != "" {
+		os.Args = append(os.Args, strings.Split(d.Params, " ")...)
 	}
 
 	if d.ShowDiag {
 		os.Setenv("SHOW_DIAG", "1")
-		defer os.Unsetenv("SHOW_DIAG")
+	} else {
+		os.Unsetenv("SHOW_DIAG")
 	}
 
-	// Call pass1 + pass2.
+	// Call main function.
 	var status int
-	stderr := capture.Capture(&os.Stderr, func() { status = pass1.SpocMain() })
-	if status == 0 {
-		stderr += capture.Capture(&os.Stderr, func() { pass2.Spoc2Main() })
-	}
+	var stdout string
+	stderr := capture.Capture(&os.Stderr, func() {
+		stdout = capture.Capture(&os.Stdout, func() {
+			status = f()
+		})
+	})
 
 	// Check result.
 	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
@@ -116,18 +136,32 @@ func netspocTest(t *testing.T, d *tstdata.Descr) {
 			return
 		}
 		if d.Output != "" {
-			checkOutput(t, d.Output, outDir)
+			var got string
+			switch typ {
+			case outDirT:
+				got = outDir
+			case stdoutT:
+				got = stdout
+			case chgInputT:
+				// Read changed file.
+				data, err := ioutil.ReadFile(path.Join(inDir, "INPUT"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				got = string(data)
+			}
+			check(t, d.Output, got)
 		}
 	} else {
 		re := regexp.MustCompile(`\nAborted with \d+ error\(s\)`)
 		stderr = re.ReplaceAllString(stderr, "")
-		re = regexp.MustCompile(`(?ms)\nUsage: .*`)
-		stderr = re.ReplaceAllString(stderr, "\n")
+		re = regexp.MustCompile(`\nUsage: .*(?:\n\s.*)*`)
+		stderr = re.ReplaceAllString(stderr, "")
 		assert.Equal(t, d.Error, stderr)
 	}
 }
 
-func checkOutput(t *testing.T, spec, dir string) {
+func netspocCheck(t *testing.T, spec, dir string) {
 	// Blocks of expected output are split by single lines of dashes,
 	// followed by an optional device name.
 	re := regexp.MustCompile(`(?ms)^-+[ ]*\S*[ ]*\n`)
