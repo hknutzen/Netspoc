@@ -1194,40 +1194,6 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=Mark ID hosts as used even if only network is used (1)
-=INPUT=
-${topo}
-service:s1 = {
- user = network:customers1;
- permit src = user; dst = network:intern; prt = tcp 80;
-}
-area:all = { anchor = network:intern; }
-=END=
-=OUTPUT=
-10.99.2.0-10.99.2.63	host:id:domain.x.customers2
-10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
-10.99.2.128-10.99.2.191	host:id:zzz.customers2
-=END=
-=TODO=test_group($title, $in, 'host:[area:all]', $out, '--unused'); # No IPv6 test
-
-############################################################
-=TITLE=Mark ID hosts as used even if only network is used (2)
-=INPUT=
-${topo}
-service:s2 = {
- user = host:id:bar@domain.x.customers1, network:customers2;
- permit src = user; dst = network:intern; prt = tcp 81;
-}
-area:all = { anchor = network:intern; }
-=END=
-=OUTPUT=
-10.99.1.10	host:id:foo@domain.x.customers1
-10.99.1.12	host:id:baz@domain.x.customers1
-10.99.1.254	host:id:unused@domain.x.customers1
-=END=
-=TODO=test_group($title, $in, 'host:[area:all]', $out, '--unused');
-
-############################################################
 =TITLE=ASA, VPN in CONTEXT
 # This line is missing from config:
 #  ikev1 user-authentication none
