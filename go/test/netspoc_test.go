@@ -91,62 +91,87 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		t.Skip("skipping TODO test")
 	}
 
-	// Initialize os.Args, add default options.
-	os.Args = []string{"PROGRAM", "-q"}
-
-	// Add more options from description.
-	if d.Options != "" {
-		options := strings.Split(d.Options, " ")
-		os.Args = append(os.Args, options...)
-	}
-
-	// Prepare file for option '-f file'
-	if d.FOption != "" {
-		dir := t.TempDir()
-		name := path.Join(dir, "file")
-		if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
-			t.Fatal(err)
-		}
-		os.Args = append(os.Args, "-f", name)
-	}
-
-	// Prepare input directory.
-	inDir := t.TempDir()
-	tstdata.PrepareInDir(inDir, d.Input)
-	os.Args = append(os.Args, inDir)
-
 	// Prepare output directory.
 	var outDir string
 	if tc.typ == outDirT && d.Output != "" || d.WithOutD {
 		outDir = t.TempDir()
-		os.Args = append(os.Args, outDir)
 	}
 
-	// Add other params to command line.
-	if d.Param != "" {
-		os.Args = append(os.Args, d.Param)
-	}
-	if d.Params != "" {
-		os.Args = append(os.Args, strings.Split(d.Params, " ")...)
-	}
+	runProg := func(input string) (int, string, string, string) {
 
-	if d.ShowDiag {
-		os.Setenv("SHOW_DIAG", "1")
-	} else {
-		os.Unsetenv("SHOW_DIAG")
-	}
+		// Initialize os.Args, add default options.
+		os.Args = []string{"PROGRAM", "-q"}
 
-	// Call main function.
-	var status int
-	var stdout string
-	stderr := capture.Capture(&os.Stderr, func() {
-		stdout = capture.Capture(&os.Stdout, func() {
-			status = tc.run()
+		// Add more options from description.
+		if d.Options != "" {
+			options := strings.Split(d.Options, " ")
+			os.Args = append(os.Args, options...)
+		}
+
+		// Prepare file for option '-f file'
+		if d.FOption != "" {
+			dir := t.TempDir()
+			name := path.Join(dir, "file")
+			if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
+				t.Fatal(err)
+			}
+			os.Args = append(os.Args, "-f", name)
+		}
+
+		// Prepare input directory.
+		inDir := t.TempDir()
+		tstdata.PrepareInDir(inDir, input)
+		os.Args = append(os.Args, inDir)
+
+		// Add location of output directory.
+		if outDir != "" {
+			os.Args = append(os.Args, outDir)
+		}
+
+		// Add other params to command line.
+		if d.Param != "" {
+			os.Args = append(os.Args, d.Param)
+		}
+		if d.Params != "" {
+			os.Args = append(os.Args, strings.Split(d.Params, " ")...)
+		}
+
+		if d.ShowDiag {
+			os.Setenv("SHOW_DIAG", "1")
+		} else {
+			os.Unsetenv("SHOW_DIAG")
+		}
+
+		// Call main function.
+		var status int
+		var stdout string
+		stderr := capture.Capture(&os.Stderr, func() {
+			stdout = capture.Capture(&os.Stdout, func() {
+				status = tc.run()
+			})
 		})
-	})
+		return status, stdout, stderr, inDir
+	}
+
+	// Run program once.
+	status, stdout, stderr, inDir := runProg(d.Input)
+
+	// Run again, to check if output is reused.
+	if d.ReusePrev != "" {
+		if status != 0 {
+			t.Error("Unexpected failure with =REUSE_PREV=")
+			return
+		}
+		status, stdout, stderr, inDir = runProg(d.ReusePrev)
+	}
+
+	// Normalize stderr.
+	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+	stderr = strings.ReplaceAll(stderr, outDir, "")
+	re := regexp.MustCompile(`Netspoc, version .*`)
+	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
 
 	// Check result.
-	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	if status == 0 {
 		if e := d.Error; e != "" {
 			t.Error("Unexpected success")

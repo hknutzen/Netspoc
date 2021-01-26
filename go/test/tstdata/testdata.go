@@ -13,18 +13,19 @@ import (
 )
 
 type Descr struct {
-	Title    string
-	Input    string
-	Options  string
-	FOption  string
-	Param    string
-	Params   string
-	Output   string
-	Warning  string
-	Error    string
-	ShowDiag bool
-	Todo     bool
-	WithOutD bool
+	Title     string
+	Input     string
+	ReusePrev string
+	Options   string
+	FOption   string
+	Param     string
+	Params    string
+	Output    string
+	Warning   string
+	Error     string
+	ShowDiag  bool
+	Todo      bool
+	WithOutD  bool
 }
 
 // State
@@ -141,6 +142,8 @@ func (s *state) parse() ([]*Descr, error) {
 			switch name {
 			case "INPUT":
 				d.Input = text
+			case "REUSE_PREV":
+				d.ReusePrev = text
 			case "OPTIONS":
 				d.Options = text
 			case "FOPTION":

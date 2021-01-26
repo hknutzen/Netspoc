@@ -283,7 +283,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Verbose output with progress messages
-=INPUT=
+=VAR=input
 --ipv4
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
@@ -315,7 +315,9 @@ service:s2 = {
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =END=
-=OUTPUT=
+=INPUT=${input}
+=REUSE_PREV=${input}
+=WARNING=
 Netspoc, version TESTING
 Read: 2 routers, 4 networks, 1 hosts, 2 services
 Arranging protocols
@@ -348,6 +350,7 @@ Printing intermediate code
 Finished pass1
 Reused 2 files from previous run
 Finished
+=OUTPUT=
 -- r1
 ! n1_in
 access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
@@ -359,7 +362,7 @@ access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 8
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-=TODO=test_reuse_prev($title, $in, $in, $out, '--verbose');
+=OPTIONS=--verbose
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions 1
