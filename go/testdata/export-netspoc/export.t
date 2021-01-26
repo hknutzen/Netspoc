@@ -3295,13 +3295,33 @@ Error: unknown flag: --foo
 =END=
 
 ############################################################
-=TITLE=Invalid argument
+=TITLE=Mising output directory
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
-=PARAMS= outDir extra
-=ERROR=
+=VAR=usage
 Usage: PROGRAM [options] netspoc-data out-directory
   -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
+=END=
+=ERROR=
+${usage}
+=END=
+
+############################################################
+=TITLE=Invalid argument
+=INPUT=network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=PARAMS= a
+=ERROR=
+${usage}
+=END=
+
+############################################################
+=TITLE=Many invalid arguments
+=INPUT=network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=PARAMS= a b c
+=ERROR=
+${usage}
 =END=
 
 ############################################################
