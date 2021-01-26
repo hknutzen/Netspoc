@@ -1,8 +1,12 @@
 package netspoc_test
 
 import (
+	"github.com/hknutzen/Netspoc/go/pkg/addto"
+	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+	"github.com/hknutzen/Netspoc/go/pkg/removefrom"
+	"github.com/hknutzen/Netspoc/go/pkg/rename"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
@@ -21,8 +25,32 @@ const (
 	chgInputT
 )
 
+type testData struct {
+	dir   string
+	typ   int
+	run   func() int
+	check func(*testing.T, string, string)
+}
+
+var tests = []testData{
+	{".", outDirT, netspocRun, netspocCheck},
+	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
+	{"format-netspoc", chgInputT, format.Main, formatCheck},
+	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
+	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
+	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
+	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
+	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
+	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
+}
+
 func TestNetspoc(t *testing.T) {
-	runTestFiles(t, "../testdata", outDirT, netspocRun, netspocCheck)
+	for _, test := range tests {
+		test := test // capture range variable
+		t.Run(test.dir, func(t *testing.T) {
+			runTestFiles(t, test)
+		})
+	}
 }
 
 func netspocRun() int {
@@ -33,12 +61,8 @@ func netspocRun() int {
 	return status
 }
 
-func runTestFiles(
-	t *testing.T, dir string, typ int,
-	f func() int,
-	check func(*testing.T, string, string)) {
-
-	dataFiles := tstdata.GetFiles(dir)
+func runTestFiles(t *testing.T, test testData) {
+	dataFiles := tstdata.GetFiles("../testdata/" + test.dir)
 	os.Unsetenv("SHOW_DIAG")
 	for _, file := range dataFiles {
 		file := file // capture range variable
@@ -50,7 +74,7 @@ func runTestFiles(
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
-					runTest(t, typ, descr, f, check)
+					runTest(t, test.typ, descr, test.run, test.check)
 				})
 			}
 		})
@@ -237,4 +261,52 @@ func getBlocks(data string, blocks []string) string {
 		}
 	}
 	return out
+}
+
+func exportCheck(t *testing.T, spec, dir string) {
+	// Blocks of expected output are split by single lines of dashes,
+	// followed by file name.
+	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)
+	il := re.FindAllStringIndex(spec, -1)
+
+	if il == nil || il[0][0] != 0 {
+		t.Fatal("Output spec must start with dashed line")
+	}
+	for i, p := range il {
+		marker := spec[p[0] : p[1]-1] // without trailing "\n"
+		pName := strings.Trim(marker, "- ")
+		if pName == "" {
+			t.Fatal("Missing file name in dashed line of output spec")
+		}
+		start := p[1]
+		end := len(spec)
+		if i+1 < len(il) {
+			end = il[i+1][0]
+		}
+		block := spec[start:end]
+
+		t.Run(pName, func(t *testing.T) {
+			data, err := ioutil.ReadFile(path.Join(dir, pName))
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, block, string(data))
+		})
+	}
+}
+
+func chgInputCheck(t *testing.T, expected, got string) {
+	// Remove empty lines.
+	got = strings.ReplaceAll(got, "\n\n", "\n")
+	assert.Equal(t, expected, got)
+}
+
+func formatCheck(t *testing.T, expected, got string) {
+	assert.Equal(t, expected, got)
+}
+
+func stdoutCheck(t *testing.T, expected, stdout string) {
+	// Remove empty lines.
+	stdout = strings.ReplaceAll(stdout, "\n\n", "\n")
+	assert.Equal(t, expected, stdout)
 }
