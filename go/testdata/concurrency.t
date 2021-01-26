@@ -141,15 +141,4 @@ ${output}
 ${output}
 =OPTIONS=--concurrency_pass2=2
 
-
 ############################################################
-=TITLE=Netspoc script with pipe from pass1 to pass2
-=INPUT=${input}
-=WARNING=NONE
-# Adapt content of netspoc script
-# - insert arguments and
-# - add Perl options for testing.
-    # Only check for existence of generated files.
-    # Content has already been checked above.
-=TODO=
-=END=
