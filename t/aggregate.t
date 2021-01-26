@@ -3395,7 +3395,7 @@ access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 END
 
-test_warn($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Zone cluster with keyword foreach';

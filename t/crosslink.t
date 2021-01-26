@@ -128,7 +128,7 @@ interface n2
  ip access-group n2_in in
 END
 
-test_warn($title, $in, $out);
+test_run($title, $in, $out);
 
 ############################################################
 $title = 'Crosslink standard, local, local';

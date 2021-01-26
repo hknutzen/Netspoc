@@ -135,6 +135,11 @@ sub compare_warnings_and_devices {
         return;
     }
     if ($check_stderr) {
+        if (not $warnings and @expected) {
+            diag('Missing warning specifications');
+            fail($title);
+            return;
+        }
         $warnings ||= '';
 
         # Normalize input path: remove temp. directory.
