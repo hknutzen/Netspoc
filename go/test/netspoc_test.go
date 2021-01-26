@@ -44,13 +44,17 @@ var tests = []testData{
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
 }
 
+var count int
+
 func TestNetspoc(t *testing.T) {
+	count = 0
 	for _, test := range tests {
 		test := test // capture range variable
 		t.Run(test.dir, func(t *testing.T) {
 			runTestFiles(t, test)
 		})
 	}
+	t.Logf("Checked %d assertions", count)
 }
 
 func netspocRun() int {
@@ -155,7 +159,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 				d.Warning = ""
 			}
 			t.Run("Warning", func(t *testing.T) {
-				assert.Equal(t, d.Warning, stderr)
+				countEq(t, d.Warning, stderr)
 			})
 		} else if d.Output == "" {
 			t.Error("Missing output specification")
@@ -183,7 +187,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 		stderr = re.ReplaceAllString(stderr, "")
 		re = regexp.MustCompile(`\nUsage: .*(?:\n\s.*)*`)
 		stderr = re.ReplaceAllString(stderr, "")
-		assert.Equal(t, d.Error, stderr)
+		countEq(t, d.Error, stderr)
 	}
 }
 
@@ -228,7 +232,7 @@ func netspocCheck(t *testing.T, spec, dir string) {
 		blocks := device2blocks[device]
 		expected := strings.Join(blocks, "")
 		t.Run(device, func(t *testing.T) {
-			assert.Equal(t, expected, getBlocks(string(data), blocks))
+			countEq(t, expected, getBlocks(string(data), blocks))
 		})
 	}
 }
@@ -290,7 +294,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			assert.Equal(t, block, string(data))
+			countEq(t, block, string(data))
 		})
 	}
 }
@@ -298,15 +302,20 @@ func exportCheck(t *testing.T, spec, dir string) {
 func chgInputCheck(t *testing.T, expected, got string) {
 	// Remove empty lines.
 	got = strings.ReplaceAll(got, "\n\n", "\n")
-	assert.Equal(t, expected, got)
+	countEq(t, expected, got)
 }
 
 func formatCheck(t *testing.T, expected, got string) {
-	assert.Equal(t, expected, got)
+	countEq(t, expected, got)
 }
 
 func stdoutCheck(t *testing.T, expected, stdout string) {
 	// Remove empty lines.
 	stdout = strings.ReplaceAll(stdout, "\n\n", "\n")
-	assert.Equal(t, expected, stdout)
+	countEq(t, expected, stdout)
+}
+
+func countEq(t *testing.T, expected, got string) {
+	count++
+	assert.Equal(t, expected, got)
 }
