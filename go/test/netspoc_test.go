@@ -25,14 +25,14 @@ const (
 	chgInputT
 )
 
-type testData struct {
+type test struct {
 	dir   string
 	typ   int
 	run   func() int
 	check func(*testing.T, string, string)
 }
 
-var tests = []testData{
+var tests = []test{
 	{".", outDirT, netspocRun, netspocCheck},
 	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
@@ -48,10 +48,10 @@ var count int
 
 func TestNetspoc(t *testing.T) {
 	count = 0
-	for _, test := range tests {
-		test := test // capture range variable
-		t.Run(test.dir, func(t *testing.T) {
-			runTestFiles(t, test)
+	for _, tc := range tests {
+		tc := tc // capture range variable
+		t.Run(tc.dir, func(t *testing.T) {
+			runTestFiles(t, tc)
 		})
 	}
 	t.Logf("Checked %d assertions", count)
@@ -65,8 +65,8 @@ func netspocRun() int {
 	return status
 }
 
-func runTestFiles(t *testing.T, test testData) {
-	dataFiles := tstdata.GetFiles("../testdata/" + test.dir)
+func runTestFiles(t *testing.T, tc test) {
+	dataFiles := tstdata.GetFiles("../testdata/" + tc.dir)
 	os.Unsetenv("SHOW_DIAG")
 	for _, file := range dataFiles {
 		file := file // capture range variable
@@ -78,16 +78,14 @@ func runTestFiles(t *testing.T, test testData) {
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
-					runTest(t, test.typ, descr, test.run, test.check)
+					runTest(t, tc, descr)
 				})
 			}
 		})
 	}
 }
 
-func runTest(t *testing.T, typ int, d *tstdata.Descr,
-	f func() int,
-	check func(*testing.T, string, string)) {
+func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 	if d.Todo {
 		t.Skip("skipping TODO test")
@@ -119,7 +117,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 
 	// Prepare output directory.
 	var outDir string
-	if typ == outDirT && d.Output != "" || d.WithOutD {
+	if tc.typ == outDirT && d.Output != "" || d.WithOutD {
 		outDir = t.TempDir()
 		os.Args = append(os.Args, outDir)
 	}
@@ -143,7 +141,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 	var stdout string
 	stderr := capture.Capture(&os.Stderr, func() {
 		stdout = capture.Capture(&os.Stdout, func() {
-			status = f()
+			status = tc.run()
 		})
 	})
 
@@ -167,7 +165,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 		}
 		if d.Output != "" {
 			var got string
-			switch typ {
+			switch tc.typ {
 			case outDirT:
 				got = outDir
 			case stdoutT:
@@ -180,7 +178,7 @@ func runTest(t *testing.T, typ int, d *tstdata.Descr,
 				}
 				got = string(data)
 			}
-			check(t, d.Output, got)
+			tc.check(t, d.Output, got)
 		}
 	} else {
 		re := regexp.MustCompile(`\nAborted with \d+ error\(s\)`)
