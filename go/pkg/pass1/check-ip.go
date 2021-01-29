@@ -136,11 +136,11 @@ func (c *spoc) checkIPAddr(n *network) {
 	}
 
 	for _, h := range n.hosts {
-		lo := h.ipRange[0]
-		hi := h.ipRange[1]
-		if len(lo) == 0 || len(hi) == 0 {
+		if h.ip != nil {
 			continue
 		}
+		lo := h.ipRange[0]
+		hi := h.ipRange[1]
 
 		// It is ok for subnet range to overlap with interface IP.
 		subnets, _ := splitIpRange(lo, hi)
