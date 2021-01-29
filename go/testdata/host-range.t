@@ -169,7 +169,7 @@ Warning: Redundant rules in service:test compared to service:test:
 =TITLE=Must not combine list in place
 # List of src objects is referenced from two different path rules.
 # If combineSubnets is applied twice on the same list,
-# we would get garbadge.
+# we would get garbage.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24;
  host:h20 = { ip = 10.1.1.20; }
