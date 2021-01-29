@@ -60,10 +60,17 @@ func (c *spoc) verifyAsaVpnAttributes(
 			c.err("Invalid radiusAttribute '%s' at %s", key, name)
 		}
 		value := attributes[key]
-		if key == "split-tunnel-policy" {
+		switch key {
+		case "split-tunnel-policy":
 			if value != "tunnelall" && value != "tunnelspecified" {
-				c.err("Unsupported value in radiusAttributes of %s '%s = %s'",
+				c.err("Unsupported value in radius_attributes of %s '%s = %s'",
 					name, key, value)
+			}
+		case "group-lock":
+			if value != "" {
+				c.warn("Ignoring value at radius_attribute '%s' of %s"+
+					" (will be set automatically)",
+					key, name)
 			}
 		}
 	}
