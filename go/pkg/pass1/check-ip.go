@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"bytes"
-	"encoding/binary"
 	"net"
 	"strings"
 )
@@ -116,7 +115,7 @@ func (c *spoc) checkIPAddr(n *network) {
 
 				routeIntf = intf
 			}
-			ip := intf.ip.String()
+			ip := string(intf.ip)
 			if other, found := ip2name[ip]; found {
 				if !(intf.redundant && redundant[other]) {
 					c.err("Duplicate IP address for %s and %s", other, intf)
@@ -142,28 +141,29 @@ func (c *spoc) checkIPAddr(n *network) {
 		lo := h.ipRange[0]
 		hi := h.ipRange[1]
 
-		// It is ok for subnet range to overlap with interface IP.
 		subnets, _ := splitIpRange(lo, hi)
 		if len(subnets) == 1 {
 			len, size := subnets[0].Mask.Size()
 			if len != size {
+				// It is ok for subnet range to overlap with interface IP.
 				continue
 			}
 		}
 
-		iterateIPRange(lo, hi, func(ip net.IP) {
-			if other, found := ip2name[ip.String()]; found {
+		for ipString, other := range ip2name {
+			ip := net.IP(ipString)
+			if bytes.Compare(lo, ip) != 1 && bytes.Compare(ip, hi) != 1 {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
-		})
+		}
 	}
 
 	for _, h := range n.hosts {
 		var key string
 		if h.ip != nil {
-			key = h.ip.String()
+			key = string(h.ip)
 		} else {
-			key = h.ipRange[0].String() + "-" + h.ipRange[1].String()
+			key = string(h.ipRange[0]) + "-" + string(h.ipRange[1])
 		}
 		if other, found := ip2name[key]; found {
 			c.err("Duplicate IP address for %s and %s", other, h)
@@ -245,34 +245,5 @@ func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
 				c.err("%s and %s must be connected by bridge", n2, n1)
 			}
 		}
-	}
-}
-
-func iterateIPRange(lo, hi net.IP, f func(ip net.IP)) {
-	var l, h uint64
-	var ip net.IP
-	if len(lo) == net.IPv4len && len(hi) == net.IPv4len {
-		l = uint64(binary.BigEndian.Uint32(lo))
-		h = uint64(binary.BigEndian.Uint32(hi))
-		ip = make(net.IP, net.IPv4len)
-	} else {
-		lo, hi = lo.To16(), hi.To16()
-		if bytes.Compare(lo[:8], hi[:8]) != 0 {
-			// IP range is too large. Ignore error, it was already checked in
-			// splitIpRange.
-			return
-		}
-		l, h = binary.BigEndian.Uint64(lo[8:]), binary.BigEndian.Uint64(hi[8:])
-		ip = make(net.IP, net.IPv6len)
-		copy(ip, lo)
-	}
-	for l <= h {
-		if len(ip) == net.IPv4len {
-			binary.BigEndian.PutUint32(ip, uint32(l))
-		} else {
-			binary.BigEndian.PutUint64(ip[8:], l)
-		}
-		f(ip)
-		l++
 	}
 }
