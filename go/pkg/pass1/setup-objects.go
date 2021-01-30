@@ -2623,22 +2623,6 @@ func (c *spoc) getVxIP(ip net.IP, v6 bool, name, ctx string) net.IP {
 	return v4IP
 }
 
-func (c *spoc) convToMask(prefix string, v6 bool, name, ctx string) net.IPMask {
-	p, err := strconv.Atoi(prefix)
-	if err == nil {
-		size := 32
-		if v6 {
-			size = 128
-		}
-		mask := net.CIDRMask(p, size)
-		if mask != nil {
-			return mask
-		}
-	}
-	c.err("Invalid prefix in '%s' of %s", name, ctx)
-	return nil
-}
-
 // Check if given date has been reached already.
 var dateRegex = regexp.MustCompile(`^(\d\d\d\d-\d\d-\d\d)$`)
 
