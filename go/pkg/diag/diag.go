@@ -14,13 +14,6 @@ func Info(format string, args ...interface{}) {
 	}
 }
 
-func Active() bool {
-	if os.Getenv("SHOW_DIAG") != "" {
-		return true
-	}
-	return false
-}
-
 func Msg(msg string) {
 	if os.Getenv("SHOW_DIAG") != "" {
 		fmt.Fprintln(os.Stderr, "DIAG: "+msg)
