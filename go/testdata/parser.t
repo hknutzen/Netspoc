@@ -292,6 +292,47 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Missing '}' after network definition
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { 10.1.1.10; }
+ FOO = BAR;
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+=END=
+=ERROR=
+Error: Expected '}' at line 5 of INPUT, near "--HERE-->network:n2"
+Aborted
+=END=
+
+############################################################
+=TITLE=Missing '}' after owner definition
+=INPUT=
+owner:o1 = {
+ admins = a1@b.c;
+owner:o2 = { admins = a2@b.c; }
+=END=
+=ERROR=
+Error: Expected '}' at line 3 of INPUT, near "--HERE-->owner:o2"
+Aborted
+=END=
+
+############################################################
+=TITLE=Unexpected definition after missing ';' in list
+=INPUT=
+group:g1 =
+ host:h1,
+ host:h2,
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+=END=
+=ERROR=
+Error: Expected ';' at line 4 of INPUT, near "network:n2 --HERE-->= { ip"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid character in network name
 =INPUT=
 network:n1@vrf123 = {}
