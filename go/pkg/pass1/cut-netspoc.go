@@ -54,7 +54,6 @@ import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"os"
@@ -152,14 +151,14 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 // Mark path between objects and marked parts of topology.
 // object must be of type network or router.
 // Depending on managed, mark only unmanaged or also managed parts.
-func markUnconnected(list netPathObjList, managed bool) {
+func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 	var what string
 	if managed {
 		what = "managed"
 	} else {
 		what = "unmanaged"
 	}
-	diag.Progress("Marking " + what + " routers")
+	c.progress("Marking " + what + " routers")
 
 	var mark func(obj netPathObj, in *routerIntf, seen map[netPathObj]bool) bool
 	mark = func(obj netPathObj, in *routerIntf, seen map[netPathObj]bool) bool {
@@ -534,7 +533,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// 1. call to mark unmanaged parts of topology.
 	// Needed to mark unmanaged crypto routers.
-	markUnconnected(todoUnmanaged, false)
+	c.markUnconnected(todoUnmanaged, false)
 	todoUnmanaged = nil
 
 	// Mark negated auto interfaces.
@@ -553,7 +552,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Connect objects, that are located outside of any path.
-	markUnconnected(todoManaged, true)
+	c.markUnconnected(todoManaged, true)
 	for _, intf := range addLater {
 		intf.isUsed = true
 		intf.router.isUsed = true
@@ -635,7 +634,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// 2. call to mark unmanaged parts of topology.
 	// Need to mark crypto path of crypto routers.
-	markUnconnected(todoUnmanaged, false)
+	c.markUnconnected(todoUnmanaged, false)
 
 	mark2 := func(r *router) {
 		if !r.isUsed {
