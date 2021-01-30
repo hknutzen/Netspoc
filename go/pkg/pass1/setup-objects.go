@@ -1953,14 +1953,6 @@ func (c *spoc) checkLog(l stringList, s *symbolTable, ctx string) stringList {
 	return valid
 }
 
-func isUser(l []ast.Element) bool {
-	if len(l) == 1 {
-		_, ok := l[0].(*ast.User)
-		return ok
-	}
-	return false
-}
-
 func (c *spoc) checkUserInUnion(l []ast.Element, ctx string) bool {
 	count := c.countUser(l, ctx)
 	if !(count == 0 || count == len(l)) {
