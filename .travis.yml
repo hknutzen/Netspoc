@@ -1,33 +1,14 @@
-language: perl
-perl:
-#    - "5.26"
-    - "5.28"
-    - "5.30"
-    - "dev"
-matrix:
-    include:
-        - perl: 5.26
-          env: COVERAGE=1   # enables coverage+coveralls reporting
-    allow_failures:
-        - perl: dev
-before_install:
-    - eval $(gimme stable) # install recent version of Go
-    - git clone git://github.com/travis-perl/helpers ~/travis-perl-helpers
-    - source ~/travis-perl-helpers/init
-    - build-perl
-    - perl -V
-    - cpan-install Code::TidyAll::Plugin::PerlCritic Perl::Critic
-    - build-dist
-    - cd $BUILD_DIR
+language: go
+go:
+    - stable
 install:
-    - cpan-install --deps       # installs prereqs, including recommends
-    - cpan-install --coverage   # installs converage prereqs, if enabled
-before_script:
-    - coverage-setup
+    - go get golang.org/x/tools/cmd/cover
+    - go get github.com/mattn/goveralls
 script:
-    - prove -l -j$(test-jobs) $(test-files)   # parallel testing
+    - cd go/test
+    - go test -coverpkg $(go list ../...|grep /pkg/|paste -sd,)  -coverprofile cover.out
 after_success:
-    - coverage-report
+    - $HOME/gopath/bin/goveralls -coverprofile=cover.out -service=travis-ci -repotoken $COVERALLS_TOKEN
 notifications:
     email:
         on_success: never
