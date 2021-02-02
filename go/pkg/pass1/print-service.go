@@ -70,7 +70,6 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/abort"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/spf13/pflag"
 	"os"
@@ -135,7 +134,7 @@ func (c *spoc) printService(
 		if net := symTable.network[natNet]; net != nil {
 			natSet = net.zone.natDomain.natSet
 		} else {
-			abort.Msg("Unknown network:%s of option '-n'", natNet)
+			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
 	} else {
 

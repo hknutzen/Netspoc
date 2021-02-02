@@ -23,7 +23,7 @@ access-list n1_in extended permit tcp host 10.1.1.10 10.1.2.0 255.255.255.0 eq 2
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
-=OPTION=--concurrency_pass1=2
+=OPTIONS=--concurrency_pass1=2
 
 ############################################################
 =TITLE=Warning from background job
@@ -52,11 +52,11 @@ Warning: Redundant rules in service:s1 compared to service:s2:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1
 < permit src=network:n1; dst=network:n2; prt=ip; of service:s2
 =END=
-=OPTION=--concurrency_pass1=2
+=OPTIONS=--concurrency_pass1=2
 
 ############################################################
 =TITLE=Error from background job
-=OPTION=--concurrency_pass1=2 --check_redundant_rules=err
+=OPTIONS=--concurrency_pass1=2 --check_redundant_rules=err
 =INPUT=${input}
 =ERROR=
 Error: Redundant rules in service:s1 compared to service:s2:
@@ -66,7 +66,7 @@ Error: Redundant rules in service:s1 compared to service:s2:
 
 ############################################################
 =TITLE=Abort from background job
-=OPTION=--max_errors=1 --concurrency_pass1=2 --check_redundant_rules=err
+=OPTIONS=--max_errors=1 --concurrency_pass1=2 --check_redundant_rules=err
 =INPUT=${input}
 =ERROR=
 Error: Redundant rules in service:s1 compared to service:s2:
@@ -92,7 +92,7 @@ Error: network:sub is subnet of network:n1
  If desired, declare attribute 'subnet_of'
 Aborted after 1 errors
 =END=
-=OPTION=--max_errors=1 --check_subnets=err --concurrency_pass1=2
+=OPTIONS=--max_errors=1 --check_subnets=err --concurrency_pass1=2
 
 ############################################################
 =TITLE=Pass 2: 3 devices with up to 8 jobs
@@ -130,24 +130,15 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
-=OPTION=--concurrency_pass2=8
+=OUTPUT=
+${output}
+=OPTIONS=--concurrency_pass2=8
 
 ############################################################
 =TITLE=Pass 2: 3 devices with 2 jobs
 =INPUT=${input}
-=OUTPUT=${output}
-=OPTION=--concurrency_pass2=2
-
+=OUTPUT=
+${output}
+=OPTIONS=--concurrency_pass2=2
 
 ############################################################
-=TITLE=Netspoc script with pipe from pass1 to pass2
-=INPUT=${input}
-=WARNING=NONE
-# Adapt content of netspoc script
-# - insert arguments and
-# - add Perl options for testing.
-    # Only check for existence of generated files.
-    # Content has already been checked above.
-=TODO=
-=END=

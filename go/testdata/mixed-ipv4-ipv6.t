@@ -52,7 +52,7 @@ access-group n1_in in interface n1
 =INPUT=${input}
 =SUBST=|ipv4/ipv6|ipv6/ipv6|
 =SUBST=|ipv4/topo/ipv6|topo|
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 # Identical output as before
 =OUTPUT=
 --r1
@@ -198,7 +198,7 @@ Aborted
 Error: topology seems to be empty
 Aborted
 =END=
-=OPTION=--ipv6
+=OPTIONS=--ipv6
 
 ############################################################
 =TITLE=Raw files for IPv4 and IPv6
@@ -241,15 +241,19 @@ access-group n1_in in interface n1
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 =END=
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Raw files for IPv6 and IPv4
 =INPUT=${input}
 =SUBST=|raw/r1|raw/ipv4/r1|
 =SUBST=|raw/ipv6/r1|raw/r1|
-=OPTION=--ipv6
-=OUTPUT=${output}
+=OPTIONS=--ipv6
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Invalid file and directory in raw/ipv6
@@ -279,7 +283,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Verbose output with progress messages
-=INPUT=
+=VAR=input
 --ipv4
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
@@ -311,7 +315,9 @@ service:s2 = {
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =END=
-=OUTPUT=
+=INPUT=${input}
+=REUSE_PREV=${input}
+=WARNING=
 Netspoc, version TESTING
 Read: 2 routers, 4 networks, 1 hosts, 2 services
 Arranging protocols
@@ -344,6 +350,7 @@ Printing intermediate code
 Finished pass1
 Reused 2 files from previous run
 Finished
+=OUTPUT=
 -- r1
 ! n1_in
 access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0
@@ -355,7 +362,7 @@ access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 8
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-=TODO=test_reuse_prev($title, $in, $in, $out, '--verbose');
+=OPTIONS=--verbose
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions 1
@@ -457,69 +464,5 @@ access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.4.0 255.255.255
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
-
-############################################################
-=TITLE=print-group: Automatically select IPv4 in IPv4
-=VAR=input
---file
-area:all = { anchor = network:n1; }
-network:n1 = { ip = 10.1.1.0/24; }
-router:r1 = { interface:n1; }
---ipv6
-area:all6 = { anchor = network:n2; }
-network:n2 = { ip = 1000::abcd:0001:0/112;}
-router:r1 = { interface:n2; }
-=END=
-=INPUT=${var}
-=OUTPUT=
-10.1.1.0/24	network:n1
-=END=
-=TODO=test_group($title, $in, 'network:[area:all]', $out);
-
-############################################################
-=TITLE=print-group: Automatically select IPv6 in IPv4
-=INPUT=${var}
-=OUTPUT=
-1000::abcd:1:0/112	network:n2
-=END=
-=TODO=test_group($title, $in, 'network:[area:all6]', $out);
-
-############################################################
-=TITLE=print-group: interface:..[all] selects IPv4 in IPv4
-=INPUT=${var}
-=OUTPUT=
-short	interface:r1.n1
-=END=
-=TODO=test_group($title, $in, 'interface:r1.[all]', $out);
-
-############################################################
-=TITLE=print-group: Automatically select IPv4 in IPv6
-=INPUT=${var}
-=SUBST=/--file/--ipv4/
-=SUBST=/--ipv6/--file/
-=OUTPUT=
-10.1.1.0/24	network:n1
-=END=
-=TODO=test_group($title, $in, 'network:[area:all]', $out, '--ipv6');
-
-############################################################
-=TITLE=print-group: Automatically select IPv6 in IPv6
-=INPUT=${var}
-=SUBST=/--file/--ipv4/
-=SUBST=/--ipv6/--file/
-=OUTPUT=
-1000::abcd:1:0/112	network:n2
-=END=
-=TODO=test_group($title, $in, 'network:[area:all6]', $out, '--ipv6');
-
-############################################################
-=TITLE=print-group: interface:..[all] selects IPv6 in IPv6
-=INPUT=${var}
-=SUBST=/--file/--ipv4/
-=SUBST=/--ipv6/--file/
-=OUTPUT=
-short	interface:r1.n2
-=END=
-=TODO=test_group($title, $in, 'interface:r1.[all]', $out, '--ipv6');
 
 ############################################################

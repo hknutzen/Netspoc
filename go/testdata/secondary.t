@@ -215,7 +215,9 @@ service:test = {
 ip access-list extended Ethernet1_in
  permit ip 10.1.1.0 0.0.0.255 host 10.9.9.9
  deny ip any any
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=No optimization if subnet of subnet is outside of zone (2)
@@ -223,7 +225,9 @@ ip access-list extended Ethernet1_in
 # processed later.
 =INPUT=${input}
 =SUBST=/router:u/router:r0/
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=No optimization if subnet of subnet of subnet is outside of zone

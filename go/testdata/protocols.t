@@ -21,7 +21,7 @@ router:r1 = {
 protocol:p = tcp
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -41,7 +41,7 @@ Error: Unknown protocol in protocol:test
 protocol:test = tcp 80 -
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -228,7 +228,7 @@ Error: Expected number < 256 in protocol:test
 protocol:test = icmp 3 /
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -272,7 +272,7 @@ ip access-list extended n1_in
 protocol:test = proto
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -440,7 +440,7 @@ protocol:ping = icmp 8;
 Warning: unused protocol:http
 Warning: unused protocol:ping
 =END=
-=OPTION=--check_unused_protocols=warn
+=OPTIONS=--check_unused_protocols=warn
 
 ############################################################
 =TITLE=Unknown protocol and protocolgroup

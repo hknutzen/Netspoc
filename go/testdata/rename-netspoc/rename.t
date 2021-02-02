@@ -2,7 +2,7 @@
 ############################################################
 =TITLE=Unknown type in substitution
 =INPUT=NONE
-=PARAM=foo:Test foo:Toast
+=PARAMS=foo:Test foo:Toast
 =ERROR=
 Error: Unknown type foo
 =END=
@@ -10,7 +10,7 @@ Error: Unknown type foo
 ############################################################
 =TITLE=Missing type in substitution
 =INPUT=NONE
-=PARAM=Test Toast
+=PARAMS=Test Toast
 =ERROR=
 Error: Missing type in 'Test'
 =END=
@@ -18,7 +18,7 @@ Error: Missing type in 'Test'
 ############################################################
 =TITLE=Missing replace string
 =INPUT=NONE
-=PARAM=host:x host:y host:z
+=PARAMS=host:x host:y host:z
 =ERROR=
 Error: Missing replace string for 'host:z'
 =END=
@@ -26,7 +26,7 @@ Error: Missing replace string for 'host:z'
 ############################################################
 =TITLE=Types must be indentical
 =INPUT=NONE
-=PARAM=host:x network:y
+=PARAMS=host:x network:y
 =ERROR=
 Error: Types must be identical in
  - host:x
@@ -36,7 +36,7 @@ Error: Types must be identical in
 ############################################################
 =TITLE=Ambiguous replace object
 =INPUT=NONE
-=PARAM=group:g group:x group:g group:y
+=PARAMS=group:g group:x group:g group:y
 =ERROR=
 Error: Ambiguous substitution for group:g: group:x, group:y
 =END=
@@ -67,42 +67,36 @@ router:r = {
 =INPUT=${input}
 =OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
-
 group:G =
  interface:r.Toast,
  interface:r.Toast.virtual,
  host:id:h@dom.top.Toast,
  network:Toast,
 ;
-
 network:sub = {
  ip = 10.1.1.32/28;
  subnet_of = network:Toast;
 }
-
 area:a = {
  border = interface:r.Toast;
  inclusive_border = interface:r2.Toast;
 }
-
 area:b = {
  border = interface:Test.r,
           interface:r.Toast,
           ;
 }
-
 pathrestriction:P =
  interface:r1.Toast,
  interface:r2.Toast,
 ;
-
 router:r = {
  interface:Toast = {
   reroute_permit = network:Toast;
  }
 }
 =END=
-=PARAM=network:Test network:Toast
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename verbosely
@@ -110,8 +104,8 @@ router:r = {
 =WARNING=
 13 changes in INPUT
 =END=
-=OPTION=--quiet=0
-=PARAM=network:Test network:Toast
+=OPTIONS=--quiet=0
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename bridged network
@@ -132,13 +126,11 @@ group:G = interface:r.Test,
 =OUTPUT=
 network:Toast/a = { ip = 10.9.1.0/24; }
 network:Toast/b = { ip = 10.9.1.0/24; }
-
 router:asa = {
  interface:Toast/a = { hardware = inside; }
  interface:Toast/b = { hardware = outside; }
  interface:Toast   = { hardware = device; }
 }
-
 group:G =
  interface:r.Toast,
  network:Toast/a,
@@ -146,7 +138,7 @@ group:G =
  interface:r.Toast/b,
 ;
 =END=
-=PARAM=network:Test network:Toast
+=PARAMS=network:Test network:Toast
 
 ############################################################
 =TITLE=Rename ID host
@@ -164,7 +156,7 @@ group:G =
  host:id:a.b.c.Test,
 ;
 =END=
-=PARAM=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
+=PARAMS=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
 
 ############################################################
 =TITLE=Rename both, ID host and network
@@ -180,7 +172,7 @@ group:G =
  host:id:xx@yy.zz.top,
 ;
 =END=
-=PARAM=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
+=PARAMS=host:id:h@dom.top host:id:xx@yy.zz network:Test network:Toast
 
 ############################################################
 =TITLE=Rename network to name with leading digit
@@ -193,14 +185,13 @@ group:G = interface:r.Test,
 =END=
 =OUTPUT=
 network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
-
 group:G =
  interface:r.1_2_3_0_Test,
  host:id:h@dom.top.1_2_3_0_Test,
  network:1_2_3_0_Test,
 ;
 =END=
-=PARAM=network:Test network:1_2_3_0_Test
+=PARAMS=network:Test network:1_2_3_0_Test
 
 ############################################################
 =TITLE=Rename router then network
@@ -213,22 +204,22 @@ group:g = interface:R.NN;
 router:RR = {
  interface:N = { ip = 10.9.1.1; }
 }
-
 network:N = { ip = 10.9.1.0/24; }
-
 group:g =
  interface:RR.N,
 ;
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
-=PARAM=router:R router:RR network:NN network:N
+=OUTPUT=
+${output}
+=PARAMS=router:R router:RR network:NN network:N
 
 ############################################################
 =TITLE=Rename network then router
 =INPUT=${input}
-=OUTPUT=${output}
-=PARAM=network:NN network:N router:R router:RR
+=OUTPUT=
+${output}
+=PARAMS=network:NN network:N router:R router:RR
 
 ############################################################
 =TITLE=Rename VRF router
@@ -243,17 +234,15 @@ interface:R@vrf.n;
 router:RR = {
  interface:n = { ip = 10.9.1.1; }
 }
-
 router:r@vrf = {
  interface:n = { ip = 10.9.1.2; }
 }
-
 group:G =
  interface:RR.n,
  interface:r@vrf.n,
 ;
 =END=
-=PARAM=router:R router:RR router:R@vrf router:r@vrf
+=PARAMS=router:R router:RR router:R@vrf router:r@vrf
 
 ############################################################
 =TITLE=Rename inside automatic group
@@ -265,7 +254,7 @@ group:g =
  interface:[network:NN].[all],
 ;
 =END=
-=PARAM=network:n1 network:NN
+=PARAMS=network:n1 network:NN
 
 ############################################################
 =TITLE=Rename nat
@@ -288,7 +277,6 @@ network:N = {
  ip = 1.2.3.0/24;
  nat:NAT-2 = { ip = 7.8.9.0; }
 }
-
 router:r = {
  interface:n1 = {
   bind_nat = NAT-2;
@@ -308,7 +296,7 @@ router:r = {
  }
 }
 =END=
-=PARAM=nat:NAT-1 nat:NAT-2
+=PARAMS=nat:NAT-1 nat:NAT-2
 
 ############################################################
 =TITLE=Rename service
@@ -322,19 +310,17 @@ service:s1 = {
 =END=
 =OUTPUT=
 service:x1 = {
-
  unknown_owner;
  overlaps = service:s2,
             service:x3,
             ;
-
  user = network:n1;
  permit src = user;
         dst = network:n2;
         prt = tcp 80;
 }
 =END=
-=PARAM=service:s1 service:x1 service:s3 service:x3
+=PARAMS=service:s1 service:x1 service:s3 service:x3
 
 ############################################################
 =TITLE=Rename loopback interface
@@ -349,17 +335,15 @@ group:G = interface:r1.Loopback_4,
 router:r1 = {
  interface:Loopback = { ip = 10.9.1.1; loopback; }
 }
-
 router:r2 = {
  interface:Loopback = { ip = 10.9.1.2; loopback; }
 }
-
 group:G =
  interface:r1.Loopback,
  interface:r2.Loopback,
 ;
 =END=
-=PARAM=network:Loopback_4 network:Loopback
+=PARAMS=network:Loopback_4 network:Loopback
 
 ############################################################
 =TITLE=Rename umlauts
@@ -374,25 +358,15 @@ network:n1 = {
 owner:Maass = {
  admins = a@b.c;
 }
-
 owner:Wittmüß = {
  admins = a@b.c;
 }
-
 network:n1 = { owner = Maass, Wittmüß; }
 =END=
-=PARAM=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
+=PARAMS=owner:Maaß owner:Maass owner:Wittmuess owner:Wittmüß
 
 ############################################################
 =TITLE=Read substitutions from file
-=VAR=file
-host:abc host:a1
-owner:foo owner:büro
-nat:tick nat:t1
-nat:ticks nat:t2
-nat:ick nat:_
-network:net network:xxxx
-=END=
 =INPUT=
 router:r = {
 interface:net = { bind_nat = ick,
@@ -422,8 +396,14 @@ network:xxxx = {
  host:a1 = { ip = 10.1.1.10; }
 }
 =END=
-=OPTION=-f file
-=TODO=
+=FOPTION=
+host:abc host:a1
+owner:foo owner:büro
+nat:tick nat:t1
+nat:ticks nat:t2
+nat:ick nat:_
+network:net network:xxxx
+=END=
 
 ############################################################
 =TITLE=Unknown file for substitutions
@@ -431,6 +411,6 @@ network:xxxx = {
 =ERROR=
 Error: open missing.file: no such file or directory
 =END=
-=OPTION=-f missing.file
+=OPTIONS=-f missing.file
 
 ############################################################

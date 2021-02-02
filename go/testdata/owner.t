@@ -18,7 +18,7 @@ Warning: Unused owner:o1
 
 ############################################################
 =TITLE=Error on unused owners
-=OPTION=--check_unused_owners=1
+=OPTIONS=--check_unused_owners=1
 =INPUT=${input}
 =ERROR=
 Error: Unused owner:a1
@@ -449,7 +449,7 @@ Warning: Unknown owner for host:h1 in service:s1, service:s2
 Warning: Unknown owner for host:h2 in service:s3
 Warning: Unknown owner for network:n2 in service:s1, service:s2
 =END=
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=Restrict attribute 'unknown_owner'
@@ -472,7 +472,7 @@ service:s1 = {
 =WARNING=
 Warning: Must not use attribute 'unknown_owner' at service:s1
 =END=
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=Ignore unknown owners in zone
@@ -492,7 +492,7 @@ service:s1 = {
 }
 =END=
 =WARNING=NONE
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=Inherit owner
@@ -542,7 +542,7 @@ service:s1 = {
 }
 =END=
 =WARNING=NONE
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=Automatic owner at implicit aggregate in zone cluster
@@ -565,7 +565,7 @@ service:s1 = {
 }
 =END=
 =WARNING=NONE
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=No automatic owner at implicit aggregate in zone cluster
@@ -592,7 +592,7 @@ service:s1 = {
 Warning: Unknown owner for any:[network:n1] in service:s1
 Warning: Unknown owner for any:[network:n1] in service:s1
 =END=
-=OPTION=--check_service_unknown_owner=warn
+=OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
 =TITLE=Multiple service owners

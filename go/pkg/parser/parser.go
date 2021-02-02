@@ -474,6 +474,16 @@ func (p *parser) attribute() *ast.Attribute {
 	return p.specialAttribute((*parser).next)
 }
 
+func (p *parser) attributeNoToplevel() *ast.Attribute {
+	if i := strings.Index(p.tok, ":"); i != -1 {
+		typ := p.tok[:i]
+		if _, found := globalType[typ]; found {
+			p.syntaxErr("Expected '}'")
+		}
+	}
+	return p.attribute()
+}
+
 func (p *parser) topListHead() ast.TopBase {
 	var a ast.TopBase
 	a.Start = p.pos
@@ -558,20 +568,6 @@ func (p *parser) topStructHead() ast.TopStruct {
 	return a
 }
 
-func (p *parser) attributeList() ([]*ast.Attribute, int) {
-	result := make([]*ast.Attribute, 0)
-	var end int
-	for {
-		if p.tok == "}" {
-			end = p.pos + 1
-			p.next()
-			break
-		}
-		result = append(result, p.attribute())
-	}
-	return result, end
-}
-
 func (p *parser) service() ast.Toplevel {
 	a := new(ast.Service)
 	a.TopStruct = p.topStructHead()
@@ -613,7 +609,7 @@ func (p *parser) network() ast.Toplevel {
 		} else if strings.HasPrefix(p.tok, "host:") {
 			a.Hosts = append(a.Hosts, p.attribute())
 		} else {
-			a.Attributes = append(a.Attributes, p.attribute())
+			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
 		}
 	}
 	return a
@@ -630,7 +626,7 @@ func (p *parser) router() ast.Toplevel {
 		} else if strings.HasPrefix(p.tok, "interface:") {
 			a.Interfaces = append(a.Interfaces, p.attribute())
 		} else {
-			a.Attributes = append(a.Attributes, p.attribute())
+			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
 		}
 	}
 	return a
@@ -649,7 +645,7 @@ func (p *parser) area() ast.Toplevel {
 		} else if p.tok == "inclusive_border" {
 			a.InclusiveBorder = p.namedUnion()
 		} else {
-			a.Attributes = append(a.Attributes, p.attribute())
+			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
 		}
 	}
 	return a
@@ -657,24 +653,35 @@ func (p *parser) area() ast.Toplevel {
 
 func (p *parser) topStruct() ast.Toplevel {
 	a := p.topStructHead()
-	a.Attributes, a.Next = p.attributeList()
+	for {
+		if p.tok == "}" {
+			a.Next = p.pos + 1
+			p.next()
+			break
+		}
+		a.Attributes = append(a.Attributes, p.attributeNoToplevel())
+	}
 	return &a
 }
 
-var globalType = map[string]func(*parser) ast.Toplevel{
-	"network":         (*parser).network,
-	"router":          (*parser).router,
-	"any":             (*parser).topStruct,
-	"area":            (*parser).area,
-	"group":           (*parser).topList,
-	"protocol":        (*parser).protocol,
-	"protocolgroup":   (*parser).protocolgroup,
-	"pathrestriction": (*parser).topList,
-	"service":         (*parser).service,
-	"owner":           (*parser).topStruct,
-	"crypto":          (*parser).topStruct,
-	"ipsec":           (*parser).topStruct,
-	"isakmp":          (*parser).topStruct,
+var globalType map[string]func(*parser) ast.Toplevel
+
+func init() {
+	globalType = map[string]func(*parser) ast.Toplevel{
+		"network":         (*parser).network,
+		"router":          (*parser).router,
+		"any":             (*parser).topStruct,
+		"area":            (*parser).area,
+		"group":           (*parser).topList,
+		"protocol":        (*parser).protocol,
+		"protocolgroup":   (*parser).protocolgroup,
+		"pathrestriction": (*parser).topList,
+		"service":         (*parser).service,
+		"owner":           (*parser).topStruct,
+		"crypto":          (*parser).topStruct,
+		"ipsec":           (*parser).topStruct,
+		"isakmp":          (*parser).topStruct,
+	}
 }
 
 func (p *parser) toplevel() ast.Toplevel {

@@ -63,7 +63,7 @@ ip route 10.5.0.4/30 10.9.1.3
 ip route 10.1.3.128/25 10.9.1.3
 ip route 10.1.4.0/24 10.9.1.3
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=Remove redundant routes, even if combined already exists
@@ -95,7 +95,7 @@ service:test = {
 ! [ Routing ]
 ip route 10.1.2.0/24 10.9.1.2
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=Missing next hop
@@ -290,7 +290,7 @@ ip route add 0.0.0.0/0 via 10.9.1.2
 ip route add 10.1.1.0/28 via 10.9.1.2
 ip route add 10.1.1.0/24 via 10.9.2.2
 =END=
-=OPTION=--check_redundant_rules=0
+=OPTIONS=--check_redundant_rules=0
 
 ############################################################
 =TITLE=Check NAT when finding largest supernet for route.

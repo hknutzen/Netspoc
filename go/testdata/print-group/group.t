@@ -1,0 +1,496 @@
+
+############################################################
+=VAR=topo
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3a = { range = 10.1.3.10-10.1.3.15; }
+ host:h3b = { ip = 10.1.3.26; }
+}
+network:n3sub = { ip = 10.1.3.64/27; subnet_of = network:n3;
+ host:h3c = { ip = 10.1.3.66; }
+ host:h3d = { range = 10.1.3.65 - 10.1.3.67; }
+}
+router:u = {
+ interface:n3;
+ interface:n3sub;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+=END=
+
+############################################################
+=TITLE=Find unused hosts
+=INPUT=
+${topo}
+service:s = {
+ user = host:h3a, host:h3c;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+10.1.1.10	host:h1
+10.1.3.26	host:h3b
+10.1.3.65-10.1.3.67	host:h3d
+=END=
+=OPTIONS=--unused
+=PARAM=host:[network:n1, network:n3]
+
+############################################################
+=TITLE=Find unused hosts, ignore host of automatic group
+# If host is only referenced in automatic group, it should be substituted
+# by expanded automatic group.
+=INPUT=
+${topo}
+service:s = {
+ user = network:[host:h3a], any:[host:h3c];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+10.1.1.10	host:h1
+10.1.3.10-10.1.3.15	host:h3a
+10.1.3.26	host:h3b
+10.1.3.66	host:h3c
+10.1.3.65-10.1.3.67	host:h3d
+=END=
+=OPTIONS=--unused
+=PARAM=host:[network:n1, network:n3]
+
+############################################################
+=TITLE=Find unused hosts, ignore negated element
+# If host is only referenced in negation, it should be removed completely.
+=INPUT=
+${topo}
+group:g = host:h3a, host:h3b, host:h3c;
+service:s = {
+ user = group:g &! host:h3b;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+10.1.1.10	host:h1
+10.1.3.26	host:h3b
+10.1.3.65-10.1.3.67	host:h3d
+=END=
+=OPTIONS=--unused
+=PARAM=host:[network:n1, network:n3]
+
+############################################################
+=TITLE=Automatic hosts
+=INPUT=${topo}
+=OUTPUT=
+10.1.1.10	host:h1
+10.1.3.10-10.1.3.15	host:h3a
+=END=
+=PARAM=host:[network:n1, host:h3a]
+
+############################################################
+=TITLE=Automatic network with subnets
+=INPUT=${topo}
+=OUTPUT=
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+=END=
+=PARAM=network:[network:n3]
+
+############################################################
+=TITLE=Automatic network with subnets from group
+=INPUT=
+${topo}
+group:g1 = network:[network:n3];
+=END=
+=OUTPUT=
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+=END=
+=PARAM=group:g1
+
+############################################################
+=TITLE=Automatic network with subnets from any
+=INPUT=${topo}
+=OUTPUT=
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+=END=
+=PARAM=network:[any:[network:n3sub]]
+
+############################################################
+=TITLE=Automatic hosts together with automatic network with subnets
+=INPUT=${topo}
+=OUTPUT=
+10.1.1.10	host:h1
+10.1.3.0/24	network:n3
+10.1.3.64/27	network:n3sub
+=END=
+=PARAM=host:[network:n1],network:[network:n3]
+
+############################################################
+=TITLE=Toplevel group with more than 8 elements
+=INPUT=
+${topo}
+group:g1 =
+ network:n1,
+ network:n2,
+ network:n3,
+ host:h3a,
+ host:h3b,
+ host:h3c,
+ host:h3d,
+;
+=END=
+=OUTPUT=
+10.1.1.0/24	network:n1
+10.1.2.0/24	network:n2
+10.1.3.0/24	network:n3
+10.1.3.10-10.1.3.15	host:h3a
+10.1.3.26	host:h3b
+10.1.3.66	host:h3c
+10.1.3.65-10.1.3.67	host:h3d
+=END=
+=PARAM=group:g1
+
+############################################################
+=TITLE=Intersection
+=INPUT=
+${topo}
+group:g1 = network:n1, network:n2;
+group:g2 = network:n2, network:n3;
+=END=
+=OUTPUT=
+10.1.2.0/24	network:n2
+=END=
+=PARAM=group:g1 & group:g2
+
+############################################################
+=TITLE=Intersection with complement
+=INPUT=
+${topo}
+group:g1 = network:n1, network:n2;
+=END=
+=OUTPUT=
+10.1.1.0/24	network:n1
+=END=
+=PARAM=group:g1 &! network:n2
+
+############################################################
+=TITLE=Multiple intersection with complement
+=INPUT=
+${topo}
+group:g1 = host:h1, network:n2, network:n3;
+=END=
+=OUTPUT=
+10.1.2.0/24	network:n2
+=END=
+=PARAM=group:g1 &! network:n3 &! host:h1
+
+############################################################
+=TITLE=Umlaut in group name
+=INPUT=
+${topo}
+group:Über = network:n1;
+=END=
+=OUTPUT=
+10.1.1.0/24	network:n1
+=END=
+=PARAM=group:Über
+
+############################################################
+=TITLE=Find unused network that is referenced in argument
+=INPUT=${topo}
+=OUTPUT=
+10.1.1.0/24	network:n1
+=END=
+=OPTIONS=-u
+=PARAM=network:[any:[network:n1]]
+
+
+### Topology for multiple tests.
+=VAR=input
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:t1 = { ip = 10.9.1.0/28; dynamic; }
+ host:h1s = { ip = 10.1.1.10; nat:t1 = { ip = 10.9.1.10; } }
+ host:h1d = { ip = 10.1.1.11; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ nat:t2 = { ip = 10.9.2.0/24; }
+ host:h2 = { ip = 10.1.2.10; }
+}
+network:n3 = {
+ ip = 10.1.3.0/24;
+ nat:t3 = { hidden; }
+ host:h3 = { ip = 10.1.3.10; }
+}
+router:r1 =  {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; nat:t1 = { ip = 10.9.1.1; } hardware = n1; }
+ interface:n2 = { negotiated; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:t1 = { unnumbered; hardware = t; bind_nat = t1, t2, t3; }
+}
+network:t1 = { unnumbered; }
+router:r2 = {
+ interface:t1;
+ interface:k1;
+}
+network:k1 = { ip = 10.2.2.0/24; }
+=END=
+
+############################################################
+=TITLE=Dynamic NAT for network and static NAT for host
+=INPUT=${input}
+=OUTPUT=
+10.9.1.0/28	network:n1
+10.9.1.10	host:h1s
+10.9.1.0/28	host:h1d
+=END=
+=OPTIONS=--nat k1
+=PARAM=network:n1, host:h1s, host:h1d
+
+############################################################
+=TITLE=Static NAT for network and host
+=INPUT=${input}
+=OUTPUT=
+10.9.2.0/24	network:n2
+10.9.2.10	host:h2
+=END=
+=OPTIONS=--nat k1
+=PARAM=network:n2,host:h2
+
+############################################################
+=TITLE=Hidden NAT for network and host
+=INPUT=${input}
+=OUTPUT=
+hidden	network:n3
+hidden	host:h3
+=END=
+=OPTIONS=--nat k1
+=PARAM=network:n3,host:h3
+
+############################################################
+=TITLE=Unnumbered network
+=INPUT=${input}
+=OUTPUT=
+unnumbered	network:t1
+=END=
+=OPTIONS=--nat k1
+=PARAM=network:t1
+
+############################################################
+=TITLE=Show unnumbered from [all], show [auto] interface
+=INPUT=${input}
+=OUTPUT=
+10.9.1.1	interface:r1.n1
+10.9.2.0/24	interface:r1.n2
+hidden	interface:r1.n3
+unnumbered	interface:r1.t1
+unknown	interface:r1.[auto]
+=END=
+=OPTIONS=--nat k1
+=PARAM=interface:r1.[all],interface:r1.[auto]
+
+############################################################
+=TITLE=Short interface
+=INPUT=${input}
+=OUTPUT=
+short	interface:r2.t1
+short	interface:r2.k1
+=END=
+=PARAM=interface:r2.[all]
+
+############################################################
+=TITLE=Empty group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+ group:g1 = ;
+=END=
+=WARNING=NONE
+=PARAM=group:g1
+
+############################################################
+=TITLE=Show bridged interface
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+router:r = {
+ interface:n1/right = { ip = 10.1.1.2; }
+}
+=END=
+=OUTPUT=
+bridged	interface:bridge.n1/right
+10.1.1.2	interface:r.n1/right
+=END=
+=PARAM=interface:[network:n1/right].[all]
+
+############################################################
+=TITLE=Show owner
+=VAR=topo
+owner:o = { admins = o@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o; }
+router:r = {
+ interface:n1;
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+=END=
+=INPUT=${topo}
+=OUTPUT=
+10.1.1.0/24	network:n1	owner:o
+10.1.2.0/24	network:n2	none
+=END=
+=OPTIONS=--owner
+=PARAM=network:n1, network:n2
+
+############################################################
+=TITLE=Show owner and only name
+=INPUT=${topo}
+=OUTPUT=
+network:n1	owner:o
+network:n2	none
+=END=
+=OPTIONS=-n -o
+=PARAM=network:[any:[network:n1]]
+
+############################################################
+=TITLE=Show only name
+=INPUT=${topo}
+=OUTPUT=
+network:n1
+network:n2
+=END=
+=OPTIONS=--name
+=PARAM=network:[any:[network:n1]]
+
+############################################################
+=TITLE=Show only ip
+=INPUT=${topo}
+=OUTPUT=
+10.1.1.0/24
+10.1.2.0/24
+=END=
+=OPTIONS=--ip
+=PARAM=network:[any:[network:n1]]
+
+############################################################
+=TITLE=Show owner and admins
+=VAR=topo
+owner:o1 = { admins = o1@b.c; }
+owner:o2 = { admins = o2a@d.e.f, o2b@g.h.i; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n3 = { ip = 10.1.3.0/24; owner = o1; }
+network:n3a = { ip = 10.1.3.0/25; subnet_of = network:n3; }
+router:r = {
+ interface:n1;
+ interface:n2;
+ interface:n3;
+ interface:n3a;
+}
+=END=
+=INPUT=${topo}
+=OUTPUT=
+network:n1	owner:o1	o1@b.c
+network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
+network:n3a	owner:o1	o1@b.c
+=END=
+=OPTIONS=--name --owner --admins
+=PARAM=network:n1, network:n2, network:n3a
+
+############################################################
+=TITLE=Show only name and admins
+=INPUT=${topo}
+=OUTPUT=
+network:n1	o1@b.c
+network:n2	o2a@d.e.f,o2b@g.h.i
+network:n3a	o1@b.c
+=END=
+=OPTIONS=--name -a
+=PARAM=network:n1, network:n2, network:n3a
+
+############################################################
+=TITLE=Do not print full length prefixes
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/32; }
+network:n4 = { ip = 10.1.4.0/32; }
+network:n5 = { ip = 10.1.5.0/32;
+ nat:nat1 = { ip = 10.7.7.0/32; dynamic; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = nat1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ }
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; hardware = n1; }
+ interface:n3 = { negotiated; hardware = n2; }
+ interface:n4;
+ interface:n5;
+}
+group:g1 = network:n4, interface:r2.n3, interface:r2.n5;
+=END=
+=OUTPUT=
+10.1.4.0	network:n4
+10.1.3.0	interface:r2.n3
+10.7.7.0	interface:r2.n5
+=END=
+=OPTIONS=--nat n1
+=PARAM=group:g1
+
+############################################################
+=TITLE=Must not ignore aggregate with only loopback network
+=INPUT=
+area:n2-lo = { border = interface:r1.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { unnumbered; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { unnumbered; hardware = n2; }
+ }
+router:r2 = {
+ interface:n2;
+ interface:lo = { ip = 10.1.3.1; loopback; }
+}
+=END=
+=OUTPUT=
+0.0.0.0/0	any:[network:n2]
+=END=
+=PARAM=any:[area:n2-lo]
+
+############################################################
+=TITLE=Unexpected content after ";"
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
+Aborted
+=END=
+=PARAM=network:n1; INVALID
+
+############################################################

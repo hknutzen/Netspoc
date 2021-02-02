@@ -423,7 +423,9 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
 =INPUT=${input}
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Intentionally unconnected, with loops (2)
@@ -436,7 +438,9 @@ router:r0 = {
  interface:n0 = { ip = 10.1.0.1; hardware = n1; }
  interface:n3 = { ip = 10.1.3.3; hardware = n2; }
 }
-=OUTPUT=${output}
+=OUTPUT=
+${output}
+=END=
 
 ############################################################
 =TITLE=Single partition with partition name

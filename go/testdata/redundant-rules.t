@@ -109,7 +109,7 @@ Warning: service:1d is fully redundant
 Warning: service:2a is fully redundant
 Warning: service:2b is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Redundant rules having protocols with and without modifiers
@@ -145,7 +145,7 @@ Warning: Redundant rules in service:s2 compared to service:s3:
 < permit src=network:n1; dst=network:n2; prt=ip; of service:s3
 Warning: service:s2 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Find fully redundant rules even if protocol suppresses warning
@@ -171,7 +171,7 @@ service:s2 = {
 =WARNING=
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Show all redundant rules, not only the smallest one
@@ -221,7 +221,7 @@ Warning: service:s2a is fully redundant
 Warning: service:s2b is fully redundant
 Warning: service:s3 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Fully redundant rule: multi redundant and duplicate
@@ -261,7 +261,7 @@ service:s3 = {
 =WARNING=
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Fully redundant rule: mixed redundant and duplicate
@@ -288,7 +288,7 @@ service:s2 = {
 =WARNING=
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Fully redundant rule: simple duplicates
@@ -316,7 +316,7 @@ service:s2 = {
 =WARNING=
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Fully redundant rule with reversed overlaps
@@ -345,7 +345,7 @@ service:s2 = {
 =WARNING=
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Fully redundant rule without overlaps
@@ -374,11 +374,11 @@ Warning: Duplicate rules in service:s2 and service:s1:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
 Warning: service:s1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Don't check for duplicate rules
-=OPTION=--check_duplicate_rules=0
+=OPTIONS=--check_duplicate_rules=0
 =INPUT=${input}
 =WARNING=NONE
 
@@ -416,11 +416,11 @@ service:s3 = {
 }
 =END=
 =WARNING=NONE
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Empty service is not shown as fully redundant
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 group:g1 = ;
@@ -516,7 +516,7 @@ Warning: Redundant rules in service:test1 compared to service:test2:
 < permit src=network:n1; dst=network:n2; prt=tcp 80-90; of service:test2
 Warning: service:test1 is fully redundant
 =END=
-=OPTION=--check_fully_redundant_rules=warn
+=OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
 =TITLE=Redundancy in enclosed port range

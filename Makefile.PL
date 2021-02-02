@@ -29,53 +29,14 @@ my %WriteMakefileArgs = (
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {},
-  "TEST_REQUIRES" => {
-    "Capture::Tiny" => 0,
-    "Carp" => 0,
-    "File::Path" => 0,
-    "File::Spec::Functions" => 0,
-    "File::Temp" => 0,
-    "IPC::Run3" => 0,
-    "JSON" => 0,
-    "NetAddr::IP::Util" => 0,
-    "Netspoc::Compiler::Common" => 0,
-    "POSIX" => 0,
-    "Regexp::IPv6" => 0,
-    "Test::Differences" => 0,
-    "Test::More" => 0,
-    "lib" => 0,
-    "open" => 0,
-    "strict" => 0,
-    "utf8" => 0,
-    "warnings" => 0
-  },
-  "VERSION" => "6.023",
+  "VERSION" => "6.024",
   "test" => {
-    "TESTS" => "t/*.t"
+    "TESTS" => ""
   }
 );
 
 
-my %FallbackPrereqs = (
-  "Capture::Tiny" => 0,
-  "Carp" => 0,
-  "File::Path" => 0,
-  "File::Spec::Functions" => 0,
-  "File::Temp" => 0,
-  "IPC::Run3" => 0,
-  "JSON" => 0,
-  "NetAddr::IP::Util" => 0,
-  "Netspoc::Compiler::Common" => 0,
-  "POSIX" => 0,
-  "Regexp::IPv6" => 0,
-  "Test::Differences" => 0,
-  "Test::More" => 0,
-  "lib" => 0,
-  "open" => 0,
-  "strict" => 0,
-  "utf8" => 0,
-  "warnings" => 0
-);
+my %FallbackPrereqs = ();
 
 
 unless ( eval { ExtUtils::MakeMaker->VERSION(6.63_03) } ) {

@@ -31,6 +31,74 @@ ip access-list extended ethernet0_in
 =END=
 
 ############################################################
+=TITLE=Large host ranges for private addresses
+=INPUT=
+network:inet = {
+ ip = 0.0.0.0/0;
+ host:r1 = { range = 0.0.0.0 - 9.255.255.255; }
+ host:r2 = { range = 11.0.0.0 - 172.15.255.255; }
+ host:r3 = { range = 172.32.0.0 - 192.167.255.255; }
+ host:r4 = { range = 192.169.0.0 - 255.255.255.255; }
+}
+
+router:r = {
+ managed;
+ model = NX-OS;
+ interface:inet = { ip = 10.9.9.1;  hardware = inet; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ subnet_of = network:inet;
+}
+
+service:s1 = {
+ user = host:[network:inet];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+-- r
+! [ ACL ]
+object-group ip address g0
+ 10 0.0.0.0/5
+ 20 8.0.0.0/7
+ 30 11.0.0.0/8
+ 40 12.0.0.0/6
+ 50 16.0.0.0/4
+ 60 32.0.0.0/3
+ 70 64.0.0.0/2
+ 80 128.0.0.0/3
+ 90 160.0.0.0/5
+ 100 168.0.0.0/6
+ 110 172.0.0.0/12
+ 120 172.32.0.0/11
+ 130 172.64.0.0/10
+ 140 172.128.0.0/9
+ 150 173.0.0.0/8
+ 160 174.0.0.0/7
+ 170 176.0.0.0/4
+ 180 192.0.0.0/9
+ 190 192.128.0.0/11
+ 200 192.160.0.0/13
+ 210 192.169.0.0/16
+ 220 192.170.0.0/15
+ 230 192.172.0.0/14
+ 240 192.176.0.0/12
+ 250 192.192.0.0/10
+ 260 193.0.0.0/8
+ 270 194.0.0.0/7
+ 280 196.0.0.0/6
+ 290 200.0.0.0/5
+ 300 208.0.0.0/4
+ 310 224.0.0.0/3
+ip access-list inet_in
+ 10 deny ip any 10.1.1.1/32
+ 20 permit tcp addrgroup g0 10.1.1.0/24 eq 80
+ 30 deny ip any any
+=END=
+
+############################################################
 =TITLE=Redundant rule from host range and combined ip hosts
 =INPUT=
 network:n1 = {
@@ -169,7 +237,7 @@ Warning: Redundant rules in service:test compared to service:test:
 =TITLE=Must not combine list in place
 # List of src objects is referenced from two different path rules.
 # If combineSubnets is applied twice on the same list,
-# we would get garbadge.
+# we would get garbage.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24;
  host:h20 = { ip = 10.1.1.20; }

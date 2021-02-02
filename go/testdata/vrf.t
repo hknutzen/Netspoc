@@ -257,7 +257,7 @@ router:r1@v2 = {
 Error: Missing attribute 'policy_distribution_point' for 1 devices:
  - at least one instance of router:r1
 =END=
-=OPTION=--check_policy_distribution_point=1
+=OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
 =TITLE=Different policy distribution point at VRF members
@@ -287,6 +287,6 @@ Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1@v1
  - router:r1@v2
 =END=
-=OPTION=--check_policy_distribution_point=1
+=OPTIONS=--check_policy_distribution_point=1
 
 ############################################################

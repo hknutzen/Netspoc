@@ -57,8 +57,8 @@ s1:permit 10.1.2.0/24 10.1.3.2 icmp 3/3
 s1:permit 10.1.9.10 10.1.3.2 icmp
 s1:permit 10.1.2.0/24 10.1.3.2 icmp
 =END=
-=OPTION=--nat n3
-=PARAM=service:s1
+=OPTIONS=--nat n3
+=PARAMS=service:s1
 
 ############################################################
 =TITLE=All services
@@ -86,7 +86,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
 s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =END=
-=PARAM=s1 service:s2
+=PARAMS=s1 service:s2
 
 ############################################################
 =TITLE=Multiple services, show names of objects
@@ -95,7 +95,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 s1:permit network:n1 network:n3 ip
 s2:permit network:n2 network:n3 tcp
 =END=
-=OPTION=--name
-=PARAM=service:s1 service:s2
+=OPTIONS=--name
+=PARAMS=service:s1 service:s2
 
 ############################################################

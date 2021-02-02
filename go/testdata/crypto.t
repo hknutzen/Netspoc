@@ -824,12 +824,14 @@ network:customers2 = {
                         authorization-server-group = LDAP_1;
                         username-from-certificate = CN;
                         authorization-required;
+                        group-lock;#
                         password-management_password-expire-in-days = 91; }
  }
  host:id:@domain.y = {
   range = 10.99.2.64 - 10.99.2.127;
   radius_attributes = { vpn-idle-timeout = 40;
-                        trust-point = ASDM_TrustPoint3; }
+                        trust-point = ASDM_TrustPoint3;
+                        group-lock; }
  }
  host:id:zzz = {
   range = 10.99.2.128 - 10.99.2.191;
@@ -911,11 +913,6 @@ tunnel-group-map default-group VPN-single
 access-list vpn-filter-@domain.y extended permit ip 10.99.2.64 255.255.255.192 any4
 access-list vpn-filter-@domain.y extended deny ip any4 any4
 ip local pool pool-@domain.y 10.99.2.64-10.99.2.127 mask 255.255.255.192
-group-policy VPN-group-@domain.y internal
-group-policy VPN-group-@domain.y attributes
- address-pools value pool-@domain.y
- vpn-filter value vpn-filter-@domain.y
- vpn-idle-timeout 40
 crypto ca certificate map ca-map-@domain.y 10
  subject-name attr ea co @domain.y
 tunnel-group VPN-tunnel-@domain.y type remote-access
@@ -927,6 +924,12 @@ tunnel-group VPN-tunnel-@domain.y ipsec-attributes
 tunnel-group VPN-tunnel-@domain.y webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-@domain.y 10 VPN-tunnel-@domain.y
+group-policy VPN-group-@domain.y internal
+group-policy VPN-group-@domain.y attributes
+ address-pools value pool-@domain.y
+ group-lock value VPN-tunnel-@domain.y
+ vpn-filter value vpn-filter-@domain.y
+ vpn-idle-timeout 40
 --
 ! vpn-filter-bar@domain.x
 access-list vpn-filter-bar@domain.x extended permit ip host 10.99.1.11 any4
@@ -964,13 +967,6 @@ access-list split-tunnel-1 standard permit 10.0.4.0 255.255.255.0
 access-list vpn-filter-domain.x extended permit ip 10.99.2.0 255.255.255.192 any4
 access-list vpn-filter-domain.x extended deny ip any4 any4
 ip local pool pool-domain.x 10.99.2.0-10.99.2.63 mask 255.255.255.192
-group-policy VPN-group-domain.x internal
-group-policy VPN-group-domain.x attributes
- address-pools value pool-domain.x
- split-tunnel-network-list value split-tunnel-1
- split-tunnel-policy tunnelspecified
- vpn-filter value vpn-filter-domain.x
- vpn-idle-timeout 120
 crypto ca certificate map ca-map-domain.x 10
  subject-name attr ou co domain.x
 tunnel-group VPN-tunnel-domain.x type remote-access
@@ -986,6 +982,14 @@ tunnel-group VPN-tunnel-domain.x ipsec-attributes
 tunnel-group VPN-tunnel-domain.x webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-domain.x 10 VPN-tunnel-domain.x
+group-policy VPN-group-domain.x internal
+group-policy VPN-group-domain.x attributes
+ address-pools value pool-domain.x
+ group-lock value VPN-tunnel-domain.x
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+ vpn-filter value vpn-filter-domain.x
+ vpn-idle-timeout 120
 --
 ! split-tunnel-2
 access-list split-tunnel-2 standard permit 10.0.1.0 255.255.255.0
@@ -1029,13 +1033,6 @@ username unused@domain.x attributes
 access-list vpn-filter-zzz extended permit ip 10.99.2.128 255.255.255.192 any4
 access-list vpn-filter-zzz extended deny ip any4 any4
 ip local pool pool-zzz 10.99.2.128-10.99.2.191 mask 255.255.255.192
-group-policy VPN-group-zzz internal
-group-policy VPN-group-zzz attributes
- address-pools value pool-zzz
- split-tunnel-network-list value split-tunnel-1
- split-tunnel-policy tunnelspecified
- vpn-filter value vpn-filter-zzz
- vpn-idle-timeout 120
 crypto ca certificate map ca-map-zzz 10
  subject-name attr ou co zzz
  extended-key-usage co 1.3.6.1.4.1.311.20.2.2
@@ -1048,6 +1045,13 @@ tunnel-group VPN-tunnel-zzz ipsec-attributes
 tunnel-group VPN-tunnel-zzz webvpn-attributes
  authentication certificate
 tunnel-group-map ca-map-zzz 10 VPN-tunnel-zzz
+group-policy VPN-group-zzz internal
+group-policy VPN-group-zzz attributes
+ address-pools value pool-zzz
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+ vpn-filter value vpn-filter-zzz
+ vpn-idle-timeout 120
 --
 ! inside_in
 access-list inside_in extended permit icmp any4 any4 3
@@ -1089,6 +1093,14 @@ access-group outside_in in interface outside
 =ERROR=
 Error: Missing radius_attribute 'check-subject-name'
  for host:id:domain.x.customers2
+=END=
+
+############################################################
+=TITLE=Ignoring value of radius_attribute group-lock
+=INPUT=${input}
+=SUBST=/group-lock;#/group-lock = enabled;/
+=WARNING=
+Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.customers2 (will be set automatically)
 =END=
 
 ############################################################
@@ -1192,40 +1204,6 @@ access-list outside_in extended permit tcp host 10.99.1.11 10.1.1.0 255.255.255.
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
-
-############################################################
-=TITLE=Mark ID hosts as used even if only network is used (1)
-=INPUT=
-${topo}
-service:s1 = {
- user = network:customers1;
- permit src = user; dst = network:intern; prt = tcp 80;
-}
-area:all = { anchor = network:intern; }
-=END=
-=OUTPUT=
-10.99.2.0-10.99.2.63	host:id:domain.x.customers2
-10.99.2.64-10.99.2.127	host:id:@domain.y.customers2
-10.99.2.128-10.99.2.191	host:id:zzz.customers2
-=END=
-=TODO=test_group($title, $in, 'host:[area:all]', $out, '--unused'); # No IPv6 test
-
-############################################################
-=TITLE=Mark ID hosts as used even if only network is used (2)
-=INPUT=
-${topo}
-service:s2 = {
- user = host:id:bar@domain.x.customers1, network:customers2;
- permit src = user; dst = network:intern; prt = tcp 81;
-}
-area:all = { anchor = network:intern; }
-=END=
-=OUTPUT=
-10.99.1.10	host:id:foo@domain.x.customers1
-10.99.1.12	host:id:baz@domain.x.customers1
-10.99.1.254	host:id:unused@domain.x.customers1
-=END=
-=TODO=test_group($title, $in, 'host:[area:all]', $out, '--unused');
 
 ############################################################
 =TITLE=ASA, VPN in CONTEXT
@@ -1363,6 +1341,7 @@ network:customers2 = {
  radius_attributes = {
   check-subject-name = ou;
   authentication-server-group = LDAP_2;
+  group-lock;
  }
  host:example2a = {
   ldap_id = CN=example2a;
@@ -1406,10 +1385,6 @@ service:test2 = {
 access-list vpn-filter-1 extended permit ip 10.99.1.8 255.255.255.248 any4
 access-list vpn-filter-1 extended deny ip any4 any4
 ip local pool pool-1 10.99.1.8-10.99.1.15 mask 255.255.255.248
-group-policy VPN-group-1 internal
-group-policy VPN-group-1 attributes
- address-pools value pool-1
- vpn-filter value vpn-filter-1
 crypto ca certificate map ca-map-cert1 10
  subject-name attr cn co cert1
 tunnel-group VPN-tunnel-cert1 type remote-access
@@ -1421,15 +1396,15 @@ tunnel-group VPN-tunnel-cert1 ipsec-attributes
 tunnel-group VPN-tunnel-cert1 webvpn-attributes
  authentication aaa certificate
 tunnel-group-map ca-map-cert1 10 VPN-tunnel-cert1
+group-policy VPN-group-1 internal
+group-policy VPN-group-1 attributes
+ address-pools value pool-1
+ vpn-filter value vpn-filter-1
 --
 ! vpn-filter-2
 access-list vpn-filter-2 extended permit ip 10.99.2.0 255.255.255.192 any4
 access-list vpn-filter-2 extended deny ip any4 any4
 ip local pool pool-2 10.99.2.0-10.99.2.63 mask 255.255.255.192
-group-policy VPN-group-2 internal
-group-policy VPN-group-2 attributes
- address-pools value pool-2
- vpn-filter value vpn-filter-2
 crypto ca certificate map ca-map-cert2 10
  subject-name attr ou co cert2
 tunnel-group VPN-tunnel-cert2 type remote-access
@@ -1441,6 +1416,11 @@ tunnel-group VPN-tunnel-cert2 ipsec-attributes
 tunnel-group VPN-tunnel-cert2 webvpn-attributes
  authentication aaa certificate
 tunnel-group-map ca-map-cert2 10 VPN-tunnel-cert2
+group-policy VPN-group-2 internal
+group-policy VPN-group-2 attributes
+ address-pools value pool-2
+ group-lock value VPN-tunnel-cert2
+ vpn-filter value vpn-filter-2
 --
 ! vpn-filter-3
 access-list vpn-filter-3 extended permit ip 10.99.2.128 255.255.255.192 any4
@@ -1449,6 +1429,7 @@ ip local pool pool-3 10.99.2.128-10.99.2.191 mask 255.255.255.192
 group-policy VPN-group-3 internal
 group-policy VPN-group-3 attributes
  address-pools value pool-3
+ group-lock value VPN-tunnel-cert2
  vpn-filter value vpn-filter-3
 --
 webvpn
@@ -1530,7 +1511,7 @@ network:customers3 = {
 Error: All ID hosts having domain '@domain.x' must use identical value from 'check-extended-key-usage'
 Error: All ID hosts having domain '@domain.y' must use identical value from 'check-extended-key-usage'
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=VPN ASA with internal software clients
@@ -1651,7 +1632,7 @@ access-list outside_in extended permit icmp 10.99.1.10 255.255.255.254 10.1.2.0 
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
-=OPTION=--noauto_default_route
+=OPTIONS=--noauto_default_route
 
 ############################################################
 =TITLE=Missing route for VPN ASA with internal software clients

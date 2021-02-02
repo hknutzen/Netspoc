@@ -515,7 +515,9 @@ func printAsaTrustpoint(fh *os.File, router *router, trustpoint string) {
 	}
 }
 
-func printTunnelGroupRa(fh *os.File, id, idName string, attributes map[string]string, router *router, groupPolicyName string, certGroupMap map[string]string) {
+func printTunnelGroupRa(
+	fh *os.File, id, idName string, attributes map[string]string, router *router,
+	groupPolicyName string, certGroupMap map[string]string) string {
 
 	subjectName := attributes["check-subject-name"]
 	delete(attributes, "check-subject-name")
@@ -580,7 +582,7 @@ func printTunnelGroupRa(fh *os.File, id, idName string, attributes map[string]st
 	certGroupMap[mapName] = tunnelGroupName
 
 	fmt.Fprintln(fh, "tunnel-group-map", mapName, "10", tunnelGroupName)
-	fmt.Fprintln(fh)
+	return tunnelGroupName
 }
 
 func combineAttr(list ...map[string]string) map[string]string {
@@ -612,6 +614,7 @@ var asaVpnAttributes = map[string]int{
 	"banner":                   groupPolicy,
 	"dns-server":               groupPolicy,
 	"default-domain":           groupPolicy,
+	"group-lock":               groupPolicy,
 	"split-dns":                groupPolicy,
 	"wins-server":              groupPolicy,
 	"vpn-access-hours":         groupPolicy,
@@ -634,6 +637,7 @@ var asaVpnAttrNeedValue = map[string]bool{
 	"banner":                    true,
 	"dns-server":                true,
 	"default-domain":            true,
+	"group-lock":                true,
 	"split-dns":                 true,
 	"wins-server":               true,
 	"address-pools":             true,
@@ -732,7 +736,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 		gpName string
 	}
 	ldapMap := make(map[string][]ldapEntry)
-	networkSeen := make(map[*network]bool)
+	network2tg := make(map[*network]string)
 	aclCounter := 1
 	denyAny := getDenyAnyRule(ipv6)
 	for _, intf := range router.interfaces {
@@ -875,8 +879,8 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
 					groupPolicyName := "VPN-group-" + idName
-					printGroupPolicy(groupPolicyName, attributes)
 
+					var tgName string
 					if ldapId := src.ldapId; ldapId != "" {
 						network := src.getNetwork()
 						netAttr := combineAttr(
@@ -886,10 +890,10 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 						authServer := netAttr["authentication-server-group"]
 						ldapMap[authServer] = append(
 							ldapMap[authServer], ldapEntry{ldapId, groupPolicyName})
-						if !networkSeen[network] {
-							networkSeen[network] = true
+						tgName = network2tg[network]
+						if tgName == "" {
 							certId := network.certId
-							printTunnelGroupRa(
+							tgName = printTunnelGroupRa(
 								fh,
 								certId,
 								genIdName(certId),
@@ -898,9 +902,10 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 								"",
 								certGroupMap,
 							)
+							network2tg[network] = tgName
 						}
 					} else {
-						printTunnelGroupRa(
+						tgName = printTunnelGroupRa(
 							fh,
 							id,
 							idName,
@@ -909,6 +914,13 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 							certGroupMap,
 						)
 					}
+
+					// Lock group-policy to tunnel-group.
+					if _, found := attributes["group-lock"]; found {
+						attributes["group-lock"] = tgName
+					}
+					printGroupPolicy(groupPolicyName, attributes)
+					fmt.Fprintln(fh)
 				}
 			}
 		} else if id := intf.peer.id; id != "" {

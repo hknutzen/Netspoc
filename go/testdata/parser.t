@@ -105,7 +105,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Expected ';' at line 5 of STDIN, near "--HERE-->}"
+Error: Expected ';' at line 5 of INPUT, near "--HERE-->}"
 Aborted
 =END=
 
@@ -167,7 +167,7 @@ router:R = {
 network:N = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Expected '=' at line 2 of STDIN, near "foo --HERE-->}"
+Error: Expected '=' at line 2 of INPUT, near "foo --HERE-->}"
 Aborted
 =END=
 
@@ -277,7 +277,7 @@ Error: Missing IP in 'virtual' of interface:R.N
 network = {
 =END=
 =ERROR=
-Error: Typed name expected at line 1 of STDIN, near "--HERE-->network"
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->network"
 Aborted
 =END=
 
@@ -287,7 +287,48 @@ Aborted
 networkX:n1 = {
 =END=
 =ERROR=
-Error: Unknown global definition at line 1 of STDIN, near "--HERE-->networkX:n1"
+Error: Unknown global definition at line 1 of INPUT, near "--HERE-->networkX:n1"
+Aborted
+=END=
+
+############################################################
+=TITLE=Missing '}' after network definition
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { 10.1.1.10; }
+ FOO = BAR;
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+=END=
+=ERROR=
+Error: Expected '}' at line 5 of INPUT, near "--HERE-->network:n2"
+Aborted
+=END=
+
+############################################################
+=TITLE=Missing '}' after owner definition
+=INPUT=
+owner:o1 = {
+ admins = a1@b.c;
+owner:o2 = { admins = a2@b.c; }
+=END=
+=ERROR=
+Error: Expected '}' at line 3 of INPUT, near "--HERE-->owner:o2"
+Aborted
+=END=
+
+############################################################
+=TITLE=Unexpected definition after missing ';' in list
+=INPUT=
+group:g1 =
+ host:h1,
+ host:h2,
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+=END=
+=ERROR=
+Error: Expected ';' at line 4 of INPUT, near "network:n2 --HERE-->= { ip"
 Aborted
 =END=
 
@@ -326,7 +367,7 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 network:n1
 =END=
 =ERROR=
-Error: Expected '=' at line 1 of STDIN, at EOF
+Error: Expected '=' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -336,7 +377,7 @@ Aborted
 network:n1 = { owner = }
 =END=
 =ERROR=
-Error: Unexpected separator '}' at line 1 of STDIN, near "owner = --HERE-->}"
+Error: Unexpected separator '}' at line 1 of INPUT, near "owner = --HERE-->}"
 Aborted
 =END=
 
@@ -356,7 +397,7 @@ Error: List of values expected in 'admins' of owner:o1
 group:g1 = host:h1 host:h2;
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, near "host:h1 --HERE-->host:h2"
+Error: Expected ';' at line 1 of INPUT, near "host:h1 --HERE-->host:h2"
 Aborted
 =END=
 
@@ -366,7 +407,7 @@ Aborted
 owner:o = { admins = a@b.c x@y.z; }
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, near "a@b.c --HERE-->x@y.z"
+Error: Expected ';' at line 1 of INPUT, near "a@b.c --HERE-->x@y.z"
 Aborted
 =END=
 
@@ -376,7 +417,7 @@ Aborted
 group:g1 = host;
 =END=
 =ERROR=
-Error: Typed name expected at line 1 of STDIN, near "group:g1 = --HERE-->host"
+Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->host"
 Aborted
 =END=
 
@@ -430,7 +471,7 @@ Error: Can't resolve network:n1@vrf: in user of service:s1
 group:g1 = interface:;
 =END=
 =ERROR=
-Error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:"
+Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:"
 Aborted
 =END=
 
@@ -440,7 +481,7 @@ Aborted
 group:g1 = interface:r;
 =END=
 =ERROR=
-Error: Interface name expected at line 1 of STDIN, near "group:g1 = --HERE-->interface:r"
+Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:r"
 Aborted
 =END=
 
@@ -465,7 +506,7 @@ Error: Can't resolve interface:r.n.123.nn in user of service:s1
 group:g1 = interface:r1.[ ;
 =END=
 =ERROR=
-Error: Expected [auto|all] at line 1 of STDIN, near "interface:r1.[ --HERE-->;"
+Error: Expected [auto|all] at line 1 of INPUT, near "interface:r1.[ --HERE-->;"
 Aborted
 =END=
 
@@ -475,7 +516,7 @@ Aborted
 group:g1 = interface:r.[foo];
 =END=
 =ERROR=
-Error: Expected [auto|all] at line 1 of STDIN, near "interface:r.[--HERE-->foo]"
+Error: Expected [auto|all] at line 1 of INPUT, near "interface:r.[--HERE-->foo]"
 Aborted
 =END=
 
@@ -485,7 +526,7 @@ Aborted
 group:g1 = interface:[network:n1].n2;
 =END=
 =ERROR=
-Error: Expected '.[' at line 1 of STDIN, near "interface:[network:n1]--HERE-->.n2"
+Error: Expected '.[' at line 1 of INPUT, near "interface:[network:n1]--HERE-->.n2"
 Aborted
 =END=
 
@@ -504,7 +545,7 @@ Error: Invalid identifier in definition of 'group.a@b'
 network:n = { nat:a+b = { ip = 10.9.9.0/24; } ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Expected '=' at line 1 of STDIN, near "nat:a--HERE-->+b"
+Error: Expected '=' at line 1 of INPUT, near "nat:a--HERE-->+b"
 Aborted
 =END=
 
@@ -553,7 +594,7 @@ router:r = {
 network:n = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Expected '=' at line 2 of STDIN, near "managed --HERE-->xxx"
+Error: Expected '=' at line 2 of INPUT, near "managed --HERE-->xxx"
 Aborted
 =END=
 
@@ -590,7 +631,7 @@ network:n = {
 }
 =END=
 =ERROR=
-Error: Unexpected separator ';' at line 2 of STDIN, near "10.1.1.1; --HERE-->; }"
+Error: Unexpected separator ';' at line 2 of INPUT, near "10.1.1.1; --HERE-->; }"
 Aborted
 =END=
 
@@ -610,7 +651,7 @@ Error: Missing IP address for network:n
 network:n = { ; }
 =END=
 =ERROR=
-Error: Unexpected separator ';' at line 1 of STDIN, near "network:n = { --HERE-->; }"
+Error: Unexpected separator ';' at line 1 of INPUT, near "network:n = { --HERE-->; }"
 Aborted
 =END=
 
@@ -671,7 +712,7 @@ Error: Invalid identifier 'a.1' in radius_attributes of network:n1
 network:n1 = { radius_attributes = { banner = Welcome #two; } }
 =END=
 =ERROR=
-Error: Expected ';' at line 1 of STDIN, at EOF
+Error: Expected ';' at line 1 of INPUT, at EOF
 Aborted
 =END=
 
@@ -695,7 +736,7 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Expected '=' at line 2 of STDIN, near "permit --HERE-->src"
+Error: Expected '=' at line 2 of INPUT, near "permit --HERE-->src"
 Aborted
 =END=
 
@@ -939,7 +980,7 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Unexpected separator ',' at line 2 of STDIN, near "service:s2,--HERE-->,;"
+Error: Unexpected separator ',' at line 2 of INPUT, near "service:s2,--HERE-->,;"
 Aborted
 =END=
 
@@ -966,7 +1007,7 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Expected 'permit' or 'deny' at line 3 of STDIN, near " --HERE-->allow"
+Error: Expected 'permit' or 'deny' at line 3 of INPUT, near " --HERE-->allow"
 Aborted
 =END=
 
