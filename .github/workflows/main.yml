@@ -19,9 +19,11 @@ jobs:
       - name: Calc coverage
         run: |
           cd go/test
-          go test -coverpkg $(go list ../...|grep /pkg/|paste -sd,) -covermode=count -coverprofile=../../coverage.out
+          go test -coverpkg $(go list ../...|grep /pkg/|paste -sd,) -covermode=count -coverprofile=coverage.out
       - name: Convert coverage to lcov
         uses: jandelgado/gcov2lcov-action@v1.0.8
+        with:
+          working-directory: go/test
       - name: Coveralls
         uses: coverallsapp/github-action@v1.1.2
         with:
