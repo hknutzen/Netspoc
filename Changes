@@ -1,5 +1,13 @@
 {{$NEXT}}
 
+6.024     2021-02-02 15:10:10+01:00 Europe/Berlin
+
+ - Support new radius attribute "group-lock".
+   If set, attribute 'group-lock value <TUNNEL-GROUP-NAME>'
+   is added to generated group-policy of ASA.
+ - Better error message is shown, if '}' is missing after toplevel definition.
+ - Performance has been improved for hosts with very large IP range.
+
 6.023     2021-01-22 12:44:54+01:00 Europe/Berlin
 
   - NAT for ASA is supported now with more than two interfaces.
