@@ -29,4 +29,3 @@ jobs:
         with:
           github-token: ${{ secrets.github_token }}
           path-to-lcov: go/test/coverage.lcov
-          base-path: go
