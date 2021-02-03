@@ -5,7 +5,7 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-name: Update Coveralls
+name: tests
 jobs:
   coverage:
     runs-on: ubuntu-latest
@@ -17,9 +17,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Calc coverage
-        run: |
-          cd go/test
-          go test -coverpkg $(go list ../...|grep /pkg/|paste -sd,) -covermode=count -coverprofile=coverage.out
+        run: >
+          go test
+          -coverpkg $(go list ../...|grep /pkg/|paste -sd,)
+          -covermode=count
+          -coverprofile=coverage.out
+        working-directory: go/test
       - name: Convert coverage to lcov
         uses: jandelgado/gcov2lcov-action@v1.0.8
         with:
