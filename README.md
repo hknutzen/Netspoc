@@ -3,7 +3,7 @@ Netspoc
 
 A network security policy compiler.
 
-[![Build Status](https://travis-ci.org/hknutzen/Netspoc.svg?branch=master)](https://travis-ci.org/hknutzen/Netspoc)
+[![Test Status](https://github.com/hknutzen/Netspoc/workflows/tests/badge.svg)](https://github.com/hknutzen/Netspoc/actions?query=workflow%3A"tests")
 [![Coverage Status](https://coveralls.io/repos/github/hknutzen/Netspoc/badge.svg?branch=master)](https://coveralls.io/github/hknutzen/Netspoc?branch=master)
 
 Netspoc has been migrated from Perl to Go (golang).
