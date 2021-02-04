@@ -1874,7 +1874,7 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		case "disabled":
 			sv.disabled = c.getFlag(a, name)
 		case "disable_at":
-			sv.disableAt = c.getSingleValue(a, "'disable_at' of "+name)
+			sv.disableAt = c.getSingleValue(a, name)
 			if c.dateIsReached(sv.disableAt, "'disable_at' of "+name) {
 				sv.disabled = true
 			}
