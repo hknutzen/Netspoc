@@ -111,8 +111,6 @@ type invertedFlag map[string]*struct {
 
 var invertedFlags = invertedFlag{
 	"quiet": {short: "q", orig: "verbose"},
-	// For compatibilty with Perl Getopt::Long
-	"noauto_default_route": {orig: "auto_default_route"},
 }
 
 func defaultOptions(fs *flag.FlagSet) *Config {

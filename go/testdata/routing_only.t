@@ -94,7 +94,7 @@ vrf context v2
  ip route 10.2.2.0/24 10.9.1.1
  ip route 10.1.1.0/24 10.9.2.2
 =END=
-=OPTIONS=--noauto_default_route
+=OPTIONS=--auto_default_route=0
 
 ############################################################
 =TITLE=Add routes for zones at routing_only router
