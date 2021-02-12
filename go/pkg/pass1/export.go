@@ -103,13 +103,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return n.ip.String()
 			}
 
-			// Print no mask for aggregate with mask 0, for compatibility
-			// with old version.
-			if n.isAggregate {
-				if p, _ := n.mask.Size(); p == 0 {
-					return n.ip.String()
-				}
-			}
 			return printNetworkIp(n)
 		}
 		ip = getIp(x)

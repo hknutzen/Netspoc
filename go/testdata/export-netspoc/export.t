@@ -267,7 +267,7 @@ owner:a = { admins = a@example.com; }
 -- objects
 {
  "any:a": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "owner": "a",
   "zone": "any:a"
  },
@@ -361,7 +361,7 @@ owner:b = { admins = b@example.com; }
 -- objects
 {
  "any:a": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "zone": "any:a"
  },
  "interface:r.n1": {
@@ -427,7 +427,7 @@ owner:b = { admins = b@example.com; }
 -- objects
 {
  "any:a": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "is_supernet": 1,
   "zone": "any:a"
  },
@@ -1189,7 +1189,7 @@ service:s1 = {
 --objects
 {
  "any:n1": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "owner": "n1",
   "zone": "any:n1"
  },
@@ -1960,7 +1960,7 @@ service:s2 = {
 -- objects
 {
  "any:[network:n1]": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "is_supernet": 1,
   "owner": "o",
   "zone": "any:[network:n1]"
@@ -2328,7 +2328,7 @@ service:s1 = {
   "zone": "any:[network:n3]"
  },
  "any:a1": {
-  "ip": "0.0.0.0",
+  "ip": "0.0.0.0/0.0.0.0",
   "is_supernet": 1,
   "owner": "a1",
   "zone": "any:a1"
