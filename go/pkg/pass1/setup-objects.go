@@ -688,10 +688,10 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 			n.radiusAttributes = c.getRadiusAttributes(a, name)
 		case "partition":
 			n.partition = c.getIdentifier(a, name)
-		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			n.attr = c.addAttr(a, n.attr, name)
 		default:
-			if nat := c.addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
+			if att := c.addAttr(a, n.attr, name); att != nil {
+				n.attr = att
+			} else if nat := c.addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
 				n.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -917,10 +917,10 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 			ag.noCheckSupernetRules = c.getFlag(a, name)
 		case "owner":
 			ag.owner = c.getRealOwnerRef(a, s, name)
-		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			ag.attr = c.addAttr(a, ag.attr, name)
 		default:
-			if nat := c.addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
+			if att := c.addAttr(a, ag.attr, name); att != nil {
+				ag.attr = att
+			} else if nat := c.addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
 				ag.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -972,10 +972,10 @@ func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 			} else {
 				ar.owner = o
 			}
-		case "overlaps", "unknown_owner", "multi_owner", "has_unenforceable":
-			ar.attr = c.addAttr(a, ar.attr, name)
 		default:
-			if nat := c.addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
+			if att := c.addAttr(a, ar.attr, name); att != nil {
+				ar.attr = att
+			} else if nat := c.addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
 				ar.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -1863,6 +1863,9 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		switch a.Name {
 		case "sub_owner":
 			sv.subOwner = c.getRealOwnerRef(a, s, name)
+		case "identical_body":
+			sv.identicalBody =
+				c.tryServiceRefList(a, s, "attribute 'identical_body' of "+name)
 		case "overlaps":
 			sv.overlaps = c.tryServiceRefList(a, s, "attribute 'overlaps' of "+name)
 		case "multi_owner":
@@ -3027,6 +3030,14 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 
 func (c *spoc) addAttr(
 	a *ast.Attribute, attr map[string]string, ctx string) map[string]string {
+
+	switch a.Name {
+	default:
+		return nil
+	case "overlaps", "identical_body",
+		"unknown_owner", "multi_owner",
+		"has_unenforceable":
+	}
 	v := c.getSingleValue(a, ctx)
 	switch v {
 	case "restrict", "enable", "ok":
@@ -3037,7 +3048,7 @@ func (c *spoc) addAttr(
 		return attr
 	}
 	c.err("Expected 'restrict', 'enable' or 'ok' in '%s' of %s", a.Name, ctx)
-	return attr
+	return nil
 }
 
 func (c *spoc) addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,

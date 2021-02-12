@@ -211,6 +211,7 @@ func SpocMain() (errCount int) {
 		c.groupPathRules(pRules, dRules)
 
 		c2 := c.startInBackground(func(c *spoc) {
+			c.checkIdenticalServices(sRules)
 			c.checkUnusedGroups()
 			c.checkRedundantRules()
 		})

@@ -599,6 +599,7 @@ type service struct {
 	hasSameDupl                map[*service]bool
 	hasUnenforceable           bool
 	hasUnenforceableRestricted bool
+	identicalBody              []*service
 	multiOwner                 bool
 	overlaps                   []*service
 	overlapsUsed               map[*service]bool
