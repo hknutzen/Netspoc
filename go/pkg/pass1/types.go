@@ -68,7 +68,7 @@ type ipVxGroupObj interface {
 type srvObj interface {
 	ownerer
 	String() string
-	getAttr(attr string) string
+	getAttr(attr attrKey) attrVal
 	getNetwork() *network
 	getUsed() bool
 	setUsed()
@@ -84,7 +84,7 @@ type someObj interface {
 	getNetwork() *network
 	getUp() someObj
 	address(nn natSet) *net.IPNet
-	getAttr(attr string) string
+	getAttr(attr attrKey) attrVal
 	getPathNode() pathStore
 	getZone() pathObj
 }
@@ -144,7 +144,7 @@ type natMap map[string]*network
 
 type network struct {
 	ipObj
-	attr                 map[string]string
+	attr                 attrStore
 	certId               string
 	crosslink            bool
 	descr                string
@@ -476,7 +476,7 @@ type zone struct {
 	pathObjData
 	name                 string
 	networks             netList
-	attr                 map[string]string
+	attr                 attrStore
 	hasIdHosts           bool
 	hasSecondary         bool
 	hasNonPrimary        bool
@@ -512,7 +512,7 @@ type area struct {
 	usedObj
 	name             string
 	anchor           *network
-	attr             map[string]string
+	attr             attrStore
 	inclusiveBorder  []*routerIntf
 	border           []*routerIntf
 	inArea           *area

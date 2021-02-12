@@ -145,10 +145,10 @@ func (c *spoc) showUnenforceable() {
 		var list stringList
 		for pair, _ := range service.seenUnenforceable {
 			src, dst := pair[0], pair[1]
-			srcAttr := src.getAttr("has_unenforceable")
-			dstAttr := dst.getAttr("has_unenforceable")
+			srcAttr := src.getAttr(hasUnenforceableAttr)
+			dstAttr := dst.getAttr(hasUnenforceableAttr)
 			if service.hasUnenforceable {
-				if srcAttr == "restrict" && dstAttr == "restrict" {
+				if srcAttr == restrictVal && dstAttr == restrictVal {
 					if !service.hasUnenforceableRestricted {
 						service.hasUnenforceableRestricted = true
 						c.warn("Must not use attribute 'has_unenforceable' at %s",
@@ -157,7 +157,7 @@ func (c *spoc) showUnenforceable() {
 				} else {
 					continue
 				}
-			} else if srcAttr == "ok" || dstAttr == "ok" {
+			} else if srcAttr == okVal || dstAttr == okVal {
 				continue
 			}
 			list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))

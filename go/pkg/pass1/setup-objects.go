@@ -689,8 +689,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		case "partition":
 			n.partition = c.getIdentifier(a, name)
 		default:
-			if att := c.addAttr(a, n.attr, name); att != nil {
-				n.attr = att
+			if c.addAttr(a, &n.attr, name) {
 			} else if nat := c.addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
 				n.nat = nat
 			} else {
@@ -918,8 +917,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 		case "owner":
 			ag.owner = c.getRealOwnerRef(a, s, name)
 		default:
-			if att := c.addAttr(a, ag.attr, name); att != nil {
-				ag.attr = att
+			if c.addAttr(a, &ag.attr, name) {
 			} else if nat := c.addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
 				ag.nat = nat
 			} else {
@@ -939,13 +937,14 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 		ag.mask = getZeroMask(v6)
 	}
 	if size, _ := ag.mask.Size(); size != 0 {
-		if ag.noCheckSupernetRules {
-			c.err("Must not use attribute 'no_check_supernet_rules'"+
-				" if IP is set for %s", name)
-		}
-		if m := ag.attr; m != nil {
-			for key, _ := range m {
-				c.err("Must not use attribute '%s' if IP is set for %s", key, name)
+		for _, a := range v.Attributes {
+			switch a.Name {
+			case "ip", "link", "owner":
+				continue
+			}
+			if !strings.HasPrefix(a.Name, "nat:") {
+				c.err("Must not use attribute '%s' if IP is set for %s",
+					a.Name, name)
 			}
 		}
 	}
@@ -973,8 +972,7 @@ func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 				ar.owner = o
 			}
 		default:
-			if att := c.addAttr(a, ar.attr, name); att != nil {
-				ar.attr = att
+			if c.addAttr(a, &ar.attr, name) {
 			} else if nat := c.addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
 				ar.nat = nat
 			} else {
@@ -3028,27 +3026,36 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	return true
 }
 
-func (c *spoc) addAttr(
-	a *ast.Attribute, attr map[string]string, ctx string) map[string]string {
-
+func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {
+	var k attrKey
 	switch a.Name {
 	default:
-		return nil
-	case "overlaps", "identical_body",
-		"unknown_owner", "multi_owner",
-		"has_unenforceable":
+		return false
+	case "overlaps":
+		k = overlapsAttr
+	case "identical_body":
+		k = identicalBodyAttr
+	case "unknown_owner":
+		k = unknownOwnerAttr
+	case "multi_owner":
+		k = multiOwnerAttr
+	case "has_unenforceable":
+		k = hasUnenforceableAttr
 	}
 	v := c.getSingleValue(a, ctx)
+	var at attrVal
 	switch v {
-	case "restrict", "enable", "ok":
-		if attr == nil {
-			attr = make(map[string]string)
-		}
-		attr[a.Name] = v
-		return attr
+	default:
+		c.err("Expected 'restrict', 'enable' or 'ok' in '%s' of %s", a.Name, ctx)
+	case "restrict":
+		at = restrictVal
+	case "enable":
+		at = enableVal
+	case "ok":
+		at = okVal
 	}
-	c.err("Expected 'restrict', 'enable' or 'ok' in '%s' of %s", a.Name, ctx)
-	return nil
+	attr[k] = at
+	return true
 }
 
 func (c *spoc) addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,
