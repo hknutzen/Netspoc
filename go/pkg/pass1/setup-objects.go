@@ -270,7 +270,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 			srcP = cacheUnnamedProtocol(srcP, s)
 		}
 	case "icmp", "icmpv6":
-		c.addICMPTypeCode(nums, p, ctx)
+		c.addICMPTypeCode(nums, p, v6, ctx)
 	case "proto":
 		c.addProtoNr(nums, p, v6, ctx)
 	default:
@@ -351,7 +351,7 @@ func (c *spoc) getPort(s, ctx string) int {
 	return num
 }
 
-func (c *spoc) addICMPTypeCode(nums []string, p *proto, ctx string) {
+func (c *spoc) addICMPTypeCode(nums []string, p *proto, v6 bool, ctx string) {
 	p.icmpType = -1
 	p.icmpCode = -1
 	switch len(nums) {
@@ -367,8 +367,16 @@ func (c *spoc) addICMPTypeCode(nums []string, p *proto, ctx string) {
 	case 1:
 		typ := c.getNum256(nums[0], ctx)
 		p.icmpType = typ
-		if typ == 0 || typ == 3 || typ == 11 {
-			p.statelessICMP = true
+		if v6 {
+			switch typ {
+			case 1, 2, 3, 4, 129:
+				p.statelessICMP = true
+			}
+		} else {
+			switch typ {
+			case 0, 3, 11:
+				p.statelessICMP = true
+			}
 		}
 	default:
 		c.err("Expected [TYPE [ / CODE]] in %s", ctx)
