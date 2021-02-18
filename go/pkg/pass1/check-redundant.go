@@ -138,8 +138,8 @@ func setLocalPrtRelation(rules []*groupedRule) {
 func (c *spoc) checkAttrOverlaps(
 	service, oservice *service, rule *expandedRule) bool {
 
-	srcAttr := rule.src.getAttr("overlaps")
-	dstAttr := rule.dst.getAttr("overlaps")
+	srcAttr := rule.src.getAttr(overlapsAttr)
+	dstAttr := rule.dst.getAttr(overlapsAttr)
 	overlapsUsed := func() bool {
 		for _, overlap := range service.overlaps {
 			if oservice == overlap {
@@ -150,7 +150,7 @@ func (c *spoc) checkAttrOverlaps(
 	}
 	if overlapsUsed() {
 		service.overlapsUsed[oservice] = true
-		if srcAttr == "restrict" && dstAttr == "restrict" {
+		if srcAttr == restrictVal && dstAttr == restrictVal {
 			if !service.overlapsRestricted {
 				service.overlapsRestricted = true
 				c.warn("Must not use attribute 'overlaps' at %s", service.name)
@@ -159,7 +159,7 @@ func (c *spoc) checkAttrOverlaps(
 		}
 		return true
 	}
-	if srcAttr == "ok" || dstAttr == "ok" {
+	if srcAttr == okVal || dstAttr == okVal {
 		return true
 	}
 	return false

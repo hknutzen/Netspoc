@@ -9,7 +9,9 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type Descr struct {
@@ -127,6 +129,11 @@ func (s *state) parse() ([]*Descr, error) {
 			if err := s.substDef(d); err != nil {
 				return nil, err
 			}
+		case "DATE":
+			if err := s.dateDef(d); err != nil {
+				return nil, err
+			}
+
 		default:
 			if d == nil {
 				return nil, errors.New("expected =TITLE=")
@@ -250,6 +257,19 @@ func (s *state) varDef() error {
 	}
 	text = strings.TrimSuffix(text, "\n")
 	s.textblocks[name] = text
+	return nil
+}
+
+func (s *state) dateDef(d *Descr) error {
+	line, err := s.getLine()
+	if err != nil {
+		return err
+	}
+	s.rest = s.rest[len(line):]
+	line = strings.TrimSpace(line)
+	days, err := strconv.Atoi(line)
+	date := time.Now().AddDate(0, 0, days)
+	s.textblocks["DATE"] = date.Format("2006-01-02")
 	return nil
 }
 

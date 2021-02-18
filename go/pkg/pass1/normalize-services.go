@@ -229,7 +229,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 				if srcList != nil || dstList != nil {
 					ruleCount++
 				}
-				if srcList == nil && dstList == nil {
+				if srcList == nil || dstList == nil {
 					continue
 				}
 				if s.disabled {

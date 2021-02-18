@@ -81,6 +81,7 @@ func (v invFlag) Type() string { return "invFlag" }
 type Config struct {
 	CheckDuplicateRules          TriState
 	CheckFullyRedundantRules     TriState
+	CheckIdenticalServices       TriState
 	CheckPolicyDistributionPoint TriState
 	CheckRedundantRules          TriState
 	CheckServiceMultiOwner       TriState
@@ -111,8 +112,6 @@ type invertedFlag map[string]*struct {
 
 var invertedFlags = invertedFlag{
 	"quiet": {short: "q", orig: "verbose"},
-	// For compatibilty with Perl Getopt::Long
-	"noauto_default_route": {orig: "auto_default_route"},
 }
 
 func defaultOptions(fs *flag.FlagSet) *Config {
@@ -134,6 +133,9 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// Check for unenforceable rules, i.e. no managed device between
 		// src and dst.
 		CheckUnenforceable: "warn",
+
+		// Check for different services with identical rule definitions.
+		CheckIdenticalServices: "",
 
 		// Check for duplicate rules.
 		CheckDuplicateRules: "warn",

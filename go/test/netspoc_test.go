@@ -24,6 +24,7 @@ const (
 	outDirT = iota
 	stdoutT
 	chgInputT
+	outDirStdoutT // hybrid case
 )
 
 type test struct {
@@ -44,6 +45,7 @@ var tests = []test{
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
+	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},
 }
 
 var count int
@@ -60,7 +62,7 @@ func TestNetspoc(t *testing.T) {
 }
 
 // Run Netspoc pass1 + pass2 sequentially.
-// File 'code/.devices' to communicate.
+// Use file 'code/.devices' to communicate.
 func netspocRun() int {
 	status := pass1.SpocMain()
 	if status == 0 {
@@ -123,7 +125,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 	// Prepare output directory.
 	var outDir string
-	if tc.typ == outDirT && d.Output != "" || d.WithOutD {
+	if tc.typ == outDirT && d.Output != "" || tc.typ == outDirStdoutT ||
+		d.WithOutD {
+
 		outDir = t.TempDir()
 	}
 
@@ -159,11 +163,11 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		}
 
 		// Add other params to command line.
-		if d.Param != "" {
-			os.Args = append(os.Args, d.Param)
-		}
 		if d.Params != "" {
 			os.Args = append(os.Args, strings.Split(d.Params, " ")...)
+		}
+		if d.Param != "" {
+			os.Args = append(os.Args, d.Param)
 		}
 
 		if d.ShowDiag {
@@ -197,13 +201,16 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 	// Normalize stderr.
 	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
-	stderr = strings.ReplaceAll(stderr, outDir, "")
+	if outDir != "" {
+		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
+		stderr = strings.ReplaceAll(stderr, outDir, "")
+	}
 	re := regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
 
 	// Check result.
 	if status == 0 {
-		if e := d.Error; e != "" {
+		if d.Error != "" {
 			t.Error("Unexpected success")
 			return
 		}
@@ -223,7 +230,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			switch tc.typ {
 			case outDirT:
 				got = outDir
-			case stdoutT:
+			case stdoutT, outDirStdoutT:
 				got = stdout
 			case chgInputT:
 				// Read changed file.
@@ -236,6 +243,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			tc.check(t, d.Output, got)
 		}
 	} else {
+		if d.Error == "" {
+			t.Error("Unexpected failure")
+		}
 		re := regexp.MustCompile(`\nAborted with \d+ error\(s\)`)
 		stderr = re.ReplaceAllString(stderr, "")
 		re = regexp.MustCompile(`\nUsage: .*(?:\n\s.*)*`)
@@ -371,4 +381,34 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 func countEq(t *testing.T, expected, got string) {
 	count++
 	assert.Equal(t, expected, got)
+}
+
+// Run Netspoc pass1 + check-acl sequentially.
+// Arguments: PROGRAM -q [-f file] input code router acl <packet>
+func checkACLRun() int {
+	args := os.Args
+	// Args: PROGRAM -q input code
+	p1Args := make([]string, 4)
+	// Args: PROGRAM [-f file] code/router acl <packet>
+	chArgs := make([]string, len(args)-3)
+	p1Args[0] = args[0] // PROGRAM
+	chArgs[0] = args[0] // PROGRAM
+	p1Args[1] = args[1] // -q
+	a := 0
+	if args[2] == "-f" {
+		chArgs[1] = args[2] // -f
+		chArgs[2] = args[3] // file
+		a = 2
+	}
+	p1Args[2] = args[2+a]                         // input
+	p1Args[3] = args[3+a]                         // code
+	chArgs[1+a] = path.Join(args[3+a], args[4+a]) // code/router
+	copy(chArgs[2+a:], args[5+a:])
+	os.Args = p1Args
+	status := pass1.SpocMain()
+	if status != 0 {
+		return status
+	}
+	os.Args = chArgs
+	return pass2.CheckACLMain()
 }

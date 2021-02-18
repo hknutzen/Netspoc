@@ -94,7 +94,7 @@ vrf context v2
  ip route 10.2.2.0/24 10.9.1.1
  ip route 10.1.1.0/24 10.9.2.2
 =END=
-=OPTIONS=--noauto_default_route
+=OPTIONS=--auto_default_route=0
 
 ############################################################
 =TITLE=Add routes for zones at routing_only router
@@ -107,6 +107,7 @@ network:t2 = { ip = 10.9.2.0/24; }
 network:t3 = { ip = 10.9.3.0/24; }
 router:u1 = {
  interface:n1;
+ interface:l1 = { ip = 10.8.1.1; loopback; }
  interface:t1 = { ip = 10.9.1.1; }
 }
 router:u2 = {
@@ -130,8 +131,9 @@ router:asa = {
 =OUTPUT=
 --r
 ! [ Routing ]
+route t1 10.8.1.1 255.255.255.255 10.9.1.1
 route t1 10.1.1.0 255.255.255.0 10.9.1.1
 route t2 10.1.2.0 255.255.255.0 10.9.2.1
-=END=
+=OPTIONS=--auto_default_route=0
 
 ############################################################

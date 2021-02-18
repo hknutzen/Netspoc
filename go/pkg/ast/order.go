@@ -160,7 +160,7 @@ func sortAttr(l []*Attribute) {
 	})
 }
 
-func order(l []Element) {
+func OrderElements(l []Element) {
 	for _, n := range l {
 		n.Order()
 	}
@@ -170,7 +170,7 @@ func order(l []Element) {
 func (a *Base) Order() {}
 
 func (a *SimpleAuto) Order() {
-	order(a.Elements)
+	OrderElements(a.Elements)
 }
 
 func (a *Complement) Order() {
@@ -184,7 +184,7 @@ func (a *Intersection) Order() {
 }
 
 func (a *TopList) Order() {
-	order(a.Elements)
+	OrderElements(a.Elements)
 }
 
 func (a *Protocolgroup) Order() {
@@ -192,7 +192,7 @@ func (a *Protocolgroup) Order() {
 }
 
 func (a *NamedUnion) Order() {
-	order(a.Elements)
+	OrderElements(a.Elements)
 }
 
 func (a *Attribute) Order() {

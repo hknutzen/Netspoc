@@ -63,7 +63,7 @@ ip route 10.5.0.4/30 10.9.1.3
 ip route 10.1.3.128/25 10.9.1.3
 ip route 10.1.4.0/24 10.9.1.3
 =END=
-=OPTIONS=--noauto_default_route
+=OPTIONS=--auto_default_route=0
 
 ############################################################
 =TITLE=Remove redundant routes, even if combined already exists
@@ -95,7 +95,7 @@ service:test = {
 ! [ Routing ]
 ip route 10.1.2.0/24 10.9.1.2
 =END=
-=OPTIONS=--noauto_default_route
+=OPTIONS=--auto_default_route=0
 
 ############################################################
 =TITLE=Missing next hop

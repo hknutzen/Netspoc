@@ -1,65 +1,72 @@
 package pass1
 
-func getAttrFromArea(attr string, obj *area) string {
-	if v, ok := obj.attr[attr]; ok {
+const (
+	overlapsAttr = iota
+	identicalBodyAttr
+	unknownOwnerAttr
+	multiOwnerAttr
+	hasUnenforceableAttr
+	maxAttr
+)
+
+const (
+	unsetVal = iota
+	enableVal
+	restrictVal
+	okVal
+)
+
+type attrKey int
+type attrVal byte
+type attrStore [maxAttr]attrVal
+
+func getAttrFromArea(k attrKey, obj *area) attrVal {
+	if v := obj.attr[k]; v != unsetVal {
 		return v
 	}
 	if a := obj.inArea; a != nil {
-		v := getAttrFromArea(attr, a)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
+		v := getAttrFromArea(k, a)
+		obj.attr[k] = v
 		return v
 	}
-	return ""
+	return enableVal
 }
 
-func getAttrFromZone(attr string, obj *zone) string {
-	if v, ok := obj.attr[attr]; ok {
+func getAttrFromZone(k attrKey, obj *zone) attrVal {
+	if v := obj.attr[k]; v != unsetVal {
 		return v
 	}
 	if a := obj.inArea; a != nil {
-		v := getAttrFromArea(attr, a)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
+		v := getAttrFromArea(k, a)
+		obj.attr[k] = v
 		return v
 	}
-	return ""
+	return enableVal
 }
 
-func getAttrFromNetwork(attr string, obj *network) string {
-	if v, ok := obj.attr[attr]; ok {
+func getAttrFromNetwork(k attrKey, obj *network) attrVal {
+	if v := obj.attr[k]; v != unsetVal {
 		return v
 	}
 	if up := obj.up; up != nil {
-		v := getAttrFromNetwork(attr, up)
-		if obj.attr == nil {
-			obj.attr = make(map[string]string)
-		}
-		obj.attr[attr] = v
+		v := getAttrFromNetwork(k, up)
+		obj.attr[k] = v
 		return v
 	}
-	zone := obj.zone
-	v := getAttrFromZone(attr, zone)
-	if obj.attr == nil {
-		obj.attr = make(map[string]string)
-	}
-	obj.attr[attr] = v
+	v := getAttrFromZone(k, obj.zone)
+	obj.attr[k] = v
 	return v
 }
 
-func (obj *network) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj)
+func (obj *network) getAttr(k attrKey) attrVal {
+	return getAttrFromNetwork(k, obj)
 }
-func (obj *subnet) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj.network)
+func (obj *subnet) getAttr(k attrKey) attrVal {
+	return getAttrFromNetwork(k, obj.network)
 }
-func (obj *host) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj.network)
+func (obj *host) getAttr(k attrKey) attrVal {
+	return getAttrFromNetwork(k, obj.network)
 }
-func (obj *routerIntf) getAttr(attr string) string {
-	return getAttrFromNetwork(attr, obj.network)
+func (obj *routerIntf) getAttr(k attrKey) attrVal {
+	return getAttrFromNetwork(k, obj.network)
 }

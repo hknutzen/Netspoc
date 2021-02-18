@@ -330,13 +330,13 @@ Checking service owner
 Converting hosts to subnets
 Grouping rules
 Grouped rule count: 4
-Checking for redundant rules
-Expanded rule count: 4; duplicate: 1; redundant: 1
 Finding subnets in 2 NAT domains
 Checking rules for unstable subnet relation
 Checking and marking rules with hidden or dynamic NAT
 Checking supernet rules
 Checking transient supernet rules
+Checking for redundant rules
+Expanded rule count: 4; duplicate: 1; redundant: 1
 Removing simple duplicate rules
 Combining adjacent subnets
 Setting policy distribution IP
@@ -362,7 +362,7 @@ access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 8
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-=OPTIONS=--verbose
+=OPTIONS=--verbose --concurrency_pass1=2
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions 1

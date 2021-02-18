@@ -64,8 +64,8 @@ type User struct {
 }
 
 func (a *User) End() int        { return a.Pos() + len("user") }
-func (a *User) GetType() string { return "" }
-func (a *User) GetName() string { return "" }
+func (a *User) GetType() string { return "user" }
+func (a *User) GetName() string { return "user" }
 
 type TypedElt struct {
 	Base

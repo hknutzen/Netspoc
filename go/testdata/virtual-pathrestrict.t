@@ -379,7 +379,7 @@ ip access-list extended E8_in
  permit tcp 10.1.1.0 0.0.0.255 10.3.3.0 0.0.0.255 eq 80
  deny ip any any
 =END=
-=OPTIONS=--noauto_default_route
+=OPTIONS=--auto_default_route=0
 
 ############################################################
 =TITLE=Follow implicit pathrestriction at unmanaged virtual interface
