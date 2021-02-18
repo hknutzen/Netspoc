@@ -21,10 +21,11 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 		// Start with serviceRules, because we need expanded objects
 		// for getAttr() to work.
 		type ruleInfo struct {
-			deny     bool
-			objIsSrc bool
-			objects  []srvObj
-			names    stringList
+			deny       bool
+			objIsSrc   bool
+			objects    []srvObj
+			names      stringList
+			unexpanded *unexpRule
 		}
 		svc2ruleInfoList := make(map[*service][]*ruleInfo)
 		process := func(rules serviceRuleList) {
@@ -61,10 +62,11 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				}
 				sort.Strings(names)
 				info := &ruleInfo{
-					deny:     rule.deny,
-					objIsSrc: hasUser != "src",
-					objects:  objects,
-					names:    names,
+					deny:       rule.deny,
+					objIsSrc:   hasUser != "src",
+					objects:    objects,
+					names:      names,
+					unexpanded: unexpanded,
 				}
 				svc2ruleInfoList[svc] = append(svc2ruleInfoList[svc], info)
 			}
@@ -187,6 +189,24 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			}
 			return true
 		}
+		sortRules := func(s *service) {
+			unsorted := s.rules
+			if len(unsorted) < 2 {
+				return
+			}
+			// ruleInfo is sorted already.
+			riList := svc2ruleInfoList[s]
+			seen := make(map[*unexpRule]bool)
+			sorted := make([]*unexpRule, 0, len(unsorted))
+			for _, ri := range riList {
+				un := ri.unexpanded
+				if !seen[un] {
+					seen[un] = true
+					sorted = append(sorted, un)
+				}
+			}
+			s.rules = sorted
+		}
 		svcEq := func(s1, s2 *service) bool {
 			l1 := s1.rules
 			l2 := s2.rules
@@ -209,17 +229,20 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				return l[i].name < l[j].name
 			})
 			for {
-				s1 := l[0]
-				areEq := []*service{s1}
-				var notEq []*service
-				for _, s2 := range l[1:] {
+				m := len(l) - 1
+				s1 := l[m] // Last element
+				sortRules(s1)
+				var areEq, notEq []*service
+				for _, s2 := range l[:m] {
+					sortRules(s2)
 					if svcEq(s1, s2) {
 						areEq = append(areEq, s2)
 					} else {
 						notEq = append(notEq, s2)
 					}
 				}
-				if len(areEq) > 1 {
+				if len(areEq) > 0 {
+					areEq = append(areEq, s1)
 					if !msgSuppressed(areEq) {
 						msg := "These services have identical rule definitions.\n" +
 							" A single service should be created instead," +
@@ -229,11 +252,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						}
 						c.warnOrErr(printType, msg)
 					}
-				} else {
-					s1 := areEq[0]
-					if s1.identicalBody != nil {
-						c.warn("Useless attribute 'identical_body' in %s", s1)
-					}
+				} else if s1.identicalBody != nil {
+					c.warn("Useless attribute 'identical_body' in %s", s1)
 				}
 				if notEq == nil {
 					break

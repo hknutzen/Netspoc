@@ -245,7 +245,6 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	} else {
 		if d.Error == "" {
 			t.Error("Unexpected failure")
-			return
 		}
 		re := regexp.MustCompile(`\nAborted with \d+ error\(s\)`)
 		stderr = re.ReplaceAllString(stderr, "")

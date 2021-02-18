@@ -143,7 +143,7 @@ Warning: These services have identical rule definitions.
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
-=TITLE=Changed order of equal rules.
+=TITLE=Changed order of equal rules (1)
 =INPUT=
 ${topo}
 service:s1 = {
@@ -164,7 +164,32 @@ Warning: These services have identical rule definitions.
  - service:s2
 =END=
 =OPTIONS=--check_identical_services=warn
-=TODO=1
+
+############################################################
+=TITLE=Changed order of equal rules (2)
+=INPUT=
+${topo}
+service:s1 = {
+ user = network:n2;
+ permit src = network:n1; dst = user; prt = tcp 22;
+ permit src = network:n1; dst = user; prt = tcp 23;
+ permit src = network:n1; dst = user; prt = tcp 25;
+
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = network:n1; dst = user; prt = tcp 25;
+ permit src = network:n1; dst = user; prt = tcp 23;
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
+=END=
+=OPTIONS=--check_identical_services=warn
 
 ############################################################
 =TITLE=Similar service, but changed src/dst
@@ -559,3 +584,67 @@ service:s2 = {
 Warning: Must not use attribute 'identical_body' in service:s1
 Warning: Useless attribute 'identical_body' in service:s1
 =OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Auto interface expands to multiple rules
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10;}
+ host:h11 = { ip = 10.1.1.11;}
+}
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = {ip = 10.1.1.1;hardware = n1;}
+ interface:n2 = {ip = 10.1.2.1;hardware = n2;}
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h20 = { ip = 10.1.2.20;}
+ host:h21 = { ip = 10.1.2.21;}
+}
+service:s1 = {
+ user = host:h10, host:h20;
+ permit src = user; dst = interface:r1.[auto]; prt = udp 161;
+ permit src = user; dst = interface:r1.[auto]; prt = udp 162;
+}
+service:s2 = {
+ user = host:h11, host:h21;
+ permit src = user; dst = interface:r1.[auto]; prt = udp 162;
+ permit src = user; dst = interface:r1.[auto]; prt = udp 161;
+}
+=END=
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Ignore services with user - user rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1, network:n2, network:n3;
+ permit src = user; dst = user; prt = ip;
+}
+service:s2 = {
+ user = network:n2, network:n3, network:n4;
+ permit src = user; dst = user; prt = ip;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn --check_duplicate_rules=0
