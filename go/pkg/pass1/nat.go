@@ -942,21 +942,16 @@ func (c *spoc) checkNatCompatibility() {
 //          need to have a fixed address.
 func (c *spoc) checkInterfacesWithDynamicNat() {
 	for _, n := range c.allNetworks {
-		var tags stringList
 		for tag, _ := range n.nat {
-			tags.push(tag)
-		}
-		sort.Strings(tags)
-		for _, tag := range tags {
 			info := n.nat[tag]
-			if !info.dynamic || (info.identity || info.hidden) {
+			if !info.dynamic || info.identity || info.hidden {
 				continue
 			}
 			for _, intf := range n.interfaces {
 				intfNat := intf.nat
 
 				// Interface has static translation,
-				if intfNat != nil && intfNat[tag] != nil {
+				if intfNat[tag] != nil {
 					continue
 				}
 
