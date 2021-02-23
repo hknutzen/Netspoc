@@ -17,10 +17,10 @@ type State struct {
 	changed   map[string]bool
 }
 
-func Read(netspocPath string) *State {
+func Read(netspocPath string) (*State, error) {
 	s := new(State)
 	s.changed = make(map[string]bool)
-	filetree.Walk(netspocPath, func(input *filetree.Context) error {
+	err := filetree.Walk(netspocPath, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		nodes, err := parser.ParseFile(source, path)
@@ -32,7 +32,17 @@ func Read(netspocPath string) *State {
 		s.sources = append(s.sources, source)
 		return nil
 	})
-	return s
+	return s, err
+}
+
+func (s *State) Changed() []string {
+	var result []string
+	for _, path := range s.files {
+		if s.changed[path] {
+			result = append(result, path)
+		}
+	}
+	return result
 }
 
 func (s *State) Print() {
