@@ -26,6 +26,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
@@ -210,12 +211,8 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 	return cfg
 }
 
-func showErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
-}
-
 func usage(format string, args ...interface{}) {
-	showErr(format, args...)
+	diag.Err(format, args...)
 	flag.Usage()
 }
 
@@ -246,7 +243,7 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 func readConfig(filename string) (map[string]string, bool) {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		showErr("%v", err)
+		diag.Err("%v", err)
 		return nil, true
 	}
 	lines := strings.Split(string(bytes), "\n")
@@ -258,7 +255,7 @@ func readConfig(filename string) (map[string]string, bool) {
 		}
 		parts := strings.Split(line, "=")
 		if len(parts) != 2 {
-			showErr("Unexpected line in %s: %s", filename, line)
+			diag.Err("Unexpected line in %s: %s", filename, line)
 			return nil, true
 		}
 		key, val := parts[0], parts[1]
@@ -304,12 +301,12 @@ func parseFile(filename string, fs *flag.FlagSet) bool {
 		err := f.Value.Set(val)
 		if err != nil {
 			hasErr = true
-			showErr("Invalid value for %s in %s: %s", f.Name, filename, val)
+			diag.Err("Invalid value for %s in %s: %s", f.Name, filename, val)
 		}
 	})
 
 	for name := range config {
-		showErr("Invalid keyword in %s: %s", filename, name)
+		diag.Err("Invalid keyword in %s: %s", filename, name)
 		hasErr = true
 	}
 	return hasErr

@@ -2,6 +2,7 @@ package pass2
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/spf13/pflag"
 	"io/ioutil"
@@ -34,7 +35,7 @@ func CheckACLMain() int {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		showErr("%s", err)
+		diag.Err("%s", err)
 		fs.Usage()
 		return 1
 	}
@@ -45,7 +46,7 @@ func CheckACLMain() int {
 		var err error
 		packets, err = readPackets(*fromFile)
 		if err != nil {
-			showErr("%s", err)
+			diag.Err("%s", err)
 			return 1
 		}
 	}
@@ -61,7 +62,7 @@ func CheckACLMain() int {
 		path += ".rules"
 	}
 	if !fileop.IsRegular(path) {
-		showErr("Can't find file %s", path)
+		diag.Err("Can't find file %s", path)
 		return 1
 	}
 
@@ -92,7 +93,7 @@ func parsePackets(lines []string) []*packet {
 		line = strings.ToLower(line)
 		fields := strings.Fields(line)
 		if len(fields) != 4 {
-			showWarn("Ignored packet, must have exactly 4 words: %s", line)
+			diag.Warn("Ignored packet, must have exactly 4 words: %s", line)
 			continue
 		}
 		ip1 := fields[0]
@@ -119,13 +120,13 @@ func parsePackets(lines []string) []*packet {
 				}
 				ext = typ + "/" + code
 			} else {
-				showWarn("Ignored icmp packet with invalid type/code: %s", line)
+				diag.Warn("Ignored icmp packet with invalid type/code: %s", line)
 				continue
 			}
 		case "proto":
 			ext = checkNum(ext, 256)
 		default:
-			showWarn("Ignored packet with unexpected protocol: %s", line)
+			diag.Warn("Ignored packet with unexpected protocol: %s", line)
 			continue
 		}
 		if ext == "" {
@@ -140,7 +141,7 @@ func parsePackets(lines []string) []*packet {
 func checkIP(s string) string {
 	ip := net.ParseIP(s)
 	if ip == nil {
-		showWarn("Ignored packet with invalid IP address: %s", s)
+		diag.Warn("Ignored packet with invalid IP address: %s", s)
 		return ""
 	}
 	return ip.String()
@@ -149,7 +150,7 @@ func checkIP(s string) string {
 func checkNum(s string, max int) string {
 	num, err := strconv.Atoi(s)
 	if err != nil || num < 0 || num >= max {
-		showWarn("Ignored packet with invalid protocol number: %s", s)
+		diag.Warn("Ignored packet with invalid protocol number: %s", s)
 		return ""
 	}
 	return strconv.Itoa(num)
@@ -168,7 +169,7 @@ func checkACL(path, acl string, packets []*packet) int {
 		}
 	}
 	if aInfo == nil {
-		showErr("Unknown ACL: %s", acl)
+		diag.Err("Unknown ACL: %s", acl)
 		return 1
 	}
 	// Remember number of original rules.
@@ -226,12 +227,4 @@ func addPackets(a *aclInfo, l []*packet) {
 		rules.push(&ciscoRule{src: src, dst: dst, prt: prt})
 	}
 	a.rules = rules
-}
-
-func showErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
-}
-
-func showWarn(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "Warning: "+format+"\n", args...)
 }

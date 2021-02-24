@@ -31,6 +31,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"io/ioutil"
 	"net"
@@ -511,13 +512,13 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 	}
 
 	if generated > 0 {
-		diag.Info("Generated files for %d devices", generated)
+		info.Msg("Generated files for %d devices", generated)
 	}
 	if reused > 0 {
-		diag.Info("Reused %d files from previous run", reused)
+		info.Msg("Reused %d files from previous run", reused)
 	}
 	if pass1OK {
-		diag.Progress("Finished")
+		progress("Finished")
 	}
 }
 

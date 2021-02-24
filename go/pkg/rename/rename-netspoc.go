@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
@@ -266,7 +266,7 @@ func processInput(input *filetree.Context) error {
 		return nil
 	}
 
-	diag.Info("%d changes in %s", count, path)
+	info.Msg("%d changes in %s", count, path)
 	copy := printer.File(nodes, source)
 	err = fileop.Overwrite(path, copy)
 	return err

@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
@@ -28,7 +28,7 @@ func processInput(input *filetree.Context) error {
 	if bytes.Compare(source, copy) == 0 {
 		return nil
 	}
-	diag.Info("Changed %s", path)
+	info.Msg("Changed %s", path)
 
 	return fileop.Overwrite(path, copy)
 }
