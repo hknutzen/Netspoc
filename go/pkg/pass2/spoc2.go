@@ -529,7 +529,7 @@ func Spoc2Main() {
 	}
 	prev := dir + "/.prev"
 
-	// Read to be processed files either from STDIN or from file.
+	// Read to be processed filenames either from STDIN or from file.
 	var fromPass1 *os.File
 	if conf.Conf.Pipe {
 		fromPass1 = os.Stdin
