@@ -102,8 +102,6 @@ type Config struct {
 	MaxErrors                    int  `flag:"max_errors m"`
 	Verbose                      bool `flag:"verbose v"`
 	TimeStamps                   bool `flag:"time_stamps t"`
-	StartTime                    int64
-	Pipe                         bool
 }
 
 type invertedFlag map[string]*struct {
@@ -190,13 +188,6 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// Print progress messages with time stamps.
 		// Print "finished" with time stamp when finished.
 		TimeStamps: false,
-
-		// Use this value when printing passed time span.
-		StartTime: 0,
-
-		// Pass 1 writes processed device names to STDOUT,
-		// pass 2 reads to be processed device names from STDIN.
-		Pipe: false,
 	}
 	err := gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	if err != nil {
@@ -238,49 +229,52 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 }
 
 // Reads "key = value;" pairs from config file.
+// "key;" is read as "key = ;"
 // Trailing ";" is optional.
 // Comment lines starting with "#" are ignored.
-func readConfig(filename string) (map[string]string, bool) {
+func readConfig(filename string) (map[string]string, error) {
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		diag.Err("%v", err)
-		return nil, true
+		return nil, err
 	}
 	lines := strings.Split(string(bytes), "\n")
 	result := make(map[string]string)
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || trimmed[0] == '#' {
+		line := strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, ";")
+		if line == "" || line[0] == '#' {
 			continue
 		}
-		parts := strings.Split(line, "=")
-		if len(parts) != 2 {
-			diag.Err("Unexpected line in %s: %s", filename, line)
-			return nil, true
+		parts := strings.SplitN(line, "=", 2)
+		key := parts[0]
+		val := ""
+		if len(parts) == 2 {
+			val = parts[1]
 		}
-		key, val := parts[0], parts[1]
 		key = strings.TrimSpace(key)
 		val = strings.TrimSpace(val)
-		val = strings.TrimSuffix(val, ";")
 		result[key] = val
 	}
-	return result, false
+	return result, nil
 }
 
 // parseFile parses the specified configuration file and populates unset flags
 // in fs based on the contents of the file.
 // Hidden flags are not set from file.
-func parseFile(filename string, fs *flag.FlagSet) bool {
+func parseFile(filename string, fs *flag.FlagSet) error {
 	isSet := make(map[*flag.Flag]bool)
-	config, abort := readConfig(filename)
-	if abort {
-		return abort
+	config, err := readConfig(filename)
+	if err != nil {
+		return err
 	}
 
 	fs.Visit(func(f *flag.Flag) {
 		isSet[f] = true
 	})
-	hasErr := false
+	var errList []string
+	addErr := func(format string, args ...interface{}) {
+		errList = append(errList, fmt.Sprintf(format, args...))
+	}
 	fs.VisitAll(func(f *flag.Flag) {
 		// Ignore inverted flag.
 		if inv, found := invertedFlags[f.Name]; found {
@@ -298,34 +292,31 @@ func parseFile(filename string, fs *flag.FlagSet) bool {
 		if isSet[f] {
 			return
 		}
-		err := f.Value.Set(val)
-		if err != nil {
-			hasErr = true
-			diag.Err("Invalid value for %s in %s: %s", f.Name, filename, val)
+		if err := f.Value.Set(val); err != nil {
+			addErr("bad value in '%s = %s'", f.Name, val)
 		}
 	})
 
 	for name := range config {
-		diag.Err("Invalid keyword in %s: %s", filename, name)
-		hasErr = true
+		addErr("bad keyword '%s'", name)
 	}
-	return hasErr
+	if errList != nil {
+		return fmt.Errorf("Invalid line in %s:\n - %s",
+			filename, strings.Join(errList, "\n - "))
+	}
+	return nil
 }
 
-func addConfigFromFile(inDir string, fs *flag.FlagSet) bool {
+func addConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	path := inDir + "/config"
 	if !fileop.IsRegular(path) {
-		return false
+		return nil
 	}
 	return parseFile(path, fs)
 }
 
 func setStartTime() {
-	if Conf.StartTime != 0 {
-		StartTime = time.Unix(Conf.StartTime, 0)
-	} else {
-		StartTime = time.Now()
-	}
+	StartTime = time.Now()
 }
 
 var Conf *Config
@@ -353,7 +344,8 @@ func GetArgs() (string, string, bool) {
 	if abort {
 		return "", "", true
 	}
-	if abort := addConfigFromFile(inPath, fs); abort {
+	if err := addConfigFromFile(inPath, fs); err != nil {
+		diag.Err("%v", err)
 		return "", "", true
 	}
 	setStartTime()
@@ -363,7 +355,9 @@ func GetArgs() (string, string, bool) {
 func ConfigFromArgsAndFile(args []string, path string) {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
 	Conf = defaultOptions(fs)
-	fs.Parse(args) // No check for error needed, because arguments are fixed.
+	// No check for error needed, because arguments are fixed.
+	fs.Parse(args)
+	// Ignore errors, only pass1 needs to check them.
 	addConfigFromFile(path, fs)
 	setStartTime()
 }

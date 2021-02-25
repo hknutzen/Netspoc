@@ -37,6 +37,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -458,7 +459,8 @@ func pass2File(devicePath, dir, prev string, c chan pass2Result) {
 	c <- ok
 }
 
-func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
+func applyConcurrent(
+	devices chan string, finished chan bool, dir, prev string) {
 
 	var started, generated, reused int
 	concurrent := conf.Conf.ConcurrencyPass2
@@ -476,15 +478,7 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 	}
 
 	// Read to be processed files line by line.
-	pass1OK := false
-	scanner := bufio.NewScanner(deviceNamesFh)
-	for scanner.Scan() {
-		devicePath := scanner.Text()
-		if devicePath == "." {
-			pass1OK = true
-			break
-		}
-
+	for devicePath := range devices {
 		if 1 >= concurrent {
 			// Process sequentially.
 			pass2File(devicePath, dir, prev, c)
@@ -507,42 +501,18 @@ func applyConcurrent(deviceNamesFh *os.File, dir, prev string) {
 		waitAndCheck()
 	}
 
-	if err := scanner.Err(); err != nil {
-		panicf("While reading device names: %v", err)
-	}
-
 	if generated > 0 {
 		info.Msg("Generated files for %d devices", generated)
 	}
 	if reused > 0 {
 		info.Msg("Reused %d files from previous run", reused)
 	}
-	if pass1OK {
-		progress("Finished")
-	}
+	finished <- true
 }
 
-func Spoc2Main() {
-	_, dir, abort := conf.GetArgs()
-	if dir == "" || abort {
-		return
-	}
-	prev := dir + "/.prev"
-
-	// Read to be processed filenames either from STDIN or from file.
-	var fromPass1 *os.File
-	if conf.Conf.Pipe {
-		fromPass1 = os.Stdin
-	} else {
-		devlist := dir + "/.devlist"
-		var err error
-		fromPass1, err = os.Open(devlist)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	applyConcurrent(fromPass1, dir, prev)
+func Compile(dir string, fromPass1 chan string, finished chan bool) {
+	prev := path.Join(dir, ".prev")
+	applyConcurrent(fromPass1, finished, dir, prev)
 
 	// Remove directory '.prev' created by pass1
 	// or remove symlink '.prev' created by newpolicy.pl.

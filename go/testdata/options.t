@@ -21,23 +21,17 @@ Error: unused group:g
 =END=
 
 ############################################################
-=TITLE=Invalid option in config file
+=TITLE=Invalid option or value in config file
 =INPUT=
 -- config
-foo = foo;
-=ERROR=
-Error: Invalid keyword in config: foo
-Aborted
-=END=
-
-############################################################
-=TITLE=Invalid value in config file
-=INPUT=
--- config
+foo = bar;
 check_unused_groups = errors;
-=END=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
 =ERROR=
-Error: Invalid value for check_unused_groups in config: errors
+Error: Invalid line in config:
+ - bad value in 'check_unused_groups = errors'
+ - bad keyword 'foo'
 Aborted
 =END=
 
@@ -47,7 +41,8 @@ Aborted
 -- config
 bla bla;
 =ERROR=
-Error: Unexpected line in config: bla bla;
+Error: Invalid line in config:
+ - bad keyword 'bla bla'
 Aborted
 =END=
 

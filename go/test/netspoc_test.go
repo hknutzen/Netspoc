@@ -1,7 +1,6 @@
 package netspoc_test
 
 import (
-	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
@@ -35,8 +34,7 @@ type test struct {
 }
 
 var tests = []test{
-	{".", outDirT, netspocRun, netspocCheck},
-	{"pipe", outDirT, netspocPipeRun, netspocCheck},
+	{".", outDirT, pass1.SpocMain, netspocCheck},
 	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
@@ -59,42 +57,6 @@ func TestNetspoc(t *testing.T) {
 		})
 	}
 	t.Logf("Checked %d assertions", count)
-}
-
-// Run Netspoc pass1 + pass2 sequentially.
-// Use file 'code/.devices' to communicate.
-func netspocRun() int {
-	status := pass1.SpocMain()
-	if status == 0 {
-		pass2.Spoc2Main()
-	}
-	return status
-}
-
-// Run Netspoc pass1 + pass2 sequentially.
-// Stdout of pass1 is sent to stdin of pass2.
-func netspocPipeRun() int {
-
-	// Collect output of pass1.
-	var status int
-	devices := capture.Capture(&os.Stdout, func() {
-		status = pass1.SpocMain()
-	})
-	if status != 0 {
-		return status
-	}
-
-	// Send output to stdin of pass2.
-	r, w, err := os.Pipe()
-	if err != nil {
-		panic(err)
-	}
-	old := os.Stdin
-	os.Stdin = r
-	defer func() { os.Stdin = old }()
-	go func() { fmt.Fprint(w, devices) }()
-	pass2.Spoc2Main()
-	return 0
 }
 
 func runTestFiles(t *testing.T, tc test) {

@@ -1027,3 +1027,12 @@ owner:abw = {
 =END=
 
 ############################################################
+=TITLE=Ignore errors in config file
+=INPUT=
+--config
+foo = bar;
+xxx
+=END=
+=WARNING=NONE
+
+############################################################
