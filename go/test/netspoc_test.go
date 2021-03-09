@@ -20,6 +20,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/exportsyntax"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
+	"github.com/hknutzen/Netspoc/go/pkg/mergeusers"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
@@ -66,6 +67,7 @@ var tests = []test{
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
 	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},
+	{"merge-service-users", chgInputT, mergeusers.Main, chgInputCheck},
 }
 
 var count int32
