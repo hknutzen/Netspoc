@@ -1187,13 +1187,20 @@ any:sub-28 =     { ip = 10.1.2.48/28; link = network:n2; }
 network:sub-29 = { ip = 10.1.2.48/29; subnet_of = network:sub-27; }
 # Warning is shown, because some addresses of any:sub-28 are located
 # inside network:sub-27.
+# Hence also check larger networks since supernet is aggregate.
 service:s1 = {
  user = network:n1;
  permit src = user; dst = any:sub-28; prt = tcp 80;
 }
-# No warning, because we know, that addresses of network:sub-29
-# are located behind router:r2 and not inside network:sub-27.
+# Show warning, same reasoning as for any:sub-28,
+# but only check smaller subnets.
 service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 82;
+}
+# No warning, because we know that addresses of network:sub-29
+# are located behind router:r2 and not inside network:sub-27.
+service:s3 = {
  user = network:n1;
  permit src = user; dst = network:sub-29; prt = tcp 81;
 }
@@ -1204,6 +1211,12 @@ Warning: This supernet rule would permit unexpected access:
  Generated ACL at interface:r1.n1 would permit access to additional networks:
  - network:sub-27
  Either replace any:sub-28 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n2; prt=tcp 82; of service:s2
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:sub-27
+ Either replace network:n2 by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule.
 =END=
 
@@ -1239,6 +1252,43 @@ any:sub-29 =     { ip = 10.1.2.48/29; link = network:n2; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = any:sub-29; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Don't check supernet of supernet.
+=INPUT=
+network:n1 = { ip = 10.1.0.0/16; }
+network:n2 = { ip = 10.1.0.0/23; subnet_of = network:n1; }
+network:n3 = { ip = 10.2.1.0/24; }
+network:inet = { ip = 0.0.0.0/0; has_subnets; }
+network:n4 = { ip = 1.1.1.8/29; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.8.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; }
+ interface:n3 = { ip = 10.2.1.1; hardware = n3; }
+}
+
+router:r2 = {
+ interface:n3 = { ip = 10.2.1.2; }
+ interface:inet;
+}
+
+router:r3 = {
+ model = IOS, FW;
+ managed;
+ routing = manual;
+ interface:inet = { negotiated; hardware = inet; }
+ interface:n4 = { ip = 1.1.1.9; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
 =END=
 =WARNING=NONE
