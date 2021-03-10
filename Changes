@@ -1,5 +1,12 @@
 {{$NEXT}}
 
+6.026     2021-03-10 16:03:48+01:00 Europe/Berlin
+
+ - Fixed check for duplicate routes at VPN router.
+ - Added check for useless single NAT tag.
+ - "netspoc" is no longer a shell script, but a Go program.
+   Commands "spoc1", "spoc2" are gone.
+
 6.025     2021-02-18 10:44:32+01:00 Europe/Berlin
 
  - Added new command 'check-acl'
