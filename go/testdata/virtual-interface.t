@@ -91,6 +91,53 @@ Error: interface:r2.n1.virtual must be located inside cyclic sub-graph
 =END=
 
 ############################################################
+=TITLE=Virtual interfaces prevent valid path
+# Implicit pathrestriction would permit path,
+# but virtual interfaces let path be pruned later.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; virtual = { ip = 10.1.2.1; } hardware = n2; }
+}
+
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.3; virtual = { ip = 10.1.2.1; } }
+ interface:n3;
+}
+
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+}
+
+pathrestriction:r3 =
+ interface:r3.n1,
+ interface:r3.n3,
+;
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = interface:r1.n2; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: No valid path
+ from any:[network:n3]
+ to interface:r1.n2.virtual
+ for rule permit src=network:n3; dst=interface:r1.n2; prt=tcp 22; of service:s1
+ Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
 =TITLE=Different protocol / id at related virtual interfaces
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
