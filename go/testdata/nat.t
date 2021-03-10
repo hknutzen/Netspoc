@@ -590,7 +590,7 @@ Error: interface:r1.n1.2 needs static translation for nat:x at router:filter to 
 =END=
 
 ############################################################
-=TITLE=NAT tag without effect
+=TITLE=NAT tag without effect (1)
 =INPUT=
 network:n1 =  { ip = 10.1.1.0/24; nat:x = { ip = 10.9.9.0/24; } }
 router:r1 = {
@@ -601,6 +601,25 @@ network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =WARNING=
 Warning: Ignoring nat:x without effect, bound at every interface of router:r1
+=END=
+
+############################################################
+=TITLE=NAT tag without effect (2)
+=INPUT=
+network:n1 =  { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.1.0/24; } }
+router:u = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1; }
+}
+network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 10.9.2.0/24; } }
+router:r1 = {
+ interface:n2 = { bind_nat = n1; }
+ interface:n3 = { bind_nat = n1, n2; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+=END=
+=WARNING=
+Warning: Ignoring nat:n1 without effect, bound at every interface of router:r1
 =END=
 
 ############################################################
@@ -2442,10 +2461,6 @@ network:b = {ip = 10.156.5.160/28;}
 =ERROR=
 Error: Inconsistent NAT in loop at router:r1:
  nat:(none) vs. nat:h
-Error: network:a is translated by nat:h,
- but is located inside the translation domain of h.
- Probably h was bound to wrong interface at
- - router:r1
 =END=
 
 ############################################################
@@ -2475,11 +2490,6 @@ Error: Inconsistent NAT in loop at router:r2:
  nat:(none) vs. nat:x
 Error: Inconsistent NAT in loop at router:r3:
  nat:(none) vs. nat:x
-Error: network:n3 is translated by nat:x,
- but is located inside the translation domain of x.
- Probably x was bound to wrong interface at
- - router:r2
- - router:r3
 =END=
 
 ############################################################

@@ -576,6 +576,14 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 	}
 }
 
+func Element(el ast.Element) string {
+	p := new(printer)
+	p.element("", el, "")
+	result := string(p.output)
+	result = strings.ReplaceAll(result, "\n", "")
+	return strings.ReplaceAll(result, " ", "")
+}
+
 func File(list []ast.Toplevel, src []byte) []byte {
 	p := new(printer)
 	p.init(src)

@@ -7,6 +7,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 	"net"
 	"os"
 	"os/exec"
@@ -2313,17 +2314,9 @@ func (c *spoc) checkOutputDir(dir string) {
 func (c *spoc) printCode1(dir string) {
 	c.progress("Printing intermediate code")
 
-	var toPass2 *os.File
-	if conf.Conf.Pipe {
-		toPass2 = os.Stdout
-	} else {
-		devlist := dir + "/.devlist"
-		var err error
-		toPass2, err = os.Create(devlist)
-		if err != nil {
-			c.abort("Can't %v", err)
-		}
-	}
+	toPass2 := make(chan string, 1000)
+	pass2Ready := make(chan bool)
+	go pass2.Compile(dir, toPass2, pass2Ready)
 
 	checkedV6Dir := false
 	seen := make(map[*router]bool)
@@ -2425,14 +2418,15 @@ func (c *spoc) printCode1(dir string) {
 
 			// Send device name to pass 2, showing that processing for this
 			// device can be started.
-			fmt.Fprintln(toPass2, path)
+			toPass2 <- path
 		}
 	}
 	printRouter(c.managedRouters)
 	printRouter(c.routingOnlyRouters)
 
-	// Send "." to indicate end of transmission.
-	fmt.Fprintln(toPass2, ".")
+	close(toPass2)
+	c.progress("Finished pass1")
+	<-pass2Ready
 }
 
 func (c *spoc) printCode(dir string) {

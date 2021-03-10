@@ -572,6 +572,11 @@ func intfClusterPathMark(startStore, endStore pathStore, startIntf, endIntf *rou
 		}
 	}
 
+	// Check if path is empty after fixup.
+	if len(lPath.enter) == 0 {
+		return false
+	}
+
 	// Store found path.
 	startStore.setLoopPath(endStore, lPath)
 
@@ -912,7 +917,7 @@ func removePath(fromStore, toStore pathStore) {
 //             - {path} of subsequent interfaces on path.
 func pathMark(fromStore, toStore pathStore) bool {
 
-	//	debug("path_mark %s --> %s", fromStore.String(), toStore.String())
+	// debug("path_mark %s --> %s", fromStore, toStore)
 	var from, to pathObj
 	switch x := fromStore.(type) {
 	case *routerIntf:
@@ -1091,11 +1096,7 @@ PATH:
 
 func loopPathWalk(in, out *routerIntf, loopEntry, loopExit pathStore, callAtZone bool, rule *groupedRule, fun func(r *groupedRule, i, o *routerIntf)) bool {
 
-	//    my info = "loop_path_walk: ";
-	//    info .= "in->{name}->" if in;
-	//    info .= "loop_entry->{name}=>loop_exit->{name}";
-	//    info .= "->out->{name}" if out;
-	//    debug(info);
+	// debug("loop_path_walk: %s->%s=>%s->%s", in, loopEntry, loopExit, out)
 
 	lPath := loopEntry.getLoopPath()[loopExit]
 

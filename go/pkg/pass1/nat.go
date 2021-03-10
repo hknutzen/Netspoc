@@ -269,6 +269,7 @@ func bindNatEq(l1, l2 stringList) bool {
 //           routers that are domain limiting, contain references to the
 //           limited domains and store NAT tags bound to domains border
 //           interfaces.
+//           Returns nil on error.
 func (c *spoc) findNatDomains() []*natDomain {
 
 	type key struct {
@@ -413,6 +414,9 @@ func (c *spoc) findNatDomains() []*natDomain {
 		}
 		result = append(result, d)
 		setNatDomain(z, d, nil)
+	}
+	if len(natErrSeen) > 0 {
+		return nil
 	}
 	return result
 }
@@ -894,6 +898,51 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 	}
 }
 
+// Check if a single NAT tag is bound to all interfaces of a router.
+// A similar check for equalty of all tags has already been performed in
+// findNatDomains.
+func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
+	seen := make(map[*router]bool)
+	for _, d := range doms {
+		for _, r := range d.routers {
+			if seen[r] {
+				continue
+			}
+			seen[r] = true
+			intersect := make(map[string]bool)
+			tags := r.natTags[d]
+			for _, t := range tags {
+				intersect[t] = true
+			}
+			for d2, tags := range r.natTags {
+				if d2 == d {
+					continue
+				}
+				intersect2 := make(map[string]bool)
+				for _, t := range tags {
+					if intersect[t] {
+						intersect2[t] = true
+					}
+				}
+				intersect = intersect2
+				if len(intersect) == 0 {
+					break
+				}
+			}
+			if len(intersect) > 0 {
+				fullTags := make(stringList, 0, len(intersect))
+				for t := range intersect {
+					fullTags.push("nat:" + t)
+				}
+				sort.Strings(fullTags)
+				list := strings.Join(fullTags, ",")
+				c.warn("Ignoring %s without effect, bound at every interface of %s",
+					list, r)
+			}
+		}
+	}
+}
+
 //############################################################################
 // Purpose: Check compatibility of host/interface and network NAT.
 // Comment: A NAT definition for a single host/interface is only allowed,
@@ -942,21 +991,16 @@ func (c *spoc) checkNatCompatibility() {
 //          need to have a fixed address.
 func (c *spoc) checkInterfacesWithDynamicNat() {
 	for _, n := range c.allNetworks {
-		var tags stringList
 		for tag, _ := range n.nat {
-			tags.push(tag)
-		}
-		sort.Strings(tags)
-		for _, tag := range tags {
 			info := n.nat[tag]
-			if !info.dynamic || (info.identity || info.hidden) {
+			if !info.dynamic || info.identity || info.hidden {
 				continue
 			}
 			for _, intf := range n.interfaces {
 				intfNat := intf.nat
 
 				// Interface has static translation,
-				if intfNat != nil && intfNat[tag] != nil {
+				if intfNat[tag] != nil {
 					continue
 				}
 
@@ -1029,6 +1073,7 @@ func (c *spoc) distributeNatInfo() (
 	c.checkMultinatErrors(multi, natdomains)
 	if !natErrors {
 		c.checkNatNetworkLocation(natdomains)
+		c.CheckUselessBindNat(natdomains)
 	}
 	c.checkNatCompatibility()
 	c.checkInterfacesWithDynamicNat()

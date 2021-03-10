@@ -1929,6 +1929,67 @@ route outside 1.2.3.4 255.255.255.255 192.168.0.1
 =END=
 
 ############################################################
+=TITLE=Route to internet at internal interface
+=INPUT=
+${crypto_sts}
+
+network:n1 = { ip = 10.1.1.0/24;}
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  negotiated;
+  id = cert@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+network:lan1 = {
+ ip = 10.99.1.0/24;
+}
+
+router:Firewall = {
+ managed;
+ model = Linux;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:internet = { ip = 1.1.1.2; hardware = internet; }
+}
+router:internet = {
+ interface:internet;
+ interface:n2;
+}
+
+network:n2 = { ip = 1.1.2.0/24; }
+
+service:s1 = {
+ user = network:lan1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=END=
+=ERROR=
+Error: Two static routes for network:internet
+ via interface:asavpn.dmz and interface:asavpn.n1
+=END=
+
+############################################################
 =TITLE=acl_use_real_ip for crypto tunnel of ASA
 =INPUT=
 ipsec:aes256SHA = {

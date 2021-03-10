@@ -82,7 +82,9 @@ func shortNameList(list []someObj) string {
 //   - element of net_hash or
 //   - subnet of element of net_hash.
 // Result: List of found networks or aggregates or undef.
-func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, netMap map[*network]bool) netList {
+func findZoneNetworks(
+	zone *zone, isAgg bool, ip net.IP, mask net.IPMask, natSet natSet,
+	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
 	inNetHash := func(netOrAgg *network) bool {
@@ -112,6 +114,7 @@ func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, net
 
 	// Real networks in zone without aggregates and without subnets.
 	var result netList
+
 	prefix, _ := mask.Size()
 	for _, net := range zone.networks {
 		if inNetHash(net) {
@@ -123,7 +126,9 @@ func findZoneNetworks(zone *zone, ip net.IP, mask net.IPMask, natSet natSet, net
 		}
 		i, m := natNet.ip, natNet.mask
 		p, _ := m.Size()
-		if p >= prefix && matchIp(i, ip, mask) || p < prefix && matchIp(ip, i, m) {
+		if p >= prefix && matchIp(i, ip, mask) ||
+			isAgg && p < prefix && matchIp(ip, i, m) {
+
 			result = append(result, net)
 		}
 	}
@@ -168,7 +173,8 @@ func (c *spoc) checkSupernetInZone1(
 	}
 	ip, mask := natSuper.ip, natSuper.mask
 	netMap := rule.zone2netMap[zone]
-	networks := findZoneNetworks(zone, ip, mask, natSet, netMap)
+	networks :=
+		findZoneNetworks(zone, supernet.isAggregate, ip, mask, natSet, netMap)
 
 	if len(networks) == 0 {
 		return

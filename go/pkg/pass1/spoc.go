@@ -235,6 +235,6 @@ func SpocMain() (errCount int) {
 			c.copyRaw(inDir, outDir)
 		}
 		c.stopOnErr()
-		c.progress("Finished pass1")
+		c.progress("Finished")
 	})
 }
