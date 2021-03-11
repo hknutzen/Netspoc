@@ -313,17 +313,20 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 	}
 
 	// Identify hop interface(s).
-	// Store hop interfaces and routing information within inIntf.
-	if inNet == outNet {
-		nMap := rMap[out]
+	// Add hop interfaces and routing information to in.routes
+	add := func(intf *routerIntf) {
+		nMap := rMap[intf]
 		if nMap == nil {
 			nMap = make(netMap)
-			rMap[out] = nMap
+			rMap[intf] = nMap
 		}
 		for _, n := range natNets {
-			// debug("%s -> %s: %s", in, out, n)
+			// debug("%s -> %s: %s", in, intf, n)
 			nMap[n] = true
 		}
+	}
+	if inNet == outNet {
+		add(out)
 	} else {
 		routeInZone := in.routeInZone
 		hops := routeInZone[network00]
@@ -331,15 +334,7 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 			hops = routeInZone[outNet]
 		}
 		for _, h := range hops {
-			nMap := rMap[h]
-			if nMap == nil {
-				nMap = make(netMap)
-				rMap[h] = nMap
-			}
-			for _, n := range natNets {
-				// debug("%s -> %s: %s", in, hop, n)
-				nMap[n] = true
-			}
+			add(h)
 		}
 	}
 }
