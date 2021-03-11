@@ -588,66 +588,54 @@ func (c *spoc) generateRoutingTree() routingTree {
 //              interface.
 func (c *spoc) generateRoutingInfo(t routingTree) {
 
-	// Process every pseudo rule. Traverse path from src to dst.
+	// Process every pseudo rule.
 	for _, p := range t {
 
-		// Collect data for every passed zone.
-		var path [][2]*routerIntf
-		var entries intfList
-		var exits intfList
+		// Add routing information for entry/exit interfaces at
+		// start/end zone on path.
+		add := func(intf *routerIntf, i2n map[*routerIntf]netMap, nets netMap) {
+
+			// For src/dst interfaces at managed routers, generate
+			// routes in both interfaces.
+		I2N:
+			for intf2, netMap := range i2n {
+
+				// Do not generate routes for src/dst interfaces at
+				// path entry/exit routers.
+				if intf2.router == intf.router {
+					continue
+				}
+				for _, intf3 := range intf2.redundancyIntfs {
+					if intf3.router == intf.router {
+						continue I2N
+					}
+				}
+				addPathRoutes(intf2, intf, netMap)
+			}
+
+			// For src/dst networks, generate routes for zone interface only.
+			addEndRoutes(intf, nets)
+		}
+
+		// Traverse path from src to dst and
+		// collect routes for every passed zone.
 		getRoutePath := func(r *groupedRule, in, out *routerIntf) {
 			// debug("collect: %s -> %s", r.srcPath, r.dstPath)
 			// debug("%s -> %s", in, out)
 			if in != nil && out != nil {
 				// Packets traverse the zone.
-				path = append(path, [2]*routerIntf{in, out})
+				// debug("%s => %s", in, out)
+				addPathRoutes(in, out, p.dstNetworks)
+				addPathRoutes(out, in, p.srcNetworks)
 			} else if in == nil {
 				// Zone contains rule source.
-				entries.push(out)
+				add(out, p.srcIntf2nets, p.srcNetworks)
 			} else {
 				// Zone contains rule destination.
-				exits.push(in)
+				add(in, p.dstIntf2nets, p.dstNetworks)
 			}
 		}
 		c.pathWalk(&p.groupedRule, getRoutePath, "Zone")
-
-		// Determine routing information for every interface pair.
-		for _, tuple := range path {
-			in, out := tuple[0], tuple[1]
-			// debug("%s => %s", in, out)
-			addPathRoutes(in, out, p.dstNetworks)
-			addPathRoutes(out, in, p.srcNetworks)
-		}
-
-		// Add routing information for entry/exit interfaces at
-		// start/end zone on path.
-		add := func(l intfList, i2n map[*routerIntf]netMap, nets netMap) {
-			for _, intf := range l {
-
-				// For src/dst interfaces at managed routers, generate
-				// routes in both interfaces.
-			I2N:
-				for intf2, netMap := range i2n {
-
-					// Do not generate routes for src/dst interfaces at
-					// path entry/exit routers.
-					if intf2.router == intf.router {
-						continue
-					}
-					for _, intf3 := range intf2.redundancyIntfs {
-						if intf3.router == intf.router {
-							continue I2N
-						}
-					}
-					addPathRoutes(intf2, intf, netMap)
-				}
-
-				// For src/dst networks, generate routes for zone interface only.
-				addEndRoutes(intf, nets)
-			}
-		}
-		add(entries, p.srcIntf2nets, p.srcNetworks)
-		add(exits, p.dstIntf2nets, p.dstNetworks)
 	}
 }
 
