@@ -47,29 +47,29 @@ type netMap map[*network]bool
 // can have different next hops at end of path.
 // For an aggregate, take all matching networks inside the zone.
 // These are supernets by design.
-func getRouteNetworks(list []someObj) netMap {
+func getRouteNetworks(l []someObj) netMap {
 	m := make(netMap)
 LIST:
-	for _, obj := range list {
-		var net *network
+	for _, obj := range l {
+		var n *network
 		switch x := obj.(type) {
 		case *network:
 			if x.isAggregate {
-				for _, net := range x.networks {
-					m[net] = true
+				for _, n := range x.networks {
+					m[n] = true
 				}
 				continue LIST
 			}
-			net = x
+			n = x
 		case *subnet:
-			net = x.network
+			n = x.network
 		case *routerIntf:
-			net = x.network
+			n = x.network
 		}
-		if max := net.maxRoutingNet; max != nil {
+		if max := n.maxRoutingNet; max != nil {
 			m[max] = true
 		}
-		m[net] = true
+		m[n] = true
 	}
 	return m
 }
@@ -92,25 +92,21 @@ func setRoutesInZone(zone *zone) {
 	hopInterfaces := make(map[*routerIntf]bool)
 
 	// Collect networks at the zones interfaces as border networks.
-	for _, inIntf := range zone.interfaces {
-		if inIntf.mainIntf != nil {
+	for _, in := range zone.interfaces {
+		if in.mainIntf != nil {
 			continue
 		}
-		network := inIntf.network
-		if borderNetworks[network] {
+		n := in.network
+		if borderNetworks[n] {
 			continue
 		}
-		borderNetworks[network] = true
+		borderNetworks[n] = true
 
 		// Collect non border interfaces of the networks as next hop interfaces.
-		for _, outIntf := range network.interfaces {
-			if outIntf.zone != nil {
-				continue
+		for _, out := range n.interfaces {
+			if out.zone == nil && out.mainIntf == nil {
+				hopInterfaces[out] = true
 			}
-			if outIntf.mainIntf != nil {
-				continue
-			}
-			hopInterfaces[outIntf] = true
 		}
 	}
 	if len(hopInterfaces) == 0 {
@@ -127,46 +123,43 @@ func setRoutesInZone(zone *zone) {
 	// Store directly linked border networks for clusters.
 	cluster2borders := make(map[*cluster]netMap)
 	var setCluster func(*router, *routerIntf, *cluster)
-	setCluster = func(router *router, inIntf *routerIntf, clust *cluster) {
-		if router.activePath {
+
+	setCluster = func(r *router, in *routerIntf, cl *cluster) {
+		if r.activePath {
 			return
 		}
-		router.activePath = true
-		defer func() { router.activePath = false }()
+		r.activePath = true
+		defer func() { r.activePath = false }()
 
 		// Process every interface.
-		for _, intf := range router.interfaces {
+		for _, intf := range r.interfaces {
 			if intf.mainIntf != nil {
 				continue
 			}
 
 			// Found hop interface. Add its entries on the fly and skip.
 			if hopInterfaces[intf] {
-				hop2cluster[intf] = clust
-				network := intf.network
-				cluster2borders[clust][network] = true
+				hop2cluster[intf] = cl
+				n := intf.network
+				cluster2borders[cl][n] = true
 				continue
 			}
-			if intf == inIntf {
+			if intf == in {
 				continue
 			}
 
 			// Add network behind interface to cluster.
-			network := intf.network
-			if (*clust)[network] {
+			n := intf.network
+			if (*cl)[n] {
 				continue
 			}
-			(*clust)[network] = true
+			(*cl)[n] = true
 
 			// Recursively proceed with adjacent routers.
-			for _, outIntf := range network.interfaces {
-				if outIntf == intf {
-					continue
+			for _, out := range n.interfaces {
+				if out != intf && out.mainIntf == nil {
+					setCluster(out.router, out, cl)
 				}
-				if outIntf.mainIntf != nil {
-					continue
-				}
-				setCluster(outIntf.router, outIntf, clust)
 			}
 		}
 	}
@@ -177,9 +170,9 @@ func setRoutesInZone(zone *zone) {
 		if hop2cluster[intf] != nil {
 			continue
 		}
-		clust := make(cluster)
-		cluster2borders[&clust] = make(netMap)
-		setCluster(intf.router, intf, &clust)
+		cl := make(cluster)
+		cluster2borders[&cl] = make(netMap)
+		setCluster(intf.router, intf, &cl)
 
 		//	debug("Cluster: intf->{name} ",
 		//             join ',', map {$_->{name}} values %clust);
@@ -197,15 +190,15 @@ func setRoutesInZone(zone *zone) {
 		nMap := make(netMap)
 
 		// Optimization: add networks of directly attached cluster.
-		clust := hop2cluster[hop]
-		for net, _ := range *clust {
-			nMap[net] = true
+		cl := hop2cluster[hop]
+		for n, _ := range *cl {
+			nMap[n] = true
 		}
 		// Add preliminary result to stop deep recursion.
 		hop2netMap[hop] = nMap
 
 		// Proceed depth first search with adjacent border networks.
-		for border, _ := range cluster2borders[clust] {
+		for border, _ := range cluster2borders[cl] {
 			if border == inBorder {
 				continue
 			}
@@ -217,14 +210,14 @@ func setRoutesInZone(zone *zone) {
 				if !hopInterfaces[outHop] {
 					continue
 				}
-				if hop2cluster[outHop] == clust {
+				if hop2cluster[outHop] == cl {
 					continue
 				}
 
 				// Create hop2netMap entry for reachable hops and add networks
 				setNetworksBehind(outHop, border)
-				for net, _ := range hop2netMap[outHop] {
-					nMap[net] = true
+				for n, _ := range hop2netMap[outHop] {
+					nMap[n] = true
 				}
 			}
 		}
@@ -232,13 +225,13 @@ func setRoutesInZone(zone *zone) {
 		//	debug("Hop: hop->{name} ", join ',', map {$_->{name}} result);
 	}
 
-	// In every border interfaces, store reachable networks and
+	// For all border interfaces, store reachable networks and
 	// corresponding hop interface. Process every border network.
 	for border, _ := range borderNetworks {
 		var borderIntf intfList
 		var hopIntf intfList
 
-		// Collect border and hop interfaces of the current border network.
+		// Collect border and hop interfaces of current border network.
 		for _, intf := range border.interfaces {
 			if intf.mainIntf != nil {
 				continue
@@ -252,7 +245,7 @@ func setRoutesInZone(zone *zone) {
 		}
 
 		// Optimization: All networks in zone are located behind single hop.
-		if 1 == len(hopIntf) || isRedundanyGroup(hopIntf) {
+		if len(hopIntf) == 1 || isRedundanyGroup(hopIntf) {
 			for _, intf := range borderIntf {
 
 				// Spare reachable network specification.
@@ -264,23 +257,21 @@ func setRoutesInZone(zone *zone) {
 			continue
 		}
 
-		// For every hop interfaces of current network, gather reachable
+		// For all hop interfaces of current network, gather reachable
 		// network set.
-		for _, hop := range hopIntf {
-			setNetworksBehind(hop, border)
+		for _, h := range hopIntf {
+			setNetworksBehind(h, border)
 
 			// In border interface of current network, store reachable
 			// networks and hops
 			for _, intf := range borderIntf {
-				for network, _ := range hop2netMap[hop] {
+				for n, _ := range hop2netMap[h] {
 
 					// Border will be found accidently, if clusters form a
 					// loop inside zone.
-					if network == border {
-						continue
+					if n != border {
+						intf.routeInZone[n] = append(intf.routeInZone[n], h)
 					}
-					intf.routeInZone[network] =
-						append(intf.routeInZone[network], hop)
 				}
 			}
 		}
@@ -339,11 +330,11 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 		if hops == nil {
 			hops = routeInZone[outNet]
 		}
-		for _, hop := range hops {
-			nMap := rMap[hop]
+		for _, h := range hops {
+			nMap := rMap[h]
 			if nMap == nil {
 				nMap = make(netMap)
-				rMap[hop] = nMap
+				rMap[h] = nMap
 			}
 			for _, n := range natNets {
 				// debug("%s -> %s: %s", in, hop, n)
@@ -392,11 +383,11 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 		}
 
 		// Store the used hops and routes within the interface object.
-		for _, hop := range hops {
-			nMap := rMap[hop]
+		for _, h := range hops {
+			nMap := rMap[h]
 			if nMap == nil {
 				nMap = make(netMap)
-				rMap[hop] = nMap
+				rMap[h] = nMap
 			}
 			// debug("%s -> %s: %s", intf, hop, natNet)
 			nMap[natNet] = true
@@ -426,7 +417,7 @@ const (
 // Parameters : rule - to be added grouped rule.
 //              isIntf - marker: which of src and/or dst is an interface.
 //              tree - the routing tree.
-func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
+func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 
 	src, dst := rule.src, rule.dst
 	srcZone, dstZone := rule.srcPath.(*zone), rule.dstPath.(*zone)
@@ -456,13 +447,13 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 	}
 
 	// Construct a pseudo rule with zones as src and dst and store it.
-	var pRule *pseudoRule
+	var p *pseudoRule
 
 	// Check whether pseudo rule for src and dst pair is stored already.
-	pRule = tree[zonePair{srcZone, dstZone}]
-	if pRule == nil {
-		pRule = tree[zonePair{dstZone, srcZone}]
-		if pRule != nil {
+	p = t[zonePair{srcZone, dstZone}]
+	if p == nil {
+		p = t[zonePair{dstZone, srcZone}]
+		if p != nil {
 			src, dst = dst, src
 			srcZone, dstZone = dstZone, srcZone
 
@@ -477,7 +468,7 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 		} else {
 
 			// Generate new pseudo rule otherwise.
-			pRule = &pseudoRule{
+			p = &pseudoRule{
 				groupedRule: groupedRule{
 					serviceRule: &serviceRule{
 						prt:  rule.prt,
@@ -493,7 +484,7 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 				srcNetworks:  make(netMap),
 				dstNetworks:  make(netMap),
 			}
-			tree[zonePair{srcZone, dstZone}] = pRule
+			t[zonePair{srcZone, dstZone}] = p
 		}
 	}
 
@@ -504,13 +495,13 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 		}
 	}
 	srcNetworks := getRouteNetworks(src)
-	add(pRule.srcNetworks, srcNetworks)
+	add(p.srcNetworks, srcNetworks)
 	dstNetworks := getRouteNetworks(dst)
-	add(pRule.dstNetworks, dstNetworks)
+	add(p.dstNetworks, dstNetworks)
 
 	// If src/dst is interface of managed routers, add this info to
 	// pseudo rule.
-	addI2N := func(ob []someObj, nets netMap, i2n *map[*routerIntf]netMap) {
+	addI2N := func(i2n *map[*routerIntf]netMap, ob []someObj, nets netMap) {
 		intf := ob[0].(*routerIntf)
 		r := intf.router
 		if r.managed != "" || r.routingOnly {
@@ -525,12 +516,12 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 	}
 	switch isIntf {
 	case srcIntf:
-		addI2N(src, dstNetworks, &pRule.srcIntf2nets)
+		addI2N(&p.srcIntf2nets, src, dstNetworks)
 	case dstIntf:
-		addI2N(dst, srcNetworks, &pRule.dstIntf2nets)
+		addI2N(&p.dstIntf2nets, dst, srcNetworks)
 	case bothIntf:
-		addI2N(src, dstNetworks, &pRule.srcIntf2nets)
-		addI2N(dst, srcNetworks, &pRule.dstIntf2nets)
+		addI2N(&p.srcIntf2nets, src, dstNetworks)
+		addI2N(&p.dstIntf2nets, dst, srcNetworks)
 	}
 }
 
@@ -540,52 +531,52 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, tree routingTree) {
 //           generated to determine routes, ports are omitted, and rules
 //           refering to the same src and dst zones are summarized.
 func (c *spoc) generateRoutingTree() routingTree {
-	tree := make(routingTree)
+	t := make(routingTree)
 
 	// Special handling needed for rules grouped not at zone pairs but
 	// grouped at routers.
-	for _, rule := range c.allPathRules.permit {
+	for _, ru := range c.allPathRules.permit {
 
 		// debug(rule.print())
-		if _, ok := rule.srcPath.(*zone); ok {
+		if _, ok := ru.srcPath.(*zone); ok {
 
-			if _, ok := rule.dstPath.(*zone); ok {
+			if _, ok := ru.dstPath.(*zone); ok {
 				// Common case, process directly.
-				generateRoutingTree1(rule, noIntf, tree)
+				generateRoutingTree1(ru, noIntf, t)
 			} else {
 				// Split group of destination interfaces, one for each zone.
-				for _, obj := range rule.dst {
-					intf := obj.(*routerIntf)
-					copy := *rule
-					copy.dst = []someObj{obj}
-					copy.dstPath = intf.zone
-					generateRoutingTree1(&copy, dstIntf, tree)
+				for _, ob := range ru.dst {
+					intf := ob.(*routerIntf)
+					cp := *ru
+					cp.dst = []someObj{ob}
+					cp.dstPath = intf.zone
+					generateRoutingTree1(&cp, dstIntf, t)
 				}
 			}
-		} else if _, ok := rule.dstPath.(*zone); ok {
-			for _, obj := range rule.src {
-				intf := obj.(*routerIntf)
-				copy := *rule
-				copy.src = []someObj{obj}
-				copy.srcPath = intf.zone
-				generateRoutingTree1(&copy, srcIntf, tree)
+		} else if _, ok := ru.dstPath.(*zone); ok {
+			for _, ob := range ru.src {
+				intf := ob.(*routerIntf)
+				cp := *ru
+				cp.src = []someObj{ob}
+				cp.srcPath = intf.zone
+				generateRoutingTree1(&cp, srcIntf, t)
 			}
 		} else {
-			for _, srcObj := range rule.src {
-				srcIntf := srcObj.(*routerIntf)
-				for _, dstObj := range rule.dst {
-					dstIntf := dstObj.(*routerIntf)
-					copy := *rule
-					copy.src = []someObj{srcObj}
-					copy.dst = []someObj{dstObj}
-					copy.srcPath = srcIntf.zone
-					copy.dstPath = dstIntf.zone
-					generateRoutingTree1(&copy, bothIntf, tree)
+			for _, srcOb := range ru.src {
+				srcIntf := srcOb.(*routerIntf)
+				for _, dstOb := range ru.dst {
+					dstIntf := dstOb.(*routerIntf)
+					cp := *ru
+					cp.src = []someObj{srcOb}
+					cp.dst = []someObj{dstOb}
+					cp.srcPath = srcIntf.zone
+					cp.dstPath = dstIntf.zone
+					generateRoutingTree1(&cp, bothIntf, t)
 				}
 			}
 		}
 	}
-	return tree
+	return t
 }
 
 //#############################################################################
@@ -595,16 +586,16 @@ func (c *spoc) generateRoutingTree() routingTree {
 // Results    : Every interface object holds next hop routing information
 //              for the rules of original ruleset requiring a path passing the
 //              interface.
-func (c *spoc) generateRoutingInfo(tree routingTree) {
+func (c *spoc) generateRoutingInfo(t routingTree) {
 
 	// Process every pseudo rule. Within its {path} attribute....
-	for _, pRule := range tree {
+	for _, p := range t {
 
 		// Collect data for every passed zone.
 		var path [][2]*routerIntf
-		var pathEntries []*routerIntf
-		var pathExits []*routerIntf
-		getRoutePath := func(r *groupedRule, in, out *routerIntf) {
+		var entries []*routerIntf
+		var exits []*routerIntf
+		getRoutePath := func(_ *groupedRule, in, out *routerIntf) {
 			/* debug("collect: %s -> %s", r.srcPath, r.dstPath)
 			info := ""
 			if in != nil {
@@ -621,29 +612,29 @@ func (c *spoc) generateRoutingInfo(tree routingTree) {
 				path = append(path, [2]*routerIntf{in, out})
 			} else if in == nil {
 				// Zone contains rule source.
-				pathEntries = append(pathEntries, out)
+				entries = append(entries, out)
 			} else {
 				// Zone contains rule destination.
-				pathExits = append(pathExits, in)
+				exits = append(exits, in)
 			}
 		}
-		c.pathWalk(&pRule.groupedRule, getRoutePath, "Zone")
+		c.pathWalk(&p.groupedRule, getRoutePath, "Zone")
 
 		// Determine routing information for every interface pair.
 		for _, tuple := range path {
 			in, out := tuple[0], tuple[1]
 			// debug("%s => %s", in, out)
-			addPathRoutes(in, out, pRule.dstNetworks)
-			addPathRoutes(out, in, pRule.srcNetworks)
+			addPathRoutes(in, out, p.dstNetworks)
+			addPathRoutes(out, in, p.srcNetworks)
 		}
 
 		// Determine routing information for intf of first zone on path.
-		for _, entry := range pathEntries {
+		for _, entry := range entries {
 
 			// For src interfaces at managed routers, generate routes in
 			// both interfaces.
 		SRC:
-			for srcIntf, netMap := range pRule.srcIntf2nets {
+			for srcIntf, netMap := range p.srcIntf2nets {
 
 				// Do not generate routes for src interfaces at path entry
 				// routers.
@@ -659,16 +650,16 @@ func (c *spoc) generateRoutingInfo(tree routingTree) {
 			}
 
 			// For src networks, generate routes for zone interface only.
-			addEndRoutes(entry, pRule.srcNetworks)
+			addEndRoutes(entry, p.srcNetworks)
 		}
 
 		// Determine routing information for interface of last zone on path.
-		for _, exit := range pathExits {
+		for _, exit := range exits {
 
 			// For dst interfaces at managed routers, generate routes in
 			// both interfaces.
 		DST:
-			for dstIntf, netMap := range pRule.dstIntf2nets {
+			for dstIntf, netMap := range p.dstIntf2nets {
 
 				// Do not generate routes for dst interfaces at path exit routers.
 				if dstIntf.router == exit.router {
@@ -683,7 +674,7 @@ func (c *spoc) generateRoutingInfo(tree routingTree) {
 			}
 
 			// For dst networks, generate routes for zone interface only.
-			addEndRoutes(exit, pRule.dstNetworks)
+			addEndRoutes(exit, p.dstNetworks)
 		}
 	}
 }
@@ -880,9 +871,9 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			}
 		}
 
-		intfEq := func(list intfList) bool {
-			i0 := list[0]
-			rest := list[1:]
+		intfEq := func(l intfList) bool {
+			i0 := l[0]
+			rest := l[1:]
 			for _, i := range rest {
 				if i != i0 {
 					return false
@@ -890,12 +881,12 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			}
 			return true
 		}
-		redundEq := func(list intfList) bool {
-			r0 := list[0].redundancyIntfs
+		redundEq := func(l intfList) bool {
+			r0 := l[0].redundancyIntfs
 			if len(r0) == 0 {
 				return false
 			}
-			rest := list[1:]
+			rest := l[1:]
 			for _, i := range rest {
 				if !intfListEq(i.redundancyIntfs, r0) {
 					return false
@@ -1110,18 +1101,18 @@ func getIpv4Ipv6Routers() []*router {
 
 // Check, whether input interfaces belong to same redundancy group.
 func isRedundanyGroup(intfs []*routerIntf) bool {
-	list1 := intfs[0].redundancyIntfs
-	if len(list1) == 0 {
+	l1 := intfs[0].redundancyIntfs
+	if len(l1) == 0 {
 		return false
 	}
 	// Check for equality of lists.
 	for _, intf := range intfs[1:] {
-		list2 := intf.redundancyIntfs
-		if len(list2) != len(list1) {
+		l2 := intf.redundancyIntfs
+		if len(l2) != len(l1) {
 			return false
 		}
-		for i, obj := range list1 {
-			if obj != list2[i] {
+		for i, obj := range l1 {
+			if obj != l2[i] {
 				return false
 			}
 		}
