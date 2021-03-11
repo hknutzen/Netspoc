@@ -303,6 +303,7 @@ router:r = {
 =INPUT=
 service:s1 = {
  unknown_owner;
+ identical_body = service:s3;
  overlaps = service:s2, service:s3;
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -311,6 +312,7 @@ service:s1 = {
 =OUTPUT=
 service:x1 = {
  unknown_owner;
+ identical_body = service:x3;
  overlaps = service:s2,
             service:x3,
             ;
