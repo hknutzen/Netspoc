@@ -302,9 +302,9 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 	inNet := in.network
 	outNet := out.network
 	natSet := in.natSet
-	natNets := make([]*network, 0, len(dstNetMap))
+	natNets := make(netList, 0, len(dstNetMap))
 	for n, _ := range dstNetMap {
-		natNets = append(natNets, getNatNetwork(n, natSet))
+		natNets.push(getNatNetwork(n, natSet))
 	}
 	rMap := in.routes
 	if rMap == nil {
@@ -919,7 +919,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 		// are reached. We use this to check, that all members of a group
 		// of redundancy interfaces are used to reach a network.
 		// Otherwise it would be wrong to route to virtual interface.
-		var netBehindVirtHop []*network
+		var netBehindVirtHop netList
 		net2extraHops := make(map[*network]intfList)
 
 		// Abort, if more than one static route exists per network.
@@ -969,7 +969,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 				} else {
 					net2hop[n] = hop
 					if group != nil {
-						netBehindVirtHop = append(netBehindVirtHop, n)
+						netBehindVirtHop.push(n)
 					}
 				}
 			}
