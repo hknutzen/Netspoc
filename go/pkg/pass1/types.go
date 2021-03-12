@@ -667,6 +667,10 @@ type groupedRule struct {
 }
 type ruleList []*groupedRule
 
+func (l *ruleList) push(r *groupedRule) {
+	*l = append(*l, r)
+}
+
 func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 	return &groupedRule{
 		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
