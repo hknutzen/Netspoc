@@ -330,7 +330,7 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		})
 
 		// Collect all interfaces belonging to needProtect routers of cluster...
-		var crosslinkIntfs []*routerIntf
+		var crosslinkIntfs intfList
 		for _, r2 := range cluster {
 			if crosslinkRouters[r2] {
 				crosslinkIntfs = append(crosslinkIntfs, r2.interfaces...)

@@ -27,11 +27,11 @@ func getIntf(r *router) []*routerIntf {
 	}
 }
 
-func (z *zone) nonSecondaryIntfs() []*routerIntf {
-	var result []*routerIntf
+func (z *zone) nonSecondaryIntfs() intfList {
+	var result intfList
 	for _, intf := range z.interfaces {
 		if intf.mainIntf == nil {
-			result = append(result, intf)
+			result.push(intf)
 		}
 	}
 	return result
@@ -376,9 +376,9 @@ func printRoutes(fh *os.File, r *router) {
 
 	for _, intf := range r.interfaces {
 		hop2nets := intf2hop2netInfos[intf]
-		hops := make([]*routerIntf, 0, len(hop2nets))
+		hops := make(intfList, 0, len(hop2nets))
 		for k, _ := range hop2nets {
-			hops = append(hops, k)
+			hops.push(k)
 		}
 		sort.Slice(hops, func(i, j int) bool {
 			return hops[i].name < hops[j].name
@@ -458,8 +458,8 @@ func printAclPlaceholder(fh *os.File, r *router, aclName string) {
 // Analyzes dst/src list of all rules collected at this interface.
 // Result:
 // List of all networks which are reachable when entering this interface.
-func getSplitTunnelNets(intf *routerIntf) []*network {
-	var result []*network
+func getSplitTunnelNets(intf *routerIntf) netList {
+	var result netList
 	seen := make(map[*network]bool)
 	checkRules := func(rules []*groupedRule, takeDst bool) {
 		for _, ru := range rules {
@@ -482,7 +482,7 @@ func getSplitTunnelNets(intf *routerIntf) []*network {
 				if seen[n] {
 					continue
 				}
-				result = append(result, n)
+				result.push(n)
 				seen[n] = true
 			}
 		}
@@ -536,19 +536,19 @@ func printTunnelGroupRa(
 	} else {
 		delete(attributes, "trust-point")
 	}
-	var tunnelGenAtt []string
+	var tunnelGenAtt stringList
 	authentication := "certificate"
 	if groupPolicyName != "" {
-		tunnelGenAtt = append(tunnelGenAtt, "default-group-policy "+groupPolicyName)
+		tunnelGenAtt.push("default-group-policy " + groupPolicyName)
 	} else {
 		authentication = "aaa " + authentication
 	}
 
 	// Select attributes for tunnel-group general-attributes.
-	keys := make([]string, 0, len(attributes))
+	keys := make(stringList, 0, len(attributes))
 	for k, _ := range attributes {
 		if spec := asaVpnAttributes[k]; spec == tgGeneral {
-			keys = append(keys, k)
+			keys.push(k)
 		}
 	}
 	sort.Strings(keys)
@@ -562,7 +562,7 @@ func printTunnelGroupRa(
 		if value := attributes[key]; value != "" {
 			out += " " + value
 		}
-		tunnelGenAtt = append(tunnelGenAtt, out)
+		tunnelGenAtt.push(out)
 	}
 
 	tunnelGroupName := "VPN-tunnel-" + idName
@@ -674,9 +674,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	printGroupPolicy := func(name string, attributes map[string]string) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
-		keys := make([]string, 0, len(attributes))
+		keys := make(stringList, 0, len(attributes))
 		for k, _ := range attributes {
-			keys = append(keys, k)
+			keys.push(k)
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
@@ -746,9 +746,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		splitTCache := make(map[int]map[string][]*network)
 
 		if hash := intf.idRules; hash != nil {
-			keys := make([]string, 0, len(hash))
+			keys := make(stringList, 0, len(hash))
 			for k, _ := range hash {
-				keys = append(keys, k)
+				keys.push(k)
 			}
 			sort.Strings(keys)
 			for _, id := range keys {
@@ -814,7 +814,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 							isStdACL:    true,
 							isCryptoACL: true,
 						}
-						r.aclList = append(r.aclList, info)
+						r.aclList.push(info)
 						printAclPlaceholder(fh, r, aclName)
 					}
 					attributes["split-tunnel-network-list"] = aclName
@@ -835,7 +835,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					addDeny: true,
 					natSet:  natSet,
 				}
-				r.aclList = append(r.aclList, info)
+				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
 
 				ip := src.ip.String()
@@ -944,7 +944,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				addDeny: true,
 				natSet:  natSet,
 			}
-			r.aclList = append(r.aclList, info)
+			r.aclList.push(info)
 			printAclPlaceholder(fh, r, filterName)
 
 			attributes := r.radiusAttributes
@@ -969,9 +969,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
-		keys := make([]string, 0, len(singleCertMap))
+		keys := make(stringList, 0, len(singleCertMap))
 		for k, _ := range singleCertMap {
-			keys = append(keys, k)
+			keys.push(k)
 		}
 		sort.Strings(keys)
 		for _, id := range keys {
@@ -985,9 +985,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			certGroupMap[mapName] = defaultTunnelGroup
 		}
 		fmt.Fprintln(fh, "webvpn")
-		keys = make([]string, 0, len(certGroupMap))
+		keys = make(stringList, 0, len(certGroupMap))
 		for k, _ := range certGroupMap {
-			keys = append(keys, k)
+			keys.push(k)
 		}
 		sort.Strings(keys)
 		for _, mapName := range keys {
@@ -998,9 +998,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	}
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
-	keys := make([]string, 0, len(ldapMap))
+	keys := make(stringList, 0, len(ldapMap))
 	for k, _ := range ldapMap {
-		keys = append(keys, k)
+		keys.push(k)
 	}
 	sort.Strings(keys)
 	for _, name := range keys {
@@ -1084,7 +1084,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 			natSet:  natSet,
 		}
 		hw.intfRules = nil
-		r.aclList = append(r.aclList, intfAclInfo)
+		r.aclList.push(intfAclInfo)
 		printAclPlaceholder(fh, r, intfAclName)
 		fmt.Fprintln(fh, "-A INPUT -j", intfAclName, "-i", inHw)
 
@@ -1092,9 +1092,9 @@ func printIptablesAcls(fh *os.File, r *router) {
 		// One chain for each pair of in_intf / out_intf.
 		// Add call to chain in FORRWARD chain.
 		// Sort keys for deterministic output.
-		keys := make([]string, 0, len(hw.ioRules))
+		keys := make(stringList, 0, len(hw.ioRules))
 		for k, _ := range hw.ioRules {
-			keys = append(keys, k)
+			keys.push(k)
 		}
 		sort.Strings(keys)
 		for _, outHw := range keys {
@@ -1105,7 +1105,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 				addDeny: true,
 				natSet:  natSet,
 			}
-			r.aclList = append(r.aclList, info)
+			r.aclList.push(info)
 			printAclPlaceholder(fh, r, aclName)
 			fmt.Fprintln(fh, "-A FORWARD -j", aclName, "-i", inHw, "-o", outHw)
 		}
@@ -1242,7 +1242,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 
 			aclName := hw.name + "_" + suffix
 			info.name = aclName
-			r.aclList = append(r.aclList, info)
+			r.aclList.push(info)
 			printAclPlaceholder(fh, r, aclName)
 
 			// Post-processing for hardware interface
@@ -1354,7 +1354,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 		natSet:      tunNatSet,
 		isCryptoACL: true,
 	}
-	r.aclList = append(r.aclList, acls)
+	r.aclList.push(acls)
 	printAclPlaceholder(fh, r, cryptoAclName)
 
 	// Crypto filter ACL.
@@ -1368,7 +1368,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 	}
 	tunnelIntf.rules = nil
 	tunnelIntf.intfRules = nil
-	r.aclList = append(r.aclList, acls)
+	r.aclList.push(acls)
 	printAclPlaceholder(fh, r, cryptoFilterName)
 
 	// Bind crypto filter ACL to virtual template.
@@ -1418,7 +1418,7 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 		natSet:      intf.natSet,
 		isCryptoACL: true,
 	}
-	r.aclList = append(r.aclList, aclInfo)
+	r.aclList.push(aclInfo)
 	printAclPlaceholder(fh, r, cryptoAclName)
 	return cryptoAclName
 }
@@ -1443,7 +1443,7 @@ func printCryptoFilterAcl(fh *os.File, intf *routerIntf, suffix string) string {
 	}
 	intf.rules = nil
 	intf.intfRules = nil
-	r.aclList = append(r.aclList, aclInfo)
+	r.aclList.push(aclInfo)
 	printAclPlaceholder(fh, r, cryptoFilterName)
 	return cryptoFilterName
 }
@@ -1802,7 +1802,7 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 
 		// Collect tunnel interfaces attached to each hardware interface.
 		// Differentiate on peers having static || dynamic IP address.
-		var static, dynamic []*routerIntf
+		var static, dynamic intfList
 		var haveCryptoMap = false
 		for _, intf := range hw.interfaces {
 			if intf.ipType != tunnelIP {
@@ -1810,9 +1810,9 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			}
 			real := intf.peer.realIntf
 			if real.ipType != hasIP {
-				dynamic = append(dynamic, intf)
+				dynamic.push(intf)
 			} else {
-				static = append(static, intf)
+				static.push(intf)
 			}
 			haveCryptoMap = true
 		}
@@ -1959,7 +1959,7 @@ func getNeedProtect(r *router) []*routerIntf {
 		if len(i.ip) == 0 {
 			continue
 		}
-		l = append(l, i)
+		l.push(i)
 	}
 	return l
 }
@@ -2203,18 +2203,18 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			//   This is needed because OptSecondary is set for
 			//   grouped rules and we need to control optimization
 			//   for sinlge rules.
-			addrList := make([]string, 0, len(optAddr))
+			addrList := make(stringList, 0, len(optAddr))
 			for n, _ := range optAddr {
 				a := getCachedAddr(n, addrCache)
-				addrList = append(addrList, a)
+				addrList.push(a)
 			}
 			sort.Strings(addrList)
 			jACL.OptNetworks = addrList
 
-			addrList = make([]string, 0, len(noOptAddrs))
+			addrList = make(stringList, 0, len(noOptAddrs))
 			for o, _ := range noOptAddrs {
 				a := getCachedAddr(o, addrCache)
-				addrList = append(addrList, a)
+				addrList.push(a)
 			}
 			sort.Strings(addrList)
 			jACL.NoOptAddrs = addrList

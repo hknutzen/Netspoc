@@ -269,8 +269,12 @@ type aclInfo struct {
 	isStdACL     bool
 	isCryptoACL  bool
 	needProtect  []*net.IPNet
-	subAclList   []*aclInfo
+	subAclList   aclList
 }
+
+type aclList []*aclInfo
+
+func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 
 type router struct {
 	ipVxObj
@@ -288,7 +292,7 @@ type router struct {
 	logDeny                 bool
 	localMark               int
 	origIntfs               intfList
-	crosslinkIntfs          []*routerIntf
+	crosslinkIntfs          intfList
 	disabled                bool
 	extendedKeys            map[string]string
 	filterOnly              []*net.IPNet
@@ -311,7 +315,7 @@ type router struct {
 	trustPoint              string
 	ipvMembers              []*router
 	vrfMembers              []*router
-	aclList                 []*aclInfo
+	aclList                 aclList
 	vrf                     string
 }
 
