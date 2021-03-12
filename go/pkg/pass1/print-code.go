@@ -1124,7 +1124,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 	permitAny := getPermitAnyRule(ipv6)
 
 	getNatSet := func(r *router, s natSet) natSet {
-		if r.model.aclUseRealIP {
+		if model.aclUseRealIP {
 			return r.natSet
 		} else {
 			return s
@@ -1211,7 +1211,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 				// Add ACL of corresponding tunnel interfaces.
 				// We have exactly one crypto interface per hardware.
 				intf := hw.interfaces[0]
-				if (intf.hub != nil || intf.spoke != nil) && r.model.noCryptoFilter {
+				if (intf.hub != nil || intf.spoke != nil) && model.noCryptoFilter {
 					for _, tunnelIntf := range getIntf(r) {
 						realIntf := tunnelIntf.realIntf
 						if realIntf == nil || realIntf != intf {
@@ -1267,8 +1267,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 }
 
 func generateAcls(fh *os.File, r *router) {
-	model := r.model
-	filter := model.filter
+	filter := r.model.filter
 	printHeader(fh, r, "ACL")
 
 	if filter == "iptables" {
@@ -1521,9 +1520,11 @@ func printCaAndTunnelGroupMap(fh *os.File, id, tgName string) {
 	fmt.Fprintln(fh, "tunnel-group-map", id, "10", tgName)
 }
 
-func (c *spoc) printStaticCryptoMap(fh *os.File, r *router, hw *hardware, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
-	model := r.model
-	cryptoType := model.crypto
+func (c *spoc) printStaticCryptoMap(
+	fh *os.File, r *router, hw *hardware, mapName string,
+	interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
+
+	cryptoType := r.model.crypto
 
 	// Sequence number for parts of crypto map with different peers.
 	seqNum := 0
@@ -1532,14 +1533,14 @@ func (c *spoc) printStaticCryptoMap(fh *os.File, r *router, hw *hardware, mapNam
 	natSet := hw.natSet
 
 	// Sort crypto maps by peer IP to get deterministic output.
-	sorted := make([]*routerIntf, 0, len(interfaces))
-	sorted = append(sorted, interfaces...)
-	sort.Slice(sorted, func(i, j int) bool {
-		return bytes.Compare(sorted[i].peer.realIntf.ip, sorted[j].peer.realIntf.ip) == -1
+	l := make([]*routerIntf, 0, len(interfaces))
+	l = append(l, interfaces...)
+	sort.Slice(l, func(i, j int) bool {
+		return bytes.Compare(l[i].peer.realIntf.ip, l[j].peer.realIntf.ip) == -1
 	})
 
 	// Build crypto map for each tunnel interface.
-	for _, intf := range sorted {
+	for _, intf := range l {
 		seqNum++
 		seq := strconv.Itoa(seqNum)
 		peer := intf.peer
@@ -1589,14 +1590,14 @@ func (c *spoc) printDynamicCryptoMap(
 	seqNum := 65536
 
 	// Sort crypto maps by certificate to get deterministic output.
-	sorted := make([]*routerIntf, 0, len(interfaces))
-	sorted = append(sorted, interfaces...)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].peer.id < sorted[j].peer.id
+	l := make([]*routerIntf, 0, len(interfaces))
+	l = append(l, interfaces...)
+	sort.Slice(l, func(i, j int) bool {
+		return l[i].peer.id < l[j].peer.id
 	})
 
 	// Build crypto map for each tunnel interface.
-	for _, intf := range sorted {
+	for _, intf := range l {
 		seqNum--
 		seq := strconv.Itoa(seqNum)
 		id := intf.peer.id
