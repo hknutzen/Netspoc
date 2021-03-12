@@ -75,8 +75,7 @@ func printRoutes(fh *os.File, r *router) {
 	vrf := r.vrf
 	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
 	zeroIp := getZeroIp(ipv6)
-	cryptoType := model.crypto
-	asaCrypto := cryptoType == "ASA"
+	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[int]map[string]*network)
 	type hopInfo struct {
 		intf *routerIntf
@@ -297,7 +296,7 @@ func printRoutes(fh *os.File, r *router) {
 					// If both use the same hop, then small is redundant.
 					if net2hopInfo[big] == hopInfo {
 
-						//                debug "Removed: small.name -> hop.name"
+						// debug("Removed: %s -> %s", small, hop)
 						continue NETWORK
 					}
 
@@ -306,7 +305,7 @@ func printRoutes(fh *os.File, r *router) {
 					// It must not be removed by default route later.
 					noOpt = true
 
-					//             debug "No opt: small.name -> hop.name"
+					// debug("No opt: %s -> %s", small, hop)
 					break
 				}
 			}
