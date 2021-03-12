@@ -9,42 +9,42 @@ import (
 // Distributing rules to managed devices
 //#############################################################################
 
-func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
+func distributeRule(ru *groupedRule, in, out *routerIntf) {
 
-	// Traffic from src reaches this router via inIntf
-	// and leaves it via outIntf.
-	// inIntf is undefined if src is an interface of current router.
-	// outIntf is undefined if dst is an interface of current router.
+	// Traffic from ru.src reaches this router via in
+	// and leaves it via out.
+	// in is undefined if src is an interface of current router.
+	// out is undefined if dst is an interface of current router.
 	// Outgoing packets from a router itself are never filtered.
-	if inIntf == nil {
+	if in == nil {
 		return
 	}
-	router := inIntf.router
-	if router.managed == "" {
+	r := in.router
+	if r.managed == "" {
 		return
 	}
-	model := router.model
+	model := r.model
 
 	// Rules of type stateless must only be processed at
 	// - stateless routers or
 	// - routers which are stateless for packets destined for
 	//   their own interfaces or
 	// - stateless tunnel interfaces of ASA-VPN.
-	if rule.stateless {
-		if !(model.stateless || outIntf == nil && model.statelessSelf) {
+	if ru.stateless {
+		if !(model.stateless || out == nil && model.statelessSelf) {
 			return
 		}
 	}
 
 	// Rules of type statelessIcmp must only be processed at routers
 	// which don't handle statelessIcmp automatically;
-	if rule.statelessICMP && !model.statelessICMP {
+	if ru.statelessICMP && !model.statelessICMP {
 		return
 	}
 
 	// Apply only matching rules to 'managed=local' router.
 	// Filter out non matching elements from srcList and dstList.
-	if mark := router.localMark; mark != 0 {
+	if mark := r.localMark; mark != 0 {
 		filter := func(list []someObj) []someObj {
 			var result []someObj
 			for _, obj := range list {
@@ -58,34 +58,34 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 		}
 
 		// Filter srcList and dstList. Ignore rule if no matching element.
-		srcList := rule.src
+		srcList := ru.src
 		matchingSrc := filter(srcList)
 		if matchingSrc == nil {
 			return
 		}
-		dstList := rule.dst
+		dstList := ru.dst
 		matchingDst := filter(dstList)
 		if matchingDst == nil {
 			return
 		}
 
 		// Create copy of rule. Try to reuse original srcList / dstList.
-		copy := *rule
-		rule = &copy
+		cp := *ru
+		ru = &cp
 
 		// Overwrite only if list has changed.
 		if len(srcList) != len(matchingSrc) {
-			rule.src = matchingSrc
+			ru.src = matchingSrc
 		}
 		if len(dstList) != len(matchingDst) {
-			rule.dst = matchingDst
+			ru.dst = matchingDst
 		}
 	}
 
 	intfRules := false
 
 	// Packets for the router itself.
-	if outIntf == nil {
+	if out == nil {
 
 		// No ACL generated for traffic to device itself.
 		if model.filter == "ASA" {
@@ -94,40 +94,39 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 
 		intfRules = true
 	} else {
-		if outIntf.hardware.needOutAcl {
-			outIntf.hardware.outRules.push(rule)
-			if inIntf.hardware.noInAcl {
+		if out.hardware.needOutAcl {
+			out.hardware.outRules.push(ru)
+			if in.hardware.noInAcl {
 				return
 			}
 		}
 
 		// Outgoing rules are needed at tunnel for generating
 		// detailedCryptoAcl.
-		if outIntf.ipType == tunnelIP &&
-			outIntf.getCrypto().detailedCryptoAcl &&
-			outIntf.idRules == nil {
-			outIntf.outRules.push(rule)
+		if out.ipType == tunnelIP &&
+			out.getCrypto().detailedCryptoAcl &&
+			out.idRules == nil {
+
+			out.outRules.push(ru)
 		}
 	}
 
-	addRule := func(intf *routerIntf, rule *groupedRule) {
+	addRule := func(intf *routerIntf, ru *groupedRule) {
 		if intfRules {
-			intf.intfRules = append(intf.intfRules, rule)
+			intf.intfRules.push(ru)
 		} else {
-			intf.rules = append(intf.rules, rule)
+			intf.rules.push(ru)
 		}
 	}
-	if inIntf.ipType == tunnelIP {
-		noCryptoFilter := model.noCryptoFilter
+	if in.ipType == tunnelIP {
 
 		// Rules for single software clients are stored individually.
 		// Consistency checks have already been done at expandCrypto.
 		// Rules are needed at tunnel for generating split tunnel ACL
 		// regardless of noCryptoFilter value.
-		if id2rules := inIntf.idRules; id2rules != nil {
-			srcList := rule.src
+		if id2rules := in.idRules; id2rules != nil {
 			var extraHosts []someObj
-			for _, src := range srcList {
+			for _, src := range ru.src {
 
 				// Check individual ID hosts of network at
 				// authenticating router.
@@ -135,7 +134,7 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 					if network.hasIdHosts {
 						for _, host := range network.subnets {
 							id := host.id
-							newRule := *rule
+							newRule := *ru
 							newRule.src = []someObj{host}
 							addRule(id2rules[id].routerIntf, &newRule)
 							extraHosts = append(extraHosts, host)
@@ -144,37 +143,37 @@ func distributeRule(rule *groupedRule, inIntf, outIntf *routerIntf) {
 					continue
 				}
 				id := src.(*subnet).id
-				newRule := *rule
+				newRule := *ru
 				newRule.src = []someObj{src}
 				addRule(id2rules[id].routerIntf, &newRule)
 			}
-			if extraHosts != nil && noCryptoFilter {
-				for _, src := range srcList {
+			if extraHosts != nil && model.noCryptoFilter {
+				for _, src := range ru.src {
 					if _, ok := src.(*subnet); ok {
 						extraHosts = append(extraHosts, src)
 					}
 				}
-				copy := *rule
-				rule = &copy
-				rule.src = extraHosts
+				cp := *ru
+				ru = &cp
+				ru.src = extraHosts
 			}
 		}
-		addRule(inIntf, rule)
+		addRule(in, ru)
 	} else if !intfRules && model.hasIoACL {
 		// Remember outgoing interface.
-		m := inIntf.hardware.ioRules
+		m := in.hardware.ioRules
 		if m == nil {
 			m = make(map[string]ruleList)
-			inIntf.hardware.ioRules = m
+			in.hardware.ioRules = m
 		}
-		n := outIntf.hardware.name
-		m[n] = append(m[n], rule)
+		n := out.hardware.name
+		m[n] = append(m[n], ru)
 	} else {
-		hw := inIntf.hardware
+		hw := in.hardware
 		if intfRules {
-			hw.intfRules = append(hw.intfRules, rule)
+			hw.intfRules.push(ru)
 		} else {
-			hw.rules = append(hw.rules, rule)
+			hw.rules.push(ru)
 		}
 	}
 }
@@ -195,15 +194,15 @@ func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
 }
 
 func (c *spoc) addRouterAcls() {
-	for _, router := range c.managedRouters {
-		ipv6 := router.ipV6
-		hasIoACL := router.model.hasIoACL
-		hardwareList := router.hardware
-		for _, hardware := range hardwareList {
+	for _, r := range c.managedRouters {
+		ipv6 := r.ipV6
+		hasIoACL := r.model.hasIoACL
+		hardwareList := r.hardware
+		for _, hw := range hardwareList {
 
 			// Some managed devices are connected by a crosslink network.
 			// Permit any traffic at the internal crosslink interface.
-			if hardware.crosslink {
+			if hw.crosslink {
 				permitAny := []*groupedRule{getPermitAnyRule(ipv6)}
 
 				// We can savely change rules at hardware interface
@@ -212,26 +211,26 @@ func (c *spoc) addRouterAcls() {
 				//
 				// Substitute or set rules for each outgoing interface.
 				if hasIoACL {
-					for _, outHardware := range hardwareList {
-						if hardware == outHardware {
+					for _, outHw := range hardwareList {
+						if hw == outHw {
 							continue
 						}
-						if hardware.ioRules == nil {
-							hardware.ioRules = make(map[string]ruleList)
+						if hw.ioRules == nil {
+							hw.ioRules = make(map[string]ruleList)
 						}
-						hardware.ioRules[outHardware.name] = permitAny
+						hw.ioRules[outHw.name] = permitAny
 					}
 				} else {
-					hardware.rules = permitAny
-					if hardware.needOutAcl {
-						hardware.outRules = permitAny
+					hw.rules = permitAny
+					if hw.needOutAcl {
+						hw.outRules = permitAny
 					}
 				}
-				hardware.intfRules = permitAny
+				hw.intfRules = permitAny
 				continue
 			}
 
-			for _, intf := range hardware.interfaces {
+			for _, intf := range hw.interfaces {
 
 				// Current router is used as default router even for
 				// some internal networks.
@@ -251,15 +250,15 @@ func (c *spoc) addRouterAcls() {
 					if hasIoACL {
 
 						// Incoming and outgoing interface are equal.
-						m := hardware.ioRules
+						m := hw.ioRules
 						if m == nil {
 							m = make(map[string]ruleList)
-							hardware.ioRules = m
+							hw.ioRules = m
 						}
-						n := hardware.name
+						n := hw.name
 						m[n] = append([]*groupedRule{rule}, m[n]...)
 					} else {
-						hardware.rules = append([]*groupedRule{rule}, hardware.rules...)
+						hw.rules = append([]*groupedRule{rule}, hw.rules...)
 					}
 				}
 
@@ -271,14 +270,14 @@ func (c *spoc) addRouterAcls() {
 
 						// Permit multicast packets from current network.
 						mcast := getMulticastObjects(routing.mcast, ipv6)
-						hardware.intfRules.push(newRule(netList, mcast, prtList))
+						hw.intfRules.push(newRule(netList, mcast, prtList))
 
 						// Additionally permit unicast packets.
 						// We use the network address as destination
 						// instead of the interface address,
 						// because we get fewer rules if the interface has
 						// multiple addresses.
-						hardware.intfRules.push(newRule(netList, netList, prtList))
+						hw.intfRules.push(newRule(netList, netList, prtList))
 					}
 				}
 
@@ -288,21 +287,21 @@ func (c *spoc) addRouterAcls() {
 					xrrp := xxrpInfo[typ]
 					mcast := getMulticastObjects(xrrp.mcast, ipv6)
 					prtList := []*proto{xrrp.prt}
-					hardware.intfRules.push(newRule(netList, mcast, prtList))
+					hw.intfRules.push(newRule(netList, mcast, prtList))
 				}
 
 				// Handle DHCP requests.
 				if intf.dhcpServer {
 					netList := []someObj{getNetwork00(ipv6)}
 					prtList := []*proto{c.prt.Bootps}
-					hardware.intfRules.push(newRule(netList, netList, prtList))
+					hw.intfRules.push(newRule(netList, netList, prtList))
 				}
 
 				// Handle DHCP answer.
 				if intf.dhcpClient {
 					netList := []someObj{getNetwork00(ipv6)}
 					prtList := []*proto{c.prt.Bootpc}
-					hardware.intfRules.push(newRule(netList, netList, prtList))
+					hw.intfRules.push(newRule(netList, netList, prtList))
 				}
 			}
 		}
@@ -310,39 +309,39 @@ func (c *spoc) addRouterAcls() {
 }
 
 func (c *spoc) distributeGeneralPermit() {
-	for _, router := range c.managedRouters {
-		generalPermit := router.generalPermit
+	for _, r := range c.managedRouters {
+		generalPermit := r.generalPermit
 		if len(generalPermit) == 0 {
 			continue
 		}
-		net00List := []someObj{getNetwork00(router.ipV6)}
-		rule := newRule(net00List, net00List, generalPermit)
-		needProtect := router.needProtect
-		for _, inIntf := range router.interfaces {
-			if inIntf.mainIntf != nil {
+		net00List := []someObj{getNetwork00(r.ipV6)}
+		ru := newRule(net00List, net00List, generalPermit)
+		needProtect := r.needProtect
+		for _, in := range r.interfaces {
+			if in.mainIntf != nil {
 				continue
 			}
-			if inIntf.loopback {
+			if in.loopback {
 				continue
 			}
 
 			// At VPN hub, don't permit any -> any, but only traffic
 			// from each encrypted network.
-			if inIntf.isHub {
+			if in.isHub {
 				addRule := func(src someObj) {
-					copy := *rule
-					rule = &copy
-					rule.src = []someObj{src}
-					for _, outIntf := range router.interfaces {
-						if outIntf != inIntf && outIntf.ipType != tunnelIP {
+					copy := *ru
+					ru = &copy
+					ru.src = []someObj{src}
+					for _, out := range r.interfaces {
+						if out != in && out.ipType != tunnelIP {
 
 							// Traffic traverses the device. Traffic for
 							// the device itself isn't needed at VPN hub.
-							distributeRule(rule, inIntf, outIntf)
+							distributeRule(ru, in, out)
 						}
 					}
 				}
-				if idRules := inIntf.idRules; idRules != nil {
+				if idRules := in.idRules; idRules != nil {
 					var srcList []someObj
 					for _, idIntf := range idRules {
 						srcList = append(srcList, idIntf.src)
@@ -354,16 +353,16 @@ func (c *spoc) distributeGeneralPermit() {
 						addRule(src)
 					}
 				} else {
-					for _, net := range inIntf.peerNetworks {
+					for _, net := range in.peerNetworks {
 						addRule(net)
 					}
 				}
 			} else {
-				for _, outIntf := range router.interfaces {
-					if outIntf == inIntf {
+				for _, out := range r.interfaces {
+					if out == in {
 						continue
 					}
-					if outIntf.loopback {
+					if out.loopback {
 						continue
 					}
 
@@ -371,28 +370,28 @@ func (c *spoc) distributeGeneralPermit() {
 					// once at interface filter rules below
 					// (for incoming ACL).
 					if needProtect {
-						outHw := outIntf.hardware
+						outHw := out.hardware
 
 						// For interface with outgoing ACLs
 						// we need to add the rule.
 						// distribute_rule would add rule to incoming,
 						// hence we add rule directly to outgoing rules.
 						if outHw.needOutAcl {
-							outHw.outRules.push(rule)
+							outHw.outRules.push(ru)
 						}
 						continue
 					}
-					if outIntf.mainIntf != nil {
+					if out.mainIntf != nil {
 						continue
 					}
 
 					// Traffic traverses the device.
-					distributeRule(rule, inIntf, outIntf)
+					distributeRule(ru, in, out)
 				}
 
 				// Traffic for the device itself.
-				if inIntf.ipType != bridgedIP {
-					distributeRule(rule, inIntf, nil)
+				if in.ipType != bridgedIP {
+					distributeRule(ru, in, nil)
 				}
 			}
 		}
@@ -403,16 +402,16 @@ func (c *spoc) rulesDistribution() {
 	c.progress("Distributing rules")
 
 	// Deny rules
-	for _, rule := range c.allPathRules.deny {
-		c.pathWalk(rule, distributeRule, "Router")
+	for _, ru := range c.allPathRules.deny {
+		c.pathWalk(ru, distributeRule, "Router")
 	}
 
 	// Handle global permit after deny rules.
 	c.distributeGeneralPermit()
 
 	// Permit rules
-	for _, rule := range c.allPathRules.permit {
-		c.pathWalk(rule, distributeRule, "Router")
+	for _, ru := range c.allPathRules.permit {
+		c.pathWalk(ru, distributeRule, "Router")
 	}
 
 	c.addRouterAcls()
