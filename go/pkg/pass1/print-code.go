@@ -17,13 +17,13 @@ import (
 	"unicode"
 )
 
-func getIntf(router *router) []*routerIntf {
-	if origRouter := router.origRouter; origRouter != nil {
-		return origRouter.origIntfs
-	} else if origIntfs := router.origIntfs; origIntfs != nil {
-		return origIntfs
+func getIntf(r *router) []*routerIntf {
+	if orig := r.origRouter; orig != nil {
+		return orig.origIntfs
+	} else if l := r.origIntfs; l != nil {
+		return l
 	} else {
-		return router.interfaces
+		return r.interfaces
 	}
 }
 
@@ -57,24 +57,22 @@ func getDenyAnyRule(ipv6 bool) *groupedRule {
 	}
 }
 
-func printHeader(fh *os.File, router *router, what string) {
-	commentChar := router.model.commentChar
-	if router.vrfMembers != nil {
-		what += " for " + router.name
+func printHeader(fh *os.File, r *router, what string) {
+	commentChar := r.model.commentChar
+	if r.vrfMembers != nil {
+		what += " for " + r.name
 	}
 	fmt.Fprintln(fh, commentChar, "[", what, "]")
 }
 
 func iosRouteCode(n *net.IPNet) string {
-	ipCode := n.IP.String()
-	maskCode := net.IP(n.Mask).String()
-	return ipCode + " " + maskCode
+	return n.IP.String() + " " + net.IP(n.Mask).String()
 }
 
-func printRoutes(fh *os.File, router *router) {
-	ipv6 := router.ipV6
-	model := router.model
-	vrf := router.vrf
+func printRoutes(fh *os.File, r *router) {
+	ipv6 := r.ipV6
+	model := r.model
+	vrf := r.vrf
 	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
 	zeroIp := getZeroIp(ipv6)
 	cryptoType := model.crypto
@@ -86,7 +84,7 @@ func printRoutes(fh *os.File, router *router) {
 	}
 	net2hopInfo := make(map[*network]hopInfo)
 
-	for _, intf := range router.interfaces {
+	for _, intf := range r.interfaces {
 
 		// Must not combine static routes to default route if any
 		// interface has dynamic routing enabled.
@@ -104,13 +102,13 @@ func printRoutes(fh *os.File, router *router) {
 		// both as key and as value.
 		for hop, netMap := range intf.routes {
 			info := hopInfo{intf, hop}
-			for natNetwork, _ := range netMap {
-				if natNetwork.hidden {
+			for natNet, _ := range netMap {
+				if natNet.hidden {
 					continue
 				}
 
-				ip := natNetwork.ip
-				prefixlen, _ := natNetwork.mask.Size()
+				ip := natNet.ip
+				prefixlen, _ := natNet.mask.Size()
 				if prefixlen == 0 {
 					doAutoDefaultRoute = false
 				}
@@ -122,11 +120,11 @@ func printRoutes(fh *os.File, router *router) {
 					m = make(map[string]*network)
 					prefix2ip2net[prefixlen] = m
 				}
-				m[string(ip)] = natNetwork
+				m[string(ip)] = natNet
 
 				// This is unambiguous, because only a single static
 				// route is allowed for each network.
-				net2hopInfo[natNetwork] = info
+				net2hopInfo[natNet] = info
 			}
 		}
 	}
@@ -334,7 +332,7 @@ func printRoutes(fh *os.File, router *router) {
 		// Substitute routes to one hop with a default route,
 		// if there are at least two entries.
 		max := 1
-		for _, intf := range router.interfaces {
+		for _, intf := range r.interfaces {
 			hop2nets := intf2hop2netInfos[intf]
 			for hop, nets := range hop2nets {
 				count := 0
@@ -368,7 +366,7 @@ func printRoutes(fh *os.File, router *router) {
 			hop2nets[maxHop] = nets
 		}
 	}
-	printHeader(fh, router, "Routing")
+	printHeader(fh, r, "Routing")
 
 	iosVrf := ""
 	if vrf != "" && model.routing == "IOS" {
@@ -376,7 +374,7 @@ func printRoutes(fh *os.File, router *router) {
 	}
 	nxosPrefix := ""
 
-	for _, intf := range router.interfaces {
+	for _, intf := range r.interfaces {
 		hop2nets := intf2hop2netInfos[intf]
 		hops := make([]*routerIntf, 0, len(hop2nets))
 		for k, _ := range hop2nets {
@@ -443,10 +441,10 @@ func printRoutes(fh *os.File, router *router) {
 	}
 }
 
-func printAclPlaceholder(fh *os.File, router *router, aclName string) {
+func printAclPlaceholder(fh *os.File, r *router, aclName string) {
 
 	// Add comment at start of ACL to easier find first ACL line in tests.
-	model := router.model
+	model := r.model
 	filter := model.filter
 	if filter == "ASA" {
 		commentChar := model.commentChar
@@ -464,28 +462,28 @@ func getSplitTunnelNets(intf *routerIntf) []*network {
 	var result []*network
 	seen := make(map[*network]bool)
 	checkRules := func(rules []*groupedRule, takeDst bool) {
-		for _, rule := range rules {
-			if rule.deny {
+		for _, ru := range rules {
+			if ru.deny {
 				continue
 			}
-			objList := rule.dst
+			objList := ru.dst
 			if takeDst {
-				objList = rule.src
+				objList = ru.src
 			}
 			for _, obj := range objList {
-				network := obj.getNetwork()
+				n := obj.getNetwork()
 
 				// Don't add 'any' (resulting from global:permit)
 				// to split_tunnel networks.
-				prefix, _ := network.mask.Size()
+				prefix, _ := n.mask.Size()
 				if prefix == 0 {
 					continue
 				}
-				if seen[network] {
+				if seen[n] {
 					continue
 				}
-				result = append(result, network)
-				seen[network] = true
+				result = append(result, n)
+				seen[n] = true
 			}
 		}
 	}
@@ -506,8 +504,8 @@ func getSplitTunnelNets(intf *routerIntf) []*network {
 	return result
 }
 
-func printAsaTrustpoint(fh *os.File, router *router, trustpoint string) {
-	model := router.model
+func printAsaTrustpoint(fh *os.File, r *router, trustpoint string) {
+	model := r.model
 	fmt.Fprintln(fh, " ikev1 trust-point", trustpoint)
 
 	// This command is not known, if ASA runs as virtual context.
@@ -517,7 +515,7 @@ func printAsaTrustpoint(fh *os.File, router *router, trustpoint string) {
 }
 
 func printTunnelGroupRa(
-	fh *os.File, id, idName string, attributes map[string]string, router *router,
+	fh *os.File, id, idName string, attributes map[string]string, r *router,
 	groupPolicyName string, certGroupMap map[string]string) string {
 
 	subjectName := attributes["check-subject-name"]
@@ -534,7 +532,7 @@ func printTunnelGroupRa(
 	}
 	trustpoint2 := attributes["trust-point"]
 	if trustpoint2 == "" {
-		trustpoint2 = router.trustPoint
+		trustpoint2 = r.trustPoint
 	} else {
 		delete(attributes, "trust-point")
 	}
@@ -575,7 +573,7 @@ func printTunnelGroupRa(
 		fmt.Fprintln(fh, " "+line)
 	}
 	fmt.Fprintln(fh, "tunnel-group", tunnelGroupName, "ipsec-attributes")
-	printAsaTrustpoint(fh, router, trustpoint2)
+	printAsaTrustpoint(fh, r, trustpoint2)
 
 	// For anyconnect clients.
 	fmt.Fprintln(fh, "tunnel-group", tunnelGroupName, "webvpn-attributes")
@@ -586,9 +584,9 @@ func printTunnelGroupRa(
 	return tunnelGroupName
 }
 
-func combineAttr(list ...map[string]string) map[string]string {
+func combineAttr(l ...map[string]string) map[string]string {
 	result := make(map[string]string)
-	for _, attr := range list {
+	for _, attr := range l {
 		for k, v := range attr {
 			result[k] = v
 		}
@@ -646,8 +644,8 @@ var asaVpnAttrNeedValue = map[string]bool{
 	"vpn-filter":                true,
 }
 
-func (c *spoc) printAsavpn(fh *os.File, router *router) {
-	ipv6 := router.ipV6
+func (c *spoc) printAsavpn(fh *os.File, r *router) {
+	ipv6 := r.ipV6
 
 	globalGroupName := "global"
 	fmt.Fprintln(fh, "group-policy", globalGroupName, "internal")
@@ -657,7 +655,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 
 	// Define tunnel group used for single VPN users.
 	defaultTunnelGroup := "VPN-single"
-	trustPoint := router.trustPoint
+	trustPoint := r.trustPoint
 
 	fmt.Fprintln(fh, "tunnel-group", defaultTunnelGroup, "type remote-access")
 	fmt.Fprintln(fh, "tunnel-group", defaultTunnelGroup, "general-attributes")
@@ -667,7 +665,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 	fmt.Fprintln(fh, " username-from-certificate EA")
 	fmt.Fprintln(fh, "tunnel-group", defaultTunnelGroup, "ipsec-attributes")
 	fmt.Fprintln(fh, " chain")
-	printAsaTrustpoint(fh, router, trustPoint)
+	printAsaTrustpoint(fh, r, trustPoint)
 	fmt.Fprintln(fh, "tunnel-group", defaultTunnelGroup, "webvpn-attributes")
 	fmt.Fprintln(fh, " authentication certificate")
 	fmt.Fprintln(fh, "tunnel-group-map default-group", defaultTunnelGroup)
@@ -740,7 +738,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 	network2tg := make(map[*network]string)
 	aclCounter := 1
 	denyAny := getDenyAnyRule(ipv6)
-	for _, intf := range router.interfaces {
+	for _, intf := range r.interfaces {
 		if intf.ipType != tunnelIP {
 			continue
 		}
@@ -758,7 +756,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 				idName := genIdName(id)
 				src := idIntf.src
 				attributes := combineAttr(
-					router.radiusAttributes,
+					r.radiusAttributes,
 					src.getNetwork().radiusAttributes,
 					src.radiusAttributes)
 
@@ -816,8 +814,8 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 							isStdACL:    true,
 							isCryptoACL: true,
 						}
-						router.aclList = append(router.aclList, info)
-						printAclPlaceholder(fh, router, aclName)
+						r.aclList = append(r.aclList, info)
+						printAclPlaceholder(fh, r, aclName)
 					}
 					attributes["split-tunnel-network-list"] = aclName
 				}
@@ -837,8 +835,8 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 					addDeny: true,
 					natSet:  natSet,
 				}
-				router.aclList = append(router.aclList, info)
-				printAclPlaceholder(fh, router, filterName)
+				r.aclList = append(r.aclList, info)
+				printAclPlaceholder(fh, r, filterName)
 
 				ip := src.ip.String()
 				network := src.getNetwork()
@@ -885,7 +883,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 					if ldapId := src.ldapId; ldapId != "" {
 						network := src.getNetwork()
 						netAttr := combineAttr(
-							router.radiusAttributes,
+							r.radiusAttributes,
 							network.radiusAttributes,
 						)
 						authServer := netAttr["authentication-server-group"]
@@ -899,7 +897,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 								certId,
 								genIdName(certId),
 								netAttr,
-								router,
+								r,
 								"",
 								certGroupMap,
 							)
@@ -911,7 +909,7 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 							id,
 							idName,
 							attributes,
-							router, groupPolicyName,
+							r, groupPolicyName,
 							certGroupMap,
 						)
 					}
@@ -946,10 +944,10 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 				addDeny: true,
 				natSet:  natSet,
 			}
-			router.aclList = append(router.aclList, info)
-			printAclPlaceholder(fh, router, filterName)
+			r.aclList = append(r.aclList, info)
+			printAclPlaceholder(fh, r, filterName)
 
-			attributes := router.radiusAttributes
+			attributes := r.radiusAttributes
 
 			groupPolicyName := ""
 			if len(attributes) > 0 {
@@ -1019,8 +1017,8 @@ func (c *spoc) printAsavpn(fh *os.File, router *router) {
 }
 
 // Pre-processing for all interfaces.
-func printAclPrefix(fh *os.File, router *router) {
-	model := router.model
+func printAclPrefix(fh *os.File, r *router) {
+	model := r.model
 	if model.filter != "iptables" {
 		return
 	}
@@ -1052,8 +1050,8 @@ func printAclPrefix(fh *os.File, router *router) {
 	fmt.Fprintln(fh)
 }
 
-func printAclSuffix(fh *os.File, router *router) {
-	model := router.model
+func printAclSuffix(fh *os.File, r *router) {
+	model := r.model
 	if model.filter != "iptables" {
 		return
 	}
@@ -1065,37 +1063,37 @@ func printAclSuffix(fh *os.File, router *router) {
 	fmt.Fprintln(fh, "EOF")
 }
 
-func printIptablesAcls(fh *os.File, router *router) {
-	for _, hardware := range router.hardware {
+func printIptablesAcls(fh *os.File, r *router) {
+	for _, hw := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
-		if hardware.loopback {
+		if hw.loopback {
 			continue
 		}
 
-		inHw := hardware.name
-		natSet := hardware.natSet
+		inHw := hw.name
+		natSet := hw.natSet
 
 		// Collect interface rules.
 		// Add call to chain in INPUT chain.
 		intfAclName := inHw + "_self"
 		intfAclInfo := &aclInfo{
 			name:    intfAclName,
-			rules:   hardware.intfRules,
+			rules:   hw.intfRules,
 			addDeny: true,
 			natSet:  natSet,
 		}
-		hardware.intfRules = nil
-		router.aclList = append(router.aclList, intfAclInfo)
-		printAclPlaceholder(fh, router, intfAclName)
+		hw.intfRules = nil
+		r.aclList = append(r.aclList, intfAclInfo)
+		printAclPlaceholder(fh, r, intfAclName)
 		fmt.Fprintln(fh, "-A INPUT -j", intfAclName, "-i", inHw)
 
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
 		// Add call to chain in FORRWARD chain.
 		// Sort keys for deterministic output.
-		keys := make([]string, 0, len(hardware.ioRules))
-		for k, _ := range hardware.ioRules {
+		keys := make([]string, 0, len(hw.ioRules))
+		for k, _ := range hw.ioRules {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
@@ -1103,15 +1101,15 @@ func printIptablesAcls(fh *os.File, router *router) {
 			aclName := inHw + "_" + outHw
 			info := &aclInfo{
 				name:    aclName,
-				rules:   hardware.ioRules[outHw],
+				rules:   hw.ioRules[outHw],
 				addDeny: true,
 				natSet:  natSet,
 			}
-			router.aclList = append(router.aclList, info)
-			printAclPlaceholder(fh, router, aclName)
+			r.aclList = append(r.aclList, info)
+			printAclPlaceholder(fh, r, aclName)
 			fmt.Fprintln(fh, "-A FORWARD -j", aclName, "-i", inHw, "-o", outHw)
 		}
-		hardware.ioRules = nil
+		hw.ioRules = nil
 
 		// Empty line after each chain.
 		fmt.Fprintln(fh)
@@ -1133,19 +1131,19 @@ func printCiscoAcls(fh *os.File, r *router) {
 		}
 	}
 
-	for _, hardware := range r.hardware {
+	for _, hw := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
-		if hardware.loopback {
+		if hw.loopback {
 			continue
 		}
 
 		// Ignore layer3 interface of ASA.
-		if hardware.name == "device" && model.class == "ASA" {
+		if hw.name == "device" && model.class == "ASA" {
 			continue
 		}
 
-		natSet := getNatSet(r, hardware.natSet)
+		natSet := getNatSet(r, hw.natSet)
 
 		// Generate code for incoming and possibly for outgoing ACL.
 		for _, suffix := range []string{"in", "out"} {
@@ -1156,10 +1154,10 @@ func printCiscoAcls(fh *os.File, r *router) {
 			// - protect own interfaces,
 			// - set {filter_any_src}.
 			if suffix == "in" {
-				rules := hardware.rules
-				intfRules := hardware.intfRules
-				hardware.rules = nil
-				hardware.intfRules = nil
+				rules := hw.rules
+				intfRules := hw.intfRules
+				hw.rules = nil
+				hw.intfRules = nil
 
 				// Don't generate single 'permit ip any any'.
 				if !model.needACL &&
@@ -1176,7 +1174,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 				if r.needProtect {
 					info.intfRules = intfRules
 				}
-				if hardware.noInAcl {
+				if hw.noInAcl {
 					info.addPermit = true
 				} else {
 					info.addDeny = true
@@ -1189,7 +1187,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 					// address. It has already been checked, that all
 					// networks of this zone match attribute filterOnly.
 					intfOk := 0
-					for _, intf := range hardware.interfaces {
+					for _, intf := range hw.interfaces {
 						zone := intf.zone
 						if len(zone.cluster) > 1 {
 							break
@@ -1205,14 +1203,14 @@ func printCiscoAcls(fh *os.File, r *router) {
 						}
 						intfOk++
 					}
-					if intfOk == len(hardware.interfaces) {
+					if intfOk == len(hw.interfaces) {
 						info.filterAnySrc = true
 					}
 				}
 
 				// Add ACL of corresponding tunnel interfaces.
 				// We have exactly one crypto interface per hardware.
-				intf := hardware.interfaces[0]
+				intf := hw.interfaces[0]
 				if (intf.hub != nil || intf.spoke != nil) && r.model.noCryptoFilter {
 					for _, tunnelIntf := range getIntf(r) {
 						realIntf := tunnelIntf.realIntf
@@ -1229,11 +1227,11 @@ func printCiscoAcls(fh *os.File, r *router) {
 				}
 			} else {
 				// Outgoing ACL
-				if !hardware.needOutAcl {
+				if !hw.needOutAcl {
 					continue
 				}
-				rules := hardware.outRules
-				hardware.outRules = nil
+				rules := hw.outRules
+				hw.outRules = nil
 				if len(rules) == 1 && rules[0] == permitAny {
 					continue
 				}
@@ -1242,7 +1240,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 				info.addDeny = true
 			}
 
-			aclName := hardware.name + "_" + suffix
+			aclName := hw.name + "_" + suffix
 			info.name = aclName
 			r.aclList = append(r.aclList, info)
 			printAclPlaceholder(fh, r, aclName)
@@ -1256,9 +1254,10 @@ func printCiscoAcls(fh *os.File, r *router) {
 					filterCmd = "ip access-group"
 				}
 				filterCmd += " " + aclName + " " + suffix
-				hardware.subcmd = append(hardware.subcmd, filterCmd)
+				hw.subcmd = append(hw.subcmd, filterCmd)
 			} else if filter == "ASA" {
-				fmt.Fprintln(fh, "access-group", aclName, suffix, "interface", hardware.name)
+				fmt.Fprintln(fh,
+					"access-group", aclName, suffix, "interface", hw.name)
 			}
 
 			// Empty line after each ACL.
@@ -1267,15 +1266,15 @@ func printCiscoAcls(fh *os.File, r *router) {
 	}
 }
 
-func generateAcls(fh *os.File, router *router) {
-	model := router.model
+func generateAcls(fh *os.File, r *router) {
+	model := r.model
 	filter := model.filter
-	printHeader(fh, router, "ACL")
+	printHeader(fh, r, "ACL")
 
 	if filter == "iptables" {
-		printIptablesAcls(fh, router)
+		printIptablesAcls(fh, r)
 	} else {
-		printCiscoAcls(fh, router)
+		printCiscoAcls(fh, r)
 	}
 }
 
@@ -1295,8 +1294,8 @@ func (c *spoc) genCryptoRules(local, remote []*network) []*groupedRule {
 	)}
 }
 
-func (c *spoc) printEzvpn(fh *os.File, router *router) {
-	interfaces := router.interfaces
+func (c *spoc) printEzvpn(fh *os.File, r *router) {
+	interfaces := r.interfaces
 	var tunnelIntf *routerIntf
 	for _, intf := range interfaces {
 		if intf.ipType == tunnelIP {
@@ -1307,10 +1306,10 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	wanIntf := tunnelIntf.realIntf
 	wanHw := wanIntf.hardware
 	wanNatSet := wanHw.natSet
-	var lanIntf []*routerIntf
+	var lanIntfs intfList
 	for _, intf := range interfaces {
 		if intf != wanIntf && intf != tunnelIntf {
-			lanIntf = append(lanIntf, intf)
+			lanIntfs.push(intf)
 		}
 	}
 
@@ -1340,8 +1339,8 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	fmt.Fprintln(fh, " xauth userid mode local")
 
 	// Apply ezvpn to WAN and LAN interface.
-	for _, lanIntf := range lanIntf {
-		lanHw := lanIntf.hardware
+	for _, intf := range lanIntfs {
+		lanHw := intf.hardware
 		lanHw.subcmd = append(
 			lanHw.subcmd,
 			"crypto ipsec client ezvpn "+ezvpnName+" inside")
@@ -1351,15 +1350,15 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 
 	// Crypto ACL controls which traffic needs to be encrypted.
 	cryptoRules := c.genCryptoRules(tunnelIntf.peer.peerNetworks,
-		[]*network{getNetwork00(router.ipV6)})
+		[]*network{getNetwork00(r.ipV6)})
 	acls := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
 		natSet:      tunNatSet,
 		isCryptoACL: true,
 	}
-	router.aclList = append(router.aclList, acls)
-	printAclPlaceholder(fh, router, cryptoAclName)
+	r.aclList = append(r.aclList, acls)
+	printAclPlaceholder(fh, r, cryptoAclName)
 
 	// Crypto filter ACL.
 	acls = &aclInfo{
@@ -1372,15 +1371,15 @@ func (c *spoc) printEzvpn(fh *os.File, router *router) {
 	}
 	tunnelIntf.rules = nil
 	tunnelIntf.intfRules = nil
-	router.aclList = append(router.aclList, acls)
-	printAclPlaceholder(fh, router, cryptoFilterName)
+	r.aclList = append(r.aclList, acls)
+	printAclPlaceholder(fh, r, cryptoFilterName)
 
 	// Bind crypto filter ACL to virtual template.
 	fmt.Fprintln(fh,
 		"interface Virtual-Template"+strconv.Itoa(virtualIntfNumber),
 		"type tunnel")
 	var prefix string
-	if router.ipV6 {
+	if r.ipV6 {
 		prefix = " ipv6 traffic-filter"
 	} else {
 		prefix = " ip access-group"
@@ -1404,12 +1403,12 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 	} else {
 		hub = intf.peer
 	}
-	router := intf.router
+	r := intf.router
 	var local []*network
 	if crypto.detailedCryptoAcl {
 		local = getSplitTunnelNets(hub)
 	} else {
-		local = []*network{getNetwork00(router.ipV6)}
+		local = []*network{getNetwork00(r.ipV6)}
 	}
 	remote := hub.peerNetworks
 	if !isHub {
@@ -1422,17 +1421,17 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 		natSet:      intf.natSet,
 		isCryptoACL: true,
 	}
-	router.aclList = append(router.aclList, aclInfo)
-	printAclPlaceholder(fh, router, cryptoAclName)
+	r.aclList = append(r.aclList, aclInfo)
+	printAclPlaceholder(fh, r, cryptoAclName)
 	return cryptoAclName
 }
 
 // Print filter ACL. It controls which traffic is allowed to leave from
 // crypto tunnel. This may be needed, if we don't fully trust our peer.
 func printCryptoFilterAcl(fh *os.File, intf *routerIntf, suffix string) string {
-	router := intf.router
+	r := intf.router
 
-	if router.model.noCryptoFilter {
+	if r.model.noCryptoFilter {
 		return ""
 	}
 	cryptoFilterName := "crypto-filter-" + suffix
@@ -1447,8 +1446,8 @@ func printCryptoFilterAcl(fh *os.File, intf *routerIntf, suffix string) string {
 	}
 	intf.rules = nil
 	intf.intfRules = nil
-	router.aclList = append(router.aclList, aclInfo)
-	printAclPlaceholder(fh, router, cryptoFilterName)
+	r.aclList = append(r.aclList, aclInfo)
+	printAclPlaceholder(fh, r, cryptoFilterName)
 	return cryptoFilterName
 }
 
@@ -1498,7 +1497,7 @@ func printCryptoMapAttributes(fh *os.File, prefix, cryptoType, cryptoAclName, cr
 	}
 }
 
-func printTunnelGroupL2l(fh *os.File, router *router, name string, isakmp *isakmp) {
+func printTunnelGroupL2l(fh *os.File, r *router, name string, isakmp *isakmp) {
 	authentication := isakmp.authentication
 	fmt.Fprintln(fh, "tunnel-group", name, "type ipsec-l2l")
 	fmt.Fprintln(fh, "tunnel-group", name, "ipsec-attributes")
@@ -1508,7 +1507,7 @@ func printTunnelGroupL2l(fh *os.File, router *router, name string, isakmp *isakm
 			fmt.Fprintln(fh, " ikev2 local-authentication certificate", trustPoint)
 			fmt.Fprintln(fh, " ikev2 remote-authentication certificate")
 		} else {
-			printAsaTrustpoint(fh, router, trustPoint)
+			printAsaTrustpoint(fh, r, trustPoint)
 		}
 	} else {
 		// Preshared key is configured manually.
@@ -1525,8 +1524,8 @@ func printCaAndTunnelGroupMap(fh *os.File, id, tgName string) {
 	fmt.Fprintln(fh, "tunnel-group-map", id, "10", tgName)
 }
 
-func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
-	model := router.model
+func (c *spoc) printStaticCryptoMap(fh *os.File, r *router, hw *hardware, mapName string, interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
+	model := r.model
 	cryptoType := model.crypto
 
 	// Sequence number for parts of crypto map with different peers.
@@ -1573,7 +1572,7 @@ func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, m
 			ipsec2transName)
 
 		if cryptoType == "ASA" {
-			printTunnelGroupL2l(fh, router, peerIp, isakmp)
+			printTunnelGroupL2l(fh, r, peerIp, isakmp)
 
 			// Tunnel group needs to be activated, if certificate is in use.
 			if id := peer.id; id != "" {
@@ -1584,11 +1583,10 @@ func (c *spoc) printStaticCryptoMap(fh *os.File, router *router, hw *hardware, m
 }
 
 func (c *spoc) printDynamicCryptoMap(
-	fh *os.File, router *router, mapName string,
+	fh *os.File, r *router, mapName string,
 	interfaces []*routerIntf, ipsec2transName map[*ipsec]string) {
 
-	model := router.model
-	cryptoType := model.crypto
+	cryptoType := r.model.crypto
 
 	// Sequence number for parts of crypto map with different certificates.
 	seqNum := 65536
@@ -1627,7 +1625,7 @@ func (c *spoc) printDynamicCryptoMap(
 		fmt.Fprintln(fh, prefix+" ipsec-isakmp dynamic "+id)
 
 		// Use id as tunnel-group name
-		printTunnelGroupL2l(fh, router, id, isakmp)
+		printTunnelGroupL2l(fh, r, id, isakmp)
 
 		// Activate tunnel-group with tunnel-group-map.
 		printCaAndTunnelGroupMap(fh, id, id)
@@ -1644,14 +1642,13 @@ func ciscoCryptoWithDash(s, prefix string) string {
 	return prefix + "-" + tail
 }
 
-func (c *spoc) printCrypto(fh *os.File, router *router) {
-	model := router.model
-	cryptoType := model.crypto
+func (c *spoc) printCrypto(fh *os.File, r *router) {
+	cryptoType := r.model.crypto
 
 	// List of ipsec definitions used at current router.
 	var ipsecList []*ipsec
 	seenIpsec := make(map[*ipsec]bool)
-	for _, intf := range router.interfaces {
+	for _, intf := range r.interfaces {
 		if intf.ipType == tunnelIP {
 			i := intf.getCrypto().ipsec
 			if seenIpsec[i] {
@@ -1685,10 +1682,10 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 		isakmpList = append(isakmpList, k)
 	}
 
-	printHeader(fh, router, "Crypto")
+	printHeader(fh, r, "Crypto")
 
 	if cryptoType == "EZVPN" {
-		c.printEzvpn(fh, router)
+		c.printEzvpn(fh, r)
 		return
 	}
 
@@ -1701,7 +1698,7 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 	}
 
 	if cryptoType == "ASA_VPN" {
-		c.printAsavpn(fh, router)
+		c.printAsavpn(fh, r)
 		return
 	}
 
@@ -1804,13 +1801,13 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 		}
 	}
 
-	for _, hardware := range router.hardware {
+	for _, hw := range r.hardware {
 
 		// Collect tunnel interfaces attached to each hardware interface.
 		// Differentiate on peers having static || dynamic IP address.
 		var static, dynamic []*routerIntf
 		var haveCryptoMap = false
-		for _, intf := range hardware.interfaces {
+		for _, intf := range hw.interfaces {
 			if intf.ipType != tunnelIP {
 				continue
 			}
@@ -1823,17 +1820,17 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 			haveCryptoMap = true
 		}
 
-		hwName := hardware.name
+		hwName := hw.name
 
 		// Name of crypto map.
 		mapName := "crypto-" + hwName
 
 		if static != nil {
-			c.printStaticCryptoMap(fh, router, hardware, mapName, static,
+			c.printStaticCryptoMap(fh, r, hw, mapName, static,
 				ipsec2transName)
 		}
 		if dynamic != nil {
-			c.printDynamicCryptoMap(fh, router, mapName, dynamic,
+			c.printDynamicCryptoMap(fh, r, mapName, dynamic,
 				ipsec2transName)
 		}
 
@@ -1842,28 +1839,28 @@ func (c *spoc) printCrypto(fh *os.File, router *router) {
 			continue
 		}
 		if cryptoType == "IOS" {
-			hardware.subcmd = append(hardware.subcmd, "crypto map "+mapName)
+			hw.subcmd = append(hw.subcmd, "crypto map "+mapName)
 		} else if cryptoType == "ASA" {
 			fmt.Fprintln(fh, "crypto map", mapName, "interface", hwName)
 		}
 	}
 }
 
-func printRouterIntf(fh *os.File, router *router) {
-	model := router.model
+func printRouterIntf(fh *os.File, r *router) {
+	model := r.model
 	if !model.printRouterIntf {
 		return
 	}
 	class := model.class
 	stateful := !model.stateless
-	ipv6 := router.ipV6
-	for _, hardware := range router.hardware {
-		name := hardware.name
+	ipv6 := r.ipV6
+	for _, hw := range r.hardware {
+		name := hw.name
 		var subcmd []string
 		secondary := false
 
 	INTF:
-		for _, intf := range hardware.interfaces {
+		for _, intf := range hw.interfaces {
 			var addrCmd string
 			if intf.redundant {
 				continue
@@ -1902,7 +1899,7 @@ func printRouterIntf(fh *os.File, router *router) {
 				secondary = true
 			}
 		}
-		if vrf := router.vrf; vrf != "" {
+		if vrf := r.vrf; vrf != "" {
 			if class == "NX-OS" {
 				subcmd = append(subcmd, "vrf member "+vrf)
 			} else {
@@ -1913,11 +1910,11 @@ func printRouterIntf(fh *os.File, router *router) {
 		// Add "ip inspect" as marker, that stateful filtering is expected.
 		// The command is known to be incomplete, "X" is only used as
 		// placeholder.
-		if class == "IOS" && stateful && !hardware.loopback {
+		if class == "IOS" && stateful && !hw.loopback {
 			subcmd = append(subcmd, "ip inspect X in")
 		}
 
-		subcmd = append(subcmd, hardware.subcmd...)
+		subcmd = append(subcmd, hw.subcmd...)
 
 		fmt.Fprintln(fh, "interface "+name)
 		for _, cmd := range subcmd {
@@ -1954,9 +1951,9 @@ func getNeedProtect(r *router) []*routerIntf {
 	// Routers connected by crosslink networks are handled like one
 	// large router. Protect the collected interfaces of the whole
 	// cluster at each entry.
-	list := r.crosslinkIntfs
-	if list != nil {
-		return list
+	l := r.crosslinkIntfs
+	if l != nil {
+		return l
 	}
 	if !r.needProtect {
 		return nil
@@ -1965,9 +1962,9 @@ func getNeedProtect(r *router) []*routerIntf {
 		if len(i.ip) == 0 {
 			continue
 		}
-		list = append(list, i)
+		l = append(l, i)
 	}
-	return list
+	return l
 }
 
 type natCache struct {
@@ -2008,14 +2005,14 @@ func getCachedAddrList(l []someObj, nc *natCache) []string {
 
 func printAcls(fh *os.File, vrfMembers []*router) {
 	var aclList []*jcode.ACLInfo
-	for _, router := range vrfMembers {
-		managed := router.managed
+	for _, r := range vrfMembers {
+		managed := r.managed
 		secondaryFilter := strings.HasSuffix(managed, "secondary")
 		standardFilter := managed == "standard"
-		model := router.model
+		model := r.model
 		doAuth := model.doAuth
-		activeLog := router.log
-		needProtect := getNeedProtect(router)
+		activeLog := r.log
+		needProtect := getNeedProtect(r)
 
 		process := func(acl *aclInfo) *jcode.ACLInfo {
 			jACL := new(jcode.ACLInfo)
@@ -2138,7 +2135,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									if net.hasOtherSubnet {
 										continue
 									}
-									if noOpt := router.noSecondaryOpt; noOpt != nil {
+									if noOpt := r.noSecondaryOpt; noOpt != nil {
 										if noOpt[net] {
 											noOptAddrs[obj] = true
 											continue
@@ -2227,8 +2224,8 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			return jACL
 		}
 
-		aref := router.aclList
-		router.aclList = nil
+		aref := r.aclList
+		r.aclList = nil
 		for _, acl := range aref {
 			result := process(acl)
 			for _, acl := range acl.subAclList {
@@ -2244,21 +2241,21 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 		}
 	}
 
-	router := vrfMembers[0]
-	model := router.model
+	r := vrfMembers[0]
+	model := r.model
 	result := &jcode.RouterData{Model: model.class, ACLs: aclList}
 
-	if filterOnly := router.filterOnly; filterOnly != nil {
+	if filterOnly := r.filterOnly; filterOnly != nil {
 		list := make([]string, len(filterOnly))
 		for i, f := range filterOnly {
 			list[i] = fullPrefixCode(f)
 		}
 		result.FilterOnly = list
 	}
-	if model.canObjectgroup && !router.noGroupCode {
+	if model.canObjectgroup && !r.noGroupCode {
 		result.DoObjectgroup = 1
 	}
-	if router.logDeny {
+	if r.logDeny {
 		result.LogDeny = "log"
 	}
 
