@@ -1254,7 +1254,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 					filterCmd = "ip access-group"
 				}
 				filterCmd += " " + aclName + " " + suffix
-				hw.subcmd = append(hw.subcmd, filterCmd)
+				hw.subcmd.push(filterCmd)
 			} else if filter == "ASA" {
 				fmt.Fprintln(fh,
 					"access-group", aclName, suffix, "interface", hw.name)
@@ -1341,12 +1341,9 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 	// Apply ezvpn to WAN and LAN interface.
 	for _, intf := range lanIntfs {
 		lanHw := intf.hardware
-		lanHw.subcmd = append(
-			lanHw.subcmd,
-			"crypto ipsec client ezvpn "+ezvpnName+" inside")
+		lanHw.subcmd.push("crypto ipsec client ezvpn " + ezvpnName + " inside")
 	}
-	wanHw.subcmd =
-		append(wanHw.subcmd, "crypto ipsec client ezvpn "+ezvpnName)
+	wanHw.subcmd.push("crypto ipsec client ezvpn " + ezvpnName)
 
 	// Crypto ACL controls which traffic needs to be encrypted.
 	cryptoRules := c.genCryptoRules(tunnelIntf.peer.peerNetworks,
@@ -1839,7 +1836,7 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			continue
 		}
 		if cryptoType == "IOS" {
-			hw.subcmd = append(hw.subcmd, "crypto map "+mapName)
+			hw.subcmd.push("crypto map " + mapName)
 		} else if cryptoType == "ASA" {
 			fmt.Fprintln(fh, "crypto map", mapName, "interface", hwName)
 		}
@@ -1856,7 +1853,7 @@ func printRouterIntf(fh *os.File, r *router) {
 	ipv6 := r.ipV6
 	for _, hw := range r.hardware {
 		name := hw.name
-		var subcmd []string
+		var subcmd stringList
 		secondary := false
 
 	INTF:
@@ -1894,16 +1891,16 @@ func printRouterIntf(fh *os.File, r *router) {
 					}
 				}
 			}
-			subcmd = append(subcmd, addrCmd)
+			subcmd.push(addrCmd)
 			if !ipv6 {
 				secondary = true
 			}
 		}
 		if vrf := r.vrf; vrf != "" {
 			if class == "NX-OS" {
-				subcmd = append(subcmd, "vrf member "+vrf)
+				subcmd.push("vrf member " + vrf)
 			} else {
-				subcmd = append(subcmd, "ip vrf forwarding "+vrf)
+				subcmd.push("ip vrf forwarding " + vrf)
 			}
 		}
 
@@ -1911,7 +1908,7 @@ func printRouterIntf(fh *os.File, r *router) {
 		// The command is known to be incomplete, "X" is only used as
 		// placeholder.
 		if class == "IOS" && stateful && !hw.loopback {
-			subcmd = append(subcmd, "ip inspect X in")
+			subcmd.push("ip inspect X in")
 		}
 
 		subcmd = append(subcmd, hw.subcmd...)

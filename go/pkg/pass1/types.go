@@ -424,7 +424,7 @@ type hardware struct {
 	intfRules  ruleList
 	outRules   ruleList
 	ioRules    map[string]ruleList
-	subcmd     []string
+	subcmd     stringList
 }
 
 type pathRestriction struct {
