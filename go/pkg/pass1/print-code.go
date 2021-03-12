@@ -192,8 +192,8 @@ func printRoutes(fh *os.File, r *router) {
 
 		// A single bit, masking the lowest network bit.
 		nextBit := make(net.IPMask, n)
-		for i := 0; i < n; i++ {
-			nextBit[i] = ^combinedMask[i] & partMask[i]
+		for i, b := range combinedMask {
+			nextBit[i] = ^b & partMask[i]
 		}
 
 		keys := make([]net.IP, 0, len(ip2net))
@@ -210,8 +210,8 @@ func printRoutes(fh *os.File, r *router) {
 
 			// Find corresponding right part.
 			nextIP := make(net.IP, n)
-			for i := 0; i < n; i++ {
-				nextIP[i] = ip[i] | nextBit[i]
+			for i, b := range ip {
+				nextIP[i] = b | nextBit[i]
 			}
 			right := ip2net[string(nextIP)]
 			if right == nil {
@@ -868,10 +868,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				} else {
 					name := "pool-" + idName
 					mask := net.IP(src.mask).String()
-					n := len(src.ip)
-					maxIP := make(net.IP, n)
-					for i := 0; i < n; i++ {
-						maxIP[i] = src.ip[i] | ^src.mask[i]
+					maxIP := make(net.IP, len(src.ip))
+					for i, b := range src.ip {
+						maxIP[i] = b | ^src.mask[i]
 					}
 					max := maxIP.String()
 					fmt.Fprintln(fh, "ip local pool", name, ip+"-"+max, "mask", mask)
