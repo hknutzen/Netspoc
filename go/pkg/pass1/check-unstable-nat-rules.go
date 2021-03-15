@@ -24,7 +24,7 @@ func (c *spoc) checkUnstableNatRules() {
 			}
 			check := func(l netList, intf *routerIntf, isSrc bool) {
 				for _, n := range l {
-					subnets := n.unstableNat[intf.natSet]
+					subnets := n.unstableNat[intf.zone.natDomain]
 					if subnets == nil {
 						continue
 					}

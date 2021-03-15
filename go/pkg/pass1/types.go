@@ -174,7 +174,7 @@ type network struct {
 	radiusAttributes     map[string]string
 	subnetOf             *network
 	subnets              []*subnet
-	unstableNat          map[natSet]netList
+	unstableNat          map[*natDomain]netList
 	up                   *network
 	zone                 *zone
 }

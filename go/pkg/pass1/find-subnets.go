@@ -733,10 +733,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				// Remember at attribute unstableNat for later check.
 				u := bignet.unstableNat
 				if u == nil {
-					u = make(map[natSet]netList)
+					u = make(map[*natDomain]netList)
 					bignet.unstableNat = u
 				}
-				u[ns] = append(u[ns], subnet)
+				u[domain] = append(u[domain], subnet)
 			}
 		}
 	}
