@@ -1657,6 +1657,69 @@ Error: network:n3 is hidden by nat:h3 in rule
 =END=
 
 ############################################################
+=TITLE=Multiple rules and objects with dynamic NAT
+# Check correct caching of results.
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { ip = 1.9.2.0/27; dynamic; }
+ host:h13 = { ip = 10.1.1.3; }
+ host:h14 = { ip = 10.1.1.4; }
+ host:h15 = { ip = 10.1.1.5; nat:n1 = { ip = 1.9.2.25; } }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = {
+ ip = 10.1.4.0/24;
+ nat:n4 = { ip = 1.9.4.0/27; dynamic; }
+ host:h43 = { ip = 10.1.4.3; }
+ host:h44 = { ip = 10.1.4.4; }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; bind_nat = n1;
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ interface:n3 = { ip = 10.1.3.2; bind_nat = n4; }
+ interface:n4 = { ip = 10.1.4.1; nat:n4 = { ip = 1.9.4.21; } }
+}
+service:s1 = {
+ user = host:h15;
+ permit src = user; dst = interface:r3.n4; prt = tcp 81;
+}
+service:s2 = {
+ user = host:h13;
+ permit src = user; dst = host:h43; prt = tcp 82;
+}
+service:s3 = {
+ user = host:h13;
+ permit src = user; dst = host:h43; prt = tcp 83;
+}
+service:s4 = {
+ user = host:h14;
+ permit src = user; dst = host:h44; prt = tcp 84;
+}
+=END=
+=ERROR=
+Error: host:h13 needs static translation for nat:n1 at router:r2 to be valid in rule
+ permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s2
+Error: host:h43 needs static translation for nat:n4 at router:r2 to be valid in rule
+ permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s2
+Error: host:h14 needs static translation for nat:n1 at router:r2 to be valid in rule
+ permit src=host:h14; dst=host:h44; prt=tcp 84; of service:s4
+Error: host:h44 needs static translation for nat:n4 at router:r2 to be valid in rule
+ permit src=host:h14; dst=host:h44; prt=tcp 84; of service:s4
+=END=
+
+############################################################
 =TITLE=Interface with dynamic NAT applied at same device
 =INPUT=
 network:a = { ip = 10.1.1.0/24;}

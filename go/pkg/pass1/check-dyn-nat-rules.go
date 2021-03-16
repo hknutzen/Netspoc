@@ -107,7 +107,7 @@ func (c *spoc) checkDynamicNatRules(
 			// Check for host or interface with dynamic NAT.
 			if !foundDyn && natNetwork.dynamic && !natNetwork.hidden {
 				for _, s := range n.subnets {
-					if s.nat[natTag] != nil {
+					if s.nat[natTag] == nil {
 						foundDyn = true
 						continue TAG
 					}
