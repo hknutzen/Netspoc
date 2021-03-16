@@ -378,12 +378,11 @@ func (c *spoc) checkDynamicNatRules(
 				} else {
 					typ = "dynamic"
 				}
-				revTxt := ""
+				revTxt := "src"
 				if reversed {
-					revTxt = " reversed"
+					revTxt = "dst"
 				}
-				c.err("Must not apply %s NAT '%s' on path\n"+
-					" of%s rule\n"+
+				c.err("Must not apply %s NAT '%s' to %s of rule\n"+
 					" %s\n"+
 					" NAT '%s' is active at\n"+
 					natInterfaces.nameList()+"\n"+

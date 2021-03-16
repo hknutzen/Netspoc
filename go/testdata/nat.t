@@ -250,6 +250,60 @@ Error: network:Test is hidden by nat:C in rule
 =END=
 
 ############################################################
+=TITLE=Multiple hosts in hidden network
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:n1 = { hidden; }
+ host:h13 = { ip = 10.1.1.3; }
+ host:h14 = { ip = 10.1.1.4; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = {
+ ip = 10.1.4.0/24;
+ nat:n4 = { hidden; }
+ host:h43 = { ip = 10.1.4.3; }
+ host:h44 = { ip = 10.1.4.4; }
+}
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; bind_nat = n1;
+ }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ interface:n3 = { ip = 10.1.3.2; bind_nat = n4; }
+ interface:n4 = { ip = 10.1.4.1; }
+}
+service:s1 = {
+ user = host:h13;
+ permit src = user; dst = host:h43; prt = tcp 82;
+}
+service:s2 = {
+ user = host:h13;
+ permit src = user; dst = host:h43; prt = tcp 83;
+}
+service:s3 = {
+ user = host:h14;
+ permit src = user; dst = host:h44; prt = tcp 84;
+}
+=END=
+# Only first error is shown.
+=ERROR=
+Error: host:h13 is hidden by nat:n1 in rule
+ permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
+Error: host:h43 is hidden by nat:n4 in rule
+ permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
+=END=
+
+############################################################
 =TITLE=NAT network is undeclared subnet
 =INPUT=
 network:n1 = {
@@ -2172,8 +2226,7 @@ service:test = {
 }
 =END=
 =ERROR=
-Error: Must not apply hidden NAT 'h' on path
- of rule
+Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=proto 50; of service:test
  NAT 'h' is active at
  - interface:r1.t1
@@ -2344,8 +2397,7 @@ service:test = {
 =END=
 =INPUT=${input}
 =ERROR=
-Error: Must not apply hidden NAT 'h' on path
- of rule
+Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
  - interface:r1.t1
@@ -2360,8 +2412,7 @@ Error: Must not apply hidden NAT 'h' on path
 =INPUT=${input}
 =SUBST=/managed; #r1//
 =ERROR=
-Error: Must not apply hidden NAT 'h' on path
- of rule
+Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
  - interface:r1.t1
@@ -2377,8 +2428,7 @@ Error: Must not apply hidden NAT 'h' on path
 =SUBST=/managed; #r1//
 =SUBST=/managed; #r3//
 =ERROR=
-Error: Must not apply hidden NAT 'h' on path
- of rule
+Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
  - interface:r1.t1
@@ -2393,8 +2443,7 @@ Error: Must not apply hidden NAT 'h' on path
 =INPUT=${input}
 =SUBST=|hidden;|ip = 10.9.9.0/24; dynamic;|
 =ERROR=
-Error: Must not apply dynamic NAT 'h' on path
- of rule
+Error: Must not apply dynamic NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
  NAT 'h' is active at
  - interface:r1.t1
@@ -2445,8 +2494,7 @@ service:s2 = {
 }
 =END=
 =ERROR=
-Error: Must not apply hidden NAT 'h' on path
- of rule
+Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n3; prt=tcp 81; of service:s2
  NAT 'h' is active at
  - interface:r3.n4
@@ -2495,8 +2543,7 @@ service:s2 = {
 }
 =END=
 =ERROR=
-Error: Must not apply dynamic NAT 'd' on path
- of reversed rule
+Error: Must not apply dynamic NAT 'd' to dst of rule
  permit src=network:n3; dst=host:h10; prt=tcp 81; of service:s2
  NAT 'd' is active at
  - interface:r3.n4
