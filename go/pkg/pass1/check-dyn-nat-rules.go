@@ -94,7 +94,6 @@ func (c *spoc) checkDynamicNatRules(
 			zTagMap = make(map[string]bool)
 			zone2dynNat[z] = zTagMap
 		}
-	TAG:
 		for natTag, natNetwork := range tagMap {
 
 			// We already know, that type of natTag is equal at
@@ -104,19 +103,10 @@ func (c *spoc) checkDynamicNatRules(
 				zTagMap[natTag] = true
 			}
 
-			// Check for host or interface with dynamic NAT.
+			// Check if network with dynamic NAT has hosts or interfaces.
 			if !foundDyn && natNetwork.dynamic && !natNetwork.hidden {
-				for _, s := range n.subnets {
-					if s.nat[natTag] == nil {
-						foundDyn = true
-						continue TAG
-					}
-				}
-				for _, intf := range n.interfaces {
-					if intf.nat[natTag] == nil {
-						foundDyn = true
-						continue TAG
-					}
+				if len(n.subnets) > 0 || len(n.interfaces) > 0 {
+					foundDyn = true
 				}
 			}
 		}
@@ -228,6 +218,15 @@ func (c *spoc) checkDynamicNatRules(
 				return rule.print()
 			}
 
+			// Map is set, if object has static NAT in network with dyn. NAT.
+			var objNat map[string]net.IP
+			switch x := obj.(type) {
+			case *subnet:
+				objNat = x.nat
+			case *routerIntf:
+				objNat = x.nat
+			}
+
 			// Anonymous function is called immediately.
 			// Only declared, so we can use "return" inside.
 			func() {
@@ -265,13 +264,6 @@ func (c *spoc) checkDynamicNatRules(
 				}
 
 				// Ignore host / interface with static NAT.
-				var objNat map[string]net.IP
-				switch x := obj.(type) {
-				case *subnet:
-					objNat = x.nat
-				case *routerIntf:
-					objNat = x.nat
-				}
 				if objNat[natTag] != nil {
 					return
 				}
@@ -355,6 +347,12 @@ func (c *spoc) checkDynamicNatRules(
 			// i.e. dynamic / hidden NAT is enabled first and disabled later.
 			var toCheckNext []string
 			for _, natTag := range toCheck {
+
+				// Ignore host / interface with static NAT.
+				if objNat[natTag] != nil {
+					continue
+				}
+
 				natNetwork := natMap[natTag]
 				if natNetwork == nil || !natNetwork.hidden && !staticSeen {
 					toCheckNext = append(toCheckNext, natTag)

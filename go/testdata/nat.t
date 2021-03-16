@@ -2507,7 +2507,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24;
  nat:d = { ip = 10.9.9.0/27; dynamic; }
- host:h10 = { ip = 10.1.1.10; nat:d = { ip = 10.9.9.3; } }
+ host:h10 = { ip = 10.1.1.10; nat:d = { ip = 10.9.9.10; } }
 }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2515,7 +2515,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; nat:d = { ip = 10.9.9.1; } }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
@@ -2530,21 +2530,26 @@ router:r3 = {
 }
 router:r4 = {
  interface:n4 = { ip = 10.1.4.2; hardware = n4; bind_nat = d; }
- interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; nat:d = { ip = 10.9.9.2; } }
 }
 pathrestriction:p = interface:r2.n3, interface:r4.n1;
+
 service:s1 = {
- user = network:n2;
- permit src = user; dst = host:h10; prt = tcp 80;
-}
-service:s2 = {
  user = network:n3;
  permit src = user; dst = host:h10; prt = tcp 81;
+ }
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = tcp 82;
+}
+service:s3 = {
+ user = network:n3;
+ permit src = user; dst = network:n1; prt = tcp 83;
 }
 =END=
 =ERROR=
 Error: Must not apply dynamic NAT 'd' to dst of rule
- permit src=network:n3; dst=host:h10; prt=tcp 81; of service:s2
+ permit src=network:n3; dst=network:n1; prt=tcp 83; of service:s3
  NAT 'd' is active at
  - interface:r3.n4
  - interface:r4.n4
