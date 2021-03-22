@@ -174,7 +174,7 @@ func (c *spoc) setPolicyDistributionIP() {
 		// Lookup interface address in NAT domain of PDP, because PDP
 		// needs to access the device.
 		// Prefer loopback interface if available.
-		natSet := pdp.network.zone.natDomain.natSet
+		natMap := pdp.network.zone.natDomain.natMap
 		var l, o intfList
 		for _, intf := range result {
 			if intf.loopback {
@@ -184,7 +184,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			}
 		}
 		for _, intf := range append(l, o...) {
-			r.adminIP = append(r.adminIP, intf.address(natSet).IP.String())
+			r.adminIP = append(r.adminIP, intf.address(natMap).IP.String())
 		}
 	}
 	var unreachable stringerList

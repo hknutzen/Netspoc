@@ -14,7 +14,7 @@ import (
 // - mark
 
 type clusterInfo struct {
-	natSet     natSet
+	natMap     natMap
 	filterOnly []*net.IPNet
 	mark       int
 }
@@ -35,11 +35,11 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		// IP/mask pairs of current cluster matching {filter_only}.
 		matched := make(map[*net.IPNet]bool)
 
-		// natSet is known to be identical inside 'local' cluster,
+		// natMap is known to be identical inside 'local' cluster,
 		// because attribute 'bind_nat' is not valid at 'local' routers.
-		natSet := r0.interfaces[0].natSet
+		nm := r0.interfaces[0].natMap
 
-		info := clusterInfo{natSet: natSet, mark: mark, filterOnly: filterOnly}
+		info := clusterInfo{natMap: nm, mark: mark, filterOnly: filterOnly}
 
 		var walk func(r *router)
 		walk = func(r *router) {
@@ -77,7 +77,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					// All networks in local zone must match filterOnly.
 				NETWORK:
 					for _, n := range z.networks {
-						net0 := n.address(natSet)
+						net0 := n.address(nm)
 						ip := net0.IP
 						prefix, _ := net0.Mask.Size()
 						for j, net := range filterOnly {
@@ -136,7 +136,7 @@ func (c *spoc) markManagedLocal() {
 		markNetworks = func(list netList) {
 			for _, n := range list {
 				markNetworks(n.networks)
-				natNetwork := getNatNetwork(n, cluster.natSet)
+				natNetwork := getNatNetwork(n, cluster.natMap)
 				if natNetwork.hidden {
 					continue
 				}

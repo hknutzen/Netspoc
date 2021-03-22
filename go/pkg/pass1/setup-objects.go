@@ -1076,7 +1076,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		c.err("Invalid identifier in definition of '%s'", name)
 	}
 	noProtectSelf := false
-	var routingDefault *routing
+	var routingDefault *mcastProto
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "managed":
@@ -2422,32 +2422,36 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 }
 
 // Definition of dynamic routing protocols.
-var routingInfo = map[string]*routing{
-	"EIGRP": &routing{
-		name:  "EIGRP",
-		prt:   &proto{proto: "88", name: "proto 88"},
-		mcast: mcastInfo{v4: []string{"224.0.0.10"}, v6: []string{"ff02::a"}},
+var routingInfo = map[string]*mcastProto{
+	"EIGRP": &mcastProto{
+		name: "EIGRP",
+		prt:  &proto{proto: "88", name: "proto 88"},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.10"}},
+			v6: multicast{ips: []string{"ff02::a"}}},
 	},
-	"OSPF": &routing{
+	"OSPF": &mcastProto{
 		name: "OSPF",
 		prt:  &proto{proto: "89", name: "proto 89"},
-		mcast: mcastInfo{v4: []string{"224.0.0.5", "224.0.0.6"},
-			v6: []string{"ff02::5", "ff02::6"}},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.5", "224.0.0.6"}},
+			v6: multicast{ips: []string{"ff02::5", "ff02::6"}}},
 	},
-	"RIPv2": &routing{
+	"RIPv2": &mcastProto{
 		name: "RIP",
 		prt:  &proto{proto: "udp", ports: [2]int{520, 520}, name: "udp 520"},
-		mcast: mcastInfo{v4: []string{"224.0.0.9"},
-			v6: []string{"ff02::9"}},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.9"}},
+			v6: multicast{ips: []string{"ff02::9"}}},
 	},
-	"dynamic": &routing{name: "dynamic"},
+	"dynamic": &mcastProto{name: "dynamic"},
 
 	// Identical to 'dynamic', but must only be applied to router, not
 	// to routerIntf.
-	"manual": &routing{name: "manual"},
+	"manual": &mcastProto{name: "manual"},
 }
 
-func (c *spoc) getRouting(a *ast.Attribute, ctx string) *routing {
+func (c *spoc) getRouting(a *ast.Attribute, ctx string) *mcastProto {
 	v := c.getSingleValue(a, ctx)
 	r := routingInfo[v]
 	if r == nil {
@@ -2457,23 +2461,27 @@ func (c *spoc) getRouting(a *ast.Attribute, ctx string) *routing {
 }
 
 // Definition of redundancy protocols.
-var xxrpInfo = map[string]*xxrp{
-	"VRRP": &xxrp{
-		prt:   &proto{proto: "112", name: "proto 112"},
-		mcast: mcastInfo{v4: []string{"224.0.0.18"}, v6: []string{"ff02::12"}},
+var xxrpInfo = map[string]*mcastProto{
+	"VRRP": &mcastProto{
+		prt: &proto{proto: "112", name: "proto 112"},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.18"}},
+			v6: multicast{ips: []string{"ff02::12"}}},
 	},
-	"HSRP": &xxrp{
+	"HSRP": &mcastProto{
 		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
-		mcast: mcastInfo{v4: []string{"224.0.0.2"},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.2"}},
 
 			// No official IPv6 multicast address for HSRP available,
 			// therefore using IPv4 equivalent.
-			v6: []string{"::e000:2"}},
+			v6: multicast{ips: []string{"::e000:2"}}},
 	},
-	"HSRPv2": &xxrp{
+	"HSRPv2": &mcastProto{
 		prt: &proto{proto: "udp", ports: [2]int{1985, 1985}, name: "udp 1985"},
-		mcast: mcastInfo{v4: []string{"224.0.0.102"},
-			v6: []string{"ff02::66"}},
+		mcast: mcast{
+			v4: multicast{ips: []string{"224.0.0.102"}},
+			v6: multicast{ips: []string{"ff02::66"}}},
 	},
 }
 
@@ -2489,10 +2497,11 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 			virtual.ip = c.getIp(a2, v6, vCtx)
 		case "type":
 			t := c.getSingleValue(a2, vCtx)
-			if _, found := xxrpInfo[t]; !found {
+			p := xxrpInfo[t]
+			if p == nil {
 				c.err("Unknown redundancy protocol in %s", vCtx)
 			}
-			virtual.redundancyType = t
+			virtual.redundancyType = p
 		case "id":
 			id := c.getSingleValue(a2, vCtx)
 			num, err := strconv.Atoi(id)
@@ -2510,7 +2519,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 		c.err("Missing IP in %s", vCtx)
 		return nil
 	}
-	if virtual.redundancyId != "" && virtual.redundancyType == "" {
+	if virtual.redundancyId != "" && virtual.redundancyType == nil {
 		c.err("Redundancy ID is given without redundancy protocol in %s",
 			vCtx)
 	}
@@ -3473,7 +3482,7 @@ func (c *spoc) linkVirtualInterfaces() {
 	type key2 struct {
 		n   *network
 		id  string
-		typ string
+		typ *mcastProto
 	}
 	net2id2type2virtual := make(map[key2]*routerIntf)
 	for _, v1 := range c.virtualInterfaces {

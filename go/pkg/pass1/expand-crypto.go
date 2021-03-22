@@ -246,7 +246,7 @@ func (c *spoc) expandCrypto() {
 			managed := router.managed
 			hubRouter := hub.router
 			hubModel := hubRouter.model
-			natSet := hub.natSet
+			natMap := hub.natMap
 			hubIsAsaVpn := hubModel.crypto == "ASA_VPN"
 			var encrypted netList
 			hasIdHosts := false
@@ -326,7 +326,7 @@ func (c *spoc) expandCrypto() {
 									},
 								},
 								ipType: tunnelIP,
-								natSet: natSet,
+								natMap: natMap,
 							},
 							src: s,
 						}
@@ -386,7 +386,7 @@ func (c *spoc) expandCrypto() {
 
 			// Add only non hidden peer networks.
 			for _, net := range encrypted {
-				if getNatNetwork(net, natSet).hidden {
+				if getNatNetwork(net, natMap).hidden {
 					continue
 				}
 				hub.peerNetworks = append(hub.peerNetworks, net)

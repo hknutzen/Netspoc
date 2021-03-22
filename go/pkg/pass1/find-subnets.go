@@ -122,19 +122,13 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	// - If a subnet relation exists, then this NAT must be unique inside
 	//   the zone.
 
-	natSet := z.natDomain.natSet
+	natMap := z.natDomain.natMap
 
 	// Add networks of zone to maskIPMap.
 	// Use NAT IP/mask.
 	maskIPMap := make(map[string]map[string]*network)
 	add := func(n *network) {
-		nn := n
-		for tag, n2 := range n.nat {
-			if (*natSet)[tag] {
-				nn = n2
-				break
-			}
-		}
+		nn := getNatNetwork(n, natMap)
 		ip, mask := nn.ip, nn.mask
 		ipMap := maskIPMap[string(mask)]
 		if ipMap == nil {
@@ -388,28 +382,15 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	type netPair [2]*network
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
-		natSet := domain.natSet
+		natMap := domain.natMap
 
 		// Mark networks visible in current NAT domain.
 		// - Real network is visible, if none of its NAT tag are active.
 		// - NAT network is visible if its NAT tag is active.
 		// - It is located in same NAT partition as current NAT domain.
 		visible := make(map[*network]bool)
-	NETWORK:
-		for _, natNetwork := range natNetworks {
-			if tag := natNetwork.natTag; tag != "" {
-				// NAT network
-				if !(*natSet)[tag] {
-					continue NETWORK
-				}
-			} else {
-				// Original network having NAT definitions.
-				for tag, _ := range natNetwork.nat {
-					if (*natSet)[tag] {
-						continue NETWORK
-					}
-				}
-			}
+		for _, n := range networks {
+			natNetwork := getNatNetwork(n, natMap)
 			visible[natNetwork] = true
 		}
 
@@ -643,36 +624,8 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 
-	// Check networks in same zone for stable subnet relation over all
-	// NAT domains. If networks are in relation at one NAT domain, they
-	// must also be in relation in all other domains.
-	net2dom2hidden := make(map[*network]map[*natDomain]bool)
-	for _, n := range networks {
-		var hiddenTags []string
-		for tag, nn := range n.nat {
-			if nn.hidden {
-				hiddenTags = append(hiddenTags, tag)
-			}
-		}
-		if hiddenTags == nil {
-			continue
-		}
-		dom2hidden := make(map[*natDomain]bool)
-		for _, domain := range domains {
-			natSet := domain.natSet
-			for _, tag := range hiddenTags {
-				if (*natSet)[tag] {
-					dom2hidden[domain] = true
-				}
-			}
-		}
-		net2dom2hidden[n] = dom2hidden
-	}
-
 	for subnet, net2dom2isSubnet := range subnetInZone {
-		subDom2hidden := net2dom2hidden[subnet]
 		for bignet, dom2isSubnet := range net2dom2isSubnet {
-			bigDom2hidden := net2dom2hidden[bignet]
 
 			// Subnet is subnet of bignet in at least one NAT domain.
 			// Check that in each NAT domain
@@ -688,10 +641,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 				// If one or both networks are hidden, this does
 				// not count as changed subnet relation.
-				if bigDom2hidden[domain] {
+				if getNatNetwork(bignet, domain.natMap).hidden {
 					continue
 				}
-				if subDom2hidden[domain] {
+				if getNatNetwork(subnet, domain.natMap).hidden {
 					continue
 				}
 
@@ -718,10 +671,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 
 				// Identical IP from dynamic NAT is valid as subnet relation.
-				ns := domain.natSet
-				natSubnet := getNatNetwork(subnet, ns)
+				m := domain.natMap
+				natSubnet := getNatNetwork(subnet, m)
 				if natSubnet.dynamic {
-					natBignet := getNatNetwork(bignet, ns)
+					natBignet := getNatNetwork(bignet, m)
 					if natBignet.dynamic &&
 						natSubnet.ip.Equal(natBignet.ip) &&
 						net.IP(natSubnet.mask).Equal(net.IP(natBignet.mask)) {

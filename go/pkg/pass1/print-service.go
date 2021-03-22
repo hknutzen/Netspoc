@@ -127,20 +127,15 @@ func (c *spoc) printService(
 	c.findSubnetsInZone()
 	c.stopOnErr()
 
-	// Find network for resolving NAT addresses.
-	var natSet natSet
+	// Find network for resolving NAT addresses or use empty map.
+	var natMap natMap
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
 		if net := symTable.network[natNet]; net != nil {
-			natSet = net.zone.natDomain.natSet
+			natMap = net.zone.natDomain.natMap
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
-	} else {
-
-		// Create empty NAT set.
-		var m map[string]bool
-		natSet = &m
 	}
 
 	sRules := c.normalizeServices()
@@ -199,7 +194,7 @@ func (c *spoc) printService(
 		if showName {
 			return obj.String()
 		}
-		return prefixCode(obj.address(natSet))
+		return prefixCode(obj.address(natMap))
 	}
 
 	names := make(stringList, 0, len(s2rules))

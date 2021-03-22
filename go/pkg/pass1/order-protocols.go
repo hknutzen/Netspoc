@@ -17,34 +17,6 @@ type stdProto struct {
 	TCPEsta *proto
 }
 
-var network00 = &network{
-	ipObj: ipObj{
-		name: "network:0/0",
-		ip:   getZeroIp(false),
-	},
-	mask:           getZeroMask(false),
-	isAggregate:    true,
-	hasOtherSubnet: true,
-}
-
-var network00v6 = &network{
-	ipObj: ipObj{
-		name: "network:0/0",
-		ip:   getZeroIp(true),
-	},
-	mask:           getZeroMask(true),
-	isAggregate:    true,
-	hasOtherSubnet: true,
-}
-
-func getNetwork00(ipv6 bool) *network {
-	if ipv6 {
-		return network00v6
-	} else {
-		return network00
-	}
-}
-
 func (c *spoc) initStdProtocols(sym *symbolTable) {
 	define := func(s string) *proto {
 		return c.getSimpleProtocol(s, sym, false, s)

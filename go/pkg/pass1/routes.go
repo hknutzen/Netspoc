@@ -301,10 +301,10 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 
 	inNet := in.network
 	outNet := out.network
-	natSet := in.natSet
+	natMap := in.natMap
 	natNets := make(netList, 0, len(dstNetMap))
 	for n, _ := range dstNetMap {
-		natNets.push(getNatNetwork(n, natSet))
+		natNets.push(getNatNetwork(n, natMap))
 	}
 	rMap := in.routes
 	if rMap == nil {
@@ -359,7 +359,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 
 	intfNet := intf.network
 	routeInZone := intf.routeInZone
-	natSet := intf.natSet
+	natMap := intf.natMap
 	rMap := intf.routes
 	if rMap == nil {
 		rMap = make(map[*routerIntf]netMap)
@@ -371,7 +371,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 		if n == intfNet {
 			continue
 		}
-		natNet := getNatNetwork(n, natSet)
+		natNet := getNatNetwork(n, natMap)
 		hops := routeInZone[network00]
 		if hops == nil {
 			hops = routeInZone[n]
@@ -885,8 +885,8 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 
 		// Add route to reach peer interface.
 		if peerNet != realNet {
-			natSet := realIntf.natSet
-			natNet := getNatNetwork(peerNet, natSet)
+			natMap := realIntf.natMap
+			natNet := getNatNetwork(peerNet, natMap)
 			hopRoutes[natNet] = true
 		}
 

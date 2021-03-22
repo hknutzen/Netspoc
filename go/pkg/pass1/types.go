@@ -83,10 +83,14 @@ type someObj interface {
 	String() string
 	getNetwork() *network
 	getUp() someObj
-	address(nn natSet) *net.IPNet
+	address(m natMap) *net.IPNet
 	getAttr(attr attrKey) attrVal
 	getPathNode() pathStore
 	getZone() pathObj
+}
+
+type withStdAddr struct {
+	stdAddr string
 }
 
 type disabledObj struct {
@@ -140,10 +144,11 @@ type ipObj struct {
 
 func (x ipObj) String() string { return x.name }
 
-type natMap map[string]*network
+type natTagMap map[string]*network
 
 type network struct {
 	ipObj
+	withStdAddr
 	attr                 attrStore
 	certId               string
 	crosslink            bool
@@ -207,6 +212,7 @@ func (x *netObj) getUp() someObj       { return x.up }
 
 type subnet struct {
 	netObj
+	withStdAddr
 	mask             net.IPMask
 	hasNeighbor      bool
 	id               string
@@ -253,13 +259,13 @@ type model struct {
 	usePrefix        bool
 }
 
-// Use pointer to map, because we need to test natSet for equality,
-// so we can use it as map key.
-type natSet *map[string]bool
+type natSet map[string]bool
+
+type natMap map[*network]*network
 
 type aclInfo struct {
 	name         string
-	natSet       natSet
+	natMap       natMap
 	rules        ruleList
 	intfRules    ruleList
 	protectSelf  bool
@@ -300,6 +306,7 @@ type router struct {
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList
 	natSet                  natSet // Only used if aclUseRealIp
+	natMap                  natMap // Only used if aclUseRealIp
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -331,6 +338,7 @@ type loop struct {
 type routerIntf struct {
 	netObj
 	pathStoreData
+	withStdAddr
 	router  *router
 	bindNat []string
 	//crypto          *crypto
@@ -349,7 +357,7 @@ type routerIntf struct {
 	loopEntryZone   map[pathStore]pathStore
 	loopZoneBorder  bool
 	mainIntf        *routerIntf
-	natSet          natSet
+	natMap          natMap
 	noCheck         bool
 	noInAcl         bool
 	origMain        *routerIntf
@@ -359,12 +367,12 @@ type routerIntf struct {
 	realIntf        *routerIntf
 	redundancyId    string
 	redundancyIntfs []*routerIntf
-	redundancyType  string
+	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList
 	routeInZone     map[*network]intfList
 	routes          map[*routerIntf]netMap
-	routing         *routing
+	routing         *mcastProto
 	rules           ruleList
 	splitOther      *routerIntf
 	intfRules       ruleList
@@ -404,15 +412,20 @@ type owner struct {
 	watchers            stringList
 }
 
-type routing struct {
-	name  string
-	prt   *proto
-	mcast mcastInfo
+type mcastProto struct {
+	name string
+	prt  *proto
+	mcast
 }
 
-type xxrp struct {
-	prt   *proto
-	mcast mcastInfo
+type mcast struct {
+	v4 multicast
+	v6 multicast
+}
+
+type multicast struct {
+	ips      []string
+	networks []*network
 }
 
 type hardware struct {
@@ -421,7 +434,7 @@ type hardware struct {
 	loopback   bool
 	name       string
 	bindNat    []string
-	natSet     natSet
+	natMap     natMap
 	needOutAcl bool
 	noInAcl    bool
 	rules      ruleList
@@ -532,6 +545,7 @@ func (x area) String() string { return x.name }
 type natDomain struct {
 	name    string
 	natSet  natSet
+	natMap  natMap
 	routers []*router
 	zones   []*zone
 }
@@ -683,11 +697,6 @@ func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 type pathRules struct {
 	permit ruleList
 	deny   ruleList
-}
-
-type mcastInfo struct {
-	v4 []string
-	v6 []string
 }
 
 //###################################################################

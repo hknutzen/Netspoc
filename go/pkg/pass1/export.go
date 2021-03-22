@@ -915,7 +915,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 // if it is combined with a hidden NAT tag from same multi-NAT.
 //#####################################################################
 func (c *spoc) exportNatSet(dir string,
-	natTag2multinatDef map[string][]natMap, natTag2natType map[string]string,
+	natTag2multinatDef map[string][]natTagMap, natTag2natType map[string]string,
 	pInfo, oInfo xOwner) {
 
 	c.progress("Export NAT-sets")
@@ -955,7 +955,7 @@ func (c *spoc) exportNatSet(dir string,
 				natSets = append(natSets, d.natSet)
 			}
 			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-			for tag, _ := range *combined {
+			for tag, _ := range combined {
 				natList.push(tag)
 			}
 		}

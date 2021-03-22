@@ -94,8 +94,8 @@ import (
 	"strings"
 )
 
-// Print IP address of obj in context of natSet.
-func printAddress(obj groupObj, ns natSet) string {
+// Print IP address of obj in context of natMap.
+func printAddress(obj groupObj, nm natMap) string {
 	netAddr := func(n *network) string {
 		return prefixCode(&net.IPNet{IP: n.ip, Mask: n.mask})
 	}
@@ -122,7 +122,7 @@ func printAddress(obj groupObj, ns natSet) string {
 
 	switch x := obj.(type) {
 	case *network:
-		n := getNatNetwork(x, ns)
+		n := getNatNetwork(x, nm)
 		if n.ipType == unnumberedIP {
 			return "unnumbered"
 		}
@@ -131,7 +131,7 @@ func printAddress(obj groupObj, ns natSet) string {
 		}
 		return netAddr(n)
 	case *host:
-		n := getNatNetwork(x.network, ns)
+		n := getNatNetwork(x.network, nm)
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
@@ -140,7 +140,7 @@ func printAddress(obj groupObj, ns natSet) string {
 		}
 		return natAddr(x.ipRange[0], n) + "-" + natAddr(x.ipRange[1], n)
 	case *routerIntf:
-		n := getNatNetwork(x.network, ns)
+		n := getNatNetwork(x.network, nm)
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
@@ -200,19 +200,16 @@ func (c *spoc) printGroup(path, group, natNet string,
 	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
-	var natSet natSet
+	var natMap natMap
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
 		if net := symTable.network[natNet]; net != nil {
-			natSet = net.zone.natDomain.natSet
+			natMap = net.zone.natDomain.natMap
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
 	} else {
-
-		// Create empty NAT set.
-		var m map[string]bool
-		natSet = &m
+		// Use empty NAT map.
 	}
 
 	// Prepare finding unused objects by marking used objects.
@@ -275,7 +272,7 @@ func (c *spoc) printGroup(path, group, natNet string,
 	for _, ob := range elements {
 		var result stringList
 		if showIP {
-			result.push(printAddress(ob, natSet))
+			result.push(printAddress(ob, natMap))
 		}
 		if showName {
 			result.push(ob.String())

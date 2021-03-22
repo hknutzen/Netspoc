@@ -178,17 +178,24 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 	}
 }
 
-func getMulticastObjects(info mcastInfo, ipV6 bool) []someObj {
-	var ipList []string
+func getMulticastObjects(info *mcastProto, ipV6 bool) []someObj {
+	var m *multicast
 	if ipV6 {
-		ipList = info.v6
+		m = &info.v6
 	} else {
-		ipList = info.v4
+		m = &info.v4
 	}
-	result := make([]someObj, len(ipList))
-	for i, s := range ipList {
-		ip := net.ParseIP(s)
-		result[i] = &network{ipObj: ipObj{ip: ip}, mask: getHostMask(ipV6)}
+	if m.networks == nil {
+		l := make([]*network, len(m.ips))
+		for i, s := range m.ips {
+			ip := net.ParseIP(s)
+			l[i] = &network{ipObj: ipObj{ip: ip}, mask: getHostMask(ipV6)}
+		}
+		m.networks = l
+	}
+	result := make([]someObj, len(m.networks))
+	for i, n := range m.networks {
+		result[i] = n
 	}
 	return result
 }
@@ -269,7 +276,7 @@ func (c *spoc) addRouterAcls() {
 						netList := []someObj{intf.network}
 
 						// Permit multicast packets from current network.
-						mcast := getMulticastObjects(routing.mcast, ipv6)
+						mcast := getMulticastObjects(routing, ipv6)
 						hw.intfRules.push(newRule(netList, mcast, prtList))
 
 						// Additionally permit unicast packets.
@@ -282,10 +289,9 @@ func (c *spoc) addRouterAcls() {
 				}
 
 				// Handle multicast packets of redundancy protocols.
-				if typ := intf.redundancyType; typ != "" {
+				if xrrp := intf.redundancyType; xrrp != nil {
 					netList := []someObj{intf.network}
-					xrrp := xxrpInfo[typ]
-					mcast := getMulticastObjects(xrrp.mcast, ipv6)
+					mcast := getMulticastObjects(xrrp, ipv6)
 					prtList := []*proto{xrrp.prt}
 					hw.intfRules.push(newRule(netList, mcast, prtList))
 				}

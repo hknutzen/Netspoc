@@ -320,8 +320,8 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					if !found {
 						ip, mask := n.ip, n.mask
 						prefix, _ := mask.Size()
-						natSet := n.zone.natDomain.natSet
-						obj := getNatNetwork(supernet, natSet)
+						nm := n.zone.natDomain.natMap
+						obj := getNatNetwork(supernet, nm)
 						i, m := obj.ip, obj.mask
 						p, _ := m.Size()
 						isSubnet = p < prefix && matchIp(ip, i, m)

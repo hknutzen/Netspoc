@@ -741,7 +741,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		if intf.ipType != tunnelIP {
 			continue
 		}
-		natSet := intf.natSet
+		natMap := intf.natMap
 		splitTCache := make(map[int]map[string][]*network)
 
 		if hash := intf.idRules; hash != nil {
@@ -809,7 +809,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						info := &aclInfo{
 							name:        aclName,
 							rules:       []*groupedRule{rule},
-							natSet:      natSet,
+							natMap:      natMap,
 							isStdACL:    true,
 							isCryptoACL: true,
 						}
@@ -832,7 +832,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					name:    filterName,
 					rules:   []*groupedRule{rule},
 					addDeny: true,
-					natSet:  natSet,
+					natMap:  natMap,
 				}
 				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
@@ -940,7 +940,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				name:    filterName,
 				rules:   rules,
 				addDeny: true,
-				natSet:  natSet,
+				natMap:  natMap,
 			}
 			r.aclList.push(info)
 			printAclPlaceholder(fh, r, filterName)
@@ -1070,7 +1070,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 		}
 
 		inHw := hw.name
-		natSet := hw.natSet
+		natMap := hw.natMap
 
 		// Collect interface rules.
 		// Add call to chain in INPUT chain.
@@ -1079,7 +1079,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 			name:    intfAclName,
 			rules:   hw.intfRules,
 			addDeny: true,
-			natSet:  natSet,
+			natMap:  natMap,
 		}
 		hw.intfRules = nil
 		r.aclList.push(intfAclInfo)
@@ -1101,7 +1101,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 				name:    aclName,
 				rules:   hw.ioRules[outHw],
 				addDeny: true,
-				natSet:  natSet,
+				natMap:  natMap,
 			}
 			r.aclList.push(info)
 			printAclPlaceholder(fh, r, aclName)
@@ -1121,11 +1121,11 @@ func printCiscoAcls(fh *os.File, r *router) {
 	ipv6 := r.ipV6
 	permitAny := getPermitAnyRule(ipv6)
 
-	getNatSet := func(r *router, s natSet) natSet {
+	getNatMap := func(r *router, m natMap) natMap {
 		if model.aclUseRealIP {
-			return r.natSet
+			return r.natMap
 		} else {
-			return s
+			return m
 		}
 	}
 
@@ -1141,7 +1141,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 			continue
 		}
 
-		natSet := getNatSet(r, hw.natSet)
+		natMap := getNatMap(r, hw.natMap)
 
 		// Generate code for incoming and possibly for outgoing ACL.
 		for _, suffix := range []string{"in", "out"} {
@@ -1163,7 +1163,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 					len(intfRules) == 1 && intfRules[0] == permitAny {
 					continue
 				}
-				info.natSet = natSet
+				info.natMap = natMap
 				info.rules = rules
 
 				// Marker: Generate protect_self rules, if available.
@@ -1216,7 +1216,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 							continue
 						}
 						tunnelInfo := &aclInfo{
-							natSet:    getNatSet(r, tunnelIntf.natSet),
+							natMap:    getNatMap(r, tunnelIntf.natMap),
 							rules:     tunnelIntf.rules,
 							intfRules: tunnelIntf.intfRules,
 						}
@@ -1234,7 +1234,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 					continue
 				}
 				info.rules = rules
-				info.natSet = natSet
+				info.natMap = natMap
 				info.addDeny = true
 			}
 
@@ -1299,10 +1299,10 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 			tunnelIntf = intf
 		}
 	}
-	tunNatSet := tunnelIntf.natSet
+	tunNatMap := tunnelIntf.natMap
 	wanIntf := tunnelIntf.realIntf
 	wanHw := wanIntf.hardware
-	wanNatSet := wanHw.natSet
+	wanNatMap := wanHw.natMap
 	var lanIntfs intfList
 	for _, intf := range interfaces {
 		if intf != wanIntf && intf != tunnelIntf {
@@ -1322,7 +1322,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 	// Unnumbered, negotiated and short interfaces have been
 	// rejected already.
 	peer := tunnelIntf.peer
-	peerIp := prefixCode(peer.realIntf.address(wanNatSet))
+	peerIp := prefixCode(peer.realIntf.address(wanNatMap))
 	fmt.Fprintln(fh, " peer", peerIp)
 
 	// Bind split tunnel ACL.
@@ -1348,7 +1348,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 	acls := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
-		natSet:      tunNatSet,
+		natMap:      tunNatMap,
 		isCryptoACL: true,
 	}
 	r.aclList.push(acls)
@@ -1361,7 +1361,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 		intfRules:   tunnelIntf.intfRules,
 		addDeny:     true,
 		protectSelf: true,
-		natSet:      tunNatSet,
+		natMap:      tunNatMap,
 	}
 	tunnelIntf.rules = nil
 	tunnelIntf.intfRules = nil
@@ -1412,7 +1412,7 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 	aclInfo := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
-		natSet:      intf.natSet,
+		natMap:      intf.natMap,
 		isCryptoACL: true,
 	}
 	r.aclList.push(aclInfo)
@@ -1429,14 +1429,14 @@ func printCryptoFilterAcl(fh *os.File, intf *routerIntf, suffix string) string {
 		return ""
 	}
 	cryptoFilterName := "crypto-filter-" + suffix
-	natSet := intf.natSet
+	natMap := intf.natMap
 	aclInfo := &aclInfo{
 		name:        cryptoFilterName,
 		rules:       intf.rules,
 		intfRules:   intf.intfRules,
 		addDeny:     true,
 		protectSelf: true,
-		natSet:      natSet,
+		natMap:      natMap,
 	}
 	intf.rules = nil
 	intf.intfRules = nil
@@ -1528,7 +1528,7 @@ func (c *spoc) printStaticCryptoMap(
 	seqNum := 0
 
 	// Peer IP must obey NAT.
-	natSet := hw.natSet
+	natMap := hw.natMap
 
 	// Sort crypto maps by peer IP to get deterministic output.
 	l := make([]*routerIntf, 0, len(interfaces))
@@ -1542,7 +1542,7 @@ func (c *spoc) printStaticCryptoMap(
 		seqNum++
 		seq := strconv.Itoa(seqNum)
 		peer := intf.peer
-		peerIp := prefixCode(peer.realIntf.address(natSet))
+		peerIp := prefixCode(peer.realIntf.address(natMap))
 		suffix := peerIp
 
 		crypto := intf.getCrypto()
@@ -1963,38 +1963,75 @@ func getNeedProtect(r *router) []*routerIntf {
 	return l
 }
 
-type natCache struct {
-	nat   natSet
-	cache map[someObj]string
+// Precompute string representation of IP addresses when NAT is not active.
+func (c *spoc) setupStdAddr() {
+	addNet := func(n *network) {
+		n.stdAddr = fullPrefixCode(&net.IPNet{IP: n.ip, Mask: n.mask})
+	}
+	// Aggregates, networks, subnets.
+	for _, n := range c.allNetworks {
+		if n.ipType == unnumberedIP || n.ipType == tunnelIP {
+			continue
+		}
+		addNet(n)
+		for _, s := range n.subnets {
+			s.stdAddr = fullPrefixCode(&net.IPNet{IP: s.ip, Mask: s.mask})
+		}
+	}
+	// network00
+	for _, n := range []*network{network00, network00v6} {
+		addNet(n)
+	}
+	// Multicast networks
+	addMcast := func(info map[string]*mcastProto) {
+		for _, mp := range info {
+			for _, m := range []*multicast{&mp.v4, &mp.v6} {
+				for _, n := range m.networks {
+					addNet(n)
+				}
+			}
+		}
+	}
+	addMcast(routingInfo)
+	addMcast(xxrpInfo)
+	// Interfaces
+	for _, r := range c.allRouters {
+		v6 := r.ipV6
+		for _, intf := range r.interfaces {
+			switch intf.ipType {
+			case hasIP:
+				intf.stdAddr =
+					fullPrefixCode(&net.IPNet{IP: intf.ip, Mask: getHostMask(v6)})
+			case negotiatedIP:
+				intf.stdAddr = intf.network.stdAddr
+			}
+		}
+	}
 }
 
-var nat2Cache = make(map[natSet]*natCache)
-
-func getAddrCache(n natSet) *natCache {
-	if nc, ok := nat2Cache[n]; ok {
-		return nc
+// Optimization: Use precomputed stdAddr.
+func getAddr(o someObj, natMap natMap) string {
+	switch x := o.(type) {
+	case *network:
+		if natMap[x] == nil {
+			return x.stdAddr
+		}
+	case *subnet:
+		if natMap[x.network] == nil {
+			return x.stdAddr
+		}
+	case *routerIntf:
+		if natMap[x.network] == nil {
+			return x.stdAddr
+		}
 	}
-	nc := natCache{
-		nat:   n,
-		cache: make(map[someObj]string),
-	}
-	nat2Cache[n] = &nc
-	return &nc
+	return fullPrefixCode(o.address(natMap))
 }
 
-func getCachedAddr(o someObj, nc *natCache) string {
-	if a, ok := nc.cache[o]; ok {
-		return a
-	}
-	a := fullPrefixCode(o.address(nc.nat))
-	nc.cache[o] = a
-	return a
-}
-
-func getCachedAddrList(l []someObj, nc *natCache) []string {
+func getAddrList(l []someObj, natMap natMap) []string {
 	result := make([]string, len(l))
 	for i, o := range l {
-		result[i] = getCachedAddr(o, nc)
+		result[i] = getAddr(o, natMap)
 	}
 	return result
 }
@@ -2032,8 +2069,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			optAddr := make(map[*network]bool)
 			// Collect objects forbidden in secondary optimization.
 			noOptAddrs := make(map[someObj]bool)
-			natSet := acl.natSet
-			addrCache := getAddrCache(natSet)
+			natMap := acl.natMap
 
 			// Set attribute NeedProtect in jACL.
 			// Value is list of IP addresses of to be protected interfaces.
@@ -2050,7 +2086,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 				// For removing duplicate addresses from redundancy interfaces.
 				seen := make(map[string]bool)
 				for _, intf := range needProtect {
-					a := getCachedAddr(intf, addrCache)
+					a := getAddr(intf, natMap)
 					if !seen[a] {
 						seen[a] = true
 						jACL.NeedProtect = append(jACL.NeedProtect, a)
@@ -2170,8 +2206,8 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 						newRule.OptSecondary = 1
 					}
 
-					newRule.Src = getCachedAddrList(rule.src, addrCache)
-					newRule.Dst = getCachedAddrList(rule.dst, addrCache)
+					newRule.Src = getAddrList(rule.src, natMap)
+					newRule.Dst = getAddrList(rule.dst, natMap)
 					prtList := make([]string, len(rule.prt))
 					for i, p := range rule.prt {
 						if p.proto == "icmpv6" {
@@ -2204,7 +2240,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			//   for sinlge rules.
 			addrList := make(stringList, 0, len(optAddr))
 			for n, _ := range optAddr {
-				a := getCachedAddr(n, addrCache)
+				a := getAddr(n, natMap)
 				addrList.push(a)
 			}
 			sort.Strings(addrList)
@@ -2212,7 +2248,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 
 			addrList = make(stringList, 0, len(noOptAddrs))
 			for o, _ := range noOptAddrs {
-				a := getCachedAddr(o, addrCache)
+				a := getAddr(o, natMap)
 				addrList.push(a)
 			}
 			sort.Strings(addrList)
@@ -2311,6 +2347,7 @@ func (c *spoc) printCode1(dir string) {
 	pass2Ready := make(chan bool)
 	go pass2.Compile(dir, toPass2, pass2Ready)
 
+	c.setupStdAddr()
 	checkedV6Dir := false
 	seen := make(map[*router]bool)
 	printRouter := func(routers []*router) {
