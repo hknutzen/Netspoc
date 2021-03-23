@@ -25,7 +25,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
@@ -34,7 +33,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"io/ioutil"
-	"net"
+	"inet.af/netaddr"
 	"os"
 	"os/exec"
 	"path"
@@ -48,7 +47,7 @@ func panicf(format string, args ...interface{}) {
 }
 
 type ipNet struct {
-	*net.IPNet
+	netaddr.IPPrefix
 	optNetworks             *ipNet
 	noOptAddrs, needProtect bool
 	name                    string
@@ -59,19 +58,15 @@ type ipNet struct {
 type name2ipNet map[string]*ipNet
 
 func createIPObj(ipNetName string) *ipNet {
-	_, net, e := net.ParseCIDR(ipNetName)
-	if e != nil {
-		panic(e)
-	}
-	return &ipNet{IPNet: net, name: ipNetName}
+	net := netaddr.MustParseIPPrefix(ipNetName)
+	return &ipNet{IPPrefix: net, name: ipNetName}
 }
 
-func getIPObj(ip net.IP, mask net.IPMask, ipNet2obj name2ipNet) *ipNet {
-	prefix, _ := mask.Size()
-	name := ip.String() + "/" + strconv.Itoa(prefix)
+func getIPObj(ip netaddr.IP, prefix uint8, ipNet2obj name2ipNet) *ipNet {
+	name := ip.String() + "/" + strconv.Itoa(int(prefix))
 	obj, ok := ipNet2obj[name]
 	if !ok {
-		obj = &ipNet{IPNet: &net.IPNet{IP: ip, Mask: mask}, name: name}
+		obj = &ipNet{IPPrefix: netaddr.IPPrefix{IP: ip, Bits: prefix}, name: name}
 		ipNet2obj[name] = obj
 	}
 	return obj
@@ -105,46 +100,44 @@ func getNet00(ipv6 bool, ipNet2obj name2ipNet) *ipNet {
 }
 
 func setupIPNetRelation(ipNet2obj name2ipNet) {
-	maskIPMap := make(map[string]map[string]*ipNet)
+	prefixIPMap := make(map[uint8]map[netaddr.IP]*ipNet)
 
 	// Collect networks into maskIPMap.
 	for _, network := range ipNet2obj {
-		ip, mask := network.IP, network.Mask
-		ipMap, ok := maskIPMap[string(mask)]
+		ip, prefix := network.IP, network.Bits
+		ipMap, ok := prefixIPMap[prefix]
 		if !ok {
-			ipMap = make(map[string]*ipNet)
-			maskIPMap[string(mask)] = ipMap
+			ipMap = make(map[netaddr.IP]*ipNet)
+			prefixIPMap[prefix] = ipMap
 		}
-		ipMap[string(ip)] = network
+		ipMap[ip] = network
 	}
 
 	// Compare networks.
-	// Go from smaller to larger networks.
-	var maskList []net.IPMask
-	for k := range maskIPMap {
-		maskList = append(maskList, net.IPMask(k))
+	var prefixList []uint8
+	for k := range prefixIPMap {
+		prefixList = append(prefixList, k)
 	}
-	less := func(i, j int) bool {
-		return bytes.Compare(maskList[i], maskList[j]) == -1
-	}
-	sort.Slice(maskList, func(i, j int) bool { return less(j, i) })
-	for i, mask := range maskList {
-		upperMasks := maskList[i+1:]
+	// Go from small to larger networks.
+	sort.Slice(prefixList, func(i, j int) bool {
+		return prefixList[i] > prefixList[j]
+	})
+	for i, prefix := range prefixList {
+		upperPrefixes := prefixList[i+1:]
 
 		// No supernets available
-		if len(upperMasks) == 0 {
+		if len(upperPrefixes) == 0 {
 			break
 		}
 
-		ipMap := maskIPMap[string(mask)]
+		ipMap := prefixIPMap[prefix]
 		for ip, subnet := range ipMap {
 
 			// Find networks which include current subnet.
-			// upperMasks holds masks of potential supernets.
-			for _, m := range upperMasks {
-
-				i := net.IP(ip).Mask(net.IPMask(m))
-				bignet, ok := maskIPMap[string(m)][string(i)]
+			// upperPrefixes holds prefixes of potential supernets.
+			for _, p := range upperPrefixes {
+				n, _ := ip.Prefix(p)
+				bignet, ok := prefixIPMap[p][n.IP]
 				if ok {
 					subnet.up = bignet
 					break
@@ -155,9 +148,11 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Propagate content of attribute optNetworks to all subnets.
 	// Go from large to smaller networks.
-	sort.Slice(maskList, less)
-	for _, mask := range maskList {
-		for _, network := range maskIPMap[string(mask)] {
+	sort.Slice(prefixList, func(i, j int) bool {
+		return prefixList[i] < prefixList[j]
+	})
+	for _, prefix := range prefixList {
+		for _, network := range prefixIPMap[prefix] {
 			up := network.up
 			if up == nil {
 				continue
