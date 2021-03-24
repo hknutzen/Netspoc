@@ -28,16 +28,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -423,7 +420,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename string) []string {
+func readFileLines(filename, prev string) []string {
 	fd, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -440,84 +437,13 @@ func readFileLines(filename string) []string {
 	return result
 }
 
-type pass2Result int
-
-const (
-	ok pass2Result = iota
-	reuse
-)
-
-func pass2File(devicePath, dir, prev string, c chan pass2Result) {
+func File(devicePath, dir, prev string) int {
 	if tryPrev(devicePath, dir, prev) {
-		c <- reuse
-		return
+		return 1
 	}
 	file := dir + "/" + devicePath
 	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file + ".config")
+	config := readFileLines(file+".config", prev)
 	printCombined(config, routerData, file)
-	c <- ok
-}
-
-func applyConcurrent(
-	devices chan string, finished chan bool, dir, prev string) {
-
-	var started, generated, reused int
-	concurrent := conf.Conf.ConcurrencyPass2
-	c := make(chan pass2Result, concurrent)
-	workersLeft := concurrent
-
-	waitAndCheck := func() {
-		switch <-c {
-		case ok:
-			generated++
-		case reuse:
-			reused++
-		}
-		started--
-	}
-
-	// Read to be processed files line by line.
-	for devicePath := range devices {
-		if 1 >= concurrent {
-			// Process sequentially.
-			pass2File(devicePath, dir, prev, c)
-			waitAndCheck()
-		} else if workersLeft > 0 {
-			// Start concurrent jobs at beginning.
-			go pass2File(devicePath, dir, prev, c)
-			workersLeft--
-			started++
-		} else {
-			// Start next job, after some job has finished.
-			waitAndCheck()
-			go pass2File(devicePath, dir, prev, c)
-			started++
-		}
-	}
-
-	// Wait for all jobs to be finished.
-	for started > 0 {
-		waitAndCheck()
-	}
-
-	if generated > 0 {
-		info.Msg("Generated files for %d devices", generated)
-	}
-	if reused > 0 {
-		info.Msg("Reused %d files from previous run", reused)
-	}
-	finished <- true
-}
-
-func Compile(dir string, fromPass1 chan string, finished chan bool) {
-	prev := path.Join(dir, ".prev")
-	applyConcurrent(fromPass1, finished, dir, prev)
-
-	// Remove directory '.prev' created by pass1
-	// or remove symlink '.prev' created by newpolicy.pl.
-	err := os.RemoveAll(prev)
-	if err != nil {
-		panic(err)
-	}
+	return 0
 }

@@ -345,10 +345,9 @@ Finding routes
 Generating reverse rules for stateless routers
 Marking rules for secondary optimization
 Distributing rules
+Printing code
 Saving 6 old files of '' to subdirectory '.prev'
-Printing intermediate code
-Finished pass1
-Reused 2 files from previous run
+Reused files for 2 devices from previous run
 Finished
 =OUTPUT=
 -- r1

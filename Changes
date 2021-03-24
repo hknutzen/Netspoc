@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Optimizations
+
 6.026     2021-03-10 16:03:48+01:00 Europe/Berlin
 
  - Fixed check for duplicate routes at VPN router.
