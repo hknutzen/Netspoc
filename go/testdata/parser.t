@@ -9,6 +9,36 @@ Error: invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
 =END=
 
 ############################################################
+=TITLE=Invalid IP in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip = 10.1.0.0 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: invalid CIDR address: 10.1.0.0 at line 8 of INPUT, near "ip = --HERE-->10.1.0.0"
+Aborted
+=END=
+
+############################################################
+=TITLE=IP and prefix don't match in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+group:g1 = any:[ ip = 10.1.1.0/16 & network:n1];
+=END=
+=ERROR=
+Error: IP and mask don't match at line 2 of INPUT, near "ip = --HERE-->10.1.1.0/16"
+Aborted
+=END=
+
+############################################################
 =TITLE=Unknown model for managed router
 =INPUT=
 router:R = {
