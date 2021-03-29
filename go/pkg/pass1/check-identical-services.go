@@ -3,7 +3,6 @@ package pass1
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"net"
 	"sort"
 )
 
@@ -296,7 +295,7 @@ func elemEq(e1, e2 ast.Element) bool {
 		return ok && a.Type == b.Type && elementsEq(a.Elements, b.Elements)
 	case *ast.AggAuto:
 		b, ok := e2.(*ast.AggAuto)
-		return ok && netEq(a.Net, b.Net) && elementsEq(a.Elements, b.Elements)
+		return ok && a.Net == b.Net && elementsEq(a.Elements, b.Elements)
 	case *ast.IntfAuto:
 		b, ok := e2.(*ast.IntfAuto)
 		return ok && a.Managed == b.Managed && a.Selector == b.Selector &&
@@ -309,11 +308,4 @@ func elemEq(e1, e2 ast.Element) bool {
 		return ok && elementsEq(a.Elements, b.Elements)
 	}
 	return false
-}
-
-func netEq(a, b *net.IPNet) bool {
-	if a == nil {
-		return a == b
-	}
-	return a.String() == b.String()
 }

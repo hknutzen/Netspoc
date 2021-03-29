@@ -1,10 +1,9 @@
 package pass1
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"net"
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -16,40 +15,42 @@ func natName(n *network) string {
 	return name
 }
 
-func processSubnetRelation(maskIPMap map[string]map[string]*network,
+func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 	work func(sub, big *network)) {
 
-	maskList := make([]net.IPMask, 0, len(maskIPMap))
-	for k, _ := range maskIPMap {
-		maskList = append(maskList, net.IPMask(k))
+	prefixList := make([]uint8, 0, len(prefixIPMap))
+	for p, _ := range prefixIPMap {
+		prefixList = append(prefixList, p)
 	}
 
-	sort.Slice(maskList, func(i, j int) bool {
-		// Go from smaller to larger networks, i.e big mask value first.
-		return bytes.Compare(maskList[i], maskList[j]) == 1
+	sort.Slice(prefixList, func(i, j int) bool {
+		// Go from smaller to larger networks, i.e big prefix value first.
+		return prefixList[i] > prefixList[j]
 	})
-	for i, mask := range maskList {
-		upperMasks := maskList[i+1:]
+	for i, prefix := range prefixList {
+		upperPrefixes := prefixList[i+1:]
 
 		// No supernets available
-		if len(upperMasks) == 0 {
+		if len(upperPrefixes) == 0 {
 			break
 		}
 
-		ipMap := maskIPMap[string(mask)]
-		ipList := make([]string, 0, len(ipMap))
+		ipMap := prefixIPMap[prefix]
+		ipList := make([]netaddr.IP, 0, len(ipMap))
 		for ip, _ := range ipMap {
 			ipList = append(ipList, ip)
 		}
-		sort.Strings(ipList)
+		sort.Slice(ipList, func(i, j int) bool {
+			return ipList[i].Compare(ipList[j]) == -1
+		})
 		for _, ip := range ipList {
 			sub := ipMap[ip]
 
 			// Find networks which include current subnet.
 			// upperMasks holds masks of potential supernets.
-			for _, m := range upperMasks {
-				i := net.IP(ip).Mask(net.IPMask(m))
-				if big, ok := maskIPMap[string(m)][string(i)]; ok {
+			for _, p := range upperPrefixes {
+				up, _ := ip.Prefix(p)
+				if big, ok := prefixIPMap[p][up.IP]; ok {
 					work(sub, big)
 
 					// Only handle direct subnet relation.
@@ -66,45 +67,41 @@ func (c *spoc) checkSubnets(n, subnet *network, context string) {
 	if n.isAggregate || subnet.isAggregate {
 		return
 	}
-	subIp, subMask := subnet.ip, subnet.mask
-	check := func(ip1, ip2 net.IP, obj groupObj) {
-		if matchIp(ip1, subIp, subMask) ||
-			ip2 != nil &&
-				(matchIp(ip2, subIp, subMask) ||
-					bytes.Compare(ip1, subIp) != -1 &&
-						bytes.Compare(subIp, ip2) != -1) {
+	ipp := subnet.ipp
+	err := func(obj groupObj) {
+		where := subnet.name
+		if context != "" {
+			where += " in " + context
+		}
+		c.warn("IP of %s overlaps with subnet %s", obj, where)
+	}
+INTF:
+	for _, intf := range n.interfaces {
+		if intf.ipType == hasIP {
+			if ipp.Contains(intf.ip) {
 
-			// NAT to an interface address (masquerading) is allowed.
-			if intf, ok := obj.(*routerIntf); ok {
+				// NAT to an interface address (masquerading) is allowed.
 				if tags := intf.bindNat; tags != nil {
 					if tag2 := subnet.natTag; tag2 != "" {
 						for _, tag := range tags {
 							if tag == tag2 &&
-								intf.ip.Equal(subnet.ip) && isHostMask(subnet.mask) {
-								return
+								intf.ip == ipp.IP && ipp.IsSingleIP() {
+								continue INTF
 							}
 						}
 					}
 				}
+				err(intf)
 			}
-			where := subnet.name
-			if context != "" {
-				where += " in " + context
-			}
-			c.warn("IP of %s overlaps with subnet %s", obj, where)
-		}
-	}
-	for _, intf := range n.interfaces {
-		if intf.ipType == hasIP {
-			check(intf.ip, nil, intf)
 		}
 	}
 	for _, host := range n.hosts {
-		if ip := host.ip; ip != nil {
-			check(ip, nil, host)
-		} else {
-			r := host.ipRange
-			check(r[0], r[1], host)
+		if ip := host.ip; !ip.IsZero() {
+			if ipp.Contains(ip) {
+				err(host)
+			}
+		} else if host.ipRange.Overlaps(ipp.Range()) {
+			err(host)
 		}
 	}
 }
@@ -126,35 +123,34 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	// Add networks of zone to maskIPMap.
 	// Use NAT IP/mask.
-	maskIPMap := make(map[string]map[string]*network)
+	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
-		nn := getNatNetwork(n, natMap)
-		ip, mask := nn.ip, nn.mask
-		ipMap := maskIPMap[string(mask)]
+		net := getNatNetwork(n, natMap).ipp
+		ipMap := prefixIPMap[net.Bits]
 		if ipMap == nil {
-			ipMap = make(map[string]*network)
-			maskIPMap[string(mask)] = ipMap
+			ipMap = make(map[netaddr.IP]*network)
+			prefixIPMap[net.Bits] = ipMap
 		}
 
 		// Found two different networks with identical IP/mask.
-		if other := ipMap[string(ip)]; other != nil {
+		if other := ipMap[net.IP]; other != nil {
 			c.err("%s and %s have identical IP/mask in %s",
 				n.name, other.name, z.name)
 		} else {
 
 			// Store original network under NAT IP/mask.
-			ipMap[string(ip)] = n
+			ipMap[net.IP] = n
 		}
 	}
 	for _, n := range z.networks {
 		add(n)
 	}
-	for _, n := range z.ipmask2aggregate {
+	for _, n := range z.ipPrefix2aggregate {
 		add(n)
 	}
 
 	// Process networks of zone, that are in direct subnet relation.
-	processSubnetRelation(maskIPMap, func(sub, big *network) {
+	processSubnetRelation(prefixIPMap, func(sub, big *network) {
 
 		// Collect subnet relation.
 		sub.up = big
@@ -326,20 +322,20 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	// isIn and identical.
 
 	// Mapping Mask -> IP -> Network|NAT Network.
-	maskIPMap := make(map[string]map[string]*network)
+	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 
 	// Mapping from one network|NAT network to list of elements with
 	// identical IP address.
 	identical := make(map[*network]netList)
 
 	for _, nn := range natNetworks {
-		ip, mask := nn.ip, nn.mask
-		ipMap := maskIPMap[string(mask)]
+		ipp := nn.ipp
+		ipMap := prefixIPMap[ipp.Bits]
 		if ipMap == nil {
-			ipMap = make(map[string]*network)
-			maskIPMap[string(mask)] = ipMap
+			ipMap = make(map[netaddr.IP]*network)
+			prefixIPMap[ipp.Bits] = ipMap
 		}
-		if other := ipMap[string(ip)]; other != nil {
+		if other := ipMap[ipp.IP]; other != nil {
 
 			// Bild lists of identical networks.
 			if identical[other] == nil {
@@ -347,14 +343,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			identical[other] = append(identical[other], nn)
 		} else {
-			ipMap[string(ip)] = nn
+			ipMap[ipp.IP] = nn
 		}
 	}
 
 	// Calculate isIn relation from IP addresses;
 	// This includes all addresses of all networks in all NAT domains.
 	isIn := make(map[*network]*network)
-	processSubnetRelation(maskIPMap, func(sub, big *network) {
+	processSubnetRelation(prefixIPMap, func(sub, big *network) {
 		isIn[sub] = big
 	})
 
@@ -675,9 +671,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				natSubnet := getNatNetwork(subnet, m)
 				if natSubnet.dynamic {
 					natBignet := getNatNetwork(bignet, m)
-					if natBignet.dynamic &&
-						natSubnet.ip.Equal(natBignet.ip) &&
-						net.IP(natSubnet.mask).Equal(net.IP(natBignet.mask)) {
+					if natBignet.dynamic && natSubnet.ipp == natBignet.ipp {
 						continue
 					}
 				}

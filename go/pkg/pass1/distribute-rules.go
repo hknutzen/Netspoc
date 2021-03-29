@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"net"
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -188,8 +188,9 @@ func getMulticastObjects(info *mcastProto, ipV6 bool) []someObj {
 	if m.networks == nil {
 		l := make([]*network, len(m.ips))
 		for i, s := range m.ips {
-			ip := net.ParseIP(s)
-			l[i] = &network{ipObj: ipObj{ip: ip}, mask: getHostMask(ipV6)}
+			ip := netaddr.MustParseIP(s)
+			l[i] =
+				&network{ipp: netaddr.IPPrefix{IP: ip, Bits: getHostPrefix(ipV6)}}
 		}
 		m.networks = l
 	}

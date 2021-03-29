@@ -7,7 +7,6 @@ package parser
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/scanner"
-	"net"
 	"strings"
 )
 
@@ -189,26 +188,13 @@ func (p *parser) simpleAuto(start int, typ string) ast.Element {
 	return a
 }
 
-func (p *parser) ipPrefix() *net.IPNet {
-	ip, n, err := net.ParseCIDR(p.tok)
-	if err != nil {
-		p.syntaxErr("%s", err)
-		return nil
-	}
-	if !n.IP.Equal(ip) {
-		p.syntaxErr("IP and mask don't match")
-	}
-	p.next()
-	return n
-}
-
 func (p *parser) aggAuto(start int, typ string) ast.Element {
 	a := new(ast.AggAuto)
 	a.Start = start
 	a.Type = typ
 	if p.check("ip") {
 		p.check("=")
-		a.Net = p.ipPrefix()
+		a.Net = p.name()
 		p.expect("&")
 	}
 	a.Elements, a.Next = p.union("]")

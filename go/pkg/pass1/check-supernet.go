@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"net"
+	"inet.af/netaddr"
 	"strings"
 )
 
@@ -83,7 +83,7 @@ func shortNameList(list []someObj) string {
 //   - subnet of element of net_hash.
 // Result: List of found networks or aggregates or undef.
 func findZoneNetworks(
-	zone *zone, isAgg bool, ip net.IP, mask net.IPMask, natMap natMap,
+	zone *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
@@ -98,8 +98,7 @@ func findZoneNetworks(
 			}
 		}
 	}
-	key := ipmask{string(ip), string(mask)}
-	aggregate := zone.ipmask2aggregate[key]
+	aggregate := zone.ipPrefix2aggregate[ipp]
 	if aggregate != nil && !aggregate.invisible {
 		if inNetHash(aggregate) {
 			return nil
@@ -108,14 +107,14 @@ func findZoneNetworks(
 	}
 
 	// Use cached result.
-	if net, found := zone.ipmask2net[key]; found {
+	if net, found := zone.ipPrefix2net[ipp]; found {
 		return net
 	}
 
 	// Real networks in zone without aggregates and without subnets.
 	var result netList
 
-	prefix, _ := mask.Size()
+	bits := ipp.Bits
 	for _, net := range zone.networks {
 		if inNetHash(net) {
 			continue
@@ -124,18 +123,16 @@ func findZoneNetworks(
 		if natNet.hidden {
 			continue
 		}
-		i, m := natNet.ip, natNet.mask
-		p, _ := m.Size()
-		if p >= prefix && matchIp(i, ip, mask) ||
-			isAgg && p < prefix && matchIp(ip, i, m) {
+		if natNet.ipp.Bits >= bits && ipp.Contains(natNet.ipp.IP) ||
+			isAgg && natNet.ipp.Bits < bits && natNet.ipp.Contains(ipp.IP) {
 
 			result = append(result, net)
 		}
 	}
-	if zone.ipmask2net == nil {
-		zone.ipmask2net = make(map[ipmask]netList)
+	if zone.ipPrefix2net == nil {
+		zone.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
 	}
-	zone.ipmask2net[key] = result
+	zone.ipPrefix2net[ipp] = result
 	return result
 }
 
@@ -171,10 +168,10 @@ func (c *spoc) checkSupernetInZone1(
 	if natSuper.hidden {
 		return
 	}
-	ip, mask := natSuper.ip, natSuper.mask
+	ipp := natSuper.ipp
 	netMap := rule.zone2netMap[zone]
 	networks :=
-		findZoneNetworks(zone, supernet.isAggregate, ip, mask, natMap, netMap)
+		findZoneNetworks(zone, supernet.isAggregate, ipp, natMap, netMap)
 
 	if len(networks) == 0 {
 		return
@@ -186,9 +183,7 @@ func (c *spoc) checkSupernetInZone1(
 	if len(networks) > 2 {
 
 		// Show also aggregate, if multiple networks are found.
-		prefix, _ := mask.Size()
-		orAgg = fmt.Sprintf("any:[ ip=%s/%d & %s ]",
-			ip.String(), prefix, net0.name)
+		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp.String(), net0.name)
 	} else if net0.isAggregate {
 
 		// If aggregate has networks, show both, networks and aggreagte.
@@ -676,19 +671,15 @@ func matchPrtList(prtList1, prtList2 []*proto) bool {
 // than return all matching networks inside that aggregate.
 func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
 	natObj := getNatNetwork(obj, natMap)
-	ip, mask := natObj.ip, natObj.mask
-	prefix, _ := mask.Size()
+	net1 := natObj.ipp
 
 	var matching []someObj
 	for _, src := range list {
-		net := src.address(natMap)
-		i, m := net.IP, net.Mask
-		p, _ := m.Size()
-
-		if p >= prefix && matchIp(i, ip, mask) {
+		net2 := src.address(natMap)
+		if net2.Bits >= net1.Bits && net1.Contains(net2.IP) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
-		} else if p < prefix && matchIp(ip, i, m) {
+		} else if net2.Bits < net1.Bits && net2.Contains(net1.IP) {
 			// Element is supernet of obj.
 			x, ok := src.(*network)
 			if ok && x.isAggregate {
@@ -890,7 +881,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			// Ignore the internet. If the internet is used as src and dst
 			// then the implicit transient rule is assumed to be ok.
 			if !net.isAggregate {
-				if size, _ := net.mask.Size(); size == 0 {
+				if net.ipp.Bits == 0 {
 					continue
 				}
 			}
@@ -976,7 +967,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				// If mask of obj2 is 0.0.0.0, take all elements.
 				// Otherwise check IP addresses in NAT domain of obj2.
 				srcList1 := rule1.src
-				if size, _ := obj2.mask.Size(); size != 0 {
+				if obj2.ipp.Bits != 0 {
 					srcList1 = getIpMatching(obj2, srcList1, natMap)
 					if len(srcList1) == 0 {
 						continue
@@ -1000,7 +991,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					// Find elements of dst of rule2 with an IP
 					// address matching obj1.
 					dstList2 := rule2.dst
-					if size, _ := net1.mask.Size(); size != 0 {
+					if net1.ipp.Bits != 0 {
 						dstList2 = getIpMatching(net1, dstList2, natMap)
 						if len(dstList2) == 0 {
 							continue

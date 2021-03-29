@@ -1,12 +1,6 @@
 package pass1
 
-import (
-	"net"
-)
-
-func matchIp(ip, i net.IP, m net.IPMask) bool {
-	return i.Equal(ip.Mask(m))
-}
+import ()
 
 //#############################################################################
 // Mark rules for secondary filtering.
@@ -318,13 +312,10 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					}
 					isSubnet, found := cache[pair{supernet, n}]
 					if !found {
-						ip, mask := n.ip, n.mask
-						prefix, _ := mask.Size()
 						nm := n.zone.natDomain.natMap
 						obj := getNatNetwork(supernet, nm)
-						i, m := obj.ip, obj.mask
-						p, _ := m.Size()
-						isSubnet = p < prefix && matchIp(ip, i, m)
+						isSubnet =
+							obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)
 						cache[pair{supernet, n}] = isSubnet
 					}
 					if !isSubnet {

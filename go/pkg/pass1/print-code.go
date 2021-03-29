@@ -1,13 +1,13 @@
 package pass1
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+	"inet.af/netaddr"
 	"net"
 	"os"
 	"os/exec"
@@ -67,8 +67,8 @@ func printHeader(fh *os.File, r *router, what string) {
 	fmt.Fprintln(fh, commentChar, "[", what, "]")
 }
 
-func iosRouteCode(n *net.IPNet) string {
-	return n.IP.String() + " " + net.IP(n.Mask).String()
+func iosRouteCode(n netaddr.IPPrefix) string {
+	return n.IP.String() + " " + net.IP(n.IPNet().Mask).String()
 }
 
 func printRoutes(fh *os.File, r *router) {
@@ -76,9 +76,9 @@ func printRoutes(fh *os.File, r *router) {
 	model := r.model
 	vrf := r.vrf
 	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
-	zeroIp := getZeroIp(ipv6)
+	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
-	prefix2ip2net := make(map[int]map[string]*network)
+	prefix2ip2net := make(map[uint8]map[netaddr.IP]*network)
 	type hopInfo struct {
 		intf *routerIntf
 		hop  *routerIntf
@@ -108,8 +108,7 @@ func printRoutes(fh *os.File, r *router) {
 					continue
 				}
 
-				ip := natNet.ip
-				prefixlen, _ := natNet.mask.Size()
+				prefixlen := natNet.ipp.Bits
 				if prefixlen == 0 {
 					doAutoDefaultRoute = false
 				}
@@ -118,10 +117,10 @@ func printRoutes(fh *os.File, r *router) {
 				// Can't use ip slice as key.
 				m := prefix2ip2net[prefixlen]
 				if m == nil {
-					m = make(map[string]*network)
+					m = make(map[netaddr.IP]*network)
 					prefix2ip2net[prefixlen] = m
 				}
-				m[string(ip)] = natNet
+				m[natNet.ipp.IP] = natNet
 
 				// This is unambiguous, because only a single static
 				// route is allowed for each network.
@@ -136,26 +135,26 @@ func printRoutes(fh *os.File, r *router) {
 	// Combine adjacent networks, if both use same hop and
 	// if combined network doesn't already exist.
 	// Prepare invPrefixAref.
-	var bitstrLen int
+	var bitstrLen uint8
 	if ipv6 {
 		bitstrLen = 128
 	} else {
 		bitstrLen = 32
 	}
-	invPrefixAref := make([]map[string]*network, bitstrLen+1)
-	keys := make([]int, 0, len(prefix2ip2net))
+	invPrefixAref := make([]map[netaddr.IP]*network, bitstrLen+1)
+	keys := make([]uint8, 0, len(prefix2ip2net))
 	for k, _ := range prefix2ip2net {
 		keys = append(keys, k)
 	}
 	for _, prefix := range keys {
 		invPrefix := bitstrLen - prefix
 		ip2net := prefix2ip2net[prefix]
-		keys := make([]string, 0, len(ip2net))
+		keys := make([]netaddr.IP, 0, len(ip2net))
 		for k, _ := range ip2net {
 			keys = append(keys, k)
 		}
 		for _, ip := range keys {
-			net := ip2net[string(ip)]
+			net := ip2net[ip]
 
 			// Don't combine peers of ASA with site-to-site VPN.
 			if asaCrypto {
@@ -166,10 +165,10 @@ func printRoutes(fh *os.File, r *router) {
 			}
 			m := invPrefixAref[invPrefix]
 			if m == nil {
-				m = make(map[string]*network)
+				m = make(map[netaddr.IP]*network)
 				invPrefixAref[invPrefix] = m
 			}
-			m[string(ip)] = net
+			m[ip] = net
 		}
 	}
 
@@ -178,43 +177,31 @@ func printRoutes(fh *os.File, r *router) {
 	for invPrefix, ip2net := range invPrefixAref {
 
 		// Must not optimize network 0/0; it has no supernet.
-		if invPrefix >= bitstrLen {
+		if uint8(invPrefix) >= bitstrLen {
 			break
 		}
 		if ip2net == nil {
 			continue
 		}
-		partPrefix := bitstrLen - invPrefix
-		partMask := net.CIDRMask(partPrefix, bitstrLen)
-		combinedInvPrefix := invPrefix + 1
+		partPrefix := bitstrLen - uint8(invPrefix)
+		combinedInvPrefix := uint8(invPrefix + 1)
 		combinedPrefix := bitstrLen - combinedInvPrefix
-		combinedMask := net.CIDRMask(combinedPrefix, bitstrLen)
-		n := len(partMask)
 
-		// A single bit, masking the lowest network bit.
-		nextBit := make(net.IPMask, n)
-		for i, b := range combinedMask {
-			nextBit[i] = ^b & partMask[i]
-		}
-
-		keys := make([]net.IP, 0, len(ip2net))
-		for k, _ := range ip2net {
-			keys = append(keys, net.IP(k))
-		}
-		for _, ip := range keys {
+		for ip, left := range ip2net {
 
 			// Only analyze left part of two adjacent networks.
-			if !ip.Mask(nextBit).Equal(zeroIp) {
+			part, _ := ip.Prefix(partPrefix)
+			comb, _ := ip.Prefix(combinedPrefix)
+			if part.IP != comb.IP {
 				continue
 			}
-			left := ip2net[string(ip)]
+
+			// Calculate IP of right part.
+			rg := left.ipp.Range()
+			nextIP := rg.To.Next()
 
 			// Find corresponding right part.
-			nextIP := make(net.IP, n)
-			for i, b := range ip {
-				nextIP[i] = b | nextBit[i]
-			}
-			right := ip2net[string(nextIP)]
+			right := ip2net[nextIP]
 			if right == nil {
 				continue
 			}
@@ -229,40 +216,42 @@ func printRoutes(fh *os.File, r *router) {
 			ip2net := invPrefixAref[combinedInvPrefix]
 
 			if ip2net == nil {
-				ip2net = make(map[string]*network)
+				ip2net = make(map[netaddr.IP]*network)
 				invPrefixAref[combinedInvPrefix] = ip2net
-			} else if ip2net[string(ip)] != nil {
+			} else if ip2net[ip] != nil {
 				// Combined network already exists.
 				continue
 			}
 
 			// Add combined route.
-			combined := &network{ipObj: ipObj{ip: ip}, mask: combinedMask}
-			ip2net[string(ip)] = combined
+			combined := &network{ipp: comb}
+			ip2net[ip] = combined
 
 			ip2net = prefix2ip2net[combinedPrefix]
 			if ip2net == nil {
-				ip2net = make(map[string]*network)
+				ip2net = make(map[netaddr.IP]*network)
 				prefix2ip2net[combinedPrefix] = ip2net
 			}
-			ip2net[string(ip)] = combined
+			ip2net[ip] = combined
 			net2hopInfo[combined] = hopLeft
 
 			// Left and right part are no longer used.
-			delete(prefix2ip2net[partPrefix], string(ip))
-			delete(prefix2ip2net[partPrefix], string(nextIP))
+			delete(prefix2ip2net[partPrefix], ip)
+			delete(prefix2ip2net[partPrefix], nextIP)
 		}
 	}
 
 	// Find and remove duplicate networks.
-	// Go from smaller to larger networks.
-	prefixes := make([]int, 0, len(prefix2ip2net))
+	// Go from small to larger networks.
+	prefixes := make([]uint8, 0, len(prefix2ip2net))
 	for k, _ := range prefix2ip2net {
 		prefixes = append(prefixes, k)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(prefixes)))
+	sort.Slice(prefixes, func(i, j int) bool {
+		return prefixes[i] > prefixes[j]
+	})
 	type netInfo struct {
-		*net.IPNet
+		netaddr.IPPrefix
 		noOpt bool
 	}
 	intf2hop2netInfos := make(map[*routerIntf]map[*routerIntf][]netInfo)
@@ -270,16 +259,16 @@ func printRoutes(fh *os.File, r *router) {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
 		ip2net := prefix2ip2net[prefix]
-		ips := make([]net.IP, 0, len(ip2net))
+		ips := make([]netaddr.IP, 0, len(ip2net))
 		for k, _ := range ip2net {
-			ips = append(ips, net.IP(k))
+			ips = append(ips, k)
 		}
 		sort.Slice(ips, func(i, j int) bool {
-			return bytes.Compare(ips[i], ips[j]) == -1
+			return ips[i].Less(ips[j])
 		})
 	NETWORK:
 		for _, ip := range ips {
-			small := ip2net[string(ip)]
+			small := ip2net[ip]
 			hopInfo := net2hopInfo[small]
 			noOpt := false
 
@@ -288,8 +277,8 @@ func printRoutes(fh *os.File, r *router) {
 
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
-					i := ip.Mask(net.CIDRMask(p, bitstrLen))
-					big := prefix2ip2net[p][string(i)]
+					net, _ := ip.Prefix(p)
+					big := prefix2ip2net[p][net.IP]
 					if big == nil {
 						continue
 					}
@@ -317,7 +306,7 @@ func printRoutes(fh *os.File, r *router) {
 				intf2hop2netInfos[hopInfo.intf] = m
 			}
 			info := netInfo{
-				&net.IPNet{IP: ip, Mask: net.CIDRMask(prefix, bitstrLen)},
+				netaddr.IPPrefix{IP: ip, Bits: prefix},
 				noOpt,
 			}
 			m[hopInfo.hop] = append(m[hopInfo.hop], info)
@@ -356,7 +345,7 @@ func printRoutes(fh *os.File, r *router) {
 			// with supernet behind other hop.
 			hop2nets := intf2hop2netInfos[maxIntf]
 			nets := []netInfo{{
-				&net.IPNet{IP: zeroIp, Mask: net.CIDRMask(0, bitstrLen)},
+				zeroNet,
 				false,
 			}}
 			for _, net := range hop2nets[maxHop] {
@@ -401,10 +390,10 @@ func printRoutes(fh *os.File, r *router) {
 					var adr string
 					ip := "ip"
 					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPNet)
+						adr = fullPrefixCode(netinfo.IPPrefix)
 						ip += "v6"
 					} else {
-						adr = iosRouteCode(netinfo.IPNet)
+						adr = iosRouteCode(netinfo.IPPrefix)
 					}
 					fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
 				case "NX-OS":
@@ -415,7 +404,7 @@ func printRoutes(fh *os.File, r *router) {
 						fmt.Fprintln(fh, "vrf context", vrf)
 						nxosPrefix = " "
 					}
-					adr := fullPrefixCode(netinfo.IPNet)
+					adr := fullPrefixCode(netinfo.IPPrefix)
 					ip := "ip"
 					if ipv6 {
 						ip += "v6"
@@ -425,14 +414,14 @@ func printRoutes(fh *os.File, r *router) {
 					var adr string
 					ip := ""
 					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPNet)
+						adr = fullPrefixCode(netinfo.IPPrefix)
 						ip = "ipv6 "
 					} else {
-						adr = iosRouteCode(netinfo.IPNet)
+						adr = iosRouteCode(netinfo.IPPrefix)
 					}
 					fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
 				case "iproute":
-					adr := prefixCode(netinfo.IPNet)
+					adr := prefixCode(netinfo.IPPrefix)
 					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
 				case "none":
 					// Do nothing.
@@ -476,8 +465,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 				// Don't add 'any' (resulting from global:permit)
 				// to split_tunnel networks.
-				prefix, _ := n.mask.Size()
-				if prefix == 0 {
+				if n.ipp.Bits == 0 {
 					continue
 				}
 				if seen[n] {
@@ -494,13 +482,13 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 	// Sort for deterministic output:
 	sort.Slice(result, func(i, j int) bool {
-		switch bytes.Compare(result[i].ip, result[j].ip) {
+		switch result[i].ipp.IP.Compare(result[j].ipp.IP) {
 		case -1:
 			return true
 		case 1:
 			return false
 		}
-		return bytes.Compare(result[i].mask, result[j].mask) == -1
+		return result[i].ipp.Bits < result[j].ipp.Bits
 	})
 	return result
 }
@@ -839,9 +827,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
 
-				ip := src.ip.String()
+				ip := src.ipp.IP.String()
 				network := src.getNetwork()
-				if isHostMask(src.mask) {
+				if src.ipp.IsSingleIP() {
 
 					// For anyconnect clients.
 					pos := strings.IndexByte(id, '@')
@@ -851,7 +839,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					extendedKey[domain] = attributes["check-extended-key-usage"]
 					delete(attributes, "check-extended-key-usage")
 
-					mask := net.IP(network.mask).String()
+					mask := net.IP(network.ipp.IPNet().Mask).String()
 					groupPolicyName := ""
 					if len(attributes) > 0 {
 						groupPolicyName = "VPN-group-" + idName
@@ -868,12 +856,9 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					fmt.Fprintln(fh)
 				} else {
 					name := "pool-" + idName
-					mask := net.IP(src.mask).String()
-					maxIP := make(net.IP, len(src.ip))
-					for i, b := range src.ip {
-						maxIP[i] = b | ^src.mask[i]
-					}
-					max := maxIP.String()
+					mask := net.IP(src.ipp.IPNet().Mask).String()
+
+					max := src.ipp.Range().To.String()
 					fmt.Fprintln(fh, "ip local pool", name, ip+"-"+max, "mask", mask)
 					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
@@ -1536,7 +1521,7 @@ func (c *spoc) printStaticCryptoMap(
 	l := make([]*routerIntf, 0, len(interfaces))
 	l = append(l, interfaces...)
 	sort.Slice(l, func(i, j int) bool {
-		return bytes.Compare(l[i].peer.realIntf.ip, l[j].peer.realIntf.ip) == -1
+		return l[i].peer.realIntf.ip.Less(l[j].peer.realIntf.ip)
 	})
 
 	// Build crypto map for each tunnel interface.
@@ -1872,20 +1857,21 @@ func printRouterIntf(fh *os.File, r *router) {
 				addrCmd = "ip address negotiated"
 			default:
 				if model.usePrefix || ipv6 {
-					addr := intf.ip.String()
-					prefix, _ := intf.network.mask.Size()
 					if ipv6 {
 						addrCmd = "ipv6"
 					} else {
 						addrCmd = "ip"
 					}
-					addrCmd += " address " + addr + "/" + strconv.Itoa(prefix)
+					addrCmd += " address " + netaddr.IPPrefix{
+						IP:   intf.ip,
+						Bits: intf.network.ipp.Bits,
+					}.String()
 					if secondary {
 						addrCmd += " secondary"
 					}
 				} else {
 					addr := intf.ip.String()
-					mask := net.IP(intf.network.mask).String()
+					mask := net.IP(intf.network.ipp.IPNet().Mask).String()
 					addrCmd = "ip address " + addr + " " + mask
 					if secondary {
 						addrCmd += " secondary"
@@ -1922,23 +1908,16 @@ func printRouterIntf(fh *os.File, r *router) {
 	fmt.Fprintln(fh)
 }
 
-func isHostMask(m net.IPMask) bool {
-	prefix, size := m.Size()
-	return prefix == size
-}
-
-func prefixCode(n *net.IPNet) string {
-	prefix, size := n.Mask.Size()
-	if prefix == size {
+func prefixCode(n netaddr.IPPrefix) string {
+	if n.IsSingleIP() {
 		return n.IP.String()
 	}
-	return n.IP.String() + "/" + strconv.Itoa(prefix)
+	return n.String()
 
 }
 
-func fullPrefixCode(n *net.IPNet) string {
-	prefix, _ := n.Mask.Size()
-	return n.IP.String() + "/" + strconv.Itoa(prefix)
+func fullPrefixCode(n netaddr.IPPrefix) string {
+	return n.String()
 }
 
 // Collect interfaces that need protection by additional deny rules.
@@ -1957,10 +1936,9 @@ func getNeedProtect(r *router) []*routerIntf {
 		return nil
 	}
 	for _, i := range r.interfaces {
-		if len(i.ip) == 0 {
-			continue
+		if !i.ip.IsZero() {
+			l.push(i)
 		}
-		l.push(i)
 	}
 	return l
 }
@@ -1968,7 +1946,7 @@ func getNeedProtect(r *router) []*routerIntf {
 // Precompute string representation of IP addresses when NAT is not active.
 func (c *spoc) setupStdAddr() {
 	addNet := func(n *network) {
-		n.stdAddr = fullPrefixCode(&net.IPNet{IP: n.ip, Mask: n.mask})
+		n.stdAddr = n.ipp.String()
 	}
 	// Aggregates, networks, subnets.
 	for _, n := range c.allNetworks {
@@ -1977,7 +1955,7 @@ func (c *spoc) setupStdAddr() {
 		}
 		addNet(n)
 		for _, s := range n.subnets {
-			s.stdAddr = fullPrefixCode(&net.IPNet{IP: s.ip, Mask: s.mask})
+			s.stdAddr = s.ipp.String()
 		}
 	}
 	// network00
@@ -2003,7 +1981,7 @@ func (c *spoc) setupStdAddr() {
 			switch intf.ipType {
 			case hasIP:
 				intf.stdAddr =
-					fullPrefixCode(&net.IPNet{IP: intf.ip, Mask: getHostMask(v6)})
+					netaddr.IPPrefix{IP: intf.ip, Bits: getHostPrefix(v6)}.String()
 			case negotiatedIP:
 				intf.stdAddr = intf.network.stdAddr
 			}
@@ -2181,7 +2159,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 									}
 
 									// Ignore loopback network.
-									if isHostMask(subst.mask) {
+									if subst.ipp.IsSingleIP() {
 										continue
 									}
 

@@ -1,8 +1,7 @@
 package pass1
 
 import (
-	"bytes"
-	"net"
+	"inet.af/netaddr"
 	"strings"
 )
 
@@ -25,7 +24,7 @@ func (c *spoc) checkSubnetOf() {
 				n.subnetOf = nil
 				return
 			}
-			if !matchIp(n.ip, sn.ip, sn.mask) {
+			if !sn.ipp.Contains(n.ipp.IP) {
 				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
 					ctx, sn)
 			}
@@ -92,7 +91,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 }
 
 func (c *spoc) checkIPAddr(n *network) {
-	ip2name := make(map[string]string)
+	ip2name := make(map[netaddr.IP]string)
 	redundant := make(map[string]bool)
 
 	// 1. Check for duplicate interface addresses.
@@ -115,7 +114,7 @@ func (c *spoc) checkIPAddr(n *network) {
 
 				routeIntf = intf
 			}
-			ip := string(intf.ip)
+			ip := intf.ip
 			if other, found := ip2name[ip]; found {
 				if !(intf.redundant && redundant[other]) {
 					c.err("Duplicate IP address for %s and %s", other, intf)
@@ -134,41 +133,39 @@ func (c *spoc) checkIPAddr(n *network) {
 			routeIntf, shortIntf.nameList())
 	}
 
+	range2name := make(map[netaddr.IPRange]string)
 	for _, h := range n.hosts {
-		if h.ip != nil {
+		if !h.ip.IsZero() {
 			continue
 		}
-		lo := h.ipRange[0]
-		hi := h.ipRange[1]
+		rg := h.ipRange
+		if other, found := range2name[rg]; found {
+			c.err("Duplicate IP address for %s and %s", other, h)
+		} else {
+			range2name[rg] = h.name
+		}
 
-		subnets, _ := splitIpRange(lo, hi)
+		subnets := h.ipRange.Prefixes()
 		if len(subnets) == 1 {
-			len, size := subnets[0].Mask.Size()
-			if len != size {
+			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.
 				continue
 			}
 		}
-
-		for ipString, other := range ip2name {
-			ip := net.IP(ipString)
-			if bytes.Compare(lo, ip) != 1 && bytes.Compare(ip, hi) != 1 {
+		for ip, other := range ip2name {
+			if rg.Contains(ip) {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
 		}
 	}
 
 	for _, h := range n.hosts {
-		var key string
-		if h.ip != nil {
-			key = string(h.ip)
-		} else {
-			key = string(h.ipRange[0]) + "-" + string(h.ipRange[1])
-		}
-		if other, found := ip2name[key]; found {
-			c.err("Duplicate IP address for %s and %s", other, h)
-		} else {
-			ip2name[key] = h.name
+		if !h.ip.IsZero() {
+			if other, found := ip2name[h.ip]; found {
+				c.err("Duplicate IP address for %s and %s", other, h)
+			} else {
+				ip2name[h.ip] = h.name
+			}
 		}
 	}
 }
@@ -203,8 +200,7 @@ func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
 		for len(next) > 0 {
 			n2 := next[0]
 			next = next[1:]
-			if bytes.Compare(n1.ip, n2.ip) != 0 ||
-				bytes.Compare(n1.mask, n2.mask) != 0 {
+			if n1.ipp != n2.ipp {
 				c.err("%s and %s must have identical ip/mask", n1, n2)
 			}
 			connected[n2] = true
@@ -219,7 +215,7 @@ func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
 				seen[r] = true
 				count := 1
 				if l3 := in.layer3Intf; l3 != nil {
-					if !matchIp(l3.ip, n1.ip, n1.mask) {
+					if !n1.ipp.Contains(l3.ip) {
 						c.err("%s's IP doesn't match IP/mask of bridged networks",
 							l3)
 					}

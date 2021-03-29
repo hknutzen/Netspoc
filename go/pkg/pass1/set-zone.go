@@ -1,8 +1,7 @@
 package pass1
 
 import (
-	"bytes"
-	"net"
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -32,7 +31,10 @@ func (c *spoc) setZones() {
 
 		// Create zone.
 		name := "any:[" + n.name + "]"
-		z := &zone{name: name, ipmask2aggregate: make(map[ipmask]*network)}
+		z := &zone{
+			name:               name,
+			ipPrefix2aggregate: make(map[netaddr.IPPrefix]*network),
+		}
 		z.ipV6 = n.ipV6
 		c.allZones = append(c.allZones, z)
 
@@ -688,14 +690,14 @@ func (c *spoc) processAggregates() {
 		z.link = n // only used in cut-netspoc
 
 		// Assure that no other aggregate with same IP and mask exists in cluster
-		key := ipmask{string(agg.ip), string(agg.mask)}
+		ipp := agg.ipp
 		cluster := z.cluster
 		if len(cluster) > 1 {
 			// Collect aggregates inside clusters
 			aggInCluster.push(agg)
 		}
 		for _, z2 := range cluster {
-			if other := z2.ipmask2aggregate[key]; other != nil {
+			if other := z2.ipPrefix2aggregate[ipp]; other != nil {
 				c.err("Duplicate %s and %s in %s", other, agg, z)
 			}
 		}
@@ -706,7 +708,7 @@ func (c *spoc) processAggregates() {
 		// retain NAT at other aggregates.
 		// This is an optimization to prevent the creation of many aggregates 0/0
 		// if only inheritance of NAT from area to network is needed.
-		prefixlen, _ := agg.mask.Size()
+		prefixlen := agg.ipp.Bits
 		if prefixlen == 0 {
 			if nat := agg.nat; nat != nil {
 				if len(cluster) == 1 {
@@ -729,8 +731,8 @@ func (c *spoc) processAggregates() {
 			}
 		}
 
-		// Link aggragate and zone (also setting z.ipmask2aggregate)
-		c.linkAggregateToZone(agg, z, key)
+		// Link aggragate and zone (also setting z.ipPrefix2aggregate)
+		c.linkAggregateToZone(agg, z, ipp)
 	}
 
 	// Add aggregate to all zones in zone cluster.
@@ -870,8 +872,7 @@ func (c *spoc) checkUselessNat(nat1, nat2 *network, natSeen map[*network]bool) {
 //##############################################################################
 // Purpose : Check if nat definitions are equal.
 func natEqual(nat1, nat2 *network) bool {
-	return bytes.Compare(nat1.ip, nat2.ip) == 0 &&
-		bytes.Compare(nat1.mask, nat2.mask) == 0 &&
+	return nat1.ipp == nat2.ipp &&
 		nat1.dynamic == nat2.dynamic &&
 		nat1.hidden == nat2.hidden &&
 		nat1.identity == nat2.identity
@@ -888,7 +889,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 				natSupernets.push(n)
 			}
 		}
-		for _, n := range z.ipmask2aggregate {
+		for _, n := range z.ipPrefix2aggregate {
 			if n.nat != nil {
 				natSupernets.push(n)
 			}
@@ -896,10 +897,10 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 
 		// Proceed from smaller to larger objects. (Bigger mask first.)
 		sort.Slice(natSupernets, func(i, j int) bool {
-			return bytes.Compare(natSupernets[i].mask, natSupernets[j].mask) == 1
+			return natSupernets[i].ipp.Bits > natSupernets[j].ipp.Bits
 		})
 		for _, n := range natSupernets {
-			c.inheritNatToSubnetsInZone(n.name, n.nat, n.ip, n.mask, z, natSeen)
+			c.inheritNatToSubnetsInZone(n.name, n.nat, n.ipp, z, natSeen)
 		}
 
 		// Process zone instead of aggregate 0/0, because NAT is stored
@@ -914,7 +915,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 				}
 			}
 			c.inheritNatToSubnetsInZone(
-				z.name, z.nat, getZeroIp(z.ipV6), getZeroMask(z.ipV6), z, natSeen)
+				z.name, z.nat, getNetwork00(z.ipV6).ipp, z, natSeen)
 		}
 
 	}
@@ -927,7 +928,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 //            then NAT of B is used.
 func (c *spoc) inheritNatToSubnetsInZone(
 	from string, natMap map[string]*network,
-	ip net.IP, mask net.IPMask, z *zone, natSeen map[*network]bool) {
+	net netaddr.IPPrefix, z *zone, natSeen map[*network]bool) {
 
 	tags := make(stringList, 0, len(natMap))
 	for t, _ := range natMap {
@@ -944,7 +945,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 		for _, n := range z.networks {
 
 			// Only process subnets.
-			if bytes.Compare(n.mask, mask) != 1 || !matchIp(n.ip, ip, mask) {
+			if n.ipp.Bits <= net.Bits || !net.Contains(n.ipp.IP) {
 				continue
 			}
 
@@ -974,15 +975,17 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				if !nat.dynamic {
 
 					// Check mask of static NAT inherited from area or zone.
-					if bytes.Compare(nat.mask, n.mask) >= 1 {
+					if nat.ipp.Bits > n.ipp.Bits {
 						c.err("Must not inherit %s at %s\n"+
 							" because NAT network must be larger"+
 							" than translated network", nat.descr, n)
 					}
 
 					// Take higher bits from NAT IP, lower bits from original IP.
-					subNat.ip = mergeIP(n.ip, nat)
-					subNat.mask = n.mask
+					subNat.ipp = netaddr.IPPrefix{
+						IP:   mergeIP(n.ipp.IP, nat),
+						Bits: n.ipp.Bits,
+					}
 				}
 
 				if n.nat == nil {

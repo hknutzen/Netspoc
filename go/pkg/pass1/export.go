@@ -69,13 +69,13 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 }
 
 func printNetworkIp(n *network) string {
-	pIP := n.ip.String()
+	pIP := n.ipp.IP.String()
 	var pMask string
 	if n.ipV6 {
-		size, _ := n.mask.Size()
-		pMask = strconv.Itoa(size)
+		size := n.ipp.Bits
+		pMask = strconv.Itoa(int(size))
 	} else {
-		pMask = net.IP(n.mask).String()
+		pMask = net.IP(n.ipp.IPNet().Mask).String()
 	}
 	return pIP + "/" + pMask
 }
@@ -100,7 +100,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			// Don't print mask for loopback network. It needs to have
 			// exactly the same address as the corresponding loopback interface.
 			if n.loopback {
-				return n.ip.String()
+				return n.ipp.IP.String()
 			}
 
 			return printNetworkIp(n)
@@ -125,11 +125,10 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Dynamic NAT, take whole network.
 				return printNetworkIp(n)
 			}
-			if ip := h.ip; ip != nil {
+			if ip := h.ip; !ip.IsZero() {
 				return mergeIP(ip, n).String()
 			}
-			r := h.ipRange
-			return mergeIP(r[0], n).String() + "-" + mergeIP(r[1], n).String()
+			return h.ipRange.String()
 		}
 		n := x.network
 		ip = getIp(x, n)
@@ -181,9 +180,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 
 // Zone with network 0/0 doesn't have an aggregate 0/0.
 func getZoneName(z *zone) string {
-	ip := getZeroIp(z.ipV6)
-	mask := getZeroMask(z.ipV6)
-	if any := z.ipmask2aggregate[ipmask{string(ip), string(mask)}]; any != nil {
+	ipp := getNetwork00(z.ipV6).ipp
+	if any := z.ipPrefix2aggregate[ipp]; any != nil {
 		return any.name
 	} else {
 		return z.name
@@ -873,7 +871,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 		for _, n := range addSubnetworks(z.networks) {
 			process(n)
 		}
-		for _, n := range z.ipmask2aggregate {
+		for _, n := range z.ipPrefix2aggregate {
 			process(n)
 		}
 	}
@@ -1070,7 +1068,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 	for _, z := range c.allZones {
 
 		// All aggregates can be used in rules.
-		for _, agg := range z.ipmask2aggregate {
+		for _, agg := range z.ipPrefix2aggregate {
 			allObjects[agg] = true
 		}
 

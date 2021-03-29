@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"net"
+	"inet.af/netaddr"
 )
 
 type stringerList []fmt.Stringer
@@ -20,8 +20,7 @@ type autoExt struct {
 }
 
 type aggExt struct {
-	ip   net.IP
-	mask net.IPMask
+	net netaddr.IPPrefix
 }
 
 type userInfo struct {
@@ -83,7 +82,7 @@ type someObj interface {
 	String() string
 	getNetwork() *network
 	getUp() someObj
-	address(m natMap) *net.IPNet
+	address(m natMap) netaddr.IPPrefix
 	getAttr(attr attrKey) attrVal
 	getPathNode() pathStore
 	getZone() pathObj
@@ -139,7 +138,6 @@ type ipObj struct {
 	ownedObj
 	usedObj
 	name string
-	ip   net.IP
 }
 
 func (x ipObj) String() string { return x.name }
@@ -163,12 +161,12 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
+	ipp                  netaddr.IPPrefix
 	ipType               int
 	isAggregate          bool
 	isLayer3             bool
 	link                 *network
 	loopback             bool
-	mask                 net.IPMask
 	maxRoutingNet        *network
 	maxSecondaryNet      *network
 	nat                  map[string]*network
@@ -202,7 +200,7 @@ func (a *netList) push(e *network) {
 type netObj struct {
 	ipObj
 	usedObj
-	nat     map[string]net.IP
+	nat     map[string]netaddr.IP
 	network *network
 	up      someObj
 }
@@ -213,18 +211,19 @@ func (x *netObj) getUp() someObj       { return x.up }
 type subnet struct {
 	netObj
 	withStdAddr
-	mask             net.IPMask
 	hasNeighbor      bool
 	id               string
 	ldapId           string
 	neighbor         *subnet
+	ipp              netaddr.IPPrefix
 	radiusAttributes map[string]string
 }
 
 type host struct {
 	netObj
 	id               string
-	ipRange          [2]net.IP
+	ip               netaddr.IP
+	ipRange          netaddr.IPRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet
@@ -274,7 +273,7 @@ type aclInfo struct {
 	filterAnySrc bool
 	isStdACL     bool
 	isCryptoACL  bool
-	needProtect  []*net.IPNet
+	needProtect  []netaddr.IPPrefix
 	subAclList   aclList
 }
 
@@ -301,7 +300,7 @@ type router struct {
 	crosslinkIntfs          intfList
 	disabled                bool
 	extendedKeys            map[string]string
-	filterOnly              []*net.IPNet
+	filterOnly              []netaddr.IPPrefix
 	generalPermit           []*proto
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList
@@ -347,6 +346,7 @@ type routerIntf struct {
 	hub             []*crypto
 	spoke           *crypto
 	id              string
+	ip              netaddr.IP
 	ipType          int
 	isHub           bool
 	isLayer3        bool
@@ -482,11 +482,6 @@ type isakmp struct {
 	natTraversal   string
 }
 
-type ipmask struct {
-	ip   string // from string(net.IP)
-	mask string // from string(net.IPMask)
-}
-
 type zone struct {
 	ipVxObj
 	pathStoreData
@@ -498,8 +493,8 @@ type zone struct {
 	hasSecondary         bool
 	hasNonPrimary        bool
 	inArea               *area
-	ipmask2aggregate     map[ipmask]*network
-	ipmask2net           map[ipmask]netList
+	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
+	ipPrefix2net         map[netaddr.IPPrefix]netList
 	link                 *network
 	loopback             bool
 	nat                  map[string]*network

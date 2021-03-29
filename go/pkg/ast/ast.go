@@ -3,9 +3,7 @@
 //
 package ast
 
-import (
-	"net"
-)
+import ()
 
 // ----------------------------------------------------------------------------
 // Interfaces
@@ -113,7 +111,7 @@ func (a *SimpleAuto) GetElements() []Element { return a.Elements }
 
 type AggAuto struct {
 	SimpleAuto
-	Net *net.IPNet
+	Net string
 }
 type IntfAuto struct {
 	SimpleAuto

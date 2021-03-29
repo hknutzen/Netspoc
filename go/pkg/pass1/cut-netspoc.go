@@ -365,7 +365,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	zoneUsed := make(map[*zone]bool)
 	zoneCheck := make(map[*zone]bool)
 	for _, z := range c.allZones {
-		for _, agg := range z.ipmask2aggregate {
+		for _, agg := range z.ipPrefix2aggregate {
 			if !agg.isUsed {
 				continue
 			}
@@ -389,10 +389,8 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		if len(z.nat) == 0 {
 			continue
 		}
-		ip := getZeroIp(z.ipV6)
-		mask := getZeroMask(z.ipV6)
-		key := ipmask{string(ip), string(mask)}
-		if agg0 := z.ipmask2aggregate[key]; agg0 != nil {
+		ipp := getNetwork00(z.ipV6).ipp
+		if agg0 := z.ipPrefix2aggregate[ipp]; agg0 != nil {
 			agg0.isUsed = true
 		}
 		zoneUsed[z] = true
@@ -492,8 +490,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				break
 			}
 			if up.isAggregate {
-				size, _ := up.mask.Size()
-				if size != 0 {
+				if up.ipp.Bits != 0 {
 					continue
 				}
 				z := up.zone

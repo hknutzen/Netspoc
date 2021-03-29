@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"net"
+	"inet.af/netaddr"
 )
 
 // Find cluster of zones connected by 'local' routers.
@@ -15,7 +15,7 @@ import (
 
 type clusterInfo struct {
 	natMap     natMap
-	filterOnly []*net.IPNet
+	filterOnly []netaddr.IPPrefix
 	mark       int
 }
 
@@ -32,8 +32,8 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		}
 		filterOnly := r0.filterOnly
 
-		// IP/mask pairs of current cluster matching {filter_only}.
-		matched := make(map[*net.IPNet]bool)
+		// IP/mask pairs of current cluster matching filterOnly.
+		matched := make(map[netaddr.IPPrefix]bool)
 
 		// natMap is known to be identical inside 'local' cluster,
 		// because attribute 'bind_nat' is not valid at 'local' routers.
@@ -44,16 +44,12 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
-			equal := func(f0, f []*net.IPNet) bool {
+			equal := func(f0, f []netaddr.IPPrefix) bool {
 				if len(f0) != len(f) {
 					return false
 				}
-				for i, addr := range f {
-					addr0 := f0[i]
-					if !addr0.IP.Equal(addr.IP) {
-						return false
-					}
-					if !net.IP(addr0.Mask).Equal(net.IP(addr.Mask)) {
+				for i, ipp := range f {
+					if f0[i] != ipp {
 						return false
 					}
 				}
@@ -79,12 +75,9 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					for _, n := range z.networks {
 						net0 := n.address(nm)
 						ip := net0.IP
-						prefix, _ := net0.Mask.Size()
+						prefix := net0.Bits
 						for j, net := range filterOnly {
-							i := net.IP
-							m := net.Mask
-							p, _ := m.Size()
-							if prefix >= p && matchIp(ip, i, m) {
+							if prefix >= net.Bits && net.Contains(ip) {
 								matched[filterOnly[j]] = true
 								continue NETWORK
 							}
@@ -114,9 +107,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 			if matched[filterOnly[j]] {
 				continue
 			}
-			size, _ := net.Mask.Size()
-			c.warn("Useless %s/%d in attribute 'filter_only' of %s",
-				net.IP, size, r0.name)
+			c.warn("Useless %s in attribute 'filter_only' of %s", net, r0.name)
 		}
 	}
 	return result
@@ -143,13 +134,10 @@ func (c *spoc) markManagedLocal() {
 				if natNetwork.ipType == unnumberedIP {
 					continue
 				}
-				ip := natNetwork.ip
-				prefix, _ := natNetwork.mask.Size()
-				for _, ipNet := range cluster.filterOnly {
-					i := ipNet.IP
-					m := ipNet.Mask
-					p, _ := m.Size()
-					if prefix >= p && matchIp(ip, i, m) {
+				ip := natNetwork.ipp.IP
+				prefix := natNetwork.ipp.Bits
+				for _, net := range cluster.filterOnly {
+					if prefix >= net.Bits && net.Contains(ip) {
 
 						// Mark network and enclosing aggregates.
 						obj := n

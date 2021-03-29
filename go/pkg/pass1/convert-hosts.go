@@ -1,10 +1,7 @@
 package pass1
 
 import (
-	"bytes"
-	"encoding/binary"
-	"fmt"
-	"net"
+	"inet.af/netaddr"
 	"strings"
 )
 
@@ -13,65 +10,7 @@ import (
 // Mark subnet relation of subnets.
 //###################################################################
 
-// Convert an IP range to a set of covering net.IPNet.
-func splitIpRange(lo, hi net.IP) ([]net.IPNet, error) {
-	var l, h uint64
-	var result []net.IPNet
-	if len(lo) == 4 && len(hi) == 4 {
-		l = uint64(binary.BigEndian.Uint32(lo))
-		h = uint64(binary.BigEndian.Uint32(hi))
-	} else {
-		lo, hi = lo.To16(), hi.To16()
-		if bytes.Compare(lo[:8], hi[:8]) != 0 {
-			return result, fmt.Errorf(
-				"IP range doesn't fit into /64 network")
-		}
-		l, h = binary.BigEndian.Uint64(lo[8:]), binary.BigEndian.Uint64(hi[8:])
-	}
-	if l > h {
-		return result, fmt.Errorf("Invalid IP range")
-	}
-	add := func(i, m uint64) {
-		var ip net.IP
-		var mask net.IPMask
-		if len(lo) == net.IPv4len {
-			ip = make(net.IP, net.IPv4len)
-			binary.BigEndian.PutUint32(ip, uint32(i))
-			mask = make(net.IPMask, net.IPv4len)
-			binary.BigEndian.PutUint32(mask, uint32(m))
-		} else {
-			ip = make(net.IP, net.IPv6len)
-			copy(ip, lo)
-			binary.BigEndian.PutUint64(ip[8:], i)
-			mask = net.CIDRMask(64, 128)
-			binary.BigEndian.PutUint64(mask[8:], m)
-		}
-		result = append(result, net.IPNet{IP: ip, Mask: mask})
-	}
-
-IP:
-	for l <= h {
-		// 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-		var invMask uint64 = 0xffffffffffffffff
-		for {
-			if l&invMask == 0 {
-				end := l | invMask
-				if end <= h {
-					add(l, ^invMask)
-					l = end + 1
-					continue IP
-				}
-			}
-			if invMask == 0 {
-				break
-			}
-			invMask >>= 1
-		}
-	}
-	return result, nil
-}
-
-func ipNATEqual(n1, n2 map[string]net.IP) bool {
+func ipNATEqual(n1, n2 map[string]netaddr.IP) bool {
 	if len(n1) != len(n2) {
 		return false
 	}
@@ -80,7 +19,7 @@ func ipNATEqual(n1, n2 map[string]net.IP) bool {
 		if !ok {
 			return false
 		}
-		if !ip1.Equal(ip2) {
+		if ip1 != ip2 {
 			return false
 		}
 	}
@@ -105,22 +44,22 @@ func (c *spoc) convertHosts() {
 			continue
 		}
 		ipv6 := n.ipV6
-		var bitstrLen int
+		var bitstrLen uint8
 		if ipv6 {
 			bitstrLen = 128
 		} else {
 			bitstrLen = 32
 		}
-		subnetAref := make([]map[string]*subnet, bitstrLen)
+		subnetAref := make([]map[netaddr.IP]*subnet, bitstrLen)
 
 		// Converts hosts and ranges to subnets.
 		// Eliminate duplicate subnets.
 		for _, host := range n.hosts {
-			var nets []net.IPNet
+			var nets []netaddr.IPPrefix
 			name := host.name
 			id := host.id
-			if ip := host.ip; ip != nil {
-				nets = []net.IPNet{{IP: ip, Mask: getHostMask(ipv6)}}
+			if !host.ip.IsZero() {
+				nets = []netaddr.IPPrefix{{IP: host.ip, Bits: getHostPrefix(ipv6)}}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
@@ -131,15 +70,12 @@ func (c *spoc) convertHosts() {
 				}
 			} else {
 				// Convert range.
-				l, err := splitIpRange(host.ipRange[0], host.ipRange[1])
-				if err != nil {
-					c.err("%s in %s", err, name)
-				}
+				l := host.ipRange.Prefixes()
 				if id != "" {
 					if len(l) > 1 {
 						c.err("Range of %s with ID must expand to exactly one subnet",
 							name)
-					} else if isHostMask(l[0].Mask) {
+					} else if l[0].IsSingleIP() {
 						c.err("%s with ID must not have single IP", name)
 					} else if strings.Index(id, "@") > 0 {
 						c.err("ID of %s must start with character '@'"+
@@ -149,31 +85,29 @@ func (c *spoc) convertHosts() {
 				nets = l
 			}
 
-			for _, net := range nets {
-				size, _ := net.Mask.Size()
-				subnetSize := bitstrLen - size
-				str2subnet := subnetAref[subnetSize]
-				if str2subnet == nil {
-					str2subnet = make(map[string]*subnet)
-					subnetAref[subnetSize] = str2subnet
+			for _, ipp := range nets {
+				subnetSize := bitstrLen - ipp.Bits
+				ip2subnet := subnetAref[subnetSize]
+				if ip2subnet == nil {
+					ip2subnet = make(map[netaddr.IP]*subnet)
+					subnetAref[subnetSize] = ip2subnet
 				}
 
-				if other := str2subnet[string(net.IP)]; other != nil {
+				if other := ip2subnet[ipp.IP]; other != nil {
 					c.checkHostCompatibility(&host.netObj, &other.netObj)
 					host.subnets = append(host.subnets, other)
 				} else {
 					s := new(subnet)
 					s.name = name
 					s.network = n
-					s.ip = net.IP
-					s.mask = net.Mask
+					s.ipp = ipp
 					s.nat = host.nat
 					s.owner = host.owner
 					s.id = id
 					s.ldapId = host.ldapId
 					s.radiusAttributes = host.radiusAttributes
 
-					str2subnet[string(net.IP)] = s
+					ip2subnet[ipp.IP] = s
 					host.subnets = append(host.subnets, s)
 					n.subnets = append(n.subnets, s)
 				}
@@ -184,17 +118,12 @@ func (c *spoc) convertHosts() {
 		// check compatibility of hosts in subnet relation.
 		for i := 0; i < len(subnetAref); i++ {
 			ip2subnet := subnetAref[i]
-			if ip2subnet == nil {
-				continue
-			}
-
-			for ipStr, subnet := range ip2subnet {
-				ip := net.IP(ipStr)
+			for ip, subnet := range ip2subnet {
 				// Search for enclosing subnet.
 				for j := i + 1; j < len(subnetAref); j++ {
-					mask := net.CIDRMask(bitstrLen-j, bitstrLen)
-					ip = ip.Mask(mask)
-					if up := subnetAref[j][string(ip)]; up != nil {
+					net, _ := ip.Prefix(bitstrLen - uint8(j))
+					ip = net.IP
+					if up := subnetAref[j][ip]; up != nil {
 						subnet.up = up
 						c.checkHostCompatibility(&subnet.netObj, &up.netObj)
 						break
@@ -209,33 +138,24 @@ func (c *spoc) convertHosts() {
 		}
 
 		// Find adjacent subnets which build a larger subnet.
-		s, bits := n.mask.Size()
+		s := n.ipp.Bits
 		networkSize := bitstrLen - s
 		for i := 0; i < len(subnetAref); i++ {
 			ip2subnet := subnetAref[i]
 			if ip2subnet == nil {
 				continue
 			}
-			mask := net.CIDRMask(bitstrLen-i, bits)
+			size := bitstrLen - uint8(i)
 
 			// Identify next supernet.
-			upSubnetSize := i + 1
-			upMask := net.CIDRMask(bitstrLen-upSubnetSize, bits)
+			upSubnetSize := uint8(i + 1)
+			upSize := bitstrLen - upSubnetSize
 
-			// Network mask and supernet mask differ in one bit.
-			// This bit distinguishes left and right subnet of supernet:
-			// mask (/30)                   255.255.255.11111100
-			// xor upmask (/29)            ^255.255.255.11111000
-			// equals next bit             =  0.  0.  0.00000100
-			// left subnet  10.0.0.16/30 ->  10.  0.  0.00010000
-			// right subnet 10.0.0.20/30 ->  10.  0.  0.00010100
-			next := make(net.IP, len(mask))
-			for i := 0; i < len(mask); i++ {
-				next[i] = upMask[i] ^ mask[i]
-			}
-
-			for ipStr, s := range ip2subnet {
-				ip := net.IP(ipStr)
+			// left subnet  10.0.0.16/30
+			// as range:    10.0.0.16-10.0.0.19
+			// add 1 to get IP of right subnet
+			// right subnet 10.0.0.20/30
+			for ip, s := range ip2subnet {
 
 				// Don't combine subnets with NAT
 				// ToDo: This would be possible if all NAT addresses
@@ -251,17 +171,18 @@ func (c *spoc) convertHosts() {
 
 				// Only take the left part of two adjacent subnets,
 				// where lowest network bit is zero.
-				if !ip.Mask(mask).Equal(ip.Mask(upMask)) {
+				net, _ := ip.Prefix(size)
+				upNet, _ := ip.Prefix(upSize)
+				if net.IP != upNet.IP {
 					continue
 				}
 
-				nextIp := make(net.IP, len(ip))
-				for i := 0; i < len(ip); i++ {
-					nextIp[i] = ip[i] | next[i]
-				}
+				// Calculate IP of right part.
+				rg := s.ipp.Range()
+				nextIp := rg.To.Next()
 
 				// Find corresponding right part
-				neighbor := ip2subnet[string(nextIp)]
+				neighbor := ip2subnet[nextIp]
 				if neighbor == nil {
 					continue
 				}
@@ -275,8 +196,8 @@ func (c *spoc) convertHosts() {
 					// Larger subnet is whole network.
 					up = n
 				} else {
-					if upSubnetSize < len(subnetAref) {
-						if upSub, ok := subnetAref[upSubnetSize][string(ip)]; ok {
+					if upSubnetSize < uint8(len(subnetAref)) {
+						if upSub, ok := subnetAref[upSubnetSize][ip]; ok {
 							up = upSub
 						}
 					}
@@ -286,15 +207,14 @@ func (c *spoc) convertHosts() {
 						u := new(subnet)
 						u.name = name
 						u.network = n
-						u.ip = ip
-						u.mask = upMask
+						u.ipp = upNet
 						u.up = s.up
 						upIP2subnet := subnetAref[upSubnetSize]
 						if upIP2subnet == nil {
-							upIP2subnet = make(map[string]*subnet)
+							upIP2subnet = make(map[netaddr.IP]*subnet)
 							subnetAref[upSubnetSize] = upIP2subnet
 						}
-						upIP2subnet[string(ip)] = u
+						upIP2subnet[ip] = u
 						n.subnets = append(n.subnets, u)
 						up = u
 					}
@@ -437,7 +357,7 @@ func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 							// - different objects with identical IP
 							//   can't be checked for redundancy properly.
 							n := s.network
-							if bytes.Compare(s.mask, n.mask) == 0 {
+							if s.ipp.Bits == n.ipp.Bits {
 								if !n.hasIdHosts && !subnetWarningSeen[s] {
 									subnetWarningSeen[s] = true
 									c.warn(

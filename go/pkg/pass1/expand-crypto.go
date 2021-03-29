@@ -281,7 +281,7 @@ func (c *spoc) expandCrypto() {
 						key := "trust-point"
 						if net.radiusAttributes[key] != "" {
 							for _, s := range net.subnets {
-								if isHostMask(s.mask) {
+								if s.ipp.IsSingleIP() {
 									c.err("Must not use radiusAttribute '%s' at %s",
 										key, s.name)
 								}
@@ -298,7 +298,7 @@ func (c *spoc) expandCrypto() {
 							c.verifyAsaVpnAttributes(s.name, s.radiusAttributes)
 							key := "trust-point"
 							if s.radiusAttributes[key] != "" &&
-								isHostMask(s.mask) {
+								s.ipp.IsSingleIP() {
 								c.err("Must not use radiusAttribute '%s' at %s",
 									key, s.name)
 							}

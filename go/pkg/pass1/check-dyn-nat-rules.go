@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"net"
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -197,7 +197,7 @@ func (c *spoc) checkDynamicNatRules(
 			}
 
 			// Map is set, if object has static NAT in network with dyn. NAT.
-			var objNat map[string]net.IP
+			var objNat map[string]netaddr.IP
 			switch x := obj.(type) {
 			case *subnet:
 				objNat = x.nat
@@ -236,7 +236,7 @@ func (c *spoc) checkDynamicNatRules(
 				}
 
 				// Ignore host / interface with static NAT.
-				if objNat[natTag] != nil {
+				if _, found := objNat[natTag]; found {
 					return
 				}
 
@@ -275,7 +275,7 @@ func (c *spoc) checkDynamicNatRules(
 							return
 						}
 						natTag := natNetwork.natTag
-						if objNat[natTag] != nil {
+						if _, found := objNat[natTag]; found {
 							return
 						}
 						ruleTxt := "rule"
@@ -321,7 +321,7 @@ func (c *spoc) checkDynamicNatRules(
 			for _, natTag := range toCheck {
 
 				// Ignore host / interface with static NAT.
-				if objNat[natTag] != nil {
+				if _, found := objNat[natTag]; found {
 					continue
 				}
 

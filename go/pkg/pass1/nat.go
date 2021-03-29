@@ -963,7 +963,7 @@ func (c *spoc) checkNatCompatibility() {
 				objIP := nat[tag]
 				natNet := n.nat[tag]
 				if natNet != nil && natNet.dynamic {
-					if !matchIp(objIP, natNet.ip, natNet.mask) {
+					if !natNet.ipp.Contains(objIP) {
 						c.err("nat:%s: IP of %s doesn't match IP/mask of %s",
 							tag, obj, n)
 					}
@@ -1000,7 +1000,7 @@ func (c *spoc) checkInterfacesWithDynamicNat() {
 				intfNat := intf.nat
 
 				// Interface has static translation,
-				if intfNat[tag] != nil {
+				if _, found := intfNat[tag]; found {
 					continue
 				}
 

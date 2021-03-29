@@ -14,10 +14,10 @@ router:r1 = {
 }
 =END=
 =ERROR=
-Error: invalid CIDR address: 999.1.1.0/24 in 'ip' of network:n1
-Error: invalid CIDR address: 10.888.1.0/24 in 'ip' of network:n2
-Error: invalid CIDR address: 10.1.777.0/24 in 'ip' of network:n3
-Error: invalid CIDR address: 10.1.1.666/32 in 'ip' of network:n4
+Error: Invalid CIDR address: 999.1.1.0/24 in 'ip' of network:n1
+Error: Invalid CIDR address: 10.888.1.0/24 in 'ip' of network:n2
+Error: Invalid CIDR address: 10.1.777.0/24 in 'ip' of network:n3
+Error: Invalid CIDR address: 10.1.1.666/32 in 'ip' of network:n4
 =END=
 
 ############################################################
@@ -26,7 +26,7 @@ Error: invalid CIDR address: 10.1.1.666/32 in 'ip' of network:n4
 network:n1 = { ip = १.२.३.४/32; } # 1.2.3.4 in DEVANAGARI
 =END=
 =ERROR=
-Error: invalid CIDR address: १.२.३.४/32 in 'ip' of network:n1
+Error: Invalid CIDR address: १.२.३.४/32 in 'ip' of network:n1
 =END=
 
 ############################################################
