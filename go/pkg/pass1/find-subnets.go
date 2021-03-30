@@ -621,6 +621,12 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		DOMAIN:
 			for _, domain := range domains {
 
+				// Ignore relation, if both are aggregates,
+				// because IP addresses of aggregates can't be changed by NAT.
+				if subnet.isAggregate && bignet.isAggregate {
+					continue
+				}
+
 				// Ok, is subnet in current NAT domain.
 				if dom2isSubnet[domain] {
 					continue
@@ -628,16 +634,20 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 				// If one or both networks are hidden, this does
 				// not count as changed subnet relation.
-				if getNatNetwork(bignet, domain.natMap).hidden {
+				m := domain.natMap
+				natBignet := getNatNetwork(bignet, m)
+				if natBignet.hidden {
 					continue
 				}
-				if getNatNetwork(subnet, domain.natMap).hidden {
+				natSubnet := getNatNetwork(subnet, m)
+				if natSubnet.hidden {
 					continue
 				}
 
-				// Ignore relation, if both are aggregates,
-				// because IP addresses of aggregates can't be changed by NAT.
-				if subnet.isAggregate && bignet.isAggregate {
+				// Identical IP from dynamic NAT is valid as subnet relation.
+				if natSubnet.dynamic && natBignet.dynamic &&
+					natSubnet.ipp == natBignet.ipp {
+
 					continue
 				}
 
@@ -655,16 +665,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 						continue DOMAIN
 					}
 					up = up2
-				}
-
-				// Identical IP from dynamic NAT is valid as subnet relation.
-				m := domain.natMap
-				natSubnet := getNatNetwork(subnet, m)
-				if natSubnet.dynamic {
-					natBignet := getNatNetwork(bignet, m)
-					if natBignet.dynamic && natSubnet.ipp == natBignet.ipp {
-						continue
-					}
 				}
 
 				// Found NAT domain, where networks are not in subnet relation.
