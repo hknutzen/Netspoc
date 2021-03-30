@@ -537,8 +537,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// Remember subnet relation in same zone in pendingOtherSubnet,
 			// if current status of subnet is not known,
 			// since status may change later.
-			sameZone := bignet.zone == subnet.zone
-			if sameZone {
+			if bignet.zone == subnet.zone {
 				if subnet.hasOtherSubnet || hasIdentical[subnet] {
 					bignet.hasOtherSubnet = true
 				} else {
@@ -582,7 +581,6 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 			bignet = origNet[natBignet]
-			sameZone = bignet.zone == subnet.zone
 
 			if printType := conf.Conf.CheckSubnets; printType != "" {
 
@@ -605,7 +603,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if !sameZone {
+			if bignet.zone != subnet.zone {
 				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}
@@ -614,18 +612,18 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	for subnet, net2dom2isSubnet := range subnetInZone {
 		for bignet, dom2isSubnet := range net2dom2isSubnet {
 
+			// Ignore relation, if both are aggregates,
+			// because IP addresses of aggregates can't be changed by NAT.
+			if subnet.isAggregate && bignet.isAggregate {
+				continue
+			}
+
 			// Subnet is subnet of bignet in at least one NAT domain.
 			// Check that in each NAT domain
 			// - subnet relation holds or
 			// - at least one of both networks is hidden.
 		DOMAIN:
 			for _, domain := range domains {
-
-				// Ignore relation, if both are aggregates,
-				// because IP addresses of aggregates can't be changed by NAT.
-				if subnet.isAggregate && bignet.isAggregate {
-					continue
-				}
 
 				// Ok, is subnet in current NAT domain.
 				if dom2isSubnet[domain] {
