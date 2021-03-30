@@ -35,19 +35,10 @@ func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 			break
 		}
 
-		ipMap := prefixIPMap[prefix]
-		ipList := make([]netaddr.IP, 0, len(ipMap))
-		for ip, _ := range ipMap {
-			ipList = append(ipList, ip)
-		}
-		sort.Slice(ipList, func(i, j int) bool {
-			return ipList[i].Compare(ipList[j]) == -1
-		})
-		for _, ip := range ipList {
-			sub := ipMap[ip]
+		for ip, sub := range prefixIPMap[prefix] {
 
 			// Find networks which include current subnet.
-			// upperMasks holds masks of potential supernets.
+			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				up, _ := ip.Prefix(p)
 				if big, ok := prefixIPMap[p][up.IP]; ok {
@@ -121,25 +112,25 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	natMap := z.natDomain.natMap
 
-	// Add networks of zone to maskIPMap.
+	// Add networks of zone to prefixIPMap.
 	// Use NAT IP/mask.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
-		net := getNatNetwork(n, natMap).ipp
-		ipMap := prefixIPMap[net.Bits]
+		ipp := getNatNetwork(n, natMap).ipp
+		ipMap := prefixIPMap[ipp.Bits]
 		if ipMap == nil {
 			ipMap = make(map[netaddr.IP]*network)
-			prefixIPMap[net.Bits] = ipMap
+			prefixIPMap[ipp.Bits] = ipMap
 		}
 
 		// Found two different networks with identical IP/mask.
-		if other := ipMap[net.IP]; other != nil {
+		if other := ipMap[ipp.IP]; other != nil {
 			c.err("%s and %s have identical IP/mask in %s",
 				n.name, other.name, z.name)
 		} else {
 
 			// Store original network under NAT IP/mask.
-			ipMap[net.IP] = n
+			ipMap[ipp.IP] = n
 		}
 	}
 	for _, n := range z.networks {
@@ -168,7 +159,7 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	// For each subnet N find the largest non-aggregate network
 	// which encloses N. If one exists, store it in maxUpNet.
 	// This is used to exclude subnets from z.networks below.
-	// It is also used to derive attribute {maxRoutingNet}.
+	// It is also used to derive attribute maxRoutingNet.
 	maxUpNet := make(map[*network]*network)
 	var setMaxNet func(n *network) *network
 	setMaxNet = func(n *network) *network {
@@ -197,7 +188,7 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	// For each subnet N find the largest non-aggregate network
 	// inside the same zone which encloses N.
-	// If one exists, store it in {maxRoutingNet}. This is used
+	// If one exists, store it in maxRoutingNet. This is used
 	// for generating static routes.
 	// We later check, that subnet relation remains stable even if
 	// NAT is applied.
@@ -321,11 +312,11 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	// Compare IP/mask of all networks and NAT networks and find relations
 	// isIn and identical.
 
-	// Mapping Mask -> IP -> Network|NAT Network.
+	// Mapping prefix -> IP -> Network|NAT Network.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 
-	// Mapping from one network|NAT network to list of elements with
-	// identical IP address.
+	// Mapping from one network|NAT network to networks with identical
+	// IP address.
 	identical := make(map[*network]netList)
 
 	for _, nn := range natNetworks {
@@ -704,7 +695,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		// Disable maxRoutingnet if it has unstable NAT relation with
 		// current subnet.
 		// This test is only a rough estimation and should be refined
-		// if to many valid optimizations would be disabled.
+		// if too many valid optimizations would be disabled.
 		if max.unstableNat != nil && n.nat != nil {
 			n.maxRoutingNet = nil
 			continue
@@ -728,7 +719,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 }
 
 //############################################################################
-// Returns: Lookup hash with domains as keys and partition ID as values.
+// Returns: Map with domains as keys and partition ID as values.
 // Result : NAT domains get different partition ID, if they belong to
 //          parts of topology that are strictly separated by crypto
 //          interfaces or partitioned toplology.
@@ -760,7 +751,7 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 }
 
 // Find subnet relation between networks in different NAT domains.
-// Mark networks, having subnet in other zone: bignet->{has_other_subnet}
+// Mark networks, having subnet in other zone: bignet.hasOtherSubnet
 // 1. If set, this prevents secondary optimization.
 // 2. If rule has src or dst with attribute {has_other_subnet},
 //    it is later checked for missing supernets.
@@ -788,7 +779,11 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		partList = append(partList, part)
 	}
 	sort.Ints(partList)
-	for _, part := range partList {
-		c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
-	}
+
+	// Sorts error messages before output.
+	c.sortedSpoc(func(c *spoc) {
+		for _, part := range partList {
+			c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
+		}
+	})
 }
