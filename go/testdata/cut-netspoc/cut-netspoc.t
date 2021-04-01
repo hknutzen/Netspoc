@@ -532,7 +532,7 @@ service:test = {
 =END=
 
 ############################################################
-=TITLE=Area defined by anchor, anchor ouside of path
+=TITLE=Area defined by anchor, anchor outside of path
 =VAR=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -574,7 +574,7 @@ ${input}
 =END=
 
 ############################################################
-=TITLE=Area with border ouside of path
+=TITLE=Area with border outside of path
 =VAR=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -617,7 +617,7 @@ ${input}
 =END=
 
 ############################################################
-=TITLE=Zone ouside of path
+=TITLE=Zone outside of path
 =VAR=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
