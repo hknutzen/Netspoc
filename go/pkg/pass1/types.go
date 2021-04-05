@@ -495,7 +495,6 @@ type zone struct {
 	inArea               *area
 	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
 	ipPrefix2net         map[netaddr.IPPrefix]netList
-	link                 *network
 	loopback             bool
 	nat                  map[string]*network
 	natDomain            *natDomain

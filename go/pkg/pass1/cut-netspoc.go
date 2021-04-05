@@ -396,13 +396,12 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		zoneUsed[z] = true
 	}
 
-	for _, z := range c.allZones {
-		if !zoneUsed[z] {
-			continue
-		}
-		if n := z.link; n != nil {
-			n.isUsed = true
-			todoManaged.push(n)
+	for _, agg := range symTable.aggregate {
+		if agg.isUsed {
+			if n := agg.link; n != nil {
+				n.isUsed = true
+				todoManaged.push(n)
+			}
 		}
 	}
 

@@ -684,10 +684,7 @@ func (c *spoc) processAggregates() {
 			agg.disabled = true
 			continue
 		}
-
-		// Reference network link in security zone.
 		z := n.zone
-		z.link = n // only used in cut-netspoc
 
 		// Assure that no other aggregate with same IP and mask exists in cluster
 		ipp := agg.ipp
