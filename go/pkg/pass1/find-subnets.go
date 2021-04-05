@@ -364,9 +364,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 		}
 	}
-	subnetInZone := make(map[*network]map[*network]map[*natDomain]bool)
-	identSeen := make(netMap)
 	type netPair [2]*network
+	subnetInZone := make(map[netPair]map[*natDomain]bool)
+	identSeen := make(netMap)
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
 		natMap := domain.natMap
@@ -504,15 +504,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					for {
 						bignet := origNet[natBignet]
 						if visible[natBignet] && bignet.zone == zone {
-							bigMap := subnetInZone[subnet]
-							if bigMap == nil {
-								bigMap = make(map[*network]map[*natDomain]bool)
-								subnetInZone[subnet] = bigMap
-							}
-							domMap := bigMap[bignet]
+							domMap := subnetInZone[netPair{bignet, subnet}]
 							if domMap == nil {
 								domMap = make(map[*natDomain]bool)
-								bigMap[bignet] = domMap
+								subnetInZone[netPair{bignet, subnet}] = domMap
 							}
 							domMap[domain] = true
 							break
@@ -609,71 +604,70 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 
-	for subnet, net2dom2isSubnet := range subnetInZone {
-		for bignet, dom2isSubnet := range net2dom2isSubnet {
+	for pair, dom2isSubnet := range subnetInZone {
+		bignet, subnet := pair[0], pair[1]
 
-			// Ignore relation, if both are aggregates,
-			// because IP addresses of aggregates can't be changed by NAT.
-			if subnet.isAggregate && bignet.isAggregate {
+		// Ignore relation, if both are aggregates,
+		// because IP addresses of aggregates can't be changed by NAT.
+		if subnet.isAggregate && bignet.isAggregate {
+			continue
+		}
+
+		// Subnet is subnet of bignet in at least one NAT domain.
+		// Check that in each NAT domain
+		// - subnet relation holds or
+		// - at least one of both networks is hidden.
+	DOMAIN:
+		for _, domain := range domains {
+
+			// Ok, is subnet in current NAT domain.
+			if dom2isSubnet[domain] {
 				continue
 			}
 
-			// Subnet is subnet of bignet in at least one NAT domain.
-			// Check that in each NAT domain
-			// - subnet relation holds or
-			// - at least one of both networks is hidden.
-		DOMAIN:
-			for _, domain := range domains {
-
-				// Ok, is subnet in current NAT domain.
-				if dom2isSubnet[domain] {
-					continue
-				}
-
-				// If one or both networks are hidden, this does
-				// not count as changed subnet relation.
-				m := domain.natMap
-				natBignet := getNatNetwork(bignet, m)
-				if natBignet.hidden {
-					continue
-				}
-				natSubnet := getNatNetwork(subnet, m)
-				if natSubnet.hidden {
-					continue
-				}
-
-				// Identical IP from dynamic NAT is valid as subnet relation.
-				if natSubnet.dynamic && natBignet.dynamic &&
-					natSubnet.ipp == natBignet.ipp {
-
-					continue
-				}
-
-				// Also check transient subnet relation.
-				up := subnet
-				for {
-					up2 := up.up
-					if up2 == nil {
-						break
-					}
-					if !subnetInZone[up][up2][domain] {
-						break
-					}
-					if up2 == bignet {
-						continue DOMAIN
-					}
-					up = up2
-				}
-
-				// Found NAT domain, where networks are not in subnet relation.
-				// Remember at attribute unstableNat for later check.
-				u := bignet.unstableNat
-				if u == nil {
-					u = make(map[*natDomain]netList)
-					bignet.unstableNat = u
-				}
-				u[domain] = append(u[domain], subnet)
+			// If one or both networks are hidden, this does
+			// not count as changed subnet relation.
+			m := domain.natMap
+			natBignet := getNatNetwork(bignet, m)
+			if natBignet.hidden {
+				continue
 			}
+			natSubnet := getNatNetwork(subnet, m)
+			if natSubnet.hidden {
+				continue
+			}
+
+			// Identical IP from dynamic NAT is valid as subnet relation.
+			if natSubnet.dynamic && natBignet.dynamic &&
+				natSubnet.ipp == natBignet.ipp {
+
+				continue
+			}
+
+			// Also check transient subnet relation.
+			up := subnet
+			for {
+				up2 := up.up
+				if up2 == nil {
+					break
+				}
+				if !subnetInZone[netPair{up2, up}][domain] {
+					break
+				}
+				if up2 == bignet {
+					continue DOMAIN
+				}
+				up = up2
+			}
+
+			// Found NAT domain, where networks are not in subnet relation.
+			// Remember at attribute unstableNat for later check.
+			u := bignet.unstableNat
+			if u == nil {
+				u = make(map[*natDomain]netList)
+				bignet.unstableNat = u
+			}
+			u[domain] = append(u[domain], subnet)
 		}
 	}
 
