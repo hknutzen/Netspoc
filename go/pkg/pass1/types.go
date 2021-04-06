@@ -338,9 +338,8 @@ type routerIntf struct {
 	netObj
 	pathStoreData
 	withStdAddr
-	router  *router
-	bindNat []string
-	//crypto          *crypto
+	router          *router
+	bindNat         []string
 	dhcpClient      bool
 	dhcpServer      bool
 	hub             []*crypto
