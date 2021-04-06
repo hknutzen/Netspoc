@@ -35,7 +35,17 @@ func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 			break
 		}
 
-		for ip, sub := range prefixIPMap[prefix] {
+		// Sort IP addresses to get deterministic warnings and ACLs.
+		ipMap := prefixIPMap[prefix]
+		ipList := make([]netaddr.IP, len(ipMap))
+		for ip, _ := range ipMap {
+			ipList = append(ipList, ip)
+		}
+		sort.Slice(ipList, func(i, j int) bool {
+			return ipList[i].Less(ipList[j])
+		})
+		for _, ip := range ipList {
+			sub := ipMap[ip]
 
 			// Find networks which include current subnet.
 			// upperPrefixes holds prefixes of potential supernets.
