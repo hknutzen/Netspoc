@@ -2030,21 +2030,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 		process := func(acl *aclInfo) *jcode.ACLInfo {
 			jACL := new(jcode.ACLInfo)
 			jACL.Name = acl.name
-			if acl.addPermit {
-				jACL.AddPermit = 1
-			}
-			if acl.addDeny {
-				jACL.AddDeny = 1
-			}
-			if acl.filterAnySrc {
-				jACL.FilterAnySrc = 1
-			}
-			if acl.isStdACL {
-				jACL.IsStdACL = 1
-			}
-			if acl.isCryptoACL {
-				jACL.IsCryptoACL = 1
-			}
+			jACL.AddPermit = acl.addPermit
+			jACL.AddDeny = acl.addDeny
+			jACL.FilterAnySrc = acl.filterAnySrc
+			jACL.IsStdACL = acl.isStdACL
+			jACL.IsCryptoACL = acl.isCryptoACL
 			// Collect networks used in secondary optimization.
 			optAddr := make(map[*network]bool)
 			// Collect objects forbidden in secondary optimization.
@@ -2079,9 +2069,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 				for i, rule := range rules {
 					newRule := new(jcode.Rule)
 					jRules[i] = newRule
-					if rule.deny {
-						newRule.Deny = 1
-					}
+					newRule.Deny = rule.deny
 
 					// Add code for logging.
 					// This code is machine specific.
@@ -2183,7 +2171,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 								optAddr[subst] = true
 							}
 						}
-						newRule.OptSecondary = 1
+						newRule.OptSecondary = true
 					}
 
 					newRule.Src = getAddrList(rule.src, natMap)
@@ -2255,7 +2243,11 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 
 	r := vrfMembers[0]
 	model := r.model
-	result := &jcode.RouterData{Model: model.class, ACLs: aclList}
+	result := &jcode.RouterData{
+		Model:         model.class,
+		ACLs:          aclList,
+		DoObjectgroup: model.canObjectgroup && !r.noGroupCode,
+	}
 
 	if filterOnly := r.filterOnly; filterOnly != nil {
 		list := make([]string, len(filterOnly))
@@ -2263,9 +2255,6 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 			list[i] = fullPrefixCode(f)
 		}
 		result.FilterOnly = list
-	}
-	if model.canObjectgroup && !r.noGroupCode {
-		result.DoObjectgroup = 1
 	}
 	if r.logDeny {
 		result.LogDeny = "log"

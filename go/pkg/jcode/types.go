@@ -9,7 +9,7 @@ type RouterData struct {
 	Model         string     `json:"model"`
 	ACLs          []*ACLInfo `json:"acls"`
 	FilterOnly    []string   `json:"filter_only,omitempty"`
-	DoObjectgroup int        `json:"do_objectgroup,omitempty"`
+	DoObjectgroup bool       `json:"do_objectgroup,omitempty"`
 	LogDeny       string     `json:"log_deny,omitempty"`
 }
 
@@ -20,21 +20,21 @@ type ACLInfo struct {
 	OptNetworks  []string `json:"opt_networks,omitempty"`
 	NoOptAddrs   []string `json:"no_opt_addrs,omitempty"`
 	NeedProtect  []string `json:"need_protect,omitempty"`
-	AddPermit    int      `json:"add_permit,omitempty"`
-	AddDeny      int      `json:"add_deny,omitempty"`
-	FilterAnySrc int      `json:"filter_any_src,omitempty"`
-	IsStdACL     int      `json:"is_std_acl,omitempty"`
-	IsCryptoACL  int      `json:"is_crypto_acl,omitempty"`
+	AddPermit    bool     `json:"add_permit,omitempty"`
+	AddDeny      bool     `json:"add_deny,omitempty"`
+	FilterAnySrc bool     `json:"filter_any_src,omitempty"`
+	IsStdACL     bool     `json:"is_std_acl,omitempty"`
+	IsCryptoACL  bool     `json:"is_crypto_acl,omitempty"`
 }
 
 type Rule struct {
-	Deny         int      `json:"deny,omitempty"`
+	Deny         bool     `json:"deny,omitempty"`
 	Src          []string `json:"src"`
 	Dst          []string `json:"dst"`
 	Prt          []string `json:"prt"`
 	SrcRange     string   `json:"src_range,omitempty"`
 	Log          string   `json:"log,omitempty"`
-	OptSecondary int      `json:"opt_secondary,omitempty"`
+	OptSecondary bool     `json:"opt_secondary,omitempty"`
 }
 
 // GenPortName is used to create name of protocol with ports printed

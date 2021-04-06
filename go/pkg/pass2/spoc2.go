@@ -223,10 +223,10 @@ func convertACLs(
 
 	return &aclInfo{
 		name:         jACL.Name,
-		isStdACL:     jACL.IsStdACL == 1,
-		isCryptoACL:  jACL.IsCryptoACL == 1,
-		addPermit:    jACL.AddPermit == 1,
-		addDeny:      jACL.AddDeny == 1,
+		isStdACL:     jACL.IsStdACL,
+		isCryptoACL:  jACL.IsCryptoACL,
+		addPermit:    jACL.AddPermit,
+		addDeny:      jACL.AddDeny,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -236,7 +236,7 @@ func convertACLs(
 		filterOnly:   filterOnly,
 		optNetworks:  optNetworks,
 		noOptAddrs:   noOptAddrs,
-		filterAnySrc: jACL.FilterAnySrc == 1,
+		filterAnySrc: jACL.FilterAnySrc,
 		needProtect:  needProtect,
 		network00:    getNet00(ipv6, ipNet2obj),
 	}
@@ -262,13 +262,13 @@ func convertRuleObjects(
 				for _, prt := range prtList {
 					expanded.push(
 						&ciscoRule{
-							deny:         rule.Deny == 1,
+							deny:         rule.Deny,
 							src:          src,
 							dst:          dst,
 							srcRange:     srcRange,
 							prt:          prt,
 							log:          rule.Log,
-							optSecondary: rule.OptSecondary == 1,
+							optSecondary: rule.OptSecondary,
 						})
 				}
 			}
@@ -306,7 +306,7 @@ func readJSON(path string) *routerData {
 	}
 	rData.model = jData.Model
 	rData.logDeny = jData.LogDeny
-	rData.doObjectgroup = jData.DoObjectgroup == 1
+	rData.doObjectgroup = jData.DoObjectgroup
 	acls := make([]*aclInfo, len(jData.ACLs))
 	for i, jACL := range jData.ACLs {
 		aclInfo := convertACLs(jACL, jData, rData.ipv6)
