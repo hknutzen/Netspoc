@@ -229,47 +229,33 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 				if srcList != nil || dstList != nil {
 					ruleCount++
 				}
-				if srcList == nil || dstList == nil {
+				if srcList == nil || dstList == nil || s.disabled {
 					continue
 				}
-				if s.disabled {
-					continue
+				rule := serviceRule{
+					deny: deny,
+					src:  srcList,
+					dst:  dstList,
+					prt:  simplePrtList,
+					log:  log,
+					rule: uRule,
 				}
 				if simplePrtList != nil {
-					rule := &serviceRule{
-						deny: deny,
-						src:  srcList,
-						dst:  dstList,
-						prt:  simplePrtList,
-						log:  log,
-						rule: uRule,
-					}
-					store.push(rule)
+					store.push(&rule)
 				}
 				for _, c := range complexPrtList {
 					prt, srcRange := c.prt, c.src
-					srcList, dstList := srcList, dstList
-					var mod *modifiers
+					r2 := rule
 					if c.modifiers != nil {
-						mod = c.modifiers
-						if mod.reversed {
-							srcList, dstList = dstList, srcList
+						r2.modifiers = *c.modifiers
+						if c.modifiers.reversed {
+							r2.src, r2.dst = rule.dst, rule.src
 						}
 					}
-					rule := &serviceRule{
-						deny:          deny,
-						src:           srcList,
-						dst:           dstList,
-						prt:           protoList{prt},
-						log:           log,
-						rule:          uRule,
-						statelessICMP: prt.statelessICMP,
-					}
-					if mod != nil {
-						rule.modifiers = *mod
-					}
-					rule.srcRange = srcRange
-					store.push(rule)
+					r2.prt = protoList{prt}
+					r2.srcRange = srcRange
+					r2.statelessICMP = prt.statelessICMP
+					store.push(&r2)
 				}
 			}
 		}
