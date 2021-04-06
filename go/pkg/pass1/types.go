@@ -654,7 +654,6 @@ type serviceRule struct {
 	noCheckSupernetRules bool
 	oneway               bool
 	overlaps             bool
-	zone2netMap          map[*zone]map[*network]bool
 }
 
 type serviceRuleList []*serviceRule
