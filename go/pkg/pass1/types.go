@@ -639,21 +639,14 @@ type unexpRule struct {
 }
 
 type serviceRule struct {
-	deny                 bool
-	src                  []srvObj
-	dst                  []srvObj
-	prt                  protoList
-	srcRange             *proto
-	log                  string
-	srcNet               bool
-	dstNet               bool
-	reversed             bool
-	rule                 *unexpRule
-	stateless            bool
-	statelessICMP        bool
-	noCheckSupernetRules bool
-	oneway               bool
-	overlaps             bool
+	modifiers
+	deny          bool
+	src           []srvObj
+	dst           []srvObj
+	prt           protoList
+	log           string
+	rule          *unexpRule
+	statelessICMP bool
 }
 
 type serviceRuleList []*serviceRule

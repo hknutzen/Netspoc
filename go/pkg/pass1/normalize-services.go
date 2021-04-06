@@ -248,31 +248,27 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 				}
 				for _, c := range complexPrtList {
 					prt, srcRange := c.prt, c.src
-					var mod modifiers
-					if c.modifiers != nil {
-						mod = *c.modifiers
-					}
 					srcList, dstList := srcList, dstList
-					if mod.reversed {
-						srcList, dstList = dstList, srcList
+					var mod *modifiers
+					if c.modifiers != nil {
+						mod = c.modifiers
+						if mod.reversed {
+							srcList, dstList = dstList, srcList
+						}
 					}
 					rule := &serviceRule{
-						deny:                 deny,
-						src:                  srcList,
-						dst:                  dstList,
-						prt:                  protoList{prt},
-						log:                  log,
-						rule:                 uRule,
-						srcRange:             srcRange,
-						stateless:            mod.stateless,
-						oneway:               mod.oneway,
-						overlaps:             mod.overlaps,
-						noCheckSupernetRules: mod.noCheckSupernetRules,
-						srcNet:               mod.srcNet,
-						dstNet:               mod.dstNet,
-						reversed:             mod.reversed,
-						statelessICMP:        prt.statelessICMP,
+						deny:          deny,
+						src:           srcList,
+						dst:           dstList,
+						prt:           protoList{prt},
+						log:           log,
+						rule:          uRule,
+						statelessICMP: prt.statelessICMP,
 					}
+					if mod != nil {
+						rule.modifiers = *mod
+					}
+					rule.srcRange = srcRange
 					store.push(rule)
 				}
 			}
