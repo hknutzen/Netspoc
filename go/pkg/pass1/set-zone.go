@@ -73,11 +73,6 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	}
 	z.partition = n.partition
 
-	// Mark zone at loopback network of managed router.
-	if n.loopback && n.interfaces[0].router.managed != "" {
-		z.loopback = true
-	}
-
 	// Proceed with adjacent elements...
 	for _, intf := range n.interfaces {
 		if intf == in {

@@ -467,8 +467,11 @@ func (c *spoc) expandGroup1(
 				for _, z := range zones {
 
 					// Silently ignore loopback aggregate.
-					if z.loopback {
-						continue
+					if len(z.networks) == 1 {
+						n := z.networks[0]
+						if n.loopback && n.interfaces[0].router.managed != "" {
+							continue
+						}
 					}
 					result = append(result, c.getAny(z, ipp, visible)...)
 				}
