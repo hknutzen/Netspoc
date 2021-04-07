@@ -666,20 +666,21 @@ func (c *spoc) processAggregates() {
 	var aggInCluster netList
 	aggList := make(netList, 0, len(symTable.aggregate))
 	for _, agg := range symTable.aggregate {
-		if agg.link != nil {
-			aggList.push(agg)
+		n := agg.link
+		if n == nil {
+			continue
 		}
+		if n.disabled {
+			agg.disabled = true
+			continue
+		}
+		aggList.push(agg)
 	}
 	sort.Slice(aggList, func(i, j int) bool {
 		return aggList[i].name < aggList[j].name
 	})
 	for _, agg := range aggList {
-		n := agg.link
-		if n.disabled {
-			agg.disabled = true
-			continue
-		}
-		z := n.zone
+		z := agg.link.zone
 
 		// Assure that no other aggregate with same IP and mask exists in cluster
 		ipp := agg.ipp
