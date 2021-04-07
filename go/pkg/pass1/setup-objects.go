@@ -3465,31 +3465,31 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 //   - emploing the same redundancy type
 func (c *spoc) linkVirtualInterfaces() {
 
-	// Collect array of virtual interfaces with same IP at same network.
+	// Collect virtual interfaces with same IP at same network.
 	type key1 struct {
 		n  *network
-		ip string
+		ip netaddr.IP
 	}
-	net2ip2virtual := make(map[key1]intfList)
+	netIP2virtual := make(map[key1]intfList)
 
-	// Map to look up first virtual interface of a group
-	// inside the same network and using the same ID and type.
+	// Look up virtual interface of a group inside the same network and
+	// using the same ID and type.
 	type key2 struct {
 		n   *network
 		id  string
 		typ *mcastProto
 	}
-	net2id2type2virtual := make(map[key2]*routerIntf)
+	netIdType2virtual := make(map[key2]*routerIntf)
 	for _, v1 := range c.virtualInterfaces {
 		if v1.disabled {
 			continue
 		}
-		ip := v1.ip.String()
+		ip := v1.ip
 		n := v1.network
 		t1 := v1.redundancyType
 		id1 := v1.redundancyId
-		k := key1{n, ip}
-		l := net2ip2virtual[k]
+		k1 := key1{n, ip}
+		l := netIP2virtual[k1]
 		if l != nil {
 			v2 := l[0]
 			t2 := v2.redundancyType
@@ -3504,23 +3504,22 @@ func (c *spoc) linkVirtualInterfaces() {
 					" - %s\n"+
 					" - %s", v2, v1)
 			}
-		} else {
+		} else if id1 != "" {
 			// Check for identical ID used at unrelated virtual interfaces
 			// inside the same network.
-			if id1 != "" {
-				if v2 := net2id2type2virtual[key2{n, id1, t1}]; v2 != nil {
-					c.err("Must use different ID at unrelated\n"+
-						" - %s\n"+
-						" - %s", v2, v1)
-				} else {
-					net2id2type2virtual[key2{n, id1, t1}] = v1
-				}
+			k2 := key2{n, id1, t1}
+			if v2 := netIdType2virtual[k2]; v2 != nil {
+				c.err("Must use different ID at unrelated\n"+
+					" - %s\n"+
+					" - %s", v2, v1)
+			} else {
+				netIdType2virtual[k2] = v1
 			}
 		}
 		l.push(v1)
-		net2ip2virtual[k] = l
+		netIP2virtual[k1] = l
 	}
-	for _, l := range net2ip2virtual {
+	for _, l := range netIP2virtual {
 		for _, intf := range l {
 			intf.redundancyIntfs = l
 		}
@@ -3529,7 +3528,7 @@ func (c *spoc) linkVirtualInterfaces() {
 	// Automatically add pathrestriction to each group of virtual
 	// interfaces, where at least one interface is managed.
 	// Pathrestriction would be useless if all devices are unmanaged.
-	for _, l := range net2ip2virtual {
+	for _, l := range netIP2virtual {
 		if len(l) < 2 {
 			continue
 		}
