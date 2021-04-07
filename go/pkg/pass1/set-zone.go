@@ -667,10 +667,7 @@ func (c *spoc) processAggregates() {
 	aggList := make(netList, 0, len(symTable.aggregate))
 	for _, agg := range symTable.aggregate {
 		n := agg.link
-		if n == nil {
-			continue
-		}
-		if n.disabled {
+		if n == nil || n.disabled {
 			agg.disabled = true
 			continue
 		}

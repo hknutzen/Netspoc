@@ -933,9 +933,6 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	if !hasLink {
 		c.err("Attribute 'link' must be defined for %s", name)
 	}
-	if ag.link == nil {
-		ag.disabled = true
-	}
 	if ag.ipp.IsZero() {
 		ag.ipp = getNetwork00(v6).ipp
 	}
