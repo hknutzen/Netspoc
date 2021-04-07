@@ -618,9 +618,6 @@ func (c *spoc) checkVirtualInterfaces() {
 	var seen = make(map[*routerIntf]bool)
 
 	for _, intf := range c.virtualInterfaces {
-		if intf.redundancyIntfs == nil {
-			continue
-		}
 		// Ignore single virtual interface.
 		if len(intf.redundancyIntfs) <= 1 {
 			continue
