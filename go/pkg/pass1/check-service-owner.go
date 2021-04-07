@@ -243,7 +243,7 @@ func (c *spoc) propagateOwners() {
 	}
 
 	// Set owner for interfaces of managed routers.
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
+	for _, r := range c.managedRouters {
 		o := r.owner
 		if o == nil {
 			continue

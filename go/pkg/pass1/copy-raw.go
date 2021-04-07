@@ -14,7 +14,7 @@ import (
 func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	ipV6 := strings.HasSuffix(outDir, "/ipv6")
 	deviceNames := make(map[string]bool)
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
+	for _, r := range c.managedRouters {
 		if r.ipV6 == ipV6 {
 			deviceNames[r.deviceName] = true
 		}

@@ -144,6 +144,9 @@ service:test = {
 # Code for routing_only device is generated last.
 =OUTPUT=
 --r1
+! [ Routing for router:r1@v1 ]
+ip route vrf v1 10.1.1.0 255.255.255.0 10.9.9.2
+--
 ! [ Routing for router:r1@v2 ]
 ip route vrf v2 10.2.2.0 255.255.255.0 10.9.9.1
 --
@@ -151,9 +154,6 @@ ip access-list extended e2_in
  deny ip any host 10.1.1.1
  permit tcp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 80
  deny ip any any
---
-! [ Routing for router:r1@v1 ]
-ip route vrf v1 10.1.1.0 255.255.255.0 10.9.9.2
 =END=
 
 ############################################################

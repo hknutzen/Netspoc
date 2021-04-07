@@ -148,10 +148,8 @@ func (c *spoc) markDisabled() {
 		}
 		rl[j] = r
 		j++
-		if r.managed != "" {
+		if r.managed != "" || r.routingOnly {
 			c.managedRouters = append(c.managedRouters, r)
-		} else if r.routingOnly {
-			c.routingOnlyRouters = append(c.routingOnlyRouters, r)
 		}
 	}
 	c.allRouters = rl[:j]
@@ -160,7 +158,7 @@ func (c *spoc) markDisabled() {
 	// Also collect all IPv4 and IPv6 routers with same name.
 	sameIPvDevice := make(map[string][]*router)
 	sameDevice := make(map[string][]*router)
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
+	for _, r := range c.managedRouters {
 		if r.origRouter != nil {
 			continue
 		}

@@ -34,7 +34,6 @@ type spoc struct {
 	allNetworks           netList
 	allRouters            []*router
 	managedRouters        []*router
-	routingOnlyRouters    []*router
 	allPathRules          pathRules
 	allZones              []*zone
 	ascendingAreas        []*area

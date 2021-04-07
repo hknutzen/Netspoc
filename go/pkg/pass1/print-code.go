@@ -2319,26 +2319,22 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 }
 
 func (c *spoc) getDevices() []*router {
-	var routers []*router
-	routers = append(routers, c.managedRouters...)
-	routers = append(routers, c.routingOnlyRouters...)
 
 	// Take only one router of multi VRF device.
 	// Ignore split part of crypto router.
 	// Create ipv6 subdirectory.
+	var result []*router
 	seen := make(map[*router]bool)
-	j := 0
-	for _, r := range routers {
+	for _, r := range c.managedRouters {
 		if seen[r] || r.origRouter != nil {
 			continue
 		}
-		routers[j] = r
-		j++
+		result = append(result, r)
 		for _, vrouter := range r.vrfMembers {
 			seen[vrouter] = true
 		}
 	}
-	return routers[:j]
+	return result
 }
 
 // Print generated code for each managed router.
