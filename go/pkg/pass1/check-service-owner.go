@@ -150,7 +150,11 @@ func (c *spoc) propagateOwners() {
 
 	// Collect list of owners and watchingOwners from areas at
 	// zones in attribute .watchingOwners. Is needed in export-netspoc.
-	zone2owner2seen := make(map[*zone]map[*owner]bool)
+	type key struct {
+		z *zone
+		o *owner
+	}
+	zoneOwnerSeen := make(map[key]bool)
 	for _, area := range c.ascendingAreas {
 		o := area.watchingOwner
 		if o == nil {
@@ -161,13 +165,9 @@ func (c *spoc) propagateOwners() {
 		}
 		o.isUsed = true
 		for _, z := range area.zones {
-			owner2seen := zone2owner2seen[z]
-			if !owner2seen[o] {
-				if owner2seen == nil {
-					owner2seen = make(map[*owner]bool)
-					zone2owner2seen[z] = owner2seen
-				}
-				owner2seen[o] = true
+			k := key{z, o}
+			if !zoneOwnerSeen[k] {
+				zoneOwnerSeen[k] = true
 				z.watchingOwners = append(z.watchingOwners, o)
 			}
 		}
