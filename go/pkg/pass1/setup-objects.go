@@ -3371,7 +3371,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 
 // Link tunnel networks with tunnel hubs.
 func (c *spoc) linkTunnels(s *symbolTable) {
-	// ToDo: Check if sorting is only needed for deterministic error messages.
+	// Sorting needed for deterministic error messages.
 	sorted := make([]*crypto, 0, len(symTable.crypto))
 	for _, c := range symTable.crypto {
 		sorted = append(sorted, c)
