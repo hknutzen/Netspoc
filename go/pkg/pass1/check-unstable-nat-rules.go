@@ -39,7 +39,7 @@ func (c *spoc) checkUnstableNatRules() {
 						" because it is no longer supernet of\n"+
 						"%s\n"+
 						" at %s",
-						n.name, rule.print(), subnets.nameList(), intf.name)
+						n, rule.print(), subnets.nameList(), intf)
 				}
 			}
 			walk := func(rule *groupedRule, inIntf, outIntf *routerIntf) {
@@ -50,18 +50,13 @@ func (c *spoc) checkUnstableNatRules() {
 				if outIntf != nil && outIntf.router.model != nil &&
 					outIntf.router.model.stateless {
 
-					stateless := false
-				PRT:
 					for _, prt := range rule.prt {
 						switch prt.proto {
 						case "tcp", "udp", "ip":
-							stateless = true
-							break PRT
+							check(unstableSrc, outIntf, true)
+							check(unstableDst, outIntf, false)
+							return
 						}
-					}
-					if stateless {
-						check(unstableSrc, outIntf, true)
-						check(unstableDst, outIntf, false)
 					}
 				}
 			}
