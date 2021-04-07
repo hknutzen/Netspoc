@@ -22,7 +22,7 @@ func (c *spoc) propagateOwners() {
 		if len(cluster) > 1 && seen[cluster[0]] {
 			continue
 		}
-	AGGREGATE:
+	AGG:
 		for key, agg := range z.ipPrefix2aggregate {
 
 			// If an explicit owner was set, it has been set for
@@ -31,43 +31,33 @@ func (c *spoc) propagateOwners() {
 				continue
 			}
 
-			var found *owner
-			var contained netList
 			if len(cluster) > 1 {
 				seen[cluster[0]] = true
-				for _, z2 := range cluster {
-					contained =
-						append(contained, z2.ipPrefix2aggregate[key].networks...)
-				}
-			} else {
-				contained = append(contained, agg.networks...)
 			}
-			for _, n := range contained {
-				netOwner := n.owner
-				if netOwner == nil {
-					continue AGGREGATE
-				}
-				if found != nil {
-					if netOwner != found {
-						continue AGGREGATE
+			var found *owner
+			for _, z2 := range cluster {
+				for _, n := range z2.ipPrefix2aggregate[key].networks {
+					netOwner := n.owner
+					if netOwner == nil {
+						continue AGG
 					}
-				} else {
-					found = netOwner
+					if found != nil {
+						if netOwner != found {
+							continue AGG
+						}
+					} else {
+						found = netOwner
+					}
 				}
 			}
 			if found == nil {
 				continue
 			}
 			//debug("Inversed inherit: %s %s", agg.name, found.name)
-			if cluster != nil {
-				for _, z2 := range cluster {
-					agg2 := z2.ipPrefix2aggregate[key]
-					agg2.owner = found
-					aggGotNetOwner[agg2] = true
-				}
-			} else {
-				agg.owner = found
-				aggGotNetOwner[agg] = true
+			for _, z2 := range cluster {
+				agg2 := z2.ipPrefix2aggregate[key]
+				agg2.owner = found
+				aggGotNetOwner[agg2] = true
 			}
 		}
 	}
