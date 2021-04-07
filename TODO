@@ -1,14 +1,5 @@
 Define type netOrRouter interface{}  more restrictive.
 
-Replace getIpv4Ipv6Routers() with c.allRouters
-- c.allRouters is filled in markDisabled
-- used in splitSemiManagedRouter: must be called after markDisabled
-
-Merge routingOnlyRouters into managedRouters.
-
-c.routerFragments is only used once in mark-disabled.go
-Is it really needed?
-
 Is c.virtualInterfaces really needed?
 
 NAT:
