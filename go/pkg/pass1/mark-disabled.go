@@ -83,7 +83,7 @@ func (c *spoc) markDisabled() {
 			var clean intfList
 			for _, intf2 := range l {
 				if intf2 != intf {
-					clean = append(clean, intf2)
+					clean.push(intf2)
 				}
 			}
 			return clean
