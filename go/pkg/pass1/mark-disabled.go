@@ -135,23 +135,26 @@ func (c *spoc) markDisabled() {
 			}
 		}
 	}
-	rl := getIpv4Ipv6Routers()
+
+	// Remove disabled routers
+	rl := c.allRouters
 	sort.Slice(rl, func(i, j int) bool {
 		return rl[i].name < rl[j].name
 	})
-	rl = append(rl, c.routerFragments...)
-
+	j := 0
 	for _, r := range rl {
 		if r.disabled {
 			continue
 		}
-		c.allRouters = append(c.allRouters, r)
+		rl[j] = r
+		j++
 		if r.managed != "" {
 			c.managedRouters = append(c.managedRouters, r)
 		} else if r.routingOnly {
 			c.routingOnlyRouters = append(c.routingOnlyRouters, r)
 		}
 	}
+	c.allRouters = rl[:j]
 
 	// Collect vrf instances belonging to one device.
 	// Also collect all IPv4 and IPv6 routers with same name.

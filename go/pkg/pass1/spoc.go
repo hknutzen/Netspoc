@@ -35,7 +35,6 @@ type spoc struct {
 	allRouters            []*router
 	managedRouters        []*router
 	routingOnlyRouters    []*router
-	routerFragments       []*router
 	allPathRules          pathRules
 	allZones              []*zone
 	ascendingAreas        []*area
@@ -199,6 +198,7 @@ func SpocMain() (errCount int) {
 		c.showReadStatistics()
 		c.orderProtocols()
 		c.markDisabled()
+		c.splitSemiManagedRouter()
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()

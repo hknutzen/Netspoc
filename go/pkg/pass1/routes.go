@@ -1043,17 +1043,6 @@ func intfListEq(l1, l2 []*routerIntf) bool {
 	return true
 }
 
-func getIpv4Ipv6Routers() []*router {
-	result := make([]*router, 0, len(symTable.router)+len(symTable.router6))
-	for _, r := range symTable.router {
-		result = append(result, r)
-	}
-	for _, r := range symTable.router6 {
-		result = append(result, r)
-	}
-	return result
-}
-
 // Check, whether input interfaces belong to same redundancy group.
 func isRedundanyGroup(intfs []*routerIntf) bool {
 	l1 := intfs[0].redundancyIntfs
