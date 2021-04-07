@@ -365,7 +365,7 @@ type routerIntf struct {
 	peerNetworks    netList
 	realIntf        *routerIntf
 	redundancyId    string
-	redundancyIntfs []*routerIntf
+	redundancyIntfs intfList
 	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList
