@@ -213,21 +213,21 @@ func (c *spoc) propagateOwners() {
 		if attributes == nil {
 			continue
 		}
-		owner := attributes.owner
-		if owner == nil {
+		o := attributes.owner
+		if o == nil {
 			continue
 		}
-		owner.isUsed = true
+		o.isUsed = true
 		for _, r := range a.managedRouters {
 			if rOwner := r.owner; rOwner != nil {
-				if rOwner == owner {
+				if rOwner == o {
 					c.warn(
 						"Useless %s at %s,\n"+
 							" it was already inherited from %s",
 						rOwner.name, r.name, attributes.name)
 				}
 			} else {
-				r.owner = owner
+				r.owner = o
 			}
 		}
 	}
@@ -246,17 +246,16 @@ func (c *spoc) propagateOwners() {
 		}
 	}
 
-	// Propagate owner of loopback interface to loopback network and
-	// loopback zone. Even reset owners to undef, if loopback interface
-	// has no owner.
+	// Propagate owner of loopback interface to loopback network. Even
+	// reset owner to nil, if loopback interface has no owner.
 	for _, r := range c.allRouters {
 		for _, intf := range r.interfaces {
 			if intf.loopback {
-				owner := intf.owner
-				if owner != nil {
-					owner.isUsed = true
+				o := intf.owner
+				if o != nil {
+					o.isUsed = true
 				}
-				intf.network.owner = owner
+				intf.network.owner = o
 			}
 		}
 	}
