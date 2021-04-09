@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"inet.af/netaddr"
-	"strings"
 )
 
 // Two zones are zoneEq, if
@@ -27,15 +26,15 @@ func zoneEq(z1, z2 pathObj) bool {
 
 // Print abbreviated list of names in messages.
 func shortNameList(list []someObj) string {
-	names := make([]string, 0, 4)
+	names := make(stringList, 0, 4)
 	for _, obj := range list {
 		if len(names) == 3 {
-			names = append(names, "...")
+			names.push("...")
 			break
 		}
-		names = append(names, obj.String())
+		names.push(obj.String())
 	}
-	return " - " + strings.Join(names, "\n - ")
+	return names.nameList()
 }
 
 type checkInfo struct {

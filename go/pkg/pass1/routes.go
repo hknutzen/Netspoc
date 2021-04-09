@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"sort"
-	"strings"
 )
 
 //############################################################################
@@ -1001,25 +1000,24 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 
 			// Show error message if dst network is reached by
 			// more than one but not by all redundancy interfaces.
-			nameList := stringList{hop1.name}
+			names := stringList{hop1.name}
 			for _, hop := range extraHops {
-				nameList.push(hop.name)
+				names.push(hop.name)
 			}
-			sort.Strings(nameList)
-			names := strings.Join(nameList, "\n - ")
+			sort.Strings(names)
 			errors.push(
 				fmt.Sprintf(
 					"Pathrestriction ambiguously affects generation"+
 						" of static routes\n"+
 						"       to interfaces with virtual IP %s:\n"+
 						" %s is reached via\n"+
-						" - %s\n"+
+						"%s\n"+
 						" But %d interface(s) of group are missing.\n"+
 						" Remaining paths must traverse\n"+
 						" - all interfaces or\n"+
 						" - exactly one interface\n"+
 						" of this group.",
-					hop1.ip.String(), n.name, names, missing))
+					hop1.ip.String(), n.name, names.nameList(), missing))
 		}
 
 		// Show error messages of both tests above.
