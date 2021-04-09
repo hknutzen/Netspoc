@@ -1017,7 +1017,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 						" - all interfaces or\n"+
 						" - exactly one interface\n"+
 						" of this group.",
-					hop1.ip.String(), n.name, names.nameList(), missing))
+					hop1.ip, n, names.nameList(), missing))
 		}
 
 		// Show error messages of both tests above.

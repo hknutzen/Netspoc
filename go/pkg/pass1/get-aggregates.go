@@ -85,7 +85,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		}
 		obj.up = agg
 
-		//debug("%s -up1-> %s", obj.name, agg.name)
+		//debug("%s -up1-> %s", obj, agg)
 		if obj.isAggregate {
 			agg.networks = append(agg.networks, obj.networks...)
 		} else {
@@ -109,7 +109,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		if obj.ipp.Contains(ipp.IP) {
 			agg.up = obj
 
-			//debug("%s -up2-> %s", agg.name, obj.name)
+			//debug("%s -up2-> %s", agg., obj)
 			break
 		}
 	}
@@ -140,7 +140,7 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 			continue
 		}
 
-		// debug("Dupl. %s to %s", agg.name, to z.name)
+		// debug("Dupl. %s to %s", agg, to z)
 
 		// Create new aggregate object for every zone inside the cluster
 		agg2 := new(network)

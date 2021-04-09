@@ -420,7 +420,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 				l = l[:j]
 				if badIntf != nil {
 					c.err("Unreachable %s of %s:\n%s",
-						attr, a.name, badIntf.nameList())
+						attr, a, badIntf.nameList())
 				}
 				return l
 			}
@@ -429,7 +429,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 
 			// Check whether area is empty (= consist of a single router)
 			if len(a.zones) == 0 {
-				c.warn("%s is empty", a.name)
+				c.warn("%s is empty", a)
 			}
 		}
 
@@ -460,7 +460,7 @@ func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	}
 	c.err("Inconsistent definition of %s in loop.\n"+
 		" It is reached from outside via this path:\n%s",
-		a.name, errPath.nameList())
+		a, errPath.nameList())
 	return true
 }
 
@@ -633,14 +633,14 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 						" - both areas contain %s,\n"+
 						" - only 1. area contains %s,\n"+
 						" - only 2. area contains %s",
-						small.name, next.name, obj, obj2, obj3)
+						small, next, obj, obj2, obj3)
 					continue LARGER
 				}
 			}
 
 			// Check for duplicates.
 			if len(smallList) == len(nextList) {
-				c.err("Duplicate %s and %s", small.name, next.name)
+				c.err("Duplicate %s and %s", small, next)
 			}
 		}
 	}

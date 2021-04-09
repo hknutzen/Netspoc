@@ -75,8 +75,7 @@ func (c *spoc) expandAutoIntfWithDstList(
 				switch intf.ipType {
 				case shortIP:
 					c.err("%s without IP address (from .[auto])\n"+
-						" must not be used in rule of %s",
-						intf.name, ctx)
+						" must not be used in rule of %s", intf, ctx)
 				case unnumberedIP:
 					// Ignore unnumbered interfaces.
 				default:

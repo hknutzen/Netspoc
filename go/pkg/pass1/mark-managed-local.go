@@ -56,9 +56,8 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 				return true
 			}
 			if !equal(filterOnly, r.filterOnly) {
-				c.err(
-					"%s and %s must have identical values in attribute 'filter_only'",
-					r0.name, r.name)
+				c.err("%s and %s must have identical values"+
+					" in attribute 'filter_only'", r0, r)
 			}
 
 			for _, in := range r.interfaces {
@@ -82,8 +81,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 								continue NETWORK
 							}
 						}
-						c.err("%s doesn't match attribute 'filter_only' of %s",
-							n.name, r.name)
+						c.err("%s doesn't match attribute 'filter_only' of %s", n, r)
 					}
 
 					for _, out := range z.interfaces {
@@ -107,7 +105,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 			if matched[filterOnly[j]] {
 				continue
 			}
-			c.warn("Useless %s in attribute 'filter_only' of %s", net, r0.name)
+			c.warn("Useless %s in attribute 'filter_only' of %s", net, r0)
 		}
 	}
 	return result

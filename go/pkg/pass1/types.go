@@ -411,6 +411,8 @@ type owner struct {
 	watchers            stringList
 }
 
+func (x owner) String() string { return x.name }
+
 type mcastProto struct {
 	name string
 	prt  *proto

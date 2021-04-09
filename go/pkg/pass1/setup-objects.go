@@ -737,7 +737,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 		for _, nat := range n.nat {
 			if !nat.identity {
-				c.err("Only identity NAT allowed for bridged %s", n.name)
+				c.err("Only identity NAT allowed for bridged %s", n)
 				break
 			}
 		}
@@ -750,13 +750,12 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 			// Check compatibility of host IP and network IP/mask.
 			if !h.ip.IsZero() {
 				if !ipp.Contains(h.ip) {
-					c.err("IP of %s doesn't match IP/mask of %s", h.name, name)
+					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
 			} else {
 				// Check range.
 				if !(ipp.Contains(h.ipRange.From) && ipp.Contains(h.ipRange.To)) {
-					c.err("IP range of %s doesn't match IP/mask of %s",
-						h.name, name)
+					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
 
@@ -993,7 +992,7 @@ func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 			if !ok {
 				c.err("Unexpected '%s' in %s", el, ctx)
 			} else if intf.router.managed == "" {
-				c.err("Must not reference unmanaged %s in %s", intf.name, ctx)
+				c.err("Must not reference unmanaged %s in %s", intf, ctx)
 			} else {
 				// Reverse swapped main and virtual interface.
 				if main := intf.mainIntf; main != nil {
@@ -1189,7 +1188,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				case "manual", "dynamic":
 				default:
 					c.err("Routing '%s' not supported for unnumbered %s",
-						rt.name, intf.name)
+						rt.name, intf)
 				}
 			}
 		}
@@ -1662,7 +1661,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			// because NAT operates on hardware, not on logic.
 			if !bindNatEq(intf.bindNat, hw.bindNat) {
 				c.err("All logical interfaces of %s\n"+
-					" at %s must use identical NAT binding", hwName, r.name)
+					" at %s must use identical NAT binding", hwName, r)
 			}
 		} else {
 			hw = &hardware{name: hwName, loopback: true}
@@ -1688,7 +1687,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		// Interface of managed router must not have individual owner,
 		// because whole device is managed from one place.
 		if intf.owner != nil {
-			c.warn("Ignoring attribute 'owner' at managed %s", intf.name)
+			c.warn("Ignoring attribute 'owner' at managed %s", intf)
 			intf.owner = nil
 		}
 
@@ -1703,7 +1702,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		// no routes at all.
 		if rt := intf.routing; rt != nil && rt.name == "manual" {
 			c.warn("'routing=manual' must only be applied to router, not to %s",
-				intf.name)
+				intf)
 		}
 
 		if l := intf.hub; l != nil {
@@ -2726,12 +2725,12 @@ func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *ow
 	o := c.tryOwnerRef(a, s, ctx)
 	if o != nil {
 		if o.admins == nil {
-			c.err("Missing attribute 'admins' in %s of %s", o.name, ctx)
+			c.err("Missing attribute 'admins' in %s of %s", o, ctx)
 			o.admins = make([]string, 0)
 		}
 		if o.onlyWatch {
 			c.err("%s with attribute 'only_watch' must only be used at area,\n"+
-				" not at %s", o.name, ctx)
+				" not at %s", o, ctx)
 			o.onlyWatch = false
 		}
 	}
@@ -3251,7 +3250,7 @@ func (c *spoc) checkNoInAcl(r *router) {
 		// Assure max number of main interfaces at no_in_acl-hardware == 1.
 		if nonSecondaryIntfCount(hw.interfaces) != 1 {
 			c.err("Only one logical interface allowed at hardware '%s' of %s\n"+
-				" because of attribute 'no_in_acl'", hw.name, r.name)
+				" because of attribute 'no_in_acl'", hw.name, r)
 		}
 		count++
 

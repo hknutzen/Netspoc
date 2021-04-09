@@ -75,12 +75,7 @@ func setpathObj(obj pathObj, intfToZone1 *routerIntf,
 
 	var partitionRouters []*router
 
-	/*	//debug
-		var intfToZone1Name string
-		if intfToZone1 != nil {
-			intfToZone1Name = intfToZone1.String()
-		}
-		debug("--%d: %s -->  %s", distToZone1, obj.String(), intfToZone1Name); //*/
+	//debug("--%d: %s -->  %s", distToZone1, obj, intfToZone1)
 
 	// Return from recursion if loop was found.
 	if obj.isActivePath() {

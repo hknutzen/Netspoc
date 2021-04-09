@@ -187,7 +187,7 @@ func (c *spoc) checkSupernetInZone1(
 	if len(networks) > 2 {
 
 		// Show also aggregate, if multiple networks are found.
-		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp.String(), net0.name)
+		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, net0)
 	} else if net0.isAggregate {
 
 		// If aggregate has networks, show both, networks and aggreagte.
@@ -223,10 +223,10 @@ func (c *spoc) checkSupernetInZone1(
 			" or add above-mentioned networks to %s of rule%s.",
 		rev,
 		rule.print(),
-		intf.name,
+		intf,
 		fromTo,
 		shortNameList(objects),
-		supernet.name,
+		supernet,
 		where,
 		orAgg,
 	)

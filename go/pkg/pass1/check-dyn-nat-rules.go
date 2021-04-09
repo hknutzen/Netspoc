@@ -284,7 +284,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 						c.err("%s needs static translation for nat:%s at %s"+
 							" to be valid in %s\n "+showRule(),
-							obj.String(), natTag, r.name, ruleTxt)
+							obj, natTag, r, ruleTxt)
 					}
 					checkCommon(inIntf, false)
 					if r.model.stateless {

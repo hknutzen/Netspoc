@@ -53,7 +53,7 @@ func (c *spoc) propagateOwners() {
 			if found == nil {
 				continue
 			}
-			//debug("Inversed inherit: %s %s", agg.name, found.name)
+			//debug("Inversed inherit: %s %s", agg, found)
 			for _, z2 := range cluster {
 				agg2 := z2.ipPrefix2aggregate[key]
 				agg2.owner = found
@@ -110,7 +110,7 @@ func (c *spoc) propagateOwners() {
 				if o2 != nil && o2 == o {
 					c.warn("Useless %s at %s,\n"+
 						" it was already inherited from %s",
-						o.name, obj, upper)
+						o, obj, upper)
 				}
 			}
 			o.isUsed = true
@@ -201,8 +201,7 @@ func (c *spoc) propagateOwners() {
 			c.err("%s has attribute 'show_all',"+
 				" but doesn't own whole topology.\n"+
 				" Missing:\n"+
-				invalid.nameList(),
-				o.name)
+				invalid.nameList(), o)
 		}
 	}
 
@@ -224,7 +223,7 @@ func (c *spoc) propagateOwners() {
 					c.warn(
 						"Useless %s at %s,\n"+
 							" it was already inherited from %s",
-						rOwner.name, r.name, attributes.name)
+						rOwner, r, attributes.name)
 				}
 			} else {
 				r.owner = o
@@ -370,7 +369,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			if subOwner := svc.subOwner; subOwner != nil {
 				subOwner.isUsed = true
 				if len(ownerSeen) == 1 && ownerSeen[subOwner] {
-					c.warn("Useless %s at %s", subOwner.name, svc.name)
+					c.warn("Useless %s at %s", subOwner, svc)
 				}
 			}
 
@@ -378,7 +377,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
 			if svc.multiOwner {
 				if !hasMulti {
-					c.warn("Useless use of attribute 'multi_owner' at %s", svc.name)
+					c.warn("Useless use of attribute 'multi_owner' at %s", svc)
 				} else {
 
 					// Check if attribute 'multi_owner' is restricted at this service.
@@ -391,7 +390,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 					if restricted {
-						c.warn("Must not use attribute 'multi_owner' at %s", svc.name)
+						c.warn("Must not use attribute 'multi_owner' at %s", svc)
 					} else if info.sameObjects {
 
 						// Check if attribute 'multi_owner' could be avoided,
@@ -419,7 +418,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 								" All 'user' objects belong to single %s.\n"+
 								" Either swap objects of 'user' and objects of rules,\n"+
 								" or split service into multiple parts,"+
-								" one for each owner.", svc.name, userOwner.name)
+								" one for each owner.", svc, userOwner)
 						}
 					}
 				}
@@ -445,7 +444,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						sort.Strings(names)
 						c.warnOrErr(printType,
 							"%s has multiple owners:\n %s",
-							svc.name, strings.Join(names, ", "))
+							svc, strings.Join(names, ", "))
 					}
 				}
 			}
@@ -453,13 +452,12 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			// Check for unknown owners.
 			if svc.unknownOwner {
 				if !hasUnknown {
-					c.warn("Useless use of attribute 'unknown_owner' at %s", svc.name)
+					c.warn("Useless use of attribute 'unknown_owner' at %s", svc)
 				} else {
 					for obj, _ := range objects {
 						if obj.getOwner() == nil &&
 							obj.getAttr(unknownOwnerAttr) == restrictVal {
-							c.warn("Must not use attribute 'unknown_owner' at %s",
-								svc.name)
+							c.warn("Must not use attribute 'unknown_owner' at %s", svc)
 							break
 						}
 					}
@@ -480,7 +478,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 		if printType := conf.Conf.CheckUnusedOwners; printType != "" {
 			for _, o := range symTable.owner {
 				if !o.isUsed {
-					c.warnOrErr(printType, "Unused %s", o.name)
+					c.warnOrErr(printType, "Unused %s", o)
 				}
 			}
 		}

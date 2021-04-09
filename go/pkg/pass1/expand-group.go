@@ -254,7 +254,7 @@ func (c *spoc) expandGroup1(
 							if x.ipp.Bits != 0 {
 								c.err("Must not use interface:[..].[all]\n"+
 									" with %s having ip/mask\n"+
-									" in %s", x.name, ctx)
+									" in %s", x, ctx)
 							}
 							for _, intf := range x.zone.interfaces {
 								r := intf.router
