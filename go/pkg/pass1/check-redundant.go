@@ -153,7 +153,7 @@ func (c *spoc) checkAttrOverlaps(
 		if srcAttr == restrictVal && dstAttr == restrictVal {
 			if !service.overlapsRestricted {
 				service.overlapsRestricted = true
-				c.warn("Must not use attribute 'overlaps' at %s", service.name)
+				c.warn("Must not use attribute 'overlaps' at %s", service)
 			}
 			return false
 		}
@@ -282,9 +282,9 @@ func (c *spoc) showFullyRedundantRules() {
 	if action == "" {
 		return
 	}
-	sNames := make([]string, 0, len(symTable.service))
+	sNames := make(stringList, 0, len(symTable.service))
 	for name := range symTable.service {
-		sNames = append(sNames, name)
+		sNames.push(name)
 	}
 	sort.Strings(sNames)
 	keep := make(map[*service]bool)
@@ -308,7 +308,7 @@ func (c *spoc) showFullyRedundantRules() {
 }
 
 func (c *spoc) warnUnusedOverlaps() {
-	var errList []string
+	var errList stringList
 	for _, service := range symTable.service {
 		if service.disabled {
 			continue
@@ -319,9 +319,8 @@ func (c *spoc) warnUnusedOverlaps() {
 				if overlap.disabled || used[overlap] {
 					continue
 				}
-				errList = append(errList,
-					fmt.Sprintf("Useless 'overlaps = %s' in %s",
-						overlap.name, service.name))
+				errList.push(
+					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, service))
 			}
 		}
 	}
