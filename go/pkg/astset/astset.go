@@ -109,12 +109,12 @@ func (s *State) ModifyObj(name string, f func(ast.Toplevel)) error {
 	return nil
 }
 
-func (s *State) CreateToplevel(fullName, file string, n ast.Toplevel) {
+func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 	idx := s.getFileIndex(file)
 	nodes := s.fileNodes[idx]
 	cp := make([]ast.Toplevel, 0, len(nodes)+1)
 	inserted := false
-	typ, name := getTypeName(fullName)
+	typ, name := getTypeName(n.GetName())
 	nLower := strings.ToLower(name)
 	for i, toplevel := range nodes {
 		typ2, name2 := getTypeName(toplevel.GetName())
