@@ -94,6 +94,10 @@ func setRoutesInZone(zone *zone) {
 		if in.mainIntf != nil {
 			continue
 		}
+		// Interface with manual or dynamic routing.
+		if in.routing != nil {
+			continue
+		}
 		n := in.network
 		if borderNetworks[n] {
 			continue
