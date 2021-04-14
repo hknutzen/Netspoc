@@ -3,7 +3,7 @@ package removefrom
 /*
 =head1 NAME
 
-remove-from-netspoc - Remove one || more objects from netspoc files
+remove-from-netspoc - Remove one or more objects from netspoc files
 
 =head1 SYNOPSIS
 
@@ -11,20 +11,20 @@ remove-from-netspoc [options] FILE|DIR OBJECT ...
 
 =head1 DESCRIPTION
 
-This program reads a netspoc configuration && one || more OBJECTS. It
+This program reads a netspoc configuration and one or more OBJECTS. It
 removes specified objects in each file. Changes are done in place, no
 backup files are created. But only changed files are touched.
 
 =head1 OBJECT
 
-An OBJECT is a typed name "type:NAME". Occurences of
+An OBJECT is a typed name "type:NAME". Occurrences of
 "type:NAME" are removed. Changes are applied only in group
-definitions && in implicit groups inside rules, i.e. after "user =",
+definitions and in implicit groups inside rules, i.e. after "user =",
 "src =", "dst = ".  Multiple OBJECTS can be removed in a single run of
 remove-from-netspoc.
 
 The following types can be used in OBJECTS:
-B<network host interface any group>.
+B<network host interface any group area>.
 
 =head1 OPTIONS
 
@@ -38,13 +38,9 @@ Read OBJECTS from file.
 
 Quiet, don't print status messages.
 
-=item B<-help>
+=item B<-h>
 
-Prints a brief help message && exits.
-
-=item B<-man>
-
-Prints the manual page && exits.
+Prints a brief help message and exits.
 
 =back
 
@@ -54,14 +50,14 @@ Prints the manual page && exits.
 
 http://hknutzen.github.com/Netspoc
 
-This program is free software; you can redistribute it &&/|| modify
+This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, ||
+the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY || FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along
