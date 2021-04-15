@@ -85,33 +85,33 @@ LIST:
 //              zone via a single hop.
 func setRoutesInZone(zone *zone) {
 
-	// Collect networks at zone border and next hop interfaces in lookup hashes.
+	// Check if zone needs static routing at all.
+	needRoutes := false
+	// Collect networks at zone border and next hop interfaces in lookup maps.
 	borderNetworks := make(netMap)
 	hopInterfaces := make(map[*routerIntf]bool)
-
-	// Collect networks at the zones interfaces as border networks.
+	// Collect networks at zones interfaces as border networks.
 	for _, in := range zone.interfaces {
 		if in.mainIntf != nil {
-			continue
-		}
-		// Interface with manual or dynamic routing.
-		if in.routing != nil {
 			continue
 		}
 		n := in.network
 		if borderNetworks[n] {
 			continue
 		}
-		borderNetworks[n] = true
-
 		// Collect non border interfaces of the networks as next hop interfaces.
 		for _, out := range n.interfaces {
 			if out.zone == nil && out.mainIntf == nil {
 				hopInterfaces[out] = true
 			}
 		}
+		// Border network only needed later, if no dynamic routing.
+		if in.routing == nil {
+			borderNetworks[n] = true
+			needRoutes = true
+		}
 	}
-	if len(hopInterfaces) == 0 {
+	if len(hopInterfaces) == 0 || !needRoutes {
 		return
 	}
 
@@ -119,7 +119,7 @@ func setRoutesInZone(zone *zone) {
 	// intf (cluster) via depth first search to accelerate later DFS
 	// runs starting at hop intfs.
 
-	// Store hop intfs as key && reached clusters as values.
+	// Store hop interfaces as key and reached clusters as values.
 	type cluster netMap
 	hop2cluster := make(map[*routerIntf]*cluster)
 	// Store directly linked border networks for clusters.
@@ -180,7 +180,8 @@ func setRoutesInZone(zone *zone) {
 		//             join ',', map {$_->{name}} values %clust);
 	}
 
-	// Perform depth first search to collect all networks behind a hop interface.
+	// Perform depth first search to collect all networks behind a hop
+	// interface.
 	// Map to store the collected sets.
 	hop2netMap := make(map[*routerIntf]netMap)
 	var setNetworksBehind func(*routerIntf, *network)
@@ -238,11 +239,11 @@ func setRoutesInZone(zone *zone) {
 			if intf.mainIntf != nil {
 				continue
 			}
-			if intf.zone != nil {
+			if intf.zone == nil {
+				hopIntf.push(intf)
+			} else if intf.routing == nil {
 				borderIntf.push(intf)
 				intf.routeInZone = make(map[*network]intfList)
-			} else {
-				hopIntf.push(intf)
 			}
 		}
 
@@ -386,7 +387,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 				nMap = make(netMap)
 				rMap[h] = nMap
 			}
-			// debug("%s -> %s: %s", intf, hop, natNet)
+			// debug("%s -> %s: %s", intf, h, natNet)
 			nMap[natNet] = true
 		}
 	}
