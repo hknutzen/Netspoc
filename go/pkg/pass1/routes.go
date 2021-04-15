@@ -839,20 +839,7 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			}
 			return true
 		}
-		redundEq := func(l intfList) bool {
-			r0 := l[0].redundancyIntfs
-			if len(r0) == 0 {
-				return false
-			}
-			rest := l[1:]
-			for _, i := range rest {
-				if !intfListEq(i.redundancyIntfs, r0) {
-					return false
-				}
-			}
-			return true
-		}
-		if !intfEq(hops) && !redundEq(hops) {
+		if !intfEq(hops) && !isRedundanyGroup(hops) {
 
 			// This can only happen for vpn software clients.
 			// For hardware clients the route is known
@@ -959,7 +946,7 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 					// If next hop belongs to same redundancy group,
 					// collect hops for detailed check below.
 					group2 := hop2.redundancyIntfs
-					if group != nil && intfListEq(group, group2) {
+					if group != nil && redundancyEq(group, group2) {
 						delete(intf.routes[hop], n)
 						net2extraHops[n] =
 							append(net2extraHops[n], hop)
@@ -1033,35 +1020,29 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 	}
 }
 
-func intfListEq(l1, l2 []*routerIntf) bool {
-	if len(l1) != len(l2) {
+// Check, whether input interfaces belong to same redundancy group.
+// Each member is known to use the same list in redundancyIntfs
+// and each interface can only be member in one redundancy group,
+// hence it is sufficient to check only first element.
+func isRedundanyGroup(intfs intfList) bool {
+	l1 := intfs[0].redundancyIntfs
+	if len(l1) == 0 {
 		return false
 	}
-	for i, e := range l1 {
-		if e != l2[i] {
+	for _, intf := range intfs[1:] {
+		if !redundancyEq(intf.redundancyIntfs, l1) {
 			return false
 		}
 	}
 	return true
 }
 
-// Check, whether input interfaces belong to same redundancy group.
-func isRedundanyGroup(intfs []*routerIntf) bool {
-	l1 := intfs[0].redundancyIntfs
-	if len(l1) == 0 {
+func redundancyEq(l1, l2 intfList) bool {
+	if len(l1) != len(l2) {
 		return false
 	}
-	// Check for equality of lists.
-	for _, intf := range intfs[1:] {
-		l2 := intf.redundancyIntfs
-		if len(l2) != len(l1) {
-			return false
-		}
-		for i, obj := range l1 {
-			if obj != l2[i] {
-				return false
-			}
-		}
+	if l1[0] != l2[0] {
+		return false
 	}
 	return true
 }
