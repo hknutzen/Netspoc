@@ -325,13 +325,13 @@ group:g =
 =END=
 =OUTPUT=
 group:g =
- any:aaa,
  network:xyz,
  interface:r.n.sec,
  host:abc,
 ;
 =END=
 =FOPTION=
+any:aaa
 network:abx
 host:id:xyz@dom
 group:bbb
@@ -370,5 +370,37 @@ group:g1 =
 ;
 =END=
 =PARAMS=host:b
+
+############################################################
+=TITLE=Missing type
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Missing type in host_a
+=END=
+=PARAMS=host_a
+
+############################################################
+=TITLE=Unsupported type
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Can't use type in service:s1
+=END=
+=PARAMS=service:s1
+
+############################################################
+=TITLE=Can't remove automatic group
+=INPUT=
+group:g1 =
+ any:[ip=10.1.1.0/24&network:n1],
+;
+=END=
+=ERROR=
+Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+=END=
+=PARAMS=any:[ip=10.1.1.0/24&network:n1]
 
 ############################################################
