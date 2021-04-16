@@ -548,8 +548,9 @@ service:s = {
 }
 =END=
 =ERROR=
-Error: Two static routes for network:n2
- at interface:r0.n1/center via interface:r2.n1/right and interface:r1.n1/left
+Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
+ - interface:r1.n1/left
+ - interface:r2.n1/right
 =END=
 
 ############################################################

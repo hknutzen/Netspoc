@@ -99,32 +99,27 @@ func printRoutes(fh *os.File, r *router) {
 			doAutoDefaultRoute = false
 		}
 
-		// netMap: A map having all networks reachable via current hop
-		// both as key and as value.
-		for hop, netMap := range intf.routes {
-			info := hopInfo{intf, hop}
-			for natNet, _ := range netMap {
-				if natNet.hidden {
-					continue
-				}
-
-				prefixlen := natNet.ipp.Bits
-				if prefixlen == 0 {
-					doAutoDefaultRoute = false
-				}
-
-				// Implicitly overwrite duplicate networks.
-				m := prefix2ip2net[prefixlen]
-				if m == nil {
-					m = make(map[netaddr.IP]*network)
-					prefix2ip2net[prefixlen] = m
-				}
-				m[natNet.ipp.IP] = natNet
-
-				// This is unambiguous, because only a single static
-				// route is allowed for each network.
-				net2hopInfo[natNet] = info
+		for natNet, hopList := range intf.routes {
+			if natNet.hidden {
+				continue
 			}
+
+			prefixlen := natNet.ipp.Bits
+			if prefixlen == 0 {
+				doAutoDefaultRoute = false
+			}
+
+			// Implicitly overwrite duplicate networks.
+			m := prefix2ip2net[prefixlen]
+			if m == nil {
+				m = make(map[netaddr.IP]*network)
+				prefix2ip2net[prefixlen] = m
+			}
+			m[natNet.ipp.IP] = natNet
+
+			// This is unambiguous, because only a single static
+			// route is allowed for each network.
+			net2hopInfo[natNet] = hopInfo{intf, hopList[0]}
 		}
 	}
 	if len(net2hopInfo) == 0 {

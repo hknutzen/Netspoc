@@ -350,19 +350,14 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 	// Add hop interface and routing information to in.routes
 	rMap := in.routes
 	if rMap == nil {
-		rMap = make(map[*routerIntf]netMap)
+		rMap = make(map[*network]intfList)
 		in.routes = rMap
-	}
-	nMap := rMap[hop]
-	if nMap == nil {
-		nMap = make(netMap)
-		rMap[hop] = nMap
 	}
 	natMap := in.natMap
 	for n, _ := range dstNetMap {
 		natNet := getNatNetwork(n, natMap)
-		// debug("%s -> %s: %s", in, intf, n)
-		nMap[natNet] = true
+		// debug("%s -> %s: %s", in, hop, n)
+		rMap[natNet] = append(rMap[natNet], hop)
 	}
 }
 
@@ -388,7 +383,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 	natMap := intf.natMap
 	rMap := intf.routes
 	if rMap == nil {
-		rMap = make(map[*routerIntf]netMap)
+		rMap = make(map[*network]intfList)
 		intf.routes = rMap
 	}
 
@@ -401,13 +396,8 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 		h := getHopInZone(intf, n)
 
 		// Store the used hop and routes within the interface object.
-		nMap := rMap[h]
-		if nMap == nil {
-			nMap = make(netMap)
-			rMap[h] = nMap
-		}
 		// debug("%s -> %s: %s", intf, h, natNet)
-		nMap[natNet] = true
+		rMap[natNet] = append(rMap[natNet], h)
 	}
 }
 
@@ -726,31 +716,28 @@ func fixBridgedRoutes(r *router) {
 		if intf.network.ipType != bridgedIP {
 			continue
 		}
-		addRoutes := make(map[*routerIntf][]*network)
-		for hop, netMap := range intf.routes {
-			if hop.ipType != bridgedIP {
-				continue
-			}
-			for network, _ := range netMap {
-				realHops := fixBridgedHops(hop, network)
-
-				// Add real hops and networks later, after loop over
-				// routes has been finished.
-				for _, rHop := range realHops {
-					addRoutes[rHop] = append(addRoutes[rHop], network)
+		for natNet, hopList := range intf.routes {
+			subst := make(map[*routerIntf]intfList)
+			for _, hop := range hopList {
+				if hop.ipType != bridgedIP {
+					continue
 				}
+				realHops := fixBridgedHops(hop, natNet)
+
+				// Substite real hops later, after loop over hops is finished.
+				subst[hop] = realHops
 			}
-			delete(intf.routes, hop)
-		}
-		for rHop, networks := range addRoutes {
-			nMap := intf.routes[rHop]
-			if nMap == nil {
-				nMap = make(netMap)
+			if len(subst) > 0 {
+				var new intfList
+				for _, hop := range hopList {
+					if real := subst[hop]; real != nil {
+						new = append(new, real...)
+					} else {
+						new.push(hop)
+					}
+				}
+				intf.routes[natNet] = new
 			}
-			for _, n := range networks {
-				nMap[n] = true
-			}
-			intf.routes[rHop] = nMap
 		}
 	}
 }
@@ -770,16 +757,14 @@ func fixBridgedHops(hop *routerIntf, n *network) intfList {
 		if intf == hop {
 			continue
 		}
-	HOP:
-		for hop2, netMap := range intf.routes {
-			for n2, _ := range netMap {
-				if n == n2 {
+		for n2, hopList := range intf.routes {
+			if n == n2 {
+				for _, hop2 := range hopList {
 					if hop2.ipType == bridgedIP {
 						result = append(result, fixBridgedHops(hop2, n)...)
 					} else {
 						result.push(hop2)
 					}
-					continue HOP
 				}
 			}
 		}
@@ -865,30 +850,22 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 		}
 		routes := realIntf.routes
 		if routes == nil {
-			routes = make(map[*routerIntf]netMap)
-		}
-		hopRoutes := routes[hop]
-		if hopRoutes == nil {
-			hopRoutes = make(netMap)
-			routes[hop] = hopRoutes
+			routes = make(map[*network]intfList)
+			realIntf.routes = routes
 		}
 		// debug("Use %s as hop for %s", hop, realPeer)
 
-		// Use found hop to reach tunneled networks in tunnel_routes.
-		for _, tunnelNetMap := range tunnelRoutes {
-			for tunnelNet, _ := range tunnelNetMap {
-				hopRoutes[tunnelNet] = true
-			}
+		// Use found hop to reach tunneled networks in tunnelRoutes.
+		for tunnelNet := range tunnelRoutes {
+			routes[tunnelNet] = append(routes[tunnelNet], hop)
 		}
 
 		// Add route to reach peer interface.
 		if peerNet != realNet {
 			natMap := realIntf.natMap
 			natNet := getNatNetwork(peerNet, natMap)
-			hopRoutes[natNet] = true
+			routes[natNet] = append(routes[natNet], hop)
 		}
-
-		realIntf.routes = routes
 	}
 }
 func (c *spoc) checkDuplicateRoutes(r *router) {
@@ -901,131 +878,98 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 
 	for _, intf := range getIntf(r) {
 
-		// Collect error messages for sorted / deterministic output.
-		var errors stringList
-
 		// Routing info not needed, because dynamic routing is in use.
 		if intf.routing != nil || intf.ipType == bridgedIP {
 			intf.routes = nil
 			continue
 		}
 
-		// Remember, via which remote interface a network is reached.
-		net2hop := make(map[*network]*routerIntf)
-
-		// Remember, via which extra remote redundancy interfaces networks
-		// are reached. We use this to check, that all members of a group
-		// of redundancy interfaces are used to reach a network.
-		// Otherwise it would be wrong to route to virtual interface.
-		var netBehindVirtHop netList
-		net2extraHops := make(map[*network]intfList)
+		// Collect error messages for sorted / deterministic output.
+		var errors stringList
 
 		// Abort, if more than one static route exists per network.
-		// Sort interfaces for deterministic output.
-		sorted := make(intfList, 0, len(intf.routes))
-		for hop, _ := range intf.routes {
-			sorted.push(hop)
-		}
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].name < sorted[j].name
-		})
-		for _, hop := range sorted {
-			for n, _ := range intf.routes[hop] {
-				// debug("%s -> %s -> %s", intf, hop, n)
+		for n, hopList := range intf.routes {
 
-				// Check if network is reached via two different
-				// local interfaces.
-				if intf2, ok := net2intf[n]; ok {
-					if intf2 != intf {
-						errors.push(
-							fmt.Sprintf(
-								"Two static routes for %s\n via %s and %s",
-								n, intf, intf2))
-					}
-				} else {
-					net2intf[n] = intf
+			// Check if network is reached via two different
+			// local interfaces.
+			if intf2, ok := net2intf[n]; ok {
+				if intf2 != intf {
+					errors.push(
+						fmt.Sprintf(
+							"Two static routes for %s\n via %s and %s",
+							n, intf, intf2))
 				}
+			} else {
+				net2intf[n] = intf
+			}
 
-				// Check whether network is reached via different hops.
-				// Abort, if these do not belong to same redundancy group.
-				var group intfList
-				// Ignore completly unmanaged redundancy group, which has
+			// Sort for finding duplicates and for deterministic error messages.
+			sort.Slice(hopList, func(i, j int) bool {
+				return hopList[i].name < hopList[j].name
+			})
+			j := 0
+			var prev *routerIntf
+			for _, hop := range hopList {
+				if hop != prev {
+					hopList[j] = hop
+					j++
+					prev = hop
+				}
+			}
+			hopList = hopList[:j]
+
+			// Simple case: one hop
+			if len(hopList) == 1 {
+				hop := hopList[0]
+
+				// If dst network is reached via exactly one interface,
+				// move hop from virtual to physical interface.
+				// Destination is probably a loopback interface of same
+				// device.
+				// Ignore completly unmanaged virtual interface, which has
 				// been checked already.
 				if hop.zone != nil {
-					group = hop.redundancyIntfs
-				}
-
-				if hop2, ok := net2hop[n]; ok {
-
-					// If other hop belongs to same redundancy group,
-					// collect hops for detailed analysis below.
-					group2 := hop2.redundancyIntfs
-					if group != nil && redundancyEq(group, group2) {
-						delete(intf.routes[hop], n)
-						net2extraHops[n] = append(net2extraHops[n], hop)
-					} else {
-						errors.push(
-							fmt.Sprintf(
-								"Two static routes for %s\n at %s via %s and %s",
-								n, intf, hop, hop2))
-					}
-				} else {
-					net2hop[n] = hop
-					if group != nil {
-						netBehindVirtHop.push(n)
+					if physHop := hop.origMain; physHop != nil {
+						hopList[0] = physHop
 					}
 				}
-			}
-		}
-
-		// Ensure correct routing at virtual interfaces.
-		// Check whether dst network is reached via all
-		// redundancy interfaces.
-		for _, n := range netBehindVirtHop {
-			hop1 := net2hop[n]
-			extraHops := net2extraHops[n]
-			missing := len(hop1.redundancyIntfs) - len(extraHops) - 1
-			if missing == 0 {
+				intf.routes[n] = hopList
 				continue
 			}
 
-			// If dst network is reached via exactly one interface,
-			// move hop from virtual to physical interface.
-			// Destination is probably a loopback interface of same
-			// device.
-			physHop := hop1.origMain
-			if len(extraHops) == 0 && physHop != nil {
-				delete(intf.routes[hop1], n)
-				if intf.routes[physHop] == nil {
-					intf.routes[physHop] = make(netMap)
+			// Network is reached via different hops.
+			// Abort, if these do not belong to same redundancy group.
+			if isRedundanyGroup(hopList) {
+				missing := len(hopList[0].redundancyIntfs) - len(hopList)
+				if missing == 0 {
+					intf.routes[n] = hopList[:1]
+					continue
 				}
-				intf.routes[physHop][n] = true
+
+				// Network is reached by more than one but not by all
+				// redundancy interfaces.
+				errors.push(
+					fmt.Sprintf(
+						"Pathrestriction ambiguously affects generation"+
+							" of static routes\n"+
+							"       to interfaces with virtual IP %s:\n"+
+							" %s is reached via\n"+
+							"%s\n"+
+							" But %d interface(s) of group are missing.\n"+
+							" Remaining paths must traverse\n"+
+							" - all interfaces or\n"+
+							" - exactly one interface\n"+
+							" of this group.",
+						hopList[0].ip, n, hopList.nameList(), missing))
 				continue
 			}
 
-			// Show error message if dst network is reached by
-			// more than one but not by all redundancy interfaces.
-			names := stringList{hop1.name}
-			for _, hop := range extraHops {
-				names.push(hop.name)
-			}
-			sort.Strings(names)
 			errors.push(
-				fmt.Sprintf(
-					"Pathrestriction ambiguously affects generation"+
-						" of static routes\n"+
-						"       to interfaces with virtual IP %s:\n"+
-						" %s is reached via\n"+
-						"%s\n"+
-						" But %d interface(s) of group are missing.\n"+
-						" Remaining paths must traverse\n"+
-						" - all interfaces or\n"+
-						" - exactly one interface\n"+
-						" of this group.",
-					hop1.ip, n, names.nameList(), missing))
+				fmt.Sprintf("Ambiguous static routes for %s at %s via\n%s",
+					n, intf, hopList.nameList()))
 		}
 
-		// Show error messages of both tests above.
+		// Show collected error messages.
 		sort.Strings(errors)
 		for _, e := range errors {
 			c.err(e)
