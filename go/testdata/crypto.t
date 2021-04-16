@@ -1526,8 +1526,11 @@ router:r = {
 }
 network:trans = { ip = 10.9.9.0/24; }
 router:gw = {
- interface:trans = { ip = 10.9.9.2; }
- interface:dmz = { ip = 192.168.0.2; }
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:trans = { ip = 10.9.9.2; hardware = e0; }
+ interface:dmz = { ip = 192.168.0.2; hardware = e1; }
 }
 router:asavpn = {
  model = ASA, VPN;
@@ -1571,7 +1574,6 @@ service:test1 = {
 --r
 ! [ Routing ]
 ip route 10.99.1.0 255.255.255.0 10.9.9.2
-ip route 192.168.0.0 255.255.255.0 10.9.9.2
 --asavpn
 ! [ Routing ]
 route outside 10.1.2.0 255.255.255.0 192.168.0.2
@@ -1639,8 +1641,11 @@ access-group outside_in in interface outside
 =INPUT=
 ${input}
 router:gw2 = {
- interface:trans = { ip = 10.9.9.4; }
- interface:dmz = { ip = 192.168.0.4; }
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:trans = { ip = 10.9.9.4; hardware = e0; }
+ interface:dmz = { ip = 192.168.0.4; hardware = e1; }
 }
 =END=
 =ERROR=
@@ -1654,8 +1659,6 @@ Error: Two static routes for network:intern
 Error: Two static routes for network:trans
  at interface:asavpn.dmz via interface:gw2.dmz and interface:gw.dmz
 Error: Two static routes for network:customers1
- at interface:r.trans via interface:gw2.trans and interface:gw.trans
-Error: Two static routes for network:dmz
  at interface:r.trans via interface:gw2.trans and interface:gw.trans
 =END=
 

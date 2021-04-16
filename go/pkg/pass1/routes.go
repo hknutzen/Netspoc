@@ -21,7 +21,7 @@ func (c *spoc) findActiveRoutes() {
 
 	// Generate navigation information for routing inside zones.
 	for _, z := range c.allZones {
-		setRoutesInZone(z)
+		c.setRoutesInZone(z)
 	}
 
 	// Generate pseudo rule set with all src dst pairs to determine routes for.
@@ -80,10 +80,10 @@ LIST:
 //              keys and the next hop interface H towards N as values.
 // Comments   : A cluster is a maximal set of connected networks of the security
 //              zone surrounded by hop interfaces. Clusters can be empty.
-//              Optimization: a default route I.routeInZone[network00] = [H]
+//              Optimization: a default route I.routeInZone[network00] = H
 //              is stored for those border interfaces, that reach networks in
 //              zone via a single hop.
-func setRoutesInZone(zone *zone) {
+func (c *spoc) setRoutesInZone(zone *zone) {
 
 	// Check if zone needs static routing at all.
 	needRoutes := false
@@ -105,7 +105,7 @@ func setRoutesInZone(zone *zone) {
 				hopInterfaces[out] = true
 			}
 		}
-		// Border network only needed later, if no dynamic routing.
+		// Border network is only needed later, if static routes are generated.
 		if in.routing == nil {
 			borderNetworks[n] = true
 			needRoutes = true
@@ -243,42 +243,80 @@ func setRoutesInZone(zone *zone) {
 				hopIntf.push(intf)
 			} else if intf.routing == nil {
 				borderIntf.push(intf)
-				intf.routeInZone = make(map[*network]intfList)
+				intf.routeInZone = make(map[*network]*routerIntf)
 			}
 		}
 
 		// Optimization: All networks in zone are located behind single hop.
-		if len(hopIntf) == 1 || isRedundanyGroup(hopIntf) {
+		if len(hopIntf) == 1 {
 			for _, intf := range borderIntf {
 
 				// Spare reachable network specification.
 				// debug("Default hop intf->{name} ",
 				//        join(',', map {$_->{name}} hop_intf));
-				intf.routeInZone[network00] = hopIntf
+				intf.routeInZone[network00] = hopIntf[0]
 			}
 			// Proceed with next border network.
 			continue
 		}
 
-		// For all hop interfaces of current network, gather reachable
-		// network set.
+		// For all hop interfaces of current border network, gather
+		// reachable network set.
+		// Collect single virtual hops to change them later to physical interface.
+		singleVirtualHops := make(map[*routerIntf]bool)
 		for _, h := range hopIntf {
 			setNetworksBehind(h, border)
+			group := h.redundancyIntfs
+			if group != nil {
+				singleVirtualHops[h] = true
+			}
 
-			// In border interface of current network, store reachable
-			// networks and hops
+			// In border interface of current border network, store
+			// reachable networks and hops
 			for _, intf := range borderIntf {
 				for n, _ := range hop2netMap[h] {
 
 					// Border will be found accidently, if clusters form a
 					// loop inside zone.
-					if n != border {
-						intf.routeInZone[n] = append(intf.routeInZone[n], h)
+					if n == border {
+						continue
+					}
+					if other := intf.routeInZone[n]; other != nil {
+						// Ignore other redundancy interfaces.
+						if group != nil && redundancyEq(group, other.redundancyIntfs) {
+							delete(singleVirtualHops, h)
+							delete(singleVirtualHops, other)
+						} else {
+							c.err("Two static routes for %s\n at %s via %s and %s",
+								n, intf, h, other)
+						}
+					} else {
+						intf.routeInZone[n] = h
+					}
+				}
+			}
+		}
+		// Change virtual to physical interface, if not used grouped.
+		for hop := range singleVirtualHops {
+			phys := hop.origMain
+			for _, intf := range borderIntf {
+				for n, h := range intf.routeInZone {
+					if h == hop {
+						intf.routeInZone[n] = phys
 					}
 				}
 			}
 		}
 	}
+}
+
+func getHopInZone(in *routerIntf, n *network) *routerIntf {
+	routeInZone := in.routeInZone
+	h := routeInZone[network00]
+	if h == nil {
+		h = routeInZone[n]
+	}
+	return h
 }
 
 //#############################################################################
@@ -302,43 +340,29 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 		return
 	}
 
-	inNet := in.network
-	outNet := out.network
-	natMap := in.natMap
-	natNets := make(netList, 0, len(dstNetMap))
-	for n, _ := range dstNetMap {
-		natNets.push(getNatNetwork(n, natMap))
+	// Identify hop interface.
+	var hop *routerIntf
+	if in.network == out.network {
+		hop = out
+	} else {
+		hop = getHopInZone(in, out.network)
 	}
+	// Add hop interface and routing information to in.routes
 	rMap := in.routes
 	if rMap == nil {
 		rMap = make(map[*routerIntf]netMap)
 		in.routes = rMap
 	}
-
-	// Identify hop interface(s).
-	// Add hop interfaces and routing information to in.routes
-	add := func(intf *routerIntf) {
-		nMap := rMap[intf]
-		if nMap == nil {
-			nMap = make(netMap)
-			rMap[intf] = nMap
-		}
-		for _, n := range natNets {
-			// debug("%s -> %s: %s", in, intf, n)
-			nMap[n] = true
-		}
+	nMap := rMap[hop]
+	if nMap == nil {
+		nMap = make(netMap)
+		rMap[hop] = nMap
 	}
-	if inNet == outNet {
-		add(out)
-	} else {
-		routeInZone := in.routeInZone
-		hops := routeInZone[network00]
-		if hops == nil {
-			hops = routeInZone[outNet]
-		}
-		for _, h := range hops {
-			add(h)
-		}
+	natMap := in.natMap
+	for n, _ := range dstNetMap {
+		natNet := getNatNetwork(n, natMap)
+		// debug("%s -> %s: %s", in, intf, n)
+		nMap[natNet] = true
 	}
 }
 
@@ -361,7 +385,6 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 	}
 
 	intfNet := intf.network
-	routeInZone := intf.routeInZone
 	natMap := intf.natMap
 	rMap := intf.routes
 	if rMap == nil {
@@ -369,27 +392,22 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 		intf.routes = rMap
 	}
 
-	// For every dst network, check the hops that can be used to get there.
+	// For every dst network, get the hop that can be used to get there.
 	for n, _ := range dstNetMap {
 		if n == intfNet {
 			continue
 		}
 		natNet := getNatNetwork(n, natMap)
-		hops := routeInZone[network00]
-		if hops == nil {
-			hops = routeInZone[n]
-		}
+		h := getHopInZone(intf, n)
 
-		// Store the used hops and routes within the interface object.
-		for _, h := range hops {
-			nMap := rMap[h]
-			if nMap == nil {
-				nMap = make(netMap)
-				rMap[h] = nMap
-			}
-			// debug("%s -> %s: %s", intf, h, natNet)
-			nMap[natNet] = true
+		// Store the used hop and routes within the interface object.
+		nMap := rMap[h]
+		if nMap == nil {
+			nMap = make(netMap)
+			rMap[h] = nMap
 		}
+		// debug("%s -> %s: %s", intf, h, natNet)
+		nMap[natNet] = true
 	}
 }
 
@@ -659,6 +677,9 @@ func (c *spoc) addRoutingOnlyNetworks(r *router) {
 		directly[intf.network] = true
 	}
 	for _, intf := range r.interfaces {
+		if intf.mainIntf != nil {
+			continue
+		}
 		if intf.routing != nil {
 			continue
 		}
@@ -784,12 +805,12 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 		peerNet := realPeer.network
 
 		// Find hop to peer network and add tunneled networks to this hop.
-		var hops intfList
+		var hop *routerIntf
 
 		// Peer network is directly connected.
 		if realNet == peerNet {
 			if realPeer.ipType == hasIP {
-				hops.push(realPeer)
+				hop = realPeer
 			} else {
 				c.err("%s used to reach software clients\n"+
 					" must not be directly connected to %s\n"+
@@ -799,62 +820,49 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			}
 		} else if realNet.zone == peerNet.zone {
 			// Peer network is located in directly connected zone.
-			routeInZone := realIntf.routeInZone
-			h := routeInZone[network00]
-			if h == nil {
-				h = routeInZone[peerNet]
-			}
-			hops = append(hops, h...)
+			hop = getHopInZone(realIntf, peerNet)
 		} else {
 			// Find path to peer network to determine available hops.
-			var zoneHops intfList
+			var hops intfList
 			walk := func(_ *groupedRule, inIntf, outIntf *routerIntf) {
 				if inIntf == realIntf {
-					zoneHops.push(outIntf)
+					hopNet := outIntf.network
+					if hopNet == realNet {
+						hops.push(outIntf)
+					} else {
+						h := getHopInZone(realIntf, hopNet)
+						hops.push(h)
+					}
 				}
 			}
 			c.singlePathWalk(realIntf, peerNet, walk, "Zone")
-			routeInZone := realIntf.routeInZone
-			for _, hop := range zoneHops {
-				hopNet := hop.network
-				if hopNet == realNet {
-					hops.push(hop)
-				} else {
-					h := routeInZone[network00]
-					if h == nil {
-						h = routeInZone[hopNet]
+
+			intfEq := func(l intfList) bool {
+				i0 := l[0]
+				rest := l[1:]
+				for _, i := range rest {
+					if i != i0 {
+						return false
 					}
-					hops = append(hops, h...)
 				}
+				return true
 			}
-		}
+			if !intfEq(hops) && !isRedundanyGroup(hops) {
 
-		intfEq := func(l intfList) bool {
-			i0 := l[0]
-			rest := l[1:]
-			for _, i := range rest {
-				if i != i0 {
-					return false
-				}
+				// This can only happen for vpn software clients.
+				// For hardware clients the route is known
+				// for the encrypted traffic which is allowed
+				// by genTunnelRules (even for negotiated interface).
+				count := len(hops)
+				c.err("Can't determine next hop to reach %s"+
+					" while moving routes\n"+
+					" of %s to %s.\n"+
+					" Exactly one route is needed,"+
+					" but %d candidates were found:\n%s",
+					peerNet, intf, realIntf, count, hops.nameList())
 			}
-			return true
+			hop = hops[0]
 		}
-		if !intfEq(hops) && !isRedundanyGroup(hops) {
-
-			// This can only happen for vpn software clients.
-			// For hardware clients the route is known
-			// for the encrypted traffic which is allowed
-			// by genTunnelRules (even for negotiated interface).
-			count := len(hops)
-			c.err("Can't determine next hop to reach %s"+
-				" while moving routes\n"+
-				" of %s to %s.\n"+
-				" Exactly one route is needed,"+
-				" but %d candidates were found:\n%s",
-				peerNet, intf, realIntf, count, hops.nameList())
-		}
-
-		hop := hops[0]
 		routes := realIntf.routes
 		if routes == nil {
 			routes = make(map[*routerIntf]netMap)
@@ -914,9 +922,9 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 
 		// Abort, if more than one static route exists per network.
 		// Sort interfaces for deterministic output.
-		sorted := make([]*routerIntf, 0, len(intf.routes))
+		sorted := make(intfList, 0, len(intf.routes))
 		for hop, _ := range intf.routes {
-			sorted = append(sorted, hop)
+			sorted.push(hop)
 		}
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].name < sorted[j].name
@@ -940,16 +948,21 @@ func (c *spoc) checkDuplicateRoutes(r *router) {
 
 				// Check whether network is reached via different hops.
 				// Abort, if these do not belong to same redundancy group.
-				group := hop.redundancyIntfs
+				var group intfList
+				// Ignore completly unmanaged redundancy group, which has
+				// been checked already.
+				if hop.zone != nil {
+					group = hop.redundancyIntfs
+				}
+
 				if hop2, ok := net2hop[n]; ok {
 
-					// If next hop belongs to same redundancy group,
-					// collect hops for detailed check below.
+					// If other hop belongs to same redundancy group,
+					// collect hops for detailed analysis below.
 					group2 := hop2.redundancyIntfs
 					if group != nil && redundancyEq(group, group2) {
 						delete(intf.routes[hop], n)
-						net2extraHops[n] =
-							append(net2extraHops[n], hop)
+						net2extraHops[n] = append(net2extraHops[n], hop)
 					} else {
 						errors.push(
 							fmt.Sprintf(

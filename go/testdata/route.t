@@ -223,6 +223,41 @@ route outside 10.1.1.0 255.255.255.0 10.9.9.2
 =END=
 
 ############################################################
+=TITLE=Route in zone to one member of virtual interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.3; virtual = { ip = 10.1.2.1; } }
+ interface:n3;
+}
+router:r3 = {
+ interface:n2 = { ip = 10.1.2.4; virtual = { ip = 10.1.2.1; } }
+ interface:n4;
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3, network:n4; prt = udp 123;
+}
+=END=
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.3.0 255.255.255.0 10.1.2.3
+route n2 10.1.4.0 255.255.255.0 10.1.2.4
+=END=
+
+############################################################
 =TITLE=Intermediate network hides subnet
 =VAR=input
 network:n1 = { ip = 10.1.1.0/28; subnet_of = network:n2; }

@@ -369,7 +369,7 @@ type routerIntf struct {
 	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList
-	routeInZone     map[*network]intfList
+	routeInZone     map[*network]*routerIntf
 	routes          map[*routerIntf]netMap
 	routing         *mcastProto
 	rules           ruleList
