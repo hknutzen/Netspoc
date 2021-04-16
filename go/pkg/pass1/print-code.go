@@ -99,7 +99,7 @@ func printRoutes(fh *os.File, r *router) {
 			doAutoDefaultRoute = false
 		}
 
-		// netHash: A map having all networks reachable via current hop
+		// netMap: A map having all networks reachable via current hop
 		// both as key and as value.
 		for hop, netMap := range intf.routes {
 			info := hopInfo{intf, hop}
@@ -114,7 +114,6 @@ func printRoutes(fh *os.File, r *router) {
 				}
 
 				// Implicitly overwrite duplicate networks.
-				// Can't use ip slice as key.
 				m := prefix2ip2net[prefixlen]
 				if m == nil {
 					m = make(map[netaddr.IP]*network)
