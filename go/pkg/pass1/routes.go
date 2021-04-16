@@ -875,8 +875,8 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 		// debug("Use %s as hop for %s", hop, realPeer)
 
 		// Use found hop to reach tunneled networks in tunnel_routes.
-		for _, tunnelNetHash := range tunnelRoutes {
-			for tunnelNet, _ := range tunnelNetHash {
+		for _, tunnelNetMap := range tunnelRoutes {
+			for tunnelNet, _ := range tunnelNetMap {
 				hopRoutes[tunnelNet] = true
 			}
 		}
