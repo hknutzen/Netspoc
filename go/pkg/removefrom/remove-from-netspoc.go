@@ -87,7 +87,12 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var remove map[string]bool
+var validName = regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
+
+type state struct {
+	*astset.State
+	remove map[string]bool
+}
 
 func checkName(typedName string) error {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -97,40 +102,39 @@ func checkName(typedName string) error {
 	if !validType[pair[0]] {
 		return fmt.Errorf("Can't use type in %s", typedName)
 	}
-	re := regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
-	if m := re.FindStringSubmatch(pair[1]); m != nil {
+	if m := validName.FindStringSubmatch(pair[1]); m != nil {
 		return fmt.Errorf("Invalid character '%s' in %s", m[0], typedName)
 	}
 	return nil
 }
 
-func setupObjects(objects []string) error {
+func (s *state) setupObjects(objects []string) error {
 	for _, object := range objects {
 		if err := checkName(object); err != nil {
 			return err
 		}
-		remove[object] = true
+		s.remove[object] = true
 	}
 	return nil
 }
 
-func elementList(l *([]ast.Element)) bool {
+func (s *state) elementList(l *([]ast.Element)) bool {
 	changed := false
 	j := 0
 	for _, n := range *l {
 		switch obj := n.(type) {
 		case *ast.NamedRef, *ast.IntfRef:
 			name := obj.GetType() + ":" + obj.GetName()
-			if remove[name] {
+			if s.remove[name] {
 				changed = true
 				continue
 			}
 		case *ast.SimpleAuto:
-			changed = elementList(&obj.Elements) || changed
+			changed = s.elementList(&obj.Elements) || changed
 		case *ast.AggAuto:
-			changed = elementList(&obj.Elements) || changed
+			changed = s.elementList(&obj.Elements) || changed
 		case *ast.IntfAuto:
-			changed = elementList(&obj.Elements) || changed
+			changed = s.elementList(&obj.Elements) || changed
 		}
 		(*l)[j] = n
 		j++
@@ -139,31 +143,31 @@ func elementList(l *([]ast.Element)) bool {
 	return changed
 }
 
-func toplevel(n ast.Toplevel) bool {
+func (s *state) toplevel(n ast.Toplevel) bool {
 	switch x := n.(type) {
 	case *ast.TopList:
 		if strings.HasPrefix(x.Name, "group:") {
-			return elementList(&x.Elements)
+			return s.elementList(&x.Elements)
 		}
 	case *ast.Service:
-		changed := elementList(&x.User.Elements)
+		changed := s.elementList(&x.User.Elements)
 		for _, r := range x.Rules {
-			changed = elementList(&r.Src.Elements) || changed
-			changed = elementList(&r.Dst.Elements) || changed
+			changed = s.elementList(&r.Src.Elements) || changed
+			changed = s.elementList(&r.Dst.Elements) || changed
 		}
 		return changed
 	}
 	return false
 }
 
-func process(s *astset.State) {
+func (s *state) process() {
 
 	// Remove elements from element lists.
-	s.Modify(toplevel)
+	s.Modify(func(n ast.Toplevel) bool { return s.toplevel(n) })
 
 	// Remove definition of group.
 	// Silently ignore error, if definition isn't found.
-	for name := range remove {
+	for name := range s.remove {
 		if strings.HasPrefix(name, "group:") {
 			s.DeleteToplevel(name)
 		}
@@ -174,7 +178,7 @@ func process(s *astset.State) {
 	}
 }
 
-func readObjects(path string) error {
+func (s *state) readObjects(path string) error {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
@@ -183,7 +187,7 @@ func readObjects(path string) error {
 	if len(objects) == 0 {
 		return fmt.Errorf("Missing objects in %s", path)
 	}
-	return setupObjects(objects)
+	return s.setupObjects(objects)
 }
 
 func Main() int {
@@ -217,15 +221,16 @@ func Main() int {
 	path := args[0]
 
 	// Initialize to be removed objects.
-	remove = make(map[string]bool)
+	s := new(state)
+	s.remove = make(map[string]bool)
 	if *fromFile != "" {
-		if err := readObjects(*fromFile); err != nil {
+		if err := s.readObjects(*fromFile); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
-		if err := setupObjects(args[1:]); err != nil {
+		if err := s.setupObjects(args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
@@ -235,12 +240,13 @@ func Main() int {
 	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	s, err := astset.Read(path)
+	var err error
+	s.State, err = astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	process(s)
+	s.process()
 	s.Print()
 	return 0
 }
