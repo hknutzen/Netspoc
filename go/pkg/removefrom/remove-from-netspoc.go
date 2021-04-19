@@ -68,12 +68,9 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
@@ -91,7 +88,6 @@ var validType = map[string]bool{
 }
 
 var remove map[string]bool
-var changes int
 
 func checkName(typedName string) error {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -118,82 +114,64 @@ func setupObjects(objects []string) error {
 	return nil
 }
 
-func removeElement(n ast.Element) bool {
-	switch obj := n.(type) {
-	case *ast.NamedRef, *ast.IntfRef:
-		name := obj.GetType() + ":" + obj.GetName()
-		return remove[name]
-	case *ast.SimpleAuto:
-		elementList(&obj.Elements)
-	case *ast.AggAuto:
-		elementList(&obj.Elements)
-	case *ast.IntfAuto:
-		elementList(&obj.Elements)
+func elementList(l *([]ast.Element)) bool {
+	changed := false
+	j := 0
+	for _, n := range *l {
+		switch obj := n.(type) {
+		case *ast.NamedRef, *ast.IntfRef:
+			name := obj.GetType() + ":" + obj.GetName()
+			if remove[name] {
+				changed = true
+				continue
+			}
+		case *ast.SimpleAuto:
+			changed = elementList(&obj.Elements) || changed
+		case *ast.AggAuto:
+			changed = elementList(&obj.Elements) || changed
+		case *ast.IntfAuto:
+			changed = elementList(&obj.Elements) || changed
+		}
+		(*l)[j] = n
+		j++
+	}
+	*l = (*l)[:j]
+	return changed
+}
+
+func toplevel(n ast.Toplevel) bool {
+	switch x := n.(type) {
+	case *ast.TopList:
+		if strings.HasPrefix(x.Name, "group:") {
+			return elementList(&x.Elements)
+		}
+	case *ast.Service:
+		changed := elementList(&x.User.Elements)
+		for _, r := range x.Rules {
+			changed = elementList(&r.Src.Elements) || changed
+			changed = elementList(&r.Dst.Elements) || changed
+		}
+		return changed
 	}
 	return false
 }
 
-func elementList(l *([]ast.Element)) {
-	removed := 0
-	for i, n := range *l {
-		if removeElement(n) {
-			(*l)[i] = nil
-			removed++
+func process(s *astset.State) {
+
+	// Remove elements from element lists.
+	s.Modify(toplevel)
+
+	// Remove definition of group.
+	// Silently ignore error, if definition isn't found.
+	for name := range remove {
+		if strings.HasPrefix(name, "group:") {
+			s.DeleteToplevel(name)
 		}
 	}
-	if removed > 0 {
-		changes += removed
-		new := make([]ast.Element, 0, len(*l)-removed)
-		for _, n := range *l {
-			if n != nil {
-				new = append(new, n)
-			}
-		}
-		*l = new
-	}
-}
 
-func toplevel(n ast.Toplevel) {
-	switch x := n.(type) {
-	case *ast.TopList:
-		if strings.HasPrefix(x.Name, "group:") {
-			elementList(&x.Elements)
-		}
-	case *ast.Service:
-		elementList(&x.User.Elements)
-		for _, r := range x.Rules {
-			elementList(&r.Src.Elements)
-			elementList(&r.Dst.Elements)
-		}
+	if count := len(s.Changed()); count > 0 {
+		info.Msg("Changed %d files", count)
 	}
-}
-
-func processFile(l []ast.Toplevel) int {
-	changes = 0
-	for _, n := range l {
-		toplevel(n)
-	}
-	return changes
-}
-
-func processInput(input *filetree.Context) error {
-	source := []byte(input.Data)
-	path := input.Path
-	nodes, err := parser.ParseFile(source, path)
-	if err != nil {
-		return err
-	}
-	count := processFile(nodes)
-	if count == 0 {
-		return nil
-	}
-
-	info.Msg("%d changes in %s", count, path)
-	for _, n := range nodes {
-		n.Order()
-	}
-	copy := printer.File(nodes, source)
-	return fileop.Overwrite(path, copy)
 }
 
 func readObjects(path string) error {
@@ -257,10 +235,12 @@ func Main() int {
 	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Do removal.
-	if err := filetree.Walk(path, processInput); err != nil {
+	s, err := astset.Read(path)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	process(s)
+	s.Print()
 	return 0
 }
