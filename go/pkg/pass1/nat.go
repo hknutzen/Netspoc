@@ -1075,13 +1075,9 @@ func distributeNatMapsToInterfaces(doms []*natDomain) {
 		m := d.natMap
 		for _, z := range d.zones {
 			for _, intf := range z.interfaces {
-				r := intf.router
-				if r.managed == "" && !r.semiManaged {
-					continue
-				}
-
 				// debug("%s: NAT %s", d.name, intf)
 				intf.natMap = m
+				r := intf.router
 				if r.managed != "" || r.routingOnly {
 					if r.model.aclUseRealIP {
 
