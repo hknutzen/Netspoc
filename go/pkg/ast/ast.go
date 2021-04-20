@@ -20,8 +20,9 @@ import ()
 // when printing the construct.
 
 type Node interface {
-	Pos() int // position of first character belonging to the node
-	End() int // position of first character immediately after the node
+	Pos() int  // position of first character belonging to the node
+	End() int  // position of first character immediately after the node
+	ClearPos() // Reset position; needed if element is inserted in other file
 	Order()
 }
 
@@ -49,7 +50,8 @@ type Base struct {
 	Start int
 }
 
-func (a *Base) Pos() int { return a.Start }
+func (a *Base) Pos() int  { return a.Start }
+func (a *Base) ClearPos() { a.Start = -1 }
 
 type withEnd struct {
 	Next int

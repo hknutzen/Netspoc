@@ -6,6 +6,7 @@ go/cmd/add-to-netspoc/add-to-netspoc
 go/cmd/check-acl/check-acl
 go/cmd/cut-netspoc/cut-netspoc
 go/cmd/export-netspoc/export-netspoc
+go/cmd/expand-group/expand-group
 go/cmd/format-netspoc/format-netspoc
 go/cmd/netspoc/netspoc
 go/cmd/print-group/print-group
