@@ -26,7 +26,7 @@ in implicit groups inside rules, i.e. after "user =", "src =", "dst = ".
 Multiple PAIRS can be applied in a single run of add-to-netspoc.
 
 The following types can be used in PAIRS:
-B<network host interface any group>.
+B<network host interface any group area>.
 
 =head1 OPTIONS
 
@@ -200,7 +200,7 @@ func setupPairs(pairs []string) error {
 		new := pairs[1]
 		pairs = pairs[2:]
 		if err := setupAddTo(old, new); err != nil {
-			return nil
+			return err
 		}
 	}
 	return nil

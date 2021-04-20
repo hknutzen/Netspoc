@@ -303,7 +303,7 @@ host:abc network:abx
 network:xyz host:id:xyz@dom
 any:aaa group:bbb
 interface:r.n.sec interface:r.n
-=END
+=END=
 
 ############################################################
 =TITLE=Add multiple entries to one object
@@ -325,5 +325,35 @@ service:s = {
 }
 =END=
 =PARAMS=group:g host:a group:g host:b
+
+############################################################
+=TITLE=Incomplete pair
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Missing 2nd. element for 'host:a'
+=END=
+=PARAMS=host:a
+
+############################################################
+=TITLE=Invalid type (1)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Missing type in name1
+=END=
+=PARAMS=name1 name2
+
+############################################################
+=TITLE=Invalid type (2)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
+=END=
+=PARAMS=host:a name2
 
 ############################################################
