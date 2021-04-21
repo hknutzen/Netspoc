@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.027     2021-04-21 14:44:49+02:00 Europe/Berlin
+
  - Added new command 'expand-group'
    Usage: expand-group [-f file] netspoc GROUP ...
    This command substitutes references to specified groups by its elements
