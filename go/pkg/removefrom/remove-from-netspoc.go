@@ -173,8 +173,8 @@ func (s *state) process() {
 		}
 	}
 
-	if count := len(s.Changed()); count > 0 {
-		info.Msg("Changed %d files", count)
+	for _, file := range s.Changed() {
+		info.Msg("Changed %s", file)
 	}
 }
 

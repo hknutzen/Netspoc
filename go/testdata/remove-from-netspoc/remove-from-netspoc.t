@@ -13,7 +13,7 @@ group:g1 =
 ;
 =END=
 =WARNING=
-Changed 1 files
+Changed INPUT
 =OPTIONS=--quiet=false
 =PARAMS=host:a
 
