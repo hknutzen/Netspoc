@@ -1,6 +1,21 @@
 {{$NEXT}}
 
- - Optimizations
+ - Added new command 'expand-group'
+   Usage: expand-group [-f file] netspoc GROUP ...
+   This command substitutes references to specified groups by its elements
+   and removes group definition afterwards.
+   Occurrences of group in intersection or complement can't be replaced.
+   In this case, the defintion isn't removed.
+ - Changed behaviour of command 'remove-from-netspoc':
+   If references to a group are removed, the defifinition of that group
+   is removed also.
+ - List of objects in service after 'user', 'src', 'dst' can be empty now.
+   Previously a warning was shown, but it was and is still valid to use a group
+   with empty list of elements.
+ - Runtime of compiler is 15 to 20% faster.
+   - Intermediate code is printed concurrently.
+   - Generation static routes.
+   - Lookup of NAT addresses.
 
 6.026     2021-03-10 16:03:48+01:00 Europe/Berlin
 
