@@ -1,10 +1,9 @@
 package pass2
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"net"
+	"inet.af/netaddr"
 	"os"
 	"sort"
 	"strconv"
@@ -342,10 +341,16 @@ func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRule
 
 	// Sort crypto rules.
 	cmpAddr := func(a, b *ipNet) int {
-		if val := bytes.Compare(a.IP, b.IP); val != 0 {
+		if val := a.IP.Compare(b.IP); val != 0 {
 			return val
 		}
-		return bytes.Compare(a.Mask, b.Mask)
+		if a.Bits < b.Bits {
+			return -1
+		}
+		if a.Bits > b.Bits {
+			return 1
+		}
+		return 0
 	}
 	sort.Slice(cryptoRules, func(i, j int) bool {
 		switch strings.Compare(
@@ -372,7 +377,9 @@ func createGroup(elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *o
 	if routerData.ipv6 {
 		name = "v6" + name
 	}
-	groupRef := &ipNet{IPNet: nil, name: name}
+	// Use zero value IP to mark group.
+	// Note that "0.0.0.0" and "::" are not the zero value.
+	groupRef := &ipNet{name: name}
 	group := &objGroup{
 		name:     name,
 		elements: elements,
@@ -455,7 +462,7 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
 	sort.Slice(rules, func(i, j int) bool {
-		return bytes.Compare(get(rules[i]).IP, get(rules[j]).IP) == -1
+		return get(rules[i]).IP.Less(get(rules[j]).IP)
 	})
 
 	// Find left and rigth part with identical mask and combine them
@@ -464,19 +471,19 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	for i := 0; i < len(rules)-1; i++ {
 		element1 := get(rules[i])
 		element2 := get(rules[i+1])
-		mask := element1.Mask
-		if bytes.Compare(mask, element2.Mask) != 0 {
+		prefix := element1.Bits
+		if prefix != element2.Bits {
 			continue
 		}
-		prefix, bits := mask.Size()
 		prefix--
-		upMask := net.CIDRMask(prefix, bits)
 		ip1 := element1.IP
 		ip2 := element2.IP
-		if bytes.Compare(ip1.Mask(upMask), ip2.Mask(upMask)) != 0 {
+		up1, _ := ip1.Prefix(prefix)
+		up2, _ := ip2.Prefix(prefix)
+		if up1.IP != up2.IP {
 			continue
 		}
-		upElement := getIPObj(ip1, upMask, ipNet2obj)
+		upElement := getIPObj(ip1, prefix, ipNet2obj)
 
 		// Substitute left part by combined network.
 		set(rules[i], upElement)
@@ -487,11 +494,10 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 		rules = rules[:len(rules)-1]
 
 		if i > 0 {
-			up2Mask := net.CIDRMask(prefix-1, bits)
-
 			// Check previous network again, if newly created network
 			// is right part, i.e. lowest bit of network part is set.
-			if !ip1.Equal(ip1.Mask(up2Mask)) {
+			up3, _ := ip1.Prefix(prefix - 1)
+			if ip1 != up3.IP {
 				i--
 			}
 		}
@@ -597,7 +603,7 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				}
 				if smallest == nil {
 					smallest = el
-				} else if bytes.Compare(el.IP, smallest.IP) == -1 {
+				} else if el.IP.Less(smallest.IP) {
 					smallest = el
 				}
 				elements[i] = el
@@ -794,7 +800,7 @@ func finalizeCiscoACL(aclInfo *aclInfo, routerData *routerData) {
 func ciscoACLAddr(obj *ipNet, model string) string {
 
 	// Object group.
-	if obj.IPNet == nil {
+	if obj.IPPrefix.IsZero() {
 		var keyword string
 		if model == "NX-OS" {
 			keyword = "addrgroup"
@@ -804,10 +810,11 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 		return keyword + " " + obj.name
 	}
 
-	prefix, bits := obj.Mask.Size()
+	prefix := obj.Bits
+	ip := obj.IP
 	if prefix == 0 {
 		if model == "ASA" {
-			if bits == 32 {
+			if ip.Is4() {
 				return "any4"
 			}
 			return "any6"
@@ -817,26 +824,24 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 	if model == "NX-OS" {
 		return obj.name
 	}
-	ip := obj.IP
 	ipCode := ip.String()
-	if prefix == bits {
+	if obj.IPPrefix.IsSingleIP() {
 		return "host " + ipCode
 	}
-	if bits == 128 {
+	if ip.Is6() {
 		return obj.name
 	}
-	mask := net.IP(obj.Mask)
+
+	maskNet, _ := netaddr.IPv4(255, 255, 255, 255).Prefix(prefix)
+	bytes := maskNet.IP.As4()
 
 	// Inverse mask bits.
-	// Must not inverse original mask, shared by multiple rules.
 	if model == "NX-OS" || model == "IOS" {
-		copy := make([]byte, len(mask))
-		for i, byte := range mask {
-			copy[i] = ^byte
+		for i, byte := range bytes {
+			bytes[i] = ^byte
 		}
-		mask = copy
 	}
-	maskCode := mask.String()
+	maskCode := netaddr.IPv4(bytes[0], bytes[1], bytes[2], bytes[3]).String()
 	return ipCode + " " + maskCode
 }
 
@@ -854,7 +859,7 @@ func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
 
 			// Reject network with mask = 0 in group.
 			// This occurs if optimization didn't work correctly.
-			if size, _ := element.Mask.Size(); size == 0 {
+			if element.Bits == 0 {
 				panic("Unexpected network with mask 0 in object-group")
 			}
 			adr := ciscoACLAddr(element, model)

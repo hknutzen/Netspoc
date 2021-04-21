@@ -1,29 +1,14 @@
 package pass1
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"net"
+	"inet.af/netaddr"
 	"sort"
 	"strings"
 )
 
 type objPair [2]someObj
-
-// nextIP decrements the given net.IP by one bit.
-func prevIP(ip net.IP) net.IP {
-	prev := make(net.IP, len(ip))
-	copy(prev, ip)
-	for i := len(prev) - 1; i >= 0; i-- {
-		prev[i]--
-		// Only subtract from the next byte if we overflowed.
-		if ip[i] != 0xff {
-			break
-		}
-	}
-	return prev
-}
 
 // This handles a rule between objects inside a single security zone or
 // between interfaces of a single managed router.
@@ -56,26 +41,23 @@ func collectUnenforceable(rule *groupedRule) {
 						// For most splits the resulting subnets would be
 						// adjacent. Hence we check for adjacency.
 						if s.network == d.network {
-							var n net.IPNet
-							var next net.IP
-							if bytes.Compare(s.ip, d.ip) == -1 {
-								n.IP = s.ip
-								n.Mask = s.mask
-								next = d.ip
+							var n netaddr.IPPrefix
+							var next netaddr.IP
+							if s.ipp.IP.Less(d.ipp.IP) {
+								n = s.ipp
+								next = d.ipp.IP
 							} else {
-								n.IP = d.ip
-								n.Mask = d.mask
-								next = s.ip
+								n = d.ipp
+								next = s.ipp.IP
 							}
-							if n.Contains(prevIP(next)) {
+							if n.Contains(next.Prior()) {
 								continue
 							}
 						}
 					}
 				case *network:
 					if s.isAggregate {
-						size, _ := s.mask.Size()
-						if size == 0 {
+						if s.ipp.Bits == 0 {
 							// This is a common case, which results from
 							// rules like user -> any:[user]
 							continue
@@ -85,8 +67,7 @@ func collectUnenforceable(rule *groupedRule) {
 							// Different aggregates with identical IP,
 							// inside a zone cluster must be considered as equal.
 							if d.isAggregate &&
-								s.ip.Equal(d.ip) &&
-								net.IP(s.mask).Equal(net.IP(d.mask)) {
+								s.ipp == d.ipp {
 								continue
 							}
 						}
@@ -94,8 +75,7 @@ func collectUnenforceable(rule *groupedRule) {
 				}
 				if d, ok := dst.(*network); ok {
 					if d.isAggregate {
-						size, _ := d.mask.Size()
-						if size == 0 {
+						if d.ipp.Bits == 0 {
 							continue
 						}
 					}

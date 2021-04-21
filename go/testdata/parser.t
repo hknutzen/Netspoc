@@ -5,7 +5,43 @@
 network:n1 = { ip = 10.1.1.0o/24; }
 =END=
 =ERROR=
-Error: invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
+Error: Invalid CIDR address: 10.1.1.0o/24 in 'ip' of network:n1
+=END=
+
+############################################################
+=TITLE=Invalid IP in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip = 10.1.0.0 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: Invalid CIDR address: 10.1.0.0 in any:[ip = ...] of user of service:s1
+=END=
+
+############################################################
+=TITLE=IP and prefix don't match in anonymous aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ user = any:[ ip = 10.1.1.0/16 & network:n1];
+ permit src = user; dst = interface:r.n1; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: IP and mask don't match in any:[ip = ...] of user of service:s1
 =END=
 
 ############################################################
@@ -1041,29 +1077,6 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=Empty list of elements after 'user', 'src', 'dst'
-=INPUT=
-${topo}
-service:s1 = {
- user = ;
- permit src = user; dst = network:n3; prt = tcp 22;
-}
-service:s2= {
- user = network:n1;
- permit src = ; dst = user; prt = tcp 80;
-}
-service:s3 = {
- user = network:n1;
- permit src = user; dst = ; prt = tcp 22;
-}
-=END=
-=WARNING=
-Warning: user of service:s1 is empty
-Warning: src of service:s2 is empty
-Warning: dst of service:s3 is empty
-=END=
-
-############################################################
 =TITLE=Empty user and empty rules
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1075,13 +1088,13 @@ service:s1 = {
  permit src = user; dst = group:g2; prt = tcp 80;
 }
 service:s2 = {
- user = group:g1;
+ user = ;
  permit src = user; dst = network:n1; prt = protocolgroup:p1;
 }
 service:s3 = {
  disabled;
  user = group:g1;
- permit src = user; dst = group:g2; prt = protocolgroup:p1;
+ permit src = user; dst = ; prt = protocolgroup:p1;
 }
 =END=
 =WARNING=

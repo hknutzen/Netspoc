@@ -218,7 +218,7 @@ Error: network:n1/right and network:n1/left must be connected by bridge
 =END=
 
 ############################################################
-=TITLE=Bridge must connect at least two networks
+=TITLE=Bridge must connect at least two networks (1)
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge1 = {
@@ -237,6 +237,27 @@ router:bridge2 = {
 network:n1/right = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
+Error: router:bridge1 can't bridge a single network
+=END=
+
+############################################################
+=TITLE=Bridge must connect at least two networks (2)
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left = { hardware = inside; }
+ interface:n2/right = { hardware = outside; }
+ interface:n2 = { ip = 10.1.2.1; hardware = device; }
+}
+network:n2/right = { ip = 10.1.2.0/24; }
+=END=
+=ERROR=
+Warning: Bridged network:n1/left must not be used solitary
+Error: router:bridge1 can't bridge a single network
+Warning: Bridged network:n2/right must not be used solitary
 Error: router:bridge1 can't bridge a single network
 =END=
 
@@ -548,8 +569,9 @@ service:s = {
 }
 =END=
 =ERROR=
-Error: Two static routes for network:n2
- at interface:r0.n1/center via interface:r2.n1/right and interface:r1.n1/left
+Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
+ - interface:r1.n1/left
+ - interface:r2.n1/right
 =END=
 
 ############################################################

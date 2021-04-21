@@ -89,19 +89,19 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
-	"net"
+	"inet.af/netaddr"
 	"os"
 	"strings"
 )
 
-// Print IP address of obj in context of natSet.
-func printAddress(obj groupObj, ns natSet) string {
+// Print IP address of obj in context of natMap.
+func printAddress(obj groupObj, nm natMap) string {
 	netAddr := func(n *network) string {
-		return prefixCode(&net.IPNet{IP: n.ip, Mask: n.mask})
+		return prefixCode(n.ipp)
 	}
-	dynamicAddr := func(m map[string]net.IP, n *network) string {
+	dynamicAddr := func(m map[string]netaddr.IP, n *network) string {
 		tag := n.natTag
-		if ip := m[tag]; ip != nil {
+		if ip, found := m[tag]; found {
 
 			// Single static NAT IP for this object.
 			return ip.String()
@@ -116,13 +116,13 @@ func printAddress(obj groupObj, ns natSet) string {
 
 	// Take higher bits from network NAT, lower bits from original IP.
 	// This works with and without NAT.
-	natAddr := func(ip net.IP, n *network) string {
+	natAddr := func(ip netaddr.IP, n *network) string {
 		return mergeIP(ip, n).String()
 	}
 
 	switch x := obj.(type) {
 	case *network:
-		n := getNatNetwork(x, ns)
+		n := getNatNetwork(x, nm)
 		if n.ipType == unnumberedIP {
 			return "unnumbered"
 		}
@@ -131,16 +131,16 @@ func printAddress(obj groupObj, ns natSet) string {
 		}
 		return netAddr(n)
 	case *host:
-		n := getNatNetwork(x.network, ns)
+		n := getNatNetwork(x.network, nm)
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
-		if ip := x.ip; ip != nil {
+		if ip := x.ip; !ip.IsZero() {
 			return natAddr(ip, n)
 		}
-		return natAddr(x.ipRange[0], n) + "-" + natAddr(x.ipRange[1], n)
+		return natAddr(x.ipRange.From, n) + "-" + natAddr(x.ipRange.To, n)
 	case *routerIntf:
-		n := getNatNetwork(x.network, ns)
+		n := getNatNetwork(x.network, nm)
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
@@ -200,19 +200,16 @@ func (c *spoc) printGroup(path, group, natNet string,
 	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
-	var natSet natSet
+	var natMap natMap
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
 		if net := symTable.network[natNet]; net != nil {
-			natSet = net.zone.natDomain.natSet
+			natMap = net.zone.natDomain.natMap
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
 	} else {
-
-		// Create empty NAT set.
-		var m map[string]bool
-		natSet = &m
+		// Use empty NAT map.
 	}
 
 	// Prepare finding unused objects by marking used objects.
@@ -275,7 +272,7 @@ func (c *spoc) printGroup(path, group, natNet string,
 	for _, ob := range elements {
 		var result stringList
 		if showIP {
-			result.push(printAddress(ob, natSet))
+			result.push(printAddress(ob, natMap))
 		}
 		if showName {
 			result.push(ob.String())

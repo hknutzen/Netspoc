@@ -3,8 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"net"
-	"strings"
+	"inet.af/netaddr"
 )
 
 // Two zones are zoneEq, if
@@ -27,15 +26,20 @@ func zoneEq(z1, z2 pathObj) bool {
 
 // Print abbreviated list of names in messages.
 func shortNameList(list []someObj) string {
-	names := make([]string, 0, 4)
+	names := make(stringList, 0, 4)
 	for _, obj := range list {
 		if len(names) == 3 {
-			names = append(names, "...")
+			names.push("...")
 			break
 		}
-		names = append(names, obj.String())
+		names.push(obj.String())
 	}
-	return " - " + strings.Join(names, "\n - ")
+	return names.nameList()
+}
+
+type checkInfo struct {
+	zone2netMap map[*zone]map[*network]bool
+	seen        map[*zone]bool
 }
 
 //#############################################################################
@@ -83,7 +87,7 @@ func shortNameList(list []someObj) string {
 //   - subnet of element of net_hash.
 // Result: List of found networks or aggregates or undef.
 func findZoneNetworks(
-	zone *zone, isAgg bool, ip net.IP, mask net.IPMask, natSet natSet,
+	zone *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
@@ -98,8 +102,7 @@ func findZoneNetworks(
 			}
 		}
 	}
-	key := ipmask{string(ip), string(mask)}
-	aggregate := zone.ipmask2aggregate[key]
+	aggregate := zone.ipPrefix2aggregate[ipp]
 	if aggregate != nil && !aggregate.invisible {
 		if inNetHash(aggregate) {
 			return nil
@@ -108,34 +111,32 @@ func findZoneNetworks(
 	}
 
 	// Use cached result.
-	if net, found := zone.ipmask2net[key]; found {
+	if net, found := zone.ipPrefix2net[ipp]; found {
 		return net
 	}
 
 	// Real networks in zone without aggregates and without subnets.
 	var result netList
 
-	prefix, _ := mask.Size()
+	bits := ipp.Bits
 	for _, net := range zone.networks {
 		if inNetHash(net) {
 			continue
 		}
-		natNet := getNatNetwork(net, natSet)
+		natNet := getNatNetwork(net, natMap)
 		if natNet.hidden {
 			continue
 		}
-		i, m := natNet.ip, natNet.mask
-		p, _ := m.Size()
-		if p >= prefix && matchIp(i, ip, mask) ||
-			isAgg && p < prefix && matchIp(ip, i, m) {
+		if natNet.ipp.Bits >= bits && ipp.Contains(natNet.ipp.IP) ||
+			isAgg && natNet.ipp.Bits < bits && natNet.ipp.Contains(ipp.IP) {
 
 			result = append(result, net)
 		}
 	}
-	if zone.ipmask2net == nil {
-		zone.ipmask2net = make(map[ipmask]netList)
+	if zone.ipPrefix2net == nil {
+		zone.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
 	}
-	zone.ipmask2net[key] = result
+	zone.ipPrefix2net[ipp] = result
 	return result
 }
 
@@ -149,15 +150,15 @@ func findZoneNetworks(
 // reversed: (optional) the check is for reversed rule at stateless device
 func (c *spoc) checkSupernetInZone1(
 	rule *groupedRule, where string, intf *routerIntf,
-	zone *zone, seen map[*zone]bool, reversed bool) {
+	zone *zone, info checkInfo, reversed bool) {
 
 	if zone.noCheckSupernetRules {
 		return
 	}
-	if seen[zone] {
+	if info.seen[zone] {
 		return
 	}
-	seen[zone] = true
+	info.seen[zone] = true
 
 	// This is only called if src or dst is some supernet.
 	var supernet *network
@@ -166,15 +167,15 @@ func (c *spoc) checkSupernetInZone1(
 	} else {
 		supernet = rule.dst[0].(*network)
 	}
-	natSet := intf.natSet
-	natSuper := getNatNetwork(supernet, natSet)
+	natMap := intf.natMap
+	natSuper := getNatNetwork(supernet, natMap)
 	if natSuper.hidden {
 		return
 	}
-	ip, mask := natSuper.ip, natSuper.mask
-	netMap := rule.zone2netMap[zone]
+	ipp := natSuper.ipp
+	netMap := info.zone2netMap[zone]
 	networks :=
-		findZoneNetworks(zone, supernet.isAggregate, ip, mask, natSet, netMap)
+		findZoneNetworks(zone, supernet.isAggregate, ipp, natMap, netMap)
 
 	if len(networks) == 0 {
 		return
@@ -186,9 +187,7 @@ func (c *spoc) checkSupernetInZone1(
 	if len(networks) > 2 {
 
 		// Show also aggregate, if multiple networks are found.
-		prefix, _ := mask.Size()
-		orAgg = fmt.Sprintf("any:[ ip=%s/%d & %s ]",
-			ip.String(), prefix, net0.name)
+		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, net0)
 	} else if net0.isAggregate {
 
 		// If aggregate has networks, show both, networks and aggreagte.
@@ -224,10 +223,10 @@ func (c *spoc) checkSupernetInZone1(
 			" or add above-mentioned networks to %s of rule%s.",
 		rev,
 		rule.print(),
-		intf.name,
+		intf,
 		fromTo,
 		shortNameList(objects),
-		supernet.name,
+		supernet,
 		where,
 		orAgg,
 	)
@@ -235,10 +234,10 @@ func (c *spoc) checkSupernetInZone1(
 
 func (c *spoc) checkSupernetInZone(
 	rule *groupedRule, where string, intf *routerIntf,
-	z *zone, seen map[*zone]bool, reversed bool) {
+	z *zone, info checkInfo, reversed bool) {
 
 	for _, z := range z.cluster {
-		c.checkSupernetInZone1(rule, where, intf, z, seen, reversed)
+		c.checkSupernetInZone1(rule, where, intf, z, info, reversed)
 	}
 }
 
@@ -310,7 +309,7 @@ func (x *subnet) getZone() pathObj {
 //  permit dst supernet1
 // which would accidentally permit traffic to supernet:[zone4] as well.
 func (c *spoc) checkSupernetSrcRule(
-	rule *groupedRule, inIntf, outIntf *routerIntf, seen map[*zone]bool) {
+	rule *groupedRule, inIntf, outIntf *routerIntf, info checkInfo) {
 
 	// Ignore semi_managed router.
 	r := inIntf.router
@@ -344,7 +343,7 @@ func (c *spoc) checkSupernetSrcRule(
 		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// b), 2. zone X != zone Y
-			c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, seen, false)
+			c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, info, false)
 		}
 	}
 
@@ -395,7 +394,7 @@ func (c *spoc) checkSupernetSrcRule(
 				} else if noAclIntf.mainIntf != nil {
 				} else {
 					// zone X != zone Y
-					c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, seen, true)
+					c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, info, true)
 				}
 			} else {
 				// Standard incoming ACL at all interfaces.
@@ -421,20 +420,19 @@ func (c *spoc) checkSupernetSrcRule(
 					if intf.mainIntf != nil {
 						continue
 					}
-					c.checkSupernetInZone(rule, "src", intf, zone, seen, true)
+					c.checkSupernetInZone(rule, "src", intf, zone, info, true)
 				}
 			}
 		}
 	}
 
 	// Nothing to do at first router.
-	// zone2 is checked at R2, because we need the natSet at R2.
 	if zoneEq(srcZone, inZone) {
 		return
 	}
 
 	// Check if rule "supernet2 -> dst" is defined.
-	c.checkSupernetInZone(rule, "src", inIntf, inZone, seen, false)
+	c.checkSupernetInZone(rule, "src", inIntf, inZone, info, false)
 }
 
 // If such rule is defined
@@ -452,7 +450,7 @@ func (c *spoc) checkSupernetSrcRule(
 //  permit src supernet3
 //  permit src supernet4
 func (c *spoc) checkSupernetDstRule(
-	rule *groupedRule, inIntf, outIntf *routerIntf, seen map[*zone]bool) {
+	rule *groupedRule, inIntf, outIntf *routerIntf, info checkInfo) {
 
 	// Source is interface of current router.
 	if inIntf == nil {
@@ -491,7 +489,7 @@ func (c *spoc) checkSupernetDstRule(
 		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// zone X != zone Y
-			c.checkSupernetInZone(rule, "dst", inIntf, noAclZone, seen, false)
+			c.checkSupernetInZone(rule, "dst", inIntf, noAclZone, info, false)
 		}
 		return
 	}
@@ -525,7 +523,7 @@ func (c *spoc) checkSupernetDstRule(
 		if intf.mainIntf != nil {
 			return
 		}
-		c.checkSupernetInZone(rule, "dst", inIntf, zone, seen, false)
+		c.checkSupernetInZone(rule, "dst", inIntf, zone, info, false)
 	}
 	if r.model.hasIoACL {
 		check(outIntf)
@@ -539,7 +537,7 @@ func (c *spoc) checkSupernetDstRule(
 // Check missing supernet of each serviceRule.
 func (c *spoc) checkMissingSupernetRules(
 	rules ruleList, what string,
-	worker func(c *spoc, r *groupedRule, i, o *routerIntf, s map[*zone]bool)) {
+	worker func(c *spoc, r *groupedRule, i, o *routerIntf, inf checkInfo)) {
 
 	for _, rule := range rules {
 		if rule.noCheckSupernetRules {
@@ -580,13 +578,13 @@ func (c *spoc) checkMissingSupernetRules(
 				netMap[x] = true
 			}
 		}
-		rule.zone2netMap = zone2netMap
+		info := checkInfo{zone2netMap: zone2netMap}
 
 		groupInfo := splitRuleGroup(oList)
 		checkRule := new(groupedRule)
 		checkRule.serviceRule = rule.serviceRule
 		for _, supernet := range supernets {
-			seen := make(map[*zone]bool)
+			info.seen = make(map[*zone]bool)
 			if what == "src" {
 				checkRule.src = []someObj{supernet}
 				checkRule.srcPath = supernet.zone
@@ -608,12 +606,11 @@ func (c *spoc) checkMissingSupernetRules(
 				}
 				c.pathWalk(checkRule,
 					func(r *groupedRule, i, o *routerIntf) {
-						worker(c, r, i, o, seen)
+						worker(c, r, i, o, info)
 					},
 					"Router")
 			}
 		}
-		rule.zone2netMap = nil
 	}
 }
 
@@ -675,21 +672,17 @@ func matchPrtList(prtList1, prtList2 []*proto) bool {
 // Find those elements of list, with an IP address matching obj.
 // If element is aggregate that is supernet of obj,
 // than return all matching networks inside that aggregate.
-func getIpMatching(obj *network, list []someObj, natSet natSet) []someObj {
-	natObj := getNatNetwork(obj, natSet)
-	ip, mask := natObj.ip, natObj.mask
-	prefix, _ := mask.Size()
+func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
+	natObj := getNatNetwork(obj, natMap)
+	net1 := natObj.ipp
 
 	var matching []someObj
 	for _, src := range list {
-		net := src.address(natSet)
-		i, m := net.IP, net.Mask
-		p, _ := m.Size()
-
-		if p >= prefix && matchIp(i, ip, mask) {
+		net2 := src.address(natMap)
+		if net2.Bits >= net1.Bits && net1.Contains(net2.IP) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
-		} else if p < prefix && matchIp(ip, i, m) {
+		} else if net2.Bits < net1.Bits && net2.Contains(net1.IP) {
 			// Element is supernet of obj.
 			x, ok := src.(*network)
 			if ok && x.isAggregate {
@@ -698,7 +691,7 @@ func getIpMatching(obj *network, list []someObj, natSet natSet) []someObj {
 				for i, net := range x.networks {
 					objList[i] = net
 				}
-				networks := getIpMatching(obj, objList, natSet)
+				networks := getIpMatching(obj, objList, natMap)
 				matching = append(matching, networks...)
 			} else {
 				matching = append(matching, src)
@@ -891,7 +884,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			// Ignore the internet. If the internet is used as src and dst
 			// then the implicit transient rule is assumed to be ok.
 			if !net.isAggregate {
-				if size, _ := net.mask.Size(); size == 0 {
+				if net.ipp.Bits == 0 {
 					continue
 				}
 			}
@@ -969,7 +962,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			if len(supernets) == 0 {
 				continue
 			}
-			natSet := zone.natDomain.natSet
+			natMap := zone.natDomain.natMap
 			for _, obj2 := range supernets {
 
 				// Find those elements of src of rule1 with an IP
@@ -977,8 +970,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				// If mask of obj2 is 0.0.0.0, take all elements.
 				// Otherwise check IP addresses in NAT domain of obj2.
 				srcList1 := rule1.src
-				if size, _ := obj2.mask.Size(); size != 0 {
-					srcList1 = getIpMatching(obj2, srcList1, natSet)
+				if obj2.ipp.Bits != 0 {
+					srcList1 = getIpMatching(obj2, srcList1, natMap)
 					if len(srcList1) == 0 {
 						continue
 					}
@@ -1001,8 +994,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					// Find elements of dst of rule2 with an IP
 					// address matching obj1.
 					dstList2 := rule2.dst
-					if size, _ := net1.mask.Size(); size != 0 {
-						dstList2 = getIpMatching(net1, dstList2, natSet)
+					if net1.ipp.Bits != 0 {
+						dstList2 = getIpMatching(net1, dstList2, natMap)
 						if len(dstList2) == 0 {
 							continue
 						}

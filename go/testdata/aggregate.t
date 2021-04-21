@@ -213,10 +213,10 @@ router:r1 = {
 }
 =END=
 =WARNING=
+Warning: IP of host:h1 overlaps with subnet network:n1 in nat_domain:[network:n1]
 Warning: network:n1 is subnet of network:n2
  in nat_domain:[network:n1].
  If desired, declare attribute 'subnet_of'
-Warning: IP of host:h1 overlaps with subnet network:n1 in nat_domain:[network:n1]
 =END=
 
 ############################################################
@@ -315,8 +315,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; has_subnets; }
 network:n3a = { ip = 10.1.3.4/30; }
-network:n3b = { ip = 10.1.3.8/30; }
-network:n3c = { ip = 10.1.3.16/28; }
+network:n3b = { ip = 10.1.3.16/28; }
+network:n3c = { ip = 10.1.3.36/30; }
 network:n3d = { ip = 10.1.3.64/27; }
 network:n3e = { ip = 10.1.3.96/27; }
 router:r1 = {
@@ -365,8 +365,8 @@ Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=network:n3; prt=icmp 8; of service:s1
  Generated ACL at interface:r1.n1 would permit access to additional networks:
  - network:n3a
- - network:n3b
  - network:n3c
+ - network:n3b
  - ...
  Either replace network:n3 by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule

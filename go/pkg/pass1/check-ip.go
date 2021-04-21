@@ -1,8 +1,8 @@
 package pass1
 
 import (
-	"bytes"
-	"net"
+	"inet.af/netaddr"
+	"sort"
 	"strings"
 )
 
@@ -25,7 +25,7 @@ func (c *spoc) checkSubnetOf() {
 				n.subnetOf = nil
 				return
 			}
-			if !matchIp(n.ip, sn.ip, sn.mask) {
+			if !sn.ipp.Contains(n.ipp.IP) {
 				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
 					ctx, sn)
 			}
@@ -70,7 +70,14 @@ func (c *spoc) checkIPAddressesAndBridges() {
 	}
 
 	// Check address conflicts for collected parts of bridged networks.
-	for _, l := range prefix2net {
+	// Sort prefix names for deterministic error messages.
+	prefixes := make(stringList, 0, len(prefix2net))
+	for p := range prefix2net {
+		prefixes.push(p)
+	}
+	sort.Strings(prefixes)
+	for _, prefix := range prefixes {
+		l := prefix2net[prefix]
 		dummy := new(network)
 		seen := make(map[*routerIntf]bool)
 		for _, n := range l {
@@ -85,14 +92,14 @@ func (c *spoc) checkIPAddressesAndBridges() {
 			dummy.hosts = append(dummy.hosts, n.hosts...)
 		}
 		c.checkIPAddr(dummy)
-	}
 
-	// Check collected parts of bridged networks.
-	c.checkBridgedNetworks(prefix2net)
+		// Check collected parts of bridged networks.
+		c.checkBridgedNetworks(prefix, l)
+	}
 }
 
 func (c *spoc) checkIPAddr(n *network) {
-	ip2name := make(map[string]string)
+	ip2name := make(map[netaddr.IP]string)
 	redundant := make(map[string]bool)
 
 	// 1. Check for duplicate interface addresses.
@@ -115,7 +122,7 @@ func (c *spoc) checkIPAddr(n *network) {
 
 				routeIntf = intf
 			}
-			ip := string(intf.ip)
+			ip := intf.ip
 			if other, found := ip2name[ip]; found {
 				if !(intf.redundant && redundant[other]) {
 					c.err("Duplicate IP address for %s and %s", other, intf)
@@ -134,41 +141,39 @@ func (c *spoc) checkIPAddr(n *network) {
 			routeIntf, shortIntf.nameList())
 	}
 
+	range2name := make(map[netaddr.IPRange]string)
 	for _, h := range n.hosts {
-		if h.ip != nil {
+		if !h.ip.IsZero() {
 			continue
 		}
-		lo := h.ipRange[0]
-		hi := h.ipRange[1]
+		rg := h.ipRange
+		if other, found := range2name[rg]; found {
+			c.err("Duplicate IP address for %s and %s", other, h)
+		} else {
+			range2name[rg] = h.name
+		}
 
-		subnets, _ := splitIpRange(lo, hi)
+		subnets := h.ipRange.Prefixes()
 		if len(subnets) == 1 {
-			len, size := subnets[0].Mask.Size()
-			if len != size {
+			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.
 				continue
 			}
 		}
-
-		for ipString, other := range ip2name {
-			ip := net.IP(ipString)
-			if bytes.Compare(lo, ip) != 1 && bytes.Compare(ip, hi) != 1 {
+		for ip, other := range ip2name {
+			if rg.Contains(ip) {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
 		}
 	}
 
 	for _, h := range n.hosts {
-		var key string
-		if h.ip != nil {
-			key = string(h.ip)
-		} else {
-			key = string(h.ipRange[0]) + "-" + string(h.ipRange[1])
-		}
-		if other, found := ip2name[key]; found {
-			c.err("Duplicate IP address for %s and %s", other, h)
-		} else {
-			ip2name[key] = h.name
+		if !h.ip.IsZero() {
+			if other, found := ip2name[h.ip]; found {
+				c.err("Duplicate IP address for %s and %s", other, h)
+			} else {
+				ip2name[h.ip] = h.name
+			}
 		}
 	}
 }
@@ -181,69 +186,64 @@ func (c *spoc) checkIPAddr(n *network) {
 // - linked by bridged interfaces
 // Each router having a bridged interface
 // must connect at least two bridged networks of the same group.
-func (c *spoc) checkBridgedNetworks(m map[string][]*network) {
-	for prefix, _ := range m {
-		if n, found := symTable.network[prefix[len("network:"):]]; found {
-			c.err(
-				"Must not define %s together with bridged networks of same name",
-				n)
+func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
+	if n, found := symTable.network[prefix[len("network:"):]]; found {
+		c.err(
+			"Must not define %s together with bridged networks of same name",
+			n)
+	}
+	n1 := l[0]
+	group := l[1:]
+	if len(group) == 0 {
+		c.warn("Bridged %s must not be used solitary", n1)
+	}
+	seen := make(map[*router]bool)
+	connected := make(map[*network]bool)
+	next := netList{n1}
+	// Mark all networks connected directly or indirectly with net1
+	// by a bridge as 'connected'.
+	for len(next) > 0 {
+		n2 := next[0]
+		next = next[1:]
+		if n1.ipp != n2.ipp {
+			c.err("%s and %s must have identical ip/mask", n1, n2)
+		}
+		connected[n2] = true
+		for _, in := range n2.interfaces {
+			if in.ipType != bridgedIP {
+				continue
+			}
+			r := in.router
+			if seen[r] {
+				continue
+			}
+			seen[r] = true
+			count := 1
+			if l3 := in.layer3Intf; l3 != nil {
+				if !n1.ipp.Contains(l3.ip) {
+					c.err("%s's IP doesn't match IP/mask of bridged networks",
+						l3)
+				}
+			}
+			for _, out := range r.interfaces {
+				if out == in || out.ipType != bridgedIP {
+					continue
+				}
+				n3 := out.network
+				if !strings.HasPrefix(n3.name, prefix+"/") {
+					continue
+				}
+				next.push(n3)
+				count++
+			}
+			if count == 1 {
+				c.err("%s can't bridge a single network", r)
+			}
 		}
 	}
-	for prefix, l := range m {
-		n1 := l[0]
-		group := l[1:]
-		if len(group) == 0 {
-			c.warn("Bridged %s must not be used solitary", n1)
-		}
-		seen := make(map[*router]bool)
-		connected := make(map[*network]bool)
-		next := netList{n1}
-		// Mark all networks connected directly or indirectly with net1
-		// by a bridge as 'connected'.
-		for len(next) > 0 {
-			n2 := next[0]
-			next = next[1:]
-			if bytes.Compare(n1.ip, n2.ip) != 0 ||
-				bytes.Compare(n1.mask, n2.mask) != 0 {
-				c.err("%s and %s must have identical ip/mask", n1, n2)
-			}
-			connected[n2] = true
-			for _, in := range n2.interfaces {
-				if in.ipType != bridgedIP {
-					continue
-				}
-				r := in.router
-				if seen[r] {
-					continue
-				}
-				seen[r] = true
-				count := 1
-				if l3 := in.layer3Intf; l3 != nil {
-					if !matchIp(l3.ip, n1.ip, n1.mask) {
-						c.err("%s's IP doesn't match IP/mask of bridged networks",
-							l3)
-					}
-				}
-				for _, out := range r.interfaces {
-					if out == in || out.ipType != bridgedIP {
-						continue
-					}
-					n3 := out.network
-					if !strings.HasPrefix(n3.name, prefix+"/") {
-						continue
-					}
-					next.push(n3)
-					count++
-				}
-				if count == 1 {
-					c.err("%s can't bridge a single network", r)
-				}
-			}
-		}
-		for _, n2 := range group {
-			if !connected[n2] {
-				c.err("%s and %s must be connected by bridge", n2, n1)
-			}
+	for _, n2 := range group {
+		if !connected[n2] {
+			c.err("%s and %s must be connected by bridge", n2, n1)
 		}
 	}
 }

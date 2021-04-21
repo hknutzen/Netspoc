@@ -19,39 +19,35 @@ func (c *spoc) setPolicyDistributionIP() {
 	var pdpRouters []*router
 	seen := make(map[*router]bool)
 	var missing stringList
-	collect := func(list []*router) {
-		for _, r := range list {
-			if seen[r] || r.origRouter != nil {
-				continue
-			}
-			if l := r.ipvMembers; l != nil {
-				var found *host
-				for _, m := range l {
-					seen[m] = true
-					if p := m.policyDistributionPoint; p != nil {
-						pdpRouters = append(pdpRouters, m)
-						if found != nil && found != p {
-							c.err("Instances of router:%s must not use different"+
-								" 'policy_distribution_point':\n -%s\n -%s",
-								m.deviceName, found, p)
-							break
-						} else {
-							found = p
-						}
+	for _, r := range c.managedRouters {
+		if seen[r] || r.origRouter != nil {
+			continue
+		}
+		if l := r.ipvMembers; l != nil {
+			var found *host
+			for _, m := range l {
+				seen[m] = true
+				if p := m.policyDistributionPoint; p != nil {
+					pdpRouters = append(pdpRouters, m)
+					if found != nil && found != p {
+						c.err("Instances of router:%s must not use different"+
+							" 'policy_distribution_point':\n -%s\n -%s",
+							m.deviceName, found, p)
+						break
+					} else {
+						found = p
 					}
 				}
-				if found == nil && needAll != "" {
-					missing.push("at least one instance of router:" + r.deviceName)
-				}
-			} else if r.policyDistributionPoint != nil {
-				pdpRouters = append(pdpRouters, r)
-			} else if needAll != "" {
-				missing.push(r.name)
 			}
+			if found == nil && needAll != "" {
+				missing.push("at least one instance of router:" + r.deviceName)
+			}
+		} else if r.policyDistributionPoint != nil {
+			pdpRouters = append(pdpRouters, r)
+		} else if needAll != "" {
+			missing.push(r.name)
 		}
 	}
-	collect(c.managedRouters)
-	collect(c.routingOnlyRouters)
 	if count := len(missing); count > 0 {
 		c.warnOrErr(needAll,
 			"Missing attribute 'policy_distribution_point' for %d devices:\n"+
@@ -174,7 +170,7 @@ func (c *spoc) setPolicyDistributionIP() {
 		// Lookup interface address in NAT domain of PDP, because PDP
 		// needs to access the device.
 		// Prefer loopback interface if available.
-		natSet := pdp.network.zone.natDomain.natSet
+		natMap := pdp.network.zone.natDomain.natMap
 		var l, o intfList
 		for _, intf := range result {
 			if intf.loopback {
@@ -184,7 +180,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			}
 		}
 		for _, intf := range append(l, o...) {
-			r.adminIP = append(r.adminIP, intf.address(natSet).IP.String())
+			r.adminIP = append(r.adminIP, intf.address(natMap).IP.String())
 		}
 	}
 	var unreachable stringerList

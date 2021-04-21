@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"net"
+	"inet.af/netaddr"
 )
 
 type stringerList []fmt.Stringer
@@ -20,8 +20,7 @@ type autoExt struct {
 }
 
 type aggExt struct {
-	ip   net.IP
-	mask net.IPMask
+	net netaddr.IPPrefix
 }
 
 type userInfo struct {
@@ -83,10 +82,14 @@ type someObj interface {
 	String() string
 	getNetwork() *network
 	getUp() someObj
-	address(nn natSet) *net.IPNet
+	address(m natMap) netaddr.IPPrefix
 	getAttr(attr attrKey) attrVal
 	getPathNode() pathStore
 	getZone() pathObj
+}
+
+type withStdAddr struct {
+	stdAddr string
 }
 
 type disabledObj struct {
@@ -135,15 +138,15 @@ type ipObj struct {
 	ownedObj
 	usedObj
 	name string
-	ip   net.IP
 }
 
 func (x ipObj) String() string { return x.name }
 
-type natMap map[string]*network
+type natTagMap map[string]*network
 
 type network struct {
 	ipObj
+	withStdAddr
 	attr                 attrStore
 	certId               string
 	crosslink            bool
@@ -158,12 +161,12 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
+	ipp                  netaddr.IPPrefix
 	ipType               int
 	isAggregate          bool
 	isLayer3             bool
 	link                 *network
 	loopback             bool
-	mask                 net.IPMask
 	maxRoutingNet        *network
 	maxSecondaryNet      *network
 	nat                  map[string]*network
@@ -174,7 +177,7 @@ type network struct {
 	radiusAttributes     map[string]string
 	subnetOf             *network
 	subnets              []*subnet
-	unstableNat          map[natSet]netList
+	unstableNat          map[*natDomain]netList
 	up                   *network
 	zone                 *zone
 }
@@ -197,7 +200,7 @@ func (a *netList) push(e *network) {
 type netObj struct {
 	ipObj
 	usedObj
-	nat     map[string]net.IP
+	nat     map[string]netaddr.IP
 	network *network
 	up      someObj
 }
@@ -207,18 +210,20 @@ func (x *netObj) getUp() someObj       { return x.up }
 
 type subnet struct {
 	netObj
-	mask             net.IPMask
+	withStdAddr
 	hasNeighbor      bool
 	id               string
 	ldapId           string
 	neighbor         *subnet
+	ipp              netaddr.IPPrefix
 	radiusAttributes map[string]string
 }
 
 type host struct {
 	netObj
 	id               string
-	ipRange          [2]net.IP
+	ip               netaddr.IP
+	ipRange          netaddr.IPRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet
@@ -253,13 +258,13 @@ type model struct {
 	usePrefix        bool
 }
 
-// Use pointer to map, because we need to test natSet for equality,
-// so we can use it as map key.
-type natSet *map[string]bool
+type natSet map[string]bool
+
+type natMap map[*network]*network
 
 type aclInfo struct {
 	name         string
-	natSet       natSet
+	natMap       natMap
 	rules        ruleList
 	intfRules    ruleList
 	protectSelf  bool
@@ -268,9 +273,13 @@ type aclInfo struct {
 	filterAnySrc bool
 	isStdACL     bool
 	isCryptoACL  bool
-	needProtect  []*net.IPNet
-	subAclList   []*aclInfo
+	needProtect  []netaddr.IPPrefix
+	subAclList   aclList
 }
+
+type aclList []*aclInfo
+
+func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 
 type router struct {
 	ipVxObj
@@ -288,14 +297,15 @@ type router struct {
 	logDeny                 bool
 	localMark               int
 	origIntfs               intfList
-	crosslinkIntfs          []*routerIntf
+	crosslinkIntfs          intfList
 	disabled                bool
 	extendedKeys            map[string]string
-	filterOnly              []*net.IPNet
+	filterOnly              []netaddr.IPPrefix
 	generalPermit           []*proto
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList
 	natSet                  natSet // Only used if aclUseRealIp
+	natMap                  natMap // Only used if aclUseRealIp
 	needProtect             bool
 	noGroupCode             bool
 	noInAcl                 *routerIntf
@@ -311,7 +321,7 @@ type router struct {
 	trustPoint              string
 	ipvMembers              []*router
 	vrfMembers              []*router
-	aclList                 []*aclInfo
+	aclList                 aclList
 	vrf                     string
 }
 
@@ -327,14 +337,15 @@ type loop struct {
 type routerIntf struct {
 	netObj
 	pathStoreData
-	router  *router
-	bindNat []string
-	//crypto          *crypto
+	withStdAddr
+	router          *router
+	bindNat         []string
 	dhcpClient      bool
 	dhcpServer      bool
 	hub             []*crypto
 	spoke           *crypto
 	id              string
+	ip              netaddr.IP
 	ipType          int
 	isHub           bool
 	isLayer3        bool
@@ -345,7 +356,7 @@ type routerIntf struct {
 	loopEntryZone   map[pathStore]pathStore
 	loopZoneBorder  bool
 	mainIntf        *routerIntf
-	natSet          natSet
+	natMap          natMap
 	noCheck         bool
 	noInAcl         bool
 	origMain        *routerIntf
@@ -354,13 +365,13 @@ type routerIntf struct {
 	peerNetworks    netList
 	realIntf        *routerIntf
 	redundancyId    string
-	redundancyIntfs []*routerIntf
-	redundancyType  string
+	redundancyIntfs intfList
+	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList
-	routeInZone     map[*network]intfList
-	routes          map[*routerIntf]netMap
-	routing         *routing
+	routeInZone     map[*network]*routerIntf
+	routes          map[*network]intfList
+	routing         *mcastProto
 	rules           ruleList
 	splitOther      *routerIntf
 	intfRules       ruleList
@@ -400,15 +411,22 @@ type owner struct {
 	watchers            stringList
 }
 
-type routing struct {
-	name  string
-	prt   *proto
-	mcast mcastInfo
+func (x owner) String() string { return x.name }
+
+type mcastProto struct {
+	name string
+	prt  *proto
+	mcast
 }
 
-type xxrp struct {
-	prt   *proto
-	mcast mcastInfo
+type mcast struct {
+	v4 multicast
+	v6 multicast
+}
+
+type multicast struct {
+	ips      []string
+	networks []*network
 }
 
 type hardware struct {
@@ -417,14 +435,14 @@ type hardware struct {
 	loopback   bool
 	name       string
 	bindNat    []string
-	natSet     natSet
+	natMap     natMap
 	needOutAcl bool
 	noInAcl    bool
 	rules      ruleList
 	intfRules  ruleList
 	outRules   ruleList
 	ioRules    map[string]ruleList
-	subcmd     []string
+	subcmd     stringList
 }
 
 type pathRestriction struct {
@@ -465,11 +483,6 @@ type isakmp struct {
 	natTraversal   string
 }
 
-type ipmask struct {
-	ip   string // from string(net.IP)
-	mask string // from string(net.IPMask)
-}
-
 type zone struct {
 	ipVxObj
 	pathStoreData
@@ -481,10 +494,8 @@ type zone struct {
 	hasSecondary         bool
 	hasNonPrimary        bool
 	inArea               *area
-	ipmask2aggregate     map[ipmask]*network
-	ipmask2net           map[ipmask]netList
-	link                 *network
-	loopback             bool
+	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
+	ipPrefix2net         map[netaddr.IPPrefix]netList
 	nat                  map[string]*network
 	natDomain            *natDomain
 	noCheckSupernetRules bool
@@ -528,6 +539,7 @@ func (x area) String() string { return x.name }
 type natDomain struct {
 	name    string
 	natSet  natSet
+	natMap  natMap
 	routers []*router
 	zones   []*zone
 }
@@ -627,22 +639,14 @@ type unexpRule struct {
 }
 
 type serviceRule struct {
-	deny                 bool
-	src                  []srvObj
-	dst                  []srvObj
-	prt                  protoList
-	srcRange             *proto
-	log                  string
-	srcNet               bool
-	dstNet               bool
-	reversed             bool
-	rule                 *unexpRule
-	stateless            bool
-	statelessICMP        bool
-	noCheckSupernetRules bool
-	oneway               bool
-	overlaps             bool
-	zone2netMap          map[*zone]map[*network]bool
+	modifiers
+	deny          bool
+	src           []srvObj
+	dst           []srvObj
+	prt           protoList
+	log           string
+	rule          *unexpRule
+	statelessICMP bool
 }
 
 type serviceRuleList []*serviceRule
@@ -667,6 +671,10 @@ type groupedRule struct {
 }
 type ruleList []*groupedRule
 
+func (l *ruleList) push(r *groupedRule) {
+	*l = append(*l, r)
+}
+
 func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 	return &groupedRule{
 		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
@@ -675,11 +683,6 @@ func newRule(src, dst []someObj, prt []*proto) *groupedRule {
 type pathRules struct {
 	permit ruleList
 	deny   ruleList
-}
-
-type mcastInfo struct {
-	v4 []string
-	v6 []string
 }
 
 //###################################################################

@@ -299,8 +299,8 @@ network:v1 = { ip = 10.9.1.0/24; }
 =ERROR=
 Error: owner:all has attribute 'show_all', but doesn't own whole topology.
  Missing:
- - network:n2
  - network:Internet
+ - network:n2
 =END=
 
 ############################################################

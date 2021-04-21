@@ -1,3 +1,22 @@
+
+############################################################
+=TITLE=Verbose output
+=INPUT=
+group:g1 =
+ host:a,
+ host:b,
+;
+=END=
+=OUTPUT=
+group:g1 =
+ host:b,
+;
+=END=
+=WARNING=
+Changed INPUT
+=OPTIONS=--quiet=false
+=PARAMS=host:a
+
 ############################################################
 =TITLE=host at network
 =INPUT=
@@ -63,7 +82,7 @@ group:abc =
 =PARAMS=host:h
 
 ############################################################
-=TITLE=automatic interface after host
+=TITLE=automatic interface before host
 =INPUT=
 group:abc =
  network:xyz,
@@ -78,6 +97,31 @@ group:abc =
 ;
 =END=
 =PARAMS=interface:r1@vrf.[auto]
+
+############################################################
+=TITLE=Don't remove in intersection
+=INPUT=
+group:abc = group:g &! host:xyz;
+=END=
+=OUTPUT=
+group:abc = group:g &! host:xyz;
+=END=
+=PARAMS=host:xyz
+
+############################################################
+=TITLE=Remove group definition although still referenced in intersection
+=INPUT=
+group:abc = group:g &! host:xyz;
+group:g = host:a;
+=END=
+=OUTPUT=
+group:abc =
+ group:g
+ &! host:xyz
+ ,
+;
+=END=
+=PARAMS=group:g
 
 ############################################################
 =TITLE=network after intersection
@@ -167,12 +211,15 @@ pathrestriction:p =
 area:a = {
  border = interface:r.x;
 }
+group:y =
+ host:x,
+ host:y,
+ host:z,
+;
 =END=
 =OUTPUT=
 service:x = {
- user = interface:r.x,
-        host:b,
-        ;
+ user = host:b;
  permit src = any:x;
         dst = user;
         prt = tcp;
@@ -188,7 +235,7 @@ area:a = {
  border = interface:r.x;
 }
 =END=
-=PARAMS=host:y group:y
+=PARAMS=host:y group:y interface:r.x
 
 ############################################################
 =TITLE=with indentation
@@ -325,13 +372,13 @@ group:g =
 =END=
 =OUTPUT=
 group:g =
- any:aaa,
  network:xyz,
  interface:r.n.sec,
  host:abc,
 ;
 =END=
 =FOPTION=
+any:aaa
 network:abx
 host:id:xyz@dom
 group:bbb
@@ -352,7 +399,7 @@ group:g1 =
  host:b,
 ;
 =END=
-=PARAMS=host:c
+=PARAMS=host:c group:g2
 
 ############################################################
 =TITLE=Group with description
@@ -370,5 +417,37 @@ group:g1 =
 ;
 =END=
 =PARAMS=host:b
+
+############################################################
+=TITLE=Missing type
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Missing type in host_a
+=END=
+=PARAMS=host_a
+
+############################################################
+=TITLE=Unsupported type
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Can't use type in service:s1
+=END=
+=PARAMS=service:s1
+
+############################################################
+=TITLE=Can't remove automatic group
+=INPUT=
+group:g1 =
+ any:[ip=10.1.1.0/24&network:n1],
+;
+=END=
+=ERROR=
+Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+=END=
+=PARAMS=any:[ip=10.1.1.0/24&network:n1]
 
 ############################################################

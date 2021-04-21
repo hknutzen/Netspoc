@@ -1,9 +1,8 @@
 package pass2
 
 import (
-	"bytes"
 	"fmt"
-	"net"
+	"inet.af/netaddr"
 	"os"
 	"sort"
 	"strconv"
@@ -100,10 +99,8 @@ type netBintree struct {
 // A node with value of sub-tree S is discarded,
 // if some parent node already has sub-tree S.
 func addBintree(tree *netBintree, node *netBintree) *netBintree {
-	treeIP, treeMask := tree.IP, tree.Mask
-	nodeIP, nodeMask := node.IP, node.Mask
-	prefix, bits := treeMask.Size()
-	nodePref, _ := nodeMask.Size()
+	treeIP, prefix := tree.IP, tree.Bits
+	nodeIP, nodePref := node.IP, node.Bits
 	var result *netBintree
 
 	// The case where new node is larger than root node will never
@@ -122,9 +119,10 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 		// it could have merged more subtrees.
 		if tree.subtree == nil || node.subtree == nil ||
 			tree.subtree != node.subtree {
-			mask := net.CIDRMask(prefix+1, bits)
+
 			var hilo **netBintree
-			if nodeIP.Mask(mask).Equal(treeIP) {
+			upNet, _ := nodeIP.Prefix(prefix + 1)
+			if upNet.IP == treeIP {
 				hilo = &tree.lo
 			} else {
 				hilo = &tree.hi
@@ -139,18 +137,17 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 	} else {
 
 		// Create common root for tree and node.
+		var root netaddr.IPPrefix
 		for {
 			prefix--
-			treeMask = net.CIDRMask(prefix, bits)
-			if nodeIP.Mask(treeMask).Equal(treeIP.Mask(treeMask)) {
+			root, _ = nodeIP.Prefix(prefix)
+			trNet, _ := treeIP.Prefix(prefix)
+			if root.IP == trNet.IP {
 				break
 			}
 		}
-		result = &netBintree{
-			ipNet: ipNet{
-				IPNet: &net.IPNet{IP: nodeIP.Mask(treeMask), Mask: treeMask}},
-		}
-		if bytes.Compare(nodeIP, treeIP) < 0 {
+		result = &netBintree{ipNet: ipNet{IPPrefix: root}}
+		if nodeIP.Less(treeIP) {
 			result.lo, result.hi = node, tree
 		} else {
 			result.hi, result.lo = node, tree
@@ -163,12 +160,12 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 		if lo == nil || hi == nil {
 			goto NOMERGE
 		}
-		prefix, _ := result.Mask.Size()
+		prefix := result.Bits
 		prefix++
-		if loPrefix, _ := lo.Mask.Size(); prefix != loPrefix {
+		if prefix != lo.Bits {
 			goto NOMERGE
 		}
-		if hiPrefix, _ := hi.Mask.Size(); prefix != hiPrefix {
+		if prefix != hi.Bits {
 			goto NOMERGE
 		}
 		if lo.subtree == nil || hi.subtree == nil {
@@ -207,13 +204,13 @@ func genAddrBintree(
 	// Sort by mask size and then by IP.
 	// I.e. large networks coming first.
 	sort.Slice(nodes, func(i, j int) bool {
-		switch bytes.Compare(nodes[i].Mask, nodes[j].Mask) {
-		case -1:
+		if nodes[i].Bits < nodes[j].Bits {
 			return true
-		case 1:
+		}
+		if nodes[i].Bits > nodes[j].Bits {
 			return false
 		}
-		return bytes.Compare(nodes[i].IP, nodes[j].IP) == 1
+		return !nodes[i].IP.Less(nodes[j].IP)
 	})
 
 	var bintree *netBintree
@@ -226,7 +223,7 @@ func genAddrBintree(
 
 	// Add attribute {noop} to node which doesn't add any test to
 	// generated rule.
-	if prefix, _ := bintree.Mask.Size(); prefix == 0 {
+	if bintree.Bits == 0 {
 		bintree.noop = true
 	}
 
@@ -997,8 +994,7 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 // Given an IP and mask, return its address
 // as "x.x.x.x/x" or "x.x.x.x" if prefix == 32 (128 for IPv6).
 func prefixCode(ipNet *ipNet) string {
-	size, bits := ipNet.Mask.Size()
-	if size == bits {
+	if ipNet.IPPrefix.IsSingleIP() {
 		return ipNet.IP.String()
 	}
 	return ipNet.String()
@@ -1049,12 +1045,12 @@ func printChains(fd *os.File, routerData *routerData) {
 		for _, rule := range chain.rules {
 			result := jumpCode(rule) + " " + actionCode(rule)
 			if src := rule.src; src != nil {
-				if size, _ := src.Mask.Size(); size != 0 {
+				if src.Bits != 0 {
 					result += " -s " + prefixCode(&src.ipNet)
 				}
 			}
 			if dst := rule.dst; dst != nil {
-				if size, _ := dst.Mask.Size(); size != 0 {
+				if dst.Bits != 0 {
 					result += " -d " + prefixCode(&dst.ipNet)
 				}
 			}
@@ -1095,10 +1091,10 @@ func printChains(fd *os.File, routerData *routerData) {
 func iptablesACLLine(fd *os.File, rule *linuxRule, prefix string, ipv6 bool) {
 	src, dst, srcRange, prt := rule.src, rule.dst, rule.srcRange, rule.prt
 	result := prefix + " " + jumpCode(rule) + " " + actionCode(rule)
-	if size, _ := src.Mask.Size(); size != 0 {
+	if src.Bits != 0 {
 		result += " -s " + prefixCode(&src.ipNet)
 	}
-	if size, _ := dst.Mask.Size(); size != 0 {
+	if dst.Bits != 0 {
 		result += " -d " + prefixCode(&dst.ipNet)
 	}
 	if prt.protocol != "ip" {

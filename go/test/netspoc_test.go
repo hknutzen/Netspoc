@@ -2,6 +2,7 @@ package netspoc_test
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
+	"github.com/hknutzen/Netspoc/go/pkg/expand"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
@@ -38,6 +39,7 @@ var tests = []test{
 	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
+	{"expand-group", chgInputT, expand.Main, chgInputCheck},
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},

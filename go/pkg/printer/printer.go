@@ -85,8 +85,8 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		p.subElements(pre, x.Type+":[", x.Elements, "]"+post)
 	case *ast.AggAuto:
 		p2 := x.Type + ":["
-		if n := x.Net; n != nil {
-			p2 += "ip = " + n.String() + " &"
+		if x.Net != "" {
+			p2 += "ip = " + x.Net + " &"
 		}
 		p.subElements(pre, p2, x.Elements, "]"+post)
 	case *ast.IntfAuto:

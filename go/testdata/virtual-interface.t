@@ -275,8 +275,9 @@ route E7 10.1.1.0 255.255.255.0 10.3.3.9
 =INPUT=${input}
 =SUBST=/virtual = {ip = 10.3.3.9;}//
 =ERROR=
-Error: Two static routes for network:n1
- at interface:r4.n3 via interface:r3.n3 and interface:r2.n3
+Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
+ - interface:r2.n3
+ - interface:r3.n3
 =END=
 
 ############################################################

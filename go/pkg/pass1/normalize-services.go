@@ -75,8 +75,7 @@ func (c *spoc) expandAutoIntfWithDstList(
 				switch intf.ipType {
 				case shortIP:
 					c.err("%s without IP address (from .[auto])\n"+
-						" must not be used in rule of %s",
-						intf.name, ctx)
+						" must not be used in rule of %s", intf, ctx)
 				case unnumberedIP:
 					// Ignore unnumbered interfaces.
 				default:
@@ -229,51 +228,33 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 				if srcList != nil || dstList != nil {
 					ruleCount++
 				}
-				if srcList == nil || dstList == nil {
+				if srcList == nil || dstList == nil || s.disabled {
 					continue
 				}
-				if s.disabled {
-					continue
+				rule := serviceRule{
+					deny: deny,
+					src:  srcList,
+					dst:  dstList,
+					prt:  simplePrtList,
+					log:  log,
+					rule: uRule,
 				}
 				if simplePrtList != nil {
-					rule := &serviceRule{
-						deny: deny,
-						src:  srcList,
-						dst:  dstList,
-						prt:  simplePrtList,
-						log:  log,
-						rule: uRule,
-					}
-					store.push(rule)
+					store.push(&rule)
 				}
 				for _, c := range complexPrtList {
 					prt, srcRange := c.prt, c.src
-					var mod modifiers
+					r2 := rule
 					if c.modifiers != nil {
-						mod = *c.modifiers
+						r2.modifiers = *c.modifiers
+						if c.modifiers.reversed {
+							r2.src, r2.dst = rule.dst, rule.src
+						}
 					}
-					srcList, dstList := srcList, dstList
-					if mod.reversed {
-						srcList, dstList = dstList, srcList
-					}
-					rule := &serviceRule{
-						deny:                 deny,
-						src:                  srcList,
-						dst:                  dstList,
-						prt:                  protoList{prt},
-						log:                  log,
-						rule:                 uRule,
-						srcRange:             srcRange,
-						stateless:            mod.stateless,
-						oneway:               mod.oneway,
-						overlaps:             mod.overlaps,
-						noCheckSupernetRules: mod.noCheckSupernetRules,
-						srcNet:               mod.srcNet,
-						dstNet:               mod.dstNet,
-						reversed:             mod.reversed,
-						statelessICMP:        prt.statelessICMP,
-					}
-					store.push(rule)
+					r2.prt = protoList{prt}
+					r2.srcRange = srcRange
+					r2.statelessICMP = prt.statelessICMP
+					store.push(&r2)
 				}
 			}
 		}

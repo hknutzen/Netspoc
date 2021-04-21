@@ -83,7 +83,7 @@ func (c *spoc) markDisabled() {
 			var clean intfList
 			for _, intf2 := range l {
 				if intf2 != intf {
-					clean = append(clean, intf2)
+					clean.push(intf2)
 				}
 			}
 			return clean
@@ -135,29 +135,30 @@ func (c *spoc) markDisabled() {
 			}
 		}
 	}
-	rl := getIpv4Ipv6Routers()
+
+	// Remove disabled routers
+	rl := c.allRouters
 	sort.Slice(rl, func(i, j int) bool {
 		return rl[i].name < rl[j].name
 	})
-	rl = append(rl, c.routerFragments...)
-
+	j := 0
 	for _, r := range rl {
 		if r.disabled {
 			continue
 		}
-		c.allRouters = append(c.allRouters, r)
-		if r.managed != "" {
+		rl[j] = r
+		j++
+		if r.managed != "" || r.routingOnly {
 			c.managedRouters = append(c.managedRouters, r)
-		} else if r.routingOnly {
-			c.routingOnlyRouters = append(c.routingOnlyRouters, r)
 		}
 	}
+	c.allRouters = rl[:j]
 
 	// Collect vrf instances belonging to one device.
 	// Also collect all IPv4 and IPv6 routers with same name.
 	sameIPvDevice := make(map[string][]*router)
 	sameDevice := make(map[string][]*router)
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
+	for _, r := range c.managedRouters {
 		if r.origRouter != nil {
 			continue
 		}

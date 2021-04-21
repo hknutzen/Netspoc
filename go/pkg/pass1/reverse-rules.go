@@ -127,7 +127,7 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 			newRule := &groupedRule{
 				serviceRule: &serviceRule{
 					// This rule must only be applied to stateless routers.
-					stateless: true,
+					modifiers: modifiers{stateless: true},
 					deny:      rule.deny,
 					prt:       prtList,
 				},

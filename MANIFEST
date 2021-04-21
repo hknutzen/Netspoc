@@ -11,6 +11,7 @@ TODO
 bin/add-to-netspoc
 bin/check-acl
 bin/cut-netspoc
+bin/expand-group
 bin/export-netspoc
 bin/format-netspoc
 bin/netspoc
@@ -49,6 +50,7 @@ go/build.sh
 go/cmd/add-to-netspoc/main.go
 go/cmd/check-acl/main.go
 go/cmd/cut-netspoc/main.go
+go/cmd/expand-group/main.go
 go/cmd/export-netspoc/main.go
 go/cmd/format-netspoc/main.go
 go/cmd/netspoc/main.go
@@ -65,6 +67,7 @@ go/pkg/ast/order.go
 go/pkg/astset/astset.go
 go/pkg/conf/GetArgs.go
 go/pkg/diag/diag.go
+go/pkg/expand/expand-group.go
 go/pkg/fileop/file.go
 go/pkg/filetree/walk.go
 go/pkg/format/format-netspoc.go
@@ -92,7 +95,6 @@ go/pkg/pass1/export.go
 go/pkg/pass1/find-subnets.go
 go/pkg/pass1/get-aggregates.go
 go/pkg/pass1/get-attr.go
-go/pkg/pass1/global.go
 go/pkg/pass1/group-path-rules.go
 go/pkg/pass1/mark-disabled.go
 go/pkg/pass1/mark-managed-local.go
@@ -112,11 +114,11 @@ go/pkg/pass1/set-path.go
 go/pkg/pass1/set-policy-distribution-ip.go
 go/pkg/pass1/set-zone.go
 go/pkg/pass1/setup-objects.go
+go/pkg/pass1/split-semi-managed-routers.go
 go/pkg/pass1/spoc.go
 go/pkg/pass1/types.go
 go/pkg/pass2/check-acl.go
 go/pkg/pass2/cisco.go
-go/pkg/pass2/diag.go
 go/pkg/pass2/linux.go
 go/pkg/pass2/protocol.go
 go/pkg/pass2/spoc2.go
@@ -142,6 +144,7 @@ go/testdata/crypto.t
 go/testdata/cut-netspoc/cut-netspoc.t
 go/testdata/deterministic.t
 go/testdata/disabled.t
+go/testdata/expand-group/expand-group.t
 go/testdata/export-netspoc/export.t
 go/testdata/format-netspoc/format-netspoc.t
 go/testdata/general-permit.t

@@ -3,7 +3,7 @@ package removefrom
 /*
 =head1 NAME
 
-remove-from-netspoc - Remove one || more objects from netspoc files
+remove-from-netspoc - Remove one or more objects from netspoc files
 
 =head1 SYNOPSIS
 
@@ -11,20 +11,20 @@ remove-from-netspoc [options] FILE|DIR OBJECT ...
 
 =head1 DESCRIPTION
 
-This program reads a netspoc configuration && one || more OBJECTS. It
+This program reads a netspoc configuration and one or more OBJECTS. It
 removes specified objects in each file. Changes are done in place, no
 backup files are created. But only changed files are touched.
 
 =head1 OBJECT
 
-An OBJECT is a typed name "type:NAME". Occurences of
+An OBJECT is a typed name "type:NAME". Occurrences of
 "type:NAME" are removed. Changes are applied only in group
-definitions && in implicit groups inside rules, i.e. after "user =",
+definitions and in implicit groups inside rules, i.e. after "user =",
 "src =", "dst = ".  Multiple OBJECTS can be removed in a single run of
 remove-from-netspoc.
 
 The following types can be used in OBJECTS:
-B<network host interface any group>.
+B<network host interface any group area>.
 
 =head1 OPTIONS
 
@@ -38,13 +38,9 @@ Read OBJECTS from file.
 
 Quiet, don't print status messages.
 
-=item B<-help>
+=item B<-h>
 
-Prints a brief help message && exits.
-
-=item B<-man>
-
-Prints the manual page && exits.
+Prints a brief help message and exits.
 
 =back
 
@@ -54,14 +50,14 @@ Prints the manual page && exits.
 
 http://hknutzen.github.com/Netspoc
 
-This program is free software; you can redistribute it &&/|| modify
+This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, ||
+the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY || FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along
@@ -72,12 +68,9 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"io/ioutil"
 	"os"
@@ -94,8 +87,12 @@ var validType = map[string]bool{
 	"area":      true,
 }
 
-var remove map[string]bool
-var changes int
+var validName = regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
+
+type state struct {
+	*astset.State
+	remove map[string]bool
+}
 
 func checkName(typedName string) error {
 	pair := strings.SplitN(typedName, ":", 2)
@@ -105,102 +102,83 @@ func checkName(typedName string) error {
 	if !validType[pair[0]] {
 		return fmt.Errorf("Can't use type in %s", typedName)
 	}
-	re := regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
-	if m := re.FindStringSubmatch(pair[1]); m != nil {
+	if m := validName.FindStringSubmatch(pair[1]); m != nil {
 		return fmt.Errorf("Invalid character '%s' in %s", m[0], typedName)
 	}
 	return nil
 }
 
-func setupObjects(objects []string) error {
+func (s *state) setupObjects(objects []string) error {
 	for _, object := range objects {
 		if err := checkName(object); err != nil {
 			return err
 		}
-		remove[object] = true
+		s.remove[object] = true
 	}
 	return nil
 }
 
-func removeElement(n ast.Element) bool {
-	switch obj := n.(type) {
-	case *ast.NamedRef, *ast.IntfRef:
-		name := obj.GetType() + ":" + obj.GetName()
-		return remove[name]
-	case *ast.SimpleAuto:
-		elementList(&obj.Elements)
-	case *ast.AggAuto:
-		elementList(&obj.Elements)
-	case *ast.IntfAuto:
-		elementList(&obj.Elements)
+func (s *state) elementList(l *([]ast.Element)) bool {
+	changed := false
+	j := 0
+	for _, n := range *l {
+		switch obj := n.(type) {
+		case *ast.NamedRef, *ast.IntfRef:
+			name := obj.GetType() + ":" + obj.GetName()
+			if s.remove[name] {
+				changed = true
+				continue
+			}
+		case *ast.SimpleAuto:
+			changed = s.elementList(&obj.Elements) || changed
+		case *ast.AggAuto:
+			changed = s.elementList(&obj.Elements) || changed
+		case *ast.IntfAuto:
+			changed = s.elementList(&obj.Elements) || changed
+		}
+		(*l)[j] = n
+		j++
+	}
+	*l = (*l)[:j]
+	return changed
+}
+
+func (s *state) toplevel(n ast.Toplevel) bool {
+	switch x := n.(type) {
+	case *ast.TopList:
+		if strings.HasPrefix(x.Name, "group:") {
+			return s.elementList(&x.Elements)
+		}
+	case *ast.Service:
+		changed := s.elementList(&x.User.Elements)
+		for _, r := range x.Rules {
+			changed = s.elementList(&r.Src.Elements) || changed
+			changed = s.elementList(&r.Dst.Elements) || changed
+		}
+		return changed
 	}
 	return false
 }
 
-func elementList(l *([]ast.Element)) {
-	removed := 0
-	for i, n := range *l {
-		if removeElement(n) {
-			(*l)[i] = nil
-			removed++
+func (s *state) process() {
+
+	// Remove elements from element lists.
+	s.Modify(func(n ast.Toplevel) bool { return s.toplevel(n) })
+
+	// Remove definition of group.
+	// Silently ignore error, if definition isn't found.
+	for name := range s.remove {
+		if strings.HasPrefix(name, "group:") {
+			s.DeleteToplevel(name)
 		}
 	}
-	if removed > 0 {
-		changes += removed
-		new := make([]ast.Element, 0, len(*l)-removed)
-		for _, n := range *l {
-			if n != nil {
-				new = append(new, n)
-			}
-		}
-		*l = new
+
+	for _, file := range s.Changed() {
+		info.Msg("Changed %s", file)
 	}
 }
 
-func toplevel(n ast.Toplevel) {
-	switch x := n.(type) {
-	case *ast.TopList:
-		if strings.HasPrefix(x.Name, "group:") {
-			elementList(&x.Elements)
-		}
-	case *ast.Service:
-		elementList(&x.User.Elements)
-		for _, r := range x.Rules {
-			elementList(&r.Src.Elements)
-			elementList(&r.Dst.Elements)
-		}
-	}
-}
-
-func processFile(l []ast.Toplevel) int {
-	changes = 0
-	for _, n := range l {
-		toplevel(n)
-	}
-	return changes
-}
-
-func processInput(input *filetree.Context) error {
-	source := []byte(input.Data)
-	path := input.Path
-	nodes, err := parser.ParseFile(source, path)
-	if err != nil {
-		return err
-	}
-	count := processFile(nodes)
-	if count == 0 {
-		return nil
-	}
-
-	info.Msg("%d changes in %s", count, path)
-	for _, n := range nodes {
-		n.Order()
-	}
-	copy := printer.File(nodes, source)
-	return fileop.Overwrite(path, copy)
-}
-
-func readObjects(path string) error {
+func (s *state) readObjects(path string) error {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
@@ -209,7 +187,7 @@ func readObjects(path string) error {
 	if len(objects) == 0 {
 		return fmt.Errorf("Missing objects in %s", path)
 	}
-	return setupObjects(objects)
+	return s.setupObjects(objects)
 }
 
 func Main() int {
@@ -243,15 +221,16 @@ func Main() int {
 	path := args[0]
 
 	// Initialize to be removed objects.
-	remove = make(map[string]bool)
+	s := new(state)
+	s.remove = make(map[string]bool)
 	if *fromFile != "" {
-		if err := readObjects(*fromFile); err != nil {
+		if err := s.readObjects(*fromFile); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
-		if err := setupObjects(args[1:]); err != nil {
+		if err := s.setupObjects(args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
@@ -261,10 +240,13 @@ func Main() int {
 	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Do removal.
-	if err := filetree.Walk(path, processInput); err != nil {
+	var err error
+	s.State, err = astset.Read(path)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	s.process()
+	s.Print()
 	return 0
 }

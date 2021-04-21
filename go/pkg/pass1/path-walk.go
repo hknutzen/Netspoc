@@ -736,7 +736,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			if clusterPathMark1(next, intf, to, lPath, navi) {
 				success = true
 				lPath.enter.push(intf)
-				//debug(" enter: %s -> %s", from, intf.name);
+				//debug(" enter: %s -> %s", from, intf);
 			}
 		}
 
@@ -753,7 +753,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 					}
 					seen[tuple] = true
 					tuples.push(tuple)
-					//debug("Tuple: %s, %s", tuple[0].name, tuple[1].name);
+					//debug("Tuple: %s, %s", tuple[0], tuple[1]);
 				}
 				*orig = tuples
 			}
@@ -945,7 +945,7 @@ func pathMark(fromStore, toStore pathStore) bool {
 PATH:
 	for {
 
-		// debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from.String(), to.getDistance(), to.String())
+		// debug("Dist: %d %s -> Dist: %d %s", from.getDistance(), from, to.getDistance(), to)
 
 		// Paths meet outside a loop or at the edge of a loop.
 		if from == to {
@@ -1006,16 +1006,7 @@ PATH:
 			}
 
 			// Mark path at the interface we came from (step in path direction)
-
-			/*
-				var a string
-				if fromIn != nil {
-					a = fromIn.String()
-				} else {
-					a = ""
-				}
-				debug("pAth: %s %s -> %s", a, fromStore.String(), fromOut.String())
-			*/
+			//debug("pAth: %s %s -> %s", fromIn, fromStore, fromOut)
 			if fromIn != nil {
 				fromIn.setPath(toStore, fromOut)
 			} else {
@@ -1057,17 +1048,7 @@ PATH:
 
 			// Mark path at interface we go to (step in opposite path direction).
 
-			/*
-				var toOutName string
-				if toOut != nil {
-					toOutName = toOut.String()
-				} else {
-					toOutName = ""
-				}
-				debug("path: %s -> %s %s", toIn.String(), toStore.String(), toOutName)
-				// end debugging
-			*/
-
+			//debug("path: %s -> %s %s", toIn, toStore, toOut)
 			toIn.setPath(toStore, toOut)
 			to = toIn.toZone1
 			toLoop = to.getLoop()
@@ -1165,7 +1146,7 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		msg = " Check path restrictions and crypto interfaces."
 	}
 	c.err("No valid path\n from %s\n to %s\n %s\n"+msg,
-		srcPath.String(), dstPath.String(), context)
+		srcPath, dstPath, context)
 }
 
 //#############################################################################
@@ -1192,17 +1173,10 @@ func (c *spoc) pathWalk(rule *groupedRule,
 	fromStore, toStore := rule.srcPath, rule.dstPath
 
 	/*	debug(rule.print());
-		debug(" start: %s, %s at %s",fromStore.String(), toStore.String(), where)
+		debug(" start: %s, %s at %s",fromStore, toStore, where)
 		fun2 := fun
 		fun = func(rule *Rule, i, o *routerIntf) {
-			var inName, outName string
-			if i != nil {
-				inName = i.name
-			}
-			if o != nil {
-				outName = o.name
-			}
-			debug(" Walk: %s, %s", inName, outName)
+			debug(" Walk: %s, %s", i, o)
 			fun2(rule, i, o)
 		}
 	*/
@@ -1339,7 +1313,7 @@ func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 				defer func() { r.activePath = false }()
 				result[r] = append(result[r], intf)
 
-				//debug("%s: %s", r.name, intf.name)
+				//debug("%s: %s", r, intf)
 				for _, out := range r.interfaces {
 					if !(out == intf || out.origMain != nil) {
 						reachFromBorder(out.network, out, result)

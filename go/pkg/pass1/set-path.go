@@ -54,8 +54,8 @@ func (c *spoc) findDistsAndLoops() {
 		partition2Routers[zone1] = partitionRouters
 	}
 
-	unconnectedPartitions := extractPartitionsConnectedBySplitRouter(partitions,
-		partition2Routers)
+	unconnectedPartitions :=
+		extractPartitionsConnectedBySplitRouter(partitions, partition2Routers)
 	c.checkProperPartitionUsage(unconnectedPartitions)
 }
 
@@ -75,12 +75,7 @@ func setpathObj(obj pathObj, intfToZone1 *routerIntf,
 
 	var partitionRouters []*router
 
-	/*	//debug
-		var intfToZone1Name string
-		if intfToZone1 != nil {
-			intfToZone1Name = intfToZone1.String()
-		}
-		debug("--%d: %s -->  %s", distToZone1, obj.String(), intfToZone1Name); //*/
+	//debug("--%d: %s -->  %s", distToZone1, obj, intfToZone1)
 
 	// Return from recursion if loop was found.
 	if obj.isActivePath() {
@@ -127,8 +122,8 @@ func setpathObj(obj pathObj, intfToZone1 *routerIntf,
 		}
 
 		// Proceed with next node (distance + 2 to enable intermediate values).
-		max, foundLoop, collectedRouters := setpathObj(nextObject, objIntf,
-			distToZone1+2)
+		max, foundLoop, collectedRouters :=
+			setpathObj(nextObject, objIntf, distToZone1+2)
 
 		if max > maxDistance {
 			maxDistance = max
@@ -226,7 +221,7 @@ func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 
 	partitions2PartitionTags := c.mapPartitions2PartitionTags()
 
-	// Several Partition Tags for single zone - generate error.
+	// Several Partition Tags for single zone - show error.
 	for zone1 := range partitions2PartitionTags {
 		if len(partitions2PartitionTags[zone1]) > 1 {
 			c.err("Several partition names in partition %s:\n - %s",
@@ -247,11 +242,11 @@ func (c *spoc) checkProperPartitionUsage(unconnectedPartitions []*zone) {
 		}
 	}
 
-	// Named single unconneted partition - generate warning.
+	// Named single unconneted partition - show warning.
 	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv6Partitions)
 	c.warnAtNamedSingleUnconnectedPartition(unconnectedIPv4Partitions)
 
-	// Several Unconnected Partitions without tags - generate Error.
+	// Several Unconnected Partitions without tags - show error.
 	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv6Partitions,
 		partitions2PartitionTags)
 	c.errorOnUnnamedUnconnectedPartitions(unconnectedIPv4Partitions,
@@ -384,20 +379,17 @@ func setLoopClusterExit(lo *loop) pathObj {
 	// Exit node references itself: loop cluster exit found.
 	if exitNode.getLoop() == lo {
 
-		/*debug("Loop %s, %d is in cluster %s",
-		exit.String(), lo.distance, exit.String());//*/
+		//debug("Loop %s, %d is in cluster %s", exit, lo.distance, exit)
 		lo.clusterExit = exitNode
-		//		return lo.clusterExit
 		return exitNode
 	}
 
 	// Exit node references another loop: proceed with next loop of cluster
 	clusterExit := setLoopClusterExit(exitNode.getLoop())
 
-	/*debug("Loop %s, %d is in cluster %s", exit.String(),
-	lo.distance, cluster.String());//*/
+	//debug("Loop %s, %d is in cluster %s", exit, lo.distance, cluster)
 	lo.clusterExit = clusterExit
-	return lo.clusterExit
+	return clusterExit
 }
 
 /* checkPathrestrictions removes pathrestrictions, that aren't proper
@@ -458,7 +450,7 @@ func (c *spoc) checkPathrestrictions() {
 func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 	restrict *pathRestriction) []*routerIntf {
 
-	var misplacedRestricts []*routerIntf
+	var misplacedRestricts intfList
 	var prevInterface *routerIntf
 	var prevCluster pathObj
 	for _, intf := range restrict.elements {
@@ -470,8 +462,8 @@ func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 
 		if loop == nil {
 			c.warn("Ignoring %s at %s\n because it isn't located "+
-				"inside cyclic graph", restrict.name, intf.name)
-			misplacedRestricts = append(misplacedRestricts, intf)
+				"inside cyclic graph", restrict.name, intf)
+			misplacedRestricts.push(intf)
 			continue
 		}
 
@@ -480,7 +472,7 @@ func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 		if prevCluster != nil {
 			if cluster != prevCluster {
 				c.warn("Ignoring %s having elements from different loops:\n"+
-					" - %s\n - %s", restrict.name, prevInterface.name, intf.name)
+					" - %s\n - %s", restrict.name, prevInterface, intf)
 				misplacedRestricts = restrict.elements
 				break
 			}
@@ -498,29 +490,24 @@ func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 /* to the interface that is located at border of loop. */
 func movePathrestrictionToLoopIntfOfSplitRouter(intf *routerIntf) *loop {
 	other := intf.splitOther
+	loop := other.zone.loop
 
-	if other.zone.loop != nil {
-
-		loop := other.zone.loop
-		rlist := intf.pathRestrict
-
-		intf.pathRestrict = nil
-		other.pathRestrict = rlist
-
-		//debug("Move pathrestrictions from %s to %s", intf.name, other.name)
-		for _, restrict := range other.pathRestrict {
-			//debug(" - %s", restrict.name)
-			restrictedIntfs := restrict.elements
-			substituteIntf(restrictedIntfs, intf, other)
-		}
-		return loop
+	if loop == nil {
+		return nil
 	}
-	return nil
+
+	other.pathRestrict, intf.pathRestrict = intf.pathRestrict, nil
+
+	//debug("Move pathrestrictions from %s to %s", intf, other)
+	for _, restrict := range other.pathRestrict {
+		//debug(" - %s", restrict.name)
+		substituteIntf(restrict.elements, intf, other)
+	}
+	return loop
 }
 
 // Substitute a routerInterface within a slice.
-func substituteIntf(slice []*routerIntf, oldIntf *routerIntf,
-	newIntf *routerIntf) {
+func substituteIntf(slice []*routerIntf, oldIntf, newIntf *routerIntf) {
 	for i, intf := range slice {
 		if intf == oldIntf {
 			slice[i] = newIntf
@@ -543,9 +530,9 @@ func removeIntfsfromPathRestriction(restrict *pathRestriction,
 }
 
 func deleteIntfFrom(slice []*routerIntf, intf *routerIntf) []*routerIntf {
-	for index, sliceIntf := range slice {
+	for i, sliceIntf := range slice {
 		if intf == sliceIntf {
-			return append(slice[:index], slice[(index+1):]...)
+			return append(slice[:i], slice[(i+1):]...)
 		}
 	}
 	return slice
@@ -626,9 +613,6 @@ func (c *spoc) checkVirtualInterfaces() {
 	var seen = make(map[*routerIntf]bool)
 
 	for _, intf := range c.virtualInterfaces {
-		if intf.redundancyIntfs == nil {
-			continue
-		}
 		// Ignore single virtual interface.
 		if len(intf.redundancyIntfs) <= 1 {
 			continue
@@ -641,17 +625,16 @@ func (c *spoc) checkVirtualInterfaces() {
 
 		if seen[intf] {
 			continue
-		} else {
-			for _, redundancyIntf := range intf.redundancyIntfs {
-				seen[redundancyIntf] = true
-			}
+		}
+		for _, redundancyIntf := range intf.redundancyIntfs {
+			seen[redundancyIntf] = true
 		}
 
 		// Check whether all virtual interfaces are part of a loop.
 		var err bool
 		for _, virtIntf := range intf.redundancyIntfs {
 			if virtIntf.router.loop == nil {
-				c.err("%s must be located inside cyclic sub-graph", virtIntf.name)
+				c.err("%s must be located inside cyclic sub-graph", virtIntf)
 				err = true
 			}
 		}
@@ -668,12 +651,8 @@ func (c *spoc) checkVirtualInterfaces() {
 		referenceLoop := intf.redundancyIntfs[0].loop
 		for _, virtIntf := range intf.redundancyIntfs[1:] {
 			if referenceLoop != virtIntf.loop {
-				var virtIntfNames stringList
-				for _, virtIntf := range intf.redundancyIntfs {
-					virtIntfNames.push(virtIntf.name)
-				}
 				c.err("Virtual interfaces\n%s\n must all be part of the "+
-					"same cyclic sub-graph", virtIntfNames.nameList())
+					"same cyclic sub-graph", intf.redundancyIntfs.nameList())
 				break
 			}
 		}
@@ -729,8 +708,8 @@ OTHER:
 func deletePathrestrictionFromInterfaces(restrict *pathRestriction) {
 	elements := restrict.elements
 	for _, intf := range elements {
-		intf.pathRestrict = deletePathRestrictionFrom(
-			intf.pathRestrict, restrict)
+		intf.pathRestrict =
+			deletePathRestrictionFrom(intf.pathRestrict, restrict)
 
 		// Delete empty array to speed up checks in clusterPathMark.
 		if len(intf.pathRestrict) == 0 {

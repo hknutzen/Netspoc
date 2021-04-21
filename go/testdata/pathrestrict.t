@@ -519,7 +519,7 @@ Warning: Ignoring pathrestriction:p1 at interface:r3.n3
 =END=
 
 ############################################################
-=TITLE=Pathrestriction at internally split router ouside of loop
+=TITLE=Pathrestriction at internally split router outside of loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }

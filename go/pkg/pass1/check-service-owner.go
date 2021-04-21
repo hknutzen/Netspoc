@@ -22,8 +22,8 @@ func (c *spoc) propagateOwners() {
 		if len(cluster) > 1 && seen[cluster[0]] {
 			continue
 		}
-	AGGREGATE:
-		for key, agg := range z.ipmask2aggregate {
+	AGG:
+		for key, agg := range z.ipPrefix2aggregate {
 
 			// If an explicit owner was set, it has been set for
 			// the whole cluster in link_aggregates.
@@ -31,43 +31,33 @@ func (c *spoc) propagateOwners() {
 				continue
 			}
 
-			var found *owner
-			var contained netList
 			if len(cluster) > 1 {
 				seen[cluster[0]] = true
-				for _, z2 := range cluster {
-					contained =
-						append(contained, z2.ipmask2aggregate[key].networks...)
-				}
-			} else {
-				contained = append(contained, agg.networks...)
 			}
-			for _, n := range contained {
-				netOwner := n.owner
-				if netOwner == nil {
-					continue AGGREGATE
-				}
-				if found != nil {
-					if netOwner != found {
-						continue AGGREGATE
+			var found *owner
+			for _, z2 := range cluster {
+				for _, n := range z2.ipPrefix2aggregate[key].networks {
+					netOwner := n.owner
+					if netOwner == nil {
+						continue AGG
 					}
-				} else {
-					found = netOwner
+					if found != nil {
+						if netOwner != found {
+							continue AGG
+						}
+					} else {
+						found = netOwner
+					}
 				}
 			}
 			if found == nil {
 				continue
 			}
-			//debug("Inversed inherit: %s %s", agg.name, found.name)
-			if cluster != nil {
-				for _, z2 := range cluster {
-					agg2 := z2.ipmask2aggregate[key]
-					agg2.owner = found
-					aggGotNetOwner[agg2] = true
-				}
-			} else {
-				agg.owner = found
-				aggGotNetOwner[agg] = true
+			//debug("Inversed inherit: %s %s", agg, found)
+			for _, z2 := range cluster {
+				agg2 := z2.ipPrefix2aggregate[key]
+				agg2.owner = found
+				aggGotNetOwner[agg2] = true
 			}
 		}
 	}
@@ -120,7 +110,7 @@ func (c *spoc) propagateOwners() {
 				if o2 != nil && o2 == o {
 					c.warn("Useless %s at %s,\n"+
 						" it was already inherited from %s",
-						o.name, obj, upper)
+						o, obj, upper)
 				}
 			}
 			o.isUsed = true
@@ -160,7 +150,11 @@ func (c *spoc) propagateOwners() {
 
 	// Collect list of owners and watchingOwners from areas at
 	// zones in attribute .watchingOwners. Is needed in export-netspoc.
-	zone2owner2seen := make(map[*zone]map[*owner]bool)
+	type key struct {
+		z *zone
+		o *owner
+	}
+	zoneOwnerSeen := make(map[key]bool)
 	for _, area := range c.ascendingAreas {
 		o := area.watchingOwner
 		if o == nil {
@@ -171,13 +165,9 @@ func (c *spoc) propagateOwners() {
 		}
 		o.isUsed = true
 		for _, z := range area.zones {
-			owner2seen := zone2owner2seen[z]
-			if !owner2seen[o] {
-				if owner2seen == nil {
-					owner2seen = make(map[*owner]bool)
-					zone2owner2seen[z] = owner2seen
-				}
-				owner2seen[o] = true
+			k := key{z, o}
+			if !zoneOwnerSeen[k] {
+				zoneOwnerSeen[k] = true
 				z.watchingOwners = append(z.watchingOwners, o)
 			}
 		}
@@ -211,8 +201,7 @@ func (c *spoc) propagateOwners() {
 			c.err("%s has attribute 'show_all',"+
 				" but doesn't own whole topology.\n"+
 				" Missing:\n"+
-				invalid.nameList(),
-				o.name)
+				invalid.nameList(), o)
 		}
 	}
 
@@ -223,27 +212,27 @@ func (c *spoc) propagateOwners() {
 		if attributes == nil {
 			continue
 		}
-		owner := attributes.owner
-		if owner == nil {
+		o := attributes.owner
+		if o == nil {
 			continue
 		}
-		owner.isUsed = true
+		o.isUsed = true
 		for _, r := range a.managedRouters {
 			if rOwner := r.owner; rOwner != nil {
-				if rOwner == owner {
+				if rOwner == o {
 					c.warn(
 						"Useless %s at %s,\n"+
 							" it was already inherited from %s",
-						rOwner.name, r.name, attributes.name)
+						rOwner, r, attributes.name)
 				}
 			} else {
-				r.owner = owner
+				r.owner = o
 			}
 		}
 	}
 
 	// Set owner for interfaces of managed routers.
-	for _, r := range append(c.managedRouters, c.routingOnlyRouters...) {
+	for _, r := range c.managedRouters {
 		o := r.owner
 		if o == nil {
 			continue
@@ -256,17 +245,16 @@ func (c *spoc) propagateOwners() {
 		}
 	}
 
-	// Propagate owner of loopback interface to loopback network and
-	// loopback zone. Even reset owners to undef, if loopback interface
-	// has no owner.
+	// Propagate owner of loopback interface to loopback network. Even
+	// reset owner to nil, if loopback interface has no owner.
 	for _, r := range c.allRouters {
 		for _, intf := range r.interfaces {
 			if intf.loopback {
-				owner := intf.owner
-				if owner != nil {
-					owner.isUsed = true
+				o := intf.owner
+				if o != nil {
+					o.isUsed = true
 				}
-				intf.network.owner = owner
+				intf.network.owner = o
 			}
 		}
 	}
@@ -381,7 +369,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			if subOwner := svc.subOwner; subOwner != nil {
 				subOwner.isUsed = true
 				if len(ownerSeen) == 1 && ownerSeen[subOwner] {
-					c.warn("Useless %s at %s", subOwner.name, svc.name)
+					c.warn("Useless %s at %s", subOwner, svc)
 				}
 			}
 
@@ -389,7 +377,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
 			if svc.multiOwner {
 				if !hasMulti {
-					c.warn("Useless use of attribute 'multi_owner' at %s", svc.name)
+					c.warn("Useless use of attribute 'multi_owner' at %s", svc)
 				} else {
 
 					// Check if attribute 'multi_owner' is restricted at this service.
@@ -402,7 +390,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 					if restricted {
-						c.warn("Must not use attribute 'multi_owner' at %s", svc.name)
+						c.warn("Must not use attribute 'multi_owner' at %s", svc)
 					} else if info.sameObjects {
 
 						// Check if attribute 'multi_owner' could be avoided,
@@ -430,7 +418,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 								" All 'user' objects belong to single %s.\n"+
 								" Either swap objects of 'user' and objects of rules,\n"+
 								" or split service into multiple parts,"+
-								" one for each owner.", svc.name, userOwner.name)
+								" one for each owner.", svc, userOwner)
 						}
 					}
 				}
@@ -456,7 +444,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						sort.Strings(names)
 						c.warnOrErr(printType,
 							"%s has multiple owners:\n %s",
-							svc.name, strings.Join(names, ", "))
+							svc, strings.Join(names, ", "))
 					}
 				}
 			}
@@ -464,13 +452,12 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			// Check for unknown owners.
 			if svc.unknownOwner {
 				if !hasUnknown {
-					c.warn("Useless use of attribute 'unknown_owner' at %s", svc.name)
+					c.warn("Useless use of attribute 'unknown_owner' at %s", svc)
 				} else {
 					for obj, _ := range objects {
 						if obj.getOwner() == nil &&
 							obj.getAttr(unknownOwnerAttr) == restrictVal {
-							c.warn("Must not use attribute 'unknown_owner' at %s",
-								svc.name)
+							c.warn("Must not use attribute 'unknown_owner' at %s", svc)
 							break
 						}
 					}
@@ -491,7 +478,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 		if printType := conf.Conf.CheckUnusedOwners; printType != "" {
 			for _, o := range symTable.owner {
 				if !o.isUsed {
-					c.warnOrErr(printType, "Unused %s", o.name)
+					c.warnOrErr(printType, "Unused %s", o)
 				}
 			}
 		}

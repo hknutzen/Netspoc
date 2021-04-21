@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"net"
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -18,16 +18,16 @@ func getZoneClusterBorders(z *zone) intfList {
 }
 
 // Check path for at least one managed device R that is filtering
-// original address of network n.
-func pathHasFullFilter(tag string, pairs intfPairs) bool {
+// original or static NAT address of network n.
+func pathHasFullFilter(n *network, pairs intfPairs) bool {
 	hasNATPrimary := false
 	hasFull := false
 	hasStandard := false
 	for _, pair := range pairs {
 		r := pair[0].router
 		inLoop := pair[0].loop != nil && pair[1].loop != nil
-		filtersNAT := (*pair[0].natSet)[tag]
-		if filtersNAT || inLoop {
+		natNet := getNatNetwork(n, pair[0].natMap)
+		if natNet.dynamic || inLoop {
 			if r.managed == "primary" {
 				hasNATPrimary = true
 			}
@@ -51,8 +51,8 @@ func pathHasFullFilter(tag string, pairs intfPairs) bool {
 // at border routers of zone cluster of these networks.
 // This is neccessary because we would accidently permit traffic for
 // the whole network where only a single host should be permitted.
-func disableSecondOptForDynHostNet(n *network, tag string, p intfPairs) {
-	if pathHasFullFilter(tag, p) {
+func disableSecondOptForDynHostNet(n *network, p intfPairs) {
+	if pathHasFullFilter(n, p) {
 		return
 	}
 	z := n.zone
@@ -75,15 +75,14 @@ func (c *spoc) checkDynamicNatRules(
 
 	c.progress("Checking and marking rules with hidden or dynamic NAT")
 
-	// 1. Collect hidden or dynamic NAT tags that
-	//    a) are active inside natSet (i.e. NAT domain),
-	//    b) are defined inside zone.
-	// 2. Mark networks having host or interface with dynamic NAT
-	natSet2activeTags := make(map[natSet]map[string]bool)
-	zone2dynNat := make(map[*zone]map[string]bool)
-	hasDynHost := make(map[*network]bool)
+	// 1. Collect hidden or dynamic NAT tags that are defined inside zone.
+	//    Remember one network for each tag.
+	// 2. Mark networks with dynamic NAT
+	// It has been checked, that type of each NAT tag is equal at
+	// all networks.
+	zone2dynNat := make(map[*zone]map[string]*network)
+	hasDynNAT := make(map[*network]bool)
 	for _, n := range c.allNetworks {
-		foundDyn := false
 		tagMap := n.nat
 		if len(tagMap) == 0 {
 			continue
@@ -91,56 +90,22 @@ func (c *spoc) checkDynamicNatRules(
 		z := n.zone
 		zTagMap := zone2dynNat[z]
 		if zTagMap == nil {
-			zTagMap = make(map[string]bool)
+			zTagMap = make(map[string]*network)
 			zone2dynNat[z] = zTagMap
 		}
-	TAG:
-		for natTag, natNetwork := range tagMap {
-
-			// We already know, that type of natTag is equal at
-			// all networks.
-			typ := natTag2natType[natTag]
-			if typ != "static" {
-				zTagMap[natTag] = true
-			}
-
-			// Check for host or interface with dynamic NAT.
-			if !foundDyn && natNetwork.dynamic && !natNetwork.hidden {
-				for _, s := range n.subnets {
-					if s.nat[natTag] != nil {
-						foundDyn = true
-						continue TAG
-					}
+		for natTag, natNet := range tagMap {
+			if natNet.dynamic {
+				zTagMap[natTag] = n
+				if !natNet.hidden {
+					hasDynNAT[n] = true
 				}
-				for _, intf := range n.interfaces {
-					if intf.nat[natTag] == nil {
-						foundDyn = true
-						continue TAG
-					}
-				}
-			}
-		}
-		if foundDyn {
-			hasDynHost[n] = true
-		}
-	}
-	for _, nd := range natDoms {
-		set := nd.natSet
-		tagMap := natSet2activeTags[set]
-		if tagMap == nil {
-			tagMap = make(map[string]bool)
-			natSet2activeTags[set] = tagMap
-		}
-		for tag, _ := range *set {
-			if natTag2natType[tag] != "static" {
-				tagMap[tag] = true
 			}
 		}
 	}
 
 	type zonePair [2]*zone
 	cache := make(map[zonePair]intfPairs)
-	natPathToCheck := make(map[zonePair][]string)
+	natPathToCheck := make(map[zonePair]stringList)
 	type objAndZone struct {
 		obj  someObj
 		zone *zone
@@ -157,7 +122,8 @@ func (c *spoc) checkDynamicNatRules(
 			rule.srcPath = s
 			rule.dstPath = d
 
-			// Collect managed interfaces on path.
+			// Collect interfaces on path:
+			// managed, with pathrestriction or with bind_nat.
 			collect := func(r *groupedRule, inIntf, outIntf *routerIntf) {
 				pairs.push(intfPair{inIntf, outIntf})
 			}
@@ -167,7 +133,9 @@ func (c *spoc) checkDynamicNatRules(
 		return pairs
 	}
 
-	checkDynNatPath := func(pathRule *groupedRule, reversed bool, fromList []someObj, fromZone *zone, toObj someObj, toZone *zone) {
+	checkDynNatPath := func(pathRule *groupedRule, reversed bool,
+		fromList []someObj, fromZone *zone, toObj someObj, toZone *zone) {
+
 		toCheck := natPathToCheck[zonePair{fromZone, toZone}]
 		if toCheck == nil {
 			dynNat := zone2dynNat[fromZone]
@@ -176,11 +144,11 @@ func (c *spoc) checkDynamicNatRules(
 			}
 			pairs := getPathPairs(pathRule, reversed, fromZone, toZone)
 		TAG:
-			for natTag, _ := range dynNat {
+			for tag, n := range dynNat {
 				for _, pair := range pairs {
 					for _, intf := range pair {
-						if natSet2activeTags[intf.natSet][natTag] {
-							toCheck = append(toCheck, natTag)
+						if getNatNetwork(n, intf.natMap).natTag == tag {
+							toCheck.push(tag)
 							continue TAG
 						}
 					}
@@ -193,7 +161,7 @@ func (c *spoc) checkDynamicNatRules(
 		}
 
 		// Check with Nat set at destination object.
-		dstNatSet := toZone.natDomain.natSet
+		dstNatMap := toZone.natDomain.natMap
 
 		pairs := getPathPairs(pathRule, reversed, fromZone, toZone)
 		for _, obj := range fromList {
@@ -204,7 +172,7 @@ func (c *spoc) checkDynamicNatRules(
 			}
 
 			var cacheObj someObj
-			if hasDynHost[n] {
+			if hasDynNAT[n] {
 				cacheObj = obj
 			} else {
 				cacheObj = n
@@ -228,27 +196,30 @@ func (c *spoc) checkDynamicNatRules(
 				return rule.print()
 			}
 
+			// Map is set, if object has static NAT in network with dyn. NAT.
+			var objNat map[string]netaddr.IP
+			switch x := obj.(type) {
+			case *subnet:
+				objNat = x.nat
+			case *routerIntf:
+				objNat = x.nat
+			}
+
+			// Find, which NAT tag of src object is active at dst object.
+			dstNatNet := getNatNetwork(n, dstNatMap)
+
 			// Anonymous function is called immediately.
 			// Only declared, so we can use "return" inside.
 			func() {
 
-				// Find, which NAT tag of src object is active at dst object.
-				natTag := ""
-				for tag, _ := range natMap {
-					if (*dstNatSet)[tag] {
-						natTag = tag
-						break
-					}
-				}
+				natTag := dstNatNet.natTag
 				if natTag == "" {
 					staticSeen = true
 					return
 				}
 
-				natNet := natMap[natTag]
-
 				// Network is hidden by NAT.
-				if natNet.hidden {
+				if dstNatNet.hidden {
 					if !hiddenSeen {
 						hiddenSeen = true
 						c.err("%s is hidden by nat:%s in rule\n "+showRule(),
@@ -257,7 +228,7 @@ func (c *spoc) checkDynamicNatRules(
 					return
 				}
 
-				disableSecondOptForDynHostNet(n, natTag, pairs)
+				disableSecondOptForDynHostNet(n, pairs)
 
 				// Ignore network.
 				if obj == n {
@@ -265,14 +236,7 @@ func (c *spoc) checkDynamicNatRules(
 				}
 
 				// Ignore host / interface with static NAT.
-				var objNat map[string]net.IP
-				switch x := obj.(type) {
-				case *subnet:
-					objNat = x.nat
-				case *routerIntf:
-					objNat = x.nat
-				}
-				if objNat[natTag] != nil {
+				if _, found := objNat[natTag]; found {
 					return
 				}
 
@@ -305,13 +269,13 @@ func (c *spoc) checkDynamicNatRules(
 					}
 
 					checkCommon := func(natIntf *routerIntf, reversed2 bool) {
-						natSet := natIntf.natSet
-						natNetwork := getNatNetwork(n, natSet)
+						m := natIntf.natMap
+						natNetwork := getNatNetwork(n, m)
 						if !natNetwork.dynamic {
 							return
 						}
 						natTag := natNetwork.natTag
-						if objNat[natTag] != nil {
+						if _, found := objNat[natTag]; found {
 							return
 						}
 						ruleTxt := "rule"
@@ -320,7 +284,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 						c.err("%s needs static translation for nat:%s at %s"+
 							" to be valid in %s\n "+showRule(),
-							obj.String(), natTag, r.name, ruleTxt)
+							obj, natTag, r, ruleTxt)
 					}
 					checkCommon(inIntf, false)
 					if r.model.stateless {
@@ -353,17 +317,24 @@ func (c *spoc) checkDynamicNatRules(
 			//   hidden NAT is active somewhere on path.
 			// Find sub-path where dynamic / hidden NAT is partially active,
 			// i.e. dynamic / hidden NAT is enabled first and disabled later.
-			var toCheckNext []string
+			var toCheckNext stringList
 			for _, natTag := range toCheck {
+
+				// Ignore host / interface with static NAT.
+				if _, found := objNat[natTag]; found {
+					continue
+				}
+
 				natNetwork := natMap[natTag]
 				if natNetwork == nil || !natNetwork.hidden && !staticSeen {
-					toCheckNext = append(toCheckNext, natTag)
+					toCheckNext.push(natTag)
 					continue
 				}
 				var natInterfaces intfList
 				for _, pair := range pairs {
 					for _, intf := range pair {
-						if natSet2activeTags[intf.natSet][natTag] {
+						natNet := getNatNetwork(n, intf.natMap)
+						if natNet.natTag == natTag {
 							natInterfaces.push(intf)
 						}
 					}
@@ -378,12 +349,11 @@ func (c *spoc) checkDynamicNatRules(
 				} else {
 					typ = "dynamic"
 				}
-				revTxt := ""
+				revTxt := "src"
 				if reversed {
-					revTxt = " reversed"
+					revTxt = "dst"
 				}
-				c.err("Must not apply %s NAT '%s' on path\n"+
-					" of%s rule\n"+
+				c.err("Must not apply %s NAT '%s' to %s of rule\n"+
 					" %s\n"+
 					" NAT '%s' is active at\n"+
 					natInterfaces.nameList()+"\n"+

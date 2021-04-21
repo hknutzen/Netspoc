@@ -9,19 +9,19 @@ func (c *spoc) checkUnusedGroups() {
 		if printType := conf.Conf.CheckUnusedGroups; printType != "" {
 			for _, group := range symTable.group {
 				if !group.isUsed {
-					c.warnOrErr(printType, "unused "+group.name)
+					c.warnOrErr(printType, "unused %s", group)
 				}
 			}
 			for _, group := range symTable.protocolgroup {
 				if !group.isUsed {
-					c.warnOrErr(printType, "unused "+group.name)
+					c.warnOrErr(printType, "unused %s", group)
 				}
 			}
 		}
 		if printType := conf.Conf.CheckUnusedProtocols; printType != "" {
 			for _, prt := range symTable.protocol {
 				if !prt.isUsed {
-					c.warnOrErr(printType, "unused "+prt.name)
+					c.warnOrErr(printType, "unused %s", prt.name)
 				}
 			}
 		}

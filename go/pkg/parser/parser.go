@@ -7,8 +7,6 @@ package parser
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/scanner"
-	"net"
-	"strconv"
 	"strings"
 )
 
@@ -190,37 +188,13 @@ func (p *parser) simpleAuto(start int, typ string) ast.Element {
 	return a
 }
 
-func (p *parser) ipPrefix() *net.IPNet {
-	if i := strings.Index(p.tok, "/"); i != -1 {
-		if ip := net.ParseIP(p.tok[:i]); ip != nil {
-			if len, err := strconv.Atoi(p.tok[i+1:]); err == nil {
-				bits := 8
-				if ip4 := ip.To4(); ip4 != nil {
-					bits *= net.IPv4len
-				} else {
-					bits *= net.IPv6len
-				}
-				if mask := net.CIDRMask(len, bits); mask != nil {
-					p.next()
-					return &net.IPNet{IP: ip, Mask: mask}
-				}
-			}
-			p.syntaxErr("Prefixlen expected")
-		} else {
-			p.syntaxErr("IP address expected")
-		}
-	}
-	p.syntaxErr("Expected 'IP/prefixlen'")
-	return nil
-}
-
 func (p *parser) aggAuto(start int, typ string) ast.Element {
 	a := new(ast.AggAuto)
 	a.Start = start
 	a.Type = typ
 	if p.check("ip") {
 		p.check("=")
-		a.Net = p.ipPrefix()
+		a.Net = p.name()
 		p.expect("&")
 	}
 	a.Elements, a.Next = p.union("]")

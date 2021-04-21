@@ -30,14 +30,14 @@ func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 		zone := intf.zone
 		if len(zone.nonSecondaryInterfaces()) != 1 {
 			c.err("Exactly one security zone must be located behind"+
-				" managed %s of crypto router", intf.name)
+				" managed %s of crypto router", intf)
 		}
 		return zone.networks
 	} else {
 		net := intf.network
 		if len(net.nonSecondaryInterfaces()) != 1 {
 			c.err("Exactly one network must be located behind"+
-				" unmanaged %s of crypto router", intf.name)
+				" unmanaged %s of crypto router", intf)
 		}
 		return netList{net}
 	}
@@ -98,20 +98,20 @@ func (c *spoc) verifyAuthServer(s *subnet, r *router) {
 	attr := "authentication-server-group"
 	if _, found := s.radiusAttributes[attr]; found {
 		delete(s.radiusAttributes, attr)
-		c.err("Attribute '%s' must not be used directly at %s", attr, s.name)
+		c.err("Attribute '%s' must not be used directly at %s", attr, s)
 	}
 	auth := getRadiusAttr(attr, s, r)
-	network := s.network
+	n := s.network
 	if s.ldapId != "" {
 		if auth == "" {
 			c.err("Missing attribute '%s' at %s having host with 'ldap_id'",
-				attr, network.name)
-			network.radiusAttributes[attr] = "ERROR"
+				attr, n)
+			n.radiusAttributes[attr] = "ERROR"
 		}
 	} else if auth != "" {
 		var name string
-		if network.radiusAttributes[attr] != "" {
-			name = network.name
+		if n.radiusAttributes[attr] != "" {
+			name = n.name
 		} else {
 			name = r.name
 		}
@@ -130,19 +130,18 @@ func (c *spoc) verifySubjectNameForHost(s *subnet, r *router) {
 	if getRadiusAttr("check-subject-name", s, r) != "" {
 		return
 	}
-	c.err("Missing radius_attribute 'check-subject-name'\n for %s", s.name)
+	c.err("Missing radius_attribute 'check-subject-name'\n for %s", s)
 }
 
 // Network with attribute 'cert_id' must use attribute
 // 'check-subject-name'.
-func (c *spoc) verifySubjectNameForNet(network *network, r *router) {
+func (c *spoc) verifySubjectNameForNet(n *network, r *router) {
 	if getRadiusAttr0("check-subject-name",
-		network.radiusAttributes, r.radiusAttributes) != "" {
+		n.radiusAttributes, r.radiusAttributes) != "" {
 		return
 	}
-	c.err("Missing radius_attribute 'check-subject-name'\n for %s",
-		network.name)
-	network.radiusAttributes["check-subject-name"] = "ERROR"
+	c.err("Missing radius_attribute 'check-subject-name'\n for %s", n)
+	n.radiusAttributes["check-subject-name"] = "ERROR"
 }
 
 func (c *spoc) verifyExtendedKeyUsage(s *subnet, r *router) {
@@ -172,8 +171,7 @@ func (c *spoc) verifyExtendedKeyUsage(s *subnet, r *router) {
 func (c *spoc) verifyAsaTrustpoint(r *router, crypto *crypto) {
 	isakmp := crypto.ipsec.isakmp
 	if isakmp.authentication == "rsasig" && isakmp.trustPoint == "" {
-		c.err("Missing attribute 'trust_point' in %s for %s",
-			isakmp.name, r.name)
+		c.err("Missing attribute 'trust_point' in %s for %s", isakmp.name, r)
 	}
 }
 
@@ -246,7 +244,7 @@ func (c *spoc) expandCrypto() {
 			managed := router.managed
 			hubRouter := hub.router
 			hubModel := hubRouter.model
-			natSet := hub.natSet
+			natMap := hub.natMap
 			hubIsAsaVpn := hubModel.crypto == "ASA_VPN"
 			var encrypted netList
 			hasIdHosts := false
@@ -274,16 +272,16 @@ func (c *spoc) expandCrypto() {
 					if managed != "" {
 						c.err(
 							"%s having ID hosts must not be located behind managed %s",
-							net.name, router.name)
+							net, router)
 					}
 					if hubIsAsaVpn {
 						c.verifyAsaVpnAttributes(net.name, net.radiusAttributes)
 						key := "trust-point"
 						if net.radiusAttributes[key] != "" {
 							for _, s := range net.subnets {
-								if isHostMask(s.mask) {
+								if s.ipp.IsSingleIP() {
 									c.err("Must not use radiusAttribute '%s' at %s",
-										key, s.name)
+										key, s)
 								}
 							}
 						}
@@ -298,9 +296,8 @@ func (c *spoc) expandCrypto() {
 							c.verifyAsaVpnAttributes(s.name, s.radiusAttributes)
 							key := "trust-point"
 							if s.radiusAttributes[key] != "" &&
-								isHostMask(s.mask) {
-								c.err("Must not use radiusAttribute '%s' at %s",
-									key, s.name)
+								s.ipp.IsSingleIP() {
+								c.err("Must not use radiusAttribute '%s' at %s", key, s)
 							}
 
 							c.verifyAuthServer(s, hubRouter)
@@ -314,8 +311,7 @@ func (c *spoc) expandCrypto() {
 						if other, found := hub.idRules[id]; found {
 							src := other.src
 							c.err("Duplicate ID-host %s from %s and %s at %s",
-								id, src.network.name, s.network.name,
-								hubRouter.name)
+								id, src.network, s.network, hubRouter)
 							continue
 						}
 						idRules[id] = &idIntf{
@@ -326,7 +322,7 @@ func (c *spoc) expandCrypto() {
 									},
 								},
 								ipType: tunnelIP,
-								natSet: natSet,
+								natMap: natMap,
 							},
 							src: s,
 						}
@@ -341,15 +337,14 @@ func (c *spoc) expandCrypto() {
 				c.err("Must not use networks having ID hosts"+
 					" and other networks having no ID hosts\n"+
 					" together at %s:\n"+encrypted.nameList(),
-					router.name)
+					router)
 			}
 
 			doAuth := hubModel.doAuth
 			if id := spoke.id; id != "" {
 				if !needId {
 					c.err("Invalid attribute 'id' at %s.\n"+
-						" Set authentication=rsasig at %s",
-						spoke.name, isakmp.name)
+						" Set authentication=rsasig at %s", spoke, isakmp.name)
 				}
 				list := id2intf[id]
 				var other intfList
@@ -364,29 +359,28 @@ func (c *spoc) expandCrypto() {
 					// is used to generate ACL names and other names.
 					c.err("Must not reuse 'id = %s' at different"+
 						" crypto spokes of '%s':\n"+other.nameList(),
-						id, hubRouter.name)
+						id, hubRouter)
 				}
 				id2intf[id] = append(id2intf[id], spoke)
 			} else if hasIdHosts {
 				if !doAuth {
-					c.err("%s can't check IDs of %s",
-						hubRouter.name, encrypted[0].name)
+					c.err("%s can't check IDs of %s", hubRouter, encrypted[0])
 				}
 			} else if len(encrypted) != 0 {
 				if doAuth && managed == "" {
 					c.err("Networks behind crypto tunnel to %s of model '%s'"+
 						" need to have ID hosts:\n"+encrypted.nameList(),
-						hubRouter.name, hubRouter.model.name)
+						hubRouter, hubRouter.model.name)
 				} else if needId {
 					c.err("%s needs attribute 'id', because %s"+
 						" has authentication=rsasig",
-						spoke.name, isakmp.name)
+						spoke, isakmp.name)
 				}
 			}
 
 			// Add only non hidden peer networks.
 			for _, net := range encrypted {
-				if getNatNetwork(net, natSet).hidden {
+				if getNatNetwork(net, natMap).hidden {
 					continue
 				}
 				hub.peerNetworks = append(hub.peerNetworks, net)
@@ -398,7 +392,7 @@ func (c *spoc) expandCrypto() {
 				}
 				if cr.detailedCryptoAcl {
 					c.err("Attribute 'detailed_crypto_acl' is not"+
-						" allowed for managed spoke %s", router.name)
+						" allowed for managed spoke %s", router)
 				}
 			}
 
@@ -449,7 +443,7 @@ func (c *spoc) expandCrypto() {
 				src1 := idIntf.src
 				if src2, found := id2src[id]; found {
 					c.err("Duplicate ID-host %s from %s and %s at %s",
-						id, src1.network.name, src2.getNetwork().name, router.name)
+						id, src1.network, src2.getNetwork(), router)
 				} else {
 					id2src[id] = src1
 				}
@@ -471,7 +465,7 @@ func (c *spoc) expandCrypto() {
 				delete(r.radiusAttributes, "trust-point")
 				r.trustPoint = trustPoint
 			} else {
-				c.err("Missing 'trust-point' in radiusAttributes of %s", r.name)
+				c.err("Missing 'trust-point' in radiusAttributes of %s", r)
 			}
 		} else if cryptoType == "ASA" {
 			for _, intf := range r.interfaces {

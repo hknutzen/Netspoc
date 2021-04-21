@@ -25,21 +25,16 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"inet.af/netaddr"
 	"io/ioutil"
-	"net"
 	"os"
 	"os/exec"
-	"path"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -48,7 +43,7 @@ func panicf(format string, args ...interface{}) {
 }
 
 type ipNet struct {
-	*net.IPNet
+	netaddr.IPPrefix
 	optNetworks             *ipNet
 	noOptAddrs, needProtect bool
 	name                    string
@@ -59,19 +54,16 @@ type ipNet struct {
 type name2ipNet map[string]*ipNet
 
 func createIPObj(ipNetName string) *ipNet {
-	_, net, e := net.ParseCIDR(ipNetName)
-	if e != nil {
-		panic(e)
-	}
-	return &ipNet{IPNet: net, name: ipNetName}
+	net := netaddr.MustParseIPPrefix(ipNetName)
+	return &ipNet{IPPrefix: net, name: ipNetName}
 }
 
-func getIPObj(ip net.IP, mask net.IPMask, ipNet2obj name2ipNet) *ipNet {
-	prefix, _ := mask.Size()
-	name := ip.String() + "/" + strconv.Itoa(prefix)
+func getIPObj(ip netaddr.IP, prefix uint8, ipNet2obj name2ipNet) *ipNet {
+	net, _ := ip.Prefix(prefix)
+	name := net.String()
 	obj, ok := ipNet2obj[name]
 	if !ok {
-		obj = &ipNet{IPNet: &net.IPNet{IP: ip, Mask: mask}, name: name}
+		obj = &ipNet{IPPrefix: net, name: name}
 		ipNet2obj[name] = obj
 	}
 	return obj
@@ -105,46 +97,44 @@ func getNet00(ipv6 bool, ipNet2obj name2ipNet) *ipNet {
 }
 
 func setupIPNetRelation(ipNet2obj name2ipNet) {
-	maskIPMap := make(map[string]map[string]*ipNet)
+	prefixIPMap := make(map[uint8]map[netaddr.IP]*ipNet)
 
-	// Collect networks into maskIPMap.
-	for _, network := range ipNet2obj {
-		ip, mask := network.IP, network.Mask
-		ipMap, ok := maskIPMap[string(mask)]
+	// Collect networks into prefixIPMap.
+	for _, n := range ipNet2obj {
+		ip, prefix := n.IP, n.Bits
+		ipMap, ok := prefixIPMap[prefix]
 		if !ok {
-			ipMap = make(map[string]*ipNet)
-			maskIPMap[string(mask)] = ipMap
+			ipMap = make(map[netaddr.IP]*ipNet)
+			prefixIPMap[prefix] = ipMap
 		}
-		ipMap[string(ip)] = network
+		ipMap[ip] = n
 	}
 
 	// Compare networks.
-	// Go from smaller to larger networks.
-	var maskList []net.IPMask
-	for k := range maskIPMap {
-		maskList = append(maskList, net.IPMask(k))
+	var prefixList []uint8
+	for k := range prefixIPMap {
+		prefixList = append(prefixList, k)
 	}
-	less := func(i, j int) bool {
-		return bytes.Compare(maskList[i], maskList[j]) == -1
-	}
-	sort.Slice(maskList, func(i, j int) bool { return less(j, i) })
-	for i, mask := range maskList {
-		upperMasks := maskList[i+1:]
+	// Go from small to larger networks.
+	sort.Slice(prefixList, func(i, j int) bool {
+		return prefixList[i] > prefixList[j]
+	})
+	for i, prefix := range prefixList {
+		upperPrefixes := prefixList[i+1:]
 
 		// No supernets available
-		if len(upperMasks) == 0 {
+		if len(upperPrefixes) == 0 {
 			break
 		}
 
-		ipMap := maskIPMap[string(mask)]
+		ipMap := prefixIPMap[prefix]
 		for ip, subnet := range ipMap {
 
 			// Find networks which include current subnet.
-			// upperMasks holds masks of potential supernets.
-			for _, m := range upperMasks {
-
-				i := net.IP(ip).Mask(net.IPMask(m))
-				bignet, ok := maskIPMap[string(m)][string(i)]
+			// upperPrefixes holds prefixes of potential supernets.
+			for _, p := range upperPrefixes {
+				n, _ := ip.Prefix(p)
+				bignet, ok := prefixIPMap[p][n.IP]
 				if ok {
 					subnet.up = bignet
 					break
@@ -155,15 +145,17 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Propagate content of attribute optNetworks to all subnets.
 	// Go from large to smaller networks.
-	sort.Slice(maskList, less)
-	for _, mask := range maskList {
-		for _, network := range maskIPMap[string(mask)] {
-			up := network.up
+	sort.Slice(prefixList, func(i, j int) bool {
+		return prefixList[i] < prefixList[j]
+	})
+	for _, prefix := range prefixList {
+		for _, n := range prefixIPMap[prefix] {
+			up := n.up
 			if up == nil {
 				continue
 			}
 			if optNetworks := up.optNetworks; optNetworks != nil {
-				network.optNetworks = optNetworks
+				n.optNetworks = optNetworks
 			}
 		}
 	}
@@ -231,10 +223,10 @@ func convertACLs(
 
 	return &aclInfo{
 		name:         jACL.Name,
-		isStdACL:     jACL.IsStdACL == 1,
-		isCryptoACL:  jACL.IsCryptoACL == 1,
-		addPermit:    jACL.AddPermit == 1,
-		addDeny:      jACL.AddDeny == 1,
+		isStdACL:     jACL.IsStdACL,
+		isCryptoACL:  jACL.IsCryptoACL,
+		addPermit:    jACL.AddPermit,
+		addDeny:      jACL.AddDeny,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -244,7 +236,7 @@ func convertACLs(
 		filterOnly:   filterOnly,
 		optNetworks:  optNetworks,
 		noOptAddrs:   noOptAddrs,
-		filterAnySrc: jACL.FilterAnySrc == 1,
+		filterAnySrc: jACL.FilterAnySrc,
 		needProtect:  needProtect,
 		network00:    getNet00(ipv6, ipNet2obj),
 	}
@@ -270,13 +262,13 @@ func convertRuleObjects(
 				for _, prt := range prtList {
 					expanded.push(
 						&ciscoRule{
-							deny:         rule.Deny == 1,
+							deny:         rule.Deny,
 							src:          src,
 							dst:          dst,
 							srcRange:     srcRange,
 							prt:          prt,
 							log:          rule.Log,
-							optSecondary: rule.OptSecondary == 1,
+							optSecondary: rule.OptSecondary,
 						})
 				}
 			}
@@ -314,7 +306,7 @@ func readJSON(path string) *routerData {
 	}
 	rData.model = jData.Model
 	rData.logDeny = jData.LogDeny
-	rData.doObjectgroup = jData.DoObjectgroup == 1
+	rData.doObjectgroup = jData.DoObjectgroup
 	acls := make([]*aclInfo, len(jData.ACLs))
 	for i, jACL := range jData.ACLs {
 		aclInfo := convertACLs(jACL, jData, rData.ipv6)
@@ -423,7 +415,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename string) []string {
+func readFileLines(filename, prev string) []string {
 	fd, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -440,84 +432,13 @@ func readFileLines(filename string) []string {
 	return result
 }
 
-type pass2Result int
-
-const (
-	ok pass2Result = iota
-	reuse
-)
-
-func pass2File(devicePath, dir, prev string, c chan pass2Result) {
+func File(devicePath, dir, prev string) int {
 	if tryPrev(devicePath, dir, prev) {
-		c <- reuse
-		return
+		return 1
 	}
 	file := dir + "/" + devicePath
 	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file + ".config")
+	config := readFileLines(file+".config", prev)
 	printCombined(config, routerData, file)
-	c <- ok
-}
-
-func applyConcurrent(
-	devices chan string, finished chan bool, dir, prev string) {
-
-	var started, generated, reused int
-	concurrent := conf.Conf.ConcurrencyPass2
-	c := make(chan pass2Result, concurrent)
-	workersLeft := concurrent
-
-	waitAndCheck := func() {
-		switch <-c {
-		case ok:
-			generated++
-		case reuse:
-			reused++
-		}
-		started--
-	}
-
-	// Read to be processed files line by line.
-	for devicePath := range devices {
-		if 1 >= concurrent {
-			// Process sequentially.
-			pass2File(devicePath, dir, prev, c)
-			waitAndCheck()
-		} else if workersLeft > 0 {
-			// Start concurrent jobs at beginning.
-			go pass2File(devicePath, dir, prev, c)
-			workersLeft--
-			started++
-		} else {
-			// Start next job, after some job has finished.
-			waitAndCheck()
-			go pass2File(devicePath, dir, prev, c)
-			started++
-		}
-	}
-
-	// Wait for all jobs to be finished.
-	for started > 0 {
-		waitAndCheck()
-	}
-
-	if generated > 0 {
-		info.Msg("Generated files for %d devices", generated)
-	}
-	if reused > 0 {
-		info.Msg("Reused %d files from previous run", reused)
-	}
-	finished <- true
-}
-
-func Compile(dir string, fromPass1 chan string, finished chan bool) {
-	prev := path.Join(dir, ".prev")
-	applyConcurrent(fromPass1, finished, dir, prev)
-
-	// Remove directory '.prev' created by pass1
-	// or remove symlink '.prev' created by newpolicy.pl.
-	err := os.RemoveAll(prev)
-	if err != nil {
-		panic(err)
-	}
+	return 0
 }

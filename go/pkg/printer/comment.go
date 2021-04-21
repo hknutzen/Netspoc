@@ -56,6 +56,9 @@ func (p *printer) hasSource(n ast.Node) bool {
 	if p.src == nil {
 		return false
 	}
+	if n.Pos() < 0 {
+		return false
+	}
 	if _, ok := n.(ast.Toplevel); ok {
 		return n.Pos() != n.End()
 	} else {
@@ -110,7 +113,7 @@ func normalizeComments(com string, ign string) []string {
 // Read one or more lines of comment and whitespace.
 // Ignore trailing comment or trailing whitespace of previous statement.
 func (p *printer) ReadCommentOrWhitespaceBefore(pos int, ign string) []string {
-	if p.src == nil {
+	if p.src == nil || pos < 0 {
 		return nil
 	}
 	line1 := 0

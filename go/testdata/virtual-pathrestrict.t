@@ -499,8 +499,9 @@ pathrestriction:p =
  interface:r3.b.virtual,
 ;
 =ERROR=
-Error: Two static routes for network:a
- at interface:r4.b.virtual via interface:r5.b and interface:r1.b
+Error: Ambiguous static routes for network:a at interface:r4.b.virtual via
+ - interface:r1.b
+ - interface:r5.b
 =END=
 
 ############################################################
@@ -765,18 +766,10 @@ service:test1 = {
 }
 =END=
 =ERROR=
-Error: Pathrestriction ambiguously affects generation of static routes
-       to interfaces with virtual IP 10.2.2.10:
- network:n5 is reached via
+Error: Ambiguous static routes for network:n5 at interface:r1.n2 via
  - interface:r2.n2.virtual
  - interface:r3.n2.virtual
- But 1 interface(s) of group are missing.
- Remaining paths must traverse
- - all interfaces or
- - exactly one interface
- of this group.
-Error: Two static routes for network:n5
- at interface:r1.n2 via interface:r7.n2.virtual and interface:r2.n2.virtual
+ - interface:r7.n2.virtual
 Error: Two static routes for network:n1
  via interface:r2.n3 and interface:r2.n2.virtual
 =END=

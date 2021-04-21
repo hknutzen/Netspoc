@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"net"
+	"inet.af/netaddr"
 	"strings"
 )
 
@@ -251,10 +251,10 @@ func (c *spoc) expandGroup1(
 							// We can't simply take
 							// aggregate -> networks -> interfaces,
 							// because subnets may be missing.
-							if size, _ := x.mask.Size(); size != 0 {
+							if x.ipp.Bits != 0 {
 								c.err("Must not use interface:[..].[all]\n"+
 									" with %s having ip/mask\n"+
-									" in %s", x.name, ctx)
+									" in %s", x, ctx)
 							}
 							for _, intf := range x.zone.interfaces {
 								r := intf.router
@@ -439,43 +439,44 @@ func (c *spoc) expandGroup1(
 				obj.setUsed()
 			}
 
-			getAggregates :=
-				func(obj groupObj, ip net.IP, mask net.IPMask) netList {
-
-					var zones []*zone
-					switch x := obj.(type) {
-					case *area:
-						seen := make(map[*zone]bool)
-						for _, z := range x.zones {
-							if c := z.cluster; len(c) > 1 {
-								z = c[0]
-								if seen[z] {
-									continue
-								} else {
-									seen[z] = true
-								}
+			getAggregates := func(obj groupObj, ipp netaddr.IPPrefix) netList {
+				var zones []*zone
+				switch x := obj.(type) {
+				case *area:
+					seen := make(map[*zone]bool)
+					for _, z := range x.zones {
+						if c := z.cluster; len(c) > 1 {
+							z = c[0]
+							if seen[z] {
+								continue
+							} else {
+								seen[z] = true
 							}
-							zones = append(zones, z)
 						}
-					case *network:
-						if x.isAggregate {
-							zones = append(zones, x.zone)
-						}
+						zones = append(zones, z)
 					}
-					if zones == nil {
-						return nil
+				case *network:
+					if x.isAggregate {
+						zones = append(zones, x.zone)
 					}
-					result := netList{}
-					for _, z := range zones {
+				}
+				if zones == nil {
+					return nil
+				}
+				result := netList{}
+				for _, z := range zones {
 
-						// Silently ignore loopback aggregate.
-						if z.loopback {
+					// Silently ignore loopback aggregate.
+					if len(z.networks) == 1 {
+						n := z.networks[0]
+						if n.loopback && n.interfaces[0].router.managed != "" {
 							continue
 						}
-						result = append(result, c.getAny(z, ip, mask, visible)...)
 					}
-					return result
+					result = append(result, c.getAny(z, ipp, visible)...)
 				}
+				return result
+			}
 			getNetworks := func(obj groupObj, withSubnets bool) netList {
 				result := netList{}
 				switch x := obj.(type) {
@@ -500,7 +501,8 @@ func (c *spoc) expandGroup1(
 						result = append(result, x.networks...)
 					}
 				default:
-					if list := getAggregates(obj, nil, nil); len(list) > 0 {
+					list := getAggregates(obj, getNetwork00(ipv6).ipp)
+					if len(list) > 0 {
 						for _, agg := range list {
 
 							// Check type, because getAggregates
@@ -578,11 +580,19 @@ func (c *spoc) expandGroup1(
 				}
 			case "any":
 				x := x.(*ast.AggAuto)
-				var ip net.IP
-				var mask net.IPMask
-				if n := x.Net; n != nil {
-					ip = c.getVxIP(n.IP, ipv6, "any:[..]", ctx)
-					mask = n.Mask
+				var ipp netaddr.IPPrefix
+				if tok := x.Net; tok != "" {
+					var err error
+					ipp, err = netaddr.ParseIPPrefix(tok)
+					if err != nil {
+						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
+							tok, ctx)
+					} else if ipp.IP != ipp.Masked().IP {
+						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
+					}
+					c.checkVxIP(ipp.IP, ipv6, "any:[..]", ctx)
+				} else {
+					ipp = getNetwork00(ipv6).ipp
 				}
 
 				// Ignore duplicate aggregates resulting
@@ -591,7 +601,7 @@ func (c *spoc) expandGroup1(
 				seen := make(map[*network]bool)
 
 				for _, obj := range subObjects {
-					if l := getAggregates(obj, ip, mask); l != nil {
+					if l := getAggregates(obj, ipp); l != nil {
 						for _, agg := range l {
 							if !seen[agg] {
 								seen[agg] = true
@@ -600,7 +610,7 @@ func (c *spoc) expandGroup1(
 						}
 					} else if l := getNetworks(obj, false); l != nil {
 						for _, n := range l {
-							for _, a := range c.getAny(n.zone, ip, mask, visible) {
+							for _, a := range c.getAny(n.zone, ipp, visible) {
 								if !seen[a] {
 									seen[a] = true
 									result.push(a)
@@ -680,9 +690,9 @@ func (c *spoc) expandGroup1(
 					// Substitute aggregate by aggregate set of zone cluster.
 					// Ignore zone having no aggregate from unnumbered network.
 					if cluster := n.zone.cluster; len(cluster) > 1 {
-						key := ipmask{string(n.ip), string(n.mask)}
+						ipp := n.ipp
 						for _, z := range cluster {
-							if agg2 := z.ipmask2aggregate[key]; agg2 != nil {
+							if agg2 := z.ipPrefix2aggregate[ipp]; agg2 != nil {
 								result.push(agg2)
 							}
 						}
