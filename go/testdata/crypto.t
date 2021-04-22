@@ -229,12 +229,12 @@ router:asavpn = {
  }
 }
 router:softclients = {
- interface:n1 = { spoke = crypto:vpn; }
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
  interface:clients;
 }
 network:clients = {
  ip = 10.99.1.0/24;
- host:id:foo@domain.x = {  ip = 10.99.1.10; }
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
 }
 =END=
 =SUBST=/rsasig/preshare/
