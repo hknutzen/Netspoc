@@ -250,15 +250,13 @@ router:bridge1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside; }
  interface:n2/right = { hardware = outside; }
- interface:n2 = { ip = 10.1.2.1; hardware = device; }
 }
 network:n2/right = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Warning: Bridged network:n1/left must not be used solitary
-Error: router:bridge1 can't bridge a single network
-Warning: Bridged network:n2/right must not be used solitary
-Error: router:bridge1 can't bridge a single network
+Error: Must not bridge parts of different networks at router:bridge1:
+ - interface:n1/left
+ - interface:n2/right
 =END=
 
 ############################################################
