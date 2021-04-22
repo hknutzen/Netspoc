@@ -1732,15 +1732,14 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			if ah := ipsec.ah; ah != "" {
 				fmt.Fprintln(fh, " protocol ah", ah)
 			}
-			var espEncr string
-			if esp := ipsec.espEncryption; esp == "" {
+			espEncr := ipsec.espEncryption
+			switch espEncr {
+			case "":
 				espEncr = "null"
-			} else if esp == "aes192" {
+			case "aes192":
 				espEncr = "aes-192"
-			} else if esp == "aes256" {
+			case "aes256":
 				espEncr = "aes-256"
-			} else {
-				espEncr = esp
 			}
 			fmt.Fprintln(fh, " protocol esp encryption "+espEncr)
 			if espAh := ipsec.espAuthentication; espAh != "" {

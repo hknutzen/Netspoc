@@ -1105,13 +1105,13 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 	// Find bridged interfaces of this device and check
 	// existence of corresponding layer3 device.
-	var l3Map map[string]bool
+	var l3Name string
 	if r.managed != "" {
-		l3Map = make(map[string]bool)
 
 		// Search bridge interface having
 		// 1. name "interface:network/part" and
 		// 2. no IP address.
+		var bName string
 	BRIDGED:
 		for _, a := range v.Interfaces {
 			idx := strings.Index(a.Name, "/")
@@ -1125,22 +1125,32 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				}
 			}
 			// Remember name of corresponding layer3 interface without "/part".
-			l3Map[a.Name[:idx]] = true
+			// One router must not bridge parts of different networks.
+			// This would complicate check for interface without IP address
+			// as hop for static routing in checkIPAddr.
+			other := a.Name[:idx]
+			if l3Name != "" {
+				if l3Name != other {
+					c.err("Must not bridge parts of different networks at %s:\n%s",
+						name, stringList{bName, a.Name}.nameList())
+				}
+			} else {
+				l3Name = other
+				bName = a.Name
+			}
 		}
-		if len(l3Map) != 0 {
-			// Check existence of layer3 interface(s).
-			seen := make(map[string]bool)
+		if l3Name != "" {
+			// Check existence of layer3 interface.
+			seen := false
 			for _, a := range v.Interfaces {
-				if l3Map[a.Name] {
-					seen[a.Name] = true
+				if a.Name == l3Name {
+					seen = true
+					break
 				}
 			}
-			for name2, _ := range l3Map {
-				if !seen[name2] {
-					c.err(
-						"Must define %s at %s for corresponding bridge interfaces",
-						name2, name)
-				}
+			if !seen {
+				c.err("Must define %s at %s for corresponding bridge interfaces",
+					l3Name, name)
 			}
 		}
 	}
@@ -1150,7 +1160,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	// to the same hardware object.
 	hwMap := make(map[string]*hardware)
 	for _, a := range v.Interfaces {
-		c.setupInterface(a, s, hwMap, l3Map, r)
+		c.setupInterface(a, s, hwMap, l3Name, r)
 	}
 
 	if managed := r.managed; managed != "" {
@@ -1362,7 +1372,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 }
 
 func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
-	hwMap map[string]*hardware, l3Map map[string]bool, r *router) {
+	hwMap map[string]*hardware, l3Name string, r *router) {
 
 	rName := r.name[len("router:"):]
 	nName := v.Name[len("interface:"):]
@@ -1475,7 +1485,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 	}
 
-	if l3Map[v.Name] {
+	if l3Name == v.Name {
 		intf.loopback = true
 		intf.isLayer3 = true
 		if r.model.class == "ASA" {

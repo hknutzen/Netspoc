@@ -239,7 +239,7 @@ func (s *state) elementList(l *([]ast.Element)) {
 	for _, n := range *l {
 		if obj, ok := n.(*ast.NamedRef); ok {
 			name := obj.Type + ":" + obj.Name
-			// Leave out found group, add its elements later.
+			// Leave out found group but add its elements.
 			if vals, found := s.expand[name]; found {
 				mod = append(mod, vals...)
 				s.changed = true

@@ -106,16 +106,20 @@ func (c *spoc) checkIPAddr(n *network) {
 	// 2. Short or negotiated interfaces must not be used, if a managed
 	//    interface with static routing exists in the same network.
 	var shortIntf intfList
+	var bridgedIntf intfList
 	var routeIntf *routerIntf
 	for _, intf := range n.interfaces {
-		if intf.ipType == shortIP {
+		switch intf.ipType {
+		case shortIP:
 			// Ignore short interface from split crypto router.
 			if len(intf.router.interfaces) > 1 {
 				shortIntf.push(intf)
 			}
-		} else if intf.ipType == negotiatedIP {
+		case negotiatedIP:
 			shortIntf.push(intf)
-		} else if intf.ipType != bridgedIP {
+		case bridgedIP:
+			bridgedIntf.push(intf)
+		default:
 			r := intf.router
 			if (r.managed != "" || r.routingOnly) &&
 				intf.routing == nil && !intf.isLayer3 {
@@ -139,6 +143,13 @@ func (c *spoc) checkIPAddr(n *network) {
 		c.err("Can't generate static routes for %s"+
 			" because IP address is unknown for:\n%s",
 			routeIntf, shortIntf.nameList())
+	}
+
+	// Optimization: No need to collect .routeInZone at bridge router.
+	if routeIntf == nil {
+		for _, intf := range bridgedIntf {
+			intf.routing = routingInfo["dynamic"]
+		}
 	}
 
 	range2name := make(map[netaddr.IPRange]string)

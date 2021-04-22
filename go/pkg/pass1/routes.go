@@ -452,18 +452,14 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 		return
 	}
 
-	// Construct a pseudo rule with zones as src and dst and store it.
-	var p *pseudoRule
-
 	// Check whether pseudo rule for src and dst pair is stored already.
-	p = t[zonePair{srcZone, dstZone}]
+	p := t[zonePair{srcZone, dstZone}]
 	if p == nil {
 		p = t[zonePair{dstZone, srcZone}]
 		if p != nil {
 			src, dst = dst, src
 			srcZone, dstZone = dstZone, srcZone
 
-			// Change only if set:
 			// 'src' -> 'dst, 'dst' -> 'src', 'src,dst' unchanged.
 			switch isIntf {
 			case srcIntf:

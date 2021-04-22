@@ -250,15 +250,13 @@ router:bridge1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside; }
  interface:n2/right = { hardware = outside; }
- interface:n2 = { ip = 10.1.2.1; hardware = device; }
 }
 network:n2/right = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Warning: Bridged network:n1/left must not be used solitary
-Error: router:bridge1 can't bridge a single network
-Warning: Bridged network:n2/right must not be used solitary
-Error: router:bridge1 can't bridge a single network
+Error: Must not bridge parts of different networks at router:bridge1:
+ - interface:n1/left
+ - interface:n2/right
 =END=
 
 ############################################################
@@ -576,13 +574,13 @@ Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
 
 ############################################################
 =TITLE=Route behind chained bridges
-=INPUT=
+=VAR=input
 network:n0 = { ip = 10.1.0.0/24; }
 router:r1 = {
  managed;
  model = ASA;
  interface:n0 = { ip = 10.1.0.1; hardware = n0; }
- interface:n1/left = { ip = 10.1.1.4; hardware = left; }
+ interface:n1/left = { ip = 10.1.1.4; hardware = n1; }
 }
 network:n1/left = { ip = 10.1.1.0/24; }
 # Use name, that is sorted behind r1, r2,
@@ -591,34 +589,43 @@ router:zbridge1 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
- interface:n1/left    = { hardware = left; }
- interface:n1/center  = { hardware = center; }
+ interface:n1/left   = { hardware = left; }
+ interface:n1/center = { hardware = center; }
 }
 network:n1/center = { ip = 10.1.1.0/24; }
 router:zbridge2 = {
  model = ASA;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = device; }
- interface:n1/center  = { hardware = center; }
- interface:n1/right   = { hardware = right; }
+ interface:n1/center = { hardware = center; }
+ interface:n1/right  = { hardware = right; }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 router:r2 = {
- managed;
- model = ASA;
  interface:n1/right = { ip = 10.1.1.5; hardware = n1; }
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
 service:s = {
  user = network:n0;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
+=INPUT=
+${input}
 =OUTPUT=
 --r1
 ! [ Routing ]
-route left 10.1.2.0 255.255.255.0 10.1.1.5
+route n1 10.1.2.0 255.255.255.0 10.1.1.5
+=END=
+
+############################################################
+=TITLE=Missing hop behind chained bridges
+=INPUT=
+${input}
+=SUBST=/right = { ip = 10.1.1.5;/right; #/
+=ERROR=
+Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
+ - interface:r2.n1/right
 =END=
 
 ############################################################
