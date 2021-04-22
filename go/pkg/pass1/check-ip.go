@@ -109,16 +109,17 @@ func (c *spoc) checkIPAddr(n *network) {
 	var bridgedIntf intfList
 	var routeIntf *routerIntf
 	for _, intf := range n.interfaces {
-		if intf.ipType == shortIP {
+		switch intf.ipType {
+		case shortIP:
 			// Ignore short interface from split crypto router.
 			if len(intf.router.interfaces) > 1 {
 				shortIntf.push(intf)
 			}
-		} else if intf.ipType == negotiatedIP {
+		case negotiatedIP:
 			shortIntf.push(intf)
-		} else if intf.ipType == bridgedIP {
+		case bridgedIP:
 			bridgedIntf.push(intf)
-		} else {
+		default:
 			r := intf.router
 			if (r.managed != "" || r.routingOnly) &&
 				intf.routing == nil && !intf.isLayer3 {
