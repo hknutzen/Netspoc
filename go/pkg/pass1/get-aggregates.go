@@ -240,7 +240,7 @@ func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
 				if !nat.hidden {
 					c.err("Must not use aggregate with IP %s in %s\n"+
 						" because %s has identical IP but is also translated by NAT",
-						ipp.String(), z, aggOrNet)
+						ipp, z, aggOrNet)
 				}
 			}
 		}
