@@ -3325,6 +3325,24 @@ ${usage}
 =END=
 
 ############################################################
+=TITLE=Ignore max_errors
+=INPUT=
+-- config
+max_errors = 1;
+-- topology
+any:n1 = { link = network:n1; }
+any:n1a = { link = network:n1; }
+any:n1b = { link = network:n1; }
+any:n1c = { link = network:n1; }
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=true
+=ERROR=
+Error: Duplicate any:n1 and any:n1a in any:[network:n1]
+Error: Duplicate any:n1a and any:n1b in any:[network:n1]
+Error: Duplicate any:n1b and any:n1c in any:[network:n1]
+=END=
+
+############################################################
 =TITLE=Preserve real NAT together with hidden NAT
 # Must preserve nat:n2 when combined with hidden nat:n3
 # in nat_set of owner:n23.
