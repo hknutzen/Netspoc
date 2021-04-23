@@ -1505,6 +1505,28 @@ Warning: Useless nat:h of network:n1,
 =END=
 
 ############################################################
+=TITLE=Inherit NAT from network to subnet in zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:h = { hidden; } }
+network:n2 = { ip = 10.1.1.0/26; nat:h = { hidden; } subnet_of = network:n1; }
+network:n3 = { ip = 10.3.3.0/24; }
+router:r1 = {
+ managed = routing_only;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.65; hardware = n1; }
+ interface:n2 = { ip = 10.1.1.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2= { ip = 10.1.1.2; }
+ interface:n3 = { bind_nat = h; }
+}
+=END=
+=WARNING=
+Warning: Useless nat:h of network:n2,
+ it was already inherited from nat:h of network:n1
+=END=
+
+############################################################
 =TITLE=Useless identity NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n = { identity; } }
