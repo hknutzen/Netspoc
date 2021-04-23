@@ -179,18 +179,14 @@ func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
 		// aggregate. If found, don't create a new aggregate in zone,
 		// but use the network instead. Otherwise .up relation
 		// wouldn't be well defined.
-		findNet := func(z *zone) *network {
-			for _, n := range z.networks {
-				if n.ipp == ipp {
-					return n
-				}
-			}
-			return nil
-		}
 		var n *network
+	CLUSTER:
 		for _, z := range cluster {
-			if n = findNet(z); n != nil {
-				break
+			for _, n2 := range z.networks {
+				if n2.ipp == ipp {
+					n = n2
+					break CLUSTER
+				}
 			}
 		}
 		if n != nil {
