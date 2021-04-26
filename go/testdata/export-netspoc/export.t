@@ -2133,6 +2133,73 @@ service:s3 = {
 =END=
 
 ############################################################
+=TITLE=Static NAT for
+=INPUT=
+network:n1 = {
+ ip = 192.168.1.0/24;
+ nat:n1 = { ip = 10.1.1.0/24; }
+ host:h10 = { ip = 192.168.1.10; }
+ host:h11-16 = { range = 192.168.1.11-192.168.1.16; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 192.168.1.1, 192.168.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
+}
+
+service:s1 = {
+ user = host:h10, host:h11-16, interface:r1.n1, interface:r1.n1.2;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 81;
+}
+=OUTPUT=
+--objects
+{
+ "host:h10": {
+  "ip": "192.168.1.10",
+  "nat": {
+   "n1": "10.1.1.10"
+  }
+ },
+ "host:h11-16": {
+  "ip": "192.168.1.11-192.168.1.16",
+  "nat": {
+   "n1": "10.1.1.11-10.1.1.16"
+  }
+ },
+ "interface:r1.n1": {
+  "ip": "192.168.1.1",
+  "nat": {
+   "n1": "10.1.1.1"
+  }
+ },
+ "interface:r1.n1.2": {
+  "ip": "192.168.1.2",
+  "nat": {
+   "n1": "10.1.1.2"
+  }
+ },
+ "network:n1": {
+  "ip": "192.168.1.0/255.255.255.0",
+  "nat": {
+   "n1": "10.1.1.0/255.255.255.0"
+  },
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "zone": "any:[network:n2]"
+ }
+}
+=END=
+
+############################################################
 =TITLE=Negotiated interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

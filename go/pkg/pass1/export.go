@@ -127,7 +127,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			if ip := h.ip; !ip.IsZero() {
 				return mergeIP(ip, n).String()
 			}
-			return h.ipRange.String()
+			r := h.ipRange
+			return mergeIP(r.From, n).String() + "-" + mergeIP(r.To, n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)
