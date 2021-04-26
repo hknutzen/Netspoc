@@ -3820,8 +3820,8 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: Must not use aggregate with IP 10.1.1.0/24 in any:[network:n1]
- because network:n1 has identical IP but is also translated by NAT
+Error: Must not use any:[ip = 10.1.1.0/24 & ..] in user of service:s1
+ because it has address of network:n1 which is translated by nat:a
 =END=
 
 ############################################################
@@ -3855,8 +3855,37 @@ service:s2 = {
 }
 =END=
 =ERROR=
-Error: Must not use aggregate with IP 10.1.1.0/24 in any:[network:n1]
- because network:n1 has identical IP but is also translated by NAT
+Error: Must not use any:[ip = 10.1.1.0/24 & ..] in user of service:s2
+ because it has address of network:n1 which is translated by nat:a
+=END=
+
+############################################################
+=TITLE=Implicit aggregate is subnet of network with NAT
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:a = { ip = 192.168.1.1/32; dynamic; } }
+network:n1s = { ip = 10.1.1.0/26; subnet_of = network:n1; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ interface:n1;
+ interface:n1s;
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; bind_nat = a; }
+}
+
+service:s1 = {
+ user = any:[ ip = 10.1.1.0/26 & network:n1 ];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use any:[ip = 10.1.1.0/26 & ..] in user of service:s1
+ because it is subnet of network:n1 which is translated by nat:a
 =END=
 
 ############################################################

@@ -473,7 +473,7 @@ func (c *spoc) expandGroup1(
 							continue
 						}
 					}
-					result = append(result, c.getAny(z, ipp, visible)...)
+					result = append(result, c.getAny(z, ipp, visible, ctx)...)
 				}
 				return result
 			}
@@ -610,7 +610,7 @@ func (c *spoc) expandGroup1(
 						}
 					} else if l := getNetworks(obj, false); l != nil {
 						for _, n := range l {
-							for _, a := range c.getAny(n.zone, ipp, visible) {
+							for _, a := range c.getAny(n.zone, ipp, visible, ctx) {
 								if !seen[a] {
 									seen[a] = true
 									result.push(a)
