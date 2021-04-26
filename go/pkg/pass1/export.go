@@ -8,7 +8,6 @@ package pass1
 =head1 COPYRIGHT AND DISCLAIMER
 
     (c) 2021 by Heinz Knutzen <heinz.knutzengmail.com>
-    (c) 2014 by Daniel Brunkhorst <daniel.brunkhorstweb.de>
 
 https://github.com/hknutzen/Netspoc-Web
 
