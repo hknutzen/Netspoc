@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+ - Fixed 'export-netspoc':
+   - NAT is observed again when exporting host with IP range.
+   - Data is generated, even if errors occur.
+   - No need to call c.splitSemiManagedRouter().
+ - Fixed check for aggregate with IP of NAT network:
+   Now aggregate that is subnet of NAT network is also checked.
+ - Fixed inheritance of NAT from network to subnet in zone.
+   Now inheritance works, even if zone is split by pathrestriction.
+
 6.028     2021-04-22 15:17:29+02:00 Europe/Berlin
 
  -Fixed 'export-netspoc'.
