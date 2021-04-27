@@ -1448,7 +1448,6 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.readNetspoc(inDir)
 	c.markDisabled()
-	c.splitSemiManagedRouter()
 	c.setZone()
 	c.setPath()
 	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
