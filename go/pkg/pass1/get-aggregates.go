@@ -171,7 +171,9 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	}
 }
 
-func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
+func (c *spoc) getAny(
+	z *zone, ipp netaddr.IPPrefix, visible bool, ctx string) netList {
+
 	cluster := z.cluster
 	if z.ipPrefix2aggregate[ipp] == nil {
 
@@ -179,18 +181,14 @@ func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
 		// aggregate. If found, don't create a new aggregate in zone,
 		// but use the network instead. Otherwise .up relation
 		// wouldn't be well defined.
-		findNet := func(z *zone) *network {
-			for _, n := range z.networks {
-				if n.ipp == ipp {
-					return n
-				}
-			}
-			return nil
-		}
 		var n *network
+	CLUSTER:
 		for _, z := range cluster {
-			if n = findNet(z); n != nil {
-				break
+			for _, n2 := range z.networks {
+				if n2.ipp == ipp {
+					n = n2
+					break CLUSTER
+				}
 			}
 		}
 		if n != nil {
@@ -221,6 +219,7 @@ func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
 		}
 	}
 	var result netList
+	var supernet *network
 	for _, z := range cluster {
 		// Ignore zone having no aggregate from unnumbered network.
 		aggOrNet := z.ipPrefix2aggregate[ipp]
@@ -235,13 +234,32 @@ func (c *spoc) getAny(z *zone, ipp netaddr.IPPrefix, visible bool) netList {
 			// Mark aggregate as visible for findZoneNetworks.
 			aggOrNet.invisible = false
 
-			// Check for error condition only if result will be visible.
-			for _, nat := range aggOrNet.nat {
-				if !nat.hidden {
-					c.err("Must not use aggregate with IP %s in %s\n"+
-						" because %s has identical IP but is also translated by NAT",
-						ipp.String(), z, aggOrNet)
+			// Find smallest non aggregate supernet of aggregates in
+			// cluster for checking error condition.
+			// Only needed if result will be visible.
+			s := aggOrNet
+			for s.isAggregate {
+				s = s.up
+				if s == nil {
+					break
 				}
+			}
+			if s != nil && (supernet == nil || supernet.ipp.Bits < s.ipp.Bits) {
+				supernet = s
+			}
+		}
+	}
+	// Check error condition.
+	if supernet != nil {
+		for tag, nat := range supernet.nat {
+			if !nat.hidden {
+				relation := "has address"
+				if supernet.ipp.Bits != ipp.Bits {
+					relation = "is subnet"
+				}
+				c.err("Must not use any:[ip = %s & ..] in %s\n"+
+					" because it %s of %s which is translated by nat:%s",
+					ipp, ctx, relation, supernet, tag)
 			}
 		}
 	}

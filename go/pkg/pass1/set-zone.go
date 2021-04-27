@@ -869,43 +869,57 @@ func natEqual(nat1, nat2 *network) bool {
 }
 
 func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
-	for _, z := range c.allZones {
+	seen := make(map[*zone]bool)
+	for _, z0 := range c.allZones {
+		if !seen[z0] {
 
-		// Find all networks and aggregates of current zone,
-		// that have NAT definitions.
-		var natSupernets netList
-		for _, n := range z.networks {
-			if n.nat != nil {
-				natSupernets.push(n)
+			// Find all networks and aggregates of current zone cluster,
+			// that have NAT definitions.
+			var natSupernets netList
+			for _, z := range z0.cluster {
+				if len(z0.cluster) > 1 {
+					seen[z] = true
+				}
+				for _, n := range z.networks {
+					if n.nat != nil {
+						natSupernets.push(n)
+					}
+				}
+				for _, n := range z.ipPrefix2aggregate {
+					if n.nat != nil {
+						natSupernets.push(n)
+					}
+				}
 			}
-		}
-		for _, n := range z.ipPrefix2aggregate {
-			if n.nat != nil {
-				natSupernets.push(n)
-			}
-		}
 
-		// Proceed from smaller to larger objects. (Bigger mask first.)
-		sort.Slice(natSupernets, func(i, j int) bool {
-			return natSupernets[i].ipp.Bits > natSupernets[j].ipp.Bits
-		})
-		for _, n := range natSupernets {
-			c.inheritNatToSubnetsInZone(n.name, n.nat, n.ipp, z, natSeen)
+			// Proceed from smaller to larger objects. (Bigger mask first.)
+			sort.Slice(natSupernets, func(i, j int) bool {
+				return natSupernets[i].ipp.Bits > natSupernets[j].ipp.Bits
+			})
+			for _, z := range z0.cluster {
+				for _, n := range natSupernets {
+					// Aggregates have already been duplicated to cluster.
+					// Hence only apply matching aggregates.
+					if !n.isAggregate || n.zone == z {
+						c.inheritNatToSubnetsInZone(n.name, n.nat, n.ipp, z, natSeen)
+					}
+				}
+			}
 		}
 
 		// Process zone instead of aggregate 0/0, because NAT is stored
 		// at zone in this case.
-		if z.nat != nil {
+		if z0.nat != nil {
 			// Don't inherit identiy NAT to subnets.
 			// It was only used to prevent inheritance from areas
 			// and would lead to warning about useless identity NAT at subnet.
-			for tag, nat := range z.nat {
+			for tag, nat := range z0.nat {
 				if nat.identity {
-					delete(z.nat, tag)
+					delete(z0.nat, tag)
 				}
 			}
 			c.inheritNatToSubnetsInZone(
-				z.name, z.nat, getNetwork00(z.ipV6).ipp, z, natSeen)
+				z0.name, z0.nat, getNetwork00(z0.ipV6).ipp, z0, natSeen)
 		}
 
 	}
@@ -928,7 +942,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 	for _, tag := range tags {
 		nat := natMap[tag]
 
-		//debug("inherit %s from %s", tag, from)
+		//debug("inherit %s from %s in %s", tag, from, z)
 
 		// Distribute nat definitions to every subnet of supernet or
 		// aggregate.

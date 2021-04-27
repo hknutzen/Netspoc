@@ -8,7 +8,6 @@ package pass1
 =head1 COPYRIGHT AND DISCLAIMER
 
     (c) 2021 by Heinz Knutzen <heinz.knutzengmail.com>
-    (c) 2014 by Daniel Brunkhorst <daniel.brunkhorstweb.de>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -128,7 +127,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			if ip := h.ip; !ip.IsZero() {
 				return mergeIP(ip, n).String()
 			}
-			return h.ipRange.String()
+			r := h.ipRange
+			return mergeIP(r.From, n).String() + "-" + mergeIP(r.To, n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)
@@ -1448,7 +1448,6 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.readNetspoc(inDir)
 	c.markDisabled()
-	c.splitSemiManagedRouter()
 	c.setZone()
 	c.setPath()
 	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
@@ -1510,6 +1509,7 @@ func ExportMain() int {
 	dummyArgs := []string{
 		fmt.Sprintf("--verbose=%v", !*quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
+		"--max_errors=9999",
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
