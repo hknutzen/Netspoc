@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.029     2021-04-27 14:51:36+02:00 Europe/Berlin
+
  - Fixed 'export-netspoc':
    - NAT is observed again when exporting host with IP range.
    - Data is generated, even if errors occur.
