@@ -358,7 +358,7 @@ func (s *state) getLine() (string, error) {
 // Parts of input are marked by single lines of dashes
 // followed by a filename.
 // If no filename is given, preceeding filename is reused.
-// If no markers are given, a single file named STDIN is used.
+// If no markers are given, a single file named INPUT is used.
 func PrepareInDir(inDir, input string) {
 	if input == "NONE" {
 		input = ""
