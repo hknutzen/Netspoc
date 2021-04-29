@@ -44,7 +44,7 @@ READ:
 // Found trailing comment with one preceeding whitespace or
 // empty string.
 //
-func (p *printer) TrailingCommentAt(pos int, ign string) string {
+func (p *printer) trailingCommentAt(pos int, ign string) string {
 	trailing := p.readTrailingComment(pos, ign)
 	if trailing != "" {
 		trailing = " " + trailing
@@ -66,11 +66,11 @@ func (p *printer) hasSource(n ast.Node) bool {
 	}
 }
 
-func (p *printer) TrailingComment(n ast.Node, ign string) string {
+func (p *printer) trailingComment(n ast.Node, ign string) string {
 	if !p.hasSource(n) {
 		return ""
 	}
-	return p.TrailingCommentAt(n.End(), ign)
+	return p.trailingCommentAt(n.End(), ign)
 }
 
 func (p *printer) getTrailing(n ast.Toplevel) string {
@@ -78,12 +78,12 @@ func (p *printer) getTrailing(n ast.Toplevel) string {
 		return ""
 	}
 	pos := n.Pos() + len(n.GetName())
-	trailing := p.TrailingCommentAt(pos, "={")
+	trailing := p.trailingCommentAt(pos, "={")
 	// Show trailing comment found after closing "}" if whole
 	// definition is at one line.
 	end := n.End()
 	if trailing == "" && bytes.IndexByte(p.src[pos:end], '\n') == -1 {
-		trailing = p.TrailingCommentAt(end, "")
+		trailing = p.trailingCommentAt(end, "")
 	}
 	return trailing
 }
@@ -112,7 +112,7 @@ func normalizeComments(com string, ign string) []string {
 
 // Read one or more lines of comment and whitespace.
 // Ignore trailing comment or trailing whitespace of previous statement.
-func (p *printer) ReadCommentOrWhitespaceBefore(pos int, ign string) []string {
+func (p *printer) readCommentOrWhitespaceBefore(pos int, ign string) []string {
 	if p.src == nil || pos < 0 {
 		return nil
 	}
@@ -169,11 +169,11 @@ func (p *printer) comment(lines []string) {
 	}
 }
 
-func (p *printer) PreComment(n ast.Node, ign string) {
-	lines := p.ReadCommentOrWhitespaceBefore(n.Pos(), ign)
+func (p *printer) preComment(n ast.Node, ign string) {
+	lines := p.readCommentOrWhitespaceBefore(n.Pos(), ign)
 	p.comment(lines)
 }
 
 func (p *printer) hasPreComment(n ast.Node, ign string) bool {
-	return p.ReadCommentOrWhitespaceBefore(n.Pos(), ign) != nil
+	return p.readCommentOrWhitespaceBefore(n.Pos(), ign) != nil
 }

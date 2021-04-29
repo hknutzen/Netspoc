@@ -109,7 +109,7 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
 	// First element already gets pre comment from union.
-	p.element(pre, l[0], p.TrailingComment(l[0], "&!"))
+	p.element(pre, l[0], p.trailingComment(l[0], "&!"))
 	ind := utfLen(pre)
 	p.indent += ind
 	for _, el := range l[1:] {
@@ -119,8 +119,8 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 			el = x.Element
 		}
 		pre += " "
-		p.PreComment(el, "&!")
-		p.element(pre, el, p.TrailingComment(el, "&!,;"))
+		p.preComment(el, "&!")
+		p.element(pre, el, p.trailingComment(el, "&!,;"))
 	}
 	p.print(post)
 	p.indent -= ind
@@ -129,13 +129,13 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
 	for _, el := range l {
-		p.PreComment(el, ",")
+		p.preComment(el, ",")
 		post := ","
 		if _, ok := el.(*ast.Intersection); ok {
 			// Intersection already prints comments of its elements.
 			p.element("", el, post)
 		} else {
-			p.element("", el, post+p.TrailingComment(el, ",;"))
+			p.element("", el, post+p.trailingComment(el, ",;"))
 		}
 	}
 	p.indent--
@@ -145,8 +145,8 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 func (p *printer) description(n ast.Toplevel) {
 	if d := n.GetDescription(); d != nil {
 		p.indent++
-		p.PreComment(d, "={")
-		p.print("description =" + d.Text + p.TrailingComment(d, "="))
+		p.preComment(d, "={")
+		p.print("description =" + d.Text + p.trailingComment(d, "="))
 		p.indent--
 		p.emptyLine()
 	}
@@ -167,8 +167,8 @@ func (p *printer) topElementList(n *ast.TopList) {
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	trailing := p.TrailingCommentAt(n.Pos()+len(n.GetName()), "=")
-	proto := n.Value + ";" + p.TrailingComment(n, ";")
+	trailing := p.trailingCommentAt(n.Pos()+len(n.GetName()), "=")
+	proto := n.Value + ";" + p.trailingComment(n, ";")
 	// Print name and value on different lines, if protocol has
 	// description or trailing comment.
 	if n.GetDescription() != nil || trailing != "" {
@@ -186,8 +186,8 @@ func (p *printer) topProtocolList(n *ast.Protocolgroup) {
 	p.topListHead(n)
 	p.indent++
 	for _, el := range n.ValueList {
-		p.PreComment(el, ",")
-		p.print(el.Value + "," + p.TrailingComment(el, ",;"))
+		p.preComment(el, ",")
+		p.print(el.Value + "," + p.trailingComment(el, ",;"))
 	}
 	p.indent--
 	p.print(";")
@@ -220,15 +220,15 @@ func (p *printer) namedList(name string, l []ast.Element) {
 		} else {
 			post = ","
 		}
-		p.element(pre, first, post+p.TrailingComment(first, ",;"))
+		p.element(pre, first, post+p.trailingComment(first, ",;"))
 	}
 
 	// Show other lines with same indentation as first line.
 	if len(rest) != 0 {
 		p.indent += ind
 		for _, v := range rest {
-			p.PreComment(v, ",")
-			p.element("", v, ","+p.TrailingComment(v, ",;"))
+			p.preComment(v, ",")
+			p.element("", v, ","+p.trailingComment(v, ",;"))
 		}
 		p.print(";")
 		p.indent -= ind
@@ -236,7 +236,7 @@ func (p *printer) namedList(name string, l []ast.Element) {
 }
 
 func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
-	p.PreComment(n, "")
+	p.preComment(n, "")
 	p.namedList(pre+n.Name, n.Elements)
 }
 
@@ -255,7 +255,7 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 		rest = l
 	} else if name == "model" || len(l) == 1 {
 		line := getValueList(l)
-		p.print(pre + line + p.TrailingComment(l[len(l)-1], ",;"))
+		p.print(pre + line + p.trailingComment(l[len(l)-1], ",;"))
 	} else {
 		ind = utfLen(pre)
 		rest = l[1:]
@@ -265,15 +265,15 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 		} else {
 			post = ","
 		}
-		p.print(pre + first.Value + post + p.TrailingComment(first, ",;"))
+		p.print(pre + first.Value + post + p.trailingComment(first, ",;"))
 	}
 
 	// Show other lines with same indentation as first line.
 	if len(rest) != 0 {
 		p.indent += ind
 		for _, v := range rest {
-			p.PreComment(v, ",")
-			p.print(v.Value + "," + p.TrailingComment(v, ",;"))
+			p.preComment(v, ",")
+			p.print(v.Value + "," + p.trailingComment(v, ",;"))
 		}
 		if ind == 1 {
 			p.indent -= ind
@@ -297,21 +297,21 @@ func (p *printer) complexValue(name string, l []*ast.Attribute) {
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
-	p.PreComment(n, "")
+	p.preComment(n, "")
 	name := n.Name
 	if l := n.ValueList; l != nil {
 		p.namedValueList(name, l)
 	} else if l := n.ComplexValue; l != nil {
 		if name == "virtual" || strings.Index(name, ":") != -1 {
-			p.print(name + getAttrList(l) + p.TrailingComment(n, "}"))
+			p.print(name + getAttrList(l) + p.trailingComment(n, "}"))
 		} else {
 			p.complexValue(name, l)
 		}
 	} else if name == "prt" {
-		p.print("prt = ;" + p.TrailingComment(n, ";"))
+		p.print("prt = ;" + p.trailingComment(n, ";"))
 	} else {
 		// Short attribute without values.
-		p.print(name + ";" + p.TrailingComment(n, ",;"))
+		p.print(name + ";" + p.trailingComment(n, ",;"))
 	}
 }
 
@@ -324,7 +324,7 @@ func (p *printer) attributeList(l []*ast.Attribute) {
 }
 
 func (p *printer) rule(n *ast.Rule) {
-	p.PreComment(n, "")
+	p.preComment(n, "")
 	action := "permit"
 	if n.Deny {
 		action = "deny  "
@@ -409,16 +409,16 @@ func getAttrList(l []*ast.Attribute) string {
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
-	p.PreComment(n, "")
+	p.preComment(n, "")
 	if l := n.ComplexValue; l != nil {
 		name := n.Name
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.print(name + getAttrList(l) + p.TrailingComment(n, "}"))
+		p.print(name + getAttrList(l) + p.trailingComment(n, "}"))
 	} else {
 		// Short attribute without values.
-		p.print(n.Name + ";" + p.TrailingComment(n, ",;"))
+		p.print(n.Name + ";" + p.trailingComment(n, ",;"))
 	}
 }
 
@@ -520,7 +520,7 @@ func (p *printer) topStruct(n *ast.TopStruct) {
 }
 
 func (p *printer) toplevel(n ast.Toplevel) {
-	p.PreComment(n, "")
+	p.preComment(n, "")
 	switch x := n.(type) {
 	case *ast.TopStruct:
 		p.topStruct(x)
@@ -571,8 +571,8 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.PreComment(a, "")
-		p.print(name + getAttrList(a.Attributes) + p.TrailingComment(a, "}"))
+		p.preComment(a, "")
+		p.print(name + getAttrList(a.Attributes) + p.trailingComment(a, "}"))
 	}
 }
 
@@ -608,6 +608,6 @@ func File(list []ast.Toplevel, src []byte) []byte {
 	p.simpleNetList(simple)
 
 	// Print comments in empty file and at end of file.
-	p.comment(p.ReadCommentOrWhitespaceBefore(len(p.src), ""))
+	p.comment(p.readCommentOrWhitespaceBefore(len(p.src), ""))
 	return p.output
 }
