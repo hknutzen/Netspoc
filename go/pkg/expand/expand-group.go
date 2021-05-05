@@ -175,12 +175,6 @@ func (s *state) process(names []string) {
 		if _, found := s.expand[name]; found {
 			group, _ := n.(*ast.TopList)
 			s.expand[name] = group.Elements
-			// Reset position because we must not reference comments
-			// when element is moved to other file.
-			for _, el := range group.Elements {
-				el.ClearPos()
-			}
-
 		}
 		return false
 	})

@@ -257,17 +257,17 @@ func processFile(l []ast.Toplevel) int {
 func processInput(input *filetree.Context) error {
 	source := []byte(input.Data)
 	path := input.Path
-	nodes, err := parser.ParseFile(source, path)
+	astFile, err := parser.ParseFile(source, path, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	count := processFile(nodes)
+	count := processFile(astFile.Nodes)
 	if count == 0 {
 		return nil
 	}
 
 	info.Msg("%d changes in %s", count, path)
-	copy := printer.File(nodes, source)
+	copy := printer.File(astFile)
 	err = fileop.Overwrite(path, copy)
 	return err
 }

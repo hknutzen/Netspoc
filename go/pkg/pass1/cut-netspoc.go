@@ -944,7 +944,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 		active = append(active, top)
 	}
-	out := printer.File(active, nil)
+	f := new(ast.File)
+	f.Nodes = active
+	out := printer.File(f)
 	os.Stdout.Write(out)
 }
 

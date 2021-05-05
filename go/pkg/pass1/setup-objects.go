@@ -33,16 +33,16 @@ func (c *spoc) parseFiles(path string) []ast.Toplevel {
 	var result []ast.Toplevel
 	process := func(input *filetree.Context) error {
 		source := []byte(input.Data)
-		nodes, err := parser.ParseFile(source, input.Path)
+		aF, err := parser.ParseFile(source, input.Path, 0)
 		if err != nil {
 			return err
 		}
 		if input.IPV6 {
-			for _, n := range nodes {
+			for _, n := range aF.Nodes {
 				n.SetIPV6()
 			}
 		}
-		result = append(result, nodes...)
+		result = append(result, aF.Nodes...)
 		return nil
 	}
 	err := filetree.Walk(path, process)

@@ -36,6 +36,15 @@ func (p *printer) emptyLine() {
 	}
 }
 
+func (p *printer) preComment(n ast.Node) {
+	if c := n.PreComment(); c != "" {
+		lines := strings.Split(c, "\n")
+		for _, l := range lines {
+			p.print(l)
+		}
+	}
+}
+
 func utfLen(s string) int {
 	return len([]rune(s))
 }
@@ -108,8 +117,8 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 }
 
 func (p *printer) intersection(pre string, l []ast.Element, post string) {
-	// First element already gets pre comment from union.
-	p.element(pre, l[0], p.trailingComment(l[0], "&!"))
+	p.preComment(l[0])
+	p.element(pre, l[0], l[0].PostComment())
 	ind := utfLen(pre)
 	p.indent += ind
 	for _, el := range l[1:] {
@@ -119,8 +128,8 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 			el = x.Element
 		}
 		pre += " "
-		p.preComment(el, "&!")
-		p.element(pre, el, p.trailingComment(el, "&!,;"))
+		p.preComment(el)
+		p.element(pre, el, el.PostComment())
 	}
 	p.print(post)
 	p.indent -= ind
@@ -129,14 +138,8 @@ func (p *printer) intersection(pre string, l []ast.Element, post string) {
 func (p *printer) elementList(l []ast.Element, stop string) {
 	p.indent++
 	for _, el := range l {
-		p.preComment(el, ",")
-		post := ","
-		if _, ok := el.(*ast.Intersection); ok {
-			// Intersection already prints comments of its elements.
-			p.element("", el, post)
-		} else {
-			p.element("", el, post+p.trailingComment(el, ",;"))
-		}
+		p.preComment(el)
+		p.element("", el, ","+el.PostComment())
 	}
 	p.indent--
 	p.print(stop)
@@ -145,19 +148,15 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 func (p *printer) description(n ast.Toplevel) {
 	if d := n.GetDescription(); d != nil {
 		p.indent++
-		p.preComment(d, "={")
-		p.print("description =" + d.Text + p.trailingComment(d, "="))
+		p.preComment(d)
+		p.print("description =" + d.Text + d.PostComment())
 		p.indent--
 		p.emptyLine()
 	}
 }
 
 func (p *printer) topListHead(n ast.Toplevel) {
-	trailing := ""
-	if d := n.GetDescription(); d != nil {
-		trailing = p.getTrailing(n)
-	}
-	p.print(n.GetName() + " =" + trailing)
+	p.print(n.GetName() + " =" + n.PostComment())
 	p.description(n)
 }
 
@@ -167,8 +166,8 @@ func (p *printer) topElementList(n *ast.TopList) {
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	trailing := p.trailingCommentAt(n.Pos()+len(n.GetName()), "=")
-	proto := n.Value + ";" + p.trailingComment(n, ";")
+	trailing := n.PostComment()
+	proto := n.Value + ";"
 	// Print name and value on different lines, if protocol has
 	// description or trailing comment.
 	if n.GetDescription() != nil || trailing != "" {
@@ -178,7 +177,7 @@ func (p *printer) topProtocol(n *ast.Protocol) {
 		p.print(proto)
 		p.indent--
 	} else {
-		p.print(n.Name + " = " + proto)
+		p.print(n.Name + " = " + proto + trailing)
 	}
 }
 
@@ -186,8 +185,8 @@ func (p *printer) topProtocolList(n *ast.Protocolgroup) {
 	p.topListHead(n)
 	p.indent++
 	for _, el := range n.ValueList {
-		p.preComment(el, ",")
-		p.print(el.Value + "," + p.trailingComment(el, ",;"))
+		p.preComment(el)
+		p.print(el.Value + "," + el.PostComment())
 	}
 	p.indent--
 	p.print(";")
@@ -195,10 +194,13 @@ func (p *printer) topProtocolList(n *ast.Protocolgroup) {
 
 const shortName = 10
 
-func (p *printer) namedList(name string, l []ast.Element) {
+func (p *printer) namedUnion(prefix string, n *ast.NamedUnion) {
+	p.preComment(n)
+	name := prefix + n.Name
+	l := n.Elements
 	pre := name + " = "
 	if len(l) == 0 {
-		p.print(pre + ";")
+		p.print(pre + ";" + n.PostComment())
 		return
 	}
 
@@ -209,7 +211,8 @@ func (p *printer) namedList(name string, l []ast.Element) {
 	if len(name) > shortName {
 		ind = 1
 	}
-	if p.hasPreComment(first, ",") || len(l) > 1 && ind == 1 {
+	cmt := first.PreComment()
+	if cmt != "" || len(l) > 1 && ind == 1 {
 		p.print(pre[:len(pre)-1])
 		rest = l
 	} else {
@@ -220,24 +223,19 @@ func (p *printer) namedList(name string, l []ast.Element) {
 		} else {
 			post = ","
 		}
-		p.element(pre, first, post+p.trailingComment(first, ",;"))
+		p.element(pre, first, post+first.PostComment())
 	}
 
 	// Show other lines with same indentation as first line.
 	if len(rest) != 0 {
 		p.indent += ind
 		for _, v := range rest {
-			p.preComment(v, ",")
-			p.element("", v, ","+p.trailingComment(v, ",;"))
+			p.preComment(v)
+			p.element("", v, ","+v.PostComment())
 		}
 		p.print(";")
 		p.indent -= ind
 	}
-}
-
-func (p *printer) namedUnion(pre string, n *ast.NamedUnion) {
-	p.preComment(n, "")
-	p.namedList(pre+n.Name, n.Elements)
 }
 
 func (p *printer) namedValueList(name string, l []*ast.Value) {
@@ -247,15 +245,14 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	var rest []*ast.Value
 	pre := name + " = "
 	var ind int
-	if p.hasPreComment(first, ",") ||
-		(len(name) > shortName && len(l) > 1) {
-
+	cmt := first.PreComment()
+	if cmt != "" || (len(name) > shortName && len(l) > 1) {
 		p.print(pre[:len(pre)-1])
 		ind = 1
 		rest = l
 	} else if name == "model" || len(l) == 1 {
-		line := getValueList(l)
-		p.print(pre + line + p.trailingComment(l[len(l)-1], ",;"))
+		line, comment := getValueList(l)
+		p.print(pre + line + comment)
 	} else {
 		ind = utfLen(pre)
 		rest = l[1:]
@@ -265,15 +262,15 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 		} else {
 			post = ","
 		}
-		p.print(pre + first.Value + post + p.trailingComment(first, ",;"))
+		p.print(pre + first.Value + post + first.PostComment())
 	}
 
 	// Show other lines with same indentation as first line.
 	if len(rest) != 0 {
 		p.indent += ind
 		for _, v := range rest {
-			p.preComment(v, ",")
-			p.print(v.Value + "," + p.trailingComment(v, ",;"))
+			p.preComment(v)
+			p.print(v.Value + "," + v.PostComment())
 		}
 		if ind == 1 {
 			p.indent -= ind
@@ -297,21 +294,22 @@ func (p *printer) complexValue(name string, l []*ast.Attribute) {
 }
 
 func (p *printer) attribute(n *ast.Attribute) {
-	p.preComment(n, "")
+	p.preComment(n)
 	name := n.Name
 	if l := n.ValueList; l != nil {
 		p.namedValueList(name, l)
 	} else if l := n.ComplexValue; l != nil {
 		if name == "virtual" || strings.Index(name, ":") != -1 {
-			p.print(name + getAttrList(l) + p.trailingComment(n, "}"))
+			val, comment := getAttrList(l)
+			p.print(name + val + comment)
 		} else {
 			p.complexValue(name, l)
 		}
 	} else if name == "prt" {
-		p.print("prt = ;" + p.trailingComment(n, ";"))
+		p.print("prt = ;" + n.PostComment())
 	} else {
 		// Short attribute without values.
-		p.print(name + ";" + p.trailingComment(n, ",;"))
+		p.print(name + ";" + n.PostComment())
 	}
 }
 
@@ -324,7 +322,7 @@ func (p *printer) attributeList(l []*ast.Attribute) {
 }
 
 func (p *printer) rule(n *ast.Rule) {
-	p.preComment(n, "")
+	p.preComment(n)
 	action := "permit"
 	if n.Deny {
 		action = "deny  "
@@ -342,7 +340,7 @@ func (p *printer) rule(n *ast.Rule) {
 }
 
 func (p *printer) topStructHead(n ast.Toplevel) {
-	p.print(n.GetName() + " = {")
+	p.print(n.GetName() + " = {" + n.PostComment())
 	p.description(n)
 }
 
@@ -350,11 +348,6 @@ func hasTrailingComplexAttr(n *ast.TopStruct) bool {
 	l := n.Attributes
 	last := len(l) - 1
 	return last != -1 && l[last].ComplexValue != nil
-}
-
-func (p *printer) topStructHeadWithComment(n ast.Toplevel) {
-	p.print(n.GetName() + " = {" + p.getTrailing(n))
-	p.description(n)
 }
 
 func (p *printer) service(n *ast.Service) {
@@ -378,47 +371,60 @@ func (p *printer) service(n *ast.Service) {
 	p.print("}")
 }
 
-func getValueList(l []*ast.Value) string {
+func getValueList(l []*ast.Value) (string, string) {
 	line := ""
+	var comment string
 	for _, v := range l {
 		if line != "" {
 			line += ", "
 		}
 		line += v.Value
+		if c := v.PostComment(); c != "" {
+			comment = c
+		}
 	}
-	return line + ";"
+	return line + ";", comment
 }
 
-func getAttr(n *ast.Attribute) string {
+func getAttr(n *ast.Attribute) (string, string) {
+	var val string
+	var comment string
 	if l := n.ValueList; l != nil {
-		return n.Name + " = " + getValueList(l)
-	}
-	if l := n.ComplexValue; l != nil {
-		return n.Name + getAttrList(l)
+		var vl string
+		vl, comment = getValueList(l)
+		val += " = " + vl
+	} else if l := n.ComplexValue; l != nil {
+		val, comment = getAttrList(l)
 	} else {
-		return n.Name + ";"
+		comment = n.PostComment()
+		val = ";"
 	}
+	return n.Name + val, comment
 }
 
-func getAttrList(l []*ast.Attribute) string {
+func getAttrList(l []*ast.Attribute) (string, string) {
 	var line string
+	var comment string
 	for _, a := range l {
-		line += " " + getAttr(a)
+		var val string
+		val, comment = getAttr(a)
+		line += " " + val
 	}
-	return " = {" + line + " }"
+	return " = {" + line + " }", comment
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
-	p.preComment(n, "")
+	p.preComment(n)
 	if l := n.ComplexValue; l != nil {
 		name := n.Name
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.print(name + getAttrList(l) + p.trailingComment(n, "}"))
+		val, comment := getAttrList(l)
+		p.print(name + val + comment)
 	} else {
 		// Short attribute without values.
-		p.print(n.Name + ";" + p.trailingComment(n, ",;"))
+		p.print(n.Name + ";" + n.PostComment())
 	}
 }
 
@@ -466,11 +472,7 @@ var simpleHostAttr = map[string]bool{
 }
 
 func (p *printer) network(n *ast.Network) {
-	if n.Hosts != nil || hasTrailingComplexAttr(&n.TopStruct) {
-		p.topStructHead(n)
-	} else {
-		p.topStructHeadWithComment(n)
-	}
+	p.topStructHead(n)
 	p.attributeList(n.Attributes)
 	p.indentedAttributeList(n.Hosts, simpleHostAttr)
 	p.print("}")
@@ -510,17 +512,13 @@ func (p *printer) area(n *ast.Area) {
 }
 
 func (p *printer) topStruct(n *ast.TopStruct) {
-	if hasTrailingComplexAttr(n) {
-		p.topStructHead(n)
-	} else {
-		p.topStructHeadWithComment(n)
-	}
+	p.topStructHead(n)
 	p.attributeList(n.Attributes)
 	p.print("}")
 }
 
 func (p *printer) toplevel(n ast.Toplevel) {
-	p.preComment(n, "")
+	p.preComment(n)
 	switch x := n.(type) {
 	case *ast.TopStruct:
 		p.topStruct(x)
@@ -549,6 +547,9 @@ func isSimpleNet(t ast.Toplevel) bool {
 			for _, a := range n.Attributes {
 				switch a.Name {
 				case "ip", "owner", "crosslink", "unnumbered":
+					if a.PreComment() != "" {
+						return false
+					}
 				default:
 					return false
 				}
@@ -571,8 +572,9 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 		if len := utfLen(name); len < max {
 			name += strings.Repeat(" ", max-len)
 		}
-		p.preComment(a, "")
-		p.print(name + getAttrList(a.Attributes) + p.trailingComment(a, "}"))
+		p.preComment(a)
+		val, comment := getAttrList(a.Attributes)
+		p.print(name + val + comment)
 	}
 }
 
@@ -584,10 +586,10 @@ func Element(el ast.Element) string {
 	return strings.ReplaceAll(result, " ", "")
 }
 
-func File(list []ast.Toplevel, src []byte) []byte {
+func File(aF *ast.File) []byte {
 	p := new(printer)
-	p.init(src)
 
+	list := aF.Nodes
 	var simple []*ast.Network
 	for i, t := range list {
 		if isSimpleNet(t) {
@@ -607,7 +609,11 @@ func File(list []ast.Toplevel, src []byte) []byte {
 	}
 	p.simpleNetList(simple)
 
-	// Print comments in empty file and at end of file.
-	p.comment(p.readCommentOrWhitespaceBefore(len(p.src), ""))
+	// Print comments
+	// - in file without nodes and
+	// - at end of file.
+	if c := aF.BottomCmt; c != "" {
+		p.print(c)
+	}
 	return p.output
 }
