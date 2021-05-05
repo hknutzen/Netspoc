@@ -154,3 +154,34 @@ Error: Expected group name but got 'bad:name'
 =PARAMS=bad:name
 
 ############################################################
+=TITLE=Substitute into different files and preserve comments
+=INPUT=
+-- file1
+group:g1 =
+ host:a, # comment a
+ host:b, # comment b
+;
+network:n1 = { ip = 10.1.1.0/24; }
+--file2
+group:g2 =
+ group:g1, # comment g1
+;
+-- file3
+pathrestriction:r = group:g1;
+=OUTPUT=
+-- file1
+network:n1 = { ip = 10.1.1.0/24; }
+-- file2
+group:g2 =
+ host:a, # comment a
+ host:b, # comment b
+;
+-- file3
+pathrestriction:r =
+ host:a, # comment a
+ host:b, # comment b
+;
+=PARAMS=group:g1
+
+
+############################################################
