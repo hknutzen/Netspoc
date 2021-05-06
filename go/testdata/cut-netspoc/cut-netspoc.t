@@ -2049,12 +2049,12 @@ service:s = {
 =END=
 =OUTPUT=
 network:n1 = {
- description = network:n1;
+ description = network:n1
  ip = 10.1.1.0/24;
 }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
- description = description = ;
+ description = description =
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }

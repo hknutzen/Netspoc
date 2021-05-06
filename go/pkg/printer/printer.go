@@ -147,11 +147,17 @@ func (p *printer) elementList(l []ast.Element, stop string) {
 
 func (p *printer) description(n ast.Toplevel) {
 	if d := n.GetDescription(); d != nil {
-		p.indent++
-		p.preComment(d)
-		p.print("description =" + d.Text + d.PostComment())
-		p.indent--
-		p.emptyLine()
+		// Remove trailing ';' and spaces.
+		// Prevent two spaces before comment when printing.
+		t := strings.TrimRight(d.Text, " ;")
+		// Ignore empty description.
+		if t != "" {
+			p.indent++
+			p.preComment(d)
+			p.print("description =" + t + d.PostComment())
+			p.indent--
+			p.emptyLine()
+		}
 	}
 }
 

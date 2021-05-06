@@ -358,10 +358,8 @@ func (p *parser) description() *ast.Description {
 	if p.check("description") {
 		p.expectLeave("=")
 		p.pos, p.tok = p.scanner.ToEOLorComment()
-		// Prevent two spaces before comment when printing.
-		text := strings.TrimRight(p.tok, " ")
 		a := new(ast.Description)
-		a.Text = text
+		a.Text = p.tok
 		a.SetPreComment(preCmt)
 		a.SetPostComment(p.readPostCmtAfter(""))
 		p.next()

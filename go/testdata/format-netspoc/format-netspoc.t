@@ -36,6 +36,33 @@ group:g1 =
 =END=
 
 ############################################################
+=TITLE=Ignore trailing ';' in description and empty description
+=INPUT=
+group:g1 =
+ description =
+ host:h1;
+group:g2 =
+ description = ;
+ host:h1;
+group:g3 =
+ description = ; ;
+ host:h1;
+=END=
+=OUTPUT=
+group:g1 =
+ host:h1,
+;
+
+group:g2 =
+ host:h1,
+;
+
+group:g3 =
+ host:h1,
+;
+=END=
+
+############################################################
 =TITLE=Group with union, intersection, complement
 =INPUT=
 group:g1 =
@@ -163,7 +190,7 @@ host:h2, # after second
 group:g1 =
  # g1 trailing2
  # g1 post def
- description = This is a fine group; # desc
+ description = This is a fine group # desc
 
  # desc post
  # desc post 2
@@ -186,7 +213,7 @@ group:g1 =
 =END=
 =OUTPUT=
 group:g1 =
- description =  the text; # comment
+ description =  the text # comment
 
 ;
 =END=
