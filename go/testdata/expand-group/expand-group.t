@@ -1,26 +1,30 @@
 
 ############################################################
-=TITLE=Verbose output
+=TITLE=Abort, if no group definition found
 =INPUT=
-group:g1 =
- host:c,
- host:d,
-;
 group:g2 =
  group:g1,
  host:a,
  host:b;
 =END=
+=ERROR=
+Error: No defintion found for 'group:g1'
+=PARAMS=group:g1
+
+############################################################
+=TITLE=Substitute empty group
+=INPUT=
+group:g2 =
+ group:g1,
+ host:a,
+ host:b,
+;
+group:g1 = ;
 =OUTPUT=
 group:g2 =
  host:a,
  host:b,
- host:c,
- host:d,
 ;
-=WARNING=
-Changed INPUT
-=OPTIONS=--quiet=false
 =PARAMS=group:g1
 
 ############################################################
@@ -200,6 +204,5 @@ Changed file2
 Changed file3
 =OPTIONS=--quiet=false
 =PARAMS=group:g1
-
 
 ############################################################
