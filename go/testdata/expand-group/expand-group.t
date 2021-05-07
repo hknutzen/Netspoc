@@ -161,16 +161,24 @@ group:g1 =
  host:a, # comment a
  host:b, # comment b
 ;
-network:n1 = { ip = 10.1.1.0/24; }
 --file2
 group:g2 =
  group:g1, # comment g1
 ;
 -- file3
 pathrestriction:r = group:g1;
+-- file4
+group:g3 =
+ group:g1
+ &! host:b
+ ,
+;
 =OUTPUT=
 -- file1
-network:n1 = { ip = 10.1.1.0/24; }
+group:g1 =
+ host:a, # comment a
+ host:b, # comment b
+;
 -- file2
 group:g2 =
  host:a, # comment a
@@ -181,6 +189,16 @@ pathrestriction:r =
  host:a, # comment a
  host:b, # comment b
 ;
+-- file4
+group:g3 =
+ group:g1
+ &! host:b
+ ,
+;
+=WARNING=
+Changed file2
+Changed file3
+=OPTIONS=--quiet=false
 =PARAMS=group:g1
 
 
