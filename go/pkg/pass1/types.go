@@ -492,7 +492,6 @@ type zone struct {
 	pathObjData
 	name                 string
 	networks             netList
-	attr                 attrStore
 	hasIdHosts           bool
 	hasSecondary         bool
 	hasNonPrimary        bool
