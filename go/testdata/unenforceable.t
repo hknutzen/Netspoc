@@ -251,3 +251,35 @@ Warning: service:s1 has unenforceable rules:
 =END=
 
 ############################################################
+=TITLE=Inherit attribute 'has_unenforceable' from nested areas
+=INPUT=
+area:all = { anchor = network:n1; has_unenforceable = restrict; }
+area:a23 = { inclusive_border = interface:r1.n1; }
+area:a2 = { border = interface:r1.n2; }
+area:a3 = { border = interface:r1.n3; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = network:n2, network:n3;
+ permit src = user; dst = network:n2, network:n3; prt = tcp 80;
+}
+=END=
+# Warning about unenforceable rules between any:[network:n1] and
+# any:[network:n2] is suppressed.
+=WARNING=
+Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: service:s1 has unenforceable rules:
+ src=network:n2; dst=network:n2
+ src=network:n3; dst=network:n3
+=END=
+
+############################################################
