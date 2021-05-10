@@ -328,6 +328,7 @@ where `<object set>` must expand to interfaces.
         [ extend_only;      ]
         [ extend_unbounded; ]
         [ show_all;         ]
+        <control service attr>*
       }
 
     <email> ::= some valid email address or 'guest'
@@ -415,6 +416,7 @@ correspondig network and VPN router definition.
         [ check-extended-key-usage = <string>;    ]
         [ dns-server = <string>;                  ]
         [ default-domain = <string>;              ]
+        [ group-lock;
         [ split-dns;                              ]
         [ wins-server = <string>;                 ]
         [ vpn-access-hours = <string>;            ]
