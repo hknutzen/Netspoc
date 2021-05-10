@@ -880,12 +880,12 @@ Error: Attribute 'link' must be defined for any:n
 owner:o = { admins = a@b.c; }
 any:n = {
  link = network:n;ip = 10.0.0.0/16;
- owner = o; has_unenforceable = restrict;
+ owner = o; no_check_supernet_rules;
 }
 network:n = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must not use attribute 'has_unenforceable' if IP is set for any:n
+Error: Must not use attribute 'no_check_supernet_rules' if IP is set for any:n
 =END=
 
 ############################################################
