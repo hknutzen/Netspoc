@@ -595,6 +595,15 @@ Warning: Unknown owner for any:[network:n1] in service:s1
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
+=TITLE=Invalid attribute 'unknown_owner' at owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; unknown_owner = restrict; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+=WARNING=
+Warning: Ignoring attribute 'unknown_owner' in owner:o1
+=END=
+
+############################################################
 =TITLE=Multiple service owners
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
@@ -814,5 +823,40 @@ service:s1 = {
 }
 =END=
 =WARNING=NONE
+
+############################################################
+=TITLE=Ignore multiple owners with attribute from owner
+=INPUT=
+owner:o1 = { admins = a1@b.c; multi_owner = ok; }
+owner:o2 = { admins = a2@b.c; multi_owner = ok; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+ host:h3 = { ip = 10.1.2.12; owner = o3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = host:h1, host:h3; prt = tcp 81;
+}
+=WARNING=
+Warning: service:s2 has multiple owners:
+ o1, o3
+=END=
 
 ############################################################

@@ -105,6 +105,8 @@ network:n1 = {
  ip = 10.1.1.0/24;
  host:h4 = { ip = 10.1.1.4; }
  host:h5 = { ip = 10.1.1.5; }
+ host:h6 = { ip = 10.1.1.6; }
+ host:h7 = { ip = 10.1.1.7; }
  host:r4-5 = { range = 10.1.1.4-10.1.1.5; }
 }
 router:r = {

@@ -58,15 +58,11 @@ func getAttrFromNetwork(k attrKey, obj *network) attrVal {
 	return v
 }
 
-func (obj *network) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj)
-}
-func (obj *subnet) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
-}
-func (obj *host) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
-}
-func (obj *routerIntf) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
+func getAttr(obj withAttr, k attrKey) attrVal {
+	if o := obj.getOwner(); o != nil {
+		if v := o.attr[k]; v != unsetVal {
+			return v
+		}
+	}
+	return getAttrFromNetwork(k, obj.getNetwork())
 }

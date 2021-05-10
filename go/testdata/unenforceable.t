@@ -211,3 +211,43 @@ Warning: service:test is fully unenforceable
 =END=
 
 ############################################################
+=TITLE=Restrict has_unenforceable and ignore unenforceable at owner
+=INPUT=
+owner:o7 = { admins = a7@example.com; has_unenforceable = restrict; }
+owner:o8 = { admins = a8@example.com; has_unenforceable = ok; }
+owner:o11-14 = { admins = range@example.com; has_unenforceable = ok; }
+network:x = { ip = 10.1.1.0/24;
+ host:x7 = { ip = 10.1.1.7; owner = o7; }
+ host:x8 = { ip = 10.1.1.8; owner = o8; }
+ host:x9 = { ip = 10.1.1.9; }
+ host:r11-14 = { range = 10.1.1.11-10.1.1.14; owner = o11-14; }
+}
+router:r = {
+ model = IOS,FW;
+ managed;
+ interface:x = { ip = 10.1.1.1; hardware = e0; }
+ interface:y = { ip = 10.2.2.2; hardware = e1; }
+}
+network:y = { ip = 10.2.2.0/24;
+ host:y = { ip = 10.2.2.9; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = host:x7, host:x8;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+service:s2 = {
+ user = host:x8, host:x9;
+ permit src = user; dst = host:x8, host:y; prt = tcp 81;
+}
+service:s3 = {
+ user = host:r11-14;
+ permit src = user; dst = host:x8, host:y; prt = tcp 82;
+}
+=WARNING=
+Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: service:s1 has unenforceable rules:
+ src=host:x7; dst=host:x7
+=END=
+
+############################################################

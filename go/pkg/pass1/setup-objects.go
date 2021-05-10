@@ -467,7 +467,14 @@ func (c *spoc) setupOwner(v *ast.TopStruct, s *symbolTable) {
 		case "show_hidden_owners":
 			o.showHiddenOwners = c.getFlag(a, name)
 		default:
-			c.err("Unexpected attribute in %s: %s", name, a.Name)
+			if c.addAttr(a, &o.attr, name) {
+				if o.attr[unknownOwnerAttr] != unsetVal {
+					o.attr[unknownOwnerAttr] = unsetVal
+					c.warn("Ignoring attribute 'unknown_owner' in %s", name)
+				}
+			} else {
+				c.err("Unexpected attribute in %s: %s", name, a.Name)
+			}
 		}
 	}
 	c.checkDuplAttr(v.Attributes, name)

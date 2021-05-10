@@ -125,8 +125,8 @@ func (c *spoc) showUnenforceable() {
 		var list stringList
 		for pair, _ := range service.seenUnenforceable {
 			src, dst := pair[0], pair[1]
-			srcAttr := src.getAttr(hasUnenforceableAttr)
-			dstAttr := dst.getAttr(hasUnenforceableAttr)
+			srcAttr := getAttr(src, hasUnenforceableAttr)
+			dstAttr := getAttr(dst, hasUnenforceableAttr)
 			if service.hasUnenforceable {
 				if srcAttr == restrictVal && dstAttr == restrictVal {
 					if !service.hasUnenforceableRestricted {

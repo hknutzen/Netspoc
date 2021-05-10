@@ -138,8 +138,8 @@ func setLocalPrtRelation(rules []*groupedRule) {
 func (c *spoc) checkAttrOverlaps(
 	service, oservice *service, rule *expandedRule) bool {
 
-	srcAttr := rule.src.getAttr(overlapsAttr)
-	dstAttr := rule.dst.getAttr(overlapsAttr)
+	srcAttr := getAttr(rule.src, overlapsAttr)
+	dstAttr := getAttr(rule.dst, overlapsAttr)
 	overlapsUsed := func() bool {
 		for _, overlap := range service.overlaps {
 			if oservice == overlap {
