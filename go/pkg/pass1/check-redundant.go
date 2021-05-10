@@ -313,12 +313,9 @@ func (c *spoc) warnUnusedOverlaps() {
 		if service.disabled {
 			continue
 		}
-		if overlaps := service.overlaps; overlaps != nil {
-			used := service.overlapsUsed
-			for _, overlap := range overlaps {
-				if overlap.disabled || used[overlap] {
-					continue
-				}
+		used := service.overlapsUsed
+		for _, overlap := range service.overlaps {
+			if !(overlap.disabled || used[overlap]) {
 				errList.push(
 					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, service))
 			}
