@@ -945,7 +945,8 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	if ag.ipp.Bits != 0 {
 		for _, a := range v.Attributes {
 			switch a.Name {
-			case "ip", "link", "owner":
+			case "ip", "link", "owner",
+				"overlaps", "identical_body", "multi_owner", "has_unenforceable":
 				continue
 			}
 			if !strings.HasPrefix(a.Name, "nat:") {
