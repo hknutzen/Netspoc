@@ -3,7 +3,7 @@ package pass1
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -21,7 +21,7 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	}
 
 	// outDir has already been checked / created in printCode.
-	files, err := ioutil.ReadDir(rawDir)
+	files, err := os.ReadDir(rawDir)
 	if err != nil {
 		panic(err)
 	}

@@ -3,7 +3,7 @@ package filetree
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 )
@@ -17,7 +17,7 @@ type parser func(*Context) error
 
 // Read input from file and process it by function which is given as argument.
 func processFile(input *Context, fn parser) error {
-	content, err := ioutil.ReadFile(input.Path)
+	content, err := os.ReadFile(input.Path)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func Walk(fname string, fn parser) error {
 	ignore := conf.Conf.IgnoreFiles
 
 	// Handle toplevel Directory
-	files, err := ioutil.ReadDir(fname)
+	files, err := os.ReadDir(fname)
 	if err != nil {
 		panic(err)
 	}
@@ -71,7 +71,7 @@ func Walk(fname string, fn parser) error {
 				input := &Context{Path: fname, IPV6: v6}
 				return processFile(input, fn)
 			}
-			files, err := ioutil.ReadDir(fname)
+			files, err := os.ReadDir(fname)
 			if err != nil {
 				panic(err)
 			}

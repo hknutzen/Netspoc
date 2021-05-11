@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -43,7 +42,7 @@ type state struct {
 }
 
 func GetFiles(dataDir string) []string {
-	files, err := ioutil.ReadDir(dataDir)
+	files, err := os.ReadDir(dataDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,7 +59,7 @@ func GetFiles(dataDir string) []string {
 
 // ParseFile parses the named file as a list of test descriptions.
 func ParseFile(file string) ([]*Descr, error) {
-	data, err := ioutil.ReadFile(file)
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +375,7 @@ func PrepareInDir(inDir, input string) {
 			log.Fatal(err)
 		}
 		fullPath := path.Join(fullDir, file)
-		if err := ioutil.WriteFile(fullPath, []byte(data), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(data), 0644); err != nil {
 			log.Fatal(err)
 		}
 	}

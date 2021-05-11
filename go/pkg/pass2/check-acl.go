@@ -5,7 +5,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/spf13/pflag"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -75,7 +74,7 @@ func CheckACLMain() int {
 }
 
 func readPackets(path string) ([]*packet, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("Can't %s", err)
 	}

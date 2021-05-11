@@ -77,7 +77,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -207,7 +206,7 @@ func setupPairs(pairs []string) error {
 }
 
 func readPairs(path string) error {
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}

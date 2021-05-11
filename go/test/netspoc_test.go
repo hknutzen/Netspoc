@@ -11,7 +11,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -110,7 +109,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		if d.FOption != "" {
 			dir := t.TempDir()
 			name := path.Join(dir, "file")
-			if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
+			if err := os.WriteFile(name, []byte(d.FOption), 0644); err != nil {
 				t.Fatal(err)
 			}
 			os.Args = append(os.Args, "-f", name)
@@ -247,7 +246,7 @@ func netspocCheck(t *testing.T, spec, dir string) {
 	}
 	sort.Strings(devices)
 	for _, device := range devices {
-		data, err := ioutil.ReadFile(path.Join(dir, device))
+		data, err := os.ReadFile(path.Join(dir, device))
 		if err != nil {
 			t.Error(err)
 		}
@@ -312,7 +311,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 		block := spec[start:end]
 
 		t.Run(pName, func(t *testing.T) {
-			data, err := ioutil.ReadFile(path.Join(dir, pName))
+			data, err := os.ReadFile(path.Join(dir, pName))
 			if err != nil {
 				t.Fatal(err)
 			}

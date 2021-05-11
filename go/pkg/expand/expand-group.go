@@ -62,7 +62,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/spf13/pflag"
-	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -146,7 +145,7 @@ func Main() int {
 
 func readNames(path string) ([]string, error) {
 	var result []string
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return result, fmt.Errorf("Can't %s", err)
 	}
