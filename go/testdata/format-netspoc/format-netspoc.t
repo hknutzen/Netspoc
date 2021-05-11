@@ -208,12 +208,12 @@ group:g1 =
 =INPUT=
 group:g1 =
    description # IGNORE
-   =  the text; # comment
+   =   the text; ;; # comment
 ;
 =END=
 =OUTPUT=
 group:g1 =
- description =  the text # comment
+ description = the text # comment
 
 ;
 =END=
