@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+type redundInfo struct {
+	duplicate          [][2]*expandedRule
+	redundant          [][2]*expandedRule
+	hasSameDupl        map[*service]map[*service]bool
+	overlapsUsed       map[[2]*service]bool
+	overlapsRestricted map[*service]bool
+}
+
 type expandedRule struct {
 	deny      bool
 	stateless bool
@@ -136,24 +144,24 @@ func setLocalPrtRelation(rules []*groupedRule) {
 
 // Returns true, if overlap should be ignored.
 func (c *spoc) checkAttrOverlaps(
-	service, oservice *service, rule *expandedRule) bool {
+	sv, osv *service, rule *expandedRule, ri *redundInfo) bool {
 
 	srcAttr := getAttr(rule.src, overlapsAttr)
 	dstAttr := getAttr(rule.dst, overlapsAttr)
 	overlapsUsed := func() bool {
-		for _, overlap := range service.overlaps {
-			if oservice == overlap {
+		for _, overlap := range sv.overlaps {
+			if osv == overlap {
 				return true
 			}
 		}
 		return false
 	}
 	if overlapsUsed() {
-		service.overlapsUsed[oservice] = true
+		ri.overlapsUsed[[2]*service{sv, osv}] = true
 		if srcAttr == restrictVal && dstAttr == restrictVal {
-			if !service.overlapsRestricted {
-				service.overlapsRestricted = true
-				c.warn("Must not use attribute 'overlaps' at %s", service)
+			if !ri.overlapsRestricted[sv] {
+				ri.overlapsRestricted[sv] = true
+				c.warn("Must not use attribute 'overlaps' at %s", sv)
 			}
 			return false
 		}
@@ -166,7 +174,7 @@ func (c *spoc) checkAttrOverlaps(
 }
 
 func (c *spoc) collectDuplicateRules(
-	rule, other *expandedRule, collect *[][2]*expandedRule) {
+	rule, other *expandedRule, ri *redundInfo) {
 
 	svc := rule.rule.service
 
@@ -185,37 +193,42 @@ func (c *spoc) collectDuplicateRules(
 		other.redundant = true
 	}
 
-	// Link both services, so we later show only one of both service as
-	// redundant.
-	if svc.hasSameDupl == nil {
-		svc.hasSameDupl = make(map[*service]bool)
+	// Link redundant service, so we later show only first of both service as
+	// fully redundant.
+	// Link only from small to large service name, because service are process
+	// ordered by sorted names later.
+	if svc != osvc {
+		if svc.name > osvc.name {
+			svc, osvc = osvc, svc
+		}
+		m := ri.hasSameDupl[svc]
+		if m == nil {
+			m = make(map[*service]bool)
+			ri.hasSameDupl[svc] = m
+		}
+		m[osvc] = true
 	}
-	svc.hasSameDupl[osvc] = true
-	if osvc.hasSameDupl == nil {
-		osvc.hasSameDupl = make(map[*service]bool)
-	}
-	osvc.hasSameDupl[svc] = true
 
 	// Return early, so overlapsUsed isn't set below.
 	if rule.overlaps && other.overlaps {
 		return
 	}
 
-	if c.checkAttrOverlaps(svc, osvc, rule) ||
-		c.checkAttrOverlaps(osvc, svc, rule) {
+	if c.checkAttrOverlaps(svc, osvc, rule, ri) ||
+		c.checkAttrOverlaps(osvc, svc, rule, ri) {
 		return
 	}
 
 	if conf.Conf.CheckDuplicateRules != "" {
-		*collect = append(*collect, [2]*expandedRule{rule, other})
+		ri.duplicate = append(ri.duplicate, [2]*expandedRule{rule, other})
 	}
 }
 
 type twoSvc [2]*service
 
-func (c *spoc) showDuplicateRules(collected [][2]*expandedRule) {
+func (c *spoc) showDuplicateRules(ri *redundInfo) {
 	twoSvc2Duplicate := make(map[twoSvc][]*expandedRule)
-	for _, pair := range collected {
+	for _, pair := range ri.duplicate {
 		rule, other := pair[0], pair[1]
 		key := twoSvc{rule.rule.service, other.rule.service}
 		twoSvc2Duplicate[key] = append(twoSvc2Duplicate[key], rule)
@@ -230,7 +243,7 @@ func (c *spoc) showDuplicateRules(collected [][2]*expandedRule) {
 }
 
 func (c *spoc) collectRedundantRules(
-	rule, other *expandedRule, collect *[][2]*expandedRule) int {
+	rule, other *expandedRule, ri *redundInfo) int {
 
 	service := rule.rule.service
 	count := 0
@@ -246,19 +259,19 @@ func (c *spoc) collectRedundantRules(
 		return count
 	}
 
-	if !c.checkAttrOverlaps(service, other.rule.service, rule) {
-		*collect = append(*collect, [2]*expandedRule{rule, other})
+	if !c.checkAttrOverlaps(service, other.rule.service, rule, ri) {
+		ri.redundant = append(ri.redundant, [2]*expandedRule{rule, other})
 	}
 	return count
 }
 
-func (c *spoc) showRedundantRules(collected [][2]*expandedRule) {
+func (c *spoc) showRedundantRules(ri *redundInfo) {
 	action := conf.Conf.CheckRedundantRules
 	if action == "" {
 		return
 	}
 	twoSvc2Redundant := make(map[twoSvc][][2]*expandedRule)
-	for _, pair := range collected {
+	for _, pair := range ri.redundant {
 		rule, other := pair[0], pair[1]
 		key := twoSvc{rule.rule.service, other.rule.service}
 		twoSvc2Redundant[key] = append(twoSvc2Redundant[key], pair)
@@ -277,7 +290,7 @@ func (c *spoc) showRedundantRules(collected [][2]*expandedRule) {
 	}
 }
 
-func (c *spoc) showFullyRedundantRules() {
+func (c *spoc) showFullyRedundantRules(ri *redundInfo) {
 	action := conf.Conf.CheckFullyRedundantRules
 	if action == "" {
 		return
@@ -300,24 +313,24 @@ func (c *spoc) showFullyRedundantRules() {
 		if service.duplicateCount+service.redundantCount != ruleCount {
 			continue
 		}
-		for service := range service.hasSameDupl {
-			keep[service] = true
+		for other := range ri.hasSameDupl[service] {
+			keep[other] = true
 		}
 		c.warnOrErr(action, service.name+" is fully redundant")
 	}
 }
 
-func (c *spoc) warnUnusedOverlaps() {
+func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
 	var errList stringList
-	for _, service := range symTable.service {
-		if service.disabled {
+	for _, sv := range symTable.service {
+		if sv.disabled {
 			continue
 		}
-		used := service.overlapsUsed
-		for _, overlap := range service.overlaps {
-			if !(overlap.disabled || used[overlap]) {
+		used := ri.overlapsUsed
+		for _, overlap := range sv.overlaps {
+			if !(overlap.disabled || used[[2]*service{sv, overlap}]) {
 				errList.push(
-					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, service))
+					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, sv))
 			}
 		}
 	}
@@ -403,7 +416,7 @@ func (tree ruleTree) add(stateless bool) ruleTree5 {
 // Put attributes with small value set first, to get a more
 // memory efficient tree with few branches at root.
 func (c *spoc) buildRuleTree(
-	rules []*expandedRule, collect *[][2]*expandedRule) (ruleTree, int) {
+	rules []*expandedRule, ri *redundInfo) (ruleTree, int) {
 	count := 0
 	ruleTree := make(ruleTree)
 
@@ -433,7 +446,7 @@ func (c *spoc) buildRuleTree(
 			}
 
 			// Found identical rule.
-			c.collectDuplicateRules(rule, otherRule, collect)
+			c.collectDuplicateRules(rule, otherRule, ri)
 			count++
 		} else {
 			leafMap[rule.prt] = rule
@@ -447,9 +460,7 @@ func (c *spoc) buildRuleTree(
 	return ruleTree, count
 }
 
-func (c *spoc) findRedundantRules(
-	cmpHash ruleTree, collect *[][2]*expandedRule) int {
-
+func (c *spoc) findRedundantRules(cmpHash ruleTree, ri *redundInfo) int {
 	chgHash := cmpHash
 	count := 0
 	for stateless, chgHash := range chgHash {
@@ -475,7 +486,7 @@ func (c *spoc) findRedundantRules(
 																				chgRule &&
 																				cmpRule.log ==
 																					chgRule.log {
-																				count += c.collectRedundantRules(chgRule, cmpRule, collect)
+																				count += c.collectRedundantRules(chgRule, cmpRule, ri)
 																			}
 																		}
 																		prt = prt.localUp
@@ -528,10 +539,13 @@ func (c *spoc) checkRedundantRules() {
 	count := 0
 	dcount := 0
 	rcount := 0
+	ri := new(redundInfo)
+	ri.hasSameDupl = make(map[*service]map[*service]bool)
+	ri.overlapsUsed = make(map[[2]*service]bool)
+	ri.overlapsRestricted = make(map[*service]bool)
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-		var collectDupl, collectRedun [][2]*expandedRule
 
 		// Process rules in chunks to reduce memory usage and allow
 		// concurrent processing. Rules with different srcPath / dstPath
@@ -549,17 +563,17 @@ func (c *spoc) checkRedundantRules() {
 		for _, rules := range path2rules {
 			expandedRules := expandRules(rules)
 			count += len(expandedRules)
-			ruleTree, deleted := c.buildRuleTree(expandedRules, &collectDupl)
+			ruleTree, deleted := c.buildRuleTree(expandedRules, ri)
 			dcount += deleted
 			setLocalPrtRelation(rules)
-			rcount += c.findRedundantRules(ruleTree, &collectRedun)
+			rcount += c.findRedundantRules(ruleTree, ri)
 		}
 
-		c.showDuplicateRules(collectDupl)
-		c.showRedundantRules(collectRedun)
+		c.showDuplicateRules(ri)
+		c.showRedundantRules(ri)
 	})
-	c.warnUnusedOverlaps()
-	c.showFullyRedundantRules()
+	c.warnUnusedOverlaps(ri)
+	c.showFullyRedundantRules(ri)
 	c.info("Expanded rule count: %d; duplicate: %d; redundant: %d",
 		count, dcount, rcount)
 }

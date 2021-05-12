@@ -1900,9 +1900,6 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	if sv.overlaps != nil {
-		sv.overlapsUsed = make(map[*service]bool)
-	}
 	sv.foreach = v.Foreach
 	sv.user = v.User.Elements
 	for _, v2 := range v.Rules {

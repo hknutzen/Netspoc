@@ -610,14 +610,11 @@ type service struct {
 	ruleCount                  int
 	duplicateCount             int
 	redundantCount             int
-	hasSameDupl                map[*service]bool
 	hasUnenforceable           bool
 	hasUnenforceableRestricted bool
 	identicalBody              []*service
 	multiOwner                 bool
 	overlaps                   []*service
-	overlapsUsed               map[*service]bool
-	overlapsRestricted         bool
 	owners                     []*owner
 	seenEnforceable            bool
 	seenUnenforceable          map[objPair]bool
