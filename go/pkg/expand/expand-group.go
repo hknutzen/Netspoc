@@ -18,7 +18,7 @@ is substituted by elements of corresponding group definition.
 GROUP-NAME is given with type as "group:NAME". Substitution occurs
 textual, groups in groups are not expanded. Groups referenced in
 intersection or complement are not substituted. In this case the group
-definition is left unchenged.
+definition is left unchanged.
 
 Changes are done in place, no backup files are created. But only
 changed files are touched.
