@@ -272,6 +272,30 @@ Error: Networks behind crypto tunnel to router:asavpn of model 'ASA, VPN' need t
 =END=
 
 ############################################################
+=TITLE=Mixed ID hosts and non ID hosts in network
+=INPUT=
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:bar = { ip = 10.99.1.11; }
+}
+=ERROR=
+Error: All hosts must have ID in network:clients
+=END=
+
+############################################################
+=TITLE=ID host without crypto router
+=INPUT=
+network:clients = {
+ ip = 10.99.1.0/24;
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+}
+=ERROR=
+Error: network:clients having ID hosts must be connected to router with crypto spoke
+=END=
+
+
+############################################################
 =TITLE=Mixed ID hosts and non ID hosts at software client
 =INPUT=
 ${crypto_vpn}
@@ -420,8 +444,9 @@ network:clients = {
  }
 }
 =END=
-=WARNING=
+=ERROR=
 Warning: Ignoring attribute 'ldap_id' at host:id:foo@domain.x.clients
+Error: network:clients having ID hosts must be connected to router with crypto spoke
 =END=
 
 ############################################################
@@ -720,6 +745,7 @@ Error: ID of host:id:domain.x.n must contain character '@'
 Error: ID of host:id:bar@domain.y.n must start with character '@' or have no '@' at all
 Error: Range of host:id:boo@domain.y.n with ID must expand to exactly one subnet
 Error: host:id:b1@domain.y.n with ID must not have single IP
+Error: network:n having ID hosts must be connected to router with crypto spoke
 =END=
 
 ############################################################
