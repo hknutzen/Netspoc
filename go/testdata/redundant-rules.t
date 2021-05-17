@@ -419,6 +419,50 @@ service:s3 = {
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
+=TITLE=Useless overlaps with duplicate rules
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 81, icmp 8;
+}
+service:s2 = {
+ overlaps = service:s1;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 82, icmp 8;
+}
+service:s3 = {
+ overlaps = service:s4;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 83, icmp 0;
+}
+service:s4 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 84, icmp 0;
+}
+=WARNING=
+Warning: Useless 'overlaps = service:s3' in service:s1
+Warning: Useless 'overlaps = service:s4' in service:s3
+=END=
+
+############################################################
 =TITLE=Empty service is not shown as fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
 =INPUT=

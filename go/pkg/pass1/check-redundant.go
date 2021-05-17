@@ -193,20 +193,22 @@ func (c *spoc) collectDuplicateRules(
 		other.redundant = true
 	}
 
-	// Link redundant service, so we later show only first of both service as
+	// Link redundant service, so we later show only one of both services as
 	// fully redundant.
-	// Link only from small to large service name, because service are process
-	// ordered by sorted names later.
-	if svc != osvc {
-		if svc.name > osvc.name {
-			svc, osvc = osvc, svc
-		}
-		m := ri.hasSameDupl[svc]
+	// Link only from small to large service, because services are
+	// processed ordered by sorted names later.
+	link := func(s, o *service) {
+		m := ri.hasSameDupl[s]
 		if m == nil {
 			m = make(map[*service]bool)
-			ri.hasSameDupl[svc] = m
+			ri.hasSameDupl[s] = m
 		}
-		m[osvc] = true
+		m[o] = true
+	}
+	if svc.name < osvc.name {
+		link(svc, osvc)
+	} else if svc.name > osvc.name {
+		link(osvc, svc)
 	}
 
 	// Return early, so overlapsUsed isn't set below.
