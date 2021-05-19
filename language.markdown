@@ -345,21 +345,18 @@ interface:x.y.
 
 - `network:[host:x]` takes the network wherein host:x is located.
 
-- `network:[network:x]` is equivalent to
-`network:x`.
+- `network:[network:x]` is equivalent to `network:x`.
 
 - `network:[any:x]` takes all networks located inside security
 zone any:x.
 
-- `network:[area:x]` takes all networks located inside
-area:x.
+- `network:[area:x]` takes all networks located inside area:x.
 
 - `any:[interface:x.y], any:[host:x], any:[network:x],
   any:[any:x]` takes the security zone wherein the inner object is
   located.
 
-- `any:[area:x]` takes all security zone located
-inside area:x.
+- `any:[area:x]` takes all security zones located inside area:x.
 
 - `interface:[network:x].[<selector>]`
   results in all | auto interfaces attached to  network:x.
