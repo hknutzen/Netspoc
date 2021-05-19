@@ -330,28 +330,19 @@ func (c *spoc) expandGroup1(
 						seen[intf.router] = true
 					}
 
-					// Add routers at border of security zones inside
-					// current area.
-					for _, z := range x.zones {
-						for _, intf := range z.interfaces {
-							r := intf.router
-							if !seen[r] {
-								seen[r] = true
-								routers = append(routers, r)
-							}
-						}
-					}
 					if managed {
 
-						// Remove semi managed routers.
-						j := 0
-						for _, r := range routers {
-							if r.managed != "" || r.routingOnly {
-								routers[j] = r
-								j++
+						// Add managed routers at border of security zones
+						// inside current area.
+						for _, z := range x.zones {
+							for _, intf := range z.interfaces {
+								r := intf.router
+								if !seen[r] && (r.managed != "" || r.routingOnly) {
+									seen[r] = true
+									routers = append(routers, r)
+								}
 							}
 						}
-						routers = routers[:j]
 					} else {
 						for _, z := range x.zones {
 							add := func(l netList) {
