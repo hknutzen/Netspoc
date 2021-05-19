@@ -369,7 +369,8 @@ zone any:x.
 
 - `interface:[area:x].[<selector>]` results in
   interfaces which are located *inside* area:x.
-  Note: Border interfaces are left out.
+  Note: Border interfaces are left out, but inclusive_border interfaces
+  are part of the result.
 
 - `host:[network:x]` results in all host defined inside network:x.
 
