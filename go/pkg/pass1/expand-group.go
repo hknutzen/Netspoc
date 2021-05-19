@@ -112,6 +112,18 @@ func (c *spoc) removeDuplicates(list groupObjList, ctx string) groupObjList {
 	return list
 }
 
+// Find subnets of given networks.
+func getSubnets(l netList) netList {
+	var result netList
+	for _, n := range l {
+		if subnets := n.networks; len(subnets) > 0 {
+			result = append(result, subnets...)
+			result = append(result, getSubnets(subnets)...)
+		}
+	}
+	return result
+}
+
 func (c *spoc) expandIntersection(
 	l []ast.Element, ctx string, ipv6, visible, withSubnets bool) groupObjList {
 
@@ -342,15 +354,19 @@ func (c *spoc) expandGroup1(
 						routers = routers[:j]
 					} else {
 						for _, z := range x.zones {
-							for _, n := range z.networks {
-								for _, intf := range n.interfaces {
-									r := intf.router
-									if !seen[r] {
-										seen[r] = true
-										routers = append(routers, r)
+							add := func(l netList) {
+								for _, n := range l {
+									for _, intf := range n.interfaces {
+										r := intf.router
+										if !seen[r] {
+											seen[r] = true
+											routers = append(routers, r)
+										}
 									}
 								}
 							}
+							add(z.networks)
+							add(getSubnets(z.networks))
 						}
 					}
 					if selector == "all" {
@@ -521,17 +537,6 @@ func (c *spoc) expandGroup1(
 					}
 				}
 				if withSubnets {
-					var getSubnets func(l netList) netList
-					getSubnets = func(l netList) netList {
-						var result netList
-						for _, n := range l {
-							if subnets := n.networks; len(subnets) > 0 {
-								result = append(result, subnets...)
-								result = append(result, getSubnets(subnets)...)
-							}
-						}
-						return result
-					}
 					result = append(result, getSubnets(result)...)
 				}
 				return result

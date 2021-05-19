@@ -1243,6 +1243,43 @@ Warning: Useless delete of interface:r.y in user of service:test
 =END=
 
 ############################################################
+=TITLE=Find also interface of subnet
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2Super = { ip = 10.1.2.0/23; }
+network:n2 = { ip = 10.1.2.0/24; subnet_of = network:n2Super; }
+network:trans = { unnumbered; }
+area:a2 = { inclusive_border = interface:r1.n1; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2Super = { ip = 10.1.3.1; hardware = n2Super; }
+}
+router:r2 = {
+ interface:n2Super = { ip = 10.1.3.2; }
+ interface:trans = { unnumbered; }
+}
+router:r3 = {
+ interface:trans = { unnumbered; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+service:test = {
+ user = interface:[area:a2].[all] ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n2Super_in
+object-group network g0
+ network-object host 10.1.2.1
+ network-object host 10.1.3.2
+access-list n2Super_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n2Super_in extended deny ip any4 any4
+access-group n2Super_in in interface n2Super
+=END=
+
+############################################################
 =TITLE=Must not use auto interface of host
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
