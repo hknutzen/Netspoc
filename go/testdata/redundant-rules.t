@@ -463,6 +463,51 @@ Warning: Useless 'overlaps = service:s4' in service:s3
 =END=
 
 ############################################################
+=TITLE=Service with duplicate rules and/or attribute overlaps.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ overlaps = service:s1;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 81;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 81;
+}
+service:s3 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 81;
+}
+=WARNING=
+Warning: Duplicate rules in service:s2 and service:s2:
+  permit src=network:n1; dst=network:n2; prt=tcp 81; of service:s2
+Warning: Duplicate rules in service:s3 and service:s2:
+  permit src=network:n1; dst=network:n2; prt=tcp 81; of service:s3
+Warning: Useless 'overlaps = service:s3' in service:s3
+=END=
+
+############################################################
 =TITLE=Empty service is not shown as fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
 =INPUT=
