@@ -275,12 +275,12 @@ network or unmanaged router inside a security zone.
 
 ### Matching aggregates
 
-A named aggregate can optionally be restricted to a network match.
+An aggregate can optionally be restricted to a network match.
 This is best be explained by an example.
 Suppose, a security zone has a large number of networks.  A part of
 these networks has IP addresses 10.42.x.0/24.  You can create wildcard
-ACLs matching 10.42.0.0/16 by defining a named aggregate with attribute
-`ip = 10.42.0.0/16;`. This aggregate matches all networks inside the
+ACLs matching 10.42.0.0/16 by defining an aggregate with attribute
+`ip = 10.42.0.0/16`. This aggregate matches all networks inside the
 corresponding security zone with matching IP addresses.
 
 ## Referencing network resources
