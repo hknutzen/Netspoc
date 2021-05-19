@@ -312,6 +312,8 @@ func (c *spoc) expandGroup1(
 					seen := make(map[*router]bool)
 
 					// Don't add routers at border of this area.
+					// But note: Interfaces of attribute inclusive_border
+					// are located inside the area.
 					for _, intf := range x.border {
 						seen[intf.router] = true
 					}
