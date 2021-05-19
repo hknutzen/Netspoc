@@ -505,9 +505,9 @@ func (c *spoc) expandGroup1(
 					if len(list) > 0 {
 						for _, agg := range list {
 
-							// Check type, because getAggregates
-							// eventually returns non aggregate network if
-							// one matches 0/0.
+							// Check type, because getAggregates potentially
+							// returns non aggregate network if one matches
+							// 0/0.
 							if agg.isAggregate {
 								result = append(result, agg.networks...)
 							} else {
