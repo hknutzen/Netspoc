@@ -1077,6 +1077,29 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
+=TITLE=Empty list of elements after 'user', 'src', 'dst'
+=INPUT=
+${topo}
+service:s1 = {
+ user = ;
+ permit src = user; dst = network:n3; prt = tcp 22;
+}
+service:s2= {
+ user = network:n1;
+ permit src = ; dst = user; prt = tcp 80;
+}
+service:s3 = {
+ user = network:n1;
+ permit src = user; dst = ; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: user of service:s1 is empty
+Warning: src of service:s2 is empty
+Warning: dst of service:s3 is empty
+=END=
+
+############################################################
 =TITLE=Empty user and empty rules
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1088,13 +1111,13 @@ service:s1 = {
  permit src = user; dst = group:g2; prt = tcp 80;
 }
 service:s2 = {
- user = ;
+ user = group:g1;
  permit src = user; dst = network:n1; prt = protocolgroup:p1;
 }
 service:s3 = {
  disabled;
  user = group:g1;
- permit src = user; dst = ; prt = protocolgroup:p1;
+ permit src = user; dst = group:g2; prt = protocolgroup:p1;
 }
 =END=
 =WARNING=
