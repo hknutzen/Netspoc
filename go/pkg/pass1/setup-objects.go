@@ -1235,7 +1235,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			r.filterOnly = nil
 		}
 		if r.logDeny && !r.model.canLogDeny {
-			c.err("Must not use attribute 'log_deny' at %s of moel %s",
+			c.err("Must not use attribute 'log_deny' at %s of model %s",
 				name, r.model.name)
 		}
 
