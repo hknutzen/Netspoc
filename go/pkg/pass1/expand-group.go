@@ -251,7 +251,7 @@ func (c *spoc) expandGroup1(
 			selector, managed := x.Selector, x.Managed
 			subObjects := c.expandGroup1(
 				x.Elements, "interface:[..].["+selector+"] of "+ctx,
-				ipv6, false, false)
+				ipv6, false, true)
 			routerSeen := make(map[*router]bool)
 			for _, obj := range subObjects {
 				obj.setUsed()
