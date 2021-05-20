@@ -362,7 +362,7 @@ func (c *spoc) expandGroup1(
 					}
 					if selector == "all" {
 						for _, r := range routers {
-							for _, intf := range getIntf(r) {
+							for _, intf := range r.interfaces {
 								if check(intf) {
 									result.push(intf)
 								}
