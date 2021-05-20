@@ -1,5 +1,27 @@
 {{$NEXT}}
 
+6.030     2021-05-20 13:29:29+02:00 Europe/Berlin
+
+ - A warning is shown again, if list of objects in service after
+   'user', 'src', 'dst' is empty.
+ - A warning is shown, if some file is empty or contains only comments.
+ - Fixed automatic groups with interfaces:
+   - Interfaces of subnet are added if supernet is in same zone.
+   - External interface of crypto router is removed
+     if automatic group only contains encryptes parts.
+ - Attributes 'overlaps|unknown_owner|multi_owner|has_unenforceable'
+   with value 'restrict|enable|ok'
+   are supported at additional places now:
+   - at owner and
+   - at aggregate with IP address
+   Attribute at owner has higher priority than attribute inherited
+   from network, aggregate or area.
+ - Fixed command 'expand-group'.
+   It aborts now, if group definition isn't found.
+   Previously it substituted an empty list.
+ - Command 'format-netspoc' now ignores leading and trailing whitespace
+   in description and also trailing ';'.
+
 6.029     2021-04-27 14:51:36+02:00 Europe/Berlin
 
  - Fixed 'export-netspoc':
