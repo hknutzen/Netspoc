@@ -184,6 +184,8 @@ Error: All instances of router:r1 must have identical model
 -- ipv6/file
 =END=
 =ERROR=
+Warning: Ignoring file 'file' without any content
+Warning: Ignoring file 'ipv6/file' without any content
 Error: topology seems to be empty
 Aborted
 =END=
@@ -195,6 +197,8 @@ Aborted
 -- ipv4
 =END=
 =ERROR=
+Warning: Ignoring file 'file' without any content
+Warning: Ignoring file 'ipv4' without any content
 Error: topology seems to be empty
 Aborted
 =END=
