@@ -1,5 +1,31 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=-x
+=ERROR=
+Error: unknown shorthand flag: 'x' in -x
+=END=
+
+############################################################
+=TITLE=Unknown argument
+=INPUT=NONE
+=PARAMS=other_arg
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
 =TITLE=Unknown type
 =INPUT=
 foo:x =
