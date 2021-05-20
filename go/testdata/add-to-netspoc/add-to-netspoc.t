@@ -1,5 +1,31 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR PAIR ...
+  -f, --file string   Read pairs from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=host at network
 =INPUT=
 ################# Comment in first line must not be appended to added item.
@@ -303,6 +329,14 @@ host:abc network:abx
 network:xyz host:id:xyz@dom
 any:aaa group:bbb
 interface:r.n.sec interface:r.n
+=END=
+
+############################################################
+=TITLE=Read pairs from unknown file
+=INPUT=NONE
+=PARAMS=-f unknown
+=ERROR=
+Error: Can't open unknown: no such file or directory
 =END=
 
 ############################################################
