@@ -31,7 +31,6 @@ import (
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
 	flag "github.com/spf13/pflag"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strconv"
@@ -233,7 +232,7 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 // Trailing ";" is optional.
 // Comment lines starting with "#" are ignored.
 func readConfig(filename string) (map[string]string, error) {
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}

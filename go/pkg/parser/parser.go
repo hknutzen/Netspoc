@@ -10,10 +10,17 @@ import (
 	"strings"
 )
 
+type Mode uint
+
+const (
+	ParseComments Mode = 1 << iota // parse comments and add them to AST
+)
+
 // The parser structure holds the parser's internal state.
 type parser struct {
-	scanner  scanner.Scanner
-	fileName string
+	scanner       scanner.Scanner
+	fileName      string
+	parseComments bool
 
 	// Next token
 	pos   int    // token position
@@ -21,11 +28,12 @@ type parser struct {
 	tok   string // token literal, one token look-ahead
 }
 
-func (p *parser) init(src []byte, fname string) {
+func (p *parser) init(src []byte, fname string, mode Mode) {
 	ah := func(e error) { p.abort(e) }
 
 	p.scanner.Init(src, fname, ah)
 	p.fileName = fname
+	p.parseComments = mode&ParseComments != 0
 
 	p.next()
 }
@@ -123,16 +131,37 @@ func (p *parser) getNonSep() string {
 	return p.tok
 }
 
+func (p *parser) readPreCmt(ign string) string {
+	if !p.parseComments {
+		return ""
+	}
+	return p.scanner.PreCmt(p.pos, ign)
+}
+
+func (p *parser) readPostCmtAfter(ign string) string {
+	if !p.parseComments {
+		return ""
+	}
+	return p.scanner.PostCmt(p.pos+len(p.tok), ign)
+}
+
+func (p *parser) setPostCmtAt(start int, a ast.Node) {
+	if !p.parseComments {
+		return
+	}
+	if c := p.scanner.PostCmt(start, ",;&!]"); c != "" {
+		a.SetPostComment(c)
+	}
+}
+
 func (p *parser) user() *ast.User {
 	a := new(ast.User)
-	a.Start = p.pos
 	p.next()
 	return a
 }
 
 func (p *parser) namedRef(typ, name string) ast.Element {
 	a := new(ast.NamedRef)
-	a.Start = p.pos
 	a.Type = typ
 	a.Name = name
 	p.next()
@@ -150,68 +179,70 @@ func (p *parser) selector() (string, int) {
 }
 
 func (p *parser) intfRef(typ, name string) ast.Element {
-	start := p.pos
 	a := new(ast.IntfRef)
-	a.Start = start
 	a.Type = typ
 	i := strings.Index(name, ".")
 	if i == -1 {
 		p.syntaxErr("Interface name expected")
 	}
-	router := name[:i]
+	a.Router = name[:i]
 	net := name[i+1:]
 	p.next()
 	var ext string
-	var end int
 	if net == "[" {
+		var end int
 		ext, end = p.selector()
+		p.setPostCmtAt(end, a)
 	} else {
 		i := strings.Index(net, ".")
 		if i != -1 {
 			ext = net[i+1:]
 			net = net[:i]
 		}
-		end = start + len(typ) + 1 + len(name)
 	}
-	a.Router = router
 	a.Network = net   // If Network is "[",
-	a.Extension = ext // then Extension contains selector.
-	a.Next = end
+	a.Extension = ext // ...then Extension contains selector.
 	return a
 }
 
-func (p *parser) simpleAuto(start int, typ string) ast.Element {
+func (p *parser) simpleAuto(typ string) ast.Element {
 	a := new(ast.SimpleAuto)
-	a.Start = start
 	a.Type = typ
-	a.Elements, a.Next = p.union("]")
+	p.next()
+	var end int
+	a.Elements, end = p.union("]")
+	p.setPostCmtAt(end, a)
 	return a
 }
 
-func (p *parser) aggAuto(start int, typ string) ast.Element {
+func (p *parser) aggAuto(typ string) ast.Element {
 	a := new(ast.AggAuto)
-	a.Start = start
 	a.Type = typ
+	p.next()
 	if p.check("ip") {
 		p.check("=")
 		a.Net = p.name()
 		p.expect("&")
 	}
-	a.Elements, a.Next = p.union("]")
+	var end int
+	a.Elements, end = p.union("]")
+	p.setPostCmtAt(end, a)
 	return a
 }
 
-func (p *parser) intfAuto(start int, typ string) ast.Element {
+func (p *parser) intfAuto(typ string) ast.Element {
 	a := new(ast.IntfAuto)
-	a.Start = start
 	a.Type = typ
+	p.next()
 	if p.check("managed") {
 		a.Managed = true
 		p.expect("&")
 	}
 	a.Elements, _ = p.union("]")
 	p.expect(".[")
-	a.Selector, a.Next = p.selector()
+	var end int
+	a.Selector, end = p.selector()
+	p.setPostCmtAt(end, a)
 	return a
 }
 
@@ -235,10 +266,10 @@ var elementType = map[string]func(*parser, string, string) ast.Element{
 	"group":     (*parser).namedRef,
 }
 
-var autoGroupType map[string]func(*parser, int, string) ast.Element
+var autoGroupType map[string]func(*parser, string) ast.Element
 
 func init() {
-	autoGroupType = map[string]func(*parser, int, string) ast.Element{
+	autoGroupType = map[string]func(*parser, string) ast.Element{
 		"host":      (*parser).simpleAuto,
 		"network":   (*parser).simpleAuto,
 		"interface": (*parser).intfAuto,
@@ -247,32 +278,41 @@ func init() {
 }
 
 func (p *parser) extendedName() ast.Element {
+	preCmt := p.readPreCmt("&")
+	postCmt := p.readPostCmtAfter(",;&!")
+	var result ast.Element
 	if p.tok == "user" {
-		return p.user()
-	}
-	typ, name := p.typedName()
-	if name == "[" {
-		start := p.pos
-		m, found := autoGroupType[typ]
-		if !found {
-			p.syntaxErr("Unexpected automatic group")
+		result = p.user()
+	} else {
+		typ, name := p.typedName()
+		if name == "[" {
+			m, found := autoGroupType[typ]
+			if !found {
+				p.syntaxErr("Unexpected automatic group")
+			}
+			result = m(p, typ)
+		} else {
+			m, found := elementType[typ]
+			if !found {
+				p.syntaxErr("Unknown element type")
+			}
+			result = m(p, typ, name)
 		}
-		p.next()
-		return m(p, start, typ)
 	}
-	m, found := elementType[typ]
-	if !found {
-		p.syntaxErr("Unknown element type")
+	result.SetPreComment(preCmt)
+	if result.PostComment() == "" {
+		result.SetPostComment(postCmt)
 	}
-	return m(p, typ, name)
+	return result
 }
 
 func (p *parser) complement() ast.Element {
-	start := p.pos
 	if p.check("!") {
 		a := new(ast.Complement)
-		a.Start = start
-		a.Element = p.extendedName()
+		c := p.readPreCmt("&!")
+		el := p.extendedName()
+		el.SetPreComment(c)
+		a.Element = el
 		return a
 	} else {
 		return p.extendedName()
@@ -280,15 +320,12 @@ func (p *parser) complement() ast.Element {
 }
 
 func (p *parser) intersection() ast.Element {
-	var intersection []ast.Element
-	start := p.pos
-	intersection = append(intersection, p.complement())
+	intersection := []ast.Element{p.complement()}
 	for p.check("&") {
 		intersection = append(intersection, p.complement())
 	}
 	if len(intersection) > 1 {
 		a := new(ast.Intersection)
-		a.Start = start
 		a.Elements = intersection
 		return a
 	} else {
@@ -317,18 +354,15 @@ func (p *parser) union(stopToken string) ([]ast.Element, int) {
 }
 
 func (p *parser) description() *ast.Description {
-	start := p.pos
+	preCmt := p.readPreCmt("")
 	if p.check("description") {
 		p.expectLeave("=")
 		p.pos, p.tok = p.scanner.ToEOLorComment()
-		// Prevent two spaces before comment when printing.
-		text := strings.TrimRight(p.tok, " ")
-		end := p.pos + len(text)
-		p.next()
 		a := new(ast.Description)
-		a.Start = start
-		a.Text = text
-		a.Next = end
+		a.Text = p.tok
+		a.SetPreComment(preCmt)
+		a.SetPostComment(p.readPostCmtAfter(""))
+		p.next()
 		return a
 	}
 	return nil
@@ -342,7 +376,8 @@ func (p *parser) name() string {
 
 func (p *parser) value(nextSpecial func(*parser)) *ast.Value {
 	a := new(ast.Value)
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
+	a.SetPostComment(p.readPostCmtAfter(",;}"))
 	a.Value = p.getNonSep()
 	nextSpecial(p)
 	return a
@@ -353,6 +388,7 @@ func (p *parser) addMulti(a *ast.Value, nextSpecial func(*parser)) {
 		a.Value += " " + p.tok
 		nextSpecial(p)
 	}
+	a.SetPostComment(p.readPostCmtAfter(",;}"))
 }
 
 func (p *parser) multiValue(nextSpecial func(*parser)) *ast.Value {
@@ -367,35 +403,26 @@ func (p *parser) protocolRef(nextSpecial func(*parser)) *ast.Value {
 
 func (p *parser) valueList(
 	getValue func(*parser, func(*parser)) *ast.Value,
-	nextSpecial func(*parser)) ([]*ast.Value, int) {
+	nextSpecial func(*parser)) []*ast.Value {
 
 	var list []*ast.Value
-	var end int
-	for {
-		if end = p.checkPos(";"); end >= 0 {
-			break
-		}
+	for !p.check(";") {
 		list = append(list, getValue(p, nextSpecial))
 		if !p.checkSpecial(",", nextSpecial) {
 			// Allow trailing comma.
-			end = p.expect(";")
+			p.expect(";")
 			break
 		}
 	}
-	return list, end
+	return list
 }
 
-func (p *parser) complexValue(
-	nextSpecial func(*parser)) ([]*ast.Attribute, int) {
+func (p *parser) complexValue(nextSpecial func(*parser)) []*ast.Attribute {
 	list := make([]*ast.Attribute, 0)
-	var end int
-	for {
-		if end = p.checkPos("}"); end >= 0 {
-			break
-		}
+	for !p.check("}") {
 		list = append(list, p.specialAttribute(nextSpecial))
 	}
-	return list, end
+	return list
 }
 
 var specialTokenAttr = map[string]func(*parser){
@@ -419,10 +446,10 @@ var specialValueAttr = map[string]func(*parser, func(*parser)) *ast.Value{
 
 func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
 	a := new(ast.Attribute)
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
+	a.SetPostComment(p.readPostCmtAfter(";={}"))
 	a.Name = p.name()
-	if end := p.checkPos(";"); end >= 0 {
-		a.Next = end
+	if p.check(";") {
 		return a
 	}
 	if n := specialTokenAttr[a.Name]; n != nil {
@@ -433,13 +460,13 @@ func (p *parser) specialAttribute(nextSpecial func(*parser)) *ast.Attribute {
 		if n := specialSubTokenAttr[a.Name]; n != nil {
 			nextSpecial = n
 		}
-		a.ComplexValue, a.Next = p.complexValue(nextSpecial)
+		a.ComplexValue = p.complexValue(nextSpecial)
 	} else {
 		getValue := specialValueAttr[a.Name]
 		if getValue == nil {
 			getValue = (*parser).value
 		}
-		a.ValueList, a.Next = p.valueList(getValue, nextSpecial)
+		a.ValueList = p.valueList(getValue, nextSpecial)
 	}
 	return a
 }
@@ -460,7 +487,7 @@ func (p *parser) attributeNoToplevel() *ast.Attribute {
 
 func (p *parser) topListHead() ast.TopBase {
 	var a ast.TopBase
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
 	a.Name = p.tok
 	p.next()
 	p.expect("=")
@@ -471,14 +498,14 @@ func (p *parser) topListHead() ast.TopBase {
 func (p *parser) topList() ast.Toplevel {
 	a := new(ast.TopList)
 	a.TopBase = p.topListHead()
-	a.Elements, a.Next = p.union(";")
+	a.Elements, _ = p.union(";")
 	return a
 }
 
 func (p *parser) protocolgroup() ast.Toplevel {
 	a := new(ast.Protocolgroup)
 	a.TopBase = p.topListHead()
-	a.ValueList, a.Next = p.valueList((*parser).protocolRef, (*parser).next)
+	a.ValueList = p.valueList((*parser).protocolRef, (*parser).next)
 	return a
 }
 
@@ -492,22 +519,23 @@ func (p *parser) protocol() ast.Toplevel {
 		a.Value += p.tok
 		p.nextProto()
 	}
-	a.Next = p.expect(";")
+	p.expect(";")
 	return a
 }
 
 func (p *parser) namedUnion() *ast.NamedUnion {
 	a := new(ast.NamedUnion)
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
+	a.SetPostComment(p.readPostCmtAfter("=;"))
 	a.Name = p.name()
 	p.expect("=")
-	a.Elements, a.Next = p.union(";")
+	a.Elements, _ = p.union(";")
 	return a
 }
 
 func (p *parser) rule() *ast.Rule {
 	a := new(ast.Rule)
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
 	switch p.tok {
 	case "deny":
 		a.Deny = true
@@ -520,10 +548,8 @@ func (p *parser) rule() *ast.Rule {
 		a.Dst = p.namedUnion()
 		p.expectLeave("prt")
 		a.Prt = p.attribute()
-		a.Next = a.Prt.Next
 		if p.tok == "log" {
 			a.Log = p.attribute()
-			a.Next = a.Log.Next
 		}
 	default:
 		p.syntaxErr("Expected 'permit' or 'deny'")
@@ -533,7 +559,8 @@ func (p *parser) rule() *ast.Rule {
 
 func (p *parser) topStructHead() ast.TopStruct {
 	var a ast.TopStruct
-	a.Start = p.pos
+	a.SetPreComment(p.readPreCmt(""))
+	a.SetPostComment(p.readPostCmtAfter("={"))
 	a.Name = p.tok
 	p.next()
 	p.expect("=")
@@ -552,21 +579,17 @@ func (p *parser) service() ast.Toplevel {
 		a.Attributes = append(a.Attributes, p.attribute())
 	}
 	u := new(ast.NamedUnion)
-	u.Start = p.pos
+	u.SetPreComment(p.readPreCmt(""))
+	u.SetPostComment(p.readPostCmtAfter("=;"))
 	p.expectLeave("user")
 	u.Name = p.name()
 	p.expect("=")
 	if p.check("foreach") {
 		a.Foreach = true
 	}
-	u.Elements, u.Next = p.union(";")
+	u.Elements, _ = p.union(";")
 	a.User = u
-	for {
-		if p.tok == "}" {
-			a.Next = p.pos + 1
-			p.next()
-			break
-		}
+	for !p.check("}") {
 		a.Rules = append(a.Rules, p.rule())
 	}
 	return a
@@ -575,12 +598,8 @@ func (p *parser) service() ast.Toplevel {
 func (p *parser) network() ast.Toplevel {
 	a := new(ast.Network)
 	a.TopStruct = p.topStructHead()
-	for {
-		if p.tok == "}" {
-			a.Next = p.pos + 1
-			p.next()
-			break
-		} else if strings.HasPrefix(p.tok, "host:") {
+	for !p.check("}") {
+		if strings.HasPrefix(p.tok, "host:") {
 			a.Hosts = append(a.Hosts, p.attribute())
 		} else {
 			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
@@ -592,12 +611,8 @@ func (p *parser) network() ast.Toplevel {
 func (p *parser) router() ast.Toplevel {
 	a := new(ast.Router)
 	a.TopStruct = p.topStructHead()
-	for {
-		if p.tok == "}" {
-			a.Next = p.pos + 1
-			p.next()
-			break
-		} else if strings.HasPrefix(p.tok, "interface:") {
+	for !p.check("}") {
+		if strings.HasPrefix(p.tok, "interface:") {
 			a.Interfaces = append(a.Interfaces, p.attribute())
 		} else {
 			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
@@ -609,12 +624,8 @@ func (p *parser) router() ast.Toplevel {
 func (p *parser) area() ast.Toplevel {
 	a := new(ast.Area)
 	a.TopStruct = p.topStructHead()
-	for {
-		if p.tok == "}" {
-			a.Next = p.pos + 1
-			p.next()
-			break
-		} else if p.tok == "border" {
+	for !p.check("}") {
+		if p.tok == "border" {
 			a.Border = p.namedUnion()
 		} else if p.tok == "inclusive_border" {
 			a.InclusiveBorder = p.namedUnion()
@@ -627,12 +638,7 @@ func (p *parser) area() ast.Toplevel {
 
 func (p *parser) topStruct() ast.Toplevel {
 	a := p.topStructHead()
-	for {
-		if p.tok == "}" {
-			a.Next = p.pos + 1
-			p.next()
-			break
-		}
+	for !p.check("}") {
 		a.Attributes = append(a.Attributes, p.attributeNoToplevel())
 	}
 	return &a
@@ -671,12 +677,11 @@ func (p *parser) toplevel() ast.Toplevel {
 
 // Read source files
 func (p *parser) file() []ast.Toplevel {
-	var list []ast.Toplevel
+	var result []ast.Toplevel
 	for p.tok != "" {
-		list = append(list, p.toplevel())
+		result = append(result, p.toplevel())
 	}
-
-	return list
+	return result
 }
 
 // A bailout panic is raised to indicate early termination.
@@ -688,7 +693,9 @@ func (p *parser) abort(e error) {
 	panic(bailout{err: e})
 }
 
-func ParseFile(src []byte, fileName string) (l []ast.Toplevel, err error) {
+func ParseFile(
+	src []byte, fileName string, mode Mode) (f *ast.File, err error) {
+
 	p := new(parser)
 	defer func() {
 		if e := recover(); e != nil {
@@ -701,8 +708,12 @@ func ParseFile(src []byte, fileName string) (l []ast.Toplevel, err error) {
 		}
 	}()
 
-	p.init(src, fileName)
-	l = p.file()
+	p.init(src, fileName, mode)
+	f = new(ast.File)
+	f.Nodes = p.file()
+	if p.parseComments {
+		f.BottomCmt = p.scanner.PreCmt(len(src), "")
+	}
 	return
 }
 
@@ -721,7 +732,7 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 	}()
 
 	src = append(src, ';')
-	p.init(src, "command line")
+	p.init(src, "command line", 0)
 	list, end := p.union(";")
 	if end != len(src) {
 		p.syntaxErr(`Unexpected content after ";"`)

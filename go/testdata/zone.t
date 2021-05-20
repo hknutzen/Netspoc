@@ -234,6 +234,42 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=Get hosts also from subnet
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; host:h10 = { ip = 10.1.2.10; } }
+network:n2Sub = {
+ ip = 10.1.2.32/27;
+ subnet_of = network:n2;
+ host:h40 = { ip = 10.1.2.40; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n2Sub = { ip = 10.1.2.33; }
+}
+service:s1 = {
+ user = host:[network:n2];
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- r1
+! n2_in
+object-group network g0
+ network-object host 10.1.2.10
+ network-object host 10.1.2.40
+access-list n2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Prevent duplicate hosts from zone cluster in area
 =INPUT=
 area:n1-2 = { border = interface:r2.n2; }

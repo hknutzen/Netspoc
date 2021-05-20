@@ -12,7 +12,7 @@ cut-netspoc [options] FILE|DIR [service:name] ...
 =head1 DESCRIPTION
 
 Reads a Netspoc configuration && prints parts of this configuration
-to STDOUT. If one || more services are given as argument, only those
+to STDOUT. If one or more services are given as argument, only those
 parts are printed, that are referenced by given serices. If no service
 is given, it acts as if all services are specified. This is useful to
 eliminate all disabled parts of the topology.
@@ -35,18 +35,18 @@ Prints a brief help message && exits.
 
 http://hknutzen.github.com/Netspoc
 
-This program is free software; you can redistribute it &&/|| modify
+This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, ||
+the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY || FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along
-with this program; if !, write to the Free Software Foundation, Inc.,
+with this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
@@ -944,7 +944,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 		active = append(active, top)
 	}
-	out := printer.File(active, nil)
+	f := new(ast.File)
+	f.Nodes = active
+	out := printer.File(f)
 	os.Stdout.Write(out)
 }
 

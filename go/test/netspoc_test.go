@@ -11,7 +11,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -110,7 +109,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		if d.FOption != "" {
 			dir := t.TempDir()
 			name := path.Join(dir, "file")
-			if err := ioutil.WriteFile(name, []byte(d.FOption), 0644); err != nil {
+			if err := os.WriteFile(name, []byte(d.FOption), 0644); err != nil {
 				t.Fatal(err)
 			}
 			os.Args = append(os.Args, "-f", name)
@@ -197,12 +196,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			case stdoutT, outDirStdoutT:
 				got = stdout
 			case chgInputT:
-				// Read changed file.
-				data, err := ioutil.ReadFile(path.Join(inDir, "INPUT"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				got = string(data)
+				got = inDir
 			}
 			tc.check(t, d.Output, got)
 		}
@@ -252,7 +246,7 @@ func netspocCheck(t *testing.T, spec, dir string) {
 	}
 	sort.Strings(devices)
 	for _, device := range devices {
-		data, err := ioutil.ReadFile(path.Join(dir, device))
+		data, err := os.ReadFile(path.Join(dir, device))
 		if err != nil {
 			t.Error(err)
 		}
@@ -317,7 +311,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 		block := spec[start:end]
 
 		t.Run(pName, func(t *testing.T) {
-			data, err := ioutil.ReadFile(path.Join(dir, pName))
+			data, err := os.ReadFile(path.Join(dir, pName))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -326,14 +320,35 @@ func exportCheck(t *testing.T, spec, dir string) {
 	}
 }
 
-func chgInputCheck(t *testing.T, expected, got string) {
+func chgInputCheck(t *testing.T, spec, dir string) {
+	got := readChangedFiles(t, dir)
 	// Remove empty lines.
 	got = strings.ReplaceAll(got, "\n\n", "\n")
+	countEq(t, spec, got)
+}
+
+func formatCheck(t *testing.T, expected, dir string) {
+	got := readChangedFiles(t, dir)
 	countEq(t, expected, got)
 }
 
-func formatCheck(t *testing.T, expected, got string) {
-	countEq(t, expected, got)
+func readChangedFiles(t *testing.T, dir string) string {
+	var got string
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(path.Join(dir, file.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !(len(files) == 1 && file.Name() == "INPUT") {
+			got += "-- " + file.Name() + "\n"
+		}
+		got += string(data)
+	}
+	return got
 }
 
 func stdoutCheck(t *testing.T, expected, stdout string) {

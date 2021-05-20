@@ -1,26 +1,30 @@
 
 ############################################################
-=TITLE=Verbose output
+=TITLE=Abort, if no group definition found
 =INPUT=
-group:g1 =
- host:c,
- host:d,
-;
 group:g2 =
  group:g1,
  host:a,
  host:b;
 =END=
+=ERROR=
+Error: No defintion found for 'group:g1'
+=PARAMS=group:g1
+
+############################################################
+=TITLE=Substitute empty group
+=INPUT=
+group:g2 =
+ group:g1,
+ host:a,
+ host:b,
+;
+group:g1 = ;
 =OUTPUT=
 group:g2 =
  host:a,
  host:b,
- host:c,
- host:d,
 ;
-=WARNING=
-Changed INPUT
-=OPTIONS=--quiet=false
 =PARAMS=group:g1
 
 ############################################################
@@ -152,5 +156,53 @@ group:g1 = host:a;
 =ERROR=
 Error: Expected group name but got 'bad:name'
 =PARAMS=bad:name
+
+############################################################
+=TITLE=Substitute into different files and preserve comments
+=INPUT=
+-- file1
+group:g1 =
+ host:a, # comment a
+ host:b, # comment b
+;
+--file2
+group:g2 =
+ group:g1, # comment g1
+;
+-- file3
+pathrestriction:r = group:g1;
+-- file4
+group:g3 =
+ group:g1
+ &! host:b
+ ,
+;
+=OUTPUT=
+-- file1
+group:g1 =
+ host:a, # comment a
+ host:b, # comment b
+;
+-- file2
+group:g2 =
+ host:a, # comment a
+ host:b, # comment b
+;
+-- file3
+pathrestriction:r =
+ host:a, # comment a
+ host:b, # comment b
+;
+-- file4
+group:g3 =
+ group:g1
+ &! host:b
+ ,
+;
+=WARNING=
+Changed file2
+Changed file3
+=OPTIONS=--quiet=false
+=PARAMS=group:g1
 
 ############################################################

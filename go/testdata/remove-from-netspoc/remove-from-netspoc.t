@@ -412,7 +412,7 @@ group:g1 =
 =END=
 =OUTPUT=
 group:g1 =
- description = host:a, host:b, ;
+ description = host:a, host:b,
  host:a,
 ;
 =END=

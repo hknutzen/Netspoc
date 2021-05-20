@@ -20,9 +20,10 @@ import ()
 // when printing the construct.
 
 type Node interface {
-	Pos() int  // position of first character belonging to the node
-	End() int  // position of first character immediately after the node
-	ClearPos() // Reset position; needed if element is inserted in other file
+	PreComment() string  // Comment in line(s) before node, if available.
+	PostComment() string // Trailing comment, if available.
+	SetPreComment(string)
+	SetPostComment(string)
 	Order()
 }
 
@@ -47,23 +48,19 @@ type Toplevel interface {
 // ----------------------------------------------------------------------------
 
 type Base struct {
-	Start int
+	preCmt  string
+	postCmt string
 }
 
-func (a *Base) Pos() int  { return a.Start }
-func (a *Base) ClearPos() { a.Start = -1 }
-
-type withEnd struct {
-	Next int
-}
-
-func (a *withEnd) End() int { return a.Next }
+func (a *Base) PreComment() string      { return a.preCmt }
+func (a *Base) PostComment() string     { return a.postCmt }
+func (a *Base) SetPreComment(c string)  { a.preCmt = c }
+func (a *Base) SetPostComment(c string) { a.postCmt = c }
 
 type User struct {
 	Base
 }
 
-func (a *User) End() int        { return a.Pos() + len("user") }
 func (a *User) GetType() string { return "user" }
 func (a *User) GetName() string { return "user" }
 
@@ -80,14 +77,10 @@ type NamedRef struct {
 	Name string
 }
 
-func (a *NamedRef) End() int {
-	return a.Pos() + len(a.Type) + 1 + len(a.Name)
-}
 func (a *NamedRef) GetName() string { return a.Name }
 
 type IntfRef struct {
 	TypedElt
-	withEnd
 	Router    string
 	Network   string
 	Extension string
@@ -105,7 +98,6 @@ func (a *IntfRef) GetName() string {
 
 type SimpleAuto struct {
 	TypedElt
-	withEnd
 	Elements []Element
 }
 
@@ -131,7 +123,6 @@ type Complement struct {
 	Element Element
 }
 
-func (a *Complement) End() int        { return a.Element.End() }
 func (a *Complement) GetType() string { return "" }
 func (a *Complement) GetName() string { return "" }
 
@@ -140,21 +131,16 @@ type Intersection struct {
 	Elements []Element
 }
 
-func (a *Intersection) End() int {
-	return a.Elements[len(a.Elements)-1].End()
-}
 func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
 func (a *Intersection) GetName() string { return a.Elements[0].GetType() }
 
 type Description struct {
 	Base
-	withEnd
 	Text string
 }
 
 type TopBase struct {
 	Base
-	withEnd
 	Name        string
 	Description *Description
 	fileName    string
@@ -197,11 +183,8 @@ type Value struct {
 	Value string
 }
 
-func (a *Value) End() int { return a.Pos() + len(a.Value) }
-
 type Attribute struct {
 	Base
-	withEnd
 	Name string
 	// Only one of those fields may be filled.
 	ValueList    []*Value
@@ -210,14 +193,12 @@ type Attribute struct {
 
 type NamedUnion struct {
 	Base
-	withEnd
 	Name     string
 	Elements []Element
 }
 
 type Rule struct {
 	Base
-	withEnd
 	Deny bool
 	Src  *NamedUnion
 	Dst  *NamedUnion
@@ -246,4 +227,11 @@ type Area struct {
 	TopStruct
 	Border          *NamedUnion
 	InclusiveBorder *NamedUnion
+}
+
+// ----------------------------------------------------------------------------
+
+type File struct {
+	Nodes     []Toplevel
+	BottomCmt string
 }

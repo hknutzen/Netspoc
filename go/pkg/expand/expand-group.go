@@ -18,7 +18,7 @@ is substituted by elements of corresponding group definition.
 GROUP-NAME is given with type as "group:NAME". Substitution occurs
 textual, groups in groups are not expanded. Groups referenced in
 intersection or complement are not substituted. In this case the group
-definition is left unchenged.
+definition is left unchanged.
 
 Changes are done in place, no backup files are created. But only
 changed files are touched.
@@ -62,16 +62,16 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
 	"github.com/spf13/pflag"
-	"io/ioutil"
 	"os"
 	"strings"
 )
 
 type state struct {
 	*astset.State
-	expand  map[string][]ast.Element
-	retain  map[string]bool
-	changed bool
+	expand   map[string]bool
+	elements map[string][]ast.Element
+	retain   map[string]bool
+	changed  bool
 }
 
 func Main() int {
@@ -134,14 +134,18 @@ func Main() int {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	s.process(names)
+	err = s.process(names)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		return 1
+	}
 	s.Print()
 	return 0
 }
 
 func readNames(path string) ([]string, error) {
 	var result []string
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return result, fmt.Errorf("Can't %s", err)
 	}
@@ -161,39 +165,40 @@ func checkNames(names []string) error {
 	return nil
 }
 
-func (s *state) process(names []string) {
+func (s *state) process(names []string) error {
 
-	s.expand = make(map[string][]ast.Element)
+	s.expand = make(map[string]bool)
+	s.elements = make(map[string][]ast.Element)
 	s.retain = make(map[string]bool)
 	for _, name := range names {
-		s.expand[name] = nil
+		s.expand[name] = true
 	}
 
 	// Collect elements from definitions of to be expanded groups.
 	s.Modify(func(n ast.Toplevel) bool {
 		name := n.GetName()
-		if _, found := s.expand[name]; found {
+		if s.expand[name] {
 			group, _ := n.(*ast.TopList)
-			s.expand[name] = group.Elements
-			// Reset position because we must not reference comments
-			// when element is moved to other file.
-			for _, el := range group.Elements {
-				el.ClearPos()
-			}
-
+			s.elements[name] = group.Elements
 		}
 		return false
 	})
 
+	for name := range s.expand {
+		if _, found := s.elements[name]; !found {
+			return fmt.Errorf("No defintion found for '%s'", name)
+		}
+	}
+
 	// Repeatedly expand groups in collected elements.
-	for name, l := range s.expand {
+	for name, l := range s.elements {
 		for {
 			s.changed = false
 			s.elementList(&l)
 			if !s.changed {
 				break
 			}
-			s.expand[name] = l
+			s.elements[name] = l
 		}
 	}
 
@@ -210,6 +215,7 @@ func (s *state) process(names []string) {
 	for _, file := range s.Changed() {
 		info.Msg("Changed %s", file)
 	}
+	return nil
 }
 
 func (s *state) toplevel(n ast.Toplevel) bool {
@@ -240,7 +246,7 @@ func (s *state) elementList(l *([]ast.Element)) {
 		if obj, ok := n.(*ast.NamedRef); ok {
 			name := obj.Type + ":" + obj.Name
 			// Leave out found group but add its elements.
-			if vals, found := s.expand[name]; found {
+			if vals, found := s.elements[name]; found {
 				mod = append(mod, vals...)
 				s.changed = true
 				continue

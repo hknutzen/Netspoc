@@ -384,7 +384,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					restricted := false
 					for obj, _ := range objects {
 						if obj.getOwner() != nil &&
-							obj.getAttr(multiOwnerAttr) == restrictVal {
+							getAttr(obj, multiOwnerAttr) == restrictVal {
 							restricted = true
 							break
 						}
@@ -429,7 +429,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					seen := make(map[string]bool)
 					for obj, _ := range objects {
 						if obj.getOwner() != nil {
-							if obj.getAttr(multiOwnerAttr) != okVal {
+							if getAttr(obj, multiOwnerAttr) != okVal {
 								ok = false
 							}
 							name := obj.getOwner().name[len("owner:"):]
@@ -456,7 +456,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				} else {
 					for obj, _ := range objects {
 						if obj.getOwner() == nil &&
-							obj.getAttr(unknownOwnerAttr) == restrictVal {
+							getAttr(obj, unknownOwnerAttr) == restrictVal {
 							c.warn("Must not use attribute 'unknown_owner' at %s", svc)
 							break
 						}
@@ -465,7 +465,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			} else if hasUnknown && conf.Conf.CheckServiceUnknownOwner != "" {
 				for obj, _ := range objects {
 					if obj.getOwner() == nil &&
-						obj.getAttr(unknownOwnerAttr) != okVal {
+						getAttr(obj, unknownOwnerAttr) != okVal {
 
 						unknown2services[obj] =
 							append(unknown2services[obj], svc.name)

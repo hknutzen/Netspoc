@@ -36,6 +36,33 @@ group:g1 =
 =END=
 
 ############################################################
+=TITLE=Ignore trailing ';' in description and empty description
+=INPUT=
+group:g1 =
+ description =
+ host:h1;
+group:g2 =
+ description = ;
+ host:h1;
+group:g3 =
+ description = ; ;
+ host:h1;
+=END=
+=OUTPUT=
+group:g1 =
+ host:h1,
+;
+
+group:g2 =
+ host:h1,
+;
+
+group:g3 =
+ host:h1,
+;
+=END=
+
+############################################################
 =TITLE=Group with union, intersection, complement
 =INPUT=
 group:g1 =
@@ -52,6 +79,17 @@ group:g1 =
  ,
  network:n1,
  host:h1,
+;
+=END=
+
+############################################################
+=TITLE=Complement without intersection
+=INPUT=
+group:g1 = group:g2, !group:g3; # invalid but parseable.
+=OUTPUT=
+group:g1 =
+ ! group:g3,
+ group:g2,
 ;
 =END=
 
@@ -129,7 +167,7 @@ group:groß =
 # head1a
 # head2
 # This is g1
-group:g1 # g1 trailing
+group:g1 # IGNORED
 = # g1 trailing2
 # g1 post def
 description = This is a fine group;      # desc
@@ -149,10 +187,10 @@ host:h2, # after second
 # head1a
 # head2
 # This is g1
-group:g1 = # g1 trailing
+group:g1 =
  # g1 trailing2
  # g1 post def
- description = This is a fine group; # desc
+ description = This is a fine group # desc
 
  # desc post
  # desc post 2
@@ -170,12 +208,12 @@ group:g1 = # g1 trailing
 =INPUT=
 group:g1 =
    description # IGNORE
-   =  the text; # comment
+   =   the text; ;; # comment
 ;
 =END=
 =OUTPUT=
 group:g1 =
- description =  the text; # comment
+ description = the text # comment
 
 ;
 =END=
@@ -293,6 +331,13 @@ group:g1 =
   group:g3 # g3
  &! # &!
   host:h2, # h2
+  group:g4 &! # g4
+  host:h3 # h3
+  ,
+  group:g5
+  & # &
+  ! # !
+  host:h4
 ;
 =END=
 =OUTPUT=
@@ -305,6 +350,14 @@ group:g1 =
  & group:g3 # g3
  # &!
  &! host:h2 # h2
+ ,
+ group:g4 # g4
+ &! host:h3 # h3
+ ,
+ group:g5
+ # &
+ # !
+ &! host:h4
  ,
 ;
 =END=
@@ -507,6 +560,12 @@ service:s1 = {
 =TITLE=Service with empty user, src, dst, prt
 =INPUT=
 service:s1 = { user =; permit src =; dst =; prt =; }
+service:s2 = {
+user =; #user
+permit src =; #src
+       dst =   ;  #dst
+       prt =; #prt
+}
 =END=
 =OUTPUT=
 service:s1 = {
@@ -514,6 +573,13 @@ service:s1 = {
  permit src = ;
         dst = ;
         prt = ;
+}
+
+service:s2 = {
+ user = ; #user
+ permit src = ; #src
+        dst = ; #dst
+        prt = ; #prt
 }
 =END=
 
@@ -533,6 +599,51 @@ service:s1 = {
  ;
  permit src = user;
         dst = network:[user];
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Service with comment after one line
+=INPUT=
+service:s1 = {
+ user = host:h1, host:h2; #user
+ permit src = user; #src
+        dst = network:n1; #dst
+        prt = tcp 80, tcp 90; #prt
+}
+=END=
+=OUTPUT=
+service:s1 = {
+ user = host:h1,
+        host:h2, #user
+        ;
+ permit src = user; #src
+        dst = network:n1; #dst
+        prt = tcp 80,
+              tcp 90, #prt
+              ;
+}
+=END=
+
+############################################################
+=TITLE=Comment before and after permit/deny
+=INPUT=
+service:s1 = {
+ user = host:h1;
+ # action
+ permit #IGNORED
+        src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=END=
+=OUTPUT=
+service:s1 = {
+ user = host:h1;
+ # action
+ permit src = user;
+        dst = network:n1;
         prt = tcp 80;
 }
 =END=
@@ -676,10 +787,10 @@ network:n1 = { ip = 10.1.1.0/24;
  }
  radius_attributes = { banner = hello again; }
  nat:n2 = { ip = 8.1.1.0/24; }
-host:range3-5 = { range = 10.1.1.3-10.1.1.5; }
+host:range3-5 = { range = 10.1.1.3-10.1.1.5; } # range
 host:h2 = { ip = 10.1.1.2; radius_attributes={ banner= hello h2;}}
 host:h10 = { ip =10.1.1.10; owner = o1; }
-host:h9 = { ip =10.1.1.9; owner = o1; }
+host:h9 = { ip =10.1.1.9; owner = o1; } # h9
 host:long-name = { ip =10.1.1.66; owner = o1; }
 }
 =END=
@@ -697,8 +808,8 @@ network:n1 = {
    banner = hello h2;
   }
  }
- host:range3-5  = { range = 10.1.1.3 - 10.1.1.5; }
- host:h9        = { ip = 10.1.1.9; owner = o1; }
+ host:range3-5  = { range = 10.1.1.3 - 10.1.1.5; } # range
+ host:h9        = { ip = 10.1.1.9; owner = o1; } # h9
  host:h10       = { ip = 10.1.1.10; owner = o1; }
  host:long-name = { ip = 10.1.1.66; owner = o1; }
 }
@@ -710,7 +821,7 @@ network:n1 = {
 any:a1 = { link = network:n1; } # comment
 any:a1 = { link = network:n1; nat:x = { identity; } } # comment
 any:a1 = {
- link = network:n1; } # IGNORED
+ link = network:n1; } # comment
 any:a1 = { # comment
  link = network:n1; }
 any:a1 = # comment
@@ -719,8 +830,8 @@ any:a1 # comment
 = { link = network:n1; }
 =END=
 =OUTPUT=
-any:a1 = { # comment
- link = network:n1;
+any:a1 = {
+ link = network:n1; # comment
 }
 
 any:a1 = {
@@ -729,7 +840,7 @@ any:a1 = {
 }
 
 any:a1 = {
- link = network:n1;
+ link = network:n1; # comment
 }
 
 any:a1 = { # comment
@@ -761,9 +872,9 @@ network:n1 = {
  nat:x = { identity; } # comment
 }
 
-network:n1 = { # comment
+network:n1 = {
  nat:x = { identity; }
- ip = 10.1.1.0/24;
+ ip = 10.1.1.0/24; # comment
 }
 
 network:n1 = {
@@ -775,8 +886,11 @@ network:n1 = {
 ############################################################
 =TITLE=Short networks printed in one line and without blank line
 =INPUT=
+network:n0 = {
+ # Not simple
+ ip = 10.1.1.0/24;
+}
 network:n1 = {
- # IGNORED
  ip = 10.1.1.0/24;
 }
 network:nn2 = {
@@ -792,6 +906,11 @@ network:n8 = { ip = 10.1.8.0/24; }
 any:a = { link = network:n5; }
 =END=
 =OUTPUT=
+network:n0 = {
+ # Not simple
+ ip = 10.1.1.0/24;
+}
+
 network:n1     = { ip = 10.1.1.0/24; }
 network:nn2    = { ip = 10.1.2.0/24; } # After n2
 # Before n3
@@ -977,7 +1096,7 @@ pathrestriction:p1 =
 ############################################################
 =TITLE=Protocol definition
 =INPUT=
-protocol:all_ip = # trailing for toplevel at pos 0.
+protocol:all_ip = # IGNORE
  ip;
 protocol:http =
 tcp 80;
@@ -987,8 +1106,7 @@ protocol:all_icmp =
  icmp;
 =END=
 =OUTPUT=
-protocol:all_ip = # trailing for toplevel at pos 0.
- ip;
+protocol:all_ip = ip;
 
 protocol:http = tcp 80;
 

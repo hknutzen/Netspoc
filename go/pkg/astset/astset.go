@@ -11,10 +11,9 @@ import (
 )
 
 type State struct {
-	fileNodes [][]ast.Toplevel
-	sources   [][]byte
-	files     []string
-	changed   map[string]bool
+	astFiles []*ast.File
+	files    []string
+	changed  map[string]bool
 }
 
 func Read(netspocPath string) (*State, error) {
@@ -23,13 +22,12 @@ func Read(netspocPath string) (*State, error) {
 	err := filetree.Walk(netspocPath, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		nodes, err := parser.ParseFile(source, path)
+		aF, err := parser.ParseFile(source, path, parser.ParseComments)
 		if err != nil {
 			return err
 		}
-		s.fileNodes = append(s.fileNodes, nodes)
+		s.astFiles = append(s.astFiles, aF)
 		s.files = append(s.files, path)
-		s.sources = append(s.sources, source)
 		return nil
 	})
 	return s, err
@@ -48,7 +46,7 @@ func (s *State) Changed() []string {
 func (s *State) Print() {
 	for i, path := range s.files {
 		if s.changed[path] {
-			p := printer.File(s.fileNodes[i], s.sources[i])
+			p := printer.File(s.astFiles[i])
 			err := fileop.Overwrite(path, p)
 			if err != nil {
 				panic(err)
@@ -67,22 +65,21 @@ func (s *State) getFileIndex(file string) int {
 	if idx == -1 {
 		idx = len(s.files)
 		s.files = append(s.files, file)
-		s.fileNodes = append(s.fileNodes, nil)
-		s.sources = append(s.sources, nil)
+		s.astFiles = append(s.astFiles, new(ast.File))
 	}
 	return idx
 }
 
 func (s *State) GetFileNodes(file string) []ast.Toplevel {
 	idx := s.getFileIndex(file)
-	return s.fileNodes[idx]
+	return s.astFiles[idx].Nodes
 }
 
 func (s *State) Modify(f func(ast.Toplevel) bool) bool {
 	someModified := false
-	for i, nodes := range s.fileNodes {
+	for i, aF := range s.astFiles {
 		modified := false
-		for _, n := range nodes {
+		for _, n := range aF.Nodes {
 			if f(n) {
 				modified = true
 			}
@@ -111,16 +108,16 @@ func (s *State) ModifyObj(name string, f func(ast.Toplevel)) error {
 
 func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 	idx := s.getFileIndex(file)
-	nodes := s.fileNodes[idx]
-	cp := make([]ast.Toplevel, 0, len(nodes)+1)
+	aF := s.astFiles[idx]
+	cp := make([]ast.Toplevel, 0, len(aF.Nodes)+1)
 	inserted := false
 	typ, name := getTypeName(n.GetName())
 	nLower := strings.ToLower(name)
-	for i, toplevel := range nodes {
+	for i, toplevel := range aF.Nodes {
 		typ2, name2 := getTypeName(toplevel.GetName())
 		if typ2 == typ && strings.ToLower(name2) > nLower {
 			cp = append(cp, n)
-			cp = append(cp, nodes[i:]...)
+			cp = append(cp, aF.Nodes[i:]...)
 			inserted = true
 			break
 		}
@@ -129,15 +126,15 @@ func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 	if !inserted {
 		cp = append(cp, n)
 	}
-	s.fileNodes[idx] = cp
+	s.astFiles[idx].Nodes = cp
 	s.changed[file] = true
 }
 
 func (s *State) DeleteToplevel(name string) error {
 	found := false
-	for i, nodes := range s.fileNodes {
-		cp := make([]ast.Toplevel, 0, len(nodes))
-		for _, toplevel := range nodes {
+	for i, aF := range s.astFiles {
+		cp := make([]ast.Toplevel, 0, len(aF.Nodes))
+		for _, toplevel := range aF.Nodes {
 			if name == toplevel.GetName() {
 				found = true
 			} else {
@@ -145,7 +142,7 @@ func (s *State) DeleteToplevel(name string) error {
 			}
 		}
 		if found {
-			s.fileNodes[i] = cp
+			s.astFiles[i].Nodes = cp
 			s.changed[s.files[i]] = true
 			return nil
 		}

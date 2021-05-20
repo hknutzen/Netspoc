@@ -211,3 +211,75 @@ Warning: service:test is fully unenforceable
 =END=
 
 ############################################################
+=TITLE=Restrict has_unenforceable and ignore unenforceable at owner
+=INPUT=
+owner:o7 = { admins = a7@example.com; has_unenforceable = restrict; }
+owner:o8 = { admins = a8@example.com; has_unenforceable = ok; }
+owner:o11-14 = { admins = range@example.com; has_unenforceable = ok; }
+network:x = { ip = 10.1.1.0/24;
+ host:x7 = { ip = 10.1.1.7; owner = o7; }
+ host:x8 = { ip = 10.1.1.8; owner = o8; }
+ host:x9 = { ip = 10.1.1.9; }
+ host:r11-14 = { range = 10.1.1.11-10.1.1.14; owner = o11-14; }
+}
+router:r = {
+ model = IOS,FW;
+ managed;
+ interface:x = { ip = 10.1.1.1; hardware = e0; }
+ interface:y = { ip = 10.2.2.2; hardware = e1; }
+}
+network:y = { ip = 10.2.2.0/24;
+ host:y = { ip = 10.2.2.9; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = host:x7, host:x8;
+ permit src = user; dst = host:x7, host:y; prt = tcp 80;
+}
+service:s2 = {
+ user = host:x8, host:x9;
+ permit src = user; dst = host:x8, host:y; prt = tcp 81;
+}
+service:s3 = {
+ user = host:r11-14;
+ permit src = user; dst = host:x8, host:y; prt = tcp 82;
+}
+=WARNING=
+Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: service:s1 has unenforceable rules:
+ src=host:x7; dst=host:x7
+=END=
+
+############################################################
+=TITLE=Inherit attribute 'has_unenforceable' from nested areas
+=INPUT=
+area:all = { anchor = network:n1; has_unenforceable = restrict; }
+area:a23 = { inclusive_border = interface:r1.n1; }
+area:a2 = { border = interface:r1.n2; }
+area:a3 = { border = interface:r1.n3; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ has_unenforceable;
+ user = network:n2, network:n3;
+ permit src = user; dst = network:n2, network:n3; prt = tcp 80;
+}
+=END=
+# Warning about unenforceable rules between any:[network:n1] and
+# any:[network:n2] is suppressed.
+=WARNING=
+Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: service:s1 has unenforceable rules:
+ src=network:n2; dst=network:n2
+ src=network:n3; dst=network:n3
+=END=
+
+############################################################

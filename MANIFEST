@@ -122,10 +122,10 @@ go/pkg/pass2/cisco.go
 go/pkg/pass2/linux.go
 go/pkg/pass2/protocol.go
 go/pkg/pass2/spoc2.go
-go/pkg/printer/comment.go
 go/pkg/printer/printer.go
 go/pkg/removefrom/remove-from-netspoc.go
 go/pkg/rename/rename-netspoc.go
+go/pkg/scanner/comment.go
 go/pkg/scanner/scanner.go
 go/test/capture/capture.go
 go/test/netspoc_test.go

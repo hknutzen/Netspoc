@@ -65,10 +65,8 @@ type ipVxGroupObj interface {
 }
 
 type srvObj interface {
-	ownerer
+	withAttr
 	String() string
-	getAttr(attr attrKey) attrVal
-	getNetwork() *network
 	getUsed() bool
 	setUsed()
 }
@@ -79,11 +77,10 @@ func (a *srvObjList) push(e srvObj) {
 }
 
 type someObj interface {
+	withAttr
 	String() string
-	getNetwork() *network
 	getUp() someObj
 	address(m natMap) netaddr.IPPrefix
-	getAttr(attr attrKey) attrVal
 	getPathNode() pathStore
 	getZone() pathObj
 }
@@ -121,6 +118,11 @@ func (x *usedObj) setUsed()      { x.isUsed = true }
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
+}
+
+type withAttr interface {
+	ownerer
+	getNetwork() *network
 }
 
 const (
@@ -401,6 +403,7 @@ type idIntf struct {
 
 type owner struct {
 	admins              stringList
+	attr                attrStore
 	extendedBy          []*owner
 	hideFromOuterOwners bool
 	isUsed              bool
@@ -489,7 +492,6 @@ type zone struct {
 	pathObjData
 	name                 string
 	networks             netList
-	attr                 attrStore
 	hasIdHosts           bool
 	hasSecondary         bool
 	hasNonPrimary        bool
@@ -608,14 +610,11 @@ type service struct {
 	ruleCount                  int
 	duplicateCount             int
 	redundantCount             int
-	hasSameDupl                map[*service]bool
 	hasUnenforceable           bool
 	hasUnenforceableRestricted bool
 	identicalBody              []*service
 	multiOwner                 bool
 	overlaps                   []*service
-	overlapsUsed               map[*service]bool
-	overlapsRestricted         bool
 	owners                     []*owner
 	seenEnforceable            bool
 	seenUnenforceable          map[objPair]bool

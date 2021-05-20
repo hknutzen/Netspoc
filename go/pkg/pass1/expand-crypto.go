@@ -221,6 +221,7 @@ func (c *spoc) expandCrypto() {
 	var managedCryptoHubs []*router
 	hubSeen := make(map[*router]bool)
 	id2intf := make(map[string]intfList)
+	hasTunnel := make(map[*network]bool)
 
 	sorted := make([]*crypto, 0, len(symTable.crypto))
 	for _, cr := range symTable.crypto {
@@ -264,6 +265,7 @@ func (c *spoc) expandCrypto() {
 				allNetworks := c.cryptoBehind(intf, managed)
 				if net.hasIdHosts {
 					hasIdHosts = true
+					hasTunnel[net] = true
 					idRules := hub.idRules
 					if idRules == nil {
 						idRules = make(map[string]*idIntf)
@@ -473,6 +475,14 @@ func (c *spoc) expandCrypto() {
 					c.verifyAsaTrustpoint(r, intf.getCrypto())
 				}
 			}
+		}
+	}
+
+	for _, n := range c.allNetworks {
+		if !n.isAggregate && n.hasIdHosts && !hasTunnel[n] {
+			c.err(
+				"%s having ID hosts must be connected to router with crypto spoke",
+				n)
 		}
 	}
 }

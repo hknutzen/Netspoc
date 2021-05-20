@@ -1243,6 +1243,92 @@ Warning: Useless delete of interface:r.y in user of service:test
 =END=
 
 ############################################################
+=TITLE=Find interfaces of subnet in area, incl. loopback
+=VAR=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3Sup = { ip = 10.1.3.0/24; }
+network:n3 = { ip = 10.1.3.0/25; subnet_of = network:n3Sup; }
+network:n4Sup = { ip = 10.1.4.0/24; }
+network:n4 = { ip = 10.1.4.0/25; subnet_of = network:n4Sup; }
+network:trans = { unnumbered; }
+area:a3-4 = { inclusive_border = interface:r2.n2; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:lo = { ip = 10.9.9.1; hardware = lo; loopback; }
+ interface:n3Sup = { ip = 10.1.3.129; hardware = n3Sup; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r3 = {
+ interface:n3Sup = { ip = 10.1.3.130; hardware = n3Sup; }
+ interface:trans = { unnumbered; }
+}
+router:r4 = {
+ interface:trans = { unnumbered; }
+ interface:lo = { ip = 10.9.9.2; hardware = lo; loopback; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r5 = {
+ interface:n4 = { ip = 10.1.4.2; }
+ interface:n4Sup = { ip = 10.1.4.129; hardware = n4Sup; }
+}
+=INPUT=
+${input}
+service:test = {
+ user = interface:[area:a3-4].[all] ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n2_in
+object-group network g0
+ network-object host 10.1.2.2
+ network-object host 10.1.3.1
+ network-object host 10.1.3.129
+ network-object host 10.1.3.130
+ network-object host 10.1.4.1
+ network-object host 10.1.4.2
+ network-object host 10.1.4.129
+ network-object host 10.9.9.1
+ network-object host 10.9.9.2
+access-list n2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Find interfaces of subnet in area, no managed loopback
+=INPUT=
+${input}
+service:test = {
+ user = interface:[network:[area:a3-4]].[all] ;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! n2_in
+object-group network g0
+ network-object host 10.1.3.1
+ network-object host 10.1.3.129
+ network-object host 10.1.3.130
+ network-object host 10.1.4.1
+ network-object host 10.1.4.2
+ network-object host 10.1.4.129
+ network-object host 10.9.9.2
+access-list n2_in extended permit tcp object-group g0 10.1.1.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
 =TITLE=Must not use auto interface of host
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }

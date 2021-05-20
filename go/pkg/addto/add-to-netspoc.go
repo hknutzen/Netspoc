@@ -52,14 +52,14 @@ Prints a brief help message and exits.
 
 http://hknutzen.github.com/Netspoc
 
-This program is free software; you can redistribute it &&/|| modify
+This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, ||
+the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY || FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along
@@ -77,7 +77,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"io/ioutil"
 	"os"
 	"regexp"
 	"strings"
@@ -174,20 +173,20 @@ func processFile(l []ast.Toplevel) int {
 func processInput(input *filetree.Context) error {
 	source := []byte(input.Data)
 	path := input.Path
-	nodes, err := parser.ParseFile(source, path)
+	astFile, err := parser.ParseFile(source, path, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	count := processFile(nodes)
+	count := processFile(astFile.Nodes)
 	if count == 0 {
 		return nil
 	}
 
 	info.Msg("%d changes in %s", count, path)
-	for _, n := range nodes {
+	for _, n := range astFile.Nodes {
 		n.Order()
 	}
-	copy := printer.File(nodes, source)
+	copy := printer.File(astFile)
 	return fileop.Overwrite(path, copy)
 }
 
@@ -207,7 +206,7 @@ func setupPairs(pairs []string) error {
 }
 
 func readPairs(path string) error {
-	bytes, err := ioutil.ReadFile(path)
+	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}

@@ -118,7 +118,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			if svc.identicalBody != nil {
 				for _, ri := range riList {
 					for _, obj := range ri.objects {
-						if obj.getAttr(identicalBodyAttr) == restrictVal {
+						if getAttr(obj, identicalBodyAttr) == restrictVal {
 							c.warn("Must not use attribute 'identical_body' in %s",
 								svc)
 							break
@@ -135,7 +135,7 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			ok := true
 			for _, ri := range riList {
 				for _, obj := range ri.objects {
-					if obj.getAttr(identicalBodyAttr) != okVal {
+					if getAttr(obj, identicalBodyAttr) != okVal {
 						ok = false
 					}
 				}

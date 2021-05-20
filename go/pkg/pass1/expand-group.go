@@ -112,6 +112,18 @@ func (c *spoc) removeDuplicates(list groupObjList, ctx string) groupObjList {
 	return list
 }
 
+// Find subnets of given networks.
+func getSubnets(l netList) netList {
+	var result netList
+	for _, n := range l {
+		if subnets := n.networks; len(subnets) > 0 {
+			result = append(result, subnets...)
+			result = append(result, getSubnets(subnets)...)
+		}
+	}
+	return result
+}
+
 func (c *spoc) expandIntersection(
 	l []ast.Element, ctx string, ipv6, visible, withSubnets bool) groupObjList {
 
@@ -239,7 +251,7 @@ func (c *spoc) expandGroup1(
 			selector, managed := x.Selector, x.Managed
 			subObjects := c.expandGroup1(
 				x.Elements, "interface:[..].["+selector+"] of "+ctx,
-				ipv6, false, false)
+				ipv6, false, true)
 			routerSeen := make(map[*router]bool)
 			for _, obj := range subObjects {
 				obj.setUsed()
@@ -312,48 +324,45 @@ func (c *spoc) expandGroup1(
 					seen := make(map[*router]bool)
 
 					// Don't add routers at border of this area.
+					// But note: Interfaces of attribute inclusive_border
+					// are located inside the area.
 					for _, intf := range x.border {
 						seen[intf.router] = true
 					}
 
-					// Add routers at border of security zones inside
-					// current area.
-					for _, z := range x.zones {
-						for _, intf := range z.interfaces {
-							r := intf.router
-							if !seen[r] {
-								seen[r] = true
-								routers = append(routers, r)
-							}
-						}
-					}
 					if managed {
 
-						// Remove semi managed routers.
-						j := 0
-						for _, r := range routers {
-							if r.managed != "" || r.routingOnly {
-								routers[j] = r
-								j++
+						// Add managed routers at border of security zones
+						// inside current area.
+						for _, z := range x.zones {
+							for _, intf := range z.interfaces {
+								r := intf.router
+								if !seen[r] && (r.managed != "" || r.routingOnly) {
+									seen[r] = true
+									routers = append(routers, r)
+								}
 							}
 						}
-						routers = routers[:j]
 					} else {
 						for _, z := range x.zones {
-							for _, n := range z.networks {
-								for _, intf := range n.interfaces {
-									r := intf.router
-									if !seen[r] {
-										seen[r] = true
-										routers = append(routers, r)
+							add := func(l netList) {
+								for _, n := range l {
+									for _, intf := range n.interfaces {
+										r := intf.router
+										if !seen[r] {
+											seen[r] = true
+											routers = append(routers, r)
+										}
 									}
 								}
 							}
+							add(z.networks)
+							add(getSubnets(z.networks))
 						}
 					}
 					if selector == "all" {
 						for _, r := range routers {
-							for _, intf := range getIntf(r) {
+							for _, intf := range r.interfaces {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -505,9 +514,9 @@ func (c *spoc) expandGroup1(
 					if len(list) > 0 {
 						for _, agg := range list {
 
-							// Check type, because getAggregates
-							// eventually returns non aggregate network if
-							// one matches 0/0.
+							// Check type, because getAggregates potentially
+							// returns non aggregate network if one matches
+							// 0/0.
 							if agg.isAggregate {
 								result = append(result, agg.networks...)
 							} else {
@@ -519,17 +528,6 @@ func (c *spoc) expandGroup1(
 					}
 				}
 				if withSubnets {
-					var getSubnets func(l netList) netList
-					getSubnets = func(l netList) netList {
-						var result netList
-						for _, n := range l {
-							if subnets := n.networks; len(subnets) > 0 {
-								result = append(result, subnets...)
-								result = append(result, getSubnets(subnets)...)
-							}
-						}
-						return result
-					}
 					result = append(result, getSubnets(result)...)
 				}
 				return result

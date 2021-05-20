@@ -31,7 +31,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"inet.af/netaddr"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"sort"
@@ -292,7 +291,7 @@ type routerData struct {
 
 func readJSON(path string) *routerData {
 	jData := new(jcode.RouterData)
-	data, e := ioutil.ReadFile(path)
+	data, e := os.ReadFile(path)
 	if e != nil {
 		panic(e)
 	}

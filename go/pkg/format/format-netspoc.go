@@ -16,14 +16,14 @@ import (
 func processInput(input *filetree.Context) error {
 	source := []byte(input.Data)
 	path := input.Path
-	list, err := parser.ParseFile(source, path)
+	aF, err := parser.ParseFile(source, path, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	for _, n := range list {
+	for _, n := range aF.Nodes {
 		n.Order()
 	}
-	copy := printer.File(list, source)
+	copy := printer.File(aF)
 
 	if bytes.Compare(source, copy) == 0 {
 		return nil

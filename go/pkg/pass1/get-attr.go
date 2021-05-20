@@ -26,20 +26,15 @@ func getAttrFromArea(k attrKey, obj *area) attrVal {
 	}
 	if a := obj.inArea; a != nil {
 		v := getAttrFromArea(k, a)
-		obj.attr[k] = v
+		obj.attr[k] = v // Cache inherited value at smaller area.
 		return v
 	}
 	return enableVal
 }
 
 func getAttrFromZone(k attrKey, obj *zone) attrVal {
-	if v := obj.attr[k]; v != unsetVal {
-		return v
-	}
 	if a := obj.inArea; a != nil {
-		v := getAttrFromArea(k, a)
-		obj.attr[k] = v
-		return v
+		return getAttrFromArea(k, a)
 	}
 	return enableVal
 }
@@ -50,7 +45,7 @@ func getAttrFromNetwork(k attrKey, obj *network) attrVal {
 	}
 	if up := obj.up; up != nil {
 		v := getAttrFromNetwork(k, up)
-		obj.attr[k] = v
+		obj.attr[k] = v // Cache inherited value at smaller network.
 		return v
 	}
 	v := getAttrFromZone(k, obj.zone)
@@ -58,15 +53,11 @@ func getAttrFromNetwork(k attrKey, obj *network) attrVal {
 	return v
 }
 
-func (obj *network) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj)
-}
-func (obj *subnet) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
-}
-func (obj *host) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
-}
-func (obj *routerIntf) getAttr(k attrKey) attrVal {
-	return getAttrFromNetwork(k, obj.network)
+func getAttr(obj withAttr, k attrKey) attrVal {
+	if o := obj.getOwner(); o != nil {
+		if v := o.attr[k]; v != unsetVal {
+			return v
+		}
+	}
+	return getAttrFromNetwork(k, obj.getNetwork())
 }
