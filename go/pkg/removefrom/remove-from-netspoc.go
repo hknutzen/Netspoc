@@ -183,9 +183,6 @@ func (s *state) readObjects(path string) error {
 		return fmt.Errorf("Can't %s", err)
 	}
 	objects := strings.Fields(string(bytes))
-	if len(objects) == 0 {
-		return fmt.Errorf("Missing objects in %s", path)
-	}
 	return s.setupObjects(objects)
 }
 
