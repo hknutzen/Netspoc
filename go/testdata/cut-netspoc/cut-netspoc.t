@@ -1,4 +1,33 @@
+############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [service:name ...]
+  -6, --ipv6    Expect IPv6 definitions
+  -o, --owner   Keep referenced owners
+  -q, --quiet   Don't print progress messages
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=-x
+=ERROR=
+Error: unknown shorthand flag: 'x' in -x
+=END=
+
+############################################################
+=TITLE=Unknown service
+=INPUT=NONE
+=PARAMS=other_service
+=ERROR=
+Warning: Ignoring file 'INPUT' without any content
+Error: Unknown service:other_service
+=END=
+
 =VAR=topo
+owner:o2 = { admins = a2@example.com; }
 network:n1 = { ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
  host:h11 = { ip = 10.1.1.11; }
@@ -13,7 +42,7 @@ router:asa1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
- interface:n2 = { ip = 10.1.2.2; }
+ interface:n2 = { ip = 10.1.2.2; owner = o2; }
  interface:n3;
 }
 =END=
@@ -81,7 +110,15 @@ service:s2 = {
         prt = tcp 81;
 }
 =END=
-=PARAMS=service:s2 service:s3
+=PARAMS=s2 service:s3
+
+############################################################
+=TITLE=Unknown service selected
+=INPUT=
+${topo}
+=ERROR=
+Error: Unknown service:s1
+=PARAMS=service:s1
 
 ############################################################
 =TITLE=Simple service, remove one host
@@ -331,7 +368,7 @@ ${topo}
 area:n2 = { border = interface:asa1.n2;  owner = foo; }
 owner:foo = { admins = a@example.com; }
 service:test = {
-    user = network:n2;
+    user = interface:asa2.n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
 =END=
@@ -345,8 +382,11 @@ router:asa1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+}
 service:test = {
- user = network:n2;
+ user = interface:asa2.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp;
@@ -357,6 +397,9 @@ service:test = {
 =TITLE=Keep area with owner
 =INPUT=${input}
 =OUTPUT=
+owner:o2 = {
+ admins = a2@example.com;
+}
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -364,6 +407,9 @@ router:asa1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; owner = o2; }
 }
 area:n2 = {
  owner = foo;
@@ -373,7 +419,7 @@ owner:foo = {
  admins = a@example.com;
 }
 service:test = {
- user = network:n2;
+ user = interface:asa2.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp;
