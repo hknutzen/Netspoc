@@ -3,7 +3,6 @@
 package scanner
 
 import (
-	"bytes"
 	"strings"
 )
 
@@ -113,14 +112,6 @@ READ:
 			}
 			pos++
 		}
-	}
-	return ""
-}
-
-// Read trailing comment if whole definition is at one line.
-func (s *Scanner) PostCmtIfOneLine(start, end int, ign string) string {
-	if bytes.IndexByte(s.src[start:end], '\n') == -1 {
-		return s.PostCmt(end, ign)
 	}
 	return ""
 }
