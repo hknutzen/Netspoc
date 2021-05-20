@@ -143,6 +143,47 @@ Warning: These services have identical rule definitions.
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
+=TITLE=Equal rules with changed order in intersection.
+=INPUT=
+${topo}
+group:g1 = host:h10, host:h11;
+group:g2 = host:h11, host:h12;
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = group:g1 & group:g2; prt = tcp 80;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user; dst = group:g2 & group:g1; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
+=END=
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Changed complement.
+=INPUT=
+${topo}
+group:g1 = host:h10, host:h11, host:h12;
+group:g2 = host:h11;
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = group:g1 &! group:g2; prt = tcp 80;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user; dst = group:g1 & group:g2; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
 =TITLE=Changed order of equal rules (1)
 =INPUT=
 ${topo}
@@ -251,6 +292,22 @@ service:s1 = {
 service:s2 = {
  user = host:h11;
  permit src = user; dst = any:[ip=10.1.0.0/16 & network:n2]; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Equal rules with different 'managed' attribute in automatic group.
+=INPUT=
+${topo}
+service:s1 = {
+ user = host:h10;
+ permit src = user; dst = interface:[managed & network:n2].[all]; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h11;
+ permit src = user; dst = interface:[network:n2].[all]; prt = tcp 80;
 }
 =END=
 =WARNING=NONE
