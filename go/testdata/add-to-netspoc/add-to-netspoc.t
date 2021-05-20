@@ -169,18 +169,35 @@ group:abc =
 =TITLE=area in automatic group
 =INPUT=
 group:abc =
- any:[ ip = 10.1.0.0/16 & area:a1, ],
+ network:[area:a1],
 ;
 =END=
 =OUTPUT=
 group:abc =
- any:[ip = 10.1.0.0/16 &
+ network:[
   area:a1,
   area:a2,
  ],
 ;
 =END=
 =PARAMS=area:a1 area:a2
+
+############################################################
+=TITLE=Automatic interface group
+=INPUT=
+group:abc =
+ interface:[network:n1].[all],
+;
+=END=
+=OUTPUT=
+group:abc =
+ interface:[
+  network:n1,
+  network:n2,
+ ].[all],
+;
+=END=
+=PARAMS=network:n1 network:n2
 
 ############################################################
 =TITLE=in service, but not in area and pathrestriction
@@ -389,5 +406,17 @@ group:g1 = host:a;
 Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
 =END=
 =PARAMS=host:a name2
+
+############################################################
+=TITLE=Can't add to automatic group
+=INPUT=
+group:g1 =
+ any:[ip=10.1.1.0/24&network:n1],
+;
+=END=
+=ERROR=
+Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+=END=
+=PARAMS=any:[ip=10.1.1.0/24&network:n1] network:n2
 
 ############################################################
