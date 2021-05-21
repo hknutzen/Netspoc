@@ -346,12 +346,6 @@ func (p *printer) topStructHead(n ast.Toplevel) {
 	p.description(n)
 }
 
-func hasTrailingComplexAttr(n *ast.TopStruct) bool {
-	l := n.Attributes
-	last := len(l) - 1
-	return last != -1 && l[last].ComplexValue != nil
-}
-
 func (p *printer) service(n *ast.Service) {
 	p.topStructHead(n)
 	if l := n.Attributes; l != nil {
