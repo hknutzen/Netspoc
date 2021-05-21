@@ -30,7 +30,6 @@ type Toplevel interface {
 	GetName() string
 	SetName(string)
 	GetDescription() *Description
-	IsStruct() bool
 	FileName() string
 	SetFileName(string)
 	GetIPV6() bool
@@ -139,7 +138,6 @@ type TopBase struct {
 	IPV6        bool
 }
 
-func (a *TopBase) IsStruct() bool               { return false }
 func (a *TopBase) GetName() string              { return a.Name }
 func (a *TopBase) SetName(n string)             { a.Name = n }
 func (a *TopBase) GetDescription() *Description { return a.Description }
@@ -167,8 +165,6 @@ type TopStruct struct {
 	TopBase
 	Attributes []*Attribute
 }
-
-func (a *TopStruct) IsStruct() bool { return true }
 
 type Value struct {
 	Base
