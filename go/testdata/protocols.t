@@ -499,6 +499,19 @@ Warning: unused protocol:ping
 =OPTIONS=--check_unused_protocols=warn
 
 ############################################################
+=TITLE=Unused protocolgroup
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+protocolgroup:g1 = tcp 80, icmp 8, protocolgroup:g2;
+protocolgroup:g2 = udp 123, udp 69;
+=END=
+=WARNING=
+Warning: unused protocolgroup:g1
+Warning: unused protocolgroup:g2
+=END=
+=OPTIONS=--check_unused_groups=warn
+
+############################################################
 =TITLE=Unknown protocol and protocolgroup
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
