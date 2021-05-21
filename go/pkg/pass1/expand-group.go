@@ -619,8 +619,6 @@ func (c *spoc) expandGroup1(
 						c.err("Unexpected '%s' in any:[..] of %s", obj, ctx)
 					}
 				}
-			default:
-				c.err("Unexpected %s:[..] in %s", x.GetType(), ctx)
 			}
 		case *ast.NamedRef:
 			// An object named simply 'type:name'.
