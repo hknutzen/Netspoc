@@ -316,11 +316,8 @@ func protoDescr(l []*proto) stringList {
 
 	// Sort by protocol, port/type, all (if proto and num are equal)
 	sort.Slice(pList, func(i, j int) bool {
-		switch strings.Compare(pList[i].pType, pList[j].pType) {
-		case -1:
-			return true
-		case 1:
-			return false
+		if cmp := strings.Compare(pList[i].pType, pList[j].pType); cmp != 0 {
+			return cmp == -1
 		}
 		if pList[i].num < pList[j].num {
 			return true

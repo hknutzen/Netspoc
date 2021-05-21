@@ -353,19 +353,14 @@ func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRule
 		return 0
 	}
 	sort.Slice(cryptoRules, func(i, j int) bool {
-		switch strings.Compare(
+		if cmp := strings.Compare(
 			cryptoRules[i].prt.protocol,
-			cryptoRules[j].prt.protocol) {
-		case -1:
-			return true
-		case 1:
-			return false
+			cryptoRules[j].prt.protocol); cmp != 0 {
+
+			return cmp == -1
 		}
-		switch cmpAddr(cryptoRules[i].src, cryptoRules[j].src) {
-		case -1:
-			return true
-		case 1:
-			return false
+		if cmp := cmpAddr(cryptoRules[i].src, cryptoRules[j].src); cmp != 0 {
+			return cmp == -1
 		}
 		return cmpAddr(cryptoRules[i].dst, cryptoRules[j].dst) == -1
 	})
