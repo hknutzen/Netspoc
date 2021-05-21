@@ -478,10 +478,15 @@ Aborted
 ############################################################
 =TITLE=Bad hostname in definition
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:id: = { ip = 10.1.1.10; } }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:id: = { ip = 10.1.1.10; }
+ host:@h11 = { ip = 10.1.1.11; }
+}
 =END=
 =ERROR=
 Error: Invalid name in definition of 'host:id:'
+Error: Invalid identifier in definition of 'host:@h11'
 =END=
 
 ############################################################
@@ -710,11 +715,12 @@ Aborted
 =END=
 
 ############################################################
-=TITLE=Network without IP
+=TITLE=Network and host without IP
 =INPUT=
-network:n = { }
+network:n = { host:h1 = {} }
 =END=
 =ERROR=
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 Error: Missing IP address for network:n
 =END=
 
