@@ -6,7 +6,7 @@
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR OBJECT ...
   -f, --file string   Read OBJECTS from file
-  -q, --quiet         Don't show number of changes
+  -q, --quiet         Don't show changed files
 =END=
 
 ############################################################

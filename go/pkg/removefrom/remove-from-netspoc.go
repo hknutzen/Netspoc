@@ -197,7 +197,7 @@ func Main() int {
 	}
 
 	// Command line flags
-	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
+	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read OBJECTS from file")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
