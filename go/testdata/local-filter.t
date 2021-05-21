@@ -106,25 +106,34 @@ Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'mana
 =TITLE=Cluster must have identical values in attribute 'filter_only'
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; }
-router:d32 = {
+network:n2 = { ip = 10.62.2.0/27; }
+network:n3 = { ip = 10.62.3.64/27; }
+network:n4 = { ip = 10.62.242.0/29; }
+router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.240.0/22, 10.62.0.0/19;
+ interface:n4 = { ip = 10.62.242.1; hardware = n4; }
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
- interface:n14 = { ip = 10.62.242.1; hardware = outside; }
 }
-network:n14 = { ip = 10.62.242.0/29; }
-router:d12 = {
+router:r2 = {
  model = NX-OS;
  managed = local;
  filter_only =  10.62.240.0/21, 10.62.0.0/19,;
- interface:n14 = { ip = 10.62.242.2; hardware = n14; }
-  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.62.242.2; hardware = n4; }
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
-network:n2 = { ip = 10.62.2.0/27; }
+router:r3 = {
+ model = NX-OS;
+ managed = local;
+ filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.62.32.0/19;
+ interface:n4 = { ip = 10.62.242.3; hardware = n4; }
+ interface:n3 = { ip = 10.62.3.65; hardware = n3; }
+}
 =END=
 =ERROR=
-Error: router:d12 and router:d32 must have identical values in attribute 'filter_only'
+Error: router:r1 and router:r2 must have identical values in attribute 'filter_only'
+Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
 =END=
 
 ############################################################
