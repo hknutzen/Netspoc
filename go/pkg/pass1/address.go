@@ -19,10 +19,6 @@ func mergeIP(ip netaddr.IP, nat *network) netaddr.IP {
 	return result.IP
 }
 
-func getBroadcastIP(nat *network) netaddr.IP {
-	return nat.ipp.Range().To
-}
-
 func getHostPrefix(ipv6 bool) uint8 {
 	if ipv6 {
 		return 128
