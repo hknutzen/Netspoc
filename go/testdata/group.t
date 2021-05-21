@@ -300,27 +300,41 @@ service:s1 = {
  user = !group:g1 & group:g1;
  permit src = user; dst = host:[network:n3] &! host:h1 &! host:h2; prt = tcp 80;
 }
+service:s2 = {
+ user = network:n1;
+ permit src = user &! network:n1; dst = network:n3; prt = tcp 80;
+}
+service:s3 = {
+ user = interface:[network:n1].[all] &! interface:u.n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
 =END=
 =WARNING=
 Warning: Empty intersection in group:g1:
-  interface:r1.[all]
-&!interface:r1.n2
-&!interface:r1.n3
+interface:r1.[all]
+&! interface:r1.n2
+&! interface:r1.n3
 Warning: Empty intersection in group:g1:
-  network:[..]
-&!network:n1
-&!network:n2
+network:[..]
+&! network:n1
+&! network:n2
 Warning: Empty intersection in group:g1:
- !any:[..]
-& any:[..]
+! any:[..]
+&any:[..]
 Warning: Empty intersection in user of service:s1:
- !group:g1
-& group:g1
+! group:g1
+&group:g1
 Warning: Empty intersection in dst of rule in service:s1:
-  host:[..]
-&!host:h1
-&!host:h2
+host:[..]
+&! host:h1
+&! host:h2
 Warning: Must not define service:s1 with empty users and empty rules
+Warning: Empty intersection in src of rule in service:s2:
+user
+&! network:n1
+Warning: Empty intersection in user of service:s3:
+interface:[..].[all]
+&! interface:u.n1
 =END=
 
 ############################################################

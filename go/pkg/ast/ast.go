@@ -22,7 +22,6 @@ type Node interface {
 type Element interface {
 	Node
 	GetType() string
-	GetName() string
 }
 
 type Toplevel interface {
@@ -53,7 +52,6 @@ type User struct {
 }
 
 func (a *User) GetType() string { return "user" }
-func (a *User) GetName() string { return "user" }
 
 type TypedElt struct {
 	Base
@@ -61,7 +59,10 @@ type TypedElt struct {
 }
 
 func (a *TypedElt) GetType() string { return a.Type }
-func (a *TypedElt) GetName() string { return "" }
+
+type NamedElem interface {
+	GetName() string
+}
 
 type NamedRef struct {
 	TypedElt
@@ -115,7 +116,6 @@ type Complement struct {
 }
 
 func (a *Complement) GetType() string { return "" }
-func (a *Complement) GetName() string { return "" }
 
 type Intersection struct {
 	Base
@@ -123,7 +123,6 @@ type Intersection struct {
 }
 
 func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
-func (a *Intersection) GetName() string { return a.Elements[0].GetType() }
 
 type Description struct {
 	Base

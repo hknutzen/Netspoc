@@ -46,10 +46,19 @@ func sortElem(l []Element) {
 		if t1 != t2 {
 			return t1 < t2
 		}
-		n1 := l[i].GetName()
-		n2 := l[j].GetName()
-		i1 := findIPv4InName(n1)
-		i2 := findIPv4InName(n2)
+		getNameIP := func(el Element) (string, int) {
+			if x, ok := el.(*Intersection); ok {
+				el = x.Elements[0]
+			}
+			if x, ok := el.(NamedElem); ok {
+				n := x.GetName()
+				i := findIPv4InName(n)
+				return n, i
+			}
+			return "", 0
+		}
+		n1, i1 := getNameIP(l[i])
+		n2, i2 := getNameIP(l[j])
 		if i1 == i2 {
 			return n1 < n2
 		}

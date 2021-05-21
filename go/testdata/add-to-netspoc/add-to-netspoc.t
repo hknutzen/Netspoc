@@ -136,10 +136,10 @@ group:g3 = group:g1, group:g2 &! network:n2;
 =OUTPUT=
 group:g3 =
  group:g1,
- group:g3,
  group:g2
  &! network:n2
  ,
+ group:g3,
 ;
 =END=
 =PARAMS=group:g1 group:g3

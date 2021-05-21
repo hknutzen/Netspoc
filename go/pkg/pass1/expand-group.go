@@ -192,23 +192,23 @@ func (c *spoc) expandIntersection(
 		for _, a := range l {
 			var info string
 			if x, ok := a.(*ast.Complement); ok {
-				info = "!"
+				info = "! "
 				a = x.Element
-			} else {
-				info = " "
 			}
-			info += a.GetType() + ":"
-			if name := a.GetName(); name != "" {
-				info += name
-			} else {
-				info += "[..]"
-			}
-			if x, ok := a.(*ast.IntfAuto); ok {
-				info += ".[" + x.Selector + "]"
+			switch x := a.(type) {
+			case *ast.User:
+				info += "user"
+			case ast.NamedElem:
+				info += a.GetType() + ":" + x.GetName()
+			case *ast.SimpleAuto, *ast.AggAuto:
+				info += a.GetType() + ":[..]"
+			case *ast.IntfAuto:
+				info += a.GetType() + ":[..].[" + x.Selector + "]"
 			}
 			printable.push(info)
 		}
-		c.warn("Empty intersection in %s:\n "+strings.Join(printable, "\n&"), ctx)
+		c.warn("Empty intersection in %s:\n%s",
+			ctx, strings.Join(printable, "\n&"))
 	}
 
 	return result

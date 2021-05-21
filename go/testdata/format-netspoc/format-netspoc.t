@@ -439,7 +439,7 @@ group:g1 =
  # Before
  network:n_999_10_1_10_0, # not recognized as IP-adress
  network:n-77,
- group:g9, group:g8,
+ group:g9, group:g8 &! host:hx,
  any:a-10_0_0_0-8,
  any:customerX-0_0_0_0-8,
  network:[area:a2] &! network:n-10_1_9_0-24,
@@ -448,20 +448,22 @@ group:g1 =
 =END=
 =OUTPUT=
 group:g1 =
- group:g8,
+ group:g8
+ &! host:hx
+ ,
  group:g9,
  any:[area:a4],
  any:customerX-0_0_0_0-8,
  any:a-10_0_0_0-8,
- network:n-77,
- # Before
- network:n_999_10_1_10_0, # not recognized as IP-adress
  network:[area:a2]
  &! network:n-10_1_9_0-24
  ,
  network:[area:a1]
  &! network:n-10_1_6_0-24
  ,
+ network:n-77,
+ # Before
+ network:n_999_10_1_10_0, # not recognized as IP-adress
  network:n-10_1_6_0-24,
  network:10_1_7_0-net,
  network:10_1_8_128-10_1_8_255,

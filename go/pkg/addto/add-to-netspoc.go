@@ -125,8 +125,8 @@ func setupAddTo(old, new string) error {
 
 func addToElement(n ast.Element) []ast.Element {
 	switch obj := n.(type) {
-	case *ast.NamedRef, *ast.IntfRef:
-		name := obj.GetType() + ":" + obj.GetName()
+	case ast.NamedElem:
+		name := n.GetType() + ":" + obj.GetName()
 		return addTo[name]
 	case *ast.SimpleAuto:
 		elementList(&obj.Elements)
