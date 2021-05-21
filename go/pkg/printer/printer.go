@@ -255,13 +255,7 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	} else {
 		ind = utfLen(pre)
 		rest = l[1:]
-		var post string
-		if len(rest) == 0 {
-			post = ";"
-		} else {
-			post = ","
-		}
-		p.print(pre + first.Value + post + first.PostComment())
+		p.print(pre + first.Value + "," + first.PostComment())
 	}
 
 	// Show other lines with same indentation as first line.
