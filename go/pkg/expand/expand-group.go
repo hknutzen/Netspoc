@@ -80,13 +80,13 @@ func Main() int {
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR OBJECT ...\n", os.Args[0])
+			"Usage: %s [options] FILE|DIR GROUP-NAME ...\n", os.Args[0])
 		fs.PrintDefaults()
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
-	fromFile := fs.StringP("file", "f", "", "Read NAMES from file")
+	fromFile := fs.StringP("file", "f", "", "Read GROUP-NAMES from file")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -150,9 +150,6 @@ func readNames(path string) ([]string, error) {
 		return result, fmt.Errorf("Can't %s", err)
 	}
 	result = strings.Fields(string(bytes))
-	if len(result) == 0 {
-		return result, fmt.Errorf("Missing group names in %s", path)
-	}
 	return result, checkNames(result)
 }
 
