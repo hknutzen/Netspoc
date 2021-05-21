@@ -426,6 +426,16 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Identifier expected  at EOF
+=INPUT=
+network:n1 = { owner =
+=END=
+=ERROR=
+Error: Expected something at line 1 of INPUT, at EOF
+Aborted
+=END=
+
+############################################################
 =TITLE=Identifier expected
 =INPUT=
 network:n1 = { owner = }
@@ -1059,7 +1069,7 @@ Error: Unexpected attribute in service:s1: xyz
 =END=
 
 ############################################################
-=TITLE=Invalid rule at service
+=TITLE=Invalid action in at service
 =INPUT=
 service:s1 = {
  user = network:n1;
@@ -1068,6 +1078,19 @@ service:s1 = {
 =END=
 =ERROR=
 Error: Expected 'permit' or 'deny' at line 3 of INPUT, near " --HERE-->allow"
+Aborted
+=END=
+
+############################################################
+=TITLE=Invalid rule in at service
+=INPUT=
+service:s1 = {
+ user = network:n1;
+ permit  dst = network:n2; src = user; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: Expected 'src' at line 3 of INPUT, near "permit  --HERE-->dst"
 Aborted
 =END=
 
