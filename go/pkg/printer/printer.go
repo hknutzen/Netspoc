@@ -3,7 +3,6 @@
 package printer
 
 import (
-	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
 )
@@ -106,8 +105,6 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		p.element("! ", x.Element, post)
 	case *ast.User:
 		p.print(pre + "user" + post)
-	default:
-		panic(fmt.Sprintf("Unknown element: %T", el))
 	}
 }
 
@@ -532,8 +529,6 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.router(x)
 	case *ast.Area:
 		p.area(x)
-	default:
-		panic(fmt.Sprintf("Unknown type: %T", n))
 	}
 }
 
