@@ -61,15 +61,14 @@ Warning: unused group:g
 
 ############################################################
 =TITLE=Reach max_errors
-=OPTIONS=--check_unused_groups=err --max_errors=2
+=OPTIONS=--max_errors=2
 =INPUT=
-group:g1 = network:n1;
-group:g2 = network:n1;
-group:g3 = network:n1;
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = {}
+network:n2 = {}
+network:n3 = {}
 =ERROR=
-Error: unused group:g1
-Error: unused group:g2
+Error: Missing IP address for network:n1
+Error: Missing IP address for network:n2
 Aborted after 2 errors
 =END=
 
