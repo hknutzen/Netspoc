@@ -1,5 +1,31 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR SUBSTITUTION ...
+  -f, --file string   Read substitutions from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=Unknown type in substitution
 =INPUT=NONE
 =PARAMS=foo:Test foo:Toast
@@ -8,11 +34,19 @@ Error: Unknown type foo
 =END=
 
 ############################################################
-=TITLE=Missing type in substitution
+=TITLE=Missing type in replace string
 =INPUT=NONE
-=PARAMS=Test Toast
+=PARAMS=Test host:Toast
 =ERROR=
 Error: Missing type in 'Test'
+=END=
+
+############################################################
+=TITLE=Missing type in substitution
+=INPUT=NONE
+=PARAMS=host:Test Toast
+=ERROR=
+Error: Missing type in 'Toast'
 =END=
 
 ############################################################
@@ -40,6 +74,14 @@ Error: Types must be identical in
 =ERROR=
 Error: Ambiguous substitution for group:g: group:x, group:y
 =END=
+
+############################################################
+=TITLE=Leave formatting unchanged if nothing is found
+=INPUT=
+network:Test={ip=10.1.1.0/24;}
+=OUTPUT=
+network:Test={ip=10.1.1.0/24;}
+=PARAMS=network:Toast network:TTT
 
 ############################################################
 =TITLE=Rename network
@@ -247,11 +289,19 @@ group:G =
 ############################################################
 =TITLE=Rename inside automatic group
 =INPUT=
-group:g = interface:[network:n1].[all];
+group:g =
+ any:[ip=10.99.0.0/16&network:n1],
+ interface:[managed & network:n1].[all],
+ group:g2 &! host:[network:n1],
+;
 =END=
 =OUTPUT=
 group:g =
- interface:[network:NN].[all],
+ any:[ip = 10.99.0.0/16 & network:NN],
+ interface:[managed & network:NN].[all],
+ group:g2
+ &! host:[network:NN]
+ ,
 ;
 =END=
 =PARAMS=network:n1 network:NN
@@ -297,6 +347,35 @@ router:r = {
 }
 =END=
 =PARAMS=nat:NAT-1 nat:NAT-2
+
+############################################################
+=TITLE=Rename group
+=INPUT=
+group:g1 = group:g2, group:g3;
+=OUTPUT=
+group:G1 =
+ group:g2,
+ group:g4,
+;
+=PARAMS=group:g1 group:G1 group:g3 group:g4
+
+############################################################
+=TITLE=Rename protocolgroup
+=INPUT=
+protocolgroup:g1 = tcp 20 - 21;
+=OUTPUT=
+protocolgroup:G1 =
+ tcp 20 - 21,
+;
+=PARAMS=protocolgroup:g1 protocolgroup:G1
+
+############################################################
+=TITLE=Rename protocol
+=INPUT=
+protocol:p1 = tcp 20 - 21;
+=OUTPUT=
+protocol:p11 = tcp 20 - 21;
+=PARAMS=protocol:p1 protocol:p11
 
 ############################################################
 =TITLE=Rename service

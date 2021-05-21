@@ -290,9 +290,6 @@ func readPairs(path string) error {
 		return err
 	}
 	pattern := strings.Fields(string(bytes))
-	if len(pattern) == 0 {
-		return fmt.Errorf("Missing pattern in %s", path)
-	}
 	return setupPairs(pattern)
 }
 
@@ -308,7 +305,7 @@ func Main() int {
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
-	fromFile := fs.StringP("file", "f", "", "Read pairs from file")
+	fromFile := fs.StringP("file", "f", "", "Read substitutions from file")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
