@@ -35,10 +35,10 @@ var globalType = map[string]bool{
 // NAT is applied with bind_nat.
 // Owner is optionally referenced as sub_owner.
 // Interface definition uses network name.
-var aliases = map[string][]string{
-	"nat":     {"bind_nat"},
-	"owner":   {"sub_owner"},
-	"network": {"interface"},
+var alias = map[string]string{
+	"nat":     "bind_nat",
+	"owner":   "sub_owner",
+	"network": "interface",
 }
 
 func getTypeAndName(objName string) (string, string, error) {
@@ -86,10 +86,8 @@ func setupSubst(old, new string) error {
 		return err
 	}
 
-	for _, other := range aliases[objType] {
-		if err := addSubst(other, search, replace); err != nil {
-			return err
-		}
+	if other, found := alias[objType]; found {
+		addSubst(other, search, replace)
 	}
 	return nil
 }
