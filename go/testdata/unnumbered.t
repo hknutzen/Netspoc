@@ -57,7 +57,7 @@ Error: Unnumbered network:u is connected to more than two interfaces:
 =END=
 
 ############################################################
-=TITLE=Must not use unnumbered network in rule
+=TITLE=Must not use unnumbered network / interface in rule
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
@@ -68,11 +68,12 @@ router:r = {
 }
 network:un = { unnumbered; }
 service:test = {
- user = network:n1;
+ user = network:n1, interface:r.un;
  permit src = user; dst = network:un; prt = tcp 80;
 }
 =END=
 =WARNING=
+Warning: Ignoring unnumbered interface:r.un in src of rule in service:test
 Warning: Ignoring unnumbered network:un in dst of rule in service:test
 =END=
 
