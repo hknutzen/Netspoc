@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=Unexptected attribute at bridged interface
+=TITLE=Unexpected attribute at bridged interface
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {

@@ -105,7 +105,7 @@ Error: Unknown extension in 'model' of router:R: bar
 =END=
 
 ############################################################
-=TITLE=Unexptected attribute no_check
+=TITLE=Unexpected attribute no_check
 =INPUT=
 router:R = {
  managed;
