@@ -271,10 +271,14 @@ Aborted
 ############################################################
 =TITLE=Invalid separator in ICMP
 =INPUT=
-protocol:test = icmp 3 - 4;
+protocol:p1 = icmp 3 - 4;
+protocol:p2 = icmp 3@4;
+protocol:p3 = icmp 3.4;
 =END=
 =ERROR=
-Error: Expected [TYPE [ / CODE]] in protocol:test
+Error: Expected [TYPE [ / CODE]] in protocol:p1
+Error: Expected number in protocol:p2: 3@4
+Error: Expected number in protocol:p3: 3.4
 =END=
 
 ############################################################
