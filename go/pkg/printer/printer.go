@@ -9,14 +9,9 @@ import (
 )
 
 type printer struct {
-	src []byte // Original source code with comments.
 	// Current state
 	output []byte // raw printer result
 	indent int    // current indentation
-}
-
-func (p *printer) init(src []byte) {
-	p.src = src
 }
 
 func (p *printer) print(line string) {
