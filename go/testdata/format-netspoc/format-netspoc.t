@@ -636,7 +636,7 @@ service:s1 = {
 =INPUT=
 service:s1 = {
  user = host:h1, host:h2; #user
- permit src = user; #src
+ deny   src = user; #src
         dst = network:n1; #dst
         prt = tcp 80, tcp 90; #prt
 }
@@ -646,7 +646,7 @@ service:s1 = {
  user = host:h1,
         host:h2, #user
         ;
- permit src = user; #src
+ deny   src = user; #src
         dst = network:n1; #dst
         prt = tcp 80,
               tcp 90, #prt
