@@ -128,12 +128,14 @@ ip access-list extended n1_in
 ${topo}
 service:test = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 20:1024-48000, udp 123 : 123;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 20:1024-48000, udp 2000-2050 : 2020;
 }
 =ERROR=
-Error: Must not use source port '20' in 'tcp 20 : 1024 - 48000' of service:test.
+Error: Must not use source port in 'tcp 20 : 1024 - 48000' of service:test.
  Source port is only valid in named protocol
-Error: Must not use source port '123' in 'udp 123 : 123' of service:test.
+Error: Must not use source port in 'udp 2000 - 2050 : 2020' of service:test.
  Source port is only valid in named protocol
 =END=
 

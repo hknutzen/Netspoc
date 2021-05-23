@@ -235,14 +235,8 @@ func (c *spoc) setupProtocol(a *ast.Protocol, s *symbolTable) {
 func (c *spoc) getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
 	p, pSrc := c.getSimpleProtocolAndSrcPort(def, s, v6, ctx)
 	if pSrc != nil {
-		v := pSrc.ports
-		desc := strconv.Itoa(v[0])
-		if v[0] != v[1] {
-			desc += "-" + strconv.Itoa(v[1])
-		}
-		c.err("Must not use source port '%s' in %s.\n"+
-			" Source port is only valid in named protocol",
-			desc, ctx)
+		c.err("Must not use source port in %s.\n"+
+			" Source port is only valid in named protocol", ctx)
 	}
 	return p
 }
