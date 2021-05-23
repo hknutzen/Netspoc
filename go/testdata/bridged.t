@@ -39,6 +39,23 @@ Error: Must not use attribute 'vip' at interface:bridge.n1/right of managed rout
 =END=
 
 ############################################################
+=TITLE=Fixed hardware for layer3 interface at ASA
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Layer3 interface:bridge.n1 must use 'hardware' named 'device' for model 'ASA'
+=END=
+
+############################################################
 =TITLE=No dynamic routing at bridged interface
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
