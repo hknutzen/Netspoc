@@ -20,6 +20,25 @@ Error: No virtual IP supported for bridged interface:bridge.n1/right
 =END=
 
 ############################################################
+=TITLE=No loopback bridged interface
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; loopback; }
+ interface:n1/right = { hardware = right; vip; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Attribute 'loopback' not supported for bridged interface:bridge.n1/left
+Error: Attribute 'vip' not supported for bridged interface:bridge.n1/right
+Error: Must not use attribute 'vip' at interface:bridge.n1/right of managed router
+=END=
+
+############################################################
 =TITLE=No dynamic routing at bridged interface
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
@@ -623,7 +642,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 =TITLE=Missing hop behind chained bridges
 =INPUT=
 ${input}
-=SUBST=/right = { ip = 10.1.1.5;/right; #/
+=SUBST=/right = { ip = 10.1.1.5;/right = { negotiated;/
 =ERROR=
 Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
  - interface:r2.n1/right

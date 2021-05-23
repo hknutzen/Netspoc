@@ -17,6 +17,19 @@ Error: Attribute 'routing' not supported for loopback interface:r.l
 =END=
 
 ############################################################
+=TITLE=Loopback interface without IP
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = { loopback; }
+}
+=END=
+=ERROR=
+Error: loopback interface:r.l must have IP address
+=END=
+
+############################################################
 =TITLE=Unnumbered loopback interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

@@ -1522,8 +1522,13 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 
 	// Interface at bridged network
 	// - without IP is interface of bridge,
-	// - with IP is interface of router.
-	if !ipGiven && strings.Index(iName, "/") != -1 && r.managed != "" {
+	// - with IP (or unnumbered / negotiated) is interface of router.
+	if !ipGiven &&
+		intf.ipType != unnumberedIP &&
+		intf.ipType != negotiatedIP &&
+		strings.Index(iName, "/") != -1 &&
+		r.managed != "" {
+
 		intf.ipType = bridgedIP
 	}
 
@@ -1583,16 +1588,17 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			c.err("Attribute '%s' not supported for %s %s", a, typ, name)
 		}
 	}
-	if vip {
+	if intf.ipType == bridgedIP {
+		typ = "bridged"
+		check(intf.owner != nil, "owner")
+		check(intf.loopback, "loopback")
+		check(vip, "vip")
+	} else if vip {
 		// Attribute 'vip' is an alias for 'loopback'.
 		typ = "'vip'"
 		intf.loopback = true
 	} else if intf.loopback && !intf.isLayer3 {
 		typ = "loopback"
-	}
-	if intf.ipType == bridgedIP {
-		typ = "bridged"
-		check(intf.owner != nil, "owner")
 	}
 	if typ != "" {
 		if secondaryList != nil {
@@ -1743,10 +1749,6 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		if intf.hub != nil {
 			c.warn("Ignoring attribute 'hub' at unmanaged %s", intf)
 			intf.hub = nil
-		}
-		// Unmanaged bridge would complicate generation of static routes.
-		if intf.ipType == bridgedIP {
-			c.err("Unmanaged %s must not be bridged", intf)
 		}
 	}
 
