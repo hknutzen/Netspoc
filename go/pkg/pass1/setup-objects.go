@@ -678,12 +678,12 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		c.err("Invalid identifier in definition of '%s'", name)
 	}
 	var ldapAppend string
-	hasIP := false
+	ipGiven := false
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "ip":
 			n.ipp = c.getIpPrefix(a, v.IPV6, name)
-			hasIP = true
+			ipGiven = true
 		case "unnumbered":
 			if c.getFlag(a, name) {
 				if n.ipType == bridgedIP {
@@ -754,10 +754,9 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 				break
 			}
 		}
-	} else if n.ipp.IsZero() && !hasIP {
+	} else if !ipGiven {
 		c.err("Missing IP address for %s", name)
-	} else {
-		ipp := n.ipp
+	} else if ipp := n.ipp; !ipp.IsZero() {
 		for _, h := range n.hosts {
 
 			// Check compatibility of host IP and network IP/mask.
@@ -3199,12 +3198,18 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 		return
 	}
 
+	ipp := n.ipp
+	// Network has invalid IP address. Error was already shown.
+	if ipp.IsZero() {
+		return
+	}
+
 	// Check compatibility of interface IP and network IP/mask.
 	ip := intf.ip
-	if !n.ipp.Contains(ip) {
+	if !ipp.Contains(ip) {
 		c.err("%s's IP doesn't match %s's IP/mask", intf, n)
 	}
-	if n.ipp.IsSingleIP() {
+	if ipp.IsSingleIP() {
 		c.warn("%s has address of its network.\n"+
 			" Remove definition of %s and\n"+
 			" add attribute 'loopback' at interface definition.",
