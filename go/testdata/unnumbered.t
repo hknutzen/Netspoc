@@ -16,6 +16,18 @@ Error: Unnumbered network:u must not have host definition
 =END=
 
 ############################################################
+=TITLE=Unnumbered interface must not have virtual IP
+=INPUT=
+network:u = { unnumbered; }
+router:r1 = {
+  interface:u = { unnumbered; virtual = { ip = 10.1.1.111; } }
+}
+=END=
+=ERROR=
+Error: No virtual IP supported for unnumbered interface:r1.u
+=END=
+
+############################################################
 =TITLE=Unnumbered network to interface with IP
 =INPUT=
 network:u = {
