@@ -722,7 +722,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 			switch a.Name {
 			case "crosslink", "unnumbered":
 			default:
-				if strings.HasPrefix("nat:", a.Name) {
+				if strings.HasPrefix(a.Name, "nat:") {
 					c.err("Unnumbered %s must not have NAT definition", name)
 				} else {
 					c.err("Unnumbered %s must not have attribute '%s'",

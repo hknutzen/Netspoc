@@ -10,7 +10,7 @@ network:u = {
 }
 =END=
 =ERROR=
-Error: Unnumbered network:u must not have attribute 'nat:x'
+Error: Unnumbered network:u must not have NAT definition
 Error: Unnumbered network:u must not have attribute 'has_subnets'
 Error: Unnumbered network:u must not have host definition
 =END=
