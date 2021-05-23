@@ -8,7 +8,7 @@ router:bridge = {
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside;  no_in_acl; dhcp_server; routing = OSPF; }
- interface:n1/right = { hardware = outside; }
+ interface:n1/right = { hardware = outside; virtual = { ip = 10.1.1.2; } }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =END=
@@ -16,6 +16,7 @@ network:n1/right = { ip = 10.1.1.0/24; }
 Error: Attribute 'no_in_acl' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'dhcp_server' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
+Error: No virtual IP supported for bridged interface:bridge.n1/right
 =END=
 
 ############################################################

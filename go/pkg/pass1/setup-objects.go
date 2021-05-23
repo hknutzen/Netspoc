@@ -1578,21 +1578,24 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		c.err("No NAT supported for %s without IP", name)
 	}
 
-	// Attribute 'vip' is an alias for 'loopback'.
-	var typ string
+	typ := ""
+	check := func(p bool, a string) {
+		if p {
+			c.err("Attribute '%s' not supported for %s %s", a, typ, name)
+		}
+	}
 	if vip {
+		// Attribute 'vip' is an alias for 'loopback'.
 		typ = "'vip'"
 		intf.loopback = true
-	} else if intf.loopback {
+	} else if intf.loopback && !intf.isLayer3 {
 		typ = "loopback"
 	}
 	if intf.ipType == bridgedIP {
 		typ = "bridged"
-		if intf.owner != nil {
-			c.err("Attribute 'owner' not supported for %s %s", typ, name)
-		}
+		check(intf.owner != nil, "owner")
 	}
-	if (intf.loopback || intf.ipType == bridgedIP) && !intf.isLayer3 {
+	if typ != "" {
 		if secondaryList != nil {
 			c.err("Secondary or virtual IP not supported for %s %s", typ, name)
 			secondaryList = nil
@@ -1600,33 +1603,15 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 
 		// Most attributes are invalid for loopback interface.
-		if intf.noInAcl {
-			c.err("Attribute 'no_in_acl' not supported for %s %s", typ, name)
-		}
-		if intf.noCheck {
-			c.err("Attribute 'no_check' not supported for %s %s", typ, name)
-		}
-		if intf.id != "" {
-			c.err("Attribute 'id' not supported for %s %s", typ, name)
-		}
-		if intf.hub != nil {
-			c.err("Attribute 'hub' not supported for %s %s", typ, name)
-		}
-		if intf.spoke != nil {
-			c.err("Attribute 'spoke' not supported for %s %s", typ, name)
-		}
-		if intf.dhcpClient {
-			c.err("Attribute 'dhcp_client' not supported for %s %s", typ, name)
-		}
-		if intf.dhcpServer {
-			c.err("Attribute 'dhcp_server' not supported for %s %s", typ, name)
-		}
-		if intf.routing != nil {
-			c.err("Attribute 'routing' not supported for %s %s", typ, name)
-		}
-		if intf.reroutePermit != nil {
-			c.err("Attribute 'reroute_permit' not supported for %s %s", typ, name)
-		}
+		check(intf.noInAcl, "no_in_acl")
+		check(intf.noCheck, "no_check")
+		check(intf.id != "", "id")
+		check(intf.hub != nil, "hub")
+		check(intf.spoke != nil, "spoke")
+		check(intf.dhcpClient, "dhcp_client")
+		check(intf.dhcpServer, "dhcp_server")
+		check(intf.routing != nil, "routing")
+		check(intf.reroutePermit != nil, "reroute_permit")
 		switch intf.ipType {
 		case unnumberedIP:
 			c.err("Attribute 'unnumbered' not supported for %s %s", typ, name)
