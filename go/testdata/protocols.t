@@ -89,7 +89,7 @@ Error: Expected number in protocol:p10: -
 ############################################################
 =TITLE=Invalid ports and port ranges (2)
 =INPUT=
-protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmp +3;
+protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmp -3;
 network:n1 = { ip = 10.1.1.0/24; }
 service:s1 = {
  user = network:n1;
@@ -100,7 +100,7 @@ service:s1 = {
 Error: Expected port number < 65536 in 'tcp 77777' of protocolgroup:g1
 Error: Invalid port range in 'udp - 1' of protocolgroup:g1
 Error: Expected port number > 0 in 'udp 0' of protocolgroup:g1
-Error: Expected [TYPE [ / CODE]] in 'icmp + 3' of protocolgroup:g1
+Error: Expected [TYPE [ / CODE]] in 'icmp - 3' of protocolgroup:g1
 =END=
 
 ############################################################

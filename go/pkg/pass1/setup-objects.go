@@ -406,9 +406,7 @@ func (c *spoc) getNum256(s, ctx string) int {
 		c.err("Expected number in %s: %s", ctx, s)
 		return -1
 	}
-	if num < 0 {
-		c.err("Expected positive number in %s", ctx)
-	} else if num >= 256 {
+	if num >= 256 {
 		c.err("Expected number < 256 in %s", ctx)
 	}
 	return num
