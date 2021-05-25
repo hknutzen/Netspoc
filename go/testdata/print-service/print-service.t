@@ -45,6 +45,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =PARAMS=service:s1
 =ERROR=
 Error: Unknown service:s1
+Aborted
 =END=
 
 ############################################################

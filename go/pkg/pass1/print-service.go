@@ -147,12 +147,9 @@ func (c *spoc) printService(
 	for _, name := range srvNames {
 		name = strings.TrimPrefix(name, "service:")
 		if _, found := symTable.service[name]; !found {
-			c.err("Unknown service:%s", name)
+			c.abort("Unknown service:%s", name)
 		}
 		nameMap[name] = true
-	}
-	if len(srvNames) != 0 && len(nameMap) == 0 {
-		return
 	}
 
 	// Collect expanded rules.
