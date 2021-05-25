@@ -91,6 +91,9 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 				l1 := riList[i].names
 				l2 := riList[j].names
 				for k, name := range l1 {
+					if k >= len(l2) {
+						return false
+					}
 					if l1[k] != l2[k] {
 						return name < l2[k]
 					}
