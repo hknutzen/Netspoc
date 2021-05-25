@@ -18,6 +18,14 @@ Error: unknown flag: --abc
 =END=
 
 ############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=Verbose output
 =INPUT=
 group:g1 =
