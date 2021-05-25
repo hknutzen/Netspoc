@@ -190,8 +190,11 @@ group:groß =
 =TITLE=Simple group with many comments
 =INPUT=
 # head1
-# head1a
-# head2
+ # head1a
+  # head2
+
+
+# Multiple empty lines are reduced to one.
 # This is g1
 group:g1 # IGNORED
 = # g1 trailing2
@@ -212,6 +215,8 @@ host:h2, # after second
 # head1
 # head1a
 # head2
+
+# Multiple empty lines are reduced to one.
 # This is g1
 group:g1 =
  # g1 trailing2
