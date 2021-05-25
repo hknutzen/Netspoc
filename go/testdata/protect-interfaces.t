@@ -322,3 +322,28 @@ Error: Must not apply dynamic nat:d to interface:r1.n2 at interface:r1.n1 of sam
 =END=
 
 ############################################################
+=TITLE=Interface has negotiated address
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { negotiated; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+}
+service:s = {
+    user = network:n1;
+    permit src = user; dst = interface:r1.n2; prt = tcp 22;
+}
+=END=
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22
+ deny ip any any
+=END=
+
+############################################################
