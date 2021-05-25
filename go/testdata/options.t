@@ -91,6 +91,16 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Too many arguments
+=PARAMS=abc def
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Expected 1 or 2 args, but got 3
+Aborted
+=END=
+
+############################################################
 =TITLE=Non existent out directory
 =PARAMS=missing.dir/file
 =INPUT=

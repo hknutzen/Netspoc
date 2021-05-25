@@ -211,7 +211,7 @@ func usage(format string, args ...interface{}) {
 func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 	mainFile := fs.Arg(0)
 	if mainFile == "" || fs.Arg(2) != "" {
-		usage("Expected 2 args, got %v", fs.Args())
+		usage("Expected 1 or 2 args, but got %d", fs.NArg())
 		return "", "", true
 	}
 
