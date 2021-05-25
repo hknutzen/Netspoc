@@ -376,10 +376,7 @@ func findVisibility(owners, uowners stringList) string {
 // Collisions would occur with probability of 0.5 for 2^24 different ids.
 // We should be extremely safe for up to 2^14 different ids.
 func calcRulesKey(rules []jsonMap) string {
-	b, err := json.Marshal(rules)
-	if err != nil {
-		panic(err)
-	}
+	b, _ := json.Marshal(rules)
 	sum := sha1.Sum(b)
 	b = sum[:6]
 	digest := base64.StdEncoding.EncodeToString(b)
