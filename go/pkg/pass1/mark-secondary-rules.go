@@ -283,12 +283,8 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 		if len(supernetMap) == 0 {
 			continue
 		}
-		rules := val.rules
-		if rules == nil {
-			continue
-		}
 	RULE:
-		for _, rule1 := range rules {
+		for _, rule1 := range val.rules {
 			var objects []someObj
 			if isSrc {
 				objects = rule1.src
