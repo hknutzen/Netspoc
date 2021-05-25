@@ -54,6 +54,35 @@ service:test = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Disable between disabled interfaces, ignore redundant disable.
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.2; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; disabled; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.3; hardware = n0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; disabled; }
+}
+=END=
+=WARNING=NONE
+
+############################################################
 =TITLE=Must not disable single interface inside loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

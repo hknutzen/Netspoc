@@ -174,15 +174,9 @@ func (c *spoc) markDisabled() {
 		if len(l) == 1 {
 			continue
 		}
-		getModel := func(r *router) string {
-			if r.managed != "" || r.routingOnly {
-				return r.model.name
-			}
-			return ""
-		}
-		m1 := getModel(l[0])
+		m1 := l[0].model.name
 		for _, r := range l[1:] {
-			if m1 != getModel(r) {
+			if m1 != r.model.name {
 				c.err("All instances of router:%s must have identical model",
 					l[0].deviceName)
 				break
@@ -226,9 +220,6 @@ func (c *spoc) markDisabled() {
 			continue
 		}
 		for _, intf := range r.interfaces {
-			if intf.disabled {
-				continue
-			}
 			n := intf.network
 			if !seen[n] {
 				seen[n] = true
