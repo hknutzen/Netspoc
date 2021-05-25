@@ -154,12 +154,22 @@ Warning: Ignored packet with invalid protocol number: 99999
 =END=
 
 ############################################################
-=TITLE=Bad icmp
+=TITLE=Bad icmp: without code
 =INPUT=${input}
 =PARAMS= r1 n1_in
 =PARAM= 10.1.1.11 10.0.0.0 icmp 8
 =WARNING=
 Warning: Ignored icmp packet with invalid type/code: 10.1.1.11 10.0.0.0 icmp 8
+=END=
+
+############################################################
+=TITLE=Bad icmp: invalid type and code
+=INPUT=${input}
+=PARAMS= r1 n1_in
+=PARAM= 10.1.1.11 10.0.0.0 icmp foo/-1
+=WARNING=
+Warning: Ignored packet with invalid protocol number: foo
+Warning: Ignored packet with invalid protocol number: -1
 =END=
 
 ############################################################
@@ -188,4 +198,29 @@ Warning: Ignored packet with invalid IP address: 80
 =OUTPUT=
 permit 10.1.1.11 10.1.2.12 tcp 85
 deny   10.1.1.11 10.0.0.0 tcp 85
+=END=
+
+############################################################
+=TITLE=IPv6
+=INPUT=
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+ dst = network:n2;
+ prt = tcp 80-90;
+}
+=OPTIONS=-6
+=PARAMS=ipv6/r1 n1_in
+=PARAM=
+1000::abcd:0001:11 1000::abcd:0002:12 tcp 85
+=OUTPUT=
+permit 1000::abcd:1:11 1000::abcd:2:12 tcp 85
 =END=
