@@ -18,7 +18,7 @@ service:s1 = {
 ############################################################
 =TITLE=Option '-h'
 =INPUT=${input}
-=PARAMS=-h
+=PARAMS=r1 n1_in -h
 =ERROR=
 Usage: PROGRAM [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
   -f, --file string   Read packet descriptions from file
@@ -27,20 +27,18 @@ Usage: PROGRAM [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
 ############################################################
 =TITLE=Unknown option
 =INPUT=${input}
-=PARAMS=--abc
+=PARAMS=r1 n1_in --abc
 =ERROR=
 Error: unknown flag: --abc
 =END=
-=TODO=1
 
 ############################################################
 =TITLE=Read packets from unknown file
 =INPUT=${input}
-=PARAMS=-f unknown
+=PARAMS=r1 n1_in -f unknown
 =ERROR=
 Error: Can't open unknown: no such file or directory
 =END=
-=TODO=1
 
 ############################################################
 =TITLE=Permitted packet
