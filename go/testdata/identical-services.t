@@ -4,6 +4,8 @@ network:n1 = {
  host:h10 = { ip = 10.1.1.10;}
  host:h11 = { ip = 10.1.1.11;}
  host:h12 = { ip = 10.1.1.12;}
+ host:h13 = { ip = 10.1.1.13;}
+ host:h14 = { ip = 10.1.1.14;}
 }
 router:r1 = {
  model = ASA;
@@ -146,15 +148,15 @@ Warning: These services have identical rule definitions.
 =TITLE=Equal rules with changed order in intersection.
 =INPUT=
 ${topo}
-group:g1 = host:h10, host:h11;
+group:g1 = host:h11;
 group:g2 = host:h11, host:h12;
 service:s1 = {
  user = network:n2;
- permit src = user; dst = group:g1 & group:g2; prt = tcp 80;
+ permit src = user; dst = !group:g1 & group:g2; prt = tcp 80;
 }
 service:s2 = {
  user = interface:r1.n1;
- permit src = user; dst = group:g2 & group:g1; prt = tcp 80;
+ permit src = user; dst = group:g2 & !group:g1; prt = tcp 80;
 }
 =END=
 =WARNING=
@@ -163,6 +165,87 @@ Warning: These services have identical rule definitions.
  - service:s1
  - service:s2
 =END=
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Compare reversed rules
+=INPUT=
+${topo}
+protocol:reversed = udp 514, reversed;
+service:s1 = {
+ user = host:h11;
+ permit src = user; dst = network:n2; prt = protocol:reversed;
+}
+service:s2 = {
+ user = host:h12;
+ permit src = user; dst = network:n2; prt = protocol:reversed;
+}
+=WARNING=
+Warning: These services have identical rule definitions.
+ A single service should be created instead, with merged users.
+ - service:s1
+ - service:s2
+=END=
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Many elements are equal, but not all.
+=INPUT=
+${topo}
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = host:h10, host:h11, host:h12;
+        prt = tcp 90, tcp 99;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 90, tcp 99;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Many protocols are equal, but not all (1)
+=INPUT=
+${topo}
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 90, tcp 99;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 80, tcp 90, tcp 99;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Many protocols are equal, but not all (2)
+=INPUT=
+${topo}
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 80, tcp 90, tcp 99;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 81, tcp 90, tcp 99;
+}
+=END=
+=WARNING=NONE
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -189,6 +272,7 @@ service:s2 = {
 ${topo}
 service:s1 = {
  user = network:n2;
+ deny   src = host:h10; dst = user; prt = tcp 22;
  permit src = network:n1; dst = user; prt = tcp 22;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
@@ -196,6 +280,7 @@ service:s2 = {
  user = interface:r1.n1;
  permit src = user; dst = network:n1; prt = tcp 80;
  permit src = network:n1; dst = user; prt = tcp 22;
+ deny   src = host:h10; dst = user; prt = tcp 22;
 }
 =END=
 =WARNING=
