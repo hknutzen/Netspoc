@@ -800,12 +800,14 @@ service:s1 = {
 ############################################################
 =TITLE=Ordered elements in protocolgroups
 =INPUT=
-protocolgroup:g1 =udp 70,tcp 700, tcp 80, ;
+protocolgroup:g1 =udp 70,tcp 700, tcp 80, udp, udp : 0;
 =END=
 =OUTPUT=
 protocolgroup:g1 =
  tcp 80,
  tcp 700,
+ udp : 0,
+ udp,
  udp 70,
 ;
 =END=

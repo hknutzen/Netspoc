@@ -109,10 +109,11 @@ func sortProto(l []*Value) {
 		if p1 == "tcp" || p1 == "udp" {
 			conv := func(l []string) []int {
 				getPorts := func(s string) (int, int) {
+					if s == "" {
+						return 1, 65535
+					}
 					p := strings.Split(s, "-")
 					switch len(p) {
-					case 0:
-						return 1, 65535
 					case 1:
 						n1, _ := strconv.Atoi(p[0])
 						return n1, n1
@@ -126,9 +127,6 @@ func sortProto(l []*Value) {
 				sp := strings.Split(s, ":")
 				var s1, s2, p1, p2 int
 				switch len(sp) {
-				case 0:
-					s1, s2 = getPorts("")
-					p1, p2 = getPorts("")
 				case 1:
 					s1, s2 = getPorts("")
 					p1, p2 = getPorts(sp[0])
