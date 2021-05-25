@@ -157,7 +157,7 @@ func sortProto(l []*Value) {
 				return d1 < d2
 			}
 		}
-		return false
+		return true
 	})
 }
 
