@@ -965,6 +965,28 @@ any:a = {
 =END=
 
 ############################################################
+=TITLE=Sort hosts by IP or range
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h99 = { ip = 10.1.1.99; }
+ host:r98-102 = { range = 10.1.1.98-10.1.1.102; }
+ host:invalid = {}
+ host:h10 = { ip = 10.1.1.10; }
+ host:r98-100 = { range = 10.1.1.98-10.1.1.100; }
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:invalid = { }
+ host:h10     = { ip = 10.1.1.10; }
+ host:r98-102 = { range = 10.1.1.98 - 10.1.1.102; }
+ host:r98-100 = { range = 10.1.1.98 - 10.1.1.100; }
+ host:h99     = { ip = 10.1.1.99; }
+}
+=END=
+
+############################################################
 =TITLE=Managed router
 =INPUT=
 router:r1 = { managed;
@@ -1073,12 +1095,25 @@ area:a1 = {
  inclusive_border = interface:r3.n3;
  nat:t = { hidden; }
  owner = o;
+ router_attributes = {
+  owner = o2;
+  policy_distribution_point = host:netspoc;
+  general_permit = udp, icmp;
+  }
 }
 =END=
 =OUTPUT=
 area:a1 = {
  nat:t = { hidden; }
  owner = o;
+ router_attributes = {
+  owner = o2;
+  policy_distribution_point = host:netspoc;
+  general_permit =
+   udp,
+   icmp,
+  ;
+ }
  border = interface:r3.n3,
           group:g3
           &! interface:r1.n1
