@@ -192,16 +192,9 @@ func getZoneName(z *zone) string {
 // Setup services
 //#####################################################################
 
-// Globally change name of owners from "owner:name" to "name".
-func adaptOwnerNames() {
-	for _, o := range symTable.owner {
-		o.name = strings.TrimPrefix(o.name, "owner:")
-	}
-}
-
 func ownerForObject(ob srvObj) string {
 	if ow := ob.getOwner(); ow != nil {
-		return ow.name
+		return ow.name[len("owner:"):]
 	}
 	return ""
 }
@@ -226,7 +219,7 @@ type xOwner map[srvObj][]*owner
 func xOwnersForObject(ob srvObj, x xOwner) stringList {
 	var result stringList
 	for _, ow := range x[ob] {
-		result.push(ow.name)
+		result.push(ow.name[len("owner:"):])
 	}
 	return result
 }
@@ -575,7 +568,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				jsonRules:   jsonRules,
 			}
 			if s.subOwner != nil {
-				newService.subOwner = s.subOwner.name
+				newService.subOwner = s.subOwner.name[len("owner:"):]
 			}
 			if rulesKey != "" {
 				splitParts[rulesKey] = newService
@@ -742,7 +735,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	for _, ow := range symTable.owner {
 		if ow.showAll {
 			masterOwner = ow
-			c.progress("Found master owner: " + ow.name)
+			c.progress("Found master " + ow.name)
 			break
 		}
 	}
@@ -885,7 +878,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	}
 	masterName := ""
 	if masterOwner != nil {
-		masterName = masterOwner.name
+		masterName = masterOwner.name[len("owner:"):]
 	}
 	return masterName, oInfo, eInfo
 }
@@ -1366,7 +1359,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 			// Allow both, admins and watchers to look at owner.
 			add(eOwner.admins)
 			add(eOwner.watchers)
-			eOwners.push(eOwner.name)
+			eOwners.push(eOwner.name[len("owner:"):])
 		}
 
 		export := func(l []string, key, path string) {
@@ -1446,7 +1439,6 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.setPath()
 	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
 	c.findSubnetsInZone()
-	adaptOwnerNames()
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := c.normalizeServicesForExport()
