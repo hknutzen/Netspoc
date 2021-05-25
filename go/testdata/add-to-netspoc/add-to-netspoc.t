@@ -408,6 +408,26 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
 =PARAMS=host:a name2
 
 ############################################################
+=TITLE=Invalid type (3)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Can't use type in service:b
+=END=
+=PARAMS=service:b host:a
+
+############################################################
+=TITLE=Invalid type (4)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
+=END=
+=PARAMS= host:a service:b
+
+############################################################
 =TITLE=Can't add to automatic group
 =INPUT=
 group:g1 =
