@@ -738,7 +738,8 @@ router:r3 = {
 network:un = { unnumbered; }
 area:a = { inclusive_border = interface:r3.n4; }
 service:s1 = {
- user = network:n2, network:[area:a];
+ user = network:n2 &! network:[area:a],
+        interface:[area:a].[all];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 =END=
@@ -754,8 +755,10 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s1 = {
- user = network:n2,
-        network:[group:empty-area],
+ user = network:n2
+        &! network:[group:empty-area]
+        ,
+        interface:[group:empty-area].[all],
         ;
  permit src = network:n1;
         dst = user;
