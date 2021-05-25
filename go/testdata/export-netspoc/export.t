@@ -3404,6 +3404,16 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=OPTIONS=-h
+=ERROR=
+Usage: PROGRAM [options] netspoc-data out-directory
+  -6, --ipv6    Expect IPv6 definitions
+  -q, --quiet   Don't print progress messages
+=END=
+
+############################################################
 =TITLE=Invalid option
 =INPUT=NONE
 =OPTIONS=--foo
