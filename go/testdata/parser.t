@@ -1010,6 +1010,19 @@ router:r = {
 =END=
 
 ############################################################
+=TITLE=Must reference user in rule
+=INPUT=
+${topo}
+service:s = {
+ user = network:n1;
+ permit src = network:n2; dst = network:n3; prt = ip;
+}
+=END=
+=ERROR=
+Error: Each rule of service:s must use keyword 'user'
+=END=
+
+############################################################
 =TITLE=Equally reference user
 =INPUT=
 ${topo}
