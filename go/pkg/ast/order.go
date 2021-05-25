@@ -209,10 +209,6 @@ func (a *Attribute) Order() {
 	sort.Slice(vals, func(i, j int) bool {
 		return vals[i].Value < vals[j].Value
 	})
-	for _, attr := range a.ComplexValue {
-		attr.Order()
-	}
-	sortAttr(a.ComplexValue)
 }
 
 func (a *Rule) Order() {
