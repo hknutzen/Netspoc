@@ -242,11 +242,11 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // Problem: Same as case A.
 func checkConflict(conflict map[conflictKey]*conflictInfo) {
 	for key, val := range conflict {
-		isSrc, isPrimary := key.isSrc, key.isPrimary
 		supernetMap := val.supernets
 		if len(supernetMap) == 0 {
 			continue
 		}
+		isSrc, isPrimary := key.isSrc, key.isPrimary
 	RULE:
 		for _, rule1 := range val.rules {
 			var objects []someObj
@@ -281,8 +281,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					if n.zone == z {
 						continue
 					}
-					nm := n.zone.natDomain.natMap
-					obj := getNatNetwork(supernet, nm)
+					obj := getNatNetwork(supernet, n.zone.natDomain.natMap)
 					if !(obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)) {
 						continue
 					}
