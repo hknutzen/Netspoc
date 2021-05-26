@@ -623,6 +623,50 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Must not optimize even if aggregate is not on path of oter rule.
+=INPUT=
+network:n1  = { ip = 10.2.1.0/27; }
+network:n2  = { ip = 10.2.2.0/27; }
+network:n2a = { ip = 10.2.2.32/27; }
+network:n3  = { ip = 10.2.3.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:n2a = { ip = 10.2.2.34; hardware = n2a; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2  = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3  = { ip = 10.2.3.2; hardware = n3; }
+}
+
+service:n1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+
+service:any = {
+ user = any:[network:n2a], network:n2;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 22;
+}
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Don't optimize if aggregate rule ends before secondary router
 =INPUT=
 network:n1 = { ip = 10.2.1.0/27; }
