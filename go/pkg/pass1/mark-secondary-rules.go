@@ -278,7 +278,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 			for supernet, _ := range supernetMap {
 				z := supernet.zone
 				for _, n := range list1 {
-					if n.zone == z {
+					if zoneEq(n.zone, z) {
 						continue
 					}
 					obj := getNatNetwork(supernet, n.zone.natDomain.natMap)
