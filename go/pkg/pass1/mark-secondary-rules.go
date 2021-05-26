@@ -93,40 +93,6 @@ func markPrimary(zone *zone, mark int) {
 	}
 }
 
-func getNetwork(obj someObj) *network {
-	switch x := obj.(type) {
-	case *routerIntf:
-		return x.network
-	case *subnet:
-		return x.network
-	case *network:
-		if x.hasOtherSubnet {
-			return nil
-		}
-		return x
-	}
-	return nil
-}
-
-func getNetworks(list []someObj) []*network {
-	seen := make(map[*network]bool)
-	var result []*network
-	for _, obj := range list {
-		var n *network
-		switch x := obj.(type) {
-		case *subnet, *routerIntf:
-			n = obj.getNetwork()
-		case *network:
-			n = x
-		}
-		if !seen[n] {
-			seen[n] = true
-			result = append(result, n)
-		}
-	}
-	return result
-}
-
 func getZone(path pathStore, list []someObj) *zone {
 	switch x := path.(type) {
 	case *zone:
@@ -205,10 +171,13 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 			mark = z.secondaryMark
 		}
 		pushed := false
-		for _, otherNet := range getNetworks(otherList) {
-			if otherNet == nil {
+		seen := make(map[*network]bool)
+		for _, other := range otherList {
+			otherNet := other.getNetwork()
+			if seen[otherNet] {
 				continue
 			}
+			seen[otherNet] = true
 			key := conflictKey{isSrc, isPrimary, mark, otherNet}
 			info, found := conflict[key]
 			if !found {
@@ -291,17 +260,28 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 			} else {
 				objects = rule1.dst
 			}
-			var list1 []*network
+			var list1 netList
 			seen := make(map[*network]bool)
 			for _, obj := range objects {
-				n := getNetwork(obj)
-				if n != nil && !seen[n] {
+				var n *network
+				switch x := obj.(type) {
+				case *routerIntf:
+					n = x.network
+				case *subnet:
+					n = x.network
+				case *network:
+					if x.hasOtherSubnet {
+						continue
+					}
+					n = x
+				}
+				if !seen[n] {
 					seen[n] = true
-					list1 = append(list1, n)
+					list1.push(n)
 				}
 			}
 			for supernet, _ := range supernetMap {
-				var z = supernet.zone
+				z := supernet.zone
 				for _, n := range list1 {
 					if n.zone == z {
 						continue
