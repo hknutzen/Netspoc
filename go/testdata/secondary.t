@@ -640,10 +640,20 @@ router:r2 = {
  interface:n3 = { ip = 10.2.3.2; hardware = n3; }
 }
 network:n3 = { ip = 10.2.3.0/27; }
-router:r3 = { interface:n3 = { ip = 10.2.3.4; } }
+router:r3 = {
+ interface:n3 = { ip = 10.2.3.4; }
+ interface:n4;
+}
+# Doesn't match aggregate, hence still optimize.
+network:n4 = { ip = 10.4.4.0/24; }
+
 service:n1 = {
  user = network:n1;
  permit src = user; dst = interface:r3.n3; prt = tcp 80;
+}
+service:n4 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
 service:any = {
  user = network:n1;
@@ -655,11 +665,13 @@ service:any = {
 ! n1_in
 access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.0.0 255.255.0.0 eq 22
 access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.4.4.0 255.255.255.0 eq 81
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r2
 ! n2_in
 access-list n2_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n2_in extended permit ip 10.2.1.0 255.255.255.224 10.4.4.0 255.255.255.0
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 =END=
