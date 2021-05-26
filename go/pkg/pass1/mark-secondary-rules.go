@@ -241,11 +241,6 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // permit net:src net:dst ip
 // Problem: Same as case A.
 func checkConflict(conflict map[conflictKey]*conflictInfo) {
-	type pair struct {
-		super *network
-		net   *network
-	}
-	cache := make(map[pair]bool)
 	for key, val := range conflict {
 		isSrc, isPrimary := key.isSrc, key.isPrimary
 		supernetMap := val.supernets
@@ -286,15 +281,9 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					if n.zone == z {
 						continue
 					}
-					isSubnet, found := cache[pair{supernet, n}]
-					if !found {
-						nm := n.zone.natDomain.natMap
-						obj := getNatNetwork(supernet, nm)
-						isSubnet =
-							obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)
-						cache[pair{supernet, n}] = isSubnet
-					}
-					if !isSubnet {
+					nm := n.zone.natDomain.natMap
+					obj := getNatNetwork(supernet, nm)
+					if !(obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)) {
 						continue
 					}
 					if isPrimary {
