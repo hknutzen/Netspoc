@@ -143,7 +143,8 @@ type conflictInfo = struct {
 	rules     []*groupedRule
 }
 
-// Collect conflicting rules and supernet rules for checkConflict below.
+// Collect potentially conflicting rules and supernet rules for
+// checkConflict below.
 func collectConflict(rule *groupedRule, z1, z2 *zone,
 	conflict map[conflictKey]*conflictInfo, isPrimary bool) {
 
