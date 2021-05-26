@@ -639,10 +639,11 @@ router:r2 = {
  interface:n2 = { ip = 10.2.2.2; hardware = n2; }
  interface:n3 = { ip = 10.2.3.2; hardware = n3; }
 }
-network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+network:n3 = { ip = 10.2.3.0/27; }
+router:r3 = { interface:n3 = { ip = 10.2.3.4; } }
 service:n1 = {
  user = network:n1;
- permit src = user; dst = host:h3; prt = tcp 80;
+ permit src = user; dst = interface:r3.n3; prt = tcp 80;
 }
 service:any = {
  user = network:n1;
