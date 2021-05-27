@@ -10,8 +10,17 @@ Usage: PROGRAM [options] FILE|DIR GROUP-NAME ...
 =END=
 
 ############################################################
-=TITLE=Unknown option
+=TITLE=No parameters
 =INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR GROUP-NAME ...
+  -f, --file string   Read GROUP-NAMES from file
+  -q, --quiet         Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
 =PARAMS=--abc
 =ERROR=
 Error: unknown flag: --abc
@@ -27,7 +36,7 @@ Error: Expected group name but got 'bad:name'
 
 ############################################################
 =TITLE=Read pairs from unknown file
-=INPUT=NONE
+=INPUT=#
 =PARAMS=-f unknown
 =ERROR=
 Error: Can't open unknown: no such file or directory

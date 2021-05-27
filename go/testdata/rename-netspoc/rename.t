@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Option '-h'
-=INPUT=NONE
+=INPUT=#
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR SUBSTITUTION ...
@@ -10,8 +10,17 @@ Usage: PROGRAM [options] FILE|DIR SUBSTITUTION ...
 =END=
 
 ############################################################
-=TITLE=Unknown option
+=TITLE=No parameters
 =INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR SUBSTITUTION ...
+  -f, --file string   Read substitutions from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
 =PARAMS=--abc
 =ERROR=
 Error: unknown flag: --abc
@@ -27,7 +36,7 @@ Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
 
 ############################################################
 =TITLE=Unknown type in substitution
-=INPUT=NONE
+=INPUT=#
 =PARAMS=foo:Test foo:Toast
 =ERROR=
 Error: Unknown type foo
@@ -35,7 +44,7 @@ Error: Unknown type foo
 
 ############################################################
 =TITLE=Missing type in replace string
-=INPUT=NONE
+=INPUT=#
 =PARAMS=Test host:Toast
 =ERROR=
 Error: Missing type in 'Test'
@@ -43,7 +52,7 @@ Error: Missing type in 'Test'
 
 ############################################################
 =TITLE=Missing type in substitution
-=INPUT=NONE
+=INPUT=#
 =PARAMS=host:Test Toast
 =ERROR=
 Error: Missing type in 'Toast'
@@ -51,7 +60,7 @@ Error: Missing type in 'Toast'
 
 ############################################################
 =TITLE=Missing replace string
-=INPUT=NONE
+=INPUT=#
 =PARAMS=host:x host:y host:z
 =ERROR=
 Error: Missing replace string for 'host:z'
@@ -59,7 +68,7 @@ Error: Missing replace string for 'host:z'
 
 ############################################################
 =TITLE=Types must be indentical
-=INPUT=NONE
+=INPUT=#
 =PARAMS=host:x network:y
 =ERROR=
 Error: Types must be identical in
@@ -69,7 +78,7 @@ Error: Types must be identical in
 
 ############################################################
 =TITLE=Ambiguous replace object
-=INPUT=NONE
+=INPUT=#
 =PARAMS=group:g group:x group:g group:y
 =ERROR=
 Error: Ambiguous substitution for group:g: group:x, group:y
@@ -488,7 +497,7 @@ network:net network:xxxx
 
 ############################################################
 =TITLE=Unknown file for substitutions
-=INPUT=NONE
+=INPUT=#
 =ERROR=
 Error: open missing.file: no such file or directory
 =END=

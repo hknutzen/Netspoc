@@ -10,6 +10,15 @@ Usage: PROGRAM [options] FILE|DIR OBJECT ...
 =END=
 
 ############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR OBJECT ...
+  -f, --file string   Read OBJECTS from file
+  -q, --quiet         Don't show changed files
+=END=
+
+############################################################
 =TITLE=Unknown option
 =INPUT=NONE
 =PARAMS=--abc
@@ -430,7 +439,7 @@ interface:r.n
 
 ############################################################
 =TITLE=Read pairs from unknown file
-=INPUT=NONE
+=INPUT=#
 =PARAMS=-f unknown
 =ERROR=
 Error: Can't open unknown: no such file or directory

@@ -10,6 +10,15 @@ Usage: PROGRAM [options] FILE|DIR PAIR ...
 =END=
 
 ############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR PAIR ...
+  -f, --file string   Read pairs from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
 =TITLE=Unknown option
 =INPUT=NONE
 =PARAMS=--abc
@@ -350,7 +359,7 @@ interface:r.n.sec interface:r.n
 
 ############################################################
 =TITLE=Read pairs from unknown file
-=INPUT=NONE
+=INPUT=#
 =PARAMS=-f unknown
 =ERROR=
 Error: Can't open unknown: no such file or directory

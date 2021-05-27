@@ -12,8 +12,19 @@ Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
 =END=
 
 ############################################################
-=TITLE=Unknown option
+=TITLE=No parameters
 =INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
+  -6, --ipv6         Expect IPv6 definitions
+  -n, --name         Show name, not IP of elements
+      --nat string   Use network:name as reference when resolving IP address
+  -q, --quiet        Don't print progress messages
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
 =OPTIONS=--abc
 =ERROR=
 Error: unknown flag: --abc

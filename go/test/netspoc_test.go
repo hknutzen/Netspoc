@@ -115,14 +115,17 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			os.Args = append(os.Args, "-f", name)
 		}
 
-		// Prepare input directory.
-		inDir := t.TempDir()
-		tstdata.PrepareInDir(inDir, input)
-		os.Args = append(os.Args, inDir)
+		var inDir string
+		if input != "NONE" || outDir != "" {
+			// Prepare input directory.
+			inDir = t.TempDir()
+			tstdata.PrepareInDir(inDir, input)
+			os.Args = append(os.Args, inDir)
 
-		// Add location of output directory.
-		if outDir != "" {
-			os.Args = append(os.Args, outDir)
+			// Add location of output directory.
+			if outDir != "" {
+				os.Args = append(os.Args, outDir)
+			}
 		}
 
 		// Add other params to command line.
@@ -163,7 +166,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 
 	// Normalize stderr.
-	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+	if inDir != "" {
+		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+	}
 	if outDir != "" {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
 		stderr = strings.ReplaceAll(stderr, outDir, "")

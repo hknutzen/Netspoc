@@ -10,8 +10,18 @@ Usage: PROGRAM [options] FILE|DIR [service:name ...]
 =END=
 
 ############################################################
-=TITLE=Unknown option
+=TITLE=No parameters
 =INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [service:name ...]
+  -6, --ipv6    Expect IPv6 definitions
+  -o, --owner   Keep referenced owners
+  -q, --quiet   Don't print progress messages
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
 =PARAMS=-x
 =ERROR=
 Error: unknown shorthand flag: 'x' in -x
@@ -19,7 +29,7 @@ Error: unknown shorthand flag: 'x' in -x
 
 ############################################################
 =TITLE=Unknown service
-=INPUT=NONE
+=INPUT=#
 =PARAMS=other_service
 =ERROR=
 Warning: Ignoring file 'INPUT' without any content

@@ -10,7 +10,7 @@ Usage: PROGRAM [options] FILE|DIR
 
 ############################################################
 =TITLE=Unknown option
-=INPUT=NONE
+=INPUT=#
 =PARAMS=-x
 =ERROR=
 Error: unknown shorthand flag: 'x' in -x
@@ -18,7 +18,7 @@ Error: unknown shorthand flag: 'x' in -x
 
 ############################################################
 =TITLE=Unknown argument
-=INPUT=NONE
+=INPUT=#
 =PARAMS=other_arg
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR
@@ -36,7 +36,9 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 
 ############################################################
 =TITLE=Empty input
-=INPUT=NONE
+=INPUT=
+
+=END=
 =WARNING=NONE
 
 ############################################################
