@@ -746,10 +746,11 @@ router:r3 = {
  }
 }
 network:un = { unnumbered; }
-area:a = { inclusive_border = interface:r3.n4; }
+area:a2 = { border = interface:r1.n2; }
+area:a4 = { inclusive_border = interface:r3.n4; }
 service:s1 = {
- user = network:n2 &! network:[area:a],
-        interface:[area:a].[all];
+ user = network:[area:a2] &! network:[area:a4],
+        interface:[any:[area:a4]].[all];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 =END=
@@ -764,11 +765,16 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+area:a2 = {
+ border = interface:r1.n2;
+}
 service:s1 = {
- user = network:n2
+ user = network:[area:a2]
         &! network:[group:empty-area]
         ,
-        interface:[group:empty-area].[all],
+        interface:[
+         any:[group:empty-area],
+        ].[all],
         ;
  permit src = network:n1;
         dst = user;
@@ -2234,6 +2240,41 @@ service:s1 = {
  user = interface:[managed & area:n2-3].[auto]
         &! interface:r3.[auto]
         ;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 123;
+}
+=END=
+=INPUT=${input}
+=OUTPUT=
+${input}
+=END=
+
+############################################################
+=TITLE=Network auto interface
+=VAR=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n2-3 = {
+ border = interface:r1.n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = interface:[
+         network:[area:n2-3],
+        ].[auto];
  permit src = user;
         dst = network:n1;
         prt = udp 123;
