@@ -129,9 +129,6 @@ func (c *spoc) markManagedLocal() {
 				if natNetwork.hidden {
 					continue
 				}
-				if natNetwork.ipType == unnumberedIP {
-					continue
-				}
 				ip := natNetwork.ipp.IP
 				prefix := natNetwork.ipp.Bits
 				for _, net := range cluster.filterOnly {
