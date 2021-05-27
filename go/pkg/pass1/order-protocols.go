@@ -95,7 +95,9 @@ func (c *spoc) orderProtocols() {
 			icmp.push(p)
 		case "icmpv6":
 			icmpv6.push(p)
-		case "proto":
+		case "ip":
+			// Do nothing.
+		default:
 			proto.push(p)
 		}
 	}

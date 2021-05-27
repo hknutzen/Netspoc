@@ -372,6 +372,24 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=Numbered protocol is part of 'ip'
+=INPUT=
+${topo}
+protocol:test = proto 123;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = protocol:test, ip;
+}
+=END=
+=WARNING=
+Warning: Redundant rules in service:s1 compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=protocol:test; of service:s1
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s1
+=END=
+
+############################################################
 =TITLE=Must not use standard protocol as number
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
