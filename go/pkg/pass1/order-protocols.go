@@ -237,10 +237,6 @@ func orderRanges(l protoList, up *proto) {
 	}
 
 	// Array wont be empty because prtTCP and prtUDP are defined internally.
-	if len(l) == 0 {
-		return
-	}
-
 	a := l[0]
 	a.up = up
 	a2 := a.ports[1]
