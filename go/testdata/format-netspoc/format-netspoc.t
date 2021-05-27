@@ -9,6 +9,14 @@ Usage: PROGRAM [options] FILE|DIR
 =END=
 
 ############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
 =TITLE=Unknown option
 =INPUT=#
 =PARAMS=-x
@@ -26,6 +34,14 @@ Usage: PROGRAM [options] FILE|DIR
 =END=
 
 ############################################################
+=TITLE=Unknown input file
+=INPUT=NONE
+=PARAMS=unknown-file
+=ERROR=
+Error: open unknown-file: no such file or directory
+=END=
+
+############################################################
 =TITLE=Unknown type
 =INPUT=
 foo:x =
@@ -37,6 +53,7 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 ############################################################
 =TITLE=Empty input
 =INPUT=
+--file
 
 =END=
 =WARNING=NONE
@@ -1225,6 +1242,31 @@ owner:abw = {
           ;
 }
 =END=
+
+############################################################
+=TITLE=Owner definition, verbose output
+=INPUT=
+--f1
+group:g1=;
+--f2
+group:g2 =
+;
+-- f3
+group:g3=;
+=OUTPUT=
+-- f1
+group:g1 =
+;
+-- f2
+group:g2 =
+;
+-- f3
+group:g3 =
+;
+=WARNING=
+Changed f1
+Changed f3
+=OPTIONS=--quiet=false
 
 ############################################################
 =TITLE=Ignore errors in config file
