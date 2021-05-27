@@ -435,6 +435,59 @@ access-group intern_in in interface intern
 =END=
 
 ############################################################
+=TITLE=Multiple internal subnets, unnumbered, hidden
+=INPUT=
+network:n1   = { ip = 10.1.1.0/24; }
+network:n1-a = { ip = 10.1.1.32/27; subnet_of = network:n1; }
+network:n1-b = { ip = 10.1.1.64/27; subnet_of = network:n1; }
+network:un = { unnumbered; }
+router:u = {
+ interface:n1;
+ interface:n1-a;
+ interface:n1-b;
+ interface:un;
+}
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:un = { unnumbered; hardware = un; }
+ interface:intern = { ip = 10.2.1.1; hardware = intern; }
+}
+network:intern = { ip = 10.2.1.0/24; }
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.1.2; hardware = inside; bind_nat = h; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+ interface:ex-hid = { ip = 10.2.2.129; hardware = ex-hid; }
+}
+network:extern = { ip = 10.4.0.0/16; }
+network:ex-hid = { ip = 10.2.2.128/27; nat:h = { hidden; } }
+service:Test = {
+ user = network:extern, network:intern;
+ permit src = user;
+        dst = network:n1-a, network:n1-b;
+        prt = tcp 80;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 81;
+}
+=END=
+=OUTPUT=
+--d32
+! intern_in
+object-group network g1
+ network-object 10.1.1.32 255.255.255.224
+ network-object 10.1.1.64 255.255.255.224
+access-list intern_in extended permit tcp 10.2.1.0 255.255.255.0 object-group g1 eq 80
+access-list intern_in extended permit tcp 10.2.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 81
+access-list intern_in extended deny ip object-group g0 object-group g0
+access-list intern_in extended permit ip any4 any4
+access-group intern_in in interface intern
+=END=
+
+############################################################
 =TITLE=Secondary filter near local filter filters fully
 =VAR=input
 network:n1 = { ip = 10.62.1.32/27; }
