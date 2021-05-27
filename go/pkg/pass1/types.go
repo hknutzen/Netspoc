@@ -38,18 +38,8 @@ type autoIntf struct {
 }
 
 func (x autoIntf) String() string { return x.name }
-func (x autoIntf) isDisabled() bool {
-	switch x := x.object.(type) {
-	case *router:
-		return x.disabled
-	case *network:
-		return x.disabled
-	}
-	return false
-}
 
 type groupObj interface {
-	isDisabled() bool
 	setUsed()
 	String() string
 }
@@ -94,6 +84,10 @@ type disabledObj struct {
 }
 
 func (x *disabledObj) isDisabled() bool { return x.disabled }
+
+type withDisabled interface {
+	isDisabled() bool
+}
 
 type ownedObj struct {
 	owner *owner
@@ -596,8 +590,7 @@ type objGroup struct {
 	recursive bool
 }
 
-func (x objGroup) isDisabled() bool { return false }
-func (x objGroup) String() string   { return x.name }
+func (x objGroup) String() string { return x.name }
 
 type service struct {
 	ipVxObj

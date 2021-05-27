@@ -632,7 +632,7 @@ func (c *spoc) expandGroup1(
 				continue
 			}
 			c.checkV4V6CrossRef(obj, ipv6, ctx)
-			if obj.isDisabled() {
+			if x, ok := obj.(withDisabled); ok && x.isDisabled() {
 				continue
 			}
 
