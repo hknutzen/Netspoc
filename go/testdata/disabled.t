@@ -23,7 +23,8 @@ router:r2 = {
 =INPUT=
 ${topo}
 service:test = {
-    user = host:h1, network:n2, interface:r1.n1, interface:r1.[auto];
+    user = host:h1, network:n2, interface:r1.n1, interface:r2.n2,
+           interface:r1.[auto], interface:r1.[all];
  permit src = user; dst = network:n3; prt = tcp 22;
 }
 =END=

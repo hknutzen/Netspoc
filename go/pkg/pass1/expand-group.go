@@ -414,14 +414,16 @@ func (c *spoc) expandGroup1(
 					r = symTable.router[x.Router]
 				}
 				if r != nil {
-					if selector == "all" {
-						for _, intf := range getIntf(r) {
-							if check(intf) {
-								result.push(intf)
+					if !r.disabled {
+						if selector == "all" {
+							for _, intf := range getIntf(r) {
+								if check(intf) {
+									result.push(intf)
+								}
 							}
+						} else if a := c.getRouterAutoIntf(r); a != nil {
+							result.push(a)
 						}
-					} else if a := c.getRouterAutoIntf(r); a != nil {
-						result.push(a)
 					}
 				} else {
 					c.err("Can't resolve %s:%s.[%s] in %s",
