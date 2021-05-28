@@ -368,6 +368,44 @@ Error: Exactly one network must be located behind unmanaged interface:softclient
 =END=
 
 ############################################################
+=TITLE=Invalid radius attributes
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+  unknown = unknown;
+  split-tunnel-policy = whatever;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  invalid;
+ }
+ host:id:foo@domain.x = {  ip = 10.99.1.10; }
+}
+=END=
+=ERROR=
+Error: Invalid radius_attribute 'invalid' at network:clients
+Error: Unsupported value in radius_attribute of router:asavpn 'split-tunnel-policy = whatever'
+Error: Invalid radius_attribute 'unknown' at router:asavpn
+=END=
+
+############################################################
 =TITLE=Use authentication-server-group only with ldap_id (1)
 =INPUT=
 ${crypto_vpn}
@@ -3333,6 +3371,21 @@ crypto ca certificate map cert@example.com 10
  subject-name attr ea eq cert@example.com
 tunnel-group-map cert@example.com 10 1.2.3.129
 crypto map crypto-outside interface outside
+=END=
+
+############################################################
+=TITLE=Multiple zones behind managed crypto router
+=INPUT=
+${topo}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:lan1 = { ip = 10.99.1.2; hardware = lan1; }
+ interface:x = { ip = 10.99.1.129; hardware = x; }
+}
+network:x = { ip = 10.99.1.128/26; subnet_of = network:lan1; }
+=ERROR=
+Error: Exactly one security zone must be located behind managed interface:vpn1.lan1 of crypto router
 =END=
 
 ############################################################
