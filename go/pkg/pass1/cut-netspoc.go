@@ -538,13 +538,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			todoManaged = append(todoManaged, r)
 		}
 	}
-	for key, intf := range c.networkAutoInterfaces {
-		n := key.network
-		if intf.isUsed && !n.isUsed {
-			n.isUsed = true
-			todoManaged = append(todoManaged, n)
-		}
-	}
 
 	// Connect objects, that are located outside of any path.
 	c.markUnconnected(todoManaged, true)
