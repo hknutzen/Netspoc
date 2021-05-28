@@ -396,11 +396,15 @@ network:clients = {
  radius_attributes = {
   invalid;
  }
- host:id:foo@domain.x = {  ip = 10.99.1.10; }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ }
 }
 =END=
 =ERROR=
 Error: Invalid radius_attribute 'invalid' at network:clients
+Error: Must not use radius_attribute 'trust-point' at host:id:foo@domain.x.clients
 Error: Unsupported value in radius_attribute of router:asavpn 'split-tunnel-policy = whatever'
 Error: Invalid radius_attribute 'unknown' at router:asavpn
 =END=
@@ -3396,6 +3400,16 @@ ${topo}
 =SUBST=/#host/host/
 =ERROR=
 Error: network:lan1 having ID hosts must not be located behind managed router:vpn1
+=END=
+
+############################################################
+=TITLE=Attribute 'id' with wrong authentication
+=INPUT=
+${topo}
+=SUBST=/rsasig/preshare/
+=ERROR=
+Error: Invalid attribute 'id' at interface:vpn1.tunnel:vpn1.
+ Set authentication=rsasig at isakmp:aes256SHA
 =END=
 
 ############################################################

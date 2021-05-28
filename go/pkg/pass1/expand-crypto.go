@@ -278,15 +278,6 @@ func (c *spoc) expandCrypto() {
 					}
 					if hubIsAsaVpn {
 						c.verifyAsaVpnAttributes(net.name, net.radiusAttributes)
-						key := "trust-point"
-						if net.radiusAttributes[key] != "" {
-							for _, s := range net.subnets {
-								if s.ipp.IsSingleIP() {
-									c.err("Must not use radiusAttribute '%s' at %s",
-										key, s)
-								}
-							}
-						}
 					}
 
 					// Rules for single software clients are stored
@@ -297,9 +288,12 @@ func (c *spoc) expandCrypto() {
 						if hubIsAsaVpn {
 							c.verifyAsaVpnAttributes(s.name, s.radiusAttributes)
 							key := "trust-point"
-							if s.radiusAttributes[key] != "" &&
+							if (net.radiusAttributes[key] != "" ||
+								s.radiusAttributes[key] != "") &&
 								s.ipp.IsSingleIP() {
-								c.err("Must not use radiusAttribute '%s' at %s", key, s)
+
+								c.err("Must not use radius_attribute '%s' at %s",
+									key, s)
 							}
 
 							c.verifyAuthServer(s, hubRouter)
