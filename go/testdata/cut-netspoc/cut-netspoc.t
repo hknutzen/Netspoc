@@ -545,7 +545,7 @@ service:test = {
 
 ############################################################
 =TITLE=Ignore IPv6 part of topology
-=INPUT=
+=VAR=input
 -- topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -554,10 +554,6 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-service:test = {
-    user = network:n1;
-    permit src = user; dst = network:n2; prt = ip;
 }
 -- ipv6/topo
 network:n3 = { ip = 1000::abcd:0001:0/112;}
@@ -569,8 +565,21 @@ router:r1 = {
  interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n4;}
  interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
 }
+=INPUT=
+${input}
+-- rule
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
 =END=
 =OUTPUT=
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = ip;
+}
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
@@ -579,11 +588,81 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+=END=
+
+############################################################
+=TITLE=Ignore IPv4 part of topology
+=INPUT=
+${input}
+-- ipv6/rule
+service:test = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+=END=
+=OUTPUT=
+service:test = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+network:n3 = { ip = 1000::abcd:0001:0/112; }
+network:n4 = { ip = 1000::abcd:0002:0/112; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+}
+=END=
+
+############################################################
+=TITLE=Show IPv4 + IPv6 part of topology
+=INPUT=
+${input}
+-- rule
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
+-- ipv6/rule
+service:test6 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+=OUTPUT=
+service:test6 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+network:n3 = { ip = 1000::abcd:0001:0/112; }
+network:n4 = { ip = 1000::abcd:0002:0/112; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+}
 service:test = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
         prt = ip;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =END=
 
