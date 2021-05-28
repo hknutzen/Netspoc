@@ -435,9 +435,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			continue
 		}
 		if anchor := a.anchor; anchor != nil {
-			if anchor.isUsed {
-				continue
-			}
 			anchor.isUsed = true
 			todoManaged.push(anchor)
 		} else {
