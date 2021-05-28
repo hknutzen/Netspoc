@@ -1125,6 +1125,34 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Secondary interface
+=VAR=input
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.1,
+       10.1.1.18,
+       ;
+  secondary:sec = { ip = 10.1.1.33; }
+  hardware = n1;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:r1.n1.2,
+              interface:r1.n1.sec,
+              ;
+        prt = tcp 80;
+}
+=INPUT=${input}
+=OUTPUT=
+${input}
+=END=
+
+############################################################
 =TITLE=Remove interface with virtual address
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

@@ -795,8 +795,8 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				n.Type = "interface"
 				n.Router = intf.router.name[len("router:"):]
 				n.Network = intf.network.name[len("network:"):]
-				if intf.redundant {
-					n.Extension = "virtual"
+				if l := strings.Split(intf.name, "."); len(l) == 3 {
+					n.Extension = l[2]
 				}
 				l = append(l, n)
 			}
