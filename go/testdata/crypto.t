@@ -3233,6 +3233,7 @@ id = cert@example.com;
 network:lan1 = {
  ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
+ #host:id:h1@example.com = { ip = 10.99.1.130; }
 }
 =END=
 
@@ -3386,6 +3387,15 @@ router:r1 = {
 network:x = { ip = 10.99.1.128/26; subnet_of = network:lan1; }
 =ERROR=
 Error: Exactly one security zone must be located behind managed interface:vpn1.lan1 of crypto router
+=END=
+
+############################################################
+=TITLE=ID hosts behind managed crypto router
+=INPUT=
+${topo}
+=SUBST=/#host/host/
+=ERROR=
+Error: network:lan1 having ID hosts must not be located behind managed router:vpn1
 =END=
 
 ############################################################
