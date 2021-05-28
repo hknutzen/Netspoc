@@ -258,7 +258,7 @@ func (c *spoc) expandCrypto() {
 
 			// Analyze cleartext networks behind spoke router.
 			for _, intf := range router.interfaces {
-				if intf == spoke {
+				if intf == spoke || intf.mainIntf != nil {
 					continue
 				}
 				net := intf.network
