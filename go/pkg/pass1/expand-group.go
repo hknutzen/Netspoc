@@ -52,13 +52,9 @@ type networkAutoIntfKey = struct {
 func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 	// Restore effect of split router from transformation in
-	// split_semi_managed_router and move_locked_interfaces.
+	// splitSemiManagedRouter and moveLockedIntf.
 	if r.origRouter != nil {
 		r = r.origRouter
-	}
-
-	if r.disabled {
-		return nil
 	}
 
 	result := c.routerAutoInterfaces[r]
