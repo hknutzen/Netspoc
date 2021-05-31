@@ -71,9 +71,6 @@ func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 // Create autoIntf from network.
 func (c *spoc) getNetworkAutoIntf(n *network, managed bool) *autoIntf {
-	if n.disabled {
-		return nil
-	}
 	result := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
 	if result == nil {
 		name := "interface:[" + n.name + "].[auto]"
