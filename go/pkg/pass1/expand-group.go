@@ -246,6 +246,23 @@ func (c *spoc) expandGroup1(
 				x.Elements, "interface:[..].["+selector+"] of "+ctx,
 				ipv6, false, true)
 			routerSeen := make(map[*router]bool)
+			autoFromRouter := func(r *router) {
+				if routerSeen[r] {
+					return
+				}
+				routerSeen[r] = true
+				if managed && r.managed == "" && !r.routingOnly {
+					// This router has no managed interfaces.
+				} else if selector == "all" {
+					for _, intf := range getIntf(r) {
+						if check(intf) {
+							result.push(intf)
+						}
+					}
+				} else if a := c.getRouterAutoIntf(r); a != nil {
+					result.push(a)
+				}
+			}
 			for _, obj := range subObjects {
 				obj.setUsed()
 				switch x := obj.(type) {
@@ -294,22 +311,7 @@ func (c *spoc) expandGroup1(
 						}
 					}
 				case *routerIntf:
-					r := x.router
-					if routerSeen[r] {
-						continue
-					}
-					routerSeen[r] = true
-					if managed && r.managed == "" && !r.routingOnly {
-						// Do nothing.
-					} else if selector == "all" {
-						for _, intf := range getIntf(r) {
-							if check(intf) {
-								result.push(intf)
-							}
-						}
-					} else if a := c.getRouterAutoIntf(r); a != nil {
-						result.push(a)
-					}
+					autoFromRouter(x.router)
 				case *area:
 					var routers []*router
 
@@ -371,22 +373,7 @@ func (c *spoc) expandGroup1(
 				case *autoIntf:
 					obj := x.object
 					if r, ok := obj.(*router); ok {
-						if routerSeen[r] {
-							continue
-						}
-						routerSeen[r] = true
-						if managed && !(r.managed != "" || r.routingOnly) {
-
-							// This router has no managed interfaces.
-						} else if selector == "all" {
-							for _, intf := range getIntf(r) {
-								if check(intf) {
-									result.push(intf)
-								}
-							}
-						} else if a := c.getRouterAutoIntf(r); a != nil {
-							result.push(a)
-						}
+						autoFromRouter(r)
 					} else {
 						c.err("Can't use %s inside interface:[..].[%s] of %s",
 							x, selector, ctx)
