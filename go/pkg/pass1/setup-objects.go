@@ -1490,6 +1490,12 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 	}
 
+	// Would interfere with split crypto router.
+	if intf.disabled && (intf.hub != nil || intf.spoke != nil) {
+		c.warn("Ignoring attribute 'disabled' at %s of crypto router", name)
+		intf.disabled = false
+	}
+
 	if l3Name == v.Name {
 		intf.loopback = true
 		intf.isLayer3 = true
