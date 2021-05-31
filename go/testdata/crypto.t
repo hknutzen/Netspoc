@@ -1172,6 +1172,14 @@ Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.cus
 =END=
 
 ############################################################
+=TITLE=Missing trust-point
+=INPUT=${input}
+=SUBST=/trust-point = ASDM_TrustPoint1;//
+=ERROR=
+Error: Missing 'trust-point' in radiusAttributes of router:asavpn
+=END=
+
+############################################################
 =TITLE=Permit all ID hosts in network
 =INPUT=
 ${topo}
@@ -3219,11 +3227,11 @@ network:dmz1 = {
  nat:vpn1 = { ip = 1.2.3.129/32; dynamic; }
 }
 router:vpn1 = {
- managed;
+ managed;#
  model = IOS;
  interface:dmz1 = {
   ip = 10.254.254.6;
-id = cert@example.com;
+id = cert@example.com;#
   nat:vpn1 = { ip = 1.2.3.129; }
   spoke = crypto:sts;
   bind_nat = lan1;
@@ -3399,7 +3407,18 @@ Error: Exactly one security zone must be located behind managed interface:vpn1.l
 ${topo}
 =SUBST=/#host/host/
 =ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
 Error: network:lan1 having ID hosts must not be located behind managed router:vpn1
+=END=
+
+############################################################
+=TITLE=ID hosts behind unmanaged crypto router
+=INPUT=
+${topo}
+=SUBST=/#host/host/
+=SUBST=/managed;#//
+=ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =END=
 
 ############################################################
@@ -3596,6 +3615,45 @@ Error: No valid path
  to any:[network:dmz]
  for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
  Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
+=TITLE=Must not use ID-host at model=ASA;
+=INPUT=
+${crypto_sts}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 1.2.3.0/25; }
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.1;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+network:lan1 = {
+ ip = 10.99.1.0/24;
+ host:id:@example.com = { range = 10.99.1.32 - 10.99.1.63; }
+}
+=ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =END=
 
 ############################################################

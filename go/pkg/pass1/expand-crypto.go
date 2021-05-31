@@ -245,6 +245,7 @@ func (c *spoc) expandCrypto() {
 			managed := router.managed
 			hubRouter := hub.router
 			hubModel := hubRouter.model
+			doAuth := hubModel.doAuth
 			natMap := hub.natMap
 			hubIsAsaVpn := hubModel.crypto == "ASA_VPN"
 			var encrypted netList
@@ -270,6 +271,10 @@ func (c *spoc) expandCrypto() {
 					if idRules == nil {
 						idRules = make(map[string]*idIntf)
 						hub.idRules = idRules
+					}
+					if !doAuth {
+						c.err("%s having ID hosts can't be checked by %s",
+							net, hubRouter)
 					}
 					if managed != "" {
 						c.err(
@@ -336,8 +341,8 @@ func (c *spoc) expandCrypto() {
 					router)
 			}
 
-			doAuth := hubModel.doAuth
-			if id := spoke.id; id != "" {
+			id := spoke.id
+			if id != "" {
 				if !needId {
 					c.err("Invalid attribute 'id' at %s.\n"+
 						" Set authentication=rsasig at %s", spoke, isakmp.name)
@@ -358,11 +363,8 @@ func (c *spoc) expandCrypto() {
 						id, hubRouter)
 				}
 				id2intf[id] = append(id2intf[id], spoke)
-			} else if hasIdHosts {
-				if !doAuth {
-					c.err("%s can't check IDs of %s", hubRouter, encrypted[0])
-				}
-			} else if len(encrypted) != 0 {
+			}
+			if len(encrypted) != 0 && !hasIdHosts && id == "" {
 				if doAuth && managed == "" {
 					c.err("Networks behind crypto tunnel to %s of model '%s'"+
 						" need to have ID hosts:\n"+encrypted.nameList(),
