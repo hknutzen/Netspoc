@@ -312,11 +312,7 @@ func (s *state) readText() (string, error) {
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		result, err := s.doVarSubst(line)
-		if err != nil {
-			return "", err
-		}
-		return result, nil
+		return s.doVarSubst(line), nil
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest
@@ -330,7 +326,7 @@ func (s *state) readText() (string, error) {
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
 			}
-			return s.doVarSubst(string(text[:size]))
+			return s.doVarSubst(string(text[:size])), nil
 		}
 		s.rest = s.rest[len(line):]
 		size += len(line)
@@ -338,11 +334,11 @@ func (s *state) readText() (string, error) {
 }
 
 // Substitute occurrences of ${name} with corresponding value.
-func (s *state) doVarSubst(text string) (string, error) {
+func (s *state) doVarSubst(text string) string {
 	for name, val := range s.textblocks {
 		text = strings.ReplaceAll(text, "${"+name+"}", val)
 	}
-	return text, nil
+	return text
 }
 
 func (s *state) getLine() (string, error) {
