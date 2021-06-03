@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+ - Improved secondary optimization.
+   Conflicts with aggregate rules are analyzed more precisely now,
+   leading to more optimized rules.
+ - Fixed 'format-netspoc':
+   - No longer remove comment before complex host and interface.
+   - Sort order of intersection is determined by first element now.
+ - Fixed 'export-netspoc':
+   Print owner name with "owner:" in error messages and warnings.
+ - Fix: Numbered protocol is now recognized as redundant to 'ip'.
+
 6.030     2021-05-20 13:29:29+02:00 Europe/Berlin
 
  - A warning is shown again, if list of objects in service after
