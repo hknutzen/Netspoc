@@ -721,7 +721,6 @@ func ParseFile(src []byte, fName string, mode Mode) (f *ast.File, err error) {
 	return
 }
 
-// Read from string
 func ParseUnion(src []byte) (l []ast.Element, err error) {
 	err = handlePanic(func() {
 		p := new(parser)
@@ -732,6 +731,18 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 			p.syntaxErr(`Unexpected content after ";"`)
 		}
 		l = list
+	})
+	return
+}
+
+func ParseToplevel(src []byte) (n ast.Toplevel, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		p.init(src, "command line", 0)
+		n = p.toplevel()
+		if p.pos != len(src) {
+			p.syntaxErr(`Unexpected content after definition`)
+		}
 	})
 	return
 }
