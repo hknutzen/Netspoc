@@ -401,7 +401,6 @@ func getAttrList(l []*ast.Attribute) (string, string) {
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
-	p.preComment(n)
 	if l := n.ComplexValue; l != nil {
 		name := n.Name
 		if len := utfLen(name); len < max {
@@ -443,6 +442,7 @@ func (p *printer) indentedAttributeList(
 	p.indent++
 	max, noIndent := getMaxAndNoIndent(l, simple)
 	for _, a := range l {
+		p.preComment(a)
 		if noIndent[a] {
 			p.complexValue(a.Name, a.ComplexValue)
 		} else {

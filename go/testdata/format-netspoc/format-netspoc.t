@@ -851,11 +851,15 @@ network:n1 = { ip = 10.1.1.0/24;
  }
  radius_attributes = { banner = hello again; }
  nat:n2 = { ip = 8.1.1.0/24; }
+# range
 host:range3-5 = { range = 10.1.1.3-10.1.1.5; } # range
 host:h2 = { ip = 10.1.1.2; radius_attributes={ banner= hello h2;}}
 host:h10 = { ip =10.1.1.10; owner = o1; }
 host:h9 = { ip =10.1.1.9; owner = o1; } # h9
+# long
 host:long-name = { ip =10.1.1.66; owner = o1; }
+# nat
+host:nat = { ip = 10.1.1.11; nat:n = { ip = 9.1.1.11; } }
 }
 =END=
 =OUTPUT=
@@ -872,9 +876,16 @@ network:n1 = {
    banner = hello h2;
   }
  }
+ # range
  host:range3-5  = { range = 10.1.1.3 - 10.1.1.5; } # range
  host:h9        = { ip = 10.1.1.9; owner = o1; } # h9
  host:h10       = { ip = 10.1.1.10; owner = o1; }
+ # nat
+ host:nat = {
+  ip = 10.1.1.11;
+  nat:n = { ip = 9.1.1.11; }
+ }
+ # long
  host:long-name = { ip = 10.1.1.66; owner = o1; }
 }
 =END=
@@ -1020,15 +1031,19 @@ network:n1 = {
 ############################################################
 =TITLE=Managed router
 =INPUT=
-router:r1 = { managed;
+# pre
+router:r1 = { managed; # tail
+# model
 model =
  ASA,
  VPN,CONTEXT;
+# i1
 interface:n7 = {
  ip = 10.1.7.1; hardware = n7;
  hub = crypto:c1, crypto:c2, ;
  no_check;
 }
+# i2
 interface:n1 = {
  ip = 10.1.1.1, 10.1.1.2; hardware = n1;
  virtual = { ip = 10.1.1.3;  type = HSRPv2; }
@@ -1041,9 +1056,12 @@ interface:lo = { ip = 10.1.4.128; hardware = lo; loopback; }
 }
 =END=
 =OUTPUT=
+# pre
 router:r1 = {
- managed;
+ managed; # tail
+ # model
  model = ASA, VPN, CONTEXT;
+ # i1
  interface:n7 = {
   ip = 10.1.7.1;
   hardware = n7;
@@ -1052,6 +1070,7 @@ router:r1 = {
         ;
   no_check;
  }
+ # i2
  interface:n1 = {
   ip = 10.1.1.1,
        10.1.1.2,
@@ -1071,11 +1090,14 @@ router:r1 = {
 =TITLE=Sort successive vip interfaces
 =INPUT=
 router:u1 = {
+ # i1
  interface:n7 = { owner = o1; ip = 10.1.1.7; }
+ # i2
  interface:lo = { ip = 10.1.4.128; owner = o2; vip; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
+ # IGNORED
 }
 router:u2 = {
  interface:v2 = { ip = 10.1.4.128; owner = o2; vip; }
@@ -1087,8 +1109,10 @@ router:u2 = {
 =END=
 =OUTPUT=
 router:u1 = {
+ # i1
  interface:n7    = { owner = o1; ip = 10.1.1.7; }
  interface:n1    = { ip = 10.1.1.1; owner = o1; vip; }
+ # i2
  interface:lo    = { ip = 10.1.4.128; owner = o2; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
