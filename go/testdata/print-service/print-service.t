@@ -141,7 +141,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =END=
 
 ############################################################
-=TITLE=Missing "service:" keyword
+=TITLE=Missing "service:" type is ok
 =INPUT=${input}
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
