@@ -422,8 +422,16 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 
 		nameList := func(l srvObjList) stringList {
 			names := make(stringList, 0, len(l))
+
+			// Remove duplicates resulting from aggregates of zone cluster.
+			var prev string
 			for _, ob := range l {
-				names.push(ob.String())
+				name := ob.String()
+				if name == prev {
+					continue
+				}
+				prev = name
+				names.push(name)
 			}
 			sort.Strings(names)
 			return names
