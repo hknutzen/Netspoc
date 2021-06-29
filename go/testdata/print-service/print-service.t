@@ -159,3 +159,44 @@ s2:permit network:n2 network:n3 tcp
 =PARAMS=service:s2
 
 ############################################################
+=TITLE=Remove duplicate elements resulting from zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = any:[ip=10.1.1.0/24 & network:n2]; prt = tcp 81;
+}
+=OUTPUT=
+s1:permit network:n3 any:[network:n2] tcp 80
+s2:permit network:n3 network:n1 tcp 81
+=END=
+=OPTIONS=--name
+
+############################################################
