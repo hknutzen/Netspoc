@@ -556,9 +556,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 				// Mark aggregate that has other *supernet*.
 				// In this situation, addresses of aggregate
-				// are part of supernet and located in another
+				// are part of supernet and located in other
 				// zone.
-				if subnet.isAggregate {
+				// But ignore the internet and non matching aggregate.
+				if subnet.isAggregate && bignet.ipp.Bits != 0 {
 					markNetworkAndPending(subnet)
 					//debug("%s ~ %s", subnet, bignet)
 				}

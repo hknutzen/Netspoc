@@ -2440,7 +2440,6 @@ service:s1 = {
 {
  "any:[ip=10.1.3.0/24 & network:n3]": {
   "ip": "10.1.3.0/255.255.255.0",
-  "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n3]"
  },
