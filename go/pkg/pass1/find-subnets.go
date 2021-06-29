@@ -513,7 +513,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					natBignet := natBignet
 					for {
 						bignet := origNet[natBignet]
-						if visible[natBignet] && bignet.zone == zone {
+						if visible[natBignet] && zoneEq(bignet.zone, zone) {
 							domMap := subnetInZone[netPair{bignet, subnet}]
 							if domMap == nil {
 								domMap = make(map[*natDomain]bool)
@@ -542,7 +542,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// Remember subnet relation in same zone in pendingOtherSubnet,
 			// if current status of subnet is not known,
 			// since status may change later.
-			if bignet.zone == subnet.zone {
+			if zoneEq(bignet.zone, subnet.zone) {
 				if subnet.hasOtherSubnet || hasIdentical[subnet] {
 					bignet.hasOtherSubnet = true
 				} else {
@@ -609,7 +609,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if bignet.zone != subnet.zone {
+			if !zoneEq(bignet.zone, subnet.zone) {
 				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}
