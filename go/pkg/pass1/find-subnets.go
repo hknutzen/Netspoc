@@ -169,7 +169,7 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	// For each subnet N find the largest non-aggregate network
 	// which encloses N. If one exists, store it in maxUpNet.
 	// This is used to exclude subnets from z.networks below.
-	// It is also used to derive attribute maxRoutingNet.
+	// It is also used to derive attribute .maxRoutingNet.
 	maxUpNet := make(map[*network]*network)
 	var setMaxNet func(n *network) *network
 	setMaxNet = func(n *network) *network {
@@ -198,7 +198,7 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	// For each subnet N find the largest non-aggregate network
 	// inside the same zone which encloses N.
-	// If one exists, store it in maxRoutingNet. This is used
+	// If one exists, store it in .maxRoutingNet. This is used
 	// for generating static routes.
 	// We later check, that subnet relation remains stable even if
 	// NAT is applied.
@@ -320,7 +320,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	// 1. step:
 	// Compare IP/mask of all networks and NAT networks and find relations
-	// isIn and identical.
+	// .isIn and .identical.
 
 	// Mapping prefix -> IP -> Network|NAT Network.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
@@ -348,7 +348,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		}
 	}
 
-	// Calculate isIn relation from IP addresses;
+	// Calculate .isIn relation from IP addresses;
 	// This includes all addresses of all networks in all NAT domains.
 	isIn := make(map[*network]*network)
 	processSubnetRelation(prefixIPMap, func(sub, big *network) {
@@ -356,10 +356,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	})
 
 	// 2. step:
-	// Analyze isIn and 'identical' relation for different NAT domains.
+	// Analyze .isIn and .Identical relation for different NAT domains.
 
 	// Mapping from subnet to bignet in same zone.
-	// Bignet must be marked, if subnet is marked later with hasOtherSubnet.
+	// Bignet must be marked, if subnet is marked later with .hasOtherSubnet.
 	pendingOtherSubnet := make(map[*network]netList)
 	var markNetworkAndPending func(*network)
 	markNetworkAndPending = func(n *network) {
@@ -684,10 +684,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	// Secondary optimization substitutes a host or interface by its
 	// largest valid supernet inside the same security zone. This
 	// supernet has already been calculated and stored in
-	// maxRoutingnet. But maxRoutingNet can't be used if it has
+	// .maxRoutingNet. But .maxRoutingNet can't be used if it has
 	// a subnet in some other security zone. In this case we have to
-	// search again for a supernet without attribute hasOtherSubnet.
-	// The result is stored in maxSecondarynet.
+	// search again for a supernet without attribute .hasOtherSubnet.
+	// The result is stored in .maxSecondaryNet.
 	for _, n := range networks {
 		max := n.maxRoutingNet
 		if max == nil {
@@ -755,7 +755,7 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 // Find subnet relation between networks in different NAT domains.
 // Mark networks, having subnet in other zone: bignet.hasOtherSubnet
 // 1. If set, this prevents secondary optimization.
-// 2. If rule has src or dst with attribute {has_other_subnet},
+// 2. If rule has src or dst with attribute .hasOtherSubnet,
 //    it is later checked for missing supernets.
 func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
