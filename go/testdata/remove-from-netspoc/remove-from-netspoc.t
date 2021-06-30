@@ -1,5 +1,40 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR OBJECT ...
+  -f, --file string   Read OBJECTS from file
+  -q, --quiet         Don't show changed files
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR OBJECT ...
+  -f, --file string   Read OBJECTS from file
+  -q, --quiet         Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=Verbose output
 =INPUT=
 group:g1 =
@@ -172,7 +207,7 @@ group:abc =
 =TITLE=area in automatic group
 =INPUT=
 group:abc =
- any:[ip = 10.1.0.0/16 &
+ network:[
   area:a1,
   area:a2,
  ],
@@ -180,10 +215,27 @@ group:abc =
 =END=
 =OUTPUT=
 group:abc =
- any:[ip = 10.1.0.0/16 & area:a1],
+ network:[area:a1],
 ;
 =END=
 =PARAMS=area:a2
+
+############################################################
+=TITLE=Automatic interface group
+=INPUT=
+group:abc =
+ interface:[
+  network:n1,
+  network:n2,
+ ].[all],
+;
+=END=
+=OUTPUT=
+group:abc =
+ interface:[network:n1].[all],
+;
+=END=
+=PARAMS=network:n2
 
 ############################################################
 =TITLE=in service, but not in area and pathrestriction
@@ -383,6 +435,14 @@ network:abx
 host:id:xyz@dom
 group:bbb
 interface:r.n
+=END=
+
+############################################################
+=TITLE=Read pairs from unknown file
+=INPUT=#
+=PARAMS=-f unknown
+=ERROR=
+Error: Can't open unknown: no such file or directory
 =END=
 
 ############################################################

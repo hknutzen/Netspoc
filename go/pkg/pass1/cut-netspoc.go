@@ -278,7 +278,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		toplevel = copy
 		for _, name := range names {
 			if !seen[name] {
-				c.err("Unknown service:%s", name)
+				c.err("Unknown %s", name)
 			}
 		}
 	}
@@ -349,17 +349,16 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			addLater.push(intf)
 		}
 	}
-	for _, x := range symTable.network {
-		collectNegated(x)
+	for _, n := range c.allNetworks {
+		collectNegated(n)
+		for _, h := range n.hosts {
+			collectNegated(h)
+		}
 	}
-	for _, x := range symTable.host {
-		collectNegated(x)
-	}
-	for _, x := range symTable.routerIntf {
-		collectNegated(x)
-	}
-	for _, x := range symTable.aggregate {
-		collectNegated(x)
+	for _, r := range c.allRouters {
+		for _, intf := range r.interfaces {
+			collectNegated(intf)
+		}
 	}
 
 	zoneUsed := make(map[*zone]bool)
@@ -380,7 +379,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark zones having attributes that influence their networks.
-	for _, n := range symTable.network {
+	for _, n := range c.allNetworks {
 		if !n.isUsed {
 			continue
 		}
@@ -396,7 +395,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		zoneUsed[z] = true
 	}
 
-	for _, agg := range symTable.aggregate {
+	for _, agg := range c.allNetworks {
 		if agg.isUsed {
 			if n := agg.link; n != nil {
 				n.isUsed = true
@@ -436,9 +435,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			continue
 		}
 		if anchor := a.anchor; anchor != nil {
-			if anchor.isUsed {
-				continue
-			}
 			anchor.isUsed = true
 			todoManaged.push(anchor)
 		} else {
@@ -472,7 +468,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark networks having NAT attributes that influence their subnets.
-	for _, n := range symTable.network {
+	for _, n := range c.allNetworks {
 		if !n.isUsed {
 			continue
 		}
@@ -539,13 +535,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			todoManaged = append(todoManaged, r)
 		}
 	}
-	for key, intf := range c.networkAutoInterfaces {
-		n := key.network
-		if intf.isUsed && !n.isUsed {
-			n.isUsed = true
-			todoManaged = append(todoManaged, n)
-		}
-	}
 
 	// Connect objects, that are located outside of any path.
 	c.markUnconnected(todoManaged, true)
@@ -555,7 +544,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark bridge and bridged networks.
-	for _, n := range symTable.network {
+	for _, n := range c.allNetworks {
 		if !n.isUsed {
 			continue
 		}
@@ -621,10 +610,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 		}
 	}
-	for _, r := range symTable.router {
-		mark1(r)
-	}
-	for _, r := range symTable.router6 {
+	for _, r := range c.allRouters {
 		mark1(r)
 	}
 
@@ -665,10 +651,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 		}
 	}
-	for _, r := range symTable.router {
-		mark2(r)
-	}
-	for _, r := range symTable.router6 {
+	for _, r := range c.allRouters {
 		mark2(r)
 	}
 
@@ -743,10 +726,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 		}
 	}
-	for _, r := range symTable.router {
-		markRouter(r)
-	}
-	for _, r := range symTable.router6 {
+	for _, r := range c.allRouters {
 		markRouter(r)
 	}
 	if keepOwner {
@@ -815,8 +795,8 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				n.Type = "interface"
 				n.Router = intf.router.name[len("router:"):]
 				n.Network = intf.network.name[len("network:"):]
-				if intf.redundant {
-					n.Extension = "virtual"
+				if l := strings.Split(intf.name, "."); len(l) == 3 {
+					n.Extension = l[2]
 				}
 				l = append(l, n)
 			}

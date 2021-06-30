@@ -105,7 +105,7 @@ Error: Unknown extension in 'model' of router:R: bar
 =END=
 
 ############################################################
-=TITLE=Unexptected attribute no_check
+=TITLE=Unexpected attribute no_check
 =INPUT=
 router:R = {
  managed;
@@ -426,6 +426,16 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Identifier expected  at EOF
+=INPUT=
+network:n1 = { owner =
+=END=
+=ERROR=
+Error: Expected something at line 1 of INPUT, at EOF
+Aborted
+=END=
+
+############################################################
 =TITLE=Identifier expected
 =INPUT=
 network:n1 = { owner = }
@@ -478,10 +488,15 @@ Aborted
 ############################################################
 =TITLE=Bad hostname in definition
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:id: = { ip = 10.1.1.10; } }
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:id: = { ip = 10.1.1.10; }
+ host:@h11 = { ip = 10.1.1.11; }
+}
 =END=
 =ERROR=
 Error: Invalid name in definition of 'host:id:'
+Error: Invalid identifier in definition of 'host:@h11'
 =END=
 
 ############################################################
@@ -710,11 +725,12 @@ Aborted
 =END=
 
 ############################################################
-=TITLE=Network without IP
+=TITLE=Network and host without IP
 =INPUT=
-network:n = { }
+network:n = { host:h1 = {} }
 =END=
 =ERROR=
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 Error: Missing IP address for network:n
 =END=
 
@@ -994,6 +1010,19 @@ router:r = {
 =END=
 
 ############################################################
+=TITLE=Must reference user in rule
+=INPUT=
+${topo}
+service:s = {
+ user = network:n1;
+ permit src = network:n2; dst = network:n3; prt = ip;
+}
+=END=
+=ERROR=
+Error: Each rule of service:s must use keyword 'user'
+=END=
+
+############################################################
 =TITLE=Equally reference user
 =INPUT=
 ${topo}
@@ -1053,7 +1082,7 @@ Error: Unexpected attribute in service:s1: xyz
 =END=
 
 ############################################################
-=TITLE=Invalid rule at service
+=TITLE=Invalid action in at service
 =INPUT=
 service:s1 = {
  user = network:n1;
@@ -1062,6 +1091,19 @@ service:s1 = {
 =END=
 =ERROR=
 Error: Expected 'permit' or 'deny' at line 3 of INPUT, near " --HERE-->allow"
+Aborted
+=END=
+
+############################################################
+=TITLE=Invalid rule in at service
+=INPUT=
+service:s1 = {
+ user = network:n1;
+ permit  dst = network:n2; src = user; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: Expected 'src' at line 3 of INPUT, near "permit  --HERE-->dst"
 Aborted
 =END=
 

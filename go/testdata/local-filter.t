@@ -106,25 +106,34 @@ Error: Attribute 'bind_nat' is not allowed at interface of router:d32 with 'mana
 =TITLE=Cluster must have identical values in attribute 'filter_only'
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; }
-router:d32 = {
+network:n2 = { ip = 10.62.2.0/27; }
+network:n3 = { ip = 10.62.3.64/27; }
+network:n4 = { ip = 10.62.242.0/29; }
+router:r1 = {
  model = ASA;
  managed = local;
  filter_only =  10.62.240.0/22, 10.62.0.0/19;
+ interface:n4 = { ip = 10.62.242.1; hardware = n4; }
  interface:n1 = { ip = 10.62.1.33; hardware = n1; }
- interface:n14 = { ip = 10.62.242.1; hardware = outside; }
 }
-network:n14 = { ip = 10.62.242.0/29; }
-router:d12 = {
+router:r2 = {
  model = NX-OS;
  managed = local;
  filter_only =  10.62.240.0/21, 10.62.0.0/19,;
- interface:n14 = { ip = 10.62.242.2; hardware = n14; }
-  interface:n2 = { ip = 10.62.2.1; hardware = n2; }
+ interface:n4 = { ip = 10.62.242.2; hardware = n4; }
+ interface:n2 = { ip = 10.62.2.1; hardware = n2; }
 }
-network:n2 = { ip = 10.62.2.0/27; }
+router:r3 = {
+ model = NX-OS;
+ managed = local;
+ filter_only =  10.62.240.0/22, 10.62.0.0/19, 10.62.32.0/19;
+ interface:n4 = { ip = 10.62.242.3; hardware = n4; }
+ interface:n3 = { ip = 10.62.3.65; hardware = n3; }
+}
 =END=
 =ERROR=
-Error: router:d12 and router:d32 must have identical values in attribute 'filter_only'
+Error: router:r1 and router:r2 must have identical values in attribute 'filter_only'
+Error: router:r1 and router:r3 must have identical values in attribute 'filter_only'
 =END=
 
 ############################################################
@@ -420,6 +429,59 @@ object-group network g2
  network-object 10.1.1.0 255.255.255.0
  network-object 10.4.2.0 255.255.255.0
 access-list intern_in extended permit tcp object-group g1 object-group g2 eq 80
+access-list intern_in extended deny ip object-group g0 object-group g0
+access-list intern_in extended permit ip any4 any4
+access-group intern_in in interface intern
+=END=
+
+############################################################
+=TITLE=Multiple internal subnets, unnumbered, hidden
+=INPUT=
+network:n1   = { ip = 10.1.1.0/24; }
+network:n1-a = { ip = 10.1.1.32/27; subnet_of = network:n1; }
+network:n1-b = { ip = 10.1.1.64/27; subnet_of = network:n1; }
+network:un = { unnumbered; }
+router:u = {
+ interface:n1;
+ interface:n1-a;
+ interface:n1-b;
+ interface:un;
+}
+router:d32 = {
+ model = ASA;
+ managed = local;
+ filter_only =  10.1.0.0/16, 10.2.0.0/16;
+ interface:un = { unnumbered; hardware = un; }
+ interface:intern = { ip = 10.2.1.1; hardware = intern; }
+}
+network:intern = { ip = 10.2.1.0/24; }
+router:d31 = {
+ model = ASA;
+ managed;
+ interface:intern = { ip = 10.2.1.2; hardware = inside; bind_nat = h; }
+ interface:extern = { ip = 10.4.0.1; hardware = outside; }
+ interface:ex-hid = { ip = 10.2.2.129; hardware = ex-hid; }
+}
+network:extern = { ip = 10.4.0.0/16; }
+network:ex-hid = { ip = 10.2.2.128/27; nat:h = { hidden; } }
+service:Test = {
+ user = network:extern, network:intern;
+ permit src = user;
+        dst = network:n1-a, network:n1-b;
+        prt = tcp 80;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 81;
+}
+=END=
+=OUTPUT=
+--d32
+! intern_in
+object-group network g1
+ network-object 10.1.1.32 255.255.255.224
+ network-object 10.1.1.64 255.255.255.224
+access-list intern_in extended permit tcp 10.2.1.0 255.255.255.0 object-group g1 eq 80
+access-list intern_in extended permit tcp 10.2.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 81
 access-list intern_in extended deny ip object-group g0 object-group g0
 access-list intern_in extended permit ip any4 any4
 access-group intern_in in interface intern

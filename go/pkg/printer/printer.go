@@ -3,20 +3,14 @@
 package printer
 
 import (
-	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"strings"
 )
 
 type printer struct {
-	src []byte // Original source code with comments.
 	// Current state
 	output []byte // raw printer result
 	indent int    // current indentation
-}
-
-func (p *printer) init(src []byte) {
-	p.src = src
 }
 
 func (p *printer) print(line string) {
@@ -111,8 +105,6 @@ func (p *printer) element(pre string, el ast.Element, post string) {
 		p.element("! ", x.Element, post)
 	case *ast.User:
 		p.print(pre + "user" + post)
-	default:
-		panic(fmt.Sprintf("Unknown element: %T", el))
 	}
 }
 
@@ -263,13 +255,7 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	} else {
 		ind = utfLen(pre)
 		rest = l[1:]
-		var post string
-		if len(rest) == 0 {
-			post = ";"
-		} else {
-			post = ","
-		}
-		p.print(pre + first.Value + post + first.PostComment())
+		p.print(pre + first.Value + "," + first.PostComment())
 	}
 
 	// Show other lines with same indentation as first line.
@@ -351,12 +337,6 @@ func (p *printer) topStructHead(n ast.Toplevel) {
 	p.description(n)
 }
 
-func hasTrailingComplexAttr(n *ast.TopStruct) bool {
-	l := n.Attributes
-	last := len(l) - 1
-	return last != -1 && l[last].ComplexValue != nil
-}
-
 func (p *printer) service(n *ast.Service) {
 	p.topStructHead(n)
 	if l := n.Attributes; l != nil {
@@ -421,7 +401,6 @@ func getAttrList(l []*ast.Attribute) (string, string) {
 }
 
 func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
-	p.preComment(n)
 	if l := n.ComplexValue; l != nil {
 		name := n.Name
 		if len := utfLen(name); len < max {
@@ -463,6 +442,7 @@ func (p *printer) indentedAttributeList(
 	p.indent++
 	max, noIndent := getMaxAndNoIndent(l, simple)
 	for _, a := range l {
+		p.preComment(a)
 		if noIndent[a] {
 			p.complexValue(a.Name, a.ComplexValue)
 		} else {
@@ -543,8 +523,6 @@ func (p *printer) toplevel(n ast.Toplevel) {
 		p.router(x)
 	case *ast.Area:
 		p.area(x)
-	default:
-		panic(fmt.Sprintf("Unknown type: %T", n))
 	}
 }
 

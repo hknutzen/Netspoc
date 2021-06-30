@@ -1,5 +1,47 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
+=PARAMS=-x
+=ERROR=
+Error: unknown shorthand flag: 'x' in -x
+=END=
+
+############################################################
+=TITLE=Unknown argument
+=INPUT=#
+=PARAMS=other_arg
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown input file
+=INPUT=NONE
+=PARAMS=unknown-file
+=ERROR=
+Error: open unknown-file: no such file or directory
+=END=
+
+############################################################
 =TITLE=Unknown type
 =INPUT=
 foo:x =
@@ -10,7 +52,10 @@ Error: Unknown global definition at line 1 of INPUT, near "--HERE-->foo:x"
 
 ############################################################
 =TITLE=Empty input
-=INPUT=NONE
+=INPUT=
+--file
+
+=END=
 =WARNING=NONE
 
 ############################################################
@@ -164,8 +209,11 @@ group:groß =
 =TITLE=Simple group with many comments
 =INPUT=
 # head1
-# head1a
-# head2
+ # head1a
+  # head2
+
+
+# Multiple empty lines are reduced to one.
 # This is g1
 group:g1 # IGNORED
 = # g1 trailing2
@@ -186,6 +234,8 @@ host:h2, # after second
 # head1
 # head1a
 # head2
+
+# Multiple empty lines are reduced to one.
 # This is g1
 group:g1 =
  # g1 trailing2
@@ -413,7 +463,7 @@ group:g1 =
  # Before
  network:n_999_10_1_10_0, # not recognized as IP-adress
  network:n-77,
- group:g9, group:g8,
+ group:g9, group:g8 &! host:hx,
  any:a-10_0_0_0-8,
  any:customerX-0_0_0_0-8,
  network:[area:a2] &! network:n-10_1_9_0-24,
@@ -422,20 +472,22 @@ group:g1 =
 =END=
 =OUTPUT=
 group:g1 =
- group:g8,
+ group:g8
+ &! host:hx
+ ,
  group:g9,
  any:[area:a4],
  any:customerX-0_0_0_0-8,
  any:a-10_0_0_0-8,
- network:n-77,
- # Before
- network:n_999_10_1_10_0, # not recognized as IP-adress
  network:[area:a2]
  &! network:n-10_1_9_0-24
  ,
  network:[area:a1]
  &! network:n-10_1_6_0-24
  ,
+ network:n-77,
+ # Before
+ network:n_999_10_1_10_0, # not recognized as IP-adress
  network:n-10_1_6_0-24,
  network:10_1_7_0-net,
  network:10_1_8_128-10_1_8_255,
@@ -608,7 +660,7 @@ service:s1 = {
 =INPUT=
 service:s1 = {
  user = host:h1, host:h2; #user
- permit src = user; #src
+ deny   src = user; #src
         dst = network:n1; #dst
         prt = tcp 80, tcp 90; #prt
 }
@@ -618,7 +670,7 @@ service:s1 = {
  user = host:h1,
         host:h2, #user
         ;
- permit src = user; #src
+ deny   src = user; #src
         dst = network:n1; #dst
         prt = tcp 80,
               tcp 90, #prt
@@ -725,12 +777,17 @@ service:s1 = {
         dst = network:n2;
         prt = tcp 80, tcp 700, udp 70, tcp 55-59, tcp 20:1024-65535,
               tcp 54 : 64-74,
+              tcp 20-21 : 64- 74,
               tcp 20 : 64- 74,
               udp 123,
               icmp 3/3,
               icmp 4 / 3,
               icmp 3 /4,
               icmp 8,
+              icmp 8 / 9,
+              icmp 3,
+              icmp 4 ,
+              icmp 4 / 4,
               proto 43,
               proto 54,
               protocol:smtp, protocol:ftp,
@@ -746,14 +803,19 @@ service:s1 = {
         prt = protocolgroup:ftp-active,
               protocol:ftp,
               protocol:smtp,
+              icmp 3,
               icmp 3 / 3,
               icmp 3 / 4,
+              icmp 4,
               icmp 4 / 3,
+              icmp 4 / 4,
               icmp 8,
+              icmp 8 / 9,
               proto 43,
               proto 54,
               tcp 55 - 59,
               tcp 20 : 64 - 74,
+              tcp 20 - 21 : 64 - 74,
               tcp 54 : 64 - 74,
               tcp 80,
               tcp 700,
@@ -767,12 +829,14 @@ service:s1 = {
 ############################################################
 =TITLE=Ordered elements in protocolgroups
 =INPUT=
-protocolgroup:g1 =udp 70,tcp 700, tcp 80, ;
+protocolgroup:g1 =udp 70,tcp 700, tcp 80, udp, udp : 0;
 =END=
 =OUTPUT=
 protocolgroup:g1 =
  tcp 80,
  tcp 700,
+ udp : 0,
+ udp,
  udp 70,
 ;
 =END=
@@ -787,11 +851,15 @@ network:n1 = { ip = 10.1.1.0/24;
  }
  radius_attributes = { banner = hello again; }
  nat:n2 = { ip = 8.1.1.0/24; }
+# range
 host:range3-5 = { range = 10.1.1.3-10.1.1.5; } # range
 host:h2 = { ip = 10.1.1.2; radius_attributes={ banner= hello h2;}}
 host:h10 = { ip =10.1.1.10; owner = o1; }
 host:h9 = { ip =10.1.1.9; owner = o1; } # h9
+# long
 host:long-name = { ip =10.1.1.66; owner = o1; }
+# nat
+host:nat = { ip = 10.1.1.11; nat:n = { ip = 9.1.1.11; } }
 }
 =END=
 =OUTPUT=
@@ -808,9 +876,16 @@ network:n1 = {
    banner = hello h2;
   }
  }
+ # range
  host:range3-5  = { range = 10.1.1.3 - 10.1.1.5; } # range
  host:h9        = { ip = 10.1.1.9; owner = o1; } # h9
  host:h10       = { ip = 10.1.1.10; owner = o1; }
+ # nat
+ host:nat = {
+  ip = 10.1.1.11;
+  nat:n = { ip = 9.1.1.11; }
+ }
+ # long
  host:long-name = { ip = 10.1.1.66; owner = o1; }
 }
 =END=
@@ -932,17 +1007,43 @@ any:a = {
 =END=
 
 ############################################################
+=TITLE=Sort hosts by IP or range
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h99 = { ip = 10.1.1.99; }
+ host:r98-102 = { range = 10.1.1.98-10.1.1.102; }
+ host:invalid = {}
+ host:h10 = { ip = 10.1.1.10; }
+ host:r98-100 = { range = 10.1.1.98-10.1.1.100; }
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:invalid = { }
+ host:h10     = { ip = 10.1.1.10; }
+ host:r98-102 = { range = 10.1.1.98 - 10.1.1.102; }
+ host:r98-100 = { range = 10.1.1.98 - 10.1.1.100; }
+ host:h99     = { ip = 10.1.1.99; }
+}
+=END=
+
+############################################################
 =TITLE=Managed router
 =INPUT=
-router:r1 = { managed;
+# pre
+router:r1 = { managed; # tail
+# model
 model =
  ASA,
  VPN,CONTEXT;
+# i1
 interface:n7 = {
  ip = 10.1.7.1; hardware = n7;
  hub = crypto:c1, crypto:c2, ;
  no_check;
 }
+# i2
 interface:n1 = {
  ip = 10.1.1.1, 10.1.1.2; hardware = n1;
  virtual = { ip = 10.1.1.3;  type = HSRPv2; }
@@ -955,9 +1056,12 @@ interface:lo = { ip = 10.1.4.128; hardware = lo; loopback; }
 }
 =END=
 =OUTPUT=
+# pre
 router:r1 = {
- managed;
+ managed; # tail
+ # model
  model = ASA, VPN, CONTEXT;
+ # i1
  interface:n7 = {
   ip = 10.1.7.1;
   hardware = n7;
@@ -966,6 +1070,7 @@ router:r1 = {
         ;
   no_check;
  }
+ # i2
  interface:n1 = {
   ip = 10.1.1.1,
        10.1.1.2,
@@ -985,11 +1090,14 @@ router:r1 = {
 =TITLE=Sort successive vip interfaces
 =INPUT=
 router:u1 = {
+ # i1
  interface:n7 = { owner = o1; ip = 10.1.1.7; }
+ # i2
  interface:lo = { ip = 10.1.4.128; owner = o2; vip; }
  interface:n1 = { ip = 10.1.1.1; owner = o1; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
+ # IGNORED
 }
 router:u2 = {
  interface:v2 = { ip = 10.1.4.128; owner = o2; vip; }
@@ -1001,8 +1109,10 @@ router:u2 = {
 =END=
 =OUTPUT=
 router:u1 = {
+ # i1
  interface:n7    = { owner = o1; ip = 10.1.1.7; }
  interface:n1    = { ip = 10.1.1.1; owner = o1; vip; }
+ # i2
  interface:lo    = { ip = 10.1.4.128; owner = o2; vip; }
  interface:unnum = { unnumbered; }
  interface:short;
@@ -1040,12 +1150,25 @@ area:a1 = {
  inclusive_border = interface:r3.n3;
  nat:t = { hidden; }
  owner = o;
+ router_attributes = {
+  owner = o2;
+  policy_distribution_point = host:netspoc;
+  general_permit = udp, icmp;
+  }
 }
 =END=
 =OUTPUT=
 area:a1 = {
  nat:t = { hidden; }
  owner = o;
+ router_attributes = {
+  owner = o2;
+  policy_distribution_point = host:netspoc;
+  general_permit =
+   udp,
+   icmp,
+  ;
+ }
  border = interface:r3.n3,
           group:g3
           &! interface:r1.n1
@@ -1143,6 +1266,31 @@ owner:abw = {
           ;
 }
 =END=
+
+############################################################
+=TITLE=Owner definition, verbose output
+=INPUT=
+--f1
+group:g1=;
+--f2
+group:g2 =
+;
+-- f3
+group:g3=;
+=OUTPUT=
+-- f1
+group:g1 =
+;
+-- f2
+group:g2 =
+;
+-- f3
+group:g3 =
+;
+=WARNING=
+Changed f1
+Changed f3
+=OPTIONS=--quiet=false
 
 ############################################################
 =TITLE=Ignore errors in config file

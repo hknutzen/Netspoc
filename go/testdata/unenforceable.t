@@ -40,6 +40,14 @@ any:x = { link = network:x; has_unenforceable = ok; }
 =WARNING=NONE
 
 ############################################################
+=TITLE=Disable check for unenforceable rule
+=INPUT=
+${input}
+=END=
+=OPTIONS=--check_unenforceable=0
+=WARNING=NONE
+
+############################################################
 =TITLE=Service ignoring unenforceable rule
 =INPUT=
 ${topo}
@@ -157,8 +165,8 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 service:s1 = {
- user = any:[network:n1],
-        any:[network:n3],
+ user = any:[ip = 10.0.0.0/8 & network:n1],
+        any:[ip = 10.0.0.0/8 & network:n3],
         ;
  permit src = user; dst = user; prt = tcp 80;
 }
@@ -168,12 +176,12 @@ service:s1 = {
 =OUTPUT=
 -- r2
 ! t1_in
-access-list t1_in extended permit tcp any4 any4 eq 80
+access-list t1_in extended permit tcp 10.0.0.0 255.0.0.0 10.0.0.0 255.0.0.0 eq 80
 access-list t1_in extended deny ip any4 any4
 access-group t1_in in interface t1
 --
 ! n3_in
-access-list n3_in extended permit tcp any4 any4 eq 80
+access-list n3_in extended permit tcp 10.0.0.0 255.0.0.0 10.0.0.0 255.0.0.0 eq 80
 access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
 =END=

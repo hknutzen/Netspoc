@@ -46,10 +46,19 @@ func sortElem(l []Element) {
 		if t1 != t2 {
 			return t1 < t2
 		}
-		n1 := l[i].GetName()
-		n2 := l[j].GetName()
-		i1 := findIPv4InName(n1)
-		i2 := findIPv4InName(n2)
+		getNameIP := func(el Element) (string, int) {
+			if x, ok := el.(*Intersection); ok {
+				el = x.Elements[0]
+			}
+			if x, ok := el.(NamedElem); ok {
+				n := x.GetName()
+				i := findIPv4InName(n)
+				return n, i
+			}
+			return "", 0
+		}
+		n1, i1 := getNameIP(l[i])
+		n2, i2 := getNameIP(l[j])
 		if i1 == i2 {
 			return n1 < n2
 		}
@@ -100,10 +109,11 @@ func sortProto(l []*Value) {
 		if p1 == "tcp" || p1 == "udp" {
 			conv := func(l []string) []int {
 				getPorts := func(s string) (int, int) {
+					if s == "" {
+						return 1, 65535
+					}
 					p := strings.Split(s, "-")
 					switch len(p) {
-					case 0:
-						return 1, 65535
 					case 1:
 						n1, _ := strconv.Atoi(p[0])
 						return n1, n1
@@ -117,9 +127,6 @@ func sortProto(l []*Value) {
 				sp := strings.Split(s, ":")
 				var s1, s2, p1, p2 int
 				switch len(sp) {
-				case 0:
-					s1, s2 = getPorts("")
-					p1, p2 = getPorts("")
 				case 1:
 					s1, s2 = getPorts("")
 					p1, p2 = getPorts(sp[0])
@@ -150,7 +157,7 @@ func sortProto(l []*Value) {
 				return d1 < d2
 			}
 		}
-		return false
+		return true
 	})
 }
 
@@ -200,10 +207,6 @@ func (a *Attribute) Order() {
 	sort.Slice(vals, func(i, j int) bool {
 		return vals[i].Value < vals[j].Value
 	})
-	for _, attr := range a.ComplexValue {
-		attr.Order()
-	}
-	sortAttr(a.ComplexValue)
 }
 
 func (a *Rule) Order() {

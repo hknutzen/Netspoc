@@ -140,19 +140,15 @@ func (c *spoc) printService(
 
 	sRules := c.normalizeServices()
 	permitRules, denyRules := c.convertHostsInRules(sRules)
-	c.groupPathRules(permitRules, denyRules)
 	c.stopOnErr()
 
 	nameMap := make(map[string]bool)
 	for _, name := range srvNames {
 		name = strings.TrimPrefix(name, "service:")
 		if _, found := symTable.service[name]; !found {
-			c.err("Unknown service:%s", name)
+			c.abort("Unknown service:%s", name)
 		}
 		nameMap[name] = true
-	}
-	if len(srvNames) != 0 && len(nameMap) == 0 {
-		return
 	}
 
 	// Collect expanded rules.
@@ -164,6 +160,22 @@ func (c *spoc) printService(
 		prt      *proto
 	}
 	s2rules := make(map[string][]rule)
+	// Remove duplicates resulting from aggregates of zone cluster.
+	uniq := func(l []someObj) []someObj {
+		var prev string
+		j := 0
+		for _, ob := range l {
+			if n, ok := ob.(*network); ok {
+				if n.name == prev {
+					continue
+				}
+				prev = n.name
+			}
+			l[j] = ob
+			j++
+		}
+		return l[:j]
+	}
 	collect := func(rules ruleList) {
 		for _, r := range rules {
 			sName := r.rule.service.name
@@ -171,8 +183,10 @@ func (c *spoc) printService(
 			if len(nameMap) != 0 && !nameMap[sName] {
 				continue
 			}
-			for _, src := range r.src {
-				for _, dst := range r.dst {
+			sList := uniq(r.src)
+			dList := uniq(r.dst)
+			for _, src := range sList {
+				for _, dst := range dList {
 					for _, prt := range r.prt {
 						s2rules[sName] = append(
 							s2rules[sName],
@@ -187,8 +201,8 @@ func (c *spoc) printService(
 			}
 		}
 	}
-	collect(c.allPathRules.deny)
-	collect(c.allPathRules.permit)
+	collect(denyRules)
+	collect(permitRules)
 
 	objInfo := func(obj someObj) string {
 		if showName {

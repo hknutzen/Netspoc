@@ -152,6 +152,7 @@ go/testdata/group.t
 go/testdata/host-range.t
 go/testdata/huge.t
 go/testdata/identical-services.t
+go/testdata/invalid-char.t
 go/testdata/ip-check.t
 go/testdata/iptables.t
 go/testdata/ipv4.t

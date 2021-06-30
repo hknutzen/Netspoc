@@ -1,5 +1,21 @@
 
 ############################################################
+=TITLE=Invalid network IP together with hosts and interfaces
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/58;
+ host:h1 = { ip = 10.1.2.3; }
+ host:r1 = { range = 10.1.1.3-10.1.1.29; }
+}
+router:r1 = {
+ interface:n1 = { ip = 10.1.2.3; }
+}
+=END=
+=ERROR=
+Error: Invalid CIDR address: 10.1.1.0/58 in 'ip' of network:n1
+=END=
+
+############################################################
 =TITLE=Interface IP doesn't match network IP/mask
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

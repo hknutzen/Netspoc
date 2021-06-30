@@ -45,11 +45,8 @@ func (c *spoc) linkImplicitAggregateToZone(
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		switch keys[i].IP.Compare(keys[j].IP) {
-		case -1:
-			return true
-		case 1:
-			return false
+		if cmp := keys[i].IP.Compare(keys[j].IP); cmp != 0 {
+			return cmp == -1
 		}
 		return keys[i].Bits > keys[j].Bits
 	})

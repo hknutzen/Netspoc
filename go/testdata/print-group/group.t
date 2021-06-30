@@ -1,5 +1,84 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR 'group:name,...'
+  -a, --admins       Show admins of elements as comma separated list
+  -i, --ip           Show only IP address of elements
+  -6, --ipv6         Expect IPv6 definitions
+  -n, --name         Show only name of elements
+      --nat string   Use network:name as reference when resolving IP address
+  -o, --owner        Show owner of elements
+  -q, --quiet        Don't print progress messages
+  -u, --unused       Show only elements not used in any rules
+=END=
+
+############################################################
+=TITLE=Missing group parameter
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR 'group:name,...'
+  -a, --admins       Show admins of elements as comma separated list
+  -i, --ip           Show only IP address of elements
+  -6, --ipv6         Expect IPv6 definitions
+  -n, --name         Show only name of elements
+      --nat string   Use network:name as reference when resolving IP address
+  -o, --owner        Show owner of elements
+  -q, --quiet        Don't print progress messages
+  -u, --unused       Show only elements not used in any rules
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+Aborted
+=END=
+=PARAMS=network:n1
+
+############################################################
+=TITLE=Reference unknown network for NAT
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Unknown network:n2 of option '--nat'
+Aborted
+=OPTIONS=--nat network:n2
+=PARAMS=network:n1
+
+############################################################
+=TITLE=Invalid group parameter
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->INVALID"
+Aborted
+=PARAMS=INVALID
+
+############################################################
+=TITLE=Unexpected content after ";"
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
+Aborted
+=END=
+=PARAM=network:n1; INVALID
+
+############################################################
 =VAR=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -12,7 +91,7 @@ network:n3sub = { ip = 10.1.3.64/27; subnet_of = network:n3;
  host:h3d = { range = 10.1.3.65 - 10.1.3.67; }
 }
 router:u = {
- interface:n3;
+ interface:n3 = { ip = 10.1.3.1; }
  interface:n3sub;
 }
 router:r1 = {
@@ -162,6 +241,26 @@ group:g1 =
 =PARAM=group:g1
 
 ############################################################
+=TITLE=Area as element with owner
+=INPUT=
+${topo}
+owner:o1 = { admins = a1@example.com; }
+owner:o2 = { admins = a2@example.com; }
+area:a1 = { border = interface:r1.n1; owner = o1; }
+area:a2 = { border = interface:r1.n2; owner = o2; }
+group:g1 = area:a1, area:a2, network:[area:a2];
+=END=
+=OUTPUT=
+	area:a1	owner:o1
+	area:a2	owner:o2
+10.1.2.0/24	network:n2	owner:o2
+10.1.3.0/24	network:n3	owner:o2
+10.1.3.64/27	network:n3sub	owner:o2
+=END=
+=OPTIONS=--owner --name --ip
+=PARAM=group:g1
+
+############################################################
 =TITLE=Intersection
 =INPUT=
 ${topo}
@@ -205,6 +304,21 @@ group:Über = network:n1;
 10.1.1.0/24	network:n1
 =END=
 =PARAM=group:Über
+
+############################################################
+=TITLE=Mark networks referenced by interface as used
+=INPUT=
+${topo}
+area:all = { anchor = network:n1; }
+service:s1 = {
+ user = interface:r1.n1, interface:u.n3;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+10.1.3.64/27	network:n3sub
+=END=
+=OPTIONS=-u
+=PARAM=network:[area:all]
 
 ############################################################
 =TITLE=Find unused network that is referenced in argument
@@ -481,16 +595,5 @@ router:r2 = {
 0.0.0.0/0	any:[network:n2]
 =END=
 =PARAM=any:[area:n2-lo]
-
-############################################################
-=TITLE=Unexpected content after ";"
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=END=
-=ERROR=
-Error: Unexpected content after ";" at line 1 of command line, near "network:n1; --HERE-->INVALID"
-Aborted
-=END=
-=PARAM=network:n1; INVALID
 
 ############################################################

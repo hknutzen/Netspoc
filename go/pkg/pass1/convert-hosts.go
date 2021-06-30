@@ -10,24 +10,9 @@ import (
 // Mark subnet relation of subnets.
 //###################################################################
 
-func ipNATEqual(n1, n2 map[string]netaddr.IP) bool {
-	if len(n1) != len(n2) {
-		return false
-	}
-	for tag, ip1 := range n1 {
-		ip2, ok := n2[tag]
-		if !ok {
-			return false
-		}
-		if ip1 != ip2 {
-			return false
-		}
-	}
-	return true
-}
-
 func (c *spoc) checkHostCompatibility(obj, other *netObj) {
-	if !ipNATEqual(obj.nat, other.nat) {
+	// This simple test is only valid as long as IP range has no NAT.
+	if len(obj.nat) != 0 || len(other.nat) != 0 {
 		c.err("Inconsistent NAT definition for %s and %s",
 			other.name, obj.name)
 	}

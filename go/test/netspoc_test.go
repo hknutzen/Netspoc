@@ -99,7 +99,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		// Initialize os.Args, add default options.
 		os.Args = []string{"PROGRAM", "-q"}
 
-		// Add more options from description.
+		// Add more options.
 		if d.Options != "" {
 			options := strings.Split(d.Options, " ")
 			os.Args = append(os.Args, options...)
@@ -115,14 +115,17 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			os.Args = append(os.Args, "-f", name)
 		}
 
-		// Prepare input directory.
-		inDir := t.TempDir()
-		tstdata.PrepareInDir(inDir, input)
-		os.Args = append(os.Args, inDir)
+		var inDir string
+		if input != "NONE" || outDir != "" {
+			// Prepare input directory.
+			inDir = t.TempDir()
+			tstdata.PrepareInDir(inDir, input)
+			os.Args = append(os.Args, inDir)
 
-		// Add location of output directory.
-		if outDir != "" {
-			os.Args = append(os.Args, outDir)
+			// Add location of output directory.
+			if outDir != "" {
+				os.Args = append(os.Args, outDir)
+			}
 		}
 
 		// Add other params to command line.
@@ -163,7 +166,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 
 	// Normalize stderr.
-	stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+	if inDir != "" {
+		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+	}
 	if outDir != "" {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
 		stderr = strings.ReplaceAll(stderr, outDir, "")
@@ -363,26 +368,27 @@ func countEq(t *testing.T, expected, got string) {
 }
 
 // Run Netspoc pass1 + check-acl sequentially.
-// Arguments: PROGRAM -q [-f file] input code router acl <packet>
+// Arguments: PROGRAM -q [-6] [-f file] input code router acl <packet>
 func checkACLRun() int {
 	args := os.Args
-	// Args: PROGRAM -q input code
-	p1Args := make([]string, 4)
+	// Args: PROGRAM -q [-6] input code
+	var p1Args []string
 	// Args: PROGRAM [-f file] code/router acl <packet>
-	chArgs := make([]string, len(args)-3)
-	p1Args[0] = args[0] // PROGRAM
-	chArgs[0] = args[0] // PROGRAM
-	p1Args[1] = args[1] // -q
+	var chArgs []string
+	p1Args = append(p1Args, args[0:2]...) // PROGRAM -q
+	chArgs = append(chArgs, args[0])      // PROGRAM
 	a := 0
-	if args[2] == "-f" {
-		chArgs[1] = args[2] // -f
-		chArgs[2] = args[3] // file
-		a = 2
+	if args[2] == "-6" {
+		p1Args = append(p1Args, args[2])
+		a = 1
 	}
-	p1Args[2] = args[2+a]                         // input
-	p1Args[3] = args[3+a]                         // code
-	chArgs[1+a] = path.Join(args[3+a], args[4+a]) // code/router
-	copy(chArgs[2+a:], args[5+a:])
+	if args[2+a] == "-f" {
+		chArgs = append(chArgs, args[2+a:4+a]...) // -f file
+		a += 2
+	}
+	p1Args = append(p1Args, args[2+a:4+a]...)                // input code
+	chArgs = append(chArgs, path.Join(args[3+a], args[4+a])) // code/router
+	chArgs = append(chArgs, args[5+a:]...)
 	os.Args = p1Args
 	status := pass1.SpocMain()
 	if status != 0 {

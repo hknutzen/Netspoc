@@ -60,6 +60,19 @@ Warning: unused group:g
 =END=
 
 ############################################################
+=TITLE=Reach max_errors
+=OPTIONS=--max_errors=2
+=INPUT=
+network:n1 = {}
+network:n2 = {}
+network:n3 = {}
+=ERROR=
+Error: Missing IP address for network:n1
+Error: Missing IP address for network:n2
+Aborted after 2 errors
+=END=
+
+############################################################
 =TITLE=Invalid value for command line option
 =OPTIONS=--check_unused_groups=foo
 =INPUT= #none
@@ -74,6 +87,16 @@ Aborted
 =INPUT= #
 =ERROR=
 Error: unknown flag: --foo
+Aborted
+=END=
+
+############################################################
+=TITLE=Too many arguments
+=PARAMS=abc def
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Expected 1 or 2 args, but got 3
 Aborted
 =END=
 

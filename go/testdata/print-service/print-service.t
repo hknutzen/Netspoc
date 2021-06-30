@@ -1,3 +1,64 @@
+
+############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
+  -6, --ipv6         Expect IPv6 definitions
+  -n, --name         Show name, not IP of elements
+      --nat string   Use network:name as reference when resolving IP address
+  -q, --quiet        Don't print progress messages
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
+  -6, --ipv6         Expect IPv6 definitions
+  -n, --name         Show name, not IP of elements
+      --nat string   Use network:name as reference when resolving IP address
+  -q, --quiet        Don't print progress messages
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
+=OPTIONS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+Aborted
+=END=
+
+############################################################
+=TITLE=Unknown NAT network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OPTIONS=--nat network:n2
+=ERROR=
+Error: Unknown network:n2 of option '--nat'
+Aborted
+=END=
+
+############################################################
+=TITLE=Unknown service
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=PARAMS=service:s1
+=ERROR=
+Error: Unknown service:s1
+Aborted
+=END=
+
 ############################################################
 =VAR=topo
 network:n1 = {
@@ -80,7 +141,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =END=
 
 ############################################################
-=TITLE=Missing "service:" keyword
+=TITLE=Missing "service:" type is ok
 =INPUT=${input}
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
@@ -89,13 +150,53 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 =PARAMS=s1 service:s2
 
 ############################################################
-=TITLE=Multiple services, show names of objects
+=TITLE=Select services, show names of objects
 =INPUT=${input}
 =OUTPUT=
-s1:permit network:n1 network:n3 ip
 s2:permit network:n2 network:n3 tcp
 =END=
 =OPTIONS=--name
-=PARAMS=service:s1 service:s2
+=PARAMS=service:s2
+
+############################################################
+=TITLE=Remove duplicate elements resulting from zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = any:[ip=10.1.1.0/24 & network:n2]; prt = tcp 81;
+}
+=OUTPUT=
+s1:permit network:n3 any:[network:n2] tcp 80
+s2:permit network:n3 network:n1 tcp 81
+=END=
+=OPTIONS=--name
 
 ############################################################

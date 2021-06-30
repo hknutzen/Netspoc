@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=Unexptected attribute at bridged interface
+=TITLE=Unexpected attribute at bridged interface
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {
@@ -8,7 +8,7 @@ router:bridge = {
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = device; }
  interface:n1/left = { hardware = inside;  no_in_acl; dhcp_server; routing = OSPF; }
- interface:n1/right = { hardware = outside; }
+ interface:n1/right = { hardware = outside; virtual = { ip = 10.1.1.2; } }
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 =END=
@@ -16,6 +16,43 @@ network:n1/right = { ip = 10.1.1.0/24; }
 Error: Attribute 'no_in_acl' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'dhcp_server' not supported for bridged interface:bridge.n1/left
 Error: Attribute 'routing' not supported for bridged interface:bridge.n1/left
+Error: No virtual IP supported for bridged interface:bridge.n1/right
+=END=
+
+############################################################
+=TITLE=No loopback bridged interface
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = device; }
+ interface:n1/left  = { hardware = left; loopback; }
+ interface:n1/right = { hardware = right; vip; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Attribute 'loopback' not supported for bridged interface:bridge.n1/left
+Error: Attribute 'vip' not supported for bridged interface:bridge.n1/right
+Error: Must not use attribute 'vip' at interface:bridge.n1/right of managed router
+=END=
+
+############################################################
+=TITLE=Fixed hardware for layer3 interface at ASA
+=INPUT=
+network:n1/left = { ip = 10.1.1.0/24; }
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1/left  = { hardware = left; }
+ interface:n1/right = { hardware = right; }
+}
+network:n1/right = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Layer3 interface:bridge.n1 must use 'hardware' named 'device' for model 'ASA'
 =END=
 
 ############################################################
@@ -622,7 +659,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 =TITLE=Missing hop behind chained bridges
 =INPUT=
 ${input}
-=SUBST=/right = { ip = 10.1.1.5;/right; #/
+=SUBST=/right = { ip = 10.1.1.5;/right = { negotiated;/
 =ERROR=
 Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
  - interface:r2.n1/right

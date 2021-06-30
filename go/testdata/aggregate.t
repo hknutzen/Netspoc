@@ -795,8 +795,8 @@ service:test = {
 =END=
 =WARNING=
 Warning: Empty intersection in user of service:test:
-  any:[..]
-&!any:[..]
+any:[..]
+&! any:[..]
 =END=
 
 ############################################################
@@ -822,8 +822,8 @@ service:test = {
 =END=
 =WARNING=
 Warning: Empty intersection in user of service:test:
-  any:[..]
-&!any:[..]
+any:[..]
+&! any:[..]
 =END=
 
 ############################################################

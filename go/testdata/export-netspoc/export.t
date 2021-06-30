@@ -833,6 +833,87 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Remove duplicate elements resulting from zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+pathrestriction:p = interface:u.n1, interface:r1.n1;
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80;
+}
+
+service:s2 = {
+ user = network:n3;
+ permit src = user; dst = any:[ip=10.1.1.0/24 & network:n2]; prt = tcp 81;
+}
+=OUTPUT=
+-- services
+{
+ "s1": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[network:n2]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "s2": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "network:n1"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 81"
+    ],
+    "src": []
+   }
+  ]
+ }
+}
+=END=
+
+############################################################
 =TITLE=Aggregates and network0/0 in zone cluster
 # Use unique value of attribute zone for aggregates and network0/0.
 =INPUT=
@@ -2005,24 +2086,54 @@ service:s2 = {
 =TITLE=Protocol modifiers
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = {ip = 10.1.1.1; hardware = n1;}
  interface:n2 = {ip = 10.1.2.1; hardware = n2; routing = OSPF;}
+ interface:n3 = {ip = 10.1.3.1; hardware = n3;}
 }
-network:n2  = {ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; }}
 protocolgroup:ping_net_both = protocol:ping_net, protocol:ping_net_reply;
 protocol:ping_net = icmp 8, src_net, dst_net, overlaps, no_check_supernet_rules;
 protocol:ping_net_reply = icmp 8, src_net, dst_net, overlaps, reversed, no_check_supernet_rules;
+protocol:oneway_IP = ip, oneway;
+protocol:syslog = udp 514, stateless;
 service:ping = {
  user = host:h1;
  permit src = user; dst = host:h2; prt = protocolgroup:ping_net_both;
+}
+service:syslog = {
+ user = network:n1;
+ permit src = user; dst = host:h2; prt = protocol:syslog;
+}
+service:coupling = {
+ user = network:n1, network:n3;
+ permit src = user; dst = user; prt = protocol:oneway_IP;
 }
 =END=
 =OUTPUT=
 --services
 {
+ "coupling": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [],
+    "has_user": "both",
+    "prt": [
+     "ip, oneway"
+    ],
+    "src": []
+   }
+  ]
+ },
  "ping": {
   "details": {
    "owner": [
@@ -2039,6 +2150,26 @@ service:ping = {
     "prt": [
      "icmp 8, dst_net, reversed, src_net",
      "icmp 8, dst_net, src_net"
+    ],
+    "src": []
+   }
+  ]
+ },
+ "syslog": {
+  "details": {
+   "owner": [
+    ":unknown"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "host:h2"
+    ],
+    "has_user": "src",
+    "prt": [
+     "udp 514, stateless"
     ],
     "src": []
    }
@@ -2390,7 +2521,6 @@ service:s1 = {
 {
  "any:[ip=10.1.3.0/24 & network:n3]": {
   "ip": "10.1.3.0/255.255.255.0",
-  "is_supernet": 1,
   "owner": "all",
   "zone": "any:[network:n3]"
  },
@@ -3351,6 +3481,16 @@ network:n1 = { ip = 10.1.1.0/24; }
 {}
 -- POLICY
 # p1234
+=END=
+
+############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=OPTIONS=-h
+=ERROR=
+Usage: PROGRAM [options] netspoc-data out-directory
+  -6, --ipv6    Expect IPv6 definitions
+  -q, --quiet   Don't print progress messages
 =END=
 
 ############################################################

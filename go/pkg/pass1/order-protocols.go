@@ -95,7 +95,9 @@ func (c *spoc) orderProtocols() {
 			icmp.push(p)
 		case "icmpv6":
 			icmpv6.push(p)
-		case "proto":
+		case "ip":
+			// Do nothing.
+		default:
 			proto.push(p)
 		}
 	}
@@ -235,10 +237,6 @@ func orderRanges(l protoList, up *proto) {
 	}
 
 	// Array wont be empty because prtTCP and prtUDP are defined internally.
-	if len(l) == 0 {
-		return
-	}
-
 	a := l[0]
 	a.up = up
 	a2 := a.ports[1]

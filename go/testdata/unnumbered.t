@@ -10,9 +10,21 @@ network:u = {
 }
 =END=
 =ERROR=
-Error: Unnumbered network:u must not have attribute 'nat:x'
+Error: Unnumbered network:u must not have NAT definition
 Error: Unnumbered network:u must not have attribute 'has_subnets'
 Error: Unnumbered network:u must not have host definition
+=END=
+
+############################################################
+=TITLE=Unnumbered interface must not have virtual IP
+=INPUT=
+network:u = { unnumbered; }
+router:r1 = {
+  interface:u = { unnumbered; virtual = { ip = 10.1.1.111; } }
+}
+=END=
+=ERROR=
+Error: No virtual IP supported for unnumbered interface:r1.u
 =END=
 
 ############################################################
@@ -57,7 +69,7 @@ Error: Unnumbered network:u is connected to more than two interfaces:
 =END=
 
 ############################################################
-=TITLE=Must not use unnumbered network in rule
+=TITLE=Must not use unnumbered network / interface in rule
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
@@ -68,11 +80,12 @@ router:r = {
 }
 network:un = { unnumbered; }
 service:test = {
- user = network:n1;
+ user = network:n1, interface:r.un;
  permit src = user; dst = network:un; prt = tcp 80;
 }
 =END=
 =WARNING=
+Warning: Ignoring unnumbered interface:r.un in src of rule in service:test
 Warning: Ignoring unnumbered network:un in dst of rule in service:test
 =END=
 

@@ -93,40 +93,6 @@ func markPrimary(zone *zone, mark int) {
 	}
 }
 
-func getNetwork(obj someObj) *network {
-	switch x := obj.(type) {
-	case *routerIntf:
-		return x.network
-	case *subnet:
-		return x.network
-	case *network:
-		if x.hasOtherSubnet {
-			return nil
-		}
-		return x
-	}
-	return nil
-}
-
-func getNetworks(list []someObj) []*network {
-	seen := make(map[*network]bool)
-	var result []*network
-	for _, obj := range list {
-		var n *network
-		switch x := obj.(type) {
-		case *subnet, *routerIntf:
-			n = obj.getNetwork()
-		case *network:
-			n = x
-		}
-		if !seen[n] {
-			seen[n] = true
-			result = append(result, n)
-		}
-	}
-	return result
-}
-
 func getZone(path pathStore, list []someObj) *zone {
 	switch x := path.(type) {
 	case *zone:
@@ -177,7 +143,8 @@ type conflictInfo = struct {
 	rules     []*groupedRule
 }
 
-// Collect conflicting rules and supernet rules for check_conflict below.
+// Collect potentially conflicting rules and supernet rules for
+// checkConflict below.
 func collectConflict(rule *groupedRule, z1, z2 *zone,
 	conflict map[conflictKey]*conflictInfo, isPrimary bool) {
 
@@ -205,10 +172,13 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 			mark = z.secondaryMark
 		}
 		pushed := false
-		for _, otherNet := range getNetworks(otherList) {
-			if otherNet == nil {
+		seen := make(map[*network]bool)
+		for _, other := range otherList {
+			otherNet := other.getNetwork()
+			if seen[otherNet] {
 				continue
 			}
+			seen[otherNet] = true
 			key := conflictKey{isSrc, isPrimary, mark, otherNet}
 			info, found := conflict[key]
 			if !found {
@@ -272,53 +242,48 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // permit net:src net:dst ip
 // Problem: Same as case A.
 func checkConflict(conflict map[conflictKey]*conflictInfo) {
-	type pair struct {
-		super *network
-		net   *network
-	}
-	cache := make(map[pair]bool)
 	for key, val := range conflict {
-		isSrc, isPrimary := key.isSrc, key.isPrimary
 		supernetMap := val.supernets
 		if len(supernetMap) == 0 {
 			continue
 		}
-		rules := val.rules
-		if rules == nil {
-			continue
-		}
+		isSrc, isPrimary := key.isSrc, key.isPrimary
 	RULE:
-		for _, rule1 := range rules {
+		for _, rule1 := range val.rules {
 			var objects []someObj
 			if isSrc {
 				objects = rule1.src
 			} else {
 				objects = rule1.dst
 			}
-			var list1 []*network
+			var list1 netList
 			seen := make(map[*network]bool)
 			for _, obj := range objects {
-				n := getNetwork(obj)
-				if n != nil && !seen[n] {
+				var n *network
+				switch x := obj.(type) {
+				case *routerIntf:
+					n = x.network
+				case *subnet:
+					n = x.network
+				case *network:
+					if x.hasOtherSubnet {
+						continue
+					}
+					n = x
+				}
+				if !seen[n] {
 					seen[n] = true
-					list1 = append(list1, n)
+					list1.push(n)
 				}
 			}
 			for supernet, _ := range supernetMap {
-				var z = supernet.zone
+				z := supernet.zone
 				for _, n := range list1 {
-					if n.zone == z {
+					if zoneEq(n.zone, z) {
 						continue
 					}
-					isSubnet, found := cache[pair{supernet, n}]
-					if !found {
-						nm := n.zone.natDomain.natMap
-						obj := getNatNetwork(supernet, nm)
-						isSubnet =
-							obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)
-						cache[pair{supernet, n}] = isSubnet
-					}
-					if !isSubnet {
+					obj := getNatNetwork(supernet, n.zone.natDomain.natMap)
+					if !(obj.ipp.Bits < n.ipp.Bits && obj.ipp.Contains(n.ipp.IP)) {
 						continue
 					}
 					if isPrimary {

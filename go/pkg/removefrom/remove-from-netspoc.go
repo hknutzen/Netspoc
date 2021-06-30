@@ -122,8 +122,8 @@ func (s *state) elementList(l *([]ast.Element)) bool {
 	j := 0
 	for _, n := range *l {
 		switch obj := n.(type) {
-		case *ast.NamedRef, *ast.IntfRef:
-			name := obj.GetType() + ":" + obj.GetName()
+		case ast.NamedElem:
+			name := n.GetType() + ":" + obj.GetName()
 			if s.remove[name] {
 				changed = true
 				continue
@@ -183,9 +183,6 @@ func (s *state) readObjects(path string) error {
 		return fmt.Errorf("Can't %s", err)
 	}
 	objects := strings.Fields(string(bytes))
-	if len(objects) == 0 {
-		return fmt.Errorf("Missing objects in %s", path)
-	}
 	return s.setupObjects(objects)
 }
 
@@ -200,7 +197,7 @@ func Main() int {
 	}
 
 	// Command line flags
-	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
+	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read OBJECTS from file")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {

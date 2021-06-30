@@ -476,11 +476,8 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 	// Sort for deterministic output:
 	sort.Slice(result, func(i, j int) bool {
-		switch result[i].ipp.IP.Compare(result[j].ipp.IP) {
-		case -1:
-			return true
-		case 1:
-			return false
+		if cmp := result[i].ipp.IP.Compare(result[j].ipp.IP); cmp != 0 {
+			return cmp == -1
 		}
 		return result[i].ipp.Bits < result[j].ipp.Bits
 	})

@@ -1,4 +1,43 @@
+############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [service:name ...]
+  -6, --ipv6    Expect IPv6 definitions
+  -o, --owner   Keep referenced owners
+  -q, --quiet   Don't print progress messages
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR [service:name ...]
+  -6, --ipv6    Expect IPv6 definitions
+  -o, --owner   Keep referenced owners
+  -q, --quiet   Don't print progress messages
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=#
+=PARAMS=-x
+=ERROR=
+Error: unknown shorthand flag: 'x' in -x
+=END=
+
+############################################################
+=TITLE=Unknown service
+=INPUT=#
+=PARAMS=other_service
+=ERROR=
+Warning: Ignoring file 'INPUT' without any content
+Error: Unknown service:other_service
+=END=
+
 =VAR=topo
+owner:o2 = { admins = a2@example.com; }
 network:n1 = { ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
  host:h11 = { ip = 10.1.1.11; }
@@ -13,7 +52,7 @@ router:asa1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {
- interface:n2 = { ip = 10.1.2.2; }
+ interface:n2 = { ip = 10.1.2.2; owner = o2; }
  interface:n3;
 }
 =END=
@@ -81,7 +120,15 @@ service:s2 = {
         prt = tcp 81;
 }
 =END=
-=PARAMS=service:s2 service:s3
+=PARAMS=s2 service:s3
+
+############################################################
+=TITLE=Unknown service selected
+=INPUT=
+${topo}
+=ERROR=
+Error: Unknown service:s1
+=PARAMS=service:s1
 
 ############################################################
 =TITLE=Simple service, remove one host
@@ -331,7 +378,7 @@ ${topo}
 area:n2 = { border = interface:asa1.n2;  owner = foo; }
 owner:foo = { admins = a@example.com; }
 service:test = {
-    user = network:n2;
+    user = interface:asa2.n2;
     permit src = user; dst = network:n1; prt = tcp;
 }
 =END=
@@ -345,8 +392,11 @@ router:asa1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+}
 service:test = {
- user = network:n2;
+ user = interface:asa2.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp;
@@ -357,6 +407,9 @@ service:test = {
 =TITLE=Keep area with owner
 =INPUT=${input}
 =OUTPUT=
+owner:o2 = {
+ admins = a2@example.com;
+}
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:asa1 = {
@@ -364,6 +417,9 @@ router:asa1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; owner = o2; }
 }
 area:n2 = {
  owner = foo;
@@ -373,7 +429,7 @@ owner:foo = {
  admins = a@example.com;
 }
 service:test = {
- user = network:n2;
+ user = interface:asa2.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp;
@@ -489,7 +545,7 @@ service:test = {
 
 ############################################################
 =TITLE=Ignore IPv6 part of topology
-=INPUT=
+=VAR=input
 -- topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -498,10 +554,6 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-service:test = {
-    user = network:n1;
-    permit src = user; dst = network:n2; prt = ip;
 }
 -- ipv6/topo
 network:n3 = { ip = 1000::abcd:0001:0/112;}
@@ -513,8 +565,21 @@ router:r1 = {
  interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n4;}
  interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
 }
+=INPUT=
+${input}
+-- rule
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
 =END=
 =OUTPUT=
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = ip;
+}
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
@@ -523,11 +588,81 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+=END=
+
+############################################################
+=TITLE=Ignore IPv4 part of topology
+=INPUT=
+${input}
+-- ipv6/rule
+service:test = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+=END=
+=OUTPUT=
+service:test = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+network:n3 = { ip = 1000::abcd:0001:0/112; }
+network:n4 = { ip = 1000::abcd:0002:0/112; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+}
+=END=
+
+############################################################
+=TITLE=Show IPv4 + IPv6 part of topology
+=INPUT=
+${input}
+-- rule
+service:test = {
+    user = network:n1;
+    permit src = user; dst = network:n2; prt = ip;
+}
+-- ipv6/rule
+service:test6 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+=OUTPUT=
+service:test6 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = ip;
+}
+network:n3 = { ip = 1000::abcd:0001:0/112; }
+network:n4 = { ip = 1000::abcd:0002:0/112; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 1000::abcd:0001:0001; hardware = n3; }
+ interface:n4 = { ip = 1000::abcd:0002:0001; hardware = n4; }
+}
 service:test = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
         prt = ip;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =END=
 
@@ -690,9 +825,11 @@ router:r3 = {
  }
 }
 network:un = { unnumbered; }
-area:a = { inclusive_border = interface:r3.n4; }
+area:a2 = { border = interface:r1.n2; }
+area:a4 = { inclusive_border = interface:r3.n4; }
 service:s1 = {
- user = network:n2, network:[area:a];
+ user = network:[area:a2] &! network:[area:a4],
+        interface:[any:[area:a4]].[all];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 =END=
@@ -707,9 +844,16 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+area:a2 = {
+ border = interface:r1.n2;
+}
 service:s1 = {
- user = network:n2,
-        network:[group:empty-area],
+ user = network:[area:a2]
+        &! network:[group:empty-area]
+        ,
+        interface:[
+         any:[group:empty-area],
+        ].[all],
         ;
  permit src = network:n1;
         dst = user;
@@ -978,6 +1122,34 @@ service:s1 = {
         dst = network:n2;
         prt = tcp 80;
 }
+=END=
+
+############################################################
+=TITLE=Secondary interface
+=VAR=input
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = {
+  ip = 10.1.1.1,
+       10.1.1.18,
+       ;
+  secondary:sec = { ip = 10.1.1.33; }
+  hardware = n1;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:r1.n1.2,
+              interface:r1.n1.sec,
+              ;
+        prt = tcp 80;
+}
+=INPUT=${input}
+=OUTPUT=
+${input}
 =END=
 
 ############################################################
@@ -2175,6 +2347,41 @@ service:s1 = {
  user = interface:[managed & area:n2-3].[auto]
         &! interface:r3.[auto]
         ;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 123;
+}
+=END=
+=INPUT=${input}
+=OUTPUT=
+${input}
+=END=
+
+############################################################
+=TITLE=Network auto interface
+=VAR=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n2-3 = {
+ border = interface:r1.n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = interface:[
+         network:[area:n2-3],
+        ].[auto];
  permit src = user;
         dst = network:n1;
         prt = udp 123;

@@ -1,3 +1,17 @@
+6.031     2021-06-30 16:08:38+02:00 Europe/Berlin
+
+ - Improved secondary optimization.
+   Conflicts with aggregate rules are analyzed more accurately now,
+   leading to better performance and more optimized rules.
+ - Fixed 'format-netspoc':
+   - No longer remove comment before complex host and interface.
+   - Sort order of intersection is determined by first element now.
+ - Fixed 'export-netspoc':
+   Print owner name with "owner:" in error messages and warnings.
+ - Fix: Numbered protocol is now recognized as redundant to 'ip'.
+ - Commands 'export-netspoc' and 'print-service'
+   had slow runtime performance since version 6.029. This has been fixed.
+
 6.030     2021-05-20 13:29:29+02:00 Europe/Berlin
 
  - A warning is shown again, if list of objects in service after

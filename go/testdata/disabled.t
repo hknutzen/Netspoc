@@ -23,7 +23,8 @@ router:r2 = {
 =INPUT=
 ${topo}
 service:test = {
-    user = host:h1, network:n2, interface:r1.n1, interface:r1.[auto];
+    user = host:h1, network:n2, interface:r1.n1, interface:r2.n2,
+           interface:r1.[auto], interface:r1.[all];
  permit src = user; dst = network:n3; prt = tcp 22;
 }
 =END=
@@ -49,6 +50,74 @@ area:a2 = { border = interface:r1.n2, interface:r2.n2;  }
 service:test = {
  user = network:[area:a2];
  permit src = user; dst = network:n3; prt = tcp 22;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Partially disabled area with auto interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; disabled; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+}
+area:a2-3 = { inclusive_border = interface:r1.n1; border = interface:r3.n3; }
+service:s1 = {
+ user = interface:[area:a2-3].[auto];
+ permit src = network:n3; dst = user; prt = tcp 22;
+}
+service:s2 = {
+ user = interface:[interface:r2.n2].[auto];
+ permit src = network:n3; dst = user; prt = tcp 23;
+}
+=OUTPUT=
+-- r2
+ip access-list extended n3_in
+ permit tcp 10.1.3.0 0.0.0.255 host 10.1.3.2 eq 22
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Disable between disabled interfaces, ignore redundant disable.
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.2; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; disabled; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n0 = { ip = 10.1.0.3; hardware = n0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; disabled; }
 }
 =END=
 =WARNING=NONE

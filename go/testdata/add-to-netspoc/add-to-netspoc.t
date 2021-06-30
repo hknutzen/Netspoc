@@ -1,5 +1,40 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR PAIR ...
+  -f, --file string   Read pairs from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR PAIR ...
+  -f, --file string   Read pairs from file
+  -q, --quiet         Don't show number of changes
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=host at network
 =INPUT=
 ################# Comment in first line must not be appended to added item.
@@ -110,10 +145,10 @@ group:g3 = group:g1, group:g2 &! network:n2;
 =OUTPUT=
 group:g3 =
  group:g1,
- group:g3,
  group:g2
  &! network:n2
  ,
+ group:g3,
 ;
 =END=
 =PARAMS=group:g1 group:g3
@@ -143,18 +178,35 @@ group:abc =
 =TITLE=area in automatic group
 =INPUT=
 group:abc =
- any:[ ip = 10.1.0.0/16 & area:a1, ],
+ network:[area:a1],
 ;
 =END=
 =OUTPUT=
 group:abc =
- any:[ip = 10.1.0.0/16 &
+ network:[
   area:a1,
   area:a2,
  ],
 ;
 =END=
 =PARAMS=area:a1 area:a2
+
+############################################################
+=TITLE=Automatic interface group
+=INPUT=
+group:abc =
+ interface:[network:n1].[all],
+;
+=END=
+=OUTPUT=
+group:abc =
+ interface:[
+  network:n1,
+  network:n2,
+ ].[all],
+;
+=END=
+=PARAMS=network:n1 network:n2
 
 ############################################################
 =TITLE=in service, but not in area and pathrestriction
@@ -306,6 +358,14 @@ interface:r.n.sec interface:r.n
 =END=
 
 ############################################################
+=TITLE=Read pairs from unknown file
+=INPUT=#
+=PARAMS=-f unknown
+=ERROR=
+Error: Can't open unknown: no such file or directory
+=END=
+
+############################################################
 =TITLE=Add multiple entries to one object
 =INPUT=
 service:s = {
@@ -355,5 +415,37 @@ group:g1 = host:a;
 Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
 =END=
 =PARAMS=host:a name2
+
+############################################################
+=TITLE=Invalid type (3)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Can't use type in service:b
+=END=
+=PARAMS=service:b host:a
+
+############################################################
+=TITLE=Invalid type (4)
+=INPUT=
+group:g1 = host:a;
+=END=
+=ERROR=
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
+=END=
+=PARAMS= host:a service:b
+
+############################################################
+=TITLE=Can't add to automatic group
+=INPUT=
+group:g1 =
+ any:[ip=10.1.1.0/24&network:n1],
+;
+=END=
+=ERROR=
+Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+=END=
+=PARAMS=any:[ip=10.1.1.0/24&network:n1] network:n2
 
 ############################################################

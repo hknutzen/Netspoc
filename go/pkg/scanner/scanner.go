@@ -151,6 +151,7 @@ func isTokenChar(ch rune) bool {
 	}
 }
 
+// Take "-", "/" and ":" as separator.
 func isProtoTokenChar(ch rune) bool {
 	if isLetter(ch) || isDigit(ch) {
 		return true
@@ -163,6 +164,7 @@ func isProtoTokenChar(ch rune) bool {
 	}
 }
 
+// Take "-" as separator.
 func isIPRangeTokenChar(ch rune) bool {
 	if isLetter(ch) || isDigit(ch) {
 		return true

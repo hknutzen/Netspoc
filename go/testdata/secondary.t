@@ -623,6 +623,50 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Must not optimize even if aggregate is not on path of oter rule.
+=INPUT=
+network:n1  = { ip = 10.2.1.0/27; }
+network:n2  = { ip = 10.2.2.0/27; }
+network:n2a = { ip = 10.2.2.32/27; }
+network:n3  = { ip = 10.2.3.0/27; }
+
+router:r1 = {
+ model = ASA;
+ managed = secondary;
+ interface:n1 = { ip = 10.2.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+ interface:n2a = { ip = 10.2.2.34; hardware = n2a; }
+}
+
+router:r2 = {
+ model = ASA;
+ managed;
+ interface:n2  = { ip = 10.2.2.2; hardware = n2; }
+ interface:n3  = { ip = 10.2.3.2; hardware = n3; }
+}
+
+service:n1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+
+service:any = {
+ user = any:[network:n2a], network:n2;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 22;
+}
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.3.0 255.255.255.224 eq 80
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Don't optimize if aggregate rule ends before secondary router
 =INPUT=
 network:n1 = { ip = 10.2.1.0/27; }
@@ -639,10 +683,21 @@ router:r2 = {
  interface:n2 = { ip = 10.2.2.2; hardware = n2; }
  interface:n3 = { ip = 10.2.3.2; hardware = n3; }
 }
-network:n3 = { ip = 10.2.3.0/27; host:h3 = { ip = 10.2.3.4; }}
+network:n3 = { ip = 10.2.3.0/27; }
+router:r3 = {
+ interface:n3 = { ip = 10.2.3.4; }
+ interface:n4;
+}
+# Doesn't match aggregate, hence still optimize.
+network:n4 = { ip = 10.4.4.0/24; }
+
 service:n1 = {
  user = network:n1;
- permit src = user; dst = host:h3; prt = tcp 80;
+ permit src = user; dst = interface:r3.n3; prt = tcp 80;
+}
+service:n4 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
 service:any = {
  user = network:n1;
@@ -654,11 +709,13 @@ service:any = {
 ! n1_in
 access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.2.0.0 255.255.0.0 eq 22
 access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n1_in extended permit tcp 10.2.1.0 255.255.255.224 10.4.4.0 255.255.255.0 eq 81
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 --r2
 ! n2_in
 access-list n2_in extended permit tcp 10.2.1.0 255.255.255.224 host 10.2.3.4 eq 80
+access-list n2_in extended permit ip 10.2.1.0 255.255.255.224 10.4.4.0 255.255.255.0
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 =END=

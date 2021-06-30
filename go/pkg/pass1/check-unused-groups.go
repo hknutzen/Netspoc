@@ -14,7 +14,7 @@ func (c *spoc) checkUnusedGroups() {
 			}
 			for _, group := range symTable.protocolgroup {
 				if !group.isUsed {
-					c.warnOrErr(printType, "unused %s", group)
+					c.warnOrErr(printType, "unused %s", group.name)
 				}
 			}
 		}

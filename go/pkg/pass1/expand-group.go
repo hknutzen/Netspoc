@@ -52,13 +52,9 @@ type networkAutoIntfKey = struct {
 func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 	// Restore effect of split router from transformation in
-	// split_semi_managed_router and move_locked_interfaces.
+	// splitSemiManagedRouter and moveLockedIntf.
 	if r.origRouter != nil {
 		r = r.origRouter
-	}
-
-	if r.disabled {
-		return nil
 	}
 
 	result := c.routerAutoInterfaces[r]
@@ -75,9 +71,6 @@ func (c *spoc) getRouterAutoIntf(r *router) *autoIntf {
 
 // Create autoIntf from network.
 func (c *spoc) getNetworkAutoIntf(n *network, managed bool) *autoIntf {
-	if n.disabled {
-		return nil
-	}
 	result := c.networkAutoInterfaces[networkAutoIntfKey{n, managed}]
 	if result == nil {
 		name := "interface:[" + n.name + "].[auto]"
@@ -192,23 +185,23 @@ func (c *spoc) expandIntersection(
 		for _, a := range l {
 			var info string
 			if x, ok := a.(*ast.Complement); ok {
-				info = "!"
+				info = "! "
 				a = x.Element
-			} else {
-				info = " "
 			}
-			info += a.GetType() + ":"
-			if name := a.GetName(); name != "" {
-				info += name
-			} else {
-				info += "[..]"
-			}
-			if x, ok := a.(*ast.IntfAuto); ok {
-				info += ".[" + x.Selector + "]"
+			switch x := a.(type) {
+			case *ast.User:
+				info += "user"
+			case ast.NamedElem:
+				info += a.GetType() + ":" + x.GetName()
+			case *ast.SimpleAuto, *ast.AggAuto:
+				info += a.GetType() + ":[..]"
+			case *ast.IntfAuto:
+				info += a.GetType() + ":[..].[" + x.Selector + "]"
 			}
 			printable.push(info)
 		}
-		c.warn("Empty intersection in %s:\n "+strings.Join(printable, "\n&"), ctx)
+		c.warn("Empty intersection in %s:\n%s",
+			ctx, strings.Join(printable, "\n&"))
 	}
 
 	return result
@@ -253,6 +246,23 @@ func (c *spoc) expandGroup1(
 				x.Elements, "interface:[..].["+selector+"] of "+ctx,
 				ipv6, false, true)
 			routerSeen := make(map[*router]bool)
+			autoFromRouter := func(r *router) {
+				if routerSeen[r] {
+					return
+				}
+				routerSeen[r] = true
+				if managed && r.managed == "" && !r.routingOnly {
+					// This router has no managed interfaces.
+				} else if selector == "all" {
+					for _, intf := range getIntf(r) {
+						if check(intf) {
+							result.push(intf)
+						}
+					}
+				} else if a := c.getRouterAutoIntf(r); a != nil {
+					result.push(a)
+				}
+			}
 			for _, obj := range subObjects {
 				obj.setUsed()
 				switch x := obj.(type) {
@@ -301,22 +311,7 @@ func (c *spoc) expandGroup1(
 						}
 					}
 				case *routerIntf:
-					r := x.router
-					if routerSeen[r] {
-						continue
-					}
-					routerSeen[r] = true
-					if managed && r.managed == "" && !r.routingOnly {
-						// Do nothing.
-					} else if selector == "all" {
-						for _, intf := range getIntf(r) {
-							if check(intf) {
-								result.push(intf)
-							}
-						}
-					} else if a := c.getRouterAutoIntf(r); a != nil {
-						result.push(a)
-					}
+					autoFromRouter(x.router)
 				case *area:
 					var routers []*router
 
@@ -378,22 +373,7 @@ func (c *spoc) expandGroup1(
 				case *autoIntf:
 					obj := x.object
 					if r, ok := obj.(*router); ok {
-						if routerSeen[r] {
-							continue
-						}
-						routerSeen[r] = true
-						if managed && !(r.managed != "" || r.routingOnly) {
-
-							// This router has no managed interfaces.
-						} else if selector == "all" {
-							for _, intf := range getIntf(r) {
-								if check(intf) {
-									result.push(intf)
-								}
-							}
-						} else if a := c.getRouterAutoIntf(r); a != nil {
-							result.push(a)
-						}
+						autoFromRouter(r)
 					} else {
 						c.err("Can't use %s inside interface:[..].[%s] of %s",
 							x, selector, ctx)
@@ -414,14 +394,16 @@ func (c *spoc) expandGroup1(
 					r = symTable.router[x.Router]
 				}
 				if r != nil {
-					if selector == "all" {
-						for _, intf := range getIntf(r) {
-							if check(intf) {
-								result.push(intf)
+					if !r.disabled {
+						if selector == "all" {
+							for _, intf := range getIntf(r) {
+								if check(intf) {
+									result.push(intf)
+								}
 							}
+						} else if a := c.getRouterAutoIntf(r); a != nil {
+							result.push(a)
 						}
-					} else if a := c.getRouterAutoIntf(r); a != nil {
-						result.push(a)
 					}
 				} else {
 					c.err("Can't resolve %s:%s.[%s] in %s",
@@ -619,8 +601,6 @@ func (c *spoc) expandGroup1(
 						c.err("Unexpected '%s' in any:[..] of %s", obj, ctx)
 					}
 				}
-			default:
-				c.err("Unexpected %s:[..] in %s", x.GetType(), ctx)
 			}
 		case *ast.NamedRef:
 			// An object named simply 'type:name'.
@@ -632,7 +612,7 @@ func (c *spoc) expandGroup1(
 				continue
 			}
 			c.checkV4V6CrossRef(obj, ipv6, ctx)
-			if obj.isDisabled() {
+			if x, ok := obj.(withDisabled); ok && x.isDisabled() {
 				continue
 			}
 

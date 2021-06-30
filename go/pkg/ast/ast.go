@@ -10,14 +10,6 @@ import ()
 //
 // There are 3 main classes of nodes: Toplevel nodes, Element nodes,
 // and other Nodes.
-//
-// All nodes contain position information marking the beginning of
-// the corresponding source text segment; it is accessible via the
-// Pos accessor method. Nodes may contain additional position info
-// for language constructs where comments may be found between parts
-// of the construct (typically any larger, parenthesized subpart).
-// That position information is needed to properly position comments
-// when printing the construct.
 
 type Node interface {
 	PreComment() string  // Comment in line(s) before node, if available.
@@ -30,7 +22,6 @@ type Node interface {
 type Element interface {
 	Node
 	GetType() string
-	GetName() string
 }
 
 type Toplevel interface {
@@ -38,7 +29,6 @@ type Toplevel interface {
 	GetName() string
 	SetName(string)
 	GetDescription() *Description
-	IsStruct() bool
 	FileName() string
 	SetFileName(string)
 	GetIPV6() bool
@@ -62,7 +52,6 @@ type User struct {
 }
 
 func (a *User) GetType() string { return "user" }
-func (a *User) GetName() string { return "user" }
 
 type TypedElt struct {
 	Base
@@ -70,7 +59,10 @@ type TypedElt struct {
 }
 
 func (a *TypedElt) GetType() string { return a.Type }
-func (a *TypedElt) GetName() string { return "" }
+
+type NamedElem interface {
+	GetName() string
+}
 
 type NamedRef struct {
 	TypedElt
@@ -124,7 +116,6 @@ type Complement struct {
 }
 
 func (a *Complement) GetType() string { return "" }
-func (a *Complement) GetName() string { return "" }
 
 type Intersection struct {
 	Base
@@ -132,7 +123,6 @@ type Intersection struct {
 }
 
 func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
-func (a *Intersection) GetName() string { return a.Elements[0].GetType() }
 
 type Description struct {
 	Base
@@ -147,7 +137,6 @@ type TopBase struct {
 	IPV6        bool
 }
 
-func (a *TopBase) IsStruct() bool               { return false }
 func (a *TopBase) GetName() string              { return a.Name }
 func (a *TopBase) SetName(n string)             { a.Name = n }
 func (a *TopBase) GetDescription() *Description { return a.Description }
@@ -175,8 +164,6 @@ type TopStruct struct {
 	TopBase
 	Attributes []*Attribute
 }
-
-func (a *TopStruct) IsStruct() bool { return true }
 
 type Value struct {
 	Base

@@ -57,13 +57,13 @@ func (c *spoc) verifyAsaVpnAttributes(
 	for _, key := range sorted {
 		_, found := asaVpnAttributes[key]
 		if !found {
-			c.err("Invalid radiusAttribute '%s' at %s", key, name)
+			c.err("Invalid radius_attribute '%s' at %s", key, name)
 		}
 		value := attributes[key]
 		switch key {
 		case "split-tunnel-policy":
 			if value != "tunnelall" && value != "tunnelspecified" {
-				c.err("Unsupported value in radius_attributes of %s '%s = %s'",
+				c.err("Unsupported value in radius_attribute of %s '%s = %s'",
 					name, key, value)
 			}
 		case "group-lock":
@@ -237,14 +237,12 @@ func (c *spoc) expandCrypto() {
 		// Do consistency checks and
 		// add rules which allow encrypted traffic.
 		for _, tunnel := range cr.tunnels {
-			if tunnel.disabled {
-				continue
-			}
 			spoke, hub := tunnel.interfaces[0], tunnel.interfaces[1]
 			router := spoke.router
 			managed := router.managed
 			hubRouter := hub.router
 			hubModel := hubRouter.model
+			doAuth := hubModel.doAuth
 			natMap := hub.natMap
 			hubIsAsaVpn := hubModel.crypto == "ASA_VPN"
 			var encrypted netList
@@ -258,7 +256,7 @@ func (c *spoc) expandCrypto() {
 
 			// Analyze cleartext networks behind spoke router.
 			for _, intf := range router.interfaces {
-				if intf == spoke {
+				if intf == spoke || intf.mainIntf != nil {
 					continue
 				}
 				net := intf.network
@@ -271,6 +269,10 @@ func (c *spoc) expandCrypto() {
 						idRules = make(map[string]*idIntf)
 						hub.idRules = idRules
 					}
+					if !doAuth {
+						c.err("%s having ID hosts can't be checked by %s",
+							net, hubRouter)
+					}
 					if managed != "" {
 						c.err(
 							"%s having ID hosts must not be located behind managed %s",
@@ -278,15 +280,6 @@ func (c *spoc) expandCrypto() {
 					}
 					if hubIsAsaVpn {
 						c.verifyAsaVpnAttributes(net.name, net.radiusAttributes)
-						key := "trust-point"
-						if net.radiusAttributes[key] != "" {
-							for _, s := range net.subnets {
-								if s.ipp.IsSingleIP() {
-									c.err("Must not use radiusAttribute '%s' at %s",
-										key, s)
-								}
-							}
-						}
 					}
 
 					// Rules for single software clients are stored
@@ -297,9 +290,12 @@ func (c *spoc) expandCrypto() {
 						if hubIsAsaVpn {
 							c.verifyAsaVpnAttributes(s.name, s.radiusAttributes)
 							key := "trust-point"
-							if s.radiusAttributes[key] != "" &&
+							if (net.radiusAttributes[key] != "" ||
+								s.radiusAttributes[key] != "") &&
 								s.ipp.IsSingleIP() {
-								c.err("Must not use radiusAttribute '%s' at %s", key, s)
+
+								c.err("Must not use radius_attribute '%s' at %s",
+									key, s)
 							}
 
 							c.verifyAuthServer(s, hubRouter)
@@ -342,8 +338,8 @@ func (c *spoc) expandCrypto() {
 					router)
 			}
 
-			doAuth := hubModel.doAuth
-			if id := spoke.id; id != "" {
+			id := spoke.id
+			if id != "" {
 				if !needId {
 					c.err("Invalid attribute 'id' at %s.\n"+
 						" Set authentication=rsasig at %s", spoke, isakmp.name)
@@ -364,11 +360,8 @@ func (c *spoc) expandCrypto() {
 						id, hubRouter)
 				}
 				id2intf[id] = append(id2intf[id], spoke)
-			} else if hasIdHosts {
-				if !doAuth {
-					c.err("%s can't check IDs of %s", hubRouter, encrypted[0])
-				}
-			} else if len(encrypted) != 0 {
+			}
+			if len(encrypted) != 0 && !hasIdHosts && id == "" {
 				if doAuth && managed == "" {
 					c.err("Networks behind crypto tunnel to %s of model '%s'"+
 						" need to have ID hosts:\n"+encrypted.nameList(),

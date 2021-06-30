@@ -36,6 +36,16 @@ Error: Unknown protocol in protocol:test
 =END=
 
 ############################################################
+=TITLE=Invalid ip protocol
+=INPUT=
+protocol:test = ip v6;
+network:n1 = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unexpected details after protocol:test
+=END=
+
+############################################################
 =TITLE=Missing port range
 =INPUT=
 protocol:test = tcp 80 -
@@ -53,6 +63,11 @@ protocol:p2 = udp 60000 - 99999;
 protocol:p3 = udp 100100 - 100102;
 protocol:p4 = tcp 90 - 80;
 protocol:p5 = tcp 0 - 0;
+protocol:p6 = tcp - 2 -;
+protocol:p7 = tcp 1 - 2 -;
+protocol:p8 = tcp 1 - 2 - 3;
+protocol:p9 = tcp 1 - 2 : 3 : 4;
+protocol:p10 = tcp -;
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
@@ -63,12 +78,18 @@ Error: Expected port number < 65536 in protocol:p3
 Error: Invalid port range in protocol:p4
 Error: Expected port number > 0 in protocol:p5
 Error: Expected port number > 0 in protocol:p5
+Error: Invalid port range in protocol:p6
+Error: Invalid port range in protocol:p7
+Error: Invalid port range in protocol:p8
+Error: Invalid port range in protocol:p9
+Error: Expected number in protocol:p10: -
 =END=
+=OPTIONS=--max_errors=20
 
 ############################################################
 =TITLE=Invalid ports and port ranges (2)
 =INPUT=
-protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmp +3;
+protocolgroup:g1 = tcp 77777, udp -1, udp 0, icmp -3;
 network:n1 = { ip = 10.1.1.0/24; }
 service:s1 = {
  user = network:n1;
@@ -79,7 +100,7 @@ service:s1 = {
 Error: Expected port number < 65536 in 'tcp 77777' of protocolgroup:g1
 Error: Invalid port range in 'udp - 1' of protocolgroup:g1
 Error: Expected port number > 0 in 'udp 0' of protocolgroup:g1
-Error: Expected [TYPE [ / CODE]] in 'icmp + 3' of protocolgroup:g1
+Error: Expected [TYPE [ / CODE]] in 'icmp - 3' of protocolgroup:g1
 =END=
 
 ############################################################
@@ -99,6 +120,23 @@ ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 lt 1024
  permit udp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 gt 1023
  deny ip any any
+=END=
+
+############################################################
+=TITLE=Invalid source port in unnamed protocol
+=INPUT=
+${topo}
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 20:1024-48000, udp 2000-2050 : 2020;
+}
+=ERROR=
+Error: Must not use source port in 'tcp 20 : 1024 - 48000' of service:test.
+ Source port is only valid in named protocol
+Error: Must not use source port in 'udp 2000 - 2050 : 2020' of service:test.
+ Source port is only valid in named protocol
 =END=
 
 ############################################################
@@ -233,6 +271,19 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Invalid separator in ICMP
+=INPUT=
+protocol:p1 = icmp 3 - 4;
+protocol:p2 = icmp 3@4;
+protocol:p3 = icmp 3.4;
+=END=
+=ERROR=
+Error: Expected [TYPE [ / CODE]] in protocol:p1
+Error: Expected number in protocol:p2: 3@4
+Error: Expected number in protocol:p3: 3.4
+=END=
+
+############################################################
 =TITLE=Too large ICMP code
 =INPUT=
 protocol:test = icmp 3 / 999;
@@ -277,15 +328,26 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Single number for protocol 'proto'
+=INPUT=
+protocol:test = proto -1;
+=END=
+=ERROR=
+Error: Expected single protocol number in protocol:test
+=END=
+
+############################################################
 =TITLE=Invalid protocol number
 =INPUT=
 protocol:test1 = proto 0;
 protocol:test2 = proto 300;
+protocol:test3 = proto foo;
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Invalid protocol number '0' in protocol:test1
 Error: Expected number < 256 in protocol:test2
+Error: Expected number in protocol:test3: foo
 =END=
 
 ############################################################
@@ -307,6 +369,24 @@ ip access-list extended n1_in
  permit 50 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  permit 123 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any
+=END=
+
+############################################################
+=TITLE=Numbered protocol is part of 'ip'
+=INPUT=
+${topo}
+protocol:test = proto 123;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = protocol:test, ip;
+}
+=END=
+=WARNING=
+Warning: Redundant rules in service:s1 compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=protocol:test; of service:s1
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s1
 =END=
 
 ############################################################
@@ -441,6 +521,19 @@ Warning: unused protocol:http
 Warning: unused protocol:ping
 =END=
 =OPTIONS=--check_unused_protocols=warn
+
+############################################################
+=TITLE=Unused protocolgroup
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+protocolgroup:g1 = tcp 80, icmp 8, protocolgroup:g2;
+protocolgroup:g2 = udp 123, udp 69;
+=END=
+=WARNING=
+Warning: unused protocolgroup:g1
+Warning: unused protocolgroup:g2
+=END=
+=OPTIONS=--check_unused_groups=warn
 
 ############################################################
 =TITLE=Unknown protocol and protocolgroup

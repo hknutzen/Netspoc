@@ -693,10 +693,7 @@ func (p *parser) abort(e error) {
 	panic(bailout{err: e})
 }
 
-func ParseFile(
-	src []byte, fileName string, mode Mode) (f *ast.File, err error) {
-
-	p := new(parser)
+func handlePanic(f func()) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
 			if b, ok := e.(bailout); ok {
@@ -707,36 +704,45 @@ func ParseFile(
 			}
 		}
 	}()
-
-	p.init(src, fileName, mode)
-	f = new(ast.File)
-	f.Nodes = p.file()
-	if p.parseComments {
-		f.BottomCmt = p.scanner.PreCmt(len(src), "")
-	}
+	f()
 	return
 }
 
-// Read from string
-func ParseUnion(src []byte) (l []ast.Element, err error) {
-	p := new(parser)
-	defer func() {
-		if e := recover(); e != nil {
-			if b, ok := e.(bailout); ok {
-				err = b.err
-			} else {
-				// resume same panic if it's not a bailout
-				panic(e)
-			}
+func ParseFile(src []byte, fName string, mode Mode) (f *ast.File, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		p.init(src, fName, mode)
+		f = new(ast.File)
+		f.Nodes = p.file()
+		if p.parseComments {
+			f.BottomCmt = p.scanner.PreCmt(len(src), "")
 		}
-	}()
+	})
+	return
+}
 
-	src = append(src, ';')
-	p.init(src, "command line", 0)
-	list, end := p.union(";")
-	if end != len(src) {
-		p.syntaxErr(`Unexpected content after ";"`)
-	}
-	l = list
+func ParseUnion(src []byte) (l []ast.Element, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		src = append(src, ';')
+		p.init(src, "command line", 0)
+		list, end := p.union(";")
+		if end != len(src) {
+			p.syntaxErr(`Unexpected content after ";"`)
+		}
+		l = list
+	})
+	return
+}
+
+func ParseToplevel(src []byte) (n ast.Toplevel, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		p.init(src, "command line", 0)
+		n = p.toplevel()
+		if p.pos != len(src) {
+			p.syntaxErr(`Unexpected content after definition`)
+		}
+	})
 	return
 }

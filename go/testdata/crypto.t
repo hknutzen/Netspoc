@@ -368,6 +368,48 @@ Error: Exactly one network must be located behind unmanaged interface:softclient
 =END=
 
 ############################################################
+=TITLE=Invalid radius attributes
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+  unknown = unknown;
+  split-tunnel-policy = whatever;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+  no_check;
+ }
+}
+router:softclients = {
+ interface:n1 = { ip = 10.1.1.2; spoke = crypto:vpn; }
+ interface:clients;
+}
+network:clients = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  invalid;
+ }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  radius_attributes = { trust-point = ASDM_TrustPoint1; }
+ }
+}
+=END=
+=ERROR=
+Error: Invalid radius_attribute 'invalid' at network:clients
+Error: Must not use radius_attribute 'trust-point' at host:id:foo@domain.x.clients
+Error: Unsupported value in radius_attribute of router:asavpn 'split-tunnel-policy = whatever'
+Error: Invalid radius_attribute 'unknown' at router:asavpn
+=END=
+
+############################################################
 =TITLE=Use authentication-server-group only with ldap_id (1)
 =INPUT=
 ${crypto_vpn}
@@ -1127,6 +1169,14 @@ Error: Missing radius_attribute 'check-subject-name'
 =SUBST=/group-lock;#/group-lock = enabled;/
 =WARNING=
 Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.customers2 (will be set automatically)
+=END=
+
+############################################################
+=TITLE=Missing trust-point
+=INPUT=${input}
+=SUBST=/trust-point = ASDM_TrustPoint1;//
+=ERROR=
+Error: Missing 'trust-point' in radiusAttributes of router:asavpn
 =END=
 
 ############################################################
@@ -3177,11 +3227,11 @@ network:dmz1 = {
  nat:vpn1 = { ip = 1.2.3.129/32; dynamic; }
 }
 router:vpn1 = {
- managed;
+ managed;#
  model = IOS;
  interface:dmz1 = {
   ip = 10.254.254.6;
-id = cert@example.com;
+id = cert@example.com;#
   nat:vpn1 = { ip = 1.2.3.129; }
   spoke = crypto:sts;
   bind_nat = lan1;
@@ -3195,6 +3245,7 @@ id = cert@example.com;
 network:lan1 = {
  ip = 10.99.1.0/24;
  nat:lan1 = { ip = 10.10.10.0/24; }
+ #host:id:h1@example.com = { ip = 10.99.1.130; }
 }
 =END=
 
@@ -3333,6 +3384,51 @@ crypto ca certificate map cert@example.com 10
  subject-name attr ea eq cert@example.com
 tunnel-group-map cert@example.com 10 1.2.3.129
 crypto map crypto-outside interface outside
+=END=
+
+############################################################
+=TITLE=Multiple zones behind managed crypto router
+=INPUT=
+${topo}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:lan1 = { ip = 10.99.1.2; hardware = lan1; }
+ interface:x = { ip = 10.99.1.129; hardware = x; }
+}
+network:x = { ip = 10.99.1.128/26; subnet_of = network:lan1; }
+=ERROR=
+Error: Exactly one security zone must be located behind managed interface:vpn1.lan1 of crypto router
+=END=
+
+############################################################
+=TITLE=ID hosts behind managed crypto router
+=INPUT=
+${topo}
+=SUBST=/#host/host/
+=ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
+Error: network:lan1 having ID hosts must not be located behind managed router:vpn1
+=END=
+
+############################################################
+=TITLE=ID hosts behind unmanaged crypto router
+=INPUT=
+${topo}
+=SUBST=/#host/host/
+=SUBST=/managed;#//
+=ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
+=END=
+
+############################################################
+=TITLE=Attribute 'id' with wrong authentication
+=INPUT=
+${topo}
+=SUBST=/rsasig/preshare/
+=ERROR=
+Error: Invalid attribute 'id' at interface:vpn1.tunnel:vpn1.
+ Set authentication=rsasig at isakmp:aes256SHA
 =END=
 
 ############################################################
@@ -3519,6 +3615,45 @@ Error: No valid path
  to any:[network:dmz]
  for rule permit src=network:intern; dst=network:dmz; prt=tcp 80; of service:t
  Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
+=TITLE=Must not use ID-host at model=ASA;
+=INPUT=
+${crypto_sts}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 1.2.3.0/25; }
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.1;
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+network:lan1 = {
+ ip = 10.99.1.0/24;
+ host:id:@example.com = { range = 10.99.1.32 - 10.99.1.63; }
+}
+=ERROR=
+Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =END=
 
 ############################################################
@@ -3752,6 +3887,58 @@ crypto map crypto-outside interface outside
 access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=Must not disable crypto
+=INPUT=
+${crypto_vpn}
+network:intern = { ip = 10.1.1.0/24;}
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ general_permit = icmp 3;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = { disabled;
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn;  disabled; }
+ interface:customers1;
+}
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:foo@domain.x = {
+  ip = 10.99.1.10;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+}
+service:test1 = {
+ user = host:id:foo@domain.x.customers1;
+ permit src = user; dst = network:intern; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: Ignoring attribute 'disabled' at interface:asavpn.dmz of crypto router
+Warning: Ignoring attribute 'disabled' at interface:softclients.internet of crypto router
 =END=
 
 ############################################################

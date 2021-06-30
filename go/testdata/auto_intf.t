@@ -96,6 +96,24 @@ ip access-list extended f1_in
 =END=
 
 ############################################################
+=TITLE=Managed auto interface of unmanaged interface
+=INPUT=
+${topo}
+service:test2 = {
+ user = interface:[managed & interface:u.b2, interface:r2.b2].[auto];
+ permit src = network:a; dst = user; prt = tcp 23;
+}
+=END=
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended e1_in
+ permit tcp 10.0.0.0 0.0.0.255 host 10.0.0.2 eq 23
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 23
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=All interfaces of aggregate
 =INPUT=
 ${topo}
