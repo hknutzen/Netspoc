@@ -211,6 +211,34 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Invalid masquerading
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.2.0/31; dynamic; subnet_of = network:n2; }
+}
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: IP of interface:r1.n2 overlaps with subnet network:n1 in nat_domain:[network:n2]
+=END=
+
+############################################################
 =TITLE=Check rule with aggregate to hidden NAT
 =INPUT=
 network:Test =  {
