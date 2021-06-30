@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.031     2021-06-30 16:08:38+02:00 Europe/Berlin
+
  - Improved secondary optimization.
    Conflicts with aggregate rules are analyzed more accurately now,
    leading to better performance and more optimized rules.
