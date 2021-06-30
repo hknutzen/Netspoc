@@ -197,7 +197,6 @@ func SpocMain() (errCount int) {
 		c.showReadStatistics()
 		c.orderProtocols()
 		c.markDisabled()
-		c.splitSemiManagedRouter()
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()
