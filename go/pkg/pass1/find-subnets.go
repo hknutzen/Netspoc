@@ -114,19 +114,10 @@ INTF:
 
 func (c *spoc) findSubnetsInZone0(z *zone) {
 
-	// Check NAT inside zone.
-	// Find networks of zone which use a NATed address inside the zone.
-	// - Use this NATed address in subnet checks.
-	// - If a subnet relation exists, then this NAT must be unique inside
-	//   the zone.
-
-	natMap := z.natDomain.natMap
-
 	// Add networks of zone to prefixIPMap.
-	// Use NAT IP/mask.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
-		ipp := getNatNetwork(n, natMap).ipp
+		ipp := n.ipp
 		ipMap := prefixIPMap[ipp.Bits]
 		if ipMap == nil {
 			ipMap = make(map[netaddr.IP]*network)
