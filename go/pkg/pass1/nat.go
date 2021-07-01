@@ -1165,13 +1165,9 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 	}
 	for _, set := range sets {
 		for tag, _ := range combined {
-			if set[tag] {
-				continue
+			if !set[tag] {
+				delete(combined, tag)
 			}
-			if multi[tag] != nil {
-				continue
-			}
-			delete(combined, tag)
 		}
 		for i, multiNatMap := range activeMulti {
 			active := ""
