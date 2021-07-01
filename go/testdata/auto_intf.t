@@ -1084,7 +1084,7 @@ service:test = {
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (2)
 # Find interfaces in given order n3, n4,
-# even if reversed path was already fund previously while
+# even if reversed path was already found previously while
 # "Checking and marking rules with hidden or dynamic NAT"
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.111; } }
