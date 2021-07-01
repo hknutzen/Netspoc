@@ -94,11 +94,12 @@ func markPrimary(zone *zone, mark int) {
 }
 
 func getZone(path pathStore, list []someObj) *zone {
+	var result *zone
 	switch x := path.(type) {
 	case *zone:
-		return x
+		result = x
 	case *routerIntf:
-		return x.zone
+		result = x.zone
 	case *router:
 		// src/dst may contain interfaces of different zones with
 		// different values of secondaryMark/primaryMark.
@@ -109,26 +110,25 @@ func getZone(path pathStore, list []someObj) *zone {
 		//
 		// Loopback interface can be ignored, it has unique mark.
 		if x.managed == "secondary" {
-			return x.interfaces[0].zone
+			result = x.interfaces[0].zone
+			break
 		}
-		var z, l *zone
+		var l *zone
 		for _, obj := range list {
 			intf := obj.(*routerIntf)
-			z2 := intf.zone
 			if intf.loopback {
-				l = z2
-			} else if z == nil {
-				z = z2
-			} else if z != z2 {
+				l = intf.zone
+			} else if result == nil {
+				result = intf.zone
+			} else if result != intf.zone {
 				return nil
 			}
 		}
-		if z == nil {
-			return l
+		if result == nil {
+			result = l
 		}
-		return z
 	}
-	return nil
+	return result
 }
 
 type conflictKey = struct {
