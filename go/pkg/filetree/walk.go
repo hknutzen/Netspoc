@@ -36,18 +36,19 @@ func Walk(fname string, fn parser) error {
 
 	var walk func(string, bool, bool) error
 	walk = func(fname string, v6, toplevel bool) error {
-		base := path.Base(fname)
+		if !toplevel {
+			base := path.Base(fname)
 
-		// Skip hidden and ignored file.
-		if base[0] == '.' || ignore.MatchString(base) {
-			return nil
+			// Skip hidden and ignored file.
+			if base[0] == '.' || ignore.MatchString(base) {
+				return nil
+			}
+
+			// Handle ipv6 / ipv4 subdirectory or file.
+			if base == ipvDir {
+				v6 = base == "ipv6"
+			}
 		}
-
-		// Handle ipv6 / ipv4 subdirectory or file.
-		if base == ipvDir {
-			v6 = base == "ipv6"
-		}
-
 		if !fileop.IsDir(fname) {
 			return processFile(fname, v6, fn)
 		}
