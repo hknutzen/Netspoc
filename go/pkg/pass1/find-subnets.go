@@ -114,19 +114,10 @@ INTF:
 
 func (c *spoc) findSubnetsInZone0(z *zone) {
 
-	// Check NAT inside zone.
-	// Find networks of zone which use a NATed address inside the zone.
-	// - Use this NATed address in subnet checks.
-	// - If a subnet relation exists, then this NAT must be unique inside
-	//   the zone.
-
-	natMap := z.natDomain.natMap
-
 	// Add networks of zone to prefixIPMap.
-	// Use NAT IP/mask.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
-		ipp := getNatNetwork(n, natMap).ipp
+		ipp := n.ipp
 		ipMap := prefixIPMap[ipp.Bits]
 		if ipMap == nil {
 			ipMap = make(map[netaddr.IP]*network)
@@ -513,7 +504,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					natBignet := natBignet
 					for {
 						bignet := origNet[natBignet]
-						if visible[natBignet] && zoneEq(bignet.zone, zone) {
+						if visible[natBignet] && bignet.zone == zone {
 							domMap := subnetInZone[netPair{bignet, subnet}]
 							if domMap == nil {
 								domMap = make(map[*natDomain]bool)
@@ -542,7 +533,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// Remember subnet relation in same zone in pendingOtherSubnet,
 			// if current status of subnet is not known,
 			// since status may change later.
-			if zoneEq(bignet.zone, subnet.zone) {
+			if bignet.zone == subnet.zone {
 				if subnet.hasOtherSubnet || hasIdentical[subnet] {
 					bignet.hasOtherSubnet = true
 				} else {
@@ -609,7 +600,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				}
 			}
 
-			if !zoneEq(bignet.zone, subnet.zone) {
+			if bignet.zone != subnet.zone {
 				c.checkSubnets(natBignet, natSubnet, domain.name)
 			}
 		}

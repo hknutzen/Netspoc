@@ -12,6 +12,6 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: '1.4'
 name: Netspoc
-version: '6.031'
+version: '6.032'
 x_generated_by_perl: v5.26.0
 x_serialization_backend: 'YAML::Tiny version 1.73'
