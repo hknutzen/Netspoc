@@ -290,3 +290,63 @@ Warning: Missing rules to reach 2 devices from policy_distribution_point:
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
+=TITLE=Missing interface rule for policy distribution point at VRF members
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1@v1 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r1@v2 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:h1;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2v2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:admin = {
+ user = network:n2, network:n3;
+ permit src = host:h1; dst = user; prt = tcp 22;
+}
+=WARNING=
+Warning: Missing rules to reach 2 devices from policy_distribution_point:
+ - router:r1@v1
+ - router:r1@v2
+=END=
+=OPTIONS=--check_policy_distribution_point=1
+
+############################################################
+=TITLE=Reach policy distribution point from wrong side at VRF members
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1@v1 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r1@v2 = {
+ managed;
+ model = IOS;
+ policy_distribution_point = host:h1;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2v2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:admin = {
+ user = interface:r1@v1.n2, interface:r1@v2.n3;
+ permit src = host:h1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+-- r1
+! [ IP = 10.1.2.1,10.1.3.2 ]
+=OPTIONS=--check_policy_distribution_point=1
+
+############################################################
