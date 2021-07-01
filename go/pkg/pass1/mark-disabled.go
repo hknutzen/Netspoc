@@ -55,9 +55,11 @@ func disableBehind(in *routerIntf) {
 
 func (c *spoc) markDisabled() {
 	var disabled intfList
-	for _, intf := range symTable.routerIntf {
-		if intf.disabled {
-			disabled.push(intf)
+	for _, r := range c.allRouters {
+		for _, intf := range r.interfaces {
+			if intf.disabled {
+				disabled.push(intf)
+			}
 		}
 	}
 
