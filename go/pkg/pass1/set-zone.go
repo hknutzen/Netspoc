@@ -1002,25 +1002,20 @@ func (c *spoc) inheritNatToSubnetsInZone(
 }
 
 func (c *spoc) checkAttrNoCheckSupernetRules() {
-	var checkSubnets func(l netList) netList
-	checkSubnets = func(l netList) netList {
-		var errList netList
-		for _, n := range l {
-			if len(n.hosts) > 0 {
-				errList.push(n)
-			}
-			if subErr := checkSubnets(n.networks); subErr != nil {
-				errList = append(errList, subErr...)
-			}
-		}
-		return errList
-	}
 	for _, z := range c.allZones {
 		if z.noCheckSupernetRules {
-			if bugList := checkSubnets(z.networks); bugList != nil {
+			var errList netList
+			// z.networks currently contains all networks of zone,
+			// subnets are discared later in findSubnetsInZone.
+			for _, n := range z.networks {
+				if len(n.hosts) > 0 {
+					errList.push(n)
+				}
+			}
+			if errList != nil {
 				c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
 					" with networks having host definitions:\n%s",
-					z, bugList.nameList())
+					z, errList.nameList())
 			}
 		}
 	}
