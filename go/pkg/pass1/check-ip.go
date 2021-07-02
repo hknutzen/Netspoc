@@ -237,15 +237,10 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 				}
 			}
 			for _, out := range r.interfaces {
-				if out == in || out.ipType != bridgedIP {
-					continue
+				if out != in && out.ipType == bridgedIP {
+					next.push(out.network)
+					count++
 				}
-				n3 := out.network
-				if !strings.HasPrefix(n3.name, prefix+"/") {
-					continue
-				}
-				next.push(n3)
-				count++
 			}
 			if count == 1 {
 				c.err("%s can't bridge a single network", r)
