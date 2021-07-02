@@ -755,6 +755,44 @@ Error: host:h4 needs static translation for nat:C at router:filter to be valid i
 =END=
 
 ############################################################
+=TITLE=Check rule with host and dynamic NAT but filtered static address
+=INPUT=
+network:n1 =  {
+ ip =  10.1.1.0/24;
+ nat:S = { ip = 1.9.1.0/24; dynamic; }
+ nat:D = { ip = 1.9.2.0/28; dynamic; }
+ host:h5 = { ip = 10.1.1.5; nat:S = { ip = 1.9.1.5; } }
+}
+network:n2 =  { ip =  10.1.2.0/24; }
+network:n3 =  { ip =  10.1.3.0/24; }
+network:n4 =  { ip =  10.1.4.0/24; }
+
+router:S = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = S; }
+}
+router:C = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n1;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = D; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = host:h5; prt = tcp 80;
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=No secondary optimization with host and dynamic NAT (1)
 # Secondary optimization must be disabled at router:S,
 # because router:R can't distinguish between h33 and h34.
