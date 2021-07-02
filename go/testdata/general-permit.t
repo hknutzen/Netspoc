@@ -174,3 +174,48 @@ Warning: Useless attribute 'general_permit' at router:r,
 =END=
 
 ############################################################
+=TITLE=Check for ignored inheritance (1)
+=INPUT=
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp 3, icmp 13; }
+}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ general_permit = icmp;
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list e1_in
+ 10 permit icmp any any
+ 20 deny ip any any
+=END=
+
+############################################################
+=TITLE=Check for ignored inheritance (2)
+=INPUT=
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp 3, icmp 13; }
+}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ general_permit = icmp 3, icmp 4;
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list e1_in
+ 10 permit icmp any any 3
+ 20 permit icmp any any 4
+ 30 deny ip any any
+=END=
+
+############################################################
