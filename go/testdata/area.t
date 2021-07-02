@@ -388,3 +388,25 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Check for useless inheritance of policy_distribution_point
+=INPUT=
+area:all = {
+ anchor = network:n;
+ router_attributes = { policy_distribution_point = host:h; }
+}
+network:n = { ip = 10.1.1.0/24; host:h = { ip = 10.1.1.111; } }
+router:r = {
+ managed;
+ model = NX-OS;
+  policy_distribution_point = host:h;
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+=END=
+=WARNING=
+Warning: Useless attribute 'policy_distribution_point' at router:r,
+ it was already inherited from router_attributes of area:all
+Warning: Missing rules to reach 1 devices from policy_distribution_point:
+ - router:r
+=END=
+
+############################################################
