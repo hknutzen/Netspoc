@@ -191,10 +191,6 @@ type groupWithPath struct {
 }
 
 func splitRuleGroup(group []someObj) []groupWithPath {
-	if len(group) == 0 {
-		return nil
-	}
-
 	// Check if group has elements from different zones and must be split.
 	path0 := group[0].getPathNode()
 	different := false
