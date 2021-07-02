@@ -2996,7 +2996,9 @@ func (c *spoc) getGeneralPermit(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
 	l := c.getProtocolList(a, s, v6, ctx)
-	prtTCP := s.unnamedProto["tcp"]
+	// Ignore duplicates.
+	seen := make(map[*proto]bool)
+	j := 0
 	for _, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
@@ -3010,14 +3012,26 @@ func (c *spoc) getGeneralPermit(
 				srcRange = true
 			}
 		}
-		if srcRange || p.ports[0] != 0 && p != prtTCP && p.main != prtTCP {
+		name := p.name
+		if p2 := p.main; p2 != nil {
+			p = p2
+		}
+		if srcRange ||
+			p.ports[0] != 0 && !(p.ports[0] == 1 && p.ports[1] == 65535) {
 			reason.push("ports")
 		}
 		if reason != nil {
 			c.err("Must not use '%s' with %s in general_permit of %s",
-				p.name, strings.Join(reason, " or "), ctx)
+				name, strings.Join(reason, " or "), ctx)
+		} else if seen[p] {
+			c.warn("Ignoring duplicate '%s' in general_permit of %s", p.name, ctx)
+		} else {
+			l[j] = p
+			j++
+			seen[p] = true
 		}
 	}
+	l = l[:j]
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
 	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
