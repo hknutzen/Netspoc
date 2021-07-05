@@ -7,19 +7,23 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
+	"os"
+	"path"
 	"strings"
 )
 
 type State struct {
 	astFiles []*ast.File
+	base     string
 	files    []string
 	changed  map[string]bool
 }
 
-func Read(netspocPath string) (*State, error) {
+func Read(netspocBase string) (*State, error) {
 	s := new(State)
 	s.changed = make(map[string]bool)
-	err := filetree.Walk(netspocPath, func(input *filetree.Context) error {
+	s.base = netspocBase
+	err := filetree.Walk(netspocBase, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		aF, err := parser.ParseFile(source, path, parser.ParseComments)
@@ -56,23 +60,30 @@ func (s *State) Print() {
 }
 
 func (s *State) getFileIndex(file string) int {
+	file = path.Clean(file)
+	// Prevent dangerous filenames, especially starting with "../".
+	if file == "" || file[0] == '.' {
+		panic(fmt.Errorf("Invalid filename %v", file))
+	}
+	file = path.Join(s.base, file)
 	idx := -1
 	for i, f := range s.files {
 		if f == file {
 			idx = i
 		}
 	}
+	// New file is added.
 	if idx == -1 {
+		// Create missing sub directory.
+		d := path.Dir(file)
+		if err := os.MkdirAll(d, os.ModePerm); err != nil {
+			panic(err)
+		}
 		idx = len(s.files)
 		s.files = append(s.files, file)
 		s.astFiles = append(s.astFiles, new(ast.File))
 	}
 	return idx
-}
-
-func (s *State) GetFileNodes(file string) []ast.Toplevel {
-	idx := s.getFileIndex(file)
-	return s.astFiles[idx].Nodes
 }
 
 func (s *State) Modify(f func(ast.Toplevel) bool) bool {
@@ -127,7 +138,7 @@ func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 		cp = append(cp, n)
 	}
 	s.astFiles[idx].Nodes = cp
-	s.changed[file] = true
+	s.changed[s.files[idx]] = true
 }
 
 func (s *State) DeleteToplevel(name string) error {
