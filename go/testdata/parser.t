@@ -180,6 +180,20 @@ Error: Missing 'hardware' for interface:R.N
 =END=
 
 ############################################################
+=TITLE=Model doesn't support no_in_acl
+=INPUT=
+router:R = {
+ managed;
+ model = Linux;
+ interface:N = { ip = 10.1.1.1; no_in_acl; hardware = N; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: router:R doesn't support outgoing ACL
+=END=
+
+############################################################
 =TITLE=Multiple interfaces with attribute 'no_in_acl'
 =INPUT=
 network:N1 = { ip = 10.1.1.0/24; }
