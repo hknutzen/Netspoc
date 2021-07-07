@@ -2648,7 +2648,8 @@ func (c *spoc) tryNetworkRef(
 }
 
 func (c *spoc) lookupNetworkRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string, warn bool) *network {
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string,
+	warn bool) *network {
 
 	typ, name := c.getTypedName(a, ctx)
 	if typ == "" {
@@ -2692,11 +2693,13 @@ func (c *spoc) tryNetworkRefList(
 	return result
 }
 
-func (c *spoc) tryHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+func (c *spoc) tryHostRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+
 	typ, name := c.getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
 	if typ != "host" {
-		c.err("Must only use host name in %s", ctx2)
+		c.err("Expected type 'host:' in %s", ctx2)
 		return nil
 	}
 	h := s.host[name]
@@ -2718,7 +2721,9 @@ func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	return v[:i], v[i+1:]
 }
 
-func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+func (c *spoc) getRealOwnerRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *owner {
+
 	o := c.tryOwnerRef(a, s, ctx)
 	if o != nil {
 		if o.admins == nil {
@@ -2734,7 +2739,9 @@ func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *ow
 	return o
 }
 
-func (c *spoc) tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+func (c *spoc) tryOwnerRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *owner {
+
 	name := c.getIdentifier(a, ctx)
 	o := s.owner[name]
 	if o == nil {
@@ -2743,10 +2750,12 @@ func (c *spoc) tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner 
 	return o
 }
 
-func (c *spoc) getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+func (c *spoc) getIsakmpRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "isakmp" {
-		c.err("Must only use isakmp type in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'isakmp:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.isakmp[name]
@@ -2756,10 +2765,12 @@ func (c *spoc) getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakm
 	return is
 }
 
-func (c *spoc) getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
+func (c *spoc) getIpsecRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "ipsec" {
-		c.err("Must only use ipsec type in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'ipsec:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.ipsec[name]
@@ -2769,10 +2780,12 @@ func (c *spoc) getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec 
 	return is
 }
 
-func (c *spoc) getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypto {
+func (c *spoc) getCryptoRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *crypto {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "crypto" {
-		c.err("Must only use crypto name in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'crypto:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	cr := s.crypto[name]
@@ -2783,7 +2796,9 @@ func (c *spoc) getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypt
 	return cr
 }
 
-func (c *spoc) getCryptoRefList(a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
+func (c *spoc) getCryptoRefList(
+	a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
+
 	l := c.getValueList(a, ctx)
 	result := make([]*crypto, 0, len(l))
 	ctx2 := "'" + a.Name + "' of " + ctx

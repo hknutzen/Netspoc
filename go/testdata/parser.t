@@ -633,6 +633,33 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Bad crypto in hub
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n = { ip = 10.1.1.1; hardware = n; hub = foo, tool:bar; }
+}
+=ERROR=
+Error: Expected type 'crypto:' in 'hub' of interface:r.n
+Error: Expected type 'crypto:' in 'hub' of interface:r.n
+=END=
+
+############################################################
+=TITLE=Bad crypto in spoke
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n = { ip = 10.1.1.1; hardware = n; spoke = cyrpto:n; }
+}
+=ERROR=
+Error: Expected type 'crypto:' in 'spoke' of interface:r.n
+=END=
+
+############################################################
 =TITLE=Bad VPN id
 =INPUT=
 router:r = {
@@ -801,6 +828,15 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Bad value for restricting attribute
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_unenforceable = allow; }
+=END=
+=ERROR=
+Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n1
+=END=
+
+############################################################
 =TITLE=Unexpected NAT attribute
 =INPUT=
 network:n = {
@@ -810,6 +846,21 @@ network:n = {
 =END=
 =ERROR=
 Error: Unexpected attribute in nat:n of network:n: xyz
+=END=
+
+############################################################
+=TITLE=Unexpected NAT attribute at interafce
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/29; dynamic; }
+}
+router:r = {
+ interface:n = { ip = 10.1.1.1; nat:n = { ip = 10.9.9.1; xyz; } }
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in nat:n of interface:r.n: xyz
 =END=
 
 ############################################################
@@ -1212,7 +1263,7 @@ router:r = {
 }
 =END=
 =ERROR=
-Error: Must only use host name in 'policy_distribution_point' of router:r
+Error: Expected type 'host:' in 'policy_distribution_point' of router:r
 =END=
 
 ############################################################

@@ -95,7 +95,7 @@ ipsec:aes256SHA = {
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must only use isakmp type in 'key_exchange' of ipsec:aes256SHA
+Error: Expected type 'isakmp:' in 'key_exchange' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
 =END=
 
@@ -130,7 +130,7 @@ crypto:c = { type = xyz:abc; }
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must only use ipsec type in 'type' of crypto:c
+Error: Expected type 'ipsec:' in 'type' of crypto:c
 Error: Missing 'type' for crypto:c
 =END=
 
