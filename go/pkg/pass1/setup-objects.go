@@ -1468,7 +1468,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			if m := c.addIntfNat(a, nat, v6, s, name); m != nil {
 				nat = m
 			} else if strings.HasPrefix(a.Name, "secondary:") {
-				_, name2 := c.splitCheckTypedName(a.Name)
+				name2 := a.Name[len("secondary:"):]
 				intf := new(routerIntf)
 				intf.name = name + "." + name2
 				sCtx := a.Name + " of " + name
@@ -1998,27 +1998,17 @@ func (c *spoc) hasUser(el ast.Element, ctx string) bool {
 	}
 }
 
-func (c *spoc) splitCheckTypedName(s string) (string, string) {
-	typ, name := splitTypedName(s)
-	if !isSimpleName(name) {
-		c.err("Invalid identifier in definition of '%s'", s)
-	}
-	return typ, name
-}
-
 func splitTypedName(s string) (string, string) {
 	i := strings.Index(s, ":")
 	return s[:i], s[i+1:]
 }
 
+// Make ID unique by appending name of enclosing network.
 func fullHostname(hName, nName string) string {
-	_, name2 := splitTypedName(hName)
-
-	// Make ID unique by appending name of enclosing network.
-	if strings.HasPrefix(name2, "id:") {
-		name2 += "." + nName
+	if strings.HasPrefix(hName, "host:id:") {
+		hName += "." + nName
 	}
-	return name2
+	return hName
 }
 
 func (c *spoc) checkDuplicate(l []ast.Toplevel) {
@@ -2035,12 +2025,12 @@ func (c *spoc) checkDuplicate(l []ast.Toplevel) {
 	for _, a := range l {
 		topName := a.GetName()
 		fileName := a.FileName()
-		_, name := splitTypedName(topName)
 		switch x := a.(type) {
 		case *ast.Network:
+			nName := topName[len("network:"):]
 			for _, a := range x.Hosts {
-				name2 := fullHostname(a.Name, name)
-				check("host:"+name2, fileName)
+				full := fullHostname(a.Name, nName)
+				check(full, fileName)
 			}
 		case *ast.Router:
 			if x.IPV6 {
@@ -3042,7 +3032,7 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
 	}
-	_, name := c.splitCheckTypedName(a.Name)
+	name := a.Name[len("log:"):]
 	modifier := ""
 	if !emptyAttr(a) {
 		modifier = c.getSingleValue(a, r.name)
@@ -3114,7 +3104,7 @@ func (c *spoc) addXNat(
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, tag := c.splitCheckTypedName(a.Name)
+	tag := a.Name[len("nat:"):]
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
@@ -3178,7 +3168,7 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, name := c.splitCheckTypedName(a.Name)
+	tag := a.Name[len("nat:"):]
 	var ip netaddr.IP
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
@@ -3193,7 +3183,7 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
 	if m == nil {
 		m = make(map[string]netaddr.IP)
 	}
-	m[name] = ip
+	m[tag] = ip
 	return m
 }
 
