@@ -3504,9 +3504,6 @@ func (c *spoc) linkVirtualInterfaces() {
 	}
 	netIdType2virtual := make(map[key2]*routerIntf)
 	for _, v1 := range c.virtualInterfaces {
-		if v1.disabled {
-			continue
-		}
 		ip := v1.ip
 		n := v1.network
 		t1 := v1.redundancyType
