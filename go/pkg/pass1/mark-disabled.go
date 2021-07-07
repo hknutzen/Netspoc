@@ -217,7 +217,7 @@ func (c *spoc) markDisabled() {
 	// Derive order from order of routers and interfaces.
 	seen := make(map[*network]bool)
 	for _, r := range c.allRouters {
-		if len(r.interfaces) == 0 {
+		if len(r.interfaces) == 0 && len(r.origIntfs) == 0 {
 			c.err("%s isn't connected to any network", r)
 			continue
 		}

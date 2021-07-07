@@ -156,6 +156,28 @@ Warning: No hub has been defined for crypto:vpn
 =END=
 
 ############################################################
+=TITLE=No spokes defined for crypto
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+ }
+}
+=WARNING=
+Warning: No spokes have been defined for crypto:vpn
+=END=
+
+############################################################
 =TITLE=No bind_nat allowed at hub
 =INPUT=
 ${crypto_vpn}
