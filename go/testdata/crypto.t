@@ -202,6 +202,30 @@ Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
 =END=
 
 ############################################################
+=TITLE=Crypto must not share hardware
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n1; }
+}
+=ERROR=
+Error: Crypto interface:asavpn.n1 must not share hardware with other interface:asavpn.n2
+=END=
+
+############################################################
 =TITLE=Unnumbered crypto interface
 =INPUT=
 ${crypto_vpn}
