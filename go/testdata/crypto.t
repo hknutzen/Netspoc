@@ -50,13 +50,57 @@ crypto:sts = {
 isakmp:aes256SHA = {
  group = 2;
 }
-network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Missing 'authentication' for isakmp:aes256SHA
 Error: Missing 'encryption' for isakmp:aes256SHA
 Error: Missing 'hash' for isakmp:aes256SHA
 Error: Missing 'lifetime' for isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (1)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (2)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = many sec;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (3)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500 years;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 =END=
 
 ############################################################
@@ -72,11 +116,63 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 =END=
 
 ############################################################
-=TITLE=Bad IPSec lifetime type
+=TITLE=Bad IPSec lifetime type (1)
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 100 foo;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (2)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = many seconds;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (3)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 3 hours many kilobytes;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (4)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 3 hours 1000000 bytes;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (5)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 1;
 }
 =END=
 =ERROR=

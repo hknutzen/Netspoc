@@ -2249,8 +2249,7 @@ func (c *spoc) getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
 		sec = time(l[0], l[1])
 		kb = kbytes(l[2], l[3])
 	default:
-		c.err("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
-			a.Name, ctx)
+		bad()
 	}
 	return &[2]int{sec, kb}
 }

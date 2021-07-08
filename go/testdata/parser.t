@@ -90,7 +90,7 @@ Error: Missing 'model' for managed router:R
 =END=
 
 ############################################################
-=TITLE=Unknown extension for model
+=TITLE=Unknown extension for model ASA
 =INPUT=
 router:R = {
  managed;
@@ -102,6 +102,34 @@ network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unknown extension in 'model' of router:R: foo
 Error: Unknown extension in 'model' of router:R: bar
+=END=
+
+############################################################
+=TITLE=Unknown extension for model IOS
+=INPUT=
+router:R = {
+ managed;
+ model = IOS, VPN;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown extension in 'model' of router:R: VPN
+=END=
+
+############################################################
+=TITLE=Unknown extension for model Linux
+=INPUT=
+router:R = {
+ managed;
+ model = Linux, xyz;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown extension in 'model' of router:R: xyz
 =END=
 
 ############################################################
@@ -719,6 +747,19 @@ network:n = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Invalid value for 'managed' of router:r: xxx
+=END=
+
+############################################################
+=TITLE=Unknown routing protocol
+=INPUT=
+router:r = {
+ routing = xyz;
+ interface:n;
+}
+network:n = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown routing protocol in 'routing' of router:r
 =END=
 
 ############################################################
