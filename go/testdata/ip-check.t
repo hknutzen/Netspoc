@@ -16,6 +16,18 @@ Error: Invalid CIDR address: 10.1.1.0/58 in 'ip' of network:n1
 =END=
 
 ############################################################
+=TITLE=Invalid interface IP
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.2.3.4.5; }
+}
+=END=
+=ERROR=
+Error: Invalid IP address in 'ip' of interface:r1.n1
+=END=
+
+############################################################
 =TITLE=Interface IP doesn't match network IP/mask
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -47,10 +59,14 @@ Error: IP range of host:r1 doesn't match IP/mask of network:n1
 network:n1 = {
  ip = 10.1.1.0/28;
  host:r1 = { range = 10.1.1.9-10.1.1.3; }
+ host:r2 = { range = 10.1.1.1-10.1.1.3-10.1.1.5; }
+ host:r3 = { range = 10.1.1.2; }
 }
 =END=
 =ERROR=
 Error: Invalid IP range in host:r1
+Error: Expected IP range in host:r2
+Error: Expected IP range in host:r3
 =END=
 
 ############################################################

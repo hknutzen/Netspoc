@@ -758,7 +758,8 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 				if !ipp.Contains(h.ip) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
-			} else {
+			}
+			if !h.ipRange.From.IsZero() {
 				// Check range.
 				if !(ipp.Contains(h.ipRange.From) && ipp.Contains(h.ipRange.To)) {
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
@@ -860,12 +861,15 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	n.hosts = append(n.hosts, h)
 
 	l := c.getComplexValue(v, "")
+	ipGiven := 0
 	for _, a := range l {
 		switch a.Name {
 		case "ip":
 			h.ip = c.getIp(a, v6, name)
+			ipGiven++
 		case "range":
 			h.ipRange = c.getIpRange(a, v6, name)
+			ipGiven++
 		case "owner":
 			h.owner = c.getRealOwnerRef(a, s, name)
 		case "ldap_id":
@@ -880,7 +884,7 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			}
 		}
 	}
-	if h.ip.IsZero() == h.ipRange.From.IsZero() {
+	if ipGiven != 1 {
 		c.err("%s needs exactly one of attributes 'ip' and 'range'", name)
 	}
 	if h.id != "" {
@@ -2561,7 +2565,7 @@ func (c *spoc) getIpRange(
 	l := strings.Split(v, " - ")
 	var result netaddr.IPRange
 	if len(l) != 2 {
-		c.err("Expected IP range in '%s' of %s", a.Name, ctx)
+		c.err("Expected IP range in %s", ctx)
 	} else {
 		result.From = c.convIP(l[0], v6, a.Name, ctx)
 		result.To = c.convIP(l[1], v6, a.Name, ctx)
