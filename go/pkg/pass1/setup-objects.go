@@ -1536,6 +1536,21 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.ipType = bridgedIP
 	}
 
+	// Check spoke before adding virtual interface to secondaryList.
+	if intf.spoke != nil {
+		if secondaryList != nil {
+			c.err("%s with attribute 'spoke' must not have secondary interfaces",
+				intf)
+			secondaryList = nil
+		}
+		if intf.hub != nil {
+			c.err("%s with attribute 'spoke' must not have attribute 'hub'",
+				intf)
+		}
+	} else if intf.id != "" {
+		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
+	}
+
 	// Swap virtual interface and main interface
 	// or take virtual interface as main interface if no main IP available.
 	// Subsequent code becomes simpler if virtual interface is main interface.
@@ -1634,19 +1649,6 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		c.err("Attribute 'subnet_of' must not be used at %s\n"+
 			" It is only valid together with attribute 'loopback'", name)
 	}
-	if intf.spoke != nil {
-		if secondaryList != nil {
-			c.err("%s with attribute 'spoke' must not have secondary interfaces",
-				intf)
-			secondaryList = nil
-		}
-		if intf.hub != nil {
-			c.err("%s with attribute 'spoke' must not have attribute 'hub'",
-				intf)
-		}
-	} else if intf.id != "" {
-		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
-	}
 	if intf.noCheck && (intf.hub == nil || !r.model.doAuth) {
 		intf.noCheck = false
 		c.warn("Ignoring attribute 'no_check' at %s", intf)
@@ -1678,8 +1680,8 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			// need to use the same NAT binding,
 			// because NAT operates on hardware, not on logic.
 			if !bindNatEq(intf.bindNat, hw.bindNat) {
-				c.err("All logical interfaces of %s\n"+
-					" at %s must use identical NAT binding", hwName, r)
+				c.err("All logical interfaces with 'hardware = %s' at %s\n"+
+					" must use identical NAT binding", hwName, r)
 			}
 		} else {
 			hw = &hardware{name: hwName, loopback: true}
@@ -1935,7 +1937,7 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		ru.prt =
 			c.expandProtocolsCheckV4V6(c.getValueList(v2.Prt, name), s, v6, name)
 		if a2 := v2.Log; a2 != nil {
-			l := c.getIdentifierList(a2, name)
+			l := c.getValueList(a2, name)
 			l = c.checkLog(l, s, name)
 			ru.log = strings.Join(l, ",")
 		}
@@ -2087,28 +2089,30 @@ func (c *spoc) getValueList(a *ast.Attribute, ctx string) stringList {
 	return result
 }
 
-func (c *spoc) getComplexValue(a *ast.Attribute, ctx string) []*ast.Attribute {
-	l := a.ComplexValue
-	if l == nil || a.ValueList != nil {
-		c.err("Structured value expected in '%s' of %s", a.Name, ctx)
-	}
+func (c *spoc) getComplexValue(
+	a *ast.Attribute, ctx string) []*ast.Attribute {
+
 	aCtx := a.Name
 	if ctx != "" {
 		aCtx += " of " + ctx
+	}
+	l := a.ComplexValue
+	if l == nil || a.ValueList != nil {
+		c.err("Structured value expected in '%s'", aCtx)
 	}
 	c.checkDuplAttr(l, aCtx)
 	return l
 }
 
 func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
-	l := c.getIdentifierList(a, ctx)
+	l := c.getValueList(a, ctx)
 	sort.Strings(l)
 	// Remove duplicates.
 	var seen string
 	j := 0
 	for _, tag := range l {
 		if tag == seen {
-			c.warn("Duplicate %s in 'bind_nat' of %s", tag, ctx)
+			c.warn("Duplicate '%s' in 'bind_nat' of %s", tag, ctx)
 		} else {
 			seen = tag
 			l[j] = tag
@@ -2124,16 +2128,6 @@ func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {
 		c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
 	}
 	return v
-}
-
-func (c *spoc) getIdentifierList(a *ast.Attribute, ctx string) []string {
-	l := c.getValueList(a, ctx)
-	for _, v := range l {
-		if !isSimpleName(v) {
-			c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
-		}
-	}
-	return l
 }
 
 // Check for valid email address.
@@ -2745,7 +2739,7 @@ func (c *spoc) getRealOwnerRef(
 func (c *spoc) tryOwnerRef(
 	a *ast.Attribute, s *symbolTable, ctx string) *owner {
 
-	name := c.getIdentifier(a, ctx)
+	name := c.getSingleValue(a, ctx)
 	o := s.owner[name]
 	if o == nil {
 		c.warn("Ignoring undefined owner:%s of %s", name, ctx)
@@ -3382,7 +3376,10 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 		}
 
 		for _, intf2 := range hw.interfaces {
-			if intf2 != intf && intf2.ipType != tunnelIP {
+			if intf2 != intf &&
+				intf2.ipType != tunnelIP &&
+				intf2.mainIntf == nil {
+
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break

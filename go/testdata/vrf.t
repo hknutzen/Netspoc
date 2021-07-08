@@ -350,3 +350,23 @@ service:admin = {
 =OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
+=TITLE=VRF not supported by model
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1@v1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = v1; }
+}
+router:r1@v2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = v2; }
+}
+=END=
+=ERROR=
+Error: Must not use VRF at router:r1@v1 of model ASA
+Error: Must not use VRF at router:r1@v2 of model ASA
+=END=
+
+############################################################

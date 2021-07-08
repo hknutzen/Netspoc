@@ -210,6 +210,15 @@ Error: Invalid email address (ASCII only) in admins of owner:o1: [all]@example.c
 =END=
 
 ############################################################
+=TITLE=Invalid email address
+=INPUT=
+owner:o1 = { watchers = abc.example.com; }
+=END=
+=ERROR=
+Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.com
+=END=
+
+############################################################
 =TITLE=Owner with attribute only_watch only usable at area
 =INPUT=
 owner:x = { admins = a@a.b; watchers = x@a.b; only_watch; }

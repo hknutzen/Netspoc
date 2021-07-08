@@ -422,8 +422,8 @@ network:n2 = { ip = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
  model = IOS, FW;
- interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
- interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
 area:a = {
  anchor = network:n1;
@@ -432,8 +432,44 @@ area:a = {
 =END=
 =OUTPUT=
 -- ipv6/r1
-ipv6 access-list E1_in
+ipv6 access-list n1_in
  permit icmp any any
  deny ipv6 any any
+=END=
+=OPTIONS=--ipv6
+
+############################################################
+=TITLE=Ignore ICMP reply messages
+=INPUT=
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = {
+ ip = 1000::abcd:0002:0/112;
+ host:h2 = { ip = 1000::abcd:0002:0002; }
+ host:h3 = { ip = 1000::abcd:0002:0003; }
+}
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = icmpv6 1/0, icmpv6 1/1, icmpv6 129/0, icmpv6 3/1;
+ permit src = user;
+        dst = host:h2;
+        prt = icmpv6 3, icmpv6 129, icmpv6 1;
+ permit src = user;
+        dst = host:h3;
+        prt = icmpv6;
+}
+=END=
+=OUTPUT=
+--ipv6/r1
+:n1_n2 -
+-A n1_n2 -j ACCEPT -s 1000::abcd:1:0/112 -d 1000::abcd:2:3 -p ipv6-icmp
+-A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 =OPTIONS=--ipv6

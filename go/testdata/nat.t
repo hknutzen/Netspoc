@@ -507,7 +507,30 @@ Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
 =END=
 
 ############################################################
-=TITLE=Unused / undefined NAT tag
+=TITLE=Check bind_nat at hardware interface
+=INPUT=
+network:n1a =  { ip = 10.0.1.0/26; }
+network:n1b =  { ip = 10.0.1.64/26; }
+network:n1c =  { ip = 10.0.1.128/26; }
+network:n2 =  { ip = 10.0.2.0/24; nat:n2 = { ip = 10.8.2.0/24; } }
+router:r = {
+ managed;
+ model = ASA;
+ interface:n1a = { ip = 10.0.1.1; hardware = n1; bind_nat = n2; }
+ interface:n1b = { ip = 10.0.1.65; hardware = n1; }
+ interface:n1c = { ip = 10.0.1.129; hardware = n1; }
+ interface:n2 = { ip = 10.0.2.1; hardware = n2; }
+}
+=END=
+=ERROR=
+Error: All logical interfaces with 'hardware = n1' at router:r
+ must use identical NAT binding
+Error: All logical interfaces with 'hardware = n1' at router:r
+ must use identical NAT binding
+=END=
+
+############################################################
+=TITLE=Unused / undefined / duplicate NAT tag
 =INPUT=
 network:Test =  {
  ip = 10.0.0.0/24;
@@ -517,12 +540,14 @@ router:filter = {
  managed;
  model = ASA;
  interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D, E/F, D; }
 }
 network:X = { ip = 10.8.3.0/24; }
 =END=
 =WARNING=
+Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
+Warning: Ignoring useless nat:E/F bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
 =END=
 

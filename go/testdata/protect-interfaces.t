@@ -56,6 +56,23 @@ ip access-list extended e1_in
 =END=
 
 ############################################################
+=TITLE=Unsupported 'no_protect_self'
+=INPUT=
+network:U = { ip = 10.1.1.0/24; }
+router:R = {
+ managed;
+ model = ASA;
+ no_protect_self;
+ interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:N = { ip = 10.2.2.1; hardware = e1; }
+}
+network:N = { ip = 10.2.2.0/24; }
+=END=
+=ERROR=
+Error: Must not use attribute 'no_protect_self' at router:R of model ASA
+=END=
+
+############################################################
 =TITLE=Protect all interfaces
 =INPUT=
 network:U = { ip = 10.1.1.0/24; }

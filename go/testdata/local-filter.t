@@ -43,6 +43,21 @@ Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'manage
 =END=
 
 ############################################################
+=TITLE=Unsupported 'managed = local'
+=INPUT=
+network:n1 = { ip = 10.62.1.32/27; }
+router:d32 = {
+ model = Linux;
+ managed = local;
+ filter_only =  10.62.0.0/16;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use 'managed = local' at router:d32 of model Linux
+=END=
+
+############################################################
 =TITLE=Local network doesn't match filter_only attribute
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; }

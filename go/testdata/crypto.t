@@ -37,7 +37,7 @@ isakmp:aes256SHA = {
  hash = sha;
  group = 2;
  lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
+ trust_point = ASDM_TrustPoint3;
 }
 crypto:sts = {
  type = ipsec:aes256SHA;
@@ -48,14 +48,47 @@ crypto:sts = {
 =TITLE=Missing ISAKMP attributes
 =INPUT=
 isakmp:aes256SHA = {
- group = 2;
+ nat_traversal = additional;
 }
 =END=
 =ERROR=
 Error: Missing 'authentication' for isakmp:aes256SHA
 Error: Missing 'encryption' for isakmp:aes256SHA
 Error: Missing 'hash' for isakmp:aes256SHA
+Error: Missing 'group' for isakmp:aes256SHA
 Error: Missing 'lifetime' for isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP attribute
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500 hours;
+ foo;
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in isakmp:aes256SHA: foo
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP value
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsa-signature;
+ encryption = aes;
+ hash = sha;
+ group = 3;
+ lifetime = 500 hours;
+}
+=END=
+=ERROR=
+Error: Invalid value in 'authentication' of isakmp:aes256SHA: rsa-signature
+Error: Invalid value in 'group' of isakmp:aes256SHA: 3
 =END=
 
 ############################################################
@@ -112,6 +145,19 @@ ipsec:aes256SHA = {
 =END=
 =ERROR=
 Error: Missing 'lifetime' for ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec attribute
+=INPUT=
+ipsec:aes256SHA = {
+ lifetime = 100 sec;
+ foo = 21;
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in ipsec:aes256SHA: foo
 Error: Missing 'key_exchange' for ipsec:aes256SHA
 =END=
 
@@ -423,6 +469,22 @@ network:clients = {
 }
 =ERROR=
 Error: All hosts must have ID in network:clients
+=END=
+
+############################################################
+=TITLE=Mixed ldap_id and ID hosts
+=INPUT=
+network:clients = {
+ ip = 10.99.1.0/24;
+ cert_id = cert1;
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:bar = {
+  range = 10.99.1.16 - 10.99.1.31;
+  ldap_id = CN=example3,OU=VPN,DC=example,DC=com;
+ }
+}
+=ERROR=
+Error: All hosts must have attribute 'ldap_id' in network:clients
 =END=
 
 ############################################################
@@ -802,6 +864,87 @@ network:customers1 = {
 =END=
 =ERROR=
 Error: interface:softclients.trans with attribute 'spoke' must not have secondary interfaces
+=END=
+
+############################################################
+=TITLE=Missing hub at ASA, VPN
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA, VPN;
+ interface:n = { ip = 10.1.1.1; hardware = n; }
+}
+=WARNING=
+Warning: Attribute 'hub' needs to be defined at some interface of router:r of model ASA, VPN
+=END=
+
+############################################################
+=TITLE=Ignoring radius_attributes at non ASA, VPN
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA;
+ radius_attributes = { banner = Welcome; }
+ interface:n = { ip = 10.1.1.1; hardware = n; }
+}
+=WARNING=
+Warning: Ignoring 'radius_attributes' at router:r
+=END=
+
+############################################################
+=TITLE=Crypto not supported
+=INPUT=
+${crypto_sts}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ interface:n = { ip = 10.1.1.1; hardware = n; hub = crypto:sts; }
+}
+=ERROR=
+Error: Crypto not supported for router:r of model NX-OS
+=END=
+
+############################################################
+=TITLE=Virtual interface must not be hub
+=INPUT=
+${crypto_vpn}
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  virtual = { ip = 192.168.0.1; }
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+=END=
+=ERROR=
+Error: interface:asavpn1.dmz with virtual interface must not use attribute 'hub'
+=END=
+
+############################################################
+=TITLE=Crypto hub can't be spoke
+=INPUT=
+${crypto_vpn}
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  spoke = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+=END=
+=ERROR=
+Error: interface:asavpn1.dmz with attribute 'spoke' must not have attribute 'hub'
 =END=
 
 ############################################################
@@ -3316,9 +3459,18 @@ access-group Fastethernet8_in in interface Fastethernet8
 =END=
 
 ############################################################
-=TITLE=Missing trust_point in isakmp for spoke and hub
+=TITLE=Missing trust_point in isakmp for spoke and hub (1)
 =INPUT=${input}
 =SUBST=/trust_point/#trust_point/
+=ERROR=
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+=END=
+
+############################################################
+=TITLE=Missing trust_point in isakmp for spoke and hub (2)
+=INPUT=${input}
+=SUBST=/trust_point = ASDM_TrustPoint3;/trust_point = none;/
 =ERROR=
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
@@ -3796,6 +3948,45 @@ network:lan1 = {
 }
 =ERROR=
 Error: network:lan1 having ID hosts can't be checked by router:asavpn
+=END=
+
+############################################################
+=TITLE=Virtual interface must not be spoke
+=INPUT=
+${crypto_sts}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 1.2.3.0/25; }
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.2;
+  virtual = { ip = 10.1.1.1; }
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+network:lan1 = {
+ ip = 10.99.1.0/24;
+}
+=ERROR=
+Error: interface:vpn1.internet with virtual interface must not use attribute 'spoke'
 =END=
 
 ############################################################

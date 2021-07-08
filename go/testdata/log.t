@@ -124,11 +124,12 @@ Error: Must not use attribute 'log:a' at router:r1 of model Linux
 ${topo}
 service:t = {
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 80; log = d;
+ permit src = user; dst = network:n3; prt = tcp 80; log = d, e/f;
 }
 =END=
 =WARNING=
 Warning: Referencing unknown 'd' in log of service:t
+Warning: Referencing unknown 'e/f' in log of service:t
 =END=
 
 ############################################################
@@ -389,6 +390,22 @@ ip access-list extended n1_in
  deny tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 eq 22 log
  permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255
  deny ip any any log
+=END=
+
+############################################################
+=TITLE=Unsupported log deny
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ log_deny;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=ERROR=
+Error: Must not use attribute 'log_deny' at router:r1 of model ASA
 =END=
 
 ############################################################

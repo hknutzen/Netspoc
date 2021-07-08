@@ -45,6 +45,21 @@ Error: Attribute 'unnumbered' not supported for loopback interface:r.l
 =END=
 
 ############################################################
+=TITLE=Negotiated loopback interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:l = {
+  negotiated; loopback;
+ }
+}
+=END=
+=ERROR=
+Error: Attribute 'negotiated' not supported for loopback interface:r.l
+=END=
+
+############################################################
 =TITLE=Secondary IP at loopback interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

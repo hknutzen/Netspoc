@@ -488,6 +488,24 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Invalid identifier in reference
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; owner = a/b; }
+=END=
+=WARNING=
+Warning: Ignoring undefined owner:a/b of network:n1
+=END=
+
+############################################################
+=TITLE=Invalid identifier in partition
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; partition = a/b; }
+=END=
+=ERROR=
+Error: Invalid identifier in 'partition' of network:n1: a/b
+=END=
+
+############################################################
 =TITLE=String expected
 =INPUT=
 owner:o1 = { admins = ; }
@@ -495,6 +513,35 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: List of values expected in 'admins' of owner:o1
+=END=
+
+############################################################
+=TITLE=Single value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24, 10.1.2.0/24; }
+=END=
+=ERROR=
+Error: Single value expected in 'ip' of network:n1
+Error: Invalid CIDR address:  in 'ip' of network:n1
+=END=
+
+############################################################
+=TITLE=Structured value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h = 10.1.1.10; }
+=END=
+=ERROR=
+Error: Structured value expected in 'host:h'
+Error: host:h needs exactly one of attributes 'ip' and 'range'
+=END=
+
+############################################################
+=TITLE=No value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_subnets = yes; }
+=END=
+=ERROR=
+Error: No value expected for flag 'has_subnets' of network:n1
 =END=
 
 ############################################################
@@ -710,6 +757,18 @@ Warning: Ignoring 'cert_id' at network:n
 =END=
 
 ############################################################
+=TITLE=Missing cert_id
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ host:h = { range = 10.1.1.8 - 10.1.1.15; ldap_id = a@b.c; }
+}
+=END=
+=ERROR=
+Error: Missing attribute 'cert_id' at network:n having hosts with attribute 'ldap_id'
+=END=
+
+############################################################
 =TITLE=Bad cert_id
 =INPUT=
 network:n = {
@@ -754,12 +813,27 @@ Error: Invalid value for 'managed' of router:r: xxx
 =INPUT=
 router:r = {
  routing = xyz;
- interface:n;
+ interface:n = { routing = abc; }
 }
 network:n = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Unknown routing protocol in 'routing' of router:r
+Error: Unknown routing protocol in 'routing' of interface:r.n
+=END=
+
+############################################################
+=TITLE=Must not use 'routing = manual' at interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; routing = manual; }
+}
+=END=
+=WARNING=
+Warning: 'routing=manual' must only be applied to router, not to interface:r1.n1
 =END=
 
 ############################################################
@@ -838,12 +912,23 @@ Error: Missing IP address for network:n1
 =END=
 
 ############################################################
-=TITLE=Ignoring radius attribute
+=TITLE=Ignoring radius attribute at network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; radius_attributes = { a = b; } }
 =END=
 =WARNING=
 Warning: Ignoring 'radius_attributes' at network:n1
+=END=
+
+############################################################
+=TITLE=Ignoring radius attribute at host
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; radius_attributes = { a = b; } }
+}
+=END=
+=WARNING=
+Warning: Ignoring 'radius_attributes' at host:h1
 =END=
 
 ############################################################
@@ -878,7 +963,7 @@ Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n
 =END=
 
 ############################################################
-=TITLE=Unexpected NAT attribute
+=TITLE=Unexpected NAT attribute at network
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -890,7 +975,20 @@ Error: Unexpected attribute in nat:n of network:n: xyz
 =END=
 
 ############################################################
-=TITLE=Unexpected NAT attribute at interafce
+=TITLE=Unexpected NAT attribute at host
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/29; dynamic; }
+ host:h = { ip = 10.1.1.10; nat:n = { ip = 10.9.9.3; dynamic; } }
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in nat:n of host:h: dynamic
+=END=
+
+############################################################
+=TITLE=Unexpected NAT attribute at interface
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
