@@ -15,6 +15,38 @@ Error: No virtual IP supported for negotiated interface:r1.n1
 =END=
 
 ############################################################
+=TITLE=Unknown redundancy protocol
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = XYZ; id = ff; }
+ }
+}
+=END=
+=ERROR=
+Error: Unknown redundancy protocol in 'virtual' of interface:r1.n1
+Error: Redundancy ID must be numeric in 'virtual' of interface:r1.n1
+Error: Redundancy ID is given without redundancy protocol in 'virtual' of interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Too large redundancy ID
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1 = {
+  ip = 10.1.1.2;
+  virtual = { ip = 10.1.1.1; type = HSRP; id = 1000; }
+ }
+}
+=END=
+=ERROR=
+Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
+=END=
+
+############################################################
 =TITLE=Virtual interface with NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n = { ip = 10.9.9.0/25; dynamic; }}

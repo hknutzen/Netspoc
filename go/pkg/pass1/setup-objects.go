@@ -2499,7 +2499,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 			num, err := strconv.Atoi(id)
 			if err != nil {
 				c.err("Redundancy ID must be numeric in %s", vCtx)
-			} else if !(num >= 0 || num < 256) {
+			} else if !(num >= 0 && num < 256) {
 				c.err("Redundancy ID must be < 256 in %s", vCtx)
 			}
 			virtual.redundancyId = id
