@@ -192,6 +192,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
 		stderr = strings.ReplaceAll(stderr, outDir, "")
 	}
+	if d.Job != "" {
+		stderr = strings.ReplaceAll(stderr, workDir+"/", "")
+	}
 	re := regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
 
@@ -395,6 +398,7 @@ func countEq(t *testing.T, expected, got string) {
 func modifyRun() int {
 	// Make copy for diff.
 	err := exec.Command("cp", "-r", "netspoc", "unchanged").Run()
+
 	status := api.Main()
 	if err == nil {
 		cmd := exec.Command("sh", "-c",

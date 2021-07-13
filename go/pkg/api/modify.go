@@ -124,7 +124,7 @@ var handler = map[string]func(*state, *job) error{
 func (s *state) doJobFile(path string) error {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("While reading file %s: %s", path, err)
+		return fmt.Errorf("Can't %s", err)
 	}
 	j := new(job)
 	err = json.Unmarshal(data, j)

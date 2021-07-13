@@ -1,5 +1,51 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR JOB ...
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR JOB ...
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid JSON in job
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+=ERROR=
+Error: In JSON file job: unexpected end of JSON input
+=END=
+
+############################################################
+=TITLE=Unknown job file
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=PARAM=foo
+=ERROR=
+Error: Can't open foo: no such file or directory
+=END=
+
+############################################################
 =TITLE=Invalid empty job
 =INPUT=
 -- topology
@@ -21,6 +67,17 @@ network:n1 = { ip = 10.1.1.0/24; }
 }
 =ERROR=
 Error: Can't find group:
+=END=
+
+############################################################
+=TITLE=Invalid netspoc data
+=INPUT=
+-- topology
+foo
+=JOB=
+{}
+=ERROR=
+Error: While reading netspoc files: Typed name expected at line 1 of topology, near "--HERE-->foo"
 =END=
 
 ############################################################
@@ -1203,6 +1260,23 @@ network:n1 = { ip = 10.1.1.0/24; }
 }
 =ERROR=
 Error: Can't find 'network:n2'
+=END=
+
+############################################################
+=TITLE=Change unknown host
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "modify_host",
+    "params": {
+        "name": "h1",
+        "owner": "owner:o1"
+    }
+}
+=ERROR=
+Error: Can't find 'host:h1'
 =END=
 
 ############################################################
@@ -2519,6 +2593,40 @@ service:s1 = {
 
 =ERROR=
 Error: Expected 'permit' or 'deny': 'allow'
+=END=
+
+############################################################
+=TITLE=Create toplevel using absolute path
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_toplevel",
+    "params": {
+        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
+        "file": "/etc/passwd"
+    }
+}
+=ERROR=
+Error: Invalid absolute filename: /etc/passwd
+=END=
+
+############################################################
+=TITLE=Create toplevel using relative path
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_toplevel",
+    "params": {
+        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
+        "file": "../passwd"
+    }
+}
+=ERROR=
+Error: Invalid filename ../passwd
 =END=
 
 ############################################################
