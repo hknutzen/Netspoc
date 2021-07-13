@@ -3,7 +3,6 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"inet.af/netaddr"
 	"sort"
 	"strings"
 )
@@ -12,7 +11,7 @@ type objPair [2]someObj
 
 // This handles a rule between objects inside a single security zone or
 // between interfaces of a single managed router.
-// Show warning or error message if rule is between
+// Suppress warning or error message for user-user rule
 // - different interfaces or
 // - different networks or
 // - subnets/hosts of different networks.
@@ -25,61 +24,8 @@ func collectUnenforceable(rule *groupedRule) {
 
 	for _, src := range rule.src {
 		for _, dst := range rule.dst {
-
 			if isCoupling {
-				if src == dst {
-					continue
-				}
-				switch s := src.(type) {
-				case *subnet:
-					if d, ok := dst.(*subnet); ok {
-
-						// For rules with different subnets of a single
-						// network we don't know if the subnets have been
-						// split from a single range.
-						// E.g. range 1-4 becomes four subnets 1,2-3,4
-						// For most splits the resulting subnets would be
-						// adjacent. Hence we check for adjacency.
-						if s.network == d.network {
-							var n netaddr.IPPrefix
-							var next netaddr.IP
-							if s.ipp.IP.Less(d.ipp.IP) {
-								n = s.ipp
-								next = d.ipp.IP
-							} else {
-								n = d.ipp
-								next = s.ipp.IP
-							}
-							if n.Contains(next.Prior()) {
-								continue
-							}
-						}
-					}
-				case *network:
-					if s.isAggregate {
-						if s.ipp.Bits == 0 {
-							// This is a common case, which results from
-							// rules like user -> any:[user]
-							continue
-						}
-						if d, ok := dst.(*network); ok {
-
-							// Different aggregates with identical IP,
-							// inside a zone cluster must be considered as equal.
-							if d.isAggregate &&
-								s.ipp == d.ipp {
-								continue
-							}
-						}
-					}
-				}
-				if d, ok := dst.(*network); ok {
-					if d.isAggregate {
-						if d.ipp.Bits == 0 {
-							continue
-						}
-					}
-				}
+				continue
 			}
 			if service.seenUnenforceable == nil {
 				service.seenUnenforceable = make(map[objPair]bool)
