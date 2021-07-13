@@ -1968,7 +1968,7 @@ Error: Can't find service:s1
 =END=
 
 ############################################################
-=TITLE=Delete unknown element from user
+=TITLE=Remove unknown element from user
 =INPUT=
 --all
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1999,7 +1999,7 @@ Error: Can't find 'host:[network:n1,network:n2,]' in 'user' of service:s1
 =END=
 
 ############################################################
-=TITLE=Delete from user
+=TITLE=Remove from user
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
@@ -2099,7 +2099,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Delete unknown server in rule
+=TITLE=Remove unknown server in rule
 =INPUT=
 --all
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2131,7 +2131,7 @@ Error: Can't find 'network:n1' in 'dst' of service:s1
 =END=
 
 ############################################################
-=TITLE=Delete unknown protocol in rule
+=TITLE=Remove unknown protocol in rule
 =INPUT=
 --all
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2163,7 +2163,7 @@ Error: Can't find 'udp 80' in rule 1 of service:s1
 =END=
 
 ############################################################
-=TITLE=Delete protocols in rule
+=TITLE=Remove protocols in rule
 =INPUT=
 --topo
 network:n1 = { ip = 10.1.1.0/24; }
