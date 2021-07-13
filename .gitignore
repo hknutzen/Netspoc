@@ -2,14 +2,5 @@
 Netspoc-*
 *~
 released/
-go/cmd/add-to-netspoc/add-to-netspoc
-go/cmd/check-acl/check-acl
-go/cmd/cut-netspoc/cut-netspoc
-go/cmd/export-netspoc/export-netspoc
-go/cmd/expand-group/expand-group
-go/cmd/format-netspoc/format-netspoc
-go/cmd/netspoc/netspoc
-go/cmd/print-group/print-group
-go/cmd/print-service/print-service
-go/cmd/remove-from-netspoc/remove-from-netspoc
-go/cmd/rename-netspoc/rename-netspoc
+go/cmd/*/*
+!go/cmd/*/main.go
