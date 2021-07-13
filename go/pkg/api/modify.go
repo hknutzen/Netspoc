@@ -703,7 +703,7 @@ OBJ:
 			}
 		}
 		num := ""
-		if rNum > 1 {
+		if rNum > -1 {
 			num = fmt.Sprintf(" of rule %d", rNum)
 		}
 		return fmt.Errorf("Can't find '%s' in '%s'%s of %s",
