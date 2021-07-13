@@ -394,19 +394,21 @@ func countEq(t *testing.T, expected, got string) {
 // Arguments: PROGRAM -q netspoc job
 func modifyRun() int {
 	// Make copy for diff.
-	exec.Command("cp", "-r", "netspoc", "unchanged").Run()
+	err := exec.Command("cp", "-r", "netspoc", "unchanged").Run()
 	status := api.Main()
-	cmd := exec.Command("sh", "-c",
-		"diff -u -r -N unchanged netspoc"+
-			"| sed "+
-			" -e 's/^ $//'"+
-			" -e '/^@@ .*/d'"+
-			" -e 's|^diff -u -r -N unchanged/[^ ]\\+ netspoc/|@@ |'"+
-			" -e '/^--- /d'"+
-			" -e '/^+++ /d'")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
+	if err == nil {
+		cmd := exec.Command("sh", "-c",
+			"diff -u -r -N unchanged netspoc"+
+				"| sed "+
+				" -e 's/^ $//'"+
+				" -e '/^@@ .*/d'"+
+				" -e 's|^diff -u -r -N unchanged/[^ ]\\+ netspoc/|@@ |'"+
+				" -e '/^--- /d'"+
+				" -e '/^+++ /d'")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+	}
 	if status == 0 {
 		os.Args = os.Args[:3]
 		status = pass1.SpocMain()
