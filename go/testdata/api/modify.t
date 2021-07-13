@@ -2486,6 +2486,42 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Add invalid rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 22;
+}
+=JOB=
+{
+ "method": "add_rule",
+ "params": {
+   "service": "s1",
+   "action": "allow",
+   "src": "network:n1",
+   "dst": "user",
+   "prt": "tcp 80"
+ }
+}
+
+=ERROR=
+Error: Expected 'permit' or 'deny': 'allow'
+=END=
+
+############################################################
 =TITLE=Add pathrestriction
 =INPUT=
 -- topology
@@ -2524,6 +2560,48 @@ router:r2 = {
 + interface:r1.n1,
 + interface:r1.n2,
 +;
+=END=
+
+############################################################
+=TITLE=Delete pathrestriction
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+pathrestriction:p =
+ interface:r1.n1,
+ interface:r1.n2,
+;
+=JOB=
+{
+    "method": "delete_toplevel",
+    "params": {
+        "name": "pathrestriction:p"
+    }
+}
+=OUTPUT=
+@@ topology
+  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ }
+-pathrestriction:p =
+- interface:r1.n1,
+- interface:r1.n2,
+-;
 =END=
 
 ############################################################

@@ -642,7 +642,7 @@ func addSvRule(sv *ast.Service, p *jsonRule) error {
 		rule.Deny = true
 	case "permit":
 	default:
-		return fmt.Errorf("Invalid 'Action': '%s'", p.Action)
+		return fmt.Errorf("Expected 'permit' or 'deny': '%s'", p.Action)
 	}
 	getUnion := func(name string, elements string) (*ast.NamedUnion, error) {
 		union, err := parser.ParseUnion([]byte(elements))
