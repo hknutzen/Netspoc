@@ -27,7 +27,6 @@ Error: unknown flag: --abc
 ############################################################
 =TITLE=Invalid JSON in job
 =INPUT=
--- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
@@ -38,7 +37,6 @@ Error: In JSON file job: unexpected end of JSON input
 ############################################################
 =TITLE=Unknown job file
 =INPUT=
--- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =PARAM=foo
 =ERROR=
@@ -48,7 +46,6 @@ Error: Can't open foo: no such file or directory
 ############################################################
 =TITLE=Invalid empty job
 =INPUT=
--- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {}
@@ -59,7 +56,6 @@ Error: Unknown method ''
 ############################################################
 =TITLE=Invalid job without params
 =INPUT=
--- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
@@ -72,12 +68,70 @@ Error: Can't find group:
 ############################################################
 =TITLE=Invalid netspoc data
 =INPUT=
--- topology
 foo
 =JOB=
 {}
 =ERROR=
-Error: While reading netspoc files: Typed name expected at line 1 of topology, near "--HERE-->foo"
+Error: While reading netspoc files: Typed name expected at line 1 of INPUT, near "--HERE-->foo"
+=END=
+
+############################################################
+=TITLE=Add invalid element to group
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add_to_group",
+    "params": {
+        "name": "g1",
+        "object": "host:h1 + host:h2"
+    }
+}
+
+=ERROR=
+Error: Expected ';' at line 1 of command line, near "host:h1 --HERE-->+"
+=END=
+
+############################################################
+=TITLE=Add invalid element to src of rule
+=INPUT=
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add_to_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 0,
+        "src": "invalid"
+    }
+}
+
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
+=END=
+
+############################################################
+=TITLE=Add invalid element to dst of rule
+=INPUT=
+service:s1 = {
+ user = group:g1;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add_to_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 0,
+        "dst": "invalid"
+    }
+}
+
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
@@ -1021,6 +1075,7 @@ Error: Invalid IP mask: '123.255.248.0'
 =INPUT=
 -- topology
 network:d = { ip = 10.2.0.0/21; }
+network:u = { unnumbered; }
 
 network:a = {
  ip = 10.1.0.0/21;
@@ -1029,6 +1084,7 @@ network:a = {
 router:r = {
  interface:a;
  interface:d;
+ interface:u;
 }
 =JOB=
 {
@@ -1277,6 +1333,68 @@ network:n1 = { ip = 10.1.1.0/24; }
 }
 =ERROR=
 Error: Can't find 'host:h1'
+=END=
+
+############################################################
+=TITLE=Remove owner at host
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ owner = o1;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+}
+=JOB=
+{
+    "method": "modify_host",
+    "params": {
+        "name": "h1",
+        "owner": ""
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  owner = o1;
+- host:h1 = { ip = 10.1.1.1; owner = o1; }
++ host:h1 = { ip = 10.1.1.1; }
+ }
+=END=
+
+############################################################
+=TITLE=Add owner to host
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+ host:h2 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "modify_host",
+    "params": {
+        "name": "h2",
+        "owner": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  host:h1 = { ip = 10.1.1.1; owner = o1; }
+- host:h2 = { ip = 10.1.1.2; }
++ host:h2 = { ip = 10.1.1.2; owner = o1; }
+ }
 =END=
 
 ############################################################
@@ -2173,7 +2291,39 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Remove unknown server in rule
+=TITLE=Remove invalid element in src of rule
+=INPUT=
+--all
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "remove_from_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 1,
+        "src": "service:s2"
+    }
+}
+=ERROR=
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:s2"
+=END=
+
+############################################################
+=TITLE=Remove unknown server in dst of rule
 =INPUT=
 --all
 network:n1 = { ip = 10.1.1.0/24; }
