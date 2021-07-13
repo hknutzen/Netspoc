@@ -165,9 +165,6 @@ func (s *State) DeleteToplevel(name string) error {
 }
 
 func getTypeName(v string) (string, string) {
-	parts := strings.SplitN(v, ":", 2)
-	if len(parts) != 2 {
-		return v, ""
-	}
-	return parts[0], parts[1]
+	i := strings.Index(v, ":")
+	return v[:i], v[i+1:]
 }
