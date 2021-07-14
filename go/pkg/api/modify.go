@@ -127,9 +127,16 @@ func (s *state) doJobFile(path string) error {
 		return fmt.Errorf("Can't %s", err)
 	}
 	j := new(job)
-	err = json.Unmarshal(data, j)
-	if err != nil {
+	if err := json.Unmarshal(data, j); err != nil {
 		return fmt.Errorf("In JSON file %s: %s", path, err)
+	}
+	// Check once if j.Params is correct JSON.
+	if len(j.Params) == 0 {
+		return fmt.Errorf("Missing \"params\" in JSON file %s", path)
+	}
+	var dummy map[string]interface{}
+	if err := json.Unmarshal(j.Params, &dummy); err != nil {
+		return fmt.Errorf("In \"params\" of JSON file %s: %s", path, err)
 	}
 	return s.doJob(j)
 }
@@ -150,9 +157,7 @@ func (s *state) multiJob(j *job) error {
 	var p struct {
 		Jobs []*job
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	for _, sub := range p.Jobs {
 		if err := s.doJob(sub); err != nil {
 			return err
@@ -169,9 +174,7 @@ func (s *state) createHost(j *job) error {
 		Mask    string
 		Owner   string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	network := p.Network
 	host := p.Name
 	ip := p.IP
@@ -235,9 +238,7 @@ func (s *state) modifyHost(j *job) error {
 		Name  string
 		Owner string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	host := p.Name
 	owner := p.Owner
 
@@ -279,9 +280,7 @@ func (s *state) createToplevel(j *job) error {
 		File       string
 		OkIfExists bool `json:"ok_if_exists"`
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	obj, err := parser.ParseToplevel([]byte(p.Definition))
 	if err != nil {
 		return err
@@ -316,9 +315,7 @@ func (s *state) deleteToplevel(j *job) error {
 	var p struct {
 		Name string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	return s.DeleteToplevel(p.Name)
 }
 
@@ -326,9 +323,7 @@ func (s *state) deleteOwner(j *job) error {
 	var p struct {
 		Name string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	name := "owner:" + p.Name
 	return s.DeleteToplevel(name)
 }
@@ -337,9 +332,7 @@ func (s *state) deleteService(j *job) error {
 	var p struct {
 		Name string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	name := "service:" + p.Name
 	return s.DeleteToplevel(name)
 }
@@ -361,9 +354,7 @@ func (s *state) createOwner(j *job) error {
 		Watchers   []string
 		OkIfExists int `json:"ok_if_exists"`
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	watchers := ""
 	if p.Watchers != nil {
 		watchers = fmt.Sprintf("watchers = %s;", strings.Join(p.Watchers, ", "))
@@ -384,9 +375,7 @@ func (s *state) modifyOwner(j *job) error {
 		Admins   []string
 		Watchers []string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	owner := "owner:" + p.Name
 	return s.ModifyObj(owner, func(toplevel ast.Toplevel) error {
 		n := toplevel.(*ast.TopStruct)
@@ -401,9 +390,7 @@ func (s *state) addToGroup(j *job) error {
 		Name   string
 		Object string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	add, err := parser.ParseUnion([]byte(p.Object))
 	if err != nil {
 		return err
@@ -449,9 +436,7 @@ func (s *state) createService(j *job) error {
 		User        string
 		Rules       []jsonRule
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	rules := ""
 	for _, ru := range p.Rules {
 		rules += fmt.Sprintf("%s src=%s; dst=%s; prt=%s; ",
@@ -475,9 +460,7 @@ func (s *state) addToUser(j *job) error {
 		Service string
 		User    string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	add, err := parser.ParseUnion([]byte(p.User))
 	if err != nil {
 		return err
@@ -497,9 +480,7 @@ func (s *state) removeFromUser(j *job) error {
 		Service string
 		User    string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	service := "service:" + p.Service
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
@@ -515,9 +496,7 @@ func (s *state) addToRule(j *job) error {
 		Dst     string
 		Prt     string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	parse := func(elements string) (add []ast.Element, err error) {
 		if elements != "" {
 			add, err = parser.ParseUnion([]byte(elements))
@@ -561,9 +540,7 @@ func (s *state) removeFromRule(j *job) error {
 		Dst     string
 		Prt     string
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	service := "service:" + p.Service
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
@@ -604,9 +581,7 @@ func (s *state) addRule(j *job) error {
 		Service string
 		jsonRule
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	service := "service:" + p.Service
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
@@ -619,9 +594,7 @@ func (s *state) deleteRule(j *job) error {
 		Service string
 		RuleNum int `json:"rule_num"`
 	}
-	if err := getParams(j, &p); err != nil {
-		return err
-	}
+	getParams(j, &p)
 	service := "service:" + p.Service
 	var err error
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
@@ -712,14 +685,8 @@ OBJ:
 	return nil
 }
 
-func getParams(j *job, p interface{}) error {
-	if j.Params != nil {
-		err := json.Unmarshal(j.Params, p)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+func getParams(j *job, p interface{}) {
+	json.Unmarshal(j.Params, p)
 }
 
 func getRule(sv *ast.Service, num int) (*ast.Rule, error) {
