@@ -2408,13 +2408,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 }
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
-
-	concurrent := conf.Conf.ConcurrencyPass2
-	if concurrent < 1 {
-		concurrent = 1
-	}
-	concurrentGoroutines := make(chan struct{}, concurrent)
-
+	concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
 	countReused := make(chan int)
 	reused := 0
 	go func() {
