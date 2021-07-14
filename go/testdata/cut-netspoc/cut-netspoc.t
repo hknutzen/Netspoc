@@ -1080,11 +1080,12 @@ ${input}
 =END=
 
 ############################################################
-=TITLE=Two paths to unmanaged destination
+=TITLE=Select one path and prevent deep recursion in loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  routing = manual;
@@ -1097,11 +1098,15 @@ router:r2 = {
  interface:n3;
 }
 router:r3 = {
- interface:n2;
  interface:n3;
+ interface:n4;
+}
+router:r4 = {
+ interface:n3;
+ interface:n4;
 }
 service:test = {
- user = network:n3;
+ user = network:n4;
  permit src = network:n1;
         dst = user;
         prt = tcp 22;
@@ -1110,6 +1115,7 @@ service:test = {
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  managed;
  routing = manual;
@@ -1121,8 +1127,12 @@ router:r2 = {
  interface:n2;
  interface:n3;
 }
+router:r3 = {
+ interface:n3;
+ interface:n4;
+}
 service:test = {
- user = network:n3;
+ user = network:n4;
  permit src = network:n1;
         dst = user;
         prt = tcp 22;
