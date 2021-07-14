@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+ - No longer show warning 'has unenforceable rule' for user-user rule.
+ - Added new command 'modify-netspoc-api':
+   Usage: modify-netspoc-api [-q] FILE|DIR JOB ...
+   This command applies change-jobs to Netspoc configuration files.
+   Job format is described at https://github.com/hknutzen/Netspoc-API#jobs
+
 6.032     2021-07-01 13:57:06+02:00 Europe/Berlin
 
  - Fix: Must not ignore directory "." when given as argument to
