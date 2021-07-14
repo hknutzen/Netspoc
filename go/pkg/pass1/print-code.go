@@ -417,8 +417,6 @@ func printRoutes(fh *os.File, r *router) {
 				case "iproute":
 					adr := prefixCode(netinfo.IPPrefix)
 					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
-				case "none":
-					// Do nothing.
 				}
 			}
 		}
