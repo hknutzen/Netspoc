@@ -38,3 +38,12 @@ access-group n1_in in interface n1
 =OUTPUT=
 ${output}
 =OPTIONS=--concurrency_pass2=8
+
+############################################################
+=TITLE=Pass 2: 3 devices with up to 2 jobs
+=INPUT=${input}
+=OUTPUT=
+${output}
+=OPTIONS=--concurrency_pass2=2
+
+############################################################
