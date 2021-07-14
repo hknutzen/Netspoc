@@ -218,6 +218,8 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				intf.isUsed = true
 				//debug("Marked %s", intf)
+				// Only mark first found path.
+				break
 			}
 		}
 	}

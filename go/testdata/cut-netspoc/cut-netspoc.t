@@ -1080,6 +1080,56 @@ ${input}
 =END=
 
 ############################################################
+=TITLE=Two paths to unmanaged destination
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+}
+router:r3 = {
+ interface:n2;
+ interface:n3;
+}
+service:test = {
+ user = network:n3;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 22;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ routing = manual;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2;
+ interface:n3;
+}
+service:test = {
+ user = network:n3;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 22;
+}
+=END=
+
+############################################################
 =TITLE=Remove interface with multiple IP addresses
 =INPUT=
 network:n1 = { ip = 10.1.1.16/28;}
