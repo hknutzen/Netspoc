@@ -50,7 +50,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {}
 =ERROR=
-Error: Unknown method ''
+Error: Missing "params" in JSON file job
 =END=
 
 ############################################################
@@ -62,7 +62,31 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "add_to_group"
 }
 =ERROR=
-Error: Can't find group:
+Error: Missing "params" in JSON file job
+=END=
+
+############################################################
+=TITLE=Invalid job without method
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "params": {}
+}
+=ERROR=
+Error: Unknown method ''
+=END=
+
+############################################################
+=TITLE=Invalid params
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "params": "foo"
+}
+=ERROR=
+Error: In "params" of JSON file job: json: cannot unmarshal string into Go value of type map[string]interface {}
 =END=
 
 ############################################################
@@ -104,7 +128,7 @@ service:s1 = {
     "method": "add_to_rule",
     "params": {
         "service": "s1",
-        "rule_num": 0,
+        "rule_num": 1,
         "src": "invalid"
     }
 }
@@ -125,7 +149,7 @@ service:s1 = {
     "method": "add_to_rule",
     "params": {
         "service": "s1",
-        "rule_num": 0,
+        "rule_num": 1,
         "dst": "invalid"
     }
 }
@@ -1910,6 +1934,31 @@ Error: Unknown protocol in 'udp6' of service:s1
 =END=
 
 ############################################################
+=TITLE=Add service, name starting with umlaut
+=INPUT=${input}
+=JOB=
+{ "method": "create_service",
+  "params": {
+      "name": "Übermut",
+      "user": "network:n1",
+      "rules": [ {
+          "action": "permit",
+          "src": "user",
+          "dst": "network:n2",
+          "prt": "tcp 8888" }]
+  }
+}
+=OUTPUT=
+@@ rule/other
++service:Übermut = {
++ user = network:n1;
++ permit src = user;
++        dst = network:n2;
++        prt = tcp 8888;
++}
+=END=
+
+############################################################
 =TITLE=Add service, insert sorted
 =INPUT=
 -- topology
@@ -2145,7 +2194,6 @@ service:s1 = {
 ############################################################
 =TITLE=Add to user in unknown service
 =INPUT=
---netspoc
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
@@ -2157,6 +2205,28 @@ network:n1 = { ip = 10.1.1.0/24; }
 }
 =ERROR=
 Error: Can't find service:s1
+=END=
+
+############################################################
+=TITLE=Add invalid element to user
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add_to_user",
+    "params": {
+        "service": "s1",
+        "user": "h4"
+    }
+}
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->h4"
 =END=
 
 ############################################################
@@ -2291,9 +2361,83 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Remove from unknown rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "remove_from_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 0,
+        "dst": "network:n2"
+    }
+}
+=ERROR=
+Error: Invalid rule_num 0, have 1 rules in service:s1
+=END=
+
+############################################################
+=TITLE=Remove last element of rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "remove_from_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 1,
+        "dst": "network:n2"
+    }
+}
+=WARNING=
+Warning: dst of service:s1 is empty
+=OUTPUT=
+@@ INPUT
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ }
++
+ service:s1 = {
+  user = network:n1;
+  permit src = user;
+-        dst = network:n2;
++        dst = ;
+         prt = tcp 80;
+ }
+=END=
+
+############################################################
 =TITLE=Remove invalid element in src of rule
 =INPUT=
---all
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 
@@ -2325,7 +2469,6 @@ Error: Unknown element type at line 1 of command line, near "--HERE-->service:s2
 ############################################################
 =TITLE=Remove unknown server in dst of rule
 =INPUT=
---all
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 
@@ -2710,7 +2853,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Add invalid rule
+=TITLE=Add rule with invalid action
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2743,6 +2886,78 @@ service:s1 = {
 
 =ERROR=
 Error: Expected 'permit' or 'deny': 'allow'
+=END=
+
+############################################################
+=TITLE=Add rule with invalid src
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 22;
+}
+=JOB=
+{
+ "method": "add_rule",
+ "params": {
+   "service": "s1",
+   "action": "permit",
+   "src": "n1",
+   "dst": "user",
+   "prt": "tcp 80"
+ }
+}
+
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->n1"
+=END=
+
+############################################################
+=TITLE=Add rule with invalid dst
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 22;
+}
+=JOB=
+{
+ "method": "add_rule",
+ "params": {
+   "service": "s1",
+   "action": "permit",
+   "src": "user",
+   "dst": "invalid",
+   "prt": "tcp 80"
+ }
+}
+
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
