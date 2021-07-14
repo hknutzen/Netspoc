@@ -950,9 +950,6 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				continue
 			}
 			zone := net1.zone
-			if zone.noCheckSupernetRules {
-				continue
-			}
 			if isLeafZone[zone] {
 				continue
 			}
