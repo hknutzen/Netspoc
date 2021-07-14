@@ -1109,11 +1109,6 @@ func printCiscoAcls(fh *os.File, r *router) {
 			continue
 		}
 
-		// Ignore layer3 interface of ASA.
-		if hw.name == "device" && model.class == "ASA" {
-			continue
-		}
-
 		natMap := getNatMap(r, hw.natMap)
 
 		// Generate code for incoming and possibly for outgoing ACL.
