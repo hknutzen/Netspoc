@@ -2708,17 +2708,17 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 =TITLE=ASA with two crypto spokes and NAT
 =VAR=input
 ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
+ key_exchange = isakmp:aes192SHA;
  esp_encryption = aes256;
  esp_authentication = sha384;
  pfs_group = 15;
  lifetime = 3600 sec;
 }
-isakmp:aes256SHA = {
+isakmp:aes192SHA = {
  ike_version = 1;
  nat_traversal = additional;
  authentication = rsasig;
- encryption = aes256;
+ encryption = aes192;
  hash = sha;
  group = 15;
  lifetime = 43200 sec;
@@ -2915,7 +2915,7 @@ crypto isakmp policy 1
  hash sha
  group 2
 crypto isakmp policy 2
- encryption aes 256
+ encryption aes 192
  hash sha
  group 15
  lifetime 43200
