@@ -1969,7 +1969,7 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
-=TITLE=Missing transient rule with multiple protocols
+=TITLE=Missing transient rule with any + NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; has_subnets; }
@@ -1992,7 +1992,7 @@ service:s1 = {
 }
 service:s2 = {
  user = any:[ip=10.0.0.0/8 & network:n2];
- permit src = user; dst = network:n3; prt = udp 100-200;
+ permit src = user; dst = network:n3; prt = ip;
 }
 =END=
 =WARNING=
@@ -2067,11 +2067,11 @@ router:r2 = {
 }
 service:s1 = {
  user = network:n1;
- permit src = user; dst = any:[network:n2a]; prt = proto 80;
+ permit src = user; dst = any:[network:n2a]; prt = icmp 3;
 }
 service:s2 = {
  user = any:[network:n2b];
- permit src = user; dst = network:n3; prt = proto 80;
+ permit src = user; dst = network:n3; prt = icmp;
 }
 =END=
 =WARNING=
@@ -2234,6 +2234,95 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Disable check for missing transient rule at zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+any:n2 = { link = network:n2; no_check_supernet_rules; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:n2; prt = tcp 81-85;
+}
+service:s2 = {
+ user = any:n2;
+ permit src = user; dst = host:h3; prt = tcp 80-90;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Disable check for missing transient rule at protocol
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+protocol:ospf = proto 89, no_check_supernet_rules;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = protocol:ospf;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = ip;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Ignore the internet when checking for missing transient rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 0.0.0.0/0; has_subnets; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 81-85;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = tcp 80-90;
+}
+=END=
+=WARNING=NONE
+
+############################################################
 =TITLE=No missing transient rule with src/dst in subnet relation
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
@@ -2257,13 +2346,13 @@ service:s1 = {
         dst = any:[network:n2],
               any:[network:n3],
               ;
-        prt = tcp 80;
+        prt = icmp;
 }
 service:s2 = {
  user = any:[network:n2];
  permit src = user;
         dst = network:n3;
-        prt = tcp 80;
+        prt = icmp 3;
 }
 service:s3 = {
  user = host:h1;
@@ -2304,11 +2393,11 @@ router:r2 = {
 network:n3 = { ip = 10.1.3.0/24; }
 service:s1 = {
  user = any:[network:n2];
- permit src = network:n1; dst = user; prt = udp 123;
+ permit src = network:n1; dst = user; prt = icmp 3;
 }
 service:s2 = {
  user = any:[network:n2];
- permit src = user; dst = network:n1; prt = udp 100-200;
+ permit src = user; dst = network:n1; prt = icmp;
 }
 =END=
 =OUTPUT=
@@ -2317,12 +2406,12 @@ service:s2 = {
 ip access-list extended n1_in
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
- permit udp 10.1.1.0 0.0.0.255 any eq 123
+ permit icmp 10.1.1.0 0.0.0.255 any 3
  deny ip any any
 --
 ip access-list extended n2_in
  deny ip any host 10.1.1.1
- permit udp any 10.1.1.0 0.0.0.255 range 100 200
+ permit icmp any 10.1.1.0 0.0.0.255
  deny ip any any
 =END=
 
@@ -2397,11 +2486,11 @@ router:r2 = {
 }
 service:s1 = {
  user = network:n1;
- permit src = user; dst = any:[network:n2]; prt = ip;
+ permit src = user; dst = any:[network:n2]; prt = icmp 3/13;
 }
 service:s2 = {
  user = any:[network:n2];
- permit src = user; dst = network:n3; prt = udp;
+ permit src = user; dst = network:n3; prt = icmp 3;
 }
 =END=
 =WARNING=NONE
