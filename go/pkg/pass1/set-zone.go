@@ -740,8 +740,7 @@ func (c *spoc) inheritAttributes() {
 }
 
 //##############################################################################
-// Purpose : Assure that areas are processed in the right order and distribute
-//           area attributes to zones and managed routers.
+// Purpose : Distribute area attributes to zones and managed routers.
 func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 
 	// Areas can be nested. Proceed from small to larger ones.
