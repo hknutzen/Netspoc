@@ -98,8 +98,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						return name < l2[k]
 					}
 				}
-				// Duplicate rule in service. Order doesn't matter.
-				return false
+				// l1 is prefix of l2 or equal to l2.
+				return true
 			})
 			var si svcInfo
 			si.count = len(riList)
