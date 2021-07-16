@@ -205,10 +205,12 @@ func (c *spoc) collectDuplicateRules(
 		}
 		m[o] = true
 	}
-	if svc.name < osvc.name {
-		link(svc, osvc)
-	} else if svc.name > osvc.name {
+	if svc.name > osvc.name {
 		link(osvc, svc)
+	} else if svc.name < osvc.name {
+		// This can't occur, because rules are created from sorted
+		// services earlier.
+		link(svc, osvc)
 	}
 
 	// Return early, so overlapsUsed isn't set below.
