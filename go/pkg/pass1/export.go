@@ -153,8 +153,6 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return printNetworkIp(n)
 			}
 			switch intf.ipType {
-			case unnumberedIP:
-				return "unnumbered"
 			case shortIP:
 				return "short"
 			case bridgedIP:
