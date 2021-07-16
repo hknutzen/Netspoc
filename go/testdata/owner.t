@@ -265,7 +265,7 @@ Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
 
 ############################################################
 =TITLE=Owner with "show_all" must also own VPN transfer area
-=INPUT=
+=VAR=input
 isakmp:ikeaes256SHA = {
  authentication = preshare;
  encryption = aes256;
@@ -281,8 +281,6 @@ ipsec:ipsecaes256SHA = {
  lifetime = 3600 sec;
 }
 crypto:vpn = { type = ipsec:ipsecaes256SHA; }
-owner:all = { admins = a@example.com; show_all; }
-area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24;}
 router:r = {
  model = ASA;
@@ -304,12 +302,28 @@ router:VPN1 = {
  interface:v1 = { ip = 10.9.1.1; hardware = v1; }
 }
 network:v1 = { ip = 10.9.1.0/24; }
-=END=
+=INPUT=
+${input}
+owner:all = { admins = a@example.com; show_all; }
+area:all = { anchor = network:n1; owner = all; }
 =ERROR=
 Error: owner:all has attribute 'show_all', but doesn't own whole topology.
  Missing:
  - network:Internet
  - network:n2
+=END=
+
+############################################################
+=TITLE=Owner with "show_all" must not only own VPN transfer area
+=INPUT=
+${input}
+owner:all = { admins = a@example.com; show_all; }
+area:all = { anchor = network:Internet; owner = all; }
+=ERROR=
+Error: owner:all has attribute 'show_all', but doesn't own whole topology.
+ Missing:
+ - network:v1
+ - network:n1
 =END=
 
 ############################################################
@@ -748,6 +762,32 @@ network:n2 = {
 service:s1 = {
  multi_owner;
  user = network:n1, interface:asa1.n2;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=multi_owner ok with missing owner in user objects
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+network:n1 = { ip = 10.1.1.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ owner = o1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+service:s1 = {
+ multi_owner;
+ user = network:n1;
  permit src = host:h1, host:h2; dst = user; prt = tcp 81;
 }
 =END=
