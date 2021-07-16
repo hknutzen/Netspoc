@@ -987,9 +987,6 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 	// Returns map with network name(s) as key and list of hosts / interfaces
 	// as value.
 	exportNetwork := func(net *network, owner string, ownNet bool) jsonMap {
-		if net.ipType == tunnelIP {
-			return nil
-		}
 		if net.loopback {
 			subResult := make(jsonMap)
 
