@@ -66,7 +66,7 @@ func (obj *routerIntf) getPathNode() pathStore {
 	}
 }
 
-// This is used, if called from pathAutoIntfs.
+// This is used, if called from findAutoInterfaces.
 func (obj *router) getPathNode() pathStore {
 	if obj.managed != "" || obj.semiManaged {
 		return obj
@@ -83,24 +83,7 @@ func (obj *host) getPathNode() pathStore {
 
 // This is used, if called from expandAutoIntfWithDstList.
 func (obj *autoIntf) getPathNode() pathStore {
-	object := obj.object
-	switch x := object.(type) {
-	case *network:
-
-		// This will be refined later, if real interface is known.
-		return x.zone
-	case *router:
-		if x.managed != "" || x.semiManaged {
-
-			// This will be refined later, if real interface has pathrestriction.
-			return x
-		} else {
-
-			// Take arbitrary interface to find zone.
-			return x.interfaces[0].network.zone
-		}
-	}
-	return nil
+	return obj.object.getPathNode()
 }
 
 type navigation map[*loop]map[*loop]bool
