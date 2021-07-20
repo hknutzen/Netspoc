@@ -32,7 +32,7 @@ func findZone1(store pathStore) *zone {
 //#############################################################################
 // Purpose   : Provide path node objects for objects specified as src or dst.
 // Parameter : Source or destination object.
-// Returns   : Zone or router of the given object or 
+// Returns   : Zone or router of the given object or
 //             the object itself, if it is a pathrestricted interface.
 func (obj *network) getPathNode() pathStore {
 	return obj.zone
@@ -73,12 +73,6 @@ func (obj *router) getPathNode() pathStore {
 	} else {
 		return obj.interfaces[0].network.zone
 	}
-}
-
-// This is used, if pathWalk is called from findActiveRoutes.
-func (obj *zone) getPathNode() pathStore {
-	debug("%s", obj)
-	return obj
 }
 
 // This is used in cut-netspoc and if pathWalk is called early to
