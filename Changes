@@ -1,9 +1,12 @@
 {{$NEXT}}
 
+6.033     2021-07-21 14:41:17+02:00 Europe/Berlin
+
  - No longer show warning 'has unenforceable rule' for user-user rule.
- - Added new command 'modify-netspoc-api':
+ - Added new command 'modify-netspoc-api'.
    Usage: modify-netspoc-api [-q] FILE|DIR JOB ...
    This command applies change-jobs to Netspoc configuration files.
+   It is used by Netspoc-API and other automation tasks.
    Job format is described at https://github.com/hknutzen/Netspoc-API#jobs
 
 6.032     2021-07-01 13:57:06+02:00 Europe/Berlin
