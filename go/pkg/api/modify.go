@@ -180,12 +180,21 @@ func (s *state) createHost(j *job) error {
 	ip := p.IP
 	owner := p.Owner
 
+	attr := "ip"
+	ip1 := ip
+	// Use attribute "range" when IP1-IP2 range is given.
+	// Use IP1 when searching corresponding network.
+	if i := strings.Index(ip, "-"); i != -1 {
+		attr = "range"
+		ip1 = ip[:i]
+	}
+
 	// Search network matching given ip and mask.
 	var netAddr string
 	if network == "[auto]" {
-		i := net.ParseIP(ip).To4()
+		i := net.ParseIP(ip1).To4()
 		if i == nil {
-			return fmt.Errorf("Invalid IP address: '%s'", ip)
+			return fmt.Errorf("Invalid IP address: '%s'", ip1)
 		}
 		m := net.IPMask(net.ParseIP(p.Mask).To4())
 		_, bits := m.Size()
@@ -209,7 +218,7 @@ func (s *state) createHost(j *job) error {
 
 				// Add host.
 				h := &ast.Attribute{Name: "host:" + host}
-				h.ComplexValue = append(h.ComplexValue, ast.CreateAttr1("ip", ip))
+				h.ComplexValue = append(h.ComplexValue, ast.CreateAttr1(attr, ip))
 				if owner != "" {
 					h.ComplexValue =
 						append(h.ComplexValue, ast.CreateAttr1("owner", owner))

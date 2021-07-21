@@ -723,6 +723,29 @@ network:a = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=Add host with IP range
+=INPUT=
+-- topology
+network:a = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_host",
+    "params": {
+        "network": "a",
+        "name": "range",
+        "ip": "10.1.1.16-10.1.1.31"
+    }
+}
+=OUTPUT=
+@@ topology
+-network:a = { ip = 10.1.1.0/24; }
++network:a = {
++ ip = 10.1.1.0/24;
++ host:range = { range = 10.1.1.16-10.1.1.31; }
++}
+=END=
+
+############################################################
 =TITLE=Add host, insert sorted
 =INPUT=
 -- topology
