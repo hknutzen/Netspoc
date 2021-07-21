@@ -39,13 +39,14 @@ router:r1 = {
  interface:n1 = {
   ip = 10.1.1.1;
   hardware = n1;
-  reroute_permit = host:h1, group:g;
+  reroute_permit = host:h1, group:g, network:n2;
  }
 }
 =END=
 =ERROR=
 Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
 Error: Expected type 'network:' in 'reroute_permit' of interface:r1.n1
+Warning: Ignoring undefined network:n2 in 'reroute_permit' of interface:r1.n1
 =END=
 
 ############################################################

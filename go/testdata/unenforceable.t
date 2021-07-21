@@ -130,7 +130,6 @@ service:test = {
  permit src = user; dst = any:[user]; prt = tcp 80;
  permit src = any:[user]; dst = user; prt = tcp 25;
 }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -141,8 +140,42 @@ service:test = {
  user = host:range, host:y;
  permit src = user; dst = user; prt = tcp 80;
 }
-=END=
 =WARNING=NONE
+
+############################################################
+=TITLE=Silent unenforceable user-user rule
+=INPUT=
+${topo}
+service:test = {
+ user = host:x7, host:x9, host:y;
+ permit src = user; dst = user; prt = tcp 80;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Useless has_unenforceable at silent unenforceable user-user rule
+=INPUT=
+${topo}
+service:test = {
+ has_unenforceable;
+ user = host:x7, host:x9, host:y;
+ permit src = user; dst = user; prt = tcp 80;
+}
+=WARNING=
+Warning: Useless attribute 'has_unenforceable' at service:test
+=END=
+
+############################################################
+=TITLE=Fully unenforceable user-user rule
+=INPUT=
+${topo}
+service:test = {
+ user = host:x7, host:x9;
+ permit src = user; dst = user; prt = tcp 80;
+}
+=WARNING=
+Warning: service:test is fully unenforceable
+=END=
 
 ############################################################
 =TITLE=Consider aggregates in zone cluster as equal

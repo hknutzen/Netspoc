@@ -507,7 +507,30 @@ Error: Grouped NAT tags 'C, D' of network:n1 must not both be active at
 =END=
 
 ############################################################
-=TITLE=Unused / undefined NAT tag
+=TITLE=Check bind_nat at hardware interface
+=INPUT=
+network:n1a =  { ip = 10.0.1.0/26; }
+network:n1b =  { ip = 10.0.1.64/26; }
+network:n1c =  { ip = 10.0.1.128/26; }
+network:n2 =  { ip = 10.0.2.0/24; nat:n2 = { ip = 10.8.2.0/24; } }
+router:r = {
+ managed;
+ model = ASA;
+ interface:n1a = { ip = 10.0.1.1; hardware = n1; bind_nat = n2; }
+ interface:n1b = { ip = 10.0.1.65; hardware = n1; }
+ interface:n1c = { ip = 10.0.1.129; hardware = n1; }
+ interface:n2 = { ip = 10.0.2.1; hardware = n2; }
+}
+=END=
+=ERROR=
+Error: All logical interfaces with 'hardware = n1' at router:r
+ must use identical NAT binding
+Error: All logical interfaces with 'hardware = n1' at router:r
+ must use identical NAT binding
+=END=
+
+############################################################
+=TITLE=Unused / undefined / duplicate NAT tag
 =INPUT=
 network:Test =  {
  ip = 10.0.0.0/24;
@@ -517,12 +540,14 @@ router:filter = {
  managed;
  model = ASA;
  interface:Test = { ip = 10.0.0.2; hardware = inside; }
- interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D; }
+ interface:X = { ip = 10.8.3.1; hardware = outside; bind_nat = D, E/F, D; }
 }
 network:X = { ip = 10.8.3.0/24; }
 =END=
 =WARNING=
+Warning: Duplicate 'D' in 'bind_nat' of interface:filter.X
 Warning: Ignoring useless nat:D bound at interface:filter.X
+Warning: Ignoring useless nat:E/F bound at interface:filter.X
 Warning: nat:C is defined, but not bound to any interface
 =END=
 
@@ -753,6 +778,44 @@ Error: host:h3 needs static translation for nat:C at router:filter to be valid i
 Error: host:h4 needs static translation for nat:C at router:filter to be valid in rule
  permit src=host:h4; dst=network:X; prt=tcp 80; of service:s1
 =END=
+
+############################################################
+=TITLE=Check rule with host and dynamic NAT but filtered static address
+=INPUT=
+network:n1 =  {
+ ip =  10.1.1.0/24;
+ nat:S = { ip = 1.9.1.0/24; dynamic; }
+ nat:D = { ip = 1.9.2.0/28; dynamic; }
+ host:h5 = { ip = 10.1.1.5; nat:S = { ip = 1.9.1.5; } }
+}
+network:n2 =  { ip =  10.1.2.0/24; }
+network:n3 =  { ip =  10.1.3.0/24; }
+network:n4 =  { ip =  10.1.4.0/24; }
+
+router:S = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = S; }
+}
+router:C = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n1;}
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = D; }
+}
+router:filter = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = host:h5; prt = tcp 80;
+}
+=WARNING=NONE
 
 ############################################################
 =TITLE=No secondary optimization with host and dynamic NAT (1)

@@ -19,6 +19,7 @@ type Descr struct {
 	ReusePrev string
 	Options   string
 	FOption   string
+	Job       string
 	Param     string
 	Params    string
 	Output    string
@@ -89,9 +90,9 @@ func (s *state) parse() ([]*Descr, error) {
 			return fmt.Errorf(
 				"missing =OUTPUT|WARNING|ERROR= in test with =TITLE=%s", d.Title)
 		}
-		if d.Error != "" && (d.Output != "" || d.Warning != "") {
+		if d.Error != "" && d.Warning != "" {
 			return fmt.Errorf(
-				"must not define =ERROR= together with =OUTPUT= or =WARNING="+
+				"must not define =ERROR= together with =WARNING="+
 					" in test with =TITLE=%s", d.Title)
 		}
 		result = append(result, d)
@@ -154,6 +155,8 @@ func (s *state) parse() ([]*Descr, error) {
 				d.Options = text
 			case "FOPTION":
 				d.FOption = text
+			case "JOB":
+				d.Job = text
 			case "PARAM":
 				d.Param = text
 			case "PARAMS":

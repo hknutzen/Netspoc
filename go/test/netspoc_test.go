@@ -2,6 +2,7 @@ package netspoc_test
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
+	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
@@ -12,6 +13,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
 	"os"
+	"os/exec"
 	"path"
 	"regexp"
 	"sort"
@@ -41,6 +43,7 @@ var tests = []test{
 	{"expand-group", chgInputT, expand.Main, chgInputCheck},
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
+	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
 	{"print-service", stdoutT, pass1.PrintServiceMain, stdoutCheck},
@@ -86,12 +89,19 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		t.Skip("skipping TODO test")
 	}
 
+	// Run each test inside a fresh working directory,
+	// where different subdirectories are created.
+	workDir := t.TempDir()
+	prevDir, _ := os.Getwd()
+	defer func() { os.Chdir(prevDir) }()
+	os.Chdir(workDir)
+
 	// Prepare output directory.
 	var outDir string
 	if tc.typ == outDirT && d.Output != "" || tc.typ == outDirStdoutT ||
 		d.WithOutD {
 
-		outDir = t.TempDir()
+		outDir = path.Join(workDir, "out")
 	}
 
 	runProg := func(input string) (int, string, string, string) {
@@ -107,8 +117,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Prepare file for option '-f file'
 		if d.FOption != "" {
-			dir := t.TempDir()
-			name := path.Join(dir, "file")
+			name := path.Join(workDir, "file")
 			if err := os.WriteFile(name, []byte(d.FOption), 0644); err != nil {
 				t.Fatal(err)
 			}
@@ -118,7 +127,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		var inDir string
 		if input != "NONE" || outDir != "" {
 			// Prepare input directory.
-			inDir = t.TempDir()
+			inDir = path.Join(workDir, "netspoc")
 			tstdata.PrepareInDir(inDir, input)
 			os.Args = append(os.Args, inDir)
 
@@ -126,6 +135,15 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			if outDir != "" {
 				os.Args = append(os.Args, outDir)
 			}
+		}
+
+		// Prepare job file as param.
+		if d.Job != "" {
+			name := path.Join(workDir, "job")
+			if err := os.WriteFile(name, []byte(d.Job), 0644); err != nil {
+				t.Fatal(err)
+			}
+			os.Args = append(os.Args, name)
 		}
 
 		// Add other params to command line.
@@ -150,6 +168,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 				status = tc.run()
 			})
 		})
+
 		return status, stdout, stderr, inDir
 	}
 
@@ -173,6 +192,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
 		stderr = strings.ReplaceAll(stderr, outDir, "")
 	}
+	if d.Job != "" {
+		stderr = strings.ReplaceAll(stderr, workDir+"/", "")
+	}
 	re := regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
 
@@ -193,18 +215,6 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			t.Error("Missing output specification")
 			return
 		}
-		if d.Output != "" {
-			var got string
-			switch tc.typ {
-			case outDirT:
-				got = outDir
-			case stdoutT, outDirStdoutT:
-				got = stdout
-			case chgInputT:
-				got = inDir
-			}
-			tc.check(t, d.Output, got)
-		}
 	} else {
 		if d.Error == "" {
 			t.Error("Unexpected failure")
@@ -214,6 +224,21 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		re = regexp.MustCompile(`\nUsage: .*(?:\n\s.*)*`)
 		stderr = re.ReplaceAllString(stderr, "")
 		countEq(t, d.Error, stderr)
+	}
+	if d.Output != "" {
+		if d.Output == "NONE" {
+			d.Output = ""
+		}
+		var got string
+		switch tc.typ {
+		case outDirT:
+			got = outDir
+		case stdoutT, outDirStdoutT:
+			got = stdout
+		case chgInputT:
+			got = inDir
+		}
+		tc.check(t, d.Output, got)
 	}
 }
 
@@ -365,6 +390,34 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 func countEq(t *testing.T, expected, got string) {
 	count++
 	assert.Equal(t, expected, got)
+}
+
+// Run modify-netspoc-api and netspoc sequentially.
+// Show diff on stdout.
+// Arguments: PROGRAM -q netspoc job
+func modifyRun() int {
+	// Make copy for diff.
+	err := exec.Command("cp", "-r", "netspoc", "unchanged").Run()
+
+	status := api.Main()
+	if err == nil {
+		cmd := exec.Command("sh", "-c",
+			"diff -u -r -N unchanged netspoc"+
+				"| sed "+
+				" -e 's/^ $//'"+
+				" -e '/^@@ .*/d'"+
+				" -e 's|^diff -u -r -N unchanged/[^ ]\\+ netspoc/|@@ |'"+
+				" -e '/^--- /d'"+
+				" -e '/^+++ /d'")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+	}
+	if status == 0 {
+		os.Args = os.Args[:3]
+		status = pass1.SpocMain()
+	}
+	return status
 }
 
 // Run Netspoc pass1 + check-acl sequentially.

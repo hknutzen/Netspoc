@@ -177,25 +177,26 @@ func (c *spoc) normalizeSrcDstList(
 		}
 		return result
 	}
-
-	// Expand auto interfaces in dst of extraSrcDst.
-	for _, pair := range extraSrcDst {
-		sList, dList := pair.srcList, pair.dstList
-		expDstList, extraDstSrc := c.substituteAutoIntf(dList, toGrp(sList), ctx)
-		extraResult = append(extraResult, [2]srvObjList{sList, expDstList})
+	addExtra := func(extraDstSrc []*expAutoPair) {
 		for _, pair := range extraDstSrc {
 			extraResult = append(
 				extraResult, [2]srvObjList{toSrv(pair.dstList), pair.srcList})
 		}
 	}
 
+	// Expand auto interfaces in dst of extraSrcDst.
+	for _, pair := range extraSrcDst {
+		sList, dList := pair.srcList, pair.dstList
+		expDstList, extraDstSrc :=
+			c.substituteAutoIntf(dList, toGrp(sList), ctx)
+		extraResult = append(extraResult, [2]srvObjList{sList, expDstList})
+		addExtra(extraDstSrc)
+	}
+
 	// Expand auto interfaces in dstList.
 	expDstList, extraDstSrc :=
 		c.substituteAutoIntf(dstList, toGrp(expSrcList), ctx)
-	for _, pair := range extraDstSrc {
-		extraResult = append(
-			extraResult, [2]srvObjList{toSrv(pair.dstList), pair.srcList})
-	}
+	addExtra(extraDstSrc)
 
 	return append([][2]srvObjList{{expSrcList, expDstList}}, extraResult...)
 }

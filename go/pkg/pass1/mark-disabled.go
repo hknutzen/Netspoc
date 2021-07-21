@@ -55,9 +55,11 @@ func disableBehind(in *routerIntf) {
 
 func (c *spoc) markDisabled() {
 	var disabled intfList
-	for _, intf := range symTable.routerIntf {
-		if intf.disabled {
-			disabled.push(intf)
+	for _, r := range c.allRouters {
+		for _, intf := range r.interfaces {
+			if intf.disabled {
+				disabled.push(intf)
+			}
 		}
 	}
 
@@ -215,7 +217,7 @@ func (c *spoc) markDisabled() {
 	// Derive order from order of routers and interfaces.
 	seen := make(map[*network]bool)
 	for _, r := range c.allRouters {
-		if len(r.interfaces) == 0 {
+		if len(r.interfaces) == 0 && len(r.origIntfs) == 0 {
 			c.err("%s isn't connected to any network", r)
 			continue
 		}

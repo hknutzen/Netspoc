@@ -203,11 +203,11 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 	for _, obj := range list {
 		//debug("Connecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
+		_, isRouter := obj.(*router)
 		for _, intf := range obj.intfList() {
 			if intf.mainIntf != nil {
 				continue
 			}
-			_, isRouter := obj.(*router)
 			var next netPathObj
 			if isRouter {
 				next = intf.network
@@ -218,6 +218,8 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				intf.isUsed = true
 				//debug("Marked %s", intf)
+				// Only mark first found path.
+				break
 			}
 		}
 	}

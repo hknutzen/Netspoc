@@ -2,11 +2,12 @@
 ############################################################
 =TITLE=General permit
 =VAR=input
+protocol:unreachable = icmp 3;
 network:m = { ip = 10.2.2.0/24; }
 router:r = {
  managed;
  model = NX-OS;
- general_permit = tcp, icmp 0, icmp 3;
+ general_permit = tcp, icmp 0, protocol:unreachable, udp;
  interface:m = { ip = 10.2.2.2; hardware = e0; }
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
@@ -23,15 +24,17 @@ ip access-list e0_in
  10 permit icmp any any 0
  20 permit icmp any any 3
  30 permit tcp any any
- 40 deny ip any 10.1.1.2/32
- 50 permit icmp 10.2.2.0/24 10.1.1.0/24
- 60 deny ip any any
+ 40 permit udp any any
+ 50 deny ip any 10.1.1.2/32
+ 60 permit icmp 10.2.2.0/24 10.1.1.0/24
+ 70 deny ip any any
 --
 ip access-list e1_in
  10 permit icmp any any 0
  20 permit icmp any any 3
  30 permit tcp any any
- 40 deny ip any any
+ 40 permit udp any any
+ 50 deny ip any any
 =END=
 
 ############################################################
@@ -45,34 +48,36 @@ ip access-list e1_in
 :c2 -
 :c3 -
 :c4 -
-:c5 -
 -A c1 -j ACCEPT -p icmp --icmp-type 0
 -A c1 -j ACCEPT -p icmp --icmp-type 3
 -A c2 -j ACCEPT -p icmp --icmp-type 0
 -A c2 -j ACCEPT -p icmp --icmp-type 3
--A c3 -j c2 -p icmp
--A c3 -j ACCEPT -s 10.2.2.0/24 -d 10.1.1.0/24 -p icmp
+-A c3 -j ACCEPT -p icmp --icmp-type 0
+-A c3 -j ACCEPT -p icmp --icmp-type 3
 -A c4 -j ACCEPT -p icmp --icmp-type 0
 -A c4 -j ACCEPT -p icmp --icmp-type 3
--A c5 -j ACCEPT -p icmp --icmp-type 0
--A c5 -j ACCEPT -p icmp --icmp-type 3
 --
 :e0_self -
 -A e0_self -j ACCEPT -p tcp
+-A e0_self -j ACCEPT -p udp
 -A e0_self -g c1 -p icmp
 -A INPUT -j e0_self -i e0
 :e0_e1 -
 -A e0_e1 -j ACCEPT -p tcp
--A e0_e1 -g c3 -p icmp
+-A e0_e1 -j ACCEPT -p udp
+-A e0_e1 -j c2 -p icmp
+-A e0_e1 -j ACCEPT -s 10.2.2.0/24 -d 10.1.1.0/24 -p icmp
 -A FORWARD -j e0_e1 -i e0 -o e1
 --
 :e1_self -
 -A e1_self -j ACCEPT -p tcp
--A e1_self -g c4 -p icmp
+-A e1_self -j ACCEPT -p udp
+-A e1_self -g c3 -p icmp
 -A INPUT -j e1_self -i e1
 :e1_e0 -
 -A e1_e0 -j ACCEPT -p tcp
--A e1_e0 -g c5 -p icmp
+-A e1_e0 -j ACCEPT -p udp
+-A e1_e0 -g c4 -p icmp
 -A FORWARD -j e1_e0 -i e1 -o e0
 =END=
 
@@ -107,15 +112,19 @@ ip access-list e1_in
 =END=
 
 ############################################################
-=TITLE=No range permitted
+=TITLE=No ports permitted
 =INPUT=
-area:all = { anchor = network:n; router_attributes = { general_permit = protocol:ftp-data, tcp 80; } }
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = protocol:ftp-data, tcp 80, udp 1; }
+}
 network:n = { ip = 10.1.1.0/24; }
 protocol:ftp-data = tcp 20:1024-65535;
 =END=
 =ERROR=
 Error: Must not use 'protocol:ftp-data' with ports in general_permit of router_attributes of area:all
 Error: Must not use 'tcp 80' with ports in general_permit of router_attributes of area:all
+Error: Must not use 'udp 1' with ports in general_permit of router_attributes of area:all
 =END=
 
 ############################################################
@@ -130,9 +139,27 @@ Error: Must not use 'protocol:ping-net' with modifiers in general_permit of rout
 =END=
 
 ############################################################
+=TITLE=Ignore duplicates
+=INPUT=
+protocol:UDP = udp;
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp 3, udp, protocol:UDP, icmp 3; }
+ }
+network:n = { ip = 10.1.1.0/24; }
+=END=
+=WARNING=
+Warning: Ignoring duplicate 'udp' in general_permit of router_attributes of area:all
+Warning: Ignoring duplicate 'icmp 3' in general_permit of router_attributes of area:all
+=END=
+
+############################################################
 =TITLE=Check for useless inheritance
 =INPUT=
-area:all = { anchor = network:n; router_attributes = { general_permit = icmp, tcp; } }
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp, tcp; }
+}
 network:n = { ip = 10.1.1.0/24; }
 router:r = {
  managed;
@@ -144,6 +171,51 @@ router:r = {
 =WARNING=
 Warning: Useless attribute 'general_permit' at router:r,
  it was already inherited from router_attributes of area:all
+=END=
+
+############################################################
+=TITLE=Check for ignored inheritance (1)
+=INPUT=
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp 3, icmp 13; }
+}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ general_permit = icmp;
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list e1_in
+ 10 permit icmp any any
+ 20 deny ip any any
+=END=
+
+############################################################
+=TITLE=Check for ignored inheritance (2)
+=INPUT=
+area:all = {
+ anchor = network:n;
+ router_attributes = { general_permit = icmp 3, icmp 13; }
+}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ general_permit = icmp 3, icmp 4;
+ interface:n = { ip = 10.1.1.2; hardware = e1; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list e1_in
+ 10 permit icmp any any 3
+ 20 permit icmp any any 4
+ 30 deny ip any any
 =END=
 
 ############################################################

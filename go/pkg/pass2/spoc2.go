@@ -291,13 +291,13 @@ type routerData struct {
 
 func readJSON(path string) *routerData {
 	jData := new(jcode.RouterData)
-	data, e := os.ReadFile(path)
-	if e != nil {
-		panic(e)
+	fd, err := os.Open(path)
+	if err != nil {
+		panic(err)
 	}
-	e = json.Unmarshal(data, &jData)
-	if e != nil {
-		panic(e)
+	dec := json.NewDecoder(fd)
+	if err := dec.Decode(&jData); err != nil {
+		panic(err)
 	}
 	rData := new(routerData)
 	if i := strings.Index(path, "/ipv6/"); i != -1 {

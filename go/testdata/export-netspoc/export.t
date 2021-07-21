@@ -1287,6 +1287,85 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Bridge and bridged interface
+=INPUT=
+owner:all = { admins = all@example.com; }
+area:all = { anchor = network:n1; owner = all; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2/left = { ip = 10.1.2.0/24; }
+network:n2/right = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa = {
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.101; hardware = n1; }
+ interface:n2/left = { ip = 10.1.2.101; hardware = n2; }
+}
+router:bridge = {
+ model = ASA;
+ managed;
+ interface:n2 = { ip = 10.1.2.9; hardware = device; }
+ interface:n2/left = { hardware = inside; }
+ interface:n2/right = { hardware = outside; }
+}
+router:r3 = {
+ interface:n2/right = { ip = 10.1.2.1; }
+ interface:n3;
+}
+=OUTPUT=
+--objects
+{
+ "interface:asa.n1": {
+  "ip": "10.1.1.101",
+  "owner": "all"
+ },
+ "interface:asa.n2/left": {
+  "ip": "10.1.2.101",
+  "owner": "all"
+ },
+ "interface:bridge.n2": {
+  "ip": "10.1.2.9",
+  "zone": "any:[interface:bridge.n2]"
+ },
+ "interface:bridge.n2/left": {
+  "ip": "bridged"
+ },
+ "interface:bridge.n2/right": {
+  "ip": "bridged"
+ },
+ "interface:r3.n2/right": {
+  "ip": "10.1.2.1",
+  "owner": "all"
+ },
+ "interface:r3.n3": {
+  "ip": "short",
+  "owner": "all"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2/left": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "is_supernet": 1,
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2/right": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n2/right]"
+ },
+ "network:n3": {
+  "ip": "10.1.3.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n2/right]"
+ }
+}
+=END=
+
+############################################################
 =TITLE=Owner of aggregate at tunnel of unmanaged device
 # Must not take the undefined owner of tunnel.
 =INPUT=

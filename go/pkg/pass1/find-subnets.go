@@ -210,16 +210,11 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 			// We don't need to check here that subnet relation is
 			// maintained for NAT addresses.
 			// That is enforced later in findSubnetsInNatDomain.
-			for _, upNatInfo := range up.nat {
+			for tag, upNatInfo := range up.nat {
 				if !upNatInfo.hidden {
 					continue
 				}
-				natMap := n.nat
-				if natMap == nil {
-					break UP
-				}
-				natTag := upNatInfo.natTag
-				natInfo := natMap[natTag]
+				natInfo := n.nat[tag]
 				if natInfo == nil {
 					break UP
 				}

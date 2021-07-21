@@ -14,6 +14,7 @@ bin/cut-netspoc
 bin/expand-group
 bin/export-netspoc
 bin/format-netspoc
+bin/modify-netspoc-api
 bin/netspoc
 bin/print-group
 bin/print-service
@@ -53,6 +54,7 @@ go/cmd/cut-netspoc/main.go
 go/cmd/expand-group/main.go
 go/cmd/export-netspoc/main.go
 go/cmd/format-netspoc/main.go
+go/cmd/modify-netspoc-api/main.go
 go/cmd/netspoc/main.go
 go/cmd/print-group/main.go
 go/cmd/print-service/main.go
@@ -61,6 +63,7 @@ go/cmd/rename-netspoc/main.go
 go/go.mod
 go/go.sum
 go/pkg/addto/add-to-netspoc.go
+go/pkg/api/modify.go
 go/pkg/ast/ast.go
 go/pkg/ast/attribute.go
 go/pkg/ast/order.go
@@ -134,6 +137,7 @@ go/testdata/add-to-netspoc/add-to-netspoc.t
 go/testdata/adjacent-net.t
 go/testdata/aggregate.t
 go/testdata/any-multicast-interface.t
+go/testdata/api/modify.t
 go/testdata/area.t
 go/testdata/auto_intf.t
 go/testdata/bridged.t

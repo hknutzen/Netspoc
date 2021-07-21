@@ -31,6 +31,7 @@ network:n3 = {
  host:h3 = { ip = 10.3.3.10; }
 }
 any:a3 = { link = network:n3; }
+# permit < deny
 # h1 < n1-sub < n1 < a1
 # h2 < n2 < a2
 # h3 < n3 < a3
@@ -39,7 +40,7 @@ any:a3 = { link = network:n3; }
 # rule1[src] <= rule2[src] &&
 # rule1[dst] <= rule2[dst] &&
 # rule1[prt] <= rule2[prt] &&
-# 1a < 1b
+# 1a < 1b, 1a < 1e
 service:1a = {
  user = host:h1;
  permit src = user;
@@ -60,12 +61,19 @@ service:1c = {
         dst = any:a2;
         prt = tcp 80;
 }
-# 1d < 1b
+# 1d < 1b, 1d < 1e
 service:1d = {
  user = network:n1;
  permit src = user;
         dst = host:h2;
         prt = tcp;
+}
+# non redundant
+service:1e = {
+ user = network:n1;
+ deny   src = user;
+        dst = network:n2;
+        prt = ip;
 }
 # 2a < 2b < 2c
 service:2a = {
@@ -92,9 +100,15 @@ service:2c = {
 Warning: Redundant rules in service:1a compared to service:1b:
   permit src=host:h1; dst=network:n2; prt=ip; of service:1a
 < permit src=any:a1; dst=network:n2; prt=ip; of service:1b
+Warning: Redundant rules in service:1a compared to service:1e:
+  permit src=host:h1; dst=network:n2; prt=ip; of service:1a
+< deny src=network:n1; dst=network:n2; prt=ip; of service:1e
 Warning: Redundant rules in service:1d compared to service:1b:
   permit src=network:n1; dst=host:h2; prt=tcp; of service:1d
 < permit src=any:a1; dst=network:n2; prt=ip; of service:1b
+Warning: Redundant rules in service:1d compared to service:1e:
+  permit src=network:n1; dst=host:h2; prt=tcp; of service:1d
+< deny src=network:n1; dst=network:n2; prt=ip; of service:1e
 Warning: Redundant rules in service:2a compared to service:2b:
   permit src=host:h1; dst=host:h3; prt=tcp 80; of service:2a
 < permit src=network:n1-sub; dst=network:n3; prt=tcp 80-90; of service:2b
@@ -124,9 +138,14 @@ router:r1 = {
 }
 protocol:Ping_Net = icmp 8, src_net, dst_net, overlaps;
 protocol:NTP = udp 123;
+protocol:NTP-sl = udp 123, stateless;
 service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n1; prt = protocol:NTP;
+}
+service:s1-sl = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = protocol:NTP-sl;
 }
 service:s2 = {
  user = network:n1;
@@ -138,11 +157,15 @@ service:s3 = {
 }
 =END=
 =WARNING=
+Warning: Redundant rules in service:s1-sl compared to service:s1:
+  permit src=network:n2; dst=network:n1; prt=protocol:NTP-sl; stateless of service:s1-sl
+< permit src=network:n2; dst=network:n1; prt=protocol:NTP; of service:s1
 Warning: Redundant rules in service:s2 compared to service:s3:
   permit src=network:n1; dst=network:n2; prt=protocol:Ping_Net; of service:s2
 < permit src=network:n1; dst=network:n2; prt=ip; of service:s3
   permit src=network:n1; dst=network:n2; prt=udp 123; of service:s2
 < permit src=network:n1; dst=network:n2; prt=ip; of service:s3
+Warning: service:s1-sl is fully redundant
 Warning: service:s2 is fully redundant
 =END=
 =OPTIONS=--check_fully_redundant_rules=warn

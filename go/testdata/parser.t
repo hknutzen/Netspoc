@@ -90,7 +90,7 @@ Error: Missing 'model' for managed router:R
 =END=
 
 ############################################################
-=TITLE=Unknown extension for model
+=TITLE=Unknown extension for model ASA
 =INPUT=
 router:R = {
  managed;
@@ -102,6 +102,34 @@ network:N = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: Unknown extension in 'model' of router:R: foo
 Error: Unknown extension in 'model' of router:R: bar
+=END=
+
+############################################################
+=TITLE=Unknown extension for model IOS
+=INPUT=
+router:R = {
+ managed;
+ model = IOS, VPN;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown extension in 'model' of router:R: VPN
+=END=
+
+############################################################
+=TITLE=Unknown extension for model Linux
+=INPUT=
+router:R = {
+ managed;
+ model = Linux, xyz;
+ interface:N = { ip = 10.1.1.1; hardware = e0; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown extension in 'model' of router:R: xyz
 =END=
 
 ############################################################
@@ -177,6 +205,20 @@ network:N = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Missing 'hardware' for interface:R.N
+=END=
+
+############################################################
+=TITLE=Model doesn't support no_in_acl
+=INPUT=
+router:R = {
+ managed;
+ model = Linux;
+ interface:N = { ip = 10.1.1.1; no_in_acl; hardware = N; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: router:R doesn't support outgoing ACL
 =END=
 
 ############################################################
@@ -446,6 +488,24 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Invalid identifier in reference
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; owner = a/b; }
+=END=
+=WARNING=
+Warning: Ignoring undefined owner:a/b of network:n1
+=END=
+
+############################################################
+=TITLE=Invalid identifier in partition
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; partition = a/b; }
+=END=
+=ERROR=
+Error: Invalid identifier in 'partition' of network:n1: a/b
+=END=
+
+############################################################
 =TITLE=String expected
 =INPUT=
 owner:o1 = { admins = ; }
@@ -453,6 +513,35 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: List of values expected in 'admins' of owner:o1
+=END=
+
+############################################################
+=TITLE=Single value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24, 10.1.2.0/24; }
+=END=
+=ERROR=
+Error: Single value expected in 'ip' of network:n1
+Error: Invalid CIDR address:  in 'ip' of network:n1
+=END=
+
+############################################################
+=TITLE=Structured value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h = 10.1.1.10; }
+=END=
+=ERROR=
+Error: Structured value expected in 'host:h'
+Error: host:h needs exactly one of attributes 'ip' and 'range'
+=END=
+
+############################################################
+=TITLE=No value expected
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_subnets = yes; }
+=END=
+=ERROR=
+Error: No value expected for flag 'has_subnets' of network:n1
 =END=
 
 ############################################################
@@ -619,6 +708,33 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Bad crypto in hub
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n = { ip = 10.1.1.1; hardware = n; hub = foo, tool:bar; }
+}
+=ERROR=
+Error: Expected type 'crypto:' in 'hub' of interface:r.n
+Error: Expected type 'crypto:' in 'hub' of interface:r.n
+=END=
+
+############################################################
+=TITLE=Bad crypto in spoke
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ interface:n = { ip = 10.1.1.1; hardware = n; spoke = cyrpto:n; }
+}
+=ERROR=
+Error: Expected type 'crypto:' in 'spoke' of interface:r.n
+=END=
+
+############################################################
 =TITLE=Bad VPN id
 =INPUT=
 router:r = {
@@ -638,6 +754,18 @@ network:n = { ip = 10.1.1.0/24; cert_id = a.b.c; }
 =END=
 =WARNING=
 Warning: Ignoring 'cert_id' at network:n
+=END=
+
+############################################################
+=TITLE=Missing cert_id
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ host:h = { range = 10.1.1.8 - 10.1.1.15; ldap_id = a@b.c; }
+}
+=END=
+=ERROR=
+Error: Missing attribute 'cert_id' at network:n having hosts with attribute 'ldap_id'
 =END=
 
 ############################################################
@@ -678,6 +806,34 @@ network:n = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Invalid value for 'managed' of router:r: xxx
+=END=
+
+############################################################
+=TITLE=Unknown routing protocol
+=INPUT=
+router:r = {
+ routing = xyz;
+ interface:n = { routing = abc; }
+}
+network:n = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Unknown routing protocol in 'routing' of router:r
+Error: Unknown routing protocol in 'routing' of interface:r.n
+=END=
+
+############################################################
+=TITLE=Must not use 'routing = manual' at interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; routing = manual; }
+}
+=END=
+=WARNING=
+Warning: 'routing=manual' must only be applied to router, not to interface:r1.n1
 =END=
 
 ############################################################
@@ -756,12 +912,23 @@ Error: Missing IP address for network:n1
 =END=
 
 ############################################################
-=TITLE=Ignoring radius attribute
+=TITLE=Ignoring radius attribute at network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; radius_attributes = { a = b; } }
 =END=
 =WARNING=
 Warning: Ignoring 'radius_attributes' at network:n1
+=END=
+
+############################################################
+=TITLE=Ignoring radius attribute at host
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; radius_attributes = { a = b; } }
+}
+=END=
+=WARNING=
+Warning: Ignoring 'radius_attributes' at host:h1
 =END=
 
 ############################################################
@@ -787,7 +954,16 @@ Aborted
 =END=
 
 ############################################################
-=TITLE=Unexpected NAT attribute
+=TITLE=Bad value for restricting attribute
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_unenforceable = allow; }
+=END=
+=ERROR=
+Error: Expected 'restrict', 'enable' or 'ok' in 'has_unenforceable' of network:n1
+=END=
+
+############################################################
+=TITLE=Unexpected NAT attribute at network
 =INPUT=
 network:n = {
  ip = 10.1.1.0/24;
@@ -796,6 +972,34 @@ network:n = {
 =END=
 =ERROR=
 Error: Unexpected attribute in nat:n of network:n: xyz
+=END=
+
+############################################################
+=TITLE=Unexpected NAT attribute at host
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/29; dynamic; }
+ host:h = { ip = 10.1.1.10; nat:n = { ip = 10.9.9.3; dynamic; } }
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in nat:n of host:h: dynamic
+=END=
+
+############################################################
+=TITLE=Unexpected NAT attribute at interface
+=INPUT=
+network:n = {
+ ip = 10.1.1.0/24;
+ nat:n = { ip = 10.9.9.0/29; dynamic; }
+}
+router:r = {
+ interface:n = { ip = 10.1.1.1; nat:n = { ip = 10.9.9.1; xyz; } }
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in nat:n of interface:r.n: xyz
 =END=
 
 ############################################################
@@ -1198,7 +1402,7 @@ router:r = {
 }
 =END=
 =ERROR=
-Error: Must only use host name in 'policy_distribution_point' of router:r
+Error: Expected type 'host:' in 'policy_distribution_point' of router:r
 =END=
 
 ############################################################

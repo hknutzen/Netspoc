@@ -1084,7 +1084,7 @@ service:test = {
 ############################################################
 =TITLE=Multiple interfaces talk to policy_distribution_point (2)
 # Find interfaces in given order n3, n4,
-# even if reversed path was already fund previously while
+# even if reversed path was already found previously while
 # "Checking and marking rules with hidden or dynamic NAT"
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.111; } }
@@ -1128,6 +1128,33 @@ service:s1 = {
 --r2
 ! [ IP = 10.1.3.2,10.1.4.1 ]
 =END=
+
+############################################################
+=TITLE=Multiple interfaces talk to policy_distribution_point (3)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.111; } }
+network:n2 = { ip = 10.1.2.0/30; }
+network:n3 = { ip = 10.1.3.0/30; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ policy_distribution_point = host:h1;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:r1.[all] &! interface:r1.n1;
+        prt = tcp 22;
+}
+=OUTPUT=
+--r1
+! [ IP = 10.1.2.1,10.1.3.1 ]
+=OPTIONS=--check_policy_distribution_point=1
 
 ############################################################
 =TITLE=Only one interface in loop talks to policy_distribution_point

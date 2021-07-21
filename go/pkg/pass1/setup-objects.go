@@ -758,7 +758,8 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 				if !ipp.Contains(h.ip) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
-			} else {
+			}
+			if !h.ipRange.From.IsZero() {
 				// Check range.
 				if !(ipp.Contains(h.ipRange.From) && ipp.Contains(h.ipRange.To)) {
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
@@ -860,12 +861,15 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	n.hosts = append(n.hosts, h)
 
 	l := c.getComplexValue(v, "")
+	ipGiven := 0
 	for _, a := range l {
 		switch a.Name {
 		case "ip":
 			h.ip = c.getIp(a, v6, name)
+			ipGiven++
 		case "range":
 			h.ipRange = c.getIpRange(a, v6, name)
+			ipGiven++
 		case "owner":
 			h.owner = c.getRealOwnerRef(a, s, name)
 		case "ldap_id":
@@ -880,7 +884,7 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			}
 		}
 	}
-	if h.ip.IsZero() == h.ipRange.From.IsZero() {
+	if ipGiven != 1 {
 		c.err("%s needs exactly one of attributes 'ip' and 'range'", name)
 	}
 	if h.id != "" {
@@ -1468,7 +1472,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			if m := c.addIntfNat(a, nat, v6, s, name); m != nil {
 				nat = m
 			} else if strings.HasPrefix(a.Name, "secondary:") {
-				_, name2 := c.splitCheckTypedName(a.Name)
+				name2 := a.Name[len("secondary:"):]
 				intf := new(routerIntf)
 				intf.name = name + "." + name2
 				sCtx := a.Name + " of " + name
@@ -1530,6 +1534,21 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		r.managed != "" {
 
 		intf.ipType = bridgedIP
+	}
+
+	// Check spoke before adding virtual interface to secondaryList.
+	if intf.spoke != nil {
+		if secondaryList != nil {
+			c.err("%s with attribute 'spoke' must not have secondary interfaces",
+				intf)
+			secondaryList = nil
+		}
+		if intf.hub != nil {
+			c.err("%s with attribute 'spoke' must not have attribute 'hub'",
+				intf)
+		}
+	} else if intf.id != "" {
+		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
 	}
 
 	// Swap virtual interface and main interface
@@ -1630,19 +1649,6 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		c.err("Attribute 'subnet_of' must not be used at %s\n"+
 			" It is only valid together with attribute 'loopback'", name)
 	}
-	if intf.spoke != nil {
-		if secondaryList != nil {
-			c.err("%s with attribute 'spoke' must not have secondary interfaces",
-				intf)
-			secondaryList = nil
-		}
-		if intf.hub != nil {
-			c.err("%s with attribute 'spoke' must not have attribute 'hub'",
-				intf)
-		}
-	} else if intf.id != "" {
-		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
-	}
 	if intf.noCheck && (intf.hub == nil || !r.model.doAuth) {
 		intf.noCheck = false
 		c.warn("Ignoring attribute 'no_check' at %s", intf)
@@ -1674,8 +1680,8 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			// need to use the same NAT binding,
 			// because NAT operates on hardware, not on logic.
 			if !bindNatEq(intf.bindNat, hw.bindNat) {
-				c.err("All logical interfaces of %s\n"+
-					" at %s must use identical NAT binding", hwName, r)
+				c.err("All logical interfaces with 'hardware = %s' at %s\n"+
+					" must use identical NAT binding", hwName, r)
 			}
 		} else {
 			hw = &hardware{name: hwName, loopback: true}
@@ -1931,7 +1937,7 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		ru.prt =
 			c.expandProtocolsCheckV4V6(c.getValueList(v2.Prt, name), s, v6, name)
 		if a2 := v2.Log; a2 != nil {
-			l := c.getIdentifierList(a2, name)
+			l := c.getValueList(a2, name)
 			l = c.checkLog(l, s, name)
 			ru.log = strings.Join(l, ",")
 		}
@@ -1998,27 +2004,17 @@ func (c *spoc) hasUser(el ast.Element, ctx string) bool {
 	}
 }
 
-func (c *spoc) splitCheckTypedName(s string) (string, string) {
-	typ, name := splitTypedName(s)
-	if !isSimpleName(name) {
-		c.err("Invalid identifier in definition of '%s'", s)
-	}
-	return typ, name
-}
-
 func splitTypedName(s string) (string, string) {
 	i := strings.Index(s, ":")
 	return s[:i], s[i+1:]
 }
 
+// Make ID unique by appending name of enclosing network.
 func fullHostname(hName, nName string) string {
-	_, name2 := splitTypedName(hName)
-
-	// Make ID unique by appending name of enclosing network.
-	if strings.HasPrefix(name2, "id:") {
-		name2 += "." + nName
+	if strings.HasPrefix(hName, "host:id:") {
+		hName += "." + nName
 	}
-	return name2
+	return hName
 }
 
 func (c *spoc) checkDuplicate(l []ast.Toplevel) {
@@ -2035,12 +2031,12 @@ func (c *spoc) checkDuplicate(l []ast.Toplevel) {
 	for _, a := range l {
 		topName := a.GetName()
 		fileName := a.FileName()
-		_, name := splitTypedName(topName)
 		switch x := a.(type) {
 		case *ast.Network:
+			nName := topName[len("network:"):]
 			for _, a := range x.Hosts {
-				name2 := fullHostname(a.Name, name)
-				check("host:"+name2, fileName)
+				full := fullHostname(a.Name, nName)
+				check(full, fileName)
 			}
 		case *ast.Router:
 			if x.IPV6 {
@@ -2093,28 +2089,30 @@ func (c *spoc) getValueList(a *ast.Attribute, ctx string) stringList {
 	return result
 }
 
-func (c *spoc) getComplexValue(a *ast.Attribute, ctx string) []*ast.Attribute {
-	l := a.ComplexValue
-	if l == nil || a.ValueList != nil {
-		c.err("Structured value expected in '%s' of %s", a.Name, ctx)
-	}
+func (c *spoc) getComplexValue(
+	a *ast.Attribute, ctx string) []*ast.Attribute {
+
 	aCtx := a.Name
 	if ctx != "" {
 		aCtx += " of " + ctx
+	}
+	l := a.ComplexValue
+	if l == nil || a.ValueList != nil {
+		c.err("Structured value expected in '%s'", aCtx)
 	}
 	c.checkDuplAttr(l, aCtx)
 	return l
 }
 
 func (c *spoc) getBindNat(a *ast.Attribute, ctx string) []string {
-	l := c.getIdentifierList(a, ctx)
+	l := c.getValueList(a, ctx)
 	sort.Strings(l)
 	// Remove duplicates.
 	var seen string
 	j := 0
 	for _, tag := range l {
 		if tag == seen {
-			c.warn("Duplicate %s in 'bind_nat' of %s", tag, ctx)
+			c.warn("Duplicate '%s' in 'bind_nat' of %s", tag, ctx)
 		} else {
 			seen = tag
 			l[j] = tag
@@ -2130,16 +2128,6 @@ func (c *spoc) getIdentifier(a *ast.Attribute, ctx string) string {
 		c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
 	}
 	return v
-}
-
-func (c *spoc) getIdentifierList(a *ast.Attribute, ctx string) []string {
-	l := c.getValueList(a, ctx)
-	for _, v := range l {
-		if !isSimpleName(v) {
-			c.err("Invalid identifier in '%s' of %s: %s", a.Name, ctx, v)
-		}
-	}
-	return l
 }
 
 // Check for valid email address.
@@ -2255,8 +2243,7 @@ func (c *spoc) getTimeKilobytesPair(a *ast.Attribute, ctx string) *[2]int {
 		sec = time(l[0], l[1])
 		kb = kbytes(l[2], l[3])
 	default:
-		c.err("Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in '%s' of %s",
-			a.Name, ctx)
+		bad()
 	}
 	return &[2]int{sec, kb}
 }
@@ -2505,7 +2492,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 			num, err := strconv.Atoi(id)
 			if err != nil {
 				c.err("Redundancy ID must be numeric in %s", vCtx)
-			} else if !(num >= 0 || num < 256) {
+			} else if !(num >= 0 && num < 256) {
 				c.err("Redundancy ID must be < 256 in %s", vCtx)
 			}
 			virtual.redundancyId = id
@@ -2571,7 +2558,7 @@ func (c *spoc) getIpRange(
 	l := strings.Split(v, " - ")
 	var result netaddr.IPRange
 	if len(l) != 2 {
-		c.err("Expected IP range in '%s' of %s", a.Name, ctx)
+		c.err("Expected IP range in %s", ctx)
 	} else {
 		result.From = c.convIP(l[0], v6, a.Name, ctx)
 		result.To = c.convIP(l[1], v6, a.Name, ctx)
@@ -2658,7 +2645,8 @@ func (c *spoc) tryNetworkRef(
 }
 
 func (c *spoc) lookupNetworkRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string, warn bool) *network {
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string,
+	warn bool) *network {
 
 	typ, name := c.getTypedName(a, ctx)
 	if typ == "" {
@@ -2702,11 +2690,13 @@ func (c *spoc) tryNetworkRefList(
 	return result
 }
 
-func (c *spoc) tryHostRef(a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+func (c *spoc) tryHostRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+
 	typ, name := c.getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
 	if typ != "host" {
-		c.err("Must only use host name in %s", ctx2)
+		c.err("Expected type 'host:' in %s", ctx2)
 		return nil
 	}
 	h := s.host[name]
@@ -2728,7 +2718,9 @@ func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	return v[:i], v[i+1:]
 }
 
-func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
+func (c *spoc) getRealOwnerRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *owner {
+
 	o := c.tryOwnerRef(a, s, ctx)
 	if o != nil {
 		if o.admins == nil {
@@ -2744,8 +2736,10 @@ func (c *spoc) getRealOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *ow
 	return o
 }
 
-func (c *spoc) tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner {
-	name := c.getIdentifier(a, ctx)
+func (c *spoc) tryOwnerRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *owner {
+
+	name := c.getSingleValue(a, ctx)
 	o := s.owner[name]
 	if o == nil {
 		c.warn("Ignoring undefined owner:%s of %s", name, ctx)
@@ -2753,10 +2747,12 @@ func (c *spoc) tryOwnerRef(a *ast.Attribute, s *symbolTable, ctx string) *owner 
 	return o
 }
 
-func (c *spoc) getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+func (c *spoc) getIsakmpRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "isakmp" {
-		c.err("Must only use isakmp type in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'isakmp:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.isakmp[name]
@@ -2766,10 +2762,12 @@ func (c *spoc) getIsakmpRef(a *ast.Attribute, s *symbolTable, ctx string) *isakm
 	return is
 }
 
-func (c *spoc) getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
+func (c *spoc) getIpsecRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "ipsec" {
-		c.err("Must only use ipsec type in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'ipsec:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	is := s.ipsec[name]
@@ -2779,10 +2777,12 @@ func (c *spoc) getIpsecRef(a *ast.Attribute, s *symbolTable, ctx string) *ipsec 
 	return is
 }
 
-func (c *spoc) getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypto {
+func (c *spoc) getCryptoRef(
+	a *ast.Attribute, s *symbolTable, ctx string) *crypto {
+
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "crypto" {
-		c.err("Must only use crypto name in '%s' of %s", a.Name, ctx)
+		c.err("Expected type 'crypto:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
 	cr := s.crypto[name]
@@ -2793,7 +2793,9 @@ func (c *spoc) getCryptoRef(a *ast.Attribute, s *symbolTable, ctx string) *crypt
 	return cr
 }
 
-func (c *spoc) getCryptoRefList(a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
+func (c *spoc) getCryptoRefList(
+	a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
+
 	l := c.getValueList(a, ctx)
 	result := make([]*crypto, 0, len(l))
 	ctx2 := "'" + a.Name + "' of " + ctx
@@ -2996,7 +2998,9 @@ func (c *spoc) getGeneralPermit(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
 	l := c.getProtocolList(a, s, v6, ctx)
-	prtTCP := s.unnamedProto["tcp"]
+	// Ignore duplicates.
+	seen := make(map[*proto]bool)
+	j := 0
 	for _, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
@@ -3010,14 +3014,26 @@ func (c *spoc) getGeneralPermit(
 				srcRange = true
 			}
 		}
-		if srcRange || p.ports[0] != 0 && p != prtTCP && p.main != prtTCP {
+		name := p.name
+		if p2 := p.main; p2 != nil {
+			p = p2
+		}
+		if srcRange ||
+			p.ports[0] != 0 && !(p.ports[0] == 1 && p.ports[1] == 65535) {
 			reason.push("ports")
 		}
 		if reason != nil {
 			c.err("Must not use '%s' with %s in general_permit of %s",
-				p.name, strings.Join(reason, " or "), ctx)
+				name, strings.Join(reason, " or "), ctx)
+		} else if seen[p] {
+			c.warn("Ignoring duplicate '%s' in general_permit of %s", p.name, ctx)
+		} else {
+			l[j] = p
+			j++
+			seen[p] = true
 		}
 	}
+	l = l[:j]
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
 	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
@@ -3028,7 +3044,7 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
 	}
-	_, name := c.splitCheckTypedName(a.Name)
+	name := a.Name[len("log:"):]
 	modifier := ""
 	if !emptyAttr(a) {
 		modifier = c.getSingleValue(a, r.name)
@@ -3100,7 +3116,7 @@ func (c *spoc) addXNat(
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, tag := c.splitCheckTypedName(a.Name)
+	tag := a.Name[len("nat:"):]
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
@@ -3164,7 +3180,7 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	_, name := c.splitCheckTypedName(a.Name)
+	tag := a.Name[len("nat:"):]
 	var ip netaddr.IP
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
@@ -3179,7 +3195,7 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
 	if m == nil {
 		m = make(map[string]netaddr.IP)
 	}
-	m[name] = ip
+	m[tag] = ip
 	return m
 }
 
@@ -3360,7 +3376,10 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 		}
 
 		for _, intf2 := range hw.interfaces {
-			if intf2 != intf && intf2.ipType != tunnelIP {
+			if intf2 != intf &&
+				intf2.ipType != tunnelIP &&
+				intf2.mainIntf == nil {
+
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
@@ -3490,9 +3509,6 @@ func (c *spoc) linkVirtualInterfaces() {
 	}
 	netIdType2virtual := make(map[key2]*routerIntf)
 	for _, v1 := range c.virtualInterfaces {
-		if v1.disabled {
-			continue
-		}
 		ip := v1.ip
 		n := v1.network
 		t1 := v1.redundancyType

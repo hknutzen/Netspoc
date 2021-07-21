@@ -23,8 +23,6 @@ func (n *TopStruct) GetAttr(name string) string {
 			l := a.ValueList
 			if len(l) > 0 {
 				return l[0].Value
-			} else {
-				return ""
 			}
 		}
 	}

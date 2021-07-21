@@ -417,8 +417,6 @@ func printRoutes(fh *os.File, r *router) {
 				case "iproute":
 					adr := prefixCode(netinfo.IPPrefix)
 					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
-				case "none":
-					// Do nothing.
 				}
 			}
 		}
@@ -474,12 +472,9 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 	checkRules(intf.intfRules, false)
 	checkRules(intf.outRules, true)
 
-	// Sort for deterministic output:
+	// Sort for better readability of ACL.
 	sort.Slice(result, func(i, j int) bool {
-		if cmp := result[i].ipp.IP.Compare(result[j].ipp.IP); cmp != 0 {
-			return cmp == -1
-		}
-		return result[i].ipp.Bits < result[j].ipp.Bits
+		return result[i].ipp.IP.Less(result[j].ipp.IP)
 	})
 	return result
 }
@@ -1111,11 +1106,6 @@ func printCiscoAcls(fh *os.File, r *router) {
 
 		// Ignore if all logical interfaces are loopback interfaces.
 		if hw.loopback {
-			continue
-		}
-
-		// Ignore layer3 interface of ASA.
-		if hw.name == "device" && model.class == "ASA" {
 			continue
 		}
 
@@ -2251,7 +2241,6 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	}
 
 	enc := json.NewEncoder(fh)
-	//	enc.SetIndent("", " ")
 	err := enc.Encode(result)
 	if err != nil {
 		panic(err)
@@ -2408,13 +2397,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 }
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
-
-	concurrent := conf.Conf.ConcurrencyPass2
-	if concurrent < 1 {
-		concurrent = 1
-	}
-	concurrentGoroutines := make(chan struct{}, concurrent)
-
+	concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
 	countReused := make(chan int)
 	reused := 0
 	go func() {

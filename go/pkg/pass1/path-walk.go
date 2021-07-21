@@ -31,10 +31,9 @@ func findZone1(store pathStore) *zone {
 
 //#############################################################################
 // Purpose   : Provide path node objects for objects specified as src or dst.
-// Parameter : Source or destination object from an elementary rule.
-// Returns   : Reference to zone or router of the given object or reference
-//             to object itself, if it is a pathrestricted interface.
-// Results   : Return value for given object is stored in obj2path lookup hash.
+// Parameter : Source or destination object.
+// Returns   : Zone or router of the given object or
+//             the object itself, if it is a pathrestricted interface.
 func (obj *network) getPathNode() pathStore {
 	return obj.zone
 }
@@ -67,18 +66,13 @@ func (obj *routerIntf) getPathNode() pathStore {
 	}
 }
 
-// This is used, if called from pathAutoIntfs.
+// This is used, if called from findAutoInterfaces.
 func (obj *router) getPathNode() pathStore {
 	if obj.managed != "" || obj.semiManaged {
 		return obj
 	} else {
 		return obj.interfaces[0].network.zone
 	}
-}
-
-// This is used, if pathWalk is called from findActiveRoutes.
-func (obj *zone) getPathNode() pathStore {
-	return obj
 }
 
 // This is used in cut-netspoc and if pathWalk is called early to
@@ -89,24 +83,7 @@ func (obj *host) getPathNode() pathStore {
 
 // This is used, if called from expandAutoIntfWithDstList.
 func (obj *autoIntf) getPathNode() pathStore {
-	object := obj.object
-	switch x := object.(type) {
-	case *network:
-
-		// This will be refined later, if real interface is known.
-		return x.zone
-	case *router:
-		if x.managed != "" || x.semiManaged {
-
-			// This will be refined later, if real interface has pathrestriction.
-			return x
-		} else {
-
-			// Take arbitrary interface to find zone.
-			return x.interfaces[0].network.zone
-		}
-	}
-	return nil
+	return obj.object.getPathNode()
 }
 
 type navigation map[*loop]map[*loop]bool

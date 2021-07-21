@@ -28,7 +28,9 @@ type userInfo struct {
 	used     bool
 }
 
-type netOrRouter interface{}
+type netOrRouter interface {
+	getPathNode() pathStore
+}
 
 type autoIntf struct {
 	usedObj

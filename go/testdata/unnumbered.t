@@ -28,6 +28,20 @@ Error: No virtual IP supported for unnumbered interface:r1.u
 =END=
 
 ############################################################
+=TITLE=Unnumbered interface must not have routing protocol
+=INPUT=
+network:u = { unnumbered; }
+router:r1 = {
+ managed;
+ model = IOS;
+  interface:u = { unnumbered; hardware = u; routing = OSPF; }
+}
+=END=
+=ERROR=
+Error: Routing 'OSPF' not supported for unnumbered interface:r1.u
+=END=
+
+############################################################
 =TITLE=Unnumbered network to interface with IP
 =INPUT=
 network:u = {

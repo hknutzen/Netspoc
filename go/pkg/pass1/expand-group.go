@@ -662,20 +662,11 @@ func (c *spoc) expandGroup1(
 				*elPtr = elements
 				result = append(result, elements...)
 			} else {
-				n, ok := obj.(*network)
-				if ok && n.isAggregate {
 
-					// Substitute aggregate by aggregate set of zone cluster.
-					// Ignore zone having no aggregate from unnumbered network.
-					if cluster := n.zone.cluster; len(cluster) > 1 {
-						ipp := n.ipp
-						for _, z := range cluster {
-							if agg2 := z.ipPrefix2aggregate[ipp]; agg2 != nil {
-								result.push(agg2)
-							}
-						}
-					} else {
-						result.push(n)
+				// Substitute aggregate by aggregate set of zone cluster.
+				if n, ok := obj.(*network); ok && n.isAggregate {
+					for _, z := range n.zone.cluster {
+						result.push(z.ipPrefix2aggregate[n.ipp])
 					}
 				} else {
 					result.push(obj)

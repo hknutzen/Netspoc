@@ -98,8 +98,8 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 						return name < l2[k]
 					}
 				}
-				// Duplicate rule in service. Order doesn't matter.
-				return false
+				// l1 is prefix of l2 or equal to l2.
+				return true
 			})
 			var si svcInfo
 			si.count = len(riList)
@@ -278,34 +278,41 @@ func elementsEq(l1, l2 []ast.Element) bool {
 }
 
 func elemEq(e1, e2 ast.Element) bool {
+	result := false
 	switch a := e1.(type) {
 	case *ast.User:
-		_, ok := e2.(*ast.User)
-		return ok
+		_, result = e2.(*ast.User)
 	case *ast.NamedRef:
-		b, ok := e2.(*ast.NamedRef)
-		return ok && a.Type == b.Type && a.Name == b.Name
+		if b, ok := e2.(*ast.NamedRef); ok {
+			result = a.Type == b.Type && a.Name == b.Name
+		}
 	case *ast.IntfRef:
-		b, ok := e2.(*ast.IntfRef)
-		return ok && a.Type == b.Type &&
-			a.Router == b.Router && a.Network == b.Network &&
-			a.Extension == b.Extension
+		if b, ok := e2.(*ast.IntfRef); ok {
+			result = a.Type == b.Type &&
+				a.Router == b.Router && a.Network == b.Network &&
+				a.Extension == b.Extension
+		}
 	case *ast.SimpleAuto:
-		b, ok := e2.(*ast.SimpleAuto)
-		return ok && a.Type == b.Type && elementsEq(a.Elements, b.Elements)
+		if b, ok := e2.(*ast.SimpleAuto); ok {
+			result = a.Type == b.Type && elementsEq(a.Elements, b.Elements)
+		}
 	case *ast.AggAuto:
-		b, ok := e2.(*ast.AggAuto)
-		return ok && a.Net == b.Net && elementsEq(a.Elements, b.Elements)
+		if b, ok := e2.(*ast.AggAuto); ok {
+			result = a.Net == b.Net && elementsEq(a.Elements, b.Elements)
+		}
 	case *ast.IntfAuto:
-		b, ok := e2.(*ast.IntfAuto)
-		return ok && a.Managed == b.Managed && a.Selector == b.Selector &&
-			elementsEq(a.Elements, b.Elements)
+		if b, ok := e2.(*ast.IntfAuto); ok {
+			result = a.Managed == b.Managed && a.Selector == b.Selector &&
+				elementsEq(a.Elements, b.Elements)
+		}
 	case *ast.Complement:
-		b, ok := e2.(*ast.Complement)
-		return ok && elemEq(a.Element, b.Element)
+		if b, ok := e2.(*ast.Complement); ok {
+			result = elemEq(a.Element, b.Element)
+		}
 	case *ast.Intersection:
-		b, ok := e2.(*ast.Intersection)
-		return ok && elementsEq(a.Elements, b.Elements)
+		if b, ok := e2.(*ast.Intersection); ok {
+			result = elementsEq(a.Elements, b.Elements)
+		}
 	}
-	return false
+	return result
 }

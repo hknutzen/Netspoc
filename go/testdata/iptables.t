@@ -542,7 +542,7 @@ service:test = {
 =END=
 
 ############################################################
-=TITLE=Ignore ICMP reply messages
+=TITLE=Check ICMP type and code
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }

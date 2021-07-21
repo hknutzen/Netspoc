@@ -278,7 +278,7 @@ Error: router:bridge1 can't bridge a single network
 =END=
 
 ############################################################
-=TITLE=Bridge must connect at least two networks (2)
+=TITLE=Single device can't bridge different networks
 =INPUT=
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge1 = {
@@ -387,37 +387,32 @@ Error: Duplicate IP address for host:h2a and host:h2b
 ############################################################
 # Shared topology for multiple tests
 =VAR=topology
-network:intern = {
+network:n1 = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
 }
+network:n2/left = { ip = 10.1.2.0/24; }
+network:n2/right = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
 router:asa = {
  model = IOS;
  #managed;
- interface:intern = {
-  ip = 10.1.1.101;
-  hardware = Ethernet0;
- }
- interface:dmz/left = {
-  ip = 192.168.0.101;
-  hardware = Ethernet1;
- }
+ interface:n1 = { ip = 10.1.1.101; hardware = n1; }
+ interface:n2/left = { ip = 10.1.2.101; hardware = n2; }
 }
-network:dmz/left = { ip = 192.168.0.0/24; }
 router:bridge = {
  model = ASA;
  managed;
  policy_distribution_point = host:netspoc;
- interface:dmz = { ip = 192.168.0.9; hardware = device; }
- interface:dmz/left = { hardware = inside; }
- interface:dmz/right = { hardware = outside; }
+ interface:n2 = { ip = 10.1.2.9; hardware = device; }
+ interface:n2/left = { hardware = inside; }
+ interface:n2/right = { hardware = outside; }
 }
-network:dmz/right = { ip = 192.168.0.0/24;}
-router:extern = {
- interface:dmz/right = { ip = 192.168.0.1; }
- interface:extern;
+router:r3 = {
+ interface:n2/right = { ip = 10.1.2.1; }
+ interface:n3;
 }
-network:extern = { ip = 10.9.9.0/24; }
 =END=
 
 ############################################################
@@ -425,13 +420,13 @@ network:extern = { ip = 10.9.9.0/24; }
 =INPUT=
 ${topology}
 service:admin = {
- user = interface:bridge.dmz;
- permit src = network:intern; dst = user; prt = tcp 22;
+ user = interface:bridge.n2;
+ permit src = network:n1; dst = user; prt = tcp 22;
 }
 =END=
 =OUTPUT=
 --bridge
-! [ IP = 192.168.0.9 ]
+! [ IP = 10.1.2.9 ]
 =END=
 
 ############################################################
@@ -440,12 +435,12 @@ service:admin = {
 ${topology}
 service:admin = {
  user =  interface:bridge.[auto];
- permit src = network:intern; dst = user; prt = tcp 22;
+ permit src = network:n1; dst = user; prt = tcp 22;
 }
 =END=
 =OUTPUT=
 --bridge
-! [ IP = 192.168.0.9 ]
+! [ IP = 10.1.2.9 ]
 =END=
 
 ############################################################
@@ -454,12 +449,12 @@ service:admin = {
 ${topology}
 service:admin = {
  user =  interface:bridge.[all];
- permit src = network:intern; dst = user; prt = tcp 22;
+ permit src = network:n1; dst = user; prt = tcp 22;
 }
 =END=
 =OUTPUT=
 --bridge
-! [ IP = 192.168.0.9 ]
+! [ IP = 10.1.2.9 ]
 =END=
 
 ############################################################
@@ -467,15 +462,15 @@ service:admin = {
 =INPUT=
 ${topology}
 service:test = {
- user = network:dmz/left, network:dmz/right;
- permit src = user; dst = host:[network:intern]; prt = tcp 80;
+ user = network:n2/left, network:n2/right;
+ permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
 =END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
 =SUBST=/#managed/managed/
 =OUTPUT=
 --bridge
-access-list outside_in extended permit tcp 192.168.0.0 255.255.255.0 host 10.1.1.111 eq 80
+access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 =END=
@@ -485,8 +480,8 @@ access-group outside_in in interface outside
 =INPUT=
 ${topology}
 service:test = {
- user = network:extern;
- permit src = user; dst = host:[network:intern]; prt = tcp 80;
+ user = network:n3;
+ permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
 =END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
@@ -494,12 +489,12 @@ service:test = {
 # Must not use bridged interface as next hop in static route.
 =OUTPUT=
 --bridge
-access-list outside_in extended permit tcp 10.9.9.0 255.255.255.0 host 10.1.1.111 eq 80
+access-list outside_in extended permit tcp 10.1.3.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
 --asa
 ! [ Routing ]
-ip route 10.9.9.0 255.255.255.0 192.168.0.1
+ip route 10.1.3.0 255.255.255.0 10.1.2.1
 =END=
 
 ############################################################
@@ -507,16 +502,16 @@ ip route 10.9.9.0 255.255.255.0 192.168.0.1
 =INPUT=
 ${topology}
 service:test = {
- user = network:intern;
- permit src = user; dst = interface:bridge.dmz/right; prt = tcp 22;
- permit src = interface:bridge.dmz/left; dst = user; prt = tcp 22;
+ user = network:n1;
+ permit src = user; dst = interface:bridge.n2/right; prt = tcp 22;
+ permit src = interface:bridge.n2/left; dst = user; prt = tcp 22;
 }
 =END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
 =SUBST=/#managed/managed/
 =WARNING=
-Warning: Ignoring bridged interface:bridge.dmz/right in dst of rule in service:test
-Warning: Ignoring bridged interface:bridge.dmz/left in src of rule in service:test
+Warning: Ignoring bridged interface:bridge.n2/right in dst of rule in service:test
+Warning: Ignoring bridged interface:bridge.n2/left in src of rule in service:test
 =END=
 
 ############################################################

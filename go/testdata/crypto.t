@@ -37,7 +37,7 @@ isakmp:aes256SHA = {
  hash = sha;
  group = 2;
  lifetime = 43200 sec;
- trust_point =  ASDM_TrustPoint3;
+ trust_point = ASDM_TrustPoint3;
 }
 crypto:sts = {
  type = ipsec:aes256SHA;
@@ -48,15 +48,92 @@ crypto:sts = {
 =TITLE=Missing ISAKMP attributes
 =INPUT=
 isakmp:aes256SHA = {
- group = 2;
+ nat_traversal = additional;
 }
-network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
 Error: Missing 'authentication' for isakmp:aes256SHA
 Error: Missing 'encryption' for isakmp:aes256SHA
 Error: Missing 'hash' for isakmp:aes256SHA
+Error: Missing 'group' for isakmp:aes256SHA
 Error: Missing 'lifetime' for isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP attribute
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500 hours;
+ foo;
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in isakmp:aes256SHA: foo
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP value
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsa-signature;
+ encryption = aes;
+ hash = sha;
+ group = 3;
+ lifetime = 500 hours;
+}
+=END=
+=ERROR=
+Error: Invalid value in 'authentication' of isakmp:aes256SHA: rsa-signature
+Error: Invalid value in 'group' of isakmp:aes256SHA: 3
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (1)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (2)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = many sec;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad ISAKMP lifetime (3)
+=INPUT=
+isakmp:aes256SHA = {
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 500 years;
+}
+=END=
+=ERROR=
+Error: Expected 'NUM sec|min|hour|day' in 'lifetime' of isakmp:aes256SHA
 =END=
 
 ############################################################
@@ -72,11 +149,76 @@ Error: Missing 'key_exchange' for ipsec:aes256SHA
 =END=
 
 ############################################################
-=TITLE=Bad IPSec lifetime type
+=TITLE=Bad IPSec attribute
+=INPUT=
+ipsec:aes256SHA = {
+ lifetime = 100 sec;
+ foo = 21;
+}
+=END=
+=ERROR=
+Error: Unexpected attribute in ipsec:aes256SHA: foo
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (1)
 =INPUT=
 ipsec:aes256SHA = {
  esp_encryption = aes256;
  lifetime = 100 foo;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (2)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = many seconds;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (3)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 3 hours many kilobytes;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (4)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 3 hours 1000000 bytes;
+}
+=END=
+=ERROR=
+Error: Expected '[NUM sec|min|hour|day] [NUM kilobytes]' in 'lifetime' of ipsec:aes256SHA
+Error: Missing 'key_exchange' for ipsec:aes256SHA
+=END=
+
+############################################################
+=TITLE=Bad IPSec lifetime type (5)
+=INPUT=
+ipsec:aes256SHA = {
+ esp_encryption = aes256;
+ lifetime = 1;
 }
 =END=
 =ERROR=
@@ -95,7 +237,7 @@ ipsec:aes256SHA = {
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must only use isakmp type in 'key_exchange' of ipsec:aes256SHA
+Error: Expected type 'isakmp:' in 'key_exchange' of ipsec:aes256SHA
 Error: Missing 'key_exchange' for ipsec:aes256SHA
 =END=
 
@@ -130,7 +272,7 @@ crypto:c = { type = xyz:abc; }
 network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must only use ipsec type in 'type' of crypto:c
+Error: Expected type 'ipsec:' in 'type' of crypto:c
 Error: Missing 'type' for crypto:c
 =END=
 
@@ -156,6 +298,28 @@ Warning: No hub has been defined for crypto:vpn
 =END=
 
 ############################################################
+=TITLE=No spokes defined for crypto
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+ }
+}
+=WARNING=
+Warning: No spokes have been defined for crypto:vpn
+=END=
+
+############################################################
 =TITLE=No bind_nat allowed at hub
 =INPUT=
 ${crypto_vpn}
@@ -177,6 +341,30 @@ router:asavpn = {
 =ERROR=
 Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
  Move 'bind_nat' to crypto definition instead
+=END=
+
+############################################################
+=TITLE=Crypto must not share hardware
+=INPUT=
+${crypto_vpn}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hub = crypto:vpn;
+  hardware = n1;
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n1; }
+}
+=ERROR=
+Error: Crypto interface:asavpn.n1 must not share hardware with other interface:asavpn.n2
 =END=
 
 ############################################################
@@ -281,6 +469,22 @@ network:clients = {
 }
 =ERROR=
 Error: All hosts must have ID in network:clients
+=END=
+
+############################################################
+=TITLE=Mixed ldap_id and ID hosts
+=INPUT=
+network:clients = {
+ ip = 10.99.1.0/24;
+ cert_id = cert1;
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+ host:bar = {
+  range = 10.99.1.16 - 10.99.1.31;
+  ldap_id = CN=example3,OU=VPN,DC=example,DC=com;
+ }
+}
+=ERROR=
+Error: All hosts must have attribute 'ldap_id' in network:clients
 =END=
 
 ############################################################
@@ -663,6 +867,87 @@ Error: interface:softclients.trans with attribute 'spoke' must not have secondar
 =END=
 
 ############################################################
+=TITLE=Missing hub at ASA, VPN
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA, VPN;
+ interface:n = { ip = 10.1.1.1; hardware = n; }
+}
+=WARNING=
+Warning: Attribute 'hub' needs to be defined at some interface of router:r of model ASA, VPN
+=END=
+
+############################################################
+=TITLE=Ignoring radius_attributes at non ASA, VPN
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA;
+ radius_attributes = { banner = Welcome; }
+ interface:n = { ip = 10.1.1.1; hardware = n; }
+}
+=WARNING=
+Warning: Ignoring 'radius_attributes' at router:r
+=END=
+
+############################################################
+=TITLE=Crypto not supported
+=INPUT=
+${crypto_sts}
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = NX-OS;
+ interface:n = { ip = 10.1.1.1; hardware = n; hub = crypto:sts; }
+}
+=ERROR=
+Error: Crypto not supported for router:r of model NX-OS
+=END=
+
+############################################################
+=TITLE=Virtual interface must not be hub
+=INPUT=
+${crypto_vpn}
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  virtual = { ip = 192.168.0.1; }
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+=END=
+=ERROR=
+Error: interface:asavpn1.dmz with virtual interface must not use attribute 'hub'
+=END=
+
+############################################################
+=TITLE=Crypto hub can't be spoke
+=INPUT=
+${crypto_vpn}
+router:asavpn1 = {
+ model = ASA, VPN;
+ managed;
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  spoke = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+=END=
+=ERROR=
+Error: interface:asavpn1.dmz with attribute 'spoke' must not have attribute 'hub'
+=END=
+
+############################################################
 =TITLE=Duplicate crypto spoke
 =INPUT=
 ${crypto_vpn}
@@ -914,9 +1199,9 @@ network:customers2 = {
 =TITLE=VPN ASA with software clients
 =VAR=input
 ${topo}
-network:work1 = { ip = 10.0.1.0/24; }
-network:work2 = { ip = 10.0.2.0/24; }
-network:work3 = { ip = 10.0.3.0/24; }
+network:work1 = { ip = 10.0.1.0/24; host:h1 = { ip = 10.0.1.10; } }
+network:work2 = { ip = 10.0.2.0/24; host:h2 = { ip = 10.0.2.10; } }
+network:work3 = { ip = 10.0.3.0/24; host:h3 = { ip = 10.0.3.10; } }
 network:work4 = { ip = 10.0.4.0/24; }
 router:u = {
  interface:work1;
@@ -927,16 +1212,17 @@ router:u = {
 }
 group:g1 =
  network:work1,
- network:work2,
+ host:h2,
  network:work3,
 ;
 group:g2 =
- network:work2,
- network:work3,
+ host:h2,
+ host:h3,
  network:work4,
 ;
 service:test1 = {
  user = host:id:foo@domain.x.customers1, host:id:@domain.y.customers2;
+ deny   src = user; dst = host:h1; prt = tcp 80;
  permit src = user; dst = group:g1; prt = tcp 80;
 }
 service:test2 = {
@@ -1128,25 +1414,28 @@ access-group inside_in in interface inside
 --
 ! outside_in
 object-group network g0
+ network-object host 10.99.1.10
+ network-object 10.99.2.64 255.255.255.192
+object-group network g1
  network-object 10.99.1.10 255.255.255.254
  network-object host 10.99.1.12
  network-object host 10.99.1.254
  network-object 10.99.2.0 255.255.255.128
  network-object 10.99.2.128 255.255.255.192
-object-group network g1
- network-object host 10.99.1.10
- network-object 10.99.2.64 255.255.255.192
 object-group network g2
  network-object host 10.99.1.11
  network-object host 10.99.1.12
 object-group network g3
  network-object 10.0.1.0 255.255.255.0
- network-object 10.0.2.0 255.255.254.0
+ network-object host 10.0.2.10
+ network-object 10.0.3.0 255.255.255.0
 object-group network g4
- network-object 10.0.2.0 255.255.254.0
+ network-object host 10.0.2.10
+ network-object host 10.0.3.10
  network-object 10.0.4.0 255.255.255.0
-access-list outside_in extended permit icmp object-group g0 any4 3
-access-list outside_in extended permit tcp object-group g1 object-group g3 eq 80
+access-list outside_in extended deny tcp object-group g0 host 10.0.1.10 eq 80
+access-list outside_in extended permit icmp object-group g1 any4 3
+access-list outside_in extended permit tcp object-group g0 object-group g3 eq 80
 access-list outside_in extended permit tcp object-group g2 object-group g4 eq 81
 access-list outside_in extended permit tcp 10.99.2.0 255.255.255.192 object-group g4 range 81 82
 access-list outside_in extended permit tcp 10.99.2.128 255.255.255.192 object-group g4 eq 82
@@ -2419,17 +2708,17 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 =TITLE=ASA with two crypto spokes and NAT
 =VAR=input
 ipsec:aes256SHA = {
- key_exchange = isakmp:aes256SHA;
+ key_exchange = isakmp:aes192SHA;
  esp_encryption = aes256;
  esp_authentication = sha384;
  pfs_group = 15;
  lifetime = 3600 sec;
 }
-isakmp:aes256SHA = {
+isakmp:aes192SHA = {
  ike_version = 1;
  nat_traversal = additional;
  authentication = rsasig;
- encryption = aes256;
+ encryption = aes192;
  hash = sha;
  group = 15;
  lifetime = 43200 sec;
@@ -2626,7 +2915,7 @@ crypto isakmp policy 1
  hash sha
  group 2
 crypto isakmp policy 2
- encryption aes 256
+ encryption aes 192
  hash sha
  group 15
  lifetime 43200
@@ -3174,9 +3463,18 @@ access-group Fastethernet8_in in interface Fastethernet8
 =END=
 
 ############################################################
-=TITLE=Missing trust_point in isakmp for spoke and hub
+=TITLE=Missing trust_point in isakmp for spoke and hub (1)
 =INPUT=${input}
 =SUBST=/trust_point/#trust_point/
+=ERROR=
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
+Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
+=END=
+
+############################################################
+=TITLE=Missing trust_point in isakmp for spoke and hub (2)
+=INPUT=${input}
+=SUBST=/trust_point = ASDM_TrustPoint3;/trust_point = none;/
 =ERROR=
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
@@ -3654,6 +3952,45 @@ network:lan1 = {
 }
 =ERROR=
 Error: network:lan1 having ID hosts can't be checked by router:asavpn
+=END=
+
+############################################################
+=TITLE=Virtual interface must not be spoke
+=INPUT=
+${crypto_sts}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 1.2.3.2;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 1.2.3.0/25; }
+router:extern = {
+ interface:dmz = { ip = 1.2.3.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 1.1.1.2;
+  virtual = { ip = 10.1.1.1; }
+  spoke = crypto:sts;
+ }
+ interface:lan1;
+}
+network:lan1 = {
+ ip = 10.99.1.0/24;
+}
+=ERROR=
+Error: interface:vpn1.internet with virtual interface must not use attribute 'spoke'
 =END=
 
 ############################################################

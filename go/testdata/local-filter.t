@@ -43,6 +43,21 @@ Warning: Ignoring attribute 'filter_only' at router:d32; only valid with 'manage
 =END=
 
 ############################################################
+=TITLE=Unsupported 'managed = local'
+=INPUT=
+network:n1 = { ip = 10.62.1.32/27; }
+router:d32 = {
+ model = Linux;
+ managed = local;
+ filter_only =  10.62.0.0/16;
+ interface:n1 = { ip = 10.62.1.33; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use 'managed = local' at router:d32 of model Linux
+=END=
+
+############################################################
 =TITLE=Local network doesn't match filter_only attribute
 =INPUT=
 network:n1 = { ip = 10.62.1.32/27; }
@@ -174,6 +189,31 @@ object-group network g0
  network-object 10.62.0.0 255.255.248.0
  network-object 10.62.241.0 255.255.255.0
 access-list n1_in extended deny ip any4 object-group g0
+access-list n1_in extended permit ip any4 any4
+access-group n1_in in interface n1
+--
+! n2_in
+access-list n2_in extended deny ip object-group g0 object-group g0
+access-list n2_in extended permit ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Filter src in deny rule with zone cluster
+=INPUT=
+network:n0 = { ip = 10.0.0.0/24; nat:n0 = { ip = 10.62.0.0/24; } }
+router:r0 = {
+ interface:n0;
+ interface:n1 = { ip = 10.62.1.34; bind_nat = n0; }
+}
+${topo}
+=OUTPUT=
+--d32
+! n1_in
+object-group network g0
+ network-object 10.62.0.0 255.255.248.0
+ network-object 10.62.241.0 255.255.255.0
+access-list n1_in extended deny ip object-group g0 object-group g0
 access-list n1_in extended permit ip any4 any4
 access-group n1_in in interface n1
 --

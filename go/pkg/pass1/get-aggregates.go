@@ -218,14 +218,8 @@ func (c *spoc) getAny(
 	var result netList
 	var supernet *network
 	for _, z := range cluster {
-		// Ignore zone having no aggregate from unnumbered network.
 		aggOrNet := z.ipPrefix2aggregate[ipp]
-		if aggOrNet == nil {
-			continue
-		}
-
 		result.push(aggOrNet)
-
 		if visible {
 
 			// Mark aggregate as visible for findZoneNetworks.
