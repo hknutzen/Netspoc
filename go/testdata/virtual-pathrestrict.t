@@ -148,6 +148,70 @@ ip access-list extended E4_in
 =END=
 
 ############################################################
+=TITLE=Different paths to virtual interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; virtual = { ip = 10.1.1.1; } }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.3; hardware = n1; virtual = { ip = 10.1.1.1; } }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n3 = { ip = 10.1.3.3; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.3; hardware = n5; }
+}
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.4; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.4; hardware = n4; }
+ interface:n6 = { ip = 10.1.6.4; hardware = n6; virtual = { ip = 10.1.6.1; } }
+}
+router:r5 = {
+ managed;
+ model = IOS, FW;
+ routing = manual;
+ interface:n5 = { ip = 10.1.5.5; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.5; hardware = n6; virtual = { ip = 10.1.6.1; } }
+}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = interface:r4.n6.virtual; prt = udp 123;
+}
+=OUTPUT=
+--r4
+ip access-list extended n2_in
+ permit udp 10.1.1.0 0.0.0.255 host 10.1.6.1 eq 123
+ deny ip any any
+--
+ip access-list extended n4_in
+ permit udp 10.1.1.0 0.0.0.255 host 10.1.6.1 eq 123
+ deny ip any any
+--r5
+ip access-list extended n5_in
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Extra pathrestriction at 2 virtual interface
 =INPUT=
 network:u = { ip = 10.9.9.0/24; }
@@ -423,6 +487,16 @@ service:x = {
 --L
 ip access-list extended Ethernet2_in
  permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
+ deny ip any any
+--
+ip access-list extended Ethernet2_out
+ permit icmp 10.1.0.0 0.0.0.255 host 10.9.32.1 17
+ deny ip any any
+--
+ip access-list extended Ethernet0_in
+ deny ip any any
+--
+ip access-list extended Ethernet0_out
  deny ip any any
 =END=
 
