@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"inet.af/netaddr"
 	"sort"
 )
 
@@ -260,9 +261,25 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			}
 		}
 		if s.foreach {
-			for _, elt := range user {
-				process(groupObjList{elt})
+			// Must not split aggregate set of zone cluster.
+			// Otherwise we would get wrong result for interface[user].[all].
+			var cluster *zone
+			var ipp netaddr.IPPrefix
+			clusterIdx := 0
+			for i, elt := range user {
+				if n, ok := elt.(*network); ok {
+					cl := n.zone.cluster[0]
+					if cl == cluster && n.ipp == ipp {
+						continue
+					} else {
+						cluster = cl
+						ipp = n.ipp
+					}
+				}
+				process(user[clusterIdx:i])
+				clusterIdx = i
 			}
+			process(user[clusterIdx:])
 		} else {
 			process(user)
 		}

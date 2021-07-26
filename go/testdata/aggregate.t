@@ -2913,22 +2913,21 @@ access-group n3_in in interface n3
 =TITLE=Zone cluster with keyword foreach
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
  managed = routing_only;
  model = IOS;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-network:n3 = { ip = 10.1.3.0/24; }
 service:ping_local = {
- has_unenforceable;
  user = foreach any:[network:n3];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmp 8;
 }
@@ -2936,7 +2935,7 @@ service:ping_local = {
 =OUTPUT=
 --r1
 ip access-list extended n2_in
- permit icmp 10.1.2.0 0.0.1.255 host 10.1.2.1 8
+ permit icmp 10.1.2.0 0.0.0.255 host 10.1.2.1 8
+ permit icmp 10.1.3.0 0.0.0.255 host 10.1.2.1 8
  deny ip any any
 =END=
-=TODO=Missing network:n3 from zone cluster
