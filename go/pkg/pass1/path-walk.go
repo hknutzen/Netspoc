@@ -668,11 +668,9 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 	if success {
 		success = false
 
-		// Create navigation look up hash to reduce search space in loop cluster.
+		// Create navigation look up map to reduce search space in loop cluster.
 		navi := clusterNavigation(from, to)
-		if len(navi) == 0 {
-			panic("Empty navi")
-		}
+		allowed := navi[from.getLoop()]
 
 		// These attributes describe valid paths inside loop.
 		lPath := new(loopPath)
@@ -687,10 +685,6 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			getNext = func(i *routerIntf) pathObj { return i.zone }
 		default:
 			getNext = func(i *routerIntf) pathObj { return i.router }
-		}
-		allowed := navi[from.getLoop()]
-		if len(allowed) == 0 {
-			panic(fmt.Sprintf("Loop with empty navi %v -> %v", from, to))
 		}
 
 		// To find paths, process every loop interface of from node.
