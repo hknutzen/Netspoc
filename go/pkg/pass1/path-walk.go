@@ -125,7 +125,8 @@ func (a *intfList) delDupl() {
 //              lPath - collect tuples and last interfaces of path.
 //              navi - lookup hash to reduce search space, holds loops to enter.
 // Returns   :  true, if path is found
-func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopPath, navi navigation) bool {
+func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
+	lPath *loopPath, navi navigation) bool {
 
 	//    debug("cluster_path_mark1: obj: obj->{name},
 	//           in_intf: in_intf->{name} to: end->{name}");
@@ -208,13 +209,13 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj, lPath *loopP
 		}
 		next := getNext(intf)
 
-		//    debug "Try obj->{name} -> next->{name}";
+		//debug("Try %s -> %s", obj,0 next)
 
 		// If a valid path is found from next node to end...
 		if clusterPathMark1(next, intf, end, lPath, navi) {
 
 			// ...collect path information.
-			//	    debug(" loop: in_intf->{name} -> interface->{name}");
+			//debug(" loop: %s -> %s", inIntf, intf)
 			typeTuples.push(intfPair{inIntf, intf})
 			success = true
 		}
@@ -697,22 +698,14 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 			// Skip interface that will not lead to a path,
 			// because node is not included in navi.
 			if !allowed[loop] {
-				//		debug("No: loop->{exit}->{name}loop");
 				continue
-			}
-
-			// Skip ...networks connecting virtual loopback interfaces.
-			if intf.loopback {
-				if _, ok := from.(*router); ok {
-					continue
-				}
 			}
 
 			// Extract adjacent node (= next node on path).
 			next := getNext(intf)
 
-			// Search path from next node to to, store it in provided variables.
-			//       debug(" try: from->{name} -> interface->{name}");
+			// Search path from next node to to, store it in lPath.
+			//debug(" try: %s -> %s", from, intf)
 			if clusterPathMark1(next, intf, to, lPath, navi) {
 				success = true
 				lPath.enter.push(intf)
