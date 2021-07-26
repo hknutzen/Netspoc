@@ -417,8 +417,20 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 					//debug("identical %s %s", n, other)
 				} else if natOther.dynamic && natNetwork.dynamic {
 
-					// Dynamic NAT of different networks
-					// to a single new IP/mask is OK.
+					// Dynamic NAT of different networks to a single new
+					// IP/mask is OK between different zones.
+					// But not if both networks and NAT domain are located
+					// in same zone cluster.
+					cl := n.zone.cluster[0]
+					if other.zone.cluster[0] == cl {
+						for _, z := range domain.zones {
+							if z.cluster[0] == cl {
+								c.err("%s and %s have identical IP/mask in %s",
+									n, other, z)
+								break
+							}
+						}
+					}
 				} else if other.loopback && natNetwork.dynamic {
 					if !natToLoopbackOk(other, natNetwork) {
 						error = true
