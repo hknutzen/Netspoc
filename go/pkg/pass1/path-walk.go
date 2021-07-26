@@ -973,7 +973,9 @@ PATH:
 				}
 
 				// Mark loop path towards next interface.
-				if !connectClusterPath(from, exit, fromIn, fromOut, fromStore, toStore) {
+				if !connectClusterPath(
+					from, exit, fromIn, fromOut, fromStore, toStore) {
+
 					break PATH
 				}
 			}
@@ -999,7 +1001,7 @@ PATH:
 			// If to is a loop node, mark whole loop path within this step.
 			if toIn == nil {
 
-				// Reached border of graph partition.
+				// Reached border of graph partition, linear part.
 				if toLoop == nil {
 					break PATH
 				}
@@ -1008,7 +1010,7 @@ PATH:
 				entry := toLoop.clusterExit
 				toIn = entry.getToZone1()
 
-				// Reached border of graph partition.
+				// Reached border of graph partition behind loop.
 				if toIn == nil {
 					break PATH
 				}

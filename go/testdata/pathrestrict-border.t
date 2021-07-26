@@ -690,7 +690,7 @@ Error: No valid path
 
 ############################################################
 =TITLE=Pathrestriction at exit of minimal loop (at zone)
-=INPUT=
+=VAR=input
 network:n1 = { ip = 10.1.1.16/28;}
 router:r1 = {
  model = ASA;
@@ -718,6 +718,8 @@ pathrestriction:p1 =
  interface:r1.t2,
  interface:r3.t3,
 ;
+=INPUT=
+${input}
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -729,6 +731,52 @@ Error: No valid path
  from any:[network:n1]
  to any:[network:n2]
  for rule permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s1
+ Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
+=TITLE=Pathrestriction at exit of minimal loop (at zone, reversed)
+=VAR=input
+network:n1 = { ip = 10.1.1.16/28;}
+router:r1 = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.17; hardware = n1; }
+ interface:t1 = { ip = 10.9.1.82; hardware = t1; }
+ interface:t2 = { ip = 10.9.2.82; hardware = t2; }
+}
+network:t1 = { ip = 10.9.1.80/28; }
+network:t2 = { ip = 10.9.2.80/28; }
+router:r2 = {
+ interface:t1;
+ interface:t2;
+ interface:t3;
+}
+network:t3 = { ip = 10.9.3.0/24; }
+router:r3 = {
+ interface:t3;
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+pathrestriction:p1 =
+ interface:r1.t1,
+ interface:r1.t2,
+ interface:r3.t3,
+;
+=INPUT=
+${input}
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n1; prt = tcp 80;
+}
+=END=
+# Pathrestriction must be effective even after optimizition.
+=ERROR=
+Error: No valid path
+ from any:[network:n2]
+ to any:[network:n1]
+ for rule permit src=network:n2; dst=network:n1; prt=tcp 80; of service:s1
  Check path restrictions and crypto interfaces.
 =END=
 

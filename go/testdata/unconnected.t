@@ -362,7 +362,7 @@ Error: No valid path
 =END=
 
 ############################################################
-=TITLE=Intentionally unconnected, with loops (1)
+=TITLE=Valid path, intentionally unconnected, with loops (1)
 =VAR=input
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = {
@@ -410,10 +410,6 @@ router:r5 = {
  interface:n7 = { ip = 10.1.7.2; hardware = n2; }
  interface:n8 = { ip = 10.1.8.1; hardware = n2; }
 }
-service:s = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
-}
 =END=
 =VAR=output
 -- r1
@@ -422,13 +418,40 @@ access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.25
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
-=INPUT=${input}
+=INPUT=
+${input}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
 =OUTPUT=
 ${output}
 =END=
 
 ############################################################
-=TITLE=Intentionally unconnected, with loops (2)
+=TITLE=Invalid path, intentionally unconnected, with loops (1)
+=INPUT=
+${input}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+ permit src = network:n3; dst = user; prt = tcp 81;
+}
+=ERROR=
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
+ Source and destination objects are located in different topology partitions: part1, part2.
+Error: No valid path
+ from any:[network:n3]
+ to any:[network:n1]
+ for rule permit src=network:n3; dst=network:n1; prt=tcp 81; of service:s
+ Source and destination objects are located in different topology partitions: part2, part1.
+=END=
+
+############################################################
+=TITLE=Valid path, intentionally unconnected, with loops (2)
 =INPUT=
 ${input}
 network:n0 = { ip = 10.1.0.0/24; }
@@ -437,6 +460,10 @@ router:r0 = {
  managed;
  interface:n0 = { ip = 10.1.0.1; hardware = n1; }
  interface:n3 = { ip = 10.1.3.3; hardware = n2; }
+}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
 ${output}
