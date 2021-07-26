@@ -116,6 +116,15 @@ func (a *intfList) delDupl() {
 	*a = (*a)[:j]
 }
 
+func calcNext(from pathObj) func(i *routerIntf) pathObj {
+	switch from.(type) {
+	case *router:
+		return func(i *routerIntf) pathObj { return i.zone }
+	default:
+		return func(i *routerIntf) pathObj { return i.router }
+	}
+}
+
 //#############################################################################
 // Purpose    : Recursively find path through a loop or loop cluster for a
 //              given pair (start, end) of loop nodes, collect path information.
@@ -180,14 +189,11 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 		}()
 	}
 
-	var getNext func(i *routerIntf) pathObj
 	var typeTuples *intfPairs
 	switch obj.(type) {
 	case *router:
-		getNext = func(i *routerIntf) pathObj { return i.zone }
 		typeTuples = &lPath.routerTuples
 	default:
-		getNext = func(i *routerIntf) pathObj { return i.router }
 		typeTuples = &lPath.zoneTuples
 	}
 	success := false
@@ -196,6 +202,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 	allowed := navi[obj.getLoop()]
 
 	// Proceed loop path exploration with every loop interface of current node.
+	getNext := calcNext(obj)
 	for _, intf := range obj.intfList() {
 		loop := intf.loop
 		if loop == nil {
@@ -209,7 +216,7 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 		}
 		next := getNext(intf)
 
-		//debug("Try %s -> %s", obj,0 next)
+		//debug("Try %s -> %s", obj, next)
 
 		// If a valid path is found from next node to end...
 		if clusterPathMark1(next, intf, end, lPath, navi) {
@@ -680,15 +687,8 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 		from.setActivePath()
 		defer func() { from.clearActivePath() }()
 
-		var getNext func(i *routerIntf) pathObj
-		switch from.(type) {
-		case *router:
-			getNext = func(i *routerIntf) pathObj { return i.zone }
-		default:
-			getNext = func(i *routerIntf) pathObj { return i.router }
-		}
-
 		// To find paths, process every loop interface of from node.
+		getNext := calcNext(from)
 		for _, intf := range from.intfList() {
 			loop := intf.loop
 			if loop == nil {
