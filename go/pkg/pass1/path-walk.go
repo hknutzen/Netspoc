@@ -1342,10 +1342,6 @@ func addPathrestictedIntfs(path pathStore, obj netOrRouter) []pathStore {
 func (c *spoc) pathRouterInterfaces(src *router, dst someObj) intfList {
 	srcPath := src.getPathNode()
 	dstPath := dst.getPathNode()
-	if srcPath == dstPath {
-		return nil
-	}
-
 	toList := []pathStore{dstPath}
 	return c.findAutoInterfaces(srcPath, dstPath, toList, src.name, dst.String(), src)
 }
