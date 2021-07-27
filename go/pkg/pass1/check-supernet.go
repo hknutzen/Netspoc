@@ -87,7 +87,7 @@ type checkInfo struct {
 //   - subnet of element of net_hash.
 // Result: List of found networks or aggregates or undef.
 func findZoneNetworks(
-	zone *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
+	z *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
@@ -102,7 +102,7 @@ func findZoneNetworks(
 			}
 		}
 	}
-	aggregate := zone.ipPrefix2aggregate[ipp]
+	aggregate := z.ipPrefix2aggregate[ipp]
 	if aggregate != nil && !aggregate.invisible {
 		if inNetHash(aggregate) {
 			return nil
@@ -111,7 +111,7 @@ func findZoneNetworks(
 	}
 
 	// Use cached result.
-	if net, found := zone.ipPrefix2net[ipp]; found {
+	if net, found := z.ipPrefix2net[ipp]; found {
 		return net
 	}
 
@@ -119,7 +119,7 @@ func findZoneNetworks(
 	var result netList
 
 	bits := ipp.Bits
-	for _, net := range zone.networks {
+	for _, net := range z.networks {
 		if inNetHash(net) {
 			continue
 		}
@@ -133,10 +133,10 @@ func findZoneNetworks(
 			result = append(result, net)
 		}
 	}
-	if zone.ipPrefix2net == nil {
-		zone.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
+	if z.ipPrefix2net == nil {
+		z.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
 	}
-	zone.ipPrefix2net[ipp] = result
+	z.ipPrefix2net[ipp] = result
 	return result
 }
 
@@ -150,15 +150,15 @@ func findZoneNetworks(
 // reversed: (optional) the check is for reversed rule at stateless device
 func (c *spoc) checkSupernetInZone1(
 	rule *groupedRule, where string, intf *routerIntf,
-	zone *zone, info checkInfo, reversed bool) {
+	z *zone, info checkInfo, reversed bool) {
 
-	if zone.noCheckSupernetRules {
+	if z.noCheckSupernetRules {
 		return
 	}
-	if info.seen[zone] {
+	if info.seen[z] {
 		return
 	}
-	info.seen[zone] = true
+	info.seen[z] = true
 
 	// This is only called if src or dst is some supernet.
 	var supernet *network
@@ -173,9 +173,9 @@ func (c *spoc) checkSupernetInZone1(
 		return
 	}
 	ipp := natSuper.ipp
-	netMap := info.zone2netMap[zone]
+	netMap := info.zone2netMap[z]
 	networks :=
-		findZoneNetworks(zone, supernet.isAggregate, ipp, natMap, netMap)
+		findZoneNetworks(z, supernet.isAggregate, ipp, natMap, netMap)
 
 	if len(networks) == 0 {
 		return
@@ -729,18 +729,18 @@ OBJ:
 
 // Get elements that were missing
 // from allContainedIn and elementsInOneZone.
-func getMissing(list1, list2 []someObj, zone *zone) []someObj {
-	inList2 := make(map[someObj]bool)
-	for _, obj := range list2 {
-		inList2[obj] = true
+func getMissing(l1, l2 []someObj, z *zone) []someObj {
+	inL2 := make(map[someObj]bool)
+	for _, obj := range l2 {
+		inL2[obj] = true
 	}
 	var missing []someObj
 OBJ:
-	for _, obj := range list1 {
-		if inList2[obj] {
+	for _, obj := range l1 {
+		if inL2[obj] {
 			continue
 		}
-		if zoneEq(zone, obj.getZone()) {
+		if zoneEq(z, obj.getZone()) {
 			continue
 		}
 		up := obj
@@ -749,7 +749,7 @@ OBJ:
 			if up == nil {
 				break
 			}
-			if inList2[up] {
+			if inL2[up] {
 				continue OBJ
 			}
 		}
@@ -775,22 +775,22 @@ func elementsInOneZone(list1, list2 []someObj) bool {
 // with only one interface occuring e.g. from split crypto routers.
 func (c *spoc) markLeafZones() map[*zone]bool {
 	leafZones := make(map[*zone]bool)
-	for _, zone := range c.allZones {
+	for _, z := range c.allZones {
 		count := 0
-		for _, intf := range zone.interfaces {
+		for _, intf := range z.interfaces {
 			if len(intf.router.interfaces) > 1 {
 				count++
 			}
 		}
 		if count <= 1 {
-			leafZones[zone] = true
+			leafZones[z] = true
 		}
 	}
 	return leafZones
 }
 
 // Check if paths from elements of srcList to dstList pass zone.
-func (c *spoc) pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
+func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 
 	// Collect all zones and routers, where elements are located.
 	collect := func(list []someObj) []pathStore {
@@ -798,7 +798,7 @@ func (c *spoc) pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 		var result []pathStore
 		for _, obj := range list {
 			path := obj.getPathNode()
-			if path == zone {
+			if path == z {
 				continue
 			}
 			if !seen[path] {
@@ -815,7 +815,7 @@ func (c *spoc) pathsReachZone(zone *zone, srcList, dstList []someObj) bool {
 	checkZone := func(rule *groupedRule, inIntf, outIntf *routerIntf) {
 
 		// Packets traverse zone.
-		if inIntf != nil && outIntf != nil && inIntf.zone == zone {
+		if inIntf != nil && outIntf != nil && inIntf.zone == z {
 			zoneReached = true
 		}
 	}
@@ -889,13 +889,13 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				}
 			}
 
-			zone := net.zone
-			if zone.noCheckSupernetRules {
+			z := net.zone
+			if z.noCheckSupernetRules {
 				continue
 			}
 
 			// A leaf security zone has only one exit.
-			if isLeafZone[zone] {
+			if isLeafZone[z] {
 
 				// Check, if a managed router with only one interface
 				// inside the zone is used as destination.
@@ -909,7 +909,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					if router.managed == "" {
 						continue
 					}
-					if intf.zone != zone {
+					if intf.zone != z {
 						continue
 					}
 					if len(router.interfaces) >= 2 {
@@ -917,7 +917,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					}
 
 					// Then this zone must still be checked.
-					delete(isLeafZone, zone)
+					delete(isLeafZone, z)
 					found = true
 				}
 
@@ -927,7 +927,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				}
 			}
 			if supernet2rules[net] == nil {
-				zone2supernets[zone] = append(zone2supernets[zone], net)
+				zone2supernets[z] = append(zone2supernets[z], net)
 			}
 			supernet2rules[net] = append(supernet2rules[net], rule)
 		}
@@ -949,17 +949,17 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			if !ok || !net1.hasOtherSubnet {
 				continue
 			}
-			zone := net1.zone
-			if isLeafZone[zone] {
+			z := net1.zone
+			if isLeafZone[z] {
 				continue
 			}
 
 			// Find other rules with supernet as src starting in same zone.
-			supernets := zone2supernets[zone]
+			supernets := zone2supernets[z]
 			if len(supernets) == 0 {
 				continue
 			}
-			natMap := zone.natDomain.natMap
+			natMap := z.natDomain.natMap
 			for _, obj2 := range supernets {
 
 				// Find those elements of src of rule1 with an IP
@@ -1011,7 +1011,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 						!elementsInOneZone(srcList1, dstList2) &&
 						!elementsInOneZone(srcList1, []someObj{obj2}) &&
 						!elementsInOneZone([]someObj{obj1}, dstList2) &&
-						c.pathsReachZone(zone, srcList1, dstList2) {
+						c.pathsReachZone(z, srcList1, dstList2) {
 						srv1 := rule1.rule.service.name
 						srv2 := rule2.rule.service.name
 						match1 := net1.name
@@ -1023,8 +1023,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 						msg := fmt.Sprintf("Missing transient supernet rules\n"+
 							" between src of %s and dst of %s,\n"+
 							" matching at %s.\n", srv1, srv2, match)
-						missingSrc := getMissing(srcList1, srcList2, zone)
-						missingDst := getMissing(dstList2, dstList1, zone)
+						missingSrc := getMissing(srcList1, srcList2, z)
+						missingDst := getMissing(dstList2, dstList1, z)
 						msg += " Add"
 						if missingSrc != nil {
 							msg += " missing src elements to " + srv2 + ":\n"
@@ -1093,9 +1093,9 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 
 // Mark zones connected by stateless or secondary packet filters or by
 // semiManaged devices.
-func markStateful(zone *zone, mark int) {
-	zone.statefulMark = mark
-	for _, inIntf := range zone.interfaces {
+func markStateful(z *zone, mark int) {
+	z.statefulMark = mark
+	for _, inIntf := range z.interfaces {
 		router := inIntf.router
 		managed := router.managed
 		if managed != "" && !router.model.stateless &&
@@ -1124,9 +1124,9 @@ func (c *spoc) checkSupernetRules(p ruleList) {
 	if conf.Conf.CheckSupernetRules != "" {
 		c.progress("Checking supernet rules")
 		statefulMark := 1
-		for _, zone := range c.allZones {
-			if zone.statefulMark == 0 {
-				markStateful(zone, statefulMark)
+		for _, z := range c.allZones {
+			if z.statefulMark == 0 {
+				markStateful(z, statefulMark)
 				statefulMark++
 			}
 		}
