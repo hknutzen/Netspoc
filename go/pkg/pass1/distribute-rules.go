@@ -372,6 +372,9 @@ func (c *spoc) distributeGeneralPermit() {
 					if out.loopback {
 						continue
 					}
+					if out.mainIntf != nil {
+						continue
+					}
 
 					// For IOS and NX-OS print this rule only
 					// once at interface filter rules below
@@ -381,14 +384,11 @@ func (c *spoc) distributeGeneralPermit() {
 
 						// For interface with outgoing ACLs
 						// we need to add the rule.
-						// distribute_rule would add rule to incoming,
+						// distributeRule would add rule to incoming,
 						// hence we add rule directly to outgoing rules.
 						if outHw.needOutAcl {
 							outHw.outRules.push(ru)
 						}
-						continue
-					}
-					if out.mainIntf != nil {
 						continue
 					}
 
