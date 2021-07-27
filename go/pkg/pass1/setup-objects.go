@@ -65,7 +65,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.initStdProtocols(sym)
 	symTable = sym
 	c.setupObjects(toplevel, sym)
-	c.splitSemiManagedRouter()
+	c.splitSemiManagedRouters()
 	c.stopOnErr()
 	c.linkTunnels(sym)
 	c.linkVirtualInterfaces()
@@ -3574,13 +3574,14 @@ func (c *spoc) addPathrestriction(name string, l intfList) {
 	pr.elements = l
 	c.pathrestrictions = append(c.pathrestrictions, pr)
 	for _, intf := range l {
-		//debug("%s at %s", name, intf)
-		// Multiple restrictions may be applied to a single interface.
-		intf.pathRestrict = append(intf.pathRestrict, pr)
 		// Unmanaged router with pathrestriction is handled specially.
 		// It is separating zones, but gets no code.
 		if intf.router.managed == "" {
 			intf.router.semiManaged = true
+			// Change to non nil value, so we can detect pathrestricted interfaces
+			// during splitSemiManagedRouters.
+			// Real value is added later.
+			intf.pathRestrict = []*pathRestriction{}
 		}
 	}
 }

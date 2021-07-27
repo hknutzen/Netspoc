@@ -14,7 +14,7 @@ import ()
 // - original part having only interfaces without pathrestriction or bind_nat,
 // - one split part for each interface with pathrestriction or bind_nat.
 // All parts are connected by a freshly created unnumbered network.
-func (c *spoc) splitSemiManagedRouter() {
+func (c *spoc) splitSemiManagedRouters() {
 	var splitRouters []*router
 	for _, r := range c.allRouters {
 
