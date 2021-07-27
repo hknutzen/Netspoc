@@ -426,7 +426,7 @@ Warning: Ignoring pathrestriction:p1 having elements from different loops:
 ############################################################
 =TITLE=Pathrestriction located in different loops (2)
 # Ignored pathrestriction must be fully disabled internally.
-# Otherwise we got an non terminating program.
+# Otherwise we got a non terminating program.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
