@@ -657,9 +657,8 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			up := subnet
 			for {
 				up2 := up.up
-				if up2 == nil {
-					break
-				}
+				// up2 can't become nil because subnet and bigent are
+				// known to be in .up relation in zone.
 				if !subnetInZone[netPair{up2, up}][domain] {
 					break
 				}
