@@ -3572,6 +3572,31 @@ crypto map crypto-outside interface outside
 =END=
 
 ############################################################
+=TITLE=Access VPN interface
+=INPUT=
+${topo}
+service:test = {
+ user = host:netspoc;
+ permit src = user; dst = interface:vpn1.lan1; prt = tcp 22;
+}
+=END=
+=OUTPUT=
+--vpn1
+ip access-list extended crypto-1.2.3.2
+ permit ip 10.10.10.0 0.0.0.255 any
+ip access-list extended crypto-filter-1.2.3.2
+ permit tcp host 10.1.1.111 host 10.10.10.1 eq 22
+ deny ip any any
+crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
+ set peer 1.2.3.2
+ match address crypto-1.2.3.2
+ set ip access-group crypto-filter-1.2.3.2 in
+ set transform-set Trans1
+ set pfs group2
+ set security-association lifetime kilobytes 100000
+=END=
+
+############################################################
 =TITLE=NAT of IPSec traffic at ASA and NAT of VPN network at IOS
 =INPUT=
 ${topo}

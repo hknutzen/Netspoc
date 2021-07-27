@@ -82,12 +82,41 @@ Error: Invalid reroute_permit for network:n2 at interface:r1.n1: different secur
 =END=
 
 ############################################################
-=TITLE=Permit directly connected network
+=TITLE=Directly and indirectly connected network
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r0 = {
+ interface:n0;
+ interface:n1 = { ip = 10.1.1.1; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.2;
+  hardware = n1;
+  reroute_permit = network:n1, network:n0;
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=END=
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit ip any4 10.1.0.0 255.255.254.0
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=With Linux
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
- model = ASA;
+ model = Linux;
  interface:n1 = {
   ip = 10.1.1.1;
   hardware = n1;
@@ -99,10 +128,12 @@ network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =OUTPUT=
 --r1
-! n1_in
-access-list n1_in extended permit ip any4 10.1.1.0 255.255.255.0
-access-list n1_in extended deny ip any4 any4
-access-group n1_in in interface n1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n1 -
+-A n1_n1 -j ACCEPT -d 10.1.1.0/24
+-A FORWARD -j n1_n1 -i n1 -o n1
 =END=
 
 ############################################################
