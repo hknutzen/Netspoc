@@ -218,9 +218,9 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 				if natInfo == nil {
 					break UP
 				}
-				if !natInfo.hidden {
-					break UP
-				}
+				// natInfo is known to be of type hidden, because all
+				// definitions of a single NAT tag have been checked to be
+				// of same type.
 			}
 			if !up.isAggregate {
 				maxRouting = up
