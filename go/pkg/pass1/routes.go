@@ -224,7 +224,6 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 				}
 			}
 		}
-		hop2netMap[hop] = nMap
 		//	debug("Hop: hop->{name} ", join ',', map {$_->{name}} result);
 	}
 
