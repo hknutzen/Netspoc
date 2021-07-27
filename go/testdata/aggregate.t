@@ -220,6 +220,26 @@ Warning: network:n1 is subnet of network:n2
 =END=
 
 ############################################################
+=TITLE=Find subnet relation with duplicate networks and intermediate aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
+network:n3 = { ip = 10.1.0.0/16; nat:h3 = { hidden; } }
+any:n1-20 = { ip = 10.1.0.0/20; link = network:n1; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; bind_nat = h3; }
+ interface:n3 = { ip = 10.1.0.1; hardware = n3; bind_nat = h2; }
+}
+=WARNING=
+Warning: network:n1 is subnet of network:n3
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Check aggregate at unnumbered interface
 =INPUT=
 network:Test = { ip = 10.9.1.0/24; }
