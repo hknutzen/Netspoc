@@ -504,12 +504,8 @@ func restrictSpansDifferentZonesOrZoneclusters(p *pathRestriction) bool {
 
 // Pathrestrictions in loops with > 1 zone cluster affect ACLs.
 func restrictIsInLoopWithSeveralZoneClusters(r *pathRestriction) bool {
-
 	refIntf := r.elements[0]
 	refLoop := getIntfLoop(refIntf)
-	if refLoop == nil { // ToDo: why do we check this?
-		return false
-	}
 
 	// Process every zone in zone cluster...
 	for _, z := range refIntf.zone.cluster {
