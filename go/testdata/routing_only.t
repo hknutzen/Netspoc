@@ -117,7 +117,7 @@ router:u2 = {
 router:r = {
  managed = routing_only;
  model = ASA;
- interface:t1 = { ip = 10.9.1.2; hardware = t1; }
+ interface:t1 = { ip = 10.9.1.2, 10.9.1.3; hardware = t1; }
  interface:t2 = { ip = 10.9.2.2; hardware = t2; }
  interface:t3 = { ip = 10.9.3.2; hardware = t3; }
 }

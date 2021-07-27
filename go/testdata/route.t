@@ -258,6 +258,55 @@ route n2 10.1.4.0 255.255.255.0 10.1.2.4
 =END=
 
 ############################################################
+=TITLE=Handle recursion for routes in zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.3; virtual = { ip = 10.1.2.1; } }
+ interface:n3;
+}
+router:r3 = {
+ interface:n2 = { ip = 10.1.2.4; virtual = { ip = 10.1.2.1; } }
+ interface:n4;
+}
+router:r4 = {
+ interface:n3;
+ interface:n5 = { ip = 10.1.5.3; virtual = { ip = 10.1.5.1; } }
+}
+router:r5 = {
+ interface:n4;
+ interface:n5 = { ip = 10.1.5.4; virtual = { ip = 10.1.5.1; } }
+}
+router:r6 = {
+ managed;
+ model = ASA;
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
+service:s1 = {
+ user = network:n3, network:n4, network:n5;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.3.0 255.255.255.0 10.1.2.1
+route n2 10.1.4.0 255.255.254.0 10.1.2.1
+=OPTIONS=--auto_default_route=0
+
+############################################################
 =TITLE=Intermediate network hides subnet
 =VAR=input
 network:n1 = { ip = 10.1.1.0/28; subnet_of = network:n2; }
