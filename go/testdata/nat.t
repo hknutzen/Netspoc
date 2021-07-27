@@ -3739,7 +3739,7 @@ Warning: network:n2-sub2 is subnet of network:n2
 
 ############################################################
 =TITLE=Direct subnet relation changed by NAT
-# network:n2 is direct subnet of any:a in NAT domain of network:n2,
+# network:n is direct subnet of any:a in NAT domain of network:n2,
 # but is only indirect subnet at its own NAT domain.
 # But this ok and not an error.
 =INPUT=
