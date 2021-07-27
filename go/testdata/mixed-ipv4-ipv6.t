@@ -368,7 +368,7 @@ access-group n1_in in interface n1
 =OPTIONS=--verbose --concurrency_pass1=2
 
 ############################################################
-=TITLE=No partition names for unconnected IPv6 and IPv4 partitions 1
+=TITLE=No partition names for unconnected IPv6 and IPv4 partitions (1)
 =VAR=input
 -- ipv4/topo/net
 network:n1 = { ip = 10.1.1.0/24; }
@@ -400,7 +400,7 @@ Warning: Spare partition name for single partition any:[network:n3]: part1.
 =END=
 
 ############################################################
-=TITLE=No partition names for unconnected IPv6 and IPv4 partitions 2
+=TITLE=No partition names for unconnected IPv6 and IPv4 partitions (2)
 =INPUT=${input}
 =SUBST=/partition = part1;//
 =OUTPUT=
@@ -412,6 +412,46 @@ access-group n1_in in interface n1
 ! n1_in
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=Unconnected IPv6 and IPv4 partitions
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- ipv6
+network:n3 = { ip = 1000::abcd:0003:0/112; }
+network:n4 = { ip = 1000::abcd:0004:0/112; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n3 = {ip = 1000::abcd:0003:0001; hardware = n1;}
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
+}
+=ERROR=
+Error: IPv6 topology has unconnected parts:
+ - any:[network:n3]
+ - any:[network:n4]
+ Use partition attribute, if intended.
+Error: IPv4 topology has unconnected parts:
+ - any:[network:n1]
+ - any:[network:n2]
+ Use partition attribute, if intended.
 =END=
 
 ############################################################
