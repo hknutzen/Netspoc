@@ -3551,11 +3551,6 @@ network:lan1 = {
 =TITLE=Create crypto ACL even if no rule is defined
 =INPUT=
 ${topo}
-service:test = {
- user = network:lan1;
- permit src = user; dst = host:netspoc; prt = tcp 80;
- permit src = host:netspoc; dst = user; prt = udp 123;
-}
 =END=
 =OUTPUT=
 --asavpn
