@@ -353,9 +353,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			return
 		}
 		n.hasOtherSubnet = true
-		if list, ok := pendingOtherSubnet[n]; ok {
+		if l, ok := pendingOtherSubnet[n]; ok {
 			delete(pendingOtherSubnet, n)
-			for _, e := range list {
+			for _, e := range l {
 				markNetworkAndPending(e)
 			}
 		}
@@ -380,9 +380,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		// Mark and analyze networks having identical IP/mask in
 		// current NAT domain.
 		hasIdentical := make(map[*network]bool)
-		for one, list := range identical {
+		for n1, l := range identical {
 			var filtered netList
-			for _, n := range list {
+			for _, n := range l {
 				if visible[n] {
 					filtered.push(n)
 				}
@@ -395,11 +395,11 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 
 			// If list has been fully analyzed once, don't check it again.
-			if identSeen[one] {
+			if identSeen[n1] {
 				continue
 			}
-			if len(filtered) == len(list) {
-				identSeen[one] = true
+			if len(filtered) == len(l) {
+				identSeen[n1] = true
 			}
 
 			// Compare pairs of networks with identical IP/mask.
@@ -463,11 +463,10 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 			// If invisible, search other networks with identical IP.
 			if !visible[natSubnet] {
-				identList := identical[natSubnet]
 				foundOther := false
-				for _, identNet := range identList {
-					if visible[identNet] {
-						natSubnet = identNet
+				for _, n := range identical[natSubnet] {
+					if visible[n] {
+						natSubnet = n
 						foundOther = true
 						break
 					}
@@ -480,10 +479,9 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// If invisible, search other networks with identical or larger IP.
 		BIGNET:
 			for !visible[natBignet] {
-				identList := identical[natBignet]
-				for _, identNet := range identList {
-					if visible[identNet] {
-						natBignet = identNet
+				for _, n := range identical[natBignet] {
+					if visible[n] {
+						natBignet = n
 						break BIGNET
 					}
 				}
@@ -495,37 +493,34 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			subnet := origNet[natSubnet]
 
 			// Collect subnet/supernet pairs in same zone for later check.
-			{
-				var idSubnets netList
-				if identList := identical[natSubnet]; identList != nil {
-					for _, identNet := range identList {
-						if visible[identNet] {
-							idSubnets.push(origNet[identNet])
+			collect := func(subnet *network) {
+				z := subnet.zone
+				natBignet := natBignet
+				for {
+					bignet := origNet[natBignet]
+					if visible[natBignet] && bignet.zone == z {
+						domMap := subnetInZone[netPair{bignet, subnet}]
+						if domMap == nil {
+							domMap = make(map[*natDomain]bool)
+							subnetInZone[netPair{bignet, subnet}] = domMap
 						}
+						domMap[domain] = true
+						break
 					}
-				} else {
-					idSubnets = netList{subnet}
-				}
-				for _, subnet := range idSubnets {
-					zone := subnet.zone
-					natBignet := natBignet
-					for {
-						bignet := origNet[natBignet]
-						if visible[natBignet] && bignet.zone == zone {
-							domMap := subnetInZone[netPair{bignet, subnet}]
-							if domMap == nil {
-								domMap = make(map[*natDomain]bool)
-								subnetInZone[netPair{bignet, subnet}] = domMap
-							}
-							domMap[domain] = true
-							break
-						}
-						natBignet = isIn[natBignet]
-						if natBignet == nil {
-							break
-						}
+					natBignet = isIn[natBignet]
+					if natBignet == nil {
+						break
 					}
 				}
+			}
+			if l := identical[natSubnet]; l != nil {
+				for _, n := range l {
+					if visible[n] {
+						collect(origNet[n])
+					}
+				}
+			} else {
+				collect(subnet)
 			}
 
 			//debug("%s <= %s", natName(natSubnet), natName(natBignet))
@@ -572,8 +567,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			// unexpected subnet relation.
 		REALNET:
 			for natBignet.isAggregate || !visible[natBignet] {
-				identList := identical[natBignet]
-				for _, identNet := range identList {
+				for _, identNet := range identical[natBignet] {
 					if visible[identNet] && !identNet.isAggregate {
 						natBignet = identNet
 						break REALNET
