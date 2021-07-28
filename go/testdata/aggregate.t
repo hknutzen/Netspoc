@@ -954,7 +954,7 @@ router:r2 = {
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = VLAN77; }
  interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
- interface:n2 = { ip = 10.1.2.1; hardware = VLAN2; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.2; hardware = VLAN2; }
  interface:n3 = { ip = 10.1.3.1; hardware = VLAN3; }
  interface:n4 = { ip = 10.1.4.1; hardware = VLAN4; }
  interface:n128 = { ip = 10.128.1.1; hardware = VLAN128; }
@@ -1112,6 +1112,7 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
@@ -1144,6 +1145,7 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
@@ -1153,6 +1155,7 @@ ip access-list extended VLAN1_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  deny ip any host 10.128.1.1
@@ -1638,7 +1641,7 @@ router:r2 = {
  model = IOS; #2
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = trans; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n3 = { ip = 10.1.3.1, 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1702,6 +1705,35 @@ Warning: This reversed supernet rule would permit unexpected access:
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 =END=
+
+############################################################
+=TITLE=Must not check source zone in reverse rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+pathrestriction:p =
+ interface:u.n2,
+ interface:r1.n2,
+;
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Managed router will not exploit reverse rule
@@ -1800,6 +1832,48 @@ Warning: This supernet rule would permit unexpected access:
  Either replace any:[network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 =END=
+
+############################################################
+=TITLE=Supernet rule to dst behind no_in_acl
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; no_in_acl; }
+}
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Rule from supernet at no_in_acl
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Missing aggregate for reverse rule in loop
