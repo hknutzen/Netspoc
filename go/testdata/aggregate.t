@@ -1655,13 +1655,13 @@ service:test = {
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r1.n2 would permit access from additional networks:
+ Generated ACL at interface:r1.trans would permit access to additional networks:
  - network:n2
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r2.n3 would permit access from additional networks:
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
  - network:n3
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
@@ -1697,7 +1697,7 @@ ip access-list extended trans_in
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r2.n3 would permit access from additional networks:
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
  - network:n3
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
@@ -1842,7 +1842,7 @@ service:test = {
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
- Generated ACL at interface:r.n2 would permit access from additional networks:
+ Generated ACL at interface:r.t1 would permit access to additional networks:
  - network:n2
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.

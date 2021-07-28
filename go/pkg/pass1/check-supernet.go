@@ -205,7 +205,7 @@ func (c *spoc) checkSupernetInZone1(
 		rev = "reversed "
 	}
 	fromTo := "from"
-	if where != "src" {
+	if (where != "src") != reversed {
 		fromTo = "to"
 	}
 	objects := make([]someObj, len(networks))
@@ -411,7 +411,7 @@ func (c *spoc) checkSupernetSrcRule(
 					if intf.mainIntf != nil {
 						continue
 					}
-					c.checkSupernetInZone(rule, "src", intf, zone, info, true)
+					c.checkSupernetInZone(rule, "src", outIntf, zone, info, true)
 				}
 			}
 		}
