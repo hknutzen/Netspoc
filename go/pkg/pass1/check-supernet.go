@@ -142,12 +142,12 @@ func findZoneNetworks(
 
 // rule: the rule to be checked
 // where: has value 'src' or 'dst'
-// interface: interface, where traffic reaches the device,
-//             this is used to determine nat_set
-// zone: The zone to be checked.
-//        If where is 'src', then zone is attached to interface
-//        If where is 'dst', then zone is at other side of device.
-// reversed: (optional) the check is for reversed rule at stateless device
+// intf: interface, where traffic reaches the device,
+//       this is used to determine natMap
+// z: The zone to be checked.
+//    If where is 'src', then zone is attached to interface
+//    If where is 'dst', then zone is at other side of device.
+// reversed: the check is for reversed rule at stateless device
 func (c *spoc) checkSupernetInZone1(
 	rule *groupedRule, where string, intf *routerIntf,
 	z *zone, info checkInfo, reversed bool) {
