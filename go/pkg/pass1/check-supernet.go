@@ -83,15 +83,15 @@ type checkInfo struct {
 // - invible aggregates, only used intermediately in automatic groups,
 // - small networks which are subnet of a matching network,
 // - objects that are
-//   - element of net_hash or
-//   - subnet of element of net_hash.
-// Result: List of found networks or aggregates or undef.
+//   - element of netMap or
+//   - subnet of element of netMap.
+// Result: List of found networks or aggregates.
 func findZoneNetworks(
 	z *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
-	inNetHash := func(netOrAgg *network) bool {
+	inNetMap := func(netOrAgg *network) bool {
 		for {
 			if _, found := netMap[netOrAgg]; found {
 				return true
@@ -104,7 +104,7 @@ func findZoneNetworks(
 	}
 	aggregate := z.ipPrefix2aggregate[ipp]
 	if aggregate != nil && !aggregate.invisible {
-		if inNetHash(aggregate) {
+		if inNetMap(aggregate) {
 			return nil
 		}
 		return netList{aggregate}
@@ -120,7 +120,7 @@ func findZoneNetworks(
 
 	bits := ipp.Bits
 	for _, net := range z.networks {
-		if inNetHash(net) {
+		if inNetMap(net) {
 			continue
 		}
 		natNet := getNatNetwork(net, natMap)
@@ -564,7 +564,7 @@ func (c *spoc) checkMissingSupernetRules(
 			continue
 		}
 
-		// Build mapping from zone to hash of all src/dst networks and
+		// Build mapping from zone to map of all src/dst networks and
 		// aggregates of current rule.
 		zone2netMap := make(map[*zone]map[*network]bool)
 		for _, obj := range list {
