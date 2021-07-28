@@ -243,24 +243,19 @@ func (c *spoc) checkSupernetInZone(
 
 // Check if path between supernet and objList is filtered by
 // device with mark from router.localMark.
-func isFilteredAt(mark int, supernet *network, objList []someObj) bool {
-	supernetFilterAt := supernet.filterAt
-	if supernetFilterAt == nil {
-		return false
+func isFilteredAt(r *router, supernet *network, objList []someObj) bool {
+	mark := r.localMark
+	if mark == 0 {
+		return true
 	}
-	if !supernetFilterAt[mark] {
+	if !supernet.filterAt[mark] {
 		return false
 	}
 	for _, obj := range objList {
 		objNet := obj.getNetwork()
-		objFilterAt := objNet.filterAt
-		if objFilterAt == nil {
-			continue
+		if objNet.filterAt[mark] {
+			return true
 		}
-		if !objFilterAt[mark] {
-			continue
-		}
-		return true
 	}
 	return false
 }
@@ -322,10 +317,8 @@ func (c *spoc) checkSupernetSrcRule(
 
 	// Non matching rule will be ignored at 'managed=local' router and
 	// hence must no be checked.
-	if mark := r.localMark; mark != 0 {
-		if !isFilteredAt(mark, src, rule.dst) {
-			return
-		}
+	if !isFilteredAt(r, src, rule.dst) {
+		return
 	}
 
 	dstZone := rule.dstPath.getZone()
@@ -468,10 +461,8 @@ func (c *spoc) checkSupernetDstRule(
 
 	// Non matching rule will be ignored at 'managed=local' router and
 	// hence must not be checked.
-	if mark := r.localMark; mark != 0 {
-		if !isFilteredAt(mark, dst, rule.src) {
-			return
-		}
+	if !isFilteredAt(r, dst, rule.src) {
+		return
 	}
 
 	srcZone := rule.srcPath.getZone()
