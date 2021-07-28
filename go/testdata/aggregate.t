@@ -274,6 +274,69 @@ Warning: This supernet rule would permit unexpected access:
 =END=
 
 ############################################################
+=TITLE=Ignore hidden network in supernet check (1)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; nat:h = { hidden; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
+=TITLE=Ignore hidden network in supernet check (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; nat:h = { hidden; } }
+network:n4 = { ip = 10.1.3.128/25; subnet_of = network:n3; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.3.129; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: network:n3 is hidden by nat:h in rule
+ permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
+=END=
+
+############################################################
 =TITLE=Permit matching aggregate at non matching interface
 =VAR=input
 network:Test = { ip = 10.9.1.0/24; }
@@ -1709,7 +1772,7 @@ router:r3 = {
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; no_in_acl; }
+ interface:n4 = { ip = 10.1.4.1, 10.1.4.2; hardware = n4; no_in_acl; }
 }
 router:u = {
  interface:n2 = { ip = 10.1.2.3; }
