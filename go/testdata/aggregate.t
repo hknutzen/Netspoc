@@ -1989,6 +1989,149 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
+=TITLE=Missing transient rule with source port
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+protocol:ntp = udp 123:123;
+protocol:ntp2 = udp 124:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = protocol:ntp;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = udp 123-124;
+}
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - host:h3
+=END=
+
+############################################################
+=TITLE=No missing transient rule with non matching source port
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+protocol:ntp = udp 123:123;
+protocol:ntp2 = udp 124:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = protocol:ntp;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = protocol:ntp2;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Don't show missing transient rule for s2.dst in zone of s1.src
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1a = { ip = 10.1.1.10; }
+ host:h1b = { ip = 10.1.1.11; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3a = { ip = 10.1.3.10; }
+ host:h3b = { ip = 10.1.3.11; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h1b, host:h3b; prt = tcp 80;
+}
+service:s3 = {
+ user = host:h1a, host:h3a;
+ permit src = user; dst = any:[network:n2]; prt = tcp 81;
+}
+service:s4 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = tcp 81;
+}
+service:s5 = {
+ user = host:h1a, host:h3a;
+ permit src = user; dst = any:[network:n2]; prt = tcp 82;
+}
+service:s6 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h1b, host:h3b; prt = tcp 82;
+}
+=END=
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - host:h3b
+Warning: Missing transient supernet rules
+ between src of service:s3 and dst of service:s4,
+ matching at any:[network:n2].
+ Add missing src elements to service:s4:
+ - host:h1a
+ or add missing dst elements to service:s3:
+ - network:n3
+Warning: Missing transient supernet rules
+ between src of service:s5 and dst of service:s6,
+ matching at any:[network:n2].
+ Add missing src elements to service:s6:
+ - host:h1a
+ - host:h3a
+ or add missing dst elements to service:s5:
+ - host:h1b
+ - host:h3b
+=END=
+
+############################################################
 =TITLE=Missing transient rule with any + NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2024,6 +2167,37 @@ Warning: Missing transient supernet rules
  or add missing dst elements to service:s1:
  - network:n3
 =END=
+
+############################################################
+=TITLE=No missing transient rule, s1.dst has subnets, but s2.dst doesn't match
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip=10.1.2.0/23 & network:n2]; prt = udp 123;
+}
+service:s2 = {
+ user = any:[ip=10.0.0.0/8 & network:n2];
+ permit src = user; dst = network:n4; prt = ip;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Missing transient rule with managed interface
@@ -2185,9 +2359,7 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
-=TITLE=Transient rule together with "foreach"
-# Transient rule is not found, because rule with "foreach" is split
-# into multiple rules internally.
+=TITLE=No transient rule together with "foreach"
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2204,34 +2376,19 @@ router:r2 = {
  interface:tr = { ip = 10.9.1.2; hardware = tr; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
-area:a1 = { anchor = network:tr;}
+area:all = { anchor = network:tr;}
 protocol:oneway_IP = ip, oneway;
 # Allow unfiltered communication,
 # but check src IP of each incoming network:n_i.
 service:s1 = {
  user = foreach
         any:[network:tr],
-	network:[area:a1] & ! network:tr;
+	network:[area:all] & ! network:tr;
  permit src = user;
-	dst = any:[area:a1] &! any:[user];
+	dst = any:[area:all] &! any:[user];
 	prt = protocol:oneway_IP;
 }
 =END=
-=WARNING=
-Warning: Missing transient supernet rules
- between src of service:s1 and dst of service:s1,
- matching at any:[network:tr].
- Add missing src elements to service:s1:
- - network:n1
- or add missing dst elements to service:s1:
- - any:[network:n1]
-Warning: Missing transient supernet rules
- between src of service:s1 and dst of service:s1,
- matching at any:[network:tr].
- Add missing src elements to service:s1:
- - network:n2
- or add missing dst elements to service:s1:
- - any:[network:n2]
 =OUTPUT=
 -- r1
 ! n1_in

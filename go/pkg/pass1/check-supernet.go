@@ -701,46 +701,17 @@ func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
 	return matching
 }
 
-// Check that all elements of first list are contained in or equal to
-// some element of second list.
-func allContainedIn(list1, list2 []someObj) bool {
-	inList2 := make(map[someObj]bool)
-	for _, obj := range list2 {
-		inList2[obj] = true
-	}
-OBJ:
-	for _, obj := range list1 {
-		if inList2[obj] {
-			continue
-		}
-		up := obj
-		for {
-			up = up.getUp()
-			if up == nil {
-				return false
-			}
-			if inList2[up] {
-				continue OBJ
-			}
-		}
-	}
-	return true
-}
-
-// Get elements that were missing
-// from allContainedIn and elementsInOneZone.
-func getMissing(l1, l2 []someObj, z *zone) []someObj {
+// Find elements of first list that are not contained in or not equal
+// to some element of second list.
+func notContainedIn(l1, l2 []someObj) []someObj {
 	inL2 := make(map[someObj]bool)
 	for _, obj := range l2 {
 		inL2[obj] = true
 	}
-	var missing []someObj
+	var result []someObj
 OBJ:
 	for _, obj := range l1 {
 		if inL2[obj] {
-			continue
-		}
-		if zoneEq(z, obj.getZone()) {
 			continue
 		}
 		up := obj
@@ -753,22 +724,36 @@ OBJ:
 				continue OBJ
 			}
 		}
-		missing = append(missing, obj)
+		result = append(result, obj)
 	}
-	return missing
+	return result
 }
 
-func elementsInOneZone(list1, list2 []someObj) bool {
-	zone0 := list1[0].getZone()
-	check := func(list []someObj) bool {
-		for _, obj := range list {
-			if !zoneEq(zone0, obj.getZone()) {
-				return false
-			}
+func notInZone(l []someObj, z *zone) []someObj {
+	var result []someObj
+	for _, obj := range l {
+		if !zoneEq(z, obj.getZone()) {
+			result = append(result, obj)
 		}
-		return true
 	}
-	return check(list1[1:]) && check(list2)
+	return result
+}
+
+func inOneZone(l []someObj) *zone {
+	var result *zone
+	for _, obj := range l {
+		path := obj.getZone()
+		z, ok := path.(*zone)
+		if !ok {
+			return nil
+		}
+		if result == nil {
+			result = z
+		} else if result != z {
+			return nil
+		}
+	}
+	return result
 }
 
 // Mark zones, that are connected by only one router.  Ignore routers
@@ -798,9 +783,6 @@ func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 		var result []pathStore
 		for _, obj := range list {
 			path := obj.getPathNode()
-			if path == z {
-				continue
-			}
 			if !seen[path] {
 				seen[path] = true
 				result = append(result, path)
@@ -823,15 +805,13 @@ func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 	for _, from := range fromList {
 		for _, to := range toList {
 
-			// Check if path from from to to is available.
+			// Check if path is available.
 			if _, found := from.getPath1()[to]; !found {
 				if !pathMark(from, to) {
-					delete(from.getPath1(), to)
-
-					// No path found, check next pair.
 					continue
 				}
 			}
+
 			pseudoRule := &groupedRule{
 				srcPath: from,
 				dstPath: to,
@@ -1006,12 +986,19 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					// - but no problem if src1 and dst2 are located
 					//   in same zone, i.e. transient traffic back to src,
 					// - also need to ignore unenforceable rule1 and rule2.
-					if !(allContainedIn(srcList1, srcList2) ||
-						allContainedIn(dstList2, dstList1)) &&
-						!elementsInOneZone(srcList1, dstList2) &&
-						!elementsInOneZone(srcList1, []someObj{obj2}) &&
-						!elementsInOneZone([]someObj{obj1}, dstList2) &&
+					srcList1 = notContainedIn(srcList1, srcList2)
+					dstList2 = notContainedIn(dstList2, dstList1)
+					if z2 := inOneZone(dstList2); z2 != nil {
+						srcList1 = notInZone(srcList1, z2)
+					}
+					if z1 := inOneZone(srcList1); z1 != nil {
+						dstList2 = notInZone(dstList2, z1)
+					}
+					srcList1 = notInZone(srcList1, z)
+					dstList2 = notInZone(dstList2, z)
+					if srcList1 != nil && dstList2 != nil &&
 						c.pathsReachZone(z, srcList1, dstList2) {
+
 						srv1 := rule1.rule.service.name
 						srv2 := rule2.rule.service.name
 						match1 := net1.name
@@ -1023,27 +1010,19 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 						msg := fmt.Sprintf("Missing transient supernet rules\n"+
 							" between src of %s and dst of %s,\n"+
 							" matching at %s.\n", srv1, srv2, match)
-						missingSrc := getMissing(srcList1, srcList2, z)
-						missingDst := getMissing(dstList2, dstList1, z)
 						msg += " Add"
-						if missingSrc != nil {
-							msg += " missing src elements to " + srv2 + ":\n"
-							msg += shortNameList(missingSrc)
-						}
-						if missingDst != nil {
-							if missingSrc != nil {
-								msg += "\n or add"
-							}
-							msg += " missing dst elements to " + srv1 + ":\n"
-							msg += shortNameList(missingDst)
-						}
+						msg += " missing src elements to " + srv2 + ":\n"
+						msg += shortNameList(srcList1)
+						msg += "\n or add"
+						msg += " missing dst elements to " + srv1 + ":\n"
+						msg += shortNameList(dstList2)
 						c.warnOrErr(printType, msg)
 					}
 				}
 			}
 		}
 	}
-	//    diag.Progress("Transient check is ready");
+	// c.progress("Transient check is ready");
 }
 
 // Handling of supernet rules created by genReverseRules.
