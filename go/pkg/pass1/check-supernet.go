@@ -333,7 +333,6 @@ func (c *spoc) checkSupernetSrcRule(
 			// a) dst behind Y
 		} else if zoneEq(inZone, noAclZone) {
 			// b), 1. zone X == zone Y
-		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// b), 2. zone X != zone Y
 			c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, info, false)
@@ -384,7 +383,6 @@ func (c *spoc) checkSupernetSrcRule(
 				} else if zoneEq(noAclZone, srcZone) {
 					// b) dst not behind Y
 					// zone X == zone Y
-				} else if noAclIntf.mainIntf != nil {
 				} else {
 					// zone X != zone Y
 					c.checkSupernetInZone(rule, "src", noAclIntf, noAclZone, info, true)
@@ -477,7 +475,6 @@ func (c *spoc) checkSupernetDstRule(
 		} else if zoneEq(noAclZone, dstZone) {
 			// b) src not behind Y
 			// zone X == zone Y
-		} else if noAclIntf.mainIntf != nil {
 		} else {
 			// zone X != zone Y
 			c.checkSupernetInZone(rule, "dst", inIntf, noAclZone, info, false)
