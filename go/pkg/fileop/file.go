@@ -20,6 +20,7 @@ func Readdirnames(path string) []string {
 	if e != nil {
 		panic(e)
 	}
+	defer fh.Close()
 	list, e := fh.Readdirnames(0)
 	if e != nil {
 		panic(e)
@@ -29,12 +30,12 @@ func Readdirnames(path string) []string {
 
 func Overwrite(path string, data []byte) error {
 	os.Remove(path) // Ignore error
-	file, err := os.Create(path)
+	fd, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("Can't %v", err)
 	}
-	defer file.Close()
-	_, err = file.Write(data)
+	defer fd.Close()
+	_, err = fd.Write(data)
 	if err != nil {
 		return fmt.Errorf("Can't %v", err)
 	}

@@ -295,6 +295,7 @@ func readJSON(path string) *routerData {
 	if err != nil {
 		panic(err)
 	}
+	defer fd.Close()
 	dec := json.NewDecoder(fd)
 	if err := dec.Decode(&jData); err != nil {
 		panic(err)
@@ -419,6 +420,7 @@ func readFileLines(filename, prev string) []string {
 	if err != nil {
 		panic(err)
 	}
+	defer fd.Close()
 	result := make([]string, 0)
 	scanner := bufio.NewScanner(fd)
 	for scanner.Scan() {
