@@ -4093,7 +4093,7 @@ service:s1 = {
  user = network:n0, network:n1;
  permit src = user;
         dst = network:n2-sub;
-        prt = proto 51, tcp 22, proto 50;
+        prt = tcp 22, proto 50;
 }
 service:s2 = {
  user = network:n0-sub;
@@ -4103,6 +4103,12 @@ service:s2 = {
  deny   src = user;
         dst = network:n2-sub;
         prt = ip;
+}
+service:s3 = {
+ user = network:n0, network:n1;
+ permit src = user;
+        dst = network:n2-sub;
+        prt = proto 51;
 }
 =END=
 =OUTPUT=
