@@ -70,7 +70,7 @@ router:r0 = {
 }
 router:r1 = {
  managed;
- model = ASA;
+ model = IOS;
  interface:n1 = {
   ip = 10.1.1.2;
   hardware = n1;
@@ -81,10 +81,10 @@ router:r1 = {
 =END=
 =OUTPUT=
 --r1
-! n1_in
-access-list n1_in extended permit ip any4 10.1.0.0 255.255.254.0
-access-list n1_in extended deny ip any4 any4
-access-group n1_in in interface n1
+ip access-list extended n1_in
+ deny ip any host 10.1.1.2
+ permit ip any 10.1.0.0 0.0.1.255
+ deny ip any any
 =END=
 
 ############################################################
