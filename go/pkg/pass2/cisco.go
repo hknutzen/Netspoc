@@ -911,13 +911,6 @@ func ciscoPrtCode(
 			return fmt.Sprint("range ", v1, v2)
 		}
 		dstPrt := portCode(prt)
-		if prt.established {
-			if dstPrt != "" {
-				dstPrt += " established"
-			} else {
-				dstPrt = "established"
-			}
-		}
 		var srcPrt string
 		if srcRange != nil {
 			srcPrt = portCode(srcRange)
@@ -1003,7 +996,9 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 			if dstPortCode != "" {
 				result += " " + dstPortCode
 			}
-
+			if rule.prt.established {
+				result += " established"
+			}
 			if rule.log != "" {
 				result += " " + rule.log
 			} else if rule.deny && routerData.logDeny != "" {
