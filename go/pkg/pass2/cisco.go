@@ -860,12 +860,6 @@ func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
 		numbered := 10
 		fmt.Fprintln(fd, keyword, group.name)
 		for _, element := range group.elements {
-
-			// Reject network with mask = 0 in group.
-			// This occurs if optimization didn't work correctly.
-			if element.Bits == 0 {
-				panic("Unexpected network with mask 0 in object-group")
-			}
 			adr := ciscoACLAddr(element, model)
 			if model == "NX-OS" {
 				fmt.Fprintln(fd, "", numbered, adr)
