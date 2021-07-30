@@ -376,7 +376,9 @@ func moveRulesEspAh(
 	return rules
 }
 
-func createGroup(elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *objGroup {
+func createGroup(
+	elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *objGroup {
+
 	name := "g" + strconv.Itoa(routerData.objGroupCounter)
 	if routerData.ipv6 {
 		name = "v6" + name
@@ -597,7 +599,6 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 			// Get list of objects from list of rules.
 			// Also find smallest object for lookup below.
 			elements := make([]*ipNet, len(list))
-			var smallest *ipNet
 			for i, rule := range list {
 				var el *ipNet
 				if thisIsDst {
@@ -605,13 +606,12 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				} else {
 					el = rule.src
 				}
-				if smallest == nil {
-					smallest = el
-				} else if el.IP.Less(smallest.IP) {
-					smallest = el
-				}
 				elements[i] = el
 			}
+
+			// Rules have been sorted by src/dst IP already.
+			// So take smallest object for lookup below from first rule.
+			smallest := elements[0]
 			size := len(elements)
 
 			// Use size and smallest element as keys for efficient lookup.
