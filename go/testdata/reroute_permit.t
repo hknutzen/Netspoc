@@ -1,28 +1,5 @@
 
 ############################################################
-=VAR=topo
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
-router:r1 = {
- managed;
- model = IOS;
- log:a = log-input;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-router:asa2 = {
- managed;
- model = ASA;
- log:a = errors;
- log:b = debugging;
- log:c = disable;
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
-}
-=END=
-
-############################################################
 =TITLE=Only use network
 =INPUT=
 group:g =
