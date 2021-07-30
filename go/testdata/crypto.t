@@ -4069,7 +4069,7 @@ access-group inside_in in interface inside
 =TITLE=Sort crypto rules in ACL
 =INPUT=
 network:n0 = { ip = 10.1.0.0/24; }
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n0-sub = { ip = 10.1.0.0/26; subnet_of = network:n0; }
 network:n2-sub = { ip = 10.1.2.0/25; subnet_of = network:n2; }
@@ -4110,6 +4110,18 @@ service:s3 = {
         dst = network:n2-sub;
         prt = proto 51;
 }
+service:s4 = {
+ user = host:h1;
+ deny   src = user;
+        dst = network:n2-sub;
+        prt = tcp 22, proto 50;
+}
+service:s5 = {
+ user = host:h1;
+ permit src = user;
+        dst = interface:r1.n1;
+        prt = tcp 22, proto 50;
+}
 =END=
 =OUTPUT=
 --r1
@@ -4127,6 +4139,10 @@ ip access-list extended n0_in
  deny ip any any
 --
 ip access-list extended n1_in
+ permit 50 host 10.1.1.10 host 10.1.1.1
+ permit tcp host 10.1.1.10 host 10.1.1.1 eq 22
+ deny tcp host 10.1.1.10 10.1.2.0 0.0.0.127 eq 22
+ deny 50 host 10.1.1.10 10.1.2.0 0.0.0.127
  permit 50 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127
  permit 51 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127
  permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.127 eq 22

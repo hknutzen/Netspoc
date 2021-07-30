@@ -319,27 +319,24 @@ func moveRules(aclInfo *aclInfo) {
 		moveRulesEspAh(aclInfo.rules, prt2obj, aclInfo.rulesHasLog)
 }
 
-func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRules {
+func moveRulesEspAh(
+	rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRules {
+
+	if rules == nil {
+		return nil
+	}
 	prtEsp := prt2obj["proto 50"]
 	prtAh := prt2obj["proto 51"]
 	if prtEsp == nil && prtAh == nil && !hasLog {
 		return rules
 	}
-	if rules == nil {
-		return nil
-	}
-	var denyRules, cryptoRules, permitRules ciscoRules
-	for _, rule := range rules {
-		if rule.deny {
-			denyRules.push(rule)
-		} else if rule.prt == prtEsp || rule.prt == prtAh || rule.log != "" {
-			cryptoRules.push(rule)
-		} else {
-			permitRules.push(rule)
-		}
-	}
 
 	// Sort crypto rules.
+	// Leave deny rules unchanged before and
+	// other permit rules unchanged after crypto rules.
+	needSort := func(rule *ciscoRule) bool {
+		return rule.prt == prtEsp || rule.prt == prtAh || rule.log != ""
+	}
 	cmpAddr := func(a, b *ipNet) int {
 		if val := a.IP.Compare(b.IP); val != 0 {
 			return val
@@ -352,19 +349,31 @@ func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRule
 		}
 		return 0
 	}
-	sort.Slice(cryptoRules, func(i, j int) bool {
+	sort.SliceStable(rules, func(i, j int) bool {
+		if rules[i].deny {
+			return !rules[j].deny
+		}
+		if rules[j].deny {
+			return false
+		}
+		if !needSort(rules[i]) {
+			return false
+		}
+		if !needSort(rules[j]) {
+			return true
+		}
 		if cmp := strings.Compare(
-			cryptoRules[i].prt.protocol,
-			cryptoRules[j].prt.protocol); cmp != 0 {
+			rules[i].prt.protocol,
+			rules[j].prt.protocol); cmp != 0 {
 
 			return cmp == -1
 		}
-		if cmp := cmpAddr(cryptoRules[i].src, cryptoRules[j].src); cmp != 0 {
+		if cmp := cmpAddr(rules[i].src, rules[j].src); cmp != 0 {
 			return cmp == -1
 		}
-		return cmpAddr(cryptoRules[i].dst, cryptoRules[j].dst) == -1
+		return cmpAddr(rules[i].dst, rules[j].dst) == -1
 	})
-	return append(denyRules, append(cryptoRules, permitRules...)...)
+	return rules
 }
 
 func createGroup(elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *objGroup {
