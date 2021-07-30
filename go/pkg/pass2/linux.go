@@ -26,18 +26,18 @@ func iptablesPrtCode(srcRangeNode, prtNode *prtBintree, ipv6 bool) string {
 			ports := rangeObj.ports
 			v1, v2 := ports[0], ports[1]
 			if v1 == v2 {
-				return fmt.Sprint(v1)
+				return strconv.Itoa(v1)
 			}
 			if v1 == 1 && v2 == 65535 {
 				return ""
 			}
 			if v2 == 65535 {
-				return fmt.Sprint(v1, ":")
+				return strconv.Itoa(v1) + ":"
 			}
 			if v1 == 1 {
-				return fmt.Sprint(":", v2)
+				return ":" + strconv.Itoa(v2)
 			}
-			return fmt.Sprint(v1, ":", v2)
+			return strconv.Itoa(v1) + ":" + strconv.Itoa(v2)
 		}
 		if srcRangeNode != nil {
 			if sport := portCode(&srcRangeNode.proto); sport != "" {

@@ -891,18 +891,18 @@ func ciscoPrtCode(
 			ports := rangeObj.ports
 			v1, v2 := ports[0], ports[1]
 			if v1 == v2 {
-				return fmt.Sprint("eq ", v1)
+				return "eq " + strconv.Itoa(v1)
 			}
 			if v1 == 1 && v2 == 65535 {
 				return ""
 			}
 			if v2 == 65535 {
-				return fmt.Sprint("gt ", v1-1)
+				return "gt " + strconv.Itoa(v1-1)
 			}
 			if v1 == 1 {
-				return fmt.Sprint("lt ", v2+1)
+				return "lt " + strconv.Itoa(v2+1)
 			}
-			return fmt.Sprint("range ", v1, v2)
+			return "range " + strconv.Itoa(v1) + " " + strconv.Itoa(v2)
 		}
 		dstPrt := portCode(prt)
 		var srcPrt string
@@ -919,9 +919,9 @@ func ciscoPrtCode(
 		if icmpType != -1 {
 			code := prt.icmpCode
 			if code != -1 {
-				return icmp, "", fmt.Sprint(icmpType, code)
+				return icmp, "", strconv.Itoa(icmpType) + " " + strconv.Itoa(code)
 			}
-			return icmp, "", fmt.Sprint(icmpType)
+			return icmp, "", strconv.Itoa(icmpType)
 		}
 		return icmp, "", ""
 	default:
