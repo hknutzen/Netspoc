@@ -83,7 +83,6 @@ func debugBintree (tree *netBintree, depth string) {
 type netOrProt interface {
 }
 
-// Value is lRuleTree.
 type lRuleTree map[netOrProt]*lRuleTree
 
 type netBintree struct {
@@ -109,8 +108,8 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 	if prefix < nodePref && tree.Contains(nodeIP) {
 
 		// Optimization for this special case:
-		// Root of tree has attribute {subtree} which is identical to
-		// attribute {subtree} of current node.
+		// Root of tree has attribute .subtree which is identical to
+		// attribute .subtree of current node.
 		// Node is known to be less than root node.
 		// Hence node together with its subtree can be discarded
 		// because it is redundant compared to root node.
@@ -187,12 +186,15 @@ NOMERGE:
 
 // Build a binary tree for src/dst objects.
 func genAddrBintree(
-	elements []*ipNet,
-	tree lRuleTree,
-	tree2bintree map[*lRuleTree]npBintree) *netBintree {
+	tree lRuleTree, tree2bintree map[*lRuleTree]npBintree) *netBintree {
+
+	elements := make([]*ipNet, 0, len(tree))
+	for key := range tree {
+		elements = append(elements, key.(*ipNet))
+	}
 
 	// The tree's node is a simplified network object with
-	// missing attribute 'name' and extra 'subtree'.
+	// missing attribute .name and extra .subtree.
 	nodes := make([]*netBintree, len(elements))
 	for i, elem := range elements {
 		nodes[i] = &netBintree{
@@ -204,24 +206,18 @@ func genAddrBintree(
 	// Sort by mask size and then by IP.
 	// I.e. large networks coming first.
 	sort.Slice(nodes, func(i, j int) bool {
-		if nodes[i].Bits < nodes[j].Bits {
-			return true
+		if nodes[i].Bits == nodes[j].Bits {
+			return !nodes[i].IP.Less(nodes[j].IP)
 		}
-		if nodes[i].Bits > nodes[j].Bits {
-			return false
-		}
-		return !nodes[i].IP.Less(nodes[j].IP)
+		return nodes[i].Bits < nodes[j].Bits
 	})
 
-	var bintree *netBintree
-	bintree, nodes = nodes[0], nodes[1:]
-	for len(nodes) > 0 {
-		var node *netBintree
-		node, nodes = nodes[0], nodes[1:]
+	bintree := nodes[0]
+	for _, node := range nodes[1:] {
 		bintree = addBintree(bintree, node)
 	}
 
-	// Add attribute {noop} to node which doesn't add any test to
+	// Add attribute .noop to node which doesn't add any test to
 	// generated rule.
 	if bintree.Bits == 0 {
 		bintree.noop = true
@@ -256,16 +252,16 @@ func (tree *netBintree) Subtree() npBintree {
 func (tree *netBintree) Noop() bool { return tree.noop }
 
 // Build a tree for src-range/prt objects. Sub-trees for tcp and udp
-// will be binary trees. Nodes have attributes {proto}, {range},
-// {type}, {code} like protocols (but without {name}).
+// will be binary trees. Nodes have attributes .protocol, .ports,
+// .icmpType, .icmpCode like protocols (but without .name).
 // Additional attributes for building the tree:
 // For tcp and udp:
-// {lo}, {hi} for sub-ranges of current node.
+// .lo, .hi for sub-ranges of current node.
 // For other protocols:
-// {seq} an array of ordered nodes for sub protocols of current node.
-// Elements of {lo} and {hi} or elements of {seq} are guaranteed to be
+// .seq an array of ordered nodes for sub protocols of current node.
+// Elements of .lo and .hi or elements of .seq are guaranteed to be
 // disjoint.
-// Additional attribute {subtree} is set with corresponding subtree of
+// Additional attribute .subtree is set to corresponding subtree of
 // protocol object if current node comes from a rule and wasn't inserted
 // for optimization.
 
@@ -279,9 +275,12 @@ type prtBintree struct {
 }
 
 func genprtBintree(
-	elements []*proto,
-	tree lRuleTree,
-	tree2bintree map[*lRuleTree]npBintree) *prtBintree {
+	tree lRuleTree, tree2bintree map[*lRuleTree]npBintree) *prtBintree {
+
+	elements := make([]*proto, 0, len(tree))
+	for key := range tree {
+		elements = append(elements, key.(*proto))
+	}
 	var ipPrt *proto
 	topPrt := make(map[string][]*proto)
 	subPrt := make(map[*proto][]*proto)
@@ -529,7 +528,7 @@ PRT:
 		bintree = seq[0]
 	}
 
-	// Add attribute {noop} to node which doesn't need any test in
+	// Add attribute .noop to node which doesn't need any test in
 	// generated chain.
 	if bintree.protocol == "ip" {
 		bintree.noop = true
@@ -603,7 +602,7 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 	network00 := aclInfo.network00
 
 	// Specify protocols tcp, udp, icmp in
-	// {srcRange}, to get more efficient chains.
+	// .srcRange, to get more efficient chains.
 	for _, rule := range rules {
 		srcRange := rule.srcRange
 		if srcRange == nil {
@@ -647,25 +646,13 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 			elem1 = key
 			break
 		}
-		switch elem1.(type) {
-		case *ipNet:
-			elements := make([]*ipNet, 0, len(*tree))
-			for key := range *tree {
-				elements = append(elements, key.(*ipNet))
-			}
-
+		if _, ok := elem1.(*ipNet); ok {
 			// Put prt/src/dst objects at the root of some subtree into a
 			// (binary) tree. This is used later to convert subsequent tests
 			// for ip/mask or port ranges into more efficient nested chains.
-			return genAddrBintree(elements, *tree, subtree2bintree)
-		case *proto:
-			elements := make([]*proto, 0, len(*tree))
-			for key := range *tree {
-				elements = append(elements, key.(*proto))
-			}
-			return genprtBintree(elements, *tree, subtree2bintree)
+			return genAddrBintree(*tree, subtree2bintree)
 		}
-		return nil
+		return genprtBintree(*tree, subtree2bintree)
 	}
 
 	// Used by mergeSubtrees1 to find identical subtrees.
