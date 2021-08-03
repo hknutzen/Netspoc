@@ -254,6 +254,39 @@ service:B = {
 =END=
 
 ############################################################
+=TITLE=Numeric protocols
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = proto 112, proto 114, proto 111;
+}
+=END=
+=OUTPUT=
+--r1
+# [ ACL ]
+:c1 -
+-A c1 -j ACCEPT -p 111
+-A c1 -j ACCEPT -p 112
+-A c1 -j ACCEPT -p 114
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24
+-A FORWARD -j n1_n2 -i n1 -o n2
+=END=
+
+############################################################
 =TITLE=Loopback at Linux passes other managed device
 # Loopback interface and loopback network have identical IP address.
 # Linux would abort when generating binary trees of IP addresses,
@@ -402,6 +435,136 @@ service:t1 = {
 :n1_k2 -
 -A n1_k2 -g c2 -s 10.1.1.0/24 -d 10.2.2.0/24 -p tcp --dport 80:82
 -A FORWARD -j n1_k2 -i n1 -o k2
+=END=
+
+############################################################
+=TITLE=Combine adjacent networks (1)
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24;
+ host:h44 = { ip = 10.1.4.4; }
+ host:h45 = { ip = 10.1.4.5; }
+ host:h46 = { ip = 10.1.4.6; }
+ host:h47 = { ip = 10.1.4.7; }
+}
+router:u = {
+ interface:n0;
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.3.2; }
+}
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n0, any:[ip = 10.1.1.0/25 & network:n1];
+ permit src = user; dst = host:h44; prt = tcp 20-25;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = host:h44, host:h46; prt = tcp 22;
+}
+service:s3 = {
+ user = any:[ip = 10.1.2.0/26 & network:n2], network:n3;
+ permit src = user; dst = host:h44, host:h45, host:h47; prt = tcp 21-22;
+}
+service:s4 = {
+ user = network:n2, network:n3;
+ permit src = user; dst = host:h47; prt = tcp 25;
+}
+=END=
+=OUTPUT=
+-- r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+:c4 -
+:c5 -
+:c6 -
+-A c1 -j ACCEPT -s 10.1.3.0/24
+-A c1 -j ACCEPT -s 10.1.2.0/26
+-A c2 -j ACCEPT -s 10.1.2.0/23 -p tcp --dport 25
+-A c2 -g c1 -s 10.1.2.0/23 -p tcp --dport 21:22
+-A c3 -g c2 -d 10.1.4.7 -p tcp --dport 21:25
+-A c3 -j ACCEPT -s 10.1.1.0/24 -d 10.1.4.6 -p tcp --dport 22
+-A c4 -j ACCEPT -s 10.1.1.0/25
+-A c4 -j ACCEPT -s 10.1.0.0/24
+-A c5 -j c4 -s 10.1.0.0/23 -p tcp --dport 20:25
+-A c5 -j ACCEPT -s 10.1.1.0/24 -p tcp --dport 22
+-A c6 -g c3 -d 10.1.4.6/31
+-A c6 -j c1 -s 10.1.2.0/23 -d 10.1.4.4/31 -p tcp --dport 21:22
+-A c6 -g c5 -d 10.1.4.4 -p tcp --dport 20:25
+--
+:n3_n4 -
+-A n3_n4 -g c6 -d 10.1.4.4/30 -p tcp
+-A FORWARD -j n3_n4 -i n3 -o n4
+=END=
+
+############################################################
+=TITLE=Combine adjacent networks (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+network:n4 = { ip = 10.1.4.0/24;
+ host:h44 = { ip = 10.1.4.4; }
+ host:h45 = { ip = 10.1.4.5; }
+ host:h46 = { ip = 10.1.4.6; }
+ host:h47 = { ip = 10.1.4.7; }
+}
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n4; prt = udp 20;
+}
+service:s2 = {
+ user = host:h1;
+ permit src = user; dst = host:h44; prt = udp 20-21;
+}
+service:s3 = {
+ user =  any:[ip = 10.1.1.0/25 & network:n2];
+ permit src = user; dst = network:n4; prt = udp 22;
+}
+service:s4 = {
+ user =  any:[ip = 10.1.1.8/30 & network:n2];
+ permit src = user; dst = network:n4; prt = udp 22-23;
+}
+=END=
+=OUTPUT=
+-- r2
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -s 10.1.1.8/30 -p udp --dport 22:23
+-A c1 -j ACCEPT -s 10.1.1.0/25 -p udp --dport 22
+-A c2 -g c1 -p udp --dport 22:23
+-A c2 -j ACCEPT -s 10.1.1.0/24 -p udp --dport 20
+-A c3 -j c2 -d 10.1.4.0/24 -p udp --dport 20:23
+-A c3 -j ACCEPT -s 10.1.1.10 -d 10.1.4.4 -p udp --dport 20:21
+--
+:n3_n4 -
+-A n3_n4 -g c3 -d 10.1.4.0/24 -p udp
+-A FORWARD -j n3_n4 -i n3 -o n4
 =END=
 
 ############################################################
