@@ -27,7 +27,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/octago/sflags"
 	"github.com/octago/sflags/gen/gpflag"
 	flag "github.com/spf13/pflag"
@@ -200,7 +199,7 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 func readConfig(filename string) (map[string]string, error) {
 	bytes, err := os.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Can't %v", err)
 	}
 	lines := strings.Split(string(bytes), "\n")
 	result := make(map[string]string)
@@ -266,7 +265,7 @@ func parseFile(filename string, fs *flag.FlagSet) error {
 
 func addConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	path := inDir + "/config"
-	if !fileop.IsRegular(path) {
+	if _, err := os.Stat(path); err != nil {
 		return nil
 	}
 	return parseFile(path, fs)
