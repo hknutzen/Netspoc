@@ -33,7 +33,6 @@ import (
 	flag "github.com/spf13/pflag"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -59,24 +58,6 @@ func (v *TriState) Set(s string) error {
 // Needed for gen/gpflag to work, mostly for pflag compatibility.
 func (v TriState) Type() string { return "tristate" }
 
-// Type for additional name to existing flag with inverted boolean value.
-type invFlag struct{ flag *flag.Flag }
-
-func (v invFlag) String() string {
-	b, _ := strconv.ParseBool(v.flag.Value.String())
-	return strconv.FormatBool(!b)
-}
-func (v invFlag) Set(s string) error {
-	b, err := strconv.ParseBool(s)
-	if err != nil {
-		return err
-	}
-	inverted := strconv.FormatBool(!b)
-	v.flag.Value.Set(inverted)
-	return nil
-}
-func (v invFlag) Type() string { return "invFlag" }
-
 // Config holds program flags.
 type Config struct {
 	CheckDuplicateRules          TriState
@@ -99,17 +80,8 @@ type Config struct {
 	IgnoreFiles                  *regexp.Regexp
 	IPV6                         bool `flag:"ipv6 6"`
 	MaxErrors                    int  `flag:"max_errors m"`
-	Verbose                      bool `flag:"verbose v"`
+	Quiet                        bool `flag:"quiet q"`
 	TimeStamps                   bool `flag:"time_stamps t"`
-}
-
-type invertedFlag map[string]*struct {
-	short string
-	orig  string
-}
-
-var invertedFlags = invertedFlag{
-	"quiet": {short: "q", orig: "verbose"},
 }
 
 func defaultOptions(fs *flag.FlagSet) *Config {
@@ -182,7 +154,7 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		MaxErrors: 10,
 
 		// Print progress messages.
-		Verbose: true,
+		Quiet: false,
 
 		// Print progress messages with time stamps.
 		// Print "finished" with time stamp when finished.
@@ -191,12 +163,6 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 	err := gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	if err != nil {
 		panic(err)
-	}
-	for name, spec := range invertedFlags {
-		origFlag := fs.Lookup(spec.orig)
-		inverted := invFlag{origFlag}
-		flag := fs.VarPF(inverted, name, spec.short, "")
-		flag.NoOptDefVal = "true"
 	}
 	return cfg
 }
@@ -275,14 +241,6 @@ func parseFile(filename string, fs *flag.FlagSet) error {
 		errList = append(errList, fmt.Sprintf(format, args...))
 	}
 	fs.VisitAll(func(f *flag.Flag) {
-		// Ignore inverted flag.
-		if inv, found := invertedFlags[f.Name]; found {
-			if isSet[f] {
-				// Ignore inverted value from file.
-				delete(config, inv.orig)
-			}
-			return
-		}
 		val, found := config[f.Name]
 		if !found {
 			return

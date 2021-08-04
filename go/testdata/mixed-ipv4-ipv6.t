@@ -365,7 +365,7 @@ access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 eq 8
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
-=OPTIONS=--verbose --concurrency_pass1=2
+=OPTIONS=--quiet=false --concurrency_pass1=2
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions (1)

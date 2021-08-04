@@ -104,13 +104,13 @@ func (c *spoc) warnOrErr(
 }
 
 func (c *spoc) info(format string, args ...interface{}) {
-	if conf.Conf.Verbose {
+	if !conf.Conf.Quiet {
 		c.toStderrf(format, args...)
 	}
 }
 
 func (c *spoc) progress(msg string) {
-	if conf.Conf.Verbose {
+	if !conf.Conf.Quiet {
 		if conf.Conf.TimeStamps {
 			msg =
 				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)

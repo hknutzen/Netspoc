@@ -9,7 +9,7 @@ ignore_files = ^foo$;
 max_errors = 2;
 # Option 'verbose' gets overwritten by default option '--quiet'
 # when running tests.
-verbose = 1;
+quiet = 0;
 time_stamps = 0;
 -- foo
 SOME INVALID DATA

@@ -343,7 +343,7 @@ func PrintGroupMain() int {
 	path := args[0]
 	group := args[1]
 	dummyArgs := []string{
-		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--quiet=%v", *quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)

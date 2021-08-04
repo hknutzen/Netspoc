@@ -337,7 +337,7 @@ func Main() int {
 		}
 	}
 	// Initialize Conf, especially attribute IgnoreFiles.
-	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
+	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.
