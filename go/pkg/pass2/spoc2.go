@@ -398,9 +398,6 @@ func tryPrev(devicePath, dir, prev string) bool {
 	for _, ext := range [...]string{"config", "rules"} {
 		pass1name := codeFile + "." + ext
 		pass1prev := prevFile + "." + ext
-		if !fileop.IsRegular(pass1prev) {
-			return false
-		}
 		cmd := exec.Command("cmp", "-s", pass1name, pass1prev)
 		if cmd.Run() != nil {
 			return false
