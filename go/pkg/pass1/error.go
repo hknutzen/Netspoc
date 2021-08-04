@@ -7,8 +7,7 @@ import (
 )
 
 func debug(format string, args ...interface{}) {
-	string := fmt.Sprintf(format, args...)
-	fmt.Fprintln(os.Stderr, string)
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
 }
 
 func (l intfList) nameList() string {
