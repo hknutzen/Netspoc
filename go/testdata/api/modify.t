@@ -3018,6 +3018,23 @@ Error: Invalid filename ../passwd
 =END=
 
 ############################################################
+=TITLE=Unexpected content after definition
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_toplevel",
+    "params": {
+        "definition": "network:n2 = { ip = 10.1.2.0/24; } host:h2",
+        "file": "../passwd"
+    }
+}
+=ERROR=
+Error: Unexpected content after definition at line 1 of command line, near "10.1.2.0/24; } --HERE-->host:h2"
+=END=
+
+############################################################
 =TITLE=Add pathrestriction
 =INPUT=
 -- topology
