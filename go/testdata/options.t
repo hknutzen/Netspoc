@@ -47,6 +47,16 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Directory names "config"
+=INPUT=
+-- config/foo
+bla bla;
+=ERROR=
+Error: Can't read config: is a directory
+Aborted
+=END=
+
+############################################################
 =TITLE=Command line option overwrites config file
 =OPTIONS=--check_unused_groups=warn
 =INPUT=
@@ -87,6 +97,37 @@ Aborted
 =INPUT= #
 =ERROR=
 Error: unknown flag: --foo
+Aborted
+=END=
+
+############################################################
+=TITLE=Option --help
+=OPTIONS=--help
+=INPUT= #
+=ERROR=
+Usage of PROGRAM:
+      --auto_default_route                          (default true)
+      --check_duplicate_rules tristate              (default warn)
+      --check_fully_redundant_rules tristate
+      --check_identical_services tristate
+      --check_policy_distribution_point tristate
+      --check_redundant_rules tristate              (default warn)
+      --check_service_multi_owner tristate          (default warn)
+      --check_service_unknown_owner tristate
+      --check_subnets tristate                      (default warn)
+      --check_supernet_rules tristate               (default warn)
+      --check_transient_supernet_rules tristate     (default warn)
+      --check_unenforceable tristate                (default warn)
+      --check_unused_groups tristate                (default warn)
+      --check_unused_owners tristate                (default warn)
+      --check_unused_protocols tristate
+      --concurrency_pass1 int                       (default 1)
+      --concurrency_pass2 int                       (default 1)
+      --ignore_files regexp                         (default ^(CVS|RCS|\.#.*|.*~)$)
+  -6, --ipv6
+  -m, --max_errors int                              (default 10)
+  -q, --quiet
+  -t, --time_stamps
 Aborted
 =END=
 
