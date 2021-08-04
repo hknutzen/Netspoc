@@ -197,6 +197,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 	re := regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
+	re = regexp.MustCompile(`[ \t]+\n`)
+	stderr = re.ReplaceAllString(stderr, "\n")
 
 	// Check result.
 	if status == 0 {
