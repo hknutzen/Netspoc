@@ -82,3 +82,35 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
+=TITLE=Can't reuse new code file
+=SHOW_DIAG=
+=VAR=extended
+${input}
+=INPUT=${input}
+=REUSE_PREV=
+${input}
+network:n5 = { ip = 10.1.5.0/24; }
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+service:test2 = {
+ user = network:n4;
+ permit src = user; dst = network:n5; prt = tcp 80;
+}
+=END=
+=WARNING=
+DIAG: Reused .prev/r1
+DIAG: Reused .prev/r2
+DIAG: Reused .prev/r3
+=OUTPUT=
+--r4
+! n4_in
+access-list n4_in extended permit tcp 10.1.4.0 255.255.255.0 10.1.5.0 255.255.255.0 eq 80
+access-list n4_in extended deny ip any4 any4
+access-group n4_in in interface n4
+=END=
+
+############################################################
