@@ -739,6 +739,7 @@ service:test = {
 
 ############################################################
 =TITLE=Ignore ICMP reply messages
+# No IPv6
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = {

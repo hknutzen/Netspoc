@@ -32,6 +32,7 @@ ip access-list extended ethernet0_in
 
 ############################################################
 =TITLE=Large host ranges for non private addresses
+#No IPv6
 =INPUT=
 network:inet = {
  ip = 0.0.0.0/0;

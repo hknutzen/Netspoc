@@ -37,6 +37,7 @@ type test struct {
 
 var tests = []test{
 	{".", outDirT, pass1.SpocMain, netspocCheck},
+	{"ipv6", outDirT, pass1.SpocMain, netspocCheck},
 	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
