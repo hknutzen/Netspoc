@@ -62,6 +62,7 @@ func (c *spoc) splitSemiManagedRouters() {
 			// Add reference to original router having 'origIntfs'.
 			nr := new(router)
 			nr.name = r.name
+			nr.ipV6 = r.ipV6
 			nr.semiManaged = true
 			nr.origRouter = r
 			intf.router = nr
