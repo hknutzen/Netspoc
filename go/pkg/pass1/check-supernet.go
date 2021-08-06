@@ -325,8 +325,7 @@ func (c *spoc) checkSupernetSrcRule(
 	inZone := inIntf.zone
 
 	// Check case II, outgoing ACL, (A)
-	var noAclIntf *routerIntf
-	if noAclIntf = r.noInAcl; noAclIntf != nil {
+	if noAclIntf := r.noInAcl; noAclIntf != nil {
 		noAclZone := noAclIntf.zone
 
 		if zoneEq(noAclZone, dstZone) {
