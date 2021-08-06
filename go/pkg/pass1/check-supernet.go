@@ -299,7 +299,7 @@ func (x *subnet) getZone() pathObj {
 //
 // If R2 is stateless, we need one more rule to be defined:
 //  permit supernet(zone4) dst
-// This is so, because at R2 we would get an automatically generated
+// This is needed, because at R2 we would get an automatically generated
 // reverse rule
 //  permit dst supernet1
 // which would accidentally permit traffic to supernet:[zone4] as well.
