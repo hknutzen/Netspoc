@@ -1859,7 +1859,7 @@ func printRouterIntf(fh *os.File, r *router) {
 				}
 			}
 			subcmd.push(addrCmd)
-			if !ipv6 {
+			if !ipv6 || class == "NX-OS" {
 				secondary = true
 			}
 		}
