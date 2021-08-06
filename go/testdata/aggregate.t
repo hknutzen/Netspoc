@@ -1831,10 +1831,26 @@ Warning: This supernet rule would permit unexpected access:
  - network:n3
  Either replace any:[network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
+=OUTPUT=
+-- r3
+ip access-list extended n2_out
+ permit udp any host 10.1.2.3 eq 123
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit udp any host 10.1.2.3 eq 123
+ deny ip any any
+--
+ip access-list extended n4_in
+ deny ip any host 10.1.2.2
+ deny ip any host 10.1.3.2
+ deny ip any host 10.1.4.1
+ deny ip any host 10.1.4.2
+ permit ip any any
 =END=
 
 ############################################################
-=TITLE=Supernet rule to dst behind no_in_acl
+=TITLE=Supernet rule to dst at no_in_acl
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1853,6 +1869,43 @@ service:test = {
 }
 =END=
 =WARNING=NONE
+
+############################################################
+=TITLE=Supernet rule to dst not directly behind no_in_acl
+# Must show warning for router:r1, not router:r2.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+any:n2-10_1_3 = { ip = 10.1.3.0/24; link = network:n2; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; no_in_acl; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3;}
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n3; dst=network:n1; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n2 would permit access from additional networks:
+ - any:n2-10_1_3
+ Either replace network:n3 by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+=END=
 
 ############################################################
 =TITLE=Rule from supernet at no_in_acl

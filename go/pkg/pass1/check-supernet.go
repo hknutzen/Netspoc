@@ -328,7 +328,7 @@ func (c *spoc) checkSupernetSrcRule(
 	if noAclIntf := r.noInAcl; noAclIntf != nil {
 		noAclZone := noAclIntf.zone
 
-		if zoneEq(noAclZone, dstZone) {
+		if noAclIntf == outIntf {
 			// a) dst behind Y
 		} else if zoneEq(inZone, noAclZone) {
 			// b), 1. zone X == zone Y
