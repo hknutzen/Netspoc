@@ -159,7 +159,11 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 			}
 			s.protocolgroup[name] = &protoGroup{name: a.GetName(), list: l}
 		case *ast.Network:
-			s.network[name] = new(network)
+			n := new(network)
+			// Set .name and .ipV6 early so that checkV4V6CrossRef works.
+			n.name = x.Name
+			n.ipV6 = x.IPV6
+			s.network[name] = n
 			networks = append(networks, x)
 		case *ast.Router:
 			routers = append(routers, x)

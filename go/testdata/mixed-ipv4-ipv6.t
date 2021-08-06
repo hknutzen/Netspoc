@@ -125,6 +125,42 @@ Error: Must not reference IPv4 network:n2 in IPv6 context dst of rule in service
 =END=
 
 ############################################################
+=TITLE=Reference IPv6 service from IPv4 and vice versa
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+service:s1 = {
+ overlaps = service:s2, service:s1;
+ identical_body = service:s1, service:s2;
+ user = network:n1;
+ permit src = user; dst = interface:r1.n1; prt = tcp 22;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 1000::abcd:0001:0001; hardware = n2; }
+}
+service:s2 = {
+ identical_body = service:s1, service:s2;
+ user = network:n2;
+ permit src = user; dst = interface:r2.n2; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: Useless attribute 'identical_body' in service:s1
+Warning: Useless attribute 'identical_body' in service:s2
+Warning: Useless 'overlaps = service:s1' in service:s1
+Warning: Useless 'overlaps = service:s2' in service:s1
+=OPTIONS=--check_identical_services=warn
+
+############################################################
 =TITLE=Reference IPv4/6 policy_distribution_point from IPv6/4
 =INPUT=
 -- file1
@@ -153,6 +189,25 @@ router:r1 = {
 =ERROR=
 Error: Must not reference IPv4 host:netspoc in IPv6 context 'policy_distribution_point' of router:r1
 Error: Must not reference IPv6 host:pdp6 in IPv4 context 'policy_distribution_point' of router_attributes of area:a
+=END=
+
+############################################################
+=TITLE=Reference IPv4/6 network from IPv6/4 subnet_of
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; subnet_of = network:n2; }
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.1; }
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; subnet_of = network:n1; }
+router:r1 = {
+ interface:n2 = { ip = 1000::abcd:0001:0001; }
+}
+=END=
+=ERROR=
+Error: Must not reference IPv4 network:n1 in IPv6 context 'subnet_of' of network:n2
+Error: Must not reference IPv6 network:n2 in IPv4 context 'subnet_of' of network:n1
 =END=
 
 ############################################################
