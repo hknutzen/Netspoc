@@ -112,7 +112,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Add more options.
 		if d.Options != "" {
-			options := strings.Split(d.Options, " ")
+			options := strings.Fields(d.Options)
 			os.Args = append(os.Args, options...)
 		}
 
@@ -149,7 +149,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Add other params to command line.
 		if d.Params != "" {
-			os.Args = append(os.Args, strings.Split(d.Params, " ")...)
+			os.Args = append(os.Args, strings.Fields(d.Params)...)
 		}
 		if d.Param != "" {
 			os.Args = append(os.Args, d.Param)
