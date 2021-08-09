@@ -2420,10 +2420,8 @@ func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	wg.Wait()
 	// Remove directory '.prev' created by pass1
 	// or remove symlink '.prev' created by newpolicy.pl.
-	err := os.RemoveAll(prev)
-	if err != nil {
-		panic(err)
-	}
+	// Error is ignored; would use unneeded space only.
+	os.RemoveAll(prev)
 
 	generated := len(devices) - reused
 	if generated > 0 {
