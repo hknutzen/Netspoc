@@ -412,7 +412,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename, prev string) []string {
+func readFileLines(filename string) []string {
 	fd, err := os.Open(filename)
 	if err != nil {
 		panic(err)
@@ -436,7 +436,7 @@ func File(devicePath, dir, prev string) int {
 	}
 	file := dir + "/" + devicePath
 	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file+".config", prev)
+	config := readFileLines(file + ".config")
 	printCombined(config, routerData, file)
 	return 0
 }
