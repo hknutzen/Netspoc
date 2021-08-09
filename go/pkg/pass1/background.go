@@ -47,8 +47,6 @@ func (c *spoc) collectMessages(c2 bgSpoc) {
 	<-ch
 	if conf.Conf.TimeStamps {
 		c.progress("Output of background job:")
-	}
-	if conf.Conf.TimeStamps {
 		for i, msg := range c2.messages {
 			if matched, _ := regexp.MatchString(`^\d+s `, msg); matched {
 				c2.messages[i] = " " + msg
