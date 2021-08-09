@@ -1614,12 +1614,11 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range r.interfaces {
 		if intf.ipType == tunnelIP {
-			i := intf.getCrypto().ipsec
-			if seenIpsec[i] {
-				continue
+			s := intf.getCrypto().ipsec
+			if !seenIpsec[s] {
+				seenIpsec[s] = true
+				ipsecList = append(ipsecList, s)
 			}
-			seenIpsec[i] = true
-			ipsecList = append(ipsecList, i)
 		}
 	}
 
@@ -1639,11 +1638,10 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	seenIsakmp := make(map[*isakmp]bool)
 	for _, i := range ipsecList {
 		k := i.isakmp
-		if seenIsakmp[k] {
-			continue
+		if !seenIsakmp[k] {
+			seenIsakmp[k] = true
+			isakmpList = append(isakmpList, k)
 		}
-		seenIsakmp[k] = true
-		isakmpList = append(isakmpList, k)
 	}
 
 	printHeader(fh, r, "Crypto")
