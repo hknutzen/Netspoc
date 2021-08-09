@@ -23,5 +23,8 @@ done
 cd $dir
 go vet ./...
 
+# Generate IPv6 tests
+make -q -C testdata/ipv6
+
 # Execute tests.
 ( cd test; go test )
