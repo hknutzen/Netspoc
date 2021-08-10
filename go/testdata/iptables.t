@@ -133,6 +133,56 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Udp port ranges
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24;
+ host:h10 = { ip = 10.1.2.10; }
+ host:h12 = { ip = 10.1.2.12; }
+ host:h14 = { ip = 10.1.2.14; }
+}
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+protocol:p1 = udp 1-1023:53;
+protocol:p2 = udp 1-511:69;
+protocol:p3 = udp 1024-65535:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = host:h14;
+        prt = protocol:p1;
+ permit src = user;
+        dst = host:h10;
+        prt = protocol:p2;
+ permit src = user;
+        dst = host:h12;
+        prt = protocol:p3, udp 137;
+}
+=OUTPUT=
+--r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -p udp --dport 137
+-A c1 -j ACCEPT -p udp --sport 1024: --dport 123
+-A c2 -j ACCEPT -d 10.1.2.14 -p udp --sport :1023 --dport 53
+-A c2 -g c1 -d 10.1.2.12 -p udp
+-A c3 -g c2 -d 10.1.2.12/30
+-A c3 -j ACCEPT -d 10.1.2.10 -p udp --sport :511 --dport 69
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.8/29
+-A FORWARD -j n1_n2 -i n1 -o n2
+=END=
+
+############################################################
 =TITLE=Merge port range with sub-range
 =VAR=input
 network:RAS      = { ip = 10.2.2.0/24; }
