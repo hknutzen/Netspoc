@@ -249,21 +249,21 @@ func (c *spoc) showDuplicateRules(ri *redundInfo) {
 func (c *spoc) collectRedundantRules(
 	rule, other *expandedRule, ri *redundInfo) int {
 
-	service := rule.rule.service
+	sv := rule.rule.service
 	count := 0
 
 	// Count each redundant rule only once.
 	if !rule.redundant {
 		rule.redundant = true
 		count++
-		service.redundantCount++
+		sv.redundantCount++
 	}
 
 	if rule.overlaps && other.overlaps {
 		return count
 	}
 
-	if !c.checkAttrOverlaps(service, other.rule.service, rule, ri) {
+	if !c.checkAttrOverlaps(sv, other.rule.service, rule, ri) {
 		ri.redundant = append(ri.redundant, [2]*expandedRule{rule, other})
 	}
 	return count
@@ -299,48 +299,36 @@ func (c *spoc) showFullyRedundantRules(ri *redundInfo) {
 	if action == "" {
 		return
 	}
-	sNames := make(stringList, 0, len(symTable.service))
-	for name := range symTable.service {
-		sNames.push(name)
-	}
-	sort.Strings(sNames)
 	keep := make(map[*service]bool)
-	for _, name := range sNames {
-		service := symTable.service[name]
-		if keep[service] {
+	for _, sv := range c.ascendingServices {
+		if keep[sv] {
 			continue
 		}
-		ruleCount := service.ruleCount
+		ruleCount := sv.ruleCount
 		if ruleCount == 0 {
 			continue
 		}
-		if service.duplicateCount+service.redundantCount != ruleCount {
+		if sv.duplicateCount+sv.redundantCount != ruleCount {
 			continue
 		}
-		for other := range ri.hasSameDupl[service] {
+		for other := range ri.hasSameDupl[sv] {
 			keep[other] = true
 		}
-		c.warnOrErr(action, service.name+" is fully redundant")
+		c.warnOrErr(action, "%s is fully redundant", sv)
 	}
 }
 
 func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
-	var errList stringList
-	for _, sv := range symTable.service {
+	for _, sv := range c.ascendingServices {
 		if sv.disabled {
 			continue
 		}
 		used := ri.overlapsUsed
 		for _, overlap := range sv.overlaps {
 			if !(overlap.disabled || used[[2]*service{sv, overlap}]) {
-				errList.push(
-					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, sv))
+				c.warn("Useless 'overlaps = %s' in %s", overlap, sv)
 			}
 		}
-	}
-	sort.Strings(errList)
-	for _, msg := range errList {
-		c.warn(msg)
 	}
 }
 
@@ -348,7 +336,7 @@ func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
 func expandRules(rules []*groupedRule) []*expandedRule {
 	var result []*expandedRule
 	for _, rule := range rules {
-		service := rule.rule.service
+		sv := rule.rule.service
 		for _, src := range rule.src {
 			for _, dst := range rule.dst {
 				for _, prt := range rule.prt {
@@ -357,7 +345,7 @@ func expandRules(rules []*groupedRule) []*expandedRule {
 					e.dst = dst
 					e.prt = prt
 					result = append(result, e)
-					service.ruleCount++
+					sv.ruleCount++
 				}
 			}
 		}

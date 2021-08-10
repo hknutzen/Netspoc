@@ -398,18 +398,9 @@ type exportedSvc struct {
 func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	c.progress("Normalize services for export")
 	var result []*exportedSvc
-	var names stringList
-	for n, _ := range symTable.service {
-		names.push(n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		s := symTable.service[n]
-		ipv6 := s.ipV6
-		sname := s.name
-		ctx := sname
-		user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
-		foreach := s.foreach
+	for _, sv := range c.ascendingServices {
+		user := c.expandGroup(sv.user, "user of "+sv.name, sv.ipV6, false)
+		foreach := sv.foreach
 
 		type tmpRule struct {
 			objList  srvObjList
@@ -442,13 +433,13 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			return ok
 		}
 
-		for _, uRule := range s.rules {
+		for _, uRule := range sv.rules {
 			action := uRule.action
 			prtList := protoDescr(uRule.prt)
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
+				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, sv)
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 
@@ -532,7 +523,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 					objMap[ob] = true
 				}
 			}
-			newName := sname
+			newName := sv.name
 
 			// Add extension to make name of split service unique.
 			var rulesKey string
@@ -566,15 +557,15 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			}
 			newService := &exportedSvc{
 				name:        newName,
-				description: s.description,
-				disableAt:   s.disableAt,
-				disabled:    s.disabled,
+				description: sv.description,
+				disableAt:   sv.disableAt,
+				disabled:    sv.disabled,
 				user:        userList,
 				objMap:      objMap,
 				jsonRules:   jsonRules,
 			}
-			if s.subOwner != nil {
-				newService.subOwner = s.subOwner.name[len("owner:"):]
+			if sv.subOwner != nil {
+				newService.subOwner = sv.subOwner.name[len("owner:"):]
 			}
 			if rulesKey != "" {
 				splitParts[rulesKey] = newService

@@ -18,8 +18,8 @@ type objPair [2]someObj
 // Rules between identical objects are silently ignored.
 // But a message is shown if a service only has rules between identical objects.
 func collectUnenforceable(rule *groupedRule) {
-	service := rule.rule.service
-	service.silentUnenforceable = true
+	sv := rule.rule.service
+	sv.silentUnenforceable = true
 	isCoupling := rule.rule.hasUser == "both"
 
 	for _, src := range rule.src {
@@ -27,58 +27,46 @@ func collectUnenforceable(rule *groupedRule) {
 			if isCoupling {
 				continue
 			}
-			if service.seenUnenforceable == nil {
-				service.seenUnenforceable = make(map[objPair]bool)
+			if sv.seenUnenforceable == nil {
+				sv.seenUnenforceable = make(map[objPair]bool)
 			}
-			service.seenUnenforceable[objPair{src, dst}] = true
+			sv.seenUnenforceable[objPair{src, dst}] = true
 		}
 	}
 }
 
 func (c *spoc) showUnenforceable() {
-	names := make([]string, 0, len(symTable.service))
-	for name, _ := range symTable.service {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		service := symTable.service[name]
-		context := service.name
-
-		if service.hasUnenforceable &&
-			(service.seenUnenforceable == nil || !service.seenEnforceable) {
-			c.warn("Useless attribute 'has_unenforceable' at %s", context)
+	for _, sv := range c.ascendingServices {
+		if sv.hasUnenforceable &&
+			(sv.seenUnenforceable == nil || !sv.seenEnforceable) {
+			c.warn("Useless attribute 'has_unenforceable' at %s", sv)
 		}
 		if conf.Conf.CheckUnenforceable == "" {
-			continue
-		}
-		if service.disabled {
 			continue
 		}
 
 		// Warning about fully unenforceable service can't be disabled with
 		// attribute has_unenforceable.
-		if !service.seenEnforceable {
+		if !sv.seenEnforceable {
 
 			// Don't warn on empty service without any expanded rules.
-			if service.seenUnenforceable != nil || service.silentUnenforceable {
+			if sv.seenUnenforceable != nil || sv.silentUnenforceable {
 				c.warnOrErr(conf.Conf.CheckUnenforceable,
-					"%s is fully unenforceable", context)
+					"%s is fully unenforceable", sv)
 			}
 			continue
 		}
 
 		var list stringList
-		for pair, _ := range service.seenUnenforceable {
+		for pair, _ := range sv.seenUnenforceable {
 			src, dst := pair[0], pair[1]
 			srcAttr := getAttr(src, hasUnenforceableAttr)
 			dstAttr := getAttr(dst, hasUnenforceableAttr)
-			if service.hasUnenforceable {
+			if sv.hasUnenforceable {
 				if srcAttr == restrictVal && dstAttr == restrictVal {
-					if !service.hasUnenforceableRestricted {
-						service.hasUnenforceableRestricted = true
-						c.warn("Must not use attribute 'has_unenforceable' at %s",
-							context)
+					if !sv.hasUnenforceableRestricted {
+						sv.hasUnenforceableRestricted = true
+						c.warn("Must not use attribute 'has_unenforceable' at %s", sv)
 					}
 				} else {
 					continue
@@ -93,7 +81,7 @@ func (c *spoc) showUnenforceable() {
 			c.warnOrErr(conf.Conf.CheckUnenforceable,
 				"%s has unenforceable rules:\n"+
 					" %s",
-				context, strings.Join(list, "\n "))
+				sv, strings.Join(list, "\n "))
 		}
 	}
 }

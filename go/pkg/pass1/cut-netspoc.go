@@ -286,9 +286,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	c.setupTopology(toplevel)
-	for _, s := range symTable.service {
-		if !s.disabled {
-			isUsed[s.name] = true
+	for _, sv := range c.ascendingServices {
+		if !sv.disabled {
+			isUsed[sv.name] = true
 		}
 	}
 	c.markDisabled()
@@ -732,8 +732,8 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		markRouter(r)
 	}
 	if keepOwner {
-		for _, s := range symTable.service {
-			markOwner(s.subOwner)
+		for _, sv := range c.ascendingServices {
+			markOwner(sv.subOwner)
 		}
 	}
 

@@ -36,6 +36,7 @@ type spoc struct {
 	managedRouters        []*router
 	allPathRules          pathRules
 	allZones              []*zone
+	ascendingServices     []*service
 	ascendingAreas        []*area
 	pathrestrictions      []*pathRestriction
 	virtualInterfaces     intfList

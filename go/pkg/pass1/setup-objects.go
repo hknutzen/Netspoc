@@ -65,6 +65,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.initStdProtocols(sym)
 	symTable = sym
 	c.setupObjects(toplevel, sym)
+	c.setAscendingServices(sym)
 	c.splitSemiManagedRouters()
 	c.stopOnErr()
 	c.linkTunnels(sym)
@@ -219,6 +220,17 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 	}
 	for _, a := range services {
 		c.setupService(a, s)
+	}
+}
+
+func (c *spoc) setAscendingServices(s *symbolTable) {
+	names := make(stringList, 0, len(s.service))
+	for name := range s.service {
+		names.push(name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		c.ascendingServices = append(c.ascendingServices, s.service[name])
 	}
 }
 

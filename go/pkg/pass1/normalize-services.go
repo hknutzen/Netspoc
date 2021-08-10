@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"inet.af/netaddr"
-	"sort"
 )
 
 //#############################################################################
@@ -291,15 +290,9 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 
 func (c *spoc) normalizeServices() *serviceRules {
 	c.progress("Normalizing services")
-
-	var names stringList
-	for n, _ := range symTable.service {
-		names.push(n)
-	}
-	sort.Strings(names)
 	sRules := new(serviceRules)
-	for _, n := range names {
-		c.normalizeServiceRules(symTable.service[n], sRules)
+	for _, sv := range c.ascendingServices {
+		c.normalizeServiceRules(sv, sRules)
 	}
 	return sRules
 }

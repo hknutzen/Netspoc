@@ -156,8 +156,8 @@ service:s2 = {
 =WARNING=
 Warning: Useless attribute 'identical_body' in service:s1
 Warning: Useless attribute 'identical_body' in service:s2
-Warning: Useless 'overlaps = service:s1' in service:s1
 Warning: Useless 'overlaps = service:s2' in service:s1
+Warning: Useless 'overlaps = service:s1' in service:s1
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
