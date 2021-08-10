@@ -604,20 +604,18 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 	// Specify protocols tcp, udp, icmp in
 	// .srcRange, to get more efficient chains.
 	for _, rule := range rules {
-		srcRange := rule.srcRange
-		if srcRange == nil {
+		if rule.srcRange == nil {
 			switch rule.prt.protocol {
 			case "tcp":
-				srcRange = prtTCP
+				rule.srcRange = prtTCP
 			case "udp":
-				srcRange = prtUDP
+				rule.srcRange = prtUDP
 			case "icmp":
-				srcRange = prtIcmp
+				rule.srcRange = prtIcmp
 			default:
-				srcRange = prtIP
+				rule.srcRange = prtIP
 			}
 		}
-		rule.srcRange = srcRange
 	}
 
 	//    my $printTree;
