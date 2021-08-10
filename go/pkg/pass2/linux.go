@@ -966,8 +966,6 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 					rule.prt = &prtBintree{proto: *prtUDP}
 				case "icmp":
 					rule.prt = &prtBintree{proto: *prtIcmp}
-				default:
-					rule.prt = &prtBintree{proto: *prtIP}
 				}
 			}
 		}
