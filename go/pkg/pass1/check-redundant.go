@@ -176,7 +176,7 @@ func (c *spoc) checkAttrOverlaps(
 func (c *spoc) collectDuplicateRules(
 	rule, other *expandedRule, ri *redundInfo) {
 
-	svc := rule.rule.service
+	sv := rule.rule.service
 
 	// Mark duplicate rules in both services.
 
@@ -186,10 +186,10 @@ func (c *spoc) collectDuplicateRules(
 	// it must only be counted once, if it is both duplicate and
 	// redundandant.
 	rule.redundant = true
-	svc.duplicateCount++
-	osvc := other.rule.service
+	sv.duplicateCount++
+	osv := other.rule.service
 	if !other.redundant {
-		osvc.duplicateCount++
+		osv.duplicateCount++
 		other.redundant = true
 	}
 
@@ -198,13 +198,13 @@ func (c *spoc) collectDuplicateRules(
 	// Link only from small to large service, because
 	// - rules are created from sorted services earlier and
 	// - services are processed sorted later.
-	if svc.name > osvc.name {
-		m := ri.hasSameDupl[osvc]
+	if sv.name > osv.name {
+		m := ri.hasSameDupl[osv]
 		if m == nil {
 			m = make(map[*service]bool)
-			ri.hasSameDupl[osvc] = m
+			ri.hasSameDupl[osv] = m
 		}
-		m[svc] = true
+		m[sv] = true
 	}
 
 	// Return early, so overlapsUsed isn't set below.
@@ -212,8 +212,8 @@ func (c *spoc) collectDuplicateRules(
 		return
 	}
 
-	if c.checkAttrOverlaps(svc, osvc, rule, ri) ||
-		c.checkAttrOverlaps(osvc, svc, rule, ri) {
+	if c.checkAttrOverlaps(sv, osv, rule, ri) ||
+		c.checkAttrOverlaps(osv, sv, rule, ri) {
 		return
 	}
 
@@ -222,16 +222,16 @@ func (c *spoc) collectDuplicateRules(
 	}
 }
 
-type twoSvc [2]*service
+type twoSv [2]*service
 
 func (c *spoc) showDuplicateRules(ri *redundInfo) {
-	twoSvc2Duplicate := make(map[twoSvc][]*expandedRule)
+	twoSv2Duplicate := make(map[twoSv][]*expandedRule)
 	for _, pair := range ri.duplicate {
 		rule, other := pair[0], pair[1]
-		key := twoSvc{rule.rule.service, other.rule.service}
-		twoSvc2Duplicate[key] = append(twoSvc2Duplicate[key], rule)
+		key := twoSv{rule.rule.service, other.rule.service}
+		twoSv2Duplicate[key] = append(twoSv2Duplicate[key], rule)
 	}
-	for key, rules := range twoSvc2Duplicate {
+	for key, rules := range twoSv2Duplicate {
 		msg := "Duplicate rules in " + key[0].name + " and " + key[1].name + ":"
 		for _, rule := range rules {
 			msg += "\n  " + rule.print()
@@ -268,13 +268,13 @@ func (c *spoc) showRedundantRules(ri *redundInfo) {
 	if action == "" {
 		return
 	}
-	twoSvc2Redundant := make(map[twoSvc][][2]*expandedRule)
+	twoSv2Redundant := make(map[twoSv][][2]*expandedRule)
 	for _, pair := range ri.redundant {
 		rule, other := pair[0], pair[1]
-		key := twoSvc{rule.rule.service, other.rule.service}
-		twoSvc2Redundant[key] = append(twoSvc2Redundant[key], pair)
+		key := twoSv{rule.rule.service, other.rule.service}
+		twoSv2Redundant[key] = append(twoSv2Redundant[key], pair)
 	}
-	for key, rulePairs := range twoSvc2Redundant {
+	for key, rulePairs := range twoSv2Redundant {
 		msg :=
 			"Redundant rules in " + key[0].name +
 				" compared to " + key[1].name + ":\n  "
