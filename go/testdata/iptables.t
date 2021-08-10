@@ -257,7 +257,10 @@ service:B = {
 =TITLE=Numeric protocols
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n2 = { ip = 10.1.2.0/24;
+ host:h10 = { ip = 10.1.2.10; }
+ host:h12 = { ip = 10.1.2.12; }
+}
 router:r1 =  {
  managed;
  model = Linux;
@@ -267,22 +270,31 @@ router:r1 =  {
 service:s1 = {
  user = network:n1;
  permit src = user;
-        dst = network:n2;
+        dst = host:h10;
         prt = proto 112, proto 114, proto 111;
+ permit src = user;
+        dst = host:h12;
+        prt = proto 112, proto 111;
 }
 =END=
 =OUTPUT=
 --r1
 # [ ACL ]
 :c1 -
+:c2 -
+:c3 -
 -A c1 -j ACCEPT -p 111
 -A c1 -j ACCEPT -p 112
--A c1 -j ACCEPT -p 114
+-A c2 -j ACCEPT -p 111
+-A c2 -j ACCEPT -p 112
+-A c2 -j ACCEPT -p 114
+-A c3 -g c1 -d 10.1.2.12
+-A c3 -g c2 -d 10.1.2.10
 --
 :n1_self -
 -A INPUT -j n1_self -i n1
 :n1_n2 -
--A n1_n2 -g c1 -s 10.1.1.0/24 -d 10.1.2.0/24
+-A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.8/29
 -A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 

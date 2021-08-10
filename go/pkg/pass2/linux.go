@@ -1012,7 +1012,6 @@ func printChains(fd *os.File, routerData *routerData) {
 
 	aclInfo := routerData.acls[0]
 	prt2obj := aclInfo.prt2obj
-	prtIP := prt2obj["ip"]
 	prtIcmp := prt2obj["icmp"]
 	prtTCP := prt2obj["tcp"]
 	prtUDP := prt2obj["udp"]
@@ -1039,15 +1038,7 @@ func printChains(fd *os.File, routerData *routerData) {
 			}
 			srcRange := rule.srcRange
 			prt := rule.prt
-			switch {
-			case srcRange == nil && prt == nil:
-				// break
-			case prt != nil && prt.protocol == "ip":
-				// break
-			case prt == nil:
-				if srcRange.protocol == "ip" {
-					break
-				}
+			if prt == nil && srcRange != nil {
 				prt = new(prtBintree)
 				switch srcRange.protocol {
 				case "tcp":
@@ -1056,11 +1047,9 @@ func printChains(fd *os.File, routerData *routerData) {
 					prt.proto = *prtUDP
 				case "icmp":
 					prt.proto = *prtIcmp
-				default:
-					prt.proto = *prtIP
 				}
-				fallthrough
-			default:
+			}
+			if prt != nil {
 				result += iptablesPrtCode(srcRange, prt, routerData.ipv6)
 			}
 			fmt.Fprintln(fd, prefix, result)
