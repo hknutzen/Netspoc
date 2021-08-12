@@ -1412,17 +1412,16 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 	// This allows import to RCS even for old versions of netspoc data.
 	policyFile := filepath.Join(inPath, "POLICY")
 	if fileop.IsRegular(policyFile) {
-		cmd := exec.Command(
+		run := func(cmd *exec.Cmd) {
+			if out, err := cmd.CombinedOutput(); err != nil {
+				c.abort("executing \"%v\": %v\n%s", cmd, err, out)
+			}
+		}
+		run(exec.Command(
 			"find", outDir, "-type", "f",
-			"-exec", "touch", "-r", policyFile, "{}", ";")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
-		}
+			"-exec", "touch", "-r", policyFile, "{}", ";"))
 
-		cmd = exec.Command("cp", "-pf", policyFile, outDir)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
-		}
+		run(exec.Command("cp", "-pf", policyFile, outDir))
 	}
 }
 
