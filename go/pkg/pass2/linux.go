@@ -101,6 +101,7 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 	treeIP, prefix := tree.IP, tree.Bits
 	nodeIP, nodePref := node.IP, node.Bits
 	var result *netBintree
+	//fmt.Fprintf(os.Stderr, "add %s/%d %s/%d\n", treeIP, prefix, nodeIP, nodePref)
 
 	// The case where new node is larger than root node will never
 	// occur, because nodes are sorted before being added.
@@ -116,9 +117,9 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 		// ToDo:
 		// If this optimization had been done before mergeSubtrees,
 		// it could have merged more subtrees.
-		if tree.subtree == nil || node.subtree == nil ||
-			tree.subtree != node.subtree {
-
+		if tree.subtree == node.subtree {
+			//fmt.Fprintln(os.Stderr, "Redundant")
+		} else {
 			var hilo **netBintree
 			upNet, _ := nodeIP.Prefix(prefix + 1)
 			if upNet.IP == treeIP {
@@ -132,6 +133,7 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 				*hilo = node
 			}
 		}
+
 		result = tree
 	} else {
 
@@ -145,6 +147,7 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 				break
 			}
 		}
+		//fmt.Fprintf(os.Stderr, "root %s/%d\n", root.IP, root.Bits)
 		result = &netBintree{ipNet: ipNet{IPPrefix: root}}
 		if nodeIP.Less(treeIP) {
 			result.lo, result.hi = node, tree
@@ -154,33 +157,37 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 	}
 
 	// Merge adjacent sub-networks.
-	if result.subtree == nil {
-		lo, hi := result.lo, result.hi
-		if lo == nil || hi == nil {
-			goto NOMERGE
-		}
-		prefix := result.Bits
-		prefix++
-		if prefix != lo.Bits {
-			goto NOMERGE
-		}
-		if prefix != hi.Bits {
-			goto NOMERGE
-		}
-		if lo.subtree == nil || hi.subtree == nil {
-			goto NOMERGE
-		}
-		if lo.subtree != hi.subtree {
-			goto NOMERGE
-		}
-		if lo.lo != nil || lo.hi != nil || hi.lo != nil || hi.hi != nil {
-			goto NOMERGE
-		}
-		result.subtree = lo.subtree
-		result.lo = nil
-		result.hi = nil
+	if result.subtree != nil {
+		//fmt.Fprintln(os.Stderr, "NOMERGE: subtree != nil")
+		return result
 	}
-NOMERGE:
+	// Since .subtree is nil, .lo and .hi are known to be defined.
+	// Otherwise result had not been created.
+	lo, hi := result.lo, result.hi
+	prefix = result.Bits + 1
+	if prefix != lo.Bits {
+		//fmt.Fprintln(os.Stderr, "NOMERGE: prefix != lo.Bits")
+		return result
+	}
+	if prefix != hi.Bits {
+		//fmt.Fprintln(os.Stderr, "NOMERGE: prefix != hi.Bits")
+		return result
+	}
+	if lo.subtree == nil || hi.subtree == nil {
+		//fmt.Fprintln(os.Stderr, "NOMERGE: lo.subtree == nil || hi.subtree == nil")
+		return result
+	}
+	if lo.subtree != hi.subtree {
+		//fmt.Fprintln(os.Stderr, "NOMERGE: lo.subtree != hi.subtree")
+		return result
+	}
+	// No need to check lo|hi.lo|hi, because large networks are added first,
+	// and hence lo|hi.lo|hi can't be set at this point.
+
+	//fmt.Fprintln(os.Stderr, "MERGED")
+	result.subtree = lo.subtree
+	result.lo = nil
+	result.hi = nil
 	return result
 }
 
@@ -898,6 +905,10 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 				sort.SliceStable(order[:], func(i, j int) bool {
 					return order[i].count < order[j].count
 				})
+				//for _, x := range order {
+				//fmt.Fprintf(os.Stderr, "%s:%d ", x.name, x.count)
+				//}
+				//fmt.Fprintln(os.Stderr, "")
 				ruleTree := make(lRuleTree)
 				for _, rule := range rules[start:i] {
 					add := func(what int, tree *lRuleTree) *lRuleTree {

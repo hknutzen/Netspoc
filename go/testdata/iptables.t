@@ -630,6 +630,41 @@ service:s4 = {
 =END=
 
 ############################################################
+=TITLE=Combine adjacent networks (3)
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:u = {
+ interface:n0;
+ interface:n1 = { ip = 10.1.1.2; }
+}
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = any:[ip = 10.1.0.0/25 & network:n0],
+        any:[ip = 10.1.0.128/25 & network:n0],
+        any:[ip = 10.1.1.0/25 & network:n1],
+        any:[ip = 10.1.1.128/25 & network:n1],
+        ;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+-- r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -j ACCEPT -s 10.1.0.0/23 -d 10.1.2.0/24 -p tcp --dport 80
+-A FORWARD -j n1_n2 -i n1 -o n2
+=END=
+
+############################################################
 =TITLE=Check udp/tcp early and combine adjacent networks
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
