@@ -29,13 +29,7 @@ func Readdirnames(path string) []string {
 }
 
 func Overwrite(path string, data []byte) error {
-	os.Remove(path) // Ignore error
-	fd, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("Can't %v", err)
-	}
-	defer fd.Close()
-	_, err = fd.Write(data)
+	err := os.WriteFile(path, data, 0644)
 	if err != nil {
 		return fmt.Errorf("Can't %v", err)
 	}
