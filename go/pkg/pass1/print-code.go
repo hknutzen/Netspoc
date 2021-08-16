@@ -2239,6 +2239,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	}
 
 	enc := json.NewEncoder(fh)
+	enc.SetEscapeHTML(false)
 	err := enc.Encode(result)
 	if err != nil {
 		panic(err)
