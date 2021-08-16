@@ -1407,21 +1407,14 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 
 func (c *spoc) copyPolicyFile(inPath, outDir string) {
 
-	// Copy version information from this file and
-	// take modification date for all newly created files.
-	// This allows import to RCS even for old versions of netspoc data.
+	// Copy version information from this file.  Preserve date, since
+	// it is used to identify creation time of this policy.
 	policyFile := filepath.Join(inPath, "POLICY")
 	if fileop.IsRegular(policyFile) {
-		run := func(cmd *exec.Cmd) {
-			if out, err := cmd.CombinedOutput(); err != nil {
-				c.abort("executing \"%v\": %v\n%s", cmd, err, out)
-			}
+		cmd := exec.Command("cp", "-pf", policyFile, outDir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			c.abort("executing '%v': %v\n%s", cmd, err, out)
 		}
-		run(exec.Command(
-			"find", outDir, "-type", "f",
-			"-exec", "touch", "-r", policyFile, "{}", ";"))
-
-		run(exec.Command("cp", "-pf", policyFile, outDir))
 	}
 }
 
