@@ -50,8 +50,7 @@ func (c *spoc) createDirs(dir, path string) {
 	}
 }
 
-func (c *spoc) exportJson(dir, path string, data interface{}) {
-	path = dir + "/" + path
+func (c *spoc) writeJson(path string, data interface{}) {
 	fd, err := os.Create(path)
 	if err != nil {
 		c.abort("Can't %v", err)
@@ -64,6 +63,10 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 	if err := fd.Close(); err != nil {
 		c.abort("Can't %v", err)
 	}
+}
+
+func (c *spoc) exportJson(dir, path string, data interface{}) {
+	c.writeJson(dir+"/"+path, data)
 }
 
 func printNetworkIp(n *network) string {

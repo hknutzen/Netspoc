@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -1994,7 +1993,7 @@ func getAddrList(l []someObj, natMap natMap) []string {
 	return result
 }
 
-func printAcls(fh *os.File, vrfMembers []*router) {
+func (c *spoc) printAcls(path string, vrfMembers []*router) {
 	var aclList []*jcode.ACLInfo
 	for _, r := range vrfMembers {
 		managed := r.managed
@@ -2237,13 +2236,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	if r.logDeny {
 		result.LogDeny = "log"
 	}
-
-	enc := json.NewEncoder(fh)
-	enc.SetEscapeHTML(false)
-	err := enc.Encode(result)
-	if err != nil {
-		panic(err)
-	}
+	c.writeJson(path, result)
 }
 
 // Make output directory available.
@@ -2384,14 +2377,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	// Print ACLs in machine independent format into separate file.
 	// Collect ACLs from VRF parts.
 	aclFile := dir + "/" + path + ".rules"
-	aclFd, err := os.Create(aclFile)
-	if err != nil {
-		c.abort("Can't %v", err)
-	}
-	printAcls(aclFd, vrfMembers)
-	if err := aclFd.Close(); err != nil {
-		c.abort("Can't %v", err)
-	}
+	c.printAcls(aclFile, vrfMembers)
 	return path
 }
 
