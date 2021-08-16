@@ -1,6 +1,8 @@
 package netspoc_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
@@ -348,7 +350,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			countEq(t, block, string(data))
+			jsonEq(t, block, data)
 		})
 	}
 }
@@ -393,6 +395,23 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 func countEq(t *testing.T, expected, got string) {
 	count++
 	assert.Equal(t, expected, got)
+}
+
+func jsonEq(t *testing.T, expected string, got []byte) {
+	normalize := func(d []byte) string {
+		var v interface{}
+		if err := json.Unmarshal(d, &v); err != nil {
+			// Try to compare as non JSON value
+			return string(d)
+		}
+		var b bytes.Buffer
+		enc := json.NewEncoder(&b)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", " ")
+		enc.Encode(v)
+		return b.String()
+	}
+	countEq(t, normalize([]byte(expected)), normalize(got))
 }
 
 // Run modify-netspoc-api and netspoc sequentially.

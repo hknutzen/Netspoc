@@ -3492,11 +3492,7 @@ service:s1 = {
 --services
 {
  "s1(CbJX20AY)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
+  "details": { "owner": [ "all" ] },
   "rules": [
    {
     "action": "permit",
@@ -3512,11 +3508,7 @@ service:s1 = {
   ]
  },
  "s1(se22rxX1)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
+  "details": { "owner": [ "all" ] },
   "rules": [
    {
     "action": "permit",
@@ -3669,23 +3661,13 @@ router:r1 = {
 --owner/all/nat_set
 []
 --owner/n23/nat_set
-[
- "n2"
-]
+[ "n2" ]
 --owner/n4/nat_set
-[
- "n4"
-]
+[ "n4" ]
 --owner/h2/nat_set
-[
- "n2",
- "n2a"
-]
+[ "n2", "n2a" ]
 --owner/h3/nat_set
-[
- "n3",
- "n3a"
-]
+[ "n3", "n3a" ]
 =END=
 
 ############################################################
@@ -3774,9 +3756,7 @@ router:r1 =  {
 --owner/o1/nat_set
 []
 --owner/o2/nat_set
-[
- "h1"
-]
+[ "h1" ]
 =END=
 
 ############################################################
@@ -3802,9 +3782,7 @@ router:r1 = {
 =END=
 =OUTPUT=
 --owner/o/nat_set
-[
- "n1"
-]
+[ "n1" ]
 =END=
 
 ############################################################

@@ -58,7 +58,6 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
-	enc.SetIndent("", " ")
 	if err := enc.Encode(data); err != nil {
 		c.abort("%v", err)
 	}
