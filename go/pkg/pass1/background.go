@@ -19,7 +19,7 @@ func (c *spoc) startInBackground(f func(*spoc)) bgSpoc {
 	// Channel is used to signal that background job has finished.
 	ch := make(spocWait)
 	c2 := c.bufferedSpoc()
-	handleBailout(
+	go handleBailout(
 		func() {
 			f(c2)
 			if conf.Conf.TimeStamps {
