@@ -319,27 +319,24 @@ func moveRules(aclInfo *aclInfo) {
 		moveRulesEspAh(aclInfo.rules, prt2obj, aclInfo.rulesHasLog)
 }
 
-func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRules {
+func moveRulesEspAh(
+	rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRules {
+
+	if rules == nil {
+		return nil
+	}
 	prtEsp := prt2obj["proto 50"]
 	prtAh := prt2obj["proto 51"]
 	if prtEsp == nil && prtAh == nil && !hasLog {
 		return rules
 	}
-	if rules == nil {
-		return nil
-	}
-	var denyRules, cryptoRules, permitRules ciscoRules
-	for _, rule := range rules {
-		if rule.deny {
-			denyRules.push(rule)
-		} else if rule.prt == prtEsp || rule.prt == prtAh || rule.log != "" {
-			cryptoRules.push(rule)
-		} else {
-			permitRules.push(rule)
-		}
-	}
 
 	// Sort crypto rules.
+	// Leave deny rules unchanged before and
+	// other permit rules unchanged after crypto rules.
+	needSort := func(rule *ciscoRule) bool {
+		return rule.prt == prtEsp || rule.prt == prtAh || rule.log != ""
+	}
 	cmpAddr := func(a, b *ipNet) int {
 		if val := a.IP.Compare(b.IP); val != 0 {
 			return val
@@ -352,22 +349,36 @@ func moveRulesEspAh(rules ciscoRules, prt2obj name2Proto, hasLog bool) ciscoRule
 		}
 		return 0
 	}
-	sort.Slice(cryptoRules, func(i, j int) bool {
+	sort.SliceStable(rules, func(i, j int) bool {
+		if rules[i].deny {
+			return !rules[j].deny
+		}
+		if rules[j].deny {
+			return false
+		}
+		if !needSort(rules[i]) {
+			return false
+		}
+		if !needSort(rules[j]) {
+			return true
+		}
 		if cmp := strings.Compare(
-			cryptoRules[i].prt.protocol,
-			cryptoRules[j].prt.protocol); cmp != 0 {
+			rules[i].prt.protocol,
+			rules[j].prt.protocol); cmp != 0 {
 
 			return cmp == -1
 		}
-		if cmp := cmpAddr(cryptoRules[i].src, cryptoRules[j].src); cmp != 0 {
+		if cmp := cmpAddr(rules[i].src, rules[j].src); cmp != 0 {
 			return cmp == -1
 		}
-		return cmpAddr(cryptoRules[i].dst, cryptoRules[j].dst) == -1
+		return cmpAddr(rules[i].dst, rules[j].dst) == -1
 	})
-	return append(denyRules, append(cryptoRules, permitRules...)...)
+	return rules
 }
 
-func createGroup(elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *objGroup {
+func createGroup(
+	elements []*ipNet, aclInfo *aclInfo, routerData *routerData) *objGroup {
+
 	name := "g" + strconv.Itoa(routerData.objGroupCounter)
 	if routerData.ipv6 {
 		name = "v6" + name
@@ -588,7 +599,6 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 			// Get list of objects from list of rules.
 			// Also find smallest object for lookup below.
 			elements := make([]*ipNet, len(list))
-			var smallest *ipNet
 			for i, rule := range list {
 				var el *ipNet
 				if thisIsDst {
@@ -596,13 +606,12 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 				} else {
 					el = rule.src
 				}
-				if smallest == nil {
-					smallest = el
-				} else if el.IP.Less(smallest.IP) {
-					smallest = el
-				}
 				elements[i] = el
 			}
+
+			// Rules have been sorted by src/dst IP already.
+			// So take smallest object for lookup below from first rule.
+			smallest := elements[0]
 			size := len(elements)
 
 			// Use size and smallest element as keys for efficient lookup.
@@ -851,12 +860,6 @@ func printObjectGroups(fd *os.File, aclInfo *aclInfo, model string) {
 		numbered := 10
 		fmt.Fprintln(fd, keyword, group.name)
 		for _, element := range group.elements {
-
-			// Reject network with mask = 0 in group.
-			// This occurs if optimization didn't work correctly.
-			if element.Bits == 0 {
-				panic("Unexpected network with mask 0 in object-group")
-			}
 			adr := ciscoACLAddr(element, model)
 			if model == "NX-OS" {
 				fmt.Fprintln(fd, "", numbered, adr)
@@ -888,27 +891,20 @@ func ciscoPrtCode(
 			ports := rangeObj.ports
 			v1, v2 := ports[0], ports[1]
 			if v1 == v2 {
-				return fmt.Sprint("eq ", v1)
+				return "eq " + strconv.Itoa(v1)
 			}
 			if v1 == 1 && v2 == 65535 {
 				return ""
 			}
 			if v2 == 65535 {
-				return fmt.Sprint("gt ", v1-1)
+				return "gt " + strconv.Itoa(v1-1)
 			}
 			if v1 == 1 {
-				return fmt.Sprint("lt ", v2+1)
+				return "lt " + strconv.Itoa(v2+1)
 			}
-			return fmt.Sprint("range ", v1, v2)
+			return "range " + strconv.Itoa(v1) + " " + strconv.Itoa(v2)
 		}
 		dstPrt := portCode(prt)
-		if prt.established {
-			if dstPrt != "" {
-				dstPrt += " established"
-			} else {
-				dstPrt = "established"
-			}
-		}
 		var srcPrt string
 		if srcRange != nil {
 			srcPrt = portCode(srcRange)
@@ -923,9 +919,9 @@ func ciscoPrtCode(
 		if icmpType != -1 {
 			code := prt.icmpCode
 			if code != -1 {
-				return icmp, "", fmt.Sprint(icmpType, code)
+				return icmp, "", strconv.Itoa(icmpType) + " " + strconv.Itoa(code)
 			}
-			return icmp, "", fmt.Sprint(icmpType)
+			return icmp, "", strconv.Itoa(icmpType)
 		}
 		return icmp, "", ""
 	default:
@@ -994,7 +990,9 @@ func printCiscoACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 			if dstPortCode != "" {
 				result += " " + dstPortCode
 			}
-
+			if rule.prt.established {
+				result += " established"
+			}
 			if rule.log != "" {
 				result += " " + rule.log
 			} else if rule.deny && routerData.logDeny != "" {

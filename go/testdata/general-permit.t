@@ -9,7 +9,8 @@ router:r = {
  model = NX-OS;
  general_permit = tcp, icmp 0, protocol:unreachable, udp;
  interface:m = { ip = 10.2.2.2; hardware = e0; }
- interface:n = { ip = 10.1.1.2; hardware = e1; }
+ interface:n = { ip = 10.1.1.2, 10.1.1.3; hardware = e1; }
+ interface:lo = { ip = 10.9.9.2; hardware = lo; loopback; }
 }
 network:n = { ip = 10.1.1.0/24; }
 service:test = {
@@ -26,8 +27,9 @@ ip access-list e0_in
  30 permit tcp any any
  40 permit udp any any
  50 deny ip any 10.1.1.2/32
- 60 permit icmp 10.2.2.0/24 10.1.1.0/24
- 70 deny ip any any
+ 60 deny ip any 10.1.1.3/32
+ 70 permit icmp 10.2.2.0/24 10.1.1.0/24
+ 80 deny ip any any
 --
 ip access-list e1_in
  10 permit icmp any any 0
@@ -90,7 +92,8 @@ router:r = {
  model = NX-OS;
  general_permit = tcp, icmp 0, icmp 3;
  interface:m = { ip = 10.2.2.2; hardware = e0; no_in_acl; }
- interface:n = { ip = 10.1.1.2; hardware = e1; }
+ interface:n = { ip = 10.1.1.2, 10.1.1.3; hardware = e1; }
+ interface:lo = { ip = 10.9.9.2; hardware = lo; loopback; }
 }
 network:n = { ip = 10.1.1.0/24; }
 =END=
@@ -102,9 +105,17 @@ ip access-list e0_in
  30 permit tcp any any
  40 deny ip any 10.2.2.2/32
  50 deny ip any 10.1.1.2/32
- 60 permit ip any any
+ 60 deny ip any 10.1.1.3/32
+ 70 deny ip any 10.9.9.2/32
+ 80 permit ip any any
 --
 ip access-list e1_in
+ 10 permit icmp any any 0
+ 20 permit icmp any any 3
+ 30 permit tcp any any
+ 40 deny ip any any
+--
+ip access-list e1_out
  10 permit icmp any any 0
  20 permit icmp any any 3
  30 permit tcp any any

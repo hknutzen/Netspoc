@@ -238,7 +238,10 @@ func (c *spoc) markDisabled() {
 		if seen[n] {
 			continue
 		}
-		if len(symTable.network) > 1 || len(symTable.router) > 0 {
+		if len(symTable.network) > 1 ||
+			len(symTable.router) > 0 ||
+			len(symTable.router6) > 0 {
+
 			c.err("%s isn't connected to any router", n)
 			n.disabled = true
 			for _, h := range n.hosts {

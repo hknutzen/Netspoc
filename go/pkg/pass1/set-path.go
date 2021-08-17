@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -12,8 +13,8 @@ func (c *spoc) setPath() {
 	c.findDistsAndLoops()
 	c.processLoops()
 	c.checkPathrestrictions()
+	c.linkPathrestrictions()
 	c.checkVirtualInterfaces()
-	c.removeRedundantPathrestrictions()
 }
 
 /* findDistsAndLoops sets direction and distances to an arbitrary
@@ -392,28 +393,15 @@ func (c *spoc) checkPathrestrictions() {
 
 	for _, p := range c.pathrestrictions {
 
-		if len(p.elements) == 0 {
-			continue
-		}
-
 		// Delete invalid elements of pathrestriction.
-		var toBeDeleted []*routerIntf
-		toBeDeleted = c.identifyRestrictedIntfsInWrongOrNoLoop(p)
-
-		// Ignore pathrestriction with only one element.
-		if len(toBeDeleted)+1 == len(p.elements) {
-			toBeDeleted = p.elements
-		}
-		if len(toBeDeleted) > 0 {
-			removeIntfsfromPathRestriction(p, toBeDeleted)
-		}
+		c.removeRestrictedIntfsInWrongOrNoLoop(p)
 		if len(p.elements) == 0 {
 			continue
 		}
 
 		// Mark pathrestricted interface at border of loop, where loop
 		// node is a zone.
-		// This needs special handling during path_mark and path_walk.
+		// This needs special handling during pathMark and pathWalk.
 		for _, intf := range p.elements {
 			if intf.loop == nil && intf.zone.loop != nil {
 				intf.loopZoneBorder = true
@@ -437,23 +425,30 @@ func (c *spoc) checkPathrestrictions() {
 	c.pathrestrictions = effective
 }
 
-func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
-	p *pathRestriction) []*routerIntf {
-
-	var misplaced intfList
-	var prevInterface *routerIntf
+func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
+	var prevIntf *routerIntf
 	var prevCluster pathObj
+	j := 0
 	for _, intf := range p.elements {
+		// Show original interface in error message.
+		origIntf := intf
 		loop := getIntfLoop(intf)
 
+		// If a pathrestricted interface is applied to an umanaged
+		// router, the router is split into an unmanaged and a managed
+		// router. The managed part has exactly two non secondary
+		// interfaces. Move pathrestriction to the interface that is
+		// located at border of loop.
 		if loop == nil && intf.splitOther != nil {
-			loop = movePathrestrictionToLoopIntfOfSplitRouter(intf)
+			other := intf.splitOther
+			if loop = other.zone.loop; loop != nil {
+				intf = other
+			}
 		}
 
 		if loop == nil {
 			c.warn("Ignoring %s at %s\n because it isn't located "+
 				"inside cyclic graph", p.name, intf)
-			misplaced.push(intf)
 			continue
 		}
 
@@ -462,66 +457,18 @@ func (c *spoc) identifyRestrictedIntfsInWrongOrNoLoop(
 		if prevCluster != nil {
 			if cluster != prevCluster {
 				c.warn("Ignoring %s having elements from different loops:\n"+
-					" - %s\n - %s", p.name, prevInterface, intf)
-				misplaced = p.elements
-				break
+					" - %s\n - %s", p.name, prevIntf, origIntf)
+				p.elements = nil
+				return
 			}
 		} else {
 			prevCluster = cluster
-			prevInterface = intf
+			prevIntf = origIntf
 		}
+		p.elements[j] = intf
+		j++
 	}
-	return misplaced
-}
-
-/* If a pathrestricted interface is applied to an umanaged router, the
-/* router is split into an unmanaged and a managed router. The managed
-/* part has exactly two non secondary interfaces. Move pathrestriction
-/* to the interface that is located at border of loop. */
-func movePathrestrictionToLoopIntfOfSplitRouter(intf *routerIntf) *loop {
-	other := intf.splitOther
-	loop := other.zone.loop
-
-	if loop == nil {
-		return nil
-	}
-
-	other.pathRestrict, intf.pathRestrict = intf.pathRestrict, nil
-
-	//debug("Move pathrestrictions from %s to %s", intf, other)
-	for _, p := range other.pathRestrict {
-		//debug(" - %s", restrict.name)
-		substituteIntf(p.elements, intf, other)
-	}
-	return loop
-}
-
-// Substitute a routerInterface within a slice.
-func substituteIntf(slice []*routerIntf, oldIntf, newIntf *routerIntf) {
-	for i, intf := range slice {
-		if intf == oldIntf {
-			slice[i] = newIntf
-			break
-		}
-	}
-}
-
-func removeIntfsfromPathRestriction(p *pathRestriction,
-	toBeDeleted []*routerIntf) {
-
-	for _, intf := range toBeDeleted {
-		p.elements = deleteIntfFrom(p.elements, intf)
-		intf.pathRestrict = deletePathRestrictionFrom(intf.pathRestrict, p)
-	}
-}
-
-func deleteIntfFrom(slice []*routerIntf, intf *routerIntf) []*routerIntf {
-	for i, intf2 := range slice {
-		if intf == intf2 {
-			return append(slice[:i], slice[(i+1):]...)
-		}
-	}
-	return slice
+	p.elements = p.elements[:j]
 }
 
 // Pathrestrictions that do not affect any ACLs are useless
@@ -557,12 +504,8 @@ func restrictSpansDifferentZonesOrZoneclusters(p *pathRestriction) bool {
 
 // Pathrestrictions in loops with > 1 zone cluster affect ACLs.
 func restrictIsInLoopWithSeveralZoneClusters(r *pathRestriction) bool {
-
 	refIntf := r.elements[0]
 	refLoop := getIntfLoop(refIntf)
-	if refLoop == nil { // ToDo: why do we check this?
-		return false
-	}
 
 	// Process every zone in zone cluster...
 	for _, z := range refIntf.zone.cluster {
@@ -593,6 +536,51 @@ func getIntfLoop(intf *routerIntf) *loop {
 	return nil
 }
 
+// Add non redundant pathrestrictions to attribute .pathRestrict of
+// corresponding interfaces.
+func (c *spoc) linkPathrestrictions() {
+	// Check if elements of p are subset of some larger pathrestriction.
+	isRedundantTo := func(p *pathRestriction) *pathRestriction {
+	OTHER:
+		for _, other := range p.elements[0].pathRestrict {
+		INTF:
+			for _, intf := range p.elements[1:] {
+				for _, other2 := range intf.pathRestrict {
+					if other2 == other {
+						continue INTF
+					}
+				}
+				continue OTHER
+			}
+			return other
+		}
+		return nil
+	}
+	addToIntf := func(p *pathRestriction) {
+		for _, intf := range p.elements {
+			intf.pathRestrict = append(intf.pathRestrict, p)
+		}
+	}
+
+	// Add large pathrestrictions first, so we can check if small
+	// pathrestriction is contained in large one.
+	sort.Slice(c.pathrestrictions, func(i, j int) bool {
+		return len(c.pathrestrictions[j].elements) <
+			len(c.pathrestrictions[i].elements)
+	})
+	j := 0
+	for _, p := range c.pathrestrictions {
+		if other := isRedundantTo(p); other != nil {
+			c.diag("Removed %s; is subset of %s", p.name, other.name)
+		} else {
+			addToIntf(p)
+			c.pathrestrictions[j] = p
+			j++
+		}
+	}
+	c.pathrestrictions = c.pathrestrictions[:j]
+}
+
 /* checkVirtualInterfaces assures interfaces with identical virtual IP
 /* are located inside the same loop.*/
 func (c *spoc) checkVirtualInterfaces() {
@@ -609,28 +597,17 @@ func (c *spoc) checkVirtualInterfaces() {
 			continue
 		}
 
+		// Check whether all virtual interfaces are part of a loop.
+		if intf.router.loop == nil {
+			c.err("%s must be located inside cyclic sub-graph", intf)
+			continue
+		}
+
 		if seen[intf] {
 			continue
 		}
 		for _, redundancyIntf := range intf.redundancyIntfs {
 			seen[redundancyIntf] = true
-		}
-
-		// Check whether all virtual interfaces are part of a loop.
-		var err bool
-		for _, virtIntf := range intf.redundancyIntfs {
-			if virtIntf.router.loop == nil {
-				c.err("%s must be located inside cyclic sub-graph", virtIntf)
-				err = true
-			}
-		}
-
-		if err {
-			// Remove invalid pathrestriction to prevent inherited errors.
-			for _, virtIntf := range intf.redundancyIntfs {
-				virtIntf.pathRestrict = nil
-			}
-			continue
 		}
 
 		// Check whether all virtual interfaces are part of same loop.
@@ -643,71 +620,4 @@ func (c *spoc) checkVirtualInterfaces() {
 			}
 		}
 	}
-}
-
-type prIntfKey struct {
-	pr   *pathRestriction
-	intf *routerIntf
-}
-
-func (c *spoc) removeRedundantPathrestrictions() {
-
-	intf2restrictions := make(map[prIntfKey]bool)
-	for _, p := range c.pathrestrictions {
-		for _, el := range p.elements {
-			intf2restrictions[prIntfKey{pr: p, intf: el}] = true
-		}
-	}
-
-	var valid []*pathRestriction
-	for _, p := range c.pathrestrictions {
-		other := findContainingPathRestriction(p, intf2restrictions)
-		if other != nil {
-			deletePathrestrictionFromInterfaces(p)
-			c.diag("Removed %s; is subset of %s", p.name, other.name)
-		} else {
-			valid = append(valid, p)
-		}
-	}
-	c.pathrestrictions = valid
-}
-
-// Find pathrestriction of equal/bigger size sharing all elements of
-// restrict.
-func findContainingPathRestriction(p *pathRestriction,
-	intf2restrictions map[prIntfKey]bool) *pathRestriction {
-
-OTHER:
-	for _, other := range p.elements[0].pathRestrict {
-		if other != p && len(other.elements) >= len(p.elements) {
-			for _, intf := range p.elements[1:] {
-				if !intf2restrictions[prIntfKey{pr: other, intf: intf}] {
-					continue OTHER
-				}
-			}
-			return other
-		}
-	}
-	return nil
-}
-
-func deletePathrestrictionFromInterfaces(p *pathRestriction) {
-	for _, intf := range p.elements {
-		intf.pathRestrict = deletePathRestrictionFrom(intf.pathRestrict, p)
-	}
-}
-
-func deletePathRestrictionFrom(
-	slice []*pathRestriction, p *pathRestriction) []*pathRestriction {
-	for i, p2 := range slice {
-		if p == p2 {
-			// Prevent empty array to speed up checks in clusterPathMark.
-			if len(slice) == 1 {
-				return nil
-			} else {
-				return append(slice[:i], slice[i+1:]...)
-			}
-		}
-	}
-	return slice
 }

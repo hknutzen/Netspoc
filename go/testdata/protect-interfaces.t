@@ -189,27 +189,42 @@ ip access-list extended e0_in
 =END=
 
 ############################################################
-=TITLE=Skip protection of loopback interface
+=TITLE=Optimize interface rules, ignore loopback
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r = {
  model = IOS, FW;
  managed;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:lo = { ip = 10.1.3.3; loopback; hardware = Loopback0; }
+ interface:lo = { ip = 10.1.9.1; loopback; hardware = lo; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-network:n2 = { ip = 10.1.2.0/24; }
 service:any = {
  user = any:[network:n1];
- permit src = user; dst = interface:r.[all]; prt = ip;
- permit src = user; dst = any:[network:n2]; prt = ip;
+ permit src = user;
+        dst = interface:r.n1, interface:r.n2, interface:r.lo;
+        prt = ip;
+ permit src = user; dst = interface:r.n3; prt = tcp 22;
+ permit src = user; dst = any:[network:n2], network:n3; prt = ip;
+}
+service:deny = {
+ user = host:h1;
+ deny src = user; dst = interface:r.n3; prt = tcp 22;
 }
 =END=
 =OUTPUT=
 --r
 ip access-list extended n1_in
+ deny tcp host 10.1.1.10 host 10.1.3.1 eq 22
+ permit tcp any host 10.1.3.1 eq 22
+ deny ip any host 10.1.3.1
  permit ip any any
+--
+ip access-list extended n2_in
+ deny ip any any
 =END=
 
 ############################################################

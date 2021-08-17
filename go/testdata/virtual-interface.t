@@ -303,12 +303,22 @@ route E7 10.1.1.0 255.255.255.0 10.3.3.9
 =END=
 
 ############################################################
-=TITLE=Virtual interfaces causing several routes on backward path
+=TITLE=Missing virtual interfaces on backward path
 =INPUT=${input}
 =SUBST=/virtual = {ip = 10.3.3.9;}//
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3
+ - interface:r3.n3
+=END=
+
+############################################################
+=TITLE=One missing virtual interface on backward path
+=INPUT=${input}
+=SUBST=/2; virtual = {ip = 10.3.3.9;}/2;/
+=ERROR=
+Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
+ - interface:r2.n3.virtual
  - interface:r3.n3
 =END=
 

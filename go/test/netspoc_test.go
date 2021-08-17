@@ -1,6 +1,8 @@
 package netspoc_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
@@ -37,6 +39,7 @@ type test struct {
 
 var tests = []test{
 	{".", outDirT, pass1.SpocMain, netspocCheck},
+	{"ipv6", outDirT, pass1.SpocMain, netspocCheck},
 	{"export-netspoc", outDirT, pass1.ExportMain, exportCheck},
 	{"format-netspoc", chgInputT, format.Main, formatCheck},
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
@@ -111,7 +114,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Add more options.
 		if d.Options != "" {
-			options := strings.Split(d.Options, " ")
+			options := strings.Fields(d.Options)
 			os.Args = append(os.Args, options...)
 		}
 
@@ -148,7 +151,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Add other params to command line.
 		if d.Params != "" {
-			os.Args = append(os.Args, strings.Split(d.Params, " ")...)
+			os.Args = append(os.Args, strings.Fields(d.Params)...)
 		}
 		if d.Param != "" {
 			os.Args = append(os.Args, d.Param)
@@ -197,6 +200,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 	re := regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
+	re = regexp.MustCompile(`[ \t]+\n`)
+	stderr = re.ReplaceAllString(stderr, "\n")
 
 	// Check result.
 	if status == 0 {
@@ -345,7 +350,7 @@ func exportCheck(t *testing.T, spec, dir string) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			countEq(t, block, string(data))
+			jsonEq(t, block, data)
 		})
 	}
 }
@@ -390,6 +395,23 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 func countEq(t *testing.T, expected, got string) {
 	count++
 	assert.Equal(t, expected, got)
+}
+
+func jsonEq(t *testing.T, expected string, got []byte) {
+	normalize := func(d []byte) string {
+		var v interface{}
+		if err := json.Unmarshal(d, &v); err != nil {
+			// Try to compare as non JSON value
+			return string(d)
+		}
+		var b bytes.Buffer
+		enc := json.NewEncoder(&b)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", " ")
+		enc.Encode(v)
+		return b.String()
+	}
+	countEq(t, normalize([]byte(expected)), normalize(got))
 }
 
 // Run modify-netspoc-api and netspoc sequentially.

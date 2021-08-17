@@ -300,8 +300,8 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=Illegal NAT to loopback interface
-=INPUT=
+=TITLE=Illegal NAT to loopback interface (1)
+=VAR=input
 network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -322,10 +322,19 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
+=INPUT=${input}
 =ERROR=
 Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
  in nat_domain:[network:n2]
+=END=
+
+############################################################
+=TITLE=Illegal NAT to loopback interface (2)
+=INPUT=${input}
+=SUBST=/router:r1/router:r3/
+=ERROR=
+Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
+ in nat_domain:[interface:r2.lo]
 =END=
 
 ############################################################

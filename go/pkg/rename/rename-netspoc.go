@@ -265,8 +265,7 @@ func processInput(input *filetree.Context) error {
 
 	info.Msg("%d changes in %s", count, path)
 	copy := printer.File(astFile)
-	err = fileop.Overwrite(path, copy)
-	return err
+	return fileop.Overwrite(path, copy)
 }
 
 func setupPairs(pattern []string) error {
@@ -338,7 +337,7 @@ func Main() int {
 		}
 	}
 	// Initialize Conf, especially attribute IgnoreFiles.
-	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
+	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.

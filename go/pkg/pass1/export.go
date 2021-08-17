@@ -50,21 +50,23 @@ func (c *spoc) createDirs(dir, path string) {
 	}
 }
 
-func (c *spoc) exportJson(dir, path string, data interface{}) {
-	path = dir + "/" + path
+func (c *spoc) writeJson(path string, data interface{}) {
 	fd, err := os.Create(path)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
-	enc.SetIndent("", " ")
 	if err := enc.Encode(data); err != nil {
 		c.abort("%v", err)
 	}
 	if err := fd.Close(); err != nil {
 		c.abort("Can't %v", err)
 	}
+}
+
+func (c *spoc) exportJson(dir, path string, data interface{}) {
+	c.writeJson(dir+"/"+path, data)
 }
 
 func printNetworkIp(n *network) string {
@@ -398,18 +400,9 @@ type exportedSvc struct {
 func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	c.progress("Normalize services for export")
 	var result []*exportedSvc
-	var names stringList
-	for n, _ := range symTable.service {
-		names.push(n)
-	}
-	sort.Strings(names)
-	for _, n := range names {
-		s := symTable.service[n]
-		ipv6 := s.ipV6
-		sname := s.name
-		ctx := sname
-		user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
-		foreach := s.foreach
+	for _, sv := range c.ascendingServices {
+		user := c.expandGroup(sv.user, "user of "+sv.name, sv.ipV6, false)
+		foreach := sv.foreach
 
 		type tmpRule struct {
 			objList  srvObjList
@@ -442,13 +435,13 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			return ok
 		}
 
-		for _, uRule := range s.rules {
+		for _, uRule := range sv.rules {
 			action := uRule.action
 			prtList := protoDescr(uRule.prt)
 			hasUser := uRule.hasUser
 
 			process := func(elt groupObjList) {
-				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, s)
+				srcDstListPairs := c.normalizeSrcDstList(uRule, elt, sv)
 				for _, srcDstList := range srcDstListPairs {
 					srcList, dstList := srcDstList[0], srcDstList[1]
 
@@ -532,7 +525,7 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 					objMap[ob] = true
 				}
 			}
-			newName := sname
+			newName := sv.name
 
 			// Add extension to make name of split service unique.
 			var rulesKey string
@@ -566,15 +559,15 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 			}
 			newService := &exportedSvc{
 				name:        newName,
-				description: s.description,
-				disableAt:   s.disableAt,
-				disabled:    s.disabled,
+				description: sv.description,
+				disableAt:   sv.disableAt,
+				disabled:    sv.disabled,
 				user:        userList,
 				objMap:      objMap,
 				jsonRules:   jsonRules,
 			}
-			if s.subOwner != nil {
-				newService.subOwner = s.subOwner.name[len("owner:"):]
+			if sv.subOwner != nil {
+				newService.subOwner = sv.subOwner.name[len("owner:"):]
 			}
 			if rulesKey != "" {
 				splitParts[rulesKey] = newService
@@ -1416,21 +1409,13 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 
 func (c *spoc) copyPolicyFile(inPath, outDir string) {
 
-	// Copy version information from this file and
-	// take modification date for all newly created files.
-	// This allows import to RCS even for old versions of netspoc data.
+	// Copy version information from this file.  Preserve date, since
+	// it is used to identify creation time of this policy.
 	policyFile := filepath.Join(inPath, "POLICY")
 	if fileop.IsRegular(policyFile) {
-		cmd := exec.Command(
-			"find", outDir, "-type", "f",
-			"-exec", "touch", "-r", policyFile, "{}", ";")
+		cmd := exec.Command("cp", "-pf", policyFile, outDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
-		}
-
-		cmd = exec.Command("cp", "-pf", policyFile, outDir)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing \"%v\": %v\n%s", cmd, err, out)
+			c.abort("executing '%v': %v\n%s", cmd, err, out)
 		}
 	}
 }
@@ -1496,7 +1481,7 @@ func ExportMain() int {
 	path := args[0]
 	out := args[1]
 	dummyArgs := []string{
-		fmt.Sprintf("--verbose=%v", !*quiet),
+		fmt.Sprintf("--quiet=%v", *quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}

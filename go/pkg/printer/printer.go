@@ -373,6 +373,8 @@ func getValueList(l []*ast.Value) (string, string) {
 	return line + ";", comment
 }
 
+// Print valueList or flag of attribute node in one line.
+// ComplexValue is not supported (ignored).
 func getAttr(n *ast.Attribute) (string, string) {
 	var val string
 	var comment string
@@ -380,8 +382,6 @@ func getAttr(n *ast.Attribute) (string, string) {
 		var vl string
 		vl, comment = getValueList(l)
 		val += " = " + vl
-	} else if l := n.ComplexValue; l != nil {
-		val, comment = getAttrList(l)
 	} else {
 		comment = n.PostComment()
 		val = ";"

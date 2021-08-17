@@ -699,8 +699,7 @@ func handlePanic(f func()) (err error) {
 			if b, ok := e.(bailout); ok {
 				err = b.err
 			} else {
-				// resume same panic if it's not a bailout
-				panic(e)
+				panic(e) // Resume same panic if it's not a bailout.
 			}
 		}
 	}()

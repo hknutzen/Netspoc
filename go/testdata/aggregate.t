@@ -220,6 +220,26 @@ Warning: network:n1 is subnet of network:n2
 =END=
 
 ############################################################
+=TITLE=Find subnet relation with duplicate networks and intermediate aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.0.0/16; nat:h2 = { hidden; } }
+network:n3 = { ip = 10.1.0.0/16; nat:h3 = { hidden; } }
+any:n1-20 = { ip = 10.1.0.0/20; link = network:n1; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = h2; }
+ interface:n2 = { ip = 10.1.0.1; hardware = n2; bind_nat = h3; }
+ interface:n3 = { ip = 10.1.0.1; hardware = n3; bind_nat = h2; }
+}
+=WARNING=
+Warning: network:n1 is subnet of network:n3
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Check aggregate at unnumbered interface
 =INPUT=
 network:Test = { ip = 10.9.1.0/24; }
@@ -251,6 +271,69 @@ Warning: This supernet rule would permit unexpected access:
  - any:Trans
  Either replace any:[network:Kunde] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
+=END=
+
+############################################################
+=TITLE=Ignore hidden network in supernet check (1)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; nat:h = { hidden; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n3]; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[network:n3]; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n2
+ Either replace any:[network:n3] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+=END=
+
+############################################################
+=TITLE=Ignore hidden network in supernet check (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; nat:h = { hidden; } }
+network:n4 = { ip = 10.1.3.128/25; subnet_of = network:n3; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; bind_nat = h; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.3.129; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: network:n3 is hidden by nat:h in rule
+ permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s1
 =END=
 
 ############################################################
@@ -871,7 +954,7 @@ router:r2 = {
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = VLAN77; }
  interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
- interface:n2 = { ip = 10.1.2.1; hardware = VLAN2; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.2; hardware = VLAN2; }
  interface:n3 = { ip = 10.1.3.1; hardware = VLAN3; }
  interface:n4 = { ip = 10.1.4.1; hardware = VLAN4; }
  interface:n128 = { ip = 10.128.1.1; hardware = VLAN128; }
@@ -1029,6 +1112,7 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
@@ -1061,6 +1145,7 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
@@ -1070,6 +1155,7 @@ ip access-list extended VLAN1_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
+ deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  deny ip any host 10.128.1.1
@@ -1555,7 +1641,7 @@ router:r2 = {
  model = IOS; #2
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = trans; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n3 = { ip = 10.1.3.1, 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1572,13 +1658,13 @@ service:test = {
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r1.n2 would permit access from additional networks:
+ Generated ACL at interface:r1.trans would permit access to additional networks:
  - network:n2
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r2.n3 would permit access from additional networks:
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
  - network:n3
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
@@ -1614,11 +1700,40 @@ ip access-list extended trans_in
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
- Generated ACL at interface:r2.n3 would permit access from additional networks:
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
  - network:n3
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 =END=
+
+############################################################
+=TITLE=Must not check source zone in reverse rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:u = {
+ interface:n1;
+ interface:n2;
+}
+pathrestriction:p =
+ interface:u.n2,
+ interface:r1.n2,
+;
+service:test = {
+ user = any:[ ip = 10.0.0.0/8 & network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Managed router will not exploit reverse rule
@@ -1689,7 +1804,7 @@ router:r3 = {
  routing = manual;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; no_in_acl; }
+ interface:n4 = { ip = 10.1.4.1, 10.1.4.2; hardware = n4; no_in_acl; }
 }
 router:u = {
  interface:n2 = { ip = 10.1.2.3; }
@@ -1716,7 +1831,102 @@ Warning: This supernet rule would permit unexpected access:
  - network:n3
  Either replace any:[network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
+=OUTPUT=
+-- r3
+ip access-list extended n2_out
+ permit udp any host 10.1.2.3 eq 123
+ deny ip any any
+--
+ip access-list extended n3_in
+ permit udp any host 10.1.2.3 eq 123
+ deny ip any any
+--
+ip access-list extended n4_in
+ deny ip any host 10.1.2.2
+ deny ip any host 10.1.3.2
+ deny ip any host 10.1.4.1
+ deny ip any host 10.1.4.2
+ permit ip any any
 =END=
+
+############################################################
+=TITLE=Supernet rule to dst at no_in_acl
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; no_in_acl; }
+}
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=Supernet rule to dst not directly behind no_in_acl
+# Must show warning for router:r1, not router:r2.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+any:n2-10_1_3 = { ip = 10.1.3.0/24; link = network:n2; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; no_in_acl; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3;}
+}
+
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n3; dst=network:n1; prt=tcp 80; of service:s1
+ Generated ACL at interface:r1.n2 would permit access from additional networks:
+ - any:n2-10_1_3
+ Either replace network:n3 by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+=END=
+
+############################################################
+=TITLE=Rule from supernet at no_in_acl
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; no_in_acl; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:test = {
+ user = any:[ network:n1 ];
+ permit src = user; dst = network:n3; prt = udp 123;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Missing aggregate for reverse rule in loop
@@ -1759,7 +1969,7 @@ service:test = {
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=interface:u.n4; prt=udp 123; of service:test
- Generated ACL at interface:r.n2 would permit access from additional networks:
+ Generated ACL at interface:r.t1 would permit access to additional networks:
  - network:n2
  Either replace any:[ip=10.0.0.0/8 & network:n1] by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
@@ -1969,6 +2179,149 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
+=TITLE=Missing transient rule with source port
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+protocol:ntp = udp 123:123;
+protocol:ntp2 = udp 124:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = protocol:ntp;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = udp 123-124;
+}
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - host:h3
+=END=
+
+############################################################
+=TITLE=No missing transient rule with non matching source port
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+protocol:ntp = udp 123:123;
+protocol:ntp2 = udp 124:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = protocol:ntp;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = protocol:ntp2;
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Don't show missing transient rule for s2.dst in zone of s1.src
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h1a = { ip = 10.1.1.10; }
+ host:h1b = { ip = 10.1.1.11; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3a = { ip = 10.1.3.10; }
+ host:h3b = { ip = 10.1.3.11; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = tcp 80;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h1b, host:h3b; prt = tcp 80;
+}
+service:s3 = {
+ user = host:h1a, host:h3a;
+ permit src = user; dst = any:[network:n2]; prt = tcp 81;
+}
+service:s4 = {
+ user = any:[network:n2];
+ permit src = user; dst = network:n3; prt = tcp 81;
+}
+service:s5 = {
+ user = host:h1a, host:h3a;
+ permit src = user; dst = any:[network:n2]; prt = tcp 82;
+}
+service:s6 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h1b, host:h3b; prt = tcp 82;
+}
+=END=
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - host:h3b
+Warning: Missing transient supernet rules
+ between src of service:s3 and dst of service:s4,
+ matching at any:[network:n2].
+ Add missing src elements to service:s4:
+ - host:h1a
+ or add missing dst elements to service:s3:
+ - network:n3
+Warning: Missing transient supernet rules
+ between src of service:s5 and dst of service:s6,
+ matching at any:[network:n2].
+ Add missing src elements to service:s6:
+ - host:h1a
+ - host:h3a
+ or add missing dst elements to service:s5:
+ - host:h1b
+ - host:h3b
+=END=
+
+############################################################
 =TITLE=Missing transient rule with any + NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2004,6 +2357,37 @@ Warning: Missing transient supernet rules
  or add missing dst elements to service:s1:
  - network:n3
 =END=
+
+############################################################
+=TITLE=No missing transient rule, s1.dst has subnets, but s2.dst doesn't match
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip=10.1.2.0/23 & network:n2]; prt = udp 123;
+}
+service:s2 = {
+ user = any:[ip=10.0.0.0/8 & network:n2];
+ permit src = user; dst = network:n4; prt = ip;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Missing transient rule with managed interface
@@ -2165,9 +2549,7 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
-=TITLE=Transient rule together with "foreach"
-# Transient rule is not found, because rule with "foreach" is split
-# into multiple rules internally.
+=TITLE=No transient rule together with "foreach"
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2184,34 +2566,19 @@ router:r2 = {
  interface:tr = { ip = 10.9.1.2; hardware = tr; }
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
 }
-area:a1 = { anchor = network:tr;}
+area:all = { anchor = network:tr;}
 protocol:oneway_IP = ip, oneway;
 # Allow unfiltered communication,
 # but check src IP of each incoming network:n_i.
 service:s1 = {
  user = foreach
         any:[network:tr],
-	network:[area:a1] & ! network:tr;
+	network:[area:all] & ! network:tr;
  permit src = user;
-	dst = any:[area:a1] &! any:[user];
+	dst = any:[area:all] &! any:[user];
 	prt = protocol:oneway_IP;
 }
 =END=
-=WARNING=
-Warning: Missing transient supernet rules
- between src of service:s1 and dst of service:s1,
- matching at any:[network:tr].
- Add missing src elements to service:s1:
- - network:n1
- or add missing dst elements to service:s1:
- - any:[network:n1]
-Warning: Missing transient supernet rules
- between src of service:s1 and dst of service:s1,
- matching at any:[network:tr].
- Add missing src elements to service:s1:
- - network:n2
- or add missing dst elements to service:s1:
- - any:[network:n2]
 =OUTPUT=
 -- r1
 ! n1_in
@@ -2913,22 +3280,21 @@ access-group n3_in in interface n3
 =TITLE=Zone cluster with keyword foreach
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-network:n2 = { ip = 10.1.2.0/24; }
 router:r2 = {
  managed = routing_only;
  model = IOS;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-network:n3 = { ip = 10.1.3.0/24; }
 service:ping_local = {
- has_unenforceable;
  user = foreach any:[network:n3];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmp 8;
 }
@@ -2936,7 +3302,7 @@ service:ping_local = {
 =OUTPUT=
 --r1
 ip access-list extended n2_in
- permit icmp 10.1.2.0 0.0.1.255 host 10.1.2.1 8
+ permit icmp 10.1.2.0 0.0.0.255 host 10.1.2.1 8
+ permit icmp 10.1.3.0 0.0.0.255 host 10.1.2.1 8
  deny ip any any
 =END=
-=TODO=Missing network:n3 from zone cluster

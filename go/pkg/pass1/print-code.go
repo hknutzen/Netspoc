@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -1614,12 +1613,11 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	seenIpsec := make(map[*ipsec]bool)
 	for _, intf := range r.interfaces {
 		if intf.ipType == tunnelIP {
-			i := intf.getCrypto().ipsec
-			if seenIpsec[i] {
-				continue
+			s := intf.getCrypto().ipsec
+			if !seenIpsec[s] {
+				seenIpsec[s] = true
+				ipsecList = append(ipsecList, s)
 			}
-			seenIpsec[i] = true
-			ipsecList = append(ipsecList, i)
 		}
 	}
 
@@ -1639,11 +1637,10 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 	seenIsakmp := make(map[*isakmp]bool)
 	for _, i := range ipsecList {
 		k := i.isakmp
-		if seenIsakmp[k] {
-			continue
+		if !seenIsakmp[k] {
+			seenIsakmp[k] = true
+			isakmpList = append(isakmpList, k)
 		}
-		seenIsakmp[k] = true
-		isakmpList = append(isakmpList, k)
 	}
 
 	printHeader(fh, r, "Crypto")
@@ -1859,7 +1856,7 @@ func printRouterIntf(fh *os.File, r *router) {
 				}
 			}
 			subcmd.push(addrCmd)
-			if !ipv6 {
+			if !ipv6 || class == "NX-OS" {
 				secondary = true
 			}
 		}
@@ -1996,7 +1993,7 @@ func getAddrList(l []someObj, natMap natMap) []string {
 	return result
 }
 
-func printAcls(fh *os.File, vrfMembers []*router) {
+func (c *spoc) printAcls(path string, vrfMembers []*router) {
 	var aclList []*jcode.ACLInfo
 	for _, r := range vrfMembers {
 		managed := r.managed
@@ -2239,12 +2236,7 @@ func printAcls(fh *os.File, vrfMembers []*router) {
 	if r.logDeny {
 		result.LogDeny = "log"
 	}
-
-	enc := json.NewEncoder(fh)
-	err := enc.Encode(result)
-	if err != nil {
-		panic(err)
-	}
+	c.writeJson(path, result)
 }
 
 // Make output directory available.
@@ -2385,14 +2377,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	// Print ACLs in machine independent format into separate file.
 	// Collect ACLs from VRF parts.
 	aclFile := dir + "/" + path + ".rules"
-	aclFd, err := os.Create(aclFile)
-	if err != nil {
-		c.abort("Can't %v", err)
-	}
-	printAcls(aclFd, vrfMembers)
-	if err := aclFd.Close(); err != nil {
-		c.abort("Can't %v", err)
-	}
+	c.printAcls(aclFile, vrfMembers)
 	return path
 }
 
@@ -2420,10 +2405,8 @@ func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	wg.Wait()
 	// Remove directory '.prev' created by pass1
 	// or remove symlink '.prev' created by newpolicy.pl.
-	err := os.RemoveAll(prev)
-	if err != nil {
-		panic(err)
-	}
+	// Error is ignored; would use unneeded space only.
+	os.RemoveAll(prev)
 
 	generated := len(devices) - reused
 	if generated > 0 {

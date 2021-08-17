@@ -7,7 +7,7 @@ import (
 )
 
 func Msg(format string, args ...interface{}) {
-	if conf.Conf.Verbose {
+	if !conf.Conf.Quiet {
 		string := fmt.Sprintf(format, args...)
 		fmt.Fprintln(os.Stderr, string)
 	}

@@ -295,6 +295,7 @@ func readJSON(path string) *routerData {
 	if err != nil {
 		panic(err)
 	}
+	defer fd.Close()
 	dec := json.NewDecoder(fd)
 	if err := dec.Decode(&jData); err != nil {
 		panic(err)
@@ -397,9 +398,6 @@ func tryPrev(devicePath, dir, prev string) bool {
 	for _, ext := range [...]string{"config", "rules"} {
 		pass1name := codeFile + "." + ext
 		pass1prev := prevFile + "." + ext
-		if !fileop.IsRegular(pass1prev) {
-			return false
-		}
 		cmd := exec.Command("cmp", "-s", pass1name, pass1prev)
 		if cmd.Run() != nil {
 			return false
@@ -414,11 +412,12 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename, prev string) []string {
+func readFileLines(filename string) []string {
 	fd, err := os.Open(filename)
 	if err != nil {
 		panic(err)
 	}
+	defer fd.Close()
 	result := make([]string, 0)
 	scanner := bufio.NewScanner(fd)
 	for scanner.Scan() {
@@ -437,7 +436,7 @@ func File(devicePath, dir, prev string) int {
 	}
 	file := dir + "/" + devicePath
 	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file+".config", prev)
+	config := readFileLines(file + ".config")
 	printCombined(config, routerData, file)
 	return 0
 }

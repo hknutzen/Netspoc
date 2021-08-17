@@ -97,9 +97,8 @@ service:s1 = {
 }
 =END=
 =ERROR=
-Error: network:B and network:A have identical IP/mask at interface:filter1.Trans
+Error: network:B and network:A have identical IP/mask in any:[network:Trans]
 =END=
-=TODO=Must only allow traffic from network:A, but not from network:B at filter1
 
 ############################################################
 =TITLE=No secondary optimization for network with subnet in other zone

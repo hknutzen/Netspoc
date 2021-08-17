@@ -36,6 +36,7 @@ type spoc struct {
 	managedRouters        []*router
 	allPathRules          pathRules
 	allZones              []*zone
+	ascendingServices     []*service
 	ascendingAreas        []*area
 	pathrestrictions      []*pathRestriction
 	virtualInterfaces     intfList
@@ -59,6 +60,19 @@ type bailout struct{}
 func (c *spoc) terminate() {
 	c.aborted = true
 	panic(bailout{})
+}
+
+func handleBailout(f, cleanup func()) {
+	defer func() {
+		if e := recover(); e != nil {
+			if _, ok := e.(bailout); !ok {
+				panic(e) // Resume same panic if it's not a bailout.
+			}
+		}
+		cleanup()
+	}()
+	f()
+	return
 }
 
 func (c *spoc) toStderrf(format string, args ...interface{}) {
@@ -104,13 +118,13 @@ func (c *spoc) warnOrErr(
 }
 
 func (c *spoc) info(format string, args ...interface{}) {
-	if conf.Conf.Verbose {
+	if !conf.Conf.Quiet {
 		c.toStderrf(format, args...)
 	}
 }
 
 func (c *spoc) progress(msg string) {
-	if conf.Conf.Verbose {
+	if !conf.Conf.Quiet {
 		if conf.Conf.TimeStamps {
 			msg =
 				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)
@@ -147,40 +161,24 @@ func (c *spoc) sendBuf(c2 *spoc) {
 // Sort error messages before output.
 func (c *spoc) sortedSpoc(f func(*spoc)) {
 	c2 := c.bufferedSpoc()
-	defer func() {
-		e := recover()
-		if e != nil {
-			if _, ok := e.(bailout); !ok {
-				// resume same panic if it's not a bailout
-				panic(e)
+	handleBailout(
+		func() { f(c2) },
+		func() {
+			// Leave "Abort" message as last message.
+			l := len(c2.messages)
+			if c2.aborted {
+				l--
 			}
-		}
-
-		// Leave "Abort" message as last message.
-		var toSort []string
-		if c2.aborted {
-			toSort = c2.messages[:len(c2.messages)-1]
-		} else {
-			toSort = c2.messages
-		}
-		sort.Strings(toSort)
-		c.sendBuf(c2)
-	}()
-	f(c2)
+			sort.Strings(c2.messages[:l])
+			c.sendBuf(c2)
+		})
 }
 
 func toplevelSpoc(f func(*spoc)) (errCount int) {
 	c := initSpoc()
-	defer func() {
-		if e := recover(); e != nil {
-			if _, ok := e.(bailout); !ok {
-				// resume same panic if it's not a bailout
-				panic(e)
-			}
-		}
-		errCount = c.errCount
-	}()
-	f(c)
+	handleBailout(
+		func() { f(c) },
+		func() { errCount = c.errCount })
 	return
 }
 

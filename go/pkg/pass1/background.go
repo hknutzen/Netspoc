@@ -19,21 +19,14 @@ func (c *spoc) startInBackground(f func(*spoc)) bgSpoc {
 	// Channel is used to signal that background job has finished.
 	ch := make(spocWait)
 	c2 := c.bufferedSpoc()
-	go func() {
-		defer func() {
-			if e := recover(); e != nil {
-				if _, ok := e.(bailout); !ok {
-					// resume same panic if it's not a bailout
-					panic(e)
-				}
+	go handleBailout(
+		func() {
+			f(c2)
+			if conf.Conf.TimeStamps {
+				c2.progress("Finished background job")
 			}
-			close(ch)
-		}()
-		f(c2)
-		if conf.Conf.TimeStamps {
-			c2.progress("Finished background job")
-		}
-	}()
+		},
+		func() { close(ch) })
 	return bgSpoc{spoc: c2, ch: ch}
 }
 
@@ -47,8 +40,6 @@ func (c *spoc) collectMessages(c2 bgSpoc) {
 	<-ch
 	if conf.Conf.TimeStamps {
 		c.progress("Output of background job:")
-	}
-	if conf.Conf.TimeStamps {
 		for i, msg := range c2.messages {
 			if matched, _ := regexp.MatchString(`^\d+s `, msg); matched {
 				c2.messages[i] = " " + msg

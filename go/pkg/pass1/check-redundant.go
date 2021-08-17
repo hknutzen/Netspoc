@@ -176,7 +176,7 @@ func (c *spoc) checkAttrOverlaps(
 func (c *spoc) collectDuplicateRules(
 	rule, other *expandedRule, ri *redundInfo) {
 
-	svc := rule.rule.service
+	sv := rule.rule.service
 
 	// Mark duplicate rules in both services.
 
@@ -186,31 +186,25 @@ func (c *spoc) collectDuplicateRules(
 	// it must only be counted once, if it is both duplicate and
 	// redundandant.
 	rule.redundant = true
-	svc.duplicateCount++
-	osvc := other.rule.service
+	sv.duplicateCount++
+	osv := other.rule.service
 	if !other.redundant {
-		osvc.duplicateCount++
+		osv.duplicateCount++
 		other.redundant = true
 	}
 
 	// Link redundant service, so we later show only one of both services as
 	// fully redundant.
-	// Link only from small to large service, because services are
-	// processed ordered by sorted names later.
-	link := func(s, o *service) {
-		m := ri.hasSameDupl[s]
+	// Link only from small to large service, because
+	// - rules are created from sorted services earlier and
+	// - services are processed sorted later.
+	if sv.name > osv.name {
+		m := ri.hasSameDupl[osv]
 		if m == nil {
 			m = make(map[*service]bool)
-			ri.hasSameDupl[s] = m
+			ri.hasSameDupl[osv] = m
 		}
-		m[o] = true
-	}
-	if svc.name > osvc.name {
-		link(osvc, svc)
-	} else if svc.name < osvc.name {
-		// This can't occur, because rules are created from sorted
-		// services earlier.
-		link(svc, osvc)
+		m[sv] = true
 	}
 
 	// Return early, so overlapsUsed isn't set below.
@@ -218,8 +212,8 @@ func (c *spoc) collectDuplicateRules(
 		return
 	}
 
-	if c.checkAttrOverlaps(svc, osvc, rule, ri) ||
-		c.checkAttrOverlaps(osvc, svc, rule, ri) {
+	if c.checkAttrOverlaps(sv, osv, rule, ri) ||
+		c.checkAttrOverlaps(osv, sv, rule, ri) {
 		return
 	}
 
@@ -228,16 +222,16 @@ func (c *spoc) collectDuplicateRules(
 	}
 }
 
-type twoSvc [2]*service
+type twoSv [2]*service
 
 func (c *spoc) showDuplicateRules(ri *redundInfo) {
-	twoSvc2Duplicate := make(map[twoSvc][]*expandedRule)
+	twoSv2Duplicate := make(map[twoSv][]*expandedRule)
 	for _, pair := range ri.duplicate {
 		rule, other := pair[0], pair[1]
-		key := twoSvc{rule.rule.service, other.rule.service}
-		twoSvc2Duplicate[key] = append(twoSvc2Duplicate[key], rule)
+		key := twoSv{rule.rule.service, other.rule.service}
+		twoSv2Duplicate[key] = append(twoSv2Duplicate[key], rule)
 	}
-	for key, rules := range twoSvc2Duplicate {
+	for key, rules := range twoSv2Duplicate {
 		msg := "Duplicate rules in " + key[0].name + " and " + key[1].name + ":"
 		for _, rule := range rules {
 			msg += "\n  " + rule.print()
@@ -249,21 +243,21 @@ func (c *spoc) showDuplicateRules(ri *redundInfo) {
 func (c *spoc) collectRedundantRules(
 	rule, other *expandedRule, ri *redundInfo) int {
 
-	service := rule.rule.service
+	sv := rule.rule.service
 	count := 0
 
 	// Count each redundant rule only once.
 	if !rule.redundant {
 		rule.redundant = true
 		count++
-		service.redundantCount++
+		sv.redundantCount++
 	}
 
 	if rule.overlaps && other.overlaps {
 		return count
 	}
 
-	if !c.checkAttrOverlaps(service, other.rule.service, rule, ri) {
+	if !c.checkAttrOverlaps(sv, other.rule.service, rule, ri) {
 		ri.redundant = append(ri.redundant, [2]*expandedRule{rule, other})
 	}
 	return count
@@ -274,13 +268,13 @@ func (c *spoc) showRedundantRules(ri *redundInfo) {
 	if action == "" {
 		return
 	}
-	twoSvc2Redundant := make(map[twoSvc][][2]*expandedRule)
+	twoSv2Redundant := make(map[twoSv][][2]*expandedRule)
 	for _, pair := range ri.redundant {
 		rule, other := pair[0], pair[1]
-		key := twoSvc{rule.rule.service, other.rule.service}
-		twoSvc2Redundant[key] = append(twoSvc2Redundant[key], pair)
+		key := twoSv{rule.rule.service, other.rule.service}
+		twoSv2Redundant[key] = append(twoSv2Redundant[key], pair)
 	}
-	for key, rulePairs := range twoSvc2Redundant {
+	for key, rulePairs := range twoSv2Redundant {
 		msg :=
 			"Redundant rules in " + key[0].name +
 				" compared to " + key[1].name + ":\n  "
@@ -299,48 +293,36 @@ func (c *spoc) showFullyRedundantRules(ri *redundInfo) {
 	if action == "" {
 		return
 	}
-	sNames := make(stringList, 0, len(symTable.service))
-	for name := range symTable.service {
-		sNames.push(name)
-	}
-	sort.Strings(sNames)
 	keep := make(map[*service]bool)
-	for _, name := range sNames {
-		service := symTable.service[name]
-		if keep[service] {
+	for _, sv := range c.ascendingServices {
+		if keep[sv] {
 			continue
 		}
-		ruleCount := service.ruleCount
+		ruleCount := sv.ruleCount
 		if ruleCount == 0 {
 			continue
 		}
-		if service.duplicateCount+service.redundantCount != ruleCount {
+		if sv.duplicateCount+sv.redundantCount != ruleCount {
 			continue
 		}
-		for other := range ri.hasSameDupl[service] {
+		for other := range ri.hasSameDupl[sv] {
 			keep[other] = true
 		}
-		c.warnOrErr(action, service.name+" is fully redundant")
+		c.warnOrErr(action, "%s is fully redundant", sv)
 	}
 }
 
 func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
-	var errList stringList
-	for _, sv := range symTable.service {
+	for _, sv := range c.ascendingServices {
 		if sv.disabled {
 			continue
 		}
 		used := ri.overlapsUsed
 		for _, overlap := range sv.overlaps {
 			if !(overlap.disabled || used[[2]*service{sv, overlap}]) {
-				errList.push(
-					fmt.Sprintf("Useless 'overlaps = %s' in %s", overlap, sv))
+				c.warn("Useless 'overlaps = %s' in %s", overlap, sv)
 			}
 		}
-	}
-	sort.Strings(errList)
-	for _, msg := range errList {
-		c.warn(msg)
 	}
 }
 
@@ -348,7 +330,7 @@ func (c *spoc) warnUnusedOverlaps(ri *redundInfo) {
 func expandRules(rules []*groupedRule) []*expandedRule {
 	var result []*expandedRule
 	for _, rule := range rules {
-		service := rule.rule.service
+		sv := rule.rule.service
 		for _, src := range rule.src {
 			for _, dst := range rule.dst {
 				for _, prt := range rule.prt {
@@ -357,7 +339,7 @@ func expandRules(rules []*groupedRule) []*expandedRule {
 					e.dst = dst
 					e.prt = prt
 					result = append(result, e)
-					service.ruleCount++
+					sv.ruleCount++
 				}
 			}
 		}

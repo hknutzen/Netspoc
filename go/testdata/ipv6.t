@@ -6,24 +6,25 @@ network:n1 = { ip = 1000::abcd:0001:0/112;}
 network:n2 = { ip = 1000::abcd:0002:0/112;}
 router:r1 = {
  managed;
- model = IOS, FW;
- interface:n1 = {ip = 1000::abcd:0001:0001; hardware = E1;}
- interface:n2 = {ip = 1000::abcd:0002:0001; hardware = E2;}
+ model = ASA;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
 group:g1 = network:n1;
 service:test1 = {
  user = group:g1;
  permit src = user;
  dst = network:n2;
- prt = tcp 80-90;
+ prt = tcp 80-90, icmpv6 128;
 }
 =END=
 =OUTPUT=
 -- ipv6/r1
-ipv6 access-list E1_in
- deny ipv6 any host 1000::abcd:2:1
- permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
- deny ipv6 any any
+! n1_in
+access-list n1_in extended permit tcp 1000::abcd:1:0/112 1000::abcd:2:0/112 range 80 90
+access-list n1_in extended permit icmp6 1000::abcd:1:0/112 1000::abcd:2:0/112 128
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
 =END=
 =OPTIONS=--ipv6
 

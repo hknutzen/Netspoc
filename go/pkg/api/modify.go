@@ -72,7 +72,7 @@ func Main() int {
 	netspocPath := args[0]
 
 	// Initialize Conf, especially attribute IgnoreFiles.
-	dummyArgs := []string{fmt.Sprintf("--verbose=%v", !*quiet)}
+	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
 
 	s := new(state)

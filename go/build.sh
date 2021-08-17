@@ -2,7 +2,7 @@
 # Prepare for release.
 
 # Abort on first error.
-set -e
+trap 'echo Failed: $BASH_COMMAND >&2; exit 1' ERR
 
 # Get version as argument or use 'devel'.
 V=${1:-devel}
@@ -22,6 +22,9 @@ done
 # Do static analysis of source code.
 cd $dir
 go vet ./...
+
+# Generate IPv6 tests
+make --silent --directory=testdata/ipv6
 
 # Execute tests.
 ( cd test; go test )

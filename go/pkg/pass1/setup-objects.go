@@ -65,7 +65,8 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.initStdProtocols(sym)
 	symTable = sym
 	c.setupObjects(toplevel, sym)
-	c.splitSemiManagedRouter()
+	c.setAscendingServices(sym)
+	c.splitSemiManagedRouters()
 	c.stopOnErr()
 	c.linkTunnels(sym)
 	c.linkVirtualInterfaces()
@@ -159,7 +160,11 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 			}
 			s.protocolgroup[name] = &protoGroup{name: a.GetName(), list: l}
 		case *ast.Network:
-			s.network[name] = new(network)
+			n := new(network)
+			// Set .name and .ipV6 early so that checkV4V6CrossRef works.
+			n.name = x.Name
+			n.ipV6 = x.IPV6
+			s.network[name] = n
 			networks = append(networks, x)
 		case *ast.Router:
 			routers = append(routers, x)
@@ -215,6 +220,17 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 	}
 	for _, a := range services {
 		c.setupService(a, s)
+	}
+}
+
+func (c *spoc) setAscendingServices(s *symbolTable) {
+	names := make(stringList, 0, len(s.service))
+	for name := range s.service {
+		names.push(name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		c.ascendingServices = append(c.ascendingServices, s.service[name])
 	}
 }
 
@@ -3574,13 +3590,14 @@ func (c *spoc) addPathrestriction(name string, l intfList) {
 	pr.elements = l
 	c.pathrestrictions = append(c.pathrestrictions, pr)
 	for _, intf := range l {
-		//debug("%s at %s", name, intf)
-		// Multiple restrictions may be applied to a single interface.
-		intf.pathRestrict = append(intf.pathRestrict, pr)
 		// Unmanaged router with pathrestriction is handled specially.
 		// It is separating zones, but gets no code.
 		if intf.router.managed == "" {
 			intf.router.semiManaged = true
+			// Change to non nil value, so we can detect pathrestricted interfaces
+			// during splitSemiManagedRouters.
+			// Real value is added later.
+			intf.pathRestrict = []*pathRestriction{}
 		}
 	}
 }
