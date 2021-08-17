@@ -49,3 +49,47 @@ ${output}
 =OPTIONS=--concurrency_pass2=2
 
 ############################################################
+=TITLE=Abort early, if backgroud job has too many errors, with following error
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:100/121; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+
+group:g1 = network:n1;
+group:g2 = network:n1;
+=ERROR=
+Error: network:n2 is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+Error: unused group:g1
+Error: unused group:g2
+Aborted after 2 errors
+=OPTIONS=--concurrency_pass1=2 --check_unused_groups=1 --check_subnets=1  --max_errors=2
+
+############################################################
+=TITLE=Abort early, if backgroud job has too many errors, with previous error
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:100/121; subnet_of = network:n1; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+group:g1 = network:n1;
+=ERROR=
+Error: service:s1 is fully unenforceable
+Error: unused group:g1
+Aborted after 2 errors
+=OPTIONS=--concurrency_pass1=2 --check_unused_groups=1 --check_unenforceable=1 --max_errors=2
+
+############################################################

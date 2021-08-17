@@ -183,6 +183,29 @@ DIAG: Removed duplicate permit src=network:n1; dst=network:n2; prt=protocol:Ping
 =END=
 
 ############################################################
+=TITLE=Don't show useless overlap for disabled service
+=PARAMS=--ipv6
+=INPUT=
+${topo}
+service:s1 = {
+ overlaps = service:s2;
+ disable_at = 2000-01-01;
+ user = network:n1;
+ permit src = user;
+        dst = host:h1;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user;
+	dst = host:h1;
+	prt = tcp 81;
+}
+=END=
+=SHOW_DIAG=
+=WARNING=NONE
+
+############################################################
 =TITLE=Multiple larger rules, one suppressed
 =PARAMS=--ipv6
 =INPUT=

@@ -136,6 +136,57 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Udp port ranges
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120;
+ host:h10 = { ip = ::a01:20a; }
+ host:h12 = { ip = ::a01:20c; }
+ host:h14 = { ip = ::a01:20e; }
+}
+router:r1 =  {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+protocol:p1 = udp 1-1023:53;
+protocol:p2 = udp 1-511:69;
+protocol:p3 = udp 1024-65535:123;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = host:h14;
+        prt = protocol:p1;
+ permit src = user;
+        dst = host:h10;
+        prt = protocol:p2;
+ permit src = user;
+        dst = host:h12;
+        prt = protocol:p3, udp 137;
+}
+=OUTPUT=
+--ipv6/r1
+# [ ACL ]
+:c1 -
+:c2 -
+:c3 -
+-A c1 -j ACCEPT -p udp --dport 137
+-A c1 -j ACCEPT -p udp --sport 1024: --dport 123
+-A c2 -j ACCEPT -d ::a01:20e -p udp --sport :1023 --dport 53
+-A c2 -g c1 -d ::a01:20c -p udp
+-A c3 -g c2 -d ::a01:20c/126
+-A c3 -j ACCEPT -d ::a01:20a -p udp --sport :511 --dport 69
+--
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:208/125
+-A FORWARD -j n1_n2 -i n1 -o n2
+=END=
+
+############################################################
 =TITLE=Merge port range with sub-range
 =VAR=input
 network:RAS      = { ip = ::a02:200/120; }
@@ -264,7 +315,10 @@ service:B = {
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
+network:n2 = { ip = ::a01:200/120;
+ host:h10 = { ip = ::a01:20a; }
+ host:h12 = { ip = ::a01:20c; }
+}
 router:r1 =  {
  managed;
  model = Linux;
@@ -274,22 +328,31 @@ router:r1 =  {
 service:s1 = {
  user = network:n1;
  permit src = user;
-        dst = network:n2;
+        dst = host:h10;
         prt = proto 112, proto 114, proto 111;
+ permit src = user;
+        dst = host:h12;
+        prt = proto 112, proto 111;
 }
 =END=
 =OUTPUT=
 --ipv6/r1
 # [ ACL ]
 :c1 -
+:c2 -
+:c3 -
 -A c1 -j ACCEPT -p 111
 -A c1 -j ACCEPT -p 112
--A c1 -j ACCEPT -p 114
+-A c2 -j ACCEPT -p 111
+-A c2 -j ACCEPT -p 112
+-A c2 -j ACCEPT -p 114
+-A c3 -g c1 -d ::a01:20c
+-A c3 -g c2 -d ::a01:20a
 --
 :n1_self -
 -A INPUT -j n1_self -i n1
 :n1_n2 -
--A n1_n2 -g c1 -s ::a01:100/120 -d ::a01:200/120
+-A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:208/125
 -A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 
@@ -577,6 +640,42 @@ service:s4 = {
 :n3_n4 -
 -A n3_n4 -g c3 -d ::a01:400/120 -p udp
 -A FORWARD -j n3_n4 -i n3 -o n4
+=END=
+
+############################################################
+=TITLE=Combine adjacent networks (3)
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = ::a01:0/120; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:u = {
+ interface:n0;
+ interface:n1 = { ip = ::a01:102; }
+}
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+
+service:s1 = {
+ user = any:[ip = ::a01:0/121 & network:n0],
+        any:[ip = ::a01:80/121 & network:n0],
+        any:[ip = ::a01:100/121 & network:n1],
+        any:[ip = ::a01:180/121 & network:n1],
+        ;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
+:n1_n2 -
+-A n1_n2 -j ACCEPT -s ::a01:0/119 -d ::a01:200/120 -p tcp --dport 80
+-A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 
 ############################################################

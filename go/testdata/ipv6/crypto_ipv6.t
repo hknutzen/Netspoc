@@ -2780,9 +2780,9 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT
 =VAR=input
-ipsec:aes256SHA = {
+ipsec:aes192SHA = {
  key_exchange = isakmp:aes192SHA;
- esp_encryption = aes256;
+ esp_encryption = aes192;
  esp_authentication = sha384;
  pfs_group = 15;
  lifetime = 3600 sec;
@@ -2813,7 +2813,7 @@ isakmp:3desSHA = {
  lifetime = 86400 sec;
 }
 crypto:sts1 = {
- type = ipsec:aes256SHA;
+ type = ipsec:aes192SHA;
 }
 crypto:sts2 = {
  type = ipsec:3desSHA;
@@ -2883,7 +2883,7 @@ service:test = {
 --ipv6/asavpn
 no sysopt connection permit-vpn
 crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec ikev1 transform-set Trans2 esp-aes-256 esp-sha384-hmac
+crypto ipsec ikev1 transform-set Trans2 esp-aes-192 esp-sha384-hmac
 --
 ! crypto-f000::ac10:102
 access-list crypto-f000::ac10:102 extended permit ip any6 ::a63:100/120
@@ -2935,7 +2935,7 @@ crypto ipsec ikev2 ipsec-proposal Trans1
  protocol esp encryption 3des
  protocol esp integrity sha-1
 crypto ipsec ikev2 ipsec-proposal Trans2
- protocol esp encryption aes-256
+ protocol esp encryption aes-192
  protocol esp integrity sha-384
 --
 ! crypto-f000::ac10:102
@@ -2996,7 +2996,7 @@ crypto isakmp policy 2
  group 15
  lifetime 43200
 crypto ipsec transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec transform-set Trans2 esp-aes 256 esp-sha384-hmac
+crypto ipsec transform-set Trans2 esp-aes 192 esp-sha384-hmac
 ipv6 access-list crypto-f000::ac10:102
  permit ipv6 any ::a63:100/120
 ipv6 access-list crypto-filter-f000::ac10:102
@@ -3025,7 +3025,7 @@ crypto map crypto-outside 2 ipsec-isakmp
 =END=
 
 ############################################################
-=TITLE=ASA with two dynamic crypto spokes
+=TITLE=ASA with two dynamic crypto spokes, same ipsec at different tunnels
 =VAR=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -3044,27 +3044,11 @@ isakmp:aes256SHA = {
  lifetime = 43200 sec;
  trust_point = ASDM_TrustPoint3;
 }
-ipsec:3desSHA = {
- key_exchange = isakmp:3desSHA;
- esp_encryption = 3des;
- esp_authentication = sha;
- pfs_group = 2;
- lifetime = 600 sec;
-}
-isakmp:3desSHA = {
- ike_version = 1;
- authentication = rsasig;
- encryption = 3des;
- hash = sha;
- group = 2;
- lifetime = 86400 sec;
- trust_point = ASDM_TrustPoint1;
-}
 crypto:sts1 = {
  type = ipsec:aes256SHA;
 }
 crypto:sts2 = {
- type = ipsec:3desSHA;
+ type = ipsec:aes256SHA;
  detailed_crypto_acl;
 }
 network:intern = {
@@ -3138,15 +3122,14 @@ ipv6 route outside f000::c0a8:1600/120 f000::c0a8:1
 ipv6 route outside ::/0 f000::c0a8:1
 --
 no sysopt connection permit-vpn
-crypto ipsec ikev1 transform-set Trans1 esp-3des esp-sha-hmac
-crypto ipsec ikev2 ipsec-proposal Trans2
+crypto ipsec ikev2 ipsec-proposal Trans1
  protocol esp encryption aes-256
  protocol esp integrity sha-384
 --
 ! crypto-vpn1@example.com
 access-list crypto-vpn1@example.com extended permit ip any6 ::a63:200/120
 crypto dynamic-map vpn1@example.com 10 match address crypto-vpn1@example.com
-crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans2
+crypto dynamic-map vpn1@example.com 10 set ikev2 ipsec-proposal Trans1
 crypto dynamic-map vpn1@example.com 10 set pfs group15
 crypto dynamic-map vpn1@example.com 10 set security-association lifetime seconds 3600
 crypto map crypto-outside 65535 ipsec-isakmp dynamic vpn1@example.com
@@ -3162,14 +3145,14 @@ tunnel-group-map vpn1@example.com 10 vpn1@example.com
 access-list crypto-vpn2@example.com extended permit ip ::a01:100/120 ::a63:300/120
 access-list crypto-vpn2@example.com extended permit ip ::a01:100/120 f000::c0a8:1600/120
 crypto dynamic-map vpn2@example.com 10 match address crypto-vpn2@example.com
-crypto dynamic-map vpn2@example.com 10 set ikev1 transform-set Trans1
-crypto dynamic-map vpn2@example.com 10 set pfs group2
-crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 600
+crypto dynamic-map vpn2@example.com 10 set ikev2 ipsec-proposal Trans1
+crypto dynamic-map vpn2@example.com 10 set pfs group15
+crypto dynamic-map vpn2@example.com 10 set security-association lifetime seconds 3600
 crypto map crypto-outside 65534 ipsec-isakmp dynamic vpn2@example.com
 tunnel-group vpn2@example.com type ipsec-l2l
 tunnel-group vpn2@example.com ipsec-attributes
- ikev1 trust-point ASDM_TrustPoint1
- ikev1 user-authentication none
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
 crypto ca certificate map vpn2@example.com 10
  subject-name attr ea eq vpn2@example.com
 tunnel-group-map vpn2@example.com 10 vpn2@example.com
