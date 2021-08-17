@@ -80,9 +80,9 @@ deny   10.1.1.11 10.1.2.12 icmp 3/13
 =PARAMS= r1 n1_in
 =FOPTION=
 10.1.1.11 10.1.2.12 tcp 085
-10.1.1.11 10.01.02.12 tcp 85
+10.1.1.11 10.1.2.12 tcp 85
 10.1.1.11 10.0.0.0 tcp 85
-010.001.001.011 10.0.0.0 tcp 85
+10.1.1.11 10.0.0.0 tcp 85
 =OUTPUT=
 permit 10.1.1.11 10.1.2.12 tcp 85
 deny   10.1.1.11 10.0.0.0 tcp 85
@@ -189,10 +189,14 @@ Warning: Ignored packet with invalid protocol number: 999
 10.1.1.11 10.1.2.12 tcp 85
 tcp 80 udp 90
 10.1.1.11 10.0.0.0 tcp 85
+10.1.1.11 10.01.02.12 tcp 85
+010.001.001.011 10.0.0.0 tcp 85
 =WARNING=
 Warning: Ignored packet, must have exactly 4 words: # comment, then empty line
 Warning: Ignored packet with invalid IP address: tcp
 Warning: Ignored packet with invalid IP address: 80
+Warning: Ignored packet with invalid IP address: 10.01.02.12
+Warning: Ignored packet with invalid IP address: 010.001.001.011
 =OUTPUT=
 permit 10.1.1.11 10.1.2.12 tcp 85
 deny   10.1.1.11 10.0.0.0 tcp 85
