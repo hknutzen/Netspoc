@@ -1,10 +1,14 @@
 {{$NEXT}}
 
- - Command 'netspoc' didn't close filehandles
-   when reading intermediated code. This has been fixed.
+6.034     2021-08-17 13:22:38+02:00 Europe/Berlin
+
+ - Fixed warning for supernet rule permitting unexpected access
+   at router with attribute 'no_in_acl'.
+ - Fixed command 'netspoc' which didn't close filehandles
+   when reading intermediated code.
  - Command 'export-netspoc' no longer generates indented JSON files.
    This leads to about 7.5% smaller export directory.
- - Different minor fixes.
+ - Minor fixes.
 
 6.033     2021-07-21 14:41:17+02:00 Europe/Berlin
 
