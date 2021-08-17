@@ -1,5 +1,11 @@
 {{$NEXT}}
 
+ - Command 'netspoc' didn't close filehandles
+   when reading intermediated code. This has been fixed.
+ - Command 'export-netspoc' no longer generates indented JSON files.
+   This leads to about 7.5% smaller export directory.
+ - Different minor fixes.
+
 6.033     2021-07-21 14:41:17+02:00 Europe/Berlin
 
  - No longer show warning 'has unenforceable rule' for user-user rule.
