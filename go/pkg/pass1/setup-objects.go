@@ -1110,8 +1110,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			noProtectSelf = c.getFlag(a, name)
 		case "log_deny":
 			r.logDeny = c.getFlag(a, name)
-		case "acl_use_real_ip":
-			_ = c.getFlag(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":

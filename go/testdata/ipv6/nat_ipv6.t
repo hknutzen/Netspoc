@@ -3154,14 +3154,13 @@ Error: Incomplete 'bind_nat = hx' at
 =END=
 
 ############################################################
-=TITLE=Attribute acl_use_real_ip
+=TITLE=ASA uses real IP
 =PARAMS=--ipv6
 =INPUT=
 network:intern =  { ip = ::a01:100/120; nat:intern = { ip = ::202:100/120; } }
 router:filter = {
  managed;
  model = ASA;
- acl_use_real_ip;
  interface:intern = {
   ip = ::a01:101;
   hardware = inside;
@@ -3194,14 +3193,13 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, more than 2 effective NAT
+=TITLE=ASA uses real IP, more than 2 effective NAT
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::202:100/120; } }
 network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::202:200/120; } }
 network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  model = ASA;
  interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = n2; }
@@ -3234,7 +3232,7 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with multi NAT tags
+=TITLE=ASA uses real IP with multi NAT tags
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -3255,7 +3253,6 @@ router:r1 = {
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3286,14 +3283,13 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip in loop
+=TITLE=ASA uses real IP, in loop
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::202:100/120; } }
 network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::202:200/120; } }
 
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3301,7 +3297,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3337,14 +3332,13 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with outgoing ACL
+=TITLE=ASA uses real ip, with outgoing ACL
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern = { ip = ::a09:100/120; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3385,7 +3379,7 @@ access-group n2_out out interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical NAT ip, hidden
+=TITLE=ASA uses real IP, 3 interfaces, identical NAT ip, hidden
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern = { ip = ::202:0/119; dynamic; } }
@@ -3396,7 +3390,6 @@ router:u = {
  interface:n1;
 }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3456,13 +3449,12 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical real IP
+=TITLE=ASA uses real IP, 3 interfaces, identical real IP
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern1 = { ip = ::201:100/120; } nat:h1 = { hidden; } }
 network:n2 = { ip = ::a01:100/120; nat:intern2 = { ip = ::201:200/120; } nat:h2 = { hidden; } }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3516,7 +3508,7 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with secondary optimization
+=TITLE=ASA uses real IP, with secondary optimization
 =PARAMS=--ipv6
 =INPUT=
 network:n1 =  { ip = ::a01:100/120; nat:n1 = { ip = ::a02:100/120; } }
@@ -3524,7 +3516,6 @@ router:r1 = {
  managed = secondary;
  model = ASA;
  routing = manual;
- acl_use_real_ip;
  interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = n2; }
  interface:t1 = { ip = ::a09:101; hardware = t1; bind_nat = n1; }
 }

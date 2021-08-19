@@ -3060,13 +3060,12 @@ Error: Incomplete 'bind_nat = hx' at
 =END=
 
 ############################################################
-=TITLE=Attribute acl_use_real_ip
+=TITLE=ASA uses real IP
 =INPUT=
 network:intern =  { ip = 10.1.1.0/24; nat:intern = { ip = 2.2.1.0/24; } }
 router:filter = {
  managed;
  model = ASA;
- acl_use_real_ip;
  interface:intern = {
   ip = 10.1.1.1;
   hardware = inside;
@@ -3099,13 +3098,12 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, more than 2 effective NAT
+=TITLE=ASA uses real IP, more than 2 effective NAT
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 2.2.2.0/24; } }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
@@ -3138,7 +3136,7 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with multi NAT tags
+=TITLE=ASA uses real IP with multi NAT tags
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -3158,7 +3156,6 @@ router:r1 = {
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3189,13 +3186,12 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip in loop
+=TITLE=ASA uses real IP, in loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 2.2.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; nat:n2 = { ip = 2.2.2.0/24; } }
 
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3203,7 +3199,6 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3239,13 +3234,12 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with outgoing ACL
+=TITLE=ASA uses real ip, with outgoing ACL
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:intern = { ip = 10.9.1.0/24; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3286,7 +3280,7 @@ access-group n2_out out interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical NAT ip, hidden
+=TITLE=ASA uses real IP, 3 interfaces, identical NAT ip, hidden
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:intern = { ip = 2.2.0.0/23; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; nat:intern = { ip = 2.2.0.0/23; dynamic; } }
@@ -3296,7 +3290,6 @@ router:u = {
  interface:n1;
 }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3356,12 +3349,11 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical real IP
+=TITLE=ASA uses real IP, 3 interfaces, identical real IP
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; nat:intern1 = { ip = 2.1.1.0/24; } nat:h1 = { hidden; } }
 network:n2 = { ip = 10.1.1.0/24; nat:intern2 = { ip = 2.1.2.0/24; } nat:h2 = { hidden; } }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3415,14 +3407,13 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with secondary optimization
+=TITLE=ASA uses real IP, with secondary optimization
 =INPUT=
 network:n1 =  { ip = 10.1.1.0/24; nat:n1 = { ip = 10.2.1.0/24; } }
 router:r1 = {
  managed = secondary;
  model = ASA;
  routing = manual;
- acl_use_real_ip;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = n2; }
  interface:t1 = { ip = 10.9.1.1; hardware = t1; bind_nat = n1; }
 }
