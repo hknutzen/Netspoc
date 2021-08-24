@@ -248,7 +248,7 @@ func joinRanges1(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 		}
 
 		// When sorting these rules by low port number, rules with
-		// adjacent protocols will placed side by side. There can't be
+		// adjacent protocols will be placed side by side. There can't be
 		// overlaps, because they have been split in function
 		// 'orderRanges'. There can't be sub-ranges, because they have
 		// been deleted as redundant already.
