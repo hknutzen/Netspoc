@@ -387,12 +387,7 @@ func (c *spoc) expandGroup1(
 			if x.Network == "[" {
 				// interface:name.[xxx]
 				selector := x.Extension
-				var r *router
-				if ipv6 {
-					r = symTable.router6[x.Router]
-				} else {
-					r = symTable.router[x.Router]
-				}
+				r := getRouter(x.Router, symTable, ipv6)
 				if r != nil {
 					if !r.disabled {
 						if selector == "all" {

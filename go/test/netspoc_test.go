@@ -250,7 +250,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 func netspocCheck(t *testing.T, spec, dir string) {
 	// Blocks of expected output are split by single lines of dashes,
 	// followed by an optional device name.
-	re := regexp.MustCompile(`(?ms)^-+[ ]*\S*[ ]*\n`)
+	re := regexp.MustCompile(`(?ms)^-+[ ]*(?:\w\S*)?[ ]*\n`)
 	il := re.FindAllStringIndex(spec, -1)
 
 	if il == nil || il[0][0] != 0 {

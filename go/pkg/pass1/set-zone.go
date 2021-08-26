@@ -496,6 +496,8 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	case *router:
 		if x.managed != "" || x.routingOnly {
 			a.managedRouters = append(a.managedRouters, x)
+		} else if x.managementInstance {
+			a.managementInstances = append(a.managementInstances, x)
 		}
 	}
 
@@ -752,7 +754,7 @@ func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 
 //##############################################################################
 // Purpose : Distribute routerAttributes from area definition to managed
-//           routers of an area.
+//           routers and management instances of an area.
 func (c *spoc) inheritRouterAttributes(a *area) {
 
 	// Check for attributes to be inherited.
@@ -760,23 +762,28 @@ func (c *spoc) inheritRouterAttributes(a *area) {
 	if attr == nil {
 		return
 	}
-	if attr.policyDistributionPoint == nil && attr.generalPermit == nil {
+	p1 := attr.policyDistributionPoint
+	l1 := attr.generalPermit
+	if p1 == nil && l1 == nil {
 		return
 	}
 
+	setPDP := func(r *router) {
+		if p2 := r.policyDistributionPoint; p2 != nil {
+			if p1 == p2 {
+				c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
+					" it was already inherited from %s", r, attr.name)
+			}
+		} else {
+			r.policyDistributionPoint = p1
+		}
+	}
 	// Process all managed routers of the area inherited from.
 	for _, r := range a.managedRouters {
-		if p1 := attr.policyDistributionPoint; p1 != nil {
-			if p2 := r.policyDistributionPoint; p2 != nil {
-				if p1 == p2 {
-					c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
-						" it was already inherited from %s", r, attr.name)
-				}
-			} else {
-				r.policyDistributionPoint = p1
-			}
+		if p1 != nil {
+			setPDP(r)
 		}
-		if l1 := attr.generalPermit; l1 != nil {
+		if l1 != nil {
 			if l2 := r.generalPermit; l2 != nil {
 				if protoListEq(l1, l2) {
 					c.warn("Useless attribute 'general_permit' at %s,\n"+
@@ -785,6 +792,11 @@ func (c *spoc) inheritRouterAttributes(a *area) {
 			} else {
 				r.generalPermit = l1
 			}
+		}
+	}
+	if p1 != nil {
+		for _, r := range a.managementInstances {
+			setPDP(r)
 		}
 	}
 }

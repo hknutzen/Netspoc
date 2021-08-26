@@ -19,30 +19,39 @@ func (c *spoc) setPolicyDistributionIP() {
 	var pdpRouters []*router
 	seen := make(map[*router]bool)
 	var missing stringList
-	for _, r := range c.managedRouters {
-		if seen[r] || r.origRouter != nil {
-			continue
-		}
-		if l := r.ipvMembers; l != nil {
-			var found *host
-			for _, m := range l {
-				seen[m] = true
-				if p := m.policyDistributionPoint; p != nil {
-					pdpRouters = append(pdpRouters, m)
-					if found != nil && found != p {
-						c.err("Instances of router:%s must not use different"+
-							" 'policy_distribution_point':\n -%s\n -%s",
-							m.deviceName, found, p)
-						break
-					} else {
-						found = p
+	for _, r := range c.allRouters {
+		if r.managed != "" || r.routingOnly {
+			if seen[r] || r.origRouter != nil {
+				continue
+			}
+			if r.model.needManagementInstance {
+				continue
+			}
+			if l := r.ipvMembers; l != nil {
+				var found *host
+				for _, m := range l {
+					seen[m] = true
+					if p := m.policyDistributionPoint; p != nil {
+						pdpRouters = append(pdpRouters, m)
+						if found != nil && found != p {
+							c.err("Instances of router:%s must not use different"+
+								" 'policy_distribution_point':\n -%s\n -%s",
+								m.deviceName, found, p)
+							break
+						} else {
+							found = p
+						}
 					}
 				}
+				if found == nil && needAll != "" {
+					missing.push("at least one instance of router:" + r.deviceName)
+				}
+				continue
 			}
-			if found == nil && needAll != "" {
-				missing.push("at least one instance of router:" + r.deviceName)
-			}
-		} else if r.policyDistributionPoint != nil {
+		} else if !r.managementInstance || r.backupInstance != nil {
+			continue
+		}
+		if r.policyDistributionPoint != nil {
 			pdpRouters = append(pdpRouters, r)
 		} else if needAll != "" {
 			missing.push(r.name)
@@ -137,7 +146,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			for intf, _ := range foundMap {
 				result.push(intf)
 			}
-		} else {
+		} else if r.managed != "" || r.routingOnly {
 
 			// debug("%s: %d", router->{name}, len(intfMap));
 			frontList := c.pathRouterInterfaces(r, pdp)

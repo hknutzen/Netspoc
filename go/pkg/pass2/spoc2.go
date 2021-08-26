@@ -190,6 +190,7 @@ type aclInfo struct {
 	network00                                        *ipNet
 	prtIP                                            *proto
 	objectGroups                                     []*objGroup
+	vrf                                              string
 }
 
 func convertACLs(
@@ -226,6 +227,7 @@ func convertACLs(
 		isCryptoACL:  jACL.IsCryptoACL,
 		addPermit:    jACL.AddPermit,
 		addDeny:      jACL.AddDeny,
+		vrf:          jACL.VRF,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -352,11 +354,7 @@ func printACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 
 const aclMarker = "#insert "
 
-func printCombined(config []string, routerData *routerData, outPath string) {
-	fd, err := os.Create(outPath)
-	if err != nil {
-		panicf("Can't open %s for writing: %v", outPath, err)
-	}
+func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 	aclLookup := make(map[string]*aclInfo)
 	for _, acl := range routerData.acls {
 		aclLookup[acl.name] = acl
@@ -367,17 +365,25 @@ func printCombined(config []string, routerData *routerData, outPath string) {
 		if strings.HasPrefix(line, aclMarker) {
 			// Print ACL.
 			name := line[len(aclMarker):]
-			aclInfo, ok := aclLookup[name]
-			if !ok {
-				panicf("Unexpected ACL %s", name)
-			}
+			aclInfo := aclLookup[name]
 			printACL(fd, aclInfo, routerData)
 		} else {
 			// Print unchanged config line.
 			fmt.Fprintln(fd, line)
 		}
 	}
+}
 
+func printCombined(config []string, routerData *routerData, outPath string) {
+	fd, err := os.Create(outPath)
+	if err != nil {
+		panicf("Can't open %s for writing: %v", outPath, err)
+	}
+	if routerData.model == "PAN-OS" {
+		printCombinedPanOS(fd, config, routerData)
+	} else {
+		printCombinedOther(fd, config, routerData)
+	}
 	if err := fd.Close(); err != nil {
 		panic(err)
 	}

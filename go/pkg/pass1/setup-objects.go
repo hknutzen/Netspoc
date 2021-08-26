@@ -87,7 +87,7 @@ type symbolTable struct {
 	aggregate map[string]*network
 	// References owner
 	host map[string]*host
-	// References host, owner, protocolgroup+
+	// References host, owner, router, protocolgroup, protocol
 	router  map[string]*router
 	router6 map[string]*router
 	// References network, owner, crypto, routerIntf(via crypto)
@@ -167,6 +167,14 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 			s.network[name] = n
 			networks = append(networks, x)
 		case *ast.Router:
+			r := new(router)
+			r.name = x.Name
+			r.ipV6 = x.IPV6
+			if r.ipV6 {
+				s.router6[name] = r
+			} else {
+				s.router[name] = r
+			}
 			routers = append(routers, x)
 		case *ast.Area:
 			areas = append(areas, x)
@@ -1073,17 +1081,10 @@ func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
 
 func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	name := v.Name
-	v6 := v.IPV6
-	r := new(router)
-	c.allRouters = append(c.allRouters, r)
-	r.name = name
-	r.ipV6 = v6
 	rName := name[len("router:"):]
-	if v6 {
-		s.router6[rName] = r
-	} else {
-		s.router[rName] = r
-	}
+	v6 := v.IPV6
+	r := getRouter(rName, s, v6)
+	c.allRouters = append(c.allRouters, r)
 	i := strings.Index(rName, "@")
 	if i != -1 {
 		r.deviceName = rName[:i]
@@ -1120,6 +1121,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			r.policyDistributionPoint = c.tryHostRef(a, s, v6, name)
 		case "general_permit":
 			r.generalPermit = c.getGeneralPermit(a, s, v6, name)
+		case "management_instance":
+			r.managementInstance = c.getFlag(a, name)
+		case "backup_of":
+			r.backupOf = c.tryRouterRef(a, s, v6, name)
 		default:
 			if !c.addLog(a, r) {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -1205,6 +1210,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 		if r.vrf != "" && !r.model.canVRF {
 			c.err("Must not use VRF at %s of model %s", name, r.model.name)
+		}
+		if r.vrf == "" && r.model.needVRF {
+			c.err("Must use VRF ('@...' in name) at %s of model %s",
+				name, r.model.name)
 		}
 
 		for _, intf := range r.interfaces {
@@ -1345,6 +1354,66 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		// Unmanaged device.
 		if r.owner != nil {
 			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
+		}
+	}
+
+	if r.managementInstance {
+		if r.managed != "" || r.routingOnly {
+			c.warn("Ignoring attribute 'management_instance' at managed %s",
+				name)
+		} else if r.model == nil {
+			c.warn("Ignoring attribute 'management_instance' at %s"+
+				" without model",
+				name)
+		} else if !r.model.needManagementInstance {
+			c.warn("Ignoring attribute 'management_instance' at %s of model %s",
+				name, r.model.name)
+		} else if len(r.interfaces) != 1 {
+			c.err("%s with attribute 'management_instance' needs"+
+				" exactly one interface", name)
+		} else if r.interfaces[0].ipType != hasIP {
+			c.err("%s with attribute 'management_instance' needs"+
+				" interface with IP address", name)
+		} else {
+			// This simplifies inheritance of policy_distribution_point
+			// from area to management_instance.
+			r.semiManaged = true
+		}
+		if r.vrf != "" {
+			c.err("%s with attribute 'management_instance' must not use VRF", name)
+		}
+		if r2 := r.backupOf; r2 != nil {
+			// r2.deviceName is set, if r2 already has been parsed.
+			if r2.deviceName != "" && !r2.managementInstance {
+				c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+					" because %s hasn't attribute 'management_instance'",
+					name, r2.name)
+			} else if r3 := r2.backupInstance; r3 != nil {
+				c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+					" because %s is already 'backup_of' %s",
+					name, r3.name, r2.name)
+			} else {
+				r2.backupInstance = r
+			}
+		}
+	} else {
+		if r.backupOf != nil {
+			c.warn("Ignoring attribute 'backup_of' at %s"+
+				" without attribute 'management_instance'",
+				name)
+		}
+		// Attribute .backupInstance has been set before r was parsed.
+		if r2 := r.backupInstance; r2 != nil {
+			c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+				" because %s hasn't attribute 'management_instance'",
+				r2.name, name)
+		}
+		if r.policyDistributionPoint != nil &&
+			r.model != nil && r.model.needManagementInstance {
+
+			c.warn("Ignoring attribute 'policy_distribution_point' at %s\n"+
+				" Add this attribute at 'management_instance' instead",
+				name)
 		}
 	}
 
@@ -2296,37 +2365,39 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 
 var routerInfo = map[string]*model{
 	"IOS": &model{
-		routing:         "IOS",
-		filter:          "IOS",
-		stateless:       true,
-		statelessSelf:   true,
-		statelessICMP:   true,
-		inversedACLMask: true,
-		canVRF:          true,
-		canLogDeny:      true,
-		logModifiers:    map[string]string{"log-input": ":subst"},
-		hasOutACL:       true,
-		needProtect:     true,
-		crypto:          "IOS",
-		printRouterIntf: true,
-		commentChar:     "!",
+		routing:          "IOS",
+		filter:           "IOS",
+		stateless:        true,
+		statelessSelf:    true,
+		statelessICMP:    true,
+		inversedACLMask:  true,
+		canVRF:           true,
+		canLogDeny:       true,
+		logModifiers:     map[string]string{"log-input": ":subst"},
+		hasOutACL:        true,
+		needProtect:      true,
+		crypto:           "IOS",
+		printRouterIntf:  true,
+		vrfShareHardware: true,
+		commentChar:      "!",
 	},
 	"NX-OS": {
-		routing:         "NX-OS",
-		filter:          "NX-OS",
-		stateless:       true,
-		statelessSelf:   true,
-		statelessICMP:   true,
-		canObjectgroup:  true,
-		inversedACLMask: true,
-		usePrefix:       true,
-		canVRF:          true,
-		canLogDeny:      true,
-		logModifiers:    map[string]string{},
-		hasOutACL:       true,
-		needProtect:     true,
-		printRouterIntf: true,
-		commentChar:     "!",
+		routing:          "NX-OS",
+		filter:           "NX-OS",
+		stateless:        true,
+		statelessSelf:    true,
+		statelessICMP:    true,
+		canObjectgroup:   true,
+		inversedACLMask:  true,
+		usePrefix:        true,
+		canVRF:           true,
+		canLogDeny:       true,
+		logModifiers:     map[string]string{},
+		hasOutACL:        true,
+		needProtect:      true,
+		printRouterIntf:  true,
+		vrfShareHardware: true,
+		commentChar:      "!",
 	},
 	"ASA": {
 		routing: "ASA",
@@ -2352,6 +2423,16 @@ var routerInfo = map[string]*model{
 		commentChar:      "!",
 		noFilterICMPCode: true,
 		needACL:          true,
+	},
+	"PAN-OS": {
+		routing:                "",
+		filter:                 "PAN-OS",
+		hasIoACL:               true,
+		canObjectgroup:         true,
+		canVRF:                 true,
+		canLogDeny:             true,
+		needManagementInstance: true,
+		needVRF:                true,
 	},
 	"Linux": {
 		routing:     "iproute",
@@ -2720,6 +2801,31 @@ func (c *spoc) tryHostRef(
 	}
 	c.checkV4V6CrossRef(h, v6, ctx2)
 	return h
+}
+
+func (c *spoc) tryRouterRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *router {
+
+	typ, name := c.getTypedName(a, ctx)
+	ctx2 := "'" + a.Name + "' of " + ctx
+	if typ != "router" {
+		c.err("Expected type 'router:' in %s", ctx2)
+		return nil
+	}
+	r := getRouter(name, s, v6)
+	if r == nil {
+		c.warn("Ignoring undefined router:%s in %s", name, ctx2)
+		return nil
+	}
+	return r
+}
+
+func getRouter(name string, s *symbolTable, v6 bool) *router {
+	if v6 {
+		return s.router6[name]
+	} else {
+		return s.router[name]
+	}
 }
 
 func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {

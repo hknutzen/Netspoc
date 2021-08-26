@@ -228,32 +228,35 @@ type host struct {
 }
 
 type model struct {
-	commentChar      string
-	class            string
-	crypto           string
-	doAuth           bool
-	aclUseRealIP     bool
-	canDynCrypto     bool
-	canLogDeny       bool
-	canObjectgroup   bool
-	canVRF           bool
-	cryptoInContext  bool
-	filter           string
-	hasIoACL         bool
-	hasOutACL        bool
-	inversedACLMask  bool
-	logModifiers     map[string]string
-	name             string
-	needACL          bool
-	needProtect      bool
-	noFilterICMPCode bool
-	noCryptoFilter   bool
-	printRouterIntf  bool
-	routing          string
-	stateless        bool
-	statelessSelf    bool
-	statelessICMP    bool
-	usePrefix        bool
+	commentChar            string
+	class                  string
+	crypto                 string
+	doAuth                 bool
+	aclUseRealIP           bool
+	canDynCrypto           bool
+	canLogDeny             bool
+	canObjectgroup         bool
+	canVRF                 bool
+	cryptoInContext        bool
+	filter                 string
+	hasIoACL               bool
+	hasOutACL              bool
+	inversedACLMask        bool
+	logModifiers           map[string]string
+	name                   string
+	needACL                bool
+	needManagementInstance bool
+	needProtect            bool
+	needVRF                bool
+	noFilterICMPCode       bool
+	noCryptoFilter         bool
+	printRouterIntf        bool
+	routing                string
+	stateless              bool
+	statelessSelf          bool
+	statelessICMP          bool
+	usePrefix              bool
+	vrfShareHardware       bool
 }
 
 type natSet map[string]bool
@@ -289,6 +292,9 @@ type router struct {
 	deviceName              string
 	managed                 string
 	semiManaged             bool
+	managementInstance      bool
+	backupInstance          *router
+	backupOf                *router
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
@@ -519,17 +525,18 @@ type area struct {
 	ownedObj
 	ipVxObj
 	usedObj
-	name             string
-	anchor           *network
-	attr             attrStore
-	inclusiveBorder  []*routerIntf
-	border           []*routerIntf
-	inArea           *area
-	managedRouters   []*router
-	nat              map[string]*network
-	routerAttributes *routerAttributes
-	watchingOwner    *owner
-	zones            []*zone
+	name                string
+	anchor              *network
+	attr                attrStore
+	inclusiveBorder     []*routerIntf
+	border              []*routerIntf
+	inArea              *area
+	managedRouters      []*router
+	managementInstances []*router
+	nat                 map[string]*network
+	routerAttributes    *routerAttributes
+	watchingOwner       *owner
+	zones               []*zone
 }
 
 func (x area) String() string { return x.name }
