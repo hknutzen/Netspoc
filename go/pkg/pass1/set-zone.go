@@ -602,7 +602,6 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 		// Take the smallest area.
 		next := containing[0]
-		containing = containing[1:]
 		nextList := getObjList(next)
 
 		if z, ok := obj.(*zone); ok {
@@ -610,13 +609,12 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		}
 
 	LARGER:
-		for len(containing) > 0 {
+		for _, a := range containing[1:] {
 			small := next
-			next = containing[0]
-			containing = containing[1:]
 			if small.inArea != nil {
 				continue
 			}
+			next = a
 			small.inArea = next
 			smallList := nextList
 			nextList = getObjList(next)
