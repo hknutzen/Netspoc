@@ -172,8 +172,9 @@ Error: Overlapping area:a2 and area:a2x
 =TITLE=Duplicate areas
 =INPUT=
 ${topo}
-area:a2 = { border = interface:asa1.n2; }
-area:a2x = { border = interface:asa1.n2; }
+area:a1 = { border = interface:asa1.n1; }
+area:a2 = { border = interface:asa2.n2; }
+area:a2x = { border = interface:asa2.n2; }
 =END=
 =ERROR=
 Error: Duplicate area:a2 and area:a2x

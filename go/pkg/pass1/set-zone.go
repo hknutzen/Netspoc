@@ -619,7 +619,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			}
 			small.inArea = next
 			smallList := nextList
-			nextList := getObjList(next)
+			nextList = getObjList(next)
 
 			// Check that each zone and managed router of small is part of next.
 			for _, obj2 := range smallList {
