@@ -555,7 +555,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		return len(a.zones) + len(a.managedRouters)
 	}
 	// Sort areas by size or by name on equal size.
-	sortBySize := func(l []*area) []*area {
+	sortBySize := func(l []*area) {
 		sort.SliceStable(l, func(i, j int) bool {
 			si := size(l[i])
 			sj := size(l[j])
@@ -564,7 +564,6 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			}
 			return si < sj
 		})
-		return l
 	}
 
 	// Fill global list of areas.
@@ -573,7 +572,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
 	}
-	c.ascendingAreas = sortBySize(c.ascendingAreas)
+	sortBySize(c.ascendingAreas)
 
 	// Get list of all zones and managed routers of an area.
 	getObjList := func(a *area) []pathObj {
@@ -599,7 +598,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		for a, _ := range m {
 			containing = append(containing, a)
 		}
-		containing = sortBySize(containing)
+		sortBySize(containing)
 
 		// Take the smallest area.
 		next := containing[0]
