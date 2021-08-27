@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+ - Fixed: Some duplicate or overlapping areas were not detected.
+
 6.034     2021-08-17 13:22:38+02:00 Europe/Berlin
 
  - Fixed warning for supernet rule permitting unexpected access
