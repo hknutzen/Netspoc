@@ -255,6 +255,22 @@ Error: Overlapping area:a1 and area:a2
 =END=
 
 ############################################################
+=TITLE=Overlap at area that has been processed before
+=INPUT=
+${topo}
+area:a1 = { border = interface:asa1.n1; }
+area:a12 = { border = interface:asa2.n2; inclusive_border = interface:asa1.n3; }
+area:a123 = { border = interface:asa2.n2, interface:asa2.n3; }
+area:a245 = { border = interface:asa1.n2; inclusive_border = interface:asa2.n3; }
+=END=
+=ERROR=
+Error: Overlapping area:a123 and area:a245
+ - both areas contain any:[network:n2],
+ - only 1. area contains any:[network:n1],
+ - only 2. area contains any:[network:n4]
+=END=
+
+############################################################
 =TITLE=Empty area
 =INPUT=
 ${topo}

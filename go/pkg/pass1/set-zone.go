@@ -611,10 +611,10 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	LARGER:
 		for _, a := range containing[1:] {
 			small := next
-			if small.inArea != nil {
+			next = a
+			if small.inArea == next {
 				continue
 			}
-			next = a
 			small.inArea = next
 			smallList := nextList
 			nextList = getObjList(next)
