@@ -1874,16 +1874,13 @@ func printRouterIntf(fh *os.File, r *router) {
 						IP:   intf.ip,
 						Bits: intf.network.ipp.Bits,
 					}.String()
-					if secondary {
-						addrCmd += " secondary"
-					}
 				} else {
 					addr := intf.ip.String()
 					mask := net.IP(intf.network.ipp.IPNet().Mask).String()
 					addrCmd = "ip address " + addr + " " + mask
-					if secondary {
-						addrCmd += " secondary"
-					}
+				}
+				if secondary {
+					addrCmd += " secondary"
 				}
 			}
 			subcmd.push(addrCmd)
