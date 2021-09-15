@@ -125,6 +125,19 @@ Warning: Ignoring undefined router:r2 in 'backup_of' of router:r1
 =END=
 
 ############################################################
+=TITLE=backup_of references non router
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = PAN-OS;
+ backup_of = network:n1;
+ interface:n1;
+}
+=ERROR=
+Error: Expected type 'router:' in 'backup_of' of router:r1
+=END=
+
+############################################################
 =TITLE=backup_of without attribute management_instance
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
