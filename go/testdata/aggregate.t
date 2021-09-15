@@ -1204,8 +1204,6 @@ service:test = {
 =SUBST=/IOS, FW/Linux/
 =OUTPUT=
 --r2
-:VLAN77_self -
--A INPUT -j VLAN77_self -i VLAN77
 :VLAN77_VLAN1 -
 -A VLAN77_VLAN1 -j ACCEPT -s 10.9.9.0/24 -d 10.0.0.0/9
 -A FORWARD -j VLAN77_VLAN1 -i VLAN77 -o VLAN1
@@ -2816,12 +2814,14 @@ service:s2 = {
 # [ ACL ]
 :n1_self -
 -A INPUT -j n1_self -i n1
+--
 :n1_n3 -
 -A n1_n3 -j ACCEPT -d 10.1.3.0/24 -p tcp
 -A FORWARD -j n1_n3 -i n1 -o n3
 --
 :n2_self -
 -A INPUT -j n2_self -i n2
+--
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s 10.1.2.0/24 -p tcp --dport 80
 -A FORWARD -j n2_n1 -i n2 -o n1

@@ -1033,7 +1033,7 @@ func printAclSuffix(fh *os.File, r *router) {
 	fmt.Fprintln(fh, "EOF")
 }
 
-func printIptablesAcls(fh *os.File, r *router) {
+func collectAclsFromIORules(r *router) {
 	for _, hw := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
@@ -1044,19 +1044,19 @@ func printIptablesAcls(fh *os.File, r *router) {
 		inHw := hw.name
 		natMap := hw.natMap
 
-		// Collect interface rules.
-		// Add call to chain in INPUT chain.
-		intfAclName := inHw + "_self"
-		intfAclInfo := &aclInfo{
-			name:    intfAclName,
-			rules:   hw.intfRules,
-			addDeny: true,
-			natMap:  natMap,
+		if !r.model.noACLself {
+			// Collect interface rules.
+			// Add call to chain in INPUT chain.
+			aclName := inHw + "_self"
+			info := &aclInfo{
+				name:    aclName,
+				rules:   hw.intfRules,
+				addDeny: true,
+				natMap:  natMap,
+			}
+			hw.intfRules = nil
+			r.aclList.push(info)
 		}
-		hw.intfRules = nil
-		r.aclList.push(intfAclInfo)
-		printAclPlaceholder(fh, r, intfAclName)
-		fmt.Fprintln(fh, "-A INPUT -j", intfAclName, "-i", inHw)
 
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
@@ -1076,44 +1076,26 @@ func printIptablesAcls(fh *os.File, r *router) {
 				natMap:  natMap,
 			}
 			r.aclList.push(info)
-			printAclPlaceholder(fh, r, aclName)
-			fmt.Fprintln(fh, "-A FORWARD -j", aclName, "-i", inHw, "-o", outHw)
 		}
 		hw.ioRules = nil
-
-		// Empty line after each chain.
-		fmt.Fprintln(fh)
 	}
 }
 
-func collectPanOSAcls(r *router) {
-	for _, hw := range r.hardware {
-
-		// Ignore if all logical interfaces are loopback interfaces.
-		if hw.loopback {
-			continue
+func printIptablesAcls(fh *os.File, r *router) {
+	collectAclsFromIORules(r)
+	for _, acl := range r.aclList {
+		name := acl.name
+		i := strings.Index(name, "_")
+		inHw := name[:i]
+		outHw := name[i+1:]
+		printAclPlaceholder(fh, r, name)
+		if outHw == "self" {
+			fmt.Fprintln(fh, "-A INPUT -j", name, "-i", inHw)
+		} else {
+			fmt.Fprintln(fh, "-A FORWARD -j", name, "-i", inHw, "-o", outHw)
 		}
-
-		inHw := hw.name
-		natMap := hw.natMap
-
-		// Sort keys for deterministic output.
-		keys := make(stringList, 0, len(hw.ioRules))
-		for k, _ := range hw.ioRules {
-			keys.push(k)
-		}
-		sort.Strings(keys)
-		for _, outHw := range keys {
-			aclName := inHw + "_" + outHw
-			info := &aclInfo{
-				name:    aclName,
-				rules:   hw.ioRules[outHw],
-				addDeny: true,
-				natMap:  natMap,
-			}
-			r.aclList.push(info)
-		}
-		hw.ioRules = nil
+		// Empty line after all chains.
+		fmt.Fprintln(fh)
 	}
 }
 
@@ -2400,7 +2382,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	if model.filter == "PAN-OS" {
 		c.printPanOS(fd, vrfMembers)
 		for _, vrouter := range vrfMembers {
-			collectPanOSAcls(vrouter)
+			collectAclsFromIORules(vrouter)
 		}
 	} else {
 

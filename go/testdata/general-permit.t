@@ -64,6 +64,7 @@ ip access-list e1_in
 -A e0_self -j ACCEPT -p udp
 -A e0_self -g c1 -p icmp
 -A INPUT -j e0_self -i e0
+--
 :e0_e1 -
 -A e0_e1 -j ACCEPT -p tcp
 -A e0_e1 -j ACCEPT -p udp
@@ -76,6 +77,7 @@ ip access-list e1_in
 -A e1_self -j ACCEPT -p udp
 -A e1_self -g c3 -p icmp
 -A INPUT -j e1_self -i e1
+--
 :e1_e0 -
 -A e1_e0 -j ACCEPT -p tcp
 -A e1_e0 -j ACCEPT -p udp

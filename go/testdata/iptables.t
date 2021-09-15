@@ -67,14 +67,10 @@ service:s1 = {
 -A c3 -g c1 -p tcp --dport :4090
 -A c3 -g c2 -p udp --dport 123:
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.0/24
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
-:n2_self -
--A INPUT -j n2_self -i n2
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s 10.1.2.0/24 -d 10.1.1.0/24 -p udp
 -A FORWARD -j n2_n1 -i n2 -o n1
@@ -119,14 +115,10 @@ service:s1 = {
 -A c3 -j ACCEPT -p udp --sport 1024: --dport 1024:
 -A c3 -j ACCEPT -p udp --sport 123 --dport 123
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.0/24
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
-:n2_self -
--A INPUT -j n2_self -i n2
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s 10.1.2.0/24 -d 10.1.1.0/24 -p udp --sport :511
 -A FORWARD -j n2_n1 -i n2 -o n1
@@ -175,8 +167,6 @@ service:s1 = {
 -A c3 -g c2 -d 10.1.2.12/30
 -A c3 -j ACCEPT -d 10.1.2.10 -p udp --sport :511 --dport 69
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.8/29
 -A FORWARD -j n1_n2 -i n1 -o n2
@@ -341,8 +331,6 @@ service:s1 = {
 -A c3 -g c1 -d 10.1.2.12
 -A c3 -g c2 -d 10.1.2.10
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s 10.1.1.0/24 -d 10.1.2.8/29
 -A FORWARD -j n1_n2 -i n1 -o n2
@@ -451,11 +439,6 @@ service:t2 = {
 -A c2 -j ACCEPT -d 10.1.2.11 -p tcp --dport 2200
 -A c2 -g c1 -d 10.1.0.0/22 -p icmp --icmp-type 8
 --
-:eth1_self -
--A INPUT -j eth1_self -i eth1
---
-:eth0_self -
--A INPUT -j eth0_self -i eth0
 :eth0_eth1 -
 -A eth0_eth1 -g c2 -s 1.1.1.1
 -A FORWARD -j eth0_eth1 -i eth0 -o eth1
@@ -489,11 +472,10 @@ service:t1 = {
 -A c2 -j ACCEPT -p tcp --dport 82
 -A c2 -j ACCEPT -p tcp --dport 80
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_k1 -
 -A n1_k1 -g c1 -s 10.1.1.0/24 -d 10.2.1.0/24 -p tcp --dport 80:82
 -A FORWARD -j n1_k1 -i n1 -o k1
+--
 :n1_k2 -
 -A n1_k2 -g c2 -s 10.1.1.0/24 -d 10.2.2.0/24 -p tcp --dport 80:82
 -A FORWARD -j n1_k2 -i n1 -o k2
@@ -656,9 +638,6 @@ service:s1 = {
 }
 =OUTPUT=
 -- r1
-# [ ACL ]
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -j ACCEPT -s 10.1.0.0/23 -d 10.1.2.0/24 -p tcp --dport 80
 -A FORWARD -j n1_n2 -i n1 -o n2

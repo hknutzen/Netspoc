@@ -2433,6 +2433,7 @@ var routerInfo = map[string]*model{
 		canLogDeny:             true,
 		needManagementInstance: true,
 		needVRF:                true,
+		noACLself:              true,
 	},
 	"Linux": {
 		routing:     "iproute",

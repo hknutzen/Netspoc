@@ -110,9 +110,6 @@ network:n2 = { ip = ::a01:200/120; }
 =END=
 =OUTPUT=
 --ipv6/r1
-# [ ACL ]
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n1 -
 -A n1_n1 -j ACCEPT -d ::a01:100/120
 -A FORWARD -j n1_n1 -i n1 -o n1

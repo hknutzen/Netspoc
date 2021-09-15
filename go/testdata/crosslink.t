@@ -334,6 +334,7 @@ service:s1 = {
 -- r1
 :n1_self -
 -A INPUT -j n1_self -i n1
+--
 :n1_cr -
 -A n1_cr -j ACCEPT -s 10.1.1.0/27 -d 10.2.2.0/27 -p tcp --dport 80
 -A FORWARD -j n1_cr -i n1 -o cr
@@ -341,6 +342,7 @@ service:s1 = {
 :cr_self -
 -A cr_self -j ACCEPT
 -A INPUT -j cr_self -i cr
+--
 :cr_n1 -
 -A cr_n1 -j ACCEPT
 -A FORWARD -j cr_n1 -i cr -o n1
@@ -348,6 +350,7 @@ service:s1 = {
 :cr_self -
 -A cr_self -j ACCEPT
 -A INPUT -j cr_self -i cr
+--
 :cr_n2 -
 -A cr_n2 -j ACCEPT
 -A FORWARD -j cr_n2 -i cr -o n2
