@@ -1034,48 +1034,47 @@ func printAclSuffix(fh *os.File, r *router) {
 }
 
 func collectAclsFromIORules(r *router) {
-	for _, hw := range r.hardware {
+	for _, in := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
-		if hw.loopback {
+		if in.loopback {
 			continue
 		}
 
-		inHw := hw.name
-		natMap := hw.natMap
+		inHw := in.name
+		natMap := in.natMap
 
 		if !r.model.noACLself {
 			// Collect interface rules.
 			aclName := inHw + "_self"
 			info := &aclInfo{
 				name:    aclName,
-				rules:   hw.intfRules,
+				rules:   in.intfRules,
 				addDeny: true,
 				natMap:  natMap,
 			}
-			hw.intfRules = nil
+			in.intfRules = nil
 			r.aclList.push(info)
 		}
 
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
-		// Sort keys for deterministic output.
-		keys := make(stringList, 0, len(hw.ioRules))
-		for k, _ := range hw.ioRules {
-			keys.push(k)
-		}
-		sort.Strings(keys)
-		for _, outHw := range keys {
+		for _, out := range r.hardware {
+			outHw := out.name
+			rules := in.ioRules[outHw]
+			if in == out && len(rules) == 0 {
+				continue
+			}
 			aclName := inHw + "_" + outHw
 			info := &aclInfo{
 				name:    aclName,
-				rules:   hw.ioRules[outHw],
+				rules:   rules,
 				addDeny: true,
 				natMap:  natMap,
 			}
 			r.aclList.push(info)
 		}
-		hw.ioRules = nil
+		in.ioRules = nil
 	}
 }
 
