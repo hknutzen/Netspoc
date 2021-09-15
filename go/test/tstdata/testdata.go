@@ -347,7 +347,7 @@ func (s *state) doVarSubst(text string) string {
 func (s *state) getLine() (string, error) {
 	idx := bytes.IndexByte(s.rest, byte('\n'))
 	if idx == -1 {
-		return "", errors.New("unexpected end of file")
+		return string(s.rest), nil
 	}
 	return string(s.rest[:idx+1]), nil
 }
