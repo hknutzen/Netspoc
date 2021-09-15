@@ -55,7 +55,7 @@ func printPanOSRules(
 		if n.IsSingleIP() {
 			name = "IP_" + n.IP.String()
 		} else {
-			name = strings.Replace("NET_"+n.String(), "/", "_", 1)
+			name = "NET_" + strings.Replace(n.String(), "/", "_", 1)
 		}
 		if !addrSeen[name] {
 			ip2addr[n] = name
@@ -174,7 +174,13 @@ func printPanOSRules(
 					// <type_code> is invalid tag for PAN-OS.
 					details = "<type_code>" + ports + "</type_code>"
 				}
+			} else {
+				switch proto {
+				case "tcp", "udp":
+					details = "<port>1-65535</port>"
+				}
 			}
+
 			// Numeric protocol is invalid for PAN-OS.
 			entry := `<entry name="` + name + `"><protocol><` + proto + `>` +
 				details + `</` + proto + `></protocol></entry>`
