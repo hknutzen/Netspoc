@@ -2422,6 +2422,7 @@ var routerInfo = map[string]*model{
 		noCryptoFilter: true,
 		commentChar:    "!",
 		needACL:        true,
+		noACLself:      true,
 	},
 	"PAN-OS": {
 		routing:                "",

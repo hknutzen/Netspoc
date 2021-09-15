@@ -248,6 +248,7 @@ type model struct {
 	needManagementInstance bool
 	needProtect            bool
 	needVRF                bool
+	noACLself              bool
 	noCryptoFilter         bool
 	printRouterIntf        bool
 	routing                string

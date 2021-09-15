@@ -88,7 +88,7 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 	if out == nil {
 
 		// No ACL generated for traffic to device itself.
-		if model.filter == "ASA" {
+		if model.noACLself {
 			return
 		}
 
