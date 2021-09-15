@@ -2,5 +2,6 @@
 Netspoc-*
 *~
 released/
+go/test/coverage.out
 go/cmd/*/*
 !go/cmd/*/main.go
