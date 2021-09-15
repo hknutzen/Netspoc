@@ -1046,7 +1046,6 @@ func collectAclsFromIORules(r *router) {
 
 		if !r.model.noACLself {
 			// Collect interface rules.
-			// Add call to chain in INPUT chain.
 			aclName := inHw + "_self"
 			info := &aclInfo{
 				name:    aclName,
@@ -1060,7 +1059,6 @@ func collectAclsFromIORules(r *router) {
 
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
-		// Add call to chain in FORRWARD chain.
 		// Sort keys for deterministic output.
 		keys := make(stringList, 0, len(hw.ioRules))
 		for k, _ := range hw.ioRules {
@@ -1090,8 +1088,10 @@ func printIptablesAcls(fh *os.File, r *router) {
 		outHw := name[i+1:]
 		printAclPlaceholder(fh, r, name)
 		if outHw == "self" {
+			// Add call to chain in INPUT chain.
 			fmt.Fprintln(fh, "-A INPUT -j", name, "-i", inHw)
 		} else {
+			// Add call to chain in FORRWARD chain.
 			fmt.Fprintln(fh, "-A FORWARD -j", name, "-i", inHw, "-o", outHw)
 		}
 		// Empty line after all chains.
