@@ -474,3 +474,46 @@ service:test = {
 -A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 =OPTIONS=--ipv6
+
+############################################################
+=TITLE=Reuse code file
+=SHOW_DIAG=
+=VAR=input
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+service:test1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=INPUT=${input}
+=REUSE_PREV=${input}
+=WARNING=
+DIAG: Reused .prev/ipv6/r1
+=WITH_OUTDIR=
+=OPTIONS=--ipv6
+
+############################################################
+=TITLE=Can't create ipv6/ directory
+=SETUP=
+mkdir -p out/.prev
+touch out/ipv6
+chmod u-w out/ipv6
+=INPUT=
+network:n1 = { ip = 1000::abcd:0001:0/112; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir ipv6: file exists
+Aborted
+=END=
+=OPTIONS=--ipv6

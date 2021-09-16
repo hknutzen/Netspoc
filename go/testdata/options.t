@@ -155,3 +155,35 @@ router:r = {
 Error: Can't mkdir missing.dir/file: no such file or directory
 Aborted
 =END=
+
+############################################################
+=TITLE=Can't create out directory
+=SETUP=touch out
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir : file exists
+Aborted
+=END=
+
+############################################################
+=TITLE=Can't write code file
+=TODO= Panic can't be handled in tests currently
+=SETUP=
+mkdir -p out/.prev
+mkdir out/r1
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+Aborted
+=END=
+
+############################################################

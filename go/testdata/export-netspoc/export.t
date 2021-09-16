@@ -3555,6 +3555,50 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=POLICY file can't be copied
+=SETUP=
+mkdir -p out/POLICY
+=INPUT=
+-- POLICY
+# p1234
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+Error: executing '/bin/cp -pf POLICY ': exit status 1
+cp: cannot overwrite directory 'POLICY' with non-directory
+
+Aborted
+=END=
+
+############################################################
+=TITLE=Output directory is readonly
+=SETUP=
+mkdir out
+chmod u-w out
+=INPUT=
+${topo}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir owner: permission denied
+Aborted
+=END=
+
+############################################################
+=TITLE=Output file is readonly
+=SETUP=
+mkdir out
+touch out/objects
+chmod u-w out/objects
+=INPUT=
+${topo}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't open objects: permission denied
+Aborted
+=END=
+
+############################################################
 =TITLE=Option '-h'
 =INPUT=NONE
 =OPTIONS=-h

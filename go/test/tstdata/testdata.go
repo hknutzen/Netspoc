@@ -15,6 +15,7 @@ import (
 
 type Descr struct {
 	Title     string
+	Setup     string
 	Input     string
 	ReusePrev string
 	Options   string
@@ -147,6 +148,8 @@ func (s *state) parse() ([]*Descr, error) {
 				return nil, err
 			}
 			switch name {
+			case "SETUP":
+				d.Setup = text
 			case "INPUT":
 				d.Input = text
 			case "REUSE_PREV":

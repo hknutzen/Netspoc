@@ -3,6 +3,7 @@ package netspoc_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
@@ -56,6 +57,7 @@ var tests = []test{
 var count int
 
 func TestNetspoc(t *testing.T) {
+	os.Unsetenv("LANG")
 	count = 0
 	for _, tc := range tests {
 		tc := tc // capture range variable
@@ -105,6 +107,24 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		d.WithOutD {
 
 		outDir = path.Join(workDir, "out")
+	}
+
+	// Execute optional shell commands to setup error cases
+	// in working directory.
+	if d.Setup != "" {
+		for _, line := range strings.Split(d.Setup, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || line[0] == '#' {
+				continue
+			}
+			words := strings.Fields(line)
+			prog := words[0]
+			args := words[1:]
+			cmd := exec.Command(prog, args...)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatal(fmt.Sprintf("executing '%v': %v\n%s", cmd, err, out))
+			}
+		}
 	}
 
 	runProg := func(input string) (int, string, string, string) {
