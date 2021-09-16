@@ -43,9 +43,8 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 		dest := filepath.Join(outDir, base)
 		dest += ".raw"
 		cmd := exec.Command("cp", "-f", rawPath, dest)
-		err := cmd.Run()
-		if err != nil {
-			c.abort("Can't %v", err)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			c.abort("Can't cp %s to %s: %v\n%s", rawPath, dest, err, out)
 		}
 	}
 }
