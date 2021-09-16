@@ -377,7 +377,7 @@ func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 func printCombined(config []string, routerData *routerData, outPath string) {
 	fd, err := os.Create(outPath)
 	if err != nil {
-		panicf("Can't open %s for writing: %v", outPath, err)
+		panicf("Can't %v", err)
 	}
 	if routerData.model == "PAN-OS" {
 		printCombinedPanOS(fd, config, routerData)
