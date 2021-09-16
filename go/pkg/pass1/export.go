@@ -1415,7 +1415,8 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 	if fileop.IsRegular(policyFile) {
 		cmd := exec.Command("cp", "-pf", policyFile, outDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing '%v': %v\n%s", cmd, err, out)
+			c.abort("executing 'cp -pf %s %s': %v\n%s",
+				policyFile, outDir, err, out)
 		}
 	}
 }

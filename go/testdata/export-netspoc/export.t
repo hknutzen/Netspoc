@@ -3565,7 +3565,7 @@ mkdir -p out/POLICY
 network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =ERROR=
-Error: executing '/bin/cp -pf POLICY ': exit status 1
+Error: executing 'cp -pf POLICY ': exit status 1
 cp: cannot overwrite directory 'POLICY' with non-directory
 
 Aborted
