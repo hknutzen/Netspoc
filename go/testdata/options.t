@@ -164,7 +164,7 @@ Aborted
 network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't mkdir : file exists
+Error: Can't mkdir out: file exists
 Aborted
 =END=
 

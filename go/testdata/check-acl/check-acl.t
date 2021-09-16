@@ -103,7 +103,7 @@ Usage: PROGRAM [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
 =PARAMS= r77 n1_in
 =PARAM= 10.1.1.11 10.1.2.12 tcp 85
 =ERROR=
-Error: Can't find file r77.rules
+Error: Can't find file out/r77.rules
 =END=
 
 ############################################################

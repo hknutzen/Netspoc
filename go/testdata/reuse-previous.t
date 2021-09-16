@@ -124,7 +124,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =ERROR=
 Error: Can't mv old files to prev: exit status 1
-mv: cannot move 'r1' to '.prev/r1': Permission denied
+mv: cannot move 'out/r1' to 'out/.prev/r1': Permission denied
 
 Aborted
 =END=

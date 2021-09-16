@@ -212,8 +212,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	}
 	if outDir != "" {
-		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
-		stderr = strings.ReplaceAll(stderr, outDir, "")
+		stderr = strings.ReplaceAll(stderr, outDir+"/", "out/")
+		stderr = strings.ReplaceAll(stderr, outDir, "out")
 	}
 	if d.Job != "" {
 		stderr = strings.ReplaceAll(stderr, workDir+"/", "")

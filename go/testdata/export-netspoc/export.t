@@ -3565,8 +3565,8 @@ mkdir -p out/POLICY
 network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =ERROR=
-Error: executing 'cp -pf POLICY ': exit status 1
-cp: cannot overwrite directory 'POLICY' with non-directory
+Error: executing 'cp -pf POLICY out': exit status 1
+cp: cannot overwrite directory 'out/POLICY' with non-directory
 
 Aborted
 =END=
@@ -3580,7 +3580,7 @@ chmod u-w out
 ${topo}
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't mkdir owner: permission denied
+Error: Can't mkdir out/owner: permission denied
 Aborted
 =END=
 
@@ -3594,7 +3594,7 @@ chmod u-w out/objects
 ${topo}
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't open objects: permission denied
+Error: Can't open out/objects: permission denied
 Aborted
 =END=
 

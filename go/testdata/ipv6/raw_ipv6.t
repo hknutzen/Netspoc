@@ -38,7 +38,6 @@ Warning: Found unused file raw/x
 ipv6 route ::a01:200/120 ::a01:101
 =END=
 
-
 ############################################################
 =TITLE=Ignore file with name "raw"
 =PARAMS=--ipv6

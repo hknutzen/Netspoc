@@ -412,7 +412,7 @@ Expanded rule count: 4; duplicate: 1; redundant: 1
 0s Marking rules for secondary optimization
 0s Distributing rules
 0s Printing code
-Saving 6 old files of '' to subdirectory '.prev'
+Saving 6 old files of 'out' to subdirectory '.prev'
 Reused files for 2 devices from previous run
 0s Finished
 =OUTPUT=

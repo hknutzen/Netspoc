@@ -50,6 +50,7 @@ Aborted
 
 ############################################################
 =TITLE=Can't copy raw file
+# No IPv6 test
 =SETUP=
 mkdir -p out/.prev
 mkdir -p out/r1.raw/r1
@@ -65,8 +66,8 @@ router:r1 = {
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't cp raw/r1 to r1.raw: exit status 1
-cp: cannot overwrite directory 'r1.raw/r1' with non-directory
+Error: Can't cp raw/r1 to out/r1.raw: exit status 1
+cp: cannot overwrite directory 'out/r1.raw/r1' with non-directory
 
 Aborted
 =END=
