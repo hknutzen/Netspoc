@@ -2280,8 +2280,8 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 				oldFiles[i] = dir + "/" + name
 			}
 			cmd := exec.Command("mv", append(oldFiles, prev)...)
-			if err = cmd.Run(); err != nil {
-				c.abort("Can't mv old files to prev: %v", err)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				c.abort("Can't mv old files to prev: %v\n%s", err, out)
 			}
 		}
 	}
