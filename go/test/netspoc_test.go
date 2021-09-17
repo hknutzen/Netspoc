@@ -109,24 +109,6 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		outDir = path.Join(workDir, "out")
 	}
 
-	// Execute optional shell commands to setup error cases
-	// in working directory.
-	if d.Setup != "" {
-		for _, line := range strings.Split(d.Setup, "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" || line[0] == '#' {
-				continue
-			}
-			words := strings.Fields(line)
-			prog := words[0]
-			args := words[1:]
-			cmd := exec.Command(prog, args...)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				t.Fatal(fmt.Sprintf("executing '%v': %v\n%s", cmd, err, out))
-			}
-		}
-	}
-
 	runProg := func(input string) (int, string, string, string) {
 
 		// Initialize os.Args, add default options.
@@ -175,6 +157,27 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		}
 		if d.Param != "" {
 			os.Args = append(os.Args, d.Param)
+		}
+
+		// Execute optional commands to setup error cases
+		// in working directory.
+		if d.Setup != "" {
+			for _, line := range strings.Split(d.Setup, "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || line[0] == '#' {
+					continue
+				}
+				words := strings.Fields(line)
+				prog := words[0]
+				args := words[1:]
+				cmd := exec.Command(prog, args...)
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatal(fmt.Sprintf("executing '%v': %v\n%s", cmd, err, out))
+				}
+			}
+			t.Cleanup(func() {
+				exec.Command("chmod", "-R", "u+rwx", workDir).Run()
+			})
 		}
 
 		if d.ShowDiag {
