@@ -186,3 +186,12 @@ panic: Can't open out/r1: is a directory
 =END=
 
 ############################################################
+=TITLE=Can't read input directory
+=SETUP=
+mkdir netspoc
+chmod u-rx netspoc
+=INPUT=NONE
+=PARAMS=netspoc
+=ERROR=
+panic: open netspoc: permission denied
+=END=

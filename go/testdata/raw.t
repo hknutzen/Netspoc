@@ -71,3 +71,17 @@ cp: cannot overwrite directory 'out/r1.raw/r1' with non-directory
 
 Aborted
 =END=
+
+############################################################
+=TITLE=Can't read raw directory
+# No IPv6 test
+=SETUP=
+mkdir -p netspoc/raw
+chmod u-rx netspoc/raw
+=INPUT=
+--topo
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+panic: open raw: permission denied
+=END=
