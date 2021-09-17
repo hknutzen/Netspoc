@@ -168,6 +168,18 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Can't read out directory
+=SETUP=
+mkdir out
+chmod u-r out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+panic: open out: permission denied
+=END=
+
+############################################################
 =TITLE=Can't write to out directory
 =SETUP=
 mkdir out
