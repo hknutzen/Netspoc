@@ -2724,7 +2724,11 @@ func (c *spoc) dateIsReached(s, ctx string) bool {
 		c.err("Date expected as yyyy-mm-dd in %s", ctx)
 		return false
 	}
-	date, _ := time.Parse("2006-01-02", s)
+	date, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		c.err("Invalid date in %s: %v", ctx, err)
+		return false
+	}
 	return time.Now().After(date)
 }
 
