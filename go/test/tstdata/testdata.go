@@ -273,6 +273,9 @@ func (s *state) dateDef(d *Descr) error {
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	days, err := strconv.Atoi(line)
+	if err != nil {
+		return err
+	}
 	date := time.Now().AddDate(0, 0, days)
 	s.textblocks["DATE"] = date.Format("2006-01-02")
 	return nil
