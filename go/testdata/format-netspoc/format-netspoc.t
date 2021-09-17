@@ -1302,3 +1302,14 @@ xxx
 =WARNING=NONE
 
 ############################################################
+=TITLE=Can't change readonly file
+=INPUT=
+--f1
+group:g1=;
+=SETUP=
+chmod u-w netspoc/f1
+=ERROR=
+Error: Can't open f1: permission denied
+=END=
+
+############################################################

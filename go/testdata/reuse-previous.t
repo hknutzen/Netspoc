@@ -130,3 +130,17 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=.prev is file
+=SETUP=
+mkdir out/
+touch out/.prev
+chmod u-w out/.prev
+chmod u-x out
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir out/.prev: permission denied
+Aborted
+=END=
