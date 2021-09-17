@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 )
 
@@ -2431,33 +2432,33 @@ func (c *spoc) printRouter(r *router, dir string) string {
 }
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
-	concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
-	countReused := make(chan int)
-	reused := 0
-	go func() {
-		for n := range countReused {
-			reused += n
-		}
-	}()
-
-	var wg sync.WaitGroup
-	for _, r := range devices {
-		concurrentGoroutines <- struct{}{}
-		wg.Add(1)
-		go func(r *router) {
-			defer wg.Done()
+	var reused int32 = 0
+	if conf.Conf.ConcurrencyPass2 <= 1 {
+		for _, r := range devices {
 			path := c.printRouter(r, dir)
-			countReused <- pass2.File(path, dir, prev)
-			<-concurrentGoroutines
-		}(r)
+			reused += int32(pass2.File(path, dir, prev))
+		}
+	} else {
+		concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
+		var wg sync.WaitGroup
+		for _, r := range devices {
+			concurrentGoroutines <- struct{}{}
+			wg.Add(1)
+			go func(r *router) {
+				defer wg.Done()
+				path := c.printRouter(r, dir)
+				atomic.AddInt32(&reused, int32(pass2.File(path, dir, prev)))
+				<-concurrentGoroutines
+			}(r)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 	// Remove directory '.prev' created by pass1
 	// or remove symlink '.prev' created by newpolicy.pl.
 	// Error is ignored; would use unneeded space only.
 	os.RemoveAll(prev)
 
-	generated := len(devices) - reused
+	generated := int32(len(devices)) - reused
 	if generated > 0 {
 		c.info("Generated files for %d devices", generated)
 	}

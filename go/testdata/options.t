@@ -170,7 +170,6 @@ Aborted
 
 ############################################################
 =TITLE=Can't write code file
-=TODO= Panic can't be handled in tests currently
 =SETUP=
 mkdir -p out/.prev
 mkdir out/r1
@@ -183,7 +182,7 @@ router:r1 = {
 }
 =WITH_OUTDIR=
 =ERROR=
-Aborted
+panic: Can't open out/r1: is a directory
 =END=
 
 ############################################################
