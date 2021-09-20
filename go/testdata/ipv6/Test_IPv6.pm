@@ -116,6 +116,9 @@ sub adjust_testfile {
             $line = join ("", @words);
         }
 
+        # Convert prefixes as part of address names of PAN-OS.
+        $line =~ s/(\.\d+_)(\d+)(["<])/$1.($2+96).$3/e;
+
         # Convert addresses.
         # Several addresses might occur in one line, alter one at a time.
         @matchcount = $line =~ /\d+\.\d+\.\d+\.\d+/g;
@@ -215,7 +218,7 @@ sub adjust_testfile {
         if ($line !~ m(topology|config|file|raw/| raw$|private) and
             $filename !~ /export.t/)
         {
-            $line =~ s/^(-+[ ]*)([^\s-]+)([ ]*)$/${1}ipv6\/$2$3/;
+            $line =~ s/^(-+[ ]*)([^\s>-]+)([ ]*)$/${1}ipv6\/$2$3/;
         }
 
         # Convert result messages.
@@ -226,7 +229,7 @@ sub adjust_testfile {
         $line =~ s/(file ')/${1}ipv6\//;
 
         # Convert group names
-        $line =~ s/ g(\d+)(\s)/ v6g$1$2/g;
+        $line =~ s/([ >"])g(\d+)([\s<"])/$1v6g$2$3/g;
 
         # Add =PARAMS= with --ipv6 option before =INPUT=
         $line =~ s/^(=INPUT=.*)/=PARAMS=--ipv6\n$1/;
