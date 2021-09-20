@@ -61,10 +61,6 @@ func (s *State) Print() {
 
 func (s *State) getFileIndex(file string) int {
 	file = path.Clean(file)
-	// Prevent dangerous filenames, especially starting with "../".
-	if file == "" || file[0] == '.' {
-		panic(fmt.Errorf("Invalid filename %v", file))
-	}
 	file = path.Join(s.base, file)
 	idx := -1
 	for i, f := range s.files {

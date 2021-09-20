@@ -298,6 +298,7 @@ func (s *state) createToplevel(j *job) error {
 	if path.IsAbs(file) {
 		return fmt.Errorf("Invalid absolute filename: %s", file)
 	}
+	// Prevent dangerous filenames, especially starting with "../".
 	if file == "" || file[0] == '.' {
 		return fmt.Errorf("Invalid filename %s", file)
 	}
