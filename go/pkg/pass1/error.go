@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-func debug(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
-}
+func debug(f string, l ...interface{}) { fmt.Fprintf(os.Stderr, f+"\n", l...) }
 
 func (l intfList) nameList() string {
 	var names stringList
