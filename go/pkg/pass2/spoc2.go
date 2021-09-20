@@ -410,7 +410,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 		}
 	}
 	if err := os.Link(prevFile, codeFile); err != nil {
-		return false
+		panic(err)
 	}
 
 	// File was found and hardlink was created successfully.
