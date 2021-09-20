@@ -15,6 +15,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -159,25 +160,24 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			os.Args = append(os.Args, d.Param)
 		}
 
-		// Execute optional commands to setup error cases
-		// in working directory.
+		// Execute shell commands to setup error cases in working directory.
 		if d.Setup != "" {
-			for _, line := range strings.Split(d.Setup, "\n") {
-				line = strings.TrimSpace(line)
-				if line == "" || line[0] == '#' {
-					continue
-				}
-				words := strings.Fields(line)
-				prog := words[0]
-				args := words[1:]
-				cmd := exec.Command(prog, args...)
-				if out, err := cmd.CombinedOutput(); err != nil {
-					t.Fatal(fmt.Sprintf("executing '%v': %v\n%s", cmd, err, out))
-				}
-			}
 			t.Cleanup(func() {
+				// Make files writeable again if =SETUP= commands have
+				// revoked file permissions.
 				exec.Command("chmod", "-R", "u+rwx", workDir).Run()
 			})
+			cmd := exec.Command("bash", "-e")
+			stdin, err := cmd.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.WriteString(stdin, d.Setup)
+			stdin.Close()
+
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatal(fmt.Sprintf("executing =SETUP=: %v\n%s", err, out))
+			}
 		}
 
 		if d.ShowDiag {
