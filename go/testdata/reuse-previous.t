@@ -147,6 +147,7 @@ Aborted
 
 ############################################################
 =TITLE=Can't create link
+# No IPv6
 =SETUP=
 mkdir -p out/.prev
 cat <<END > out/.prev/r1.config
