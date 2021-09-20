@@ -2984,7 +2984,7 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
-=TITLE=Create toplevel using absolute path
+=TITLE=Invalid absolute path
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3001,7 +3001,7 @@ Error: Invalid absolute filename: /etc/passwd
 =END=
 
 ############################################################
-=TITLE=Create toplevel using relative path
+=TITLE=Invalid relative path
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3018,6 +3018,23 @@ Error: Invalid filename ../passwd
 =END=
 
 ############################################################
+=TITLE=Can't create directory
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_toplevel",
+    "params": {
+        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
+        "file": "topology/n2"
+    }
+}
+=ERROR=
+panic: mkdir topology: not a directory
+=END=
+
+############################################################
 =TITLE=Unexpected content after definition
 =INPUT=
 -- topology
@@ -3027,7 +3044,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "create_toplevel",
     "params": {
         "definition": "network:n2 = { ip = 10.1.2.0/24; } host:h2",
-        "file": "../passwd"
+        "file": "topology"
     }
 }
 =ERROR=
