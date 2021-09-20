@@ -315,7 +315,7 @@ ${output}
 =END=
 
 ############################################################
-=TITLE=Invalid time limit at service
+=TITLE=Invalid date format at service
 =PARAMS=--ipv6
 =INPUT=
 ${topo}
@@ -326,6 +326,20 @@ service:s = {
 }
 =ERROR=
 Error: Date expected as yyyy-mm-dd in 'disable_at' of service:s
+=END=
+
+############################################################
+=TITLE=Invalid date at service
+=PARAMS=--ipv6
+=INPUT=
+${topo}
+service:s = {
+ disable_at = 2031-31-31;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: Invalid date in 'disable_at' of service:s: parsing time "2031-31-31": month out of range
 =END=
 
 ############################################################
