@@ -5,5 +5,5 @@ import (
 )
 
 func main() {
-	pass2.CheckACLMain()
+	os.Exit(pass2.CheckACLMain())
 }
