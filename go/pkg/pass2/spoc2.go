@@ -24,7 +24,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
@@ -419,21 +418,11 @@ func tryPrev(devicePath, dir, prev string) bool {
 }
 
 func readFileLines(filename string) []string {
-	fd, err := os.Open(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
-	defer fd.Close()
-	result := make([]string, 0)
-	scanner := bufio.NewScanner(fd)
-	for scanner.Scan() {
-		line := scanner.Text()
-		result = append(result, line)
-	}
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-	return result
+	return strings.Split(string(data), "\n")
 }
 
 func File(devicePath, dir, prev string) int {
