@@ -161,7 +161,6 @@ func orderRanges(protocol string, prt2obj name2Proto, up *proto) {
 			// a and b are overlapping.
 			// aaaaa
 			//   bbbbbb
-			// uncoverable statement
 			panicf("Unexpected overlapping ranges [%d-%d] [%d-%d]",
 				a.ports[0], a.ports[1], b.ports[0], b.ports[1])
 		}
