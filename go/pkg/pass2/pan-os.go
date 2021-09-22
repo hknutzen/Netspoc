@@ -78,8 +78,8 @@ func printPanOSRules(
 		fmt.Fprintln(fd, "<rulebase><security><rules>")
 		for _, acl := range l {
 			zones := strings.Split(acl.name, "_")
-			from := zones[0]
-			to := zones[1]
+			from := member(zones[0])
+			to := member(zones[1])
 			for _, rule := range acl.rules {
 				action := getAction(rule)
 				source := getAddress(rule.src)
