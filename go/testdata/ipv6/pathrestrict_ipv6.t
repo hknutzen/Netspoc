@@ -86,7 +86,7 @@ network:dst = { ip = ::a01:200/120;}
 =END=
 
 ############################################################
-=TITLE=Simple duplicate pathrestriction
+=TITLE=Simple pathrestrictions leaving no valid path
 =PARAMS=--ipv6
 =INPUT=
 ${topo}
