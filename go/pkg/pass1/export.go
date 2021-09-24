@@ -61,7 +61,7 @@ func (c *spoc) writeJson(path string, data interface{}) {
 		panic(err)
 	}
 	if err := fd.Close(); err != nil {
-		c.abort("Can't %v", err)
+		panic(err)
 	}
 }
 

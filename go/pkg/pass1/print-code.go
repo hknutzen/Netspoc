@@ -2420,7 +2420,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		header("END", deviceName)
 		fmt.Fprintln(fd)
 		if err := fd.Close(); err != nil {
-			c.abort("Can't %v", err)
+			panic(err)
 		}
 	}
 
