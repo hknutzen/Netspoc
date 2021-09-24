@@ -84,7 +84,7 @@ network:dst = { ip = 10.1.2.0/24;}
 =END=
 
 ############################################################
-=TITLE=Simple duplicate pathrestriction
+=TITLE=Simple pathrestrictions leaving no valid path
 =INPUT=
 ${topo}
 pathrestriction:top =
