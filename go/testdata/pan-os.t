@@ -743,8 +743,8 @@ service:s1 = {
 <entry name="NET_10.1.2.0_24"><ip-netmask>10.1.2.0/24</ip-netmask></entry>
 </address>
 <service>
-<entry name="proto 52"><protocol><52></52></protocol></entry>
-<entry name="icmp 8"><protocol><icmp><type_code>8</type_code></icmp></protocol></entry>
+<entry name="proto 52"><protocol><other>proto 52</other></protocol></entry>
+<entry name="icmp 8"><protocol><other>icmp 8</other></protocol></entry>
 </service>
 </entry>
 =END=

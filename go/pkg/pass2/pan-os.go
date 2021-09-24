@@ -165,25 +165,23 @@ func printPanOSRules(
 			name := p.name
 			proto := p.protocol
 			var details string
-			if len(name) > len(proto) {
-				ports := name[len(proto)+1:]
-				switch proto {
-				case "tcp", "udp":
-					details = "<port>" + ports + "</port>"
-				case "icmp":
-					// <type_code> is invalid tag for PAN-OS.
-					details = "<type_code>" + ports + "</type_code>"
+			switch proto {
+			case "tcp", "udp":
+				var ports string
+				if len(name) > len(proto) {
+					ports = name[len(proto)+1:]
+				} else {
+					ports = "1-65535"
 				}
-			} else {
-				switch proto {
-				case "tcp", "udp":
-					details = "<port>1-65535</port>"
-				}
+				details = "<" + proto + "><port>" +
+					ports + "</port></" + proto + ">"
+			default:
+				// <other> is invalid tag for PAN-OS.
+				details = "<other>" + name + "</other>"
 			}
 
-			// Numeric protocol is invalid for PAN-OS.
-			entry := `<entry name="` + name + `"><protocol><` + proto + `>` +
-				details + `</` + proto + `></protocol></entry>`
+			entry := `<entry name="` + name + `"><protocol>` + details +
+				`</protocol></entry>`
 			fmt.Fprintln(fd, entry)
 		}
 		fmt.Fprintln(fd, "</service>")
