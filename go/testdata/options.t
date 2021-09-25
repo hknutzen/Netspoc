@@ -224,3 +224,39 @@ chmod u-rx netspoc
 =ERROR=
 panic: open netspoc: permission denied
 =END=
+
+############################################################
+=TITLE=Can't read intermediate file *.config
+=SETUP=
+mkdir -p out/.prev
+touch out/r1.config
+chmod u-r out/r1.config
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+panic: open out/r1.config: permission denied
+=END=
+
+############################################################
+=TITLE=Can't read intermediate file *.rules
+=SETUP=
+mkdir -p out/.prev
+touch out/r1.rules
+chmod u-r out/r1.rules
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+panic: open out/r1.rules: permission denied
+=END=
