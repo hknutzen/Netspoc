@@ -57,9 +57,7 @@ func (c *spoc) writeJson(path string, data interface{}) {
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(data); err != nil {
-		panic(err)
-	}
+	enc.Encode(data)
 	if err := fd.Close(); err != nil {
 		panic(err)
 	}
