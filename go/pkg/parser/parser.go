@@ -696,11 +696,8 @@ func (p *parser) abort(e error) {
 func handlePanic(f func()) (err error) {
 	defer func() {
 		if e := recover(); e != nil {
-			if b, ok := e.(bailout); ok {
-				err = b.err
-			} else {
-				panic(e) // Resume same panic if it's not a bailout.
-			}
+			b := e.(bailout)
+			err = b.err
 		}
 	}()
 	f()
