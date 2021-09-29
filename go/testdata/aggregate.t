@@ -3294,11 +3294,17 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-service:ping_local = {
+service:ping-local = {
  user = foreach any:[network:n3];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmp 8;
 }
 =END=
+=WARNING=
+Warning: service:ping-local has unenforceable rules:
+ src=network:n2; dst=interface:r2.n2
+ src=network:n2; dst=interface:r2.n3
+ src=network:n3; dst=interface:r2.n2
+ src=network:n3; dst=interface:r2.n3
 =OUTPUT=
 --r1
 ip access-list extended n2_in

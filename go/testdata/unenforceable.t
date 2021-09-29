@@ -153,6 +153,27 @@ service:test = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Unenforceable foreach rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+service:ping-local = {
+ user = foreach interface:r1.n1, interface:r2.n1;
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+=WARNING=
+Warning: service:ping-local has unenforceable rules:
+ src=any:[network:n1]; dst=interface:r2.n1
+=END=
+
+############################################################
 =TITLE=Useless has_unenforceable at silent unenforceable user-user rule
 =INPUT=
 ${topo}

@@ -18,9 +18,10 @@ type objPair [2]someObj
 // Rules between identical objects are silently ignored.
 // But a message is shown if a service only has rules between identical objects.
 func collectUnenforceable(rule *groupedRule) {
-	sv := rule.rule.service
+	uRule := rule.rule
+	sv := uRule.service
 	sv.silentUnenforceable = true
-	isCoupling := rule.rule.hasUser == "both"
+	isCoupling := uRule.hasUser == "both" && !sv.foreach
 
 	for _, src := range rule.src {
 		for _, dst := range rule.dst {
