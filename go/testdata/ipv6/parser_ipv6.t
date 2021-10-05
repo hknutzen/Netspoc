@@ -875,6 +875,20 @@ Error: Invalid value for 'managed' of router:r: xxx
 =END=
 
 ############################################################
+=TITLE=Empty value at managed attribute
+=PARAMS=--ipv6
+=INPUT=
+router:r = {
+ managed = ;
+ interface:n;
+}
+network:n = { ip = ::a01:100/120; }
+=END=
+=ERROR=
+Error: Single value expected in 'managed' of router:r
+=END=
+
+############################################################
 =TITLE=Unknown routing protocol
 =PARAMS=--ipv6
 =INPUT=

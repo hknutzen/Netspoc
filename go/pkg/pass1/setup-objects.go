@@ -2161,7 +2161,7 @@ func (c *spoc) getSingleValue(a *ast.Attribute, ctx string) string {
 }
 
 func (c *spoc) getValueList(a *ast.Attribute, ctx string) stringList {
-	if a.ComplexValue != nil || a.ValueList == nil {
+	if a.ComplexValue != nil || len(a.ValueList) == 0 {
 		c.err("List of values expected in '%s' of %s", a.Name, ctx)
 		return nil
 	}
@@ -2356,7 +2356,7 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 	}
 	v := c.getSingleValue(a, ctx)
 	switch v {
-	case "secondary", "standard", "full", "primary", "local", "routing_only":
+	case "secondary", "standard", "full", "primary", "local", "routing_only", "":
 		return v
 	}
 	c.err("Invalid value for '%s' of %s: %s", a.Name, ctx, v)

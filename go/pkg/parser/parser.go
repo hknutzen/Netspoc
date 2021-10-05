@@ -405,7 +405,7 @@ func (p *parser) valueList(
 	getValue func(*parser, func(*parser)) *ast.Value,
 	nextSpecial func(*parser)) []*ast.Value {
 
-	var list []*ast.Value
+	list := make([]*ast.Value, 0)
 	for !p.check(";") {
 		list = append(list, getValue(p, nextSpecial))
 		if !p.checkSpecial(",", nextSpecial) {

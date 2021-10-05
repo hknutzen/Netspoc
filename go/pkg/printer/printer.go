@@ -290,7 +290,11 @@ func (p *printer) attribute(n *ast.Attribute) {
 	p.preComment(n)
 	name := n.Name
 	if l := n.ValueList; l != nil {
-		p.namedValueList(name, l)
+		if len(l) == 0 {
+			p.print(name + " = ;" + n.PostComment())
+		} else {
+			p.namedValueList(name, l)
+		}
 	} else if l := n.ComplexValue; l != nil {
 		if name == "virtual" || strings.Index(name, ":") != -1 {
 			val, comment := getAttrList(l)
@@ -298,8 +302,6 @@ func (p *printer) attribute(n *ast.Attribute) {
 		} else {
 			p.complexValue(name, l)
 		}
-	} else if name == "prt" {
-		p.print("prt = ;" + n.PostComment())
 	} else {
 		// Short attribute without values.
 		p.print(name + ";" + n.PostComment())

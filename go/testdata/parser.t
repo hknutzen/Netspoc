@@ -809,6 +809,19 @@ Error: Invalid value for 'managed' of router:r: xxx
 =END=
 
 ############################################################
+=TITLE=Empty value at managed attribute
+=INPUT=
+router:r = {
+ managed = ;
+ interface:n;
+}
+network:n = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: Single value expected in 'managed' of router:r
+=END=
+
+############################################################
 =TITLE=Unknown routing protocol
 =INPUT=
 router:r = {
