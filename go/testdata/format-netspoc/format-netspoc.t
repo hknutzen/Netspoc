@@ -1029,6 +1029,33 @@ network:n1 = {
 =END=
 
 ############################################################
+=TITLE=Invalid, but parseable elements
+=INPUT=
+network:n1 = {
+ x;
+ :y = { :ip:; ip2 = { ip3 = 4; }}
+ :host:h1 = { a = { b = { c = d; e = f,g;} h;}}
+ :h:o:s:t:h2=; # c1
+ host:h1 = { ip = 10.1.1.10; }
+ host:h1 =; # Silently ignore superflous '='
+}
+router:r1 = { managed = ; }
+=OUTPUT=
+network:n1 = {
+ x;
+ :y = { :ip:; ip2 = { ip3 = 4; } }
+ :host:h1 = { a = { b = { c = d; e = f, g; } h; } }
+ :h:o:s:t:h2 = ; # c1
+ host:h1; # Silently ignore superflous '='
+ host:h1 = { ip = 10.1.1.10; }
+}
+
+router:r1 = {
+ managed = ;
+}
+=END=
+
+############################################################
 =TITLE=Managed router
 =INPUT=
 # pre
