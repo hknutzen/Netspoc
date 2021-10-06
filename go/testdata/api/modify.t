@@ -1852,7 +1852,77 @@ router:r1 = {
 =END=
 
 ############################################################
-=TITLE=Add service, invalid action
+=TITLE=Add service without any rule
+=VAR=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+${input}
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1",
+        "user": "network:n1"
+    }
+}
+=ERROR=
+Error: Must not define service:s1 without any rules
+=END=
+
+############################################################
+=TITLE=Add service with empty user
+=VAR=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+${input}
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1",
+        "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 80"
+            }]
+    }
+}
+=WARNING=
+Warning: user of service:s1 is empty
+=OUTPUT=
+@@ rule/S
++service:s1 = {
++ user = ;
++ permit src = user;
++        dst = network:n1;
++        prt = tcp 80;
++}
+=END=
+
+############################################################
+=TITLE=Add service without user and rule
+=VAR=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+${input}
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1"
+    }
+}
+=ERROR=
+Warning: user of service:s1 is empty
+Error: Must not define service:s1 without any rules
+=END=
+
+############################################################
 =VAR=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1864,6 +1934,54 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+
+############################################################
+=TITLE=Add empty service, alter user and rule afterwards
+=INPUT=
+${input}
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [
+            {
+                "method": "create_service",
+                "params": {
+                    "name": "s1"
+                }
+            },
+            {
+                "method": "add_to_user",
+                "params": {
+                    "service": "s1",
+                    "user": "network:n1"
+                }
+            },
+            {
+                "method": "add_rule",
+                "params": {
+                    "service": "s1",
+                    "action": "permit",
+                    "src": "user",
+                    "dst": "network:n2",
+                    "prt": "tcp 80"
+                }
+            }
+        ]
+    }
+}
+=OUTPUT=
+@@ rule/S
++service:s1 = {
++ user = network:n1;
++ permit src = user;
++        dst = network:n2;
++        prt = tcp 80;
++}
+=END=
+
+############################################################
+=TITLE=Add service, invalid action
 =INPUT=
 ${input}
 =JOB=

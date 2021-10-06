@@ -2026,6 +2026,9 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		}
 		sv.rules = append(sv.rules, ru)
 	}
+	if len(sv.rules) == 0 {
+		c.err("Must not define %s without any rules", name)
+	}
 }
 
 // Normalize list of log tags.
