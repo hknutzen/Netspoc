@@ -761,7 +761,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 	} else if n.ipType == bridgedIP {
 		for _, h := range n.hosts {
-			if !h.ipRange.From.IsZero() {
+			if !h.ipRange.From().IsZero() {
 				c.err("Bridged %s must not have %s with range (not implemented)",
 					name, h.name)
 			}
@@ -783,9 +783,11 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
-			if !h.ipRange.From.IsZero() {
+			if !h.ipRange.From().IsZero() {
 				// Check range.
-				if !(ipp.Contains(h.ipRange.From) && ipp.Contains(h.ipRange.To)) {
+				if !(ipp.Contains(h.ipRange.From()) &&
+					ipp.Contains(h.ipRange.To())) {
+
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
@@ -800,7 +802,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		// Check NAT definitions.
 		for tag, nat := range n.nat {
 			if !nat.dynamic {
-				if nat.ipp.Bits != ipp.Bits {
+				if nat.ipp.Bits() != ipp.Bits() {
 					c.err("Mask for non dynamic nat:%s must be equal to mask of %s",
 						tag, name)
 				}
@@ -917,14 +919,14 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			h.ldapId = ""
 		}
 	} else if h.ldapId != "" {
-		if h.ipRange.From.IsZero() {
+		if h.ipRange.From().IsZero() {
 			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
 	} else if h.radiusAttributes != nil {
 		c.warn("Ignoring 'radius_attributes' at %s", name)
 	}
-	if h.nat != nil && !h.ipRange.From.IsZero() {
+	if h.nat != nil && !h.ipRange.From().IsZero() {
 		// Before changing this,
 		// add consistency tests in convert_hosts.
 		c.err("No NAT supported for %s with 'range'", name)
@@ -969,7 +971,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	if ag.ipp.IsZero() {
 		ag.ipp = getNetwork00(v6).ipp
 	}
-	if ag.ipp.Bits != 0 {
+	if ag.ipp.Bits() != 0 {
 		for _, a := range v.Attributes {
 			switch a.Name {
 			case "ip", "link", "owner",
@@ -1878,7 +1880,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		if n == nil {
 			n = new(network)
 			n.name = fullName
-			n.ipp = netaddr.IPPrefix{IP: intf.ip, Bits: getHostPrefix(v6)}
+			n.ipp = netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6))
 
 			// Mark as automatically created.
 			n.loopback = true
@@ -1925,7 +1927,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				if info.hidden || info.identity || info.dynamic {
 					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
-					intf.nat[tag] = info.ipp.IP
+					intf.nat[tag] = info.ipp.IP()
 				}
 			}
 		}
@@ -2659,8 +2661,10 @@ func (c *spoc) getIpRange(
 	if len(l) != 2 {
 		c.err("Expected IP range in %s", ctx)
 	} else {
-		result.From = c.convIP(l[0], v6, a.Name, ctx)
-		result.To = c.convIP(l[1], v6, a.Name, ctx)
+		result = netaddr.IPRangeFrom(
+			c.convIP(l[0], v6, a.Name, ctx),
+			c.convIP(l[1], v6, a.Name, ctx),
+		)
 		if !result.Valid() {
 			c.err("Invalid IP range in %s", ctx)
 		}
@@ -2694,7 +2698,7 @@ func (c *spoc) convIpPrefix(
 	} else if n.Masked() != n {
 		c.err("IP and mask of %s don't match in '%s' of %s", s, name, ctx)
 	}
-	c.checkVxIP(n.IP, v6, name, ctx)
+	c.checkVxIP(n.IP(), v6, name, ctx)
 	return n
 }
 
@@ -3229,10 +3233,10 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
 	return c.addXNat(a, m, v6, s, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
 			ip := c.getSingleValue(a, ctx)
-			return netaddr.IPPrefix{
-				IP:   c.convIP(ip, v6, a.Name, ctx),
-				Bits: getHostPrefix(v6),
-			}
+			return netaddr.IPPrefixFrom(
+				c.convIP(ip, v6, a.Name, ctx),
+				getHostPrefix(v6),
+			)
 		})
 }
 
@@ -3276,7 +3280,7 @@ func (c *spoc) addXNat(
 		nat.dynamic = true
 
 		// Provide an unusable address.
-		nat.ipp = netaddr.IPPrefix{IP: getZeroIp(v6), Bits: getHostPrefix(v6)}
+		nat.ipp = netaddr.IPPrefixFrom(getZeroIp(v6), getHostPrefix(v6))
 	} else if nat.identity {
 		for _, a2 := range l {
 			if a2.Name != "identity" {
@@ -3364,11 +3368,11 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 
 		// Check network and broadcast address only for IPv4,
 		// but not for /31 IPv4 (see RFC 3021).
-		if n.ipp.Bits != 31 {
-			if ip == n.ipp.IP {
+		if n.ipp.Bits() != 31 {
+			if ip == n.ipp.IP() {
 				c.err("%s has address of its network", intf)
 			}
-			if ip == n.ipp.Range().To {
+			if ip == n.ipp.Range().To() {
 				c.err("%s has broadcast address", intf)
 			}
 		}

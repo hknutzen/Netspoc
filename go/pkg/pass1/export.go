@@ -68,10 +68,10 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 }
 
 func printNetworkIp(n *network) string {
-	pIP := n.ipp.IP.String()
+	pIP := n.ipp.IP().String()
 	var pMask string
 	if n.ipV6 {
-		size := n.ipp.Bits
+		size := n.ipp.Bits()
 		pMask = strconv.Itoa(int(size))
 	} else {
 		pMask = net.IP(n.ipp.IPNet().Mask).String()
@@ -99,7 +99,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			// Don't print mask for loopback network. It needs to have
 			// exactly the same address as the corresponding loopback interface.
 			if n.loopback {
-				return n.ipp.IP.String()
+				return n.ipp.IP().String()
 			}
 
 			return printNetworkIp(n)
@@ -128,7 +128,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return mergeIP(ip, n).String()
 			}
 			r := h.ipRange
-			return mergeIP(r.From, n).String() + "-" + mergeIP(r.To, n).String()
+			return mergeIP(r.From(), n).String() + "-" +
+				mergeIP(r.To(), n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)

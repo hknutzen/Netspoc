@@ -487,7 +487,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				break
 			}
 			if up.isAggregate {
-				if up.ipp.Bits != 0 {
+				if up.ipp.Bits() != 0 {
 					continue
 				}
 				z := up.zone

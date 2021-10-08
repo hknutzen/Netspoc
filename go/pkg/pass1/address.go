@@ -16,7 +16,7 @@ func mergeIP(ip netaddr.IP, nat *network) netaddr.IP {
 		merged[i] = n.IP[i] | bytes[i] & ^n.Mask[i]
 	}
 	result, _ := netaddr.FromStdIPNet(&net.IPNet{IP: merged, Mask: n.Mask})
-	return result.IP
+	return result.IP()
 }
 
 func getHostPrefix(ipv6 bool) uint8 {
@@ -39,14 +39,14 @@ func getZeroIp(ipv6 bool) netaddr.IP {
 
 var network00 = &network{
 	ipObj:          ipObj{name: "network:0/0"},
-	ipp:            netaddr.IPPrefix{IP: getZeroIp(false), Bits: 0},
+	ipp:            netaddr.IPPrefixFrom(getZeroIp(false), 0),
 	isAggregate:    true,
 	hasOtherSubnet: true,
 }
 
 var network00v6 = &network{
 	ipObj:          ipObj{name: "network:0/0"},
-	ipp:            netaddr.IPPrefix{IP: getZeroIp(true), Bits: 0},
+	ipp:            netaddr.IPPrefixFrom(getZeroIp(true), 0),
 	isAggregate:    true,
 	hasOtherSubnet: true,
 }
@@ -73,7 +73,7 @@ func (obj *network) address(m natMap) netaddr.IPPrefix {
 
 func (obj *subnet) address(m natMap) netaddr.IPPrefix {
 	n := getNatNetwork(obj.network, m)
-	return natAddress(obj.ipp.IP, obj.ipp.Bits, obj.nat, n, obj.network.ipV6)
+	return natAddress(obj.ipp.IP(), obj.ipp.Bits(), obj.nat, n, obj.network.ipV6)
 }
 
 func (obj *routerIntf) address(m natMap) netaddr.IPPrefix {
@@ -93,10 +93,10 @@ func natAddress(ip netaddr.IP, bits uint8, nat map[string]netaddr.IP,
 		if ip, ok := nat[natTag]; ok {
 
 			// Single static NAT IP for this interface.
-			return netaddr.IPPrefix{IP: ip, Bits: getHostPrefix(ipV6)}
+			return netaddr.IPPrefixFrom(ip, getHostPrefix(ipV6))
 		} else {
 			return n.ipp
 		}
 	}
-	return netaddr.IPPrefix{IP: mergeIP(ip, n), Bits: bits}
+	return netaddr.IPPrefixFrom(mergeIP(ip, n), bits)
 }

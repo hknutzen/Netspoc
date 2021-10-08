@@ -9,7 +9,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0 // indirect
 	gotest.tools v2.2.0+incompatible
-	inet.af/netaddr v0.0.0-20210317195617-2d42ec05f8a1
+	inet.af/netaddr v0.0.0-20210903134321-85fa6c94624e
 )
 
 require (

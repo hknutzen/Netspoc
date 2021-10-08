@@ -273,7 +273,7 @@ func (c *spoc) expandGroup1(
 							// We can't simply take
 							// aggregate -> networks -> interfaces,
 							// because subnets may be missing.
-							if x.ipp.Bits != 0 {
+							if x.ipp.Bits() != 0 {
 								c.err("Must not use interface:[..].[all]\n"+
 									" with %s having ip/mask\n"+
 									" in %s", x, ctx)
@@ -562,10 +562,10 @@ func (c *spoc) expandGroup1(
 					if err != nil {
 						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
 							tok, ctx)
-					} else if ipp.IP != ipp.Masked().IP {
+					} else if ipp.IP() != ipp.Masked().IP() {
 						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
 					}
-					c.checkVxIP(ipp.IP, ipv6, "any:[..]", ctx)
+					c.checkVxIP(ipp.IP(), ipv6, "any:[..]", ctx)
 				} else {
 					ipp = getNetwork00(ipv6).ipp
 				}

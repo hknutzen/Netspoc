@@ -68,7 +68,7 @@ func printHeader(fh *os.File, r *router, what string) {
 }
 
 func iosRouteCode(n netaddr.IPPrefix) string {
-	return n.IP.String() + " " + net.IP(n.IPNet().Mask).String()
+	return n.IP().String() + " " + net.IP(n.IPNet().Mask).String()
 }
 
 func printRoutes(fh *os.File, r *router) {
@@ -104,7 +104,7 @@ func printRoutes(fh *os.File, r *router) {
 				continue
 			}
 
-			prefixlen := natNet.ipp.Bits
+			prefixlen := natNet.ipp.Bits()
 			if prefixlen == 0 {
 				doAutoDefaultRoute = false
 			}
@@ -115,7 +115,7 @@ func printRoutes(fh *os.File, r *router) {
 				m = make(map[netaddr.IP]*network)
 				prefix2ip2net[prefixlen] = m
 			}
-			m[natNet.ipp.IP] = natNet
+			m[natNet.ipp.IP()] = natNet
 
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
@@ -186,13 +186,13 @@ func printRoutes(fh *os.File, r *router) {
 			// Only analyze left part of two adjacent networks.
 			part, _ := ip.Prefix(partPrefix)
 			comb, _ := ip.Prefix(combinedPrefix)
-			if part.IP != comb.IP {
+			if part.IP() != comb.IP() {
 				continue
 			}
 
 			// Calculate IP of right part.
 			rg := left.ipp.Range()
-			nextIP := rg.To.Next()
+			nextIP := rg.To().Next()
 
 			// Find corresponding right part.
 			right := ip2net[nextIP]
@@ -272,7 +272,7 @@ func printRoutes(fh *os.File, r *router) {
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
 					net, _ := ip.Prefix(p)
-					big := prefix2ip2net[p][net.IP]
+					big := prefix2ip2net[p][net.IP()]
 					if big == nil {
 						continue
 					}
@@ -300,7 +300,7 @@ func printRoutes(fh *os.File, r *router) {
 				intf2hop2netInfos[hopInfo.intf] = m
 			}
 			info := netInfo{
-				netaddr.IPPrefix{IP: ip, Bits: prefix},
+				netaddr.IPPrefixFrom(ip, prefix),
 				noOpt,
 			}
 			m[hopInfo.hop] = append(m[hopInfo.hop], info)
@@ -457,7 +457,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 				// Don't add 'any' (resulting from global:permit)
 				// to split_tunnel networks.
-				if n.ipp.Bits == 0 {
+				if n.ipp.Bits() == 0 {
 					continue
 				}
 				if seen[n] {
@@ -474,7 +474,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 	// Sort for better readability of ACL.
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].ipp.IP.Less(result[j].ipp.IP)
+		return result[i].ipp.IP().Less(result[j].ipp.IP())
 	})
 	return result
 }
@@ -813,7 +813,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
 
-				ip := src.ipp.IP.String()
+				ip := src.ipp.IP().String()
 				network := src.getNetwork()
 				if src.ipp.IsSingleIP() {
 
@@ -844,7 +844,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					name := "pool-" + idName
 					mask := net.IP(src.ipp.IPNet().Mask).String()
 
-					max := src.ipp.Range().To.String()
+					max := src.ipp.Range().To().String()
 					fmt.Fprintln(fh, "ip local pool", name, ip+"-"+max, "mask", mask)
 					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
@@ -1852,10 +1852,10 @@ func printRouterIntf(fh *os.File, r *router) {
 					} else {
 						addrCmd = "ip"
 					}
-					addrCmd += " address " + netaddr.IPPrefix{
-						IP:   intf.ip,
-						Bits: intf.network.ipp.Bits,
-					}.String()
+					addrCmd += " address " + netaddr.IPPrefixFrom(
+						intf.ip,
+						intf.network.ipp.Bits(),
+					).String()
 				} else {
 					addr := intf.ip.String()
 					mask := net.IP(intf.network.ipp.IPNet().Mask).String()
@@ -1897,7 +1897,7 @@ func printRouterIntf(fh *os.File, r *router) {
 
 func prefixCode(n netaddr.IPPrefix) string {
 	if n.IsSingleIP() {
-		return n.IP.String()
+		return n.IP().String()
 	}
 	return n.String()
 
@@ -1968,7 +1968,7 @@ func (c *spoc) setupStdAddr() {
 			switch intf.ipType {
 			case hasIP:
 				intf.stdAddr =
-					netaddr.IPPrefix{IP: intf.ip, Bits: getHostPrefix(v6)}.String()
+					netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6)).String()
 			case negotiatedIP:
 				intf.stdAddr = intf.network.stdAddr
 			}

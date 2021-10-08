@@ -99,7 +99,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Collect networks into prefixIPMap.
 	for _, n := range ipNet2obj {
-		ip, prefix := n.IP, n.Bits
+		ip, prefix := n.IP(), n.Bits()
 		ipMap, ok := prefixIPMap[prefix]
 		if !ok {
 			ipMap = make(map[netaddr.IP]*ipNet)
@@ -132,7 +132,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				n, _ := ip.Prefix(p)
-				bignet, ok := prefixIPMap[p][n.IP]
+				bignet, ok := prefixIPMap[p][n.IP()]
 				if ok {
 					subnet.up = bignet
 					break

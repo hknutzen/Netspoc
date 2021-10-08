@@ -338,13 +338,13 @@ func moveRulesEspAh(
 		return rule.prt == prtEsp || rule.prt == prtAh || rule.log != ""
 	}
 	cmpAddr := func(a, b *ipNet) int {
-		if val := a.IP.Compare(b.IP); val != 0 {
+		if val := a.IP().Compare(b.IP()); val != 0 {
 			return val
 		}
-		if a.Bits < b.Bits {
+		if a.Bits() < b.Bits() {
 			return -1
 		}
-		if a.Bits > b.Bits {
+		if a.Bits() > b.Bits() {
 			return 1
 		}
 		return 0
@@ -468,7 +468,7 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	// Precondition is, that list already has been optimized and
 	// therefore has no redundant elements.
 	sort.Slice(rules, func(i, j int) bool {
-		return get(rules[i]).IP.Less(get(rules[j]).IP)
+		return get(rules[i]).IP().Less(get(rules[j]).IP())
 	})
 
 	// Find left and rigth part with identical mask and combine them
@@ -477,16 +477,16 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 	for i := 0; i < len(rules)-1; i++ {
 		element1 := get(rules[i])
 		element2 := get(rules[i+1])
-		prefix := element1.Bits
-		if prefix != element2.Bits {
+		prefix := element1.Bits()
+		if prefix != element2.Bits() {
 			continue
 		}
 		prefix--
-		ip1 := element1.IP
-		ip2 := element2.IP
+		ip1 := element1.IP()
+		ip2 := element2.IP()
 		up1, _ := ip1.Prefix(prefix)
 		up2, _ := ip2.Prefix(prefix)
-		if up1.IP != up2.IP {
+		if up1.IP() != up2.IP() {
 			continue
 		}
 		upElement := getIPObj(ip1, prefix, ipNet2obj)
@@ -503,7 +503,7 @@ func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet)
 			// Check previous network again, if newly created network
 			// is right part, i.e. lowest bit of network part is set.
 			up3, _ := ip1.Prefix(prefix - 1)
-			if ip1 != up3.IP {
+			if ip1 != up3.IP() {
 				i--
 			}
 		}
@@ -814,8 +814,8 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 		return keyword + " " + obj.name
 	}
 
-	prefix := obj.Bits
-	ip := obj.IP
+	prefix := obj.Bits()
+	ip := obj.IP()
 	if prefix == 0 {
 		if model == "ASA" {
 			if ip.Is4() {
@@ -837,7 +837,7 @@ func ciscoACLAddr(obj *ipNet, model string) string {
 	}
 
 	maskNet, _ := netaddr.IPv4(255, 255, 255, 255).Prefix(prefix)
-	bytes := maskNet.IP.As4()
+	bytes := maskNet.IP().As4()
 
 	// Inverse mask bits.
 	if model == "NX-OS" || model == "IOS" {

@@ -45,10 +45,10 @@ func (c *spoc) linkImplicitAggregateToZone(
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		if cmp := keys[i].IP.Compare(keys[j].IP); cmp != 0 {
+		if cmp := keys[i].IP().Compare(keys[j].IP()); cmp != 0 {
 			return cmp == -1
 		}
-		return keys[i].Bits > keys[j].Bits
+		return keys[i].Bits() > keys[j].Bits()
 	})
 	for _, k := range keys {
 		objects.push(ipPrefix2aggregate[k])
@@ -67,16 +67,16 @@ func (c *spoc) linkImplicitAggregateToZone(
 
 	// Find subnets of new aggregate.
 	for _, obj := range objects {
-		if obj.ipp.Bits <= ipp.Bits {
+		if obj.ipp.Bits() <= ipp.Bits() {
 			continue
 		}
-		if !ipp.Contains(obj.ipp.IP) {
+		if !ipp.Contains(obj.ipp.IP()) {
 			continue
 		}
 
 		// Ignore sub-subnets, i.e. supernet is smaller than new aggregate.
 		if up := obj.up; up != nil {
-			if up.ipp.Bits > ipp.Bits {
+			if up.ipp.Bits() > ipp.Bits() {
 				continue
 			}
 		}
@@ -95,15 +95,15 @@ func (c *spoc) linkImplicitAggregateToZone(
 	// Stop after smallest supernet has been found.
 	var larger netList
 	for _, obj := range objects {
-		if obj.ipp.Bits < ipp.Bits {
+		if obj.ipp.Bits() < ipp.Bits() {
 			larger.push(obj)
 		}
 	}
 	sort.Slice(larger, func(i, j int) bool {
-		return larger[i].ipp.Bits > larger[j].ipp.Bits
+		return larger[i].ipp.Bits() > larger[j].ipp.Bits()
 	})
 	for _, obj := range larger {
-		if obj.ipp.Contains(ipp.IP) {
+		if obj.ipp.Contains(ipp.IP()) {
 			agg.up = obj
 
 			//debug("%s -up2-> %s", agg., obj)
@@ -199,7 +199,7 @@ func (c *spoc) getAny(
 
 			// any:[network:x] => any:[ip=i.i.i.i/pp & network:x]
 			name := z.name
-			if ipp.Bits != 0 {
+			if ipp.Bits() != 0 {
 				name =
 					name[:len("any:[")] + "ip=" + ipp.String() + " & " +
 						name[len("any:["):]
@@ -235,7 +235,7 @@ func (c *spoc) getAny(
 					break
 				}
 			}
-			if s != nil && (supernet == nil || supernet.ipp.Bits < s.ipp.Bits) {
+			if s != nil && (supernet == nil || supernet.ipp.Bits() < s.ipp.Bits()) {
 				supernet = s
 			}
 		}
@@ -245,7 +245,7 @@ func (c *spoc) getAny(
 		for tag, nat := range supernet.nat {
 			if !nat.hidden {
 				relation := "has address"
-				if supernet.ipp.Bits != ipp.Bits {
+				if supernet.ipp.Bits() != ipp.Bits() {
 					relation = "is subnet"
 				}
 				c.err("Must not use any:[ip = %s & ..] in %s\n"+

@@ -697,7 +697,7 @@ func (c *spoc) processAggregates() {
 		// retain NAT at other aggregates.
 		// This is an optimization to prevent the creation of many aggregates 0/0
 		// if only inheritance of NAT from area to network is needed.
-		prefixlen := agg.ipp.Bits
+		prefixlen := agg.ipp.Bits()
 		if prefixlen == 0 {
 			if nat := agg.nat; nat != nil {
 				if len(cluster) == 1 {
@@ -902,7 +902,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 
 			// Proceed from smaller to larger objects. (Bigger mask first.)
 			sort.Slice(natSupernets, func(i, j int) bool {
-				return natSupernets[i].ipp.Bits > natSupernets[j].ipp.Bits
+				return natSupernets[i].ipp.Bits() > natSupernets[j].ipp.Bits()
 			})
 			for _, z := range z0.cluster {
 				for _, n := range natSupernets {
@@ -957,7 +957,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 		for _, n := range z.networks {
 
 			// Only process subnets.
-			if n.ipp.Bits <= net.Bits || !net.Contains(n.ipp.IP) {
+			if n.ipp.Bits() <= net.Bits() || !net.Contains(n.ipp.IP()) {
 				continue
 			}
 
@@ -987,17 +987,17 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				if !nat.dynamic {
 
 					// Check mask of static NAT inherited from area or zone.
-					if nat.ipp.Bits > n.ipp.Bits {
+					if nat.ipp.Bits() > n.ipp.Bits() {
 						c.err("Must not inherit %s at %s\n"+
 							" because NAT network must be larger"+
 							" than translated network", nat.descr, n)
 					}
 
 					// Take higher bits from NAT IP, lower bits from original IP.
-					subNat.ipp = netaddr.IPPrefix{
-						IP:   mergeIP(n.ipp.IP, nat),
-						Bits: n.ipp.Bits,
-					}
+					subNat.ipp = netaddr.IPPrefixFrom(
+						mergeIP(n.ipp.IP(), nat),
+						n.ipp.Bits(),
+					)
 				}
 
 				if n.nat == nil {

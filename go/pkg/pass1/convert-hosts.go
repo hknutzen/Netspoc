@@ -44,7 +44,8 @@ func (c *spoc) convertHosts() {
 			name := host.name
 			id := host.id
 			if !host.ip.IsZero() {
-				nets = []netaddr.IPPrefix{{IP: host.ip, Bits: getHostPrefix(ipv6)}}
+				nets = []netaddr.IPPrefix{
+					netaddr.IPPrefixFrom(host.ip, getHostPrefix(ipv6))}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
@@ -71,14 +72,14 @@ func (c *spoc) convertHosts() {
 			}
 
 			for _, ipp := range nets {
-				subnetSize := bitstrLen - ipp.Bits
+				subnetSize := bitstrLen - ipp.Bits()
 				ip2subnet := subnetAref[subnetSize]
 				if ip2subnet == nil {
 					ip2subnet = make(map[netaddr.IP]*subnet)
 					subnetAref[subnetSize] = ip2subnet
 				}
 
-				if other := ip2subnet[ipp.IP]; other != nil {
+				if other := ip2subnet[ipp.IP()]; other != nil {
 					c.checkHostCompatibility(&host.netObj, &other.netObj)
 					host.subnets = append(host.subnets, other)
 				} else {
@@ -92,7 +93,7 @@ func (c *spoc) convertHosts() {
 					s.ldapId = host.ldapId
 					s.radiusAttributes = host.radiusAttributes
 
-					ip2subnet[ipp.IP] = s
+					ip2subnet[ipp.IP()] = s
 					host.subnets = append(host.subnets, s)
 					n.subnets = append(n.subnets, s)
 				}
@@ -107,7 +108,7 @@ func (c *spoc) convertHosts() {
 				// Search for enclosing subnet.
 				for j := i + 1; j < len(subnetAref); j++ {
 					net, _ := ip.Prefix(bitstrLen - uint8(j))
-					ip = net.IP
+					ip = net.IP()
 					if up := subnetAref[j][ip]; up != nil {
 						subnet.up = up
 						c.checkHostCompatibility(&subnet.netObj, &up.netObj)
@@ -123,7 +124,7 @@ func (c *spoc) convertHosts() {
 		}
 
 		// Find adjacent subnets which build a larger subnet.
-		s := n.ipp.Bits
+		s := n.ipp.Bits()
 		networkSize := bitstrLen - s
 		for i := 0; i < len(subnetAref); i++ {
 			ip2subnet := subnetAref[i]
@@ -158,13 +159,13 @@ func (c *spoc) convertHosts() {
 				// where lowest network bit is zero.
 				net, _ := ip.Prefix(size)
 				upNet, _ := ip.Prefix(upSize)
-				if net.IP != upNet.IP {
+				if net.IP() != upNet.IP() {
 					continue
 				}
 
 				// Calculate IP of right part.
 				rg := s.ipp.Range()
-				nextIp := rg.To.Next()
+				nextIp := rg.To().Next()
 
 				// Find corresponding right part
 				neighbor := ip2subnet[nextIp]
@@ -342,7 +343,7 @@ func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 							// - different objects with identical IP
 							//   can't be checked for redundancy properly.
 							n := s.network
-							if s.ipp.Bits == n.ipp.Bits {
+							if s.ipp.Bits() == n.ipp.Bits() {
 								if !n.hasIdHosts && !subnetWarningSeen[s] {
 									subnetWarningSeen[s] = true
 									c.warn(

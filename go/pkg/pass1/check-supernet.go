@@ -118,7 +118,7 @@ func findZoneNetworks(
 	// Real networks in zone without aggregates and without subnets.
 	var result netList
 
-	bits := ipp.Bits
+	bits := ipp.Bits()
 	for _, net := range z.networks {
 		if inNetMap(net) {
 			continue
@@ -127,8 +127,8 @@ func findZoneNetworks(
 		if natNet.hidden {
 			continue
 		}
-		if natNet.ipp.Bits >= bits && ipp.Contains(natNet.ipp.IP) ||
-			isAgg && natNet.ipp.Bits < bits && natNet.ipp.Contains(ipp.IP) {
+		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.IP()) ||
+			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.IP()) {
 
 			result = append(result, net)
 		}
@@ -666,10 +666,10 @@ func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
 	var matching []someObj
 	for _, src := range list {
 		net2 := src.address(natMap)
-		if net2.Bits >= net1.Bits && net1.Contains(net2.IP) {
+		if net2.Bits() >= net1.Bits() && net1.Contains(net2.IP()) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
-		} else if net2.Bits < net1.Bits && net2.Contains(net1.IP) {
+		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.IP()) {
 			// Element is supernet of obj.
 			x, ok := src.(*network)
 			if ok && x.isAggregate {
@@ -851,7 +851,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			// Ignore the internet. If the internet is used as src and dst
 			// then the implicit transient rule is assumed to be ok.
 			if !net.isAggregate {
-				if net.ipp.Bits == 0 {
+				if net.ipp.Bits() == 0 {
 					continue
 				}
 			}
@@ -934,7 +934,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 				// If mask of obj2 is 0.0.0.0, take all elements.
 				// Otherwise check IP addresses in NAT domain of obj2.
 				srcList1 := rule1.src
-				if obj2.ipp.Bits != 0 {
+				if obj2.ipp.Bits() != 0 {
 					srcList1 = getIpMatching(obj2, srcList1, natMap)
 					if len(srcList1) == 0 {
 						continue
@@ -958,7 +958,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					// Find elements of dst of rule2 with an IP
 					// address matching obj1.
 					dstList2 := rule2.dst
-					if net1.ipp.Bits != 0 {
+					if net1.ipp.Bits() != 0 {
 						dstList2 = getIpMatching(net1, dstList2, natMap)
 						if len(dstList2) == 0 {
 							continue

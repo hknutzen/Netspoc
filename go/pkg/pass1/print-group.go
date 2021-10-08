@@ -138,7 +138,7 @@ func printAddress(obj groupObj, nm natMap) string {
 		if ip := x.ip; !ip.IsZero() {
 			return natAddr(ip, n)
 		}
-		return natAddr(x.ipRange.From, n) + "-" + natAddr(x.ipRange.To, n)
+		return natAddr(x.ipRange.From(), n) + "-" + natAddr(x.ipRange.To(), n)
 	case *routerIntf:
 		n := getNatNetwork(x.network, nm)
 		if n.dynamic {

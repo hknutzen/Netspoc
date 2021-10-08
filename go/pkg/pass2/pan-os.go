@@ -45,7 +45,7 @@ func printPanOSRules(
 			}
 			return result
 		}
-		if n.Bits == 0 {
+		if n.Bits() == 0 {
 			return member("any")
 		}
 		if name, ok := ip2addr[n]; ok {
@@ -53,7 +53,7 @@ func printPanOSRules(
 		}
 		var name string
 		if n.IsSingleIP() {
-			name = "IP_" + n.IP.String()
+			name = "IP_" + n.IP().String()
 		} else {
 			name = "NET_" + strings.Replace(n.String(), "/", "_", 1)
 		}
@@ -115,7 +115,7 @@ func printPanOSRules(
 			l = append(l, n)
 		}
 		sort.Slice(l, func(i, j int) bool {
-			return l[i].IP.Less(l[j].IP)
+			return l[i].IP().Less(l[j].IP())
 		})
 		fmt.Fprintln(fd, "<address>")
 		for _, n := range l {
