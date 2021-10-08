@@ -76,17 +76,20 @@ func printPanOSRules(
 	}
 	printRules := func() {
 		fmt.Fprintln(fd, "<rulebase><security><rules>")
+		count := 1
 		for _, acl := range l {
 			zones := strings.Split(acl.name, "_")
 			from := member(zones[0])
 			to := member(zones[1])
 			for _, rule := range acl.rules {
+				name := fmt.Sprintf("r%d", count)
+				count++
 				action := getAction(rule)
 				source := getAddress(rule.src)
 				destination := getAddress(rule.dst)
 				service := getService(rule)
 				fmt.Fprintf(fd,
-					`<entry>
+					`<entry name="%s">
 <action>%s</action>
 <from>%s</from>
 <to>%s</to>
@@ -98,7 +101,7 @@ func printPanOSRules(
 <log-end>yes</log-end>
 </entry>
 `,
-					action, from, to, source, destination, service)
+					name, action, from, to, source, destination, service)
 			}
 		}
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
