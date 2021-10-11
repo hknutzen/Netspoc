@@ -2,8 +2,7 @@
 
 use strict;
 use warnings;
-use NetAddr::IP::Util qw(maskanyto6 inet_aton ipv6_ntoa add128 ipv6_aton
-                         inet_any2n);
+use NetAddr::IP::Util qw(maskanyto6 inet_aton ipv6_ntoa ipv6_aton inet_any2n);
 use Regexp::IPv6 qw($IPv6_re);
 
 # mask2prefix lookup will be needed for ASA routing
