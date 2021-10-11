@@ -2731,7 +2731,7 @@ func (c *spoc) dateIsReached(s, ctx string) bool {
 		c.err("Date expected as yyyy-mm-dd in %s", ctx)
 		return false
 	}
-	date, err := time.Parse("2006-01-02", s)
+	date, err := time.ParseInLocation("2006-01-02", s, time.Local)
 	if err != nil {
 		c.err("Invalid date in %s: %v", ctx, err)
 		return false
