@@ -96,6 +96,7 @@ func printPanOSRules(
 <source>%s</source>
 <destination>%s</destination>
 <service>%s</service>
+<application><member>any</member></application>
 <rule-type>interzone</rule-type>
 <log-start>yes</log-start>
 <log-end>yes</log-end>
