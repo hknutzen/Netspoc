@@ -331,7 +331,7 @@ func (s *state) readText() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if name := s.checkDef(line); name != "" {
+		if name := s.checkDef(line); name != "" || line == "" {
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
 			}
