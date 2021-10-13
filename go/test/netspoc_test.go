@@ -71,7 +71,6 @@ func TestNetspoc(t *testing.T) {
 
 func runTestFiles(t *testing.T, tc test) {
 	dataFiles := tstdata.GetFiles("../testdata/" + tc.dir)
-	os.Unsetenv("SHOW_DIAG")
 	for _, file := range dataFiles {
 		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
