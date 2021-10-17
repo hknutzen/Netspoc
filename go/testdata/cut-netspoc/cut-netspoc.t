@@ -1004,6 +1004,7 @@ network:n3 = {
  ip = 10.1.3.0/24;
  host:h3 = { ip = 10.1.3.10; }
 }
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  model = IOS;
  managed;
@@ -1013,10 +1014,19 @@ router:r1 = {
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3;
+ interface:n4 = { ip = 10.1.4.2; }
+}
+router:r3 = {
+ interface:n4 = { ip = 10.1.4.3; }
 }
 group:g1 =
  host:h3,
- interface:r2.n2,
+ group:g2,
+;
+group:g2 =
+ network:[
+  interface:r3.n4,
+ ],
 ;
 service:s1 = {
  user = group:g1;

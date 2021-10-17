@@ -33,7 +33,6 @@ type netOrRouter interface {
 }
 
 type autoIntf struct {
-	usedObj
 	managed bool
 	name    string
 	object  netOrRouter
@@ -42,7 +41,6 @@ type autoIntf struct {
 func (x autoIntf) String() string { return x.name }
 
 type groupObj interface {
-	setUsed()
 	String() string
 }
 type groupObjList []groupObj
@@ -59,9 +57,8 @@ type ipVxGroupObj interface {
 type srvObj interface {
 	withAttr
 	String() string
-	getUsed() bool
-	setUsed()
 }
+
 type srvObjList []srvObj
 
 func (a *srvObjList) push(e srvObj) {
@@ -134,7 +131,6 @@ type ipObj struct {
 	disabledObj
 	ipVxObj
 	ownedObj
-	usedObj
 	name string
 }
 
@@ -197,7 +193,6 @@ func (a *netList) push(e *network) {
 
 type netObj struct {
 	ipObj
-	usedObj
 	nat     map[string]netaddr.IP
 	network *network
 	up      someObj
@@ -285,7 +280,6 @@ func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 type router struct {
 	ipVxObj
 	ownedObj
-	usedObj
 	pathStoreData
 	pathObjData
 	name                    string
@@ -457,7 +451,6 @@ type pathRestriction struct {
 }
 
 type crypto struct {
-	usedObj
 	bindNat           []string
 	detailedCryptoAcl bool
 	ipsec             *ipsec
@@ -466,7 +459,6 @@ type crypto struct {
 	tunnels           netList
 }
 type ipsec struct {
-	usedObj
 	name              string
 	isakmp            *isakmp
 	lifetime          *[2]int
@@ -476,7 +468,6 @@ type ipsec struct {
 	pfsGroup          string
 }
 type isakmp struct {
-	usedObj
 	name           string
 	authentication string
 	encryption     string
@@ -524,7 +515,6 @@ type area struct {
 	disabledObj
 	ownedObj
 	ipVxObj
-	usedObj
 	name                string
 	anchor              *network
 	attr                attrStore

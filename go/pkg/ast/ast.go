@@ -93,7 +93,8 @@ type SimpleAuto struct {
 	Elements []Element
 }
 
-func (a *SimpleAuto) GetElements() []Element { return a.Elements }
+func (a *SimpleAuto) GetElements() []Element  { return a.Elements }
+func (a *SimpleAuto) SetElements(l []Element) { a.Elements = l }
 
 type AggAuto struct {
 	SimpleAuto
@@ -108,6 +109,7 @@ type IntfAuto struct {
 type AutoElem interface {
 	GetType() string
 	GetElements() []Element
+	SetElements([]Element)
 }
 
 type Complement struct {
