@@ -737,10 +737,8 @@ router:asa3 = {
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 service:test = {
- user = network:[area:n1-3]
-        &! network:n3
-        &! network:n2
-        ;
+ has_unenforceable;
+ user = network:[area:n1-3];
  permit src = user;
         dst = network:n2;
         prt = tcp;
@@ -795,7 +793,7 @@ ${input}
 =END=
 
 ############################################################
-=TITLE=Replace empty area by empty group
+=TITLE=Replace empty area by nothing
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -828,13 +826,11 @@ network:un = { unnumbered; }
 area:a2 = { border = interface:r1.n2; }
 area:a4 = { inclusive_border = interface:r3.n4; }
 service:s1 = {
- user = network:[area:a2] &! network:[area:a4],
-        interface:[any:[area:a4]].[all];
+ user = network:[area:a2] &! network:[area:a4];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 =END=
 =OUTPUT=
-group:empty-area = ;
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
@@ -844,17 +840,8 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-area:a2 = {
- border = interface:r1.n2;
-}
 service:s1 = {
- user = network:[area:a2]
-        &! network:[group:empty-area]
-        ,
-        interface:[
-         any:[group:empty-area],
-        ].[all],
-        ;
+ user = network:n2;
  permit src = network:n1;
         dst = user;
         prt = tcp 80;
@@ -2379,7 +2366,7 @@ ${input}
 
 ############################################################
 =TITLE=Negated auto interface
-=VAR=input
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2412,9 +2399,26 @@ service:s1 = {
         prt = udp 123;
 }
 =END=
-=INPUT=${input}
 =OUTPUT=
-${input}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r2.[auto];
+ permit src = user;
+        dst = network:n1;
+        prt = udp 123;
+}
 =END=
 
 ############################################################
@@ -2454,7 +2458,7 @@ ${input}
 
 ############################################################
 =TITLE=Negated interface
-=VAR=input
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2466,23 +2470,31 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 service:s1 = {
- user = interface:r1.[all]
-        &! interface:r1.n3
-        &! interface:r1.n1
-        ;
+ user = interface:r1.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp 22;
 }
 =END=
-=INPUT=${input}
 =OUTPUT=
-${input}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 22;
+}
 =END=
 
 ############################################################
-=TITLE=Negated pathrestriction 
-=TODO=
+=TITLE=Negated pathrestriction
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }

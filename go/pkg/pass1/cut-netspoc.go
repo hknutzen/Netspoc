@@ -257,6 +257,65 @@ func (c *spoc) markRulesPath(p pathRules) {
 	}
 }
 
+func (c *spoc) markAndSubstElements(
+	elemList []ast.Element, ctx string, ipv6 bool) []ast.Element {
+
+	var traverse func(l []ast.Element) []ast.Element
+	traverse = func(l []ast.Element) []ast.Element {
+		var expanded groupObjList
+		j := 0
+		for _, el := range l {
+			switch x := el.(type) {
+			case *ast.NamedRef:
+				if ob := expandTypedName(x.Type, x.Name); ob != nil {
+					ob.setUsed()
+				}
+			case *ast.SimpleAuto:
+				x.Elements = traverse(x.Elements)
+				if len(x.Elements) == 0 {
+					continue
+				}
+			case *ast.AggAuto:
+				x.Elements = traverse(x.Elements)
+				if len(x.Elements) == 0 {
+					continue
+				}
+			case *ast.IntfAuto:
+				x.Elements = traverse(x.Elements)
+				if len(x.Elements) == 0 {
+					continue
+				}
+			case *ast.Intersection:
+				// Expand intersection.
+				expanded = append(expanded,
+					c.expandGroup(
+						[]ast.Element{el},
+						"expanded intersection of "+ctx, ipv6, false)...)
+				continue // Ignore original intersection.
+			case *ast.Complement:
+				l2 := traverse([]ast.Element{x.Element})
+				if len(l2) == 0 {
+					continue
+				}
+				x.Element = l2[0]
+			}
+			l[j] = el
+			j++
+		}
+		result := l[:j]
+		for _, obj := range expanded {
+			name := obj.String()
+			i := strings.Index(name, ":")
+			a := new(ast.NamedRef)
+			a.Type = name[:i]
+			a.Name = name[i+1:]
+			result = append(result, a)
+		}
+		return result
+	}
+	return traverse(elemList)
+}
+
 func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	toplevel := c.parseFiles(path)
 	if len(names) > 0 {
@@ -335,35 +394,35 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	collectRules(sRules.permit)
 	collectRules(sRules.deny)
 
+	c.markRulesPath(c.allPathRules)
+
+	for _, top := range toplevel {
+		typedName := top.GetName()
+		ipv6 := top.GetIPV6()
+		lookup := typedName
+		if !isUsed[lookup] {
+			continue
+		}
+		typ, _ := splitTypedName(typedName)
+		switch x := top.(type) {
+		case *ast.TopList:
+			if typ == "group" {
+				x.Elements = c.markAndSubstElements(x.Elements, typedName, ipv6)
+			}
+		case *ast.Service:
+			x.User.Elements =
+				c.markAndSubstElements(x.User.Elements, "user of "+typedName, ipv6)
+			for _, r := range x.Rules {
+				r.Src.Elements =
+					c.markAndSubstElements(r.Src.Elements, "src of "+typedName, ipv6)
+				r.Dst.Elements =
+					c.markAndSubstElements(r.Dst.Elements, "dst of "+typedName, ipv6)
+			}
+		}
+	}
+
 	// Mark NAT tags referenced in networks used in rules.
 	c.markUsedNatTags()
-
-	// Collect objects, that are referenced, but not visible in rules:
-	// Networks, interfaces, hosts, aggregates from negated part of intersection.
-	// These need to be connected with other parts of topology
-	// by managed and unmanaged routers.
-	var todoManaged netPathObjList
-	collectNegated := func(obj srvObj) {
-		if !obj.getUsed() || onPath[obj] {
-			return
-		}
-		n := obj.getNetwork()
-		todoManaged.push(n)
-		if intf, ok := obj.(*routerIntf); ok {
-			addLater.push(intf)
-		}
-	}
-	for _, n := range c.allNetworks {
-		collectNegated(n)
-		for _, h := range n.hosts {
-			collectNegated(h)
-		}
-	}
-	for _, r := range c.allRouters {
-		for _, intf := range r.interfaces {
-			collectNegated(intf)
-		}
-	}
 
 	zoneUsed := make(map[*zone]bool)
 	zoneCheck := make(map[*zone]bool)
@@ -383,6 +442,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark zones having attributes that influence their networks.
+	var todoManaged netPathObjList
 	for _, n := range c.allNetworks {
 		if !n.isUsed {
 			continue
@@ -433,7 +493,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark interfaces / networks which are referenced by used areas.
-	var emptyAreas stringList
 	for _, a := range symTable.area {
 		if !a.isUsed {
 			continue
@@ -442,24 +501,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			anchor.isUsed = true
 			todoManaged.push(anchor)
 		} else {
-
-			// Ignore and collect empty areas.
-			used := false
-		ZONE:
-			for _, z := range a.zones {
-				for _, n := range z.networks {
-					if n.isUsed {
-						used = true
-						break ZONE
-					}
-				}
-			}
-			if !used {
-				a.isUsed = false
-				emptyAreas.push(a.name[len("area:"):])
-				continue
-			}
-
 			for _, intf := range append(a.border, a.inclusiveBorder...) {
 				if intf.isUsed {
 					continue
@@ -522,8 +563,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	c.markRulesPath(c.allPathRules)
-
 	// Call this after topology has been marked.
 	c.expandCrypto()
 
@@ -531,14 +570,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	// Needed to mark unmanaged crypto routers.
 	c.markUnconnected(todoUnmanaged, false)
 	todoUnmanaged = nil
-
-	// Mark negated auto interfaces.
-	for r, intf := range c.routerAutoInterfaces {
-		if intf.isUsed && !r.isUsed {
-			r.isUsed = true
-			todoManaged = append(todoManaged, r)
-		}
-	}
 
 	// Connect objects, that are located outside of any path.
 	c.markUnconnected(todoManaged, true)
@@ -739,54 +770,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	// Prepare emptyGroup
-	var emptyGroupRef *ast.NamedRef
-	if emptyAreas != nil {
-		name := "empty-area"
-		emptyGroupRef = new(ast.NamedRef)
-		emptyGroupRef.Type = "group"
-		emptyGroupRef.Name = name
-		fmt.Println("group:" + name + " = ;")
-	}
-
-	substEmptyAreas := func(elemList []ast.Element) {
-		if emptyAreas == nil {
-			return
-		}
-		needSubst := func(name string) bool {
-			for _, name2 := range emptyAreas {
-				if name == name2 {
-					return true
-				}
-			}
-			return false
-		}
-		var substList func(l []ast.Element)
-		substList = func(l []ast.Element) {
-			for i, el := range l {
-				switch x := el.(type) {
-				case *ast.NamedRef:
-					if x.Type == "area" && needSubst(x.Name) {
-						l[i] = emptyGroupRef
-					}
-				case *ast.SimpleAuto:
-					substList(x.Elements)
-				case *ast.AggAuto:
-					substList(x.Elements)
-				case *ast.IntfAuto:
-					substList(x.Elements)
-				case *ast.Intersection:
-					substList(x.Elements)
-				case *ast.Complement:
-					l2 := []ast.Element{x.Element}
-					substList(l2)
-					x.Element = l2[0]
-				}
-			}
-		}
-		substList(elemList)
-	}
-
 	// Source of pathrestrictions can't be used literally,
 	// but must be reconstructed from internal data structure.
 	name2pathrestriction := make(map[string]*ast.TopList)
@@ -882,8 +865,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	for _, top := range toplevel {
 		typedName := top.GetName()
+		ipv6 := top.GetIPV6()
 		lookup := typedName
-		if strings.HasPrefix(typedName, "router:") && top.GetIPV6() {
+		if strings.HasPrefix(typedName, "router:") && ipv6 {
 			lookup = "6" + lookup
 		}
 		if !isUsed[lookup] {
@@ -911,19 +895,12 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 		case *ast.TopList:
 			switch typ {
-			case "group":
-				substEmptyAreas(x.Elements)
 			case "pathrestriction":
 				top = name2pathrestriction[typedName]
 			}
 		case *ast.Service:
 			if !keepOwner {
 				removeAttr(&x.Attributes, "sub_owner")
-			}
-			substEmptyAreas(x.User.Elements)
-			for _, r := range x.Rules {
-				substEmptyAreas(r.Src.Elements)
-				substEmptyAreas(r.Dst.Elements)
 			}
 		}
 		active = append(active, top)

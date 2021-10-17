@@ -131,9 +131,6 @@ func (c *spoc) expandIntersection(
 		}
 		subResult := c.expandGroup1([]ast.Element{el1},
 			"intersection of "+ctx, ipv6, visible, withSubnets)
-		for _, obj := range subResult {
-			obj.setUsed()
-		}
 		if _, ok := el.(*ast.Complement); ok {
 			compl = append(compl, subResult...)
 		} else {
@@ -264,7 +261,6 @@ func (c *spoc) expandGroup1(
 				}
 			}
 			for _, obj := range subObjects {
-				obj.setUsed()
 				switch x := obj.(type) {
 				case *network:
 					if selector == "all" {
@@ -421,9 +417,6 @@ func (c *spoc) expandGroup1(
 		case ast.AutoElem:
 			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, ipv6, false, false)
-			for _, obj := range subObjects {
-				obj.setUsed()
-			}
 
 			getAggregates := func(obj groupObj, ipp netaddr.IPPrefix) netList {
 				var zones []*zone
