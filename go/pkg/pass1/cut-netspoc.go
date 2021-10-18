@@ -191,7 +191,7 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 		}
 		seen[obj] = true
 		if isUsed[obj.String()] {
-			debug("Found %s", obj)
+			//debug("Found %s", obj)
 			return true
 		}
 		r, isRouter := obj.(*router)
@@ -217,7 +217,7 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			if mark(next, intf, seen) {
 				isUsed[obj.String()] = true
 				isUsed[intf.name] = true
-				debug("Marked %s + %s", obj, intf)
+				//debug("Marked %s + %s", obj, intf)
 				result = true
 				break
 			}
@@ -226,7 +226,7 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 	}
 
 	for _, obj := range list {
-		debug("\nConnecting %s", obj)
+		//debug("\nConnecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
 		_, isRouter := obj.(*router)
 		for _, intf := range obj.intfList() {
@@ -239,10 +239,10 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			} else {
 				next = intf.router
 			}
-			debug("-Try %s %s", next, intf)
+			//debug("-Try %s %s", next, intf)
 			if mark(next, intf, seen) {
 				isUsed[intf.name] = true
-				debug("Marked %s", intf)
+				//debug("Marked %s", intf)
 				// Only mark first found path.
 				break
 			}
