@@ -105,9 +105,6 @@ type usedObj struct {
 	isUsed bool
 }
 
-func (x *usedObj) getUsed() bool { return x.isUsed }
-func (x *usedObj) setUsed()      { x.isUsed = true }
-
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
