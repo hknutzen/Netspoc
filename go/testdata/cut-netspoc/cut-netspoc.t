@@ -2540,3 +2540,91 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
 =END=
+
+############################################################
+=TITLE=Mark only first path to unconnected object
+=TODO=
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+group:g1 =
+ network:n2,
+ network:n4,
+;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = group:g1
+              &! network:n4
+              ;
+        prt = tcp 80;
+}
+router:r1 =  {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r2 =  {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n6 = { ip = 10.1.6.2; hardware = n6; }
+}
+router:r3 =  {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.2; hardware = n6; }
+}
+pathrestriction:A =
+ interface:r3.[all]
+ &! interface:r3.n4
+ ,
+;
+=END=
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+group:g1 =
+ network:n2,
+ network:n4,
+;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = group:g1
+              &! network:n4
+              ;
+        prt = tcp 80;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+=END=

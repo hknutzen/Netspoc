@@ -52,12 +52,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"os"
-	"strings"
 )
 
 var isUsed map[string]bool
@@ -195,13 +196,14 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 				intf.isUsed = true
 				//debug("Marked %s + %s", obj, intf)
 				result = true
+				break
 			}
 		}
 		return result
 	}
 
 	for _, obj := range list {
-		//debug("Connecting %s", obj)
+		//debug("\nConnecting %s", obj)
 		seen := map[netPathObj]bool{obj: true}
 		_, isRouter := obj.(*router)
 		for _, intf := range obj.intfList() {
@@ -214,7 +216,7 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			} else {
 				next = intf.router
 			}
-			//debug("Try %s %s", next, intf)
+			//debug("-Try %s %s", next, intf)
 			if mark(next, intf, seen) {
 				intf.isUsed = true
 				//debug("Marked %s", intf)
