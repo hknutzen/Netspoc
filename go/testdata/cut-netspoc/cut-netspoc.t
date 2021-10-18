@@ -2565,6 +2565,7 @@ router:r2 = {
 
 ############################################################
 =TITLE=Mark only first path to unconnected object
+=TODO= Must not generate split topology.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2634,15 +2635,15 @@ service:s1 = {
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
 network:n7 = { ip = 10.1.7.0/24; }
 network:n8 = { ip = 10.1.8.0/24; }
 area:a = {
  nat:dyn = { ip = 192.168.7.32/27; dynamic; }
- border = interface:r3.n4,
-          interface:r3.n5,
+ border = interface:r2.n4,
+          interface:r2.n5,
           ;
  inclusive_border =
   interface:r1.n1,
@@ -2654,25 +2655,25 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 router:r2 = {
- managed;
- model = IOS;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; }
-}
-router:r3 = {
  managed;
  model = IOS;
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
  interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
 router:r4 = {
  managed;
  model = IOS;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n6 = { ip = 10.1.6.2; hardware = n6; }
  interface:n7 = { ip = 10.1.7.1; hardware = n7; }
 }
 router:r5 = {
