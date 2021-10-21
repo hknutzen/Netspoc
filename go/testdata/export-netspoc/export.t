@@ -225,7 +225,6 @@ service:test2 = {
  user = network:Big;
  permit src = user; dst = network:Kunde; prt = tcp 88;
 }
-=END=
 =SUBST=/host:B10 =/#host:B10 =/
 =OUTPUT=
 --owner/y/service_lists

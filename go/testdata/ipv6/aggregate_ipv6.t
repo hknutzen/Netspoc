@@ -1172,7 +1172,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =SUBST=/VLAN1;/VLAN1; no_in_acl;/
 =OUTPUT=
 --ipv6/r2
@@ -1213,7 +1212,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =SUBST=/IOS, FW/Linux/
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
@@ -1237,7 +1235,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
 =SUBST=/IOS, FW/Linux/
 =OUTPUT=
 --ipv6/r2

@@ -489,7 +489,6 @@ service:test = {
  user = network:n2/left, network:n2/right;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
 =SUBST=/#managed/managed/
 =OUTPUT=
@@ -508,7 +507,6 @@ service:test = {
  user = network:n3;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
 =SUBST=/#managed/managed/
 # Must not use bridged interface as next hop in static route.
@@ -532,7 +530,6 @@ service:test = {
  permit src = user; dst = interface:bridge.n2/right; prt = tcp 22;
  permit src = interface:bridge.n2/left; dst = user; prt = tcp 22;
 }
-=END=
 =SUBST=/policy_distribution_point/#policy_distribution_point/
 =SUBST=/#managed/managed/
 =WARNING=

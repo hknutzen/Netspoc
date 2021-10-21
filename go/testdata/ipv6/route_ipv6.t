@@ -376,7 +376,6 @@ service:test2 = {
  user = network:n3;
  permit src = user; dst = network:n2; prt = icmpv6 8;
 }
-=END=
 =SUBST=/;#,/,/
 =OUTPUT=
 --ipv6/r

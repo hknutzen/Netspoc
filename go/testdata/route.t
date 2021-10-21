@@ -365,7 +365,6 @@ service:test2 = {
  user = network:n3;
  permit src = user; dst = network:n2; prt = icmp 8;
 }
-=END=
 =SUBST=/;#,/,/
 =OUTPUT=
 --r

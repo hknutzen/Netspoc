@@ -448,7 +448,6 @@ network:clients = {
  ip = ::a63:100/120;
  host:id:foo@domain.x = { ip = ::a63:10a; }
 }
-=END=
 =SUBST=/rsasig/preshare/
 =ERROR=
 Error: router:asavpn needs authentication=rsasig in isakmp:aes256SHA
@@ -2140,7 +2139,6 @@ service:test2 = {
  permit src = user; dst = network:customers1; prt = tcp 83;
  permit src = network:intern; dst = user; prt = tcp 84;
 }
-=END=
 =SUBST=/type = ipsec:/bind_nat = I;type = ipsec:/
 =OUTPUT=
 -- ipv6/asavpn
@@ -3756,7 +3754,6 @@ network:lan2 = {
  ip = ::a63:200/120;
  nat:h = { hidden; }
 }
-=END=
 =SUBST=/interface:lan1/interface:lan2={ip=::a63:201;hardware=lan2;}interface:lan1/
 =SUBST=/bind_nat = lan1;/bind_nat = h, lan1; /
 =OUTPUT=
@@ -3876,7 +3873,6 @@ service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
-=END=
 =SUBST=/group = 2/group = 15/
 =SUBST=/100000 kilobytes/4608000 kilobytes/
 
@@ -4008,7 +4004,6 @@ service:t = {
  user = network:intern;
  permit src = user; dst = network:dmz; prt = tcp 80;
 }
-=END=
 =SUBST=/#  id/  id/
 =ERROR=
 Error: No valid path

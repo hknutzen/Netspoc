@@ -250,7 +250,6 @@ service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =SUBST=/interface:b1 = { ip = ::a01:102; }/interface:b1;/
 =WARNING=
 Warning: Ignoring interface:u.b1 without IP address in dst of rule in service:s

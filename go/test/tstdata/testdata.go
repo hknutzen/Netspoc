@@ -126,10 +126,6 @@ func (s *state) parse() ([]*Descr, error) {
 			if err := s.varDef(); err != nil {
 				return nil, err
 			}
-		case "SUBST":
-			if err := s.substDef(d); err != nil {
-				return nil, err
-			}
 		case "DATE":
 			if err := s.dateDef(d); err != nil {
 				return nil, err
@@ -176,6 +172,10 @@ func (s *state) parse() ([]*Descr, error) {
 				d.Todo = true
 			case "WITH_OUTDIR":
 				d.WithOutD = true
+			case "SUBST":
+				return nil, fmt.Errorf(
+					"=SUBST= is only valid at bottom of text block"+
+						" in test with =TITLE=%s", d.Title)
 			default:
 				return nil, fmt.Errorf(
 					"unexpected =%s= in test with =TITLE=%s", name, d.Title)
@@ -219,7 +219,7 @@ func (s *state) readDef() (string, error) {
 }
 
 func (s *state) checkDef(line string) string {
-	if line[0] != '=' {
+	if line == "" || line[0] != '=' {
 		return ""
 	}
 	idx := strings.Index(line[1:], "=")
@@ -231,24 +231,6 @@ func (s *state) checkDef(line string) string {
 		return name
 	}
 	return ""
-}
-
-func (s *state) substDef(d *Descr) error {
-	line, err := s.getLine()
-	if err != nil {
-		return err
-	}
-	s.rest = s.rest[len(line):]
-	line = strings.TrimSpace(line)
-	parts := strings.Split(line[1:], line[0:1])
-	if len(parts) != 3 || parts[2] != "" {
-		return errors.New("invalid substitution: " + line)
-	}
-	if d == nil || d.Input == "" {
-		return fmt.Errorf("=SUBST=%s must follow after =INPUT=", line)
-	}
-	d.Input = strings.ReplaceAll(d.Input, parts[0], parts[1])
-	return nil
 }
 
 func (s *state) varDef() error {
@@ -266,10 +248,7 @@ func (s *state) varDef() error {
 }
 
 func (s *state) dateDef(d *Descr) error {
-	line, err := s.getLine()
-	if err != nil {
-		return err
-	}
+	line := s.getLine()
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	days, err := strconv.Atoi(line)
@@ -282,10 +261,7 @@ func (s *state) dateDef(d *Descr) error {
 }
 
 func (s *state) readVarName() (string, error) {
-	line, err := s.getLine()
-	if err != nil {
-		return "", err
-	}
+	line := s.getLine()
 	s.rest = s.rest[len(line)-1:] // don't skip trailing newline
 	name := strings.TrimSpace(line)
 	for _, ch := range name {
@@ -314,28 +290,25 @@ func isLetter(ch rune) bool {
 
 func (s *state) readText() (string, error) {
 	// Check for single line
-	line, err := s.getLine()
-	if err != nil {
-		return "", err
-	}
+	line := s.getLine()
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		return s.doVarSubst(line), nil
+		result := s.doVarSubst(line)
+		return s.applySubst(result)
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest
 	size := 0
 	for {
-		line, err := s.getLine()
-		if err != nil {
-			return "", err
-		}
+		line := s.getLine()
 		if name := s.checkDef(line); name != "" || line == "" {
+			result := s.doVarSubst(string(text[:size]))
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
+				return result, nil
 			}
-			return s.doVarSubst(string(text[:size])), nil
+			return s.applySubst(result)
 		}
 		s.rest = s.rest[len(line):]
 		size += len(line)
@@ -350,12 +323,32 @@ func (s *state) doVarSubst(text string) string {
 	return text
 }
 
-func (s *state) getLine() (string, error) {
+// Apply one or multiple substitutions to current textblock.
+func (s *state) applySubst(text string) (string, error) {
+	for {
+		line := s.getLine()
+		name := s.checkDef(line)
+		if name != "SUBST" {
+			break
+		}
+		s.rest = s.rest[len(line):]
+		line = line[len("=SUBST="):]
+		line = strings.TrimSpace(line)
+		parts := strings.Split(line[1:], line[0:1])
+		if len(parts) != 3 || parts[2] != "" {
+			return "", errors.New("invalid substitution: =SUBST=" + line)
+		}
+		text = strings.ReplaceAll(text, parts[0], parts[1])
+	}
+	return text, nil
+}
+
+func (s *state) getLine() string {
 	idx := bytes.IndexByte(s.rest, byte('\n'))
 	if idx == -1 {
-		return string(s.rest), nil
+		return string(s.rest)
 	}
-	return string(s.rest[:idx+1]), nil
+	return string(s.rest[:idx+1])
 }
 
 // Fill input directory with file(s).
