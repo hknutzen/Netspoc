@@ -334,7 +334,8 @@ func (s *state) doTemplSubst(text string) (string, error) {
 	var result strings.Builder
 	prevIdx := 0
 
-	re := regexp.MustCompile(`(?s)\[\[.*?\]\]`)
+	// Take "]" in "]]]" as part of YAML sequence.
+	re := regexp.MustCompile(`(?s)\[\[.*?\]?\]\]`)
 	il := re.FindAllStringIndex(text, -1)
 	for _, p := range il {
 		result.WriteString(text[prevIdx:p[0]])
