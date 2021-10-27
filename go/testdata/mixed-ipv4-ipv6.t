@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Mixed IPv4 and IPv6
-=VAR=input
+=TEMPL=input
 -- ipv4/topo/net
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -17,7 +17,7 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
--- ipv4/topo/ipv6
+-- {{.topo}}
 network:n3 = { ip = 1000::abcd:0001:0/112;}
 network:n4 = { ip = 1000::abcd:0002:0/112;}
 -- ipv6/router
@@ -27,13 +27,13 @@ router:r1 = {
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
  interface:n4 = {ip = 1000::abcd:0002:0001; hardware = n2;}
 }
--- ipv4/ipv6/rules
+-- {{.v6}}/rules
 service:s2 = {
  user = network:n3;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {topo: ipv4/topo/ipv6, v6: ipv4/ipv6}]]
 =OUTPUT=
 --r1
 ! n1_in
@@ -49,9 +49,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Mixed IPv6 and IPv4
-=INPUT=${input}
-=SUBST=|ipv4/ipv6|ipv6/ipv6|
-=SUBST=|ipv4/topo/ipv6|topo|
+=INPUT=[[input {topo: topo, v6: ipv6/ipv6}]]
 =OPTIONS=--ipv6
 # Identical output as before
 =OUTPUT=
@@ -261,7 +259,7 @@ Aborted
 
 ############################################################
 =TITLE=Raw files for IPv4 and IPv6
-=VAR=input
+=TEMPL=input
 -- ipv4
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
@@ -269,7 +267,7 @@ router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
 }
--- raw/r1
+-- {{.v4}}
 access-list n1_in extended permit icmp any4 any4
 access-group n1_in in interface n1
 -- ipv6/topo
@@ -279,12 +277,12 @@ router:r1 = {
  model = ASA;
  interface:n3 = {ip = 1000::abcd:0001:0001; hardware = n1;}
 }
--- raw/ipv6/r1
+-- {{.v6}}
 access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 =END=
-=INPUT=${input}
-=VAR=output
+=INPUT=[[input {v4: raw/r1, v6: raw/ipv6/r1}]]
+=TEMPL=output
 --r1
 ! n1_in
 access-list n1_in extended deny ip any4 any4
@@ -301,17 +299,15 @@ access-list n1_in extended permit icmp6 any6 any6
 access-group n1_in in interface n1
 =END=
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Raw files for IPv6 and IPv4
-=INPUT=${input}
-=SUBST=|raw/r1|raw/ipv4/r1|
-=SUBST=|raw/ipv6/r1|raw/r1|
+=INPUT=[[input {v4: raw/ipv4/r1, v6: raw/r1}]]
 =OPTIONS=--ipv6
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
@@ -342,7 +338,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Verbose output with progress messages
-=VAR=input
+=TEMPL=input
 --ipv4
 group:v4 = ;
 network:n1 = { ip = 10.1.1.0/24; }
@@ -376,8 +372,8 @@ service:s2 = {
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
-=REUSE_PREV=${input}
+=INPUT=[[input]]
+=REUSE_PREV=[[input]]
 =WARNING=
 Netspoc, version TESTING
 Read: 2 routers, 4 networks, 1 hosts, 2 services
@@ -431,7 +427,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions (1)
-=VAR=input
+=TEMPL=input
 -- ipv4/topo/net
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -445,7 +441,7 @@ router:r1 = {
 -- ipv4/topo/ipv6
 network:n3 = {
  ip = 1000::abcd:0003:0/112;
- partition = part1;
+ {{.p}}
 }
 network:n4 = { ip = 1000::abcd:0004:0/112; }
 -- ipv6/router
@@ -456,15 +452,14 @@ router:r1 = {
  interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {p: partition = part1;}]]
 =WARNING=
 Warning: Spare partition name for single partition any:[network:n3]: part1.
 =END=
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions (2)
-=INPUT=${input}
-=SUBST=/partition = part1;//
+=INPUT=[[input {p: ""}]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in

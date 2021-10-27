@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
@@ -25,7 +25,7 @@ router:asa2 = {
 ############################################################
 =TITLE=Different log levels and devices; do / don't join ranges
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -121,7 +121,7 @@ Error: Must not use attribute 'log:a' at router:r1 of model Linux
 ############################################################
 =TITLE=Unknown log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = d, e/f;
@@ -135,7 +135,7 @@ Warning: Referencing unknown 'e/f' in log of service:t
 ############################################################
 =TITLE=Duplicate log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = b,a,a,c,b,c,b;
@@ -151,7 +151,7 @@ Warning: Duplicate 'c' in log of service:t
 ############################################################
 =TITLE=Global optimization with log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -170,7 +170,7 @@ Warning: Redundant rules in service:t1 compared to service:t2:
 ############################################################
 =TITLE=No global optimization with different log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -198,7 +198,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=Duplicate rules with different log tag
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  overlaps = service:s2;
  user = network:n2;
@@ -218,7 +218,7 @@ Error: Duplicate rules must have identical log attribute:
 ############################################################
 =TITLE=Place line with logging first
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80;
@@ -240,7 +240,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=Local optimization with log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1, any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -262,7 +262,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=No local optimization with different log tag
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;

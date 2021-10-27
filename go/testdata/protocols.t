@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -106,7 +106,7 @@ Error: Expected [TYPE [ / CODE]] in 'icmp - 3' of protocolgroup:g1
 ############################################################
 =TITLE=Valid port ranges
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 1-1023, udp 1024-65535;
@@ -125,7 +125,7 @@ ip access-list extended n1_in
 ############################################################
 =TITLE=Invalid source port in unnamed protocol
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user;
@@ -152,7 +152,7 @@ Error: Unknown modifier 'src_xyz' in protocol:test
 ############################################################
 =TITLE=Different protocol modifiers
 =INPUT=
-${topo}
+[[topo]]
 protocolgroup:tftp = protocol:tftp-request,
 		     protocol:tftp-server-answer,
 		     protocol:tftp-client-answer,
@@ -201,7 +201,7 @@ ip access-list extended n3_in
 # Split port 21 from range 21-22 must not accidently use
 # protocol:TCP_21_Reply
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 21 - 22;
@@ -226,7 +226,7 @@ ip access-list extended n1_in
 ############################################################
 =TITLE=Split part of TCP range is larger than other at same position
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 70 - 89;
@@ -296,7 +296,7 @@ Error: Expected number < 256 in protocol:test
 ############################################################
 =TITLE=ICMP type with different codes
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user;
@@ -353,7 +353,7 @@ Error: Expected number in protocol:test3: foo
 ############################################################
 =TITLE=Valid protocol number
 =INPUT=
-${topo}
+[[topo]]
 protocol:test = proto 123;
 service:s1 = {
  user = network:n1;
@@ -374,7 +374,7 @@ ip access-list extended n1_in
 ############################################################
 =TITLE=Numbered protocol is part of 'ip'
 =INPUT=
-${topo}
+[[topo]]
 protocol:test = proto 123;
 service:s1 = {
  user = network:n1;
@@ -404,7 +404,7 @@ Error: Must not use 'proto 17', use 'udp' instead in protocol:UDP
 ############################################################
 =TITLE=Overlapping udp oneway
 =INPUT=
-${topo}
+[[topo]]
 protocol:tftp-request= udp 69, oneway;
 service:s1 = {
  user = network:n1;

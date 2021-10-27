@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = ::a01:100/120;
  host:x7 = { ip = ::a01:107; }
  host:x9 = { ip = ::a01:109; }
@@ -17,15 +17,15 @@ network:y = { ip = ::a02:200/120;
 
 ############################################################
 =TITLE=Unenforceable rule
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: service:test has unenforceable rules:
  src=host:x7; dst=host:x7
@@ -36,7 +36,7 @@ Warning: service:test has unenforceable rules:
 =TITLE=Zone ignoring unenforceable rule
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 any:x = { link = network:x; has_unenforceable = ok; }
 =END=
 =WARNING=NONE
@@ -45,7 +45,7 @@ any:x = { link = network:x; has_unenforceable = ok; }
 =TITLE=Disable check for unenforceable rule
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 =END=
 =OPTIONS=--check_unenforceable=0
 =WARNING=NONE
@@ -54,7 +54,7 @@ ${input}
 =TITLE=Service ignoring unenforceable rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  has_unenforceable;
  user = host:x7, host:x9;
@@ -67,7 +67,7 @@ service:test = {
 =TITLE=Restrict attribute 'has_unenforceable'
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 any:x = { link = network:x; has_unenforceable = restrict; }
 service:test = {
  has_unenforceable;
@@ -86,7 +86,7 @@ Warning: service:test has unenforceable rules:
 =TITLE=Restrict + enable attribute 'has_unenforceable'
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:all = { anchor = network:x; has_unenforceable = restrict; }
 any:x = { link = network:x; has_unenforceable = enable; }
 service:s1 = {
@@ -111,7 +111,7 @@ Warning: service:s2 has unenforceable rules:
 # Must not ignore others, if first is ignored.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  has_unenforceable;
  user = host:x7, host:x9;
@@ -132,7 +132,7 @@ Warning: service:test2 has unenforceable rules:
 =TITLE=Silent unenforceable rules
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:y;
  permit src = user; dst = any:[user]; prt = tcp 80;
@@ -144,7 +144,7 @@ service:test = {
 =TITLE=Silent unenforceable rules with split range
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:range, host:y;
  permit src = user; dst = user; prt = tcp 80;
@@ -155,7 +155,7 @@ service:test = {
 =TITLE=Silent unenforceable user-user rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:x9, host:y;
  permit src = user; dst = user; prt = tcp 80;
@@ -188,7 +188,7 @@ Warning: service:ping-local has unenforceable rules:
 =TITLE=Useless has_unenforceable at silent unenforceable user-user rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  has_unenforceable;
  user = host:x7, host:x9, host:y;
@@ -202,7 +202,7 @@ Warning: Useless attribute 'has_unenforceable' at service:test
 =TITLE=Fully unenforceable user-user rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = user; prt = tcp 80;
@@ -256,7 +256,7 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Fully unenforceable rule
-=VAR=input
+=TEMPL=input
 any:x = {
  link = network:x;
 }
@@ -267,13 +267,13 @@ router:r = {
 }
 network:y = { ip = ::a02:200/120; }
 service:test = {
- #1 has_unenforceable;
+ {{.u}}
  user = network:y;
  permit src = user; dst = network:x; prt = tcp 80;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {u: ""}]]
 =WARNING=
 Warning: service:test is fully unenforceable
 =END=
@@ -281,8 +281,7 @@ Warning: service:test is fully unenforceable
 ############################################################
 =TITLE=Useless attribute "has_unenforceable" at service
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/#1//
+=INPUT=[[input {u: has_unenforceable;}]]
 =WARNING=
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable

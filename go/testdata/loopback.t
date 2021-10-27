@@ -183,10 +183,10 @@ Warning: interface:r.m is subnet of network:n
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces (secondary)
 # Soll bei local_optimization loopback interfaces und NAT network als
 # identisch erkennen.
-=VAR=input
+=TEMPL=input
 network:customer = { ip = 10.1.7.0/24; }
 router:gw = {
- managed = secondary;
+ managed {{.s}};
  model = ASA;
  interface:customer = { ip = 10.1.7.1;    hardware = outside;}
  interface:trans    = { ip = 10.1.3.1;   hardware = inside;}
@@ -246,7 +246,7 @@ service:p2 = {
  permit src = user; dst = network:server; prt = protocol:Echo;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {s: =secondary}]]
 =OUTPUT=
 --gw
 ! outside_in
@@ -257,8 +257,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces
-=INPUT=${input}
-=SUBST=/managed = secondary/managed/
+=INPUT=[[input {s: ""}]]
 =OUTPUT=
 --gw
 ! outside_in
@@ -301,11 +300,11 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (1)
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; nat:extern = { ip = 193.1.1.2/32; dynamic; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
-router:r1 = {
+router:{{.n}} = {
  managed;
  model = Linux;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
@@ -322,7 +321,7 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=INPUT=${input}
+=INPUT=[[input {n: r1}]]
 =ERROR=
 Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
  in nat_domain:[network:n2]
@@ -330,8 +329,7 @@ Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (2)
-=INPUT=${input}
-=SUBST=/router:r1/router:r3/
+=INPUT=[[input {n: r3}]]
 =ERROR=
 Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
  in nat_domain:[interface:r2.lo]
@@ -341,7 +339,7 @@ Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
 =TITLE=Routing via managed virtual interfaces to loopback
 # Loopback interface is reached only via physical interface.
 # Don't use virtual IP but physical IP as next hop.
-=VAR=input
+=TEMPL=input
 network:intern = { ip = 10.1.1.0/24; }
 router:asa = {
  model = ASA;
@@ -358,7 +356,7 @@ router:asa = {
 network:dmz = { ip = 192.168.0.0/24; }
 router:extern1 = {
  model = IOS,FW;
- managed; #remove
+ {{.m}}
  interface:dmz = {
   ip = 192.168.0.11;
   virtual = { ip = 192.168.0.1; }
@@ -373,7 +371,7 @@ router:extern1 = {
 }
 router:extern2 = {
  model = IOS,FW;
- managed; #remove
+ {{.m}}
  interface:dmz = {
   ip = 192.168.0.12;
   virtual = { ip = 192.168.0.1; }
@@ -392,7 +390,7 @@ service:test = {
  permit src = user; dst = interface:extern1.sync; prt = tcp 22;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {m: managed;}]]
 =OUTPUT=
 --asa
 route outside 172.17.1.11 255.255.255.255 192.168.0.11
@@ -414,8 +412,7 @@ ip access-list extended Eth0_in
 # Redundancy interfaces at unmanaged device have no implicit
 # pathrestriction.  A zone which contains network 0.0.0.0/0 uses this
 # address for optimized routing.
-=INPUT=${input}
-=SUBST=/managed; #remove//
+=INPUT=[[input {m: ""}]]
 =OUTPUT=
 --asa
 ! [ Routing ]

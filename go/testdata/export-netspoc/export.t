@@ -1,5 +1,5 @@
 
-=VAR=topo
+=TEMPL=topo
 owner:x = { admins = x@b.c; }
 owner:y = { admins = y@b.c; hide_from_outer_owners; }
 owner:z = { admins = z@b.c; hide_from_outer_owners; }
@@ -14,7 +14,7 @@ router:u = {
 }
 network:Big = {
  ip = 10.1.0.0/16;
- host:B10 = { ip = 10.1.0.10; owner = z; }
+ {{or .comment ""}}host:B10 = { ip = 10.1.0.10; owner = z; }
 }
 router:asa = {
  managed;
@@ -29,7 +29,7 @@ network:Kunde = { ip = 10.2.2.0/24; }
 ############################################################
 =TITLE=Owner of area, subnet
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:Sub;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -104,7 +104,7 @@ service:test = {
 ############################################################
 =TITLE=Owner of larger matching aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:Sub1;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -130,7 +130,7 @@ service:test = {
 ############################################################
 =TITLE=Owner of smaller matching aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:Sub2;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -150,7 +150,7 @@ service:test = {
 ############################################################
 =TITLE=Network and host as user having different owner
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:B10;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -183,7 +183,7 @@ service:test2 = {
 ############################################################
 =TITLE=Network and host in rule having different owner
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:Kunde;
  permit src = host:B10; dst = user; prt = tcp 80;
@@ -216,7 +216,7 @@ service:test2 = {
 ############################################################
 =TITLE=Aggregate, network and subnet have different owner
 =INPUT=
-${topo}
+[[topo {comment: "#"}]]
 service:test = {
  user = any:Sub1;
  permit src = user; dst = network:Kunde; prt = tcp 80;
@@ -225,7 +225,6 @@ service:test2 = {
  user = network:Big;
  permit src = user; dst = network:Kunde; prt = tcp 88;
 }
-=SUBST=/host:B10 =/#host:B10 =/
 =OUTPUT=
 --owner/y/service_lists
 {
@@ -3576,7 +3575,7 @@ Aborted
 mkdir out
 chmod u-w out
 =INPUT=
-${topo}
+[[topo]]
 =WITH_OUTDIR=
 =ERROR=
 Error: Can't mkdir out/owner: permission denied
@@ -3590,7 +3589,7 @@ mkdir out
 touch out/objects
 chmod u-w out/objects
 =INPUT=
-${topo}
+[[topo]]
 =WITH_OUTDIR=
 =ERROR=
 Error: Can't open out/objects: permission denied
@@ -3618,13 +3617,13 @@ Error: unknown flag: --foo
 ############################################################
 =TITLE=Mising output directory
 =INPUT=network:n1 = { ip = 10.1.1.0/24; }
-=VAR=usage
+=TEMPL=usage
 Usage: PROGRAM [options] netspoc-data out-directory
   -6, --ipv6    Expect IPv6 definitions
   -q, --quiet   Don't print progress messages
 =END=
 =ERROR=
-${usage}
+[[usage]]
 =END=
 
 ############################################################
@@ -3633,7 +3632,7 @@ ${usage}
 =WITH_OUTDIR=
 =PARAMS= a
 =ERROR=
-${usage}
+[[usage]]
 =END=
 
 ############################################################
@@ -3642,7 +3641,7 @@ ${usage}
 =WITH_OUTDIR=
 =PARAMS= a b c
 =ERROR=
-${usage}
+[[usage]]
 =END=
 
 ############################################################

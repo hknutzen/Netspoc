@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
@@ -113,7 +113,7 @@ Error: Expected [TYPE [ / CODE]] in 'icmpv6 - 3' of protocolgroup:g1
 =TITLE=Valid port ranges
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 1-1023, udp 1024-65535;
@@ -133,7 +133,7 @@ ipv6 access-list n1_in
 =TITLE=Invalid source port in unnamed protocol
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user;
@@ -162,7 +162,7 @@ Error: Unknown modifier 'src_xyz' in protocol:test
 =TITLE=Different protocol modifiers
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocolgroup:tftp = protocol:tftp-request,
 		     protocol:tftp-server-answer,
 		     protocol:tftp-client-answer,
@@ -212,7 +212,7 @@ ipv6 access-list n3_in
 # protocol:TCP_21_Reply
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 21 - 22;
@@ -238,7 +238,7 @@ ipv6 access-list n1_in
 =TITLE=Split part of TCP range is larger than other at same position
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 70 - 89;
@@ -313,7 +313,7 @@ Error: Expected number < 256 in protocol:test
 =TITLE=ICMP type with different codes
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user;
@@ -374,7 +374,7 @@ Error: Expected number in protocol:test3: foo
 =TITLE=Valid protocol number
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:test = proto 123;
 service:s1 = {
  user = network:n1;
@@ -396,7 +396,7 @@ ipv6 access-list n1_in
 =TITLE=Numbered protocol is part of 'ip'
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:test = proto 123;
 service:s1 = {
  user = network:n1;
@@ -428,7 +428,7 @@ Error: Must not use 'proto 17', use 'udp' instead in protocol:UDP
 =TITLE=Overlapping udp oneway
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:tftp-request= udp 69, oneway;
 service:s1 = {
  user = network:n1;

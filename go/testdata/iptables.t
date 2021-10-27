@@ -174,7 +174,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Merge port range with sub-range
-=VAR=input
+=TEMPL=input
 network:RAS      = { ip = 10.2.2.0/24; }
 network:Hoernum  = { ip = 10.3.3.128/29; }
 network:StPeter  = { ip = 10.3.3.120/29; }
@@ -198,7 +198,7 @@ service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user;
 	dst = network:Hosting;
-	prt = tcp 30-37, tcp 51-53;
+	prt = {{.proto}};
 }
 service:p10-60 = {
  user = network:Trans, network:StPeter, network:Hoernum;
@@ -207,7 +207,7 @@ service:p10-60 = {
         prt = tcp 10-49, tcp 50-60;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {proto: "tcp 30-37, tcp 51-53"}]]
 =OUTPUT=
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
@@ -230,8 +230,7 @@ service:p10-60 = {
 # Ranges 10-49 and 50-60 can't be merged,
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
-=INPUT=${input}
-=SUBST=/tcp 30-37, tcp 51-53/tcp 30-37, tcp 40-47, tcp 51-53/
+=INPUT=[[input {proto: "tcp 30-37, tcp 40-47, tcp 51-53"}]]
 =OUTPUT=
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29

@@ -372,7 +372,7 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule without overlaps
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:R1 = {
@@ -391,7 +391,7 @@ service:s2 = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: Duplicate rules in service:s2 and service:s1:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
@@ -402,7 +402,7 @@ Warning: service:s1 is fully redundant
 ############################################################
 =TITLE=Don't check for duplicate rules
 =OPTIONS=--check_duplicate_rules=0
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=NONE
 
 ############################################################

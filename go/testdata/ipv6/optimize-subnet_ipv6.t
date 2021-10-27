@@ -1,12 +1,12 @@
 
 ############################################################
 =TITLE=Optimize subnet at secondary packet filter
-=VAR=input
+=TEMPL=input
 network:sub = { ip = ::a01:720/123; subnet_of = network:customer; }
 router:r = { interface:sub; interface:customer = { ip = ::a01:71e; } }
 network:customer = { ip = ::a01:700/120; }
 router:gw = {
- managed = secondary;
+ managed{{.s}};
  model = IOS, FW;
  interface:customer = { ip = ::a01:701;    hardware = outside;}
  interface:trans    = { ip = ::a01:301;   hardware = inside;}
@@ -29,7 +29,7 @@ network:server = {
  host:s10 = { ip = ::a01:20a; }
  host:s11 = { ip = ::a01:20b; }
 }
-protocol:Echo = icmpv6 8;
+protocol:Echo = icmpv6 8{{.d}};
 service:p1 = {
  user = network:sub;
  permit src = user; dst = host:s10; prt = protocol:Echo;
@@ -40,7 +40,7 @@ service:p2 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {s: " = secondary", d: ""}]]
 =OUTPUT=
 --ipv6/b1
 # [ Routing ]
@@ -59,9 +59,7 @@ ipv6 access-list outside_in
 ############################################################
 =TITLE=Optimize subnet for protocol with flag dst_net
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed = secondary/managed/
-=SUBST=/icmpv6 8/icmpv6 8, dst_net/
+=INPUT=[[input {s: "", d: ", dst_net"}]]
 =OUTPUT=
 --ipv6/gw
 ! [ ACL ]

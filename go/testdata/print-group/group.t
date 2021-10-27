@@ -79,7 +79,7 @@ Aborted
 =PARAM=network:n1; INVALID
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24;
@@ -112,7 +112,7 @@ router:r2 = {
 ############################################################
 =TITLE=Find unused hosts
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = host:h3a, host:h3c;
  permit src = network:n1; dst = user; prt = tcp 80;
@@ -131,7 +131,7 @@ service:s = {
 # If host is only referenced in automatic group, it should be substituted
 # by expanded automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = network:[host:h3a], any:[host:h3c];
  permit src = network:n1; dst = user; prt = tcp 80;
@@ -151,7 +151,7 @@ service:s = {
 =TITLE=Find unused hosts, ignore negated element
 # If host is only referenced in negation, it should be removed completely.
 =INPUT=
-${topo}
+[[topo]]
 group:g = host:h3a, host:h3b, host:h3c;
 service:s = {
  user = group:g &! host:h3b;
@@ -168,7 +168,7 @@ service:s = {
 
 ############################################################
 =TITLE=Automatic hosts
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.10-10.1.3.15	host:h3a
@@ -177,7 +177,7 @@ service:s = {
 
 ############################################################
 =TITLE=Automatic network with subnets
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
@@ -187,7 +187,7 @@ service:s = {
 ############################################################
 =TITLE=Automatic network with subnets from group
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = network:[network:n3];
 =END=
 =OUTPUT=
@@ -198,7 +198,7 @@ group:g1 = network:[network:n3];
 
 ############################################################
 =TITLE=Automatic network with subnets from any
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.3.0/24	network:n3
 10.1.3.64/27	network:n3sub
@@ -207,7 +207,7 @@ group:g1 = network:[network:n3];
 
 ############################################################
 =TITLE=Automatic hosts together with automatic network with subnets
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.1.10	host:h1
 10.1.3.0/24	network:n3
@@ -218,7 +218,7 @@ group:g1 = network:[network:n3];
 ############################################################
 =TITLE=Toplevel group with more than 8 elements
 =INPUT=
-${topo}
+[[topo]]
 group:g1 =
  network:n1,
  network:n2,
@@ -243,7 +243,7 @@ group:g1 =
 ############################################################
 =TITLE=Area as element with owner
 =INPUT=
-${topo}
+[[topo]]
 owner:o1 = { admins = a1@example.com; }
 owner:o2 = { admins = a2@example.com; }
 area:a1 = { border = interface:r1.n1; owner = o1; }
@@ -263,7 +263,7 @@ group:g1 = area:a1, area:a2, network:[area:a2];
 ############################################################
 =TITLE=Intersection
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = network:n1, network:n2;
 group:g2 = network:n2, network:n3;
 =END=
@@ -275,7 +275,7 @@ group:g2 = network:n2, network:n3;
 ############################################################
 =TITLE=Intersection with complement
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = network:n1, network:n2;
 =END=
 =OUTPUT=
@@ -286,7 +286,7 @@ group:g1 = network:n1, network:n2;
 ############################################################
 =TITLE=Multiple intersection with complement
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = host:h1, network:n2, network:n3;
 =END=
 =OUTPUT=
@@ -297,7 +297,7 @@ group:g1 = host:h1, network:n2, network:n3;
 ############################################################
 =TITLE=Umlaut in group name
 =INPUT=
-${topo}
+[[topo]]
 group:Über = network:n1;
 =END=
 =OUTPUT=
@@ -308,7 +308,7 @@ group:Über = network:n1;
 ############################################################
 =TITLE=Mark networks referenced by interface as used
 =INPUT=
-${topo}
+[[topo]]
 area:all = { anchor = network:n1; }
 service:s1 = {
  user = interface:r1.n1, interface:u.n3;
@@ -322,7 +322,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Find unused network that is referenced in argument
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24	network:n1
 =END=
@@ -331,7 +331,7 @@ service:s1 = {
 
 
 ### Topology for multiple tests.
-=VAR=input
+=TEMPL=input
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:t1 = { ip = 10.9.1.0/28; dynamic; }
@@ -366,7 +366,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 
 ############################################################
 =TITLE=Dynamic NAT for network and static NAT for host
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 10.9.1.0/28	network:n1
 10.9.1.10	host:h1s
@@ -377,7 +377,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 
 ############################################################
 =TITLE=Static NAT for network and host
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 10.9.2.0/24	network:n2
 10.9.2.10	host:h2
@@ -387,7 +387,7 @@ network:k1 = { ip = 10.2.2.0/24; }
 
 ############################################################
 =TITLE=Hidden NAT for network and host
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 hidden	network:n3
 hidden	host:h3
@@ -397,7 +397,7 @@ hidden	host:h3
 
 ############################################################
 =TITLE=Unnumbered network
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 unnumbered	network:t1
 =END=
@@ -406,7 +406,7 @@ unnumbered	network:t1
 
 ############################################################
 =TITLE=Show unnumbered from [all], show [auto] interface
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 10.9.1.1	interface:r1.n1
 10.9.2.0/24	interface:r1.n2
@@ -419,7 +419,7 @@ unknown	interface:r1.[auto]
 
 ############################################################
 =TITLE=Short interface
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 short	interface:r2.t1
 short	interface:r2.k1
@@ -459,7 +459,7 @@ bridged	interface:bridge.n1/right
 
 ############################################################
 =TITLE=Show owner
-=VAR=topo
+=TEMPL=topo
 owner:o = { admins = o@b.c; }
 network:n1 = { ip = 10.1.1.0/24; owner = o; }
 router:r = {
@@ -468,7 +468,7 @@ router:r = {
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24	network:n1	owner:o
 10.1.2.0/24	network:n2	none
@@ -478,7 +478,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 
 ############################################################
 =TITLE=Show owner and only name
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 network:n1	owner:o
 network:n2	none
@@ -488,7 +488,7 @@ network:n2	none
 
 ############################################################
 =TITLE=Show only name
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 network:n1
 network:n2
@@ -498,7 +498,7 @@ network:n2
 
 ############################################################
 =TITLE=Show only ip
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 10.1.1.0/24
 10.1.2.0/24
@@ -508,7 +508,7 @@ network:n2
 
 ############################################################
 =TITLE=Show owner and admins
-=VAR=topo
+=TEMPL=topo
 owner:o1 = { admins = o1@b.c; }
 owner:o2 = { admins = o2a@d.e.f, o2b@g.h.i; }
 network:n1 = { ip = 10.1.1.0/24; owner = o1; }
@@ -522,7 +522,7 @@ router:r = {
  interface:n3a;
 }
 =END=
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 network:n1	owner:o1	o1@b.c
 network:n2	owner:o2	o2a@d.e.f,o2b@g.h.i
@@ -533,7 +533,7 @@ network:n3a	owner:o1	o1@b.c
 
 ############################################################
 =TITLE=Show only name and admins
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 network:n1	o1@b.c
 network:n2	o2a@d.e.f,o2b@g.h.i

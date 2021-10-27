@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Unused owners
-=VAR=input
+=TEMPL=input
 owner:o1 = { admins = o1@b.c; }
 owner:o2 = { admins = o2@b.c; }
 owner:a1 = { admins = a1@b.c; }
@@ -10,7 +10,7 @@ router:r1 = {
  interface:n1;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: Unused owner:a1
 Warning: Unused owner:o1
@@ -19,7 +19,7 @@ Warning: Unused owner:o1
 ############################################################
 =TITLE=Error on unused owners
 =OPTIONS=--check_unused_owners=1
-=INPUT=${input}
+=INPUT=[[input]]
 =ERROR=
 Error: Unused owner:a1
 Error: Unused owner:o1
@@ -54,7 +54,7 @@ Error: Duplicates in admins/watchers of owner:x: b@b.c
 
 ############################################################
 =TITLE=Owner at bridged network
-=VAR=input
+=TEMPL=input
 owner:xx = {
  admins = a@b.c;
 }
@@ -67,7 +67,7 @@ router:asa = {
  interface:VLAN_40_41/41 = { hardware = inside; }
  interface:VLAN_40_41 = { ip = 10.2.1.99; hardware = device; }
 }
-network:VLAN_40_41/41 = { ip = 10.2.1.96/28; }
+network:VLAN_40_41/41 = { ip = 10.2.1.96/28; {{.o}}}
 service:test = {
  user = network:VLAN_40_41/40;
  permit src = user;
@@ -75,13 +75,12 @@ service:test = {
         prt = ip;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {o: ""}]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Redundant owner at bridged network
-=INPUT=${input}
-=SUBST=|network:VLAN_40_41/41 = {|network:VLAN_40_41/41 = { owner = xx; |
+=INPUT=[[input {o: "owner = xx;"}]]
 =WARNING=
 Warning: Useless owner:xx at network:VLAN_40_41/41,
  it was already inherited from area:all
@@ -265,7 +264,7 @@ Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
 
 ############################################################
 =TITLE=Owner with "show_all" must also own VPN transfer area
-=VAR=input
+=TEMPL=input
 isakmp:ikeaes256SHA = {
  authentication = preshare;
  encryption = aes256;
@@ -303,7 +302,7 @@ router:VPN1 = {
 }
 network:v1 = { ip = 10.9.1.0/24; }
 =INPUT=
-${input}
+[[input]]
 owner:all = { admins = a@example.com; show_all; }
 area:all = { anchor = network:n1; owner = all; }
 =ERROR=
@@ -316,7 +315,7 @@ Error: owner:all has attribute 'show_all', but doesn't own whole topology.
 ############################################################
 =TITLE=Owner with "show_all" must not only own VPN transfer area
 =INPUT=
-${input}
+[[input]]
 owner:all = { admins = a@example.com; show_all; }
 area:all = { anchor = network:Internet; owner = all; }
 =ERROR=

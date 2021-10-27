@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=print-group: Automatically select IPv4 in IPv4
-=VAR=input
+=TEMPL=input
 --file
 area:all = { anchor = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
@@ -11,7 +11,7 @@ area:all6 = { anchor = network:n2; }
 network:n2 = { ip = 1000::abcd:0001:0/112;}
 router:r1 = { interface:n2; }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 10.1.1.0/24	network:n1
 =END=
@@ -19,7 +19,7 @@ router:r1 = { interface:n2; }
 
 ############################################################
 =TITLE=print-group: Automatically select IPv6 in IPv4
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 1000::abcd:1:0/112	network:n2
 =END=
@@ -27,7 +27,7 @@ router:r1 = { interface:n2; }
 
 ############################################################
 =TITLE=print-group: interface:..[all] selects IPv4 in IPv4
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 short	interface:r1.n1
 =END=
@@ -35,7 +35,7 @@ short	interface:r1.n1
 
 ############################################################
 =TITLE=print-group: Automatically select IPv4 in IPv6
-=VAR=input
+=TEMPL=input
 --ipv4
 area:all = { anchor = network:n1; }
 network:n1 = { ip = 10.1.1.0/24; }
@@ -45,7 +45,7 @@ area:all6 = { anchor = network:n2; }
 network:n2 = { ip = 1000::abcd:0001:0/112;}
 router:r1 = { interface:n2; }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 10.1.1.0/24	network:n1
 =END=
@@ -54,7 +54,7 @@ router:r1 = { interface:n2; }
 
 ############################################################
 =TITLE=print-group: Automatically select IPv6 in IPv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 1000::abcd:1:0/112	network:n2
 =END=
@@ -63,7 +63,7 @@ router:r1 = { interface:n2; }
 
 ############################################################
 =TITLE=print-group: interface:..[all] selects IPv6 in IPv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 short	interface:r1.n2
 =END=

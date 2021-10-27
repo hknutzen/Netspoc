@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Aggregates with identcal IP
-=VAR=input
+=TEMPL=input
 network:N1 = { ip = 10.4.6.0/24;}
 router:R1 = {
  managed;
@@ -26,11 +26,11 @@ any:ANY_G27 = {ip = 0.0.0.0/0; link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip = 0.0.0.0/0 & network:N2];
+	dst = any:ANY_G27, any:[ip = {{.ip}} & network:N2];
 	prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {ip: "0.0.0.0/0"}]]
 =OUTPUT=
 --R1
 ip access-list extended N1_in
@@ -42,8 +42,7 @@ ip access-list extended N1_in
 
 ############################################################
 =TITLE=Aggregates in subnet relation
-=INPUT=${input}
-=SUBST=|ip = 0.0.0.0/0 &|ip = 10.0.0.0/8 &|
+=INPUT=[[input {ip: "10.0.0.0/8"}]]
 # Unchanged ouput
 =OUTPUT=
 --R1
@@ -175,7 +174,7 @@ ip access-list extended n2_in
 
 ############################################################
 =TITLE=Redundant host
-=VAR=input
+=TEMPL=input
 network:A = { ip = 10.3.3.0/25; host:a = { ip = 10.3.3.3; } }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
 router:r1 = {
@@ -200,12 +199,12 @@ service:test1 = {
  user = host:a;
  permit src = network:Customer1; dst = user; prt = tcp 80;
 }
-service:test2 = {
+service:{{.name}} = {
  user = network:A;
  permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {name: test2}]]
 =OUTPUT=
 --r1
 ip access-list extended VLAN1_out
@@ -215,8 +214,7 @@ ip access-list extended VLAN1_out
 
 ############################################################
 =TITLE=Redundant host, changed order of rules
-=INPUT=${input}
-=SUBST=/test2/test0/
+=INPUT=[[input {name: test0}]]
 # Unchanged output
 =OUTPUT=
 --r1

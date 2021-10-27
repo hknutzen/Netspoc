@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -21,7 +21,7 @@ router:r2 = {
 ############################################################
 =TITLE=Ignore disabled host, network, interface in rule
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = host:h1, network:n2, interface:r1.n1, interface:r2.n2,
            interface:r1.[auto], interface:r1.[all];
@@ -33,7 +33,7 @@ service:test = {
 ############################################################
 =TITLE=Ignore disabled aggregate in rule
 =INPUT=
-${topo}
+[[topo]]
 any:n1 = { link = network:n1; }
 service:test = {
  user = any:n1;
@@ -45,7 +45,7 @@ service:test = {
 ############################################################
 =TITLE=Ignore disabled area in rule
 =INPUT=
-${topo}
+[[topo]]
 area:a2 = { border = interface:r1.n2, interface:r2.n2;  }
 service:test = {
  user = network:[area:a2];
@@ -185,7 +185,7 @@ Error: network:n2 isn't connected to any router
 
 ############################################################
 =TITLE=Service timed out for 365 days
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
@@ -195,7 +195,7 @@ router:r1 = {
 }
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
-=VAR=output
+=TEMPL=output
 --r1
 ! n1_in
 access-list n1_in extended deny ip any4 any4
@@ -203,58 +203,58 @@ access-group n1_in in interface n1
 =END=
 =DATE=-365
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out for 30 days
 =DATE=-30
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out for 1 day
 =DATE=-1
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out today
 =DATE=-0
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Service times out tomorrow
-=VAR=output
+=TEMPL=output
 --r1
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
@@ -263,46 +263,46 @@ access-group n1_in in interface n1
 =END=
 =DATE=1
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service times out in 10 days
 =DATE=10
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service times out in 1000 days
 =DATE=1000
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Invalid date format at service
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  disable_at = 1-Jan-2020;
  user = network:n1;
@@ -315,7 +315,7 @@ Error: Date expected as yyyy-mm-dd in 'disable_at' of service:s
 ############################################################
 =TITLE=Invalid date at service
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  disable_at = 2031-31-31;
  user = network:n1;

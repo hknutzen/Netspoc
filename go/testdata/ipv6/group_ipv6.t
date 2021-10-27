@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120;
@@ -34,7 +34,7 @@ router:r2 = {
 =TITLE=Redundant from automatic hosts
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = host:[network:n3sub];
  permit src = network:n1; dst = user; prt = tcp 80;
@@ -50,7 +50,7 @@ Warning: Redundant rules in service:s compared to service:s:
 =TITLE=Automatic hosts in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:[network:n3] &!host:h3c;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -74,7 +74,7 @@ access-group n3_in in interface n3
 =TITLE=No subnets in automatic network in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:[any:[network:n3sub]];
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -92,7 +92,7 @@ access-group n3_in in interface n3
 =TITLE=Unexpected interface in automatic host
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:[interface:r1.n1];
 permit src = user; dst = network:n1; prt = ip;
@@ -106,7 +106,7 @@ Error: Unexpected 'interface:r1.n1' in host:[..] of user of service:s1
 =TITLE=Intersection of complement
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = ! network:n1 & ! network:n2;
  permit src = user; dst = network:n2; prt = tcp 22;
@@ -120,7 +120,7 @@ Error: Intersection needs at least one element which is not complement in user o
 =TITLE=Complement without intersection
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = ! network:n1;
  permit src = user; dst = network:n2; prt = tcp 22;

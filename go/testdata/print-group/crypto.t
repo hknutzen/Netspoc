@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=crypto_vpn
+=TEMPL=crypto_vpn
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -20,7 +20,7 @@ crypto:vpn = {
 }
 =END=
 
-=VAR=crypto_sts
+=TEMPL=crypto_sts
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -43,8 +43,8 @@ crypto:sts = {
 =END=
 
 ############################################################
-=VAR=topo
-${crypto_vpn}
+=TEMPL=topo
+[[crypto_vpn]]
 network:intern = { ip = 10.1.1.0/24;}
 router:asavpn = {
  model = ASA, VPN;
@@ -129,7 +129,7 @@ network:customers2 = {
 ############################################################
 =TITLE=Mark ID hosts as used even if only network is used (1)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:customers1;
  permit src = user; dst = network:intern; prt = tcp 80;
@@ -148,7 +148,7 @@ area:all = { anchor = network:intern; }
 ############################################################
 =TITLE=Mark ID hosts as used even if only network is used (2)
 =INPUT=
-${topo}
+[[topo]]
 service:s2 = {
  user = host:id:bar@domain.x.customers1, network:customers2;
  permit src = user; dst = network:intern; prt = tcp 81;
@@ -166,7 +166,7 @@ area:all = { anchor = network:intern; }
 ############################################################
 =TITLE=Only get encrypted interfaces from area
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 area:encrypted = { inclusive_border = interface:asavpn.intern; }
 network:intern = {
  ip = 10.1.1.0/24;

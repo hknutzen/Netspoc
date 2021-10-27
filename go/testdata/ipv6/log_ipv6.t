@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
@@ -26,7 +26,7 @@ router:asa2 = {
 =TITLE=Different log levels and devices; do / don't join ranges
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -127,7 +127,7 @@ Error: Must not use attribute 'log:a' at router:r1 of model Linux
 =TITLE=Unknown log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = d, e/f;
@@ -142,7 +142,7 @@ Warning: Referencing unknown 'e/f' in log of service:t
 =TITLE=Duplicate log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = b,a,a,c,b,c,b;
@@ -159,7 +159,7 @@ Warning: Duplicate 'c' in log of service:t
 =TITLE=Global optimization with log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -179,7 +179,7 @@ Warning: Redundant rules in service:t1 compared to service:t2:
 =TITLE=No global optimization with different log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -208,7 +208,7 @@ access-group n2_in in interface n2
 =TITLE=Duplicate rules with different log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  overlaps = service:s2;
  user = network:n2;
@@ -229,7 +229,7 @@ Error: Duplicate rules must have identical log attribute:
 =TITLE=Place line with logging first
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80;
@@ -252,7 +252,7 @@ access-group n2_in in interface n2
 =TITLE=Local optimization with log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t = {
  user = network:n1, any:[network:n2];
  permit src = user; dst = network:n3; prt = tcp 80; log = a;
@@ -275,7 +275,7 @@ access-group n2_in in interface n2
 =TITLE=No local optimization with different log tag
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:t1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80; log = a;

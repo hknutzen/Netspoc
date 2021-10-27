@@ -112,7 +112,7 @@ Warning: Ignoring unnumbered network:un in dst of rule in service:test
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (1)
-=VAR=input
+=TEMPL=input
 network:servers = { ip = ::a01:720/123; }
 router:r = {
  managed;
@@ -129,12 +129,12 @@ router:s = {
 network:clients = { ip = ::a01:200/120; }
 pathrestriction:clients = interface:s.clients, interface:r.clients;
 service:test = {
- user = any:[network:clients];
+ user = any:[network:{{.n}}];
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
 =END=
-=VAR=output
+=TEMPL=output
 --ipv6/r
 ipv6 access-list eth2_in
  deny ipv6 any host ::a01:721
@@ -142,23 +142,22 @@ ipv6 access-list eth2_in
  deny ipv6 any any
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {n: clients}]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/[network:clients]/[network:unn]/
+=INPUT=[[input {n: unn}]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (1)
-=VAR=input
+=TEMPL=input
 router:Z = {
  interface:c = { unnumbered; }
  interface:L = { ip = ::a01:104; }
@@ -174,13 +173,13 @@ network:L = {ip = ::a01:100/120;}
 pathrestriction:x = interface:Z.L, interface:L.L;
 service:Test = {
  user = interface:L.[all];
- permit src = any:[user];
+ permit src = any:[{{.u}}];
         dst = user;
         prt = icmpv6 8;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {u: user}]]
 =OUTPUT=
 --ipv6/L
 ipv6 access-list G2_in
@@ -195,8 +194,7 @@ ipv6 access-list G0_in
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (2)
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=|[user]|[ip=::a00:0/104 & user]|
+=INPUT=[[input {u: "ip=::a00:0/104 & user"}]]
 =OUTPUT=
 --ipv6/L
 ipv6 access-list G2_in
@@ -210,10 +208,10 @@ ipv6 access-list G0_in
 
 ############################################################
 =TITLE=Auto interface expands to short interface
-=VAR=input
+=TEMPL=input
 router:u1 = {
  model = IOS;
- interface:dummy;
+ interface:dummy{{.u}}
 }
 network:dummy = { unnumbered; }
 router:u2 = {
@@ -236,7 +234,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {u: ";"}]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
  must not be used in rule of service:s1
@@ -246,8 +244,7 @@ Error: interface:u1.dummy without IP address (from .[auto])
 =TITLE=Auto interface expands to unnumbered interface
 # and this unnumbered interface is silently ignored.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/interface:dummy;/interface:dummy = { unnumbered; }/
+=INPUT=[[input {u: " = { unnumbered; }"}]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in

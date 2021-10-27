@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"log"
 	"os"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -38,9 +40,10 @@ type Descr struct {
 // =END=
 // found during parsing
 type state struct {
-	src        []byte
-	rest       []byte
-	textblocks map[string]string
+	src       []byte
+	rest      []byte
+	templates map[string]*template.Template
+	filename  string
 }
 
 func GetFiles(dataDir string) []string {
@@ -68,7 +71,8 @@ func ParseFile(file string) ([]*Descr, error) {
 	s := new(state)
 	s.src = data
 	s.rest = data
-	s.textblocks = make(map[string]string)
+	s.templates = make(map[string]*template.Template)
+	s.filename = file
 	return s.parse()
 }
 
@@ -82,7 +86,8 @@ func (s *state) parse() ([]*Descr, error) {
 	var seen map[string]bool
 	add := func() error {
 		if d == nil {
-			return errors.New("missing =TITLE= in first test")
+			return fmt.Errorf("missing =TITLE= in first test of file %s",
+				s.filename)
 		}
 		if d.Input == "" {
 			return fmt.Errorf("missing =INPUT= in test with =TITLE=%s", d.Title)
@@ -115,15 +120,15 @@ func (s *state) parse() ([]*Descr, error) {
 					return nil, err
 				}
 			}
-			text, err := s.readText()
+			text, err := s.readExpandedText()
 			if err != nil {
 				return nil, err
 			}
 			d = new(Descr)
 			d.Title = text
 			seen = make(map[string]bool)
-		case "VAR":
-			if err := s.varDef(); err != nil {
+		case "TEMPL":
+			if err := s.templDef(); err != nil {
 				return nil, err
 			}
 		case "DATE":
@@ -139,7 +144,7 @@ func (s *state) parse() ([]*Descr, error) {
 				return nil, fmt.Errorf(
 					"found multiple =%s= in test with =TITLE=%s", name, d.Title)
 			}
-			text, err := s.readText()
+			text, err := s.readExpandedText()
 			if err != nil {
 				return nil, err
 			}
@@ -212,7 +217,8 @@ func (s *state) readDef() (string, error) {
 	name := s.checkDef(line)
 	if name == "" {
 		nr := s.currentLine()
-		return "", fmt.Errorf("expected token '=...=' at line %d: %s", nr, line)
+		return "", fmt.Errorf("expected token '=...=' at line %d of file %s: %s",
+			nr, s.filename, line)
 	}
 	s.rest = s.rest[len(name)+2:]
 	return name, nil
@@ -233,18 +239,19 @@ func (s *state) checkDef(line string) string {
 	return ""
 }
 
-func (s *state) varDef() error {
-	name, err := s.readVarName()
+func (s *state) templDef() error {
+	name, err := s.readTemplName()
 	if err != nil {
 		return err
 	}
-	text, err := s.readText()
+	text, err := s.readExpandedText()
 	if err != nil {
 		return err
 	}
 	text = strings.TrimSuffix(text, "\n")
-	s.textblocks[name] = text
-	return nil
+	s.templates[name], err =
+		template.New(name).Option("missingkey=zero").Parse(text)
+	return err
 }
 
 func (s *state) dateDef(d *Descr) error {
@@ -256,17 +263,18 @@ func (s *state) dateDef(d *Descr) error {
 		return err
 	}
 	date := time.Now().AddDate(0, 0, days)
-	s.textblocks["DATE"] = date.Format("2006-01-02")
-	return nil
+	s.templates["DATE"], err =
+		template.New("DATE").Parse(date.Format("2006-01-02"))
+	return err
 }
 
-func (s *state) readVarName() (string, error) {
+func (s *state) readTemplName() (string, error) {
 	line := s.getLine()
 	s.rest = s.rest[len(line)-1:] // don't skip trailing newline
 	name := strings.TrimSpace(line)
 	for _, ch := range name {
 		if !(isLetter(ch) || isDecimal(ch)) {
-			return "", errors.New("invalid name after =VAR=: " + name)
+			return "", errors.New("invalid name after =TEMPL=: " + name)
 		}
 	}
 	return name, nil
@@ -288,14 +296,21 @@ func isLetter(ch rune) bool {
 	return 'a' <= lower(ch) && lower(ch) <= 'z' || ch == '_'
 }
 
-func (s *state) readText() (string, error) {
+func (s *state) readExpandedText() (string, error) {
+	line, err := s.doTemplSubst(s.readText())
+	if err != nil {
+		return "", err
+	}
+	return s.applySubst(line)
+}
+
+func (s *state) readText() string {
 	// Check for single line
 	line := s.getLine()
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		result := s.doVarSubst(line)
-		return s.applySubst(result)
+		return line
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest
@@ -303,24 +318,54 @@ func (s *state) readText() (string, error) {
 	for {
 		line := s.getLine()
 		if name := s.checkDef(line); name != "" || line == "" {
-			result := s.doVarSubst(string(text[:size]))
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
-				return result, nil
 			}
-			return s.applySubst(result)
+			return string(text[:size])
 		}
 		s.rest = s.rest[len(line):]
 		size += len(line)
 	}
 }
 
-// Substitute occurrences of ${name} with corresponding value.
-func (s *state) doVarSubst(text string) string {
-	for name, val := range s.textblocks {
-		text = strings.ReplaceAll(text, "${"+name+"}", val)
+// Substitute occurrences of [[name yaml-data]] by text of evaluated
+// named template.
+func (s *state) doTemplSubst(text string) (string, error) {
+	var result strings.Builder
+	prevIdx := 0
+
+	re := regexp.MustCompile(`(?s)\[\[.*?\]\]`)
+	il := re.FindAllStringIndex(text, -1)
+	for _, p := range il {
+		result.WriteString(text[prevIdx:p[0]])
+		prevIdx = p[1]
+		pair := text[p[0]+2 : p[1]-2] // without "[[" and "]]"
+		var name string
+		var data map[string]interface{}
+		if i := strings.IndexAny(pair, " \t\n"); i != -1 {
+			name = pair[:i]
+			y := pair[i+1:]
+			data = make(map[string]interface{})
+			if err := yaml.Unmarshal([]byte(y), &data); err != nil {
+				log.Fatalf(
+					"Invalid YAML data in call to template [[%s]] of file %s: %v",
+					pair, s.filename, err)
+			}
+		} else {
+			name = pair
+		}
+		t := s.templates[name]
+		if t == nil {
+			log.Fatalf("Calling unknown template %s", name)
+		}
+		var b strings.Builder
+		if err := t.Execute(&b, data); err != nil {
+			log.Fatalf("Executing template %s: %v", name, err)
+		}
+		result.WriteString(b.String())
 	}
-	return text
+	result.WriteString(text[prevIdx:])
+	return result.String(), nil
 }
 
 // Apply one or multiple substitutions to current textblock.

@@ -194,10 +194,10 @@ Warning: interface:r.m is subnet of network:n
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces (secondary)
 # Soll bei local_optimization loopback interfaces und NAT network als
 # identisch erkennen.
-=VAR=input
+=TEMPL=input
 network:customer = { ip = ::a01:700/120; }
 router:gw = {
- managed = secondary;
+ managed {{.s}};
  model = ASA;
  interface:customer = { ip = ::a01:701;    hardware = outside;}
  interface:trans    = { ip = ::a01:301;   hardware = inside;}
@@ -258,7 +258,7 @@ service:p2 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {s: =secondary}]]
 =OUTPUT=
 --ipv6/gw
 ! outside_in
@@ -270,8 +270,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=Dynamic NAT to multiple virtual loopback interfaces
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed = secondary/managed/
+=INPUT=[[input {s: ""}]]
 =OUTPUT=
 --ipv6/gw
 ! outside_in
@@ -315,11 +314,11 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=Illegal NAT to loopback interface (1)
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; nat:extern = { ip = f000::c101:102/128; dynamic; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
-router:r1 = {
+router:{{.n}} = {
  managed;
  model = Linux;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
@@ -337,7 +336,7 @@ service:s1 = {
  permit src = user; dst = network:n3; prt = tcp 80;
 }
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {n: r1}]]
 =ERROR=
 Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
  in nat_domain:[network:n2]
@@ -346,8 +345,7 @@ Error: interface:r2.lo and nat:extern of network:n1 have identical IP/mask
 ############################################################
 =TITLE=Illegal NAT to loopback interface (2)
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/router:r1/router:r3/
+=INPUT=[[input {n: r3}]]
 =ERROR=
 Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
  in nat_domain:[interface:r2.lo]
@@ -357,7 +355,7 @@ Error: nat:extern of network:n1 and interface:r2.lo have identical IP/mask
 =TITLE=Routing via managed virtual interfaces to loopback
 # Loopback interface is reached only via physical interface.
 # Don't use virtual IP but physical IP as next hop.
-=VAR=input
+=TEMPL=input
 network:intern = { ip = ::a01:100/120; }
 router:asa = {
  model = ASA;
@@ -374,7 +372,7 @@ router:asa = {
 network:dmz = { ip = f000::c0a8:0/120; }
 router:extern1 = {
  model = IOS,FW;
- managed; #remove
+ {{.m}}
  interface:dmz = {
   ip = f000::c0a8:b;
   virtual = { ip = f000::c0a8:1; }
@@ -389,7 +387,7 @@ router:extern1 = {
 }
 router:extern2 = {
  model = IOS,FW;
- managed; #remove
+ {{.m}}
  interface:dmz = {
   ip = f000::c0a8:c;
   virtual = { ip = f000::c0a8:1; }
@@ -409,7 +407,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {m: managed;}]]
 =OUTPUT=
 --ipv6/asa
 ipv6 route outside f000::ac11:10b/128 f000::c0a8:b
@@ -432,8 +430,7 @@ ipv6 access-list Eth0_in
 # pathrestriction.  A zone which contains network ::/0 uses this
 # address for optimized routing.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed; #remove//
+=INPUT=[[input {m: ""}]]
 =OUTPUT=
 --ipv6/asa
 ! [ Routing ]

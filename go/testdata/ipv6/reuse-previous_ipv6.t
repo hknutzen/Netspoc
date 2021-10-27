@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
@@ -28,15 +28,15 @@ router:r3 = {
 ############################################################
 =TITLE=Reuse all code files
 =SHOW_DIAG=
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =PARAMS=--ipv6
-=INPUT=${input}
-=REUSE_PREV=${input}
+=INPUT=[[input]]
+=REUSE_PREV=[[input]]
 =WARNING=
 DIAG: Reused .prev/ipv6/r1
 DIAG: Reused .prev/ipv6/r2
@@ -63,9 +63,9 @@ access-group n3_in in interface n3
 =TITLE=Reuse some code files
 =SHOW_DIAG=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =REUSE_PREV=
-${input}
+[[input]]
 service:test2 = {
  user = network:n2;
  permit src = user; dst = network:n3; prt = tcp 80;
@@ -86,12 +86,12 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=Can't reuse new code file
 =SHOW_DIAG=
-=VAR=extended
-${input}
+=TEMPL=extended
+[[input]]
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =REUSE_PREV=
-${input}
+[[input]]
 network:n5 = { ip = ::a01:500/120; }
 router:r4 = {
  managed;

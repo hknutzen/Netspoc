@@ -1213,7 +1213,7 @@ Error: Missing attribute 'admins' in owner:o of network:n1
 
 ############################################################
 # Shared topology
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -1229,7 +1229,7 @@ router:r = {
 ############################################################
 =TITLE=Must reference user in rule
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = network:n1;
  permit src = network:n2; dst = network:n3; prt = ip;
@@ -1242,7 +1242,7 @@ Error: Each rule of service:s must use keyword 'user'
 ############################################################
 =TITLE=Equally reference user
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = network:n1;
  permit src = user, network:n2; dst = network:n3; prt = ip;
@@ -1256,7 +1256,7 @@ Error: The sub-expressions of union in 'src' of service:s equally must
 ############################################################
 =TITLE=Equally reference user with intersection
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n1, network:n2;
  permit src = network:n3;
@@ -1287,7 +1287,7 @@ Aborted
 ############################################################
 =TITLE=Invalid attribute at service
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  xyz;
  user = network:n1;
@@ -1327,7 +1327,7 @@ Aborted
 ############################################################
 =TITLE=Invalid rule with 'foreach'
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = foreach network:n1, network:n2;
  permit src = user; dst = network:n3; prt = tcp 22;
@@ -1356,7 +1356,7 @@ access-group n3_in in interface n3
 ############################################################
 =TITLE=Empty list of elements after 'user', 'src', 'dst'
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = ;
  permit src = user; dst = network:n3; prt = tcp 22;

@@ -380,7 +380,7 @@ Warning: service:s1 is fully redundant
 
 ############################################################
 =TITLE=Fully redundant rule without overlaps
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 router:R1 = {
@@ -400,7 +400,7 @@ service:s2 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: Duplicate rules in service:s2 and service:s1:
   permit src=network:n1; dst=network:n2; prt=tcp 80; of service:s2
@@ -412,7 +412,7 @@ Warning: service:s1 is fully redundant
 =TITLE=Don't check for duplicate rules
 =OPTIONS=--check_duplicate_rules=0
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=NONE
 
 ############################################################

@@ -160,7 +160,7 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 
 ############################################################
 =TITLE=Add to multi block group (1)
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
  host:h_10_1_1_4 = { ip = 10.1.1.4; }
@@ -200,7 +200,7 @@ service:s1 = {
 }
 
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -224,7 +224,7 @@ ${input}
 
 ############################################################
 =TITLE=Add to multi block group (2)
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -248,7 +248,7 @@ ${input}
 
 ############################################################
 =TITLE=Add to multi block group (3)
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -1853,11 +1853,11 @@ router:r1 = {
 
 ############################################################
 =TITLE=Add service without any rule
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1872,11 +1872,11 @@ Error: Must not define service:s1 without any rules
 
 ############################################################
 =TITLE=Add service with empty user
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1905,11 +1905,11 @@ Warning: user of service:s1 is empty
 
 ############################################################
 =TITLE=Add service without user and rule
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1923,7 +1923,7 @@ Error: Must not define service:s1 without any rules
 =END=
 
 ############################################################
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1938,7 +1938,7 @@ router:r1 = {
 ############################################################
 =TITLE=Add empty service, alter user and rule afterwards
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "multi_job",
@@ -1983,7 +1983,7 @@ ${input}
 ############################################################
 =TITLE=Add service, invalid action
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -2005,7 +2005,7 @@ Error: Expected 'permit' or 'deny' at line 1 of command line, near "network:n1; 
 
 ############################################################
 =TITLE=Add service, invalid user
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -2027,7 +2027,7 @@ Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
 
 ############################################################
 =TITLE=Add service, invalid object type
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -2049,7 +2049,7 @@ Error: Unknown element type at line 1 of command line, near "dst=--HERE-->net:n2
 
 ############################################################
 =TITLE=Add service, invalid protocol
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 { "method": "create_service",
   "params": {
@@ -2076,7 +2076,7 @@ Error: Unknown protocol in 'udp6' of service:s1
 
 ############################################################
 =TITLE=Add service, name starting with umlaut
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 { "method": "create_service",
   "params": {

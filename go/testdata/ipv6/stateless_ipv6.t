@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = ::a01:100/120;
 }
 router:r = {
@@ -16,7 +16,7 @@ network:y = { ip = ::a02:200/120;
 =TITLE=Optimize reverse rules
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = network:x;
  permit src = user; dst = network:y; prt = ip;
@@ -51,7 +51,7 @@ ipv6 access-list e1_in
 =TITLE=Reverse UDP ports
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 389;
@@ -74,7 +74,7 @@ ipv6 access-list e1_in
 =TITLE=UDP source port with unspecified destination port
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 69:1-65535;
 service:test = {
  user = network:x;
@@ -98,7 +98,7 @@ ipv6 access-list e1_in
 =TITLE=UDP source ports
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 500:500;
 service:test = {
  user = network:x;
@@ -122,7 +122,7 @@ ipv6 access-list e1_in
 =TITLE=Optimized UDP source ports
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 500:500;
 service:test = {
  user = network:x, network:y;
@@ -146,7 +146,7 @@ ipv6 access-list e1_in
 =TITLE=No warning on overlapping stateless range
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 protocol:ftp-passive-data = tcp 1024-65535, stateless;
 service:s = {
  user = network:x;

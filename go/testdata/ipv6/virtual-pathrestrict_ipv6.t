@@ -320,7 +320,7 @@ ipv6 access-list E6_in
 
 ############################################################
 =TITLE=Non matching virtual interface groups with interconnect
-=VAR=topo
+=TEMPL=topo
 network:a = { ip = ::a01:100/120;}
 router:r1 = {
  managed;
@@ -333,13 +333,13 @@ router:r2 = {
  model = IOS, FW;
  interface:a = {ip = ::a01:102; virtual = {ip = ::a01:109;} hardware = E4;}
  interface:b1 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E5;}
- interface:t = { ip = ::a00:1; hardware = t1; }
+ interface:t = { ip = ::a00:1; hardware = t1; {{.d}} }
 }
 network:t = { ip = ::a00:0/126; }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = ::a00:2; hardware = t1; }
+ interface:t = { ip = ::a00:2; hardware = t1; {{.d}} }
  interface:a = {ip = ::a01:103; virtual = {ip = ::a01:109;} hardware = E6;}
  interface:b2 = {ip = ::a03:303; virtual = {ip = ::a03:309;} hardware = E7;}
 }
@@ -354,7 +354,7 @@ network:b2 = { ip = ::a03:300/120; }
 =END=
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {d: ""}]]
 router:g = {
  managed;
  model = ASA;
@@ -397,8 +397,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
 ############################################################
 =TITLE=Non matching virtual interface groups
 =PARAMS=--ipv6
-=INPUT=${topo}
-=SUBST=/hardware = t1;/hardware = t1; disabled;/
+=INPUT=[[topo {d: disabled;}]]
 =ERROR=
 Error: Virtual interfaces
  - interface:r1.a.virtual
@@ -413,7 +412,7 @@ Error: Virtual interfaces
 Conceal non matching virtual interface groups with interconnect if no routing required
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {d: ""}]]
 
 service:test1 = {
  user = network:a;
@@ -512,7 +511,7 @@ ipv6 access-list Ethernet0_out
 
 ############################################################
 =TITLE=3 virtual interfaces with valid extra pathrestriction
-=VAR=input
+=TEMPL=input
 network:a = { ip = ::a01:100/120;}
 network:b = { ip = ::a02:200/120;}
 network:c = { ip = ::a03:300/120;}
@@ -547,7 +546,7 @@ service:test = {
         prt = tcp 80;
 }
 =END=
-=VAR=router5
+=TEMPL=router5
 router:r5 = {
  managed;
  model = IOS, FW;
@@ -557,8 +556,8 @@ router:r5 = {
 =END=
 =PARAMS=--ipv6
 =INPUT=
-${input}
-${router5}
+[[input]]
+[[router5]]
 pathrestriction:p =
  interface:r1.b,
  interface:r2.b.virtual,
@@ -577,8 +576,8 @@ ipv6 access-list E1_in
 =TITLE=3 virtual interfaces with extra pathrestriction allowing 2 routes
 =PARAMS=--ipv6
 =INPUT=
-${input}
-${router5}
+[[input]]
+[[router5]]
 pathrestriction:p =
  interface:r1.b,
  interface:r2.b.virtual,
@@ -594,7 +593,7 @@ Error: Ambiguous static routes for network:a at interface:r4.b.virtual via
 =TITLE=3 virtual interfaces with extra pathrestriction valid for all-1
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 pathrestriction:p =
  interface:r1.b,
  interface:r2.b.virtual,
@@ -609,7 +608,7 @@ ipv6 route ::a03:300/120 ::a02:204
 =TITLE=3 virtual interfaces with invalid extra pathrestriction
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 pathrestriction:p =
  interface:r1.b,
  interface:r2.b.virtual,
@@ -632,7 +631,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
 =TITLE=
 3 virtual interfaces, dst network directly connected to 1 only -
 extra pathrestriction causing routing via physical interface
-=VAR=input
+=TEMPL=input
 network:a = { ip = ::a01:100/120;}
 network:b = { ip = ::a02:200/120;}
 network:c = { ip = ::a03:300/120;}
@@ -664,7 +663,7 @@ router:r4 = {
 }
 pathrestriction:p =
  interface:r2.c,
- interface:r3.c,
+ {{.i}}
  interface:r4.c
 ;
 service:test = {
@@ -675,7 +674,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {i: "interface:r3.c,"}]]
 =OUTPUT=
 --ipv6/r1
 ipv6 route ::a04:400/120 ::a02:202
@@ -686,8 +685,7 @@ ipv6 route ::a04:400/120 ::a02:202
 3 virtual interfaces, dst network directly connected to 1 only -
 invalid extra pathrestriction
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/interface:r3.c,//
+=INPUT=[[input {i: ""}]]
 =ERROR=
 Error: Pathrestriction ambiguously affects generation of static routes
        to interfaces with virtual IP ::a02:209:
@@ -706,7 +704,7 @@ Error: Two static routes for network:a
 ############################################################
 =TITLE=
 Conceal invalid extra pathrestriction if routing is not required - no service
-=VAR=input
+=TEMPL=input
 network:a = { ip = ::a01:100/120;}
 network:b = { ip = ::a02:200/120;}
 network:c = { ip = ::a03:300/120;}
@@ -741,7 +739,7 @@ pathrestriction:p =
 ;
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/r2
 ipv6 access-list E3_in
@@ -759,7 +757,7 @@ ipv6 access-list E6_in
 Conceal invalid extra pathrestriction if routing is not required - manual routing
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:test = {
  user = network:a;
  permit src = user;

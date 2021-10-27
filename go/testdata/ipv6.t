@@ -478,7 +478,7 @@ service:test = {
 ############################################################
 =TITLE=Reuse code file
 =SHOW_DIAG=
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 1000::abcd:0001:0/112;}
 network:n2 = { ip = 1000::abcd:0002:0/112;}
 router:r1 = {
@@ -491,8 +491,8 @@ service:test1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=INPUT=${input}
-=REUSE_PREV=${input}
+=INPUT=[[input]]
+=REUSE_PREV=[[input]]
 =WARNING=
 DIAG: Reused .prev/ipv6/r1
 =WITH_OUTDIR=

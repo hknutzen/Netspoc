@@ -78,7 +78,7 @@ Error: IPv4 topology has unconnected parts:
 
 ############################################################
 =TITLE=Unconnected with crypto
-=VAR=input
+=TEMPL=input
 isakmp:x = {
  authentication = preshare;
  encryption = aes256;
@@ -117,7 +117,7 @@ router:r3 = {
 }
 network:n3 = { ip = 10.1.3.0/24; }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
@@ -127,8 +127,8 @@ Error: IPv4 topology has unconnected parts:
 
 ############################################################
 =TITLE=Unconnected with connected crypto part
-=VAR=input2
-${input}
+=TEMPL=input2
+[[input]]
 router:fw = {
  managed;
  model = ASA;
@@ -136,7 +136,7 @@ router:fw = {
  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
 }
 =END=
-=INPUT=${input2}
+=INPUT=[[input2]]
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:t]
@@ -147,7 +147,7 @@ Error: IPv4 topology has unconnected parts:
 ############################################################
 =TITLE=Unconnected with auto interface to other part
 =INPUT=
-${input2}
+[[input2]]
 service:test = {
  user = interface:r1.[auto], interface:r3.[auto];
  permit src = user; dst = network:n2; prt = ip;
@@ -231,11 +231,11 @@ Error: No valid path
 
 ############################################################
 =TITLE=Intentionally unconnected, too many partition definitions
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = {
  ip = 10.1.2.0/24;
- partition = part1;
+ {{.p1}}
 }
 router:r1 = {
  model = ASA;
@@ -249,11 +249,11 @@ network:n3 = {
 }
 network:n4 = {
  ip = 10.1.4.0/24;
- partition = part3;
+ {{.p3}}
 }
 network:n5 = {
  ip = 10.1.5.0/24;
- partition = part4;
+ {{.p4}}
 }
 router:r2 = {
  model = ASA;
@@ -264,10 +264,15 @@ router:r2 = {
 }
 service:s = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:{{.d}}; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=
+[[input
+p1: "partition = part1;"
+p3: "partition = part3;"
+p4: "partition = part4;"
+d: "n2"]]
 =ERROR=
 Error: Several partition names in partition any:[network:n3]:
  - part2
@@ -277,9 +282,7 @@ Error: Several partition names in partition any:[network:n3]:
 
 ############################################################
 =TITLE=Intentionally unconnected, named partitions
-=INPUT=${input}
-=SUBST=/partition = part3;//
-=SUBST=/partition = part4;//
+=INPUT=[[input {p1: "partition = part1;", p3: "", p4: "", d: "n2"}]]
 =OUTPUT=
 -- r1
 ! n1_in
@@ -290,10 +293,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Intentionally unconnected, service between partitions
-=INPUT=${input}
-=SUBST=/partition = part3;//
-=SUBST=/partition = part4;//
-=SUBST=/dst = network:n2;/dst = network:n3;/
+=INPUT=[[input {p1: "partition = part1;", p3: "", p4: "", d: "n3"}]]
 =ERROR=
 Error: No valid path
  from any:[network:n1]
@@ -304,10 +304,7 @@ Error: No valid path
 
 ############################################################
 =TITLE=Unconnected, partition attribute missing
-=INPUT=${input}
-=SUBST=/partition = part3;//
-=SUBST=/partition = part4;//
-=SUBST=/partition = part1;//
+=INPUT=[[input {p1: "", p3: "", p4: "", d: "n2"}]]
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]
@@ -363,7 +360,7 @@ Error: No valid path
 
 ############################################################
 =TITLE=Valid path, intentionally unconnected, with loops (1)
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = {
  ip = 10.1.2.0/24;
@@ -411,7 +408,7 @@ router:r5 = {
  interface:n8 = { ip = 10.1.8.1; hardware = n2; }
 }
 =END=
-=VAR=output
+=TEMPL=output
 -- r1
 ! n1_in
 access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
@@ -419,19 +416,19 @@ access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
 =INPUT=
-${input}
+[[input]]
 service:s = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Invalid path, intentionally unconnected, with loops (1)
 =INPUT=
-${input}
+[[input]]
 service:s = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
@@ -453,7 +450,7 @@ Error: No valid path
 ############################################################
 =TITLE=Valid path, intentionally unconnected, with loops (2)
 =INPUT=
-${input}
+[[input]]
 network:n0 = { ip = 10.1.0.0/24; }
 router:r0 = {
  model = ASA;
@@ -466,12 +463,12 @@ service:s = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Single partition with partition name
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = {
  ip = 10.1.2.0/24;
@@ -484,7 +481,7 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: Spare partition name for single partition any:[network:n1]: part1.
 =END=
@@ -492,7 +489,7 @@ Warning: Spare partition name for single partition any:[network:n1]: part1.
 ############################################################
 =TITLE=Too many partition definitions in one zone
 =INPUT=
-${input}
+[[input]]
 network:n3 = {
  ip = 10.1.3.0/24;
  partition = part4;

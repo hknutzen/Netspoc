@@ -94,7 +94,7 @@ network:Test={ip=10.1.1.0/24;}
 
 ############################################################
 =TITLE=Rename network
-=VAR=input
+=TEMPL=input
 network:Test =  { ip = 10.1.1.0/24; }
 group:G =
     interface:r.Test,
@@ -115,7 +115,7 @@ router:r = {
  interface:Test = { reroute_permit = network:Test; }
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
 group:G =
@@ -151,7 +151,7 @@ router:r = {
 
 ############################################################
 =TITLE=Rename verbosely
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 13 changes in INPUT
 =END=
@@ -246,12 +246,12 @@ group:G =
 
 ############################################################
 =TITLE=Rename router then network
-=VAR=input
+=TEMPL=input
 router:R = { interface:NN = { ip = 10.9.1.1; } }
 network:NN = { ip = 10.9.1.0/24; }
 group:g = interface:R.NN;
 =END=
-=VAR=output
+=TEMPL=output
 router:RR = {
  interface:N = { ip = 10.9.1.1; }
 }
@@ -260,16 +260,16 @@ group:g =
  interface:RR.N,
 ;
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${output}
+[[output]]
 =PARAMS=router:R router:RR network:NN network:N
 
 ############################################################
 =TITLE=Rename network then router
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${output}
+[[output]]
 =PARAMS=network:NN network:N router:R router:RR
 
 ############################################################

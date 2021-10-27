@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/123; }
 router:r1 = {
  model = ASA;
@@ -19,7 +19,7 @@ network:n2 = { ip = ::a02:200/123; }
 ############################################################
 =TITLE=Crosslink primary and full
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/_1/primary/
 =SUBST=/_2/full/
 =OUTPUT=
@@ -37,7 +37,7 @@ interface n2
 ############################################################
 =TITLE=Crosslink standard and secondary
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/_1/standard/
 =SUBST=/_2/secondary/
 =OUTPUT=
@@ -55,7 +55,7 @@ interface n2
 ############################################################
 =TITLE=Crosslink secondary and local
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/_1/secondary/
 =SUBST=|_2;|local; filter_only =  ::a02:0/111;|
 =ERROR=

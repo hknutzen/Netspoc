@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Auto interface of network
-=VAR=topo
+=TEMPL=topo
 network:a = { ip = 10.0.0.0/24; }
 router:r1 =  {
  managed;
@@ -28,7 +28,7 @@ network:b3 = { ip = 10.1.3.0/24; }
 any:b = { link = network:b1; }
 =END=
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = interface:[network:b1].[auto],
         interface:[managed & network:b2].[auto],
@@ -74,7 +74,7 @@ ip access-list extended f0_in
 ############################################################
 =TITLE=Auto interface of router
 =INPUT=
-${topo}
+[[topo]]
 service:test2 = {
  user = interface:u.[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -98,7 +98,7 @@ ip access-list extended f1_in
 ############################################################
 =TITLE=Managed auto interface of unmanaged interface
 =INPUT=
-${topo}
+[[topo]]
 service:test2 = {
  user = interface:[managed & interface:u.b2, interface:r2.b2].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -116,7 +116,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=All interfaces of aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:b].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -134,7 +134,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=All interfaces of implicit aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -153,7 +153,7 @@ ip access-list extended e1_in
 =TITLE=Managed interfaces of implicit aggregate
 # Border interfaces of zone are managed by definition.
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[managed & any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -171,7 +171,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Interfaces of matching implicit aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:[ip = 10.1.0.0/16 & network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -186,7 +186,7 @@ Error: Must not use interface:[..].[all]
 ############################################################
 =TITLE=Auto interfaces of aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:b].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -199,7 +199,7 @@ Error: Must not use interface:[any:..].[auto] in user of service:s
 ############################################################
 =TITLE=All interfaces of network
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -217,7 +217,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Managed interfaces of network
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[managed & network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -234,7 +234,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Ignore short interface of network
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -253,7 +253,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=All interfaces from auto interface of network
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:[network:b1].[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -266,7 +266,7 @@ Error: Can't use interface:[network:b1].[auto] inside interface:[..].[all] of us
 ############################################################
 =TITLE=All interfaces from auto interface of router
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:u.[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -285,7 +285,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Auto interface from auto interface of router
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:u.[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -303,7 +303,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Auto interface from auto interface
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:[network:b1].[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -706,7 +706,7 @@ ip access-list extended n2_in
 
 ############################################################
 =TITLE=Multiple auto interfaces in src and dst
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -746,7 +746,7 @@ service:s = {
         prt = tcp 22;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --r1
 ! n1_in
@@ -824,7 +824,7 @@ ip access-list extended n4_in
 # pathrestriction leads to more complicated expansion of auto interfaces,
 # because result is different for different destinations.
 =INPUT=
-${input}
+[[input]]
 pathrestriction:r = interface:r1.n4, interface:r3.n3;
 =END=
 =OUTPUT=
@@ -1197,7 +1197,7 @@ service:s = {
 # Topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = 10.1.1.0/24; }
 router:r = {
  model = IOS, FW;
@@ -1211,7 +1211,7 @@ network:y = { ip = 10.1.2.0/24; }
 ############################################################
 =TITLE=Interface and auto interface in intersection
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:r.[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1224,7 +1224,7 @@ Warning: Useless delete of interface:r.x in user of service:test
 ############################################################
 =TITLE=Interface and auto interface in union
 =INPUT=
-${topo}
+[[topo]]
 group:g = interface:r.[auto], interface:r.x, network:y;
 service:test = {
  user = group:g &! network:y;
@@ -1237,7 +1237,7 @@ service:test = {
 ############################################################
 =TITLE=Interface and auto network interface
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1250,7 +1250,7 @@ Warning: Useless delete of interface:r.x in user of service:test
 ############################################################
 =TITLE=Auto interface and auto network interface
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.[auto];
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1263,7 +1263,7 @@ Warning: Useless delete of interface:r.[auto] in user of service:test
 ############################################################
 =TITLE=Non conflicting auto network interfaces
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:[network:y].[auto];
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1276,7 +1276,7 @@ Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 ############################################################
 =TITLE=Non conflicting auto network interface with interface
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.y;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1288,7 +1288,7 @@ Warning: Useless delete of interface:r.y in user of service:test
 
 ############################################################
 =TITLE=Find interfaces of subnet in area, incl. loopback
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3Sup = { ip = 10.1.3.0/24; }
@@ -1325,7 +1325,7 @@ router:r5 = {
  interface:n4Sup = { ip = 10.1.4.129; hardware = n4Sup; }
 }
 =INPUT=
-${input}
+[[input]]
 service:test = {
  user = interface:[area:a3-4].[all] ;
  permit src = user; dst = network:n1; prt = tcp 80;
@@ -1351,7 +1351,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=Find interfaces of subnet in area, no managed loopback
 =INPUT=
-${input}
+[[input]]
 service:test = {
  user = interface:[network:[area:a3-4]].[all] ;
  permit src = user; dst = network:n1; prt = tcp 80;

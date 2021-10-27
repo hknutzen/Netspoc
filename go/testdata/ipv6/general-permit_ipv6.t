@@ -1,12 +1,12 @@
 
 ############################################################
 =TITLE=General permit
-=VAR=input
+=TEMPL=input
 protocol:unreachable = icmpv6 3;
 network:m = { ip = ::a02:200/120; }
 router:r = {
  managed;
- model = NX-OS;
+ model = {{.model}};
  general_permit = tcp, icmpv6 0, protocol:unreachable, udp;
  interface:m = { ip = ::a02:202; hardware = e0; }
  interface:n = { ip = ::a01:102, ::a01:103; hardware = e1; }
@@ -19,7 +19,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {model: NX-OS}]]
 =OUTPUT=
 --ipv6/r
 ipv6 access-list e0_in
@@ -43,8 +43,7 @@ ipv6 access-list e1_in
 ############################################################
 =TITLE=General permit (Linux)
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/NX-OS/Linux/
+=INPUT=[[input {model: Linux}]]
 =OUTPUT=
 --ipv6/r
 # [ ACL ]

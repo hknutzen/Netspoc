@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 area:test = { border = interface:filter.Trans; }
 network:A = { ip = ::a03:300/121; }
 network:sub = { ip = ::a03:308/125; subnet_of = network:A; }
@@ -24,7 +24,7 @@ network:Customer = { ip = ::a09:900/120; }
 =TITLE=Implicit aggregate over 3 networks
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:[ip=::a00:0/104 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -45,7 +45,7 @@ ipv6 access-list VLAN1_in
 =TITLE=Implicit aggregate over 2 networks
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:[ip=::a03:300/120 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -65,7 +65,7 @@ ipv6 access-list VLAN1_in
 =TITLE=Implicit aggregate between 2 networks
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = any:[ip=::a03:300/122 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -348,7 +348,7 @@ Error: network:n3 is hidden by nat:h in rule
 
 ############################################################
 =TITLE=Permit matching aggregate at non matching interface
-=VAR=input
+=TEMPL=input
 network:Test = { ip = ::a09:100/120; }
 router:filter1 = {
  managed;
@@ -370,7 +370,7 @@ service:test = {
 }
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 =END=
 =OUTPUT=
 --ipv6/filter1
@@ -387,7 +387,7 @@ access-group Vlan4_in in interface Vlan4
 =TITLE=Warn on missing src aggregate
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 router:T = {
  interface:Trans = { ip = f000::c0a8:103; }
  interface:N1;
@@ -405,7 +405,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Warn on multiple missing networks
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; has_subnets; }
@@ -435,7 +435,7 @@ service:s1 = {
 }
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 =END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
@@ -454,7 +454,7 @@ Warning: This supernet rule would permit unexpected access:
 =TITLE=Warn on multiple missing networks with aggregate
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 any:n3x = { ip = ::a01:300/120; link = network:n3a; }
 =END=
 =WARNING=
@@ -628,7 +628,7 @@ access-group Vlan6_out out interface Vlan6
 
 ############################################################
 =TITLE=Nested aggregates
-=VAR=input
+=TEMPL=input
 network:Test = { ip = ::a09:100/120; }
 router:filter = {
  managed;
@@ -655,7 +655,7 @@ service:test2 = {
  permit src = user; dst = network:Test; prt = tcp 81;
 }
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/filter
 access-list Vlan2_in extended permit tcp ::a01:0/119 ::a09:100/120 eq 80
@@ -668,7 +668,7 @@ access-group Vlan2_in in interface Vlan2
 =TITLE=Redundant nested aggregates
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:test3 = {
  user = any:[ip=::a01:0/112 & network:Trans];
  permit src = user; dst = network:Test; prt = tcp 80;
@@ -967,11 +967,11 @@ ipv6 access-list VLAN2_in
 
 ############################################################
 =TITLE=Multiple missing destination networks at one router
-=VAR=topo
+=TEMPL=topo
 network:Customer = { ip = ::a09:900/120; }
 router:r1 = {
  managed;
- model = IOS, FW;
+ model = {{.mod}};
  routing = manual;
  interface:Customer = { ip = ::a09:901; hardware = VLAN9; }
  interface:trans = { ip = ::a07:701; hardware = VLAN7; }
@@ -980,10 +980,10 @@ router:r1 = {
 network:trans = { ip = ::a07:700/120; }
 router:r2 = {
  managed;
- model = IOS, FW;
+ model = {{.mod}};
  routing = manual;
  interface:trans = { ip = ::a07:702; hardware = VLAN77; }
- interface:n1 = { ip = ::a01:101; hardware = VLAN1; }
+ interface:n1 = { ip = ::a01:101; hardware = VLAN1; {{.no}}}
  interface:n2 = { ip = ::a01:201, ::a01:202; hardware = VLAN2; }
  interface:n3 = { ip = ::a01:301; hardware = VLAN3; }
  interface:n4 = { ip = ::a01:401; hardware = VLAN4; }
@@ -997,7 +997,7 @@ network:n128 = { ip = ::a80:100/120; }
 =END=
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 service:test = {
  user = #network:trans,
         any:[ip=::a00:0/105 & network:n1],
@@ -1039,7 +1039,7 @@ Warning: This supernet rule would permit unexpected access:
 =TITLE=Multiple missing destination networks
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 router:u = {
  interface:n2;
  interface:n2x;
@@ -1121,7 +1121,7 @@ Warning: This supernet rule would permit unexpected access:
 =TITLE=Multiple destination aggregates
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 service:test = {
  user = network:trans,
         any:[ip=::a00:0/105 & network:n1],
@@ -1162,7 +1162,7 @@ ipv6 access-list VLAN77_in
 # Wenn n2, dann erfolgreiche Prüfung auf n1.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "no_in_acl;", mod: "IOS, FW"}]]
 service:test = {
  user = network:trans,
         any:[ip=::a00:0/105 & network:n1],
@@ -1172,7 +1172,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=SUBST=/VLAN1;/VLAN1; no_in_acl;/
 =OUTPUT=
 --ipv6/r2
 ipv6 access-list VLAN77_in
@@ -1206,13 +1205,12 @@ ipv6 access-list VLAN2_out
 # because filter is attached to pair of incoming and outgoing interface.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "", mod: "Linux"}]]
 service:test = {
  user = any:[ip=::a00:0/105 & network:n1],
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=SUBST=/IOS, FW/Linux/
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:Customer; dst=any:[ip=::a00:0/105 & network:n1]; prt=ip; of service:test
@@ -1228,14 +1226,13 @@ Warning: This supernet rule would permit unexpected access:
 # because filter is attached to pair of incoming and outgoing interface.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo {no: "", mod: "Linux"}]]
 service:test = {
  user = network:trans,
         any:[ip=::a00:0/105 & network:n1],
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=SUBST=/IOS, FW/Linux/
 =OUTPUT=
 --ipv6/r2
 :VLAN77_VLAN1 -
@@ -1665,11 +1662,11 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Missing aggregates for reverse rule
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  managed;
- model = IOS; #1
+ model = IOS{{.fw1}};
  routing = manual;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:trans = { ip = ::a07:701; hardware = trans; }
@@ -1679,7 +1676,7 @@ router:r1 = {
 network:trans = { ip = ::a07:700/120; }
 router:r2 = {
  managed;
- model = IOS; #2
+ model = IOS{{.fw2}};
  routing = manual;
  interface:trans = { ip = ::a07:702; hardware = trans; }
  interface:n3 = { ip = ::a01:301, ::a01:302; hardware = n3; }
@@ -1696,7 +1693,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {fw1: "", fw2: ""}]]
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=::a00:0/104 & network:n1]; dst=network:n4; prt=udp 123; of service:test
@@ -1717,8 +1714,7 @@ Warning: This reversed supernet rule would permit unexpected access:
 # router:r1 sees only reply packets filtered by stateful router:r2
 # Hence no warning is shown.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/; #2/, FW;/
+=INPUT=[[input {fw1: "", fw2: ", FW"}]]
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -1738,9 +1734,7 @@ ipv6 access-list trans_in
 ############################################################
 =TITLE=No effect of stateful router in forward direction
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/, FW//
-=SUBST=/; #1/, FW;/
+=INPUT=[[input {fw1: ", FW", fw2: ""}]]
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=::a00:0/104 & network:n1]; dst=network:n4; prt=udp 123; of service:test
@@ -2028,10 +2022,10 @@ Warning: This reversed supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Suppress warning about missing aggregate rule
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:sub = { ip = ::a01:180/121; subnet_of = network:n1;
-# host:h = { ip = ::a01:182; }
+{{.h}}
 }
 router:u = {
  interface:n1;
@@ -2059,14 +2053,13 @@ service:s = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {h: ""}]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/# host:h/ host:h/
+=INPUT=[[input {h: "host:h = { ip = ::a01:182; }"}]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:

@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Pass 2: 3 devices with up to 8 jobs
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 router:asa1 = {
  managed;
@@ -20,7 +20,7 @@ router:asa3 = {
 }
 =END=
 # Expect normal operation with concurrency enabled.
-=VAR=output
+=TEMPL=output
 -- asa1
 ! n1_in
 access-list n1_in extended deny ip any4 any4
@@ -34,16 +34,16 @@ access-group n1_in in interface n1
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${output}
+[[output]]
 =OPTIONS=--concurrency_pass2=8
 
 ############################################################
 =TITLE=Pass 2: 3 devices with up to 2 jobs
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${output}
+[[output]]
 =OPTIONS=--concurrency_pass2=2
 
 ############################################################
