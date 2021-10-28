@@ -379,6 +379,9 @@ func (s *state) applySubst(text string) (string, error) {
 		s.rest = s.rest[len(line):]
 		line = line[len("=SUBST="):]
 		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return "", fmt.Errorf("invalid empty substitution in %s", s.filename)
+		}
 		parts := strings.Split(line[1:], line[0:1])
 		if len(parts) != 3 || parts[2] != "" {
 			return "", errors.New("invalid substitution: =SUBST=" + line)
