@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"log"
 	"os"
 	"path"
@@ -342,11 +342,10 @@ func (s *state) doTemplSubst(text string) (string, error) {
 		prevIdx = p[1]
 		pair := text[p[0]+2 : p[1]-2] // without "[[" and "]]"
 		var name string
-		var data map[string]interface{}
+		var data interface{}
 		if i := strings.IndexAny(pair, " \t\n"); i != -1 {
 			name = pair[:i]
 			y := pair[i+1:]
-			data = make(map[string]interface{})
 			if err := yaml.Unmarshal([]byte(y), &data); err != nil {
 				log.Fatalf(
 					"Invalid YAML data in call to template [[%s]] of file %s: %v",
