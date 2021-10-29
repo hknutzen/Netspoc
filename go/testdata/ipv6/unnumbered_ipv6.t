@@ -129,7 +129,7 @@ router:s = {
 network:clients = { ip = ::a01:200/120; }
 pathrestriction:clients = interface:s.clients, interface:r.clients;
 service:test = {
- user = any:[network:{{.n}}];
+ user = any:[network:{{.}}];
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
@@ -142,7 +142,7 @@ ipv6 access-list eth2_in
  deny ipv6 any any
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {n: clients}]]
+=INPUT=[[input clients]]
 =OUTPUT=
 [[output]]
 =END=
@@ -150,7 +150,7 @@ ipv6 access-list eth2_in
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
 =PARAMS=--ipv6
-=INPUT=[[input {n: unn}]]
+=INPUT=[[input unn]]
 =OUTPUT=
 [[output]]
 =END=
@@ -173,13 +173,13 @@ network:L = {ip = ::a01:100/120;}
 pathrestriction:x = interface:Z.L, interface:L.L;
 service:Test = {
  user = interface:L.[all];
- permit src = any:[{{.u}}];
+ permit src = any:[{{.}}];
         dst = user;
         prt = icmpv6 8;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {u: user}]]
+=INPUT=[[input user]]
 =OUTPUT=
 --ipv6/L
 ipv6 access-list G2_in
@@ -194,7 +194,7 @@ ipv6 access-list G0_in
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (2)
 =PARAMS=--ipv6
-=INPUT=[[input {u: "ip=::a00:0/104 & user"}]]
+=INPUT=[[input "ip=::a00:0/104 & user"]]
 =OUTPUT=
 --ipv6/L
 ipv6 access-list G2_in
@@ -211,7 +211,7 @@ ipv6 access-list G0_in
 =TEMPL=input
 router:u1 = {
  model = IOS;
- interface:dummy{{.u}}
+ interface:dummy{{.}}
 }
 network:dummy = { unnumbered; }
 router:u2 = {
@@ -234,7 +234,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {u: ";"}]]
+=INPUT=[[input ";"]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
  must not be used in rule of service:s1
@@ -244,7 +244,7 @@ Error: interface:u1.dummy without IP address (from .[auto])
 =TITLE=Auto interface expands to unnumbered interface
 # and this unnumbered interface is silently ignored.
 =PARAMS=--ipv6
-=INPUT=[[input {u: " = { unnumbered; }"}]]
+=INPUT=[[input " = { unnumbered; }"]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in

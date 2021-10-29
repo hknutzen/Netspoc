@@ -277,7 +277,12 @@ service:s = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {p1: "partition = part1;", p3: "partition = part3;", p4: "partition = part4;", d: "n2"}]]
+=INPUT=
+[[input
+p1: "partition = part1;"
+p3: "partition = part3;"
+p4: "partition = part4;"
+d: "n2"]]
 =ERROR=
 Error: Several partition names in partition any:[network:n3]:
  - part2

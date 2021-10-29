@@ -197,7 +197,7 @@ network:dst = {
  ip = 10.9.9.0/24;
  host:server = { ip = 10.9.9.9; }
 }
-{{.r}} = {
+{{.}} = {
  interface:dst;
  interface:sub = { ip = 10.9.9.33; }
 }
@@ -209,7 +209,7 @@ service:test = {
         prt = tcp 80;
 }
 =END=
-=INPUT=[[input {r: router:u}]]
+=INPUT=[[input router:u]]
 =TEMPL=output
 --r1
 ip access-list extended Ethernet1_in
@@ -223,7 +223,7 @@ ip access-list extended Ethernet1_in
 =TITLE=No optimization if subnet of subnet is outside of zone (2)
 # Must recognize that dst has other subnet, even if subsub is
 # processed later.
-=INPUT=[[input {r: router:r0}]]
+=INPUT=[[input router:r0]]
 =OUTPUT=
 [[output]]
 =END=

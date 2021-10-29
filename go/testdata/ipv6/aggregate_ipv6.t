@@ -2025,7 +2025,7 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:sub = { ip = ::a01:180/121; subnet_of = network:n1;
-{{.h}}
+{{.}}
 }
 router:u = {
  interface:n1;
@@ -2053,13 +2053,13 @@ service:s = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {h: ""}]]
+=INPUT=[[input ""]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
 =PARAMS=--ipv6
-=INPUT=[[input {h: "host:h = { ip = ::a01:182; }"}]]
+=INPUT=[[input "host:h = { ip = ::a01:182; }"]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:

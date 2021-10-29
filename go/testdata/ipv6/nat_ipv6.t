@@ -766,7 +766,7 @@ network:Test =  {
  host:h5 = { ip = ::a09:105; nat:C = { ip = ::109:237; } }
 }
 router:C = {
- {{.m}}
+ {{.}}
  model = ASA;
  interface:Test = { ip = ::a09:101; hardware = inside;}
  interface:Trans = { ip = ::a00:1; hardware = outside; bind_nat = C;}
@@ -789,7 +789,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {m: managed; }]]
+=INPUT=[[input managed;]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:C to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -798,7 +798,7 @@ Error: host:h3 needs static translation for nat:C at router:C to be valid in rul
 ############################################################
 =TITLE=Check rule with host and dynamic NAT (unmanaged)
 =PARAMS=--ipv6
-=INPUT=[[input {m: ""}]]
+=INPUT=[[input ""]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -1237,7 +1237,7 @@ router:r1 = {
 }
 router:r2 = {
  model = IOS, FW;
- managed{{.f}};
+ managed{{.}};
  routing = manual;
  interface:n2 = { ip = ::a01:202;  hardware = n2; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
@@ -1260,7 +1260,7 @@ service:n1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {f: ""}]]
+=INPUT=[[input ""]]
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1272,7 +1272,7 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Optimize secondary with full filter
 =PARAMS=--ipv6
-=INPUT=[[input {f: "= full"}]]
+=INPUT=[[input "= full"]]
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1367,7 +1367,11 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {d1: "nat:d = { ip = ::a63:6308/126; dynamic; }", n2: "ip = ::a4d:4d00/126; dynamic;"}]]
+=INPUT=
+[[input
+d1: "nat:d = { ip = ::a63:6308/126; dynamic; }"
+n2: "ip = ::a4d:4d00/126; dynamic;"
+]]
 =OUTPUT=
 --ipv6/r1
 ! b1_in
@@ -1980,7 +1984,7 @@ network:n1 = {
  nat:t1 = { ip = ::a09:100/120; }
  nat:t2 = { ip = ::a09:800/120; }
 }
-network:n2 = { ip = ::a01:200/120; {{.n}} = { ip = ::a09:900/120; }}
+network:n2 = { ip = ::a01:200/120; {{.}} = { ip = ::a09:900/120; }}
 router:r1 =  {
  managed;
  model = ASA;
@@ -1998,7 +2002,7 @@ router:r2 =  {
 network:k = { ip = ::a02:200/120; }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {n: nat:t1}]]
+=INPUT=[[input nat:t1]]
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
  Reason: Both NAT tags are used grouped at network:n1
@@ -2010,7 +2014,7 @@ Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
 # In this case, using ungrouped NAT tag at network:n2 isn't
 # ambiguous, because t2 isn't changed again.
 =PARAMS=--ipv6
-=INPUT=[[input {n: nat:t2}]]
+=INPUT=[[input nat:t2]]
 =WARNING=NONE
 
 ############################################################
@@ -3543,7 +3547,7 @@ router:r1 = {
   hardware = Looback0;
   loopback;
   nat:N = { identity; }
-  nat:N2 = { ip = {{.ip}}; }
+  nat:N2 = { ip = {{.}}; }
  }
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = N, N2; }
 }
@@ -3554,7 +3558,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {ip: "::a01:6363"}]]
+=INPUT=[[input "::a01:6363"]]
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n2_in
@@ -3566,7 +3570,7 @@ ipv6 access-list n2_in
 =TITLE=NAT at loopback network (2)
 # NAT to original address.
 =PARAMS=--ipv6
-=INPUT=[[input {ip: "::a01:901"}]]
+=INPUT=[[input "::a01:901"]]
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n2_in

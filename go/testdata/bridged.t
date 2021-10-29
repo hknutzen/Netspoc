@@ -625,7 +625,7 @@ router:zbridge2 = {
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 router:r2 = {
- interface:n1/right = { {{.addr}}; hardware = n1; }
+ interface:n1/right = { {{.}}; hardware = n1; }
  interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -634,7 +634,7 @@ service:s = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =INPUT=
-[[input {addr: ip = 10.1.1.5}]]
+[[input "ip = 10.1.1.5"]]
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -644,7 +644,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 ############################################################
 =TITLE=Missing hop behind chained bridges
 =INPUT=
-[[input {addr: negotiated}]]
+[[input negotiated]]
 =ERROR=
 Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
  - interface:r2.n1/right

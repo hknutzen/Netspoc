@@ -122,7 +122,7 @@ router:s = {
 network:clients = { ip = 10.1.2.0/24; }
 pathrestriction:clients = interface:s.clients, interface:r.clients;
 service:test = {
- user = any:[network:{{.n}}];
+ user = any:[network:{{.}}];
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
@@ -134,14 +134,14 @@ ip access-list extended eth2_in
  permit tcp any 10.1.7.32 0.0.0.31 eq 80
  deny ip any any
 =END=
-=INPUT=[[input {n: clients}]]
+=INPUT=[[input clients]]
 =OUTPUT=
 [[output]]
 =END=
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
-=INPUT=[[input {n: unn}]]
+=INPUT=[[input unn]]
 =OUTPUT=
 [[output]]
 =END=
@@ -164,12 +164,12 @@ network:L = {ip = 10.1.1.0/24;}
 pathrestriction:x = interface:Z.L, interface:L.L;
 service:Test = {
  user = interface:L.[all];
- permit src = any:[{{.u}}];
+ permit src = any:[{{.}}];
         dst = user;
         prt = icmp 8;
 }
 =END=
-=INPUT=[[input {u: user}]]
+=INPUT=[[input user]]
 =OUTPUT=
 --L
 ip access-list extended G2_in
@@ -183,7 +183,7 @@ ip access-list extended G0_in
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (2)
-=INPUT=[[input {u: "ip=10.0.0.0/8 & user"}]]
+=INPUT=[[input "ip=10.0.0.0/8 & user"]]
 =OUTPUT=
 --L
 ip access-list extended G2_in
@@ -200,7 +200,7 @@ ip access-list extended G0_in
 =TEMPL=input
 router:u1 = {
  model = IOS;
- interface:dummy{{.u}}
+ interface:dummy{{.}}
 }
 network:dummy = { unnumbered; }
 router:u2 = {
@@ -222,7 +222,7 @@ service:s1 = {
 	prt = tcp 22;
 }
 =END=
-=INPUT=[[input {u: ";"}]]
+=INPUT=[[input ";"]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
  must not be used in rule of service:s1
@@ -231,7 +231,7 @@ Error: interface:u1.dummy without IP address (from .[auto])
 ############################################################
 =TITLE=Auto interface expands to unnumbered interface
 # and this unnumbered interface is silently ignored.
-=INPUT=[[input {u: " = { unnumbered; }"}]]
+=INPUT=[[input " = { unnumbered; }"]]
 =OUTPUT=
 --r1
 ! n1_in

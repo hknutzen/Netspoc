@@ -634,14 +634,14 @@ router:u2 = {
  interface:n3;
 }
 router:r1 = {
- {{.m}}
+ {{.}}
  model = ASA;
  routing = manual;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n4 = { ip = ::a01:401; hardware = n4; }
 }
 router:r2 = {
- {{.m}}
+ {{.}}
  model = ASA;
  routing = manual;
  interface:n3 = { ip = ::a01:301; hardware = n3; }
@@ -650,13 +650,13 @@ router:r2 = {
 pathrestriction:r = interface:u1.n2, interface:u2.n2;
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {m: managed;}]]
+=INPUT=[[input managed;]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Useless pathrestriction at unmanged router
 =PARAMS=--ipv6
-=INPUT=[[input {m: ""}]]
+=INPUT=[[input ""]]
 =WARNING=
 Warning: Useless pathrestriction:r.
  All interfaces are unmanaged and located inside the same security zone

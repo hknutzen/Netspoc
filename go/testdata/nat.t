@@ -737,7 +737,7 @@ network:Test =  {
  host:h5 = { ip = 10.9.1.5; nat:C = { ip = 1.9.2.55; } }
 }
 router:C = {
- {{.m}}
+ {{.}}
  model = ASA;
  interface:Test = { ip = 10.9.1.1; hardware = inside;}
  interface:Trans = { ip = 10.0.0.1; hardware = outside; bind_nat = C;}
@@ -759,7 +759,7 @@ service:s1 = {
  permit src = host:h4; dst = user;             prt = tcp 80;
 }
 =END=
-=INPUT=[[input {m: managed; }]]
+=INPUT=[[input managed;]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:C to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -767,7 +767,7 @@ Error: host:h3 needs static translation for nat:C at router:C to be valid in rul
 
 ############################################################
 =TITLE=Check rule with host and dynamic NAT (unmanaged)
-=INPUT=[[input {m: ""}]]
+=INPUT=[[input ""]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -1198,7 +1198,7 @@ router:r1 = {
 }
 router:r2 = {
  model = IOS, FW;
- managed{{.f}};
+ managed{{.}};
  routing = manual;
  interface:n2 = { ip = 10.1.2.2;  hardware = n2; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
@@ -1220,7 +1220,7 @@ service:n1 = {
  permit src = user; dst = network:n4; prt = tcp 80;
 }
 =END=
-=INPUT=[[input {f: ""}]]
+=INPUT=[[input ""]]
 =OUTPUT=
 -- r1
 ! n1_in
@@ -1231,7 +1231,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=Optimize secondary with full filter
-=INPUT=[[input {f: "= full"}]]
+=INPUT=[[input "= full"]]
 =OUTPUT=
 -- r1
 ! n1_in
@@ -1924,7 +1924,7 @@ network:n1 = {
  nat:t1 = { ip = 10.9.1.0/24; }
  nat:t2 = { ip = 10.9.8.0/24; }
 }
-network:n2 = { ip = 10.1.2.0/24; {{.n}} = { ip = 10.9.9.0/24; }}
+network:n2 = { ip = 10.1.2.0/24; {{.}} = { ip = 10.9.9.0/24; }}
 router:r1 =  {
  managed;
  model = ASA;
@@ -1941,7 +1941,7 @@ router:r2 =  {
 }
 network:k = { ip = 10.2.2.0/24; }
 =END=
-=INPUT=[[input {n: nat:t1}]]
+=INPUT=[[input nat:t1]]
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
  Reason: Both NAT tags are used grouped at network:n1
@@ -1952,7 +1952,7 @@ Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
 =TITLE=Mixed grouped and single NAT tag ok
 # In this case, using ungrouped NAT tag at network:n2 isn't
 # ambiguous, because t2 isn't changed again.
-=INPUT=[[input {n: nat:t2}]]
+=INPUT=[[input nat:t2]]
 =WARNING=NONE
 
 ############################################################
@@ -3445,7 +3445,7 @@ router:r1 = {
   hardware = Looback0;
   loopback;
   nat:N = { identity; }
-  nat:N2 = { ip = {{.ip}}; }
+  nat:N2 = { ip = {{.}}; }
  }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = N, N2; }
 }
@@ -3455,7 +3455,7 @@ service:s1 = {
     permit src = network:n2; dst = user; prt = tcp 80;
 }
 =END=
-=INPUT=[[input {ip: "10.1.99.99"}]]
+=INPUT=[[input "10.1.99.99"]]
 =OUTPUT=
 -- r1
 ip access-list extended n2_in
@@ -3466,7 +3466,7 @@ ip access-list extended n2_in
 ############################################################
 =TITLE=NAT at loopback network (2)
 # NAT to original address.
-=INPUT=[[input {ip: "10.1.9.1"}]]
+=INPUT=[[input "10.1.9.1"]]
 =OUTPUT=
 -- r1
 ip access-list extended n2_in

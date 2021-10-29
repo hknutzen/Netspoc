@@ -6,7 +6,7 @@ protocol:unreachable = icmp 3;
 network:m = { ip = 10.2.2.0/24; }
 router:r = {
  managed;
- model = {{.model}};
+ model = {{.}};
  general_permit = tcp, icmp 0, protocol:unreachable, udp;
  interface:m = { ip = 10.2.2.2; hardware = e0; }
  interface:n = { ip = 10.1.1.2, 10.1.1.3; hardware = e1; }
@@ -18,7 +18,7 @@ service:test = {
  permit src = user; dst = network:n; prt = icmp;
 }
 =END=
-=INPUT=[[input {model: NX-OS}]]
+=INPUT=[[input NX-OS]]
 =OUTPUT=
 --r
 ip access-list e0_in
@@ -41,7 +41,7 @@ ip access-list e1_in
 
 ############################################################
 =TITLE=General permit (Linux)
-=INPUT=[[input {model: Linux}]]
+=INPUT=[[input Linux]]
 =OUTPUT=
 --r
 # [ ACL ]

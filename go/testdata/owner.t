@@ -67,7 +67,7 @@ router:asa = {
  interface:VLAN_40_41/41 = { hardware = inside; }
  interface:VLAN_40_41 = { ip = 10.2.1.99; hardware = device; }
 }
-network:VLAN_40_41/41 = { ip = 10.2.1.96/28; {{.o}}}
+network:VLAN_40_41/41 = { ip = 10.2.1.96/28; {{.}}}
 service:test = {
  user = network:VLAN_40_41/40;
  permit src = user;
@@ -75,12 +75,12 @@ service:test = {
         prt = ip;
 }
 =END=
-=INPUT=[[input {o: ""}]]
+=INPUT=[[input ""]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Redundant owner at bridged network
-=INPUT=[[input {o: "owner = xx;"}]]
+=INPUT=[[input "owner = xx;"]]
 =WARNING=
 Warning: Useless owner:xx at network:VLAN_40_41/41,
  it was already inherited from area:all

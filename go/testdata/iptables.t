@@ -198,7 +198,7 @@ service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user;
 	dst = network:Hosting;
-	prt = {{.proto}};
+	prt = {{.}};
 }
 service:p10-60 = {
  user = network:Trans, network:StPeter, network:Hoernum;
@@ -207,7 +207,7 @@ service:p10-60 = {
         prt = tcp 10-49, tcp 50-60;
 }
 =END=
-=INPUT=[[input {proto: "tcp 30-37, tcp 51-53"}]]
+=INPUT=[[input "tcp 30-37, tcp 51-53"]]
 =OUTPUT=
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29
@@ -230,7 +230,7 @@ service:p10-60 = {
 # Ranges 10-49 and 50-60 can't be merged,
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
-=INPUT=[[input {proto: "tcp 30-37, tcp 40-47, tcp 51-53"}]]
+=INPUT=[[input "tcp 30-37, tcp 40-47, tcp 51-53"]]
 =OUTPUT=
 --nak
 -A c1 -j ACCEPT -s 10.3.3.128/29

@@ -267,13 +267,13 @@ router:r = {
 }
 network:y = { ip = ::a02:200/120; }
 service:test = {
- {{.u}}
+ {{.}}
  user = network:y;
  permit src = user; dst = network:x; prt = tcp 80;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {u: ""}]]
+=INPUT=[[input ""]]
 =WARNING=
 Warning: service:test is fully unenforceable
 =END=
@@ -281,7 +281,7 @@ Warning: service:test is fully unenforceable
 ############################################################
 =TITLE=Useless attribute "has_unenforceable" at service
 =PARAMS=--ipv6
-=INPUT=[[input {u: has_unenforceable;}]]
+=INPUT=[[input has_unenforceable;]]
 =WARNING=
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable

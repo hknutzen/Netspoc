@@ -2,14 +2,14 @@
 network:n1 = { ip = ::a01:100/123; }
 router:r1 = {
  model = ASA;
- managed = _1;
+ managed = {{.a}};
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:cr = { ip = ::a03:301; hardware = cr; }
 }
 network:cr = { ip = ::a03:300/125; crosslink; }
 router:r2 = {
  model = NX-OS;
- managed = _2;
+ managed = {{.b}};
  interface:cr = { ip = ::a03:302; hardware = cr; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
 }
@@ -19,9 +19,7 @@ network:n2 = { ip = ::a02:200/123; }
 ############################################################
 =TITLE=Crosslink primary and full
 =PARAMS=--ipv6
-=INPUT=[[topo]]
-=SUBST=/_1/primary/
-=SUBST=/_2/full/
+=INPUT=[[topo {a: primary, b: full}]]
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended permit ip any6 any6
@@ -37,9 +35,7 @@ interface n2
 ############################################################
 =TITLE=Crosslink standard and secondary
 =PARAMS=--ipv6
-=INPUT=[[topo]]
-=SUBST=/_1/standard/
-=SUBST=/_2/secondary/
+=INPUT=[[topo {a: standard, b: secondary}]]
 =OUTPUT=
 -ipv6/r1
 access-list cr_in extended deny ip any6 any6
@@ -55,9 +51,7 @@ interface n2
 ############################################################
 =TITLE=Crosslink secondary and local
 =PARAMS=--ipv6
-=INPUT=[[topo]]
-=SUBST=/_1/secondary/
-=SUBST=|_2;|local; filter_only =  ::a02:0/111;|
+=INPUT=[[topo {a: secondary, b: "local; filter_only =  ::a02:0/111"}]]
 =ERROR=
 Error: Must not use 'managed=local' and 'managed=secondary' together
  at crosslink network:cr

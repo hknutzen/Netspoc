@@ -199,7 +199,7 @@ network:dst = {
  ip = ::a09:900/120;
  host:server = { ip = ::a09:909; }
 }
-{{.r}} = {
+{{.}} = {
  interface:dst;
  interface:sub = { ip = ::a09:921; }
 }
@@ -212,7 +212,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {r: router:u}]]
+=INPUT=[[input router:u]]
 =TEMPL=output
 --ipv6/r1
 ipv6 access-list Ethernet1_in
@@ -227,7 +227,7 @@ ipv6 access-list Ethernet1_in
 # Must recognize that dst has other subnet, even if subsub is
 # processed later.
 =PARAMS=--ipv6
-=INPUT=[[input {r: router:r0}]]
+=INPUT=[[input router:r0]]
 =OUTPUT=
 [[output]]
 =END=

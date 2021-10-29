@@ -333,13 +333,13 @@ router:r2 = {
  model = IOS, FW;
  interface:a = {ip = ::a01:102; virtual = {ip = ::a01:109;} hardware = E4;}
  interface:b1 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E5;}
- interface:t = { ip = ::a00:1; hardware = t1; {{.d}} }
+ interface:t = { ip = ::a00:1; hardware = t1; {{.}} }
 }
 network:t = { ip = ::a00:0/126; }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = ::a00:2; hardware = t1; {{.d}} }
+ interface:t = { ip = ::a00:2; hardware = t1; {{.}} }
  interface:a = {ip = ::a01:103; virtual = {ip = ::a01:109;} hardware = E6;}
  interface:b2 = {ip = ::a03:303; virtual = {ip = ::a03:309;} hardware = E7;}
 }
@@ -354,7 +354,7 @@ network:b2 = { ip = ::a03:300/120; }
 =END=
 =PARAMS=--ipv6
 =INPUT=
-[[topo {d: ""}]]
+[[topo ""]]
 router:g = {
  managed;
  model = ASA;
@@ -397,7 +397,7 @@ Error: Pathrestriction ambiguously affects generation of static routes
 ############################################################
 =TITLE=Non matching virtual interface groups
 =PARAMS=--ipv6
-=INPUT=[[topo {d: disabled;}]]
+=INPUT=[[topo disabled;]]
 =ERROR=
 Error: Virtual interfaces
  - interface:r1.a.virtual
@@ -412,7 +412,7 @@ Error: Virtual interfaces
 Conceal non matching virtual interface groups with interconnect if no routing required
 =PARAMS=--ipv6
 =INPUT=
-[[topo {d: ""}]]
+[[topo ""]]
 
 service:test1 = {
  user = network:a;
@@ -663,7 +663,7 @@ router:r4 = {
 }
 pathrestriction:p =
  interface:r2.c,
- {{.i}}
+ {{.}}
  interface:r4.c
 ;
 service:test = {
@@ -674,7 +674,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {i: "interface:r3.c,"}]]
+=INPUT=[[input "interface:r3.c,"]]
 =OUTPUT=
 --ipv6/r1
 ipv6 route ::a04:400/120 ::a02:202
@@ -685,7 +685,7 @@ ipv6 route ::a04:400/120 ::a02:202
 3 virtual interfaces, dst network directly connected to 1 only -
 invalid extra pathrestriction
 =PARAMS=--ipv6
-=INPUT=[[input {i: ""}]]
+=INPUT=[[input ""]]
 =ERROR=
 Error: Pathrestriction ambiguously affects generation of static routes
        to interfaces with virtual IP ::a02:209:

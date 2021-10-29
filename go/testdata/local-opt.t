@@ -26,11 +26,11 @@ any:ANY_G27 = {ip = 0.0.0.0/0; link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip = {{.ip}} & network:N2];
+	dst = any:ANY_G27, any:[ip = {{.}} & network:N2];
 	prt = tcp 80;
 }
 =END=
-=INPUT=[[input {ip: "0.0.0.0/0"}]]
+=INPUT=[[input "0.0.0.0/0"]]
 =OUTPUT=
 --R1
 ip access-list extended N1_in
@@ -42,7 +42,7 @@ ip access-list extended N1_in
 
 ############################################################
 =TITLE=Aggregates in subnet relation
-=INPUT=[[input {ip: "10.0.0.0/8"}]]
+=INPUT=[[input "10.0.0.0/8"]]
 # Unchanged ouput
 =OUTPUT=
 --R1
@@ -199,12 +199,12 @@ service:test1 = {
  user = host:a;
  permit src = network:Customer1; dst = user; prt = tcp 80;
 }
-service:{{.name}} = {
+service:{{.}} = {
  user = network:A;
  permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
 =END=
-=INPUT=[[input {name: test2}]]
+=INPUT=[[input test2]]
 =OUTPUT=
 --r1
 ip access-list extended VLAN1_out
@@ -214,7 +214,7 @@ ip access-list extended VLAN1_out
 
 ############################################################
 =TITLE=Redundant host, changed order of rules
-=INPUT=[[input {name: test0}]]
+=INPUT=[[input test0]]
 # Unchanged output
 =OUTPUT=
 --r1

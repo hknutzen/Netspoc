@@ -441,7 +441,7 @@ router:r1 = {
 -- ipv4/topo/ipv6
 network:n3 = {
  ip = 1000::abcd:0003:0/112;
- {{.p}}
+ {{.}}
 }
 network:n4 = { ip = 1000::abcd:0004:0/112; }
 -- ipv6/router
@@ -452,14 +452,14 @@ router:r1 = {
  interface:n4 = {ip = 1000::abcd:0004:0001; hardware = n2;}
 }
 =END=
-=INPUT=[[input {p: partition = part1;}]]
+=INPUT=[[input "partition = part1;"]]
 =WARNING=
 Warning: Spare partition name for single partition any:[network:n3]: part1.
 =END=
 
 ############################################################
 =TITLE=No partition names for unconnected IPv6 and IPv4 partitions (2)
-=INPUT=[[input {p: ""}]]
+=INPUT=[[input ""]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in

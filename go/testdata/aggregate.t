@@ -1969,7 +1969,7 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1;
-{{.h}}
+{{.}}
 }
 router:u = {
  interface:n1;
@@ -1996,12 +1996,12 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 80;
 }
 =END=
-=INPUT=[[input {h: ""}]]
+=INPUT=[[input ""]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
-=INPUT=[[input {h: "host:h = { ip = 10.1.1.130; }"}]]
+=INPUT=[[input "host:h = { ip = 10.1.1.130; }"]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:

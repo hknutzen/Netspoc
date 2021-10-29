@@ -26,12 +26,12 @@ any:ANY_G27 = {ip = ::/0; link = network:T1;}
 service:Test = {
  user = network:N1;
  permit src = user;
-	dst = any:ANY_G27, any:[ip = {{.ip}} & network:N2];
+	dst = any:ANY_G27, any:[ip = {{.}} & network:N2];
 	prt = tcp 80;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {ip: "::/0"}]]
+=INPUT=[[input "::/0"]]
 =OUTPUT=
 --ipv6/R1
 ipv6 access-list N1_in
@@ -44,7 +44,7 @@ ipv6 access-list N1_in
 ############################################################
 =TITLE=Aggregates in subnet relation
 =PARAMS=--ipv6
-=INPUT=[[input {ip: "::a00:0/104"}]]
+=INPUT=[[input "::a00:0/104"]]
 # Unchanged ouput
 =OUTPUT=
 --ipv6/R1
@@ -204,13 +204,13 @@ service:test1 = {
  user = host:a;
  permit src = network:Customer1; dst = user; prt = tcp 80;
 }
-service:{{.name}} = {
+service:{{.}} = {
  user = network:A;
  permit src = network:Customer2; dst = user; prt = tcp 80-90;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=[[input {name: test2}]]
+=INPUT=[[input test2]]
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list VLAN1_out
@@ -221,7 +221,7 @@ ipv6 access-list VLAN1_out
 ############################################################
 =TITLE=Redundant host, changed order of rules
 =PARAMS=--ipv6
-=INPUT=[[input {name: test0}]]
+=INPUT=[[input test0]]
 # Unchanged output
 =OUTPUT=
 --ipv6/r1
