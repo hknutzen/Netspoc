@@ -108,9 +108,6 @@ func printPanOSRules(
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
 	}
 	printAddresses := func() {
-		if len(ip2addr) == 0 {
-			return
-		}
 		l := make([]*ipNet, 0, len(ip2addr))
 		for n := range ip2addr {
 			l = append(l, n)
@@ -129,9 +126,6 @@ func printPanOSRules(
 		fmt.Fprintln(fd, "</address>")
 	}
 	printAddressGroups := func() {
-		if len(addrGroupMap) == 0 {
-			return
-		}
 		l := make([]*objGroup, 0, len(addrGroupMap))
 		for g := range addrGroupMap {
 			l = append(l, g)
@@ -150,9 +144,6 @@ func printPanOSRules(
 		fmt.Fprintln(fd, "</address-group>")
 	}
 	printServices := func() {
-		if len(protoMap) == 0 {
-			return
-		}
 		l := make([]*proto, 0, len(protoMap))
 		for _, p := range protoMap {
 			l = append(l, p)
