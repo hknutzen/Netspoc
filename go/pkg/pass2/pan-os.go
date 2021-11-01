@@ -194,7 +194,7 @@ func printPanOSRules(
 func printCombinedPanOS(fd *os.File, config []string, routerData *routerData) {
 
 	// Build mapping from object-group name to object-group + use count.
-	// Used to replace group by its elements.
+	// Used to replace group by its elements if only used once.
 	name2groupUse := make(map[string]*groupUse)
 	countGroup := func(n *ipNet) {
 		if n.IPPrefix.IsZero() {
