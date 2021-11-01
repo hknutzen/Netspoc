@@ -1,5 +1,270 @@
 
 ############################################################
+=TITLE=Virtual interface with negotiated IP
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ interface:n1 = {
+  negotiated;
+  virtual = { ip = ::a01:101; }
+ }
+}
+=END=
+=ERROR=
+Error: No virtual IP supported for negotiated interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Unknown redundancy protocol
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ interface:n1 = {
+  ip = ::a01:102;
+  virtual = { ip = ::a01:101; type = XYZ; id = ff; }
+ }
+}
+=END=
+=ERROR=
+Error: Unknown redundancy protocol in 'virtual' of interface:r1.n1
+Error: Redundancy ID must be numeric in 'virtual' of interface:r1.n1
+Error: Redundancy ID is given without redundancy protocol in 'virtual' of interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Too large redundancy ID
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ interface:n1 = {
+  ip = ::a01:102;
+  virtual = { ip = ::a01:101; type = HSRP; id = 1000; }
+ }
+}
+=END=
+=ERROR=
+Error: Redundancy ID must be < 256 in 'virtual' of interface:r1.n1
+=END=
+
+############################################################
+=TITLE=Virtual interface with NAT
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:n = { ip = ::a09:900/121; dynamic; }}
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = ::a01:101;
+  nat:n = { ip = ::a09:901; }
+  virtual = { ip = ::a01:10b; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n; }
+}
+router:r2 = {
+ managed;
+ model = Linux;
+ interface:n1 = {
+  ip = ::a01:102;
+  nat:n = { ip = ::a09:902; }
+  virtual = { ip = ::a01:10b; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:202; hardware = n2; bind_nat = n; }
+}
+=END=
+=ERROR=
+Error: interface:r1.n1 with virtual interface must not use attribute 'nat'
+Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
+=END=
+
+############################################################
+=TITLE=Virtual interface in non cyclic sub-graph
+=PARAMS=--ipv6
+=INPUT=
+# Virtual interface outside of loop, but at border of other loop.
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
+}
+network:n1 = { ip = ::a01:100/120; }
+# Add loop. This isn't needed to get the error messages.
+# But the virtual interfaces are located at border of this loop.
+# With this test we also check, that automatically created
+# pathrestrictions at virtual interfaces are removed correctly in this
+# situation.
+network:n2 = { ip = ::a01:200/120; }
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:104; hardware = n1; }
+ interface:n2 = { ip = ::a01:204; hardware = n2; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:105; hardware = n1; }
+ interface:n2 = { ip = ::a01:205; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.[auto], interface:r2.[auto];
+ permit src = user; dst = network:n2; prt = udp 123;
+}
+=END=
+=ERROR=
+Error: interface:r1.n1.virtual must be located inside cyclic sub-graph
+Error: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=END=
+
+############################################################
+=TITLE=Virtual interfaces prevent valid path
+# Implicit pathrestriction would permit path,
+# but virtual interfaces let path be pruned later.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:202; virtual = { ip = ::a01:201; } hardware = n2; }
+}
+
+router:r2 = {
+ interface:n2 = { ip = ::a01:203; virtual = { ip = ::a01:201; } }
+ interface:n3;
+}
+
+router:r3 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+}
+
+pathrestriction:r3 =
+ interface:r3.n1,
+ interface:r3.n3,
+;
+
+service:s1 = {
+ user = network:n3;
+ permit src = user; dst = interface:r1.n2; prt = tcp 22;
+}
+=END=
+=ERROR=
+Error: No valid path
+ from any:[network:n3]
+ to interface:r1.n2.virtual
+ for rule permit src=network:n3; dst=interface:r1.n2; prt=tcp 22; of service:s1
+ Check path restrictions and crypto interfaces.
+=END=
+
+############################################################
+=TITLE=Different protocol / id at related virtual interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:102;
+  virtual = { ip = ::a01:101; type = HSRP; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:103;
+  virtual = { ip = ::a01:101; type = VRRP; id = 123; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+=END=
+=ERROR=
+Error: Must use identical redundancy protocol at
+ - interface:r1.n1.virtual
+ - interface:r2.n1.virtual
+Error: Must use identical ID at
+ - interface:r1.n1.virtual
+ - interface:r2.n1.virtual
+=END=
+
+############################################################
+=TITLE=Identical id at unrelated virtual interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:101;
+  virtual = { ip = ::a01:10b; type = HSRP; id = 11;}
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:102;
+  virtual = { ip = ::a01:10b; type = HSRP; id = 11; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:103;
+  virtual = { ip = ::a01:11f; type = HSRP; id = 11; }
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:203; hardware = n2; }
+}
+router:r4 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = ::a01:104;
+  virtual = { ip = ::a01:129; type = VRRP; id = 11; } # no conflict with HSRP
+  hardware = n1;
+ }
+ interface:n2 = { ip = ::a01:204; hardware = n2; }
+}
+=END=
+=ERROR=
+Error: Must use different ID at unrelated
+ - interface:r1.n1.virtual
+ - interface:r3.n1.virtual
+=END=
+
+############################################################
 =TITLE=Routers connecting networks with virtual interfaces
 =TEMPL=input
 network:n1 = { ip = ::a01:100/120;}
