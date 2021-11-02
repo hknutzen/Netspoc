@@ -7,15 +7,35 @@ import (
 	"strings"
 )
 
-// Count how often an object group is referenced.
-type groupUse struct {
-	g     *objGroup
-	count int
-}
+func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 
-func printPanOSRules(
-	fd *os.File, vsys string, l []*aclInfo, n2gU map[string]*groupUse) {
+	// Remove redundant rules and find object-groups.
+	prepareACLs(rData)
 
+	// Build mapping from object-group name to object-group + use count.
+	// Used to replace group by its elements if only used once.
+	type groupUse struct {
+		g     *objGroup
+		count int
+	}
+	n2gU := make(map[string]*groupUse)
+	countGroup := func(n *ipNet) {
+		if n.IPPrefix.IsZero() {
+			gU := n2gU[n.name]
+			gU.count++
+		}
+	}
+	for _, acl := range rData.acls {
+		for _, g := range acl.objectGroups {
+			n2gU[g.name] = &groupUse{g: g}
+		}
+		for _, rule := range acl.rules {
+			countGroup(rule.src)
+			countGroup(rule.dst)
+		}
+	}
+
+	// Print XML.
 	getAction := func(ru *ciscoRule) string {
 		if ru.deny {
 			return "drop"
@@ -28,7 +48,6 @@ func printPanOSRules(
 	}
 	ip2addr := make(map[*ipNet]string)
 	addrSeen := make(map[string]bool)
-	addrGroupMap := make(map[*objGroup]bool)
 	var getAddress func(n *ipNet) string
 	getAddress = func(n *ipNet) string {
 		// Object group.
@@ -36,7 +55,6 @@ func printPanOSRules(
 			gU := n2gU[n.name]
 			g := gU.g
 			if gU.count > 1 {
-				addrGroupMap[g] = true
 				return member(n.name)
 			}
 			result := "\n"
@@ -74,7 +92,7 @@ func printPanOSRules(
 		protoMap[name] = prt
 		return member(name)
 	}
-	printRules := func() {
+	printRules := func(l []*aclInfo) {
 		fmt.Fprintln(fd, "<rulebase><security><rules>")
 		count := 1
 		for _, acl := range l {
@@ -126,20 +144,17 @@ func printPanOSRules(
 		fmt.Fprintln(fd, "</address>")
 	}
 	printAddressGroups := func() {
-		l := make([]*objGroup, 0, len(addrGroupMap))
-		for g := range addrGroupMap {
-			l = append(l, g)
-		}
-		sort.Slice(l, func(i, j int) bool {
-			return l[i].name < l[j].name
-		})
 		fmt.Fprintln(fd, "<address-group>")
-		for _, g := range l {
-			fmt.Fprintln(fd, `<entry name="`+g.name+`"><static>`)
-			for _, n := range g.elements {
-				fmt.Fprintln(fd, getAddress(n))
+		for _, acl := range rData.acls {
+			for _, g := range acl.objectGroups {
+				if n2gU[g.name].count > 1 {
+					fmt.Fprintln(fd, `<entry name="`+g.name+`"><static>`)
+					for _, n := range g.elements {
+						fmt.Fprintln(fd, getAddress(n))
+					}
+					fmt.Fprintln(fd, "</static></entry>")
+				}
 			}
-			fmt.Fprintln(fd, "</static></entry>")
 		}
 		fmt.Fprintln(fd, "</address-group>")
 	}
@@ -181,9 +196,10 @@ func printPanOSRules(
 		}
 		fmt.Fprintln(fd, "</service>")
 	}
+
 	fmt.Fprintln(fd)
 	fmt.Fprintf(fd, "<entry name=\"%s\">\n", vsys)
-	printRules()
+	printRules(rData.acls)
 	printAddressGroups()
 	printAddresses()
 	printServices()
@@ -191,29 +207,21 @@ func printPanOSRules(
 	fmt.Fprintln(fd)
 }
 
-func printCombinedPanOS(fd *os.File, config []string, routerData *routerData) {
+func printCombinedPanOS(fd *os.File, config []string, rData *routerData) {
 
-	// Build mapping from object-group name to object-group + use count.
-	// Used to replace group by its elements if only used once.
-	name2groupUse := make(map[string]*groupUse)
-	countGroup := func(n *ipNet) {
-		if n.IPPrefix.IsZero() {
-			gU := name2groupUse[n.name]
-			gU.count++
+	// Split routerData into separate chunks for each VSYS.
+	// This is necessary as we don't want to get shared addressgroups
+	// between different VSYS.
+	lookup := make(map[string]*routerData)
+	for _, acl := range rData.acls {
+		d := lookup[acl.vrf]
+		if d == nil {
+			e := *rData
+			e.acls = nil
+			d = &e
+			lookup[acl.vrf] = d
 		}
-	}
-
-	// Collect rules belonging to same vsys.
-	vsysLookup := make(map[string][]*aclInfo)
-	for _, acl := range routerData.acls {
-		vsysLookup[acl.vrf] = append(vsysLookup[acl.vrf], acl)
-		for _, g := range acl.objectGroups {
-			name2groupUse[g.name] = &groupUse{g: g}
-		}
-		for _, rule := range acl.rules {
-			countGroup(rule.src)
-			countGroup(rule.dst)
-		}
+		d.acls = append(d.acls, acl)
 	}
 
 	// Print config and insert printed vsys configuration at aclMarker.
@@ -221,8 +229,7 @@ func printCombinedPanOS(fd *os.File, config []string, routerData *routerData) {
 		if strings.HasPrefix(line, aclMarker) {
 			// Print rules.
 			vsys := line[len(aclMarker):]
-			aclList := vsysLookup[vsys]
-			printPanOSRules(fd, vsys, aclList, name2groupUse)
+			printPanOSRules(fd, vsys, lookup[vsys])
 		} else {
 			// Print unchanged config line.
 			fmt.Fprintln(fd, line)

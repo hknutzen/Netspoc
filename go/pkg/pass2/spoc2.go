@@ -320,8 +320,7 @@ func readJSON(path string) *routerData {
 	return rData
 }
 
-func prepareACLs(path string) *routerData {
-	rData := readJSON(path)
+func prepareACLs(rData *routerData) {
 	for _, aclInfo := range rData.acls {
 		prt2obj := aclInfo.prt2obj
 		setupPrtRelation(prt2obj)
@@ -335,7 +334,6 @@ func prepareACLs(path string) *routerData {
 			finalizeCiscoACL(aclInfo, rData)
 		}
 	}
-	return rData
 }
 
 func printACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
@@ -355,6 +353,7 @@ const aclMarker = "#insert "
 
 func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 	aclLookup := make(map[string]*aclInfo)
+	prepareACLs(routerData)
 	for _, acl := range routerData.acls {
 		aclLookup[acl.name] = acl
 	}
@@ -373,8 +372,18 @@ func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 	}
 }
 
-func printCombined(config []string, routerData *routerData, outPath string) {
-	fd, err := os.Create(outPath)
+func readFileLines(filename string) []string {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+	return strings.Split(string(data), "\n")
+}
+
+func printRouter(file string) {
+	routerData := readJSON(file + ".rules")
+	config := readFileLines(file + ".config")
+	fd, err := os.Create(file)
 	if err != nil {
 		panicf("Can't %v", err)
 	}
@@ -417,21 +426,11 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename string) []string {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		panic(err)
-	}
-	return strings.Split(string(data), "\n")
-}
-
 func File(devicePath, dir, prev string) int {
 	if tryPrev(devicePath, dir, prev) {
 		return 1
 	}
 	file := dir + "/" + devicePath
-	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file + ".config")
-	printCombined(config, routerData, file)
+	printRouter(file)
 	return 0
 }
