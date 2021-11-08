@@ -81,15 +81,32 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		}
 		return member(name)
 	}
-	protoMap := make(map[string]*proto)
+	type srcRgPrt struct {
+		srcRg *proto
+		prt   *proto
+		name  string
+	}
+	protoMap := make(map[string]srcRgPrt)
 	getService := func(ru *ciscoRule) string {
 		prt := ru.prt
 		proto := prt.protocol
 		if proto == "ip" {
 			return member("any")
 		}
-		name := prt.name
-		protoMap[name] = prt
+		var name string
+		srcRange := ru.srcRange
+		if srcRange != nil {
+			var dPorts string
+			if len(prt.name) > len(proto) {
+				dPorts = prt.name[len(proto)+1:]
+			} else {
+				dPorts = "1-65535"
+			}
+			name = srcRange.name + ":" + dPorts
+		} else {
+			name = prt.name
+		}
+		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange, name: name}
 		return member(name)
 	}
 	printRules := func(l []*aclInfo) {
@@ -159,38 +176,48 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</address-group>")
 	}
 	printServices := func() {
-		l := make([]*proto, 0, len(protoMap))
+		l := make([]srcRgPrt, 0, len(protoMap))
 		for _, p := range protoMap {
 			l = append(l, p)
 		}
 		sort.Slice(l, func(i, j int) bool {
-			return l[i].protocol < l[j].protocol ||
-				l[i].protocol == l[j].protocol &&
-					(l[i].ports[0] < l[j].ports[0] ||
-						l[i].ports[0] == l[j].ports[0] &&
-							l[i].ports[1] < l[j].ports[1])
+			return l[i].prt.protocol < l[j].prt.protocol ||
+				l[i].prt.protocol == l[j].prt.protocol &&
+					(l[i].prt.ports[0] < l[j].prt.ports[0] ||
+						l[i].prt.ports[0] == l[j].prt.ports[0] &&
+							(l[i].prt.ports[1] < l[j].prt.ports[1] ||
+								l[i].prt.ports[1] == l[j].prt.ports[1] &&
+									(l[i].srcRg != nil && l[j].srcRg != nil &&
+										l[i].srcRg.ports[0] < l[j].srcRg.ports[0] ||
+										l[i].srcRg.ports[0] == l[j].srcRg.ports[0] &&
+											l[i].srcRg.ports[1] < l[j].srcRg.ports[1])))
 		})
 		fmt.Fprintln(fd, "<service>")
-		for _, p := range l {
-			name := p.name
+		for _, pair := range l {
+			p := pair.prt
 			proto := p.protocol
 			var details string
 			switch proto {
 			case "tcp", "udp":
 				var ports string
-				if len(name) > len(proto) {
-					ports = name[len(proto)+1:]
+				if len(p.name) > len(proto) {
+					ports = p.name[len(proto)+1:]
 				} else {
 					ports = "1-65535"
 				}
-				details = "<" + proto + "><port>" +
-					ports + "</port></" + proto + ">"
+				ports = "<port>" + ports + "</port>"
+				sPorts := ""
+				if s := pair.srcRg; s != nil {
+					sPorts =
+						"<source-port>" + s.name[len(s.protocol)+1:] + "</source-port>"
+				}
+				details = "<" + proto + ">" + ports + sPorts + "</" + proto + ">"
 			default:
 				// <other> is invalid tag for PAN-OS.
-				details = "<other>" + name + "</other>"
+				details = "<other>" + p.name + "</other>"
 			}
 
-			entry := `<entry name="` + name + `"><protocol>` + details +
+			entry := `<entry name="` + pair.name + `"><protocol>` + details +
 				`</protocol></entry>`
 			fmt.Fprintln(fd, entry)
 		}
