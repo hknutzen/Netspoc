@@ -11,7 +11,7 @@ cut-netspoc [options] FILE|DIR [service:name] ...
 
 =head1 DESCRIPTION
 
-Reads a Netspoc configuration && prints parts of this configuration
+Reads a Netspoc configuration and prints parts of this configuration
 to STDOUT. If one or more services are given as argument, only those
 parts are printed, that are referenced by given serices. If no service
 is given, it acts as if all services are specified. This is useful to
@@ -25,7 +25,7 @@ Quiet, don't print status messages.
 
 =item B<-help>
 
-Prints a brief help message && exits.
+Prints a brief help message and exits.
 
 =back
 
