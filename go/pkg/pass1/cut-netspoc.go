@@ -141,14 +141,9 @@ type netPathObj interface {
 	intfList() intfList
 	String() string
 }
-type netPathObjList []netPathObj
-
-func (a *netPathObjList) push(e netPathObj) {
-	*a = append(*a, e)
-}
 
 // Collect networks that need to be connected by unmanaged parts of topology.
-var todoUnmanaged netPathObjList
+var todoUnmanaged groupObjList
 var addLater intfList
 
 // This function is called by pathWalk to mark all managed routers
@@ -173,9 +168,9 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 }
 
 // Mark path between objects and marked parts of topology.
-// object must be of type network or router.
+// Objects must be of type network, router or interface.
 // Depending on 'managed', mark only unmanaged or also managed parts.
-func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
+func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 	var what string
 	if managed {
 		what = "managed"
@@ -227,24 +222,42 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 
 	for _, obj := range list {
 		//debug("\nConnecting %s", obj)
-		seen := map[netPathObj]bool{obj: true}
-		_, isRouter := obj.(*router)
-		for _, intf := range obj.intfList() {
-			if intf.mainIntf != nil {
-				continue
-			}
-			var next netPathObj
-			if isRouter {
-				next = intf.network
+		seen := make(map[netPathObj]bool)
+		switch x := obj.(type) {
+		case *routerIntf:
+			//debug("-Try %s -> %s", x, x.network)
+			if mark(x.network, x, seen) {
+				isUsed[x.name] = true
+				isUsed[x.router.name] = true
+				//debug("Marked %s + %s", x, x.network)
 			} else {
-				next = intf.router
+				//debug("-Try %s -> %s", x, x.router)
+				if mark(x.router, x, seen) {
+					isUsed[x.name] = true
+					isUsed[x.network.name] = true
+					//debug("Marked %s + %s", x, x.router)
+				}
 			}
-			//debug("-Try %s %s", next, intf)
-			if mark(next, intf, seen) {
-				isUsed[intf.name] = true
-				//debug("Marked %s", intf)
-				// Only mark first found path.
-				break
+		case netPathObj:
+			seen[x] = true
+			_, isRouter := x.(*router)
+			for _, intf := range x.intfList() {
+				if intf.mainIntf != nil {
+					continue
+				}
+				var next netPathObj
+				if isRouter {
+					next = intf.network
+				} else {
+					next = intf.router
+				}
+				//debug("-Try %s %s", next, intf)
+				if mark(next, intf, seen) {
+					isUsed[intf.name] = true
+					//debug("Marked %s", intf)
+					// Only mark first found path.
+					break
+				}
 			}
 		}
 	}
@@ -470,7 +483,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark zones having attributes that influence their networks.
-	var todoManaged netPathObjList
+	var todoManaged groupObjList
 	for _, n := range c.allNetworks {
 		if !isUsed[n.name] {
 			continue
@@ -533,9 +546,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				if isUsed[intf.name] {
 					continue
 				}
-				isUsed[intf.network.name] = true
-				todoManaged.push(intf.network)
-				addLater.push(intf)
+				todoManaged.push(intf)
 			}
 		}
 	}
