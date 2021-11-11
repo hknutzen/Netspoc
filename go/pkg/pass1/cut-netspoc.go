@@ -227,13 +227,11 @@ func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 		case *routerIntf:
 			//debug("-Try %s -> %s", x, x.network)
 			if mark(x.network, x, seen) {
-				isUsed[x.name] = true
 				isUsed[x.router.name] = true
 				//debug("Marked %s + %s", x, x.network)
 			} else {
 				//debug("-Try %s -> %s", x, x.router)
 				if mark(x.router, x, seen) {
-					isUsed[x.name] = true
 					isUsed[x.network.name] = true
 					//debug("Marked %s + %s", x, x.router)
 				}
@@ -260,6 +258,7 @@ func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 				}
 			}
 		}
+		isUsed[obj.String()] = true
 	}
 }
 
@@ -293,7 +292,7 @@ func (c *spoc) markRulesPath(p pathRules) {
 	}
 }
 
-// Mark used elements and substite intersection by its expanded elements.
+// Mark used elements and substitute intersection by its expanded elements.
 func (c *spoc) markAndSubstElements(
 	elemList *[]ast.Element, ctx string, v6 bool, m map[string]*ast.TopList) {
 
@@ -322,7 +321,7 @@ func (c *spoc) markAndSubstElements(
 					[]ast.Element{el}, ctx, v6, false) {
 
 					intf := obj.(*routerIntf)
-					isUsed[intf.String()] = true
+					isUsed[intf.name] = true
 					addLater.push(intf)
 				}
 			case *ast.Intersection:
