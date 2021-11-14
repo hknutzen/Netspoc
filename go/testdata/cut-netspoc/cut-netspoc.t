@@ -2592,7 +2592,6 @@ router:r2 = {
 
 ############################################################
 =TITLE=Mark only first path to unconnected object
-#=TODO= Must not generate split topology.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2604,8 +2603,8 @@ network:n7 = { ip = 10.1.7.0/24; }
 network:n8 = { ip = 10.1.8.0/24; }
 area:a = {
  nat:dyn = { ip = 192.168.7.32/27; dynamic; }
- border = interface:r2.n4,
-          interface:r2.n5,
+ border = interface:r3.n4,
+          interface:r3.n5,
           ;
  inclusive_border =
   interface:r1.n1,
@@ -2623,16 +2622,16 @@ router:r1 = {
 router:r2 = {
  managed;
  model = IOS;
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
- interface:n5 = { ip = 10.1.5.2; hardware = n5; }
-}
-router:r3 = {
- managed;
- model = IOS;
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
  interface:n5 = { ip = 10.1.5.1; hardware = n5; }
  interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
 router:r4 = {
  managed;
@@ -2647,9 +2646,9 @@ router:r5 = {
  interface:n7 = { ip = 10.1.7.2; hardware = n7; }
  interface:n8 = { ip = 10.1.8.1; hardware = n8; bind_nat = dyn; }
 }
-group:p1 = interface:[network:[interface:r2.[all]]].[all] & interface:r3.[all];
+group:p1 = interface:[network:[interface:r3.[all]]].[all] & interface:r2.[all];
 pathrestriction:A =
- interface:r3.[all]
+ interface:r2.[all]
  &! group:p1
  ,
 ;
@@ -2669,8 +2668,8 @@ network:n7 = { ip = 10.1.7.0/24; }
 network:n8 = { ip = 10.1.8.0/24; }
 area:a = {
  nat:dyn = { ip = 192.168.7.32/27; dynamic; }
- border = interface:r2.n4,
-          interface:r2.n5,
+ border = interface:r3.n4,
+          interface:r3.n5,
           ;
  inclusive_border =
   interface:r1.n1,
@@ -2687,15 +2686,15 @@ router:r1 = {
 router:r2 = {
  managed;
  model = IOS;
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
- interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
 }
 router:r3 = {
  managed;
  model = IOS;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
 router:r4 = {
  managed;
@@ -2717,6 +2716,103 @@ service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n8;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Detect unmanaged loop (1)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Detect unmanaged loop (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = network:n4;
         prt = tcp 80;
 }
 =END=

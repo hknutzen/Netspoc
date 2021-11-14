@@ -226,11 +226,13 @@ func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 		switch x := obj.(type) {
 		case *routerIntf:
 			//debug("-Try %s -> %s", x, x.network)
+			seen[x.router] = true
 			if mark(x.network, x, seen) {
 				isUsed[x.router.name] = true
 				//debug("Marked %s + %s", x, x.network)
 			} else {
 				//debug("-Try %s -> %s", x, x.router)
+				seen[x.router] = false
 				if mark(x.router, x, seen) {
 					isUsed[x.network.name] = true
 					//debug("Marked %s + %s", x, x.router)
