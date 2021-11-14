@@ -309,9 +309,6 @@ func (c *spoc) markAndSubstElements(
 			case ast.AutoElem:
 				l2 := traverse(x.GetElements())
 				x.SetElements(l2)
-				if len(l2) == 0 {
-					continue
-				}
 			case *ast.IntfRef:
 				for _, obj := range c.expandGroup(
 					[]ast.Element{el}, ctx, v6, false) {
