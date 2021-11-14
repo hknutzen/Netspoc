@@ -320,9 +320,7 @@ func (c *spoc) markAndSubstElements(
 				}
 			case *ast.Intersection:
 				expanded = append(expanded,
-					c.expandGroup(
-						[]ast.Element{el},
-						"intersection of "+ctx, v6, false)...)
+					c.expandGroup([]ast.Element{el}, ctx, v6, false)...)
 				continue // Ignore original intersection.
 			}
 			l[j] = el
@@ -332,6 +330,9 @@ func (c *spoc) markAndSubstElements(
 		for _, obj := range expanded {
 			name := obj.String()
 			i := strings.Index(name, ":")
+			// ast.NamedRef is not fully correct for IntfRef, SimpleAuto,
+			// AggAuto, IntfAuto, but is printed correctly by
+			// printer.print anyway.
 			a := new(ast.NamedRef)
 			a.Type = name[:i]
 			a.Name = name[i+1:]

@@ -2432,6 +2432,33 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Intersection with user
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1, network:n2
+        ;
+ permit src = user &! network:n2;
+        dst = network:n3;
+        prt = tcp 80;
+}
+=END=
+# Valid for netspoc, but not supported by cut-netspoc.
+=ERROR=
+Error: Unexpected reference to 'user' in intersection of src of service:s1
+Warning: Useless delete of network:n2 in src of service:s1
+=END=
+
+############################################################
 =TITLE=Network auto interface
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
