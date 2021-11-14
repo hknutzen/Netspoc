@@ -2775,7 +2775,7 @@ network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 
 router:r1 = {
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.9; }
  interface:n2 = { ip = 10.1.2.1; }
  interface:n3 = { ip = 10.1.3.1; }
 }
@@ -2800,7 +2800,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.9; }
  interface:n3 = { ip = 10.1.3.1; }
 }
 router:r3 = {
