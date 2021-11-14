@@ -168,7 +168,7 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 }
 
 // Mark path between objects and marked parts of topology.
-// Objects must be of type network, router or interface.
+// Objects must be of type network or interface.
 // Depending on 'managed', mark only unmanaged or also managed parts.
 func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 	var what string
@@ -236,19 +236,13 @@ func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 					//debug("Marked %s + %s", x, x.router)
 				}
 			}
-		case netPathObj:
+		case *network:
 			seen[x] = true
-			_, isRouter := x.(*router)
-			for _, intf := range x.intfList() {
+			for _, intf := range x.interfaces {
 				if intf.mainIntf != nil {
 					continue
 				}
-				var next netPathObj
-				if isRouter {
-					next = intf.network
-				} else {
-					next = intf.router
-				}
+				next := intf.router
 				//debug("-Try %s %s", next, intf)
 				if mark(next, intf, seen) {
 					isUsed[intf.name] = true
