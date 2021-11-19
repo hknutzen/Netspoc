@@ -34,6 +34,14 @@ Error: unknown flag: --abc
 =END=
 
 ############################################################
+=TITLE=Invalid input
+=INPUT=
+invalid
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+=END=
+
+############################################################
 =TITLE=Remove services
 =PARAMS= service:s1 service:s2
 =INPUT=
