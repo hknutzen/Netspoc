@@ -1061,6 +1061,9 @@ func collectAclsFromIORules(r *router) {
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
 		for _, out := range r.hardware {
+			if out.loopback {
+				continue
+			}
 			outHw := out.name
 			rules := in.ioRules[outHw]
 			if in == out && len(rules) == 0 {
