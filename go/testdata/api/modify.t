@@ -2272,6 +2272,81 @@ Warning: Ignoring file 'service' without any content
 =END=
 
 ############################################################
+=TITLE=Delete service with overlaps
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { 
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.11; }
+ host:h2 = { ip = 10.1.2.12; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565;
+}
+service:s2 = {
+
+ overlaps = service:s1;
+
+ user = host:h1;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565;
+}
+service:s3 = {
+
+ overlaps = service:s1, service:s2;
+
+ user = host:h1;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565,
+              tcp 80,
+              ;
+}
+=JOB=
+{
+    "method": "delete_service",
+    "params": {
+        "name": "s1"
+    }
+}
+=OUTPUT=
+@@ service
+-service:s1 = {
+- user = network:n2;
+- permit src = user;
+-        dst = network:n1;
+-        prt = udp 25565;
+-}
+ service:s2 = {
+- overlaps = service:s1;
+-
+  user = host:h1;
+  permit src = user;
+         dst = network:n1;
+         prt = udp 25565;
+ }
++
+ service:s3 = {
+- overlaps = service:s1, service:s2;
++ overlaps = service:s2;
+  user = host:h1;
+  permit src = user;
+=END=
+
+############################################################
 =TITLE=Delete unknown service
 =INPUT=
 -- topology

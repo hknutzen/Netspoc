@@ -11,6 +11,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 	"github.com/hknutzen/Netspoc/go/pkg/removefrom"
+	"github.com/hknutzen/Netspoc/go/pkg/removeservice"
 	"github.com/hknutzen/Netspoc/go/pkg/rename"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
@@ -47,6 +48,7 @@ var tests = []test{
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
 	{"expand-group", chgInputT, expand.Main, chgInputCheck},
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
+	{"remove-service", chgInputT, removeservice.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
 	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},

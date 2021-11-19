@@ -209,10 +209,10 @@ func (s *state) createHost(j *job) error {
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
 		if n, ok := toplevel.(*ast.Network); ok {
 			if network != "" && network == n.Name ||
-				netAddr != "" && netAddr == n.GetAttr("ip") {
+				netAddr != "" && netAddr == n.GetAttr1("ip") {
 
 				// Don't add owner, if already present at network.
-				if owner == n.GetAttr("owner") {
+				if owner == n.GetAttr1("owner") {
 					owner = ""
 				}
 
@@ -344,6 +344,7 @@ func (s *state) deleteService(j *job) error {
 	}
 	getParams(j, &p)
 	name := "service:" + p.Name
+	s.RemoveServiceFromOverlaps(name) 
 	return s.DeleteToplevel(name)
 }
 

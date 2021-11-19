@@ -160,6 +160,21 @@ func (s *State) DeleteToplevel(name string) error {
 	return fmt.Errorf("Can't find %s", name)
 }
 
+func (s *State) RemoveServiceFromOverlaps(name string) {
+	for _, aF := range s.astFiles {
+		for _, toplevel := range aF.Nodes {
+			if n, ok := toplevel.(*ast.Service); ok {
+				if overlaps := n.GetAttr("overlaps"); overlaps != nil {
+					overlaps.Remove(name)
+					if len(overlaps.ValueList) == 0 {
+						n.RemoveAttr("overlaps")
+					}
+				}
+			}
+		}
+	}
+}
+
 func getTypeName(v string) (string, string) {
 	i := strings.Index(v, ":")
 	return v[:i], v[i+1:]

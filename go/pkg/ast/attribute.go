@@ -17,7 +17,7 @@ func CreateAttr(name string, l []string) *Attribute {
 	return &Attribute{Name: name, ValueList: vl}
 }
 
-func (n *TopStruct) GetAttr(name string) string {
+func (n *TopStruct) GetAttr1(name string) string {
 	for _, a := range n.Attributes {
 		if a.Name == name {
 			l := a.ValueList
@@ -29,14 +29,33 @@ func (n *TopStruct) GetAttr(name string) string {
 	return ""
 }
 
-func (obj *Attribute) Remove(name string) {
-	cp := make([]*Attribute, 0, len(obj.ComplexValue)-1)
-	for _, a := range obj.ComplexValue {
-		if a.Name != name {
-			cp = append(cp, a)
+func (n *TopStruct) GetAttr(name string) *Attribute {
+	for _, a := range n.Attributes {
+		if a.Name == name {
+			return a
 		}
 	}
-	obj.ComplexValue = cp
+	return nil
+}
+
+func (obj *Attribute) Remove(name string) {
+	if obj.ValueList != nil {
+		cp := make([]*Value, 0, len(obj.ValueList))
+		for _, a := range obj.ValueList {
+			if a.Value != name {
+				cp = append(cp, a)
+			}
+		}
+		obj.ValueList = cp
+	} else {
+		cp := make([]*Attribute, 0, len(obj.ComplexValue)-1)
+		for _, a := range obj.ComplexValue {
+			if a.Name != name {
+				cp = append(cp, a)
+			}
+		}
+		obj.ComplexValue = cp
+	}
 }
 
 func (obj *Attribute) Replace(attr *Attribute) {
