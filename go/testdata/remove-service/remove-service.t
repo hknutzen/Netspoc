@@ -38,7 +38,7 @@ Error: unknown flag: --abc
 =INPUT=
 invalid
 =ERROR=
-Error: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
+Error while reading netspoc files: Typed name expected at line 1 of INPUT, near "--HERE-->invalid"
 =END=
 
 ############################################################
