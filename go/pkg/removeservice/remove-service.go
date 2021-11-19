@@ -56,9 +56,9 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
-        "github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/spf13/pflag"
 	"os"
 	"strings"
@@ -68,18 +68,28 @@ type state struct {
 	*astset.State
 }
 
+func (s *state) readObjects(path string) ([]string, error) {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("Can't %s", err)
+	}
+	objects := strings.Fields(string(bytes))
+	return objects, nil
+}
+
 func Main() int {
 	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR OBJECT ...\n", os.Args[0])
+			"Usage: %s [options] FILE|DIR [service:]NAME  ...\n", os.Args[0])
 		fs.PrintDefaults()
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
+	fromFile := fs.StringP("file", "f", "", "Read SERVICES from file")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -89,34 +99,43 @@ func Main() int {
 		return 1
 	}
 
+	s := new(state)
+
 	// Argument processing
 	args := fs.Args()
-	if len(args) == 0 {
+	var services []string
+	if *fromFile != "" {
+		l, err := s.readObjects(*fromFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			return 1
+		}
+		services = l
+	} else if len(args) == 0 {
 		fs.Usage()
 		return 1
 	}
 	path := args[0]
-	services := args[1:]
+	services = append(services, args[1:]...)
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
 		"--max_errors=9999",
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	
-	s := new(state)
+
 	var err error
 	s.State, err = astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error while reading netspoc files: %s\n", err)
 		return 1
 	}
-	
+
 	for _, srv := range services {
 		name := srv
-		if !strings.HasPrefix(srv, "service:"){
+		if !strings.HasPrefix(srv, "service:") {
 			name = "service:" + srv
-		}	
+		}
 		s.RemoveServiceFromOverlaps(name)
 		err = s.DeleteToplevel(name)
 		if err != nil {

@@ -344,7 +344,7 @@ func (s *state) deleteService(j *job) error {
 	}
 	getParams(j, &p)
 	name := "service:" + p.Name
-	s.RemoveServiceFromOverlaps(name) 
+	s.RemoveServiceFromOverlaps(name)
 	return s.DeleteToplevel(name)
 }
 
