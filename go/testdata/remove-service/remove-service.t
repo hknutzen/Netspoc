@@ -18,6 +18,22 @@ Usage: PROGRAM [options] FILE|DIR [service:]NAME  ...
 =END=
 
 ############################################################
+=TITLE=Read pairs from unknown file
+=INPUT=#
+=PARAMS=-f unknown
+=ERROR=
+Error: Can't open unknown: no such file or directory
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
 =TITLE=Remove services
 =PARAMS= service:s1 service:s2
 =INPUT=
