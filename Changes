@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+6.035     2021-11-22 15:48:55+01:00 Europe/Berlin
+
+ - Added new command 'remove-service'
+   Usage: remove-service [options] FILE|DIR [service:]NAME  ...
+    -f, --file string   Read SERVICES from file
+    -q, --quiet         Don't show changed files
+ - Added support for Palo-Alto: model = PAN-OS
+   Different VSYS are modelled as router:NAME@VSYS
+   New attributes 'management_instance', 'backup_of' to reference
+   Palo-Alto host system(s) from VSYS instances.
  - Fixed: Some duplicate or overlapping areas were not detected.
 
 6.034     2021-08-17 13:22:38+02:00 Europe/Berlin
