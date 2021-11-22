@@ -437,6 +437,10 @@ service:t2 = {
  user = interface:r2.lo;
  permit src = user; dst = host:h; prt = tcp 2200, protocol:Ping_Net;
 }
+service:s3 = {
+ user = interface:r2.lo;
+ permit src = host:h; dst = user; prt = tcp 80;
+}
 =END=
 =OUTPUT=
 -- ipv6/r1
@@ -450,6 +454,14 @@ service:t2 = {
 --
 :eth0_eth1 -
 -A eth0_eth1 -g c2 -s ::101:101
+-A FORWARD -j eth0_eth1 -i eth0 -o eth1
+-- ipv6/r2
+# [ ACL ]
+:eth0_self -
+-A eth0_self -j ACCEPT -s ::a01:20b -d ::101:101 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
+--
+:eth0_eth1 -
 -A FORWARD -j eth0_eth1 -i eth0 -o eth1
 =END=
 
