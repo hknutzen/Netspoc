@@ -105,7 +105,7 @@ Warning: Ignoring unnumbered network:un in dst of rule in service:test
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (1)
-=VAR=input
+=TEMPL=input
 network:servers = { ip = 10.1.7.32/27; }
 router:r = {
  managed;
@@ -122,34 +122,33 @@ router:s = {
 network:clients = { ip = 10.1.2.0/24; }
 pathrestriction:clients = interface:s.clients, interface:r.clients;
 service:test = {
- user = any:[network:clients];
+ user = any:[network:{{.}}];
  permit src = user; dst = network:servers;
  prt = tcp 80;
 }
 =END=
-=VAR=output
+=TEMPL=output
 --r
 ip access-list extended eth2_in
  deny ip any host 10.1.7.33
  permit tcp any 10.1.7.32 0.0.0.31 eq 80
  deny ip any any
 =END=
-=INPUT=${input}
+=INPUT=[[input clients]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Zone cluster with unnumbered network (2)
-=INPUT=${input}
-=SUBST=/[network:clients]/[network:unn]/
+=INPUT=[[input unn]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (1)
-=VAR=input
+=TEMPL=input
 router:Z = {
  interface:c = { unnumbered; }
  interface:L = { ip = 10.1.1.4; }
@@ -165,12 +164,12 @@ network:L = {ip = 10.1.1.0/24;}
 pathrestriction:x = interface:Z.L, interface:L.L;
 service:Test = {
  user = interface:L.[all];
- permit src = any:[user];
+ permit src = any:[{{.}}];
         dst = user;
         prt = icmp 8;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input user]]
 =OUTPUT=
 --L
 ip access-list extended G2_in
@@ -184,8 +183,7 @@ ip access-list extended G0_in
 
 ############################################################
 =TITLE=Auto aggregate in zone cluster with unnumbered (2)
-=INPUT=${input}
-=SUBST=|[user]|[ip=10.0.0.0/8 & user]|
+=INPUT=[[input "ip=10.0.0.0/8 & user"]]
 =OUTPUT=
 --L
 ip access-list extended G2_in
@@ -199,10 +197,10 @@ ip access-list extended G0_in
 
 ############################################################
 =TITLE=Auto interface expands to short interface
-=VAR=input
+=TEMPL=input
 router:u1 = {
  model = IOS;
- interface:dummy;
+ interface:dummy{{.}}
 }
 network:dummy = { unnumbered; }
 router:u2 = {
@@ -224,7 +222,7 @@ service:s1 = {
 	prt = tcp 22;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input ";"]]
 =ERROR=
 Error: interface:u1.dummy without IP address (from .[auto])
  must not be used in rule of service:s1
@@ -233,8 +231,7 @@ Error: interface:u1.dummy without IP address (from .[auto])
 ############################################################
 =TITLE=Auto interface expands to unnumbered interface
 # and this unnumbered interface is silently ignored.
-=INPUT=${input}
-=SUBST=/interface:dummy;/interface:dummy = { unnumbered; }/
+=INPUT=[[input " = { unnumbered; }"]]
 =OUTPUT=
 --r1
 ! n1_in

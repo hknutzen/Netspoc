@@ -1,12 +1,12 @@
 
 ############################################################
 =TITLE=Optimize subnet at secondary packet filter
-=VAR=input
+=TEMPL=input
 network:sub = { ip = 10.1.7.32/27; subnet_of = network:customer; }
 router:r = { interface:sub; interface:customer = { ip = 10.1.7.30; } }
 network:customer = { ip = 10.1.7.0/24; }
 router:gw = {
- managed = secondary;
+ managed{{.s}};
  model = IOS, FW;
  interface:customer = { ip = 10.1.7.1;    hardware = outside;}
  interface:trans    = { ip = 10.1.3.1;   hardware = inside;}
@@ -29,7 +29,7 @@ network:server = {
  host:s10 = { ip = 10.1.2.10; }
  host:s11 = { ip = 10.1.2.11; }
 }
-protocol:Echo = icmp 8;
+protocol:Echo = icmp 8{{.d}};
 service:p1 = {
  user = network:sub;
  permit src = user; dst = host:s10; prt = protocol:Echo;
@@ -39,7 +39,7 @@ service:p2 = {
  permit src = user; dst = host:s11; prt = protocol:Echo;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {s: " = secondary", d: ""}]]
 =OUTPUT=
 --b1
 # [ Routing ]
@@ -57,9 +57,7 @@ ip access-list extended outside_in
 
 ############################################################
 =TITLE=Optimize subnet for protocol with flag dst_net
-=INPUT=${input}
-=SUBST=/managed = secondary/managed/
-=SUBST=/icmp 8/icmp 8, dst_net/
+=INPUT=[[input {s: "", d: ", dst_net"}]]
 =OUTPUT=
 --gw
 ! [ ACL ]

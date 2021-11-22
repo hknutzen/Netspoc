@@ -62,7 +62,7 @@ Warning: Ignoring pathrestriction:p2 with only interface:r1.n1
 # Shared topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:top = { ip = ::a01:100/120;}
 router:r1 = {
  managed;
@@ -86,10 +86,10 @@ network:dst = { ip = ::a01:200/120;}
 =END=
 
 ############################################################
-=TITLE=Simple duplicate pathrestriction
+=TITLE=Simple pathrestrictions leaving no valid path
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:top =
  interface:r1.top,
  interface:r2.top,
@@ -117,7 +117,7 @@ Error: No valid path
 =TITLE=Path starts at pathrestriction inside loop
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.dst,
@@ -158,7 +158,7 @@ ipv6 access-list dst_in
 # Must not use path r1.top-r1-r2-top
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.top,
@@ -200,7 +200,7 @@ ipv6 access-list dst_in
 =TITLE=Path starts at pathrestriction inside loop (3)
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p1 =
  interface:r1.top,
  interface:r1.dst,
@@ -234,7 +234,7 @@ ipv6 access-list dst_in
 # when temporary moving pathrestriction of r1.dst to r1.top.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r1.dst,
@@ -260,7 +260,7 @@ ipv6 access-list dst_in
 =TITLE=Path ends at pathrestriction inside loop (2)
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p1 =
  interface:r1.top,
  interface:r1.dst,
@@ -291,7 +291,7 @@ ipv6 access-list dst_in
 # Must not enter r1 from network dst, even for optimized pathrestriction.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.top,

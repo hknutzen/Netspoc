@@ -25,6 +25,7 @@ type ACLInfo struct {
 	FilterAnySrc bool     `json:"filter_any_src,omitempty"`
 	IsStdACL     bool     `json:"is_std_acl,omitempty"`
 	IsCryptoACL  bool     `json:"is_crypto_acl,omitempty"`
+	VRF          string   `json:"vrf,omitempty"`
 }
 
 type Rule struct {

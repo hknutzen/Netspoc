@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unicode"
 )
 
@@ -67,7 +68,7 @@ func printHeader(fh *os.File, r *router, what string) {
 }
 
 func iosRouteCode(n netaddr.IPPrefix) string {
-	return n.IP.String() + " " + net.IP(n.IPNet().Mask).String()
+	return n.IP().String() + " " + net.IP(n.IPNet().Mask).String()
 }
 
 func printRoutes(fh *os.File, r *router) {
@@ -103,7 +104,7 @@ func printRoutes(fh *os.File, r *router) {
 				continue
 			}
 
-			prefixlen := natNet.ipp.Bits
+			prefixlen := natNet.ipp.Bits()
 			if prefixlen == 0 {
 				doAutoDefaultRoute = false
 			}
@@ -114,7 +115,7 @@ func printRoutes(fh *os.File, r *router) {
 				m = make(map[netaddr.IP]*network)
 				prefix2ip2net[prefixlen] = m
 			}
-			m[natNet.ipp.IP] = natNet
+			m[natNet.ipp.IP()] = natNet
 
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
@@ -185,13 +186,13 @@ func printRoutes(fh *os.File, r *router) {
 			// Only analyze left part of two adjacent networks.
 			part, _ := ip.Prefix(partPrefix)
 			comb, _ := ip.Prefix(combinedPrefix)
-			if part.IP != comb.IP {
+			if part.IP() != comb.IP() {
 				continue
 			}
 
 			// Calculate IP of right part.
 			rg := left.ipp.Range()
-			nextIP := rg.To.Next()
+			nextIP := rg.To().Next()
 
 			// Find corresponding right part.
 			right := ip2net[nextIP]
@@ -271,7 +272,7 @@ func printRoutes(fh *os.File, r *router) {
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
 					net, _ := ip.Prefix(p)
-					big := prefix2ip2net[p][net.IP]
+					big := prefix2ip2net[p][net.IP()]
 					if big == nil {
 						continue
 					}
@@ -299,7 +300,7 @@ func printRoutes(fh *os.File, r *router) {
 				intf2hop2netInfos[hopInfo.intf] = m
 			}
 			info := netInfo{
-				netaddr.IPPrefix{IP: ip, Bits: prefix},
+				netaddr.IPPrefixFrom(ip, prefix),
 				noOpt,
 			}
 			m[hopInfo.hop] = append(m[hopInfo.hop], info)
@@ -456,7 +457,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 				// Don't add 'any' (resulting from global:permit)
 				// to split_tunnel networks.
-				if n.ipp.Bits == 0 {
+				if n.ipp.Bits() == 0 {
 					continue
 				}
 				if seen[n] {
@@ -473,7 +474,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 	// Sort for better readability of ACL.
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].ipp.IP.Less(result[j].ipp.IP)
+		return result[i].ipp.IP().Less(result[j].ipp.IP())
 	})
 	return result
 }
@@ -812,7 +813,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
 
-				ip := src.ipp.IP.String()
+				ip := src.ipp.IP().String()
 				network := src.getNetwork()
 				if src.ipp.IsSingleIP() {
 
@@ -843,7 +844,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					name := "pool-" + idName
 					mask := net.IP(src.ipp.IPNet().Mask).String()
 
-					max := src.ipp.Range().To.String()
+					max := src.ipp.Range().To().String()
 					fmt.Fprintln(fh, "ip local pool", name, ip+"-"+max, "mask", mask)
 					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
@@ -1033,55 +1034,70 @@ func printAclSuffix(fh *os.File, r *router) {
 	fmt.Fprintln(fh, "EOF")
 }
 
-func printIptablesAcls(fh *os.File, r *router) {
-	for _, hw := range r.hardware {
+func collectAclsFromIORules(r *router) {
+	for _, in := range r.hardware {
 
 		// Ignore if all logical interfaces are loopback interfaces.
-		if hw.loopback {
+		if in.loopback {
 			continue
 		}
 
-		inHw := hw.name
-		natMap := hw.natMap
+		inHw := in.name
+		natMap := in.natMap
 
-		// Collect interface rules.
-		// Add call to chain in INPUT chain.
-		intfAclName := inHw + "_self"
-		intfAclInfo := &aclInfo{
-			name:    intfAclName,
-			rules:   hw.intfRules,
-			addDeny: true,
-			natMap:  natMap,
+		if !r.model.noACLself {
+			// Collect interface rules.
+			aclName := inHw + "_self"
+			info := &aclInfo{
+				name:    aclName,
+				rules:   in.intfRules,
+				addDeny: true,
+				natMap:  natMap,
+			}
+			in.intfRules = nil
+			r.aclList.push(info)
 		}
-		hw.intfRules = nil
-		r.aclList.push(intfAclInfo)
-		printAclPlaceholder(fh, r, intfAclName)
-		fmt.Fprintln(fh, "-A INPUT -j", intfAclName, "-i", inHw)
 
 		// Collect forward rules.
 		// One chain for each pair of in_intf / out_intf.
-		// Add call to chain in FORRWARD chain.
-		// Sort keys for deterministic output.
-		keys := make(stringList, 0, len(hw.ioRules))
-		for k, _ := range hw.ioRules {
-			keys.push(k)
-		}
-		sort.Strings(keys)
-		for _, outHw := range keys {
+		for _, out := range r.hardware {
+			if out.loopback {
+				continue
+			}
+			outHw := out.name
+			rules := in.ioRules[outHw]
+			if in == out && len(rules) == 0 {
+				continue
+			}
 			aclName := inHw + "_" + outHw
 			info := &aclInfo{
 				name:    aclName,
-				rules:   hw.ioRules[outHw],
+				rules:   rules,
 				addDeny: true,
 				natMap:  natMap,
 			}
 			r.aclList.push(info)
-			printAclPlaceholder(fh, r, aclName)
-			fmt.Fprintln(fh, "-A FORWARD -j", aclName, "-i", inHw, "-o", outHw)
 		}
-		hw.ioRules = nil
+		in.ioRules = nil
+	}
+}
 
-		// Empty line after each chain.
+func printIptablesAcls(fh *os.File, r *router) {
+	collectAclsFromIORules(r)
+	for _, acl := range r.aclList {
+		name := acl.name
+		i := strings.Index(name, "_")
+		inHw := name[:i]
+		outHw := name[i+1:]
+		printAclPlaceholder(fh, r, name)
+		if outHw == "self" {
+			// Add call to chain in INPUT chain.
+			fmt.Fprintln(fh, "-A INPUT -j", name, "-i", inHw)
+		} else {
+			// Add call to chain in FORRWARD chain.
+			fmt.Fprintln(fh, "-A FORWARD -j", name, "-i", inHw, "-o", outHw)
+		}
+		// Empty line after all chains.
 		fmt.Fprintln(fh)
 	}
 }
@@ -1232,12 +1248,12 @@ func printCiscoAcls(fh *os.File, r *router) {
 }
 
 func generateAcls(fh *os.File, r *router) {
-	filter := r.model.filter
 	printHeader(fh, r, "ACL")
 
-	if filter == "iptables" {
+	switch r.model.filter {
+	case "iptables":
 		printIptablesAcls(fh, r)
-	} else {
+	default:
 		printCiscoAcls(fh, r)
 	}
 }
@@ -1839,20 +1855,17 @@ func printRouterIntf(fh *os.File, r *router) {
 					} else {
 						addrCmd = "ip"
 					}
-					addrCmd += " address " + netaddr.IPPrefix{
-						IP:   intf.ip,
-						Bits: intf.network.ipp.Bits,
-					}.String()
-					if secondary {
-						addrCmd += " secondary"
-					}
+					addrCmd += " address " + netaddr.IPPrefixFrom(
+						intf.ip,
+						intf.network.ipp.Bits(),
+					).String()
 				} else {
 					addr := intf.ip.String()
 					mask := net.IP(intf.network.ipp.IPNet().Mask).String()
 					addrCmd = "ip address " + addr + " " + mask
-					if secondary {
-						addrCmd += " secondary"
-					}
+				}
+				if secondary {
+					addrCmd += " secondary"
 				}
 			}
 			subcmd.push(addrCmd)
@@ -1887,7 +1900,7 @@ func printRouterIntf(fh *os.File, r *router) {
 
 func prefixCode(n netaddr.IPPrefix) string {
 	if n.IsSingleIP() {
-		return n.IP.String()
+		return n.IP().String()
 	}
 	return n.String()
 
@@ -1958,7 +1971,7 @@ func (c *spoc) setupStdAddr() {
 			switch intf.ipType {
 			case hasIP:
 				intf.stdAddr =
-					netaddr.IPPrefix{IP: intf.ip, Bits: getHostPrefix(v6)}.String()
+					netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6)).String()
 			case negotiatedIP:
 				intf.stdAddr = intf.network.stdAddr
 			}
@@ -2198,6 +2211,10 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			}
 			sort.Strings(addrList)
 			jACL.NoOptAddrs = addrList
+
+			if model.needVRF {
+				jACL.VRF = r.vrf
+			}
 			return jACL
 		}
 
@@ -2267,8 +2284,8 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 				oldFiles[i] = dir + "/" + name
 			}
 			cmd := exec.Command("mv", append(oldFiles, prev)...)
-			if err = cmd.Run(); err != nil {
-				c.abort("Can't mv old files to prev: %v", err)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				c.abort("Can't mv old files to prev: %v\n%s", err, out)
 			}
 		}
 	}
@@ -2308,6 +2325,34 @@ func (c *spoc) getDevices() []*router {
 	return result
 }
 
+func (c *spoc) printPanOS(fd *os.File, l []*router) {
+	r := l[0]
+	mgmt := getRouter(r.deviceName, symTable, r.ipV6)
+	hostnames := mgmt.deviceName
+	ipList := mgmt.interfaces[0].ip.String()
+	if backup := mgmt.backupInstance; backup != nil {
+		hostnames += ", " + backup.deviceName
+		ipList += ", " + backup.interfaces[0].ip.String()
+	}
+	fmt.Fprintf(fd,
+		`<?xml version = "1.0" ?>
+<!--
+Generated by %s, version %s
+
+[ BEGIN %s ]
+[ Model = %s ]
+[ IP = %s ]
+-->
+`,
+		program, version, hostnames, r.model.class, ipList)
+
+	fmt.Fprintln(fd, "<config><devices><entry><vsys>")
+	for _, r := range l {
+		fmt.Fprintln(fd, "#insert", r.vrf)
+	}
+	fmt.Fprintln(fd, "</vsys></entry></devices></config>")
+}
+
 // Print generated code for each managed router.
 func (c *spoc) printRouter(r *router, dir string) string {
 	deviceName := r.deviceName
@@ -2318,7 +2363,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 	// File for router config without ACLs.
 	configFile := dir + "/" + path + ".config"
-	fd, err := os.Create(configFile)
+	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
@@ -2337,41 +2382,49 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		vrfMembers = []*router{r}
 	}
 
-	// Print version header.
-	fmt.Fprintln(fd, commentChar, "Generated by", program+", version", version)
-	fmt.Fprintln(fd)
-
-	header := func(key, val string) {
-		fmt.Fprintf(fd, "%s [ %s %s ]\n", commentChar, key, val)
-	}
-	header("BEGIN", deviceName)
-	header("Model =", model.class)
-	ips := make([]string, 0, len(vrfMembers))
-	for _, r := range vrfMembers {
-		if r.adminIP != nil {
-			ips = append(ips, r.adminIP...)
+	if model.filter == "PAN-OS" {
+		c.printPanOS(fd, vrfMembers)
+		for _, vrouter := range vrfMembers {
+			collectAclsFromIORules(vrouter)
 		}
-	}
-	if len(ips) != 0 {
-		header("IP =", strings.Join(ips, ","))
-	}
+	} else {
 
-	for _, vrouter := range vrfMembers {
-		printRoutes(fd, vrouter)
-		if vrouter.managed == "" {
-			continue
+		// Print version header.
+		fmt.Fprintf(fd, "%s Generated by %s, %s", commentChar, program, version)
+		fmt.Fprintln(fd)
+
+		header := func(key, val string) {
+			fmt.Fprintf(fd, "%s [ %s %s ]\n", commentChar, key, val)
 		}
-		c.printCrypto(fd, vrouter)
-		printAclPrefix(fd, vrouter)
-		generateAcls(fd, vrouter)
-		printAclSuffix(fd, vrouter)
-		printRouterIntf(fd, vrouter)
-	}
+		header("BEGIN", deviceName)
+		header("Model =", model.class)
+		ips := make([]string, 0, len(vrfMembers))
+		for _, r := range vrfMembers {
+			if r.adminIP != nil {
+				ips = append(ips, r.adminIP...)
+			}
+		}
+		if len(ips) != 0 {
+			header("IP =", strings.Join(ips, ","))
+		}
 
-	header("END", deviceName)
-	fmt.Fprintln(fd)
-	if err := fd.Close(); err != nil {
-		c.abort("Can't %v", err)
+		for _, vrouter := range vrfMembers {
+			printRoutes(fd, vrouter)
+			if vrouter.managed == "" {
+				continue
+			}
+			c.printCrypto(fd, vrouter)
+			printAclPrefix(fd, vrouter)
+			generateAcls(fd, vrouter)
+			printAclSuffix(fd, vrouter)
+			printRouterIntf(fd, vrouter)
+		}
+
+		header("END", deviceName)
+		fmt.Fprintln(fd)
+		if err := fd.Close(); err != nil {
+			panic(err)
+		}
 	}
 
 	// Print ACLs in machine independent format into separate file.
@@ -2382,33 +2435,33 @@ func (c *spoc) printRouter(r *router, dir string) string {
 }
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
-	concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
-	countReused := make(chan int)
-	reused := 0
-	go func() {
-		for n := range countReused {
-			reused += n
-		}
-	}()
-
-	var wg sync.WaitGroup
-	for _, r := range devices {
-		concurrentGoroutines <- struct{}{}
-		wg.Add(1)
-		go func(r *router) {
-			defer wg.Done()
+	var reused int32 = 0
+	if conf.Conf.ConcurrencyPass2 <= 1 {
+		for _, r := range devices {
 			path := c.printRouter(r, dir)
-			countReused <- pass2.File(path, dir, prev)
-			<-concurrentGoroutines
-		}(r)
+			reused += int32(pass2.File(path, dir, prev))
+		}
+	} else {
+		concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
+		var wg sync.WaitGroup
+		for _, r := range devices {
+			concurrentGoroutines <- struct{}{}
+			wg.Add(1)
+			go func(r *router) {
+				defer wg.Done()
+				path := c.printRouter(r, dir)
+				atomic.AddInt32(&reused, int32(pass2.File(path, dir, prev)))
+				<-concurrentGoroutines
+			}(r)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 	// Remove directory '.prev' created by pass1
 	// or remove symlink '.prev' created by newpolicy.pl.
 	// Error is ignored; would use unneeded space only.
 	os.RemoveAll(prev)
 
-	generated := len(devices) - reused
+	generated := int32(len(devices)) - reused
 	if generated > 0 {
 		c.info("Generated files for %d devices", generated)
 	}

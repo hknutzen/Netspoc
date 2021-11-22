@@ -1,7 +1,7 @@
 
 ############################################################
 # Common topology for multiple tests
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; }
 router:filter = {
  managed;
@@ -19,7 +19,7 @@ network:n2 = {
 ############################################################
 =TITLE=Warn on duplicate and redundant rule
 =INPUT=
-${topo}
+[[topo]]
 service:test1a = {
  user = host:h1;
  permit src = user; dst = network:n1; prt = tcp 22;
@@ -51,7 +51,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=Suppressed warning
 =INPUT=
-${topo}
+[[topo]]
 service:test1a = {
  overlaps = service:test2;
  user = host:h1;
@@ -87,7 +87,7 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=udp 123; of serv
 ############################################################
 =TITLE=Reference unknown service
 =INPUT=
-${topo}
+[[topo]]
 service:test1a = {
  overlaps = service:test2, serv:abc;
  user = host:h1;
@@ -102,7 +102,7 @@ Error: Expected type 'service:' in attribute 'overlaps' of service:test1a
 ############################################################
 =TITLE=Suppressed warning by protocol modifier
 =INPUT=
-${topo}
+[[topo]]
 protocol:ssh = tcp 22, overlaps;
 protocol:tcp = tcp, overlaps;
 service:test1a = {
@@ -126,7 +126,7 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=protocol:ssh; of
 ############################################################
 =TITLE=Single protocol won't suppress warning
 =INPUT=
-${topo}
+[[topo]]
 protocol:ssh = tcp 22, overlaps;
 service:test1a = {
  user = host:h1;
@@ -154,7 +154,7 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 ############################################################
 =TITLE=Show useless overlap, if warning was suppressed by modifier
 =INPUT=
-${topo}
+[[topo]]
 protocol:Ping_Net = icmp 8, src_net, dst_net, overlaps;
 service:s1 = {
  overlaps = service:s2;
@@ -179,7 +179,7 @@ DIAG: Removed duplicate permit src=network:n1; dst=network:n2; prt=protocol:Ping
 ############################################################
 =TITLE=Don't show useless overlap for disabled service
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  overlaps = service:s2;
  disable_at = 2000-01-01;
@@ -201,7 +201,7 @@ service:s2 = {
 ############################################################
 =TITLE=Multiple larger rules, one suppressed
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  overlaps = service:test2;
  user = host:h1, network:n2;

@@ -875,6 +875,20 @@ Error: Invalid value for 'managed' of router:r: xxx
 =END=
 
 ############################################################
+=TITLE=Empty value at managed attribute
+=PARAMS=--ipv6
+=INPUT=
+router:r = {
+ managed = ;
+ interface:n;
+}
+network:n = { ip = ::a01:100/120; }
+=END=
+=ERROR=
+Error: Single value expected in 'managed' of router:r
+=END=
+
+############################################################
 =TITLE=Unknown routing protocol
 =PARAMS=--ipv6
 =INPUT=
@@ -1298,7 +1312,7 @@ Error: Missing attribute 'admins' in owner:o of network:n1
 
 ############################################################
 # Shared topology
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
@@ -1315,7 +1329,7 @@ router:r = {
 =TITLE=Must reference user in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = network:n1;
  permit src = network:n2; dst = network:n3; prt = ip;
@@ -1329,7 +1343,7 @@ Error: Each rule of service:s must use keyword 'user'
 =TITLE=Equally reference user
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = network:n1;
  permit src = user, network:n2; dst = network:n3; prt = ip;
@@ -1344,7 +1358,7 @@ Error: The sub-expressions of union in 'src' of service:s equally must
 =TITLE=Equally reference user with intersection
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n1, network:n2;
  permit src = network:n3;
@@ -1377,7 +1391,7 @@ Aborted
 =TITLE=Invalid attribute at service
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  xyz;
  user = network:n1;
@@ -1420,7 +1434,7 @@ Aborted
 =TITLE=Invalid rule with 'foreach'
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = foreach network:n1, network:n2;
  permit src = user; dst = network:n3; prt = tcp 22;
@@ -1450,7 +1464,7 @@ access-group n3_in in interface n3
 =TITLE=Empty list of elements after 'user', 'src', 'dst'
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = ;
  permit src = user; dst = network:n3; prt = tcp 22;

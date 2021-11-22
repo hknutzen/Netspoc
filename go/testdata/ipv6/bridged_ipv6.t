@@ -406,7 +406,7 @@ Error: Duplicate IP address for host:h2a and host:h2b
 
 ############################################################
 # Shared topology for multiple tests
-=VAR=topology
+=TEMPL=topology
 network:n1 = {
  ip = ::a01:100/120;
  host:netspoc = { ip = ::a01:16f; }
@@ -417,14 +417,14 @@ network:n3 = { ip = ::a01:300/120; }
 
 router:asa = {
  model = IOS;
- #managed;
+ {{.m}}managed;
  interface:n1 = { ip = ::a01:165; hardware = n1; }
  interface:n2/left = { ip = ::a01:265; hardware = n2; }
 }
 router:bridge = {
  model = ASA;
  managed;
- policy_distribution_point = host:netspoc;
+ {{.p}}policy_distribution_point = host:netspoc;
  interface:n2 = { ip = ::a01:209; hardware = device; }
  interface:n2/left = { hardware = inside; }
  interface:n2/right = { hardware = outside; }
@@ -439,7 +439,7 @@ router:r3 = {
 =TITLE=Admin access to bridge
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user = interface:bridge.n2;
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -454,7 +454,7 @@ service:admin = {
 =TITLE=Admin access to bridge auto interface
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user =  interface:bridge.[auto];
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -469,7 +469,7 @@ service:admin = {
 =TITLE=Admin access to bridge all interfaces
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user =  interface:bridge.[all];
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -484,14 +484,11 @@ service:admin = {
 =TITLE=Access to both sides of bridged network
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n2/left, network:n2/right;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 =OUTPUT=
 --ipv6/bridge
 access-list outside_in extended permit tcp ::a01:200/120 host ::a01:16f eq 80
@@ -503,14 +500,11 @@ access-group outside_in in interface outside
 =TITLE=Access through bridged ASA
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n3;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 # Must not use bridged interface as next hop in static route.
 =OUTPUT=
 --ipv6/bridge
@@ -526,15 +520,12 @@ ipv6 route ::a01:300/120 ::a01:201
 =TITLE=Must not use bridged interface in rule
 =PARAMS=--ipv6
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n1;
  permit src = user; dst = interface:bridge.n2/right; prt = tcp 22;
  permit src = interface:bridge.n2/left; dst = user; prt = tcp 22;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 =WARNING=
 Warning: Ignoring bridged interface:bridge.n2/right in dst of rule in service:test
 Warning: Ignoring bridged interface:bridge.n2/left in src of rule in service:test
@@ -634,7 +625,7 @@ Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
 
 ############################################################
 =TITLE=Route behind chained bridges
-=VAR=input
+=TEMPL=input
 network:n0 = { ip = ::a01:0/120; }
 router:r1 = {
  managed;
@@ -662,7 +653,7 @@ router:zbridge2 = {
 }
 network:n1/right = { ip = ::a01:100/120; }
 router:r2 = {
- interface:n1/right = { ip = ::a01:105; hardware = n1; }
+ interface:n1/right = { {{.}}; hardware = n1; }
  interface:n2;
 }
 network:n2 = { ip = ::a01:200/120; }
@@ -672,7 +663,7 @@ service:s = {
 }
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input "ip = ::a01:105"]]
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -683,8 +674,7 @@ ipv6 route n1 ::a01:200/120 ::a01:105
 =TITLE=Missing hop behind chained bridges
 =PARAMS=--ipv6
 =INPUT=
-${input}
-=SUBST=/right = { ip = ::a01:105;/right = { negotiated;/
+[[input negotiated]]
 =ERROR=
 Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
  - interface:r2.n1/right

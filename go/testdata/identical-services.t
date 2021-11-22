@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:n1 = {
  ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10;}
@@ -21,7 +21,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 ############################################################
 =TITLE=Simple duplicate service
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -42,7 +42,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules, but different order in protocols.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80, tcp 81;
@@ -63,7 +63,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules, but different order in objects.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user; dst = host:h10, host:h11; prt = tcp 80, tcp 81;
@@ -84,7 +84,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules, but different order in log attribute
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80; log = l1, l2;
@@ -105,7 +105,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules with automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
@@ -126,7 +126,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules with changed order in automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user; dst = network:[host:h10, host:h11]; prt = tcp 80;
@@ -147,7 +147,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Equal rules with changed order in intersection.
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = host:h11;
 group:g2 = host:h11, host:h12;
 service:s1 = {
@@ -170,7 +170,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Compare reversed rules, src = user
 =INPUT=
-${topo}
+[[topo]]
 protocol:reversed = udp 514, reversed;
 service:s1 = {
  user = host:h11;
@@ -191,7 +191,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Compare reversed rules, dst = user
 =INPUT=
-${topo}
+[[topo]]
 protocol:ntp = udp 123;
 protocol:ntp-reversed = udp 123, reversed;
 protocolgroup:ntp = protocol:ntp, protocol:ntp-reversed;
@@ -214,7 +214,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Many elements are equal, but not all.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user;
@@ -234,7 +234,7 @@ service:s2 = {
 ############################################################
 =TITLE=Many protocols are equal, but not all (1)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user;
@@ -254,7 +254,7 @@ service:s2 = {
 ############################################################
 =TITLE=Many protocols are equal, but not all (2)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user;
@@ -274,7 +274,7 @@ service:s2 = {
 ############################################################
 =TITLE=Changed complement.
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = host:h10, host:h11, host:h12;
 group:g2 = host:h11;
 service:s1 = {
@@ -292,7 +292,7 @@ service:s2 = {
 ############################################################
 =TITLE=Changed order of equal rules (1)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  deny   src = host:h10; dst = user; prt = tcp 22;
@@ -319,7 +319,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Changed order of equal rules (2)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -345,7 +345,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Similar service, but changed src/dst
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -361,7 +361,7 @@ service:s2 = {
 ############################################################
 =TITLE=Equal expanded rules, but from different groups
 =INPUT=
-${topo}
+[[topo]]
 group:g1 = network:n2;
 service:s1 = {
  user = host:h10;
@@ -378,7 +378,7 @@ service:s2 = {
 ############################################################
 =TITLE=Equal rules, but different log attribute
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80; log = l1, l2;
@@ -394,7 +394,7 @@ service:s2 = {
 ############################################################
 =TITLE=Equal rules with different IP in automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
@@ -410,7 +410,7 @@ service:s2 = {
 ############################################################
 =TITLE=Equal rules with different 'managed' attribute in automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = interface:[managed & network:n2].[all]; prt = tcp 80;
@@ -426,7 +426,7 @@ service:s2 = {
 ############################################################
 =TITLE=Equal rules with textual different elements in automatic group.
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:n2;
  permit src = user; dst = network:[host:h11]; prt = tcp 80;
@@ -442,7 +442,7 @@ service:s2 = {
 ############################################################
 =TITLE=Suppressed warning (1)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -464,7 +464,7 @@ service:s3 = {
 ############################################################
 =TITLE=Suppressed warning (2)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -485,7 +485,7 @@ service:s3 = {
 ############################################################
 =TITLE=Suppressed warning (3)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  identical_body = service:s2, service:s3;
  user = host:h10;
@@ -508,7 +508,7 @@ service:s3 = {
 ############################################################
 =TITLE=Incorrect suppressed warning
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  identical_body = service:s3;
  user = host:h10;
@@ -536,7 +536,7 @@ Warning: service:s2 has useless service:s3 in attribute 'identical_body'
 ############################################################
 =TITLE=Partially suppressed warning
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = host:h10;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -563,7 +563,7 @@ Warning: These services have identical rule definitions.
 ############################################################
 =TITLE=Useless attribute 'identical_body' (1)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  identical_body = service:s2, service:s3;
  user = host:h10;
@@ -587,7 +587,7 @@ Warning: service:s1 has useless service:s3 in attribute 'identical_body'
 ############################################################
 =TITLE=Useless attribute 'identical_body' (2)
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  identical_body = service:s1, service:s2; # s1 ok
  user = host:h10;

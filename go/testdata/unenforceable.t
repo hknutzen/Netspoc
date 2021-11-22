@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = 10.1.1.0/24;
  host:x7 = { ip = 10.1.1.7; }
  host:x9 = { ip = 10.1.1.9; }
@@ -17,14 +17,14 @@ network:y = { ip = 10.2.2.0/24;
 
 ############################################################
 =TITLE=Unenforceable rule
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = host:x7, host:y; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=
 Warning: service:test has unenforceable rules:
  src=host:x7; dst=host:x7
@@ -34,7 +34,7 @@ Warning: service:test has unenforceable rules:
 ############################################################
 =TITLE=Zone ignoring unenforceable rule
 =INPUT=
-${input}
+[[input]]
 any:x = { link = network:x; has_unenforceable = ok; }
 =END=
 =WARNING=NONE
@@ -42,7 +42,7 @@ any:x = { link = network:x; has_unenforceable = ok; }
 ############################################################
 =TITLE=Disable check for unenforceable rule
 =INPUT=
-${input}
+[[input]]
 =END=
 =OPTIONS=--check_unenforceable=0
 =WARNING=NONE
@@ -50,7 +50,7 @@ ${input}
 ############################################################
 =TITLE=Service ignoring unenforceable rule
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  has_unenforceable;
  user = host:x7, host:x9;
@@ -62,7 +62,7 @@ service:test = {
 ############################################################
 =TITLE=Restrict attribute 'has_unenforceable'
 =INPUT=
-${topo}
+[[topo]]
 any:x = { link = network:x; has_unenforceable = restrict; }
 service:test = {
  has_unenforceable;
@@ -80,7 +80,7 @@ Warning: service:test has unenforceable rules:
 ############################################################
 =TITLE=Restrict + enable attribute 'has_unenforceable'
 =INPUT=
-${topo}
+[[topo]]
 area:all = { anchor = network:x; has_unenforceable = restrict; }
 any:x = { link = network:x; has_unenforceable = enable; }
 service:s1 = {
@@ -104,7 +104,7 @@ Warning: service:s2 has unenforceable rules:
 =TITLE=Mixed ignored and reported unenforceable service
 # Must not ignore others, if first is ignored.
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  has_unenforceable;
  user = host:x7, host:x9;
@@ -124,7 +124,7 @@ Warning: service:test2 has unenforceable rules:
 ############################################################
 =TITLE=Silent unenforceable rules
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:y;
  permit src = user; dst = any:[user]; prt = tcp 80;
@@ -135,7 +135,7 @@ service:test = {
 ############################################################
 =TITLE=Silent unenforceable rules with split range
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:range, host:y;
  permit src = user; dst = user; prt = tcp 80;
@@ -145,7 +145,7 @@ service:test = {
 ############################################################
 =TITLE=Silent unenforceable user-user rule
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:x9, host:y;
  permit src = user; dst = user; prt = tcp 80;
@@ -153,9 +153,30 @@ service:test = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Unenforceable foreach rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+}
+service:ping-local = {
+ user = foreach interface:r1.n1, interface:r2.n1;
+ permit src = any:[user]; dst = user; prt = icmp 8;
+}
+=WARNING=
+Warning: service:ping-local has unenforceable rules:
+ src=any:[network:n1]; dst=interface:r2.n1
+=END=
+
+############################################################
 =TITLE=Useless has_unenforceable at silent unenforceable user-user rule
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  has_unenforceable;
  user = host:x7, host:x9, host:y;
@@ -168,7 +189,7 @@ Warning: Useless attribute 'has_unenforceable' at service:test
 ############################################################
 =TITLE=Fully unenforceable user-user rule
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:x7, host:x9;
  permit src = user; dst = user; prt = tcp 80;
@@ -221,7 +242,7 @@ access-group n3_in in interface n3
 
 ############################################################
 =TITLE=Fully unenforceable rule
-=VAR=input
+=TEMPL=input
 any:x = {
  link = network:x;
 }
@@ -232,20 +253,19 @@ router:r = {
 }
 network:y = { ip = 10.2.2.0/24; }
 service:test = {
- #1 has_unenforceable;
+ {{.}}
  user = network:y;
  permit src = user; dst = network:x; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input ""]]
 =WARNING=
 Warning: service:test is fully unenforceable
 =END=
 
 ############################################################
 =TITLE=Useless attribute "has_unenforceable" at service
-=INPUT=${input}
-=SUBST=/#1//
+=INPUT=[[input has_unenforceable;]]
 =WARNING=
 Warning: Useless attribute 'has_unenforceable' at service:test
 Warning: service:test is fully unenforceable

@@ -105,9 +105,6 @@ network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =OUTPUT=
 --r1
-# [ ACL ]
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n1 -
 -A n1_n1 -j ACCEPT -d 10.1.1.0/24
 -A FORWARD -j n1_n1 -i n1 -o n1

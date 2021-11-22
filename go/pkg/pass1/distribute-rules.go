@@ -88,7 +88,7 @@ func distributeRule(ru *groupedRule, in, out *routerIntf) {
 	if out == nil {
 
 		// No ACL generated for traffic to device itself.
-		if model.filter == "ASA" {
+		if model.noACLself {
 			return
 		}
 
@@ -190,7 +190,7 @@ func getMulticastObjects(info *mcastProto, ipV6 bool) []someObj {
 		for i, s := range m.ips {
 			ip := netaddr.MustParseIP(s)
 			l[i] =
-				&network{ipp: netaddr.IPPrefix{IP: ip, Bits: getHostPrefix(ipV6)}}
+				&network{ipp: netaddr.IPPrefixFrom(ip, getHostPrefix(ipV6))}
 		}
 		m.networks = l
 	}

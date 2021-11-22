@@ -69,14 +69,10 @@ service:s1 = {
 -A c3 -g c1 -p tcp --dport :4090
 -A c3 -g c2 -p udp --dport 123:
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:200/120
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
-:n2_self -
--A INPUT -j n2_self -i n2
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s ::a01:200/120 -d ::a01:100/120 -p udp
 -A FORWARD -j n2_n1 -i n2 -o n1
@@ -122,14 +118,10 @@ service:s1 = {
 -A c3 -j ACCEPT -p udp --sport 1024: --dport 1024:
 -A c3 -j ACCEPT -p udp --sport 123 --dport 123
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:200/120
 -A FORWARD -j n1_n2 -i n1 -o n2
 --
-:n2_self -
--A INPUT -j n2_self -i n2
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s ::a01:200/120 -d ::a01:100/120 -p udp --sport :511
 -A FORWARD -j n2_n1 -i n2 -o n1
@@ -179,8 +171,6 @@ service:s1 = {
 -A c3 -g c2 -d ::a01:20c/126
 -A c3 -j ACCEPT -d ::a01:20a -p udp --sport :511 --dport 69
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:208/125
 -A FORWARD -j n1_n2 -i n1 -o n2
@@ -188,7 +178,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Merge port range with sub-range
-=VAR=input
+=TEMPL=input
 network:RAS      = { ip = ::a02:200/120; }
 network:Hoernum  = { ip = ::a03:380/125; }
 network:StPeter  = { ip = ::a03:378/125; }
@@ -212,7 +202,7 @@ service:p40-47 = {
  user = network:Firewall, network:RAS;
  permit src = user;
 	dst = network:Hosting;
-	prt = tcp 30-37, tcp 51-53;
+	prt = {{.}};
 }
 service:p10-60 = {
  user = network:Trans, network:StPeter, network:Hoernum;
@@ -222,7 +212,7 @@ service:p10-60 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input "tcp 30-37, tcp 51-53"]]
 =OUTPUT=
 --ipv6/nak
 -A c1 -j ACCEPT -s ::a03:380/125
@@ -246,8 +236,7 @@ service:p10-60 = {
 # because they have three childs 30-37,40-47,51-53
 # and a merged range can have at most two childs.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/tcp 30-37, tcp 51-53/tcp 30-37, tcp 40-47, tcp 51-53/
+=INPUT=[[input "tcp 30-37, tcp 40-47, tcp 51-53"]]
 =OUTPUT=
 --ipv6/nak
 -A c1 -j ACCEPT -s ::a03:380/125
@@ -349,8 +338,6 @@ service:s1 = {
 -A c3 -g c1 -d ::a01:20c
 -A c3 -g c2 -d ::a01:20a
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -g c3 -s ::a01:100/120 -d ::a01:208/125
 -A FORWARD -j n1_n2 -i n1 -o n2
@@ -450,6 +437,10 @@ service:t2 = {
  user = interface:r2.lo;
  permit src = user; dst = host:h; prt = tcp 2200, protocol:Ping_Net;
 }
+service:s3 = {
+ user = interface:r2.lo;
+ permit src = host:h; dst = user; prt = tcp 80;
+}
 =END=
 =OUTPUT=
 -- ipv6/r1
@@ -461,13 +452,16 @@ service:t2 = {
 -A c2 -j ACCEPT -d ::a01:20b -p tcp --dport 2200
 -A c2 -g c1 -d ::a01:0/118 -p ipv6-icmp --icmp-type 8
 --
-:eth1_self -
--A INPUT -j eth1_self -i eth1
---
-:eth0_self -
--A INPUT -j eth0_self -i eth0
 :eth0_eth1 -
 -A eth0_eth1 -g c2 -s ::101:101
+-A FORWARD -j eth0_eth1 -i eth0 -o eth1
+-- ipv6/r2
+# [ ACL ]
+:eth0_self -
+-A eth0_self -j ACCEPT -s ::a01:20b -d ::101:101 -p tcp --dport 80
+-A INPUT -j eth0_self -i eth0
+--
+:eth0_eth1 -
 -A FORWARD -j eth0_eth1 -i eth0 -o eth1
 =END=
 
@@ -500,11 +494,10 @@ service:t1 = {
 -A c2 -j ACCEPT -p tcp --dport 82
 -A c2 -j ACCEPT -p tcp --dport 80
 --
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_k1 -
 -A n1_k1 -g c1 -s ::a01:100/120 -d ::a02:100/120 -p tcp --dport 80:82
 -A FORWARD -j n1_k1 -i n1 -o k1
+--
 :n1_k2 -
 -A n1_k2 -g c2 -s ::a01:100/120 -d ::a02:200/120 -p tcp --dport 80:82
 -A FORWARD -j n1_k2 -i n1 -o k2
@@ -670,9 +663,6 @@ service:s1 = {
 }
 =OUTPUT=
 -- ipv6/r1
-# [ ACL ]
-:n1_self -
--A INPUT -j n1_self -i n1
 :n1_n2 -
 -A n1_n2 -j ACCEPT -s ::a01:0/119 -d ::a01:200/120 -p tcp --dport 80
 -A FORWARD -j n1_n2 -i n1 -o n2

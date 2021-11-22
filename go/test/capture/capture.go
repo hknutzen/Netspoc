@@ -2,6 +2,7 @@ package capture
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 )
@@ -29,4 +30,14 @@ func Capture(std **os.File, f func()) string {
 
 	w.Close()
 	return <-out
+}
+
+func CatchPanic(f func() int) (status int) {
+	defer func() {
+		if e := recover(); e != nil {
+			fmt.Fprintf(os.Stderr, "panic: %v\n", e)
+			status = 1
+		}
+	}()
+	return f()
 }

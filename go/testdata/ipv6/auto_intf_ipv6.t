@@ -1,7 +1,7 @@
 
 ############################################################
 =TITLE=Auto interface of network
-=VAR=topo
+=TEMPL=topo
 network:a = { ip = ::a00:0/120; }
 router:r1 =  {
  managed;
@@ -29,7 +29,7 @@ any:b = { link = network:b1; }
 =END=
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = interface:[network:b1].[auto],
         interface:[managed & network:b2].[auto],
@@ -76,7 +76,7 @@ ipv6 access-list f0_in
 =TITLE=Auto interface of router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test2 = {
  user = interface:u.[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -101,7 +101,7 @@ ipv6 access-list f1_in
 =TITLE=Managed auto interface of unmanaged interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test2 = {
  user = interface:[managed & interface:u.b2, interface:r2.b2].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -120,7 +120,7 @@ ipv6 access-list e1_in
 =TITLE=All interfaces of aggregate
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:b].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -139,7 +139,7 @@ ipv6 access-list e1_in
 =TITLE=All interfaces of implicit aggregate
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -159,7 +159,7 @@ ipv6 access-list e1_in
 # Border interfaces of zone are managed by definition.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[managed & any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -178,7 +178,7 @@ ipv6 access-list e1_in
 =TITLE=Interfaces of matching implicit aggregate
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:[ip = ::a01:0/112 & network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -194,7 +194,7 @@ Error: Must not use interface:[..].[all]
 =TITLE=Auto interfaces of aggregate
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[any:b].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -208,7 +208,7 @@ Error: Must not use interface:[any:..].[auto] in user of service:s
 =TITLE=All interfaces of network
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -227,7 +227,7 @@ ipv6 access-list e1_in
 =TITLE=Managed interfaces of network
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[managed & network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -245,12 +245,11 @@ ipv6 access-list e1_in
 =TITLE=Ignore short interface of network
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =SUBST=/interface:b1 = { ip = ::a01:102; }/interface:b1;/
 =WARNING=
 Warning: Ignoring interface:u.b1 without IP address in dst of rule in service:s
@@ -266,7 +265,7 @@ ipv6 access-list e1_in
 =TITLE=All interfaces from auto interface of network
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:[network:b1].[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -280,7 +279,7 @@ Error: Can't use interface:[network:b1].[auto] inside interface:[..].[all] of us
 =TITLE=All interfaces from auto interface of router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:u.[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -300,7 +299,7 @@ ipv6 access-list e1_in
 =TITLE=Auto interface from auto interface of router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:u.[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -319,7 +318,7 @@ ipv6 access-list e1_in
 =TITLE=Auto interface from auto interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  user = interface:[interface:[network:b1].[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
@@ -730,7 +729,7 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Multiple auto interfaces in src and dst
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
@@ -771,7 +770,7 @@ service:s = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -850,7 +849,7 @@ ipv6 access-list n4_in
 # because result is different for different destinations.
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 pathrestriction:r = interface:r1.n4, interface:r3.n3;
 =END=
 =OUTPUT=
@@ -1230,7 +1229,7 @@ service:s = {
 # Topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = ::a01:100/120; }
 router:r = {
  model = IOS, FW;
@@ -1245,7 +1244,7 @@ network:y = { ip = ::a01:200/120; }
 =TITLE=Interface and auto interface in intersection
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:r.[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1259,7 +1258,7 @@ Warning: Useless delete of interface:r.x in user of service:test
 =TITLE=Interface and auto interface in union
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 group:g = interface:r.[auto], interface:r.x, network:y;
 service:test = {
  user = group:g &! network:y;
@@ -1273,7 +1272,7 @@ service:test = {
 =TITLE=Interface and auto network interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1287,7 +1286,7 @@ Warning: Useless delete of interface:r.x in user of service:test
 =TITLE=Auto interface and auto network interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.[auto];
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1301,7 +1300,7 @@ Warning: Useless delete of interface:r.[auto] in user of service:test
 =TITLE=Non conflicting auto network interfaces
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:[network:y].[auto];
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1315,7 +1314,7 @@ Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 =TITLE=Non conflicting auto network interface with interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = interface:[network:x].[auto] &! interface:r.y;
  permit src = user; dst = network:y; prt = tcp 80;
@@ -1327,7 +1326,7 @@ Warning: Useless delete of interface:r.y in user of service:test
 
 ############################################################
 =TITLE=Find interfaces of subnet in area, incl. loopback
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3Sup = { ip = ::a01:300/120; }
@@ -1365,7 +1364,7 @@ router:r5 = {
 }
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:test = {
  user = interface:[area:a3-4].[all] ;
  permit src = user; dst = network:n1; prt = tcp 80;
@@ -1392,7 +1391,7 @@ access-group n2_in in interface n2
 =TITLE=Find interfaces of subnet in area, no managed loopback
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:test = {
  user = interface:[network:[area:a3-4]].[all] ;
  permit src = user; dst = network:n1; prt = tcp 80;

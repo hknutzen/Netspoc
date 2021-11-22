@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
@@ -22,7 +22,7 @@ router:r2 = {
 =TITLE=Ignore disabled host, network, interface in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = host:h1, network:n2, interface:r1.n1, interface:r2.n2,
            interface:r1.[auto], interface:r1.[all];
@@ -35,7 +35,7 @@ service:test = {
 =TITLE=Ignore disabled aggregate in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 any:n1 = { link = network:n1; }
 service:test = {
  user = any:n1;
@@ -48,7 +48,7 @@ service:test = {
 =TITLE=Ignore disabled area in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a2 = { border = interface:r1.n2, interface:r2.n2;  }
 service:test = {
  user = network:[area:a2];
@@ -193,7 +193,7 @@ Error: network:n2 isn't connected to any router
 
 ############################################################
 =TITLE=Service timed out for 365 days
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  managed;
@@ -203,7 +203,7 @@ router:r1 = {
 }
 network:n2 = { ip = ::a01:200/120; }
 =END=
-=VAR=output
+=TEMPL=output
 --ipv6/r1
 ! n1_in
 access-list n1_in extended deny ip any6 any6
@@ -212,61 +212,61 @@ access-group n1_in in interface n1
 =DATE=-365
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out for 30 days
 =DATE=-30
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out for 1 day
 =DATE=-1
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service timed out today
 =DATE=-0
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=Service times out tomorrow
-=VAR=output
+=TEMPL=output
 --ipv6/r1
 ! n1_in
 access-list n1_in extended permit tcp ::a01:100/120 ::a01:200/120 eq 80
@@ -276,49 +276,49 @@ access-group n1_in in interface n1
 =DATE=1
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service times out in 10 days
 =DATE=10
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 =TITLE=Service times out in 1000 days
 =DATE=1000
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
- disable_at = ${DATE};
+ disable_at = [[DATE]];
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
-=TITLE=Invalid time limit at service
+=TITLE=Invalid date format at service
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s = {
  disable_at = 1-Jan-2020;
  user = network:n1;
@@ -326,6 +326,20 @@ service:s = {
 }
 =ERROR=
 Error: Date expected as yyyy-mm-dd in 'disable_at' of service:s
+=END=
+
+############################################################
+=TITLE=Invalid date at service
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s = {
+ disable_at = 2031-31-31;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=ERROR=
+Error: Invalid date in 'disable_at' of service:s: parsing time "2031-31-31": month out of range
 =END=
 
 ############################################################

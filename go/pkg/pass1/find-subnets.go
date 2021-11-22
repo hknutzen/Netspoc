@@ -51,7 +51,7 @@ func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				up, _ := ip.Prefix(p)
-				if big, ok := prefixIPMap[p][up.IP]; ok {
+				if big, ok := prefixIPMap[p][up.IP()]; ok {
 					work(sub, big)
 
 					// Only handle direct subnet relation.
@@ -86,7 +86,7 @@ INTF:
 					if tag2 := subnet.natTag; tag2 != "" {
 						for _, tag := range tags {
 							if tag == tag2 &&
-								intf.ip == ipp.IP && ipp.IsSingleIP() {
+								intf.ip == ipp.IP() && ipp.IsSingleIP() {
 								continue INTF
 							}
 						}
@@ -118,20 +118,20 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
 		ipp := n.ipp
-		ipMap := prefixIPMap[ipp.Bits]
+		ipMap := prefixIPMap[ipp.Bits()]
 		if ipMap == nil {
 			ipMap = make(map[netaddr.IP]*network)
-			prefixIPMap[ipp.Bits] = ipMap
+			prefixIPMap[ipp.Bits()] = ipMap
 		}
 
 		// Found two different networks with identical IP/mask.
-		if other := ipMap[ipp.IP]; other != nil {
+		if other := ipMap[ipp.IP()]; other != nil {
 			c.err("%s and %s have identical IP/mask in %s",
 				n.name, other.name, z.name)
 		} else {
 
 			// Store original network under NAT IP/mask.
-			ipMap[ipp.IP] = n
+			ipMap[ipp.IP()] = n
 		}
 	}
 	for _, n := range z.networks {
@@ -317,12 +317,12 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 	for _, nn := range natNetworks {
 		ipp := nn.ipp
-		ipMap := prefixIPMap[ipp.Bits]
+		ipMap := prefixIPMap[ipp.Bits()]
 		if ipMap == nil {
 			ipMap = make(map[netaddr.IP]*network)
-			prefixIPMap[ipp.Bits] = ipMap
+			prefixIPMap[ipp.Bits()] = ipMap
 		}
-		if other := ipMap[ipp.IP]; other != nil {
+		if other := ipMap[ipp.IP()]; other != nil {
 
 			// Bild lists of identical networks.
 			if identical[other] == nil {
@@ -330,7 +330,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			identical[other] = append(identical[other], nn)
 		} else {
-			ipMap[ipp.IP] = nn
+			ipMap[ipp.IP()] = nn
 		}
 	}
 
@@ -552,7 +552,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 				// are part of supernet and located in other
 				// zone.
 				// But ignore the internet and non matching aggregate.
-				if subnet.isAggregate && bignet.ipp.Bits != 0 {
+				if subnet.isAggregate && bignet.ipp.Bits() != 0 {
 					markNetworkAndPending(subnet)
 					//debug("%s ~ %s", subnet, bignet)
 				}

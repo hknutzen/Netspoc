@@ -131,9 +131,6 @@ func (c *spoc) expandIntersection(
 		}
 		subResult := c.expandGroup1([]ast.Element{el1},
 			"intersection of "+ctx, ipv6, visible, withSubnets)
-		for _, obj := range subResult {
-			obj.setUsed()
-		}
 		if _, ok := el.(*ast.Complement); ok {
 			compl = append(compl, subResult...)
 		} else {
@@ -264,7 +261,6 @@ func (c *spoc) expandGroup1(
 				}
 			}
 			for _, obj := range subObjects {
-				obj.setUsed()
 				switch x := obj.(type) {
 				case *network:
 					if selector == "all" {
@@ -273,7 +269,7 @@ func (c *spoc) expandGroup1(
 							// We can't simply take
 							// aggregate -> networks -> interfaces,
 							// because subnets may be missing.
-							if x.ipp.Bits != 0 {
+							if x.ipp.Bits() != 0 {
 								c.err("Must not use interface:[..].[all]\n"+
 									" with %s having ip/mask\n"+
 									" in %s", x, ctx)
@@ -387,12 +383,7 @@ func (c *spoc) expandGroup1(
 			if x.Network == "[" {
 				// interface:name.[xxx]
 				selector := x.Extension
-				var r *router
-				if ipv6 {
-					r = symTable.router6[x.Router]
-				} else {
-					r = symTable.router[x.Router]
-				}
+				r := getRouter(x.Router, symTable, ipv6)
 				if r != nil {
 					if !r.disabled {
 						if selector == "all" {
@@ -426,9 +417,6 @@ func (c *spoc) expandGroup1(
 		case ast.AutoElem:
 			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, ipv6, false, false)
-			for _, obj := range subObjects {
-				obj.setUsed()
-			}
 
 			getAggregates := func(obj groupObj, ipp netaddr.IPPrefix) netList {
 				var zones []*zone
@@ -567,10 +555,10 @@ func (c *spoc) expandGroup1(
 					if err != nil {
 						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
 							tok, ctx)
-					} else if ipp.IP != ipp.Masked().IP {
+					} else if ipp.IP() != ipp.Masked().IP() {
 						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
 					}
-					c.checkVxIP(ipp.IP, ipv6, "any:[..]", ctx)
+					c.checkVxIP(ipp.IP(), ipv6, "any:[..]", ctx)
 				} else {
 					ipp = getNetwork00(ipv6).ipp
 				}

@@ -3,6 +3,7 @@ package netspoc_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
@@ -10,10 +11,12 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 	"github.com/hknutzen/Netspoc/go/pkg/removefrom"
+	"github.com/hknutzen/Netspoc/go/pkg/removeservice"
 	"github.com/hknutzen/Netspoc/go/pkg/rename"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 	"gotest.tools/assert"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -45,6 +48,7 @@ var tests = []test{
 	{"add-to-netspoc", chgInputT, addto.Main, chgInputCheck},
 	{"expand-group", chgInputT, expand.Main, chgInputCheck},
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
+	{"remove-service", chgInputT, removeservice.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
 	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
@@ -56,6 +60,7 @@ var tests = []test{
 var count int
 
 func TestNetspoc(t *testing.T) {
+	os.Unsetenv("LANG")
 	count = 0
 	for _, tc := range tests {
 		tc := tc // capture range variable
@@ -68,7 +73,6 @@ func TestNetspoc(t *testing.T) {
 
 func runTestFiles(t *testing.T, tc test) {
 	dataFiles := tstdata.GetFiles("../testdata/" + tc.dir)
-	os.Unsetenv("SHOW_DIAG")
 	for _, file := range dataFiles {
 		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
@@ -157,6 +161,26 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			os.Args = append(os.Args, d.Param)
 		}
 
+		// Execute shell commands to setup error cases in working directory.
+		if d.Setup != "" {
+			t.Cleanup(func() {
+				// Make files writeable again if =SETUP= commands have
+				// revoked file permissions.
+				exec.Command("chmod", "-R", "u+rwx", workDir).Run()
+			})
+			cmd := exec.Command("bash", "-e")
+			stdin, err := cmd.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			io.WriteString(stdin, d.Setup)
+			stdin.Close()
+
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatal(fmt.Sprintf("executing =SETUP=: %v\n%s", err, out))
+			}
+		}
+
 		if d.ShowDiag {
 			os.Setenv("SHOW_DIAG", "1")
 		} else {
@@ -168,7 +192,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		var stdout string
 		stderr := capture.Capture(&os.Stderr, func() {
 			stdout = capture.Capture(&os.Stdout, func() {
-				status = tc.run()
+				status = capture.CatchPanic(tc.run)
 			})
 		})
 
@@ -192,8 +216,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	}
 	if outDir != "" {
-		stderr = strings.ReplaceAll(stderr, outDir+"/", "")
-		stderr = strings.ReplaceAll(stderr, outDir, "")
+		stderr = strings.ReplaceAll(stderr, outDir+"/", "out/")
+		stderr = strings.ReplaceAll(stderr, outDir, "out")
 	}
 	if d.Job != "" {
 		stderr = strings.ReplaceAll(stderr, workDir+"/", "")
@@ -250,7 +274,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 func netspocCheck(t *testing.T, spec, dir string) {
 	// Blocks of expected output are split by single lines of dashes,
 	// followed by an optional device name.
-	re := regexp.MustCompile(`(?ms)^-+[ ]*\S*[ ]*\n`)
+	re := regexp.MustCompile(`(?ms)^-+[ ]*(?:\w\S*)?[ ]*\n`)
 	il := re.FindAllStringIndex(spec, -1)
 
 	if il == nil || il[0][0] != 0 {

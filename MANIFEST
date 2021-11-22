@@ -19,6 +19,7 @@ bin/netspoc
 bin/print-group
 bin/print-service
 bin/remove-from-netspoc
+bin/remove-service
 bin/rename-netspoc
 cvs-support/Makefile
 cvs-support/append-commitlog.c
@@ -59,6 +60,7 @@ go/cmd/netspoc/main.go
 go/cmd/print-group/main.go
 go/cmd/print-service/main.go
 go/cmd/remove-from-netspoc/main.go
+go/cmd/remove-service/main.go
 go/cmd/rename-netspoc/main.go
 go/go.mod
 go/go.sum
@@ -123,10 +125,12 @@ go/pkg/pass1/types.go
 go/pkg/pass2/check-acl.go
 go/pkg/pass2/cisco.go
 go/pkg/pass2/linux.go
+go/pkg/pass2/pan-os.go
 go/pkg/pass2/protocol.go
 go/pkg/pass2/spoc2.go
 go/pkg/printer/printer.go
 go/pkg/removefrom/remove-from-netspoc.go
+go/pkg/removeservice/remove-service.go
 go/pkg/rename/rename-netspoc.go
 go/pkg/scanner/comment.go
 go/pkg/scanner/scanner.go
@@ -162,7 +166,6 @@ go/testdata/ip-check.t
 go/testdata/iptables.t
 go/testdata/ipv4.t
 go/testdata/ipv6.t
-go/testdata/ipv6/Test_IPv6.pm
 go/testdata/ipv6/adjacent-net_ipv6.t
 go/testdata/ipv6/aggregate_ipv6.t
 go/testdata/ipv6/any-multicast-interface_ipv6.t
@@ -192,6 +195,7 @@ go/testdata/ipv6/nat_ipv6.t
 go/testdata/ipv6/optimize-subnet_ipv6.t
 go/testdata/ipv6/overlaps_ipv6.t
 go/testdata/ipv6/owner_ipv6.t
+go/testdata/ipv6/pan-os_ipv6.t
 go/testdata/ipv6/parser_ipv6.t
 go/testdata/ipv6/pathrestrict-border_ipv6.t
 go/testdata/ipv6/pathrestrict_ipv6.t
@@ -224,6 +228,7 @@ go/testdata/optimize-subnet.t
 go/testdata/options.t
 go/testdata/overlaps.t
 go/testdata/owner.t
+go/testdata/pan-os.t
 go/testdata/parser.t
 go/testdata/pathrestrict-border.t
 go/testdata/pathrestrict.t
@@ -237,6 +242,7 @@ go/testdata/protocols.t
 go/testdata/raw.t
 go/testdata/redundant-rules.t
 go/testdata/remove-from-netspoc/remove-from-netspoc.t
+go/testdata/remove-service/remove-service.t
 go/testdata/rename-netspoc/rename.t
 go/testdata/reroute_permit.t
 go/testdata/reuse-previous.t
@@ -257,15 +263,6 @@ misc/anonymize
 misc/conv_owner.pl
 misc/convert_barracuda.pl
 misc/perltidyrc
-old-doc/CSPM.pod
-old-doc/ChangeLog
-old-doc/NEWS.html
-old-doc/Short-Changes
-old-doc/TODO
-old-doc/private-context.dia
-old-ipv6-t/Test_IPv6.pm
-old-ipv6-t/convert.pl
-old-ipv6-t/makefile
 pod-links/add-to-netspoc.pod
 pod-links/cut-netspoc.pod
 pod-links/netspoc.pod

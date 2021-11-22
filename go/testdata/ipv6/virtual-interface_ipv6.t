@@ -266,7 +266,7 @@ Error: Must use different ID at unrelated
 
 ############################################################
 =TITLE=Routers connecting networks with virtual interfaces
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120;}
 network:n2 = { ip = ::a02:200/120;}
 network:n3 = { ip = ::a03:300/120;}
@@ -281,13 +281,13 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = E3;}
- interface:n3 = {ip = ::a03:301; virtual = {ip = ::a03:309;} hardware = E4;}
+ interface:n3 = {ip = ::a03:301; {{.v1}} hardware = E4;}
 }
 router:r3 = {
  managed;
  model = ASA;
  interface:n2 = {ip = ::a02:203; virtual = {ip = ::a02:209;} hardware = E5;}
- interface:n3 = {ip = ::a03:302; virtual = {ip = ::a03:309;} hardware = E6;}
+ interface:n3 = {ip = ::a03:302; {{.v2}} hardware = E6;}
 }
 router:r4 = {
  model = ASA;
@@ -303,7 +303,11 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=
+[[input
+v1: "virtual = {ip = ::a03:309;}"
+v2: "virtual = {ip = ::a03:309;}"
+]]
 =OUTPUT=
 --ipv6/r1
 ipv6 route E2 ::a04:400/120 ::a02:209
@@ -314,8 +318,7 @@ ipv6 route E7 ::a01:100/120 ::a03:309
 ############################################################
 =TITLE=Missing virtual interfaces on backward path
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/virtual = {ip = ::a03:309;}//
+=INPUT=[[input {v1: "", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3
@@ -325,8 +328,7 @@ Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
 ############################################################
 =TITLE=One missing virtual interface on backward path
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/2; virtual = {ip = ::a03:309;}/2;/
+=INPUT=[[input {v1: "virtual = {ip = ::a03:309;}", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3.virtual

@@ -3,7 +3,7 @@
 # Shared crypto definitions
 
 ############################################################
-=VAR=crypto_vpn
+=TEMPL=crypto_vpn
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -22,7 +22,7 @@ crypto:vpn = {
  type = ipsec:aes256SHA;
 }
 =END=
-=VAR=crypto_sts
+=TEMPL=crypto_sts
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -309,7 +309,7 @@ Error: Missing 'type' for crypto:c
 =TITLE=No hub defined for crypto
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 =END=
 =WARNING=
@@ -320,7 +320,7 @@ Warning: No hub has been defined for crypto:vpn
 =TITLE=No spokes defined for crypto
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 
 router:asavpn = {
@@ -343,7 +343,7 @@ Warning: No spokes have been defined for crypto:vpn
 =TITLE=No bind_nat allowed at hub
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a02:200/120; } }
 
 router:asavpn = {
@@ -368,7 +368,7 @@ Error: Must not use 'bind_nat' at crypto hub interface:asavpn.n1
 =TITLE=Crypto must not share hardware
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 
@@ -393,7 +393,7 @@ Error: Crypto interface:asavpn.n1 must not share hardware with other interface:a
 =TITLE=Unnumbered crypto interface
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { unnumbered; }
 router:asavpn = {
  model = ASA, VPN;
@@ -425,7 +425,7 @@ Error: Crypto hub interface:asavpn.n1 must have IP address
 =TITLE=Need authentication rsasig
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -448,7 +448,6 @@ network:clients = {
  ip = ::a63:100/120;
  host:id:foo@domain.x = { ip = ::a63:10a; }
 }
-=END=
 =SUBST=/rsasig/preshare/
 =ERROR=
 Error: router:asavpn needs authentication=rsasig in isakmp:aes256SHA
@@ -458,7 +457,7 @@ Error: router:asavpn needs authentication=rsasig in isakmp:aes256SHA
 =TITLE=Missing ID hosts at software client
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -531,7 +530,7 @@ Error: network:clients having ID hosts must be connected to router with crypto s
 =TITLE=Mixed ID hosts and non ID hosts at software client
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -568,7 +567,7 @@ Error: Must not use networks having ID hosts and other networks having no ID hos
 =TITLE=Non ID hosts behind ID hosts
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -605,7 +604,7 @@ Error: Exactly one network must be located behind unmanaged interface:softclient
 =TITLE=Invalid radius attributes
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -648,7 +647,7 @@ Error: Invalid radius_attribute 'unknown' at router:asavpn
 =TITLE=Use authentication-server-group only with ldap_id (1)
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -683,7 +682,7 @@ Error: Attribute 'authentication-server-group' at network:clients must only be u
 =TITLE=Use authentication-server-group only with ldap_id (2)
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -763,7 +762,7 @@ Warning: Ignoring 'radius_attributes' at network:clients
 =TITLE=no_in_acl at crypto interface
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -795,7 +794,7 @@ Error: Don't use attribute 'no_in_acl' together with crypto tunnel at router:asa
 =TITLE=Duplicate crypto hub
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; }
 router:r = {
  model = IOS;
@@ -860,7 +859,7 @@ Error: Must use 'hub = crypto:vpn' exactly once, not at both
 =TITLE=Crypto spoke with secondary IP
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; }
 router:r = {
  model = IOS;
@@ -938,7 +937,7 @@ Warning: Ignoring 'radius_attributes' at router:r
 =TITLE=Crypto not supported
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 network:n = { ip = ::a01:100/120; }
 router:r = {
  managed;
@@ -953,7 +952,7 @@ Error: Crypto not supported for router:r of model NX-OS
 =TITLE=Virtual interface must not be hub
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 router:asavpn1 = {
  model = ASA, VPN;
  managed;
@@ -974,7 +973,7 @@ Error: interface:asavpn1.dmz with virtual interface must not use attribute 'hub'
 =TITLE=Crypto hub can't be spoke
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 router:asavpn1 = {
  model = ASA, VPN;
  managed;
@@ -995,7 +994,7 @@ Error: interface:asavpn1.dmz with attribute 'spoke' must not have attribute 'hub
 =TITLE=Duplicate crypto spoke
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern1 = { ip = ::a01:100/120;}
 router:gw1 = {
  interface:intern1;
@@ -1058,7 +1057,7 @@ Error: Must not define crypto spoke at more than one interface:
 =TITLE=Duplicate crypto spoke to same device
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern1 = { ip = ::a01:100/120;}
 network:intern2 = { ip = ::a01:200/120;}
 router:gw = {
@@ -1158,8 +1157,8 @@ Error: Can't resolve reference to crypto:vpn in 'spoke' of interface:softclients
 # Shared topology
 
 ############################################################
-=VAR=topo
-${crypto_vpn}
+=TEMPL=topo
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -1245,8 +1244,8 @@ network:customers2 = {
 
 ############################################################
 =TITLE=VPN ASA with software clients
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 network:work1 = { ip = ::a00:100/120; host:h1 = { ip = ::a00:10a; } }
 network:work2 = { ip = ::a00:200/120; host:h2 = { ip = ::a00:20a; } }
 network:work3 = { ip = ::a00:300/120; host:h3 = { ip = ::a00:30a; } }
@@ -1284,7 +1283,7 @@ service:test3 = {
  permit src = user; dst = group:g2; prt = tcp 82;
 }
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 ! [ Routing ]
@@ -1495,7 +1494,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=Missing radius_attribute check-subject-name at host
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/check-subject-name = ou;#//
 =ERROR=
 Error: Missing radius_attribute 'check-subject-name'
@@ -1505,7 +1504,7 @@ Error: Missing radius_attribute 'check-subject-name'
 ############################################################
 =TITLE=Ignoring value of radius_attribute group-lock
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/group-lock;#/group-lock = enabled;/
 =WARNING=
 Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.customers2 (will be set automatically)
@@ -1514,7 +1513,7 @@ Warning: Ignoring value at radius_attribute 'group-lock' of host:id:domain.x.cus
 ############################################################
 =TITLE=Missing trust-point
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/trust-point = ASDM_TrustPoint1;//
 =ERROR=
 Error: Missing 'trust-point' in radiusAttributes of router:asavpn
@@ -1524,7 +1523,7 @@ Error: Missing 'trust-point' in radiusAttributes of router:asavpn
 =TITLE=Permit all ID hosts in network
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = network:customers1;
  permit src = user; dst = network:intern; prt = tcp 80;
@@ -1628,7 +1627,7 @@ access-group outside_in in interface outside
 # This line is missing from config:
 #  ikev1 user-authentication none
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/ASA, VPN/ASA, VPN, CONTEXT/
 =OUTPUT=
 --ipv6/asavpn
@@ -1650,7 +1649,7 @@ tunnel-group-map default-group VPN-single
 =TITLE=Missing authentication-server-group at network with ldap_id
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -1711,8 +1710,8 @@ Error: Missing attribute 'authentication-server-group' at network:customers1 hav
 # Changed topology für tests with ldap_id
 
 ############################################################
-=VAR=topo
-${crypto_vpn}
+=TEMPL=topo
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -1780,7 +1779,7 @@ network:customers2 = {
 ############################################################
 =TITLE=Missing radius_attribute check-subject-name at network
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/check-subject-name = ou;//
 =ERROR=
 Error: Missing radius_attribute 'check-subject-name'
@@ -1791,7 +1790,7 @@ Error: Missing radius_attribute 'check-subject-name'
 =TITLE=VPN ASA with ldap_id
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = host:example1, host:example2a;
  permit src = user; dst = network:intern; prt = tcp 80;
@@ -1874,7 +1873,7 @@ ldap attribute-map LDAP_2
 =TITLE=Bad check-extended-key-usage
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; }
 router:r = {
  model = IOS;
@@ -1938,8 +1937,8 @@ Error: All ID hosts having domain '@domain.y' must use identical value from 'che
 
 ############################################################
 =TITLE=VPN ASA with internal software clients
-=VAR=input
-${crypto_vpn}
+=TEMPL=input
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; }
 router:r = {
  model = IOS;
@@ -1993,7 +1992,7 @@ service:test1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/r
 ! [ Routing ]
@@ -2064,7 +2063,7 @@ access-group outside_in in interface outside
 =TITLE=Missing route for VPN ASA with internal software clients
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 router:gw2 = {
  model = IOS;
  managed;
@@ -2094,7 +2093,7 @@ Error: Ambiguous static routes for network:customers1 at interface:r.trans via
 =TITLE=NAT with VPN ASA
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; nat:E = { ip = f000::c0a8:200/120; } }
 network:trans = { ip = ::a09:900/120; }
 router:gw = {
@@ -2140,7 +2139,6 @@ service:test2 = {
  permit src = user; dst = network:customers1; prt = tcp 83;
  permit src = network:intern; dst = user; prt = tcp 84;
 }
-=END=
 =SUBST=/type = ipsec:/bind_nat = I;type = ipsec:/
 =OUTPUT=
 -- ipv6/asavpn
@@ -2172,8 +2170,8 @@ access-group extern_in in interface extern
 # Must use NAT ip of internal network, not NAT ip of internet
 # at crypto interface for network:n2.
 # Ignore hidden NAT tag from internet.
-=VAR=input
-${crypto_vpn}
+=TEMPL=input
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -2232,7 +2230,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
@@ -2266,7 +2264,7 @@ access-group outside_in in interface outside
 =TITLE=Mixed NAT at ASA crypto interface (2)
 # No error, because NAT isn't applicable for encrypted packets.
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=|hidden|ip = ::a02:200/120; dynamic|
 =OUTPUT=
 -- ipv6/asavpn
@@ -2282,7 +2280,7 @@ ipv6 route outside ::/0 f000::c0a8:1
 # Ignore hidden NAT tag from internal network.
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 network:n1 = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -2367,7 +2365,7 @@ ipv6 route outside ::102:304/128 f000::c0a8:1
 =TITLE=Route to internet at internal interface
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 
 network:n1 = { ip = ::a01:100/120;}
 router:asavpn = {
@@ -2500,8 +2498,8 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=Directly connected software clients
-=VAR=input
-${crypto_vpn}
+=TEMPL=input
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA, VPN;
@@ -2534,7 +2532,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
@@ -2549,7 +2547,7 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Directly connected software clients; peer without IP
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/ip = ::a01:102;//
 =ERROR=
 Error: interface:softclients.n1 used to reach software clients
@@ -2560,7 +2558,7 @@ Error: interface:softclients.n1 used to reach software clients
 ############################################################
 =TITLE=Directly connected software clients; without routing
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/ip = ::a01:102;//
 =SUBST=/# routing = manual/ routing = manual/
 =OUTPUT=
@@ -2575,7 +2573,7 @@ access-group n1_in in interface n1
 =TITLE=No secondary optimization for incoming ID host
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 router:r1 = {
  model = ASA;
@@ -2627,7 +2625,7 @@ access-group n2_in in interface n2
 =TITLE=Empty software clients
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120; }
 network:trans = { ip = ::a09:900/120; }
 router:gw = {
@@ -2662,7 +2660,7 @@ access-group outside_in in interface outside
 =TITLE=Must not use aggregate with software clients
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:200/120;}
 router:gw = {
  interface:intern;
@@ -2704,7 +2702,7 @@ Warning: Ignoring any:[network:tunnel:softclients] with software clients in src 
 =TITLE=Duplicate ID-hosts
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 crypto:vpn2 = {
  type = ipsec:aes256SHA;
 }
@@ -2779,7 +2777,7 @@ Error: Duplicate ID-host foo@domain.x from network:customers3 and network:custom
 
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT
-=VAR=input
+=TEMPL=input
 ipsec:aes192SHA = {
  key_exchange = isakmp:aes192SHA;
  esp_encryption = aes192;
@@ -2878,7 +2876,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 no sysopt connection permit-vpn
@@ -2926,7 +2924,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=ASA with two crypto spokes and NAT (IKEv2)
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
 --ipv6/asavpn
@@ -2979,7 +2977,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=IOS with two crypto spokes and NAT (IKEv2)
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =SUBST=/ASA/IOS/
 =OUTPUT=
@@ -3026,7 +3024,7 @@ crypto map crypto-outside 2 ipsec-isakmp
 
 ############################################################
 =TITLE=ASA with two dynamic crypto spokes, same ipsec at different tunnels
-=VAR=input
+=TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -3111,7 +3109,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 # Use individual routes to VPN peers, even if all have same next hop.
 =OUTPUT=
 --ipv6/asavpn
@@ -3162,7 +3160,7 @@ crypto map crypto-outside interface outside
 ############################################################
 =TITLE=Must not reuse crypto id
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
 =ERROR=
 Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'router:asavpn':
@@ -3237,7 +3235,7 @@ access-group n1_in in interface n1
 =TITLE=Unexpected dynamic crypto spoke
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 network:intern = {
  ip = ::a01:100/120;
  host:netspoc = { ip = ::a01:16f; }
@@ -3279,8 +3277,8 @@ Error: router:asavpn can't establish crypto tunnel to interface:vpn1.internet wi
 
 ############################################################
 =TITLE=VPN ASA to EZVPN router with two local networks
-=VAR=input
-${crypto_vpn}
+=TEMPL=input
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -3335,7 +3333,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 tunnel-group VPN-single type remote-access
@@ -3419,7 +3417,7 @@ interface e3
 ############################################################
 =TITLE=VPN ASA to EZVPN ASA with two local networks
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/IOS/ASA/
 =OUTPUT=
 --ipv6/vpn
@@ -3448,7 +3446,7 @@ access-group e3_in in interface e3
 ############################################################
 =TITLE=Missing ID at EZVPN router to VPN ASA
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/IOS/ASA/
 =SUBST=/id =/#id/
 =ERROR=
@@ -3457,8 +3455,8 @@ Error: interface:vpn.tunnel:vpn needs attribute 'id', because isakmp:aes256SHA h
 
 ############################################################
 =TITLE=ASA as managed VPN spoke
-=VAR=input
-${crypto_sts}
+=TEMPL=input
+[[crypto_sts]]
 network:intern = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
@@ -3496,7 +3494,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/vpn1
 ! [ Routing ]
@@ -3532,7 +3530,7 @@ access-group Fastethernet8_in in interface Fastethernet8
 ############################################################
 =TITLE=Missing trust_point in isakmp for spoke and hub (1)
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/trust_point/#trust_point/
 =ERROR=
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
@@ -3542,7 +3540,7 @@ Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 ############################################################
 =TITLE=Missing trust_point in isakmp for spoke and hub (2)
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/trust_point = ASDM_TrustPoint3;/trust_point = none;/
 =ERROR=
 Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:vpn1
@@ -3553,8 +3551,8 @@ Error: Missing attribute 'trust_point' in isakmp:aes256SHA for router:asavpn
 # Shared topology for multiple tests.
 
 ############################################################
-=VAR=topo
-${crypto_sts}
+=TEMPL=topo
+[[crypto_sts]]
 network:intern = {
  ip = ::a01:100/120;
  host:netspoc = { ip = ::a01:16f; }
@@ -3620,7 +3618,7 @@ network:lan1 = {
 =TITLE=Create crypto ACL even if no rule is defined
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 =END=
 =OUTPUT=
 --ipv6/asavpn
@@ -3645,7 +3643,7 @@ crypto map crypto-outside interface outside
 =TITLE=Access VPN interface
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = host:netspoc;
  permit src = user; dst = interface:vpn1.lan1; prt = tcp 22;
@@ -3671,7 +3669,7 @@ crypto map crypto-GigabitEthernet0 1 ipsec-isakmp
 =TITLE=NAT of IPSec traffic at ASA and NAT of VPN network at IOS
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
@@ -3741,7 +3739,7 @@ access-group inside_in in interface inside
 ############################################################
 =TITLE=detailed_crypto_acl at managed spoke
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/type = ipsec:/detailed_crypto_acl; type = ipsec:/
 =ERROR=
 Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:vpn1
@@ -3751,12 +3749,11 @@ Error: Attribute 'detailed_crypto_acl' is not allowed for managed spoke router:v
 =TITLE=Don't add hidden network to crypto ACL
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 network:lan2 = {
  ip = ::a63:200/120;
  nat:h = { hidden; }
 }
-=END=
 =SUBST=/interface:lan1/interface:lan2={ip=::a63:201;hardware=lan2;}interface:lan1/
 =SUBST=/bind_nat = lan1;/bind_nat = h, lan1; /
 =OUTPUT=
@@ -3782,7 +3779,7 @@ crypto map crypto-outside interface outside
 =TITLE=Multiple zones behind managed crypto router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 router:r1 = {
  managed;
  model = IOS;
@@ -3798,7 +3795,7 @@ Error: Exactly one security zone must be located behind managed interface:vpn1.l
 =TITLE=ID hosts behind managed crypto router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 =SUBST=/#host/host/
 =ERROR=
 Error: network:lan1 having ID hosts can't be checked by router:asavpn
@@ -3809,7 +3806,7 @@ Error: network:lan1 having ID hosts must not be located behind managed router:vp
 =TITLE=ID hosts behind unmanaged crypto router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 =SUBST=/#host/host/
 =SUBST=/managed;#//
 =ERROR=
@@ -3820,7 +3817,7 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =TITLE=Attribute 'id' with wrong authentication
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 =SUBST=/rsasig/preshare/
 =ERROR=
 Error: Invalid attribute 'id' at interface:vpn1.tunnel:vpn1.
@@ -3829,8 +3826,8 @@ Error: Invalid attribute 'id' at interface:vpn1.tunnel:vpn1.
 
 ############################################################
 # Changed topology
-=VAR=topo
-${crypto_sts}
+=TEMPL=topo
+[[crypto_sts]]
 network:intern = {
  ip = ::a01:100/120;
  host:netspoc = { ip = ::a01:16f; }
@@ -3871,12 +3868,11 @@ network:lan1 = { ip = ::a63:100/120; }
 =TITLE=IOS router as VPN hub
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
-=END=
 =SUBST=/group = 2/group = 15/
 =SUBST=/100000 kilobytes/4608000 kilobytes/
 
@@ -3922,7 +3918,7 @@ interface dmz
 ############################################################
 =TITLE=Must not use EZVPN as hub
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =SUBST=/IOS/IOS, EZVPN/
 =ERROR=
 Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
@@ -3930,8 +3926,8 @@ Error: Must not use router:vpn of model 'IOS, EZVPN' as crypto hub
 
 ############################################################
 =TITLE=Unmanaged VPN spoke with unknown ID
-=VAR=input
-${crypto_sts}
+=TEMPL=input
+[[crypto_sts]]
 network:intern = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
@@ -3963,7 +3959,7 @@ router:vpn1 = {
 network:lan1 = { ip = ::a63:100/120; }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =ERROR=
 Error: interface:vpn1.tunnel:vpn1 needs attribute 'id', because isakmp:aes256SHA has authentication=rsasig
 =END=
@@ -3971,7 +3967,7 @@ Error: interface:vpn1.tunnel:vpn1 needs attribute 'id', because isakmp:aes256SHA
 ############################################################
 =TITLE=Unmanaged VPN spoke with known ID
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/#  id/  id/
 =OUTPUT=
 --ipv6/asavpn
@@ -4003,12 +3999,11 @@ access-group outside_in in interface outside
 =TITLE=Must not traverse crypto interface
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:t = {
  user = network:intern;
  permit src = user; dst = network:dmz; prt = tcp 80;
 }
-=END=
 =SUBST=/#  id/  id/
 =ERROR=
 Error: No valid path
@@ -4022,7 +4017,7 @@ Error: No valid path
 =TITLE=Must not use ID-host at model=ASA;
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 network:intern = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
@@ -4062,7 +4057,7 @@ Error: network:lan1 having ID hosts can't be checked by router:asavpn
 =TITLE=Virtual interface must not be spoke
 =PARAMS=--ipv6
 =INPUT=
-${crypto_sts}
+[[crypto_sts]]
 network:intern = { ip = ::a01:100/120; }
 router:asavpn = {
  model = ASA;
@@ -4102,7 +4097,7 @@ Error: interface:vpn1.internet with virtual interface must not use attribute 'sp
 =TITLE=Silently ignore auto interface at crypto tunnel
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;
@@ -4238,7 +4233,7 @@ ipv6 access-list n1_in
 
 ############################################################
 =TITLE=ASA with unencrypted spoke using AH
-=VAR=input
+=TEMPL=input
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  ah = sha256;
@@ -4297,7 +4292,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/asavpn
 no sysopt connection permit-vpn
@@ -4327,7 +4322,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=ASA with unencrypted spoke using AH  (IKEv2)
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =SUBST=/ike_version = 1/ike_version = 2/
 =OUTPUT=
 --ipv6/asavpn
@@ -4361,7 +4356,7 @@ access-group outside_in in interface outside
 =TITLE=Must not disable crypto
 =PARAMS=--ipv6
 =INPUT=
-${crypto_vpn}
+[[crypto_vpn]]
 network:intern = { ip = ::a01:100/120;}
 router:asavpn = {
  model = ASA, VPN;

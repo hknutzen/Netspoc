@@ -61,10 +61,6 @@ func (s *State) Print() {
 
 func (s *State) getFileIndex(file string) int {
 	file = path.Clean(file)
-	// Prevent dangerous filenames, especially starting with "../".
-	if file == "" || file[0] == '.' {
-		panic(fmt.Errorf("Invalid filename %v", file))
-	}
 	file = path.Join(s.base, file)
 	idx := -1
 	for i, f := range s.files {
@@ -162,6 +158,21 @@ func (s *State) DeleteToplevel(name string) error {
 		}
 	}
 	return fmt.Errorf("Can't find %s", name)
+}
+
+func (s *State) RemoveServiceFromOverlaps(name string) {
+	for _, aF := range s.astFiles {
+		for _, toplevel := range aF.Nodes {
+			if n, ok := toplevel.(*ast.Service); ok {
+				if overlaps := n.GetAttr("overlaps"); overlaps != nil {
+					overlaps.Remove(name)
+					if len(overlaps.ValueList) == 0 {
+						n.RemoveAttr("overlaps")
+					}
+				}
+			}
+		}
+	}
 }
 
 func getTypeName(v string) (string, string) {

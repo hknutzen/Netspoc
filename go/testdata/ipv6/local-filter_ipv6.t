@@ -163,7 +163,7 @@ Error: router:r1 and router:r3 must have identical values in attribute 'filter_o
 # Shared topology
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
@@ -190,7 +190,7 @@ network:ex_match = { ip = ::a3e:700/120; }
 ############################################################
 =TITLE=Reuse object groups for deny rules
 =PARAMS=--ipv6
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 --ipv6/d32
 ! n1_in
@@ -216,7 +216,7 @@ router:r0 = {
  interface:n0;
  interface:n1 = { ip = ::a3e:122; bind_nat = n0; }
 }
-${topo}
+[[topo]]
 =OUTPUT=
 --ipv6/d32
 ! n1_in
@@ -237,7 +237,7 @@ access-group n2_in in interface n2
 =TITLE=External rules are not filtered
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = network:n1;
  permit src = user; dst = network:extern; prt = tcp 80;
@@ -263,7 +263,7 @@ access-group inside_in in interface inside
 =TITLE=Mixed matching and non matching external rules
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = network:extern, network:ex_match;
  permit src = network:n1; dst = user; prt = tcp 80;
@@ -305,7 +305,7 @@ access-group outside_in in interface outside
 =TITLE=Aggregate to extern
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = ::a3c:0/110 & network:n1, network:n2];
  permit src = user;
@@ -328,7 +328,7 @@ access-group n1_in in interface n1
 =TITLE=Aggregate to local
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = ::a3c:0/110 & network:n1];
  permit src = user;
@@ -352,7 +352,7 @@ access-group n1_in in interface n1
 =TITLE=Ignore non matching local aggregate
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = ::a63:0/112 & network:n1];
  permit src = user;
@@ -548,7 +548,7 @@ access-group intern_in in interface intern
 
 ############################################################
 =TITLE=Secondary filter near local filter filters fully
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a3e:120/123; }
 router:d32 = {
  model = ASA;
@@ -573,7 +573,7 @@ service:Mail = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/d31
 ! inside_in
@@ -585,7 +585,7 @@ access-group inside_in in interface inside
 ############################################################
 =TITLE=Different deny rules
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --ipv6/d32
 ! n1_in

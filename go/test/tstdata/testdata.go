@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"log"
 	"os"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
 type Descr struct {
 	Title     string
+	Setup     string
 	Input     string
 	ReusePrev string
 	Options   string
@@ -37,9 +40,10 @@ type Descr struct {
 // =END=
 // found during parsing
 type state struct {
-	src        []byte
-	rest       []byte
-	textblocks map[string]string
+	src       []byte
+	rest      []byte
+	templates map[string]*template.Template
+	filename  string
 }
 
 func GetFiles(dataDir string) []string {
@@ -67,7 +71,8 @@ func ParseFile(file string) ([]*Descr, error) {
 	s := new(state)
 	s.src = data
 	s.rest = data
-	s.textblocks = make(map[string]string)
+	s.templates = make(map[string]*template.Template)
+	s.filename = file
 	return s.parse()
 }
 
@@ -81,7 +86,8 @@ func (s *state) parse() ([]*Descr, error) {
 	var seen map[string]bool
 	add := func() error {
 		if d == nil {
-			return errors.New("missing =TITLE= in first test")
+			return fmt.Errorf("missing =TITLE= in first test of file %s",
+				s.filename)
 		}
 		if d.Input == "" {
 			return fmt.Errorf("missing =INPUT= in test with =TITLE=%s", d.Title)
@@ -114,19 +120,15 @@ func (s *state) parse() ([]*Descr, error) {
 					return nil, err
 				}
 			}
-			text, err := s.readText()
+			text, err := s.readExpandedText()
 			if err != nil {
 				return nil, err
 			}
 			d = new(Descr)
 			d.Title = text
 			seen = make(map[string]bool)
-		case "VAR":
-			if err := s.varDef(); err != nil {
-				return nil, err
-			}
-		case "SUBST":
-			if err := s.substDef(d); err != nil {
+		case "TEMPL":
+			if err := s.templDef(); err != nil {
 				return nil, err
 			}
 		case "DATE":
@@ -142,11 +144,13 @@ func (s *state) parse() ([]*Descr, error) {
 				return nil, fmt.Errorf(
 					"found multiple =%s= in test with =TITLE=%s", name, d.Title)
 			}
-			text, err := s.readText()
+			text, err := s.readExpandedText()
 			if err != nil {
 				return nil, err
 			}
 			switch name {
+			case "SETUP":
+				d.Setup = text
 			case "INPUT":
 				d.Input = text
 			case "REUSE_PREV":
@@ -173,6 +177,10 @@ func (s *state) parse() ([]*Descr, error) {
 				d.Todo = true
 			case "WITH_OUTDIR":
 				d.WithOutD = true
+			case "SUBST":
+				return nil, fmt.Errorf(
+					"=SUBST= is only valid at bottom of text block"+
+						" in test with =TITLE=%s", d.Title)
 			default:
 				return nil, fmt.Errorf(
 					"unexpected =%s= in test with =TITLE=%s", name, d.Title)
@@ -209,14 +217,15 @@ func (s *state) readDef() (string, error) {
 	name := s.checkDef(line)
 	if name == "" {
 		nr := s.currentLine()
-		return "", fmt.Errorf("expected token '=...=' at line %d: %s", nr, line)
+		return "", fmt.Errorf("expected token '=...=' at line %d of file %s: %s",
+			nr, s.filename, line)
 	}
 	s.rest = s.rest[len(name)+2:]
 	return name, nil
 }
 
 func (s *state) checkDef(line string) string {
-	if line[0] != '=' {
+	if line == "" || line[0] != '=' {
 		return ""
 	}
 	idx := strings.Index(line[1:], "=")
@@ -230,61 +239,42 @@ func (s *state) checkDef(line string) string {
 	return ""
 }
 
-func (s *state) substDef(d *Descr) error {
-	line, err := s.getLine()
+func (s *state) templDef() error {
+	name, err := s.readTemplName()
 	if err != nil {
 		return err
 	}
-	s.rest = s.rest[len(line):]
-	line = strings.TrimSpace(line)
-	parts := strings.Split(line[1:], line[0:1])
-	if len(parts) != 3 || parts[2] != "" {
-		return errors.New("invalid substitution: " + line)
-	}
-	if d == nil || d.Input == "" {
-		return fmt.Errorf("=SUBST=%s must follow after =INPUT=", line)
-	}
-	d.Input = strings.ReplaceAll(d.Input, parts[0], parts[1])
-	return nil
-}
-
-func (s *state) varDef() error {
-	name, err := s.readVarName()
-	if err != nil {
-		return err
-	}
-	text, err := s.readText()
+	text, err := s.readExpandedText()
 	if err != nil {
 		return err
 	}
 	text = strings.TrimSuffix(text, "\n")
-	s.textblocks[name] = text
-	return nil
+	s.templates[name], err =
+		template.New(name).Option("missingkey=zero").Parse(text)
+	return err
 }
 
 func (s *state) dateDef(d *Descr) error {
-	line, err := s.getLine()
-	if err != nil {
-		return err
-	}
+	line := s.getLine()
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	days, err := strconv.Atoi(line)
+	if err != nil {
+		return err
+	}
 	date := time.Now().AddDate(0, 0, days)
-	s.textblocks["DATE"] = date.Format("2006-01-02")
-	return nil
+	s.templates["DATE"], err =
+		template.New("DATE").Parse(date.Format("2006-01-02"))
+	return err
 }
 
-func (s *state) readVarName() (string, error) {
-	line, err := s.getLine()
-	if err != nil {
-		return "", err
-	}
+func (s *state) readTemplName() (string, error) {
+	line := s.getLine()
 	s.rest = s.rest[len(line)-1:] // don't skip trailing newline
 	name := strings.TrimSpace(line)
 	for _, ch := range name {
 		if !(isLetter(ch) || isDecimal(ch)) {
-			return "", errors.New("invalid name after =VAR=: " + name)
+			return "", errors.New("invalid name after =TEMPL=: " + name)
 		}
 	}
 	return name, nil
@@ -306,56 +296,112 @@ func isLetter(ch rune) bool {
 	return 'a' <= lower(ch) && lower(ch) <= 'z' || ch == '_'
 }
 
-func (s *state) readText() (string, error) {
-	// Check for single line
-	line, err := s.getLine()
+func (s *state) readExpandedText() (string, error) {
+	line, err := s.doTemplSubst(s.readText())
 	if err != nil {
 		return "", err
 	}
+	return s.applySubst(line)
+}
+
+func (s *state) readText() string {
+	// Check for single line
+	line := s.getLine()
 	s.rest = s.rest[len(line):]
 	line = strings.TrimSpace(line)
 	if line != "" {
-		return s.doVarSubst(line), nil
+		return line
 	}
 	// Read multiple lines up to start of next definition
 	text := s.rest
 	size := 0
 	for {
-		line, err := s.getLine()
-		if err != nil {
-			return "", err
-		}
-		if name := s.checkDef(line); name != "" {
+		line := s.getLine()
+		if name := s.checkDef(line); name != "" || line == "" {
 			if name == "END" {
 				s.rest = s.rest[len("=END="):]
 			}
-			return s.doVarSubst(string(text[:size])), nil
+			return string(text[:size])
 		}
 		s.rest = s.rest[len(line):]
 		size += len(line)
 	}
 }
 
-// Substitute occurrences of ${name} with corresponding value.
-func (s *state) doVarSubst(text string) string {
-	for name, val := range s.textblocks {
-		text = strings.ReplaceAll(text, "${"+name+"}", val)
+// Substitute occurrences of [[name yaml-data]] by text of evaluated
+// named template.
+func (s *state) doTemplSubst(text string) (string, error) {
+	var result strings.Builder
+	prevIdx := 0
+
+	// Take "]" in "]]]" as part of YAML sequence.
+	re := regexp.MustCompile(`(?s)\[\[.*?\]?\]\]`)
+	il := re.FindAllStringIndex(text, -1)
+	for _, p := range il {
+		result.WriteString(text[prevIdx:p[0]])
+		prevIdx = p[1]
+		pair := text[p[0]+2 : p[1]-2] // without "[[" and "]]"
+		var name string
+		var data interface{}
+		if i := strings.IndexAny(pair, " \t\n"); i != -1 {
+			name = pair[:i]
+			y := pair[i+1:]
+			if err := yaml.Unmarshal([]byte(y), &data); err != nil {
+				log.Fatalf(
+					"Invalid YAML data in call to template [[%s]] of file %s: %v",
+					pair, s.filename, err)
+			}
+		} else {
+			name = pair
+		}
+		t := s.templates[name]
+		if t == nil {
+			log.Fatalf("Calling unknown template %s", name)
+		}
+		var b strings.Builder
+		if err := t.Execute(&b, data); err != nil {
+			log.Fatalf("Executing template %s: %v", name, err)
+		}
+		result.WriteString(b.String())
 	}
-	return text
+	result.WriteString(text[prevIdx:])
+	return result.String(), nil
 }
 
-func (s *state) getLine() (string, error) {
+// Apply one or multiple substitutions to current textblock.
+func (s *state) applySubst(text string) (string, error) {
+	for {
+		line := s.getLine()
+		name := s.checkDef(line)
+		if name != "SUBST" {
+			break
+		}
+		s.rest = s.rest[len(line):]
+		line = line[len("=SUBST="):]
+		line = strings.TrimSpace(line)
+		if len(line) == 0 {
+			return "", fmt.Errorf("invalid empty substitution in %s", s.filename)
+		}
+		parts := strings.Split(line[1:], line[0:1])
+		if len(parts) != 3 || parts[2] != "" {
+			return "", errors.New("invalid substitution: =SUBST=" + line)
+		}
+		text = strings.ReplaceAll(text, parts[0], parts[1])
+	}
+	return text, nil
+}
+
+func (s *state) getLine() string {
 	idx := bytes.IndexByte(s.rest, byte('\n'))
 	if idx == -1 {
-		return "", errors.New("unexpected end of file")
+		return string(s.rest)
 	}
-	return string(s.rest[:idx+1]), nil
+	return string(s.rest[:idx+1])
 }
 
 // Fill input directory with file(s).
 // Parts of input are marked by single lines of dashes
 // followed by a filename.
-// If no filename is given, preceeding filename is reused.
 // If no markers are given, a single file named INPUT is used.
 func PrepareInDir(inDir, input string) {
 	if input == "NONE" {

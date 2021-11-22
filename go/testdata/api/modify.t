@@ -160,7 +160,7 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 
 ############################################################
 =TITLE=Add to multi block group (1)
-=VAR=input
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
  host:h_10_1_1_4 = { ip = 10.1.1.4; }
@@ -200,7 +200,7 @@ service:s1 = {
 }
 
 =INPUT=
-${input}
+[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -224,7 +224,7 @@ ${input}
 
 ############################################################
 =TITLE=Add to multi block group (2)
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -248,7 +248,7 @@ ${input}
 
 ############################################################
 =TITLE=Add to multi block group (3)
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "add_to_group",
@@ -1852,8 +1852,78 @@ router:r1 = {
 =END=
 
 ############################################################
-=TITLE=Add service, invalid action
-=VAR=input
+=TITLE=Add service without any rule
+=TEMPL=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+[[input]]
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1",
+        "user": "network:n1"
+    }
+}
+=ERROR=
+Error: Must not define service:s1 without any rules
+=END=
+
+############################################################
+=TITLE=Add service with empty user
+=TEMPL=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+[[input]]
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1",
+        "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 80"
+            }]
+    }
+}
+=WARNING=
+Warning: user of service:s1 is empty
+=OUTPUT=
+@@ rule/S
++service:s1 = {
++ user = ;
++ permit src = user;
++        dst = network:n1;
++        prt = tcp 80;
++}
+=END=
+
+############################################################
+=TITLE=Add service without user and rule
+=TEMPL=input
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=INPUT=
+[[input]]
+=JOB=
+{
+    "method": "create_service",
+    "params": {
+        "name": "s1"
+    }
+}
+=ERROR=
+Warning: user of service:s1 is empty
+Error: Must not define service:s1 without any rules
+=END=
+
+############################################################
+=TEMPL=input
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -1864,8 +1934,56 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
+
+############################################################
+=TITLE=Add empty service, alter user and rule afterwards
 =INPUT=
-${input}
+[[input]]
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [
+            {
+                "method": "create_service",
+                "params": {
+                    "name": "s1"
+                }
+            },
+            {
+                "method": "add_to_user",
+                "params": {
+                    "service": "s1",
+                    "user": "network:n1"
+                }
+            },
+            {
+                "method": "add_rule",
+                "params": {
+                    "service": "s1",
+                    "action": "permit",
+                    "src": "user",
+                    "dst": "network:n2",
+                    "prt": "tcp 80"
+                }
+            }
+        ]
+    }
+}
+=OUTPUT=
+@@ rule/S
++service:s1 = {
++ user = network:n1;
++ permit src = user;
++        dst = network:n2;
++        prt = tcp 80;
++}
+=END=
+
+############################################################
+=TITLE=Add service, invalid action
+=INPUT=
+[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1887,7 +2005,7 @@ Error: Expected 'permit' or 'deny' at line 1 of command line, near "network:n1; 
 
 ############################################################
 =TITLE=Add service, invalid user
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1909,7 +2027,7 @@ Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
 
 ############################################################
 =TITLE=Add service, invalid object type
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 {
     "method": "create_service",
@@ -1931,7 +2049,7 @@ Error: Unknown element type at line 1 of command line, near "dst=--HERE-->net:n2
 
 ############################################################
 =TITLE=Add service, invalid protocol
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 { "method": "create_service",
   "params": {
@@ -1958,7 +2076,7 @@ Error: Unknown protocol in 'udp6' of service:s1
 
 ############################################################
 =TITLE=Add service, name starting with umlaut
-=INPUT=${input}
+=INPUT=[[input]]
 =JOB=
 { "method": "create_service",
   "params": {
@@ -2151,6 +2269,81 @@ Warning: Ignoring file 'service' without any content
 -        dst = network:n2;
 -        prt = tcp 80;
 -}
+=END=
+
+############################################################
+=TITLE=Delete service with overlaps
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { 
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.11; }
+ host:h2 = { ip = 10.1.2.12; }
+}
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565;
+}
+service:s2 = {
+
+ overlaps = service:s1;
+
+ user = host:h1;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565;
+}
+service:s3 = {
+
+ overlaps = service:s1, service:s2;
+
+ user = host:h1;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 25565,
+              tcp 80,
+              ;
+}
+=JOB=
+{
+    "method": "delete_service",
+    "params": {
+        "name": "s1"
+    }
+}
+=OUTPUT=
+@@ service
+-service:s1 = {
+- user = network:n2;
+- permit src = user;
+-        dst = network:n1;
+-        prt = udp 25565;
+-}
+ service:s2 = {
+- overlaps = service:s1;
+-
+  user = host:h1;
+  permit src = user;
+         dst = network:n1;
+         prt = udp 25565;
+ }
++
+ service:s3 = {
+- overlaps = service:s1, service:s2;
++ overlaps = service:s2;
+  user = host:h1;
+  permit src = user;
 =END=
 
 ############################################################
@@ -2984,7 +3177,7 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
-=TITLE=Create toplevel using absolute path
+=TITLE=Invalid absolute path
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3001,7 +3194,7 @@ Error: Invalid absolute filename: /etc/passwd
 =END=
 
 ############################################################
-=TITLE=Create toplevel using relative path
+=TITLE=Invalid relative path
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3018,6 +3211,23 @@ Error: Invalid filename ../passwd
 =END=
 
 ############################################################
+=TITLE=Can't create directory
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_toplevel",
+    "params": {
+        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
+        "file": "topology/n2"
+    }
+}
+=ERROR=
+panic: mkdir topology: not a directory
+=END=
+
+############################################################
 =TITLE=Unexpected content after definition
 =INPUT=
 -- topology
@@ -3027,7 +3237,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "create_toplevel",
     "params": {
         "definition": "network:n2 = { ip = 10.1.2.0/24; } host:h2",
-        "file": "../passwd"
+        "file": "topology"
     }
 }
 =ERROR=

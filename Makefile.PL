@@ -25,12 +25,13 @@ my %WriteMakefileArgs = (
     "bin/print-group",
     "bin/print-service",
     "bin/remove-from-netspoc",
+    "bin/remove-service",
     "bin/rename-netspoc"
   ],
   "LICENSE" => "gpl",
   "NAME" => "Netspoc",
   "PREREQ_PM" => {},
-  "VERSION" => "6.034",
+  "VERSION" => "6.035",
   "test" => {
     "TESTS" => ""
   }

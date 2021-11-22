@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 area:test = { border = interface:filter.Trans; }
 network:A = { ip = 10.3.3.0/25; }
 network:sub = { ip = 10.3.3.8/29; subnet_of = network:A; }
@@ -23,7 +23,7 @@ network:Customer = { ip = 10.9.9.0/24; }
 ############################################################
 =TITLE=Implicit aggregate over 3 networks
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:[ip=10.0.0.0/8 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -43,7 +43,7 @@ ip access-list extended VLAN1_in
 ############################################################
 =TITLE=Implicit aggregate over 2 networks
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = any:[ip=10.3.3.0/24 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -62,7 +62,7 @@ ip access-list extended VLAN1_in
 ############################################################
 =TITLE=Implicit aggregate between 2 networks
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = any:[ip=10.3.3.0/26 & area:test];
  permit src = user; dst = network:Customer; prt = tcp 80;
@@ -338,7 +338,7 @@ Error: network:n3 is hidden by nat:h in rule
 
 ############################################################
 =TITLE=Permit matching aggregate at non matching interface
-=VAR=input
+=TEMPL=input
 network:Test = { ip = 10.9.1.0/24; }
 router:filter1 = {
  managed;
@@ -359,7 +359,7 @@ service:test = {
  permit src = user; dst = network:Test; prt = tcp 80;
 }
 =INPUT=
-${input}
+[[input]]
 =END=
 =OUTPUT=
 --filter1
@@ -375,7 +375,7 @@ access-group Vlan4_in in interface Vlan4
 ############################################################
 =TITLE=Warn on missing src aggregate
 =INPUT=
-${input}
+[[input]]
 router:T = {
  interface:Trans = { ip = 192.168.1.3; }
  interface:N1;
@@ -393,7 +393,7 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Warn on multiple missing networks
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; has_subnets; }
@@ -422,7 +422,7 @@ service:s1 = {
  permit src = network:n1; dst = user; prt = icmp 8;
 }
 =INPUT=
-${input}
+[[input]]
 =END=
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
@@ -440,7 +440,7 @@ Warning: This supernet rule would permit unexpected access:
 ############################################################
 =TITLE=Warn on multiple missing networks with aggregate
 =INPUT=
-${input}
+[[input]]
 any:n3x = { ip = 10.1.3.0/24; link = network:n3a; }
 =END=
 =WARNING=
@@ -610,7 +610,7 @@ access-group Vlan6_out out interface Vlan6
 
 ############################################################
 =TITLE=Nested aggregates
-=VAR=input
+=TEMPL=input
 network:Test = { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -636,7 +636,7 @@ service:test2 = {
  user = any:[ip=10.1.0.0/22 & network:Trans];
  permit src = user; dst = network:Test; prt = tcp 81;
 }
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --filter
 access-list Vlan2_in extended permit tcp 10.1.0.0 255.255.254.0 10.9.1.0 255.255.255.0 eq 80
@@ -648,7 +648,7 @@ access-group Vlan2_in in interface Vlan2
 ############################################################
 =TITLE=Redundant nested aggregates
 =INPUT=
-${input}
+[[input]]
 service:test3 = {
  user = any:[ip=10.1.0.0/16 & network:Trans];
  permit src = user; dst = network:Test; prt = tcp 80;
@@ -937,11 +937,11 @@ ip access-list extended VLAN2_in
 
 ############################################################
 =TITLE=Multiple missing destination networks at one router
-=VAR=topo
+=TEMPL=topo
 network:Customer = { ip = 10.9.9.0/24; }
 router:r1 = {
  managed;
- model = IOS, FW;
+ model = {{.mod}};
  routing = manual;
  interface:Customer = { ip = 10.9.9.1; hardware = VLAN9; }
  interface:trans = { ip = 10.7.7.1; hardware = VLAN7; }
@@ -950,10 +950,10 @@ router:r1 = {
 network:trans = { ip = 10.7.7.0/24; }
 router:r2 = {
  managed;
- model = IOS, FW;
+ model = {{.mod}};
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = VLAN77; }
- interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; }
+ interface:n1 = { ip = 10.1.1.1; hardware = VLAN1; {{.no}}}
  interface:n2 = { ip = 10.1.2.1, 10.1.2.2; hardware = VLAN2; }
  interface:n3 = { ip = 10.1.3.1; hardware = VLAN3; }
  interface:n4 = { ip = 10.1.4.1; hardware = VLAN4; }
@@ -966,7 +966,7 @@ network:n4 = { ip = 10.1.4.0/24; }
 network:n128 = { ip = 10.128.1.0/24; }
 =END=
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 service:test = {
  user = #network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -1007,7 +1007,7 @@ Warning: This supernet rule would permit unexpected access:
 ############################################################
 =TITLE=Multiple missing destination networks
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 router:u = {
  interface:n2;
  interface:n2x;
@@ -1087,7 +1087,7 @@ Warning: This supernet rule would permit unexpected access:
 ############################################################
 =TITLE=Multiple destination aggregates
 =INPUT=
-${topo}
+[[topo {no: "", mod: "IOS, FW"}]]
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -1127,7 +1127,7 @@ ip access-list extended VLAN77_in
 # Wenn n1, dann ohne Prüfung, da an allen anderen Interfaces eine out_acl.
 # Wenn n2, dann erfolgreiche Prüfung auf n1.
 =INPUT=
-${topo}
+[[topo {no: "no_in_acl;", mod: "IOS, FW"}]]
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
@@ -1137,8 +1137,6 @@ service:test = {
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
-=SUBST=/VLAN1;/VLAN1; no_in_acl;/
 =OUTPUT=
 --r2
 ip access-list extended VLAN77_in
@@ -1171,14 +1169,12 @@ ip access-list extended VLAN2_out
 # Linux only checks for missing intermediate aggregates,
 # because filter is attached to pair of incoming and outgoing interface.
 =INPUT=
-${topo}
+[[topo {no: "", mod: "Linux"}]]
 service:test = {
  user = any:[ip=10.0.0.0/9 & network:n1],
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
-=SUBST=/IOS, FW/Linux/
 =WARNING=
 Warning: This supernet rule would permit unexpected access:
   permit src=network:Customer; dst=any:[ip=10.0.0.0/9 & network:n1]; prt=ip; of service:test
@@ -1193,19 +1189,15 @@ Warning: This supernet rule would permit unexpected access:
 # Linux only checks for missing intermediate aggregates,
 # because filter is attached to pair of incoming and outgoing interface.
 =INPUT=
-${topo}
+[[topo {no: "", mod: "Linux"}]]
 service:test = {
  user = network:trans,
         any:[ip=10.0.0.0/9 & network:n1],
         ;
  permit src = network:Customer; dst = user; prt = ip;
 }
-=END=
-=SUBST=/IOS, FW/Linux/
 =OUTPUT=
 --r2
-:VLAN77_self -
--A INPUT -j VLAN77_self -i VLAN77
 :VLAN77_VLAN1 -
 -A VLAN77_VLAN1 -j ACCEPT -s 10.9.9.0/24 -d 10.0.0.0/9
 -A FORWARD -j VLAN77_VLAN1 -i VLAN77 -o VLAN1
@@ -1624,11 +1616,11 @@ Warning: This supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Missing aggregates for reverse rule
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
- model = IOS; #1
+ model = IOS{{.fw1}};
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:trans = { ip = 10.7.7.1; hardware = trans; }
@@ -1638,7 +1630,7 @@ router:r1 = {
 network:trans = { ip = 10.7.7.0/24; }
 router:r2 = {
  managed;
- model = IOS; #2
+ model = IOS{{.fw2}};
  routing = manual;
  interface:trans = { ip = 10.7.7.2; hardware = trans; }
  interface:n3 = { ip = 10.1.3.1, 10.1.3.2; hardware = n3; }
@@ -1654,7 +1646,7 @@ service:test = {
  permit src = user; dst = network:n4; prt = udp 123;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {fw1: "", fw2: ""}]]
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
@@ -1674,8 +1666,7 @@ Warning: This reversed supernet rule would permit unexpected access:
 =TITLE=Effect of stateful router in reversed direction
 # router:r1 sees only reply packets filtered by stateful router:r2
 # Hence no warning is shown.
-=INPUT=${input}
-=SUBST=/; #2/, FW;/
+=INPUT=[[input {fw1: "", fw2: ", FW"}]]
 =OUTPUT=
 --r1
 ! [ ACL ]
@@ -1694,9 +1685,7 @@ ip access-list extended trans_in
 
 ############################################################
 =TITLE=No effect of stateful router in forward direction
-=INPUT=${input}
-=SUBST=/, FW//
-=SUBST=/; #1/, FW;/
+=INPUT=[[input {fw1: ", FW", fw2: ""}]]
 =WARNING=
 Warning: This reversed supernet rule would permit unexpected access:
   permit src=any:[ip=10.0.0.0/8 & network:n1]; dst=network:n4; prt=udp 123; of service:test
@@ -1977,10 +1966,10 @@ Warning: This reversed supernet rule would permit unexpected access:
 
 ############################################################
 =TITLE=Suppress warning about missing aggregate rule
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:sub = { ip = 10.1.1.128/25; subnet_of = network:n1;
-# host:h = { ip = 10.1.1.130; }
+{{.}}
 }
 router:u = {
  interface:n1;
@@ -2007,13 +1996,12 @@ service:s = {
  permit src = network:n3; dst = user; prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input ""]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Must not use no_check_supernet_rules with hosts
-=INPUT=${input}
-=SUBST=/# host:h/ host:h/
+=INPUT=[[input "host:h = { ip = 10.1.1.130; }"]]
 =ERROR=
 Error: Must not use attribute 'no_check_supernet_rules' at any:[network:t]
  with networks having host definitions:
@@ -2816,12 +2804,14 @@ service:s2 = {
 # [ ACL ]
 :n1_self -
 -A INPUT -j n1_self -i n1
+--
 :n1_n3 -
 -A n1_n3 -j ACCEPT -d 10.1.3.0/24 -p tcp
 -A FORWARD -j n1_n3 -i n1 -o n3
 --
 :n2_self -
 -A INPUT -j n2_self -i n2
+--
 :n2_n1 -
 -A n2_n1 -j ACCEPT -s 10.1.2.0/24 -p tcp --dport 80
 -A FORWARD -j n2_n1 -i n2 -o n1
@@ -3294,11 +3284,17 @@ router:r2 = {
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-service:ping_local = {
+service:ping-local = {
  user = foreach any:[network:n3];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmp 8;
 }
 =END=
+=WARNING=
+Warning: service:ping-local has unenforceable rules:
+ src=network:n2; dst=interface:r2.n2
+ src=network:n2; dst=interface:r2.n3
+ src=network:n3; dst=interface:r2.n2
+ src=network:n3; dst=interface:r2.n3
 =OUTPUT=
 --r1
 ip access-list extended n2_in

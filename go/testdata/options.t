@@ -155,3 +155,108 @@ router:r = {
 Error: Can't mkdir missing.dir/file: no such file or directory
 Aborted
 =END=
+
+############################################################
+=TITLE=Can't create out directory
+=SETUP=touch out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir out: file exists
+Aborted
+=END=
+
+############################################################
+=TITLE=Can't read out directory
+=SETUP=
+mkdir out
+chmod u-r out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+panic: open out: permission denied
+=END=
+
+############################################################
+=TITLE=Can't write to out directory
+=SETUP=
+mkdir out
+chmod u-w out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't open out/r1.config: permission denied
+Aborted
+=END=
+
+############################################################
+=TITLE=Can't write code file
+=SETUP=
+mkdir -p out/.prev
+mkdir out/r1
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+panic: Can't open out/r1: is a directory
+=END=
+
+############################################################
+=TITLE=Can't read input directory
+=SETUP=
+mkdir netspoc
+chmod u-rx netspoc
+=INPUT=NONE
+=PARAMS=netspoc
+=ERROR=
+panic: open netspoc: permission denied
+=END=
+
+############################################################
+=TITLE=Can't read intermediate file *.config
+=SETUP=
+mkdir -p out/.prev
+touch out/r1.config
+chmod u-r out/r1.config
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+panic: open out/r1.config: permission denied
+=END=
+
+############################################################
+=TITLE=Can't read intermediate file *.rules
+=SETUP=
+mkdir -p out/.prev
+touch out/r1.rules
+chmod u-r out/r1.rules
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+panic: open out/r1.rules: permission denied
+=END=

@@ -87,7 +87,7 @@ type symbolTable struct {
 	aggregate map[string]*network
 	// References owner
 	host map[string]*host
-	// References host, owner, protocolgroup+
+	// References host, owner, router, protocolgroup, protocol
 	router  map[string]*router
 	router6 map[string]*router
 	// References network, owner, crypto, routerIntf(via crypto)
@@ -167,6 +167,14 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 			s.network[name] = n
 			networks = append(networks, x)
 		case *ast.Router:
+			r := new(router)
+			r.name = x.Name
+			r.ipV6 = x.IPV6
+			if r.ipV6 {
+				s.router6[name] = r
+			} else {
+				s.router[name] = r
+			}
 			routers = append(routers, x)
 		case *ast.Area:
 			areas = append(areas, x)
@@ -753,7 +761,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 	} else if n.ipType == bridgedIP {
 		for _, h := range n.hosts {
-			if !h.ipRange.From.IsZero() {
+			if !h.ipRange.From().IsZero() {
 				c.err("Bridged %s must not have %s with range (not implemented)",
 					name, h.name)
 			}
@@ -775,9 +783,11 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
-			if !h.ipRange.From.IsZero() {
+			if !h.ipRange.From().IsZero() {
 				// Check range.
-				if !(ipp.Contains(h.ipRange.From) && ipp.Contains(h.ipRange.To)) {
+				if !(ipp.Contains(h.ipRange.From()) &&
+					ipp.Contains(h.ipRange.To())) {
+
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
@@ -792,7 +802,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		// Check NAT definitions.
 		for tag, nat := range n.nat {
 			if !nat.dynamic {
-				if nat.ipp.Bits != ipp.Bits {
+				if nat.ipp.Bits() != ipp.Bits() {
 					c.err("Mask for non dynamic nat:%s must be equal to mask of %s",
 						tag, name)
 				}
@@ -909,14 +919,14 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			h.ldapId = ""
 		}
 	} else if h.ldapId != "" {
-		if h.ipRange.From.IsZero() {
+		if h.ipRange.From().IsZero() {
 			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
 	} else if h.radiusAttributes != nil {
 		c.warn("Ignoring 'radius_attributes' at %s", name)
 	}
-	if h.nat != nil && !h.ipRange.From.IsZero() {
+	if h.nat != nil && !h.ipRange.From().IsZero() {
 		// Before changing this,
 		// add consistency tests in convert_hosts.
 		c.err("No NAT supported for %s with 'range'", name)
@@ -961,7 +971,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	if ag.ipp.IsZero() {
 		ag.ipp = getNetwork00(v6).ipp
 	}
-	if ag.ipp.Bits != 0 {
+	if ag.ipp.Bits() != 0 {
 		for _, a := range v.Attributes {
 			switch a.Name {
 			case "ip", "link", "owner",
@@ -1073,17 +1083,10 @@ func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
 
 func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	name := v.Name
-	v6 := v.IPV6
-	r := new(router)
-	c.allRouters = append(c.allRouters, r)
-	r.name = name
-	r.ipV6 = v6
 	rName := name[len("router:"):]
-	if v6 {
-		s.router6[rName] = r
-	} else {
-		s.router[rName] = r
-	}
+	v6 := v.IPV6
+	r := getRouter(rName, s, v6)
+	c.allRouters = append(c.allRouters, r)
 	i := strings.Index(rName, "@")
 	if i != -1 {
 		r.deviceName = rName[:i]
@@ -1110,8 +1113,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			noProtectSelf = c.getFlag(a, name)
 		case "log_deny":
 			r.logDeny = c.getFlag(a, name)
-		case "acl_use_real_ip":
-			_ = c.getFlag(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1122,6 +1123,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			r.policyDistributionPoint = c.tryHostRef(a, s, v6, name)
 		case "general_permit":
 			r.generalPermit = c.getGeneralPermit(a, s, v6, name)
+		case "management_instance":
+			r.managementInstance = c.getFlag(a, name)
+		case "backup_of":
+			r.backupOf = c.tryRouterRef(a, s, v6, name)
 		default:
 			if !c.addLog(a, r) {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -1207,6 +1212,10 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 
 		if r.vrf != "" && !r.model.canVRF {
 			c.err("Must not use VRF at %s of model %s", name, r.model.name)
+		}
+		if r.vrf == "" && r.model.needVRF {
+			c.err("Must use VRF ('@...' in name) at %s of model %s",
+				name, r.model.name)
 		}
 
 		for _, intf := range r.interfaces {
@@ -1347,6 +1356,66 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		// Unmanaged device.
 		if r.owner != nil {
 			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
+		}
+	}
+
+	if r.managementInstance {
+		if r.managed != "" || r.routingOnly {
+			c.warn("Ignoring attribute 'management_instance' at managed %s",
+				name)
+		} else if r.model == nil {
+			c.warn("Ignoring attribute 'management_instance' at %s"+
+				" without model",
+				name)
+		} else if !r.model.needManagementInstance {
+			c.warn("Ignoring attribute 'management_instance' at %s of model %s",
+				name, r.model.name)
+		} else if len(r.interfaces) != 1 {
+			c.err("%s with attribute 'management_instance' needs"+
+				" exactly one interface", name)
+		} else if r.interfaces[0].ipType != hasIP {
+			c.err("%s with attribute 'management_instance' needs"+
+				" interface with IP address", name)
+		} else {
+			// This simplifies inheritance of policy_distribution_point
+			// from area to management_instance.
+			r.semiManaged = true
+		}
+		if r.vrf != "" {
+			c.err("%s with attribute 'management_instance' must not use VRF", name)
+		}
+		if r2 := r.backupOf; r2 != nil {
+			// r2.deviceName is set, if r2 already has been parsed.
+			if r2.deviceName != "" && !r2.managementInstance {
+				c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+					" because %s hasn't attribute 'management_instance'",
+					name, r2.name)
+			} else if r3 := r2.backupInstance; r3 != nil {
+				c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+					" because %s is already 'backup_of' %s",
+					name, r3.name, r2.name)
+			} else {
+				r2.backupInstance = r
+			}
+		}
+	} else {
+		if r.backupOf != nil {
+			c.warn("Ignoring attribute 'backup_of' at %s"+
+				" without attribute 'management_instance'",
+				name)
+		}
+		// Attribute .backupInstance has been set before r was parsed.
+		if r2 := r.backupInstance; r2 != nil {
+			c.warn("Ignoring attribute 'backup_of' at %s,\n"+
+				" because %s hasn't attribute 'management_instance'",
+				r2.name, name)
+		}
+		if r.policyDistributionPoint != nil &&
+			r.model != nil && r.model.needManagementInstance {
+
+			c.warn("Ignoring attribute 'policy_distribution_point' at %s\n"+
+				" Add this attribute at 'management_instance' instead",
+				name)
 		}
 	}
 
@@ -1811,7 +1880,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		if n == nil {
 			n = new(network)
 			n.name = fullName
-			n.ipp = netaddr.IPPrefix{IP: intf.ip, Bits: getHostPrefix(v6)}
+			n.ipp = netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6))
 
 			// Mark as automatically created.
 			n.loopback = true
@@ -1858,7 +1927,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				if info.hidden || info.identity || info.dynamic {
 					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
-					intf.nat[tag] = info.ipp.IP
+					intf.nat[tag] = info.ipp.IP()
 				}
 			}
 		}
@@ -1958,6 +2027,9 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 			ru.log = strings.Join(l, ",")
 		}
 		sv.rules = append(sv.rules, ru)
+	}
+	if len(sv.rules) == 0 {
+		c.err("Must not define %s without any rules", name)
 	}
 }
 
@@ -2094,7 +2166,7 @@ func (c *spoc) getSingleValue(a *ast.Attribute, ctx string) string {
 }
 
 func (c *spoc) getValueList(a *ast.Attribute, ctx string) stringList {
-	if a.ComplexValue != nil || a.ValueList == nil {
+	if a.ComplexValue != nil || len(a.ValueList) == 0 {
 		c.err("List of values expected in '%s' of %s", a.Name, ctx)
 		return nil
 	}
@@ -2289,7 +2361,7 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 	}
 	v := c.getSingleValue(a, ctx)
 	switch v {
-	case "secondary", "standard", "full", "primary", "local", "routing_only":
+	case "secondary", "standard", "full", "primary", "local", "routing_only", "":
 		return v
 	}
 	c.err("Invalid value for '%s' of %s: %s", a.Name, ctx, v)
@@ -2298,37 +2370,39 @@ func (c *spoc) getManaged(a *ast.Attribute, ctx string) string {
 
 var routerInfo = map[string]*model{
 	"IOS": &model{
-		routing:         "IOS",
-		filter:          "IOS",
-		stateless:       true,
-		statelessSelf:   true,
-		statelessICMP:   true,
-		inversedACLMask: true,
-		canVRF:          true,
-		canLogDeny:      true,
-		logModifiers:    map[string]string{"log-input": ":subst"},
-		hasOutACL:       true,
-		needProtect:     true,
-		crypto:          "IOS",
-		printRouterIntf: true,
-		commentChar:     "!",
+		routing:          "IOS",
+		filter:           "IOS",
+		stateless:        true,
+		statelessSelf:    true,
+		statelessICMP:    true,
+		inversedACLMask:  true,
+		canVRF:           true,
+		canLogDeny:       true,
+		logModifiers:     map[string]string{"log-input": ":subst"},
+		hasOutACL:        true,
+		needProtect:      true,
+		crypto:           "IOS",
+		printRouterIntf:  true,
+		vrfShareHardware: true,
+		commentChar:      "!",
 	},
 	"NX-OS": {
-		routing:         "NX-OS",
-		filter:          "NX-OS",
-		stateless:       true,
-		statelessSelf:   true,
-		statelessICMP:   true,
-		canObjectgroup:  true,
-		inversedACLMask: true,
-		usePrefix:       true,
-		canVRF:          true,
-		canLogDeny:      true,
-		logModifiers:    map[string]string{},
-		hasOutACL:       true,
-		needProtect:     true,
-		printRouterIntf: true,
-		commentChar:     "!",
+		routing:          "NX-OS",
+		filter:           "NX-OS",
+		stateless:        true,
+		statelessSelf:    true,
+		statelessICMP:    true,
+		canObjectgroup:   true,
+		inversedACLMask:  true,
+		usePrefix:        true,
+		canVRF:           true,
+		canLogDeny:       true,
+		logModifiers:     map[string]string{},
+		hasOutACL:        true,
+		needProtect:      true,
+		printRouterIntf:  true,
+		vrfShareHardware: true,
+		commentChar:      "!",
 	},
 	"ASA": {
 		routing: "ASA",
@@ -2344,16 +2418,27 @@ var routerInfo = map[string]*model{
 			"debugging":     "7",
 			"disable":       "disable",
 		},
-		statelessICMP:    true,
-		hasOutACL:        true,
-		aclUseRealIP:     true,
-		canObjectgroup:   true,
-		canDynCrypto:     true,
-		crypto:           "ASA",
-		noCryptoFilter:   true,
-		commentChar:      "!",
-		noFilterICMPCode: true,
-		needACL:          true,
+		statelessICMP:  true,
+		hasOutACL:      true,
+		aclUseRealIP:   true,
+		canObjectgroup: true,
+		canDynCrypto:   true,
+		crypto:         "ASA",
+		noCryptoFilter: true,
+		commentChar:    "!",
+		needACL:        true,
+		noACLself:      true,
+	},
+	"PAN-OS": {
+		routing:                "",
+		filter:                 "PAN-OS",
+		hasIoACL:               true,
+		canObjectgroup:         true,
+		canVRF:                 true,
+		canLogDeny:             true,
+		needManagementInstance: true,
+		needVRF:                true,
+		noACLself:              true,
 	},
 	"Linux": {
 		routing:     "iproute",
@@ -2576,8 +2661,10 @@ func (c *spoc) getIpRange(
 	if len(l) != 2 {
 		c.err("Expected IP range in %s", ctx)
 	} else {
-		result.From = c.convIP(l[0], v6, a.Name, ctx)
-		result.To = c.convIP(l[1], v6, a.Name, ctx)
+		result = netaddr.IPRangeFrom(
+			c.convIP(l[0], v6, a.Name, ctx),
+			c.convIP(l[1], v6, a.Name, ctx),
+		)
 		if !result.Valid() {
 			c.err("Invalid IP range in %s", ctx)
 		}
@@ -2611,7 +2698,7 @@ func (c *spoc) convIpPrefix(
 	} else if n.Masked() != n {
 		c.err("IP and mask of %s don't match in '%s' of %s", s, name, ctx)
 	}
-	c.checkVxIP(n.IP, v6, name, ctx)
+	c.checkVxIP(n.IP(), v6, name, ctx)
 	return n
 }
 
@@ -2644,7 +2731,11 @@ func (c *spoc) dateIsReached(s, ctx string) bool {
 		c.err("Date expected as yyyy-mm-dd in %s", ctx)
 		return false
 	}
-	date, _ := time.Parse("2006-01-02", s)
+	date, err := time.ParseInLocation("2006-01-02", s, time.Local)
+	if err != nil {
+		c.err("Invalid date in %s: %v", ctx, err)
+		return false
+	}
 	return time.Now().After(date)
 }
 
@@ -2722,6 +2813,31 @@ func (c *spoc) tryHostRef(
 	}
 	c.checkV4V6CrossRef(h, v6, ctx2)
 	return h
+}
+
+func (c *spoc) tryRouterRef(
+	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *router {
+
+	typ, name := c.getTypedName(a, ctx)
+	ctx2 := "'" + a.Name + "' of " + ctx
+	if typ != "router" {
+		c.err("Expected type 'router:' in %s", ctx2)
+		return nil
+	}
+	r := getRouter(name, s, v6)
+	if r == nil {
+		c.warn("Ignoring undefined router:%s in %s", name, ctx2)
+		return nil
+	}
+	return r
+}
+
+func getRouter(name string, s *symbolTable, v6 bool) *router {
+	if v6 {
+		return s.router6[name]
+	} else {
+		return s.router[name]
+	}
 }
 
 func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
@@ -3117,10 +3233,10 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
 	return c.addXNat(a, m, v6, s, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
 			ip := c.getSingleValue(a, ctx)
-			return netaddr.IPPrefix{
-				IP:   c.convIP(ip, v6, a.Name, ctx),
-				Bits: getHostPrefix(v6),
-			}
+			return netaddr.IPPrefixFrom(
+				c.convIP(ip, v6, a.Name, ctx),
+				getHostPrefix(v6),
+			)
 		})
 }
 
@@ -3164,7 +3280,7 @@ func (c *spoc) addXNat(
 		nat.dynamic = true
 
 		// Provide an unusable address.
-		nat.ipp = netaddr.IPPrefix{IP: getZeroIp(v6), Bits: getHostPrefix(v6)}
+		nat.ipp = netaddr.IPPrefixFrom(getZeroIp(v6), getHostPrefix(v6))
 	} else if nat.identity {
 		for _, a2 := range l {
 			if a2.Name != "identity" {
@@ -3252,11 +3368,11 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 
 		// Check network and broadcast address only for IPv4,
 		// but not for /31 IPv4 (see RFC 3021).
-		if n.ipp.Bits != 31 {
-			if ip == n.ipp.IP {
+		if n.ipp.Bits() != 31 {
+			if ip == n.ipp.IP() {
 				c.err("%s has address of its network", intf)
 			}
-			if ip == n.ipp.Range().To {
+			if ip == n.ipp.Range().To() {
 				c.err("%s has broadcast address", intf)
 			}
 		}

@@ -308,7 +308,7 @@ route n2 10.1.4.0 255.255.254.0 10.1.2.1
 
 ############################################################
 =TITLE=Intermediate network hides subnet
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/28; subnet_of = network:n2; }
 network:n2 = { ip = 10.1.1.0/24; subnet_of = network:n3; }
 network:n3 = { ip = 10.1.0.0/16; }
@@ -332,11 +332,11 @@ router:r = {
  interface:t2 = { ip = 10.9.2.1; hardware = t2; }
 }
 service:test = {
- user = network:n1;#, network:n4;
+ user = network:n1{{.n4}};
  permit src = user; dst = network:n2; prt = icmp 8;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input {n4: ""}]]
 =OUTPUT=
 --r
 # [ Routing ]
@@ -347,8 +347,7 @@ ip route add 10.1.1.0/24 via 10.9.2.2
 
 ############################################################
 =TITLE=Default route with intermediate network hides subnet
-=INPUT=${input}
-=SUBST=/;#,/,/
+=INPUT=[[input {n4: ",network:n4"}]]
 =OUTPUT=
 --r
 # [ Routing ]
@@ -360,13 +359,11 @@ ip route add 10.1.1.0/24 via 10.9.2.2
 ############################################################
 =TITLE=Route for redundant subnet
 =INPUT=
-${input}
+[[input {n4: ",network:n4"}]]
 service:test2 = {
  user = network:n3;
  permit src = user; dst = network:n2; prt = icmp 8;
 }
-=END=
-=SUBST=/;#,/,/
 =OUTPUT=
 --r
 # [ Routing ]

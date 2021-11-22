@@ -155,7 +155,7 @@ Error: router:r1 and router:r3 must have identical values in attribute 'filter_o
 # Shared topology
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.62.1.32/27; }
 router:d32 = {
  model = ASA;
@@ -181,7 +181,7 @@ network:ex_match = { ip = 10.62.7.0/24; }
 
 ############################################################
 =TITLE=Reuse object groups for deny rules
-=INPUT=${topo}
+=INPUT=[[topo]]
 =OUTPUT=
 --d32
 ! n1_in
@@ -206,7 +206,7 @@ router:r0 = {
  interface:n0;
  interface:n1 = { ip = 10.62.1.34; bind_nat = n0; }
 }
-${topo}
+[[topo]]
 =OUTPUT=
 --d32
 ! n1_in
@@ -226,7 +226,7 @@ access-group n2_in in interface n2
 ############################################################
 =TITLE=External rules are not filtered
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = network:n1;
  permit src = user; dst = network:extern; prt = tcp 80;
@@ -251,7 +251,7 @@ access-group inside_in in interface inside
 ############################################################
 =TITLE=Mixed matching and non matching external rules
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = network:extern, network:ex_match;
  permit src = network:n1; dst = user; prt = tcp 80;
@@ -292,7 +292,7 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=Aggregate to extern
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = 10.60.0.0/14 & network:n1, network:n2];
  permit src = user;
@@ -314,7 +314,7 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Aggregate to local
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = 10.60.0.0/14 & network:n1];
  permit src = user;
@@ -337,7 +337,7 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Ignore non matching local aggregate
 =INPUT=
-${topo}
+[[topo]]
 service:Test = {
  user = any:[ip = 10.99.0.0/16 & network:n1];
  permit src = user;
@@ -529,7 +529,7 @@ access-group intern_in in interface intern
 
 ############################################################
 =TITLE=Secondary filter near local filter filters fully
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.62.1.32/27; }
 router:d32 = {
  model = ASA;
@@ -553,7 +553,7 @@ service:Mail = {
         prt = tcp 25;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --d31
 ! inside_in
@@ -564,7 +564,7 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Different deny rules
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 --d32
 ! n1_in

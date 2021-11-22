@@ -11,7 +11,7 @@ cut-netspoc [options] FILE|DIR [service:name] ...
 
 =head1 DESCRIPTION
 
-Reads a Netspoc configuration && prints parts of this configuration
+Reads a Netspoc configuration and prints parts of this configuration
 to STDOUT. If one or more services are given as argument, only those
 parts are printed, that are referenced by given serices. If no service
 is given, it acts as if all services are specified. This is useful to
@@ -25,7 +25,7 @@ Quiet, don't print status messages.
 
 =item B<-help>
 
-Prints a brief help message && exits.
+Prints a brief help message and exits.
 
 =back
 
@@ -52,12 +52,13 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"os"
-	"strings"
 )
 
 var isUsed map[string]bool
@@ -112,22 +113,41 @@ func selectReroutePermit(l []*ast.Value) []*ast.Value {
 	return result
 }
 
+func setRouterUsed(r *router) {
+	name := r.name
+	if r.ipV6 {
+		name = "6" + name
+	}
+	isUsed[name] = true
+}
+
+func isRouterUsed(r *router) bool {
+	lookup := r.name
+	if r.ipV6 {
+		lookup = "6" + lookup
+	}
+	return isUsed[lookup]
+}
+
+func setIntfUsed(intf *routerIntf) {
+	iName := intf.name
+	isUsed[iName] = true
+	// Ignore extension if virtual interface is used as main interface.
+	iName = strings.TrimSuffix(iName, ".virtual")
+	isUsed[iName] = true
+}
+
 type netPathObj interface {
 	intfList() intfList
-	getUsed() bool
-	setUsed()
-}
-type netPathObjList []netPathObj
-
-func (a *netPathObjList) push(e netPathObj) {
-	*a = append(*a, e)
+	String() string
 }
 
 // Collect networks that need to be connected by unmanaged parts of topology.
-var todoUnmanaged netPathObjList
+var todoUnmanaged groupObjList
+var addLater intfList
 
 // This function is called by pathWalk to mark all managed routers
-// on path from src to dst of rule with attribute .isUsed set.
+// on path from src to dst of rule as used.
 func markTopology(_ *groupedRule, in, out *routerIntf) {
 	var r *router
 	if in != nil {
@@ -135,23 +155,22 @@ func markTopology(_ *groupedRule, in, out *routerIntf) {
 	} else {
 		r = out.router
 	}
-	r.isUsed = true
+	setRouterUsed(r)
 	//debug("Used %s", r)
 	for _, intf := range []*routerIntf{in, out} {
-		if intf == nil {
-			continue
+		if intf != nil {
+			setIntfUsed(intf)
+			n := intf.network
+			isUsed[n.name] = true
+			todoUnmanaged.push(n)
 		}
-		n := intf.network
-		intf.isUsed = true
-		n.isUsed = true
-		todoUnmanaged.push(n)
 	}
 }
 
 // Mark path between objects and marked parts of topology.
-// object must be of type network or router.
-// Depending on managed, mark only unmanaged or also managed parts.
-func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
+// Objects must be of type network or interface.
+// Depending on 'managed', mark only unmanaged or also managed parts.
+func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 	var what string
 	if managed {
 		what = "managed"
@@ -166,7 +185,7 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 			return false
 		}
 		seen[obj] = true
-		if obj.getUsed() {
+		if isUsed[obj.String()] {
 			//debug("Found %s", obj)
 			return true
 		}
@@ -191,45 +210,59 @@ func (c *spoc) markUnconnected(list netPathObjList, managed bool) {
 				next = intf.router
 			}
 			if mark(next, intf, seen) {
-				obj.setUsed()
-				intf.isUsed = true
+				isUsed[obj.String()] = true
+				isUsed[intf.name] = true
 				//debug("Marked %s + %s", obj, intf)
 				result = true
+				break
 			}
 		}
 		return result
 	}
 
 	for _, obj := range list {
-		//debug("Connecting %s", obj)
-		seen := map[netPathObj]bool{obj: true}
-		_, isRouter := obj.(*router)
-		for _, intf := range obj.intfList() {
-			if intf.mainIntf != nil {
-				continue
-			}
-			var next netPathObj
-			if isRouter {
-				next = intf.network
+		//debug("\nConnecting %s", obj)
+		seen := make(map[netPathObj]bool)
+		switch x := obj.(type) {
+		case *routerIntf:
+			//debug("-Try %s -> %s", x, x.network)
+			seen[x.router] = true
+			if mark(x.network, x, seen) {
+				isUsed[x.router.name] = true
+				//debug("Marked %s + %s", x, x.network)
 			} else {
-				next = intf.router
+				//debug("-Try %s -> %s", x, x.router)
+				seen[x.router] = false
+				if mark(x.router, x, seen) {
+					isUsed[x.network.name] = true
+					//debug("Marked %s + %s", x, x.router)
+				}
 			}
-			//debug("Try %s %s", next, intf)
-			if mark(next, intf, seen) {
-				intf.isUsed = true
-				//debug("Marked %s", intf)
-				// Only mark first found path.
-				break
+		case *network:
+			seen[x] = true
+			for _, intf := range x.interfaces {
+				if intf.mainIntf != nil {
+					continue
+				}
+				next := intf.router
+				//debug("-Try %s %s", next, intf)
+				if mark(next, intf, seen) {
+					isUsed[intf.name] = true
+					//debug("Marked %s", intf)
+					// Only mark first found path.
+					break
+				}
 			}
 		}
+		isUsed[obj.String()] = true
 	}
 }
 
 func (c *spoc) markPath(src, dst *routerIntf) {
 	for _, intf := range []*routerIntf{src, dst} {
 		n := intf.network
-		intf.isUsed = true
-		n.isUsed = true
+		isUsed[intf.name] = true
+		isUsed[n.name] = true
 		todoUnmanaged.push(n)
 	}
 	//debug("Path %s %s", src, dst)
@@ -238,7 +271,7 @@ func (c *spoc) markPath(src, dst *routerIntf) {
 
 func (c *spoc) markUsedNatTags() {
 	for _, n := range c.allNetworks {
-		if n.isUsed {
+		if isUsed[n.name] {
 			for tag, natNet := range n.nat {
 				if !natNet.identity {
 					isUsed["nat:"+tag] = true
@@ -253,6 +286,93 @@ func (c *spoc) markRulesPath(p pathRules) {
 	for _, r := range append(p.deny, p.permit...) {
 		c.pathWalk(r, markTopology, "Router")
 	}
+}
+
+// Mark used elements and substitute intersection by its expanded elements.
+func (c *spoc) markAndSubstElements(
+	elemList *[]ast.Element, ctx string, v6 bool, m map[string]*ast.TopList) {
+
+	var traverse func(l []ast.Element) []ast.Element
+	traverse = func(l []ast.Element) []ast.Element {
+		var expanded groupObjList
+		j := 0
+		for _, el := range l {
+			switch x := el.(type) {
+			case *ast.NamedRef:
+				typedName := x.Type + ":" + x.Name
+				if x.Type == "group" && !isUsed[typedName] {
+					if def, found := m[typedName]; found {
+						c.markAndSubstElements(&def.Elements, typedName, v6, m)
+					}
+				}
+				isUsed[typedName] = true
+			case ast.AutoElem:
+				l2 := traverse(x.GetElements())
+				x.SetElements(l2)
+			case *ast.IntfRef:
+				for _, obj := range c.expandGroup(
+					[]ast.Element{el}, ctx, v6, false) {
+
+					intf := obj.(*routerIntf)
+					isUsed[intf.name] = true
+					addLater.push(intf)
+				}
+			case *ast.Intersection:
+				expanded = append(expanded,
+					c.expandGroup([]ast.Element{el}, ctx, v6, false)...)
+				continue // Ignore original intersection.
+			}
+			l[j] = el
+			j++
+		}
+		result := l[:j]
+		for _, obj := range expanded {
+			name := obj.String()
+			i := strings.Index(name, ":")
+			// ast.NamedRef is not fully correct for IntfRef, SimpleAuto,
+			// AggAuto, IntfAuto, but is printed correctly by
+			// printer.print anyway.
+			a := new(ast.NamedRef)
+			a.Type = name[:i]
+			a.Name = name[i+1:]
+			result = append(result, a)
+		}
+		return result
+	}
+	*elemList = traverse(*elemList)
+}
+
+func (c *spoc) markElements(
+	toplevel []ast.Toplevel, m map[string]*ast.TopList) {
+
+	for _, top := range toplevel {
+		if x, ok := top.(*ast.Service); ok {
+			typedName := x.Name
+			if !isUsed[typedName] {
+				continue
+			}
+			v6 := x.IPV6
+			c.markAndSubstElements(&x.User.Elements, "user of "+typedName, v6, m)
+			for _, r := range x.Rules {
+				c.markAndSubstElements(&r.Src.Elements, "src of "+typedName, v6, m)
+				c.markAndSubstElements(&r.Dst.Elements, "dst of "+typedName, v6, m)
+			}
+		}
+	}
+}
+
+func (c *spoc) collectGroups(toplevel []ast.Toplevel) map[string]*ast.TopList {
+	m := make(map[string]*ast.TopList)
+	for _, top := range toplevel {
+		if x, ok := top.(*ast.TopList); ok {
+			typedName := x.Name
+			typ, _ := splitTypedName(typedName)
+			if typ == "group" {
+				m[typedName] = x
+			}
+		}
+	}
+	return m
 }
 
 func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
@@ -302,28 +422,25 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// Collect objects referenced from rules.
 	// Use serviceRules here, to get also objects from unenforceable rules.
-	onPath := make(map[srvObj]bool)
-	var addLater intfList
-	seen := make(map[*network]bool)
 	collectRules := func(rules []*serviceRule) {
 		for _, rule := range rules {
 			collectObjects := func(group []srvObj) {
 				for _, obj := range group {
-					onPath[obj] = true
 
 					// pathWalk only handles managed routers and interfaces.
 					// Mark all objects additionally here.
-					obj.setUsed()
+					if isUsed[obj.String()] {
+						continue
+					}
 					if intf, ok := obj.(*routerIntf); ok {
 						addLater.push(intf)
 					}
 					n := obj.getNetwork()
-					n.isUsed = true
-					if seen[n] {
-						continue
+					if !isUsed[n.name] {
+						isUsed[n.name] = true
+						todoUnmanaged.push(n)
 					}
-					seen[n] = true
-					todoUnmanaged.push(n)
+					isUsed[obj.String()] = true
 				}
 			}
 			collectObjects(rule.src)
@@ -333,56 +450,35 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	collectRules(sRules.permit)
 	collectRules(sRules.deny)
 
+	c.markRulesPath(c.allPathRules)
+
+	group2def := c.collectGroups(toplevel)
+	c.markElements(toplevel, group2def)
+
 	// Mark NAT tags referenced in networks used in rules.
 	c.markUsedNatTags()
-
-	// Collect objects, that are referenced, but not visible in rules:
-	// Networks, interfaces, hosts, aggregates from negated part of intersection.
-	// These need to be connected with other parts of topology
-	// by managed and unmanaged routers.
-	var todoManaged netPathObjList
-	collectNegated := func(obj srvObj) {
-		if !obj.getUsed() || onPath[obj] {
-			return
-		}
-		n := obj.getNetwork()
-		todoManaged.push(n)
-		if intf, ok := obj.(*routerIntf); ok {
-			addLater.push(intf)
-		}
-	}
-	for _, n := range c.allNetworks {
-		collectNegated(n)
-		for _, h := range n.hosts {
-			collectNegated(h)
-		}
-	}
-	for _, r := range c.allRouters {
-		for _, intf := range r.interfaces {
-			collectNegated(intf)
-		}
-	}
 
 	zoneUsed := make(map[*zone]bool)
 	zoneCheck := make(map[*zone]bool)
 	for _, z := range c.allZones {
 		for _, agg := range z.ipPrefix2aggregate {
-			if !agg.isUsed {
+			if !isUsed[agg.name] {
 				continue
 			}
 			zoneUsed[agg.zone] = true
 			zoneCheck[agg.zone] = true
 			// debug("Marking networks of %s in %s", agg, z")
 			for _, n := range agg.networks {
-				n.isUsed = true
+				isUsed[n.name] = true
 				todoUnmanaged.push(n)
 			}
 		}
 	}
 
 	// Mark zones having attributes that influence their networks.
+	var todoManaged groupObjList
 	for _, n := range c.allNetworks {
-		if !n.isUsed {
+		if !isUsed[n.name] {
 			continue
 		}
 		z := n.zone
@@ -392,15 +488,15 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 		ipp := getNetwork00(z.ipV6).ipp
 		if agg0 := z.ipPrefix2aggregate[ipp]; agg0 != nil {
-			agg0.isUsed = true
+			isUsed[agg0.name] = true
 		}
 		zoneUsed[z] = true
 	}
 
 	for _, agg := range c.allNetworks {
-		if agg.isUsed {
+		if isUsed[agg.name] {
 			if n := agg.link; n != nil {
-				n.isUsed = true
+				isUsed[n.name] = true
 				todoManaged.push(n)
 			}
 		}
@@ -425,53 +521,32 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			if len(a.nat) != 0 ||
 				keepOwner && (a.owner != nil || att != nil && att.owner != nil) {
 
-				a.isUsed = true
+				isUsed[a.name] = true
 			}
 		}
 	}
 
 	// Mark interfaces / networks which are referenced by used areas.
-	var emptyAreas stringList
 	for _, a := range symTable.area {
-		if !a.isUsed {
+		if !isUsed[a.name] {
 			continue
 		}
 		if anchor := a.anchor; anchor != nil {
-			anchor.isUsed = true
+			isUsed[anchor.name] = true
 			todoManaged.push(anchor)
 		} else {
-
-			// Ignore and collect empty areas.
-			used := false
-		ZONE:
-			for _, z := range a.zones {
-				for _, n := range z.networks {
-					if n.isUsed {
-						used = true
-						break ZONE
-					}
-				}
-			}
-			if !used {
-				a.isUsed = false
-				emptyAreas.push(a.name[len("area:"):])
-				continue
-			}
-
 			for _, intf := range append(a.border, a.inclusiveBorder...) {
-				if intf.isUsed {
+				if isUsed[intf.name] {
 					continue
 				}
-				intf.network.isUsed = true
-				todoManaged.push(intf.network)
-				addLater.push(intf)
+				todoManaged.push(intf)
 			}
 		}
 	}
 
 	// Mark networks having NAT attributes that influence their subnets.
 	for _, n := range c.allNetworks {
-		if !n.isUsed {
+		if !isUsed[n.name] {
 			continue
 		}
 		up := n
@@ -487,7 +562,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				break
 			}
 			if up.isAggregate {
-				if up.ipp.Bits != 0 {
+				if up.ipp.Bits() != 0 {
 					continue
 				}
 				z := up.zone
@@ -496,7 +571,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				if !zoneUsed[z] {
 					found := false
 					for _, a := range zone2areas[z] {
-						if a.isUsed {
+						if isUsed[a.name] {
 							found = true
 							break
 						}
@@ -512,15 +587,13 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				}
 			}
 			for _, supernet := range upChain {
-				supernet.isUsed = true
+				isUsed[supernet.name] = true
 				todoUnmanaged.push(supernet)
 				// debug("marked: %s", supernet)
 			}
 			upChain = nil
 		}
 	}
-
-	c.markRulesPath(c.allPathRules)
 
 	// Call this after topology has been marked.
 	c.expandCrypto()
@@ -530,24 +603,16 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	c.markUnconnected(todoUnmanaged, false)
 	todoUnmanaged = nil
 
-	// Mark negated auto interfaces.
-	for r, intf := range c.routerAutoInterfaces {
-		if intf.isUsed && !r.isUsed {
-			r.isUsed = true
-			todoManaged = append(todoManaged, r)
-		}
-	}
-
 	// Connect objects, that are located outside of any path.
 	c.markUnconnected(todoManaged, true)
 	for _, intf := range addLater {
-		intf.isUsed = true
-		intf.router.isUsed = true
+		setIntfUsed(intf)
+		setRouterUsed(intf.router)
 	}
 
 	// Mark bridge and bridged networks.
 	for _, n := range c.allNetworks {
-		if !n.isUsed {
+		if !isUsed[n.name] {
 			continue
 		}
 		if n.ipType != bridgedIP {
@@ -557,15 +622,15 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			if in.ipType != bridgedIP {
 				continue
 			}
-			in.isUsed = true
+			isUsed[in.name] = true
 			bridge := in.router
-			bridge.isUsed = true
+			isUsed[bridge.name] = true
 			for _, out := range bridge.interfaces {
 				if out.hardware.name == "device" && bridge.model.class == "ASA" {
-					out.isUsed = true
+					isUsed[out.name] = true
 				} else if out.ipType == bridgedIP {
-					out.isUsed = true
-					out.network.isUsed = true
+					isUsed[out.name] = true
+					isUsed[out.network.name] = true
 				}
 			}
 		}
@@ -579,13 +644,13 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			if fragment == r {
 				continue
 			}
-			if fragment.isUsed {
+			if isRouterUsed(fragment) {
 				// debug("From split: %s", r)
-				r.isUsed = true
+				setRouterUsed(r)
 			}
 		}
 
-		if !r.isUsed {
+		if !isRouterUsed(r) {
 			return
 		}
 
@@ -596,11 +661,11 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				continue
 			}
 			// debug("Fragment: %s", fragment)
-			fragment.isUsed = true
+			setRouterUsed(fragment)
 		}
 
 		for _, intf := range getIntf(r) {
-			if !intf.isUsed {
+			if !isUsed[intf.name] {
 				continue
 			}
 
@@ -621,20 +686,20 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	c.markUnconnected(todoUnmanaged, false)
 
 	mark2 := func(r *router) {
-		if !r.isUsed {
+		if !isRouterUsed(r) {
 			return
 		}
 		for _, intf := range getIntf(r) {
-			if !intf.isUsed {
+			if !isUsed[intf.name] {
 				continue
 			}
 
 			// Mark main interface of secondary or virtual interface.
 			if main := intf.mainIntf; main != nil {
-				main.isUsed = true
+				isUsed[main.name] = true
 			}
 			if main := intf.origMain; main != nil {
-				main.isUsed = true
+				isUsed[main.name] = true
 			}
 
 			// Mark crypto definitions which are referenced by
@@ -647,9 +712,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 
 			// Mark networks referenced by interfaces
-			// implictly marked by expandGroup.
-			if intf.isUsed {
-				intf.network.isUsed = true
+			// marked by markAndSubstElements.
+			if isUsed[intf.name] {
+				isUsed[intf.network.name] = true
 			}
 		}
 	}
@@ -665,15 +730,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 	for _, a := range symTable.area {
-		if a.isUsed {
-			isUsed[a.name] = true
+		if isUsed[a.name] {
 			markOwner(a.owner)
 
-		}
-	}
-	for _, g := range symTable.group {
-		if g.isUsed {
-			isUsed[g.name] = true
 		}
 	}
 	for _, p := range symTable.protocol {
@@ -689,13 +748,11 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// Collect names of marked networks, aggregates, routers, interfaces.
 	for _, n := range c.allNetworks {
-		if n.isUsed {
-			isUsed[n.name] = true
+		if isUsed[n.name] {
 			markOwner(n.owner)
 			added := false
 			for _, h := range n.hosts {
-				if h.isUsed {
-					isUsed[h.name] = true
+				if isUsed[h.name] {
 					added = true
 					markOwner(h.owner)
 				}
@@ -708,21 +765,11 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 	markRouter := func(r *router) {
-		if r.isUsed {
-			name := r.name
-			if r.ipV6 {
-				name = "6" + name
-			}
-			isUsed[name] = true
+		if isRouterUsed(r) {
 			markOwner(r.owner)
 			for _, intf := range getIntf(r) {
-				if intf.isUsed {
-					iName := intf.name
-					isUsed[iName] = true
-					// Ignore extension if virtual interface is used as
-					// main interface.
-					iName = strings.TrimSuffix(iName, ".virtual")
-					isUsed[iName] = true
+				if isUsed[intf.name] {
+					setIntfUsed(intf)
 					markOwner(intf.owner)
 				}
 			}
@@ -737,54 +784,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	// Prepare emptyGroup
-	var emptyGroupRef *ast.NamedRef
-	if emptyAreas != nil {
-		name := "empty-area"
-		emptyGroupRef = new(ast.NamedRef)
-		emptyGroupRef.Type = "group"
-		emptyGroupRef.Name = name
-		fmt.Println("group:" + name + " = ;")
-	}
-
-	substEmptyAreas := func(elemList []ast.Element) {
-		if emptyAreas == nil {
-			return
-		}
-		needSubst := func(name string) bool {
-			for _, name2 := range emptyAreas {
-				if name == name2 {
-					return true
-				}
-			}
-			return false
-		}
-		var substList func(l []ast.Element)
-		substList = func(l []ast.Element) {
-			for i, el := range l {
-				switch x := el.(type) {
-				case *ast.NamedRef:
-					if x.Type == "area" && needSubst(x.Name) {
-						l[i] = emptyGroupRef
-					}
-				case *ast.SimpleAuto:
-					substList(x.Elements)
-				case *ast.AggAuto:
-					substList(x.Elements)
-				case *ast.IntfAuto:
-					substList(x.Elements)
-				case *ast.Intersection:
-					substList(x.Elements)
-				case *ast.Complement:
-					l2 := []ast.Element{x.Element}
-					substList(l2)
-					x.Element = l2[0]
-				}
-			}
-		}
-		substList(elemList)
-	}
-
 	// Source of pathrestrictions can't be used literally,
 	// but must be reconstructed from internal data structure.
 	name2pathrestriction := make(map[string]*ast.TopList)
@@ -792,7 +791,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		elemList := pr.elements
 		var l []ast.Element
 		for _, intf := range elemList {
-			if intf.isUsed {
+			if isUsed[intf.name] {
 				n := new(ast.IntfRef)
 				n.Type = "interface"
 				n.Router = intf.router.name[len("router:"):]
@@ -880,8 +879,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	for _, top := range toplevel {
 		typedName := top.GetName()
+		ipv6 := top.GetIPV6()
 		lookup := typedName
-		if strings.HasPrefix(typedName, "router:") && top.GetIPV6() {
+		if strings.HasPrefix(typedName, "router:") && ipv6 {
 			lookup = "6" + lookup
 		}
 		if !isUsed[lookup] {
@@ -909,19 +909,12 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			}
 		case *ast.TopList:
 			switch typ {
-			case "group":
-				substEmptyAreas(x.Elements)
 			case "pathrestriction":
 				top = name2pathrestriction[typedName]
 			}
 		case *ast.Service:
 			if !keepOwner {
 				removeAttr(&x.Attributes, "sub_owner")
-			}
-			substEmptyAreas(x.User.Elements)
-			for _, r := range x.Rules {
-				substEmptyAreas(r.Src.Elements)
-				substEmptyAreas(r.Dst.Elements)
 			}
 		}
 		active = append(active, top)
@@ -974,6 +967,7 @@ func CutNetspocMain() int {
 	// Initialize global variables.
 	isUsed = make(map[string]bool)
 	todoUnmanaged = nil
+	addLater = nil
 
 	return toplevelSpoc(func(c *spoc) {
 		c.cutNetspoc(path, services, *keepOwner)

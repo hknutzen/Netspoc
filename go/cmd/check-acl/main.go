@@ -2,8 +2,9 @@ package main
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+	"os"
 )
 
 func main() {
-	pass2.CheckACLMain()
+	os.Exit(pass2.CheckACLMain())
 }

@@ -24,7 +24,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
@@ -100,7 +99,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 
 	// Collect networks into prefixIPMap.
 	for _, n := range ipNet2obj {
-		ip, prefix := n.IP, n.Bits
+		ip, prefix := n.IP(), n.Bits()
 		ipMap, ok := prefixIPMap[prefix]
 		if !ok {
 			ipMap = make(map[netaddr.IP]*ipNet)
@@ -133,7 +132,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				n, _ := ip.Prefix(p)
-				bignet, ok := prefixIPMap[p][n.IP]
+				bignet, ok := prefixIPMap[p][n.IP()]
 				if ok {
 					subnet.up = bignet
 					break
@@ -190,6 +189,7 @@ type aclInfo struct {
 	network00                                        *ipNet
 	prtIP                                            *proto
 	objectGroups                                     []*objGroup
+	vrf                                              string
 }
 
 func convertACLs(
@@ -226,6 +226,7 @@ func convertACLs(
 		isCryptoACL:  jACL.IsCryptoACL,
 		addPermit:    jACL.AddPermit,
 		addDeny:      jACL.AddDeny,
+		vrf:          jACL.VRF,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
 		rules:        rules,
@@ -319,8 +320,7 @@ func readJSON(path string) *routerData {
 	return rData
 }
 
-func prepareACLs(path string) *routerData {
-	rData := readJSON(path)
+func prepareACLs(rData *routerData) {
 	for _, aclInfo := range rData.acls {
 		prt2obj := aclInfo.prt2obj
 		setupPrtRelation(prt2obj)
@@ -334,7 +334,6 @@ func prepareACLs(path string) *routerData {
 			finalizeCiscoACL(aclInfo, rData)
 		}
 	}
-	return rData
 }
 
 func printACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
@@ -352,12 +351,9 @@ func printACL(fd *os.File, aclInfo *aclInfo, routerData *routerData) {
 
 const aclMarker = "#insert "
 
-func printCombined(config []string, routerData *routerData, outPath string) {
-	fd, err := os.Create(outPath)
-	if err != nil {
-		panicf("Can't open %s for writing: %v", outPath, err)
-	}
+func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 	aclLookup := make(map[string]*aclInfo)
+	prepareACLs(routerData)
 	for _, acl := range routerData.acls {
 		aclLookup[acl.name] = acl
 	}
@@ -367,17 +363,35 @@ func printCombined(config []string, routerData *routerData, outPath string) {
 		if strings.HasPrefix(line, aclMarker) {
 			// Print ACL.
 			name := line[len(aclMarker):]
-			aclInfo, ok := aclLookup[name]
-			if !ok {
-				panicf("Unexpected ACL %s", name)
-			}
+			aclInfo := aclLookup[name]
 			printACL(fd, aclInfo, routerData)
 		} else {
 			// Print unchanged config line.
 			fmt.Fprintln(fd, line)
 		}
 	}
+}
 
+func readFileLines(filename string) []string {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		panic(err)
+	}
+	return strings.Split(string(data), "\n")
+}
+
+func printRouter(file string) {
+	routerData := readJSON(file + ".rules")
+	config := readFileLines(file + ".config")
+	fd, err := os.Create(file)
+	if err != nil {
+		panicf("Can't %v", err)
+	}
+	if routerData.model == "PAN-OS" {
+		printCombinedPanOS(fd, config, routerData)
+	} else {
+		printCombinedOther(fd, config, routerData)
+	}
 	if err := fd.Close(); err != nil {
 		panic(err)
 	}
@@ -404,7 +418,7 @@ func tryPrev(devicePath, dir, prev string) bool {
 		}
 	}
 	if err := os.Link(prevFile, codeFile); err != nil {
-		return false
+		panic(err)
 	}
 
 	// File was found and hardlink was created successfully.
@@ -412,31 +426,11 @@ func tryPrev(devicePath, dir, prev string) bool {
 	return true
 }
 
-func readFileLines(filename string) []string {
-	fd, err := os.Open(filename)
-	if err != nil {
-		panic(err)
-	}
-	defer fd.Close()
-	result := make([]string, 0)
-	scanner := bufio.NewScanner(fd)
-	for scanner.Scan() {
-		line := scanner.Text()
-		result = append(result, line)
-	}
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-	return result
-}
-
 func File(devicePath, dir, prev string) int {
 	if tryPrev(devicePath, dir, prev) {
 		return 1
 	}
 	file := dir + "/" + devicePath
-	routerData := prepareACLs(file + ".rules")
-	config := readFileLines(file + ".config")
-	printCombined(config, routerData, file)
+	printRouter(file)
 	return 0
 }

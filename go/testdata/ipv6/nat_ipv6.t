@@ -369,10 +369,10 @@ Warning: IP of host:h66 overlaps with subnet network:n1sub in nat_domain:[interf
 
 ############################################################
 =TITLE=NAT network is undeclared subnet
-=VAR=input
+=TEMPL=input
 network:Test =  {
  ip = ::a00:0/124;
- nat:C = { ip = ::a08:3f0/124; } #subnet_of = network:X; }
+ nat:C = { ip = {{.ip}}; {{.sub}} }
 }
 router:filter = {
  managed;
@@ -383,7 +383,7 @@ router:filter = {
 network:X = { ip = ::a08:300/120; }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {ip: "::a08:3f0/124", sub: ""}]]
 =WARNING=
 Warning: nat:C of network:Test is subnet of network:X
  in nat_domain:[network:X].
@@ -393,16 +393,13 @@ Warning: nat:C of network:Test is subnet of network:X
 ############################################################
 =TITLE=NAT network is subnet
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/} #subnet_of/subnet_of/
+=INPUT=[[input {ip: "::a08:3f0/124", sub: "subnet_of = network:X;"}]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Declared NAT network subnet doesn't match
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/} #subnet_of/subnet_of/
-=SUBST=/::a08:3f0/::a08:4f0/
+=INPUT=[[input  {ip: "::a08:4f0/124", sub: "subnet_of = network:X;"}]]
 =ERROR=
 Error: nat:C of network:Test is subnet_of network:X but its IP doesn't match that's IP/mask
 =END=
@@ -760,7 +757,7 @@ Warning: Ignoring nat:n1 without effect, bound at every interface of router:r1
 
 ############################################################
 =TITLE=Check rule with host and dynamic NAT (managed)
-=VAR=input
+=TEMPL=input
 network:Test =  {
  ip = ::a09:100/120;
  nat:C = { ip = ::109:200/120; dynamic;}
@@ -769,7 +766,7 @@ network:Test =  {
  host:h5 = { ip = ::a09:105; nat:C = { ip = ::109:237; } }
 }
 router:C = {
- managed; #1
+ {{.}}
  model = ASA;
  interface:Test = { ip = ::a09:101; hardware = inside;}
  interface:Trans = { ip = ::a00:1; hardware = outside; bind_nat = C;}
@@ -792,7 +789,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input managed;]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:C to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -801,8 +798,7 @@ Error: host:h3 needs static translation for nat:C at router:C to be valid in rul
 ############################################################
 =TITLE=Check rule with host and dynamic NAT (unmanaged)
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed; #1//
+=INPUT=[[input ""]]
 =ERROR=
 Error: host:h3 needs static translation for nat:C at router:filter to be valid in rule
  permit src=network:X; dst=host:h3; prt=tcp 80; of service:s1
@@ -1224,7 +1220,7 @@ access-group n1_in in interface n1
 =TITLE=No secondary optimization with primary in loop
 # No secondary optimization at r1, because primary router is located
 # in loop, which isn't fully analyzed.
-=VAR=input
+=TEMPL=input
 network:n1 = {
  ip = ::a01:100/120;
  nat:n1 = { ip = ::a09:904/126; dynamic; }
@@ -1241,7 +1237,7 @@ router:r1 = {
 }
 router:r2 = {
  model = IOS, FW;
- managed; #
+ managed{{.}};
  routing = manual;
  interface:n2 = { ip = ::a01:202;  hardware = n2; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
@@ -1264,7 +1260,7 @@ service:n1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input ""]]
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1276,8 +1272,7 @@ access-group n1_in in interface n1
 ############################################################
 =TITLE=Optimize secondary with full filter
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/; #/ = full;/
+=INPUT=[[input "= full"]]
 =OUTPUT=
 -- ipv6/r1
 ! n1_in
@@ -1332,14 +1327,14 @@ access-group inside_in in interface inside
 
 ############################################################
 =TITLE=Inherit NAT from overlapping areas and zones
-=VAR=input
+=TEMPL=input
 area:A = {
  border = interface:r1.a1;
- nat:d = { ip = ::a63:6308/126; dynamic; }
+ {{.d1}}
 }
 area:B = {
  border = interface:r2.b1;
- nat:d = { ip = ::a4d:4d00/126; dynamic; }
+ nat:d = { {{.n2}} }
 }
 any:a2 = {
  link = network:a2;
@@ -1372,7 +1367,11 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=
+[[input
+d1: "nat:d = { ip = ::a63:6308/126; dynamic; }"
+n2: "ip = ::a4d:4d00/126; dynamic;"
+]]
 =OUTPUT=
 --ipv6/r1
 ! b1_in
@@ -1395,9 +1394,7 @@ ipv6 access-list X_in
 ############################################################
 =TITLE=Use hidden NAT from overlapping areas
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=|ip = ::a4d:4d00/126; dynamic;|hidden;|
-=SUBST=|nat:d = { ip = ::a63:6308/126; dynamic; }||
+=INPUT=[[input {d1: "", n2: hidden;}]]
 =ERROR=
 Error: network:a1 is hidden by nat:d in rule
  permit src=network:X; dst=network:a1; prt=tcp 80; of service:test
@@ -1981,13 +1978,13 @@ Error: interface:r2.b needs static translation for nat:b at router:r2 to be vali
 # n1 and n2 are translated at interface:r1.t, thus nat1 is active in
 # network:t. At interface:r2.k only n1 is translated though, leading
 # to ambiguity on which nat tag is active in network k.
-=VAR=input
+=TEMPL=input
 network:n1 = {
  ip = ::a01:100/120;
  nat:t1 = { ip = ::a09:100/120; }
  nat:t2 = { ip = ::a09:800/120; }
 }
-network:n2 = { ip = ::a01:200/120; nat:t1 = { ip = ::a09:900/120; }}
+network:n2 = { ip = ::a01:200/120; {{.}} = { ip = ::a09:900/120; }}
 router:r1 =  {
  managed;
  model = ASA;
@@ -2005,7 +2002,7 @@ router:r2 =  {
 network:k = { ip = ::a02:200/120; }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input nat:t1]]
 =ERROR=
 Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
  Reason: Both NAT tags are used grouped at network:n1
@@ -2017,8 +2014,7 @@ Error: Invalid transition from nat:t1 to nat:t2 at router:r2.
 # In this case, using ungrouped NAT tag at network:n2 isn't
 # ambiguous, because t2 isn't changed again.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/; nat:t1/; nat:t2/
+=INPUT=[[input nat:t2]]
 =WARNING=NONE
 
 ############################################################
@@ -2543,14 +2539,14 @@ ipv6 access-list n2_in
 
 ############################################################
 =TITLE=Traverse hidden NAT domain in loop
-=VAR=input
+=TEMPL=input
 network:n1 = {
  ip = ::a01:100/120;
- nat:h = { hidden; }
+ nat:h = { {{.h}} }
 }
 router:r1 = {
  model = ASA;
- managed; #r1
+ {{.r1}}
  routing = manual;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:t1 = { ip = ::a05:501; hardware = t1; bind_nat = h; }
@@ -2558,7 +2554,7 @@ router:r1 = {
 network:t1 = { ip = ::a05:500/120; }
 router:r2 = {
  model = ASA;
- managed; #r2
+ managed;
  routing = manual;
  interface:t1 = { ip = ::a05:502; hardware = t1; }
  interface:t2 = { ip = ::a04:401; hardware = t2; }
@@ -2566,7 +2562,7 @@ router:r2 = {
 network:t2 = { ip = ::a04:400/120; }
 router:r3 = {
  model = ASA;
- managed; #r3
+ {{.r3}}
  routing = manual;
  interface:t2 = { ip = ::a04:402; hardware = t2; bind_nat = h; }
  interface:n2 = { ip = ::a02:201; hardware = n2; }
@@ -2574,7 +2570,7 @@ router:r3 = {
 network:n2 = { ip = ::a02:200/120; }
 router:r4 = {
  model = ASA;
- managed; #r4
+ managed;
  routing = manual;
  interface:n2 = { ip = ::a02:202; hardware = n2; }
  interface:n1 = { ip = ::a01:102; hardware = n1; }
@@ -2585,7 +2581,7 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {h: hidden;, r1: managed;, r3: managed;}]]
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
@@ -2600,8 +2596,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 ############################################################
 =TITLE=Traverse hidden NAT domain in loop, 1x unmanaged bind_nat
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed; #r1//
+=INPUT=[[input {h: hidden;, r1: "", r3: managed;}]]
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
@@ -2616,9 +2611,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 ############################################################
 =TITLE=Traverse hidden NAT domain in loop, 2x unmanaged bind_nat
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/managed; #r1//
-=SUBST=/managed; #r3//
+=INPUT=[[input {h: hidden;, r1: "", r3: ""}]]
 =ERROR=
 Error: Must not apply hidden NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
@@ -2633,8 +2626,7 @@ Error: Must not apply hidden NAT 'h' to src of rule
 ############################################################
 =TITLE=Traverse dynamic NAT domain in loop
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=|hidden;|ip = ::a09:900/120; dynamic;|
+=INPUT=[[input {h: "ip = ::a09:900/120; dynamic;", r1: managed;, r3: managed;}]]
 =ERROR=
 Error: Must not apply dynamic NAT 'h' to src of rule
  permit src=network:n1; dst=network:n2; prt=tcp 80; of service:test
@@ -2859,7 +2851,7 @@ network:t3 = { ip = ::a07:300/120; }
 
 ############################################################
 =TITLE=NAT in complex loop ok
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a09:100/120; } }
 network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::a09:200/120; } }
 network:n3 = { ip = ::a01:300/120; }
@@ -2871,7 +2863,7 @@ router:r1 = {
 }
 router:r2 = {
  interface:n1 = {
-  bind_nat = n5; #1
+  {{.b}}
  }
  interface:n4 = { bind_nat = n2; }
 }
@@ -2893,7 +2885,7 @@ router:r5 = {
  interface:n3 = {
   bind_nat =
    n1,
-   n5, #2
+   {{.n}}
   ;
  }
  interface:n4 = { bind_nat = n2; }
@@ -2908,14 +2900,13 @@ router:r7 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {b: "bind_nat = n5;", n: n5}]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Complex loop with 1 missing NAT behind domain
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/bind_nat = n5; #1//
+=INPUT=[[input {b: "", n: n5}]]
 =ERROR=
 Error: Incomplete 'bind_nat = n5' at
  - interface:r1.n1
@@ -2928,8 +2919,7 @@ Error: Incomplete 'bind_nat = n5' at
 ############################################################
 =TITLE=Complex loop with 1 missing NAT behind router
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/n5, #2//
+=INPUT=[[input {b: "bind_nat = n5;", n: ""}]]
 =ERROR=
 Error: Incomplete 'bind_nat = n5' at
  - interface:r1.n1
@@ -2943,9 +2933,7 @@ Error: Incomplete 'bind_nat = n5' at
 ############################################################
 =TITLE=Complex loop with 2 missing NAT
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/n5, #2//
-=SUBST=/bind_nat = n5; #1//
+=INPUT=[[input {b: "", n: ""}]]
 =ERROR=
 Error: Incomplete 'bind_nat = n5' at
  - interface:r1.n1
@@ -3154,14 +3142,13 @@ Error: Incomplete 'bind_nat = hx' at
 =END=
 
 ############################################################
-=TITLE=Attribute acl_use_real_ip
+=TITLE=ASA uses real IP
 =PARAMS=--ipv6
 =INPUT=
 network:intern =  { ip = ::a01:100/120; nat:intern = { ip = ::202:100/120; } }
 router:filter = {
  managed;
  model = ASA;
- acl_use_real_ip;
  interface:intern = {
   ip = ::a01:101;
   hardware = inside;
@@ -3194,14 +3181,13 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, more than 2 effective NAT
+=TITLE=ASA uses real IP, more than 2 effective NAT
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::202:100/120; } }
 network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::202:200/120; } }
 network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  model = ASA;
  interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = n2; }
@@ -3234,7 +3220,7 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with multi NAT tags
+=TITLE=ASA uses real IP with multi NAT tags
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -3255,7 +3241,6 @@ router:r1 = {
  interface:n2 = { bind_nat = n1a; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3286,14 +3271,13 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip in loop
+=TITLE=ASA uses real IP, in loop
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::202:100/120; } }
 network:n2 = { ip = ::a01:200/120; nat:n2 = { ip = ::202:200/120; } }
 
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3301,7 +3285,6 @@ router:r1 = {
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3337,14 +3320,13 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with outgoing ACL
+=TITLE=ASA uses real ip, with outgoing ACL
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern = { ip = ::a09:100/120; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3385,7 +3367,7 @@ access-group n2_out out interface n2
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical NAT ip, hidden
+=TITLE=ASA uses real IP, 3 interfaces, identical NAT ip, hidden
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern = { ip = ::202:0/119; dynamic; } }
@@ -3396,7 +3378,6 @@ router:u = {
  interface:n1;
 }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3456,13 +3437,12 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip, 3 interfaces, identical real IP
+=TITLE=ASA uses real IP, 3 interfaces, identical real IP
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:intern1 = { ip = ::201:100/120; } nat:h1 = { hidden; } }
 network:n2 = { ip = ::a01:100/120; nat:intern2 = { ip = ::201:200/120; } nat:h2 = { hidden; } }
 router:r1 = {
- acl_use_real_ip;
  managed;
  routing = manual;
  model = ASA;
@@ -3516,7 +3496,7 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip with secondary optimization
+=TITLE=ASA uses real IP, with secondary optimization
 =PARAMS=--ipv6
 =INPUT=
 network:n1 =  { ip = ::a01:100/120; nat:n1 = { ip = ::a02:100/120; } }
@@ -3524,7 +3504,6 @@ router:r1 = {
  managed = secondary;
  model = ASA;
  routing = manual;
- acl_use_real_ip;
  interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = n2; }
  interface:t1 = { ip = ::a09:101; hardware = t1; bind_nat = n1; }
 }
@@ -3556,7 +3535,7 @@ access-group n1_in in interface n1
 
 ############################################################
 =TITLE=NAT at loopback network (1)
-=VAR=input
+=TEMPL=input
 area:n1 = { inclusive_border = interface:r1.n2; nat:N = { hidden; } }
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
@@ -3568,7 +3547,7 @@ router:r1 = {
   hardware = Looback0;
   loopback;
   nat:N = { identity; }
-  nat:N2 = { ip = ::a01:6363; }
+  nat:N2 = { ip = {{.}}; }
  }
  interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = N, N2; }
 }
@@ -3579,7 +3558,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input "::a01:6363"]]
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n2_in
@@ -3591,8 +3570,7 @@ ipv6 access-list n2_in
 =TITLE=NAT at loopback network (2)
 # NAT to original address.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/::a01:6363/::a01:901/
+=INPUT=[[input "::a01:901"]]
 =OUTPUT=
 -- ipv6/r1
 ipv6 access-list n2_in
@@ -4036,7 +4014,7 @@ Error: Must not use any:[ip = ::a01:100/120 & ..] in user of service:s1
 ############################################################
 =TITLE=Invisible implicit aggregate has IP of network with NAT
 # Aggregate is only used intermediately for automatic group of networks.
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/120; nat:a = { ip = ::a01:800/120; } }
 router:r1 = {
  managed;
@@ -4051,7 +4029,7 @@ service:s1 = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input]]
 =WARNING=NONE
 
 ############################################################
@@ -4059,7 +4037,7 @@ service:s1 = {
 # Show error also for cached implicit aggregate.
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input]]
 service:s2 = {
  user = any:[ ip = ::a01:100/120 & network:n1 ];
  permit src = user; dst = network:n2; prt = tcp 81;

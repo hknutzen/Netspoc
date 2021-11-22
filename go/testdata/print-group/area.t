@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
@@ -21,7 +21,7 @@ router:asa2 = {
 ############################################################
 =TITLE=Secondary interface as area border
 =INPUT=
-${topo}
+[[topo]]
 network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
@@ -43,7 +43,7 @@ group:g1 = network:[area:a1];
 ############################################################
 =TITLE=Secondary interface with name = virtual as border
 =INPUT=
-${topo}
+[[topo]]
 network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;
@@ -65,7 +65,7 @@ group:g1 = network:[area:a1];
 ############################################################
 =TITLE=Virtual interface as border
 =INPUT=
-${topo}
+[[topo]]
 network:n4 = { ip = 10.1.4.0/24; }
 router:asa3 = {
  managed;

@@ -36,7 +36,7 @@ Warning: Ignoring file 'INPUT' without any content
 Error: Unknown service:other_service
 =END=
 
-=VAR=topo
+=TEMPL=topo
 owner:o2 = { admins = a2@example.com; }
 network:n1 = { ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
@@ -60,7 +60,7 @@ router:asa2 = {
 ############################################################
 =TITLE=Simple service, remove all hosts
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = ip;
@@ -86,7 +86,7 @@ service:test = {
 ############################################################
 =TITLE=Select service on command line, ignore disabled
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
     user = network:n1;
     permit src = user; dst = network:n2; prt = tcp 80;
@@ -125,7 +125,7 @@ service:s2 = {
 ############################################################
 =TITLE=Unknown service selected
 =INPUT=
-${topo}
+[[topo]]
 =ERROR=
 Error: Unknown service:s1
 =PARAMS=service:s1
@@ -133,7 +133,7 @@ Error: Unknown service:s1
 ############################################################
 =TITLE=Simple service, remove one host
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = host:h11, host:h12;
     permit src = user; dst = network:n2; prt = ip;
@@ -165,7 +165,7 @@ service:test = {
 ############################################################
 =TITLE=Simple service, remove network and interface
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:n1;
  permit src = user; dst = interface:asa1.n1; prt = ip;
@@ -189,7 +189,7 @@ service:test = {
 ############################################################
 =TITLE=Simple service, retain interface and attached network
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = network:n2;
     permit src = user; dst = interface:asa1.n1; prt = ip;
@@ -215,7 +215,7 @@ service:test = {
 ############################################################
 =TITLE=Remove unused protocolgroup
 =INPUT=
-${topo}
+[[topo]]
 protocol:www = tcp 80;
 protocolgroup:g1 = tcp 22, tcp 23;
 protocolgroup:g2 = protocol:www, tcp 443;
@@ -249,7 +249,7 @@ service:test = {
 ############################################################
 =TITLE=Retain identical protocols with different names
 =INPUT=
-${topo}
+[[topo]]
 protocol:http = tcp 80;
 protocol:www  = tcp 80;
 service:test = {
@@ -295,7 +295,7 @@ service:test = {
 ############################################################
 =TITLE=Named aggregate behind unmanaged
 =INPUT=
-${topo}
+[[topo]]
 any:n3 = { link = network:n3; }
 service:test = {
     user = network:n1;
@@ -333,7 +333,7 @@ service:test = {
 ############################################################
 =TITLE=Unnamed aggregate behind unmanaged
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
     user = host:h10;
     permit src = user; dst = any:[ip=10.0.0.0/8 & network:n3]; prt = ip;
@@ -373,8 +373,8 @@ service:test = {
 
 ############################################################
 =TITLE=Ignore area with owner
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 area:n2 = { border = interface:asa1.n2;  owner = foo; }
 owner:foo = { admins = a@example.com; }
 service:test = {
@@ -382,7 +382,7 @@ service:test = {
     permit src = user; dst = network:n1; prt = tcp;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -405,7 +405,7 @@ service:test = {
 
 ############################################################
 =TITLE=Keep area with owner
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 owner:o2 = {
  admins = a2@example.com;
@@ -440,7 +440,7 @@ service:test = {
 ############################################################
 =TITLE=Area with NAT
 =INPUT=
-${topo}
+[[topo]]
 area:n2 = { border = interface:asa1.n2; nat:a2 = { ip = 10.9.0.0/16; } }
 service:test = {
     user = network:n2;
@@ -475,7 +475,7 @@ service:test = {
 ############################################################
 =TITLE=Useless aggregate
 =INPUT=
-${topo}
+[[topo]]
 any:a2 = { link = network:n2; }
 service:test = {
     user = network:n2;
@@ -502,7 +502,7 @@ service:test = {
 ############################################################
 =TITLE=Aggregate with NAT and owner
 =INPUT=
-${topo}
+[[topo]]
 any:a2 = {
  link = network:n2;
  nat:a2 = { ip = 10.9.0.0/16; }
@@ -545,7 +545,7 @@ service:test = {
 
 ############################################################
 =TITLE=Ignore IPv6 part of topology
-=VAR=input
+=TEMPL=input
 -- topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -566,7 +566,7 @@ router:r1 = {
  interface:lo = {ip = 1000::abcd:0009:0001; hardware = lo; loopback; }
 }
 =INPUT=
-${input}
+[[input]]
 -- rule
 service:test = {
     user = network:n1;
@@ -593,7 +593,7 @@ router:r1 = {
 ############################################################
 =TITLE=Ignore IPv4 part of topology
 =INPUT=
-${input}
+[[input]]
 -- ipv6/rule
 service:test = {
  user = network:n3;
@@ -622,7 +622,7 @@ router:r1 = {
 ############################################################
 =TITLE=Show IPv4 + IPv6 part of topology
 =INPUT=
-${input}
+[[input]]
 -- rule
 service:test = {
     user = network:n1;
@@ -668,7 +668,7 @@ router:r1 = {
 
 ############################################################
 =TITLE=Area defined by anchor, anchor outside of path
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -703,14 +703,14 @@ service:test = {
         prt = tcp;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Area with border outside of path
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -737,23 +737,21 @@ router:asa3 = {
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 service:test = {
- user = network:[area:n1-3]
-        &! network:n3
-        &! network:n2
-        ;
+ has_unenforceable;
+ user = network:[area:n1-3];
  permit src = user;
         dst = network:n2;
         prt = tcp;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Zone link is located outside of path
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.2.3.0/24; }
@@ -789,13 +787,13 @@ any:n4 = {
 }
 =END=
 =INPUT=
-${input}
+[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
-=TITLE=Replace empty area by empty group
+=TITLE=Replace empty area by nothing
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -828,13 +826,11 @@ network:un = { unnumbered; }
 area:a2 = { border = interface:r1.n2; }
 area:a4 = { inclusive_border = interface:r3.n4; }
 service:s1 = {
- user = network:[area:a2] &! network:[area:a4],
-        interface:[any:[area:a4]].[all];
+ user = network:[area:a2] &! network:[area:a4];
  permit src = network:n1; dst = user; prt = tcp 80;
 }
 =END=
 =OUTPUT=
-group:empty-area = ;
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
@@ -844,17 +840,8 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
-area:a2 = {
- border = interface:r1.n2;
-}
 service:s1 = {
- user = network:[area:a2]
-        &! network:[group:empty-area]
-        ,
-        interface:[
-         any:[group:empty-area],
-        ].[all],
-        ;
+ user = network:n2;
  permit src = network:n1;
         dst = user;
         prt = tcp 80;
@@ -863,7 +850,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Mark supernet having identity NAT
-=VAR=input
+=TEMPL=input
 any:n1 = {
  nat:N = { ip = 10.9.9.0/24; dynamic; }
  link = network:n1;
@@ -900,9 +887,9 @@ service:s1 = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
@@ -978,7 +965,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Matching aggregate without matching network
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
@@ -1003,20 +990,21 @@ service:s1 = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Mark unmanaged at end of path
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = {
  ip = 10.1.3.0/24;
  host:h3 = { ip = 10.1.3.10; }
 }
+network:n4 = { ip = 10.1.4.0/24; }
 router:r1 = {
  model = IOS;
  managed;
@@ -1026,10 +1014,19 @@ router:r1 = {
 router:r2 = {
  interface:n2 = { ip = 10.1.2.2; }
  interface:n3;
+ interface:n4 = { ip = 10.1.4.2; }
+}
+router:r3 = {
+ interface:n4 = { ip = 10.1.4.3; }
 }
 group:g1 =
  host:h3,
- interface:r2.n2,
+ group:g2,
+;
+group:g2 =
+ network:[
+  interface:r3.n4,
+ ],
 ;
 service:s1 = {
  user = group:g1;
@@ -1038,14 +1035,14 @@ service:s1 = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Mark 2x unmanaged at end of path
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -1074,9 +1071,9 @@ service:test = {
         prt = tcp 22;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
@@ -1186,7 +1183,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Secondary interface
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  model = IOS;
@@ -1207,9 +1204,9 @@ service:s1 = {
               ;
         prt = tcp 80;
 }
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
@@ -1824,7 +1821,7 @@ service:test = {
 
 ############################################################
 =TITLE=Bridged network
-=VAR=input
+=TEMPL=input
 network:n1/left = { ip = 10.1.1.0/24; }
 router:bridge = {
  managed;
@@ -1849,9 +1846,9 @@ service:test = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
@@ -1950,7 +1947,7 @@ service:s1 = {
 ############################################################
 # Shared topology for crypto tests
 ############################################################
-=VAR=topo
+=TEMPL=topo
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
  esp_encryption = aes256;
@@ -1998,7 +1995,7 @@ network:internet = {
  has_subnets;
 }
 =END=
-=VAR=clients1
+=TEMPL=clients1
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2019,7 +2016,7 @@ network:customers1 = {
  }
 }
 =END=
-=VAR=clients2
+=TEMPL=clients2
 router:softclients2 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2048,7 +2045,7 @@ network:customers2 = {
  }
 }
 =END=
-=VAR=clients3
+=TEMPL=clients3
 router:softclients3 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2077,10 +2074,10 @@ network:customers3 = {
 
 ############################################################
 =TITLE=Crypto definitions with router fragments
-=VAR=input
-${topo}
-${clients1}
-${clients2}
+=TEMPL=input
+[[topo]]
+[[clients1]]
+[[clients2]]
 service:test1 = {
  user = host:id:foo@domain.x.customers1,
         host:id:@domain.y.customers2,
@@ -2098,14 +2095,14 @@ service:test2 = {
         prt = tcp 81;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Take one of multiple crypto networks (1)
-=VAR=service
+=TEMPL=service
 service:test1 = {
  user = host:id:bar@domain.x.customers1;
  permit src = user;
@@ -2114,12 +2111,12 @@ service:test1 = {
 }
 =END=
 =INPUT=
-${topo}
-${clients1}
-${clients2}
-${service}
+[[topo]]
+[[clients1]]
+[[clients2]]
+[[service]]
 =OUTPUT=
-${topo}
+[[topo]]
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2138,12 +2135,12 @@ network:customers1 = {
   }
  }
 }
-${service}
+[[service]]
 =END=
 
 ############################################################
 =TITLE=Take one of multiple crypto networks (2)
-=VAR=service
+=TEMPL=service
 service:test1 = {
  user = host:id:@domain.y.customers2;
  permit src = user;
@@ -2152,12 +2149,12 @@ service:test1 = {
 }
 =END=
 =INPUT=
-${topo}
-${clients1}
-${clients2}
-${service}
+[[topo]]
+[[clients1]]
+[[clients2]]
+[[service]]
 =OUTPUT=
-${topo}
+[[topo]]
 router:softclients2 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2178,13 +2175,13 @@ network:customers2 = {
   }
  }
 }
-${service}
+[[service]]
 =END=
 
 ############################################################
 =TITLE=Network with ID hosts
 # Take at least one ID host
-=VAR=service
+=TEMPL=service
 service:test1 = {
  user = network:customers1;
  permit src = user;
@@ -2193,12 +2190,12 @@ service:test1 = {
 }
 =END=
 =INPUT=
-${topo}
-${clients1}
-${clients2}
-${service}
+[[topo]]
+[[clients1]]
+[[clients2]]
+[[service]]
 =OUTPUT=
-${topo}
+[[topo]]
 router:softclients1 = {
  interface:internet = {
   spoke = crypto:vpn1;
@@ -2212,12 +2209,12 @@ network:customers1 = {
  }
  host:id:foo@domain.x = { ip = 10.99.1.10; }
 }
-${service}
+[[service]]
 =END=
 
 ############################################################
 =TITLE=Host with ldap_id
-=VAR=service
+=TEMPL=service
 service:test1 = {
  user = host:VPN_Org1;
  permit src = user;
@@ -2226,12 +2223,12 @@ service:test1 = {
 }
 =END=
 =INPUT=
-${topo}
-${clients1}
-${clients3}
-${service}
+[[topo]]
+[[clients1]]
+[[clients3]]
+[[service]]
 =OUTPUT=
-${topo}
+[[topo]]
 router:softclients3 = {
  interface:internet = {
   spoke = crypto:vpn2;
@@ -2252,7 +2249,7 @@ network:customers3 = {
   ldap_id = CN=ROL-Org1;
  }
 }
-${service}
+[[service]]
 =END=
 
 ############################################################
@@ -2303,7 +2300,7 @@ service:s = {
 
 ############################################################
 =TITLE=Unconnected parts within one topology
-=VAR=input
+=TEMPL=input
 network:n1 = {
  ip = 10.1.1.0/24;
  partition = part1;
@@ -2339,14 +2336,14 @@ service:s2 = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Unenforceable rule
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2372,14 +2369,14 @@ service:s1 = {
         prt = tcp 22;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Negated auto interface
-=VAR=input
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2412,14 +2409,58 @@ service:s1 = {
         prt = udp 123;
 }
 =END=
-=INPUT=${input}
 =OUTPUT=
-${input}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r2.[auto];
+ permit src = user;
+        dst = network:n1;
+        prt = udp 123;
+}
+=END=
+
+############################################################
+=TITLE=Intersection with user
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1, network:n2
+        ;
+ permit src = user &! network:n2;
+        dst = network:n3;
+        prt = tcp 80;
+}
+=END=
+# Valid for netspoc, but not supported by cut-netspoc.
+=ERROR=
+Error: Unexpected reference to 'user' in intersection of src of service:s1
+Warning: Useless delete of network:n2 in src of service:s1
 =END=
 
 ############################################################
 =TITLE=Network auto interface
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2447,14 +2488,14 @@ service:s1 = {
         prt = udp 123;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
-${input}
+[[input]]
 =END=
 
 ############################################################
 =TITLE=Negated interface
-=VAR=input
+=INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -2466,18 +2507,312 @@ router:r1 = {
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 service:s1 = {
- user = interface:r1.[all]
-        &! interface:r1.n3
-        &! interface:r1.n1
-        ;
+ user = interface:r1.n2;
  permit src = user;
         dst = network:n1;
         prt = tcp 22;
 }
 =END=
-=INPUT=${input}
 =OUTPUT=
-${input}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:r1.n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 22;
+}
 =END=
 
 ############################################################
+=TITLE=Negated pathrestriction
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+router:r1 =  {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r2 =  {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+router:unnütz = {
+ interface:n4;
+}
+pathrestriction:A =
+ interface:[network:n4].[all]
+ &! interface:unnütz.n4
+ ,
+;
+=END=
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+=END=
+
+############################################################
+=TITLE=Mark only first path to unconnected object
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = { ip = 10.1.8.0/24; }
+area:a = {
+ nat:dyn = { ip = 192.168.7.32/27; dynamic; }
+ border = interface:r3.n4,
+          interface:r3.n5,
+          ;
+ inclusive_border =
+  interface:r1.n1,
+  interface:r4.n7,
+  ;
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n6 = { ip = 10.1.6.2; hardware = n6; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n7; }
+}
+router:r5 = {
+ managed;
+ model = IOS;
+ interface:n7 = { ip = 10.1.7.2; hardware = n7; }
+ interface:n8 = { ip = 10.1.8.1; hardware = n8; bind_nat = dyn; }
+}
+group:p1 = interface:[network:[interface:r3.[all]]].[all] & interface:r2.[all];
+pathrestriction:A =
+ interface:r2.[all]
+ &! group:p1
+ ,
+;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n8;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n7 = { ip = 10.1.7.0/24; }
+network:n8 = { ip = 10.1.8.0/24; }
+area:a = {
+ nat:dyn = { ip = 192.168.7.32/27; dynamic; }
+ border = interface:r3.n4,
+          interface:r3.n5,
+          ;
+ inclusive_border =
+  interface:r1.n1,
+  interface:r4.n7,
+  ;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n7; }
+}
+router:r5 = {
+ managed;
+ model = IOS;
+ interface:n7 = { ip = 10.1.7.2; hardware = n7; }
+ interface:n8 = {
+  ip = 10.1.8.1;
+  hardware = n8;
+  bind_nat = dyn;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n8;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Detect unmanaged loop (1)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
+=TITLE=Detect unmanaged loop (2)
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.9; }
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.9; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=END=

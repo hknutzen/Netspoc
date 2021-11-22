@@ -258,7 +258,7 @@ Error: Must use different ID at unrelated
 
 ############################################################
 =TITLE=Routers connecting networks with virtual interfaces
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24;}
 network:n2 = { ip = 10.2.2.0/24;}
 network:n3 = { ip = 10.3.3.0/24;}
@@ -273,13 +273,13 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E3;}
- interface:n3 = {ip = 10.3.3.1; virtual = {ip = 10.3.3.9;} hardware = E4;}
+ interface:n3 = {ip = 10.3.3.1; {{.v1}} hardware = E4;}
 }
 router:r3 = {
  managed;
  model = ASA;
  interface:n2 = {ip = 10.2.2.3; virtual = {ip = 10.2.2.9;} hardware = E5;}
- interface:n3 = {ip = 10.3.3.2; virtual = {ip = 10.3.3.9;} hardware = E6;}
+ interface:n3 = {ip = 10.3.3.2; {{.v2}} hardware = E6;}
 }
 router:r4 = {
  model = ASA;
@@ -294,7 +294,11 @@ service:test = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
+=INPUT=
+[[input
+v1: "virtual = {ip = 10.3.3.9;}"
+v2: "virtual = {ip = 10.3.3.9;}"
+]]
 =OUTPUT=
 --r1
 route E2 10.4.4.0 255.255.255.0 10.2.2.9
@@ -304,8 +308,7 @@ route E7 10.1.1.0 255.255.255.0 10.3.3.9
 
 ############################################################
 =TITLE=Missing virtual interfaces on backward path
-=INPUT=${input}
-=SUBST=/virtual = {ip = 10.3.3.9;}//
+=INPUT=[[input {v1: "", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3
@@ -314,8 +317,7 @@ Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
 
 ############################################################
 =TITLE=One missing virtual interface on backward path
-=INPUT=${input}
-=SUBST=/2; virtual = {ip = 10.3.3.9;}/2;/
+=INPUT=[[input {v1: "virtual = {ip = 10.3.3.9;}", v2: ""}]]
 =ERROR=
 Error: Ambiguous static routes for network:n1 at interface:r4.n3 via
  - interface:r2.n3.virtual

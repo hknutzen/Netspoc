@@ -316,7 +316,7 @@ ipv6 route n2 ::a01:400/119 ::a01:201
 
 ############################################################
 =TITLE=Intermediate network hides subnet
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = ::a01:100/124; subnet_of = network:n2; }
 network:n2 = { ip = ::a01:100/120; subnet_of = network:n3; }
 network:n3 = { ip = ::a01:0/112; }
@@ -340,12 +340,12 @@ router:r = {
  interface:t2 = { ip = ::a09:201; hardware = t2; }
 }
 service:test = {
- user = network:n1;#, network:n4;
+ user = network:n1{{.n4}};
  permit src = user; dst = network:n2; prt = icmpv6 8;
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
+=INPUT=[[input {n4: ""}]]
 =OUTPUT=
 --ipv6/r
 # [ Routing ]
@@ -357,8 +357,7 @@ ip route add ::a01:100/120 via ::a09:202
 ############################################################
 =TITLE=Default route with intermediate network hides subnet
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/;#,/,/
+=INPUT=[[input {n4: ",network:n4"}]]
 =OUTPUT=
 --ipv6/r
 # [ Routing ]
@@ -371,13 +370,11 @@ ip route add ::a01:100/120 via ::a09:202
 =TITLE=Route for redundant subnet
 =PARAMS=--ipv6
 =INPUT=
-${input}
+[[input {n4: ",network:n4"}]]
 service:test2 = {
  user = network:n3;
  permit src = user; dst = network:n2; prt = icmpv6 8;
 }
-=END=
-=SUBST=/;#,/,/
 =OUTPUT=
 --ipv6/r
 # [ Routing ]

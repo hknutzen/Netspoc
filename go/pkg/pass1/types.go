@@ -33,7 +33,6 @@ type netOrRouter interface {
 }
 
 type autoIntf struct {
-	usedObj
 	managed bool
 	name    string
 	object  netOrRouter
@@ -42,7 +41,6 @@ type autoIntf struct {
 func (x autoIntf) String() string { return x.name }
 
 type groupObj interface {
-	setUsed()
 	String() string
 }
 type groupObjList []groupObj
@@ -59,9 +57,8 @@ type ipVxGroupObj interface {
 type srvObj interface {
 	withAttr
 	String() string
-	getUsed() bool
-	setUsed()
 }
+
 type srvObjList []srvObj
 
 func (a *srvObjList) push(e srvObj) {
@@ -108,9 +105,6 @@ type usedObj struct {
 	isUsed bool
 }
 
-func (x *usedObj) getUsed() bool { return x.isUsed }
-func (x *usedObj) setUsed()      { x.isUsed = true }
-
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
@@ -134,7 +128,6 @@ type ipObj struct {
 	disabledObj
 	ipVxObj
 	ownedObj
-	usedObj
 	name string
 }
 
@@ -197,7 +190,6 @@ func (a *netList) push(e *network) {
 
 type netObj struct {
 	ipObj
-	usedObj
 	nat     map[string]netaddr.IP
 	network *network
 	up      someObj
@@ -228,32 +220,35 @@ type host struct {
 }
 
 type model struct {
-	commentChar      string
-	class            string
-	crypto           string
-	doAuth           bool
-	aclUseRealIP     bool
-	canDynCrypto     bool
-	canLogDeny       bool
-	canObjectgroup   bool
-	canVRF           bool
-	cryptoInContext  bool
-	filter           string
-	hasIoACL         bool
-	hasOutACL        bool
-	inversedACLMask  bool
-	logModifiers     map[string]string
-	name             string
-	needACL          bool
-	needProtect      bool
-	noFilterICMPCode bool
-	noCryptoFilter   bool
-	printRouterIntf  bool
-	routing          string
-	stateless        bool
-	statelessSelf    bool
-	statelessICMP    bool
-	usePrefix        bool
+	commentChar            string
+	class                  string
+	crypto                 string
+	doAuth                 bool
+	aclUseRealIP           bool
+	canDynCrypto           bool
+	canLogDeny             bool
+	canObjectgroup         bool
+	canVRF                 bool
+	cryptoInContext        bool
+	filter                 string
+	hasIoACL               bool
+	hasOutACL              bool
+	inversedACLMask        bool
+	logModifiers           map[string]string
+	name                   string
+	needACL                bool
+	needManagementInstance bool
+	needProtect            bool
+	needVRF                bool
+	noACLself              bool
+	noCryptoFilter         bool
+	printRouterIntf        bool
+	routing                string
+	stateless              bool
+	statelessSelf          bool
+	statelessICMP          bool
+	usePrefix              bool
+	vrfShareHardware       bool
 }
 
 type natSet map[string]bool
@@ -282,13 +277,15 @@ func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 type router struct {
 	ipVxObj
 	ownedObj
-	usedObj
 	pathStoreData
 	pathObjData
 	name                    string
 	deviceName              string
 	managed                 string
 	semiManaged             bool
+	managementInstance      bool
+	backupInstance          *router
+	backupOf                *router
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
@@ -451,7 +448,6 @@ type pathRestriction struct {
 }
 
 type crypto struct {
-	usedObj
 	bindNat           []string
 	detailedCryptoAcl bool
 	ipsec             *ipsec
@@ -460,7 +456,6 @@ type crypto struct {
 	tunnels           netList
 }
 type ipsec struct {
-	usedObj
 	name              string
 	isakmp            *isakmp
 	lifetime          *[2]int
@@ -470,7 +465,6 @@ type ipsec struct {
 	pfsGroup          string
 }
 type isakmp struct {
-	usedObj
 	name           string
 	authentication string
 	encryption     string
@@ -518,18 +512,18 @@ type area struct {
 	disabledObj
 	ownedObj
 	ipVxObj
-	usedObj
-	name             string
-	anchor           *network
-	attr             attrStore
-	inclusiveBorder  []*routerIntf
-	border           []*routerIntf
-	inArea           *area
-	managedRouters   []*router
-	nat              map[string]*network
-	routerAttributes *routerAttributes
-	watchingOwner    *owner
-	zones            []*zone
+	name                string
+	anchor              *network
+	attr                attrStore
+	inclusiveBorder     []*routerIntf
+	border              []*routerIntf
+	inArea              *area
+	managedRouters      []*router
+	managementInstances []*router
+	nat                 map[string]*network
+	routerAttributes    *routerAttributes
+	watchingOwner       *owner
+	zones               []*zone
 }
 
 func (x area) String() string { return x.name }

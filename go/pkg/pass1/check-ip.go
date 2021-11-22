@@ -25,7 +25,7 @@ func (c *spoc) checkSubnetOf() {
 				n.subnetOf = nil
 				return
 			}
-			if !sn.ipp.Contains(n.ipp.IP) {
+			if !sn.ipp.Contains(n.ipp.IP()) {
 				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
 					ctx, sn)
 			}

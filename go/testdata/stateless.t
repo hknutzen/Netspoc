@@ -1,4 +1,4 @@
-=VAR=topo
+=TEMPL=topo
 network:x = { ip = 10.1.1.0/24;
 }
 router:r = {
@@ -15,7 +15,7 @@ network:y = { ip = 10.2.2.0/24;
 ############################################################
 =TITLE=Optimize reverse rules
 =INPUT=
-${topo}
+[[topo]]
 service:test1 = {
  user = network:x;
  permit src = user; dst = network:y; prt = ip;
@@ -49,7 +49,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Reverse UDP ports
 =INPUT=
-${topo}
+[[topo]]
 service:test = {
  user = network:x;
  permit src = user; dst = network:y; prt = udp 389;
@@ -71,7 +71,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=UDP source port with unspecified destination port
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 69:1-65535;
 service:test = {
  user = network:x;
@@ -94,7 +94,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=UDP source ports
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 500:500;
 service:test = {
  user = network:x;
@@ -117,7 +117,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=Optimized UDP source ports
 =INPUT=
-${topo}
+[[topo]]
 protocol:ike = udp 500:500;
 service:test = {
  user = network:x, network:y;
@@ -140,7 +140,7 @@ ip access-list extended e1_in
 ############################################################
 =TITLE=No warning on overlapping stateless range
 =INPUT=
-${topo}
+[[topo]]
 protocol:ftp-passive-data = tcp 1024-65535, stateless;
 service:s = {
  user = network:x;

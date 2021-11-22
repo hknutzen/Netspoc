@@ -60,7 +60,7 @@ Aborted
 =END=
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:N = { ip = 10.1.9.0/24; }
@@ -85,7 +85,7 @@ router:asa2 = {
 ############################################################
 =TITLE=Range, source port, deny, host, range, interface
 =INPUT=
-${topo}
+[[topo]]
 protocolgroup:ftp-all = tcp 21,
 			protocol:ftp-passive-data, protocol:ftp-active-data;
 protocolgroup:ftp-passive = tcp 21, protocol:ftp-passive-data;
@@ -123,8 +123,8 @@ s1:permit 10.1.2.0/24 10.1.3.2 icmp
 
 ############################################################
 =TITLE=All services
-=VAR=input
-${topo}
+=TEMPL=input
+[[topo]]
 service:s1 = {
     user = network:n1;
     permit src = user; dst = network:n3; prt = ip;
@@ -134,7 +134,7 @@ service:s2 = {
     permit src = user; dst = network:n3; prt = tcp;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
 s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
@@ -142,7 +142,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 
 ############################################################
 =TITLE=Missing "service:" type is ok
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 s1:permit 10.1.1.0/24 10.1.3.0/24 ip
 s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
@@ -151,7 +151,7 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 
 ############################################################
 =TITLE=Select services, show names of objects
-=INPUT=${input}
+=INPUT=[[input]]
 =OUTPUT=
 s2:permit network:n2 network:n3 tcp
 =END=

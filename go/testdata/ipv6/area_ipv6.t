@@ -1,6 +1,6 @@
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
@@ -22,7 +22,7 @@ router:asa2 = {
 =TITLE=Must not define anchor together with border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a = {
  anchor = network:n1;
  border = interface:asa2.n2;
@@ -37,7 +37,7 @@ Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusi
 =TITLE=Must define either anchor or border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a = {}
 =END=
 =ERROR=
@@ -48,7 +48,7 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 =TITLE=Must not use interface as border and inclusive_border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a = {
  border = interface:asa1.n2, interface:asa2.n3;
  inclusive_border = interface:asa2.n3;
@@ -62,7 +62,7 @@ Error: interface:asa2.n3 is used as 'border' and 'inclusive_border' in area:a
 =TITLE=Only interface as border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a = { inclusive_border = network:n1; border = interface:asa1.n2; }
 =END=
 =ERROR=
@@ -73,7 +73,7 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 =TITLE=No automatic interface as border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a = { inclusive_border = interface:asa1.[all] &! interface:asa1.n2; }
 area:b = { border = interface:asa2.[auto]; }
 =END=
@@ -99,7 +99,7 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 =TITLE=Policy distribution point from nested areas
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 # a3 < a2 < all, a1 < all
 area:all = {
  anchor = network:n1;
@@ -132,7 +132,7 @@ service:pdp3 = {
 =TITLE=Missing policy distribution point
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:all = {
  anchor = network:n1;
 }
@@ -159,7 +159,7 @@ Warning: Missing attribute 'policy_distribution_point' for 1 devices:
 =TITLE=Overlapping areas
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 network:n4 = { ip = ::a01:400/120; }
 router:asa3 = {
  managed;
@@ -181,9 +181,10 @@ Error: Overlapping area:a2 and area:a2x
 =TITLE=Duplicate areas
 =PARAMS=--ipv6
 =INPUT=
-${topo}
-area:a2 = { border = interface:asa1.n2; }
-area:a2x = { border = interface:asa1.n2; }
+[[topo]]
+area:a1 = { border = interface:asa1.n1; }
+area:a2 = { border = interface:asa2.n2; }
+area:a2x = { border = interface:asa2.n2; }
 =END=
 =ERROR=
 Error: Duplicate area:a2 and area:a2x
@@ -193,7 +194,7 @@ Error: Duplicate area:a2 and area:a2x
 =TITLE=Distinct areas, only router is different
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a2 = { border = interface:asa1.n2; }
 area:a2r = { inclusive_border = interface:asa1.n1; }
 =END=
@@ -203,7 +204,7 @@ area:a2r = { inclusive_border = interface:asa1.n1; }
 # Changed $topo
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; host:h3 = { ip = ::a01:30a; } }
@@ -232,7 +233,7 @@ router:asa2 = {
 =TITLE=Overlapping areas at router
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  inclusive_border = interface:asa1.n1;
 }
@@ -251,7 +252,7 @@ Error: Overlapping area:a2 and area:a1
 =TITLE=Missing router in overlapping areas
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa2.n5;
 }
@@ -267,10 +268,27 @@ Error: Overlapping area:a1 and area:a2
 =END=
 
 ############################################################
+=TITLE=Overlap at area that has been processed before
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+area:a1 = { border = interface:asa1.n1; }
+area:a12 = { border = interface:asa2.n2; inclusive_border = interface:asa1.n3; }
+area:a123 = { border = interface:asa2.n2, interface:asa2.n3; }
+area:a245 = { border = interface:asa1.n2; inclusive_border = interface:asa2.n3; }
+=END=
+=ERROR=
+Error: Overlapping area:a123 and area:a245
+ - both areas contain any:[network:n2],
+ - only 1. area contains any:[network:n1],
+ - only 2. area contains any:[network:n4]
+=END=
+
+############################################################
 =TITLE=Empty area
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa1.n2, interface:asa1.n3;
 }
@@ -283,7 +301,7 @@ Warning: area:a1 is empty
 =TITLE=Inconsistent definition of area in loop
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  border = interface:asa2.n2;
  inclusive_border = interface:asa1.n2;
@@ -311,7 +329,7 @@ Error: Inconsistent definition of area:a2 in loop.
 # border and inclusive_border can contact at an interface.
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
 }
@@ -344,7 +362,7 @@ access-group n3_in in interface n3
 =TITLE=Router attributes from inclusive area
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
  router_attributes = { general_permit = icmpv6; }
@@ -366,7 +384,7 @@ access-group n2_in in interface n2
 =TITLE=Unreachable border
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {border = interface:asa1.n1,
                     interface:asa2.n2;}
 =END=
@@ -379,7 +397,7 @@ Error: Unreachable border of area:a1:
 =TITLE=Must not use area directly in rule
 =PARAMS=--ipv6
 =INPUT=
-${topo}
+[[topo]]
 area:a1 = {border = interface:asa1.n1;}
 service:s1 = { user = area:a1; permit src = user; dst = network:n2; prt = tcp; }
 =END=

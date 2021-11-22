@@ -173,10 +173,27 @@ func (c *spoc) markDisabled() {
 		sameDevice[name] = append(sameDevice[name], r)
 	}
 	for _, l := range sameDevice {
+		r1 := l[0]
+		if r1.model.needManagementInstance {
+			mr := getRouter(r1.deviceName, symTable, r1.ipV6)
+			if mr == nil {
+				c.err("Must define unmanaged router:%s\n"+
+					" with attribute 'management_instance'\n"+
+					" for %s",
+					r1.deviceName, r1)
+			} else if mr.backupOf != nil {
+				c.err("Must define unmanaged router:%s\n"+
+					" - with attribute 'management_instance'\n"+
+					" - but without attribute 'backup_of'\n"+
+					" for %s",
+					r1.deviceName, r1)
+			}
+		}
+
 		if len(l) == 1 {
 			continue
 		}
-		m1 := l[0].model.name
+		m1 := r1.model.name
 		for _, r := range l[1:] {
 			if m1 != r.model.name {
 				c.err("All instances of router:%s must have identical model",
@@ -194,15 +211,17 @@ func (c *spoc) markDisabled() {
 			continue
 		}
 
-		sameHWDevice := make(map[string]*router)
-		for _, r := range l {
-			for _, hw := range r.hardware {
-				name := hw.name
-				if r2 := sameHWDevice[name]; r2 != nil {
-					c.err("Duplicate hardware '%s' at %s and %s",
-						name, r2, r)
-				} else {
-					sameHWDevice[name] = r
+		if l[0].model.vrfShareHardware {
+			sameHWDevice := make(map[string]*router)
+			for _, r := range l {
+				for _, hw := range r.hardware {
+					name := hw.name
+					if r2 := sameHWDevice[name]; r2 != nil {
+						c.err("Duplicate hardware '%s' at %s and %s",
+							name, r2, r)
+					} else {
+						sameHWDevice[name] = r
+					}
 				}
 			}
 		}

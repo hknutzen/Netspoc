@@ -3,7 +3,7 @@
 # Shared topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -52,7 +52,7 @@ pathrestriction:p2 = interface:r3.n4, interface:r5.n4;
 ############################################################
 =TITLE=Linear path from PR interface at border of loop at router
 =INPUT=
-${topo}
+[[topo]]
 service:s1 = {
  user = interface:r2.n3;
  permit src = user; dst = network:n4; prt = udp 514;
@@ -73,7 +73,7 @@ ip access-list extended n4_in
 ############################################################
 =TITLE=Linear path from PR interface at border of loop at zone
 =INPUT=
-${topo}
+[[topo]]
 service:s2 = {
  user = interface:r3.n4;
  permit src = user; dst = network:n3; prt = udp 514;
@@ -144,7 +144,7 @@ access-group n1_in in interface n1
 # Changed topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:Test =  { ip = 10.9.1.0/24; }
 router:filter = {
  managed;
@@ -180,7 +180,7 @@ network:Schulung = { ip = 10.9.2.0/24; }
 # Soll an router:filter für Interfaces GRE und Trans unterschiedliche
 # ACLs generieren.
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:restrict =
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
@@ -210,7 +210,7 @@ ip access-list extended Tunnel1_in
 ############################################################
 =TITLE=Two pathrestrictions at border of loop (at router)
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:restrict1 =
  description = Nur network:X über GRE-Tunnel.
  interface:filter.GRE,
@@ -247,7 +247,7 @@ ip access-list extended Tunnel1_in
 # Soll Ausgang der Loop als Router erkennen, obwohl intern
 # ein Interface verwendet wird.
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:restrict =
  interface:filter.Test,
  interface:filter.Trans,
@@ -608,7 +608,7 @@ access-group n3_in in interface n3
 =TITLE=Valid pathrestriction at unmanged router
 # Neighbor zones of any:[network:n2] all belong to same zone cluster.
 # Therefore we need to check neighbors of all elements of zone cluster.
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
@@ -622,14 +622,14 @@ router:u2 = {
  interface:n3;
 }
 router:r1 = {
- managed;
+ {{.}}
  model = ASA;
  routing = manual;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n4 = { ip = 10.1.4.1; hardware = n4; }
 }
 router:r2 = {
- managed;
+ {{.}}
  model = ASA;
  routing = manual;
  interface:n3 = { ip = 10.1.3.1; hardware = n3; }
@@ -637,13 +637,12 @@ router:r2 = {
 }
 pathrestriction:r = interface:u1.n2, interface:u2.n2;
 =END=
-=INPUT=${input}
+=INPUT=[[input managed;]]
 =WARNING=NONE
 
 ############################################################
 =TITLE=Useless pathrestriction at unmanged router
-=INPUT=${input}
-=SUBST=/managed/#managed/
+=INPUT=[[input ""]]
 =WARNING=
 Warning: Useless pathrestriction:r.
  All interfaces are unmanaged and located inside the same security zone
@@ -690,7 +689,7 @@ Error: No valid path
 
 ############################################################
 =TITLE=Pathrestriction at exit of minimal loop (at zone)
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.16/28;}
 router:r1 = {
  model = ASA;
@@ -719,7 +718,7 @@ pathrestriction:p1 =
  interface:r3.t3,
 ;
 =INPUT=
-${input}
+[[input]]
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -736,7 +735,7 @@ Error: No valid path
 
 ############################################################
 =TITLE=Pathrestriction at exit of minimal loop (at zone, reversed)
-=VAR=input
+=TEMPL=input
 network:n1 = { ip = 10.1.1.16/28;}
 router:r1 = {
  model = ASA;
@@ -765,7 +764,7 @@ pathrestriction:p1 =
  interface:r3.t3,
 ;
 =INPUT=
-${input}
+[[input]]
 service:s1 = {
  user = network:n2;
  permit src = user; dst = network:n1; prt = tcp 80;

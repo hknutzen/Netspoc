@@ -32,6 +32,38 @@ Error: Duplicate hardware 'n3' at router:r@v2 and router:r@v3
 =END=
 
 ############################################################
+=TITLE=Ignore unmanaged VRF member
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+router:r1@v1 = {
+ interface:n1;
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r1@v2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n2_in
+ deny ipv6 any host ::a01:301
+ permit tcp ::a01:100/120 ::a01:300/120 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Combine object-groups from different VRFs
 =PARAMS=--ipv6
 =INPUT=

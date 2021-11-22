@@ -51,17 +51,15 @@ func (c *spoc) createDirs(dir, path string) {
 }
 
 func (c *spoc) writeJson(path string, data interface{}) {
-	fd, err := os.Create(path)
+	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(data); err != nil {
-		c.abort("%v", err)
-	}
+	enc.Encode(data)
 	if err := fd.Close(); err != nil {
-		c.abort("Can't %v", err)
+		panic(err)
 	}
 }
 
@@ -70,10 +68,10 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 }
 
 func printNetworkIp(n *network) string {
-	pIP := n.ipp.IP.String()
+	pIP := n.ipp.IP().String()
 	var pMask string
 	if n.ipV6 {
-		size := n.ipp.Bits
+		size := n.ipp.Bits()
 		pMask = strconv.Itoa(int(size))
 	} else {
 		pMask = net.IP(n.ipp.IPNet().Mask).String()
@@ -101,7 +99,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			// Don't print mask for loopback network. It needs to have
 			// exactly the same address as the corresponding loopback interface.
 			if n.loopback {
-				return n.ipp.IP.String()
+				return n.ipp.IP().String()
 			}
 
 			return printNetworkIp(n)
@@ -130,7 +128,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				return mergeIP(ip, n).String()
 			}
 			r := h.ipRange
-			return mergeIP(r.From, n).String() + "-" + mergeIP(r.To, n).String()
+			return mergeIP(r.From(), n).String() + "-" +
+				mergeIP(r.To(), n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)
@@ -1415,7 +1414,8 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 	if fileop.IsRegular(policyFile) {
 		cmd := exec.Command("cp", "-pf", policyFile, outDir)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			c.abort("executing '%v': %v\n%s", cmd, err, out)
+			c.abort("executing 'cp -pf %s %s': %v\n%s",
+				policyFile, outDir, err, out)
 		}
 	}
 }

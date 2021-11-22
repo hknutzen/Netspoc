@@ -386,7 +386,7 @@ Error: Duplicate IP address for host:h2a and host:h2b
 
 ############################################################
 # Shared topology for multiple tests
-=VAR=topology
+=TEMPL=topology
 network:n1 = {
  ip = 10.1.1.0/24;
  host:netspoc = { ip = 10.1.1.111; }
@@ -397,14 +397,14 @@ network:n3 = { ip = 10.1.3.0/24; }
 
 router:asa = {
  model = IOS;
- #managed;
+ {{.m}}managed;
  interface:n1 = { ip = 10.1.1.101; hardware = n1; }
  interface:n2/left = { ip = 10.1.2.101; hardware = n2; }
 }
 router:bridge = {
  model = ASA;
  managed;
- policy_distribution_point = host:netspoc;
+ {{.p}}policy_distribution_point = host:netspoc;
  interface:n2 = { ip = 10.1.2.9; hardware = device; }
  interface:n2/left = { hardware = inside; }
  interface:n2/right = { hardware = outside; }
@@ -418,7 +418,7 @@ router:r3 = {
 ############################################################
 =TITLE=Admin access to bridge
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user = interface:bridge.n2;
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -432,7 +432,7 @@ service:admin = {
 ############################################################
 =TITLE=Admin access to bridge auto interface
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user =  interface:bridge.[auto];
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -446,7 +446,7 @@ service:admin = {
 ############################################################
 =TITLE=Admin access to bridge all interfaces
 =INPUT=
-${topology}
+[[topology {m: "#", p: ""}]]
 service:admin = {
  user =  interface:bridge.[all];
  permit src = network:n1; dst = user; prt = tcp 22;
@@ -460,14 +460,11 @@ service:admin = {
 ############################################################
 =TITLE=Access to both sides of bridged network
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n2/left, network:n2/right;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 =OUTPUT=
 --bridge
 access-list outside_in extended permit tcp 10.1.2.0 255.255.255.0 host 10.1.1.111 eq 80
@@ -478,14 +475,11 @@ access-group outside_in in interface outside
 ############################################################
 =TITLE=Access through bridged ASA
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n3;
  permit src = user; dst = host:[network:n1]; prt = tcp 80;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 # Must not use bridged interface as next hop in static route.
 =OUTPUT=
 --bridge
@@ -500,15 +494,12 @@ ip route 10.1.3.0 255.255.255.0 10.1.2.1
 ############################################################
 =TITLE=Must not use bridged interface in rule
 =INPUT=
-${topology}
+[[topology {m: "", p: "#"}]]
 service:test = {
  user = network:n1;
  permit src = user; dst = interface:bridge.n2/right; prt = tcp 22;
  permit src = interface:bridge.n2/left; dst = user; prt = tcp 22;
 }
-=END=
-=SUBST=/policy_distribution_point/#policy_distribution_point/
-=SUBST=/#managed/managed/
 =WARNING=
 Warning: Ignoring bridged interface:bridge.n2/right in dst of rule in service:test
 Warning: Ignoring bridged interface:bridge.n2/left in src of rule in service:test
@@ -606,7 +597,7 @@ Error: Ambiguous static routes for network:n2 at interface:r0.n1/center via
 
 ############################################################
 =TITLE=Route behind chained bridges
-=VAR=input
+=TEMPL=input
 network:n0 = { ip = 10.1.0.0/24; }
 router:r1 = {
  managed;
@@ -634,7 +625,7 @@ router:zbridge2 = {
 }
 network:n1/right = { ip = 10.1.1.0/24; }
 router:r2 = {
- interface:n1/right = { ip = 10.1.1.5; hardware = n1; }
+ interface:n1/right = { {{.}}; hardware = n1; }
  interface:n2;
 }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -643,7 +634,7 @@ service:s = {
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =INPUT=
-${input}
+[[input "ip = 10.1.1.5"]]
 =OUTPUT=
 --r1
 ! [ Routing ]
@@ -653,8 +644,7 @@ route n1 10.1.2.0 255.255.255.0 10.1.1.5
 ############################################################
 =TITLE=Missing hop behind chained bridges
 =INPUT=
-${input}
-=SUBST=/right = { ip = 10.1.1.5;/right = { negotiated;/
+[[input negotiated]]
 =ERROR=
 Error: Can't generate static routes for interface:r1.n1/left because IP address is unknown for:
  - interface:r2.n1/right

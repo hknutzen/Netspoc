@@ -60,7 +60,7 @@ Warning: Ignoring pathrestriction:p2 with only interface:r1.n1
 # Shared topology for multiple tests.
 
 ############################################################
-=VAR=topo
+=TEMPL=topo
 network:top = { ip = 10.1.1.0/24;}
 router:r1 = {
  managed;
@@ -84,9 +84,9 @@ network:dst = { ip = 10.1.2.0/24;}
 =END=
 
 ############################################################
-=TITLE=Simple duplicate pathrestriction
+=TITLE=Simple pathrestrictions leaving no valid path
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:top =
  interface:r1.top,
  interface:r2.top,
@@ -113,7 +113,7 @@ Error: No valid path
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.dst,
@@ -153,7 +153,7 @@ ip access-list extended dst_in
 =TITLE=Path starts at pathrestriction inside loop (2)
 # Must not use path r1.top-r1-r2-top
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.top,
@@ -194,7 +194,7 @@ ip access-list extended dst_in
 ############################################################
 =TITLE=Path starts at pathrestriction inside loop (3)
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p1 =
  interface:r1.top,
  interface:r1.dst,
@@ -227,7 +227,7 @@ ip access-list extended dst_in
 # Must detect identical path restriction,
 # when temporary moving pathrestriction of r1.dst to r1.top.
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r1.dst,
@@ -252,7 +252,7 @@ ip access-list extended dst_in
 ############################################################
 =TITLE=Path ends at pathrestriction inside loop (2)
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p1 =
  interface:r1.top,
  interface:r1.dst,
@@ -282,7 +282,7 @@ ip access-list extended dst_in
 =TITLE=Path ends at interface inside network, where path starts
 # Must not enter r1 from network dst, even for optimized pathrestriction.
 =INPUT=
-${topo}
+[[topo]]
 pathrestriction:p =
  interface:r1.top,
  interface:r2.top,

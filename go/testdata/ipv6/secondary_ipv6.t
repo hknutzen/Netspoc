@@ -176,7 +176,7 @@ ipv6 access-list Ethernet5_in
 
 ############################################################
 =TITLE=No optimization if subnet of subnet is outside of zone
-=VAR=input
+=TEMPL=input
 network:src = { ip = ::a01:100/120; }
 # src must not be allowed to access subsub.
 router:r1 = {
@@ -199,7 +199,7 @@ network:dst = {
  ip = ::a09:900/120;
  host:server = { ip = ::a09:909; }
 }
-router:u = {
+{{.}} = {
  interface:dst;
  interface:sub = { ip = ::a09:921; }
 }
@@ -212,14 +212,14 @@ service:test = {
 }
 =END=
 =PARAMS=--ipv6
-=INPUT=${input}
-=VAR=output
+=INPUT=[[input router:u]]
+=TEMPL=output
 --ipv6/r1
 ipv6 access-list Ethernet1_in
  permit ipv6 ::a01:100/120 host ::a09:909
  deny ipv6 any any
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
@@ -227,10 +227,9 @@ ${output}
 # Must recognize that dst has other subnet, even if subsub is
 # processed later.
 =PARAMS=--ipv6
-=INPUT=${input}
-=SUBST=/router:u/router:r0/
+=INPUT=[[input router:r0]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################

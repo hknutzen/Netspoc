@@ -174,7 +174,7 @@ ip access-list extended Ethernet5_in
 
 ############################################################
 =TITLE=No optimization if subnet of subnet is outside of zone
-=VAR=input
+=TEMPL=input
 network:src = { ip = 10.1.1.0/24; }
 # src must not be allowed to access subsub.
 router:r1 = {
@@ -197,7 +197,7 @@ network:dst = {
  ip = 10.9.9.0/24;
  host:server = { ip = 10.9.9.9; }
 }
-router:u = {
+{{.}} = {
  interface:dst;
  interface:sub = { ip = 10.9.9.33; }
 }
@@ -209,24 +209,23 @@ service:test = {
         prt = tcp 80;
 }
 =END=
-=INPUT=${input}
-=VAR=output
+=INPUT=[[input router:u]]
+=TEMPL=output
 --r1
 ip access-list extended Ethernet1_in
  permit ip 10.1.1.0 0.0.0.255 host 10.9.9.9
  deny ip any any
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################
 =TITLE=No optimization if subnet of subnet is outside of zone (2)
 # Must recognize that dst has other subnet, even if subsub is
 # processed later.
-=INPUT=${input}
-=SUBST=/router:u/router:r0/
+=INPUT=[[input router:r0]]
 =OUTPUT=
-${output}
+[[output]]
 =END=
 
 ############################################################

@@ -1,12 +1,12 @@
 
 ############################################################
 =TITLE=General permit
-=VAR=input
+=TEMPL=input
 protocol:unreachable = icmp 3;
 network:m = { ip = 10.2.2.0/24; }
 router:r = {
  managed;
- model = NX-OS;
+ model = {{.}};
  general_permit = tcp, icmp 0, protocol:unreachable, udp;
  interface:m = { ip = 10.2.2.2; hardware = e0; }
  interface:n = { ip = 10.1.1.2, 10.1.1.3; hardware = e1; }
@@ -18,7 +18,7 @@ service:test = {
  permit src = user; dst = network:n; prt = icmp;
 }
 =END=
-=INPUT=${input}
+=INPUT=[[input NX-OS]]
 =OUTPUT=
 --r
 ip access-list e0_in
@@ -41,8 +41,7 @@ ip access-list e1_in
 
 ############################################################
 =TITLE=General permit (Linux)
-=INPUT=${input}
-=SUBST=/NX-OS/Linux/
+=INPUT=[[input Linux]]
 =OUTPUT=
 --r
 # [ ACL ]
@@ -64,6 +63,7 @@ ip access-list e1_in
 -A e0_self -j ACCEPT -p udp
 -A e0_self -g c1 -p icmp
 -A INPUT -j e0_self -i e0
+--
 :e0_e1 -
 -A e0_e1 -j ACCEPT -p tcp
 -A e0_e1 -j ACCEPT -p udp
@@ -76,6 +76,7 @@ ip access-list e1_in
 -A e1_self -j ACCEPT -p udp
 -A e1_self -g c3 -p icmp
 -A INPUT -j e1_self -i e1
+--
 :e1_e0 -
 -A e1_e0 -j ACCEPT -p tcp
 -A e1_e0 -j ACCEPT -p udp

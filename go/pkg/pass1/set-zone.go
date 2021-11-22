@@ -496,6 +496,8 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	case *router:
 		if x.managed != "" || x.routingOnly {
 			a.managedRouters = append(a.managedRouters, x)
+		} else if x.managementInstance {
+			a.managementInstances = append(a.managementInstances, x)
 		}
 	}
 
@@ -553,7 +555,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		return len(a.zones) + len(a.managedRouters)
 	}
 	// Sort areas by size or by name on equal size.
-	sortBySize := func(l []*area) []*area {
+	sortBySize := func(l []*area) {
 		sort.SliceStable(l, func(i, j int) bool {
 			si := size(l[i])
 			sj := size(l[j])
@@ -562,7 +564,6 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			}
 			return si < sj
 		})
-		return l
 	}
 
 	// Fill global list of areas.
@@ -571,7 +572,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
 	}
-	c.ascendingAreas = sortBySize(c.ascendingAreas)
+	sortBySize(c.ascendingAreas)
 
 	// Get list of all zones and managed routers of an area.
 	getObjList := func(a *area) []pathObj {
@@ -597,11 +598,10 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		for a, _ := range m {
 			containing = append(containing, a)
 		}
-		containing = sortBySize(containing)
+		sortBySize(containing)
 
 		// Take the smallest area.
 		next := containing[0]
-		containing = containing[1:]
 		nextList := getObjList(next)
 
 		if z, ok := obj.(*zone); ok {
@@ -609,16 +609,15 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		}
 
 	LARGER:
-		for len(containing) > 0 {
+		for _, a := range containing[1:] {
 			small := next
-			next = containing[0]
-			containing = containing[1:]
-			if small.inArea != nil {
+			next = a
+			if small.inArea == next {
 				continue
 			}
 			small.inArea = next
 			smallList := nextList
-			nextList := getObjList(next)
+			nextList = getObjList(next)
 
 			// Check that each zone and managed router of small is part of next.
 			for _, obj2 := range smallList {
@@ -698,7 +697,7 @@ func (c *spoc) processAggregates() {
 		// retain NAT at other aggregates.
 		// This is an optimization to prevent the creation of many aggregates 0/0
 		// if only inheritance of NAT from area to network is needed.
-		prefixlen := agg.ipp.Bits
+		prefixlen := agg.ipp.Bits()
 		if prefixlen == 0 {
 			if nat := agg.nat; nat != nil {
 				if len(cluster) == 1 {
@@ -752,7 +751,7 @@ func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 
 //##############################################################################
 // Purpose : Distribute routerAttributes from area definition to managed
-//           routers of an area.
+//           routers and management instances of an area.
 func (c *spoc) inheritRouterAttributes(a *area) {
 
 	// Check for attributes to be inherited.
@@ -760,23 +759,28 @@ func (c *spoc) inheritRouterAttributes(a *area) {
 	if attr == nil {
 		return
 	}
-	if attr.policyDistributionPoint == nil && attr.generalPermit == nil {
+	p1 := attr.policyDistributionPoint
+	l1 := attr.generalPermit
+	if p1 == nil && l1 == nil {
 		return
 	}
 
+	setPDP := func(r *router) {
+		if p2 := r.policyDistributionPoint; p2 != nil {
+			if p1 == p2 {
+				c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
+					" it was already inherited from %s", r, attr.name)
+			}
+		} else {
+			r.policyDistributionPoint = p1
+		}
+	}
 	// Process all managed routers of the area inherited from.
 	for _, r := range a.managedRouters {
-		if p1 := attr.policyDistributionPoint; p1 != nil {
-			if p2 := r.policyDistributionPoint; p2 != nil {
-				if p1 == p2 {
-					c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
-						" it was already inherited from %s", r, attr.name)
-				}
-			} else {
-				r.policyDistributionPoint = p1
-			}
+		if p1 != nil {
+			setPDP(r)
 		}
-		if l1 := attr.generalPermit; l1 != nil {
+		if l1 != nil {
 			if l2 := r.generalPermit; l2 != nil {
 				if protoListEq(l1, l2) {
 					c.warn("Useless attribute 'general_permit' at %s,\n"+
@@ -785,6 +789,11 @@ func (c *spoc) inheritRouterAttributes(a *area) {
 			} else {
 				r.generalPermit = l1
 			}
+		}
+	}
+	if p1 != nil {
+		for _, r := range a.managementInstances {
+			setPDP(r)
 		}
 	}
 }
@@ -893,7 +902,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 
 			// Proceed from smaller to larger objects. (Bigger mask first.)
 			sort.Slice(natSupernets, func(i, j int) bool {
-				return natSupernets[i].ipp.Bits > natSupernets[j].ipp.Bits
+				return natSupernets[i].ipp.Bits() > natSupernets[j].ipp.Bits()
 			})
 			for _, z := range z0.cluster {
 				for _, n := range natSupernets {
@@ -948,7 +957,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 		for _, n := range z.networks {
 
 			// Only process subnets.
-			if n.ipp.Bits <= net.Bits || !net.Contains(n.ipp.IP) {
+			if n.ipp.Bits() <= net.Bits() || !net.Contains(n.ipp.IP()) {
 				continue
 			}
 
@@ -978,17 +987,17 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				if !nat.dynamic {
 
 					// Check mask of static NAT inherited from area or zone.
-					if nat.ipp.Bits > n.ipp.Bits {
+					if nat.ipp.Bits() > n.ipp.Bits() {
 						c.err("Must not inherit %s at %s\n"+
 							" because NAT network must be larger"+
 							" than translated network", nat.descr, n)
 					}
 
 					// Take higher bits from NAT IP, lower bits from original IP.
-					subNat.ipp = netaddr.IPPrefix{
-						IP:   mergeIP(n.ipp.IP, nat),
-						Bits: n.ipp.Bits,
-					}
+					subNat.ipp = netaddr.IPPrefixFrom(
+						mergeIP(n.ipp.IP(), nat),
+						n.ipp.Bits(),
+					)
 				}
 
 				if n.nat == nil {

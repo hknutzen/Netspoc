@@ -37,7 +37,6 @@ Warning: Found unused file raw/x
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
 =END=
 
-
 ############################################################
 =TITLE=Ignore file with name "raw"
 =INPUT=
@@ -47,4 +46,42 @@ syntax error
 =ERROR=
 Error: topology seems to be empty
 Aborted
+=END=
+
+############################################################
+=TITLE=Can't copy raw file
+# No IPv6 test
+=SETUP=
+mkdir -p out/.prev
+mkdir -p out/r1.raw/r1
+=INPUT=
+--topo
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+  model = IOS;
+  managed;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+--raw/r1
+ip route 10.1.2.0 255.255.255.0 10.1.1.1
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't cp raw/r1 to out/r1.raw: exit status 1
+cp: cannot overwrite directory 'out/r1.raw/r1' with non-directory
+
+Aborted
+=END=
+
+############################################################
+=TITLE=Can't read raw directory
+# No IPv6 test
+=SETUP=
+mkdir -p netspoc/raw
+chmod u-rx netspoc/raw
+=INPUT=
+--topo
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=ERROR=
+panic: open raw: permission denied
 =END=

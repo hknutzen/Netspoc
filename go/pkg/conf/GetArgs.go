@@ -159,10 +159,7 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// Print "finished" with time stamp when finished.
 		TimeStamps: false,
 	}
-	err := gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
-	if err != nil {
-		panic(err)
-	}
+	gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	return cfg
 }
 

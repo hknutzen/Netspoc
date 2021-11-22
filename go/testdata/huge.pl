@@ -51,6 +51,8 @@ service:s-hub = {
 }
 END
 
+my ($b2a, $b3a) = two_bytes($count);
+
 (my $path = $0) =~ s/\.[^.]+$/.t/ or die;
 open(my $fh, '>', $path) or die;
 print $fh <<END;
@@ -63,16 +65,16 @@ $in
 =OUTPUT=
 --r1a
 ! [ Routing ]
-route a 10.0.100.0 255.255.255.128 10.0.1.129
+route a 10.$b2a.$b3a.0 255.255.255.128 10.0.1.129
 --
 ! n_in
-access-list n_in extended permit tcp 10.0.1.0 255.255.255.128 10.0.100.0 255.255.255.128 eq 80
+access-list n_in extended permit tcp 10.0.1.0 255.255.255.128 10.$b2a.$b3a.0 255.255.255.128 eq 80
 access-list n_in extended deny ip any4 any4
 access-group n_in in interface n
 --
 ! a_in
 access-list a_in extended permit tcp host 10.0.1.129 10.0.1.0 255.255.255.128 eq 81
-access-list a_in extended permit tcp 10.0.100.0 255.255.255.128 10.0.1.0 255.255.255.128 eq 80
+access-list a_in extended permit tcp 10.$b2a.$b3a.0 255.255.255.128 10.0.1.0 255.255.255.128 eq 80
 access-list a_in extended deny ip any4 any4
 access-group a_in in interface a
 =END=

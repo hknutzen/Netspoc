@@ -474,3 +474,70 @@ service:test = {
 -A FORWARD -j n1_n2 -i n1 -o n2
 =END=
 =OPTIONS=--ipv6
+
+############################################################
+=TITLE=Reuse code file
+=SHOW_DIAG=
+=TEMPL=input
+network:n1 = { ip = 1000::abcd:0001:0/112;}
+network:n2 = { ip = 1000::abcd:0002:0/112;}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+ interface:n2 = {ip = 1000::abcd:0002:0001; hardware = n2;}
+}
+service:test1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=INPUT=[[input]]
+=REUSE_PREV=[[input]]
+=WARNING=
+DIAG: Reused .prev/ipv6/r1
+=WITH_OUTDIR=
+=OPTIONS=--ipv6
+
+############################################################
+=TITLE=Can't create ipv6/ directory
+=SETUP=
+mkdir -p out/.prev
+touch out/ipv6
+chmod u-w out/ipv6
+=INPUT=
+network:n1 = { ip = 1000::abcd:0001:0/112; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {ip = 1000::abcd:0001:0001; hardware = n1;}
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't mkdir out/ipv6: file exists
+Aborted
+=END=
+=OPTIONS=--ipv6
+
+############################################################
+=TITLE=Can't copy raw file
+=SETUP=
+mkdir -p out/.prev
+mkdir -p out/ipv6/r1.raw/r1
+=PARAMS=--ipv6
+=INPUT=
+--topo
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+  model = IOS;
+  managed;
+  interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+--raw/r1
+ipv6 route ::a01:200/120 ::a01:101
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't cp raw/r1 to out/ipv6/r1.raw: exit status 1
+cp: cannot overwrite directory 'out/ipv6/r1.raw/r1' with non-directory
+
+Aborted
+=END=
