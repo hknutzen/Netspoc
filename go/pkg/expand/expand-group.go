@@ -237,19 +237,25 @@ func (s *state) toplevel(n ast.Toplevel) bool {
 	return s.changed
 }
 
-func (s *state) elementList(l *([]ast.Element)) {
+func (s *state) elementList(l *[]ast.Element) {
 	var mod []ast.Element
 	for _, n := range *l {
-		if obj, ok := n.(*ast.NamedRef); ok {
-			name := obj.Type + ":" + obj.Name
-			// Leave out found group but add its elements.
-			if vals, found := s.elements[name]; found {
-				mod = append(mod, vals...)
-				s.changed = true
-				continue
-			}
-		} else {
-			s.subElement(n)
+		if vals, ok := s.needExpand(n); ok {
+			mod = append(mod, vals...)
+			s.changed = true
+			continue
+		}
+		switch obj := n.(type) {
+		case *ast.SimpleAuto:
+			s.elementList(&obj.Elements)
+		case *ast.AggAuto:
+			s.elementList(&obj.Elements)
+		case *ast.IntfAuto:
+			s.elementList(&obj.Elements)
+		case *ast.Intersection:
+			vals := s.intersection(obj)
+			mod = append(mod, vals...)
+			continue
 		}
 		mod = append(mod, n)
 	}
@@ -257,26 +263,98 @@ func (s *state) elementList(l *([]ast.Element)) {
 	ast.OrderElements(*l)
 }
 
-func (s *state) subElement(n ast.Element) {
-	switch obj := n.(type) {
-	case *ast.SimpleAuto:
-		s.elementList(&obj.Elements)
-	case *ast.AggAuto:
-		s.elementList(&obj.Elements)
-	case *ast.IntfAuto:
-		s.elementList(&obj.Elements)
-	case *ast.Intersection:
-		s.intersection(obj.Elements)
-	case *ast.Complement:
-		s.checkRetain(obj.Element)
+func (s *state) needExpand(obj ast.Element) ([]ast.Element, bool) {
+	if el, ok := obj.(*ast.NamedRef); ok {
+		name := el.Type + ":" + el.Name
+		if vals, found := s.elements[name]; found {
+			return vals, true
+		}
 	}
+	return nil, false
 }
 
-func (s *state) intersection(l []ast.Element) {
-	for _, n := range l {
-		s.checkRetain(n)
-		s.subElement(n)
+func (s *state) intersection(obj *ast.Intersection) []ast.Element {
+	// First step:
+	// - Split into negated and non negated elements,
+	// - substitute negated group by its elements,
+	var negated []ast.Element
+	var nonNegated []ast.Element
+	for _, n := range obj.Elements {
+		switch obj := n.(type) {
+		case *ast.Complement:
+			if vals, ok := s.needExpand(obj.Element); ok {
+				s.changed = true
+				for _, v := range vals {
+					compl := &ast.Complement{Element: v}
+					negated = append(negated, compl)
+				}
+				continue
+			}
+			negated = append(negated, n)
+		default:
+			nonNegated = append(nonNegated, n)
+		}
 	}
+	obj.Elements = append(nonNegated, negated...)
+
+	// Second step:
+	// If exactly one non negated element was found and if this element
+	// is a to be substituted group, then try to expand intersection by
+	// intersecting groups elements with negated elements.
+	result := []ast.Element{obj}
+	if len(nonNegated) != 1 {
+		for _, n := range nonNegated {
+			s.checkRetain(n)
+		}
+		return result
+	}
+	vals, ok := s.needExpand(nonNegated[0])
+	if !ok {
+		return result
+	}
+	g := nonNegated[0].(*ast.NamedRef)
+	name := g.Type + ":" + g.Name
+	save := s.retain[name]
+	if len(vals) == 1 {
+		// It is safe to substitute group by its single value,
+		// even if intersection can't be expanded below.
+		obj.Elements = append(vals, negated...)
+	} else {
+		// Group must be retained if expanding doesn't succeed.
+		s.retain[name] = true
+	}
+	for _, n := range negated {
+		el1 := n.(*ast.Complement)
+		switch compl := el1.Element.(type) {
+		default:
+			// Difficult, leave unexpanded.
+			return result
+		case ast.NamedElem:
+			t := compl.GetType()
+			n := compl.GetName()
+			var cp []ast.Element
+			for _, v := range vals {
+				switch el2 := v.(type) {
+				case ast.NamedElem:
+					if !(t == el2.GetType() && n == el2.GetName()) {
+						cp = append(cp, v)
+					}
+				default:
+					return result
+				}
+			}
+			if len(cp) == len(vals) {
+				// Complement was not found in values of group,
+				// leave unexpanded.
+				return result
+			}
+			vals = cp
+		}
+	}
+	// Group is no longer referenced here, but possibly elsewhere.
+	s.retain[name] = save
+	s.changed = true
+	return vals
 }
 
 func (s *state) checkRetain(n ast.Element) {

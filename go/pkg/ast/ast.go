@@ -61,6 +61,7 @@ type TypedElt struct {
 func (a *TypedElt) GetType() string { return a.Type }
 
 type NamedElem interface {
+	GetType() string
 	GetName() string
 }
 
