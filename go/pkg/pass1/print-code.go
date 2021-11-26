@@ -310,7 +310,7 @@ func printRoutes(fh *os.File, r *router) {
 	if doAutoDefaultRoute {
 
 		// Find interface and hop with largest number of routing entries.
-		var maxIntf *routerIntf
+		var maxHop2Nets map[*routerIntf][]netInfo
 		var maxHop *routerIntf
 
 		// Substitute routes to one hop with a default route,
@@ -326,28 +326,24 @@ func printRoutes(fh *os.File, r *router) {
 					}
 				}
 				if count > max {
-					maxIntf = intf
+					maxHop2Nets = hop2nets
 					maxHop = hop
 					max = count
 				}
 			}
 		}
-		if maxIntf != nil {
+		if maxHop2Nets != nil {
 
 			// Use default route for this direction.
+			nets := []netInfo{{zeroNet, false}}
 			// But still generate routes for small networks
 			// with supernet behind other hop.
-			hop2nets := intf2hop2netInfos[maxIntf]
-			nets := []netInfo{{
-				zeroNet,
-				false,
-			}}
-			for _, net := range hop2nets[maxHop] {
+			for _, net := range maxHop2Nets[maxHop] {
 				if net.noOpt {
 					nets = append(nets, net)
 				}
 			}
-			hop2nets[maxHop] = nets
+			maxHop2Nets[maxHop] = nets
 		}
 	}
 	printHeader(fh, r, "Routing")
