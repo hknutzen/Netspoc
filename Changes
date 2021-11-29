@@ -1,5 +1,8 @@
 {{$NEXT}}
 
+ - Enhanced command 'expand-group'.
+   Simple intersections are expanded now.
+
 6.035     2021-11-22 15:48:55+01:00 Europe/Berlin
 
  - Added new command 'remove-service'
