@@ -314,47 +314,46 @@ func (s *state) intersection(obj *ast.Intersection) []ast.Element {
 	}
 	g := nonNegated[0].(*ast.NamedRef)
 	name := g.Type + ":" + g.Name
-	save := s.retain[name]
+	retain := true
 	if len(vals) == 1 {
 		// It is safe to substitute group by its single value,
 		// even if intersection can't be expanded below.
 		obj.Elements = append(vals, negated...)
-	} else {
-		// Group must be retained if expanding doesn't succeed.
-		s.retain[name] = true
+		s.changed = true
+		retain = false
 	}
 	for _, n := range negated {
 		el1 := n.(*ast.Complement)
 		switch compl := el1.Element.(type) {
 		default:
-			// Difficult, leave unexpanded.
-			return result
+			goto NOEXPAND
 		case ast.NamedElem:
 			t := compl.GetType()
 			n := compl.GetName()
 			var cp []ast.Element
 			for _, v := range vals {
 				switch el2 := v.(type) {
+				default:
+					goto NOEXPAND
 				case ast.NamedElem:
 					if !(t == el2.GetType() && n == el2.GetName()) {
 						cp = append(cp, v)
 					}
-				default:
-					return result
 				}
 			}
 			if len(cp) == len(vals) {
-				// Complement was not found in values of group,
-				// leave unexpanded.
-				return result
+				// Complement was not found in values of group.
+				goto NOEXPAND
 			}
 			vals = cp
 		}
 	}
-	// Group is no longer referenced here, but possibly elsewhere.
-	s.retain[name] = save
 	s.changed = true
 	return vals
+NOEXPAND:
+	s.retain[name] = s.retain[name] || retain
+	return result
+
 }
 
 func (s *state) checkRetain(n ast.Element) {

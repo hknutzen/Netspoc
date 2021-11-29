@@ -176,7 +176,7 @@ group:g7 =
 =PARAMS=group:g1 group:g2 group:g3
 
 ############################################################
-=TITLE=Expand group with single value even in complex intersection
+=TITLE=Expand group with single element even in complex intersection
 =INPUT=
 group:g1 = host:[network:n];
 group:g2 = interface:r.[all];
