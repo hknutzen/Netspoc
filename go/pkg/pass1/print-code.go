@@ -1045,10 +1045,9 @@ func collectAclsFromIORules(r *router) {
 			// Collect interface rules.
 			aclName := inHw + "_self"
 			info := &aclInfo{
-				name:    aclName,
-				rules:   in.intfRules,
-				addDeny: true,
-				natMap:  natMap,
+				name:   aclName,
+				rules:  in.intfRules,
+				natMap: natMap,
 			}
 			in.intfRules = nil
 			r.aclList.push(info)
@@ -1067,10 +1066,9 @@ func collectAclsFromIORules(r *router) {
 			}
 			aclName := inHw + "_" + outHw
 			info := &aclInfo{
-				name:    aclName,
-				rules:   rules,
-				addDeny: true,
-				natMap:  natMap,
+				name:   aclName,
+				rules:  rules,
+				natMap: natMap,
 			}
 			r.aclList.push(info)
 		}
@@ -1081,6 +1079,7 @@ func collectAclsFromIORules(r *router) {
 func printIptablesAcls(fh *os.File, r *router) {
 	collectAclsFromIORules(r)
 	for _, acl := range r.aclList {
+		acl.addDeny = true
 		name := acl.name
 		i := strings.Index(name, "_")
 		inHw := name[:i]
