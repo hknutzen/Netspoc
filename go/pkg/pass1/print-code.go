@@ -2059,24 +2059,13 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 					// Add code for logging.
 					// This code is machine specific.
 					if activeLog != nil && rule.log != "" {
-						logCode := ""
 						for _, tag := range strings.Split(rule.log, ",") {
-							if modifier, ok := activeLog[tag]; ok {
-								if modifier != "" {
-									normalized := model.logModifiers[modifier]
-									if normalized == ":subst" {
-										logCode = modifier
-									} else {
-										logCode = "log " + normalized
-									}
-								} else {
-									logCode = "log"
-								}
+							if logCode, found := activeLog[tag]; found {
 								// Take first of possibly several matching tags.
+								newRule.Log = logCode
 								break
 							}
 						}
-						newRule.Log = logCode
 					}
 
 					if secondaryFilter && rule.someNonSecondary ||

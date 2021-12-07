@@ -1261,14 +1261,24 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				name, r.model.name)
 		}
 
+		// Transform log modifier to log code.
 		if m := r.log; m != nil {
 			if knownMod := r.model.logModifiers; knownMod != nil {
 				for name2, mod := range m {
+					s.knownLog[name2] = true
 
-					// Valid log tag.
-					// "" is simple unmodified 'log' statement.
-					if mod == "" || knownMod[mod] != "" {
-						s.knownLog[name2] = true
+					code := ""
+					if mod == "" {
+						code = "log"
+					} else if normalized := knownMod[mod]; normalized != "" {
+						if normalized == ":subst" {
+							code = mod
+						} else {
+							code = "log " + normalized
+						}
+					}
+					if code != "" {
+						m[name2] = code
 						continue
 					}
 
