@@ -128,8 +128,8 @@ service:t = {
 }
 =END=
 =WARNING=
-Warning: Referencing unknown 'd' in log of service:t
-Warning: Referencing unknown 'e/f' in log of service:t
+Warning: Ignoring unknown 'd' in log of service:t
+Warning: Ignoring unknown 'e/f' in log of service:t
 =END=
 
 ############################################################

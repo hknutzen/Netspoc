@@ -2045,7 +2045,7 @@ func (c *spoc) checkLog(l stringList, s *symbolTable, ctx string) stringList {
 		if tag == prev {
 			c.warn("Duplicate '%s' in log of %s", tag, ctx)
 		} else if !s.knownLog[tag] {
-			c.warn("Referencing unknown '%s' in log of %s", tag, ctx)
+			c.warn("Ignoring unknown '%s' in log of %s", tag, ctx)
 		} else {
 			prev = tag
 			valid.push(tag)

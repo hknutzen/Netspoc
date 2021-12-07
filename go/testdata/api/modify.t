@@ -2213,7 +2213,7 @@ router:r1 = {
     }
 }
 =WARNING=
-Warning: Referencing unknown 'high' in log of service:t1
+Warning: Ignoring unknown 'high' in log of service:t1
 =OUTPUT=
 @@ T
 +service:t1 = {
@@ -2276,7 +2276,7 @@ Warning: Ignoring file 'service' without any content
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { 
+network:n2 = {
  ip = 10.1.2.0/24;
  host:h1 = { ip = 10.1.2.11; }
  host:h2 = { ip = 10.1.2.12; }
