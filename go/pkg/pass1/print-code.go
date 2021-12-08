@@ -2058,6 +2058,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 
 					// Add code for logging.
 					// This code is machine specific.
+					newRule.Log = r.logDefault
 					if activeLog != nil && rule.log != "" {
 						for _, tag := range strings.Split(rule.log, ",") {
 							if logCode, found := activeLog[tag]; found {

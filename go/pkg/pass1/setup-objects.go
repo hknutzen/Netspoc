@@ -1113,6 +1113,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			noProtectSelf = c.getFlag(a, name)
 		case "log_deny":
 			r.logDeny = c.getFlag(a, name)
+		case "log_default":
+			r.logDefault = c.getLogModifiers(a, name)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1261,7 +1263,31 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				name, r.model.name)
 		}
 
-		c.transformLog(r, s)
+		if m := r.log; m != nil {
+			if r.model.logModifiers != nil {
+				for name, modList := range m {
+					s.knownLog[name] = true
+					m[name] = c.transformLog("log:"+name, modList, r)
+				}
+			} else {
+				var names stringList
+				for k := range m {
+					names.push(k)
+				}
+				sort.Strings(names)
+				name := names[0]
+				c.err("Must not use attribute 'log:%s' at %s of model %s",
+					name, r.name, r.model.name)
+			}
+		}
+		if modList := r.logDefault; modList != "" {
+			if r.model.canLogDefault {
+				r.logDefault = c.transformLog("log_default", modList, r)
+			} else {
+				c.err("Must not use attribute 'log_default' at %s of model %s",
+					name, r.name, r.model.name)
+			}
+		}
 
 		if noProtectSelf && !r.model.needProtect {
 			c.err("Must not use attribute 'no_protect_self' at %s of model %s",
@@ -2341,7 +2367,7 @@ var routerInfo = map[string]*model{
 		inversedACLMask:  true,
 		canVRF:           true,
 		canLogDeny:       true,
-		logModifiers:     map[string]string{"log-input": "log-input"},
+		logModifiers:     map[string]string{"": "log", "log-input": "log-input"},
 		hasOutACL:        true,
 		needProtect:      true,
 		crypto:           "IOS",
@@ -2394,8 +2420,15 @@ var routerInfo = map[string]*model{
 		noACLself:      true,
 	},
 	"PAN-OS": {
-		routing:                "",
-		filter:                 "PAN-OS",
+		routing: "",
+		filter:  "PAN-OS",
+		logModifiers: map[string]string{
+			"start":    "start",
+			"end":      "end",
+			"setting:": ":insert",
+		},
+		canLogDefault:          true,
+		canMultiLog:            true,
 		hasIoACL:               true,
 		canObjectgroup:         true,
 		canVRF:                 true,
@@ -3136,6 +3169,10 @@ func (c *spoc) getGeneralPermit(
 	return l
 }
 
+func (c *spoc) getLogModifiers(a *ast.Attribute, ctx string) string {
+	return strings.Join(c.getValueList(a, ctx), " ")
+}
+
 func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
@@ -3143,7 +3180,7 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	name := a.Name[len("log:"):]
 	modifiers := ""
 	if !emptyAttr(a) {
-		modifiers = strings.Join(c.getValueList(a, r.name), " ")
+		modifiers = c.getLogModifiers(a, r.name)
 	}
 	m := r.log
 	if m == nil {
@@ -3155,47 +3192,58 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 }
 
 // Check log modifiers and transform to log code.
-func (c *spoc) transformLog(r *router, s *symbolTable) {
-	if m := r.log; m != nil {
-		if knownMod := r.model.logModifiers; knownMod != nil {
-			for name, mod := range m {
-				s.knownLog[name] = true
-
-				if v, found := knownMod[mod]; found {
-					m[name] = v
-					continue
-				}
-
-				// Show error message for unknown log tag.
-				what := fmt.Sprintf("'log:%s = %s' at %s of model %s",
-					name, mod, r.name, r.model.name)
-				if len(knownMod) == 1 && knownMod[""] != "" {
-					c.err("Unexpected %s\n Use 'log:%s;' only.",
-						what, name)
-					continue
-				}
-				var valid stringList
-				for k := range knownMod {
-					if k == "" {
-						k = "<empty>"
-					}
-					valid.push(k)
-				}
-				sort.Strings(valid)
-				c.err("Invalid %s\n Expected one of: %s",
-					what, strings.Join(valid, "|"))
-			}
-		} else {
-			var names stringList
-			for k := range m {
-				names.push(k)
-			}
-			sort.Strings(names)
-			name := names[0]
-			c.err("Must not use attribute 'log:%s' at %s of model %s",
-				name, r.name, r.model.name)
-		}
+func (c *spoc) transformLog(name, modList string, r *router) string {
+	l := strings.Split(modList, " ")
+	if len(l) > 1 && !r.model.canMultiLog {
+		c.err("Must not use multiple values for %s in %s of model %s",
+			name, r.name, r.model.name)
+		return ""
 	}
+	knownMod := r.model.logModifiers
+	for i, mod := range l {
+		k := mod
+		// Check for KEY:VALUE
+		if i := strings.Index(mod, ":"); i != -1 {
+			k = mod[:i+1]
+			if len(k) == len(mod) {
+				c.err(
+					"Must give some value after ':' in '%s' of %s in %s",
+					mod, name, r.name)
+			}
+		}
+		if v, found := knownMod[k]; found {
+			if v == ":insert" {
+				// Substitute special value ":insert" by original KEY:VALUE.
+				v = mod
+			}
+			l[i] = v
+			continue
+		}
+
+		// Show error message for unknown log tag.
+		what := fmt.Sprintf("'%s = %s' at %s of model %s",
+			name, mod, r.name, r.model.name)
+		if len(knownMod) == 1 && knownMod[""] != "" {
+			c.err("Unexpected %s\n Use '%s;' only.",
+				what, name)
+			continue
+		}
+		var valid stringList
+		for k := range knownMod {
+			if k == "" {
+				k = "<empty>"
+			}
+			valid.push(k)
+		}
+		sort.Strings(valid)
+		oneOf := ""
+		if !r.model.canMultiLog {
+			oneOf = " one of"
+		}
+		c.err("Invalid %s\n Expected%s: %s",
+			what, oneOf, strings.Join(valid, "|"))
+	}
+	return strings.Join(l, " ")
 }
 
 func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {

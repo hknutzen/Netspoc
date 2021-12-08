@@ -72,6 +72,21 @@ Error: Invalid 'log:a = foo' at router:r1 of model ASA
 =END=
 
 ############################################################
+=TITLE=Only use one log value at ASA
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ log:a = alerts, errors;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use multiple values for log:a in router:r1 of model ASA
+=END=
+
+############################################################
 =TITLE=Unknown log severity at IOS
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
@@ -84,7 +99,7 @@ router:r1 = {
 =END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model IOS
- Expected one of: log-input
+ Expected one of: <empty>|log-input
 =END=
 
 ############################################################
@@ -101,6 +116,39 @@ router:r1 = {
 =ERROR=
 Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
  Use 'log:a;' only.
+=END=
+
+############################################################
+=TITLE=Unknown log values at PAN-OS
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log:a = foo, bar;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Invalid 'log:a = foo' at router:r1@v1 of model PAN-OS
+ Expected: end|setting:|start
+Error: Invalid 'log:a = bar' at router:r1@v1 of model PAN-OS
+ Expected: end|setting:|start
+=END=
+
+############################################################
+=TITLE=Missing value in "setting:" for PAN-OS
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log:a = setting:;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must give some value after ':' in 'setting:' of log:a in router:r1@v1
 =END=
 
 ############################################################
