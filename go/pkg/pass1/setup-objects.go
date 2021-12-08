@@ -1261,54 +1261,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				name, r.model.name)
 		}
 
-		// Transform log modifier to log code.
-		if m := r.log; m != nil {
-			if knownMod := r.model.logModifiers; knownMod != nil {
-				for name2, mod := range m {
-					s.knownLog[name2] = true
-
-					code := ""
-					if mod == "" {
-						code = "log"
-					} else if normalized := knownMod[mod]; normalized != "" {
-						if normalized == ":subst" {
-							code = mod
-						} else {
-							code = "log " + normalized
-						}
-					}
-					if code != "" {
-						m[name2] = code
-						continue
-					}
-
-					// Show error message for unknown log tag.
-					var valid stringList
-					for k := range knownMod {
-						valid.push(k)
-					}
-					sort.Strings(valid)
-					what := fmt.Sprintf("'log:%s = %s' at %s of model %s",
-						name2, mod, name, r.model.name)
-					if valid != nil {
-						c.err("Invalid %s\n Expected one of: %s",
-							what, strings.Join(valid, "|"))
-					} else {
-						c.err("Unexpected %s\n Use 'log:%s;' only.",
-							what, name2)
-					}
-				}
-			} else {
-				var names stringList
-				for k := range m {
-					names.push(k)
-				}
-				sort.Strings(names)
-				name2 := names[0]
-				c.err("Must not use attribute 'log:%s' at %s of model %s",
-					name2, name, r.model.name)
-			}
-		}
+		c.transformLog(r, s)
 
 		if noProtectSelf && !r.model.needProtect {
 			c.err("Must not use attribute 'no_protect_self' at %s of model %s",
@@ -2388,7 +2341,7 @@ var routerInfo = map[string]*model{
 		inversedACLMask:  true,
 		canVRF:           true,
 		canLogDeny:       true,
-		logModifiers:     map[string]string{"log-input": ":subst"},
+		logModifiers:     map[string]string{"log-input": "log-input"},
 		hasOutACL:        true,
 		needProtect:      true,
 		crypto:           "IOS",
@@ -2407,7 +2360,7 @@ var routerInfo = map[string]*model{
 		usePrefix:        true,
 		canVRF:           true,
 		canLogDeny:       true,
-		logModifiers:     map[string]string{},
+		logModifiers:     map[string]string{"": "log"},
 		hasOutACL:        true,
 		needProtect:      true,
 		printRouterIntf:  true,
@@ -2418,15 +2371,16 @@ var routerInfo = map[string]*model{
 		routing: "ASA",
 		filter:  "ASA",
 		logModifiers: map[string]string{
-			"emergencies":   "0",
-			"alerts":        "1",
-			"critical":      "2",
-			"errors":        "3",
-			"warnings":      "4",
-			"notifications": "5",
-			"informational": "6",
-			"debugging":     "7",
-			"disable":       "disable",
+			"":              "log",
+			"emergencies":   "log 0",
+			"alerts":        "log 1",
+			"critical":      "log 2",
+			"errors":        "log 3",
+			"warnings":      "log 4",
+			"notifications": "log 5",
+			"informational": "log 6",
+			"debugging":     "log 7",
+			"disable":       "log disable",
 		},
 		statelessICMP:  true,
 		hasOutACL:      true,
@@ -3187,17 +3141,61 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 		return false
 	}
 	name := a.Name[len("log:"):]
-	modifier := ""
+	modifiers := ""
 	if !emptyAttr(a) {
-		modifier = c.getSingleValue(a, r.name)
+		modifiers = strings.Join(c.getValueList(a, r.name), " ")
 	}
 	m := r.log
 	if m == nil {
 		m = make(map[string]string)
 		r.log = m
 	}
-	m[name] = modifier
+	m[name] = modifiers
 	return true
+}
+
+// Check log modifiers and transform to log code.
+func (c *spoc) transformLog(r *router, s *symbolTable) {
+	if m := r.log; m != nil {
+		if knownMod := r.model.logModifiers; knownMod != nil {
+			for name, mod := range m {
+				s.knownLog[name] = true
+
+				if v, found := knownMod[mod]; found {
+					m[name] = v
+					continue
+				}
+
+				// Show error message for unknown log tag.
+				what := fmt.Sprintf("'log:%s = %s' at %s of model %s",
+					name, mod, r.name, r.model.name)
+				if len(knownMod) == 1 && knownMod[""] != "" {
+					c.err("Unexpected %s\n Use 'log:%s;' only.",
+						what, name)
+					continue
+				}
+				var valid stringList
+				for k := range knownMod {
+					if k == "" {
+						k = "<empty>"
+					}
+					valid.push(k)
+				}
+				sort.Strings(valid)
+				c.err("Invalid %s\n Expected one of: %s",
+					what, strings.Join(valid, "|"))
+			}
+		} else {
+			var names stringList
+			for k := range m {
+				names.push(k)
+			}
+			sort.Strings(names)
+			name := names[0]
+			c.err("Must not use attribute 'log:%s' at %s of model %s",
+				name, r.name, r.model.name)
+		}
+	}
 }
 
 func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {

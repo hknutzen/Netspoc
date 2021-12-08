@@ -70,7 +70,7 @@ router:r1 = {
 =END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model ASA
- Expected one of: alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
+ Expected one of: <empty>|alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
 =END=
 
 ############################################################
