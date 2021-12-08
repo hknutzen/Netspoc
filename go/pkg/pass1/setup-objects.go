@@ -2013,7 +2013,7 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		if a2 := v2.Log; a2 != nil {
 			l := c.getValueList(a2, name)
 			l = c.checkLog(l, s, name)
-			ru.log = strings.Join(l, ",")
+			ru.log = strings.Join(l, " ")
 		}
 		sv.rules = append(sv.rules, ru)
 	}
