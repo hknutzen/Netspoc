@@ -87,6 +87,22 @@ Error: Must not use multiple values for log:a in router:r1 of model ASA
 =END=
 
 ############################################################
+=TITLE=No log_default at ASA
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ log_default = alerts;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use attribute 'log_default' at router:r1 of model ASA
+=END=
+
+
+############################################################
 =TITLE=Unknown log severity at IOS
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }

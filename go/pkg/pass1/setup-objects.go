@@ -1285,7 +1285,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				r.logDefault = c.transformLog("log_default", modList, r)
 			} else {
 				c.err("Must not use attribute 'log_default' at %s of model %s",
-					name, r.name, r.model.name)
+					r.name, r.model.name)
 			}
 		}
 
