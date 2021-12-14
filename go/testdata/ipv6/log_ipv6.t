@@ -70,8 +70,41 @@ router:r1 = {
 =END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model ASA
- Expected one of: alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
+ Expected one of: <empty>|alerts|critical|debugging|disable|emergencies|errors|informational|notifications|warnings
 =END=
+
+############################################################
+=TITLE=Only use one log value at ASA
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ log:a = alerts, errors;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use multiple values for log:a in router:r1 of model ASA
+=END=
+
+############################################################
+=TITLE=No log_default at ASA
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ log_default = alerts;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must not use attribute 'log_default' at router:r1 of model ASA
+=END=
+
 
 ############################################################
 =TITLE=Unknown log severity at IOS
@@ -87,7 +120,7 @@ router:r1 = {
 =END=
 =ERROR=
 Error: Invalid 'log:a = foo' at router:r1 of model IOS
- Expected one of: log-input
+ Expected one of: <empty>|log-input
 =END=
 
 ############################################################
@@ -105,6 +138,41 @@ router:r1 = {
 =ERROR=
 Error: Unexpected 'log:a = foo' at router:r1 of model NX-OS
  Use 'log:a;' only.
+=END=
+
+############################################################
+=TITLE=Unknown log values at PAN-OS
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log:a = foo, bar;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Invalid 'log:a = foo' at router:r1@v1 of model PAN-OS
+ Expected: end|setting:|start
+Error: Invalid 'log:a = bar' at router:r1@v1 of model PAN-OS
+ Expected: end|setting:|start
+=END=
+
+############################################################
+=TITLE=Missing value in "setting:" for PAN-OS
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:10a; } }
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log:a = setting:;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Must give some value after ':' in 'setting:' of log:a in router:r1@v1
 =END=
 
 ############################################################
@@ -134,8 +202,8 @@ service:t = {
 }
 =END=
 =WARNING=
-Warning: Referencing unknown 'd' in log of service:t
-Warning: Referencing unknown 'e/f' in log of service:t
+Warning: Ignoring unknown 'd' in log of service:t
+Warning: Ignoring unknown 'e/f' in log of service:t
 =END=
 
 ############################################################

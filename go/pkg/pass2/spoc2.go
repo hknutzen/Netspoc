@@ -327,12 +327,6 @@ func prepareACLs(rData *routerData) {
 		aclInfo.prtIP = prt2obj["ip"]
 		setupIPNetRelation(aclInfo.ipNet2obj)
 		markSupernetsOfNeedProtect(aclInfo.needProtect)
-		if rData.model == "Linux" {
-			findChains(aclInfo, rData)
-		} else {
-			optimizeRules(aclInfo)
-			finalizeCiscoACL(aclInfo, rData)
-		}
 	}
 }
 
@@ -355,6 +349,12 @@ func printCombinedOther(fd *os.File, config []string, routerData *routerData) {
 	aclLookup := make(map[string]*aclInfo)
 	prepareACLs(routerData)
 	for _, acl := range routerData.acls {
+		if routerData.model == "Linux" {
+			findChains(acl, routerData)
+		} else {
+			optimizeRules(acl)
+			finalizeCiscoACL(acl, routerData)
+		}
 		aclLookup[acl.name] = acl
 	}
 

@@ -1,3 +1,15 @@
+6.036     2021-12-14 10:51:49+01:00 Europe/Berlin
+
+ - PAN-OS:
+   - Support log:<name> with one or more values of:
+     start, end, setting:VALUE,
+     .i.e log:tag = start, setting:my_Panorama;
+   - Support new attribute 'log_default' with one or more log values.
+   - No longer add deny rule at end of rules,
+     because this is handled at device level already.
+ - Enhanced command 'expand-group'.
+   Simple intersections are expanded now.
+
 6.035     2021-11-22 15:48:55+01:00 Europe/Berlin
 
  - Added new command 'remove-service'

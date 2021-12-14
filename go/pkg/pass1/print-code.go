@@ -310,7 +310,7 @@ func printRoutes(fh *os.File, r *router) {
 	if doAutoDefaultRoute {
 
 		// Find interface and hop with largest number of routing entries.
-		var maxIntf *routerIntf
+		var maxHop2Nets map[*routerIntf][]netInfo
 		var maxHop *routerIntf
 
 		// Substitute routes to one hop with a default route,
@@ -326,28 +326,24 @@ func printRoutes(fh *os.File, r *router) {
 					}
 				}
 				if count > max {
-					maxIntf = intf
+					maxHop2Nets = hop2nets
 					maxHop = hop
 					max = count
 				}
 			}
 		}
-		if maxIntf != nil {
+		if maxHop2Nets != nil {
 
 			// Use default route for this direction.
+			nets := []netInfo{{zeroNet, false}}
 			// But still generate routes for small networks
 			// with supernet behind other hop.
-			hop2nets := intf2hop2netInfos[maxIntf]
-			nets := []netInfo{{
-				zeroNet,
-				false,
-			}}
-			for _, net := range hop2nets[maxHop] {
+			for _, net := range maxHop2Nets[maxHop] {
 				if net.noOpt {
 					nets = append(nets, net)
 				}
 			}
-			hop2nets[maxHop] = nets
+			maxHop2Nets[maxHop] = nets
 		}
 	}
 	printHeader(fh, r, "Routing")
@@ -1049,10 +1045,9 @@ func collectAclsFromIORules(r *router) {
 			// Collect interface rules.
 			aclName := inHw + "_self"
 			info := &aclInfo{
-				name:    aclName,
-				rules:   in.intfRules,
-				addDeny: true,
-				natMap:  natMap,
+				name:   aclName,
+				rules:  in.intfRules,
+				natMap: natMap,
 			}
 			in.intfRules = nil
 			r.aclList.push(info)
@@ -1071,10 +1066,9 @@ func collectAclsFromIORules(r *router) {
 			}
 			aclName := inHw + "_" + outHw
 			info := &aclInfo{
-				name:    aclName,
-				rules:   rules,
-				addDeny: true,
-				natMap:  natMap,
+				name:   aclName,
+				rules:  rules,
+				natMap: natMap,
 			}
 			r.aclList.push(info)
 		}
@@ -1085,6 +1079,7 @@ func collectAclsFromIORules(r *router) {
 func printIptablesAcls(fh *os.File, r *router) {
 	collectAclsFromIORules(r)
 	for _, acl := range r.aclList {
+		acl.addDeny = true
 		name := acl.name
 		i := strings.Index(name, "_")
 		inHw := name[:i]
@@ -2063,25 +2058,15 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 
 					// Add code for logging.
 					// This code is machine specific.
+					newRule.Log = r.logDefault
 					if activeLog != nil && rule.log != "" {
-						logCode := ""
-						for _, tag := range strings.Split(rule.log, ",") {
-							if modifier, ok := activeLog[tag]; ok {
-								if modifier != "" {
-									normalized := model.logModifiers[modifier]
-									if normalized == ":subst" {
-										logCode = modifier
-									} else {
-										logCode = "log " + normalized
-									}
-								} else {
-									logCode = "log"
-								}
+						for _, tag := range strings.Split(rule.log, " ") {
+							if logCode, found := activeLog[tag]; found {
 								// Take first of possibly several matching tags.
+								newRule.Log = logCode
 								break
 							}
 						}
-						newRule.Log = logCode
 					}
 
 					if secondaryFilter && rule.someNonSecondary ||

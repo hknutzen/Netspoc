@@ -26,6 +26,8 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		}
 	}
 	for _, acl := range rData.acls {
+		joinRanges(acl)
+		findObjectgroups(acl, rData)
 		for _, g := range acl.objectGroups {
 			n2gU[g.name] = &groupUse{g: g}
 		}
@@ -109,6 +111,23 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange, name: name}
 		return member(name)
 	}
+	getLog := func(ru *ciscoRule) string {
+		result := ""
+		if ru.log != "" {
+			for _, log := range strings.Split(ru.log, " ") {
+				var k, v string
+				if i := strings.Index(log, ":"); i != -1 {
+					k = log[:i]
+					v = log[i+1:]
+				} else {
+					k = log
+					v = "yes"
+				}
+				result += fmt.Sprintf("<log-%s>%s</log-%s>\n", k, v, k)
+			}
+		}
+		return result
+	}
 	printRules := func(l []*aclInfo) {
 		fmt.Fprintln(fd, "<rulebase><security><rules>")
 		count := 1
@@ -123,6 +142,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 				source := getAddress(rule.src)
 				destination := getAddress(rule.dst)
 				service := getService(rule)
+				log := getLog(rule)
 				fmt.Fprintf(fd,
 					`<entry name="%s">
 <action>%s</action>
@@ -133,11 +153,9 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 <service>%s</service>
 <application><member>any</member></application>
 <rule-type>interzone</rule-type>
-<log-start>yes</log-start>
-<log-end>yes</log-end>
-</entry>
+%s</entry>
 `,
-					name, action, from, to, source, destination, service)
+					name, action, from, to, source, destination, service, log)
 			}
 		}
 		fmt.Fprintln(fd, "</rules></security></rulebase>")

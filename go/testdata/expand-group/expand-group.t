@@ -144,39 +144,78 @@ group:g4 =
 =PARAMS=group:g1 group:g2 group:g3
 
 ############################################################
-=TITLE=Leave definition intact, if used in intersection or complement
+=TITLE=Expand group in intersection
 =INPUT=
 group:g1 = host:a, host:b;
 group:g2 = host:c, host:d;
-group:g3 = group:g1, group:g2;
+group:g3 =
+ interface:r1.[auto], interface:r2.n1, interface:r2.n2, interface:r3.[all];
 group:g4 = group:g1 &! host:a;
-group:g5 = host:[network:n] &! group:g2;
+group:g5 = !group:g1 & host:[network:n] &! group:g2;
+group:g6 =
+ group:g3 &! interface:r1.[auto] &! interface:r2.n2 &! interface:r3.[all];
+ group:g7 = group:g1 &! host:a &! host:b;
 =END=
 =OUTPUT=
-group:g1 =
- host:a,
- host:b,
-;
-group:g2 =
- host:c,
- host:d,
-;
-group:g3 =
- host:a,
- host:b,
- host:c,
- host:d,
-;
 group:g4 =
- group:g1
- &! host:a
- ,
+ host:b,
 ;
 group:g5 =
  host:[network:n]
- &! group:g2
+ &! host:a
+ &! host:b
+ &! host:c
+ &! host:d
  ,
 ;
+group:g6 =
+ interface:r2.n1,
+;
+group:g7 =
+;
+=PARAMS=group:g1 group:g2 group:g3
+
+############################################################
+=TITLE=Expand group with single element even in complex intersection
+=INPUT=
+group:g1 = host:[network:n];
+group:g2 = interface:r.[all];
+group:g6 = group:g1 &! host:a &! host:b;
+group:g8 = group:g1 &! group:g1;
+group:g9 = group:g2 &! interface:r.[auto];
+=OUTPUT=
+group:g6 =
+ host:[network:n]
+ &! host:a
+ &! host:b
+ ,
+;
+group:g8 =
+ host:[network:n]
+ &! host:[network:n]
+ ,
+;
+group:g9 =
+ interface:r.[all]
+ &! interface:r.[auto]
+ ,
+;
+=PARAMS=group:g1 group:g2
+
+############################################################
+=TITLE=Leave group unexpanded in complex intersection
+=INPUT=
+group:g1 = host:a, host:b;
+group:g2 = host:[network:n];
+group:g3 = group:g1 &! host:c;
+group:g4 = group:g1 &! host:[network:n];
+group:g5 = group:g1 & group:g2;
+=OUTPUT=
+group:g1 = host:a, host:b;
+group:g2 = host:[network:n];
+group:g3 = group:g1 &! host:c;
+group:g4 = group:g1 &! host:[network:n];
+group:g5 = group:g1 & group:g2;
 =PARAMS=group:g1 group:g2
 
 ############################################################
@@ -263,7 +302,7 @@ pathrestriction:r = group:g1;
 -- file4
 group:g3 =
  group:g1
- &! host:b
+ &! group:x
  ,
 ;
 =OUTPUT=
@@ -285,7 +324,7 @@ pathrestriction:r =
 -- file4
 group:g3 =
  group:g1
- &! host:b
+ &! group:x
  ,
 ;
 =WARNING=

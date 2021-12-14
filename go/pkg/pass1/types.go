@@ -226,7 +226,9 @@ type model struct {
 	doAuth                 bool
 	aclUseRealIP           bool
 	canDynCrypto           bool
+	canLogDefault          bool
 	canLogDeny             bool
+	canMultiLog            bool
 	canObjectgroup         bool
 	canVRF                 bool
 	cryptoInContext        bool
@@ -289,6 +291,7 @@ type router struct {
 	adminIP                 []string
 	model                   *model
 	log                     map[string]string
+	logDefault              string
 	logDeny                 bool
 	localMark               int
 	origIntfs               intfList
