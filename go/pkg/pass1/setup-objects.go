@@ -1972,15 +1972,8 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
 	}
-	elements := func(a *ast.NamedUnion) []ast.Element {
-		l := a.Elements
-		if len(l) == 0 {
-			c.warn("%s of %s is empty", a.Name, name)
-		}
-		return l
-	}
 	sv.foreach = v.Foreach
-	sv.user = elements(v.User)
+	sv.user = v.User.Elements
 	for _, v2 := range v.Rules {
 		ru := new(unexpRule)
 		ru.service = sv
@@ -1989,8 +1982,8 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		} else {
 			ru.action = "permit"
 		}
-		ru.src = elements(v2.Src)
-		ru.dst = elements(v2.Dst)
+		ru.src = v2.Src.Elements
+		ru.dst = v2.Dst.Elements
 		srcUser := c.checkUserInUnion(ru.src, "'src' of "+name)
 		dstUser := c.checkUserInUnion(ru.dst, "'dst' of "+name)
 		if !(srcUser || dstUser) {
