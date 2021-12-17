@@ -66,15 +66,6 @@ type state struct {
 	*astset.State
 }
 
-func (s *state) readObjects(path string) ([]string, error) {
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Can't %s", err)
-	}
-	objects := strings.Fields(string(bytes))
-	return objects, nil
-}
-
 func Main() int {
 	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
 
