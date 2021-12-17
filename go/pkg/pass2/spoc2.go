@@ -29,7 +29,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"inet.af/netaddr"
+	"net/netip"
 	"os"
 	"os/exec"
 	"sort"
@@ -41,7 +41,7 @@ func panicf(format string, args ...interface{}) {
 }
 
 type ipNet struct {
-	netaddr.IPPrefix
+	netip.Prefix
 	optNetworks             *ipNet
 	noOptAddrs, needProtect bool
 	name                    string
@@ -52,16 +52,16 @@ type ipNet struct {
 type name2ipNet map[string]*ipNet
 
 func createIPObj(ipNetName string) *ipNet {
-	net := netaddr.MustParseIPPrefix(ipNetName)
-	return &ipNet{IPPrefix: net, name: ipNetName}
+	net := netip.MustParsePrefix(ipNetName)
+	return &ipNet{Prefix: net, name: ipNetName}
 }
 
-func getIPObj(ip netaddr.IP, prefix uint8, ipNet2obj name2ipNet) *ipNet {
+func getIPObj(ip netip.Addr, prefix int, ipNet2obj name2ipNet) *ipNet {
 	net, _ := ip.Prefix(prefix)
 	name := net.String()
 	obj, ok := ipNet2obj[name]
 	if !ok {
-		obj = &ipNet{IPPrefix: net, name: name}
+		obj = &ipNet{Prefix: net, name: name}
 		ipNet2obj[name] = obj
 	}
 	return obj
@@ -95,21 +95,21 @@ func getNet00(ipv6 bool, ipNet2obj name2ipNet) *ipNet {
 }
 
 func setupIPNetRelation(ipNet2obj name2ipNet) {
-	prefixIPMap := make(map[uint8]map[netaddr.IP]*ipNet)
+	prefixIPMap := make(map[int]map[netip.Addr]*ipNet)
 
 	// Collect networks into prefixIPMap.
 	for _, n := range ipNet2obj {
-		ip, prefix := n.IP(), n.Bits()
+		ip, prefix := n.Addr(), n.Bits()
 		ipMap, ok := prefixIPMap[prefix]
 		if !ok {
-			ipMap = make(map[netaddr.IP]*ipNet)
+			ipMap = make(map[netip.Addr]*ipNet)
 			prefixIPMap[prefix] = ipMap
 		}
 		ipMap[ip] = n
 	}
 
 	// Compare networks.
-	var prefixList []uint8
+	var prefixList []int
 	for k := range prefixIPMap {
 		prefixList = append(prefixList, k)
 	}
@@ -132,7 +132,7 @@ func setupIPNetRelation(ipNet2obj name2ipNet) {
 			// upperPrefixes holds prefixes of potential supernets.
 			for _, p := range upperPrefixes {
 				n, _ := ip.Prefix(p)
-				bignet, ok := prefixIPMap[p][n.IP()]
+				bignet, ok := prefixIPMap[p][n.Addr()]
 				if ok {
 					subnet.up = bignet
 					break
