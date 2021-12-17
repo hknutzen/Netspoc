@@ -219,6 +219,9 @@ func (c *spoc) expandGroup1(
 		return !(intf.ipType == tunnelIP ||
 			visible && (intf.ipType == unnumberedIP || intf.ipType == bridgedIP))
 	}
+	if len(list) == 0 {
+		c.warn("%s is empty", ctx)
+	}
 	result := make(groupObjList, 0)
 	for _, el := range list {
 		switch x := el.(type) {
@@ -637,8 +640,12 @@ func (c *spoc) expandGroup1(
 
 					// Add marker for detection of recursive group definition.
 					grp.recursive = true
-					elements =
-						c.expandGroup1(grp.elements, ctx, ipv6, visible, withSubnets)
+					if len(grp.elements) == 0 {
+						elements = make(groupObjList, 0)
+					} else {
+						elements = c.expandGroup1(
+							grp.elements, ctx, ipv6, visible, withSubnets)
+					}
 					grp.recursive = false
 
 					// Detect and remove duplicate values in group.
