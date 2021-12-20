@@ -21,6 +21,7 @@ bin/print-service
 bin/remove-from-netspoc
 bin/remove-service
 bin/rename-netspoc
+bin/transpose-service
 cvs-support/Makefile
 cvs-support/append-commitlog.c
 cvs-support/cvs-SETXID_SUPPORT.patch
@@ -62,6 +63,7 @@ go/cmd/print-service/main.go
 go/cmd/remove-from-netspoc/main.go
 go/cmd/remove-service/main.go
 go/cmd/rename-netspoc/main.go
+go/cmd/transpose-service/main.go
 go/go.mod
 go/go.sum
 go/pkg/addto/add-to-netspoc.go
@@ -134,6 +136,7 @@ go/pkg/removeservice/remove-service.go
 go/pkg/rename/rename-netspoc.go
 go/pkg/scanner/comment.go
 go/pkg/scanner/scanner.go
+go/pkg/transposeservice/transpose-service.go
 go/test/capture/capture.go
 go/test/netspoc_test.go
 go/test/tstdata/testdata.go
@@ -251,6 +254,7 @@ go/testdata/routing_only.t
 go/testdata/secondary-interface.t
 go/testdata/secondary.t
 go/testdata/stateless.t
+go/testdata/transpose-service/transpose-service.t
 go/testdata/unconnected.t
 go/testdata/unenforceable.t
 go/testdata/unmanaged.t

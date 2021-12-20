@@ -1918,7 +1918,6 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Warning: user of service:s1 is empty
 Error: Must not define service:s1 without any rules
 =END=
 
@@ -2635,7 +2634,7 @@ service:s1 = {
     }
 }
 =WARNING=
-Warning: dst of service:s1 is empty
+Warning: dst of rule in service:s1 is empty
 =OUTPUT=
 @@ INPUT
   interface:n1 = { ip = 10.1.1.1; hardware = n1; }

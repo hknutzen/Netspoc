@@ -1,3 +1,16 @@
+6.037     2021-12-20 14:46:06+01:00 Europe/Berlin
+
+ - Added new command 'transpose-service'
+   Usage: transpose-service [options] FILE|DIR [service:]NAME
+   This changes the syntactical representation of a service:
+   - keyword "user" is moved from "src/dst" to "dst/src",
+   - previous definition of "user" is inserted at "src/dst"
+   - definition of "user" is changed to previous definition of "dst/src".
+   Command aborts on service with multiple rules.
+   Result is undefined on service with user-user rule.
+ - A warning is shown for automatic group without any elements.
+   E.g. network:[] or interface:[].[all]
+
 6.036     2021-12-14 10:51:49+01:00 Europe/Berlin
 
  - PAN-OS:

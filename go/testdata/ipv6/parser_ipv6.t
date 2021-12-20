@@ -1100,6 +1100,18 @@ Error: Unexpected attribute in nat:n of interface:r.n: xyz
 =END=
 
 ############################################################
+=TITLE=Service without any rules
+=PARAMS=--ipv6
+=INPUT=
+service:s1 = {
+ user = ;
+}
+=END=
+=ERROR=
+Error: Must not define service:s1 without any rules
+=END=
+
+############################################################
 =TITLE=Service without user
 =PARAMS=--ipv6
 =INPUT=
@@ -1480,8 +1492,24 @@ service:s3 = {
 =END=
 =WARNING=
 Warning: user of service:s1 is empty
-Warning: src of service:s2 is empty
-Warning: dst of service:s3 is empty
+Warning: src of rule in service:s2 is empty
+Warning: dst of rule in service:s3 is empty
+=END=
+
+############################################################
+=TITLE=Empty list in automatic group
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+group:g1 = interface:[].[all];
+service:s1 = {
+ user = network:[], group:g1;
+ permit src = user; dst = network:n1; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: network:[..] of user of service:s1 is empty
+Warning: interface:[..].[all] of group:g1 is empty
 =END=
 
 ############################################################

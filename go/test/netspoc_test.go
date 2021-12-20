@@ -4,6 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path"
+	"regexp"
+	"sort"
+	"strings"
+	"testing"
+
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
@@ -13,17 +22,11 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/removefrom"
 	"github.com/hknutzen/Netspoc/go/pkg/removeservice"
 	"github.com/hknutzen/Netspoc/go/pkg/rename"
+	"github.com/hknutzen/Netspoc/go/pkg/transposeservice"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
+
 	"gotest.tools/assert"
-	"io"
-	"os"
-	"os/exec"
-	"path"
-	"regexp"
-	"sort"
-	"strings"
-	"testing"
 )
 
 const (
@@ -50,6 +53,7 @@ var tests = []test{
 	{"remove-from-netspoc", chgInputT, removefrom.Main, chgInputCheck},
 	{"remove-service", chgInputT, removeservice.Main, chgInputCheck},
 	{"rename-netspoc", chgInputT, rename.Main, chgInputCheck},
+	{"transpose-service", chgInputT, transposeservice.Main, chgInputCheck},
 	{"api", stdoutT, modifyRun, stdoutCheck},
 	{"cut-netspoc", stdoutT, pass1.CutNetspocMain, stdoutCheck},
 	{"print-group", stdoutT, pass1.PrintGroupMain, stdoutCheck},
