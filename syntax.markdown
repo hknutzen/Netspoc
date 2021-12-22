@@ -126,7 +126,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          ( log:<name> [= (<ASA-modifier> |
                           <IOS-modifier> |
                           <PAN-OS-modifier-list>)]; )*
-         [ acl_use_real_ip;  ]
          [ no_group_code;    ]
          [ no_protect_self;  ]
          [ log_deny;         ]
