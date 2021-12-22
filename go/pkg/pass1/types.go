@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 type stringerList []fmt.Stringer
@@ -60,7 +60,7 @@ type someObj interface {
 	withAttr
 	String() string
 	getUp() someObj
-	address(m natMap) netaddr.IPPrefix
+	address(m natMap) netip.Prefix
 	getPathNode() pathStore
 	getZone() pathObj
 }
@@ -155,7 +155,7 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
-	ipp                  netaddr.IPPrefix
+	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool
 	isLayer3             bool
@@ -193,7 +193,7 @@ func (a *netList) push(e *network) {
 
 type netObj struct {
 	ipObj
-	nat     map[string]netaddr.IP
+	nat     map[string]netip.Addr
 	network *network
 	up      someObj
 }
@@ -208,15 +208,24 @@ type subnet struct {
 	id               string
 	ldapId           string
 	neighbor         *subnet
-	ipp              netaddr.IPPrefix
+	ipp              netip.Prefix
 	radiusAttributes map[string]string
+}
+
+type ipRange struct {
+	from netip.Addr
+	to   netip.Addr
+}
+
+func (r ipRange) contains(ip netip.Addr) bool {
+	return r.from.Compare(addr) <= 0 && r.to.Compare(addr) >= 0
 }
 
 type host struct {
 	netObj
 	id               string
-	ip               netaddr.IP
-	ipRange          netaddr.IPRange
+	ip               netip.Addr
+	ipRange          ipRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet
@@ -283,45 +292,47 @@ type router struct {
 	routerAttributes
 	pathStoreData
 	pathObjData
-	name                 string
-	deviceName           string
-	managed              string
-	semiManaged          bool
-	managementInstance   bool
-	backupInstance       *router
-	backupOf             *router
-	adminIP              []string
-	model                *model
-	log                  map[string]string
-	logDefault           string
-	logDeny              bool
-	localMark            int
-	origIntfs            intfList
-	crosslinkIntfs       intfList
-	disabled             bool
-	extendedKeys         map[string]string
-	filterOnly           []netaddr.IPPrefix
-	mergeTunnelSpecified []netaddr.IPPrefix
-	natDomains           []*natDomain
-	natTags              map[*natDomain]stringList
-	natSet               natSet // Only used if aclUseRealIp
-	natMap               natMap // Only used if aclUseRealIp
-	needProtect          bool
-	noGroupCode          bool
-	noInAcl              *routerIntf
-	noSecondaryOpt       map[*network]bool
-	hardware             []*hardware
-	origHardware         []*hardware
-	origRouter           *router
-	primaryMark          int
-	radiusAttributes     map[string]string
-	routingOnly          bool
-	secondaryMark        int
-	trustPoint           string
-	ipvMembers           []*router
-	vrfMembers           []*router
-	aclList              aclList
-	vrf                  string
+	name                    string
+	deviceName              string
+	managed                 string
+	semiManaged             bool
+	managementInstance      bool
+	backupInstance          *router
+	backupOf                *router
+	adminIP                 []string
+	model                   *model
+	log                     map[string]string
+	logDefault              string
+	logDeny                 bool
+	localMark               int
+	origIntfs               intfList
+	crosslinkIntfs          intfList
+	disabled                bool
+	extendedKeys            map[string]string
+	filterOnly              []netip.Prefix
+	mergeTunnelSpecified    []netip.Prefix
+	generalPermit           []*proto
+	natDomains              []*natDomain
+	natTags                 map[*natDomain]stringList
+	natSet                  natSet // Only used if aclUseRealIp
+	natMap                  natMap // Only used if aclUseRealIp
+	needProtect             bool
+	noGroupCode             bool
+	noInAcl                 *routerIntf
+	noSecondaryOpt          map[*network]bool
+	hardware                []*hardware
+	origHardware            []*hardware
+	origRouter              *router
+	policyDistributionPoint *host
+	primaryMark             int
+	radiusAttributes        map[string]string
+	routingOnly             bool
+	secondaryMark           int
+	trustPoint              string
+	ipvMembers              []*router
+	vrfMembers              []*router
+	aclList                 aclList
+	vrf                     string
 }
 
 func (x router) String() string { return x.name }
@@ -344,7 +355,7 @@ type routerIntf struct {
 	hub             []*crypto
 	spoke           *crypto
 	id              string
-	ip              netaddr.IP
+	ip              netip.Addr
 	ipType          int
 	isHub           bool
 	isLayer3        bool
@@ -490,8 +501,8 @@ type zone struct {
 	hasSecondary         bool
 	hasNonPrimary        bool
 	inArea               *area
-	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
-	ipPrefix2net         map[netaddr.IPPrefix]netList
+	ipPrefix2aggregate   map[netip.Prefix]*network
+	ipPrefix2net         map[netip.Prefix]netList
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string

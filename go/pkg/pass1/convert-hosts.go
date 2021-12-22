@@ -10,6 +10,64 @@ import (
 // Mark subnet relation of subnets.
 //###################################################################
 
+// Convert an IP range to a set of covering net.IPNet.
+func splitIpRange(lo, hi net.IP) ([]net.IPNet, error) {
+	var l, h uint64
+	var result []net.IPNet
+	if len(lo) == 4 && len(hi) == 4 {
+		l = uint64(binary.BigEndian.Uint32(lo))
+		h = uint64(binary.BigEndian.Uint32(hi))
+	} else {
+		lo, hi = lo.To16(), hi.To16()
+		if bytes.Compare(lo[:8], hi[:8]) != 0 {
+			return result, fmt.Errorf(
+				"IP range doesn't fit into /64 network")
+		}
+		l, h = binary.BigEndian.Uint64(lo[8:]), binary.BigEndian.Uint64(hi[8:])
+	}
+	if l > h {
+		return result, fmt.Errorf("Invalid IP range")
+	}
+	add := func(i, m uint64) {
+		var ip net.IP
+		var mask net.IPMask
+		if len(lo) == net.IPv4len {
+			ip = make(net.IP, net.IPv4len)
+			binary.BigEndian.PutUint32(ip, uint32(i))
+			mask = make(net.IPMask, net.IPv4len)
+			binary.BigEndian.PutUint32(mask, uint32(m))
+		} else {
+			ip = make(net.IP, net.IPv6len)
+			copy(ip, lo)
+			binary.BigEndian.PutUint64(ip[8:], i)
+			mask = net.CIDRMask(64, 128)
+			binary.BigEndian.PutUint64(mask[8:], m)
+		}
+		result = append(result, net.IPNet{IP: ip, Mask: mask})
+	}
+
+IP:
+	for l <= h {
+		// 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
+		var invMask uint64 = 0xffffffffffffffff
+		for {
+			if l&invMask == 0 {
+				end := l | invMask
+				if end <= h {
+					add(l, ^invMask)
+					l = end + 1
+					continue IP
+				}
+			}
+			if invMask == 0 {
+				break
+			}
+			invMask >>= 1
+		}
+	}
+	return result, nil
+}
+
 func (c *spoc) checkHostCompatibility(obj, other *netObj) {
 	// This simple test is only valid as long as IP range has no NAT.
 	if len(obj.nat) != 0 || len(other.nat) != 0 {
