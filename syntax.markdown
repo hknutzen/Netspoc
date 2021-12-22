@@ -116,11 +116,16 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <description> ]
          [ managed; | managed = <filter type>;        ]
          [ model = <model>;                           ]
+         [ management_instance; ]
+         [ backup_of = router:<name>; ]
          [ filter_only = <ip-net>(, <ip-net>)*; ]
          [ routing = ( EIGRP | OSPF | RIPv2 | dynamic | manual ); ]
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
-         ( log:<name> [= (<ASA-modifier> | <IOS-modifier>)]; )*
+         [ log_default = <PAN-OS-modifier-list>;      ]
+         ( log:<name> [= (<ASA-modifier> |
+                          <IOS-modifier> |
+                          <PAN-OS-modifier-list>)]; )*
          [ acl_use_real_ip;  ]
          [ no_group_code;    ]
          [ no_protect_self;  ]
@@ -134,10 +139,13 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <VRF-name>     ::= <name>
     <filter type>  ::= primary | full | standard | secondary | local |
                        routing_only
-    <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS
+    <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS | PAN-OS
     <ASA-modifier> ::= alerts | critical | debugging | disable | emergencies |
                        errors | informational | notifications | warnings
     <IOS-modifier> ::= log-input
+    <PAN-OS-modifier> ::= start | end | <PAN-OS-setting>
+    <PAN-OS-setting> ::= setting:<name>
+    <PAN-OS-modifier-list> =:= <PAN-OS-modifier>(, <PAN-OS-modifier>)*
 
 ## Interface definition
 
