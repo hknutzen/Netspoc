@@ -93,6 +93,8 @@ func markPrimary(zone *zone, mark int) {
 	}
 }
 
+// Find zone of src/dst elements of rule.
+// Return nil, if zone of elements can't be determined.
 func getZone(path pathStore, list []someObj) *zone {
 	var result *zone
 	switch x := path.(type) {
@@ -129,6 +131,24 @@ func getZone(path pathStore, list []someObj) *zone {
 		}
 	}
 	return result
+}
+
+// Get filter type of router if destination is interface.
+// Ignore loopback interface.
+func getRouterFilter(path pathStore, list []someObj) string {
+	switch x := path.(type) {
+	case *routerIntf:
+		return x.router.managed
+	case *router:
+		if len(list) == 1 {
+			intf := list[0].(*routerIntf)
+			if intf.loopback {
+				return ""
+			}
+		}
+		return x.managed
+	}
+	return ""
 }
 
 type conflictKey = struct {
@@ -233,7 +253,7 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // with R2 is "managed=secondary"
 // Rules:
 // 1. permit net:src->any, telnet
-// 2. permit host:host:src->host:dst, http
+// 2. permit host:src->host:dst, http
 // Generated ACLs:
 // R1:
 // permit net:src any telnet
@@ -338,13 +358,18 @@ func (c *spoc) markSecondaryRules() {
 		if dstZone == nil {
 			continue
 		}
+		f := getRouterFilter(rule.dstPath, rule.dst)
 		if srcZone.secondaryMark != dstZone.secondaryMark {
-			rule.someNonSecondary = true
-			collectConflict(rule, srcZone, dstZone, conflict, false)
+			if f == "" || f != "secondary" {
+				rule.someNonSecondary = true
+				collectConflict(rule, srcZone, dstZone, conflict, false)
+			}
 		}
 		if srcZone.primaryMark != dstZone.primaryMark {
-			rule.somePrimary = true
-			collectConflict(rule, srcZone, dstZone, conflict, true)
+			if f == "" || f == "primary" {
+				rule.somePrimary = true
+				collectConflict(rule, srcZone, dstZone, conflict, true)
+			}
 		}
 	}
 	checkConflict(conflict)

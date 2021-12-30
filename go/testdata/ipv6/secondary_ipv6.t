@@ -543,51 +543,6 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Optimize multiple interfaces of secondary router
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-network:t1 = { ip = ::a09:100/120; }
-network:t2 = { ip = ::a09:200/120; }
-router:r1 = {
- model = ASA;
- managed = secondary;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
- interface:t1 = { ip = ::a09:101; hardware = t1; }
-}
-router:r2 = {
- model = IOS, FW;
- managed;
- routing = manual;
- interface:t1 = { ip = ::a09:102; hardware = t1; }
- interface:t2 = { ip = ::a09:202; hardware = t2; }
-}
-router:r3 = {
- model = ASA;
- managed = secondary;
- interface:t2 = { ip = ::a09:201; hardware = t2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; }
-}
-service:s1 = {
- user = network:n1;
- permit src = user; dst = interface:r3.t2, interface:r3.n3; prt = tcp 22;
-}
-=END=
-=OUTPUT=
---ipv6/r1
-! n1_in
-object-group network v6g0
- network-object ::a01:300/120
- network-object ::a09:200/120
-access-list n1_in extended permit ip ::a01:100/120 object-group v6g0
-access-list n1_in extended deny ip any6 any6
-access-group n1_in in interface n1
-=END=
-
-############################################################
 =TITLE=Don't optimize if aggregate rule starts behind secondary router
 =PARAMS=--ipv6
 =INPUT=
@@ -733,6 +688,42 @@ access-list n2_in extended permit tcp ::a02:100/123 host ::a02:304 eq 80
 access-list n2_in extended permit ip ::a02:100/123 ::a04:400/120
 access-list n2_in extended deny ip any6 any6
 access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Must not optimize interface rule if network is permitted
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+network:n2 = { ip = ::a01:200/120;}
+router:r2 = {
+ model = IOS, FW;
+ managed = secondary;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+}
+network:n3 = { ip = ::a01:300/120; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 22;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = interface:r2.n2; prt = udp 123;
+}
+=END=
+=OUTPUT=
+--ipv6/r2
+! [ ACL ]
+ipv6 access-list n2_in
+ permit udp ::a01:100/120 host ::a01:202 eq 123
+ deny ipv6 any any
 =END=
 
 ############################################################
