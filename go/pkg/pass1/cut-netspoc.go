@@ -228,8 +228,8 @@ func markUnconnectedPair(n1, n2 *network) {
 
 // Mark path between object and marked parts of topology.
 // Object must be of type network or interface.
-// Depending on 'managed', mark only unmanaged or also managed parts.
-func markUnconnectedObj(obj groupObj, managed bool) {
+// Mark only inside zone or zone cluster.
+func markUnconnectedObj(obj groupObj) {
 	var seen map[netPathObj]bool
 	var mark func(obj netPathObj, in *routerIntf) bool
 	mark = func(obj netPathObj, in *routerIntf) bool {
@@ -242,10 +242,8 @@ func markUnconnectedObj(obj groupObj, managed bool) {
 			return true
 		}
 		r, isRouter := obj.(*router)
-		if isRouter && !managed {
-			if r.managed != "" || r.semiManaged {
-				return false
-			}
+		if isRouter && r.managed != "" {
+			return false
 		}
 		result := false
 		for _, intf := range obj.intfList() {
@@ -476,7 +474,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 					// pathWalk only handles managed routers and interfaces.
 					// Mark all objects additionally here.
-					markUnconnectedObj(obj.getNetwork(), false)
+					markUnconnectedObj(obj.getNetwork())
 					isUsed[obj.String()] = true
 				}
 			}
@@ -504,7 +502,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			zoneCheck[agg.zone] = true
 			// debug("Marking networks of %s in %s", agg, z")
 			for _, n := range agg.networks {
-				markUnconnectedObj(n, false)
+				markUnconnectedObj(n)
 			}
 		}
 	}
@@ -529,7 +527,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	for _, agg := range c.allNetworks {
 		if agg.isAggregate && isUsed[agg.name] {
 			if n := agg.link; n != nil {
-				markUnconnectedObj(n, true)
+				markUnconnectedObj(n)
 			} else {
 				// Find network name from name of zone: any:[network:name]
 				z := agg.zone
@@ -537,7 +535,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				nName := zName[len("any:[") : len(zName)-1]
 				for _, n := range z.networks {
 					if n.name == nName {
-						markUnconnectedObj(n, true)
+						markUnconnectedObj(n)
 						break
 					}
 				}
@@ -566,14 +564,73 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	// Mark interfaces / networks which are referenced by used areas.
-	for _, a := range symTable.area {
-		if isUsed[a.name] {
-			if anchor := a.anchor; anchor != nil {
-				markUnconnectedObj(anchor, true)
-			} else {
-				for _, intf := range append(a.border, a.inclusiveBorder...) {
-					markUnconnectedObj(intf, true)
+	for _, top := range toplevel {
+		if aTop, ok := top.(*ast.Area); ok {
+			name := aTop.Name[len("area:"):]
+			a := symTable.area[name]
+			if isUsed[a.name] {
+				// Change anchor to some used network
+				if anchor := a.anchor; anchor != nil {
+					if !isUsed[anchor.name] {
+					ZONE:
+						for _, z := range a.zones {
+							for _, n := range z.networks {
+								if isUsed[n.name] {
+									for _, at := range aTop.Attributes {
+										if at.Name == "anchor" {
+											at.ValueList = []*ast.Value{{Value: n.name}}
+											break ZONE
+										}
+									}
+								}
+							}
+						}
+					}
+				} else {
+					// Remove unused interfaces from border and inclusiveBorder
+					cleanup := func(u **ast.NamedUnion) {
+						if *u == nil {
+							return
+						}
+						j := 0
+						l := (*u).Elements
+						for _, el := range l {
+							if x, ok := el.(*ast.IntfRef); ok {
+								if x.Network != "[" && x.Extension == "" {
+									name := "interface:" + x.GetName()
+									if !isUsed[name] {
+										continue
+									}
+								}
+							}
+							l[j] = el
+							j++
+						}
+						l = l[:j]
+						if len(l) == 0 {
+							*u = nil
+						} else {
+							(*u).Elements = l
+						}
+					}
+					cleanup(&aTop.Border)
+					cleanup(&aTop.InclusiveBorder)
+					// Add anchor, if all interfaces have been removed.
+					if aTop.Border == nil && aTop.InclusiveBorder == nil {
+					Z2:
+						for _, z := range a.zones {
+							for _, n := range z.networks {
+								if isUsed[n.name] {
+									aTop.Attributes = append(aTop.Attributes,
+										&ast.Attribute{
+											Name:      "anchor",
+											ValueList: []*ast.Value{{Value: n.name}},
+										})
+									break Z2
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -622,7 +679,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 				}
 			}
 			for _, supernet := range upChain {
-				markUnconnectedObj(supernet, false)
+				markUnconnectedObj(supernet)
 				// debug("marked: %s", supernet)
 			}
 			upChain = nil

@@ -503,6 +503,58 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Area with identity NAT masks NAT of larger area
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:n1 = { border = interface:asa1.n1; nat:a2 = { identity; } }
+area:n1-n2 = { border = interface:asa2.n2; nat:a2 = { ip = 10.9.0.0/16; } }
+service:test = {
+    user = network:n2;
+    permit src = user; dst = network:n1; prt = tcp;
+}
+=END=
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hardware = n1;
+  bind_nat = a2;
+ }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+area:n1 = {
+ nat:a2 = { identity; }
+ border = interface:asa1.n1;
+}
+area:n1-n2 = {
+ nat:a2 = { ip = 10.9.0.0/16; }
+ anchor = network:n2;
+}
+service:test = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp;
+}
+=END=
+
+############################################################
 =TITLE=Useless aggregate
 =INPUT=
 [[topo]]
@@ -735,7 +787,25 @@ service:test = {
 =END=
 =INPUT=[[input]]
 =OUTPUT=
-[[input]]
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+area:all = {
+ anchor = network:n2;
+}
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:[
+         any:[ip = 10.1.1.0/24 & area:all],
+        ];
+ permit src = user;
+        dst = network:n2;
+        prt = tcp;
+}
 =END=
 
 ############################################################
@@ -745,7 +815,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
-area:n1-3 = {
+area:n2-3 = {
+ border = interface:asa1.n2;
  inclusive_border = interface:asa3.n4;
 }
 router:asa1 = {
@@ -768,7 +839,7 @@ router:asa3 = {
 }
 service:test = {
  has_unenforceable;
- user = network:[area:n1-3];
+ user = network:[area:n2-3];
  permit src = user;
         dst = network:n2;
         prt = tcp;
@@ -776,7 +847,24 @@ service:test = {
 =END=
 =INPUT=[[input]]
 =OUTPUT=
-[[input]]
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n2-3 = {
+ anchor = network:n2;
+}
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:test = {
+ has_unenforceable;
+ user = network:[area:n2-3];
+ permit src = user;
+        dst = network:n2;
+        prt = tcp;
+}
 =END=
 
 ############################################################
@@ -2656,7 +2744,7 @@ router:r2 = {
 =END=
 
 ############################################################
-=TITLE=Mark only first path to unconnected object
+=TITLE=Remove border of area in unconnected part
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -2726,16 +2814,10 @@ service:s1 = {
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-network:n4 = { ip = 10.1.4.0/24; }
-network:n5 = { ip = 10.1.5.0/24; }
 network:n7 = { ip = 10.1.7.0/24; }
 network:n8 = { ip = 10.1.8.0/24; }
 area:a = {
  nat:dyn = { ip = 192.168.7.32/27; dynamic; }
- border = interface:r3.n4,
-          interface:r3.n5,
-          ;
  inclusive_border =
   interface:r1.n1,
   interface:r4.n7,
@@ -2746,20 +2828,6 @@ router:r1 = {
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
-}
-router:r2 = {
- managed;
- model = IOS;
- interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.1; hardware = n4; }
- interface:n5 = { ip = 10.1.5.1; hardware = n5; }
-}
-router:r3 = {
- managed;
- model = IOS;
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
- interface:n5 = { ip = 10.1.5.2; hardware = n5; }
 }
 router:r4 = {
  managed;
