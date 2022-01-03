@@ -172,15 +172,15 @@ func markTopology(ru *groupedRule, in, out *routerIntf) {
 
 // Mark path between two networks inside same zone.
 func markUnconnectedPair(n1, n2 *network) {
-	var mark func(netPathObj, *routerIntf, *network, map[netPathObj]bool) bool
-	mark = func(obj netPathObj, in *routerIntf, n *network,
-		seen map[netPathObj]bool) bool {
-
+	//debug("\nConnecting %s %s", n1, n2)
+	seen := make(map[netPathObj]bool)
+	var mark func(netPathObj, *routerIntf) bool
+	mark = func(obj netPathObj, in *routerIntf) bool {
 		if seen[obj] {
 			return false
 		}
 		seen[obj] = true
-		if obj == n {
+		if obj == n2 {
 			//debug("Found %s", obj)
 			return true
 		}
@@ -202,7 +202,7 @@ func markUnconnectedPair(n1, n2 *network) {
 			} else {
 				next = intf.router
 			}
-			if mark(next, intf, n, seen) {
+			if mark(next, intf) {
 				isUsed[obj.String()] = true
 				isUsed[intf.name] = true
 				//debug("Marked %s + %s", obj, intf)
@@ -212,10 +212,7 @@ func markUnconnectedPair(n1, n2 *network) {
 		}
 		return result
 	}
-
-	//debug("\nConnecting %s %s", n1, n2)
-	seen := make(map[netPathObj]bool)
-	mark(n1, nil, n2, seen)
+	mark(n1, nil)
 	isUsed[n1.name] = true
 	isUsed[n2.name] = true
 }
