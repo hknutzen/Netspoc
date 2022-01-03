@@ -555,10 +555,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark areas having NAT attribute that influence their networks.
-	for _, z := range c.allZones {
-		if !zoneCheck[z] {
-			continue
-		}
+	for z := range zoneCheck {
 		for _, a := range zone2areas[z] {
 			att := a.routerAttributes
 			if len(a.nat) != 0 ||
@@ -571,14 +568,13 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// Mark interfaces / networks which are referenced by used areas.
 	for _, a := range symTable.area {
-		if !isUsed[a.name] {
-			continue
-		}
-		if anchor := a.anchor; anchor != nil {
-			markUnconnectedObj(anchor, true)
-		} else {
-			for _, intf := range append(a.border, a.inclusiveBorder...) {
-				markUnconnectedObj(intf, true)
+		if isUsed[a.name] {
+			if anchor := a.anchor; anchor != nil {
+				markUnconnectedObj(anchor, true)
+			} else {
+				for _, intf := range append(a.border, a.inclusiveBorder...) {
+					markUnconnectedObj(intf, true)
+				}
 			}
 		}
 	}
