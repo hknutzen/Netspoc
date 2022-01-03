@@ -213,6 +213,36 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Auto interface at unmanaged router
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:asa2.[auto];
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:asa2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:asa2.[auto];
+        prt = tcp 80;
+}
+=END=
+
+############################################################
 =TITLE=Remove unused protocolgroup
 =INPUT=
 [[topo]]
