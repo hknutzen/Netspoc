@@ -146,25 +146,78 @@ type netPathObj interface {
 var todoUnmanaged groupObjList
 var addLater intfList
 
-// This function is called by pathWalk to mark all managed routers
-// on path from src to dst of rule as used.
-func markTopology(_ *groupedRule, in, out *routerIntf) {
-	var r *router
+// This is called for each zone on path of rule.
+func markTopology(ru *groupedRule, in, out *routerIntf) {
 	if in != nil {
-		r = in.router
-	} else {
-		r = out.router
+		setIntfUsed(in)
+		setRouterUsed(in.router)
 	}
-	setRouterUsed(r)
-	//debug("Used %s", r)
-	for _, intf := range []*routerIntf{in, out} {
-		if intf != nil {
-			setIntfUsed(intf)
-			n := intf.network
-			isUsed[n.name] = true
-			todoUnmanaged.push(n)
+	if out != nil {
+		setIntfUsed(out)
+		setRouterUsed(out.router)
+	}
+	mark := func(l []someObj, n *network) {
+		for _, o := range l {
+			markUnconnectedPair(o.getNetwork(), n)
 		}
 	}
+	if in == nil {
+		mark(ru.src, out.network)
+	} else if out == nil {
+		mark(ru.dst, in.network)
+	} else {
+		markUnconnectedPair(in.network, out.network)
+	}
+}
+
+// Mark path between two networks inside same zone.
+func markUnconnectedPair(n1, n2 *network) {
+	var mark func(netPathObj, *routerIntf, *network, map[netPathObj]bool) bool
+	mark = func(obj netPathObj, in *routerIntf, n *network,
+		seen map[netPathObj]bool) bool {
+
+		if seen[obj] {
+			return false
+		}
+		seen[obj] = true
+		if obj == n {
+			//debug("Found %s", obj)
+			return true
+		}
+		r, isRouter := obj.(*router)
+		result := false
+		for _, intf := range obj.intfList() {
+			if intf == in {
+				continue
+			}
+			if intf.mainIntf != nil {
+				continue
+			}
+			var next netPathObj
+			if isRouter {
+				if r.managed != "" || r.semiManaged {
+					continue
+				}
+				next = intf.network
+			} else {
+				next = intf.router
+			}
+			if mark(next, intf, n, seen) {
+				isUsed[obj.String()] = true
+				isUsed[intf.name] = true
+				//debug("Marked %s + %s", obj, intf)
+				result = true
+				break
+			}
+		}
+		return result
+	}
+
+	//debug("\nConnecting %s %s", n1, n2)
+	seen := make(map[netPathObj]bool)
+	mark(n1, nil, n2, seen)
+	isUsed[n1.name] = true
+	isUsed[n2.name] = true
 }
 
 // Mark path between objects and marked parts of topology.
@@ -258,15 +311,11 @@ func (c *spoc) markUnconnected(list groupObjList, managed bool) {
 	}
 }
 
-func (c *spoc) markPath(src, dst *routerIntf) {
-	for _, intf := range []*routerIntf{src, dst} {
-		n := intf.network
-		isUsed[intf.name] = true
-		isUsed[n.name] = true
-		todoUnmanaged.push(n)
-	}
+func (c *spoc) markCryptoPath(src, dst *routerIntf) {
+	isUsed[src.name] = true
+	isUsed[dst.name] = true
 	//debug("Path %s %s", src, dst)
-	c.singlePathWalk(src, dst, markTopology, "Router")
+	c.singlePathWalk(src, dst, markTopology, "Zone")
 }
 
 func (c *spoc) markUsedNatTags() {
@@ -284,7 +333,7 @@ func (c *spoc) markUsedNatTags() {
 // Mark path between endpoints of rules.
 func (c *spoc) markRulesPath(p pathRules) {
 	for _, r := range append(p.deny, p.permit...) {
-		c.pathWalk(r, markTopology, "Router")
+		c.pathWalk(r, markTopology, "Zone")
 	}
 }
 
@@ -673,7 +722,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			if intf.ipType == tunnelIP {
 				peer := intf.peer
 				real := intf.realIntf
-				c.markPath(real, peer.realIntf)
+				c.markCryptoPath(real, peer.realIntf)
 			}
 		}
 	}
