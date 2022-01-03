@@ -223,7 +223,6 @@ func markUnconnectedPair(n1, n2 *network) {
 		return result
 	}
 	mark(n1, nil)
-	isUsed[n1.name] = true
 	isUsed[n2.name] = true
 }
 
@@ -528,9 +527,20 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	for _, agg := range c.allNetworks {
-		if isUsed[agg.name] {
+		if agg.isAggregate && isUsed[agg.name] {
 			if n := agg.link; n != nil {
 				markUnconnectedObj(n, true)
+			} else {
+				// Find network name from name of zone: any:[network:name]
+				z := agg.zone
+				zName := z.name
+				nName := zName[len("any:[") : len(zName)-1]
+				for _, n := range z.networks {
+					if n.name == nName {
+						markUnconnectedObj(n, true)
+						break
+					}
+				}
 			}
 		}
 	}
