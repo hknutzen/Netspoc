@@ -491,6 +491,32 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	// Mark NAT tags referenced in networks used in rules.
 	c.markUsedNatTags()
 
+	// Mark bridge and bridged networks.
+	for _, n := range c.allNetworks {
+		if !isUsed[n.name] {
+			continue
+		}
+		if n.ipType != bridgedIP {
+			continue
+		}
+		for _, in := range n.interfaces {
+			if in.ipType != bridgedIP {
+				continue
+			}
+			isUsed[in.name] = true
+			bridge := in.router
+			isUsed[bridge.name] = true
+			for _, out := range bridge.interfaces {
+				if out.hardware.name == "device" && bridge.model.class == "ASA" {
+					isUsed[out.name] = true
+				} else if out.ipType == bridgedIP {
+					isUsed[out.name] = true
+					isUsed[out.network.name] = true
+				}
+			}
+		}
+	}
+
 	zoneUsed := make(map[*zone]bool)
 	zoneCheck := make(map[*zone]bool)
 	for _, z := range c.allZones {
@@ -688,32 +714,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 	// Call this after topology has been marked.
 	c.expandCrypto()
-
-	// Mark bridge and bridged networks.
-	for _, n := range c.allNetworks {
-		if !isUsed[n.name] {
-			continue
-		}
-		if n.ipType != bridgedIP {
-			continue
-		}
-		for _, in := range n.interfaces {
-			if in.ipType != bridgedIP {
-				continue
-			}
-			isUsed[in.name] = true
-			bridge := in.router
-			isUsed[bridge.name] = true
-			for _, out := range bridge.interfaces {
-				if out.hardware.name == "device" && bridge.model.class == "ASA" {
-					isUsed[out.name] = true
-				} else if out.ipType == bridgedIP {
-					isUsed[out.name] = true
-					isUsed[out.network.name] = true
-				}
-			}
-		}
-	}
 
 	mark1 := func(r *router) {
 
