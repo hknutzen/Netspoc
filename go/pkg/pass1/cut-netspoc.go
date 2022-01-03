@@ -227,9 +227,8 @@ func markUnconnectedPair(n1, n2 *network) {
 }
 
 // Mark path between object and marked parts of topology.
-// Object must be of type network or interface.
 // Mark only inside zone or zone cluster.
-func markUnconnectedObj(obj groupObj) {
+func markUnconnectedObj(n *network) {
 	var seen map[netPathObj]bool
 	var mark func(obj netPathObj, in *routerIntf) bool
 	mark = func(obj netPathObj, in *routerIntf) bool {
@@ -270,41 +269,24 @@ func markUnconnectedObj(obj groupObj) {
 		return result
 	}
 
-	//debug("\nConnecting %s", obj)
+	//debug("\nConnecting %s", n)
 	seen = make(map[netPathObj]bool)
-	switch x := obj.(type) {
-	case *routerIntf:
-		//debug("-Try %s -> %s", x, x.network)
-		seen[x.router] = true
-		if mark(x.network, x) {
-			isUsed[x.router.name] = true
-			//debug("Marked %s + %s", x, x.network)
-		} else {
-			//debug("-Try %s -> %s", x, x.router)
-			seen[x.router] = false
-			if mark(x.router, x) {
-				isUsed[x.network.name] = true
-				//debug("Marked %s + %s", x, x.router)
-			}
+	//mark(n, nil)
+	seen[n] = true
+	for _, intf := range n.interfaces {
+		if intf.mainIntf != nil {
+			continue
 		}
-	case *network:
-		//mark(x, nil)
-		seen[x] = true
-		for _, intf := range x.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
-			next := intf.router
-			//debug("-Try %s %s", next, intf)
-			if mark(next, intf) {
-				isUsed[intf.name] = true
-				//debug("Marked %s", intf)
-				// Only mark first found path.
-				break
-			}
+		next := intf.router
+		//debug("-Try %s %s", next, intf)
+		if mark(next, intf) {
+			isUsed[intf.name] = true
+			//debug("Marked %s", intf)
+			// Only mark first found path.
+			break
 		}
 	}
-	isUsed[obj.String()] = true
+	isUsed[n.name] = true
 }
 
 func (c *spoc) markCryptoPath(src, dst *routerIntf) {
