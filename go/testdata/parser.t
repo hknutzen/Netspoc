@@ -1403,6 +1403,20 @@ Warning: interface:[..].[all] of group:g1 is empty
 =END=
 
 ############################################################
+=TITLE=Empty list in automatic group with attribute
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = interface:[managed & ].[all];
+ permit src = user; dst = network:n1, any:[ip = 10.1.0.0/16 & ]; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: interface:[..].[all] of user of service:s1 is empty
+Warning: any:[..] of dst of rule in service:s1 is empty
+=END=
+
+############################################################
 =TITLE=Empty user and empty rules
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
