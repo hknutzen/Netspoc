@@ -134,6 +134,17 @@ Aborted
 =SETUP=
 mkdir out/
 touch out/.prev
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=WITH_OUTDIR=
+=WARNING=NONE
+
+############################################################
+=TITLE=.prev is readonly file
+=SETUP=
+mkdir out/
+touch out/.prev
 chmod u-w out/.prev
 chmod u-x out
 =INPUT=

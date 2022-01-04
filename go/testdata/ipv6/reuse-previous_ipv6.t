@@ -138,6 +138,18 @@ Aborted
 =SETUP=
 mkdir out/
 touch out/.prev
+=PARAMS=--ipv6
+=INPUT=
+-- topology
+network:n1 = { ip = ::a01:100/120; }
+=WITH_OUTDIR=
+=WARNING=NONE
+
+############################################################
+=TITLE=.prev is readonly file
+=SETUP=
+mkdir out/
+touch out/.prev
 chmod u-w out/.prev
 chmod u-x out
 =PARAMS=--ipv6
@@ -166,8 +178,8 @@ cat <<END > out/.prev/r1.rules
 {"model":"ASA","acls":null,"do_objectgroup":true}
 END
 cp out/.prev/r1.config out/.prev/r1
-touch out/r1
-chmod u-w out/r1
+mkdir out/r1
+touch out/r1/foo
 =PARAMS=--ipv6
 =INPUT=
 -- topology

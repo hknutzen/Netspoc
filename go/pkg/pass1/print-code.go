@@ -2250,6 +2250,8 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 			c.abort("Can't %v", err)
 		}
 	} else if !fileop.IsDir(prev) {
+		// Try to remove file or symlink with same name.
+		os.Remove(prev)
 		oldFiles := fileop.Readdirnames(dir)
 		if count := len(oldFiles); count > 0 {
 			if fileop.IsDir(dir + "/ipv6") {
@@ -2259,8 +2261,6 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 			c.info("Saving %d old files of '%s' to subdirectory '.prev'",
 				count, dir)
 
-			// Try to remove file or symlink with same name.
-			os.Remove(prev)
 			err := os.Mkdir(prev, 0777)
 			if err != nil {
 				c.abort("Can't %v", err)
