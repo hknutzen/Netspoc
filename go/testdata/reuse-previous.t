@@ -161,8 +161,8 @@ cat <<END > out/.prev/r1.rules
 {"model":"ASA","acls":null,"do_objectgroup":true}
 END
 cp out/.prev/r1.config out/.prev/r1
-touch out/r1
-chmod u-w out/r1
+mkdir out/r1
+touch out/r1/foo
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }

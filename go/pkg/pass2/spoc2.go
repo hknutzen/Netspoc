@@ -417,6 +417,8 @@ func tryPrev(devicePath, dir, prev string) bool {
 			return false
 		}
 	}
+	// Try to remove old code file if it was left over somehow.
+	os.Remove(codeFile)
 	if err := os.Link(prevFile, codeFile); err != nil {
 		panic(err)
 	}
