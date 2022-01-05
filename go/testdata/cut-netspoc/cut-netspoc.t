@@ -947,6 +947,7 @@ service:test = {
 
 ############################################################
 =TITLE=Zone link is located outside of path
+# With secondary IP for test coverage
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -964,8 +965,8 @@ router:r1 = {
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:r2 = {
+ interface:n3 = { ip = 10.2.3.2, 10.2.3.9; }
  interface:n2 = { ip = 10.1.2.2; }
- interface:n3;
 }
 router:r3 = {
  interface:n3;
@@ -2598,6 +2599,29 @@ service:s1 = {
               network:n4,
               ;
         prt = tcp 22;
+}
+=END=
+=INPUT=[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
+=TITLE=Ignore secondary interface on path
+=TEMPL=input
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1, 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.2; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
 }
 =END=
 =INPUT=[[input]]
