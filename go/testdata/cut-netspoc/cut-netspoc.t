@@ -749,6 +749,84 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Empty automatic network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:[
+         any:[ip = 10.9.9.0/24 & network:n1],
+        ];
+ permit src = user;
+        dst = network:n2;
+        prt = tcp;
+}
+=OUTPUT=
+network:n2 = { ip = 10.1.2.0/24; }
+service:test = {
+ user = ;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp;
+}
+=END=
+
+############################################################
+=TITLE=Empty automatic network from intersection
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+area:n1-2 = {
+ border = interface:r2.n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:test = {
+ user = network:[
+         any:[ip = 10.9.9.0/24 & area:n1-2]
+         &! any:[ip = 10.9.9.0/24 & any:[network:n2]],
+        ],
+        network:n2,
+        ;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp;
+}
+=OUTPUT=
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+service:test = {
+ user = network:n2;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp;
+}
+=END=
+
+############################################################
 =TITLE=Area defined by anchor, anchor outside of path
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }

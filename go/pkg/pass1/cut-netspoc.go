@@ -312,6 +312,9 @@ func (c *spoc) markUsedNatTags() {
 func (c *spoc) markAndSubstElements(
 	elemList *[]ast.Element, ctx string, v6 bool, m map[string]*ast.TopList) {
 
+	expand := func(el ast.Element) groupObjList {
+		return c.expandGroup([]ast.Element{el}, ctx, v6, false)
+	}
 	var traverse func(l []ast.Element) []ast.Element
 	traverse = func(l []ast.Element) []ast.Element {
 		var expanded groupObjList
@@ -330,12 +333,13 @@ func (c *spoc) markAndSubstElements(
 				}
 				isUsed[typedName] = true
 			case ast.AutoElem:
+				if len(expand(el)) == 0 {
+					continue // Ignore empty automatic group
+				}
 				l2 := traverse(x.GetElements())
 				x.SetElements(l2)
 			case *ast.IntfRef:
-				for _, obj := range c.expandGroup(
-					[]ast.Element{el}, ctx, v6, false) {
-
+				for _, obj := range expand(el) {
 					switch x := obj.(type) {
 					case *routerIntf:
 						setIntfUsed(x)
@@ -343,8 +347,7 @@ func (c *spoc) markAndSubstElements(
 					}
 				}
 			case *ast.Intersection:
-				expanded = append(expanded,
-					c.expandGroup([]ast.Element{el}, ctx, v6, false)...)
+				expanded = append(expanded, expand(el)...)
 				continue // Ignore original intersection.
 			}
 			l[j] = el
