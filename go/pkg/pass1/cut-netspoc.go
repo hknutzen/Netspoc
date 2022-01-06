@@ -137,6 +137,26 @@ func setIntfUsed(intf *routerIntf) {
 	isUsed[iName] = true
 }
 
+var origNat = make(map[*network]map[string]*network)
+
+func saveOrigNat() {
+	copyNat := func(n *network) {
+		if nat := n.nat; nat != nil {
+			cpy := make(map[string]*network)
+			for t, n := range nat {
+				cpy[t] = n
+			}
+			origNat[n] = cpy
+		}
+	}
+	for _, n := range symTable.network {
+		copyNat(n)
+	}
+	for _, agg := range symTable.aggregate {
+		copyNat(agg)
+	}
+}
+
 type netPathObj interface {
 	intfList() intfList
 	String() string
@@ -440,6 +460,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 	c.markDisabled()
+	saveOrigNat()
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()
@@ -502,15 +523,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	zoneUsed := make(map[*zone]bool)
-	zoneCheck := make(map[*zone]bool)
-	for _, z := range c.allZones {
-		for _, agg := range z.ipPrefix2aggregate {
-			if !isUsed[agg.name] {
-				continue
-			}
-			zoneUsed[agg.zone] = true
-			zoneCheck[agg.zone] = true
+	// Mark networks of named and unnamed aggregates used in rules.
+	for _, agg := range c.allNetworks {
+		if agg.isAggregate && isUsed[agg.name] {
 			// debug("Marking networks of %s in %s", agg, z")
 			for _, n := range agg.networks {
 				markUnconnectedObj(n)
@@ -518,23 +533,27 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
-	// Mark zones having attributes that influence their networks.
+	// Mark networks and aggregates having NAT attributes that
+	// influence their subnets.
 	for _, n := range c.allNetworks {
 		if !isUsed[n.name] {
 			continue
 		}
-		z := n.zone
-		zoneCheck[z] = true
-		if len(z.nat) == 0 {
-			continue
+		// Walk chain of inheritance.
+		// Mark supernet with NAT attribute.
+		up := n
+		for {
+			up = up.up
+			if up == nil {
+				break
+			}
+			if nat := origNat[up]; nat != nil {
+				markUnconnectedObj(up)
+			}
 		}
-		ipp := getNetwork00(z.ipV6).ipp
-		if agg0 := z.ipPrefix2aggregate[ipp]; agg0 != nil {
-			isUsed[agg0.name] = true
-		}
-		zoneUsed[z] = true
 	}
 
+	// Mark network linked from used aggregates.
 	for _, agg := range c.allNetworks {
 		if agg.isAggregate && isUsed[agg.name] {
 			if n := agg.link; n != nil {
@@ -564,6 +583,12 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 
 	// Mark areas having NAT attribute that influence their networks.
+	zoneCheck := make(map[*zone]bool)
+	for _, n := range c.allNetworks {
+		if isUsed[n.name] {
+			zoneCheck[n.zone] = true
+		}
+	}
 	for z := range zoneCheck {
 		for _, a := range zone2areas[z] {
 			att := a.routerAttributes
@@ -575,6 +600,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		}
 	}
 
+	// Remove unused anchor and border from used areas.
 	for _, top := range toplevel {
 		if aTop, ok := top.(*ast.Area); ok {
 			name := aTop.Name[len("area:"):]
@@ -644,56 +670,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 					}
 				}
 			}
-		}
-	}
-
-	// Mark networks having NAT attributes that influence their subnets.
-	for _, n := range c.allNetworks {
-		if !isUsed[n.name] {
-			continue
-		}
-		up := n
-		var upChain netList
-
-		// Walk chain of inheritance.
-		// Mark supernet with NAT attribute and also all supernets in between.
-		// We need to mark supernets in between, because they might have
-		// identity NAT attributes, which have been deleted already.
-		for {
-			up = up.up
-			if up == nil {
-				break
-			}
-			if up.isAggregate {
-				if up.ipp.Bits() != 0 {
-					continue
-				}
-				z := up.zone
-
-				// Check if NAT attribute was inherited from zone or areas.
-				if !zoneUsed[z] {
-					found := false
-					for _, a := range zone2areas[z] {
-						if isUsed[a.name] {
-							found = true
-							break
-						}
-					}
-					if !found {
-						continue
-					}
-				}
-			} else {
-				upChain.push(up)
-				if up.nat == nil {
-					continue
-				}
-			}
-			for _, supernet := range upChain {
-				markUnconnectedObj(supernet)
-				// debug("marked: %s", supernet)
-			}
-			upChain = nil
 		}
 	}
 

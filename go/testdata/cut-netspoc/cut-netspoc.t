@@ -555,6 +555,44 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Supernet with identity NAT masks NAT of larger area
+=TEMPL=input
+area:all = {
+ nat:n = { ip = 10.9.0.0/16; }
+ anchor = network:n1;
+}
+network:n1-16 = {
+ ip = 10.1.0.0/16;
+ nat:n = { identity; }
+}
+router:r0 = {
+ interface:n1-16;
+ interface:n1 = { ip = 10.1.1.2; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.2.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hardware = n1;
+  bind_nat = n;
+ }
+ interface:n2 = { ip = 10.2.2.1; hardware = n2; }
+}
+service:test = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=INPUT=[[input]]
+=OUTPUT=
+[[input]]
+=END=
+
+############################################################
 =TITLE=Useless aggregate
 =INPUT=
 [[topo]]
@@ -1047,7 +1085,7 @@ service:s1 = {
 
 ############################################################
 =TITLE=Mark supernet having identity NAT
-=TEMPL=input
+=INPUT=
 any:n1 = {
  nat:N = { ip = 10.9.9.0/24; dynamic; }
  link = network:n1;
@@ -1083,10 +1121,37 @@ service:s1 = {
         dst = user;
         prt = tcp 80;
 }
-=END=
-=INPUT=[[input]]
 =OUTPUT=
-[[input]]
+any:n1 = {
+ nat:N = { ip = 10.9.9.0/24; dynamic; }
+ link = network:n1;
+}
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:N = { identity; }
+}
+network:n1_subsub = {
+ ip = 10.1.1.96/27;
+ subnet_of = network:n1_sub;
+}
+router:u = {
+ interface:n1;
+ interface:n1_subsub;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1_subsub = { ip = 10.1.1.97; hardware = n1; }
+ interface:n2        = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1_subsub;
+ permit src = network:n2;
+        dst = user;
+        prt = tcp 80;
+}
 =END=
 
 ############################################################
