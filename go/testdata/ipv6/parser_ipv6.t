@@ -1513,6 +1513,21 @@ Warning: interface:[..].[all] of group:g1 is empty
 =END=
 
 ############################################################
+=TITLE=Empty list in automatic group with attribute
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = interface:[managed & ].[all];
+ permit src = user; dst = network:n1, any:[ip = ::a01:0/112 & ]; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: interface:[..].[all] of user of service:s1 is empty
+Warning: any:[..] of dst of rule in service:s1 is empty
+=END=
+
+############################################################
 =TITLE=Empty user and empty rules
 =PARAMS=--ipv6
 =INPUT=
