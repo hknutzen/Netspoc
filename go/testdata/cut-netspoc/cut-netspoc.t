@@ -865,6 +865,68 @@ service:test = {
 =END=
 
 ############################################################
+=TITLE=Remove aggregate from automatic network that leads to empty networks
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+area:n1-3 = {
+ border = interface:r2.n3;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+service:test = {
+ user = network:[
+         any:[ip = 10.1.0.0/23 & area:n1-3]
+         &! any:[ip = 10.1.0.0/23 & any:[network:n3]],
+        ],
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+service:test = {
+ user = network:[
+         any:[ip = 10.1.0.0/23 & network:n1],
+        ],
+        network:n3,
+        ;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp;
+}
+=END=
+
+############################################################
 =TITLE=Area defined by anchor, anchor outside of path
 =TEMPL=input
 network:n1 = { ip = 10.1.1.0/24; }
@@ -2723,6 +2785,9 @@ router:r3 = {
 service:s1 = {
  user = interface:[managed & area:n2-3].[auto]
         &! interface:r3.[auto]
+        ,
+        interface:[managed & network:n2, network:n3].[auto]
+        &! interface:[managed & network:n2].[auto]
         ;
  permit src = user;
         dst = network:n1;
@@ -2732,6 +2797,7 @@ service:s1 = {
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
 router:r1 = {
  managed;
  model = ASA;
@@ -2742,9 +2808,12 @@ router:r2 = {
  managed;
  model = ASA;
  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
 service:s1 = {
- user = interface:r2.[auto];
+ user = interface:r2.[auto],
+        interface:[managed & network:n3].[auto],
+        ;
  permit src = user;
         dst = network:n1;
         prt = udp 123;

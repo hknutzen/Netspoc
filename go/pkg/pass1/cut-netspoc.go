@@ -335,6 +335,75 @@ func (c *spoc) markAndSubstElements(
 	expand := func(el ast.Element) groupObjList {
 		return c.expandGroup([]ast.Element{el}, ctx, v6, false)
 	}
+	toAST := func(obj groupObj) ast.Element {
+		name := obj.String()
+		i := strings.Index(name, ":")
+		typ := name[:i]
+		name = name[i+1:]
+		switch x := obj.(type) {
+		case *host, *area:
+			a := new(ast.NamedRef)
+			a.Type = typ
+			a.Name = name
+			return a
+		case *network:
+			if x.isAggregate && name[0] == '[' {
+				ip := ""
+				if i := strings.Index(name, " & "); i >= 0 {
+					ip = name[len("[ip="):i]
+					name = name[i+3:]
+				}
+				name = name[:len(name)-1]
+				a := new(ast.AggAuto)
+				a.Type = typ
+				a.Net = ip
+				n := new(ast.NamedRef)
+				n.Type = "network"
+				n.Name = name[len("network:"):]
+				a.Elements = []ast.Element{n}
+				return a
+			} else {
+				a := new(ast.NamedRef)
+				a.Type = typ
+				a.Name = name
+				return a
+			}
+		case *routerIntf:
+			i := strings.Index(name, ".")
+			router := name[:i]
+			net := name[i+1:]
+			a := new(ast.IntfRef)
+			a.Type = typ
+			a.Router = router
+			if i := strings.Index(net, "."); i >= 0 {
+				a.Extension = net[i+1:]
+				net = net[:i]
+			}
+			a.Network = net
+			return a
+		case *autoIntf:
+			if r, ok := x.object.(*router); ok {
+				a := new(ast.IntfRef)
+				a.Type = typ
+				a.Router = r.name[len("router:"):]
+				a.Network = "["
+				a.Extension = "auto"
+				return a
+			} else {
+				net := x.object.(*network)
+				a := new(ast.IntfAuto)
+				a.Type = typ
+				a.Managed = x.managed
+				a.Selector = "auto"
+				n := new(ast.NamedRef)
+				n.Type = "network"
+				n.Name = net.name[len("network:"):]
+				a.Elements = []ast.Element{n}
+				return a
+			}
+		}
+		return nil
+	}
 	var traverse func(l []ast.Element) []ast.Element
 	traverse = func(l []ast.Element) []ast.Element {
 		var expanded groupObjList
@@ -353,11 +422,20 @@ func (c *spoc) markAndSubstElements(
 				}
 				isUsed[typedName] = true
 			case ast.AutoElem:
+				// Ignore empty automatic group
 				if len(expand(el)) == 0 {
-					continue // Ignore empty automatic group
+					continue
 				}
+				// Remove sub elements that would evaluate to empty list.
 				l2 := traverse(x.GetElements())
-				x.SetElements(l2)
+				var l3 []ast.Element
+				for _, el2 := range l2 {
+					x.SetElements([]ast.Element{el2})
+					if len(expand(el)) != 0 {
+						l3 = append(l3, el2)
+					}
+				}
+				x.SetElements(l3)
 			case *ast.IntfRef:
 				for _, obj := range expand(el) {
 					switch x := obj.(type) {
@@ -375,15 +453,7 @@ func (c *spoc) markAndSubstElements(
 		}
 		result := l[:j]
 		for _, obj := range expanded {
-			name := obj.String()
-			i := strings.Index(name, ":")
-			// ast.NamedRef is not fully correct for IntfRef, SimpleAuto,
-			// AggAuto, IntfAuto, but is printed correctly by
-			// printer.print anyway.
-			a := new(ast.NamedRef)
-			a.Type = name[:i]
-			a.Name = name[i+1:]
-			result = append(result, a)
+			result = append(result, toAST(obj))
 		}
 		return result
 	}
