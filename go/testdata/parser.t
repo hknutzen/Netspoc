@@ -744,7 +744,7 @@ network:n1 = { unnumbered; }
 =END=
 =ERROR=
 Error: Invalid 'id' in interface:r.n1: a.b.c
-Error: Attribute 'id' is only valid with 'spoke' at interface:r.n1
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r.n1
 =END=
 
 ############################################################

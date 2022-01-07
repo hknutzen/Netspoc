@@ -1622,7 +1622,8 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				intf)
 		}
 	} else if intf.id != "" {
-		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
+		intf.id = ""
+		c.warn("Ignoring attribute 'id' only valid with 'spoke' at %s", intf)
 	}
 
 	// Swap virtual interface and main interface
