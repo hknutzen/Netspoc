@@ -2572,6 +2572,51 @@ network:customers1 = {
 =END=
 
 ############################################################
+=TITLE=ID host in intersection
+=INPUT=
+[[topo]]
+[[clients1]]
+[[clients2]]
+group:g1 =
+ host:id:foo@domain.x.customers1,
+ host:id:bar@domain.x.customers1,
+ host:id:domain.x.customers2,
+ host:id:@domain.y.customers2,
+;
+service:s1 = {
+ user = group:g1 &! host:id:bar@domain.x.customers1;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+=OUTPUT=
+[[topo]]
+router:softclients1 = {
+ interface:internet = {
+  spoke = crypto:vpn1;
+ }
+ interface:customers1;
+}
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  banner = Willkommen zurück;
+ }
+ host:id:foo@domain.x = { ip = 10.99.1.10; }
+}
+[[clients2]]
+service:s1 = {
+ user = host:id:foo@domain.x.customers1,
+        host:id:domain.x.customers2,
+        host:id:@domain.y.customers2,
+        ;
+ permit src = user;
+        dst = network:intern;
+        prt = tcp 80;
+}
+=END=
+
+############################################################
 =TITLE=Host with ldap_id
 =TEMPL=service
 service:test1 = {
@@ -2609,6 +2654,85 @@ network:customers3 = {
  }
 }
 [[service]]
+=END=
+
+############################################################
+=TITLE=VPN spoke with unused hub
+=INPUT=
+ipsec:aes256SHA = {
+ key_exchange = isakmp:aes256SHA;
+ esp_encryption = aes256;
+ esp_authentication = sha;
+ pfs_group = 2;
+ lifetime = 1 hour 100000 kilobytes;
+}
+isakmp:aes256SHA = {
+ nat_traversal = additional;
+ authentication = rsasig;
+ encryption = aes256;
+ hash = sha;
+ group = 2;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+crypto:sts = {
+ type = ipsec:aes256SHA;
+}
+network:intern = { ip = 10.1.1.0/24; }
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.1.1;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = {
+ ip = 192.168.1.0/24;
+ host:ntp = { ip = 192.168.1.123; }
+}
+router:vpn1 = {
+ managed;
+ model = ASA;
+ interface:dmz = {
+  ip = 192.168.1.2;
+  id = cert@example.com;
+  spoke = crypto:sts;
+  hardware = dmz;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+  hardware = Fastethernet8;
+ }
+}
+network:lan1 = { ip = 10.99.1.0/24; }
+service:ntp = {
+ user = interface:vpn1.dmz;
+ permit src = user;
+        dst = host:ntp;
+        prt = udp 123;
+}
+=OUTPUT=
+network:dmz = {
+ ip = 192.168.1.0/24;
+ host:ntp = { ip = 192.168.1.123; }
+}
+router:vpn1 = {
+ managed;
+ model = ASA;
+ interface:dmz = { ip = 192.168.1.2; hardware = dmz; }
+}
+service:ntp = {
+ user = interface:vpn1.dmz;
+ permit src = user;
+        dst = host:ntp;
+        prt = udp 123;
+}
 =END=
 
 ############################################################
@@ -2820,6 +2944,100 @@ service:s1 = {
 }
 =END=
 
+############################################################
+=TITLE=Negated interface
+=INPUT=
+router:u1 = {
+ interface:n1 = { ip = 10.1.1.11, 10.1.1.21; }
+}
+router:u2 = {
+ interface:n1 = { ip = 10.1.1.12; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:[network:n1].[all]
+        &! interface:u2.n1,
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = udp 123;
+}
+=OUTPUT=
+router:u1 = {
+ interface:n1 = { ip = 10.1.1.11, 10.1.1.21; }
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = interface:u1.n1,
+        interface:u1.n1.2,
+        interface:r1.n1,
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = udp 123;
+}
+=END=
+
+############################################################
+=TITLE=Negated host
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = host:[network:n1]
+        &! host:h11,
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = udp 123;
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = host:h10,
+        host:h12,
+        ;
+ permit src = user;
+        dst = network:n2;
+        prt = udp 123;
+}
+=END=
 ############################################################
 =TITLE=Intersection with user
 =INPUT=

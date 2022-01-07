@@ -336,6 +336,7 @@ func (c *spoc) markAndSubstElements(
 		return c.expandGroup([]ast.Element{el}, ctx, v6, false)
 	}
 	toAST := func(obj groupObj) ast.Element {
+		var result ast.Element
 		name := obj.String()
 		i := strings.Index(name, ":")
 		typ := name[:i]
@@ -345,7 +346,7 @@ func (c *spoc) markAndSubstElements(
 			a := new(ast.NamedRef)
 			a.Type = typ
 			a.Name = name
-			return a
+			result = a
 		case *network:
 			if x.isAggregate && name[0] == '[' {
 				name = name[1:]
@@ -362,12 +363,12 @@ func (c *spoc) markAndSubstElements(
 				n.Type = "network"
 				n.Name = name[len("network:"):]
 				a.Elements = []ast.Element{n}
-				return a
+				result = a
 			} else {
 				a := new(ast.NamedRef)
 				a.Type = typ
 				a.Name = name
-				return a
+				result = a
 			}
 		case *routerIntf:
 			i := strings.Index(name, ".")
@@ -381,7 +382,7 @@ func (c *spoc) markAndSubstElements(
 				net = net[:i]
 			}
 			a.Network = net
-			return a
+			result = a
 		case *autoIntf:
 			if r, ok := x.object.(*router); ok {
 				a := new(ast.IntfRef)
@@ -389,7 +390,7 @@ func (c *spoc) markAndSubstElements(
 				a.Router = r.name[len("router:"):]
 				a.Network = "["
 				a.Extension = "auto"
-				return a
+				result = a
 			} else {
 				net := x.object.(*network)
 				a := new(ast.IntfAuto)
@@ -400,10 +401,10 @@ func (c *spoc) markAndSubstElements(
 				n.Type = "network"
 				n.Name = net.name[len("network:"):]
 				a.Elements = []ast.Element{n}
-				return a
+				result = a
 			}
 		}
-		return nil
+		return result
 	}
 	var traverse func(l []ast.Element) []ast.Element
 	traverse = func(l []ast.Element) []ast.Element {
