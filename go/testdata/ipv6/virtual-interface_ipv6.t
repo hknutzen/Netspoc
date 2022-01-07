@@ -91,11 +91,13 @@ Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 router:r1 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
 }
 router:r2 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
 }
 network:n1 = { ip = ::a01:100/120; }
@@ -106,8 +108,8 @@ network:n1 = { ip = ::a01:100/120; }
 # situation.
 network:n2 = { ip = ::a01:200/120; }
 router:r3 = {
- managed;
  model = ASA;
+ managed;
  interface:n1 = { ip = ::a01:104; hardware = n1; }
  interface:n2 = { ip = ::a01:204; hardware = n2; }
 }
@@ -122,9 +124,53 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = udp 123;
 }
 =END=
-=ERROR=
-Error: interface:r1.n1.virtual must be located inside cyclic sub-graph
-Error: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=WARNING=
+Warning: interface:r1.n1.virtual must be located inside cyclic sub-graph
+Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=END=
+
+############################################################
+=TITLE=Virtual interfaces test routing
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n3 = { ip = ::a01:302; virtual = { ip = ::a01:301; } hardware = n3; }
+}
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:303; virtual = { ip = ::a01:301; }  hardware = n3; }
+}
+
+router:r3 = {
+ model = IOS;
+ managed;
+ interface:n3 = { ip = ::a01:304; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = network:n1, network:n2; prt = tcp 80;
+}
+=WARNING=
+Warning: interface:r1.n3.virtual must be located inside cyclic sub-graph
+Warning: interface:r2.n3.virtual must be located inside cyclic sub-graph
+=OUTPUT=
+--ipv6/r3
+! [ Routing ]
+ipv6 route ::a01:100/120 ::a01:302
+ipv6 route ::a01:200/120 ::a01:303
 =END=
 
 ############################################################

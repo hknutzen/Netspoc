@@ -12,9 +12,9 @@ func (c *spoc) setPath() {
 	c.progress("Preparing fast path traversal")
 	c.findDistsAndLoops()
 	c.processLoops()
+	c.checkVirtualInterfaces()
 	c.checkPathrestrictions()
 	c.linkPathrestrictions()
-	c.checkVirtualInterfaces()
 }
 
 /* findDistsAndLoops sets direction and distances to an arbitrary
@@ -447,8 +447,13 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 		}
 
 		if loop == nil {
-			c.warn("Ignoring %s at %s\n because it isn't located "+
-				"inside cyclic graph", p.name, intf)
+			// Don't show warning for automatically created
+			// pathrestriction because equivalent warning was already
+			// shown for virtual interfaces.
+			if !strings.HasPrefix(p.name, "auto-virtual:") {
+				c.warn("Ignoring %s at %s\n because it isn't located "+
+					"inside cyclic graph", p.name, intf)
+			}
 			continue
 		}
 
@@ -456,8 +461,10 @@ func (c *spoc) removeRestrictedIntfsInWrongOrNoLoop(p *pathRestriction) {
 		cluster := loop.clusterExit
 		if prevCluster != nil {
 			if cluster != prevCluster {
-				c.warn("Ignoring %s having elements from different loops:\n"+
-					" - %s\n - %s", p.name, prevIntf, origIntf)
+				if !strings.HasPrefix(p.name, "auto-virtual:") {
+					c.warn("Ignoring %s having elements from different loops:\n"+
+						" - %s\n - %s", p.name, prevIntf, origIntf)
+				}
 				p.elements = nil
 				return
 			}
@@ -599,7 +606,7 @@ func (c *spoc) checkVirtualInterfaces() {
 
 		// Check whether all virtual interfaces are part of a loop.
 		if intf.router.loop == nil {
-			c.err("%s must be located inside cyclic sub-graph", intf)
+			c.warn("%s must be located inside cyclic sub-graph", intf)
 			continue
 		}
 

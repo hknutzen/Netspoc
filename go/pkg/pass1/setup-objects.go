@@ -3741,7 +3741,7 @@ func (c *spoc) linkVirtualInterfaces() {
 		for _, intf := range l {
 			r := intf.router
 			if r.managed != "" || r.routingOnly {
-				name := "auto-virtual-" + intf.ip.String()
+				name := "auto-virtual:" + intf.ip.String()
 				c.addPathrestriction(name, l)
 				break
 			}
