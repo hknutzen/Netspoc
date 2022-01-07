@@ -348,6 +348,7 @@ func (c *spoc) markAndSubstElements(
 			return a
 		case *network:
 			if x.isAggregate && name[0] == '[' {
+				name = name[1:]
 				ip := ""
 				if i := strings.Index(name, " & "); i >= 0 {
 					ip = name[len("[ip="):i]
