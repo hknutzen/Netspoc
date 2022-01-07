@@ -351,7 +351,7 @@ func (c *spoc) markAndSubstElements(
 				name = name[1:]
 				ip := ""
 				if i := strings.Index(name, " & "); i >= 0 {
-					ip = name[len("[ip="):i]
+					ip = name[len("ip="):i]
 					name = name[i+3:]
 				}
 				name = name[:len(name)-1]
@@ -947,6 +947,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		var l []*ast.Attribute
 		for _, a := range n.Interfaces {
 			if isUsed[name+a.Name[len("interface:"):]] {
+				delSpoke := false
 				l = append(l, a)
 				attrList := a.ComplexValue
 				j := 0
@@ -965,6 +966,12 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 							l2 = nil
 							changed = true
 						}
+					case "spoke":
+						if len(l2) == 1 && !isUsed[l2[0].Value] {
+							l2 = nil
+							changed = true
+							delSpoke = true
+						}
 					}
 					if !changed || l2 != nil {
 						a2.ValueList = l2
@@ -973,6 +980,9 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 					}
 				}
 				a.ComplexValue = attrList[:j]
+				if delSpoke {
+					removeAttr(&a.ComplexValue, "id")
+				}
 			}
 		}
 		n.Interfaces = l
