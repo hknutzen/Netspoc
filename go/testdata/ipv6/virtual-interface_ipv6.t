@@ -84,7 +84,7 @@ Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 =END=
 
 ############################################################
-=TITLE=Virtual interface in non cyclic sub-graph
+=TITLE=Virtual interface in non cyclic sub-graph at border of loop
 =PARAMS=--ipv6
 =INPUT=
 # Virtual interface outside of loop, but at border of other loop.
@@ -101,11 +101,9 @@ router:r2 = {
  interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
 }
 network:n1 = { ip = ::a01:100/120; }
-# Add loop. This isn't needed to get the error messages.
-# But the virtual interfaces are located at border of this loop.
-# With this test we also check, that automatically created
-# pathrestrictions at virtual interfaces are removed correctly in this
-# situation.
+# Add loop. This isn't needed to get warnings.
+# But the virtual interfaces are located at border of this loop and hence
+# the automatically created pathrestriction is valid.
 network:n2 = { ip = ::a01:200/120; }
 router:r3 = {
  model = ASA;
@@ -130,7 +128,7 @@ Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
 =END=
 
 ############################################################
-=TITLE=Virtual interfaces test routing
+=TITLE=Virtual interfaces in non cyclic sub-graph with static routes
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
