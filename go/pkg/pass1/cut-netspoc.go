@@ -295,10 +295,8 @@ func markUnconnectedObj(n *network) {
 		isUsed[n.name] = true
 		if l := n.link; l != nil {
 			n = l
-		} else if l := n.networks; len(l) > 0 {
-			n = l[0]
 		} else {
-			n = n.interfaces[0].network
+			n = n.zone.interfaces[0].network
 		}
 		//debug("->Connecting %s", n)
 	}
@@ -551,7 +549,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			collectObjects := func(group []srvObj) {
 				for _, obj := range group {
 
-					// pathWalk only handles managed routers and interfaces.
+					// pathWalk only handles networks connected to managed routers.
 					// Mark all objects additionally here.
 					markUnconnectedObj(obj.getNetwork())
 					isUsed[obj.String()] = true

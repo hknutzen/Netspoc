@@ -3407,3 +3407,60 @@ service:s1 = {
         prt = tcp 80;
 }
 =END=
+
+############################################################
+=TITLE=Path in unmanaged loop
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.2; }
+ interface:n2 = { ip = 10.1.2.2; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+any:n3 = { link = network:n3; }
+service:s1 = {
+ user = any:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:n2 = { ip = 10.1.2.1; }
+ interface:n3 = { ip = 10.1.3.1; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+any:n3 = {
+ link = network:n3;
+}
+service:s1 = {
+ user = any:n3;
+ permit src = user;
+        dst = network:n4;
+        prt = tcp 80;
+}
+=END=
