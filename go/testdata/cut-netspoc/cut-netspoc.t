@@ -342,7 +342,11 @@ network:n3 = {
 router:asa1 = {
  managed;
  model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n1 = {
+  ip = 10.1.1.1;
+  hardware = n1;
+  bind_nat = a2;
+ }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 router:asa2 = {

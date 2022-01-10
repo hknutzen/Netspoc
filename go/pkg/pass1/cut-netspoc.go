@@ -291,22 +291,18 @@ func markUnconnectedObj(n *network) {
 
 	//debug("\nConnecting %s", n)
 	seen = make(map[netPathObj]bool)
-	//mark(n, nil)
-	seen[n] = true
-	for _, intf := range n.interfaces {
-		if intf.mainIntf != nil {
-			continue
+	if n.isAggregate {
+		isUsed[n.name] = true
+		if l := n.link; l != nil {
+			n = l
+		} else if l := n.networks; len(l) > 0 {
+			n = l[0]
+		} else {
+			n = n.interfaces[0].network
 		}
-		next := intf.router
-		//debug("-Try %s %s", next, intf)
-		if mark(next, intf) {
-			isUsed[intf.name] = true
-			//debug("Marked %s", intf)
-			// Only mark first found path.
-			break
-		}
+		//debug("->Connecting %s", n)
 	}
-	isUsed[n.name] = true
+	mark(n, nil)
 }
 
 func (c *spoc) markCryptoPath(src, dst *routerIntf) {
@@ -417,7 +413,12 @@ func (c *spoc) markAndSubstElements(
 				if isUsed[typedName] {
 					break
 				}
-				if x.Type == "group" {
+				switch x.Type {
+				case "any", "network":
+					for _, obj := range expand(el) {
+						markUnconnectedObj(obj.(*network))
+					}
+				case "group":
 					if def, found := m[typedName]; found {
 						c.markAndSubstElements(&def.Elements, typedName, v6, m)
 					}
