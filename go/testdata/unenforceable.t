@@ -71,7 +71,7 @@ service:test = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'has_unenforceable' at service:test
+Warning: Attribute 'has_unenforceable' is blocked at service:test
 Warning: service:test has unenforceable rules:
  src=host:x7; dst=host:x7
  src=host:x9; dst=host:x7
@@ -95,7 +95,7 @@ service:s2 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'has_unenforceable' at service:s2
+Warning: Attribute 'has_unenforceable' is blocked at service:s2
 Warning: service:s2 has unenforceable rules:
  src=host:y; dst=network:y
 =END=
@@ -306,7 +306,7 @@ service:s3 = {
  permit src = user; dst = host:x8, host:y; prt = tcp 82;
 }
 =WARNING=
-Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: Attribute 'has_unenforceable' is blocked at service:s1
 Warning: service:s1 has unenforceable rules:
  src=host:x7; dst=host:x7
 =END=
@@ -337,7 +337,7 @@ service:s1 = {
 # Warning about unenforceable rules between any:[network:n1] and
 # any:[network:n2] is suppressed.
 =WARNING=
-Warning: Must not use attribute 'has_unenforceable' at service:s1
+Warning: Attribute 'has_unenforceable' is blocked at service:s1
 Warning: service:s1 has unenforceable rules:
  src=network:n2; dst=network:n2
  src=network:n3; dst=network:n3

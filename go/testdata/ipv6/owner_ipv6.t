@@ -515,7 +515,7 @@ service:s1 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'unknown_owner' at service:s1
+Warning: Attribute 'unknown_owner' is blocked at service:s1
 =END=
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -881,7 +881,7 @@ service:s1 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'multi_owner' at service:s1
+Warning: Attribute 'multi_owner' is blocked at service:s1
 =END=
 
 ############################################################

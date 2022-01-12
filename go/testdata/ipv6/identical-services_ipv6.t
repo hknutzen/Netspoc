@@ -752,7 +752,7 @@ service:s2 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'identical_body' in service:s1
+Warning: Attribute 'identical_body' is blocked at service:s1
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
@@ -781,7 +781,7 @@ service:s2 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'identical_body' in service:s1
+Warning: Attribute 'identical_body' is blocked at service:s1
 Warning: Useless attribute 'identical_body' in service:s1
 =OPTIONS=--check_identical_services=warn
 

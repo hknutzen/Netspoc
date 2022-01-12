@@ -390,7 +390,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 					if restricted {
-						c.warn("Must not use attribute 'multi_owner' at %s", svc)
+						c.warn("Attribute 'multi_owner' is blocked at %s", svc)
 					} else if info.sameObjects {
 
 						// Check if attribute 'multi_owner' could be avoided,
@@ -457,7 +457,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					for obj, _ := range objects {
 						if obj.getOwner() == nil &&
 							getAttr(obj, unknownOwnerAttr) == restrictVal {
-							c.warn("Must not use attribute 'unknown_owner' at %s", svc)
+							c.warn("Attribute 'unknown_owner' is blocked at %s", svc)
 							break
 						}
 					}

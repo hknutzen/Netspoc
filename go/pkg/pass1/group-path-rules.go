@@ -67,7 +67,7 @@ func (c *spoc) showUnenforceable() {
 				if srcAttr == restrictVal && dstAttr == restrictVal {
 					if !sv.hasUnenforceableRestricted {
 						sv.hasUnenforceableRestricted = true
-						c.warn("Must not use attribute 'has_unenforceable' at %s", sv)
+						c.warn("Attribute 'has_unenforceable' is blocked at %s", sv)
 					}
 				} else {
 					continue
