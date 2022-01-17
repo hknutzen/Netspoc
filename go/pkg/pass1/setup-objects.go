@@ -1240,6 +1240,11 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				}
 			}
 		}
+	} else {
+		// Unmanaged device.
+		if r.owner != nil {
+			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
+		}
 	}
 
 	// Check again after "managed=routing_only" has been removed.
@@ -1340,11 +1345,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			if r.radiusAttributes != nil {
 				c.warn("Ignoring 'radius_attributes' at %s", name)
 			}
-		}
-	} else {
-		// Unmanaged device.
-		if r.owner != nil {
-			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
 		}
 	}
 
