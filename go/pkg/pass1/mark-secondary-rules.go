@@ -133,24 +133,6 @@ func getZone(path pathStore, list []someObj) *zone {
 	return result
 }
 
-// Get filter type of router if destination is interface.
-// Ignore loopback interface.
-func getRouterFilter(path pathStore, list []someObj) string {
-	switch x := path.(type) {
-	case *routerIntf:
-		return x.router.managed
-	case *router:
-		if len(list) == 1 {
-			intf := list[0].(*routerIntf)
-			if intf.loopback {
-				return ""
-			}
-		}
-		return x.managed
-	}
-	return ""
-}
-
 type conflictKey = struct {
 	isSrc     bool
 	isPrimary bool
@@ -358,18 +340,13 @@ func (c *spoc) markSecondaryRules() {
 		if dstZone == nil {
 			continue
 		}
-		f := getRouterFilter(rule.dstPath, rule.dst)
 		if srcZone.secondaryMark != dstZone.secondaryMark {
-			if f == "" || f != "secondary" {
-				rule.someNonSecondary = true
-				collectConflict(rule, srcZone, dstZone, conflict, false)
-			}
+			rule.someNonSecondary = true
+			collectConflict(rule, srcZone, dstZone, conflict, false)
 		}
 		if srcZone.primaryMark != dstZone.primaryMark {
-			if f == "" || f == "primary" {
-				rule.somePrimary = true
-				collectConflict(rule, srcZone, dstZone, conflict, true)
-			}
+			rule.somePrimary = true
+			collectConflict(rule, srcZone, dstZone, conflict, true)
 		}
 	}
 	checkConflict(conflict)

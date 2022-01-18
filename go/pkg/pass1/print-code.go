@@ -2106,6 +2106,22 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 								var subst *network
 								switch o := obj.(type) {
 								case *subnet, *routerIntf:
+									if intf, ok := obj.(*routerIntf); ok {
+
+										// Must not optimize interface of
+										// current router. This would allow
+										// unexpected access if another rule
+										// allows access to the network of this
+										// interface, located directly before or
+										// behind this router.
+										//
+										// Ignore loopback interface that isn't
+										// part of other network.
+										if intf.router == r && !intf.loopback {
+											noOptAddrs[obj] = true
+											continue
+										}
+									}
 									net := obj.getNetwork()
 									if net.hasOtherSubnet {
 										continue

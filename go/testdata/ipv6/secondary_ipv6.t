@@ -715,7 +715,8 @@ service:s1 = {
 }
 service:s2 = {
  user = network:n1;
- permit src = user; dst = interface:r2.n2; prt = udp 123;
+ # Optimization is disabled, even if no network rule is present.
+ permit src = user; dst = interface:r2.n2, interface:r2.n3; prt = udp 123;
 }
 =END=
 =OUTPUT=
@@ -723,6 +724,7 @@ service:s2 = {
 ! [ ACL ]
 ipv6 access-list n2_in
  permit udp ::a01:100/120 host ::a01:202 eq 123
+ permit udp ::a01:100/120 host ::a01:302 eq 123
  deny ipv6 any any
 =END=
 
