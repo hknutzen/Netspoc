@@ -161,7 +161,7 @@ func (c *spoc) checkAttrOverlaps(
 		if srcAttr == restrictVal && dstAttr == restrictVal {
 			if !ri.overlapsRestricted[sv] {
 				ri.overlapsRestricted[sv] = true
-				c.warn("Must not use attribute 'overlaps' at %s", sv)
+				c.warn("Attribute 'overlaps' is blocked at %s", sv)
 			}
 			return false
 		}

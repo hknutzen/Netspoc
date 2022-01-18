@@ -187,6 +187,40 @@ Error: Must not use attribute 'vip' at interface:r1.V of managed router
 =END=
 
 ############################################################
+=TITLE=Owner at router with managed = routing_only
+=INPUT=
+owner:y = { admins = y@a.b; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ owner = y;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; owner = y; }
+}
+router:r3 = {
+ managed = routing_only;
+ model = IOS;
+ owner = y;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r2.n2, interface:r3.n2; prt = icmp;
+}
+=WARNING=
+Warning: Ignoring attribute 'owner' at managed interface:r2.n2
+Warning: Unknown owner for interface:r2.n2 in service:s1
+=END=
+=OPTIONS=--check_service_unknown_owner=warn
+
+############################################################
 =TITLE=Owner with only watchers
 =INPUT=
 owner:x = { watchers = x@a.b; }
@@ -492,7 +526,7 @@ service:s1 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'unknown_owner' at service:s1
+Warning: Attribute 'unknown_owner' is blocked at service:s1
 =END=
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -844,7 +878,7 @@ service:s1 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'multi_owner' at service:s1
+Warning: Attribute 'multi_owner' is blocked at service:s1
 =END=
 
 ############################################################

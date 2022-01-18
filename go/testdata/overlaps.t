@@ -367,8 +367,8 @@ service:s18 = {
 }
 =END=
 =WARNING=
-Warning: Must not use attribute 'overlaps' at service:s15
-Warning: Must not use attribute 'overlaps' at service:s5
+Warning: Attribute 'overlaps' is blocked at service:s15
+Warning: Attribute 'overlaps' is blocked at service:s5
 Warning: Redundant rules in service:s15 compared to service:s16:
   permit src=network:n8; dst=network:n4; prt=tcp 80; of service:s15
 < permit src=network:n8; dst=network:n4; prt=tcp; of service:s16

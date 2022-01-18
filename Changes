@@ -1,3 +1,12 @@
+6.038     2022-01-18 11:15:47+01:00 Europe/Berlin
+
+ - Fixed optimization of destination interface at router with
+   'managed = secondary'. In this case optimization is disabled
+   to prevent unexpected access.
+ - Fix: Owner can be defined now for router with 'managed = routing_only'.
+ - Command 'netspoc' better cleans up existing directory 'code/.prev'.
+ - Fixed command 'cut-netspoc' to also handle complex topology.
+
 6.037     2021-12-20 14:46:06+01:00 Europe/Berlin
 
  - Added new command 'transpose-service'

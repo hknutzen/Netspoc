@@ -744,7 +744,7 @@ network:n1 = { unnumbered; }
 =END=
 =ERROR=
 Error: Invalid 'id' in interface:r.n1: a.b.c
-Error: Attribute 'id' is only valid with 'spoke' at interface:r.n1
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r.n1
 =END=
 
 ############################################################
@@ -1400,6 +1400,20 @@ service:s1 = {
 =WARNING=
 Warning: network:[..] of user of service:s1 is empty
 Warning: interface:[..].[all] of group:g1 is empty
+=END=
+
+############################################################
+=TITLE=Empty list in automatic group with attribute
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = interface:[managed & ].[all];
+ permit src = user; dst = network:n1, any:[ip = 10.1.0.0/16 & ]; prt = tcp 22;
+}
+=END=
+=WARNING=
+Warning: interface:[..].[all] of user of service:s1 is empty
+Warning: any:[..] of dst of rule in service:s1 is empty
 =END=
 
 ############################################################

@@ -1240,6 +1240,11 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				}
 			}
 		}
+	} else {
+		// Unmanaged device.
+		if r.owner != nil {
+			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
+		}
 	}
 
 	// Check again after "managed=routing_only" has been removed.
@@ -1340,11 +1345,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			if r.radiusAttributes != nil {
 				c.warn("Ignoring 'radius_attributes' at %s", name)
 			}
-		}
-	} else {
-		// Unmanaged device.
-		if r.owner != nil {
-			c.warn("Ignoring attribute 'owner' at unmanaged %s", name)
 		}
 	}
 
@@ -1622,7 +1622,8 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				intf)
 		}
 	} else if intf.id != "" {
-		c.err("Attribute 'id' is only valid with 'spoke' at %s", intf)
+		intf.id = ""
+		c.warn("Ignoring attribute 'id' only valid with 'spoke' at %s", intf)
 	}
 
 	// Swap virtual interface and main interface
@@ -3741,7 +3742,7 @@ func (c *spoc) linkVirtualInterfaces() {
 		for _, intf := range l {
 			r := intf.router
 			if r.managed != "" || r.routingOnly {
-				name := "auto-virtual-" + intf.ip.String()
+				name := "auto-virtual:" + intf.ip.String()
 				c.addPathrestriction(name, l)
 				break
 			}

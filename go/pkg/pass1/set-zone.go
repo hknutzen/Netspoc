@@ -40,6 +40,12 @@ func (c *spoc) setZones() {
 
 		// Collect zone elements...
 		c.setZone1(n, z, nil)
+
+		// Change name from tunnel network to real network for better
+		// error messages and for use in cut-netspoc.
+		if n.ipType == tunnelIP && len(z.networks) > 1 {
+			z.name = "any:[" + z.networks[1].name + "]"
+		}
 	}
 }
 

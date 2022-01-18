@@ -286,7 +286,9 @@ func (c *spoc) checkDynamicNatRules(
 							" to be valid in %s\n "+showRule(),
 							obj, natTag, r, ruleTxt)
 					}
-					checkCommon(inIntf, false)
+					if inIntf != nil {
+						checkCommon(inIntf, false)
+					}
 					if r.model.stateless {
 
 						// Reversed tcp rule would check for

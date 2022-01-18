@@ -1914,6 +1914,32 @@ Error: interface:r2.b needs static translation for nat:b at router:r2 to be vali
 =END=
 
 ############################################################
+=TITLE=Interface with dynamic NAT as source of managed device
+# No need to check interface of managed device.
+=INPUT=
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/28; dynamic; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:t1 = { ip = 10.1.9.1; hardware = t1; bind_nat = x; }
+}
+network:t1 = { ip = 10.1.9.0/24; }
+router:filter = {
+ interface:t1 = { ip = 10.1.9.2; }
+ interface:n2;
+}
+network:n2 = { ip = 10.1.2.0/24; }
+service:s = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n2; prt = udp 123;
+}
+=WARNING=NONE
+
+############################################################
 =TITLE=Grouped NAT tags must only be used grouped
 # n1 and n2 are translated at interface:r1.t, thus nat1 is active in
 # network:t. At interface:r2.k only n1 is translated though, leading

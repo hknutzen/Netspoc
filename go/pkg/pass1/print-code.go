@@ -2005,7 +2005,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 	var aclList []*jcode.ACLInfo
 	for _, r := range vrfMembers {
 		managed := r.managed
-		secondaryFilter := strings.HasSuffix(managed, "secondary")
+		secondaryFilter := managed == "secondary"
 		standardFilter := managed == "standard"
 		model := r.model
 		doAuth := model.doAuth
@@ -2106,6 +2106,22 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 								var subst *network
 								switch o := obj.(type) {
 								case *subnet, *routerIntf:
+									if intf, ok := obj.(*routerIntf); ok {
+
+										// Must not optimize interface of
+										// current router. This would allow
+										// unexpected access if another rule
+										// allows access to the network of this
+										// interface, located directly before or
+										// behind this router.
+										//
+										// Ignore loopback interface that isn't
+										// part of other network.
+										if intf.router == r && !intf.loopback {
+											noOptAddrs[obj] = true
+											continue
+										}
+									}
 									net := obj.getNetwork()
 									if net.hasOtherSubnet {
 										continue
@@ -2250,6 +2266,8 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 			c.abort("Can't %v", err)
 		}
 	} else if !fileop.IsDir(prev) {
+		// Try to remove file or symlink with same name.
+		os.Remove(prev)
 		oldFiles := fileop.Readdirnames(dir)
 		if count := len(oldFiles); count > 0 {
 			if fileop.IsDir(dir + "/ipv6") {
@@ -2259,8 +2277,6 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 			c.info("Saving %d old files of '%s' to subdirectory '.prev'",
 				count, dir)
 
-			// Try to remove file or symlink with same name.
-			os.Remove(prev)
 			err := os.Mkdir(prev, 0777)
 			if err != nil {
 				c.abort("Can't %v", err)

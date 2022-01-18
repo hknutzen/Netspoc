@@ -80,29 +80,29 @@ Error: interface:r2.n1 with virtual interface must not use attribute 'nat'
 =END=
 
 ############################################################
-=TITLE=Virtual interface in non cyclic sub-graph
+=TITLE=Virtual interface in non cyclic sub-graph at border of loop
 =INPUT=
 # Virtual interface outside of loop, but at border of other loop.
 router:r1 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.2; virtual = { ip = 10.1.1.1; } hardware = n1; }
 }
 router:r2 = {
  managed;
  model = ASA;
+ routing = manual;
  interface:n1 = { ip = 10.1.1.3; virtual = { ip = 10.1.1.1; } hardware = n1; }
 }
 network:n1 = { ip = 10.1.1.0/24; }
-# Add loop. This isn't needed to get the error messages.
-# But the virtual interfaces are located at border of this loop.
-# With this test we also check, that automatically created
-# pathrestrictions at virtual interfaces are removed correctly in this
-# situation.
+# Add loop. This isn't needed to get warnings.
+# But the virtual interfaces are located at border of this loop and hence
+# the automatically created pathrestriction is valid.
 network:n2 = { ip = 10.1.2.0/24; }
 router:r3 = {
- managed;
  model = ASA;
+ managed;
  interface:n1 = { ip = 10.1.1.4; hardware = n1; }
  interface:n2 = { ip = 10.1.2.4; hardware = n2; }
 }
@@ -117,9 +117,52 @@ service:s1 = {
  permit src = user; dst = network:n2; prt = udp 123;
 }
 =END=
-=ERROR=
-Error: interface:r1.n1.virtual must be located inside cyclic sub-graph
-Error: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=WARNING=
+Warning: interface:r1.n1.virtual must be located inside cyclic sub-graph
+Warning: interface:r2.n1.virtual must be located inside cyclic sub-graph
+=END=
+
+############################################################
+=TITLE=Virtual interfaces in non cyclic sub-graph with static routes
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.2; virtual = { ip = 10.1.3.1; } hardware = n3; }
+}
+
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.3; virtual = { ip = 10.1.3.1; }  hardware = n3; }
+}
+
+router:r3 = {
+ model = IOS;
+ managed;
+ interface:n3 = { ip = 10.1.3.4; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+service:s1 = {
+ user = network:n4;
+ permit src = user; dst = network:n1, network:n2; prt = tcp 80;
+}
+=WARNING=
+Warning: interface:r1.n3.virtual must be located inside cyclic sub-graph
+Warning: interface:r2.n3.virtual must be located inside cyclic sub-graph
+=OUTPUT=
+--r3
+! [ Routing ]
+ip route 10.1.1.0 255.255.255.0 10.1.3.2
+ip route 10.1.2.0 255.255.255.0 10.1.3.3
 =END=
 
 ############################################################

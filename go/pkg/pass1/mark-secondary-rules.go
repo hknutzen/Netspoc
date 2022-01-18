@@ -93,6 +93,8 @@ func markPrimary(zone *zone, mark int) {
 	}
 }
 
+// Find zone of src/dst elements of rule.
+// Return nil, if zone of elements can't be determined.
 func getZone(path pathStore, list []someObj) *zone {
 	var result *zone
 	switch x := path.(type) {
@@ -233,7 +235,7 @@ func collectConflict(rule *groupedRule, z1, z2 *zone,
 // with R2 is "managed=secondary"
 // Rules:
 // 1. permit net:src->any, telnet
-// 2. permit host:host:src->host:dst, http
+// 2. permit host:src->host:dst, http
 // Generated ACLs:
 // R1:
 // permit net:src any telnet
