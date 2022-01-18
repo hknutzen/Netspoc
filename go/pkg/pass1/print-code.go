@@ -2005,7 +2005,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 	var aclList []*jcode.ACLInfo
 	for _, r := range vrfMembers {
 		managed := r.managed
-		secondaryFilter := strings.HasSuffix(managed, "secondary")
+		secondaryFilter := managed == "secondary"
 		standardFilter := managed == "standard"
 		model := r.model
 		doAuth := model.doAuth
