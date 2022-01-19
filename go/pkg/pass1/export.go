@@ -7,7 +7,7 @@ package pass1
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-    (c) 2021 by Heinz Knutzen <heinz.knutzengmail.com>
+    (c) 2022 by Heinz Knutzen <heinz.knutzengmail.com>
 
 https://github.com/hknutzen/Netspoc-Web
 
@@ -1330,7 +1330,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	c.progress("Export owners")
 	email2owners := make(map[string]map[string]bool)
 	for name, ow := range symTable.owner {
-		var emails, watchers, eOwners stringList
+		var eOwners stringList
 		add := func(l []string) {
 			for _, email := range l {
 				oMap := email2owners[email]
@@ -1344,9 +1344,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 		dir := "owner/" + name
 		c.createDirs(outDir, dir)
 		add(ow.admins)
-		emails = append(emails, ow.admins...)
 		add(ow.watchers)
-		watchers = append(watchers, ow.watchers...)
 
 		// Handle extending owners.
 		for _, eOwner := range eInfo[ow] {
@@ -1367,8 +1365,8 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 			}
 			c.exportJson(outDir, dir+"/"+path, out)
 		}
-		export(emails, "email", "emails")
-		export(watchers, "email", "watchers")
+		export(ow.admins, "email", "emails")
+		export(ow.watchers, "email", "watchers")
 		export(eOwners, "name", "extended_by")
 	}
 
