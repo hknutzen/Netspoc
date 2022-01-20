@@ -76,6 +76,39 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Transpose service 2
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ description = testservice
+ user = host:u1,
+        host:u2,
+        ;
+ permit src = host:server1,
+              host:server2,
+              ;
+        dst = user;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=OUTPUT=
+service:s1 = {
+ description = testservice
+ user = host:server1,
+        host:server2,
+        ;
+ permit src = user;
+        dst = host:u1,
+              host:u2,
+              ;
+        prt = tcp 6514,
+              udp 20514,
+              ;
+}
+=END=
+
+############################################################
 =TITLE=Multiple rules
 =PARAMS=s1
 =INPUT=
@@ -123,3 +156,53 @@ service:usernetwork = {
 }
 =ERROR=
 Error: Can't transpose service: network with user present.
+=END=
+############################################################
+=TITLE=Cannot transpose if foreach is activated
+=PARAMS=usernetwork
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.13; }
+ host:h2 = { ip = 10.1.1.14; }
+}
+group:g1 = 
+ host:h1,
+ host:h2,
+ ;
+
+service:usernetwork = {
+ description = testservice
+
+ user = foreach
+	group:g1,
+	;
+ permit src = user;
+        dst = network:[user];
+        prt = tcp 6514,
+              udp 5565,
+              ;
+}
+=ERROR=
+Error: Can't transpose service: foreach present.
+=END=
+############################################################
+=TITLE=Cannot transpose if 
+=PARAMS=usernetwork
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+}
+service:usernetwork = {
+ description = testservice
+
+ user = network:n1;
+ permit src = user;
+        dst = user;
+        prt = tcp 6514,
+              udp 5565,
+              ;
+}
+=ERROR=
+Error: Can't transpose service: src and dst are user.
+=END=
