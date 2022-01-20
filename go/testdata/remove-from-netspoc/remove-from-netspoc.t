@@ -133,6 +133,7 @@ group:abc =
 =INPUT=
 group:abc =
  network:xyz,
+ interface:r2.[all],
  interface:r1@vrf.[auto],
  host:h,
 ;
@@ -143,7 +144,7 @@ group:abc =
  host:h,
 ;
 =END=
-=PARAMS=interface:r1@vrf.[auto]
+=PARAMS=interface:r1@vrf.[auto] interface:r2.[all]
 
 ############################################################
 =TITLE=Don't remove in intersection
@@ -214,6 +215,24 @@ group:abc =
 ;
 =END=
 =PARAMS=network:n1a network:n4
+
+############################################################
+=TITLE=automatic group becomes empty
+=INPUT=
+group:abc =
+ network:[any:[ip = 10.1.0.0/16 &
+  network:n1,
+  network:n2,
+ ]],
+ network:n3,
+;
+=END=
+=OUTPUT=
+group:abc =
+ network:n3,
+;
+=END=
+=PARAMS=network:n1 network:n2
 
 ############################################################
 =TITLE=area in automatic group
@@ -378,7 +397,7 @@ group:g2 =
 =PARAMS=host:b
 
 ############################################################
-=TITLE=When all elements in one list are removed, do not change next list
+=TITLE=Remove service with empty user
 =INPUT=
 service:s1 = {
  user = host:a,
@@ -386,20 +405,26 @@ service:s1 = {
  permit src = host:c,
               host:d;
         dst = user;
-        prt = tcp 80 90;
+        prt = tcp 80;
 }
 =END=
-=OUTPUT=
-service:s1 = {
- user = ;
- permit src = host:c,
-              host:d,
-              ;
-        dst = user;
-        prt = tcp 80 90;
-}
-=END=
+=OUTPUT=NONE
 =PARAMS=host:a host:b
+
+############################################################
+=TITLE=Remove service with empty src
+=INPUT=
+service:s1 = {
+ user = host:a,
+        host:b;
+ permit src = host:c,
+              host:d;
+        dst = user;
+        prt = tcp 80;
+}
+=END=
+=OUTPUT=NONE
+=PARAMS=host:c host:d
 
 ############################################################
 =TITLE=Find and change umlauts
@@ -506,7 +531,7 @@ Error: Missing type in host_a
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Can't use type in service:s1
+Error: Can't remove service:s1
 =END=
 =PARAMS=service:s1
 

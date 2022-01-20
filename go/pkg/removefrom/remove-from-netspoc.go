@@ -23,6 +23,11 @@ definitions and in implicit groups inside rules, i.e. after "user =",
 "src =", "dst = ".  Multiple OBJECTS can be removed in a single run of
 remove-from-netspoc.
 
+If a service gets empty "user","src" or "dst" after removal of OBJECT,
+the definition of this service is removed as well.
+
+If a group is removed, the definition of this group is removed as well.
+
 The following types can be used in OBJECTS:
 B<network host interface any group area>.
 
@@ -88,18 +93,13 @@ var validType = map[string]bool{
 
 var validName = regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
 
-type state struct {
-	*astset.State
-	remove map[string]bool
-}
-
 func checkName(typedName string) error {
 	pair := strings.SplitN(typedName, ":", 2)
 	if len(pair) != 2 {
 		return fmt.Errorf("Missing type in %s", typedName)
 	}
 	if !validType[pair[0]] {
-		return fmt.Errorf("Can't use type in %s", typedName)
+		return fmt.Errorf("Can't remove %s", typedName)
 	}
 	if m := validName.FindStringSubmatch(pair[1]); m != nil {
 		return fmt.Errorf("Invalid character '%s' in %s", m[0], typedName)
@@ -107,69 +107,84 @@ func checkName(typedName string) error {
 	return nil
 }
 
-func (s *state) setupObjects(objects []string) error {
+func setupObjects(m map[string]bool, objects []string) error {
 	for _, object := range objects {
 		if err := checkName(object); err != nil {
 			return err
 		}
-		s.remove[object] = true
+		m[object] = true
 	}
 	return nil
 }
 
-func (s *state) elementList(l *([]ast.Element)) bool {
-	changed := false
-	j := 0
-	for _, n := range *l {
-		switch obj := n.(type) {
-		case ast.NamedElem:
-			name := n.GetType() + ":" + obj.GetName()
-			if s.remove[name] {
-				changed = true
-				continue
-			}
-		case *ast.SimpleAuto:
-			changed = s.elementList(&obj.Elements) || changed
-		case *ast.AggAuto:
-			changed = s.elementList(&obj.Elements) || changed
-		case *ast.IntfAuto:
-			changed = s.elementList(&obj.Elements) || changed
-		}
-		(*l)[j] = n
-		j++
-	}
-	*l = (*l)[:j]
-	return changed
-}
-
-func (s *state) toplevel(n ast.Toplevel) bool {
-	switch x := n.(type) {
-	case *ast.TopList:
-		if strings.HasPrefix(x.Name, "group:") {
-			return s.elementList(&x.Elements)
-		}
-	case *ast.Service:
-		changed := s.elementList(&x.User.Elements)
-		for _, r := range x.Rules {
-			changed = s.elementList(&r.Src.Elements) || changed
-			changed = s.elementList(&r.Dst.Elements) || changed
-		}
-		return changed
-	}
-	return false
-}
-
-func (s *state) process() {
+func process(s *astset.State, remove map[string]bool) {
+	// To be deleted empty services.
+	var del []string
 
 	// Remove elements from element lists.
-	s.Modify(func(n ast.Toplevel) bool { return s.toplevel(n) })
+	s.Modify(func(n ast.Toplevel) bool {
+		changed := false
+		var traverse func(l []ast.Element) []ast.Element
+		traverse = func(l []ast.Element) []ast.Element {
+			j := 0
+			for _, el := range l {
+				switch x := el.(type) {
+				case ast.NamedElem:
+					name := x.GetType() + ":" + x.GetName()
+					if remove[name] {
+						changed = true
+						continue
+					}
+				case ast.AutoElem:
+					l2 := traverse(x.GetElements())
+					if len(l2) == 0 {
+						changed = true
+						continue
+					}
+					x.SetElements(l2)
+				}
+				l[j] = el
+				j++
+			}
+			return l[:j]
+		}
+		empty := false
+		change := func(l *[]ast.Element) {
+			l2 := traverse(*l)
+			if len(l2) == 0 {
+				empty = true
+			}
+			*l = l2
+		}
 
-	// Remove definition of group.
+		switch x := n.(type) {
+		case *ast.TopList:
+			if strings.HasPrefix(x.Name, "group:") {
+				change(&x.Elements)
+			}
+		case *ast.Service:
+			change(&x.User.Elements)
+			for _, r := range x.Rules {
+				change(&r.Src.Elements)
+				change(&r.Dst.Elements)
+			}
+			if empty {
+				del = append(del, x.Name)
+			}
+		}
+		return changed
+	})
+
+	// Delete definition of removed group.
 	// Silently ignore error, if definition isn't found.
-	for name := range s.remove {
+	for name := range remove {
 		if strings.HasPrefix(name, "group:") {
 			s.DeleteToplevel(name)
 		}
+	}
+	// Delete definition of empty service.
+	for _, name := range del {
+		s.DeleteToplevel(name)
 	}
 
 	for _, file := range s.Changed() {
@@ -177,13 +192,13 @@ func (s *state) process() {
 	}
 }
 
-func (s *state) readObjects(path string) error {
+func readObjects(m map[string]bool, path string) error {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}
 	objects := strings.Fields(string(bytes))
-	return s.setupObjects(objects)
+	return setupObjects(m, objects)
 }
 
 func Main() int {
@@ -217,16 +232,15 @@ func Main() int {
 	path := args[0]
 
 	// Initialize to be removed objects.
-	s := new(state)
-	s.remove = make(map[string]bool)
+	remove := make(map[string]bool)
 	if *fromFile != "" {
-		if err := s.readObjects(*fromFile); err != nil {
+		if err := readObjects(remove, *fromFile); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
-		if err := s.setupObjects(args[1:]); err != nil {
+		if err := setupObjects(remove, args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 			return 1
 		}
@@ -236,13 +250,12 @@ func Main() int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	var err error
-	s.State, err = astset.Read(path)
+	s, err := astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	s.process()
+	process(s, remove)
 	s.Print()
 	return 0
 }
