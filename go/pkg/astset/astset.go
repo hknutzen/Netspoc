@@ -162,20 +162,21 @@ func (s *State) DeleteToplevel(name string) error {
 }
 
 func (s *State) RemoveServiceFromOverlaps(name string) {
-	for _, aF := range s.astFiles {
-		for _, toplevel := range aF.Nodes {
-			if n, ok := toplevel.(*ast.Service); ok {
-				if overlaps := n.GetAttr("overlaps"); overlaps != nil {
-					overlaps.Remove(name)
-					if len(overlaps.ValueList) == 0 {
-						n.RemoveAttr("overlaps")
-					}
+	s.Modify(func(toplevel ast.Toplevel) bool {
+		if n, ok := toplevel.(*ast.Service); ok {
+			if overlaps := n.GetAttr("overlaps"); overlaps != nil {
+				oLen := len(overlaps.ValueList)
+				overlaps.Remove(name)
+				nLen := len(overlaps.ValueList)
+				if nLen == 0 {
+					n.RemoveAttr("overlaps")
 				}
+				return nLen < oLen
 			}
 		}
-	}
+		return false
+	})
 }
-
 
 func getTypeName(v string) (string, string) {
 	i := strings.Index(v, ":")
