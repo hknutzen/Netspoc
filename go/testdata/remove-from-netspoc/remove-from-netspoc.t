@@ -573,7 +573,7 @@ group:g1 =
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Missing type in host_a
+Error: Typed name expected at line 1 of command line, near "--HERE-->host_a"
 =END=
 =PARAMS=host_a
 
@@ -583,20 +583,54 @@ Error: Missing type in host_a
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Can't remove service:s1
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:s1"
 =END=
 =PARAMS=service:s1
+
+############################################################
+=TITLE=List of elements
+=INPUT=
+group:g1 = host:a, host:b;
+=END=
+=ERROR=
+Error: Can't handle 'host:a,host:b'
+=END=
+=PARAMS=host:a,host:b
 
 ############################################################
 =TITLE=Can't remove automatic group
 =INPUT=
 group:g1 =
- any:[ip=10.1.1.0/24&network:n1],
+ any:[ip = 10.1.1.0/24 & network:n1],
 ;
 =END=
 =ERROR=
-Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
 =END=
 =PARAMS=any:[ip=10.1.1.0/24&network:n1]
+
+############################################################
+=TITLE=Can't remove automatic interface of network
+=INPUT=
+group:g1 =
+interface:[network:n1].[all]
+;
+=END=
+=ERROR=
+Error: Can't handle 'interface:[network:n1].[all]'
+=END=
+=PARAMS=interface:[network:n1].[all]
+
+############################################################
+=TITLE=Can't remove intersection
+=INPUT=
+group:g1 =
+ network:[any:a] &! network:n1
+;
+=END=
+=ERROR=
+Error: Can't handle 'network:[any:a]&!network:n1'
+=END=
+=PARAMS=network:[any:a]&!network:n1
 
 ############################################################

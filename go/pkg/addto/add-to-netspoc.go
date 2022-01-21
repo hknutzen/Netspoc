@@ -78,36 +78,25 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 	"os"
-	"regexp"
 	"strings"
 )
-
-var validType = map[string]bool{
-	"network":   true,
-	"host":      true,
-	"interface": true,
-	"any":       true,
-	"group":     true,
-	"area":      true,
-}
 
 var addTo map[string][]ast.Element
 var changes int
 
-func checkName(typedName string) error {
-	pair := strings.SplitN(typedName, ":", 2)
-	if len(pair) != 2 {
-		return fmt.Errorf("Missing type in %s", typedName)
+func checkName(name string) error {
+	l, err := parser.ParseUnion([]byte(name))
+	if err != nil {
+		return err
 	}
-	typ, name := pair[0], pair[1]
-	if !validType[typ] {
-		return fmt.Errorf("Can't use type in %s", typedName)
+	if len(l) == 1 {
+		obj := l[0]
+		switch obj.(type) {
+		case *ast.NamedRef, *ast.IntfRef:
+			return nil
+		}
 	}
-	re := regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
-	if m := re.FindStringSubmatch(name); m != nil {
-		return fmt.Errorf("Invalid character '%s' in %s", m[0], typedName)
-	}
-	return nil
+	return fmt.Errorf("Can't handle '%s'", name)
 }
 
 // Fill addTo with old => new pairs.

@@ -51,7 +51,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -76,35 +76,25 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/info"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
 	"os"
-	"regexp"
 	"strings"
 )
 
-var validType = map[string]bool{
-	"network":   true,
-	"host":      true,
-	"interface": true,
-	"any":       true,
-	"group":     true,
-	"area":      true,
-}
-
-var validName = regexp.MustCompile(`[^-\w\p{L}.:\@\/\[\]]`)
-
-func checkName(typedName string) error {
-	pair := strings.SplitN(typedName, ":", 2)
-	if len(pair) != 2 {
-		return fmt.Errorf("Missing type in %s", typedName)
+func checkName(name string) error {
+	l, err := parser.ParseUnion([]byte(name))
+	if err != nil {
+		return err
 	}
-	if !validType[pair[0]] {
-		return fmt.Errorf("Can't remove %s", typedName)
+	if len(l) == 1 {
+		obj := l[0]
+		switch obj.(type) {
+		case *ast.NamedRef, *ast.IntfRef:
+			return nil
+		}
 	}
-	if m := validName.FindStringSubmatch(pair[1]); m != nil {
-		return fmt.Errorf("Invalid character '%s' in %s", m[0], typedName)
-	}
-	return nil
+	return fmt.Errorf("Can't handle '%s'", name)
 }
 
 func setupObjects(m map[string]bool, objects []string) error {

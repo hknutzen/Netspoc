@@ -402,7 +402,7 @@ Error: Missing 2nd. element for 'host:a'
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Missing type in name1
+Error: Typed name expected at line 1 of command line, near "--HERE-->name1"
 =END=
 =PARAMS=name1 name2
 
@@ -422,7 +422,7 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->name2"
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Can't use type in service:b
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:b"
 =END=
 =PARAMS=service:b host:a
 
@@ -444,7 +444,7 @@ group:g1 =
 ;
 =END=
 =ERROR=
-Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
 =END=
 =PARAMS=any:[ip=10.1.1.0/24&network:n1] network:n2
 
