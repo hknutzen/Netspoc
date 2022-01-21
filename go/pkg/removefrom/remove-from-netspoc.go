@@ -127,6 +127,7 @@ func process(s *astset.State, remove map[string]bool) {
 		var traverse func(l []ast.Element) []ast.Element
 		traverse = func(l []ast.Element) []ast.Element {
 			j := 0
+		OUTER:
 			for _, el := range l {
 				switch x := el.(type) {
 				case ast.NamedElem:
@@ -142,6 +143,18 @@ func process(s *astset.State, remove map[string]bool) {
 						continue
 					}
 					x.SetElements(l2)
+				case *ast.Intersection:
+					// Discard intersection if at least one non complement
+					// element becomes empty.
+					for _, obj := range x.Elements {
+						if _, ok := obj.(*ast.Complement); !ok {
+							l2 := traverse([]ast.Element{obj})
+							if len(l2) == 0 {
+								changed = true
+								continue OUTER
+							}
+						}
+					}
 				}
 				l[j] = el
 				j++
@@ -184,6 +197,7 @@ func process(s *astset.State, remove map[string]bool) {
 	}
 	// Delete definition of empty service.
 	for _, name := range del {
+		s.RemoveServiceFromOverlaps(name)
 		s.DeleteToplevel(name)
 	}
 

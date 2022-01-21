@@ -157,19 +157,58 @@ group:abc = group:g &! host:xyz;
 =PARAMS=host:xyz
 
 ############################################################
-=TITLE=Remove group definition although still referenced in intersection
+=TITLE=Remove intersection if non complement element becomes empty (1)
 =INPUT=
 group:abc = group:g &! host:xyz;
 group:g = host:a;
 =END=
 =OUTPUT=
 group:abc =
- group:g
- &! host:xyz
- ,
 ;
 =END=
 =PARAMS=group:g
+
+############################################################
+=TITLE=Remove intersection if non complement element becomes empty (2)
+=INPUT=
+group:abc = group:g & network:[area:a];
+group:g = network:a;
+=END=
+=OUTPUT=
+group:abc =
+;
+=END=
+=PARAMS=group:g
+
+############################################################
+=TITLE=Remove intersection if non complement element becomes empty (3)
+=INPUT=
+group:abc = network:[area:a] & network:[area:b];
+=END=
+=OUTPUT=
+group:abc =
+;
+=END=
+=PARAMS=area:a
+
+############################################################
+=TITLE=Remove in automatic group of intersection
+=INPUT=
+group:abc =
+ network:[area:a, area:b]
+ & network:[any:[ip = 10.1.0.0/16 & area:c, area:d]]
+;
+=END=
+=OUTPUT=
+group:abc =
+ network:[area:b]
+ & network:[
+    any:[ip = 10.1.0.0/16 & area:c],
+   ]
+ ,
+;
+=END=
+=PARAMS=area:a area:d
 
 ############################################################
 =TITLE=network after intersection
@@ -412,7 +451,7 @@ service:s1 = {
 =PARAMS=host:a host:b
 
 ############################################################
-=TITLE=Remove service with empty src
+=TITLE=Remove service with empty src and overlaps
 =INPUT=
 service:s1 = {
  user = host:a,
@@ -422,8 +461,21 @@ service:s1 = {
         dst = user;
         prt = tcp 80;
 }
+service:s2 = {
+ overlaps = service:s1;
+ user = host:a;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 80;
+}
 =END=
-=OUTPUT=NONE
+=OUTPUT=
+service:s2 = {
+ user = host:a;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 80;
+}
 =PARAMS=host:c host:d
 
 ############################################################
