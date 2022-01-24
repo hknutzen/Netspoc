@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 // Two zones are zoneEq, if
@@ -87,7 +87,7 @@ type checkInfo struct {
 //   - subnet of element of netMap.
 // Result: List of found networks or aggregates.
 func findZoneNetworks(
-	z *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
+	z *zone, isAgg bool, ipp netip.Prefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
@@ -127,14 +127,14 @@ func findZoneNetworks(
 		if natNet.hidden {
 			continue
 		}
-		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.IP()) ||
-			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.IP()) {
+		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.Addr()) ||
+			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
 
 			result = append(result, net)
 		}
 	}
 	if z.ipPrefix2net == nil {
-		z.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
+		z.ipPrefix2net = make(map[netip.Prefix]netList)
 	}
 	z.ipPrefix2net[ipp] = result
 	return result
@@ -655,10 +655,10 @@ func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
 	var matching []someObj
 	for _, src := range list {
 		net2 := src.address(natMap)
-		if net2.Bits() >= net1.Bits() && net1.Contains(net2.IP()) {
+		if net2.Bits() >= net1.Bits() && net1.Contains(net2.Addr()) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
-		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.IP()) {
+		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.Addr()) {
 			// Element is supernet of obj.
 			x, ok := src.(*network)
 			if ok && x.isAggregate {

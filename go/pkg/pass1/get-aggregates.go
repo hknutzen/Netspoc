@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 	"sort"
 )
 
@@ -10,7 +10,7 @@ import (
 //            aggregate properties according to those of the linked zone.
 //            Store aggregates in networks (providing all srcs and dsts).
 func (c *spoc) linkAggregateToZone(
-	agg *network, z *zone, ipp netaddr.IPPrefix) {
+	agg *network, z *zone, ipp netip.Prefix) {
 
 	// Link aggregate with zone.
 	agg.zone = z
@@ -32,19 +32,19 @@ func (c *spoc) linkAggregateToZone(
 // .networks is attribute of aggregates and networks,
 //           but value is list of networks.
 func (c *spoc) linkImplicitAggregateToZone(
-	agg *network, z *zone, ipp netaddr.IPPrefix) {
+	agg *network, z *zone, ipp netip.Prefix) {
 
 	ipPrefix2aggregate := z.ipPrefix2aggregate
 
 	// Collect all aggregates, networks and subnets of current zone.
 	// Get aggregates in deterministic order.
 	var objects netList
-	var keys []netaddr.IPPrefix
+	var keys []netip.Prefix
 	for k := range ipPrefix2aggregate {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
-		if cmp := keys[i].IP().Compare(keys[j].IP()); cmp != 0 {
+		if cmp := keys[i].Addr().Compare(keys[j].Addr()); cmp != 0 {
 			return cmp == -1
 		}
 		return keys[i].Bits() > keys[j].Bits()
@@ -69,7 +69,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		if obj.ipp.Bits() <= ipp.Bits() {
 			continue
 		}
-		if !ipp.Contains(obj.ipp.IP()) {
+		if !ipp.Contains(obj.ipp.Addr()) {
 			continue
 		}
 
@@ -102,7 +102,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 		return larger[i].ipp.Bits() > larger[j].ipp.Bits()
 	})
 	for _, obj := range larger {
-		if obj.ipp.Contains(ipp.IP()) {
+		if obj.ipp.Contains(ipp.Addr()) {
 			agg.up = obj
 
 			//debug("%s -up2-> %s", agg., obj)
@@ -232,7 +232,7 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 }
 
 func (c *spoc) getAny(
-	z *zone, ipp netaddr.IPPrefix, visible bool, ctx string) netList {
+	z *zone, ipp netip.Prefix, visible bool, ctx string) netList {
 
 	cluster := z.cluster
 	if z.ipPrefix2aggregate[ipp] == nil {

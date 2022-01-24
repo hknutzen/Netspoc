@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"inet.af/netaddr"
+	"net/netip"
 	"strings"
 )
 
@@ -421,7 +421,7 @@ func (c *spoc) expandGroup1(
 			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, ipv6, false, false)
 
-			getAggregates := func(obj groupObj, ipp netaddr.IPPrefix) netList {
+			getAggregates := func(obj groupObj, ipp netip.Prefix) netList {
 				var zones []*zone
 				switch x := obj.(type) {
 				case *area:
@@ -551,17 +551,17 @@ func (c *spoc) expandGroup1(
 				}
 			case "any":
 				x := x.(*ast.AggAuto)
-				var ipp netaddr.IPPrefix
+				var ipp netip.Prefix
 				if tok := x.Net; tok != "" {
 					var err error
-					ipp, err = netaddr.ParseIPPrefix(tok)
+					ipp, err = netip.ParsePrefix(tok)
 					if err != nil {
 						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
 							tok, ctx)
-					} else if ipp.IP() != ipp.Masked().IP() {
+					} else if ipp.Addr() != ipp.Masked().Addr() {
 						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
 					}
-					c.checkVxIP(ipp.IP(), ipv6, "any:[..]", ctx)
+					c.checkVxIP(ipp.Addr(), ipv6, "any:[..]", ctx)
 				} else {
 					ipp = getNetwork00(ipv6).ipp
 				}

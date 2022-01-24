@@ -1,9 +1,8 @@
 package pass1
 
 import (
+	"net/netip"
 	"sort"
-
-	"inet.af/netaddr"
 )
 
 //##############################################################################
@@ -38,7 +37,7 @@ func (c *spoc) setZones() {
 		name := "any:[" + n.name + "]"
 		z := &zone{
 			name:               name,
-			ipPrefix2aggregate: make(map[netaddr.IPPrefix]*network),
+			ipPrefix2aggregate: make(map[netip.Prefix]*network),
 		}
 		z.ipV6 = n.ipV6
 		c.allZones = append(c.allZones, z)

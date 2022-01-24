@@ -66,13 +66,13 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 }
 
 func printNetworkIp(n *network) string {
-	pIP := n.ipp.IP().String()
+	pIP := n.ipp.Addr().String()
 	var pMask string
+	bits := n.ipp.Bits()
 	if n.ipV6 {
-		size := n.ipp.Bits()
-		pMask = strconv.Itoa(int(size))
+		pMask = strconv.Itoa(bits)
 	} else {
-		pMask = net.IP(n.ipp.IPNet().Mask).String()
+		pMask = net.IP(net.CIDRMask(bits, 32)).String()
 	}
 	return pIP + "/" + pMask
 }
@@ -97,7 +97,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			// Don't print mask for loopback network. It needs to have
 			// exactly the same address as the corresponding loopback interface.
 			if n.loopback {
-				return n.ipp.IP().String()
+				return n.ipp.Addr().String()
 			}
 
 			return printNetworkIp(n)
@@ -122,12 +122,12 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Dynamic NAT, take whole network.
 				return printNetworkIp(n)
 			}
-			if ip := h.ip; !ip.IsZero() {
+			if ip := h.ip; ip.IsValid() {
 				return mergeIP(ip, n).String()
 			}
-			r := h.ipRange
-			return mergeIP(r.From(), n).String() + "-" +
-				mergeIP(r.To(), n).String()
+			rg := h.ipRange
+			return mergeIP(rg.from, n).String() + "-" +
+				mergeIP(rg.to, n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)

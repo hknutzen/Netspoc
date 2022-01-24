@@ -189,7 +189,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			}
 		}
 		for _, intf := range append(l, o...) {
-			r.adminIP = append(r.adminIP, intf.address(natMap).IP().String())
+			r.adminIP = append(r.adminIP, intf.address(natMap).Addr().String())
 		}
 	}
 	var unreachable stringerList

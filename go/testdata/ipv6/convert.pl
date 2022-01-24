@@ -188,6 +188,25 @@ sub adjust_testfile {
             $line =~ s/(!$ipv6)/to_prefix($1)/e;
         }
 
+        # Convert syntax and convert mask to prefix in vpn-framed-ip-address
+        if ($line =~
+            s/^ vpn-framed-ip-address ($ipv6) ($ipv6)$/ vpn-framed-ipv6-address $1!$2/)
+        {
+            $line =~ s/(!$ipv6)/to_prefix($1)/e;
+        }
+
+        # Convert syntax and convert mask to prefix in 'ip local pool'
+        if ($line =~
+            s/^ip local pool (\S+) ($ipv6)-($ipv6) mask ($ipv6)/ipv6 local pool $1 $2!$4/)
+        {
+            $line =~ s/(!$ipv6)/to_prefix($1)/e;
+            if (my ($len) = $line =~ m|/(\d+)$|) {
+                chomp $line;
+                my $count = 2 ** (128 - $len);
+                $line .= " $count\n";
+            }
+        }
+
         # Convert syntax for NX-OS
         $line =~ s/^ ip (address $ipv6\/\d+)/ ipv6 $1/;
 

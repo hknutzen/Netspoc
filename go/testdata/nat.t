@@ -1741,7 +1741,7 @@ router:r2 = {
  interface:n2;
  interface:n2a;
 }
-network:n2a = { ip = 172.18.2.00/24; }
+network:n2a = { ip = 172.18.2.0/24; }
 area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
 =END=
 =ERROR=

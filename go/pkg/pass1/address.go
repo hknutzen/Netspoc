@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"net"
 	"net/netip"
 )
 

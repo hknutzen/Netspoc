@@ -272,7 +272,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					}
 					obj := getNatNetwork(supernet, n.zone.natDomain.natMap)
 					if !(obj.ipp.Bits() < n.ipp.Bits() &&
-						obj.ipp.Contains(n.ipp.IP())) {
+						obj.ipp.Contains(n.ipp.Addr())) {
 
 						continue
 					}

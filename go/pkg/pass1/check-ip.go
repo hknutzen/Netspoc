@@ -164,7 +164,10 @@ func (c *spoc) checkIPAddr(n *network) {
 			range2name[rg] = h.name
 		}
 
-		subnets := h.ipRange.Prefixes()
+		subnets, err := splitIpRange(h.ipRange)
+		if err != nil {
+			c.err("%v", err)
+		}
 		if len(subnets) == 1 {
 			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.
@@ -172,7 +175,7 @@ func (c *spoc) checkIPAddr(n *network) {
 			}
 		}
 		for ip, other := range ip2name {
-			if rg.Contains(ip) {
+			if rg.contains(ip) {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
 		}

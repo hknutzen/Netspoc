@@ -218,7 +218,7 @@ type ipRange struct {
 }
 
 func (r ipRange) contains(ip netip.Addr) bool {
-	return r.from.Compare(addr) <= 0 && r.to.Compare(addr) >= 0
+	return r.from.Compare(ip) <= 0 && r.to.Compare(ip) >= 0
 }
 
 type host struct {

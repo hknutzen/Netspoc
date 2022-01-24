@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 // Find cluster of zones connected by 'local' routers.
@@ -15,7 +15,7 @@ import (
 
 type clusterInfo struct {
 	natMap     natMap
-	filterOnly []netaddr.IPPrefix
+	filterOnly []netip.Prefix
 	mark       int
 }
 
@@ -33,7 +33,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		filterOnly := r0.filterOnly
 
 		// IP/mask pairs of current cluster matching filterOnly.
-		matched := make(map[netaddr.IPPrefix]bool)
+		matched := make(map[netip.Prefix]bool)
 
 		// natMap is known to be identical inside 'local' cluster,
 		// because attribute 'bind_nat' is not valid at 'local' routers.
@@ -44,7 +44,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 		var walk func(r *router)
 		walk = func(r *router) {
 			r.localMark = mark
-			equal := func(f0, f []netaddr.IPPrefix) bool {
+			equal := func(f0, f []netip.Prefix) bool {
 				if len(f0) != len(f) {
 					return false
 				}
@@ -73,7 +73,7 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 				NETWORK:
 					for _, n := range z.networks {
 						net0 := n.address(nm)
-						ip := net0.IP()
+						ip := net0.Addr()
 						prefix := net0.Bits()
 						for j, net := range filterOnly {
 							if prefix >= net.Bits() && net.Contains(ip) {
@@ -129,7 +129,7 @@ func (c *spoc) markManagedLocal() {
 				if natNetwork.hidden {
 					continue
 				}
-				ip := natNetwork.ipp.IP()
+				ip := natNetwork.ipp.Addr()
 				prefix := natNetwork.ipp.Bits()
 				for _, net := range cluster.filterOnly {
 					if prefix >= net.Bits() && net.Contains(ip) {
