@@ -2364,7 +2364,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 	// File for router config without ACLs.
 	configFile := dir + "/" + path + ".config"
-	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE, 0666)
+	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}

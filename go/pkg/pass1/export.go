@@ -51,7 +51,7 @@ func (c *spoc) createDirs(dir, path string) {
 }
 
 func (c *spoc) writeJson(path string, data interface{}) {
-	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0666)
+	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
