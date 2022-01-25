@@ -19,6 +19,8 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 	var lb, hb []byte
 	var l, h uint64
 	var result []netip.Prefix
+	var allOnes uint64
+	var bitStart int
 	to16 := func(ip netip.Addr) netip.Addr {
 		if !ip.Is6() {
 			return netip.AddrFrom16(ip.As16())
@@ -29,6 +31,8 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 		lb, hb = lo.AsSlice(), hi.AsSlice()
 		l = uint64(binary.BigEndian.Uint32(lb))
 		h = uint64(binary.BigEndian.Uint32(hb))
+		allOnes = 0xffffffff
+		bitStart = 0
 	} else {
 		lo = to16(lo)
 		hi = to16(hi)
@@ -38,6 +42,8 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 				"IP range doesn't fit into /64 network")
 		}
 		l, h = binary.BigEndian.Uint64(lb[8:]), binary.BigEndian.Uint64(hb[8:])
+		allOnes = 0xffffffffffffffff
+		bitStart = 64
 	}
 	if l > h {
 		return result, fmt.Errorf("Invalid IP range")
@@ -47,7 +53,6 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 		if len(lb) == 4 {
 			b = make([]byte, 4)
 			binary.BigEndian.PutUint32(b, uint32(i))
-			bits -= 96
 		} else {
 			b = make([]byte, 16)
 			copy(b, lb)
@@ -60,8 +65,8 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 IP:
 	for l <= h {
 		// 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
-		var invMask uint64 = 0xffffffffffffffff
-		bits := 64
+		invMask := allOnes
+		bits := bitStart
 		for {
 			if l&invMask == 0 {
 				end := l | invMask
