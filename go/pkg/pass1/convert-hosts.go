@@ -21,18 +21,13 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 	var result []netip.Prefix
 	var allOnes uint64
 	var bitStart int
-	to16 := func(ip netip.Addr) netip.Addr {
-		return netip.AddrFrom16(ip.As16())
-	}
-	if lo.Is4() && hi.Is4() {
+	if lo.Is4() {
 		lb, hb = lo.AsSlice(), hi.AsSlice()
 		l = uint64(binary.BigEndian.Uint32(lb))
 		h = uint64(binary.BigEndian.Uint32(hb))
 		allOnes = 0xffffffff
 		bitStart = 0
 	} else {
-		lo = to16(lo)
-		hi = to16(hi)
 		lb, hb = lo.AsSlice(), hi.AsSlice()
 		if bytes.Compare(lb[:8], hb[:8]) != 0 {
 			return result, fmt.Errorf(
