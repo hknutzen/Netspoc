@@ -133,6 +133,7 @@ group:abc =
 =INPUT=
 group:abc =
  network:xyz,
+ interface:r2.[all],
  interface:r1@vrf.[auto],
  host:h,
 ;
@@ -143,7 +144,7 @@ group:abc =
  host:h,
 ;
 =END=
-=PARAMS=interface:r1@vrf.[auto]
+=PARAMS=interface:r1@vrf.[auto] interface:r2.[all]
 
 ############################################################
 =TITLE=Don't remove in intersection
@@ -156,19 +157,58 @@ group:abc = group:g &! host:xyz;
 =PARAMS=host:xyz
 
 ############################################################
-=TITLE=Remove group definition although still referenced in intersection
+=TITLE=Remove intersection if non complement element becomes empty (1)
 =INPUT=
 group:abc = group:g &! host:xyz;
 group:g = host:a;
 =END=
 =OUTPUT=
 group:abc =
- group:g
- &! host:xyz
- ,
 ;
 =END=
 =PARAMS=group:g
+
+############################################################
+=TITLE=Remove intersection if non complement element becomes empty (2)
+=INPUT=
+group:abc = group:g & network:[area:a];
+group:g = network:a;
+=END=
+=OUTPUT=
+group:abc =
+;
+=END=
+=PARAMS=group:g
+
+############################################################
+=TITLE=Remove intersection if non complement element becomes empty (3)
+=INPUT=
+group:abc = network:[area:a] & network:[area:b];
+=END=
+=OUTPUT=
+group:abc =
+;
+=END=
+=PARAMS=area:a
+
+############################################################
+=TITLE=Remove in automatic group of intersection
+=INPUT=
+group:abc =
+ network:[area:a, area:b]
+ & network:[any:[ip = 10.1.0.0/16 & area:c, area:d]]
+;
+=END=
+=OUTPUT=
+group:abc =
+ network:[area:b]
+ & network:[
+    any:[ip = 10.1.0.0/16 & area:c],
+   ]
+ ,
+;
+=END=
+=PARAMS=area:a area:d
 
 ############################################################
 =TITLE=network after intersection
@@ -214,6 +254,24 @@ group:abc =
 ;
 =END=
 =PARAMS=network:n1a network:n4
+
+############################################################
+=TITLE=automatic group becomes empty
+=INPUT=
+group:abc =
+ network:[any:[ip = 10.1.0.0/16 &
+  network:n1,
+  network:n2,
+ ]],
+ network:n3,
+;
+=END=
+=OUTPUT=
+group:abc =
+ network:n3,
+;
+=END=
+=PARAMS=network:n1 network:n2
 
 ############################################################
 =TITLE=area in automatic group
@@ -378,7 +436,7 @@ group:g2 =
 =PARAMS=host:b
 
 ############################################################
-=TITLE=When all elements in one list are removed, do not change next list
+=TITLE=Remove service with empty user
 =INPUT=
 service:s1 = {
  user = host:a,
@@ -386,20 +444,39 @@ service:s1 = {
  permit src = host:c,
               host:d;
         dst = user;
-        prt = tcp 80 90;
+        prt = tcp 80;
+}
+=END=
+=OUTPUT=NONE
+=PARAMS=host:a host:b
+
+############################################################
+=TITLE=Remove service with empty src and overlaps
+=INPUT=
+service:s1 = {
+ user = host:a,
+        host:b;
+ permit src = host:c,
+              host:d;
+        dst = user;
+        prt = tcp 80;
+}
+service:s2 = {
+ overlaps = service:s1;
+ user = host:a;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 80;
 }
 =END=
 =OUTPUT=
-service:s1 = {
- user = ;
- permit src = host:c,
-              host:d,
-              ;
+service:s2 = {
+ user = host:a;
+ permit src = network:n1;
         dst = user;
-        prt = tcp 80 90;
+        prt = tcp 80;
 }
-=END=
-=PARAMS=host:a host:b
+=PARAMS=host:c host:d
 
 ############################################################
 =TITLE=Find and change umlauts
@@ -496,7 +573,7 @@ group:g1 =
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Missing type in host_a
+Error: Typed name expected at line 1 of command line, near "--HERE-->host_a"
 =END=
 =PARAMS=host_a
 
@@ -506,20 +583,54 @@ Error: Missing type in host_a
 group:g1 = host:a;
 =END=
 =ERROR=
-Error: Can't use type in service:s1
+Error: Unknown element type at line 1 of command line, near "--HERE-->service:s1"
 =END=
 =PARAMS=service:s1
+
+############################################################
+=TITLE=List of elements
+=INPUT=
+group:g1 = host:a, host:b;
+=END=
+=ERROR=
+Error: Can't handle 'host:a,host:b'
+=END=
+=PARAMS=host:a,host:b
 
 ############################################################
 =TITLE=Can't remove automatic group
 =INPUT=
 group:g1 =
- any:[ip=10.1.1.0/24&network:n1],
+ any:[ip = 10.1.1.0/24 & network:n1],
 ;
 =END=
 =ERROR=
-Error: Invalid character '=' in any:[ip=10.1.1.0/24&network:n1]
+Error: Can't handle 'any:[ip=10.1.1.0/24&network:n1]'
 =END=
 =PARAMS=any:[ip=10.1.1.0/24&network:n1]
+
+############################################################
+=TITLE=Can't remove automatic interface of network
+=INPUT=
+group:g1 =
+interface:[network:n1].[all]
+;
+=END=
+=ERROR=
+Error: Can't handle 'interface:[network:n1].[all]'
+=END=
+=PARAMS=interface:[network:n1].[all]
+
+############################################################
+=TITLE=Can't remove intersection
+=INPUT=
+group:g1 =
+ network:[any:a] &! network:n1
+;
+=END=
+=ERROR=
+Error: Can't handle 'network:[any:a]&!network:n1'
+=END=
+=PARAMS=network:[any:a]&!network:n1
 
 ############################################################

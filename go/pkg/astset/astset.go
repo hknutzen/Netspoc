@@ -162,69 +162,20 @@ func (s *State) DeleteToplevel(name string) error {
 }
 
 func (s *State) RemoveServiceFromOverlaps(name string) {
-	for _, aF := range s.astFiles {
-		for _, toplevel := range aF.Nodes {
-			if n, ok := toplevel.(*ast.Service); ok {
-				if overlaps := n.GetAttr("overlaps"); overlaps != nil {
-					overlaps.Remove(name)
-					if len(overlaps.ValueList) == 0 {
-						n.RemoveAttr("overlaps")
-					}
-				}
-			}
-		}
-	}
-}
-
-func (s *State) TransposeService(name string) error {
-	var err error
-	found := s.Modify(func(toplevel ast.Toplevel) bool {
+	s.Modify(func(toplevel ast.Toplevel) bool {
 		if n, ok := toplevel.(*ast.Service); ok {
-			if name == n.GetName() {
-				if n.Foreach {
-					return false
+			if overlaps := n.GetAttr("overlaps"); overlaps != nil {
+				oLen := len(overlaps.ValueList)
+				overlaps.Remove(name)
+				nLen := len(overlaps.ValueList)
+				if nLen == 0 {
+					n.RemoveAttr("overlaps")
 				}
-				srcelements := n.Rules[0].Src.Elements
-				dstelements := n.Rules[0].Dst.Elements
-				userelements := n.User.Elements
-				if len(n.Rules) > 1 {
-					err = fmt.Errorf("Can't transpose service: multiple rules present.")
-					return false
-
-				}
-				// If source and destination are user no transformation needed
-				if len(srcelements) == 1 && len(dstelements) == 1 &&
-					srcelements[0].GetType() == "user" && dstelements[0].GetType() == "user" {
-					err = fmt.Errorf("Can't transpose service: src and dst are user.")
-					return false
-				}
-				if len(srcelements) == 1 {
-					if srcelements[0].GetType() == "user" {
-						n.Rules[0].Src.Elements = userelements
-						n.Rules[0].Dst.Elements = srcelements
-						n.User.Elements = dstelements
-						return true
-					}
-				}
-				if len(dstelements) == 1 {
-					if dstelements[0].GetType() == "user" {
-						n.Rules[0].Src.Elements = dstelements
-						n.Rules[0].Dst.Elements = userelements
-						n.User.Elements = srcelements
-						return true
-					}
-				}
+				return nLen < oLen
 			}
 		}
-		err = fmt.Errorf("Can't find service %s", name)
 		return false
 	})
-
-	if found {
-		return nil
-	} else {
-		return err
-	}
 }
 
 func getTypeName(v string) (string, string) {

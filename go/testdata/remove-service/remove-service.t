@@ -147,3 +147,34 @@ service:s3 = {
         prt = udp 25565;
 }
 =END=
+
+###############################################################
+=TITLE=Remove service and overlaps
+=PARAMS= service:s1
+=INPUT=
+-- s1
+# s1
+service:s1 = {
+user = network:n3;
+permit src = user;
+        dst = network:n1;
+        prt = udp 80;
+}
+-- s2
+service:s2 = {
+overlaps = service:s1;
+user = host:h2;
+permit src = user;
+        dst = network:n1;
+        prt = udp 80;
+}
+=OUTPUT=
+-- s1
+-- s2
+service:s2 = {
+ user = host:h2;
+ permit src = user;
+        dst = network:n1;
+        prt = udp 80;
+}
+=END=
