@@ -164,10 +164,7 @@ func (c *spoc) checkIPAddr(n *network) {
 			range2name[rg] = h.name
 		}
 
-		subnets, err := splitIpRange(h.ipRange)
-		if err != nil {
-			c.err("%v", err)
-		}
+		subnets, _ := splitIpRange(h.ipRange)
 		if len(subnets) == 1 {
 			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.

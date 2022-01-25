@@ -6,9 +6,6 @@ import (
 
 // lastIP returns the last IP in the prefix.
 func lastIP(p netip.Prefix) netip.Addr {
-	if !p.IsValid() {
-		return netip.Addr{}
-	}
 	a16 := p.Addr().As16()
 	var off int
 	var bits int = 128

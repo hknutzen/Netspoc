@@ -22,10 +22,7 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 	var allOnes uint64
 	var bitStart int
 	to16 := func(ip netip.Addr) netip.Addr {
-		if !ip.Is6() {
-			return netip.AddrFrom16(ip.As16())
-		}
-		return ip
+		return netip.AddrFrom16(ip.As16())
 	}
 	if lo.Is4() && hi.Is4() {
 		lb, hb = lo.AsSlice(), hi.AsSlice()
@@ -75,9 +72,6 @@ IP:
 					l = end + 1
 					continue IP
 				}
-			}
-			if invMask == 0 {
-				break
 			}
 			invMask >>= 1
 			bits++
@@ -134,7 +128,7 @@ func (c *spoc) convertHosts() {
 				// Convert range.
 				l, err := splitIpRange(host.ipRange)
 				if err != nil {
-					c.err("%v", err)
+					c.err("%v in %s", err, name)
 				}
 				if id != "" {
 					if len(l) > 1 {

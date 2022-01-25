@@ -2670,9 +2670,6 @@ func (c *spoc) getIpRange(
 			c.convIP(l[0], v6, a.Name, ctx),
 			c.convIP(l[1], v6, a.Name, ctx),
 		}
-		if !rg.from.Less(rg.to) && rg.from != rg.to {
-			c.err("Invalid IP range in %s", ctx)
-		}
 	}
 	return rg
 }
