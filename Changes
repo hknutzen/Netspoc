@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+6.039     2022-01-25 15:11:50+01:00 Europe/Berlin
+
+ - Fixed command 'transpose-service':
+   - Actually remove service from overlaps in multiple files.
+   - Fixed  error message.
+ - Enhanced command 'remove-from-netspoc':
+   - Remove service that becomes empty.
+   - Intersection is handled as well.
+
 6.038     2022-01-18 11:15:47+01:00 Europe/Berlin
 
  - Fixed optimization of destination interface at router with
