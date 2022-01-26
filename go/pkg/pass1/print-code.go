@@ -2266,6 +2266,10 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 			c.abort("Can't %v", err)
 		}
 	} else if !fileop.IsDir(prev) {
+		// Don't move files if directory .prev already exists.
+		// In this case the previous run of netspoc must have failed,
+		// since .prev is removed on successfull completion.
+
 		// Try to remove file or symlink with same name.
 		os.Remove(prev)
 		oldFiles := fileop.Readdirnames(dir)
