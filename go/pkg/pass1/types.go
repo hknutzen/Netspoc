@@ -299,6 +299,7 @@ type router struct {
 	disabled                bool
 	extendedKeys            map[string]string
 	filterOnly              []netaddr.IPPrefix
+	mergeTunnelSpecified    []netaddr.IPPrefix
 	generalPermit           []*proto
 	natDomains              []*natDomain
 	natTags                 map[*natDomain]stringList

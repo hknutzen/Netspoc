@@ -432,7 +432,6 @@ func printAclPlaceholder(fh *os.File, r *router, aclName string) {
 	fmt.Fprintln(fh, "#insert", aclName)
 }
 
-// Parameter: routerIntf
 // Analyzes dst/src list of all rules collected at this interface.
 // Result:
 // List of all networks which are reachable when entering this interface.
@@ -473,6 +472,38 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 		return result[i].ipp.IP().Less(result[j].ipp.IP())
 	})
 	return result
+}
+
+// Create aggregate objects from IP/prefix list.
+func getMergeTunnelAggregates(r *router) netList {
+	var l netList
+	for _, ipp := range r.mergeTunnelSpecified {
+		agg := &network{
+			withStdAddr: withStdAddr{stdAddr: ipp.String()},
+			ipp:         ipp,
+		}
+		l.push(agg)
+	}
+	return l
+}
+
+// Remove networks that are subnet of aggregates in 'merge'.
+// Add aggregates to result.
+func mergeSplitTunnelNets(l, merge netList, m natMap) netList {
+	j := 0
+NET:
+	for _, n := range l {
+		ipp := n.address(m)
+		for _, agg := range merge {
+			ipp2 := agg.ipp
+			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.IP()) {
+				continue NET
+			}
+		}
+		l[j] = n
+		j++
+	}
+	return append(l[:j], merge...)
 }
 
 func printAsaTrustpoint(fh *os.File, r *router, trustpoint string) {
@@ -698,6 +729,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		idCounter++
 		return strconv.Itoa(idCounter)
 	}
+	splitTunnelMerge := getMergeTunnelAggregates(r)
 	certGroupMap := make(map[string]string)
 	singleCertMap := make(map[string]bool)
 	extendedKey := make(map[string]string)
@@ -744,6 +776,8 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					delete(attributes, "split-tunnel-policy")
 				} else if splitTunnelPolicy == "tunnelspecified" {
 					splitTunnelNets := getSplitTunnelNets(idIntf.routerIntf)
+					splitTunnelNets = mergeSplitTunnelNets(
+						splitTunnelNets, splitTunnelMerge, natMap)
 					aclName := ""
 				CACHED_NETS:
 					for name, nets := range splitTCache[len(splitTunnelNets)] {
@@ -759,7 +793,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						aclName = "split-tunnel-" + strconv.Itoa(aclCounter)
 						aclCounter++
 						var rule *groupedRule
-						if splitTunnelNets != nil {
+						if len(splitTunnelNets) != 0 {
 							objects := make([]someObj, len(splitTunnelNets))
 							for i, n := range splitTunnelNets {
 								objects[i] = n

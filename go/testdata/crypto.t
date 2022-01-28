@@ -893,6 +893,20 @@ Warning: Ignoring 'radius_attributes' at router:r
 =END=
 
 ############################################################
+=TITLE=Ignoring merge_tunnelspecified at non ASA, VPN
+=INPUT=
+network:n = { ip = 10.1.1.0/24; }
+router:r = {
+ managed;
+ model = ASA;
+ merge_tunnelspecified = 10.1.0.0/17, 10.9.9.0/24;
+ interface:n = { ip = 10.1.1.1; hardware = n; }
+}
+=WARNING=
+Warning: Ignoring 'merge_tunnelspecified' at router:r
+=END=
+
+############################################################
 =TITLE=Crypto not supported
 =INPUT=
 [[crypto_sts]]
@@ -1589,6 +1603,159 @@ tunnel-group VPN-single ipsec-attributes
 tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
+=END=
+
+############################################################
+=TITLE=Merge split tunnel lists
+=INPUT=
+[[crypto_vpn]]
+network:work1 = { ip = 10.0.1.0/24; host:h1 = { ip = 10.0.1.10; } }
+network:work2 = { ip = 10.0.2.0/24; host:h2 = { ip = 10.0.2.10; } }
+network:work3 = { ip = 10.0.3.0/24; host:h3 = { ip = 10.0.3.10; } }
+network:work4 = { ip = 10.9.4.0/24; host:h4 = { ip = 10.9.4.10; } }
+router:u = {
+ interface:work1;
+ interface:work2;
+ interface:work3;
+ interface:work4;
+ interface:intern = { ip = 10.1.1.1; }
+}
+network:intern = { ip = 10.1.1.0/24;}
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ merge_tunnelspecified = 10.0.0.0/16;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+network:customers1 = {
+ ip = 10.99.1.0/24;
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:u1@domain.x = {
+  ip = 10.99.1.10;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u2@domain.x = {
+  ip = 10.99.1.11;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u3@domain.x = {
+  ip = 10.99.1.12;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u4@domain.x = {
+  ip = 10.99.1.254;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+}
+service:s1 = {
+ user = host:id:u1@domain.x.customers1;
+ permit src = user; dst = host:h1; prt = tcp 80;
+}
+service:s2 = {
+ user = host:id:u1@domain.x.customers1,
+        host:id:u2@domain.x.customers1;
+ permit src = user; dst = network:work2; prt = tcp 80;
+}
+service:s3 = {
+ user = host:id:u1@domain.x.customers1,
+        host:id:u3@domain.x.customers1;
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+service:s4 = {
+ user = host:id:u3@domain.x.customers1;
+ permit src = user; dst = host:h4; prt = tcp 80;
+}
+=OUTPUT=
+--asavpn
+! split-tunnel-1
+access-list split-tunnel-1 standard permit 10.0.0.0 255.255.0.0
+--
+! vpn-filter-u1@domain.x
+access-list vpn-filter-u1@domain.x extended permit ip host 10.99.1.10 any4
+access-list vpn-filter-u1@domain.x extended deny ip any4 any4
+group-policy VPN-group-u1@domain.x internal
+group-policy VPN-group-u1@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u1@domain.x nopassword
+username u1@domain.x attributes
+ vpn-framed-ip-address 10.99.1.10 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-u1@domain.x
+ vpn-group-policy VPN-group-u1@domain.x
+--
+! vpn-filter-u2@domain.x
+access-list vpn-filter-u2@domain.x extended permit ip host 10.99.1.11 any4
+access-list vpn-filter-u2@domain.x extended deny ip any4 any4
+group-policy VPN-group-u2@domain.x internal
+group-policy VPN-group-u2@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u2@domain.x nopassword
+username u2@domain.x attributes
+ vpn-framed-ip-address 10.99.1.11 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-u2@domain.x
+ vpn-group-policy VPN-group-u2@domain.x
+--
+! split-tunnel-2
+access-list split-tunnel-2 standard permit 10.9.4.0 255.255.255.0
+access-list split-tunnel-2 standard permit 10.0.0.0 255.255.0.0
+--
+! vpn-filter-u3@domain.x
+access-list vpn-filter-u3@domain.x extended permit ip host 10.99.1.12 any4
+access-list vpn-filter-u3@domain.x extended deny ip any4 any4
+group-policy VPN-group-u3@domain.x internal
+group-policy VPN-group-u3@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-2
+ split-tunnel-policy tunnelspecified
+username u3@domain.x nopassword
+username u3@domain.x attributes
+ vpn-framed-ip-address 10.99.1.12 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-u3@domain.x
+ vpn-group-policy VPN-group-u3@domain.x
+--
+! vpn-filter-u4@domain.x
+access-list vpn-filter-u4@domain.x extended permit ip host 10.99.1.254 any4
+access-list vpn-filter-u4@domain.x extended deny ip any4 any4
+group-policy VPN-group-u4@domain.x internal
+group-policy VPN-group-u4@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u4@domain.x nopassword
+username u4@domain.x attributes
+ vpn-framed-ip-address 10.99.1.254 255.255.255.0
+ service-type remote-access
+ vpn-filter value vpn-filter-u4@domain.x
+ vpn-group-policy VPN-group-u4@domain.x
 =END=
 
 ############################################################

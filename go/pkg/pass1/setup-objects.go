@@ -1105,6 +1105,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			r.managed = c.getManaged(a, name)
 		case "filter_only":
 			r.filterOnly = c.getIpPrefixList(a, v6, name)
+		case "merge_tunnelspecified":
+			r.mergeTunnelSpecified = c.getIpPrefixList(a, v6, name)
 		case "model":
 			r.model = c.getModel(a, name)
 		case "no_group_code":
@@ -1344,6 +1346,9 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		} else {
 			if r.radiusAttributes != nil {
 				c.warn("Ignoring 'radius_attributes' at %s", name)
+			}
+			if r.mergeTunnelSpecified != nil {
+				c.warn("Ignoring 'merge_tunnelspecified' at %s", name)
 			}
 		}
 	}
