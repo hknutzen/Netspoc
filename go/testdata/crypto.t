@@ -1252,10 +1252,10 @@ service:test3 = {
 =OUTPUT=
 --asavpn
 ! [ Routing ]
+route outside 0.0.0.0 0.0.0.0 192.168.0.1
 route inside 10.0.1.0 255.255.255.0 10.1.1.1
 route inside 10.0.4.0 255.255.255.0 10.1.1.1
 route inside 10.0.2.0 255.255.254.0 10.1.1.1
-route outside 0.0.0.0 0.0.0.0 192.168.0.1
 --
 no sysopt connection permit-vpn
 group-policy global internal
@@ -2339,8 +2339,8 @@ service:s1 = {
 =OUTPUT=
 -- asavpn
 ! [ Routing ]
-route inside 10.1.2.0 255.255.255.0 10.1.1.2
 route outside 0.0.0.0 0.0.0.0 192.168.0.1
+route inside 10.1.2.0 255.255.255.0 10.1.1.2
 --
 ! split-tunnel-1
 access-list split-tunnel-1 standard permit 10.1.2.0 255.255.255.0
@@ -2373,8 +2373,8 @@ access-group outside_in in interface outside
 =OUTPUT=
 -- asavpn
 ! [ Routing ]
-route inside 10.1.2.0 255.255.255.0 10.1.1.2
 route outside 0.0.0.0 0.0.0.0 192.168.0.1
+route inside 10.1.2.0 255.255.255.0 10.1.1.2
 =END=
 
 ############################################################

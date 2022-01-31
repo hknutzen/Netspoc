@@ -127,6 +127,34 @@ ipv6 access-list e1_out
 =END=
 
 ############################################################
+=TITLE=General permit with udp and named tcp protocol
+=PARAMS=--ipv6
+=INPUT=
+protocol:TCP = tcp;
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r = {
+ managed;
+ model = IOS;
+ general_permit = udp, protocol:TCP;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+=END=
+=OUTPUT=
+--ipv6/r
+ipv6 access-list n1_in
+ permit tcp any any
+ permit udp any any
+ deny ipv6 any any
+--
+ipv6 access-list n2_in
+ permit tcp any any
+ permit udp any any
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=No ports permitted
 =PARAMS=--ipv6
 =INPUT=

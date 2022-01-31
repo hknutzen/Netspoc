@@ -47,8 +47,8 @@ service:p2 = {
 ip route add ::a01:700/120 via ::a01:301
 --ipv6/gw
 ! [ Routing ]
-ipv6 route ::a01:720/123 ::a01:71e
 ipv6 route ::a01:200/120 ::a01:303
+ipv6 route ::a01:720/123 ::a01:71e
 --
 ! [ ACL ]
 ipv6 access-list outside_in

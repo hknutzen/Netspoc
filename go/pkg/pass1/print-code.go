@@ -84,6 +84,7 @@ func printRoutes(fh *os.File, r *router) {
 		hop  *routerIntf
 	}
 	net2hopInfo := make(map[*network]hopInfo)
+	hop2intf := make(map[*routerIntf]*routerIntf)
 
 	for _, intf := range r.interfaces {
 
@@ -119,7 +120,9 @@ func printRoutes(fh *os.File, r *router) {
 
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
-			net2hopInfo[natNet] = hopInfo{intf, hopList[0]}
+			hop := hopList[0]
+			net2hopInfo[natNet] = hopInfo{intf, hop}
+			hop2intf[hop] = intf
 		}
 	}
 	if len(net2hopInfo) == 0 {
@@ -248,7 +251,7 @@ func printRoutes(fh *os.File, r *router) {
 		netaddr.IPPrefix
 		noOpt bool
 	}
-	intf2hop2netInfos := make(map[*routerIntf]map[*routerIntf][]netInfo)
+	hop2netInfos := make(map[*routerIntf][]netInfo)
 	for len(prefixes) != 0 {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
@@ -294,126 +297,116 @@ func printRoutes(fh *os.File, r *router) {
 					break
 				}
 			}
-			m := intf2hop2netInfos[hopInfo.intf]
-			if m == nil {
-				m = make(map[*routerIntf][]netInfo)
-				intf2hop2netInfos[hopInfo.intf] = m
-			}
 			info := netInfo{
 				netaddr.IPPrefixFrom(ip, prefix),
 				noOpt,
 			}
-			m[hopInfo.hop] = append(m[hopInfo.hop], info)
+			hop2netInfos[hopInfo.hop] = append(hop2netInfos[hopInfo.hop], info)
 		}
 	}
 
+	// Get sorted list of hops for deterministic output.
+	hops := make(intfList, 0, len(hop2netInfos))
+	for k, _ := range hop2netInfos {
+		hops.push(k)
+	}
+	sort.Slice(hops, func(i, j int) bool {
+		return hops[i].name < hops[j].name
+	})
+
 	if doAutoDefaultRoute {
 
-		// Find interface and hop with largest number of routing entries.
-		var maxHop2Nets map[*routerIntf][]netInfo
+		// Find hop with largest number of routing entries.
 		var maxHop *routerIntf
 
 		// Substitute routes to one hop with a default route,
 		// if there are at least two entries.
 		max := 1
-		for _, intf := range r.interfaces {
-			hop2nets := intf2hop2netInfos[intf]
-			for hop, nets := range hop2nets {
-				count := 0
-				for _, netInfo := range nets {
-					if !netInfo.noOpt {
-						count++
-					}
-				}
-				if count > max {
-					maxHop2Nets = hop2nets
-					maxHop = hop
-					max = count
+		for _, hop := range hops {
+			count := 0
+			for _, info := range hop2netInfos[hop] {
+				if !info.noOpt {
+					count++
 				}
 			}
+			if count > max {
+				maxHop = hop
+				max = count
+			}
 		}
-		if maxHop2Nets != nil {
+		if maxHop != nil {
 
 			// Use default route for this direction.
 			nets := []netInfo{{zeroNet, false}}
 			// But still generate routes for small networks
 			// with supernet behind other hop.
-			for _, net := range maxHop2Nets[maxHop] {
+			for _, net := range hop2netInfos[maxHop] {
 				if net.noOpt {
 					nets = append(nets, net)
 				}
 			}
-			maxHop2Nets[maxHop] = nets
+			hop2netInfos[maxHop] = nets
 		}
 	}
-	printHeader(fh, r, "Routing")
 
+	printHeader(fh, r, "Routing")
 	iosVrf := ""
 	if vrf != "" && model.routing == "IOS" {
 		iosVrf = "vrf " + vrf + " "
 	}
 	nxosPrefix := ""
 
-	for _, intf := range r.interfaces {
-		hop2nets := intf2hop2netInfos[intf]
-		hops := make(intfList, 0, len(hop2nets))
-		for k, _ := range hop2nets {
-			hops.push(k)
+	for _, hop := range hops {
+		intf := hop2intf[hop]
+
+		// For unnumbered and negotiated interfaces use interface name
+		// as next hop.
+		var hopAddr string
+		if intf.ipType != hasIP {
+			hopAddr = intf.hardware.name
+		} else {
+			hopAddr = hop.ip.String()
 		}
-		sort.Slice(hops, func(i, j int) bool {
-			return hops[i].name < hops[j].name
-		})
-		for _, hop := range hops {
 
-			// For unnumbered and negotiated interfaces use interface name
-			// as next hop.
-			var hopAddr string
-			if intf.ipType != hasIP {
-				hopAddr = intf.hardware.name
-			} else {
-				hopAddr = hop.ip.String()
-			}
-
-			for _, netinfo := range hop2nets[hop] {
-				switch model.routing {
-				case "IOS":
-					var adr string
-					ip := "ip"
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPPrefix)
-						ip += "v6"
-					} else {
-						adr = iosRouteCode(netinfo.IPPrefix)
-					}
-					fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-				case "NX-OS":
-					if vrf != "" && nxosPrefix == "" {
-
-						// Print "vrf context" only once
-						// and indent "ip route" commands.
-						fmt.Fprintln(fh, "vrf context", vrf)
-						nxosPrefix = " "
-					}
-					adr := fullPrefixCode(netinfo.IPPrefix)
-					ip := "ip"
-					if ipv6 {
-						ip += "v6"
-					}
-					fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
-				case "ASA":
-					var adr string
-					ip := ""
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPPrefix)
-						ip = "ipv6 "
-					} else {
-						adr = iosRouteCode(netinfo.IPPrefix)
-					}
-					fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
-				case "iproute":
-					adr := prefixCode(netinfo.IPPrefix)
-					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
+		for _, netinfo := range hop2netInfos[hop] {
+			switch model.routing {
+			case "IOS":
+				var adr string
+				ip := "ip"
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.IPPrefix)
+					ip += "v6"
+				} else {
+					adr = iosRouteCode(netinfo.IPPrefix)
 				}
+				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
+			case "NX-OS":
+				if vrf != "" && nxosPrefix == "" {
+
+					// Print "vrf context" only once
+					// and indent "ip route" commands.
+					fmt.Fprintln(fh, "vrf context", vrf)
+					nxosPrefix = " "
+				}
+				adr := fullPrefixCode(netinfo.IPPrefix)
+				ip := "ip"
+				if ipv6 {
+					ip += "v6"
+				}
+				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
+			case "ASA":
+				var adr string
+				ip := ""
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.IPPrefix)
+					ip = "ipv6 "
+				} else {
+					adr = iosRouteCode(netinfo.IPPrefix)
+				}
+				fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
+			case "iproute":
+				adr := prefixCode(netinfo.IPPrefix)
+				fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
 			}
 		}
 	}

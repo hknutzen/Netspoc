@@ -46,8 +46,8 @@ service:p2 = {
 ip route add 10.1.7.0/24 via 10.1.3.1
 --gw
 ! [ Routing ]
-ip route 10.1.7.32 255.255.255.224 10.1.7.30
 ip route 10.1.2.0 255.255.255.0 10.1.3.3
+ip route 10.1.7.32 255.255.255.224 10.1.7.30
 --
 ! [ ACL ]
 ip access-list extended outside_in

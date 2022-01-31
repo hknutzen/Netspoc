@@ -186,6 +186,48 @@ Error: Two static routes for network:n2
 =END=
 
 ############################################################
+=TITLE=Sort hops by name to get deterministic default route
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
+network:t1 = { ip = 10.9.1.0/24; }
+router:u2 = {
+ interface:n1;
+ interface:n2;
+ interface:t1 = { ip = 10.9.1.2; }
+}
+router:u1 = {
+ interface:n3;
+ interface:n4;
+ interface:t1 = { ip = 10.9.1.3; }
+}
+router:u3 = {
+ interface:n5;
+ interface:n6;
+ interface:t1 = { ip = 10.9.1.4; }
+}
+router:r = {
+ managed = routing_only;
+ model = IOS;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:t1 = { ip = 10.9.1.1; hardware = t1; }
+}
+=OUTPUT=
+--r
+! [ Routing ]
+ip route 0.0.0.0 0.0.0.0 10.9.1.3
+ip route 10.1.1.0 255.255.255.0 10.9.1.2
+ip route 10.1.2.0 255.255.255.0 10.9.1.2
+ip route 10.1.5.0 255.255.255.0 10.9.1.4
+ip route 10.1.6.0 255.255.255.0 10.9.1.4
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =INPUT=
 network:N = { ip = 10.1.1.0/24; }
