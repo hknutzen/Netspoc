@@ -79,11 +79,7 @@ func printRoutes(fh *os.File, r *router) {
 	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[uint8]map[netaddr.IP]*network)
-	type hopInfo struct {
-		intf *routerIntf
-		hop  *routerIntf
-	}
-	net2hopInfo := make(map[*network]hopInfo)
+	net2hop := make(map[*network]*routerIntf)
 	hop2intf := make(map[*routerIntf]*routerIntf)
 
 	for _, intf := range r.interfaces {
@@ -121,11 +117,11 @@ func printRoutes(fh *os.File, r *router) {
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
 			hop := hopList[0]
-			net2hopInfo[natNet] = hopInfo{intf, hop}
+			net2hop[natNet] = hop
 			hop2intf[hop] = intf
 		}
 	}
-	if len(net2hopInfo) == 0 {
+	if len(hop2intf) == 0 {
 		return
 	}
 
@@ -155,8 +151,8 @@ func printRoutes(fh *os.File, r *router) {
 
 			// Don't combine peers of ASA with site-to-site VPN.
 			if asaCrypto {
-				hopInfo := net2hopInfo[net]
-				if hopInfo.intf.hub != nil {
+				hop := net2hop[net]
+				if hop2intf[hop].hub != nil {
 					continue
 				}
 			}
@@ -204,8 +200,8 @@ func printRoutes(fh *os.File, r *router) {
 			}
 
 			// Both parts must use equal next hop.
-			hopLeft := net2hopInfo[left]
-			hopRight := net2hopInfo[right]
+			hopLeft := net2hop[left]
+			hopRight := net2hop[right]
 			if hopLeft != hopRight {
 				continue
 			}
@@ -230,7 +226,7 @@ func printRoutes(fh *os.File, r *router) {
 				prefix2ip2net[combinedPrefix] = ip2net
 			}
 			ip2net[ip] = combined
-			net2hopInfo[combined] = hopLeft
+			net2hop[combined] = hopLeft
 
 			// Left and right part are no longer used.
 			delete(prefix2ip2net[partPrefix], ip)
@@ -266,11 +262,11 @@ func printRoutes(fh *os.File, r *router) {
 	NETWORK:
 		for _, ip := range ips {
 			small := ip2net[ip]
-			hopInfo := net2hopInfo[small]
+			hop := net2hop[small]
 			noOpt := false
 
 			// ASA with site-to-site VPN needs individual routes for each peer.
-			if !(asaCrypto && hopInfo.intf.hub != nil) {
+			if !(asaCrypto && hop2intf[hop].hub != nil) {
 
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
@@ -282,7 +278,7 @@ func printRoutes(fh *os.File, r *router) {
 
 					// small is subnet of big.
 					// If both use the same hop, then small is redundant.
-					if net2hopInfo[big] == hopInfo {
+					if net2hop[big] == hop {
 
 						// debug("Removed: %s -> %s", small, hop)
 						continue NETWORK
@@ -301,7 +297,7 @@ func printRoutes(fh *os.File, r *router) {
 				netaddr.IPPrefixFrom(ip, prefix),
 				noOpt,
 			}
-			hop2netInfos[hopInfo.hop] = append(hop2netInfos[hopInfo.hop], info)
+			hop2netInfos[hop] = append(hop2netInfos[hop], info)
 		}
 	}
 
