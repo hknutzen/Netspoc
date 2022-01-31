@@ -135,19 +135,9 @@ func printRoutes(fh *os.File, r *router) {
 		bitstrLen = 32
 	}
 	invPrefixAref := make([]map[netaddr.IP]*network, bitstrLen+1)
-	keys := make([]uint8, 0, len(prefix2ip2net))
-	for k, _ := range prefix2ip2net {
-		keys = append(keys, k)
-	}
-	for _, prefix := range keys {
+	for prefix, ip2net := range prefix2ip2net {
 		invPrefix := bitstrLen - prefix
-		ip2net := prefix2ip2net[prefix]
-		keys := make([]netaddr.IP, 0, len(ip2net))
-		for k, _ := range ip2net {
-			keys = append(keys, k)
-		}
-		for _, ip := range keys {
-			net := ip2net[ip]
+		for ip, net := range ip2net {
 
 			// Don't combine peers of ASA with site-to-site VPN.
 			if asaCrypto {
