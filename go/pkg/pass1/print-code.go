@@ -127,50 +127,26 @@ func printRoutes(fh *os.File, r *router) {
 
 	// Combine adjacent networks, if both use same hop and
 	// if combined network doesn't already exist.
-	// Prepare invPrefixAref.
 	var bitstrLen uint8
 	if ipv6 {
 		bitstrLen = 128
 	} else {
 		bitstrLen = 32
 	}
-	invPrefixAref := make([]map[netaddr.IP]*network, bitstrLen+1)
-	for prefix, ip2net := range prefix2ip2net {
-		invPrefix := bitstrLen - prefix
-		for ip, net := range ip2net {
-
-			// Don't combine peers of ASA with site-to-site VPN.
-			if asaCrypto {
-				hop := net2hop[net]
-				if hop2intf[hop].hub != nil {
-					continue
-				}
-			}
-			m := invPrefixAref[invPrefix]
-			if m == nil {
-				m = make(map[netaddr.IP]*network)
-				invPrefixAref[invPrefix] = m
-			}
-			m[ip] = net
-		}
-	}
 
 	// Go from small to large networks. So we combine newly added
 	// networks as well.
-	for invPrefix, ip2net := range invPrefixAref {
-
-		// Must not optimize network 0/0; it has no supernet.
-		if uint8(invPrefix) >= bitstrLen {
-			break
-		}
-		if ip2net == nil {
-			continue
-		}
-		partPrefix := bitstrLen - uint8(invPrefix)
-		combinedInvPrefix := uint8(invPrefix + 1)
-		combinedPrefix := bitstrLen - combinedInvPrefix
-
+	// Must not optimize network 0/0; it has no supernet.
+	for partPrefix := bitstrLen; partPrefix > 0; partPrefix-- {
+		combinedPrefix := partPrefix - 1
+		ip2net := prefix2ip2net[partPrefix]
 		for ip, left := range ip2net {
+			hopLeft := net2hop[left]
+
+			// Don't combine peers of ASA with site-to-site VPN.
+			if asaCrypto && hop2intf[hopLeft].hub != nil {
+				continue
+			}
 
 			// Only analyze left part of two adjacent networks.
 			part, _ := ip.Prefix(partPrefix)
@@ -190,41 +166,31 @@ func printRoutes(fh *os.File, r *router) {
 			}
 
 			// Both parts must use equal next hop.
-			hopLeft := net2hop[left]
-			hopRight := net2hop[right]
-			if hopLeft != hopRight {
+			if hopRight := net2hop[right]; hopLeft != hopRight {
 				continue
 			}
 
-			ip2net := invPrefixAref[combinedInvPrefix]
-
-			if ip2net == nil {
-				ip2net = make(map[netaddr.IP]*network)
-				invPrefixAref[combinedInvPrefix] = ip2net
-			} else if ip2net[ip] != nil {
-				// Combined network already exists.
+			nextIP2net := prefix2ip2net[combinedPrefix]
+			if nextIP2net == nil {
+				nextIP2net = make(map[netaddr.IP]*network)
+				prefix2ip2net[combinedPrefix] = nextIP2net
+			} else if nextIP2net[ip] != nil {
+				// Combined route already exists.
 				continue
 			}
 
 			// Add combined route.
 			combined := &network{ipp: comb}
-			ip2net[ip] = combined
-
-			ip2net = prefix2ip2net[combinedPrefix]
-			if ip2net == nil {
-				ip2net = make(map[netaddr.IP]*network)
-				prefix2ip2net[combinedPrefix] = ip2net
-			}
-			ip2net[ip] = combined
+			nextIP2net[ip] = combined
 			net2hop[combined] = hopLeft
 
 			// Left and right part are no longer used.
-			delete(prefix2ip2net[partPrefix], ip)
-			delete(prefix2ip2net[partPrefix], nextIP)
+			delete(ip2net, ip)
+			delete(ip2net, nextIP)
 		}
 	}
 
-	// Find and remove duplicate networks.
+	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
 	prefixes := make([]uint8, 0, len(prefix2ip2net))
 	for k, _ := range prefix2ip2net {
