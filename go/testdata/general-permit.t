@@ -124,6 +124,33 @@ ip access-list e1_out
 =END=
 
 ############################################################
+=TITLE=General permit with udp and named tcp protocol
+=INPUT=
+protocol:TCP = tcp;
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ general_permit = udp, protocol:TCP;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list extended n1_in
+ permit tcp any any
+ permit udp any any
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp any any
+ permit udp any any
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=No ports permitted
 =INPUT=
 area:all = {
