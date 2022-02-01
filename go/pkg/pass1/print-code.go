@@ -691,7 +691,11 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			continue
 		}
 		natMap := intf.natMap
-		splitTCache := make(map[int]map[string][]*network)
+		type splitTEntry struct {
+			name     string
+			networks []*network
+		}
+		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
 			keys := make(stringList, 0, len(hash))
@@ -725,13 +729,13 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						splitTunnelNets, splitTunnelMerge, natMap)
 					aclName := ""
 				CACHED_NETS:
-					for name, nets := range splitTCache[len(splitTunnelNets)] {
-						for i, net := range nets {
+					for _, entry := range splitTCache[len(splitTunnelNets)] {
+						for i, net := range entry.networks {
 							if splitTunnelNets[i] != net {
 								continue CACHED_NETS
 							}
 						}
-						aclName = name
+						aclName = entry.name
 						break
 					}
 					if aclName == "" {
@@ -751,12 +755,10 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						} else {
 							rule = denyAny
 						}
-						name2nets := splitTCache[len(splitTunnelNets)]
-						if name2nets == nil {
-							name2nets = make(map[string][]*network)
-							splitTCache[len(splitTunnelNets)] = name2nets
-						}
-						name2nets[aclName] = splitTunnelNets
+						n := len(splitTunnelNets)
+						splitTCache[n] = append(
+							splitTCache[n],
+							splitTEntry{aclName, splitTunnelNets})
 						info := &aclInfo{
 							name:        aclName,
 							rules:       []*groupedRule{rule},
