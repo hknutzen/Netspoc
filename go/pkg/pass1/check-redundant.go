@@ -10,7 +10,7 @@ import (
 type redundInfo struct {
 	duplicate          [][2]*expandedRule
 	redundant          [][2]*expandedRule
-	hasSameDupl        map[*service]map[*service]bool
+	hasSameDupl        map[*service][]*service
 	overlapsUsed       map[[2]*service]bool
 	overlapsRestricted map[*service]bool
 }
@@ -199,12 +199,7 @@ func (c *spoc) collectDuplicateRules(
 	// - rules are created from sorted services earlier and
 	// - services are processed sorted later.
 	if sv.name > osv.name {
-		m := ri.hasSameDupl[osv]
-		if m == nil {
-			m = make(map[*service]bool)
-			ri.hasSameDupl[osv] = m
-		}
-		m[sv] = true
+		ri.hasSameDupl[osv] = append(ri.hasSameDupl[osv], sv)
 	}
 
 	// Return early, so overlapsUsed isn't set below.
@@ -305,7 +300,7 @@ func (c *spoc) showFullyRedundantRules(ri *redundInfo) {
 		if sv.duplicateCount+sv.redundantCount != ruleCount {
 			continue
 		}
-		for other := range ri.hasSameDupl[sv] {
+		for _, other := range ri.hasSameDupl[sv] {
 			keep[other] = true
 		}
 		c.warnOrErr(action, "%s is fully redundant", sv)
@@ -526,7 +521,7 @@ func (c *spoc) checkRedundantRules() {
 	dcount := 0
 	rcount := 0
 	ri := new(redundInfo)
-	ri.hasSameDupl = make(map[*service]map[*service]bool)
+	ri.hasSameDupl = make(map[*service][]*service)
 	ri.overlapsUsed = make(map[[2]*service]bool)
 	ri.overlapsRestricted = make(map[*service]bool)
 
