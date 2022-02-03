@@ -1315,7 +1315,6 @@ func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 
 // Find auto interface inside zone.
 // border is interface at border of zone.
-// src2 is unmanaged router or network inside zone.
 func (c *spoc) autoIntfInZone(border *routerIntf, obj netOrRouter) intfList {
 	if c.border2obj2auto == nil {
 		c.border2obj2auto = make(map[*routerIntf]map[netOrRouter]intfList)
