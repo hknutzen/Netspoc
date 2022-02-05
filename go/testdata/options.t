@@ -168,19 +168,20 @@ Aborted
 =END=
 
 ############################################################
-=TITLE=Can't read out directory
+=TITLE=Can't create tmp directory to save old out directory
 =SETUP=
 mkdir out
-chmod u-r out
+chmod u-w .
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =ERROR=
-panic: open out: permission denied
+Error: Can't mkdir code.tmp: permission denied
+Aborted
 =END=
 
 ############################################################
-=TITLE=Can't write to out directory
+=TITLE=Can't move out directory
 =SETUP=
 mkdir out
 chmod u-w out
@@ -193,7 +194,7 @@ router:r1 = {
 }
 =WITH_OUTDIR=
 =ERROR=
-Error: Can't open out/r1.config: permission denied
+Error: Can't rename out code.tmp/code: permission denied
 Aborted
 =END=
 

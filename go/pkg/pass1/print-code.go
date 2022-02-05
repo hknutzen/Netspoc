@@ -9,7 +9,6 @@ import (
 	"inet.af/netaddr"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"sort"
 	"strconv"
@@ -2241,39 +2240,33 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 // Make output directory available.
 // Move old content into subdirectory ".prev/" for reuse during pass 2.
 func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
+	var tmpCode string
+	if fileop.IsDir(dir) && !fileop.IsDir(prev) {
+		// Don't move files if directory .prev already exists.
+		// In this case the previous run of netspoc must have failed,
+		// since .prev is removed on successfull completion.
+
+		tmpDir, err := os.MkdirTemp(path.Dir(dir), "code.tmp*")
+		if err != nil {
+			c.abort("Can't %v", err)
+		}
+		defer func() { os.RemoveAll(tmpDir) }()
+		tmpCode = tmpDir + "/code"
+		if err := os.Rename(dir, tmpCode); err != nil {
+			c.abort("Can't %v", err)
+		}
+	}
 	if !fileop.IsDir(dir) {
 		err := os.Mkdir(dir, 0777)
 		if err != nil {
 			c.abort("Can't %v", err)
 		}
-	} else if !fileop.IsDir(prev) {
-		// Don't move files if directory .prev already exists.
-		// In this case the previous run of netspoc must have failed,
-		// since .prev is removed on successfull completion.
-
-		// Try to remove file or symlink with same name.
-		os.Remove(prev)
-		oldFiles := fileop.Readdirnames(dir)
-		if count := len(oldFiles); count > 0 {
-			if fileop.IsDir(dir + "/ipv6") {
-				v6files := fileop.Readdirnames(dir + "/ipv6")
-				count += len(v6files) - 1
-			}
-			c.info("Saving %d old files of '%s' to subdirectory '.prev'",
-				count, dir)
-
-			err := os.Mkdir(prev, 0777)
-			if err != nil {
-				c.abort("Can't %v", err)
-			}
-			for i, name := range oldFiles {
-				oldFiles[i] = dir + "/" + name
-			}
-			cmd := exec.Command("mv", append(oldFiles, prev)...)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				c.abort("Can't mv old files to prev: %v\n%s", err, out)
-			}
-		}
+	}
+	if tmpCode != "" {
+		// Error shouldn't occur, and doesn't matter, since code is
+		// regenerated if .prev is missing.
+		c.info("Saving old content of '%s' to subdirectory '.prev'", dir)
+		os.Rename(tmpCode, prev)
 	}
 	needV6 := false
 	for _, r := range devices {

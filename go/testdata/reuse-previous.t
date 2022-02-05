@@ -114,22 +114,6 @@ access-group n4_in in interface n4
 =END=
 
 ############################################################
-=TITLE=Can't read previous file
-=SETUP=
-mkdir -p out/r1
-chmod u-w out/r1
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=WITH_OUTDIR=
-=ERROR=
-Error: Can't mv old files to prev: exit status 1
-mv: cannot move 'out/r1' to 'out/.prev/r1': Permission denied
-
-Aborted
-=END=
-
-############################################################
 =TITLE=.prev is file
 =SETUP=
 mkdir out/
@@ -139,22 +123,6 @@ touch out/.prev
 network:n1 = { ip = 10.1.1.0/24; }
 =WITH_OUTDIR=
 =WARNING=NONE
-
-############################################################
-=TITLE=.prev is readonly file
-=SETUP=
-mkdir out/
-touch out/.prev
-chmod u-w out/.prev
-chmod u-x out
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=WITH_OUTDIR=
-=ERROR=
-Error: Can't mkdir out/.prev: permission denied
-Aborted
-=END=
 
 ############################################################
 =TITLE=Can't create link to reused file
