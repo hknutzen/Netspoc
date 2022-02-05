@@ -199,6 +199,25 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Can't write to out directory
+=SETUP=
+mkdir out
+mkdir out/.prev
+chmod u-w out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=WITH_OUTDIR=
+=ERROR=
+Error: Can't open out/r1.config: permission denied
+Aborted
+=END=
+
+############################################################
 =TITLE=Can't write code file
 =SETUP=
 mkdir -p out/.prev
