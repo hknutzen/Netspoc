@@ -81,6 +81,7 @@ type Config struct {
 	MaxErrors                    int  `flag:"max_errors m"`
 	Quiet                        bool `flag:"quiet q"`
 	TimeStamps                   bool `flag:"time_stamps t"`
+	DebugPass2                   string
 }
 
 func defaultOptions(fs *flag.FlagSet) *Config {
@@ -158,6 +159,9 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// Print progress messages with time stamps.
 		// Print "finished" with time stamp when finished.
 		TimeStamps: false,
+
+		// Debug pass2, argument is filename of device, e.g. NAME or ipv6/NAME.
+		DebugPass2: "",
 	}
 	gpflag.ParseTo(cfg, fs, sflags.FlagDivider("_"))
 	return cfg

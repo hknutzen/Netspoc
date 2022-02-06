@@ -123,6 +123,7 @@ Usage of PROGRAM:
       --check_unused_protocols tristate
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
+      --debug_pass2 string
       --ignore_files regexp                         (default ^(CVS|RCS|\.#.*|.*~)$)
   -6, --ipv6
   -m, --max_errors int                              (default 10)
@@ -279,4 +280,104 @@ router:r1 = {
 =WITH_OUTDIR=
 =ERROR=
 panic: open out/r1.rules: permission denied
+=END=
+
+############################################################
+=TITLE=Use debug_pass2
+=SETUP=
+mkdir out
+cat >> out/r1.config <<END
+! n1_in
+#insert n1_in
+END
+cat >> out/r1.rules <<END
+{
+  "model": "ASA",
+  "acls": [
+    {
+      "name": "n1_in",
+      "rules": [
+        {
+          "src": [ "10.1.1.0/24" ],
+          "dst": [ "10.1.2.0/24" ],
+          "prt": [ "tcp 80" ]
+        }
+      ],
+      "intf_rules": [],
+      "add_deny": true
+    }
+  ]
+}
+END
+=OPTIONS=--debug_pass2=r1
+=INPUT= ignored
+=WITH_OUTDIR=
+=OUTPUT=
+--r1
+! n1_in
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 80
+access-list n1_in extended deny ip any4 any4
+=END=
+
+############################################################
+=TITLE=debug_pass2 with unknown device
+=SETUP=
+mkdir out
+=OPTIONS=--debug_pass2=r1
+=INPUT= ignored
+=WITH_OUTDIR=
+=ERROR=
+panic: open out/r1.rules: no such file or directory
+=END=
+
+############################################################
+=TITLE=Bad JSON in intermediate code
+=SETUP=
+mkdir out
+cat >> out/r1.config <<END
+! n1_in
+#insert n1_in
+END
+cat >> out/r1.rules <<END
+BAD_JSON
+END
+=OPTIONS=--debug_pass2=r1
+=INPUT= ignored
+=WITH_OUTDIR=
+=ERROR=
+panic: invalid character 'B' looking for beginning of value
+=END=
+
+############################################################
+=TITLE=Overlapping ranges in intermediate code
+=SETUP=
+mkdir out
+cat >> out/r1.config <<END
+! n1_in
+#insert n1_in
+END
+cat >> out/r1.rules <<END
+{
+  "model": "ASA",
+  "acls": [
+    {
+      "name": "n1_in",
+      "rules": [
+        {
+          "src": [ "10.1.1.0/24" ],
+          "dst": [ "10.1.2.0/24" ],
+          "prt": [ "tcp 70-90", "tcp 80-99" ]
+        }
+      ],
+      "intf_rules": [],
+      "add_deny": true
+    }
+  ]
+}
+END
+=OPTIONS=--debug_pass2=r1
+=INPUT= ignored
+=WITH_OUTDIR=
+=ERROR=
+panic: Unexpected overlapping ranges [70 90] [80 99]
 =END=
