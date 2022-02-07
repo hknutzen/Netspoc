@@ -52,15 +52,13 @@ func (c *spoc) createDirs(dir, path string) {
 
 func (c *spoc) writeJson(path string, data interface{}) {
 	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	defer fd.Close()
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
 	enc.Encode(data)
-	if err := fd.Close(); err != nil {
-		panic(err)
-	}
 }
 
 func (c *spoc) exportJson(dir, path string, data interface{}) {

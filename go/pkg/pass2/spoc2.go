@@ -387,13 +387,11 @@ func printRouter(file string) {
 	if err != nil {
 		panicf("Can't %v", err)
 	}
+	defer fd.Close()
 	if routerData.model == "PAN-OS" {
 		printCombinedPanOS(fd, config, routerData)
 	} else {
 		printCombinedOther(fd, config, routerData)
-	}
-	if err := fd.Close(); err != nil {
-		panic(err)
 	}
 }
 

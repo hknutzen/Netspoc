@@ -2346,6 +2346,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
+	defer fd.Close()
 	model := r.model
 	commentChar := model.commentChar
 
@@ -2401,9 +2402,6 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 		header("END", deviceName)
 		fmt.Fprintln(fd)
-		if err := fd.Close(); err != nil {
-			panic(err)
-		}
 	}
 
 	// Print ACLs in machine independent format into separate file.
