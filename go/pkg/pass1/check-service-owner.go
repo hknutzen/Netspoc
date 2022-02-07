@@ -77,8 +77,8 @@ func (c *spoc) propagateOwners() {
 		case *area:
 			a = x.inArea
 		}
-		if a == nil {
-			return nil
+		if a == nil { // Must not return nil of type *area
+			return nil // but nil of type ownerer.
 		}
 		return a
 	}
