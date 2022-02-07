@@ -1,8 +1,9 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
 	"sort"
+
+	"inet.af/netaddr"
 )
 
 //##############################################################################
@@ -374,6 +375,9 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 			continue
 		}
 		if n := a.anchor; n != nil {
+			if n.disabled {
+				continue
+			}
 			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
 
