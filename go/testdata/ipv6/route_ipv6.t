@@ -191,6 +191,49 @@ Error: Two static routes for network:n2
 =END=
 
 ############################################################
+=TITLE=Sort hops by name to get deterministic default route
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = ::a01:0/120; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+network:n6 = { ip = ::a01:600/120; }
+network:t1 = { ip = ::a09:100/120; }
+router:u2 = {
+ interface:n1;
+ interface:n2;
+ interface:t1 = { ip = ::a09:102; }
+}
+router:u1 = {
+ interface:n3;
+ interface:n4;
+ interface:t1 = { ip = ::a09:103; }
+}
+router:u3 = {
+ interface:n5;
+ interface:n6;
+ interface:t1 = { ip = ::a09:104; }
+}
+router:r = {
+ managed = routing_only;
+ model = IOS;
+ interface:n0 = { ip = ::a01:1; hardware = n0; }
+ interface:t1 = { ip = ::a09:101; hardware = t1; }
+}
+=OUTPUT=
+--ipv6/r
+! [ Routing ]
+ipv6 route ::/0 ::a09:103
+ipv6 route ::a01:100/120 ::a09:102
+ipv6 route ::a01:200/120 ::a09:102
+ipv6 route ::a01:500/120 ::a09:104
+ipv6 route ::a01:600/120 ::a09:104
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =PARAMS=--ipv6
 =INPUT=
