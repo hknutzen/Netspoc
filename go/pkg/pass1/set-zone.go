@@ -858,7 +858,7 @@ func (c *spoc) inheritRouterAttributes(
 	for _, r := range a.managedRouters {
 		inherit(r)
 	}
-	//Distribute to management instances of area.
+	// Distribute to management instances of area.
 	if at1.attrName() == "policy_distribution_point" {
 		for _, r := range a.managementInstances {
 			inherit(r)
