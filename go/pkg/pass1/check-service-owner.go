@@ -205,32 +205,6 @@ func (c *spoc) propagateOwners() {
 		}
 	}
 
-	// Handle routerAttributes.owner separately.
-	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range c.ascendingAreas {
-		attributes := a.routerAttributes
-		if attributes == nil {
-			continue
-		}
-		o := attributes.owner
-		if o == nil {
-			continue
-		}
-		o.isUsed = true
-		for _, r := range a.managedRouters {
-			if rOwner := r.owner; rOwner != nil {
-				if rOwner == o {
-					c.warn(
-						"Useless %s at %s,\n"+
-							" it was already inherited from %s",
-						rOwner, r, attributes.name)
-				}
-			} else {
-				r.owner = o
-			}
-		}
-	}
-
 	// Set owner for interfaces of managed routers.
 	for _, r := range c.managedRouters {
 		o := r.owner

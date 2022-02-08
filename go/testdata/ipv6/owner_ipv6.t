@@ -431,10 +431,10 @@ router:r2 = {
 }
 =END=
 =WARNING=
-Warning: Useless owner:o1 at router:r1,
- it was already inherited from router_attributes of area:all
-Warning: Useless owner:o2 at router:r2,
+Warning: Useless attribute 'owner' at router:r2,
  it was already inherited from router_attributes of area:a2
+Warning: Useless attribute 'owner' at router:r1,
+ it was already inherited from router_attributes of area:all
 =END=
 
 ############################################################

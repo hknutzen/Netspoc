@@ -278,50 +278,48 @@ func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 
 type router struct {
 	ipVxObj
-	ownedObj
+	routerAttributes
 	pathStoreData
 	pathObjData
-	name                    string
-	deviceName              string
-	managed                 string
-	semiManaged             bool
-	managementInstance      bool
-	backupInstance          *router
-	backupOf                *router
-	adminIP                 []string
-	model                   *model
-	log                     map[string]string
-	logDefault              string
-	logDeny                 bool
-	localMark               int
-	origIntfs               intfList
-	crosslinkIntfs          intfList
-	disabled                bool
-	extendedKeys            map[string]string
-	filterOnly              []netaddr.IPPrefix
-	mergeTunnelSpecified    []netaddr.IPPrefix
-	generalPermit           []*proto
-	natDomains              []*natDomain
-	natTags                 map[*natDomain]stringList
-	natSet                  natSet // Only used if aclUseRealIp
-	natMap                  natMap // Only used if aclUseRealIp
-	needProtect             bool
-	noGroupCode             bool
-	noInAcl                 *routerIntf
-	noSecondaryOpt          map[*network]bool
-	hardware                []*hardware
-	origHardware            []*hardware
-	origRouter              *router
-	policyDistributionPoint *host
-	primaryMark             int
-	radiusAttributes        map[string]string
-	routingOnly             bool
-	secondaryMark           int
-	trustPoint              string
-	ipvMembers              []*router
-	vrfMembers              []*router
-	aclList                 aclList
-	vrf                     string
+	name                 string
+	deviceName           string
+	managed              string
+	semiManaged          bool
+	managementInstance   bool
+	backupInstance       *router
+	backupOf             *router
+	adminIP              []string
+	model                *model
+	log                  map[string]string
+	logDefault           string
+	logDeny              bool
+	localMark            int
+	origIntfs            intfList
+	crosslinkIntfs       intfList
+	disabled             bool
+	extendedKeys         map[string]string
+	filterOnly           []netaddr.IPPrefix
+	mergeTunnelSpecified []netaddr.IPPrefix
+	natDomains           []*natDomain
+	natTags              map[*natDomain]stringList
+	natSet               natSet // Only used if aclUseRealIp
+	natMap               natMap // Only used if aclUseRealIp
+	needProtect          bool
+	noGroupCode          bool
+	noInAcl              *routerIntf
+	noSecondaryOpt       map[*network]bool
+	hardware             []*hardware
+	origHardware         []*hardware
+	origRouter           *router
+	primaryMark          int
+	radiusAttributes     map[string]string
+	routingOnly          bool
+	secondaryMark        int
+	trustPoint           string
+	ipvMembers           []*router
+	vrfMembers           []*router
+	aclList              aclList
+	vrf                  string
 }
 
 func (x router) String() string { return x.name }
@@ -505,10 +503,11 @@ type zone struct {
 
 func (x zone) String() string { return x.name }
 
+// Embedded in router and area.
 type routerAttributes struct {
 	ownedObj
 	name                    string
-	generalPermit           []*proto
+	generalPermit           protoList
 	policyDistributionPoint *host
 }
 
@@ -516,6 +515,7 @@ type area struct {
 	disabledObj
 	ownedObj
 	ipVxObj
+	routerAttributes
 	name                string
 	anchor              *network
 	attr                attrStore
@@ -525,7 +525,6 @@ type area struct {
 	managedRouters      []*router
 	managementInstances []*router
 	nat                 map[string]*network
-	routerAttributes    *routerAttributes
 	watchingOwner       *owner
 	zones               []*zone
 }
@@ -667,7 +666,7 @@ func (l *ruleList) push(r *groupedRule) {
 	*l = append(*l, r)
 }
 
-func newRule(src, dst []someObj, prt []*proto) *groupedRule {
+func newRule(src, dst []someObj, prt protoList) *groupedRule {
 	return &groupedRule{
 		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
 }

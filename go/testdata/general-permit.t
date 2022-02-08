@@ -213,6 +213,26 @@ Warning: Useless attribute 'general_permit' at router:r,
 =END=
 
 ############################################################
+=TITLE=Redundant at nested areas
+=INPUT=
+# a1 < all
+area:all = { router_attributes = { general_permit = icmp; } anchor = network:n1; }
+area:a1 =  { router_attributes = { general_permit = icmp; } inclusive_border = interface:asa1.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=END=
+=WARNING=
+Warning: Useless attribute 'general_permit' at area:a1,
+ it was already inherited from router_attributes of area:all
+=END=
+
+############################################################
 =TITLE=Check for ignored inheritance (1)
 =INPUT=
 area:all = {

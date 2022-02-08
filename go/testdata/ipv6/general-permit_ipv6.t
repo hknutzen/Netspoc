@@ -221,6 +221,27 @@ Warning: Useless attribute 'general_permit' at router:r,
 =END=
 
 ############################################################
+=TITLE=Redundant at nested areas
+=PARAMS=--ipv6
+=INPUT=
+# a1 < all
+area:all = { router_attributes = { general_permit = icmpv6; } anchor = network:n1; }
+area:a1 =  { router_attributes = { general_permit = icmpv6; } inclusive_border = interface:asa1.n2; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+=END=
+=WARNING=
+Warning: Useless attribute 'general_permit' at area:a1,
+ it was already inherited from router_attributes of area:all
+=END=
+
+############################################################
 =TITLE=Check for ignored inheritance (1)
 =PARAMS=--ipv6
 =INPUT=

@@ -664,7 +664,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		for _, a := range zone2areas[z] {
 			att := a.routerAttributes
 			if len(a.nat) != 0 ||
-				keepOwner && (a.owner != nil || att != nil && att.owner != nil) {
+				keepOwner && (a.owner != nil || att.owner != nil) {
 
 				isUsed[a.name] = true
 			}

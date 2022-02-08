@@ -748,67 +748,20 @@ func (c *spoc) inheritAttributes() {
 	c.cleanupAfterInheritance(natSeen)
 }
 
-//##############################################################################
-// Purpose : Distribute area attributes to zones and managed routers.
-func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
-
-	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range c.ascendingAreas {
-		c.inheritRouterAttributes(a)
-		c.inheritAreaNat(a, natSeen)
-	}
+// Handling of inheritance for router_attributes of different types.
+type routerAttr interface {
+	attrName() string
+	equal(routerAttr) bool
+	toRouter(*router)
 }
 
-//##############################################################################
-// Purpose : Distribute routerAttributes from area definition to managed
-//           routers and management instances of an area.
-func (c *spoc) inheritRouterAttributes(a *area) {
+func (p *host) attrName() string         { return "policy_distribution_point" }
+func (p *host) equal(p2 routerAttr) bool { return p == p2 }
+func (p *host) toRouter(r *router)       { r.policyDistributionPoint = p }
 
-	// Check for attributes to be inherited.
-	attr := a.routerAttributes
-	if attr == nil {
-		return
-	}
-	p1 := attr.policyDistributionPoint
-	l1 := attr.generalPermit
-	if p1 == nil && l1 == nil {
-		return
-	}
-
-	setPDP := func(r *router) {
-		if p2 := r.policyDistributionPoint; p2 != nil {
-			if p1 == p2 {
-				c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
-					" it was already inherited from %s", r, attr.name)
-			}
-		} else {
-			r.policyDistributionPoint = p1
-		}
-	}
-	// Process all managed routers of the area inherited from.
-	for _, r := range a.managedRouters {
-		if p1 != nil {
-			setPDP(r)
-		}
-		if l1 != nil {
-			if l2 := r.generalPermit; l2 != nil {
-				if protoListEq(l1, l2) {
-					c.warn("Useless attribute 'general_permit' at %s,\n"+
-						" it was already inherited from %s", r, attr.name)
-				}
-			} else {
-				r.generalPermit = l1
-			}
-		}
-	}
-	if p1 != nil {
-		for _, r := range a.managementInstances {
-			setPDP(r)
-		}
-	}
-}
-
-func protoListEq(l1, l2 []*proto) bool {
+func (l protoList) attrName() string { return "general_permit" }
+func (l1 protoList) equal(a routerAttr) bool {
+	l2 := a.(protoList)
 	if len(l1) != len(l2) {
 		return false
 	}
@@ -818,6 +771,99 @@ func protoListEq(l1, l2 []*proto) bool {
 		}
 	}
 	return true
+}
+func (l protoList) toRouter(r *router) { r.generalPermit = l }
+
+func (o *owner) attrName() string         { return "owner" }
+func (o *owner) equal(o2 routerAttr) bool { return o == o2 }
+func (o *owner) toRouter(r *router)       { r.owner = o }
+
+//##############################################################################
+// Purpose : Distribute area attributes to zones and managed routers.
+func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
+
+	// Areas can be nested. Proceed from small to larger ones.
+	for _, a := range c.ascendingAreas {
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr {
+				at := rA.policyDistributionPoint
+				if at == nil {
+					return nil
+				}
+				return at
+			},
+		)
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr {
+				at := rA.generalPermit
+				if at == nil {
+					return nil
+				}
+				return at
+			},
+		)
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr {
+				at := rA.owner
+				if at == nil {
+					return nil
+				}
+				return at
+			},
+		)
+
+		c.inheritAreaNat(a, natSeen)
+	}
+}
+
+//##############################################################################
+// Inherit routerAttributes from area to managed routers of area.
+func (c *spoc) inheritRouterAttributes(
+	a *area,
+	getAttr func(*routerAttributes) routerAttr,
+) {
+	rA1 := &a.routerAttributes
+	at1 := getAttr(rA1)
+	if at1 == nil {
+		return
+	}
+	// Check for redundant attribute with enclosing areas.
+	for up := a.inArea; up != nil; up = up.inArea {
+		if rA2 := &up.routerAttributes; rA2 != nil {
+			if at2 := getAttr(rA2); at2 != nil {
+				if at1.equal(at2) {
+					c.warn("Useless attribute '%s' at %s,\n"+
+						" it was already inherited from %s",
+						at1.attrName(), a, rA2.name)
+					return
+				}
+			}
+		}
+	}
+	inherit := func(r *router) {
+		if at2 := getAttr(&r.routerAttributes); at2 != nil {
+			if at1.equal(at2) {
+				c.warn("Useless attribute '%s' at %s,\n"+
+					" it was already inherited from %s",
+					at2.attrName(), r, rA1.name)
+			}
+		} else {
+			at1.toRouter(r)
+		}
+	}
+	// Distribute to managed routers of area.
+	for _, r := range a.managedRouters {
+		inherit(r)
+	}
+	//Distribute to management instances of area.
+	if at1.attrName() == "policy_distribution_point" {
+		for _, r := range a.managementInstances {
+			inherit(r)
+		}
+	}
 }
 
 //#############################################################################

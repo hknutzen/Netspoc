@@ -3100,10 +3100,10 @@ func (c *spoc) getRadiusAttributes(a *ast.Attribute, ctx string) map[string]stri
 }
 
 func (c *spoc) getRouterAttributes(
-	a *ast.Attribute, s *symbolTable, ar *area) *routerAttributes {
+	a *ast.Attribute, s *symbolTable, ar *area) routerAttributes {
 
 	ctx := ar.name
-	r := new(routerAttributes)
+	var r routerAttributes
 	name := "router_attributes of " + ctx
 	r.name = name
 	l := c.getComplexValue(a, ctx)
