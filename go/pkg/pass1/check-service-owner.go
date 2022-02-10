@@ -19,21 +19,21 @@ func (c *spoc) propagateOwners() {
 	seen := make(map[*zone]bool)
 	for _, z := range c.allZones {
 		cluster := z.cluster
-		if len(cluster) > 1 && seen[cluster[0]] {
-			continue
+		if len(cluster) > 1 {
+			if seen[cluster[0]] {
+				continue
+			}
+			seen[cluster[0]] = true
 		}
 	AGG:
 		for key, agg := range z.ipPrefix2aggregate {
 
 			// If an explicit owner was set, it has been set for
-			// the whole cluster in link_aggregates.
+			// the whole cluster in duplicateAggregateToCluster.
 			if agg.owner != nil {
 				continue
 			}
 
-			if len(cluster) > 1 {
-				seen[cluster[0]] = true
-			}
 			var found *owner
 			for _, z2 := range cluster {
 				for _, n := range z2.ipPrefix2aggregate[key].networks {
