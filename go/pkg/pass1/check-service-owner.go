@@ -96,14 +96,12 @@ func (c *spoc) propagateOwners() {
 			return o, upper
 		}
 
-		// Don't send inversed inherited owner down to enclosed empty
-		// aggregates.
-		if n, ok := obj.(*network); ok {
-			if aggGotNetOwner[n] {
+		if o != nil {
+			// Don't send inversed inherited owner at aggregate down to
+			// enclosed objects.
+			if n, ok := obj.(*network); ok && aggGotNetOwner[n] {
 				return inheritOwner(getUp(obj))
 			}
-		}
-		if o != nil {
 			if !checked[obj] {
 				checked[obj] = true
 				o2, upper := inheritOwner(getUp(obj))
