@@ -751,15 +751,18 @@ func (c *spoc) inheritAttributes() {
 // Handling of inheritance for router_attributes of different types.
 type routerAttr interface {
 	attrName() string
+	isNil() bool
 	equal(routerAttr) bool
 	toRouter(*router)
 }
 
 func (p *host) attrName() string         { return "policy_distribution_point" }
+func (p *host) isNil() bool              { return p == nil }
 func (p *host) equal(p2 routerAttr) bool { return p == p2 }
 func (p *host) toRouter(r *router)       { r.policyDistributionPoint = p }
 
 func (l protoList) attrName() string { return "general_permit" }
+func (l protoList) isNil() bool      { return l == nil }
 func (l1 protoList) equal(a routerAttr) bool {
 	l2 := a.(protoList)
 	if len(l1) != len(l2) {
@@ -775,6 +778,7 @@ func (l1 protoList) equal(a routerAttr) bool {
 func (l protoList) toRouter(r *router) { r.generalPermit = l }
 
 func (o *owner) attrName() string         { return "owner" }
+func (o *owner) isNil() bool              { return o == nil }
 func (o *owner) equal(o2 routerAttr) bool { return o == o2 }
 func (o *owner) toRouter(r *router)       { r.owner = o }
 
@@ -787,32 +791,16 @@ func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
 		c.inheritRouterAttributes(
 			a,
 			func(rA *routerAttributes) routerAttr {
-				at := rA.policyDistributionPoint
-				if at == nil {
-					return nil
-				}
-				return at
+				return rA.policyDistributionPoint
 			},
 		)
 		c.inheritRouterAttributes(
 			a,
-			func(rA *routerAttributes) routerAttr {
-				at := rA.generalPermit
-				if at == nil {
-					return nil
-				}
-				return at
-			},
+			func(rA *routerAttributes) routerAttr { return rA.generalPermit },
 		)
 		c.inheritRouterAttributes(
 			a,
-			func(rA *routerAttributes) routerAttr {
-				at := rA.owner
-				if at == nil {
-					return nil
-				}
-				return at
-			},
+			func(rA *routerAttributes) routerAttr { return rA.owner },
 		)
 
 		c.inheritAreaNat(a, natSeen)
@@ -827,13 +815,13 @@ func (c *spoc) inheritRouterAttributes(
 ) {
 	rA1 := &a.routerAttributes
 	at1 := getAttr(rA1)
-	if at1 == nil {
+	if at1.isNil() {
 		return
 	}
 	// Check for redundant attribute with enclosing areas.
 	for up := a.inArea; up != nil; up = up.inArea {
 		if rA2 := &up.routerAttributes; rA2 != nil {
-			if at2 := getAttr(rA2); at2 != nil {
+			if at2 := getAttr(rA2); !at2.isNil() {
 				if at1.equal(at2) {
 					c.warn("Useless attribute '%s' at %s,\n"+
 						" it was already inherited from %s",
@@ -844,7 +832,7 @@ func (c *spoc) inheritRouterAttributes(
 		}
 	}
 	inherit := func(r *router) {
-		if at2 := getAttr(&r.routerAttributes); at2 != nil {
+		if at2 := getAttr(&r.routerAttributes); !at2.isNil() {
 			if at1.equal(at2) {
 				c.warn("Useless attribute '%s' at %s,\n"+
 					" it was already inherited from %s",
@@ -858,8 +846,9 @@ func (c *spoc) inheritRouterAttributes(
 	for _, r := range a.managedRouters {
 		inherit(r)
 	}
-	// Distribute to management instances of area.
-	if at1.attrName() == "policy_distribution_point" {
+	// Distribute policy_distribution_point also to management
+	// instances of area.
+	if _, ok := at1.(*host); ok {
 		for _, r := range a.managementInstances {
 			inherit(r)
 		}
