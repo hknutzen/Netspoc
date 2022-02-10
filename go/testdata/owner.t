@@ -418,6 +418,65 @@ Warning: Useless attribute 'owner' at router:r1,
 =END=
 
 ############################################################
+=TITLE=Useless inheritance from nested areas
+=INPUT=
+owner:o = { admins = a@example.com; }
+area:a1234 = {
+ anchor = network:n4;
+ owner = o;
+}
+area:a123 = {
+ inclusive_border = interface:r1.n4;
+}
+area:a12 = {
+ inclusive_border = interface:r1.n3, interface:r1.n4;
+ owner = o;
+}
+area:a1  = {
+ border = interface:r1.n1;
+ owner = o;
+}
+area:a2  = {
+ border = interface:r1.n2;
+ owner = o;
+}
+area:a3  = {
+ border = interface:r1.n3;
+ owner = o;
+}
+any:n1 = { link = network:n1; owner = o; }
+network:n1 = { ip = 10.1.1.0/24; owner = o; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; owner = o; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+=END=
+=WARNING=
+Warning: Useless owner:o at any:n1,
+ it was already inherited from area:a1
+Warning: Useless owner:o at area:a1,
+ it was already inherited from area:a12
+Warning: Useless owner:o at area:a12,
+ it was already inherited from area:a1234
+Warning: Useless owner:o at area:a2,
+ it was already inherited from area:a12
+Warning: Useless owner:o at area:a3,
+ it was already inherited from area:a1234
+Warning: Useless owner:o at network:n1,
+ it was already inherited from any:n1
+Warning: Useless owner:o at network:n4,
+ it was already inherited from area:a1234
+=END=
+
+############################################################
 =TITLE=Owner mismatch of overlapping hosts
 =INPUT=
 owner:a1 = { admins = a1@b.c; }
