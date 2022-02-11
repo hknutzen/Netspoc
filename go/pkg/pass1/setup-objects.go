@@ -1484,7 +1484,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	var vip bool
 	var hwName string
 	var subnetOf *network
-	var nat map[string]*network
+	var nat natTagMap
 	ipGiven := false
 	for _, a := range l {
 		switch a.Name {
@@ -3277,13 +3277,13 @@ func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {
 	return true
 }
 
-func (c *spoc) addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,
-	s *symbolTable, ctx string) map[string]*network {
+func (c *spoc) addNetNat(a *ast.Attribute, m natTagMap, v6 bool,
+	s *symbolTable, ctx string) natTagMap {
 
 	return c.addXNat(a, m, v6, s, ctx, c.getIpPrefix)
 }
-func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
-	s *symbolTable, ctx string) map[string]*network {
+func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
+	s *symbolTable, ctx string) natTagMap {
 
 	return c.addXNat(a, m, v6, s, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
@@ -3296,9 +3296,9 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
 }
 
 func (c *spoc) addXNat(
-	a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable, ctx string,
+	a *ast.Attribute, m natTagMap, v6 bool, s *symbolTable, ctx string,
 	getIpX func(*ast.Attribute, bool, string) netaddr.IPPrefix,
-) map[string]*network {
+) natTagMap {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
@@ -3355,7 +3355,7 @@ func (c *spoc) addXNat(
 	nat.name = ctx
 	nat.descr = "nat:" + tag + " of " + ctx
 	if m == nil {
-		m = make(map[string]*network)
+		m = make(natTagMap)
 	}
 	m[tag] = nat
 	return m

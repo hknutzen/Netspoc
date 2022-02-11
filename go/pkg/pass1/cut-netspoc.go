@@ -137,12 +137,12 @@ func setIntfUsed(intf *routerIntf) {
 	isUsed[iName] = true
 }
 
-var origNat = make(map[*network]map[string]*network)
+var origNat = make(map[*network]natTagMap)
 
 func saveOrigNat() {
 	copyNat := func(n *network) {
 		if nat := n.nat; nat != nil {
-			cpy := make(map[string]*network)
+			cpy := make(natTagMap)
 			for t, n := range nat {
 				cpy[t] = n
 			}

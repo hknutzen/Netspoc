@@ -715,7 +715,7 @@ func (c *spoc) processAggregates() {
 				} else {
 					// Must not use identical NAT map at different zones of cluster.
 					for _, z2 := range cluster {
-						z2.nat = make(map[string]*network)
+						z2.nat = make(natTagMap)
 						for t, n := range nat {
 							z2.nat[t] = n
 						}
@@ -885,7 +885,7 @@ func (c *spoc) inheritAreaNat(a *area, natSeen map[*network]bool) {
 
 			// Store NAT definition in zone otherwise
 			if z.nat == nil {
-				z.nat = make(map[string]*network)
+				z.nat = make(natTagMap)
 			}
 			z.nat[tag] = n1
 
@@ -984,7 +984,7 @@ func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
 //            If a network A is subnet of multiple networks B < C,
 //            then NAT of B is used.
 func (c *spoc) inheritNatToSubnetsInZone(
-	from string, natMap map[string]*network,
+	from string, natMap natTagMap,
 	net netaddr.IPPrefix, z *zone, natSeen map[*network]bool) {
 
 	tags := make(stringList, 0, len(natMap))
@@ -1046,7 +1046,7 @@ func (c *spoc) inheritNatToSubnetsInZone(
 				}
 
 				if n.nat == nil {
-					n.nat = make(map[string]*network)
+					n.nat = make(natTagMap)
 				}
 				n.nat[tag] = &subNat
 			}

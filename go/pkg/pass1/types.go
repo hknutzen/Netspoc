@@ -160,7 +160,7 @@ type network struct {
 	loopback             bool
 	maxRoutingNet        *network
 	maxSecondaryNet      *network
-	nat                  map[string]*network
+	nat                  natTagMap
 	natTag               string
 	networks             netList
 	noCheckSupernetRules bool
@@ -490,7 +490,7 @@ type zone struct {
 	inArea               *area
 	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
 	ipPrefix2net         map[netaddr.IPPrefix]netList
-	nat                  map[string]*network
+	nat                  natTagMap
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string
@@ -524,7 +524,7 @@ type area struct {
 	inArea              *area
 	managedRouters      []*router
 	managementInstances []*router
-	nat                 map[string]*network
+	nat                 natTagMap
 	watchingOwner       *owner
 	zones               []*zone
 }

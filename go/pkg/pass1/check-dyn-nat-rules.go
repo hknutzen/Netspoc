@@ -80,7 +80,7 @@ func (c *spoc) checkDynamicNatRules(
 	// 2. Mark networks with dynamic NAT
 	// It has been checked, that type of each NAT tag is equal at
 	// all networks.
-	zone2dynNat := make(map[*zone]map[string]*network)
+	zone2dynNat := make(map[*zone]natTagMap)
 	hasDynNAT := make(map[*network]bool)
 	for _, n := range c.allNetworks {
 		tagMap := n.nat
@@ -90,7 +90,7 @@ func (c *spoc) checkDynamicNatRules(
 		z := n.zone
 		zTagMap := zone2dynNat[z]
 		if zTagMap == nil {
-			zTagMap = make(map[string]*network)
+			zTagMap = make(natTagMap)
 			zone2dynNat[z] = zTagMap
 		}
 		for natTag, natNet := range tagMap {
