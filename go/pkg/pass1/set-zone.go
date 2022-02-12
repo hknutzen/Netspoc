@@ -19,6 +19,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.processAggregates()
 	c.inheritAttributes()
 	c.checkReroutePermit()
+	c.findSubnetsInZone()
 	return objInArea // For use in cut-netspoc
 }
 

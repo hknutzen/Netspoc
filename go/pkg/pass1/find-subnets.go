@@ -187,52 +187,6 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 		setMaxNet(n)
 	}
 
-	// For each subnet N find the largest non-aggregate network
-	// inside the same zone which encloses N.
-	// If one exists, store it in .maxRoutingNet. This is used
-	// for generating static routes.
-	// We later check, that subnet relation remains stable even if
-	// NAT is applied.
-	for _, n := range z.networks {
-		if maxUpNet[n] == nil {
-			continue
-		}
-
-		// debug "Check %s", n
-		var maxRouting *network
-		up := n.up
-	UP:
-		for up != nil {
-
-			// If larger network is hidden at some place, only use
-			// it for routing, if original network is hidden there
-			// as well.
-			// We don't need to check here that subnet relation is
-			// maintained for NAT addresses.
-			// That is enforced later in findSubnetsInNatDomain.
-			for tag, upNatInfo := range up.nat {
-				if !upNatInfo.hidden {
-					continue
-				}
-				natInfo := n.nat[tag]
-				if natInfo == nil {
-					break UP
-				}
-				// natInfo is known to be of type hidden, because all
-				// definitions of a single NAT tag have been checked to be
-				// of same type.
-			}
-			if !up.isAggregate {
-				maxRouting = up
-			}
-			up = up.up
-		}
-		if maxRouting != nil {
-			n.maxRoutingNet = maxRouting
-			// debug "Found %s", maxRouting
-		}
-	}
-
 	// Remove subnets of non-aggregate networks.
 	j := 0
 	for _, n := range z.networks {
@@ -248,10 +202,38 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	// intermediate device.
 }
 
+func setMaxRoutingNet(z *zone) {
+	var setMax func(big *network, l netList)
+	setMax = func(big *network, l netList) {
+		for _, sub := range l {
+			// If larger network is hidden at some place, only use
+			// it for routing, if original network is hidden there
+			// as well.
+			// We don't need to check here that subnet relation is
+			// maintained for NAT addresses.
+			// That is enforced later in findSubnetsInNatDomain.
+			for tag, upNatInfo := range big.nat {
+				// All definitions of a single NAT tag have been checked
+				// to be of same type, hence we only need to check
+				// sub.nat[tag] for nil.
+				if upNatInfo.hidden && sub.nat[tag] == nil {
+					setMax(sub, sub.networks)
+					return
+				}
+			}
+			sub.maxRoutingNet = big
+			setMax(big, sub.networks)
+		}
+	}
+	// Traverse toplevel networks of zone.
+	for _, big := range z.networks {
+		setMax(big, big.networks)
+	}
+}
+
 // Find subnet relation between networks inside a zone.
 // - subnet.up = bignet;
 func (c *spoc) findSubnetsInZone() {
-	c.progress("Finding subnets in zone")
 	for _, z := range c.allZones {
 		c.findSubnetsInZone0(z)
 	}
@@ -751,6 +733,9 @@ func findNatPartitions(domains []*natDomain) map[*natDomain]int {
 //    it is later checked for missing supernets.
 func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 	c.progress(fmt.Sprintf("Finding subnets in %d NAT domains", len(domains)))
+	for _, z := range c.allZones {
+		setMaxRoutingNet(z)
+	}
 
 	// Mapping from NAT domain to ID of NAT partition.
 	dom2Part := findNatPartitions(domains)

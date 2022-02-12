@@ -205,7 +205,6 @@ func SpocMain() (errCount int) {
 		c.setZone()
 		c.setPath()
 		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
-		c.findSubnetsInZone()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		c.checkServiceOwner(sRules)

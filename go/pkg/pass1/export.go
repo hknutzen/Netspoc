@@ -1422,7 +1422,6 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.setZone()
 	c.setPath()
 	natDomains, natTag2natType, multiNAT := c.distributeNatInfo()
-	c.findSubnetsInZone()
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := c.normalizeServicesForExport()

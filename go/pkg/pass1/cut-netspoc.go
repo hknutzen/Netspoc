@@ -535,7 +535,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()
-	c.findSubnetsInZone()
 	sRules := c.normalizeServices()
 	permitRules, denyRules := c.convertHostsInRules(sRules)
 	c.groupPathRules(permitRules, denyRules)

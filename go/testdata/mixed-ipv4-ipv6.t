@@ -381,7 +381,6 @@ Read: 2 routers, 4 networks, 1 hosts, 2 services
 0s Preparing security zones and areas
 0s Preparing fast path traversal
 0s Distributing NAT
-0s Finding subnets in zone
 0s Normalizing services
 0s Checking service owner
 0s Converting hosts to subnets

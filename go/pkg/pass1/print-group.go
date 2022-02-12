@@ -196,7 +196,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()
-	c.findSubnetsInZone()
 	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
