@@ -206,14 +206,13 @@ NET:
 func (c *spoc) findSubnetsInZoneCluster() {
 	seen := make(map[*zone]bool)
 	for _, z := range c.allZones {
-		if !seen[z] {
-			c.findSubnetsInZoneCluster0(z)
-			if len(z.cluster) > 1 {
-				for _, z2 := range z.cluster {
-					seen[z2] = true
-				}
+		if len(z.cluster) > 1 {
+			if seen[z.cluster[0]] {
+				continue
 			}
+			seen[z.cluster[0]] = true
 		}
+		c.findSubnetsInZoneCluster0(z)
 	}
 }
 
