@@ -75,6 +75,21 @@ Warning: Useless owner:t1 at network:Trans2,
 =END=
 
 ############################################################
+=TITLE=Networks with identical address in zone cluster
+=INPUT=
+network:n1a = { ip = 10.1.1.0/24; }
+network:n1b = { ip = 10.1.1.0/24; }
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1b; }
+}
+=ERROR=
+Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+=END=
+
+############################################################
 =TITLE=Duplicate IP from NAT in zone
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}

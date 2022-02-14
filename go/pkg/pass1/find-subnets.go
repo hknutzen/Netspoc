@@ -112,9 +112,9 @@ INTF:
 // Mark each network with the smallest network enclosing it.
 //###################################################################
 
-func (c *spoc) findSubnetsInZone0(z *zone) {
+func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 
-	// Add networks of zone to prefixIPMap.
+	// Add networks of zone cluster to prefixIPMap.
 	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
 	add := func(n *network) {
 		ipp := n.ipp
@@ -127,12 +127,42 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 		// Found two different networks with identical IP/mask.
 		if other := ipMap[ipp.IP()]; other != nil {
 			c.err("%s and %s have identical IP/mask in %s",
-				n.name, other.name, z.name)
+				other.name, n.name, z0.name)
 		} else {
 
-			// Store original network under NAT IP/mask.
+			// Store original network under IP/mask.
 			ipMap[ipp.IP()] = n
 		}
+	}
+	for _, n := range z0.ipPrefix2aggregate {
+		add(n)
+	}
+	for _, z := range z0.cluster {
+		for _, n := range z.networks {
+			add(n)
+		}
+	}
+
+	// Process networks of zone cluster, that are in direct subnet relation.
+	processSubnetRelation(prefixIPMap, func(sub, big *network) {
+
+		// Collect subnet relation.
+		sub.up = big
+
+		c.checkSubnets(big, sub, "")
+	})
+}
+
+func updateSubnetRelation0(z *zone) {
+	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
+	add := func(n *network) {
+		ipp := n.ipp
+		ipMap := prefixIPMap[ipp.Bits()]
+		if ipMap == nil {
+			ipMap = make(map[netaddr.IP]*network)
+			prefixIPMap[ipp.Bits()] = ipMap
+		}
+		ipMap[ipp.IP()] = n
 	}
 	for _, n := range z.networks {
 		add(n)
@@ -143,57 +173,26 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 
 	// Process networks of zone, that are in direct subnet relation.
 	processSubnetRelation(prefixIPMap, func(sub, big *network) {
-
-		// Collect subnet relation.
 		sub.up = big
-
-		//debug("%s -up-> %s", sub, big)
-		if sub.isAggregate {
-			big.networks = append(big.networks, sub.networks...)
-		} else {
-			big.networks.push(sub)
-		}
-
-		c.checkSubnets(big, sub, "")
 	})
+}
 
-	// For each subnet N find the largest non-aggregate network
-	// which encloses N. If one exists, store it in maxUpNet.
-	// This is used to exclude subnets from z.networks below.
-	// It is also used to derive attribute .maxRoutingNet.
-	maxUpNet := make(map[*network]*network)
-	var setMaxNet func(n *network) *network
-	setMaxNet = func(n *network) *network {
-		if n == nil {
-			return nil
-		}
-		if maxNet := maxUpNet[n]; maxNet != nil {
-			return maxNet
-		}
-		if maxNet := setMaxNet(n.up); maxNet != nil {
-			if !n.isAggregate {
-				maxUpNet[n] = maxNet
-
-				//debug("%s maxUp %s", n, maxNet);
-			}
-			return maxNet
-		}
-		if n.isAggregate {
-			return nil
-		}
-		return n
-	}
-	for _, n := range z.networks {
-		setMaxNet(n)
-	}
-
-	// Remove subnets of non-aggregate networks.
+// Fill n.networks relation and remove networks from z.networks, that
+// are subnet of some other network.
+func updateNetworksRelation(z *zone) {
 	j := 0
+NET:
 	for _, n := range z.networks {
-		if maxUpNet[n] == nil {
-			z.networks[j] = n
-			j++
+		for big := n.up; big != nil; big = big.up {
+			big.networks.push(n)
+			// Current network has some supernet, discard.
+			if !big.isAggregate {
+				continue NET
+			}
 		}
+		// Current network has no supernet, retain.
+		z.networks[j] = n
+		j++
 	}
 	z.networks = z.networks[:j]
 
@@ -202,40 +201,31 @@ func (c *spoc) findSubnetsInZone0(z *zone) {
 	// intermediate device.
 }
 
-func setMaxRoutingNet(z *zone) {
-	var setMax func(big *network, l netList)
-	setMax = func(big *network, l netList) {
-		for _, sub := range l {
-			// If larger network is hidden at some place, only use
-			// it for routing, if original network is hidden there
-			// as well.
-			// We don't need to check here that subnet relation is
-			// maintained for NAT addresses.
-			// That is enforced later in findSubnetsInNatDomain.
-			for tag, upNatInfo := range big.nat {
-				// All definitions of a single NAT tag have been checked
-				// to be of same type, hence we only need to check
-				// sub.nat[tag] for nil.
-				if upNatInfo.hidden && sub.nat[tag] == nil {
-					setMax(sub, sub.networks)
-					return
+// Find subnet relation between networks inside zone cluster.
+// - subnet.up = bignet;
+func (c *spoc) findSubnetsInZoneCluster() {
+	seen := make(map[*zone]bool)
+	for _, z := range c.allZones {
+		if !seen[z] {
+			c.findSubnetsInZoneCluster0(z)
+			if len(z.cluster) > 1 {
+				for _, z2 := range z.cluster {
+					seen[z2] = true
 				}
 			}
-			sub.maxRoutingNet = big
-			setMax(big, sub.networks)
 		}
-	}
-	// Traverse toplevel networks of zone.
-	for _, big := range z.networks {
-		setMax(big, big.networks)
 	}
 }
 
-// Find subnet relation between networks inside a zone.
+// Update subnet relation from networks inside zone cluster
+// to networks inside zone.
 // - subnet.up = bignet;
-func (c *spoc) findSubnetsInZone() {
+func (c *spoc) updateSubnetRelation() {
 	for _, z := range c.allZones {
-		c.findSubnetsInZone0(z)
+		if len(z.cluster) > 1 {
+			updateSubnetRelation0(z)
+		}
+		updateNetworksRelation(z)
 	}
 }
 
@@ -264,6 +254,34 @@ func natToLoopbackOk(loopbackNetwork, natNetwork *network) bool {
 		}
 	}
 	return allDeviceOk == deviceCount
+}
+
+func setMaxRoutingNet(z *zone) {
+	var setMax func(big *network, l netList)
+	setMax = func(big *network, l netList) {
+		for _, sub := range l {
+			// If larger network is hidden at some place, only use it for
+			// routing, if original network is hidden there as well.
+			// We don't need to check here that subnet relation is
+			// maintained for NAT addresses.
+			// That is enforced later in findSubnetsInNatDomain.
+			for tag, upNatInfo := range big.nat {
+				// All definitions of a single NAT tag have been checked
+				// to be of same type, hence we only need to check
+				// sub.nat[tag] for nil.
+				if upNatInfo.hidden && sub.nat[tag] == nil {
+					setMax(sub, sub.networks)
+					return
+				}
+			}
+			sub.maxRoutingNet = big
+			setMax(big, sub.networks)
+		}
+	}
+	// Traverse toplevel networks of zone.
+	for _, big := range z.networks {
+		setMax(big, big.networks)
+	}
 }
 
 func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
@@ -633,7 +651,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			up := subnet
 			for {
 				up2 := up.up
-				// up2 can't become nil because subnet and bigent are
+				// up2 can't become nil because subnet and bignet are
 				// known to be in .up relation in zone.
 				if !subnetInZone[netPair{up2, up}][domain] {
 					break

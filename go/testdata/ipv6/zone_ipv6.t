@@ -77,6 +77,22 @@ Warning: Useless owner:t1 at network:Trans2,
 =END=
 
 ############################################################
+=TITLE=Networks with identical address in zone cluster
+=PARAMS=--ipv6
+=INPUT=
+network:n1a = { ip = ::a01:100/120; }
+network:n1b = { ip = ::a01:100/120; }
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1a = { ip = ::a01:101; hardware = n1a; }
+ interface:n1b = { ip = ::a01:101; hardware = n1b; }
+}
+=ERROR=
+Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+=END=
+
+############################################################
 =TITLE=Duplicate IP from NAT in zone
 =PARAMS=--ipv6
 =INPUT=

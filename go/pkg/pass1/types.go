@@ -95,16 +95,6 @@ type ownedObj struct {
 func (x *ownedObj) getOwner() *owner  { return x.owner }
 func (x *ownedObj) setOwner(o *owner) { x.owner = o }
 
-type ipVxObj struct {
-	ipV6 bool
-}
-
-func (x *ipVxObj) isIPv6() bool { return x.ipV6 }
-
-type usedObj struct {
-	isUsed bool
-}
-
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
@@ -113,6 +103,16 @@ type ownerer interface {
 type withAttr interface {
 	ownerer
 	getNetwork() *network
+}
+
+type ipVxObj struct {
+	ipV6 bool
+}
+
+func (x *ipVxObj) isIPv6() bool { return x.ipV6 }
+
+type usedObj struct {
+	isUsed bool
 }
 
 const (
@@ -134,9 +134,21 @@ type ipObj struct {
 func (x ipObj) String() string { return x.name }
 
 type natTagMap map[string]*network
+type natObj struct {
+	nat natTagMap
+}
+
+func (x *natObj) getNAT() natTagMap  { return x.nat }
+func (x *natObj) setNAT(m natTagMap) { x.nat = m }
+
+type natter interface {
+	getNAT() natTagMap
+	setNAT(m natTagMap)
+}
 
 type network struct {
 	ipObj
+	natObj
 	withStdAddr
 	attr                 attrStore
 	certId               string
@@ -160,7 +172,6 @@ type network struct {
 	loopback             bool
 	maxRoutingNet        *network
 	maxSecondaryNet      *network
-	nat                  natTagMap
 	natTag               string
 	networks             netList
 	noCheckSupernetRules bool
@@ -490,7 +501,6 @@ type zone struct {
 	inArea               *area
 	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
 	ipPrefix2net         map[netaddr.IPPrefix]netList
-	nat                  natTagMap
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string
@@ -513,6 +523,7 @@ type routerAttributes struct {
 
 type area struct {
 	disabledObj
+	natObj
 	ownedObj
 	ipVxObj
 	routerAttributes
@@ -524,7 +535,6 @@ type area struct {
 	inArea              *area
 	managedRouters      []*router
 	managementInstances []*router
-	nat                 natTagMap
 	watchingOwner       *owner
 	zones               []*zone
 }
