@@ -870,20 +870,13 @@ func (c *spoc) inheritNAT0() {
 		if from := inherited[obj]; from != nil {
 			return m1, from
 		}
-
-		up := getUp(obj)
-		m2, from2 := inherit(up)
 		from1 := make(fromMap)
-		if m1 == nil {
-			m1 = make(natTagMap)
-			obj.setNAT(m1)
-		} else {
-			for tag, nat1 := range m1 {
-				if nat1.identity && m2[tag] == nil {
-					c.warn("Useless identity %s", nat1.descr)
-				}
-				from1[tag] = obj
+		m2, from2 := inherit(getUp(obj))
+		for tag, nat1 := range m1 {
+			if nat1.identity && m2[tag] == nil {
+				c.warn("Useless identity %s", nat1.descr)
 			}
+			from1[tag] = obj
 		}
 		for tag, nat2 := range m2 {
 			if nat1, found := m1[tag]; found {
@@ -891,20 +884,21 @@ func (c *spoc) inheritNAT0() {
 					c.warn("Useless %s,\n it was already inherited from %s",
 						nat1.descr, from2[tag])
 				}
+				continue
 			} else if n, ok := obj.(*network); ok && !n.isAggregate {
 				if n.ipType == bridgedIP && !nat2.identity {
 					c.err("Must not inherit nat:%s at bridged %s from %s",
 						tag, n, from2[tag])
 					continue
 				}
-				m1[tag] = c.adaptNAT(n, tag, nat2)
-				if nat2.dynamic {
-					from1[tag] = from2[tag]
-				}
-			} else {
-				m1[tag] = nat2
-				from1[tag] = from2[tag]
+				nat2 = c.adaptNAT(n, tag, nat2)
 			}
+			if m1 == nil {
+				m1 = make(natTagMap)
+				obj.setNAT(m1)
+			}
+			m1[tag] = nat2
+			from1[tag] = from2[tag]
 		}
 		inherited[obj] = from1
 		return m1, from1
