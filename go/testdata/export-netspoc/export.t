@@ -5,7 +5,6 @@ owner:y = { admins = y@b.c; hide_from_outer_owners; }
 owner:z = { admins = z@b.c; hide_from_outer_owners; }
 area:all = { owner = x; anchor = network:Big; }
 any:Big  = { owner = y; link = network:Big; }
-any:Sub1 = { ip = 10.1.0.0/23; link = network:Big; }
 any:Sub2 = { ip = 10.1.1.0/25; link = network:Big; }
 network:Sub = { ip = 10.1.1.0/24; owner = z; subnet_of = network:Big; }
 router:u = {
@@ -106,7 +105,7 @@ service:test = {
 =INPUT=
 [[topo]]
 service:test = {
- user = any:Sub1;
+ user = any:[ip = 10.1.0.0/23 & network:Big];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
 =END=
@@ -218,7 +217,7 @@ service:test2 = {
 =INPUT=
 [[topo {comment: "#"}]]
 service:test = {
- user = any:Sub1;
+ user = any:[ip = 10.1.0.0/23 & network:Big];
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
 service:test2 = {
@@ -246,96 +245,118 @@ service:test2 = {
 =END=
 
 ############################################################
-=TITLE=Inversed inheritance for zone
-# any:a inherits owner:a from enclosing networks n1, n2.
+=TITLE=Inversed inheritance for non matching aggregate
+# any:[network:n3] inherits owner:a from enclosed networks n1, n2.
 # Unnumbered network is ignored.
 =INPUT=
+owner:a = { admins = a@example.com; }
 network:n1 = { ip = 10.1.1.0/24; owner = a; }
 network:n2 = { ip = 10.1.2.0/24; owner = a; }
 network:n3 = { unnumbered; }
-any:a = { link = network:n3; }
-router:r = {
+network:n4 = { ip = 10.1.4.0/24; }
+router:u = {
  interface:n1;
  interface:n2;
- interface:n3;
+ interface:n3 = { unnumbered; }
 }
-owner:a = { admins = a@example.com; }
+router:r = {
+ managed;
+ model = IOS, FW;
+ interface:n3 = { unnumbered; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = any:[network:n3];
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
 =END=
 =OUTPUT=
 -- objects
 {
- "any:a": {
+ "any:[network:n3]": {
   "ip": "0.0.0.0/0.0.0.0",
+  "is_supernet": 1,
   "owner": "a",
-  "zone": "any:a"
+  "zone": "any:[network:n3]"
  },
- "interface:r.n1": {
+ "interface:u.n1": {
   "ip": "short",
   "owner": "a"
  },
- "interface:r.n2": {
+ "interface:u.n2": {
   "ip": "short",
   "owner": "a"
  },
  "network:n1": {
   "ip": "10.1.1.0/255.255.255.0",
   "owner": "a",
-  "zone": "any:a"
+  "zone": "any:[network:n3]"
  },
  "network:n2": {
   "ip": "10.1.2.0/255.255.255.0",
   "owner": "a",
-  "zone": "any:a"
+  "zone": "any:[network:n3]"
  }
 }
 =END=
 
 ############################################################
 =TITLE=Must not inhert inversed inherited owner
-# Inherit real owner to empty aggregate.
 =INPUT=
 owner:a = { admins = a@example.com; }
 owner:b = { admins = b@example.com; }
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-any:a1-23 = { ip = 10.1.0.0/23; link = network:n1; }
-any:empty-23 = { ip = 10.2.0.0/23; link = network:n1; }
-any:a-14 = { ip = 10.0.0.0/14; link = network:n1; }
 any:a-8 = { ip = 10.0.0.0/8; link = network:n1; owner = b; }
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:r = {
- interface:n1;
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n2;
+ permit src = any:[ip = 10.1.0.0/23 & network:n1]; dst = user; prt = tcp 80;
+ permit src = any:[ip = 10.2.0.0/23 & network:n1]; dst = user; prt = tcp 81;
+ permit src = any:[ip = 10.0.0.0/14 & network:n1]; dst = user; prt = tcp 82;
 }
 =END=
 =OUTPUT=
 -- objects
 {
- "any:a-14": {
+ "any:[ip=10.0.0.0/14 & network:n1]": {
   "ip": "10.0.0.0/255.252.0.0",
-  "owner": "a",
-  "zone": "any:[network:n1]"
- },
- "any:a-8": {
-  "ip": "10.0.0.0/255.0.0.0",
+  "is_supernet": 1,
   "owner": "b",
   "zone": "any:[network:n1]"
  },
- "any:a1-23": {
+ "any:[ip=10.1.0.0/23 & network:n1]": {
   "ip": "10.1.0.0/255.255.254.0",
   "owner": "a",
   "zone": "any:[network:n1]"
  },
- "any:empty-23": {
+ "any:[ip=10.2.0.0/23 & network:n1]": {
   "ip": "10.2.0.0/255.255.254.0",
   "owner": "b",
   "zone": "any:[network:n1]"
  },
+ "any:a-8": {
+  "ip": "10.0.0.0/255.0.0.0",
+  "is_supernet": 1,
+  "owner": "b",
+  "zone": "any:[network:n1]"
+ },
  "interface:r.n1": {
-  "ip": "short",
-  "owner": "a"
+  "ip": "10.1.1.1"
  },
  "network:n1": {
   "ip": "10.1.1.0/255.255.255.0",
   "owner": "a",
   "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "zone": "any:[network:n2]"
  }
 }
 =END=

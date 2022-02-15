@@ -21,6 +21,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.checkAttrNoCheckSupernetRules()
 	c.findSubnetsInZoneCluster()
 	c.inheritAttributes()
+	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
 	c.updateSubnetRelation()
 	return objInArea // For use in cut-netspoc
 }

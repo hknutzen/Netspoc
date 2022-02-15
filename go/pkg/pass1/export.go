@@ -1425,7 +1425,6 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 
 	// Copy of services with those services split, that have different 'user'.
 	expSvcList := c.normalizeServicesForExport()
-	c.propagateOwners()
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := c.setupPartOwners()
 	masterOwner, oInfo, eInfo := c.setupOuterOwners()

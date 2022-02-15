@@ -12,56 +12,6 @@ import (
 
 func (c *spoc) propagateOwners() {
 
-	// Inversed inheritance: If an aggregate has no direct owner and if
-	// all contained toplevel networks have the same owner,
-	// then set owner of this zone to the one owner.
-	aggGotNetOwner := make(map[*network]bool)
-	seen := make(map[*zone]bool)
-	for _, z := range c.allZones {
-		cluster := z.cluster
-		if len(cluster) > 1 {
-			if seen[cluster[0]] {
-				continue
-			}
-			seen[cluster[0]] = true
-		}
-	AGG:
-		for key, agg := range z.ipPrefix2aggregate {
-
-			// If an explicit owner was set, it has been set for
-			// the whole cluster in duplicateAggregateToCluster.
-			if agg.owner != nil {
-				continue
-			}
-
-			var found *owner
-			for _, z2 := range cluster {
-				for _, n := range z2.ipPrefix2aggregate[key].networks {
-					netOwner := n.owner
-					if netOwner == nil {
-						continue AGG
-					}
-					if found != nil {
-						if netOwner != found {
-							continue AGG
-						}
-					} else {
-						found = netOwner
-					}
-				}
-			}
-			if found == nil {
-				continue
-			}
-			//debug("Inversed inherit: %s %s", agg, found)
-			for _, z2 := range cluster {
-				agg2 := z2.ipPrefix2aggregate[key]
-				agg2.owner = found
-				aggGotNetOwner[agg2] = true
-			}
-		}
-	}
-
 	getUp := func(obj ownerer) ownerer {
 		var a *area
 		switch x := obj.(type) {
@@ -97,11 +47,6 @@ func (c *spoc) propagateOwners() {
 		}
 
 		if o != nil {
-			// Don't send inversed inherited owner at aggregate down to
-			// enclosed objects.
-			if n, ok := obj.(*network); ok && aggGotNetOwner[n] {
-				return inheritOwner(getUp(obj))
-			}
 			if !checked[obj] {
 				checked[obj] = true
 				o2, upper := inheritOwner(getUp(obj))
@@ -237,9 +182,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-
-		c.propagateOwners()
-
 		type svcInfo struct {
 			// Is set, if all rules use same objects.
 			sameObjects bool

@@ -245,10 +245,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 		process(sRules.deny)
 	}
 
-	if showOwner || showAdmins {
-		c.propagateOwners()
-	}
-
 	// Expand group definition.
 	// We don't know if this expands to IPv4 or IPv6 addresses,
 	// so we try both IPv4 and IPv6.
