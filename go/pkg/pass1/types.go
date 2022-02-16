@@ -95,16 +95,6 @@ type ownedObj struct {
 func (x *ownedObj) getOwner() *owner  { return x.owner }
 func (x *ownedObj) setOwner(o *owner) { x.owner = o }
 
-type ipVxObj struct {
-	ipV6 bool
-}
-
-func (x *ipVxObj) isIPv6() bool { return x.ipV6 }
-
-type usedObj struct {
-	isUsed bool
-}
-
 type ownerer interface {
 	getOwner() *owner
 	setOwner(o *owner)
@@ -113,6 +103,16 @@ type ownerer interface {
 type withAttr interface {
 	ownerer
 	getNetwork() *network
+}
+
+type ipVxObj struct {
+	ipV6 bool
+}
+
+func (x *ipVxObj) isIPv6() bool { return x.ipV6 }
+
+type usedObj struct {
+	isUsed bool
 }
 
 const (
@@ -134,9 +134,21 @@ type ipObj struct {
 func (x ipObj) String() string { return x.name }
 
 type natTagMap map[string]*network
+type natObj struct {
+	nat natTagMap
+}
+
+func (x *natObj) getNAT() natTagMap  { return x.nat }
+func (x *natObj) setNAT(m natTagMap) { x.nat = m }
+
+type natter interface {
+	getNAT() natTagMap
+	setNAT(m natTagMap)
+}
 
 type network struct {
 	ipObj
+	natObj
 	withStdAddr
 	attr                 attrStore
 	certId               string
@@ -160,7 +172,6 @@ type network struct {
 	loopback             bool
 	maxRoutingNet        *network
 	maxSecondaryNet      *network
-	nat                  map[string]*network
 	natTag               string
 	networks             netList
 	noCheckSupernetRules bool
@@ -278,49 +289,48 @@ func (a *aclList) push(e *aclInfo) { *a = append(*a, e) }
 
 type router struct {
 	ipVxObj
-	ownedObj
+	routerAttributes
 	pathStoreData
 	pathObjData
-	name                    string
-	deviceName              string
-	managed                 string
-	semiManaged             bool
-	managementInstance      bool
-	backupInstance          *router
-	backupOf                *router
-	adminIP                 []string
-	model                   *model
-	log                     map[string]string
-	logDefault              string
-	logDeny                 bool
-	localMark               int
-	origIntfs               intfList
-	crosslinkIntfs          intfList
-	disabled                bool
-	extendedKeys            map[string]string
-	filterOnly              []netaddr.IPPrefix
-	generalPermit           []*proto
-	natDomains              []*natDomain
-	natTags                 map[*natDomain]stringList
-	natSet                  natSet // Only used if aclUseRealIp
-	natMap                  natMap // Only used if aclUseRealIp
-	needProtect             bool
-	noGroupCode             bool
-	noInAcl                 *routerIntf
-	noSecondaryOpt          map[*network]bool
-	hardware                []*hardware
-	origHardware            []*hardware
-	origRouter              *router
-	policyDistributionPoint *host
-	primaryMark             int
-	radiusAttributes        map[string]string
-	routingOnly             bool
-	secondaryMark           int
-	trustPoint              string
-	ipvMembers              []*router
-	vrfMembers              []*router
-	aclList                 aclList
-	vrf                     string
+	name                 string
+	deviceName           string
+	managed              string
+	semiManaged          bool
+	managementInstance   bool
+	backupInstance       *router
+	backupOf             *router
+	adminIP              []string
+	model                *model
+	log                  map[string]string
+	logDefault           string
+	logDeny              bool
+	localMark            int
+	origIntfs            intfList
+	crosslinkIntfs       intfList
+	disabled             bool
+	extendedKeys         map[string]string
+	filterOnly           []netaddr.IPPrefix
+	mergeTunnelSpecified []netaddr.IPPrefix
+	natDomains           []*natDomain
+	natTags              map[*natDomain]stringList
+	natSet               natSet // Only used if aclUseRealIp
+	natMap               natMap // Only used if aclUseRealIp
+	needProtect          bool
+	noGroupCode          bool
+	noInAcl              *routerIntf
+	noSecondaryOpt       map[*network]bool
+	hardware             []*hardware
+	origHardware         []*hardware
+	origRouter           *router
+	primaryMark          int
+	radiusAttributes     map[string]string
+	routingOnly          bool
+	secondaryMark        int
+	trustPoint           string
+	ipvMembers           []*router
+	vrfMembers           []*router
+	aclList              aclList
+	vrf                  string
 }
 
 func (x router) String() string { return x.name }
@@ -491,7 +501,6 @@ type zone struct {
 	inArea               *area
 	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
 	ipPrefix2net         map[netaddr.IPPrefix]netList
-	nat                  map[string]*network
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string
@@ -504,17 +513,20 @@ type zone struct {
 
 func (x zone) String() string { return x.name }
 
+// Embedded in router and area.
 type routerAttributes struct {
 	ownedObj
 	name                    string
-	generalPermit           []*proto
+	generalPermit           protoList
 	policyDistributionPoint *host
 }
 
 type area struct {
 	disabledObj
+	natObj
 	ownedObj
 	ipVxObj
+	routerAttributes
 	name                string
 	anchor              *network
 	attr                attrStore
@@ -523,8 +535,6 @@ type area struct {
 	inArea              *area
 	managedRouters      []*router
 	managementInstances []*router
-	nat                 map[string]*network
-	routerAttributes    *routerAttributes
 	watchingOwner       *owner
 	zones               []*zone
 }
@@ -666,7 +676,7 @@ func (l *ruleList) push(r *groupedRule) {
 	*l = append(*l, r)
 }
 
-func newRule(src, dst []someObj, prt []*proto) *groupedRule {
+func newRule(src, dst []someObj, prt protoList) *groupedRule {
 	return &groupedRule{
 		src: src, dst: dst, serviceRule: &serviceRule{prt: prt}}
 }

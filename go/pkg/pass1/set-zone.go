@@ -1,8 +1,9 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
 	"sort"
+
+	"inet.af/netaddr"
 )
 
 //##############################################################################
@@ -16,8 +17,12 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	objInArea := c.setAreas()
 	c.checkAreaSubsetRelations(objInArea)
 	c.processAggregates()
-	c.inheritAttributes()
 	c.checkReroutePermit()
+	c.checkAttrNoCheckSupernetRules()
+	c.findSubnetsInZoneCluster()
+	c.inheritAttributes()
+	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
+	c.updateSubnetRelation()
 	return objInArea // For use in cut-netspoc
 }
 
@@ -374,6 +379,9 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 			continue
 		}
 		if n := a.anchor; n != nil {
+			if n.disabled {
+				continue
+			}
 			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
 
@@ -697,28 +705,9 @@ func (c *spoc) processAggregates() {
 			}
 		}
 
-		// Use aggregate with ip 0/0 to set attributes of all zones in cluster.
-		//
-		// Even NAT is moved to zone for aggregate 0/0 although we
-		// retain NAT at other aggregates.
-		// This is an optimization to prevent the creation of many aggregates 0/0
-		// if only inheritance of NAT from area to network is needed.
+		// Use aggregate with ip 0/0 to set attribute of all zones in cluster.
 		prefixlen := agg.ipp.Bits()
 		if prefixlen == 0 {
-			if nat := agg.nat; nat != nil {
-				if len(cluster) == 1 {
-					z.nat = nat
-				} else {
-					// Must not use identical NAT map at different zones of cluster.
-					for _, z2 := range cluster {
-						z2.nat = make(map[string]*network)
-						for t, n := range nat {
-							z2.nat[t] = n
-						}
-					}
-				}
-				agg.nat = nil
-			}
 			if agg.noCheckSupernetRules {
 				for _, z2 := range cluster {
 					z2.noCheckSupernetRules = true
@@ -737,74 +726,28 @@ func (c *spoc) processAggregates() {
 }
 
 func (c *spoc) inheritAttributes() {
-	natSeen := make(map[*network]bool)
-	c.inheritAttributesFromArea(natSeen)
-	c.inheritNatInZone(natSeen)
-	c.checkAttrNoCheckSupernetRules()
-	c.cleanupAfterInheritance(natSeen)
+	c.inheritAttributesFromArea()
+	c.inheritNAT()
+	c.cleanupAfterInheritance()
 }
 
-//##############################################################################
-// Purpose : Distribute area attributes to zones and managed routers.
-func (c *spoc) inheritAttributesFromArea(natSeen map[*network]bool) {
-
-	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range c.ascendingAreas {
-		c.inheritRouterAttributes(a)
-		c.inheritAreaNat(a, natSeen)
-	}
+// Handling of inheritance for router_attributes of different types.
+type routerAttr interface {
+	attrName() string
+	isNil() bool
+	equal(routerAttr) bool
+	toRouter(*router)
 }
 
-//##############################################################################
-// Purpose : Distribute routerAttributes from area definition to managed
-//           routers and management instances of an area.
-func (c *spoc) inheritRouterAttributes(a *area) {
+func (p *host) attrName() string         { return "policy_distribution_point" }
+func (p *host) isNil() bool              { return p == nil }
+func (p *host) equal(p2 routerAttr) bool { return p == p2 }
+func (p *host) toRouter(r *router)       { r.policyDistributionPoint = p }
 
-	// Check for attributes to be inherited.
-	attr := a.routerAttributes
-	if attr == nil {
-		return
-	}
-	p1 := attr.policyDistributionPoint
-	l1 := attr.generalPermit
-	if p1 == nil && l1 == nil {
-		return
-	}
-
-	setPDP := func(r *router) {
-		if p2 := r.policyDistributionPoint; p2 != nil {
-			if p1 == p2 {
-				c.warn("Useless attribute 'policy_distribution_point' at %s,\n"+
-					" it was already inherited from %s", r, attr.name)
-			}
-		} else {
-			r.policyDistributionPoint = p1
-		}
-	}
-	// Process all managed routers of the area inherited from.
-	for _, r := range a.managedRouters {
-		if p1 != nil {
-			setPDP(r)
-		}
-		if l1 != nil {
-			if l2 := r.generalPermit; l2 != nil {
-				if protoListEq(l1, l2) {
-					c.warn("Useless attribute 'general_permit' at %s,\n"+
-						" it was already inherited from %s", r, attr.name)
-				}
-			} else {
-				r.generalPermit = l1
-			}
-		}
-	}
-	if p1 != nil {
-		for _, r := range a.managementInstances {
-			setPDP(r)
-		}
-	}
-}
-
-func protoListEq(l1, l2 []*proto) bool {
+func (l protoList) attrName() string { return "general_permit" }
+func (l protoList) isNil() bool      { return l == nil }
+func (l1 protoList) equal(a routerAttr) bool {
+	l2 := a.(protoList)
 	if len(l1) != len(l2) {
 		return false
 	}
@@ -815,62 +758,195 @@ func protoListEq(l1, l2 []*proto) bool {
 	}
 	return true
 }
+func (l protoList) toRouter(r *router) { r.generalPermit = l }
 
-//#############################################################################
-// Purpose : Distribute NAT from area to zones.
-func (c *spoc) inheritAreaNat(a *area, natSeen map[*network]bool) {
-	m := a.nat
-	if m == nil {
+func (o *owner) attrName() string         { return "owner" }
+func (o *owner) isNil() bool              { return o == nil }
+func (o *owner) equal(o2 routerAttr) bool { return o == o2 }
+func (o *owner) toRouter(r *router)       { r.owner = o }
+
+//##############################################################################
+// Purpose : Distribute area attributes to zones and managed routers.
+func (c *spoc) inheritAttributesFromArea() {
+
+	// Areas can be nested. Proceed from small to larger ones.
+	for _, a := range c.ascendingAreas {
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr {
+				return rA.policyDistributionPoint
+			},
+		)
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr { return rA.generalPermit },
+		)
+		c.inheritRouterAttributes(
+			a,
+			func(rA *routerAttributes) routerAttr { return rA.owner },
+		)
+	}
+}
+
+//##############################################################################
+// Inherit routerAttributes from area to managed routers of area.
+func (c *spoc) inheritRouterAttributes(
+	a *area,
+	getAttr func(*routerAttributes) routerAttr,
+) {
+	rA1 := &a.routerAttributes
+	at1 := getAttr(rA1)
+	if at1.isNil() {
 		return
 	}
-
-	// Process every nat definition of area.
-	tags := make(stringList, 0, len(m))
-	for t, _ := range m {
-		tags.push(t)
+	// Check for redundant attribute with enclosing areas.
+	for up := a.inArea; up != nil; up = up.inArea {
+		if rA2 := &up.routerAttributes; rA2 != nil {
+			if at2 := getAttr(rA2); !at2.isNil() {
+				if at1.equal(at2) {
+					c.warn("Useless attribute '%s' at %s,\n"+
+						" it was already inherited from %s",
+						at1.attrName(), a, rA2.name)
+					return
+				}
+			}
+		}
 	}
-	sort.Strings(tags)
-	for _, tag := range tags {
-		n1 := m[tag]
-
-		// Distribute nat definitions to every zone of area.
-		for _, z := range a.zones {
-
-			// Skip zone, if NAT tag exists in zone already...
-			if n2 := z.nat[tag]; n2 != nil {
-
-				// ... and warn if zones NAT value holds the same attributes.
-				c.checkUselessNat(n1, n2, natSeen)
-				continue
+	inherit := func(r *router) {
+		if at2 := getAttr(&r.routerAttributes); !at2.isNil() {
+			if at1.equal(at2) {
+				c.warn("Useless attribute '%s' at %s,\n"+
+					" it was already inherited from %s",
+					at2.attrName(), r, rA1.name)
 			}
-
-			// Store NAT definition in zone otherwise
-			if z.nat == nil {
-				z.nat = make(map[string]*network)
-			}
-			z.nat[tag] = n1
-
-			//debug("%s: %s from %s", z, tag, a)
+		} else {
+			at1.toRouter(r)
+		}
+	}
+	// Distribute to managed routers of area.
+	for _, r := range a.managedRouters {
+		inherit(r)
+	}
+	// Distribute policy_distribution_point also to management
+	// instances of area.
+	if _, ok := at1.(*host); ok {
+		for _, r := range a.managementInstances {
+			inherit(r)
 		}
 	}
 }
 
-//#############################################################################
-// Purpose : 1. Generate warning if NAT values of two objects hold the same
-//              attributes.
-//           2. Mark NAT value of smaller object, so that warning is only
-//              printed once and not again if compared with some larger object.
-//              This is also used later to warn on useless identity NAT.
-func (c *spoc) checkUselessNat(nat1, nat2 *network, natSeen map[*network]bool) {
-	//debug("Check useless %s -- %s", nat2.descr, nat1.descr)
-	if natSeen[nat2] {
-		return
+func (c *spoc) inheritNAT0() {
+	getUp := func(obj natter) natter {
+		var a *area
+		switch x := obj.(type) {
+		case *network:
+			if up := x.up; up != nil {
+				return up
+			}
+			a = x.zone.inArea
+		case *area:
+			a = x.inArea
+		}
+		if a == nil { // Must not return nil of type *area
+			return nil // but nil of type natter.
+		}
+		return a
 	}
-	natSeen[nat2] = true
-	if natEqual(nat1, nat2) {
-		c.warn("Useless %s,\n it was already inherited from %s",
-			nat2.descr, nat1.descr)
+
+	type fromMap map[string]natter
+	inherited := make(map[natter]fromMap)
+
+	// Inherit NAT setting from areas and supernets to enclosing obj.
+	// Returns:
+	// 1. Augmented natTagMap of obj, to be used in enclosed objects.
+	// 2. A map showing for current obj, from which object a NAT tag
+	//    has been inherited from.
+	var inherit func(obj natter) (natTagMap, fromMap)
+	inherit = func(obj natter) (natTagMap, fromMap) {
+		if obj == nil {
+			return nil, nil
+		}
+		m1 := obj.getNAT()
+		if from := inherited[obj]; from != nil {
+			return m1, from
+		}
+		from1 := make(fromMap)
+		m2, from2 := inherit(getUp(obj))
+		for tag, nat1 := range m1 {
+			if nat1.identity && m2[tag] == nil {
+				c.warn("Useless identity %s", nat1.descr)
+			}
+			from1[tag] = obj
+		}
+		for tag, nat2 := range m2 {
+			if nat1, found := m1[tag]; found {
+				if natEqual(nat1, nat2) {
+					c.warn("Useless %s,\n it was already inherited from %s",
+						nat1.descr, from2[tag])
+				}
+				continue
+			} else if n, ok := obj.(*network); ok && !n.isAggregate {
+				if n.ipType == bridgedIP && !nat2.identity {
+					c.err("Must not inherit nat:%s at bridged %s from %s",
+						tag, n, from2[tag])
+					continue
+				}
+				nat2 = c.adaptNAT(n, tag, nat2)
+			}
+			if m1 == nil {
+				m1 = make(natTagMap)
+				obj.setNAT(m1)
+			}
+			m1[tag] = nat2
+			from1[tag] = from2[tag]
+		}
+		inherited[obj] = from1
+		return m1, from1
 	}
+	for _, n := range c.allNetworks {
+		inherit(n)
+	}
+}
+
+func (c *spoc) inheritNAT() {
+	// Sorts error messages before output.
+	c.sortedSpoc(func(c *spoc) { c.inheritNAT0() })
+}
+
+func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
+
+	// Copy NAT defintion; add description and name of
+	// original network.
+	subNat := *nat
+	subNat.name = n.name
+	subNat.descr = "nat:" + tag + " of " + n.name
+
+	// Copy attribute subnetOf, to suppress warning.
+	// Copy also if undefined, to overwrite value in
+	// original definition.
+	subNat.subnetOf = n.subnetOf
+
+	// For static NAT
+	// - merge IP from NAT network and subnet,
+	// - adapt mask to size of subnet
+	if !nat.dynamic {
+
+		// Check mask of static NAT inherited from area or zone.
+		if nat.ipp.Bits() > n.ipp.Bits() {
+			c.err("Must not inherit %s at %s\n"+
+				" because NAT network must be larger"+
+				" than translated network", nat.descr, n)
+		}
+
+		// Take higher bits from NAT IP, lower bits from
+		// original IP.
+		subNat.ipp = netaddr.IPPrefixFrom(
+			mergeIP(n.ipp.IP(), nat),
+			n.ipp.Bits(),
+		)
+	}
+	return &subNat
 }
 
 //##############################################################################
@@ -882,135 +958,27 @@ func natEqual(nat1, nat2 *network) bool {
 		nat1.identity == nat2.identity
 }
 
-func (c *spoc) inheritNatInZone(natSeen map[*network]bool) {
-	seen := make(map[*zone]bool)
-	for _, z0 := range c.allZones {
-		if !seen[z0] {
-
-			// Find all networks and aggregates of current zone cluster,
-			// that have NAT definitions.
-			var natSupernets netList
-			for _, z := range z0.cluster {
-				if len(z0.cluster) > 1 {
-					seen[z] = true
-				}
-				for _, n := range z.networks {
-					if n.nat != nil {
-						natSupernets.push(n)
-					}
-				}
-				for _, n := range z.ipPrefix2aggregate {
-					if n.nat != nil {
-						natSupernets.push(n)
-					}
-				}
-			}
-
-			// Proceed from smaller to larger objects. (Bigger mask first.)
-			sort.Slice(natSupernets, func(i, j int) bool {
-				return natSupernets[i].ipp.Bits() > natSupernets[j].ipp.Bits()
-			})
-			for _, z := range z0.cluster {
-				for _, n := range natSupernets {
-					// Aggregates have already been duplicated to cluster.
-					// Hence only apply matching aggregates.
-					if !n.isAggregate || n.zone == z {
-						c.inheritNatToSubnetsInZone(n.name, n.nat, n.ipp, z, natSeen)
-					}
-				}
+// 1. Remove NAT entries from aggregates.
+//    These are only used during NAT inheritance.
+// 2. Remove identity NAT entries.
+//    These are only needed during NAT inheritance.
+func (c *spoc) cleanupAfterInheritance() {
+	for _, n := range c.allNetworks {
+		m := n.nat
+		if m == nil {
+			continue
+		}
+		if n.isAggregate {
+			n.nat = nil
+			continue
+		}
+		for tag, nat := range m {
+			if nat.identity {
+				delete(m, tag)
 			}
 		}
-
-		// Process zone instead of aggregate 0/0, because NAT is stored
-		// at zone in this case.
-		if z0.nat != nil {
-			// Don't inherit identiy NAT to subnets.
-			// It was only used to prevent inheritance from areas
-			// and would lead to warning about useless identity NAT at subnet.
-			for tag, nat := range z0.nat {
-				if nat.identity {
-					delete(z0.nat, tag)
-				}
-			}
-			c.inheritNatToSubnetsInZone(
-				z0.name, z0.nat, getNetwork00(z0.ipV6).ipp, z0, natSeen)
-		}
-
-	}
-}
-
-//##############################################################################
-// Purpose  : Distributes NAT from aggregates and networks to other networks
-//            in same zone, that are in subnet relation.
-//            If a network A is subnet of multiple networks B < C,
-//            then NAT of B is used.
-func (c *spoc) inheritNatToSubnetsInZone(
-	from string, natMap map[string]*network,
-	net netaddr.IPPrefix, z *zone, natSeen map[*network]bool) {
-
-	tags := make(stringList, 0, len(natMap))
-	for t, _ := range natMap {
-		tags.push(t)
-	}
-	sort.Strings(tags)
-	for _, tag := range tags {
-		nat := natMap[tag]
-
-		//debug("inherit %s from %s in %s", tag, from, z)
-
-		// Distribute nat definitions to every subnet of supernet or
-		// aggregate.
-		for _, n := range z.networks {
-
-			// Only process subnets.
-			if n.ipp.Bits() <= net.Bits() || !net.Contains(n.ipp.IP()) {
-				continue
-			}
-
-			// Skip network, if NAT tag exists in network already...
-			if nNat := n.nat[tag]; nNat != nil {
-
-				// ... and warn if networks NAT value holds the
-				// same attributes.
-				c.checkUselessNat(nat, nNat, natSeen)
-			} else if n.ipType == bridgedIP && !nat.identity {
-				c.err("Must not inherit nat:%s at bridged %s from %s",
-					tag, n, from)
-			} else {
-				// Copy NAT defintion; add description and name of original network.
-				subNat := *nat
-				subNat.name = n.name
-				subNat.descr = "nat:" + tag + " of " + n.name
-
-				// Copy attribute subnetOf, to suppress warning.
-				// Copy also if undefined, to overwrite value in
-				// original definition.
-				subNat.subnetOf = n.subnetOf
-
-				// For static NAT
-				// - merge IP from NAT network and subnet,
-				// - adapt mask to size of subnet
-				if !nat.dynamic {
-
-					// Check mask of static NAT inherited from area or zone.
-					if nat.ipp.Bits() > n.ipp.Bits() {
-						c.err("Must not inherit %s at %s\n"+
-							" because NAT network must be larger"+
-							" than translated network", nat.descr, n)
-					}
-
-					// Take higher bits from NAT IP, lower bits from original IP.
-					subNat.ipp = netaddr.IPPrefixFrom(
-						mergeIP(n.ipp.IP(), nat),
-						n.ipp.Bits(),
-					)
-				}
-
-				if n.nat == nil {
-					n.nat = make(map[string]*network)
-				}
-				n.nat[tag] = &subNat
-			}
+		if len(m) == 0 {
+			n.nat = nil
 		}
 	}
 }
@@ -1031,35 +999,6 @@ func (c *spoc) checkAttrNoCheckSupernetRules() {
 					" with networks having host definitions:\n%s",
 					z, errList.nameList())
 			}
-		}
-	}
-}
-
-// 1. Remove NAT entries from aggregates.
-//    These are only used during NAT inheritance.
-// 2. Remove identity NAT entries.
-//    These are only needed during NAT inheritance.
-// 3. Check for useless identity NAT.
-func (c *spoc) cleanupAfterInheritance(natSeen map[*network]bool) {
-	for _, n := range c.allNetworks {
-		m := n.nat
-		if m == nil {
-			continue
-		}
-		if n.isAggregate {
-			n.nat = nil
-			continue
-		}
-		for tag, nat := range m {
-			if nat.identity {
-				delete(m, tag)
-				if !natSeen[nat] {
-					c.warn("Useless identity nat:%s at %s", tag, n)
-				}
-			}
-		}
-		if len(m) == 0 {
-			n.nat = nil
 		}
 	}
 }

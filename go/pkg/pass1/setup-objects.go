@@ -1105,6 +1105,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			r.managed = c.getManaged(a, name)
 		case "filter_only":
 			r.filterOnly = c.getIpPrefixList(a, v6, name)
+		case "merge_tunnelspecified":
+			r.mergeTunnelSpecified = c.getIpPrefixList(a, v6, name)
 		case "model":
 			r.model = c.getModel(a, name)
 		case "no_group_code":
@@ -1345,6 +1347,9 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			if r.radiusAttributes != nil {
 				c.warn("Ignoring 'radius_attributes' at %s", name)
 			}
+			if r.mergeTunnelSpecified != nil {
+				c.warn("Ignoring 'merge_tunnelspecified' at %s", name)
+			}
 		}
 	}
 
@@ -1479,7 +1484,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	var vip bool
 	var hwName string
 	var subnetOf *network
-	var nat map[string]*network
+	var nat natTagMap
 	ipGiven := false
 	for _, a := range l {
 		switch a.Name {
@@ -3095,10 +3100,10 @@ func (c *spoc) getRadiusAttributes(a *ast.Attribute, ctx string) map[string]stri
 }
 
 func (c *spoc) getRouterAttributes(
-	a *ast.Attribute, s *symbolTable, ar *area) *routerAttributes {
+	a *ast.Attribute, s *symbolTable, ar *area) routerAttributes {
 
 	ctx := ar.name
-	r := new(routerAttributes)
+	var r routerAttributes
 	name := "router_attributes of " + ctx
 	r.name = name
 	l := c.getComplexValue(a, ctx)
@@ -3272,13 +3277,13 @@ func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {
 	return true
 }
 
-func (c *spoc) addNetNat(a *ast.Attribute, m map[string]*network, v6 bool,
-	s *symbolTable, ctx string) map[string]*network {
+func (c *spoc) addNetNat(a *ast.Attribute, m natTagMap, v6 bool,
+	s *symbolTable, ctx string) natTagMap {
 
 	return c.addXNat(a, m, v6, s, ctx, c.getIpPrefix)
 }
-func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
-	s *symbolTable, ctx string) map[string]*network {
+func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
+	s *symbolTable, ctx string) natTagMap {
 
 	return c.addXNat(a, m, v6, s, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
@@ -3291,9 +3296,9 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m map[string]*network, v6 bool,
 }
 
 func (c *spoc) addXNat(
-	a *ast.Attribute, m map[string]*network, v6 bool, s *symbolTable, ctx string,
+	a *ast.Attribute, m natTagMap, v6 bool, s *symbolTable, ctx string,
 	getIpX func(*ast.Attribute, bool, string) netaddr.IPPrefix,
-) map[string]*network {
+) natTagMap {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
@@ -3350,7 +3355,7 @@ func (c *spoc) addXNat(
 	nat.name = ctx
 	nat.descr = "nat:" + tag + " of " + ctx
 	if m == nil {
-		m = make(map[string]*network)
+		m = make(natTagMap)
 	}
 	m[tag] = nat
 	return m

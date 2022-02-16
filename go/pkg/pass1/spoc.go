@@ -3,7 +3,9 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 	"os"
+	"path"
 	"sort"
 	"time"
 )
@@ -190,6 +192,10 @@ func SpocMain() (errCount int) {
 			c.errCount++
 			c.terminate()
 		}
+		if device := conf.Conf.DebugPass2; device != "" {
+			pass2.File(device, outDir, path.Join(outDir, ".prev"))
+			return
+		}
 		c.info(program + ", version " + version)
 		c.readNetspoc(inDir)
 		c.showReadStatistics()
@@ -199,7 +205,6 @@ func SpocMain() (errCount int) {
 		c.setZone()
 		c.setPath()
 		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
-		c.findSubnetsInZone()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
 		c.checkServiceOwner(sRules)

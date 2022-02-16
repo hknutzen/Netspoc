@@ -26,12 +26,11 @@ func (c *spoc) linkAggregateToZone(
 }
 
 //#############################################################################
-// Update attributes .networks, .up and .owner for implicitly defined
-// aggregates.
+// Update attributes .networks and .up for implicitly defined aggregates.
 // Remember:
 // .up is relation inside set of all networks and aggregates.
 // .networks is attribute of aggregates and networks,
-//            but value is list of networks.
+//           but value is list of networks.
 func (c *spoc) linkImplicitAggregateToZone(
 	agg *network, z *zone, ipp netaddr.IPPrefix) {
 
@@ -114,6 +113,70 @@ func (c *spoc) linkImplicitAggregateToZone(
 	c.linkAggregateToZone(agg, z, ipp)
 }
 
+// Inversed inheritance: If an implicit aggregate has no direct owner
+// and if all directly contained networks have the same owner, then
+// set owner of this aggregate to found owner of networks.
+func propagateOwnerToAggregates(agg *network) {
+	cluster := agg.zone.cluster
+	ipp := agg.ipp
+	var downOwner *owner
+	downSet := false
+	var upOwner *owner
+	upBits := -1
+	for _, z := range cluster {
+		agg2 := z.ipPrefix2aggregate[ipp]
+		inherit := func(n *network) {
+			if n.up == agg2 && n.ipType != unnumberedIP {
+				if downSet {
+					if downOwner != n.owner {
+						downOwner = nil
+					}
+				} else {
+					downOwner = n.owner
+					downSet = true
+				}
+			}
+		}
+		var withSubnets func(netList)
+		withSubnets = func(l netList) {
+			for _, n := range l {
+				inherit(n)
+				withSubnets(n.networks)
+			}
+		}
+		withSubnets(z.networks)
+		for _, agg3 := range z.ipPrefix2aggregate {
+			inherit(agg3)
+		}
+		// Take owner from smallest network or aggregate in cluster that
+		// encloses agg.
+		if up := agg.up; up != nil {
+			bits := int(up.ipp.Bits())
+			if bits > upBits {
+				upOwner = up.owner
+				upBits = bits
+			}
+		}
+	}
+	if downOwner == nil {
+		downOwner = upOwner
+	}
+	// Inherit from area
+	if downOwner == nil {
+		for a := agg.zone.inArea; a != nil; a = a.inArea {
+			if o := a.owner; o != nil {
+				downOwner = o
+				break
+			}
+		}
+	}
+	if downOwner != nil {
+		for _, z := range cluster {
+			z.ipPrefix2aggregate[ipp].owner = downOwner
+		}
+	}
+}
+
 //#############################################################################
 // Purpose  : Create an aggregate object for every zone inside the zones cluster
 //            containing the aggregates link-network.
@@ -126,9 +189,6 @@ func (c *spoc) linkImplicitAggregateToZone(
 //            e.g. a network with ip/mask 0/0. ??
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	cluster := agg.zone.cluster
-	if len(cluster) == 1 {
-		return
-	}
 	ipp := agg.ipp
 
 	// Process every zone of the zone cluster
@@ -165,6 +225,9 @@ func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 		} else {
 			c.linkAggregateToZone(agg2, z, ipp)
 		}
+	}
+	if implicit {
+		propagateOwnerToAggregates(agg)
 	}
 }
 

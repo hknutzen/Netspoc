@@ -934,6 +934,21 @@ Warning: Ignoring 'radius_attributes' at router:r
 =END=
 
 ############################################################
+=TITLE=Ignoring merge_tunnelspecified at non ASA, VPN
+=PARAMS=--ipv6
+=INPUT=
+network:n = { ip = ::a01:100/120; }
+router:r = {
+ managed;
+ model = ASA;
+ merge_tunnelspecified = ::a01:0/113, ::a09:900/120;
+ interface:n = { ip = ::a01:101; hardware = n; }
+}
+=WARNING=
+Warning: Ignoring 'merge_tunnelspecified' at router:r
+=END=
+
+############################################################
 =TITLE=Crypto not supported
 =PARAMS=--ipv6
 =INPUT=
@@ -1287,10 +1302,10 @@ service:test3 = {
 =OUTPUT=
 --ipv6/asavpn
 ! [ Routing ]
+ipv6 route outside ::/0 f000::c0a8:1
 ipv6 route inside ::a00:100/120 ::a01:101
 ipv6 route inside ::a00:400/120 ::a01:101
 ipv6 route inside ::a00:200/119 ::a01:101
-ipv6 route outside ::/0 f000::c0a8:1
 --
 no sysopt connection permit-vpn
 group-policy global internal
@@ -1643,6 +1658,160 @@ tunnel-group VPN-single ipsec-attributes
 tunnel-group VPN-single webvpn-attributes
  authentication certificate
 tunnel-group-map default-group VPN-single
+=END=
+
+############################################################
+=TITLE=Merge split tunnel lists
+=PARAMS=--ipv6
+=INPUT=
+[[crypto_vpn]]
+network:work1 = { ip = ::a00:100/120; host:h1 = { ip = ::a00:10a; } }
+network:work2 = { ip = ::a00:200/120; host:h2 = { ip = ::a00:20a; } }
+network:work3 = { ip = ::a00:300/120; host:h3 = { ip = ::a00:30a; } }
+network:work4 = { ip = ::a09:400/120; host:h4 = { ip = ::a09:40a; } }
+router:u = {
+ interface:work1;
+ interface:work2;
+ interface:work3;
+ interface:work4;
+ interface:intern = { ip = ::a01:101; }
+}
+network:intern = { ip = ::a01:100/120;}
+router:asavpn = {
+ model = ASA, VPN;
+ managed;
+ merge_tunnelspecified = ::a00:0/112;
+ radius_attributes = {
+  trust-point = ASDM_TrustPoint1;
+ }
+ interface:intern = {
+  ip = ::a01:165;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = f000::c0a8:65;
+  hub = crypto:vpn;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = f000::c0a8:0/120; }
+router:extern = {
+ interface:dmz = { ip = f000::c0a8:1; }
+ interface:internet;
+}
+network:internet = { ip = ::/0; has_subnets; }
+router:softclients = {
+ interface:internet = { spoke = crypto:vpn; }
+ interface:customers1;
+}
+network:customers1 = {
+ ip = ::a63:100/120;
+ radius_attributes = {
+  banner = Willkommen;
+ }
+ host:id:u1@domain.x = {
+  ip = ::a63:10a;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u2@domain.x = {
+  ip = ::a63:10b;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u3@domain.x = {
+  ip = ::a63:10c;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+ host:id:u4@domain.x = {
+  ip = ::a63:1fe;
+  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ }
+}
+service:s1 = {
+ user = host:id:u1@domain.x.customers1;
+ permit src = user; dst = host:h1; prt = tcp 80;
+}
+service:s2 = {
+ user = host:id:u1@domain.x.customers1,
+        host:id:u2@domain.x.customers1;
+ permit src = user; dst = network:work2; prt = tcp 80;
+}
+service:s3 = {
+ user = host:id:u1@domain.x.customers1,
+        host:id:u3@domain.x.customers1;
+ permit src = user; dst = host:h3; prt = tcp 80;
+}
+service:s4 = {
+ user = host:id:u3@domain.x.customers1;
+ permit src = user; dst = host:h4; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/asavpn
+! split-tunnel-1
+access-list split-tunnel-1 standard permit ::a00:0/112
+--
+! vpn-filter-u1@domain.x
+access-list vpn-filter-u1@domain.x extended permit ip host ::a63:10a any6
+access-list vpn-filter-u1@domain.x extended deny ip any6 any6
+group-policy VPN-group-u1@domain.x internal
+group-policy VPN-group-u1@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u1@domain.x nopassword
+username u1@domain.x attributes
+ vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ service-type remote-access
+ vpn-filter value vpn-filter-u1@domain.x
+ vpn-group-policy VPN-group-u1@domain.x
+--
+! vpn-filter-u2@domain.x
+access-list vpn-filter-u2@domain.x extended permit ip host ::a63:10b any6
+access-list vpn-filter-u2@domain.x extended deny ip any6 any6
+group-policy VPN-group-u2@domain.x internal
+group-policy VPN-group-u2@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u2@domain.x nopassword
+username u2@domain.x attributes
+ vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ service-type remote-access
+ vpn-filter value vpn-filter-u2@domain.x
+ vpn-group-policy VPN-group-u2@domain.x
+--
+! split-tunnel-2
+access-list split-tunnel-2 standard permit ::a09:400/120
+access-list split-tunnel-2 standard permit ::a00:0/112
+--
+! vpn-filter-u3@domain.x
+access-list vpn-filter-u3@domain.x extended permit ip host ::a63:10c any6
+access-list vpn-filter-u3@domain.x extended deny ip any6 any6
+group-policy VPN-group-u3@domain.x internal
+group-policy VPN-group-u3@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-2
+ split-tunnel-policy tunnelspecified
+username u3@domain.x nopassword
+username u3@domain.x attributes
+ vpn-framed-ip-address ::a63:10c ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ service-type remote-access
+ vpn-filter value vpn-filter-u3@domain.x
+ vpn-group-policy VPN-group-u3@domain.x
+--
+! vpn-filter-u4@domain.x
+access-list vpn-filter-u4@domain.x extended permit ip host ::a63:1fe any6
+access-list vpn-filter-u4@domain.x extended deny ip any6 any6
+group-policy VPN-group-u4@domain.x internal
+group-policy VPN-group-u4@domain.x attributes
+ banner value Willkommen
+ split-tunnel-network-list value split-tunnel-1
+ split-tunnel-policy tunnelspecified
+username u4@domain.x nopassword
+username u4@domain.x attributes
+ vpn-framed-ip-address ::a63:1fe ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ service-type remote-access
+ vpn-filter value vpn-filter-u4@domain.x
+ vpn-group-policy VPN-group-u4@domain.x
 =END=
 
 ############################################################
@@ -2234,8 +2403,8 @@ service:s1 = {
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
-ipv6 route inside ::a01:200/120 ::a01:102
 ipv6 route outside ::/0 f000::c0a8:1
+ipv6 route inside ::a01:200/120 ::a01:102
 --
 ! split-tunnel-1
 access-list split-tunnel-1 standard permit ::a01:200/120
@@ -2269,8 +2438,8 @@ access-group outside_in in interface outside
 =OUTPUT=
 -- ipv6/asavpn
 ! [ Routing ]
-ipv6 route inside ::a01:200/120 ::a01:102
 ipv6 route outside ::/0 f000::c0a8:1
+ipv6 route inside ::a01:200/120 ::a01:102
 =END=
 
 ############################################################

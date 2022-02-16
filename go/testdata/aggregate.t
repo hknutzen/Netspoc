@@ -448,8 +448,8 @@ Warning: This supernet rule would permit unexpected access:
   permit src=network:n1; dst=network:n3; prt=icmp 8; of service:s1
  Generated ACL at interface:r1.n1 would permit access to additional networks:
  - network:n3a
- - network:n3c
  - network:n3b
+ - network:n3c
  - ...
  Either replace network:n3 by smaller networks that are not supernet
  or add above-mentioned networks to dst of rule
@@ -3228,7 +3228,7 @@ router:r2 = {
 }
 =END=
 =ERROR=
-Error: any:a1 and network:n2 have identical IP/mask in any:[network:n2]
+Error: any:a1 and network:n2 have identical IP/mask in any:[network:n1]
 =END=
 
 ############################################################

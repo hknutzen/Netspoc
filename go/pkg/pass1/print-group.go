@@ -196,7 +196,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()
-	c.findSubnetsInZone()
 	c.stopOnErr()
 
 	// Find network for resolving NAT addresses.
@@ -244,10 +243,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 		}
 		process(sRules.permit)
 		process(sRules.deny)
-	}
-
-	if showOwner || showAdmins {
-		c.propagateOwners()
 	}
 
 	// Expand group definition.

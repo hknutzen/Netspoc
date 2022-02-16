@@ -449,3 +449,20 @@ Warning: Missing rules to reach 1 devices from policy_distribution_point:
 =END=
 
 ############################################################
+=TITLE=Must not use unconnected network as anchor
+=PARAMS=--ipv6
+=INPUT=
+router:r = {managed; model = IOS; interface:n1 = { ip = ::a0a:a02; hardware = port1; }}
+network:n1 = { ip = ::a0a:a00/120; }
+network:n2 = { ip = ::a0b:b00/120; }
+
+area:a1 = {
+ anchor = network:n2;
+}
+=END=
+=ERROR=
+Error: network:n2 isn't connected to any router
+=END=
+
+
+############################################################

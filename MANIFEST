@@ -239,6 +239,7 @@ go/testdata/print-group/area.t
 go/testdata/print-group/crypto.t
 go/testdata/print-group/group.t
 go/testdata/print-group/mixed-ipv4-ipv6.t
+go/testdata/print-group/owner.t
 go/testdata/print-service/print-service.t
 go/testdata/protect-interfaces.t
 go/testdata/protocols.t

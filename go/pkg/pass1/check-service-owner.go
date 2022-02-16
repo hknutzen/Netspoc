@@ -12,56 +12,6 @@ import (
 
 func (c *spoc) propagateOwners() {
 
-	// Inversed inheritance: If an aggregate has no direct owner and if
-	// all contained toplevel networks have the same owner,
-	// then set owner of this zone to the one owner.
-	aggGotNetOwner := make(map[*network]bool)
-	seen := make(map[*zone]bool)
-	for _, z := range c.allZones {
-		cluster := z.cluster
-		if len(cluster) > 1 && seen[cluster[0]] {
-			continue
-		}
-	AGG:
-		for key, agg := range z.ipPrefix2aggregate {
-
-			// If an explicit owner was set, it has been set for
-			// the whole cluster in link_aggregates.
-			if agg.owner != nil {
-				continue
-			}
-
-			if len(cluster) > 1 {
-				seen[cluster[0]] = true
-			}
-			var found *owner
-			for _, z2 := range cluster {
-				for _, n := range z2.ipPrefix2aggregate[key].networks {
-					netOwner := n.owner
-					if netOwner == nil {
-						continue AGG
-					}
-					if found != nil {
-						if netOwner != found {
-							continue AGG
-						}
-					} else {
-						found = netOwner
-					}
-				}
-			}
-			if found == nil {
-				continue
-			}
-			//debug("Inversed inherit: %s %s", agg, found)
-			for _, z2 := range cluster {
-				agg2 := z2.ipPrefix2aggregate[key]
-				agg2.owner = found
-				aggGotNetOwner[agg2] = true
-			}
-		}
-	}
-
 	getUp := func(obj ownerer) ownerer {
 		var a *area
 		switch x := obj.(type) {
@@ -77,14 +27,13 @@ func (c *spoc) propagateOwners() {
 		case *area:
 			a = x.inArea
 		}
-		if a == nil {
-			return nil
+		if a == nil { // Must not return nil of type *area
+			return nil // but nil of type ownerer.
 		}
 		return a
 	}
 
 	inherited := make(map[ownerer]ownerer)
-	checked := make(map[ownerer]bool)
 
 	var inheritOwner func(obj ownerer) (*owner, ownerer)
 	inheritOwner = func(obj ownerer) (*owner, ownerer) {
@@ -95,43 +44,22 @@ func (c *spoc) propagateOwners() {
 		if upper := inherited[obj]; upper != nil {
 			return o, upper
 		}
-
-		// Don't send inversed inherited owner down to enclosed empty
-		// aggregates.
-		if n, ok := obj.(*network); ok {
-			if aggGotNetOwner[n] {
-				return inheritOwner(getUp(obj))
-			}
-		}
+		o2, upper := inheritOwner(getUp(obj))
 		if o != nil {
-			if !checked[obj] {
-				checked[obj] = true
-				o2, upper := inheritOwner(getUp(obj))
-				if o2 != nil && o2 == o {
-					c.warn("Useless %s at %s,\n"+
-						" it was already inherited from %s",
-						o, obj, upper)
-				}
+			if o2 == o {
+				c.warn("Useless %s at %s,\n it was already inherited from %s",
+					o, obj, upper)
 			}
 			o.isUsed = true
+			inherited[obj] = obj
 			return o, obj
 		}
-		up := getUp(obj)
-		if up == nil {
-			return nil, obj
-		}
-
-		o, upper := inheritOwner(up)
+		obj.setOwner(o2)
 		inherited[obj] = upper
-		obj.setOwner(o)
-		return o, upper
+		return o2, upper
 	}
 
-	var processSubnets func(n *network)
-	processSubnets = func(n *network) {
-		for _, n2 := range n.networks {
-			processSubnets(n2)
-		}
+	processSubnets := func(n *network) {
 		for _, host := range n.hosts {
 			inheritOwner(host)
 		}
@@ -205,32 +133,6 @@ func (c *spoc) propagateOwners() {
 		}
 	}
 
-	// Handle routerAttributes.owner separately.
-	// Areas can be nested. Proceed from small to larger ones.
-	for _, a := range c.ascendingAreas {
-		attributes := a.routerAttributes
-		if attributes == nil {
-			continue
-		}
-		o := attributes.owner
-		if o == nil {
-			continue
-		}
-		o.isUsed = true
-		for _, r := range a.managedRouters {
-			if rOwner := r.owner; rOwner != nil {
-				if rOwner == o {
-					c.warn(
-						"Useless %s at %s,\n"+
-							" it was already inherited from %s",
-						rOwner, r, attributes.name)
-				}
-			} else {
-				r.owner = o
-			}
-		}
-	}
-
 	// Set owner for interfaces of managed routers.
 	for _, r := range c.managedRouters {
 		o := r.owner
@@ -265,9 +167,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 	// Sorts error messages before output.
 	c.sortedSpoc(func(c *spoc) {
-
-		c.propagateOwners()
-
 		type svcInfo struct {
 			// Is set, if all rules use same objects.
 			sameObjects bool

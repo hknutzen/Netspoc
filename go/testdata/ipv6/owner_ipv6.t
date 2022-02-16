@@ -431,10 +431,70 @@ router:r2 = {
 }
 =END=
 =WARNING=
-Warning: Useless owner:o1 at router:r1,
- it was already inherited from router_attributes of area:all
-Warning: Useless owner:o2 at router:r2,
+Warning: Useless attribute 'owner' at router:r2,
  it was already inherited from router_attributes of area:a2
+Warning: Useless attribute 'owner' at router:r1,
+ it was already inherited from router_attributes of area:all
+=END=
+
+############################################################
+=TITLE=Useless inheritance from nested areas
+=PARAMS=--ipv6
+=INPUT=
+owner:o = { admins = a@example.com; }
+area:a1234 = {
+ anchor = network:n4;
+ owner = o;
+}
+area:a123 = {
+ inclusive_border = interface:r1.n4;
+}
+area:a12 = {
+ inclusive_border = interface:r1.n3, interface:r1.n4;
+ owner = o;
+}
+area:a1  = {
+ border = interface:r1.n1;
+ owner = o;
+}
+area:a2  = {
+ border = interface:r1.n2;
+ owner = o;
+}
+area:a3  = {
+ border = interface:r1.n3;
+ owner = o;
+}
+any:n1 = { link = network:n1; owner = o; }
+network:n1 = { ip = ::a01:100/120; owner = o; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; owner = o; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+=END=
+=WARNING=
+Warning: Useless owner:o at any:n1,
+ it was already inherited from area:a1
+Warning: Useless owner:o at area:a1,
+ it was already inherited from area:a12
+Warning: Useless owner:o at area:a12,
+ it was already inherited from area:a1234
+Warning: Useless owner:o at area:a2,
+ it was already inherited from area:a12
+Warning: Useless owner:o at area:a3,
+ it was already inherited from area:a1234
+Warning: Useless owner:o at network:n1,
+ it was already inherited from any:n1
+Warning: Useless owner:o at network:n4,
+ it was already inherited from area:a1234
 =END=
 
 ############################################################

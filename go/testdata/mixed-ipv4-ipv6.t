@@ -381,7 +381,6 @@ Read: 2 routers, 4 networks, 1 hosts, 2 services
 0s Preparing security zones and areas
 0s Preparing fast path traversal
 0s Distributing NAT
-0s Finding subnets in zone
 0s Normalizing services
 0s Checking service owner
 0s Converting hosts to subnets
@@ -408,7 +407,7 @@ Expanded rule count: 4; duplicate: 1; redundant: 1
 0s Marking rules for secondary optimization
 0s Distributing rules
 0s Printing code
-Saving 6 old files of 'out' to subdirectory '.prev'
+Saving old content of 'out' to subdirectory '.prev'
 Reused files for 2 devices from previous run
 0s Finished
 =OUTPUT=

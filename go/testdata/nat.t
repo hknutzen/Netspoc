@@ -118,8 +118,7 @@ network:n1b = {
 }
 =END=
 =ERROR=
-Error: network:n1b and network:n1a have identical IP/mask
- in nat_domain:[network:u]
+Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
 =END=
 
 ############################################################
@@ -1492,11 +1491,11 @@ network:y = { ip = 10.8.3.0/24; }
 =END=
 =WARNING=
 Warning: Useless nat:C of any:x,
- it was already inherited from nat:C of area:x
+ it was already inherited from area:x
 Warning: Useless nat:C of network:x,
- it was already inherited from nat:C of any:x
+ it was already inherited from any:x
 Warning: Useless nat:D of network:x,
- it was already inherited from nat:D of area:x
+ it was already inherited from area:x
 Warning: nat:D is defined, but not bound to any interface
 =END=
 
@@ -1538,10 +1537,59 @@ router:r2 = {
 network:n3 = { ip = 10.1.3.0/24; }
 =END=
 =WARNING=
-Warning: Useless nat:n of network:n2a,
- it was already inherited from nat:n of network:n2
 Warning: Useless nat:n of network:n2,
- it was already inherited from nat:n of area:a12
+ it was already inherited from area:a12
+Warning: Useless nat:n of network:n2a,
+ it was already inherited from network:n2
+=END=
+
+############################################################
+=TITLE=Useless inheritance from multiple areas
+=INPUT=
+area:a1234 = {
+ inclusive_border = interface:r1.n5;
+ nat:n = { hidden; }
+}
+area:a123 = {
+ inclusive_border = interface:r1.n4, interface:r1.n5;
+}
+area:a12 = {
+ inclusive_border = interface:r1.n3, interface:r1.n4, interface:r1.n5;
+ nat:n = { hidden; }
+}
+area:a1  = {
+ border = interface:r1.n1;
+ nat:n = { hidden; }
+}
+any:n1 = { link = network:n1; nat:n = { hidden; } }
+any:n2 = { link = network:n2; nat:n = { identity; } }
+network:n1 = { ip = 10.1.1.0/24; nat:n = { hidden; } }
+network:n2 = { ip = 10.1.2.0/24; nat:n = { identity; } }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; bind_nat = n; }
+}
+=END=
+=WARNING=
+Warning: Useless nat:n of any:n1,
+ it was already inherited from area:a1
+Warning: Useless nat:n of area:a1,
+ it was already inherited from area:a12
+Warning: Useless nat:n of area:a12,
+ it was already inherited from area:a1234
+Warning: Useless nat:n of network:n1,
+ it was already inherited from any:n1
+Warning: Useless nat:n of network:n2,
+ it was already inherited from any:n2
 =END=
 
 ############################################################
@@ -1589,7 +1637,7 @@ router:r2 = {
 =END=
 =WARNING=
 Warning: Useless nat:h of network:n1,
- it was already inherited from nat:h of any:n2
+ it was already inherited from any:n2
 =END=
 
 ############################################################
@@ -1611,7 +1659,7 @@ router:r2 = {
 =END=
 =WARNING=
 Warning: Useless nat:h of network:n2,
- it was already inherited from nat:h of network:n1
+ it was already inherited from network:n1
 =END=
 
 ############################################################
@@ -1633,7 +1681,7 @@ router:r1 = {
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =WARNING=
-Warning: Useless identity nat:n at network:n1
+Warning: Useless identity nat:n of network:n1
 =END=
 
 ############################################################

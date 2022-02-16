@@ -126,7 +126,7 @@ router:bridge = {
 network:n1/right = { ip = 10.1.1.0/24; }
 =END=
 =ERROR=
-Error: Must not inherit nat:x at bridged network:n1/left from any:[network:n1/left]
+Error: Must not inherit nat:x at bridged network:n1/left from any:a
 =END=
 
 ############################################################

@@ -216,17 +216,21 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 
 	// Normalize stderr.
+	re := regexp.MustCompile(workDir+`/code\.tmp\d{6,12}`)
 	if inDir != "" {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	}
 	if outDir != "" {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "out/")
 		stderr = strings.ReplaceAll(stderr, outDir, "out")
+		// Replace name of temporary directory where "out" was moved to.
+		stderr = re.ReplaceAllString(stderr, "code.tmp")
+
 	}
 	if d.Job != "" {
 		stderr = strings.ReplaceAll(stderr, workDir+"/", "")
 	}
-	re := regexp.MustCompile(`Netspoc, version .*`)
+	re = regexp.MustCompile(`Netspoc, version .*`)
 	stderr = re.ReplaceAllString(stderr, "Netspoc, version TESTING")
 	re = regexp.MustCompile(`[ \t]+\n`)
 	stderr = re.ReplaceAllString(stderr, "\n")

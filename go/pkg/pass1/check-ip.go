@@ -31,7 +31,7 @@ func (c *spoc) checkSubnetOf() {
 			}
 		}
 	}
-	checkNat := func(nat map[string]*network) {
+	checkNat := func(nat natTagMap) {
 		for _, n := range nat {
 			check(n)
 		}

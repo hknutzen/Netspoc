@@ -75,6 +75,21 @@ Warning: Useless owner:t1 at network:Trans2,
 =END=
 
 ############################################################
+=TITLE=Networks with identical address in zone cluster
+=INPUT=
+network:n1a = { ip = 10.1.1.0/24; }
+network:n1b = { ip = 10.1.1.0/24; }
+router:u = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1a = { ip = 10.1.1.1; hardware = n1a; }
+ interface:n1b = { ip = 10.1.1.1; hardware = n1b; }
+}
+=ERROR=
+Error: network:n1a and network:n1b have identical IP/mask in any:[network:n1a]
+=END=
+
+############################################################
 =TITLE=Duplicate IP from NAT in zone
 =INPUT=
 network:A = { ip = 10.3.3.120/29; nat:C = { ip = 10.2.2.0/24; dynamic; }}
@@ -191,10 +206,12 @@ ip access-list extended n1_in
 =TITLE=Skip supernet with NAT in secondary optimization
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:secondary = {
  model = IOS, FW;
  managed = secondary;
  interface:n1 = {ip = 10.1.1.1; hardware = n1; bind_nat = nat; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }
  interface:t1 = { ip = 10.1.8.1; hardware = t1; }
 }
 network:t1 = { ip = 10.1.8.0/24; }
@@ -210,6 +227,7 @@ router:trahza01 = {
  interface:t2;
  interface:super;
  interface:sub1;
+ interface:sub2;
 }
 network:super = {
  has_subnets;
@@ -220,15 +238,24 @@ network:sub1 = {
  ip = 192.168.1.0/24;
  nat:nat = { identity; }
 }
+network:sub2 = { ip = 192.168.2.0/24; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:sub1; prt = tcp 49;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:sub2; prt = tcp 49;
 }
 =END=
 =OUTPUT=
 --secondary
 ip access-list extended n1_in
  permit ip 10.1.1.0 0.0.0.255 192.168.1.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit ip 10.1.2.0 0.0.0.255 192.168.0.0 0.0.255.255
  deny ip any any
 =END=
 

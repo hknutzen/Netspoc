@@ -9,7 +9,6 @@ import (
 	"inet.af/netaddr"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"sort"
 	"strconv"
@@ -79,11 +78,8 @@ func printRoutes(fh *os.File, r *router) {
 	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[uint8]map[netaddr.IP]*network)
-	type hopInfo struct {
-		intf *routerIntf
-		hop  *routerIntf
-	}
-	net2hopInfo := make(map[*network]hopInfo)
+	net2hop := make(map[*network]*routerIntf)
+	hop2intf := make(map[*routerIntf]*routerIntf)
 
 	for _, intf := range r.interfaces {
 
@@ -119,69 +115,37 @@ func printRoutes(fh *os.File, r *router) {
 
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
-			net2hopInfo[natNet] = hopInfo{intf, hopList[0]}
+			hop := hopList[0]
+			net2hop[natNet] = hop
+			hop2intf[hop] = intf
 		}
 	}
-	if len(net2hopInfo) == 0 {
+	if len(hop2intf) == 0 {
 		return
 	}
 
 	// Combine adjacent networks, if both use same hop and
 	// if combined network doesn't already exist.
-	// Prepare invPrefixAref.
 	var bitstrLen uint8
 	if ipv6 {
 		bitstrLen = 128
 	} else {
 		bitstrLen = 32
 	}
-	invPrefixAref := make([]map[netaddr.IP]*network, bitstrLen+1)
-	keys := make([]uint8, 0, len(prefix2ip2net))
-	for k, _ := range prefix2ip2net {
-		keys = append(keys, k)
-	}
-	for _, prefix := range keys {
-		invPrefix := bitstrLen - prefix
-		ip2net := prefix2ip2net[prefix]
-		keys := make([]netaddr.IP, 0, len(ip2net))
-		for k, _ := range ip2net {
-			keys = append(keys, k)
-		}
-		for _, ip := range keys {
-			net := ip2net[ip]
-
-			// Don't combine peers of ASA with site-to-site VPN.
-			if asaCrypto {
-				hopInfo := net2hopInfo[net]
-				if hopInfo.intf.hub != nil {
-					continue
-				}
-			}
-			m := invPrefixAref[invPrefix]
-			if m == nil {
-				m = make(map[netaddr.IP]*network)
-				invPrefixAref[invPrefix] = m
-			}
-			m[ip] = net
-		}
-	}
 
 	// Go from small to large networks. So we combine newly added
 	// networks as well.
-	for invPrefix, ip2net := range invPrefixAref {
-
-		// Must not optimize network 0/0; it has no supernet.
-		if uint8(invPrefix) >= bitstrLen {
-			break
-		}
-		if ip2net == nil {
-			continue
-		}
-		partPrefix := bitstrLen - uint8(invPrefix)
-		combinedInvPrefix := uint8(invPrefix + 1)
-		combinedPrefix := bitstrLen - combinedInvPrefix
-
+	// Must not optimize network 0/0; it has no supernet.
+	for partPrefix := bitstrLen; partPrefix > 0; partPrefix-- {
+		combinedPrefix := partPrefix - 1
+		ip2net := prefix2ip2net[partPrefix]
 		for ip, left := range ip2net {
+			hopLeft := net2hop[left]
+
+			// Don't combine peers of ASA with site-to-site VPN.
+			if asaCrypto && hop2intf[hopLeft].hub != nil {
+				continue
+			}
 
 			// Only analyze left part of two adjacent networks.
 			part, _ := ip.Prefix(partPrefix)
@@ -201,41 +165,31 @@ func printRoutes(fh *os.File, r *router) {
 			}
 
 			// Both parts must use equal next hop.
-			hopLeft := net2hopInfo[left]
-			hopRight := net2hopInfo[right]
-			if hopLeft != hopRight {
+			if hopRight := net2hop[right]; hopLeft != hopRight {
 				continue
 			}
 
-			ip2net := invPrefixAref[combinedInvPrefix]
-
-			if ip2net == nil {
-				ip2net = make(map[netaddr.IP]*network)
-				invPrefixAref[combinedInvPrefix] = ip2net
-			} else if ip2net[ip] != nil {
-				// Combined network already exists.
+			nextIP2net := prefix2ip2net[combinedPrefix]
+			if nextIP2net == nil {
+				nextIP2net = make(map[netaddr.IP]*network)
+				prefix2ip2net[combinedPrefix] = nextIP2net
+			} else if nextIP2net[ip] != nil {
+				// Combined route already exists.
 				continue
 			}
 
 			// Add combined route.
 			combined := &network{ipp: comb}
-			ip2net[ip] = combined
-
-			ip2net = prefix2ip2net[combinedPrefix]
-			if ip2net == nil {
-				ip2net = make(map[netaddr.IP]*network)
-				prefix2ip2net[combinedPrefix] = ip2net
-			}
-			ip2net[ip] = combined
-			net2hopInfo[combined] = hopLeft
+			nextIP2net[ip] = combined
+			net2hop[combined] = hopLeft
 
 			// Left and right part are no longer used.
-			delete(prefix2ip2net[partPrefix], ip)
-			delete(prefix2ip2net[partPrefix], nextIP)
+			delete(ip2net, ip)
+			delete(ip2net, nextIP)
 		}
 	}
 
-	// Find and remove duplicate networks.
+	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
 	prefixes := make([]uint8, 0, len(prefix2ip2net))
 	for k, _ := range prefix2ip2net {
@@ -248,7 +202,7 @@ func printRoutes(fh *os.File, r *router) {
 		netaddr.IPPrefix
 		noOpt bool
 	}
-	intf2hop2netInfos := make(map[*routerIntf]map[*routerIntf][]netInfo)
+	hop2netInfos := make(map[*routerIntf][]netInfo)
 	for len(prefixes) != 0 {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
@@ -263,11 +217,11 @@ func printRoutes(fh *os.File, r *router) {
 	NETWORK:
 		for _, ip := range ips {
 			small := ip2net[ip]
-			hopInfo := net2hopInfo[small]
+			hop := net2hop[small]
 			noOpt := false
 
 			// ASA with site-to-site VPN needs individual routes for each peer.
-			if !(asaCrypto && hopInfo.intf.hub != nil) {
+			if !(asaCrypto && hop2intf[hop].hub != nil) {
 
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
@@ -279,7 +233,7 @@ func printRoutes(fh *os.File, r *router) {
 
 					// small is subnet of big.
 					// If both use the same hop, then small is redundant.
-					if net2hopInfo[big] == hopInfo {
+					if net2hop[big] == hop {
 
 						// debug("Removed: %s -> %s", small, hop)
 						continue NETWORK
@@ -294,126 +248,116 @@ func printRoutes(fh *os.File, r *router) {
 					break
 				}
 			}
-			m := intf2hop2netInfos[hopInfo.intf]
-			if m == nil {
-				m = make(map[*routerIntf][]netInfo)
-				intf2hop2netInfos[hopInfo.intf] = m
-			}
 			info := netInfo{
 				netaddr.IPPrefixFrom(ip, prefix),
 				noOpt,
 			}
-			m[hopInfo.hop] = append(m[hopInfo.hop], info)
+			hop2netInfos[hop] = append(hop2netInfos[hop], info)
 		}
 	}
 
+	// Get sorted list of hops for deterministic output.
+	hops := make(intfList, 0, len(hop2netInfos))
+	for k, _ := range hop2netInfos {
+		hops.push(k)
+	}
+	sort.Slice(hops, func(i, j int) bool {
+		return hops[i].name < hops[j].name
+	})
+
 	if doAutoDefaultRoute {
 
-		// Find interface and hop with largest number of routing entries.
-		var maxHop2Nets map[*routerIntf][]netInfo
+		// Find hop with largest number of routing entries.
 		var maxHop *routerIntf
 
 		// Substitute routes to one hop with a default route,
 		// if there are at least two entries.
 		max := 1
-		for _, intf := range r.interfaces {
-			hop2nets := intf2hop2netInfos[intf]
-			for hop, nets := range hop2nets {
-				count := 0
-				for _, netInfo := range nets {
-					if !netInfo.noOpt {
-						count++
-					}
-				}
-				if count > max {
-					maxHop2Nets = hop2nets
-					maxHop = hop
-					max = count
+		for _, hop := range hops {
+			count := 0
+			for _, info := range hop2netInfos[hop] {
+				if !info.noOpt {
+					count++
 				}
 			}
+			if count > max {
+				maxHop = hop
+				max = count
+			}
 		}
-		if maxHop2Nets != nil {
+		if maxHop != nil {
 
 			// Use default route for this direction.
 			nets := []netInfo{{zeroNet, false}}
 			// But still generate routes for small networks
 			// with supernet behind other hop.
-			for _, net := range maxHop2Nets[maxHop] {
+			for _, net := range hop2netInfos[maxHop] {
 				if net.noOpt {
 					nets = append(nets, net)
 				}
 			}
-			maxHop2Nets[maxHop] = nets
+			hop2netInfos[maxHop] = nets
 		}
 	}
-	printHeader(fh, r, "Routing")
 
+	printHeader(fh, r, "Routing")
 	iosVrf := ""
 	if vrf != "" && model.routing == "IOS" {
 		iosVrf = "vrf " + vrf + " "
 	}
 	nxosPrefix := ""
 
-	for _, intf := range r.interfaces {
-		hop2nets := intf2hop2netInfos[intf]
-		hops := make(intfList, 0, len(hop2nets))
-		for k, _ := range hop2nets {
-			hops.push(k)
+	for _, hop := range hops {
+		intf := hop2intf[hop]
+
+		// For unnumbered and negotiated interfaces use interface name
+		// as next hop.
+		var hopAddr string
+		if intf.ipType != hasIP {
+			hopAddr = intf.hardware.name
+		} else {
+			hopAddr = hop.ip.String()
 		}
-		sort.Slice(hops, func(i, j int) bool {
-			return hops[i].name < hops[j].name
-		})
-		for _, hop := range hops {
 
-			// For unnumbered and negotiated interfaces use interface name
-			// as next hop.
-			var hopAddr string
-			if intf.ipType != hasIP {
-				hopAddr = intf.hardware.name
-			} else {
-				hopAddr = hop.ip.String()
-			}
-
-			for _, netinfo := range hop2nets[hop] {
-				switch model.routing {
-				case "IOS":
-					var adr string
-					ip := "ip"
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPPrefix)
-						ip += "v6"
-					} else {
-						adr = iosRouteCode(netinfo.IPPrefix)
-					}
-					fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-				case "NX-OS":
-					if vrf != "" && nxosPrefix == "" {
-
-						// Print "vrf context" only once
-						// and indent "ip route" commands.
-						fmt.Fprintln(fh, "vrf context", vrf)
-						nxosPrefix = " "
-					}
-					adr := fullPrefixCode(netinfo.IPPrefix)
-					ip := "ip"
-					if ipv6 {
-						ip += "v6"
-					}
-					fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
-				case "ASA":
-					var adr string
-					ip := ""
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.IPPrefix)
-						ip = "ipv6 "
-					} else {
-						adr = iosRouteCode(netinfo.IPPrefix)
-					}
-					fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
-				case "iproute":
-					adr := prefixCode(netinfo.IPPrefix)
-					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
+		for _, netinfo := range hop2netInfos[hop] {
+			switch model.routing {
+			case "IOS":
+				var adr string
+				ip := "ip"
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.IPPrefix)
+					ip += "v6"
+				} else {
+					adr = iosRouteCode(netinfo.IPPrefix)
 				}
+				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
+			case "NX-OS":
+				if vrf != "" && nxosPrefix == "" {
+
+					// Print "vrf context" only once
+					// and indent "ip route" commands.
+					fmt.Fprintln(fh, "vrf context", vrf)
+					nxosPrefix = " "
+				}
+				adr := fullPrefixCode(netinfo.IPPrefix)
+				ip := "ip"
+				if ipv6 {
+					ip += "v6"
+				}
+				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
+			case "ASA":
+				var adr string
+				ip := ""
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.IPPrefix)
+					ip = "ipv6 "
+				} else {
+					adr = iosRouteCode(netinfo.IPPrefix)
+				}
+				fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
+			case "iproute":
+				adr := prefixCode(netinfo.IPPrefix)
+				fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
 			}
 		}
 	}
@@ -432,7 +376,6 @@ func printAclPlaceholder(fh *os.File, r *router, aclName string) {
 	fmt.Fprintln(fh, "#insert", aclName)
 }
 
-// Parameter: routerIntf
 // Analyzes dst/src list of all rules collected at this interface.
 // Result:
 // List of all networks which are reachable when entering this interface.
@@ -473,6 +416,38 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 		return result[i].ipp.IP().Less(result[j].ipp.IP())
 	})
 	return result
+}
+
+// Create aggregate objects from IP/prefix list.
+func getMergeTunnelAggregates(r *router) netList {
+	var l netList
+	for _, ipp := range r.mergeTunnelSpecified {
+		agg := &network{
+			withStdAddr: withStdAddr{stdAddr: ipp.String()},
+			ipp:         ipp,
+		}
+		l.push(agg)
+	}
+	return l
+}
+
+// Remove networks that are subnet of aggregates in 'merge'.
+// Add aggregates to result.
+func mergeSplitTunnelNets(l, merge netList, m natMap) netList {
+	j := 0
+NET:
+	for _, n := range l {
+		ipp := n.address(m)
+		for _, agg := range merge {
+			ipp2 := agg.ipp
+			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.IP()) {
+				continue NET
+			}
+		}
+		l[j] = n
+		j++
+	}
+	return append(l[:j], merge...)
 }
 
 func printAsaTrustpoint(fh *os.File, r *router, trustpoint string) {
@@ -698,6 +673,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		idCounter++
 		return strconv.Itoa(idCounter)
 	}
+	splitTunnelMerge := getMergeTunnelAggregates(r)
 	certGroupMap := make(map[string]string)
 	singleCertMap := make(map[string]bool)
 	extendedKey := make(map[string]string)
@@ -714,7 +690,11 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			continue
 		}
 		natMap := intf.natMap
-		splitTCache := make(map[int]map[string][]*network)
+		type splitTEntry struct {
+			name     string
+			networks []*network
+		}
+		splitTCache := make(map[int][]splitTEntry)
 
 		if hash := intf.idRules; hash != nil {
 			keys := make(stringList, 0, len(hash))
@@ -744,22 +724,24 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					delete(attributes, "split-tunnel-policy")
 				} else if splitTunnelPolicy == "tunnelspecified" {
 					splitTunnelNets := getSplitTunnelNets(idIntf.routerIntf)
+					splitTunnelNets = mergeSplitTunnelNets(
+						splitTunnelNets, splitTunnelMerge, natMap)
 					aclName := ""
 				CACHED_NETS:
-					for name, nets := range splitTCache[len(splitTunnelNets)] {
-						for i, net := range nets {
+					for _, entry := range splitTCache[len(splitTunnelNets)] {
+						for i, net := range entry.networks {
 							if splitTunnelNets[i] != net {
 								continue CACHED_NETS
 							}
 						}
-						aclName = name
+						aclName = entry.name
 						break
 					}
 					if aclName == "" {
 						aclName = "split-tunnel-" + strconv.Itoa(aclCounter)
 						aclCounter++
 						var rule *groupedRule
-						if splitTunnelNets != nil {
+						if len(splitTunnelNets) != 0 {
 							objects := make([]someObj, len(splitTunnelNets))
 							for i, n := range splitTunnelNets {
 								objects[i] = n
@@ -772,12 +754,10 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						} else {
 							rule = denyAny
 						}
-						name2nets := splitTCache[len(splitTunnelNets)]
-						if name2nets == nil {
-							name2nets = make(map[string][]*network)
-							splitTCache[len(splitTunnelNets)] = name2nets
-						}
-						name2nets[aclName] = splitTunnelNets
+						n := len(splitTunnelNets)
+						splitTCache[n] = append(
+							splitTCache[n],
+							splitTEntry{aclName, splitTunnelNets})
 						info := &aclInfo{
 							name:        aclName,
 							rules:       []*groupedRule{rule},
@@ -2260,35 +2240,33 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 // Make output directory available.
 // Move old content into subdirectory ".prev/" for reuse during pass 2.
 func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
+	var tmpCode string
+	if fileop.IsDir(dir) && !fileop.IsDir(prev) {
+		// Don't move files if directory .prev already exists.
+		// In this case the previous run of netspoc must have failed,
+		// since .prev is removed on successfull completion.
+
+		tmpDir, err := os.MkdirTemp(path.Dir(dir), "code.tmp*")
+		if err != nil {
+			c.abort("Can't %v", err)
+		}
+		defer func() { os.RemoveAll(tmpDir) }()
+		tmpCode = tmpDir + "/code"
+		if err := os.Rename(dir, tmpCode); err != nil {
+			c.abort("Can't %v", err)
+		}
+	}
 	if !fileop.IsDir(dir) {
 		err := os.Mkdir(dir, 0777)
 		if err != nil {
 			c.abort("Can't %v", err)
 		}
-	} else if !fileop.IsDir(prev) {
-		// Try to remove file or symlink with same name.
-		os.Remove(prev)
-		oldFiles := fileop.Readdirnames(dir)
-		if count := len(oldFiles); count > 0 {
-			if fileop.IsDir(dir + "/ipv6") {
-				v6files := fileop.Readdirnames(dir + "/ipv6")
-				count += len(v6files) - 1
-			}
-			c.info("Saving %d old files of '%s' to subdirectory '.prev'",
-				count, dir)
-
-			err := os.Mkdir(prev, 0777)
-			if err != nil {
-				c.abort("Can't %v", err)
-			}
-			for i, name := range oldFiles {
-				oldFiles[i] = dir + "/" + name
-			}
-			cmd := exec.Command("mv", append(oldFiles, prev)...)
-			if out, err := cmd.CombinedOutput(); err != nil {
-				c.abort("Can't mv old files to prev: %v\n%s", err, out)
-			}
-		}
+	}
+	if tmpCode != "" {
+		// Error shouldn't occur, and doesn't matter, since code is
+		// regenerated if .prev is missing.
+		c.info("Saving old content of '%s' to subdirectory '.prev'", dir)
+		os.Rename(tmpCode, prev)
 	}
 	needV6 := false
 	for _, r := range devices {
@@ -2364,10 +2342,11 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 	// File for router config without ACLs.
 	configFile := dir + "/" + path + ".config"
-	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE, 0666)
+	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
+	defer fd.Close()
 	model := r.model
 	commentChar := model.commentChar
 
@@ -2423,9 +2402,6 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 		header("END", deviceName)
 		fmt.Fprintln(fd)
-		if err := fd.Close(); err != nil {
-			panic(err)
-		}
 	}
 
 	// Print ACLs in machine independent format into separate file.

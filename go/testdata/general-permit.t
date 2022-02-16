@@ -124,6 +124,33 @@ ip access-list e1_out
 =END=
 
 ############################################################
+=TITLE=General permit with udp and named tcp protocol
+=INPUT=
+protocol:TCP = tcp;
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r = {
+ managed;
+ model = IOS;
+ general_permit = udp, protocol:TCP;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=END=
+=OUTPUT=
+--r
+ip access-list extended n1_in
+ permit tcp any any
+ permit udp any any
+ deny ip any any
+--
+ip access-list extended n2_in
+ permit tcp any any
+ permit udp any any
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=No ports permitted
 =INPUT=
 area:all = {
@@ -182,6 +209,26 @@ router:r = {
 =END=
 =WARNING=
 Warning: Useless attribute 'general_permit' at router:r,
+ it was already inherited from router_attributes of area:all
+=END=
+
+############################################################
+=TITLE=Redundant at nested areas
+=INPUT=
+# a1 < all
+area:all = { router_attributes = { general_permit = icmp; } anchor = network:n1; }
+area:a1 =  { router_attributes = { general_permit = icmp; } inclusive_border = interface:asa1.n2; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=END=
+=WARNING=
+Warning: Useless attribute 'general_permit' at area:a1,
  it was already inherited from router_attributes of area:all
 =END=
 
