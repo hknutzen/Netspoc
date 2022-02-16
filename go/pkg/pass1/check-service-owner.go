@@ -70,11 +70,7 @@ func (c *spoc) propagateOwners() {
 		return o, upper
 	}
 
-	var processSubnets func(n *network)
-	processSubnets = func(n *network) {
-		for _, n2 := range n.networks {
-			processSubnets(n2)
-		}
+	processSubnets := func(n *network) {
 		for _, host := range n.hosts {
 			inheritOwner(host)
 		}
