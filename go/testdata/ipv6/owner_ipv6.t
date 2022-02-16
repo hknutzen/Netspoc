@@ -175,7 +175,6 @@ router:r1 = {
 =WARNING=
 Warning: Ignoring attribute 'owner' at managed interface:r1.n1
 Warning: Ignoring attribute 'owner' at managed interface:r1.V
-Warning: Unused owner:y
 =END=
 
 ############################################################

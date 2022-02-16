@@ -11,7 +11,6 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 =WARNING=
 Warning: Ignoring attribute 'owner' at unmanaged router:r
-Warning: Unused owner:o
 =END=
 
 ############################################################

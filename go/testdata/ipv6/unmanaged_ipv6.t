@@ -12,7 +12,6 @@ network:n1 = { ip = ::a01:100/120; }
 =END=
 =WARNING=
 Warning: Ignoring attribute 'owner' at unmanaged router:r
-Warning: Unused owner:o
 =END=
 
 ############################################################

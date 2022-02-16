@@ -408,11 +408,11 @@ type idIntf struct {
 }
 
 type owner struct {
+	usedObj
 	admins              stringList
 	attr                attrStore
 	extendedBy          []*owner
 	hideFromOuterOwners bool
-	isUsed              bool
 	name                string
 	onlyWatch           bool
 	showAll             bool

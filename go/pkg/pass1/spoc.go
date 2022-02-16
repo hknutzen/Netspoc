@@ -213,7 +213,7 @@ func SpocMain() (errCount int) {
 
 		c2 := c.startInBackground(func(c *spoc) {
 			c.checkIdenticalServices(sRules)
-			c.checkUnusedGroups()
+			c.checkUnused()
 			c.checkRedundantRules()
 		})
 		c.findSubnetsInNatDomain(NATDomains)
