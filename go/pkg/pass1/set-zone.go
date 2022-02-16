@@ -857,11 +857,11 @@ func (c *spoc) inheritNAT0() {
 	type fromMap map[string]natter
 	inherited := make(map[natter]fromMap)
 
-	// Inherit NAT setting from areas and supernets enclosing obj.
+	// Inherit NAT setting from areas and supernets to enclosing obj.
 	// Returns:
 	// 1. Augmented natTagMap of obj, to be used in enclosed objects.
-	// 2. Nested map, showing for already processed objects,
-	//    where a NAT tag has been inherited from.
+	// 2. A map showing for current obj, from which object a NAT tag
+	//    has been inherited from.
 	var inherit func(obj natter) (natTagMap, fromMap)
 	inherit = func(obj natter) (natTagMap, fromMap) {
 		if obj == nil {
