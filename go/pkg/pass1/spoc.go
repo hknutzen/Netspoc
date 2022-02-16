@@ -207,11 +207,11 @@ func SpocMain() (errCount int) {
 		NATDomains, NATTag2natType, _ := c.distributeNatInfo()
 		sRules := c.normalizeServices()
 		c.stopOnErr()
-		c.checkServiceOwner(sRules)
 		pRules, dRules := c.convertHostsInRules(sRules)
 		c.groupPathRules(pRules, dRules)
 
 		c2 := c.startInBackground(func(c *spoc) {
+			c.checkServiceOwner(sRules)
 			c.checkIdenticalServices(sRules)
 			c.checkUnused()
 			c.checkRedundantRules()

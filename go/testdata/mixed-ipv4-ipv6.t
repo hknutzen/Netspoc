@@ -382,7 +382,6 @@ Read: 2 routers, 4 networks, 1 hosts, 2 services
 0s Preparing fast path traversal
 0s Distributing NAT
 0s Normalizing services
-0s Checking service owner
 0s Converting hosts to subnets
 0s Grouping rules
 Grouped rule count: 4
@@ -392,6 +391,7 @@ Grouped rule count: 4
 0s Checking supernet rules
 0s Checking transient supernet rules
 0s Output of background job:
+ 0s Checking service owner
  0s Checking for services with identical body
 Warning: unused group:v4
 Warning: unused group:v6
