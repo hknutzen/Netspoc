@@ -213,10 +213,12 @@ ipv6 access-list n1_in
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:secondary = {
  model = IOS, FW;
  managed = secondary;
  interface:n1 = {ip = ::a01:101; hardware = n1; bind_nat = nat; }
+ interface:n2 = {ip = ::a01:201; hardware = n2; }
  interface:t1 = { ip = ::a01:801; hardware = t1; }
 }
 network:t1 = { ip = ::a01:800/120; }
@@ -232,6 +234,7 @@ router:trahza01 = {
  interface:t2;
  interface:super;
  interface:sub1;
+ interface:sub2;
 }
 network:super = {
  has_subnets;
@@ -242,15 +245,24 @@ network:sub1 = {
  ip = f000::c0a8:100/120;
  nat:nat = { identity; }
 }
+network:sub2 = { ip = f000::c0a8:200/120; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:sub1; prt = tcp 49;
+}
+service:s2 = {
+ user = network:n2;
+ permit src = user; dst = network:sub2; prt = tcp 49;
 }
 =END=
 =OUTPUT=
 --ipv6/secondary
 ipv6 access-list n1_in
  permit ipv6 ::a01:100/120 f000::c0a8:100/120
+ deny ipv6 any any
+--
+ipv6 access-list n2_in
+ permit ipv6 ::a01:200/120 f000::c0a8:0/112
  deny ipv6 any any
 =END=
 

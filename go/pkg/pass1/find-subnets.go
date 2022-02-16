@@ -258,6 +258,7 @@ func natToLoopbackOk(loopbackNetwork, natNetwork *network) bool {
 func setMaxRoutingNet(z *zone) {
 	var setMax func(big *network, l netList)
 	setMax = func(big *network, l netList) {
+	SUB:
 		for _, sub := range l {
 			// If larger network is hidden at some place, only use it for
 			// routing, if original network is hidden there as well.
@@ -270,7 +271,7 @@ func setMaxRoutingNet(z *zone) {
 				// sub.nat[tag] for nil.
 				if upNatInfo.hidden && sub.nat[tag] == nil {
 					setMax(sub, sub.networks)
-					return
+					continue SUB
 				}
 			}
 			sub.maxRoutingNet = big
