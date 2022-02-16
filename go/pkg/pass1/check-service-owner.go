@@ -34,7 +34,6 @@ func (c *spoc) propagateOwners() {
 	}
 
 	inherited := make(map[ownerer]ownerer)
-	checked := make(map[ownerer]bool)
 
 	var inheritOwner func(obj ownerer) (*owner, ownerer)
 	inheritOwner = func(obj ownerer) (*owner, ownerer) {
@@ -45,29 +44,19 @@ func (c *spoc) propagateOwners() {
 		if upper := inherited[obj]; upper != nil {
 			return o, upper
 		}
-
+		o2, upper := inheritOwner(getUp(obj))
 		if o != nil {
-			if !checked[obj] {
-				checked[obj] = true
-				o2, upper := inheritOwner(getUp(obj))
-				if o2 != nil && o2 == o {
-					c.warn("Useless %s at %s,\n"+
-						" it was already inherited from %s",
-						o, obj, upper)
-				}
+			if o2 == o {
+				c.warn("Useless %s at %s,\n it was already inherited from %s",
+					o, obj, upper)
 			}
 			o.isUsed = true
+			inherited[obj] = obj
 			return o, obj
 		}
-		up := getUp(obj)
-		if up == nil {
-			return nil, obj
-		}
-
-		o, upper := inheritOwner(up)
+		obj.setOwner(o2)
 		inherited[obj] = upper
-		obj.setOwner(o)
-		return o, upper
+		return o2, upper
 	}
 
 	processSubnets := func(n *network) {
