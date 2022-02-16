@@ -1,5 +1,23 @@
 {{$NEXT}}
 
+6.040     2022-02-16 15:12:58+01:00 Europe/Berlin
+
+ - Added router attribute 'merge_tunnelspecified = IP/PREFIX, ...'.
+   The given list of ip/prefix is used to optimize generated
+   split-tunnel ACL.  Networks that are subnet of ip/prefix list are
+   removed and list of ip/prefix is added to ACL.
+ - Generated default route is deterministic now.
+   If two different next hop interfaces are eligible as default route,
+   one of them is selected deterministically.
+ - Inheritance of attributes from network to subnet didn't work in rare cases.
+   This has been fixed.
+ - Better warning is shown when finding redundant attributes during
+   inheritance.
+ - Fixed corrupt file in generated code when reusing output directory
+   and new file size is smaller than previous one.
+ - Added new option '--debug_pass2 DEVICE' for debugging and testing
+   pass2 of program netspoc.
+
 6.039     2022-01-25 15:11:50+01:00 Europe/Berlin
 
  - Fixed command 'transpose-service':
