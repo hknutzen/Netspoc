@@ -27,7 +27,7 @@ service:test = {
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =WARNING=
-Warning: service:test has unenforceable rules:
+Warning: Some source/destination pairs of service:test don't affect any firewall:
  src=host:x7; dst=host:x7
  src=host:x9; dst=host:x7
 =END=
@@ -77,7 +77,7 @@ service:test = {
 =END=
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:test
-Warning: service:test has unenforceable rules:
+Warning: Some source/destination pairs of service:test don't affect any firewall:
  src=host:x7; dst=host:x7
  src=host:x9; dst=host:x7
 =END=
@@ -102,7 +102,7 @@ service:s2 = {
 =END=
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:s2
-Warning: service:s2 has unenforceable rules:
+Warning: Some source/destination pairs of service:s2 don't affect any firewall:
  src=host:y; dst=network:y
 =END=
 
@@ -123,7 +123,7 @@ service:test2 = {
 }
 =END=
 =WARNING=
-Warning: service:test2 has unenforceable rules:
+Warning: Some source/destination pairs of service:test2 don't affect any firewall:
  src=host:x7; dst=host:x7
  src=host:x9; dst=host:x7
 =END=
@@ -180,7 +180,7 @@ service:ping-local = {
  permit src = any:[user]; dst = user; prt = icmpv6 8;
 }
 =WARNING=
-Warning: service:ping-local has unenforceable rules:
+Warning: Some source/destination pairs of service:ping-local don't affect any firewall:
  src=any:[network:n1]; dst=interface:r2.n1
 =END=
 
@@ -208,7 +208,7 @@ service:test = {
  permit src = user; dst = user; prt = tcp 80;
 }
 =WARNING=
-Warning: service:test is fully unenforceable
+Warning: No firewalls found between all source/destination pairs of service:test
 =END=
 
 ############################################################
@@ -275,7 +275,7 @@ service:test = {
 =PARAMS=--ipv6
 =INPUT=[[input ""]]
 =WARNING=
-Warning: service:test is fully unenforceable
+Warning: No firewalls found between all source/destination pairs of service:test
 =END=
 
 ############################################################
@@ -284,7 +284,7 @@ Warning: service:test is fully unenforceable
 =INPUT=[[input has_unenforceable;]]
 =WARNING=
 Warning: Useless attribute 'has_unenforceable' at service:test
-Warning: service:test is fully unenforceable
+Warning: No firewalls found between all source/destination pairs of service:test
 =END=
 
 ############################################################
@@ -324,7 +324,7 @@ service:s3 = {
 }
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:s1
-Warning: service:s1 has unenforceable rules:
+Warning: Some source/destination pairs of service:s1 don't affect any firewall:
  src=host:x7; dst=host:x7
 =END=
 
@@ -356,7 +356,7 @@ service:s1 = {
 # any:[network:n2] is suppressed.
 =WARNING=
 Warning: Attribute 'has_unenforceable' is blocked at service:s1
-Warning: service:s1 has unenforceable rules:
+Warning: Some source/destination pairs of service:s1 don't affect any firewall:
  src=network:n2; dst=network:n2
  src=network:n3; dst=network:n3
 =END=

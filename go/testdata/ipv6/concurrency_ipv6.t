@@ -87,7 +87,7 @@ service:s1 = {
 }
 group:g1 = network:n1;
 =ERROR=
-Error: service:s1 is fully unenforceable
+Error: No firewalls found between all source/destination pairs of service:s1
 Error: unused group:g1
 Aborted after 2 errors
 =OPTIONS=--concurrency_pass1=2 --check_unused_groups=1 --check_unenforceable=1 --max_errors=2

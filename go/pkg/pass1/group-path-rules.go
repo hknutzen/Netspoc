@@ -53,7 +53,8 @@ func (c *spoc) showUnenforceable() {
 			// Don't warn on empty service without any expanded rules.
 			if sv.seenUnenforceable != nil || sv.silentUnenforceable {
 				c.warnOrErr(conf.Conf.CheckUnenforceable,
-					"%s is fully unenforceable", sv)
+					"No firewalls found between all source/destination pairs of %s",
+					sv)
 			}
 			continue
 		}
@@ -80,7 +81,7 @@ func (c *spoc) showUnenforceable() {
 		if list != nil {
 			sort.Strings(list)
 			c.warnOrErr(conf.Conf.CheckUnenforceable,
-				"%s has unenforceable rules:\n"+
+				"Some source/destination pairs of %s don't affect any firewall:\n"+
 					" %s",
 				sv, strings.Join(list, "\n "))
 		}

@@ -3146,7 +3146,7 @@ service:s2 = {
 }
 =END=
 =WARNING=
-Warning: service:s1 has unenforceable rules:
+Warning: Some source/destination pairs of service:s1 don't affect any firewall:
  src=network:n1; dst=any:n1
 =END=
 
@@ -3382,7 +3382,7 @@ service:ping-local = {
 }
 =END=
 =WARNING=
-Warning: service:ping-local has unenforceable rules:
+Warning: Some source/destination pairs of service:ping-local don't affect any firewall:
  src=network:n2; dst=interface:r2.n2
  src=network:n2; dst=interface:r2.n3
  src=network:n3; dst=interface:r2.n2
