@@ -2871,6 +2871,8 @@ func (c *spoc) tryOwnerRef(
 	o := s.owner[name]
 	if o == nil {
 		c.warn("Ignoring undefined owner:%s of %s", name, ctx)
+	} else {
+		o.isUsed = true
 	}
 	return o
 }

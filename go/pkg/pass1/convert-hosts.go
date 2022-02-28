@@ -324,10 +324,13 @@ func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 	process := func(rules []*serviceRule) ruleList {
 		cRules := make(ruleList, 0, len(rules))
 		for _, rule := range rules {
-			processList := func(list []srvObj, context string) []someObj {
+			processList := func(l []srvObj, toNet bool, context string) []someObj {
+				if toNet {
+					l = applySrcDstModifier(l)
+				}
 				var result []someObj
 				subnet2host := make(map[*subnet]*host)
-				for _, obj := range list {
+				for _, obj := range l {
 					switch x := obj.(type) {
 					case *network:
 						result = append(result, x)
@@ -364,16 +367,10 @@ func (c *spoc) convertHostsInRules(sRules *serviceRules) (ruleList, ruleList) {
 				}
 				return result
 			}
-			if rule.srcNet {
-				rule.src = applySrcDstModifier(rule.src)
-			}
-			if rule.dstNet {
-				rule.dst = applySrcDstModifier(rule.dst)
-			}
 			converted := new(groupedRule)
 			converted.serviceRule = rule
-			converted.src = processList(rule.src, "src")
-			converted.dst = processList(rule.dst, "dst")
+			converted.src = processList(rule.src, rule.srcNet, "src")
+			converted.dst = processList(rule.dst, rule.dstNet, "dst")
 			cRules.push(converted)
 		}
 		return cRules

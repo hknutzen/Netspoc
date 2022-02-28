@@ -1,3 +1,8 @@
+6.041     2022-02-28 14:08:05+01:00 Europe/Berlin
+
+ - Better error message on unenforceable rule.
+ - Fixed non determinism in generated address list for PAN-OS.
+
 6.040     2022-02-16 15:12:58+01:00 Europe/Berlin
 
  - Added router attribute 'merge_tunnelspecified = IP/PREFIX, ...'.

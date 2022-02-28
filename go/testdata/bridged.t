@@ -687,7 +687,7 @@ service:s3 = {
 }
 =END=
 =WARNING=
-Warning: service:s3 has unenforceable rules:
+Warning: Some source/destination pairs of service:s3 don't affect any firewall:
  src=network:n2; dst=host:h2
 =OUTPUT=
 --bridge

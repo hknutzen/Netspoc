@@ -50,7 +50,6 @@ func (c *spoc) propagateOwners() {
 				c.warn("Useless %s at %s,\n it was already inherited from %s",
 					o, obj, upper)
 			}
-			o.isUsed = true
 			inherited[obj] = obj
 			return o, obj
 		}
@@ -91,7 +90,6 @@ func (c *spoc) propagateOwners() {
 		if o == nil {
 			continue
 		}
-		o.isUsed = true
 		for _, z := range area.zones {
 			k := key{z, o}
 			if !zoneOwnerSeen[k] {
@@ -139,7 +137,6 @@ func (c *spoc) propagateOwners() {
 		if o == nil {
 			continue
 		}
-		o.isUsed = true
 
 		// Interface of managed router is not allowed to have individual owner.
 		for _, intf := range getIntf(r) {
@@ -153,9 +150,6 @@ func (c *spoc) propagateOwners() {
 		for _, intf := range r.interfaces {
 			if intf.loopback {
 				o := intf.owner
-				if o != nil {
-					o.isUsed = true
-				}
 				intf.network.owner = o
 			}
 		}
@@ -266,7 +260,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			// Allow dedicated service owner, if we have multiple owners
 			// from objects of rule.
 			if subOwner := svc.subOwner; subOwner != nil {
-				subOwner.isUsed = true
 				if len(ownerSeen) == 1 && ownerSeen[subOwner] {
 					c.warn("Useless %s at %s", subOwner, svc)
 				}
@@ -369,15 +362,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						unknown2services[obj] =
 							append(unknown2services[obj], svc.name)
 					}
-				}
-			}
-		}
-
-		// Show unused owners.
-		if printType := conf.Conf.CheckUnusedOwners; printType != "" {
-			for _, o := range symTable.owner {
-				if !o.isUsed {
-					c.warnOrErr(printType, "Unused %s", o)
 				}
 			}
 		}

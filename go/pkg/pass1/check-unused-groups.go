@@ -4,7 +4,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 )
 
-func (c *spoc) checkUnusedGroups() {
+func (c *spoc) checkUnused() {
 	c.sortedSpoc(func(c *spoc) {
 		if printType := conf.Conf.CheckUnusedGroups; printType != "" {
 			for _, group := range symTable.group {
@@ -15,6 +15,13 @@ func (c *spoc) checkUnusedGroups() {
 			for _, group := range symTable.protocolgroup {
 				if !group.isUsed {
 					c.warnOrErr(printType, "unused %s", group.name)
+				}
+			}
+		}
+		if printType := conf.Conf.CheckUnusedOwners; printType != "" {
+			for _, o := range symTable.owner {
+				if !o.isUsed {
+					c.warnOrErr(printType, "Unused %s", o)
 				}
 			}
 		}

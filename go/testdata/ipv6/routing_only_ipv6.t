@@ -50,7 +50,7 @@ service:test = {
 }
 =END=
 =WARNING=
-Warning: service:test is fully unenforceable
+Warning: No firewalls found between all source/destination pairs of service:test
 =END=
 
 ############################################################

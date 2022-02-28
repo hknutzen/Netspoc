@@ -166,6 +166,9 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 			l = append(l, n)
 		}
 		sort.Slice(l, func(i, j int) bool {
+			if l[i].IP() == l[j].IP() {
+				return l[i].Bits() > l[j].Bits()
+			}
 			return l[i].IP().Less(l[j].IP())
 		})
 		fmt.Fprintln(fd, "<address>")

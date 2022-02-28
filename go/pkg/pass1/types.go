@@ -408,11 +408,11 @@ type idIntf struct {
 }
 
 type owner struct {
+	usedObj
 	admins              stringList
 	attr                attrStore
 	extendedBy          []*owner
 	hideFromOuterOwners bool
-	isUsed              bool
 	name                string
 	onlyWatch           bool
 	showAll             bool
@@ -619,8 +619,8 @@ type service struct {
 	overlaps                   []*service
 	owners                     []*owner
 	seenEnforceable            bool
-	seenUnenforceable          map[objPair]bool
-	silentUnenforceable        bool
+	seenUnenforceable          bool
+	unenforceableMap           map[objPair]bool
 	subOwner                   *owner
 	unknownOwner               bool
 	user                       []ast.Element

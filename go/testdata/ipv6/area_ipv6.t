@@ -70,6 +70,26 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 =END=
 
 ############################################################
+=TITLE=Ignore disabled interface as border
+# Error message should mention 'disabled'.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:asa1 = {
+  managed;
+  model = ASA;
+  interface:n1 = { ip = ::a01:101; hardware = n1; }
+  interface:n2 = { ip = ::a01:201; hardware = n2; disabled; }
+}
+
+area:a = { inclusive_border = interface:asa1.n2; }
+=END=
+=ERROR=
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
+=END=
+
+############################################################
 =TITLE=No automatic interface as border
 =PARAMS=--ipv6
 =INPUT=
