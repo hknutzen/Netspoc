@@ -619,8 +619,8 @@ type service struct {
 	overlaps                   []*service
 	owners                     []*owner
 	seenEnforceable            bool
-	seenUnenforceable          map[objPair]bool
-	silentUnenforceable        bool
+	seenUnenforceable          bool
+	unenforceableMap           map[objPair]bool
 	subOwner                   *owner
 	unknownOwner               bool
 	user                       []ast.Element

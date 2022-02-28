@@ -17,21 +17,38 @@ type objPair [2]someObj
 // - subnets/hosts of different networks.
 // Rules between identical objects are silently ignored.
 // But a message is shown if a service only has rules between identical objects.
-func collectUnenforceable(rule *groupedRule) {
+func (c *spoc) collectUnenforceable(rule *groupedRule) {
 	uRule := rule.rule
 	sv := uRule.service
-	sv.silentUnenforceable = true
-	isCoupling := uRule.hasUser == "both" && !sv.foreach
-
+	sv.seenUnenforceable = true
+	if uRule.hasUser == "both" && !sv.foreach {
+		return
+	}
+	if sv.unenforceableMap == nil {
+		sv.unenforceableMap = make(map[objPair]bool)
+	}
+	if conf.Conf.CheckUnenforceable == "" {
+		return
+	}
 	for _, src := range rule.src {
 		for _, dst := range rule.dst {
-			if isCoupling {
-				continue
+			if !sv.unenforceableMap[objPair{src, dst}] {
+				srcAttr := getAttr(src, hasUnenforceableAttr)
+				dstAttr := getAttr(dst, hasUnenforceableAttr)
+				if sv.hasUnenforceable {
+					if srcAttr == restrictVal && dstAttr == restrictVal {
+						if !sv.hasUnenforceableRestricted {
+							sv.hasUnenforceableRestricted = true
+							c.warn("Attribute 'has_unenforceable' is blocked at %s", sv)
+						}
+					} else {
+						continue
+					}
+				} else if srcAttr == okVal || dstAttr == okVal {
+					continue
+				}
+				sv.unenforceableMap[objPair{src, dst}] = true
 			}
-			if sv.seenUnenforceable == nil {
-				sv.seenUnenforceable = make(map[objPair]bool)
-			}
-			sv.seenUnenforceable[objPair{src, dst}] = true
 		}
 	}
 }
@@ -39,46 +56,26 @@ func collectUnenforceable(rule *groupedRule) {
 func (c *spoc) showUnenforceable() {
 	for _, sv := range c.ascendingServices {
 		if sv.hasUnenforceable &&
-			(sv.seenUnenforceable == nil || !sv.seenEnforceable) {
+			(sv.unenforceableMap == nil || !sv.seenEnforceable) {
 			c.warn("Useless attribute 'has_unenforceable' at %s", sv)
 		}
-		if conf.Conf.CheckUnenforceable == "" {
-			continue
-		}
 
-		// Warning about fully unenforceable service can't be disabled with
+		// Warning about fully unenforceable service can't be suppressed by
 		// attribute has_unenforceable.
 		if !sv.seenEnforceable {
 
 			// Don't warn on empty service without any expanded rules.
-			if sv.seenUnenforceable != nil || sv.silentUnenforceable {
+			if sv.seenUnenforceable {
 				c.warnOrErr(conf.Conf.CheckUnenforceable,
 					"No firewalls found between all source/destination pairs of %s",
 					sv)
 			}
-			continue
-		}
-
-		var list stringList
-		for pair, _ := range sv.seenUnenforceable {
-			src, dst := pair[0], pair[1]
-			srcAttr := getAttr(src, hasUnenforceableAttr)
-			dstAttr := getAttr(dst, hasUnenforceableAttr)
-			if sv.hasUnenforceable {
-				if srcAttr == restrictVal && dstAttr == restrictVal {
-					if !sv.hasUnenforceableRestricted {
-						sv.hasUnenforceableRestricted = true
-						c.warn("Attribute 'has_unenforceable' is blocked at %s", sv)
-					}
-				} else {
-					continue
-				}
-			} else if srcAttr == okVal || dstAttr == okVal {
-				continue
+		} else if len(sv.unenforceableMap) != 0 {
+			var list stringList
+			for pair, _ := range sv.unenforceableMap {
+				src, dst := pair[0], pair[1]
+				list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
 			}
-			list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
-		}
-		if list != nil {
 			sort.Strings(list)
 			c.warnOrErr(conf.Conf.CheckUnenforceable,
 				"Some source/destination pairs of %s don't affect any firewall:\n"+
@@ -88,13 +85,13 @@ func (c *spoc) showUnenforceable() {
 	}
 }
 
-func removeUnenforceableRules(rules ruleList) ruleList {
+func (c *spoc) removeUnenforceableRules(rules ruleList) ruleList {
 	changed := false
 	for i, rule := range rules {
 		srcZone := rule.srcPath.getZone()
 		dstZone := rule.dstPath.getZone()
 		if zoneEq(srcZone, dstZone) {
-			collectUnenforceable(rule)
+			c.collectUnenforceable(rule)
 			rules[i] = nil
 			changed = true
 		} else {
@@ -184,7 +181,7 @@ func (c *spoc) groupPathRules(p, d ruleList) {
 	// have identical srcPath/dstPath.
 	process := func(sRules ruleList) ruleList {
 		gRules := splitRulesByPath(sRules)
-		gRules = removeUnenforceableRules(gRules)
+		gRules = c.removeUnenforceableRules(gRules)
 		return gRules
 	}
 	c.allPathRules.permit = process(p)
