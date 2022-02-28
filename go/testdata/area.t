@@ -66,6 +66,25 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 =END=
 
 ############################################################
+=TITLE=Ignore disabled interface as border
+# Error message should mention 'disabled'.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:asa1 = {
+  managed;
+  model = ASA;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
+}
+
+area:a = { inclusive_border = interface:asa1.n2; }
+=END=
+=ERROR=
+Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
+=END=
+
+############################################################
 =TITLE=No automatic interface as border
 =INPUT=
 [[topo]]
