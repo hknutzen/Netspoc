@@ -233,7 +233,11 @@ func markUnconnectedPair(n1, n2 *network) {
 				next = intf.router
 			}
 			if mark(next, intf) {
-				isUsed[obj.String()] = true
+				if isRouter {
+					setRouterUsed(obj.(*router))
+				} else {
+					isUsed[obj.String()] = true
+				}
 				isUsed[intf.name] = true
 				//debug("Marked %s + %s", obj, intf)
 				result = true

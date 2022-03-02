@@ -791,6 +791,40 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Completely discard v4 router
+=TEMPL=v6
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:u = {
+ interface:n2 = { ip = ::a01:202; }
+ interface:lo = { ip = ::ff1:1; loopback; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = interface:u.lo;
+        prt = tcp 22;
+}
+=INPUT=
+--v4
+network:n5 = { ip = 10.1.5.0/24; }
+router:u = {
+ interface:n5 = { ip = 10.1.5.1; }
+ interface:l1 = { ip = 10.9.9.1; loopback; }
+}
+--ipv6/input
+[[v6]]
+=OUTPUT=
+[[v6]]
+=END=
+
+############################################################
 =TITLE=Empty automatic network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
