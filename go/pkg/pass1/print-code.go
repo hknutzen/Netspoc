@@ -2,20 +2,22 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"inet.af/netaddr"
 	"net"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"unicode"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+	"inet.af/netaddr"
 )
 
 func getIntf(r *router) []*routerIntf {
@@ -2246,12 +2248,12 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 		// In this case the previous run of netspoc must have failed,
 		// since .prev is removed on successfull completion.
 
-		tmpDir, err := os.MkdirTemp(path.Dir(dir), "code.tmp*")
+		tmpDir, err := os.MkdirTemp(path.Dir(path.Clean(dir)), "code.tmp*")
 		if err != nil {
 			c.abort("Can't %v", err)
 		}
 		defer func() { os.RemoveAll(tmpDir) }()
-		tmpCode = tmpDir + "/code"
+		tmpCode = filepath.Join(tmpDir, "code")
 		if err := os.Rename(dir, tmpCode); err != nil {
 			c.abort("Can't %v", err)
 		}
@@ -2275,7 +2277,7 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 		}
 	}
 	if needV6 {
-		v6dir := dir + "/ipv6"
+		v6dir := path.Join(dir, "ipv6")
 		if !fileop.IsDir(v6dir) {
 			err := os.Mkdir(v6dir, 0777)
 			if err != nil {
@@ -2341,7 +2343,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	}
 
 	// File for router config without ACLs.
-	configFile := dir + "/" + path + ".config"
+	configFile := filepath.Join(dir, path+".config")
 	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
@@ -2406,7 +2408,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 	// Print ACLs in machine independent format into separate file.
 	// Collect ACLs from VRF parts.
-	aclFile := dir + "/" + path + ".rules"
+	aclFile := filepath.Join(dir, path+".rules")
 	c.printAcls(aclFile, vrfMembers)
 	return path
 }

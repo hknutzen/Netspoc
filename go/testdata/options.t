@@ -182,6 +182,15 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Must strip slash from out/ for path.Dir to work correctly
+=SETUP=
+mkdir out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=PARAMS=out/
+=WARNING=NONE
+
+############################################################
 =TITLE=Can't move out directory
 =SETUP=
 mkdir out
