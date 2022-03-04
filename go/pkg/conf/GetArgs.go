@@ -187,9 +187,6 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 	// If outDir is missing, no code is generated.
 	outDir := fs.Arg(1)
 
-	// Strip trailing slash for nicer messages.
-	strings.TrimSuffix(mainFile, "/")
-	strings.TrimSuffix(outDir, "/")
 	return mainFile, outDir, false
 }
 
