@@ -365,6 +365,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	identSeen := make(netMap)
 	relationSeen := make(map[netPair]bool)
 	for _, domain := range domains {
+		//debug("%s", domain.name)
 		natMap := domain.natMap
 
 		// Mark networks visible in current NAT domain.
@@ -375,6 +376,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		for _, n := range networks {
 			natNetwork := getNatNetwork(n, natMap)
 			visible[natNetwork] = true
+			//debug("visible: %s", natName(natNetwork))
 		}
 
 		// Mark and analyze networks having identical IP/mask in
@@ -580,13 +582,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 			bignet = origNet[natBignet]
 
-			if printType := conf.Conf.CheckSubnets; printType != "" {
+			if !natSubnet.isLayer3 {
+				subnet.subnetOfUsed = true
 
 				// Take original bignet, because currently
 				// there's no method to specify a natted network
 				// as value of subnet_of.
-				if !(bignet.hasSubnets || natSubnet.subnetOf == bignet ||
-					natSubnet.isLayer3) {
+				if printType := conf.Conf.CheckSubnets; printType != "" &&
+					natSubnet.subnetOf != bignet && !bignet.hasSubnets {
 
 					// Prevent multiple error messages in
 					// different NAT domains.
@@ -712,6 +715,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 	}
 }
 
+func (c *spoc) findUselessSubnetOf() {
+	for _, n := range c.allNetworks {
+		if bignet := n.subnetOf; bignet != nil && !n.subnetOfUsed {
+			c.warn("Useless 'subnet_of = %s' at %s", bignet, n)
+		}
+	}
+}
+
 //############################################################################
 // Returns: Map with domains as keys and partition ID as values.
 // Result : NAT domains get different partition ID, if they belong to
@@ -783,4 +794,5 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 			c.findSubnetsInNatDomain0(part2Doms[part], part2Nets[part])
 		}
 	})
+	c.findUselessSubnetOf()
 }

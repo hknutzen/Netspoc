@@ -4056,3 +4056,59 @@ router:r2 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Useless subnet_of
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:h1 = { hidden; }
+ subnet_of = network:n2;
+}
+network:n2 = {
+ ip = 10.1.0.0/21;
+ nat:h2 = { hidden; }
+}
+router:r1 = {
+ interface:n1 = { bind_nat = h2; }
+ interface:n2 = { bind_nat = h1; }
+}
+=END=
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
+=TITLE=Network is subnet of different networks
+=INPUT=
+network:n1 = { ip = 10.1.0.0/21; }
+network:n2 = {
+ ip = 10.1.1.0/24;
+ nat:h2 = { hidden; }
+ subnet_of = network:n1;
+}
+network:n3 = {
+ ip = 10.1.1.16/28;
+ subnet_of = network:n1;
+}
+network:n4 = {
+ ip = 10.1.1.32/28;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.0.1; bind_nat = h2; hardware = n1; }
+ interface:n2 = { ip = 10.1.1.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.1.17; bind_nat = h2; hardware = n3; }
+ interface:n4 = { ip = 10.1.1.33; bind_nat = h2; hardware = n4; }
+}
+=END=
+=WARNING=
+Warning: network:n3 is subnet of network:n2
+ in nat_domain:[network:n2].
+ If desired, declare attribute 'subnet_of'
+Warning: network:n4 is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################

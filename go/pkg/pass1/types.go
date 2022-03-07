@@ -178,6 +178,7 @@ type network struct {
 	partition            string
 	radiusAttributes     map[string]string
 	subnetOf             *network
+	subnetOfUsed         bool
 	subnets              []*subnet
 	unstableNat          map[*natDomain]netList
 	up                   *network

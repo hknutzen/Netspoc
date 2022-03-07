@@ -4180,3 +4180,61 @@ router:r2 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Useless subnet_of
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ nat:h1 = { hidden; }
+ subnet_of = network:n2;
+}
+network:n2 = {
+ ip = ::a01:0/117;
+ nat:h2 = { hidden; }
+}
+router:r1 = {
+ interface:n1 = { bind_nat = h2; }
+ interface:n2 = { bind_nat = h1; }
+}
+=END=
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
+=TITLE=Network is subnet of different networks
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:0/117; }
+network:n2 = {
+ ip = ::a01:100/120;
+ nat:h2 = { hidden; }
+ subnet_of = network:n1;
+}
+network:n3 = {
+ ip = ::a01:110/124;
+ subnet_of = network:n1;
+}
+network:n4 = {
+ ip = ::a01:120/124;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:1; bind_nat = h2; hardware = n1; }
+ interface:n2 = { ip = ::a01:101; hardware = n2; }
+ interface:n3 = { ip = ::a01:111; bind_nat = h2; hardware = n3; }
+ interface:n4 = { ip = ::a01:121; bind_nat = h2; hardware = n4; }
+}
+=END=
+=WARNING=
+Warning: network:n3 is subnet of network:n2
+ in nat_domain:[network:n2].
+ If desired, declare attribute 'subnet_of'
+Warning: network:n4 is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
