@@ -371,12 +371,14 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 		// Mark networks visible in current NAT domain.
 		// - Real network is visible, if none of its NAT tag are active.
 		// - NAT network is visible if its NAT tag is active.
-		// - It is located in same NAT partition as current NAT domain.
+		// - Located in same NAT partition as current NAT domain.
+		// - Not hidden.
 		visible := make(map[*network]bool)
 		for _, n := range networks {
-			natNetwork := getNatNetwork(n, natMap)
-			visible[natNetwork] = true
-			//debug("visible: %s", natName(natNetwork))
+			if natNetwork := getNatNetwork(n, natMap); !natNetwork.hidden {
+				visible[natNetwork] = true
+				//debug("visible: %s", natName(natNetwork))
+			}
 		}
 
 		// Mark and analyze networks having identical IP/mask in
