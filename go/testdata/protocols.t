@@ -536,6 +536,33 @@ Warning: unused protocolgroup:g2
 =OPTIONS=--check_unused_groups=warn
 
 ############################################################
+=TITLE=Duplicate elements in protocolgroup
+=INPUT=
+protocol:NTP = udp 123;
+protocol:NTPx = udp 123;
+protocolgroup:g1 = tcp 80, protocol:NTP, tcp 80, protocol:NTPx;
+protocolgroup:g2 = udp 123, protocol:NTP;
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = protocolgroup:g1, protocolgroup:g2;
+}
+=END=
+=WARNING=
+Warning: Ignoring duplicate 'tcp 80' in protocolgroup:g1
+Warning: Ignoring duplicate 'udp 123' in protocolgroup:g1
+Warning: Ignoring duplicate 'udp 123' in protocolgroup:g2
+Warning: Ignoring duplicate 'udp 123' in service:s1
+=END=
+
+############################################################
 =TITLE=Unknown protocol and protocolgroup
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

@@ -365,10 +365,11 @@ func (c *spoc) getPort(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
 		c.err("Expected number in %s: %s", ctx, s)
-		return 0
+		return -1
 	}
 	if num <= 0 {
 		c.err("Expected port number > 0 in %s", ctx)
+		return -1
 	} else if num >= 65536 {
 		c.err("Expected port number < 65536 in %s", ctx)
 	}
@@ -3026,7 +3027,23 @@ func (c *spoc) expandProtocols(
 			result.push(p)
 		}
 	}
-	return result
+	// Ignore duplicates
+	seen := make(map[*proto]bool)
+	j := 0
+	for _, p := range result {
+		pm := p
+		if p2 := p.main; p2 != nil && p.modifiers == nil {
+			pm = p2
+		}
+		if seen[pm] {
+			c.warn("Ignoring duplicate '%s' in %s", pm.name, ctx)
+		} else {
+			result[j] = p
+			j++
+			seen[pm] = true
+		}
+	}
+	return result[:j]
 }
 
 func (c *spoc) expandProtocolgroup(
@@ -3128,10 +3145,7 @@ func (c *spoc) getGeneralPermit(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
 	l := c.getProtocolList(a, s, v6, ctx)
-	// Ignore duplicates.
-	seen := make(map[*proto]bool)
-	j := 0
-	for _, p := range l {
+	for i, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
 		// genReverseRules doesn't handle generally permitted protocols.
@@ -3147,6 +3161,7 @@ func (c *spoc) getGeneralPermit(
 		name := p.name
 		if p2 := p.main; p2 != nil {
 			p = p2
+			l[i] = p
 		}
 		if srcRange ||
 			p.ports[0] != 0 && !(p.ports[0] == 1 && p.ports[1] == 65535) {
@@ -3155,15 +3170,8 @@ func (c *spoc) getGeneralPermit(
 		if reason != nil {
 			c.err("Must not use '%s' with %s in general_permit of %s",
 				name, strings.Join(reason, " or "), ctx)
-		} else if seen[p] {
-			c.warn("Ignoring duplicate '%s' in general_permit of %s", p.name, ctx)
-		} else {
-			l[j] = p
-			j++
-			seen[p] = true
 		}
 	}
-	l = l[:j]
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
 	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })

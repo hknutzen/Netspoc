@@ -127,6 +127,49 @@ Warning: service:2b is fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
+=TITLE=Duplicate protocol in rule
+=PARAMS=--ipv6
+=INPUT=
+protocol:NTP = udp 123;
+network:n1 = { ip = ::a01:100/120;}
+network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = protocol:NTP, tcp 80, udp 123;
+}
+=WARNING=
+Warning: Ignoring duplicate 'udp 123' in service:s1
+=END=
+
+############################################################
+=TITLE=Redundant protocol in rule
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120;}
+network:n2 = { ip = ::a01:200/120; host:h2 = { ip = ::a01:202; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = udp 123, ip;
+}
+=WARNING=
+Warning: Redundant rules in service:s1 compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=udp 123; of service:s1
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s1
+=END=
+
+############################################################
 =TITLE=Redundant rules having protocols with and without modifiers
 =PARAMS=--ipv6
 =INPUT=

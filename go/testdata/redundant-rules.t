@@ -126,6 +126,47 @@ Warning: service:2b is fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
+=TITLE=Duplicate protocol in rule
+=INPUT=
+protocol:NTP = udp 123;
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = protocol:NTP, tcp 80, udp 123;
+}
+=WARNING=
+Warning: Ignoring duplicate 'udp 123' in service:s1
+=END=
+
+############################################################
+=TITLE=Redundant protocol in rule
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.2; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = udp 123, ip;
+}
+=WARNING=
+Warning: Redundant rules in service:s1 compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=udp 123; of service:s1
+< permit src=network:n1; dst=network:n2; prt=ip; of service:s1
+=END=
+
+############################################################
 =TITLE=Redundant rules having protocols with and without modifiers
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24;}
