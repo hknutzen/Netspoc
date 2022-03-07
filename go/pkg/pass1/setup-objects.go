@@ -296,7 +296,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 	case "icmp", "icmpv6":
 		c.addICMPTypeCode(nums, p, v6, ctx)
 	case "proto":
-		c.addProtoNr(nums, p, v6, ctx)
+		c.addProtoNr(nums, p, ctx)
 	default:
 		c.err("Unknown protocol in %s", ctx)
 		p.proto = "ip"
@@ -407,7 +407,7 @@ func (c *spoc) addICMPTypeCode(nums []string, p *proto, v6 bool, ctx string) {
 	}
 }
 
-func (c *spoc) addProtoNr(nums []string, p *proto, v6 bool, ctx string) {
+func (c *spoc) addProtoNr(nums []string, p *proto, ctx string) {
 	if len(nums) != 1 {
 		c.err("Expected single protocol number in %s", ctx)
 		return
