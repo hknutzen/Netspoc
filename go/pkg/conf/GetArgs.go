@@ -142,7 +142,8 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// - CVS and RCS directories
 		// - CVS working files
 		// - Editor backup files: emacs: *~
-		IgnoreFiles: regexp.MustCompile("^(CVS|RCS|\\.#.*|.*~)$"),
+		// - hidden files starting with "." are ignored by anyway
+		IgnoreFiles: regexp.MustCompile(`^(CVS|RCS|.*~)$`),
 		// Use IPv4 version as default
 		IPV6: false,
 
