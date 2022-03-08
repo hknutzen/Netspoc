@@ -207,8 +207,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
-	} else {
-		// Use empty NAT map.
 	}
 
 	// Prepare finding unused objects by marking used objects.
