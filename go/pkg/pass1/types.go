@@ -271,7 +271,6 @@ type aclInfo struct {
 	filterAnySrc bool
 	isStdACL     bool
 	isCryptoACL  bool
-	needProtect  []netaddr.IPPrefix
 	subAclList   aclList
 }
 
