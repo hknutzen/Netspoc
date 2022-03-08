@@ -72,7 +72,7 @@ func (c *spoc) showUnenforceable() {
 			}
 		} else if len(sv.unenforceableMap) != 0 {
 			var list stringList
-			for pair, _ := range sv.unenforceableMap {
+			for pair := range sv.unenforceableMap {
 				src, dst := pair[0], pair[1]
 				list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
 			}

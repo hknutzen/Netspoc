@@ -211,7 +211,7 @@ func (c *spoc) printService(
 	}
 
 	names := make(stringList, 0, len(s2rules))
-	for name, _ := range s2rules {
+	for name := range s2rules {
 		names.push(name)
 	}
 	sort.Strings(names)

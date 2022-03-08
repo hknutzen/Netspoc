@@ -19,7 +19,7 @@ func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 	work func(sub, big *network)) {
 
 	prefixList := make([]uint8, 0, len(prefixIPMap))
-	for p, _ := range prefixIPMap {
+	for p := range prefixIPMap {
 		prefixList = append(prefixList, p)
 	}
 
@@ -38,7 +38,7 @@ func processSubnetRelation(prefixIPMap map[uint8]map[netaddr.IP]*network,
 		// Sort IP addresses to get deterministic warnings and ACLs.
 		ipMap := prefixIPMap[prefix]
 		ipList := make([]netaddr.IP, len(ipMap))
-		for ip, _ := range ipMap {
+		for ip := range ipMap {
 			ipList = append(ipList, ip)
 		}
 		sort.Slice(ipList, func(i, j int) bool {
@@ -785,7 +785,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		part2Nets[part] = append(part2Nets[part], n)
 	}
 	partList := make([]int, 0, len(part2Doms))
-	for part, _ := range part2Doms {
+	for part := range part2Doms {
 		partList = append(partList, part)
 	}
 	sort.Ints(partList)

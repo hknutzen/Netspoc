@@ -244,7 +244,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 			hasUnknown := false
 
 			objects := info.objects
-			for obj, _ := range objects {
+			for obj := range objects {
 				o := obj.getOwner()
 				if o != nil {
 					if !ownerSeen[o] {
@@ -274,7 +274,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 					// Check if attribute 'multi_owner' is restricted at this service.
 					restricted := false
-					for obj, _ := range objects {
+					for obj := range objects {
 						if obj.getOwner() != nil &&
 							getAttr(obj, multiOwnerAttr) == restrictVal {
 							restricted = true
@@ -319,7 +319,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					var names stringList
 					ok := true
 					seen := make(map[string]bool)
-					for obj, _ := range objects {
+					for obj := range objects {
 						if obj.getOwner() != nil {
 							if getAttr(obj, multiOwnerAttr) != okVal {
 								ok = false
@@ -346,7 +346,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				if !hasUnknown {
 					c.warn("Useless use of attribute 'unknown_owner' at %s", svc)
 				} else {
-					for obj, _ := range objects {
+					for obj := range objects {
 						if obj.getOwner() == nil &&
 							getAttr(obj, unknownOwnerAttr) == restrictVal {
 							c.warn("Attribute 'unknown_owner' is blocked at %s", svc)
@@ -355,7 +355,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					}
 				}
 			} else if hasUnknown && conf.Conf.CheckServiceUnknownOwner != "" {
-				for obj, _ := range objects {
+				for obj := range objects {
 					if obj.getOwner() == nil &&
 						getAttr(obj, unknownOwnerAttr) != okVal {
 

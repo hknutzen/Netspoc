@@ -45,7 +45,7 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	natType := make(map[string]string)
 	for _, n := range c.allNetworks {
 		tags := make(stringList, 0)
-		for tag, _ := range n.nat {
+		for tag := range n.nat {
 			tags.push(tag)
 		}
 		sort.Strings(tags)
@@ -102,7 +102,7 @@ func (c *spoc) checkNatDefinitions(natType map[string]string) {
 		}
 	}
 	var messages stringList
-	for tag, _ := range natType {
+	for tag := range natType {
 		if !natUsed[tag] {
 			messages.push(
 				"nat:" + tag + " is defined, but not bound to any interface")
@@ -130,7 +130,7 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 		}
 		union := make(map[string]bool)
 		for _, multiNatMap := range list {
-			for tag, _ := range multiNatMap {
+			for tag := range multiNatMap {
 				union[tag] = true
 			}
 		}
@@ -140,12 +140,12 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 				continue
 			}
 			var missing stringList
-			for tag, _ := range union {
+			for tag := range union {
 				if multiNatMap[tag] == nil {
 					missing.push(tag)
 				}
 			}
-			for tag1, _ := range multiNatMap {
+			for tag1 := range multiNatMap {
 				natNet := multiNatMap[tag1]
 				m := result[tag1]
 				if m == nil {
@@ -182,7 +182,7 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 		if len(m1) != len(m2) {
 			return false
 		}
-		for tag, _ := range m1 {
+		for tag := range m1 {
 			if m2[tag] == nil {
 				return false
 			}
@@ -193,7 +193,7 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 	for _, n := range c.allNetworks {
 		map1 := n.nat
 		tags := make(stringList, 0)
-		for tag, _ := range map1 {
+		for tag := range map1 {
 			tags.push(tag)
 		}
 		sort.Strings(tags)
@@ -215,7 +215,7 @@ func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][
 					// Check for subset relation. Keep superset only.
 					for i, map2 := range list {
 						var common stringList
-						for tag, _ := range map1 {
+						for tag := range map1 {
 							if map2[tag] != nil {
 								common.push(tag)
 							}
@@ -832,7 +832,7 @@ func (c *spoc) checkMultinatErrors(
 		seen := make(map[string]bool)
 		natSet := d.natSet
 		var errors stringList
-		for tag, _ := range natSet {
+		for tag := range natSet {
 			for _, m := range multi[tag] {
 				for tag2, natNet := range m {
 					if tag2 == tag {
@@ -874,7 +874,7 @@ func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 			for _, n := range z.networks {
 				natMap := n.nat
 				var messages stringList
-				for tag, _ := range natMap {
+				for tag := range natMap {
 					if natSet[tag] {
 						var list stringerList
 						for _, r := range d.routers {
@@ -955,7 +955,7 @@ func (c *spoc) checkNatCompatibility() {
 				return
 			}
 			var tags stringList
-			for tag, _ := range obj.nat {
+			for tag := range obj.nat {
 				tags.push(tag)
 			}
 			sort.Strings(tags)
@@ -991,8 +991,7 @@ func (c *spoc) checkNatCompatibility() {
 //          need to have a fixed address.
 func (c *spoc) checkInterfacesWithDynamicNat() {
 	for _, n := range c.allNetworks {
-		for tag, _ := range n.nat {
-			info := n.nat[tag]
+		for tag, info := range n.nat {
 			if !info.dynamic || info.identity || info.hidden {
 				continue
 			}
@@ -1138,11 +1137,11 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 	var activeMulti []map[string]*network
 	seen := make(map[string]bool)
 	for _, set := range sets {
-		for tag, _ := range set {
+		for tag := range set {
 			if list := multi[tag]; list != nil {
 				for _, multiNatMap := range list {
 					allSeen := true
-					for tag, _ := range multiNatMap {
+					for tag := range multiNatMap {
 						if !seen[tag] {
 							allSeen = false
 							seen[tag] = true
@@ -1160,18 +1159,18 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 
 	// Build intersection for NAT tags of all sets.
 	activeMultiSets := make([]map[string]bool, len(activeMulti))
-	for i, _ := range activeMultiSets {
+	for i := range activeMultiSets {
 		activeMultiSets[i] = make(map[string]bool)
 	}
 	for _, set := range sets {
-		for tag, _ := range combined {
+		for tag := range combined {
 			if !set[tag] {
 				delete(combined, tag)
 			}
 		}
 		for i, multiNatMap := range activeMulti {
 			active := ""
-			for tag, _ := range multiNatMap {
+			for tag := range multiNatMap {
 				if set[tag] {
 					active = tag
 					break
@@ -1191,7 +1190,7 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 		// Analyze active and inactive tags.
 		if !m[""] {
 			var realTag string
-			for tag, _ := range m {
+			for tag := range m {
 				if natType[tag] != "hidden" {
 					if realTag != "" {
 
@@ -1213,14 +1212,14 @@ func combineNatSets(sets []natSet, multi map[string][]natTagMap, natType map[str
 		// Ignore all tags, if none is active.
 
 		// Tag that is ignored in one multi set must be ignored completely.
-		for tag, _ := range m {
+		for tag := range m {
 			if tag == add {
 				continue
 			}
 			ignore[tag] = true
 		}
 	}
-	for tag, _ := range toAdd {
+	for tag := range toAdd {
 		if ignore[tag] {
 			continue
 		}

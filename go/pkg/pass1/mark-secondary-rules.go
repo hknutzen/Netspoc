@@ -278,7 +278,7 @@ func checkConflict(conflict map[conflictKey]*conflictInfo) {
 					list1.push(n)
 				}
 			}
-			for supernet, _ := range supernetMap {
+			for supernet := range supernetMap {
 				z := supernet.zone
 				for _, n := range list1 {
 					if zoneEq(n.zone, z) {

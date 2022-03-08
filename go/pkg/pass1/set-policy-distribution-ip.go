@@ -143,7 +143,7 @@ func (c *spoc) setPolicyDistributionIP() {
 
 		// Ready, if exactly one management interface was found.
 		if len(foundMap) == 1 {
-			for intf, _ := range foundMap {
+			for intf := range foundMap {
 				result.push(intf)
 			}
 		} else if r.managed != "" || r.routingOnly {

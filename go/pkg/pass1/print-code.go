@@ -194,7 +194,7 @@ func printRoutes(fh *os.File, r *router) {
 	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
 	prefixes := make([]uint8, 0, len(prefix2ip2net))
-	for k, _ := range prefix2ip2net {
+	for k := range prefix2ip2net {
 		prefixes = append(prefixes, k)
 	}
 	sort.Slice(prefixes, func(i, j int) bool {
@@ -210,7 +210,7 @@ func printRoutes(fh *os.File, r *router) {
 		prefixes = prefixes[1:]
 		ip2net := prefix2ip2net[prefix]
 		ips := make([]netaddr.IP, 0, len(ip2net))
-		for k, _ := range ip2net {
+		for k := range ip2net {
 			ips = append(ips, k)
 		}
 		sort.Slice(ips, func(i, j int) bool {
@@ -260,7 +260,7 @@ func printRoutes(fh *os.File, r *router) {
 
 	// Get sorted list of hops for deterministic output.
 	hops := make(intfList, 0, len(hop2netInfos))
-	for k, _ := range hop2netInfos {
+	for k := range hop2netInfos {
 		hops.push(k)
 	}
 	sort.Slice(hops, func(i, j int) bool {
@@ -494,7 +494,7 @@ func printTunnelGroupRa(
 
 	// Select attributes for tunnel-group general-attributes.
 	keys := make(stringList, 0, len(attributes))
-	for k, _ := range attributes {
+	for k := range attributes {
 		if spec := asaVpnAttributes[k]; spec == tgGeneral {
 			keys.push(k)
 		}
@@ -623,7 +623,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
 		keys := make(stringList, 0, len(attributes))
-		for k, _ := range attributes {
+		for k := range attributes {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -700,7 +700,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 		if hash := intf.idRules; hash != nil {
 			keys := make(stringList, 0, len(hash))
-			for k, _ := range hash {
+			for k := range hash {
 				keys.push(k)
 			}
 			sort.Strings(keys)
@@ -919,7 +919,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
 		keys := make(stringList, 0, len(singleCertMap))
-		for k, _ := range singleCertMap {
+		for k := range singleCertMap {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -935,7 +935,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		}
 		fmt.Fprintln(fh, "webvpn")
 		keys = make(stringList, 0, len(certGroupMap))
-		for k, _ := range certGroupMap {
+		for k := range certGroupMap {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -948,7 +948,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
 	keys := make(stringList, 0, len(ldapMap))
-	for k, _ := range ldapMap {
+	for k := range ldapMap {
 		keys.push(k)
 	}
 	sort.Strings(keys)
@@ -2180,7 +2180,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			//   grouped rules and we need to control optimization
 			//   for sinlge rules.
 			addrList := make(stringList, 0, len(optAddr))
-			for n, _ := range optAddr {
+			for n := range optAddr {
 				a := getAddr(n, natMap)
 				addrList.push(a)
 			}
@@ -2188,7 +2188,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			jACL.OptNetworks = addrList
 
 			addrList = make(stringList, 0, len(noOptAddrs))
-			for o, _ := range noOptAddrs {
+			for o := range noOptAddrs {
 				a := getAddr(o, natMap)
 				addrList.push(a)
 			}

@@ -40,7 +40,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 	// Get aggregates in deterministic order.
 	var objects netList
 	var keys []netaddr.IPPrefix
-	for k, _ := range ipPrefix2aggregate {
+	for k := range ipPrefix2aggregate {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {

@@ -204,7 +204,7 @@ func ownersForObjects(l srvObjList) stringList {
 		}
 	}
 	result := make(stringList, 0, len(names))
-	for name, _ := range names {
+	for name := range names {
 		result.push(name)
 	}
 	sort.Strings(result)
@@ -229,7 +229,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 		}
 	}
 	result := make(stringList, 0, len(names))
-	for name, _ := range names {
+	for name := range names {
 		result.push(name)
 	}
 	sort.Strings(result)
@@ -604,7 +604,7 @@ func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 			users = nil
 		}
 		var objects srvObjList
-		for ob, _ := range objMap {
+		for ob := range objMap {
 			objects.push(ob)
 		}
 
@@ -680,7 +680,7 @@ func (c *spoc) setupPartOwners() xOwner {
 			continue
 		}
 		var owners []*owner
-		for ow, _ := range pMap[n] {
+		for ow := range pMap[n] {
 			owners = append(owners, ow)
 		}
 		if ow := n.owner; ow != nil {
@@ -701,7 +701,7 @@ func (c *spoc) setupPartOwners() xOwner {
 	pInfo := make(xOwner)
 	for ob, m := range pMap {
 		s := make([]*owner, 0, len(m))
-		for ow, _ := range m {
+		for ow := range m {
 			s = append(s, ow)
 		}
 		pInfo[ob] = s
@@ -758,7 +758,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
 		var l []*owner
-		for ow, _ := range m {
+		for ow := range m {
 			l = append(l, ow)
 		}
 		sort.Slice(l, func(i, j int) bool {
@@ -835,7 +835,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 						outerForObj[masterOwner] = true
 					}
 				} else {
-					for ow, _ := range outerOwners {
+					for ow := range outerOwners {
 						outerForObj[ow] = true
 					}
 				}
@@ -844,7 +844,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 			for _, obj := range n.hosts {
 				ow := obj.owner
 				outerForObj := make(map[*owner]bool)
-				for ow, _ := range outerOwners {
+				for ow := range outerOwners {
 					outerForObj[ow] = true
 				}
 				setOuterOwners(obj, ow, outerForObj)
@@ -925,17 +925,17 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
 	}
-	for ownerName, _ := range symTable.owner {
+	for ownerName := range symTable.owner {
 		natList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
 			// Build union of all natSets of found NAT domains.
 			var natSets []natSet
-			for d, _ := range doms {
+			for d := range doms {
 				natSets = append(natSets, d.natSet)
 			}
 			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-			for tag, _ := range combined {
+			for tag := range combined {
 				natList.push(tag)
 			}
 		}
@@ -1076,7 +1076,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		}
 	}
 
-	for ow, _ := range symTable.owner {
+	for ow := range symTable.owner {
 		assets := result[ow]
 		if assets == nil {
 			assets = jsonMap{}
@@ -1094,7 +1094,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 // we need to lookup, if an object should be visible by this owner.
 func getVisibleOwner(pInfo, oInfo xOwner) map[srvObj]map[string]bool {
 	visibleOwner := make(map[srvObj]map[string]bool)
-	for ob, _ := range allObjects {
+	for ob := range allObjects {
 		m := make(map[string]bool)
 		visibleOwner[ob] = m
 		m[ownerForObject(ob)] = true
@@ -1175,7 +1175,7 @@ func (c *spoc) exportUsersAndServiceLists(
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
 		if visible := s.visible; visible != "" {
-			for ow, _ := range symTable.owner {
+			for ow := range symTable.owner {
 				type2sMap := owner2type2sMap[ow]
 				if type2sMap["owner"][s] {
 					continue
@@ -1192,7 +1192,7 @@ func (c *spoc) exportUsersAndServiceLists(
 
 	visibleOwner := getVisibleOwner(pInfo, oInfo)
 	var names stringList
-	for name, _ := range symTable.owner {
+	for name := range symTable.owner {
 		names.push(name)
 	}
 	sort.Strings(names)
@@ -1203,7 +1203,7 @@ func (c *spoc) exportUsersAndServiceLists(
 		for _, typ := range []string{"owner", "user", "visible"} {
 			sNames := make(stringList, 0)
 		SVC:
-			for s, _ := range type2sMap[typ] {
+			for s := range type2sMap[typ] {
 				sName := strings.TrimPrefix(s.name, "service:")
 				sNames.push(sName)
 				var users srvObjList
@@ -1277,7 +1277,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 func (c *spoc) exportObjects(dir string) {
 	c.progress("Export objects")
 	result := make(jsonMap)
-	for obj, _ := range allObjects {
+	for obj := range allObjects {
 		descr := make(jsonMap)
 
 		// Add key 'ip' and optionally key 'nat'.
@@ -1380,8 +1380,8 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for email, oMap := range email2owners {
 		l := strings.SplitN(email, "@", 2)
 		if len(l) == 2 && l[0] != "[all]" {
-			for owner, _ := range domain2owners[l[1]] {
-				delete(oMap, owner)
+			for ow := range domain2owners[l[1]] {
+				delete(oMap, ow)
 			}
 		}
 	}
@@ -1392,7 +1392,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 
 		// Sort owner names for output.
 		l := make(stringList, 0, len(m))
-		for o, _ := range m {
+		for o := range m {
 			l.push(o)
 		}
 		sort.Strings(l)

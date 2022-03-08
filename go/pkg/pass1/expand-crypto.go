@@ -50,7 +50,7 @@ func (c *spoc) verifyAsaVpnAttributes(
 		return
 	}
 	sorted := make([]string, 0, len(attributes))
-	for key, _ := range attributes {
+	for key := range attributes {
 		sorted = append(sorted, key)
 	}
 	sort.Strings(sorted)

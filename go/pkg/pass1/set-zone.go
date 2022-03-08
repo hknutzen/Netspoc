@@ -258,7 +258,7 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 
 		// Apply attribute 'crosslink' to the networks weakest interfaces.
 		weakest := 99
-		for i, _ := range strength2intf {
+		for i := range strength2intf {
 			if i < weakest {
 				weakest = i
 			}
@@ -324,7 +324,7 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 	}
 
 	// Process all needProtect crosslinked routers.
-	for r, _ := range crosslinkRouters {
+	for r := range crosslinkRouters {
 		if seen[r] {
 			continue
 		}
@@ -609,7 +609,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 		// Find ascending list of areas containing current object.
 		containing := make([]*area, 0, len(m))
-		for a, _ := range m {
+		for a := range m {
 			containing = append(containing, a)
 		}
 		sortBySize(containing)
