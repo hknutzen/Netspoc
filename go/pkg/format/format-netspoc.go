@@ -25,7 +25,7 @@ func processInput(input *filetree.Context) error {
 	}
 	copy := printer.File(aF)
 
-	if bytes.Compare(source, copy) == 0 {
+	if bytes.Equal(source, copy) {
 		return nil
 	}
 	info.Msg("Changed %s", path)
