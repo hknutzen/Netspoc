@@ -796,11 +796,10 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Collect outer owners for all objects inside zone.
 	for _, z := range c.allZones {
-		var zoneOwners []*owner
 
 		// watchingOwners holds list of owners, that have been
 		// inherited from areas.
-		zoneOwners = z.watchingOwners
+		zoneOwners := z.watchingOwners
 
 		process := func(n *network) {
 			outerOwners := make(map[*owner]bool)
@@ -830,8 +829,8 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 			for _, obj := range n.interfaces {
 				ow := obj.owner
 				outerForObj := make(map[*owner]bool)
-				router := obj.router
-				if router.managed != "" || router.routingOnly {
+				r := obj.router
+				if r.managed != "" || r.routingOnly {
 					if masterOwner != nil {
 						outerForObj[masterOwner] = true
 					}
@@ -1061,29 +1060,29 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		networks := addSubnetworks(z.networks)
 
 		for _, n := range networks {
-			add := func(owner string, ownNet bool) {
-				addNetworksInfo(owner, zoneName, exportNetwork(n, owner, ownNet))
+			add := func(ow string, ownNet bool) {
+				addNetworksInfo(ow, zoneName, exportNetwork(n, ow, ownNet))
 			}
-			if owner := ownerForObject(n); owner != "" {
-				add(owner, true)
+			if ow := ownerForObject(n); ow != "" {
+				add(ow, true)
 			}
-			for _, owner := range xOwnersForObject(n, oInfo) {
-				add(owner, true)
+			for _, ow := range xOwnersForObject(n, oInfo) {
+				add(ow, true)
 			}
-			for _, owner := range xOwnersForObject(n, pInfo) {
+			for _, ow := range xOwnersForObject(n, pInfo) {
 				// Show only own or part_owned networks in foreign zone.
-				add(owner, false)
+				add(ow, false)
 			}
 		}
 	}
 
-	for owner, _ := range symTable.owner {
-		assets := result[owner]
+	for ow, _ := range symTable.owner {
+		assets := result[ow]
 		if assets == nil {
 			assets = jsonMap{}
 		}
-		c.createDirs(dir, "owner/"+owner)
-		c.exportJson(dir, "owner/"+owner+"/assets", assets)
+		c.createDirs(dir, "owner/"+ow)
+		c.exportJson(dir, "owner/"+ow+"/assets", assets)
 	}
 }
 
@@ -1146,14 +1145,14 @@ func (c *spoc) exportUsersAndServiceLists(
 	owner2type2sMap := make(map[string]map[string]map[*exportedSvc]bool)
 	for _, s := range l {
 		addChk := func(l stringList, typ string, chk func(o string) bool) {
-			for _, owner := range l {
-				if !chk(owner) {
+			for _, ow := range l {
+				if !chk(ow) {
 					continue
 				}
-				if owner2type2sMap[owner] == nil {
-					owner2type2sMap[owner] = make(map[string]map[*exportedSvc]bool)
+				if owner2type2sMap[ow] == nil {
+					owner2type2sMap[ow] = make(map[string]map[*exportedSvc]bool)
 				}
-				type2sMap := owner2type2sMap[owner]
+				type2sMap := owner2type2sMap[ow]
 				if type2sMap[typ] == nil {
 					type2sMap[typ] = make(map[*exportedSvc]bool)
 				}
@@ -1163,8 +1162,8 @@ func (c *spoc) exportUsersAndServiceLists(
 		add := func(l stringList, typ string) {
 			addChk(l, typ, func(o string) bool { return true })
 		}
-		if owner := s.subOwner; owner != "" {
-			add(stringList{owner}, "owner")
+		if ow := s.subOwner; ow != "" {
+			add(stringList{ow}, "owner")
 		}
 		add(s.owners, "owner")
 		add(s.partOwners, "owner")
@@ -1176,16 +1175,16 @@ func (c *spoc) exportUsersAndServiceLists(
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
 		if visible := s.visible; visible != "" {
-			for owner, _ := range symTable.owner {
-				type2sMap := owner2type2sMap[owner]
+			for ow, _ := range symTable.owner {
+				type2sMap := owner2type2sMap[ow]
 				if type2sMap["owner"][s] {
 					continue
 				}
 				if type2sMap["user"][s] {
 					continue
 				}
-				if visible == "*" || strings.HasPrefix(owner, visible) {
-					add(stringList{owner}, "visible")
+				if visible == "*" || strings.HasPrefix(ow, visible) {
+					add(stringList{ow}, "visible")
 				}
 			}
 		}
@@ -1197,8 +1196,8 @@ func (c *spoc) exportUsersAndServiceLists(
 		names.push(name)
 	}
 	sort.Strings(names)
-	for _, owner := range names {
-		type2sMap := owner2type2sMap[owner]
+	for _, ow := range names {
+		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
 		for _, typ := range []string{"owner", "user", "visible"} {
@@ -1215,7 +1214,7 @@ func (c *spoc) exportUsersAndServiceLists(
 					users = s.user
 				case "user":
 					for _, user := range s.user {
-						if visibleOwner[user][owner] {
+						if visibleOwner[user][ow] {
 							users.push(user)
 						}
 					}
@@ -1238,9 +1237,9 @@ func (c *spoc) exportUsersAndServiceLists(
 			sort.Strings(sNames)
 			type2snames[typ] = sNames
 		}
-		c.createDirs(dir, "owner/"+owner)
-		c.exportJson(dir, "owner/"+owner+"/service_lists", type2snames)
-		c.exportJson(dir, "owner/"+owner+"/users", service2users)
+		c.createDirs(dir, "owner/"+ow)
+		c.exportJson(dir, "owner/"+ow+"/service_lists", type2snames)
+		c.exportJson(dir, "owner/"+ow+"/users", service2users)
 	}
 }
 
