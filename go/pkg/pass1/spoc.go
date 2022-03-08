@@ -64,7 +64,6 @@ func handleBailout(f, cleanup func()) {
 		cleanup()
 	}()
 	f()
-	return
 }
 
 func (c *spoc) toStderrf(format string, args ...interface{}) {
