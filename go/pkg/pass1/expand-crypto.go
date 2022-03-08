@@ -124,7 +124,7 @@ func (c *spoc) verifyAuthServer(s *subnet, r *router) {
 // 'check-subject-name'.
 func (c *spoc) verifySubjectNameForHost(s *subnet, r *router) {
 	id := s.id
-	if strings.Index(id, "@") != -1 {
+	if strings.Contains(id, "@") {
 		return
 	}
 	if getRadiusAttr("check-subject-name", s, r) != "" {

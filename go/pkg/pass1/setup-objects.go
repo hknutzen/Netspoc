@@ -1610,7 +1610,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	if !ipGiven &&
 		intf.ipType != unnumberedIP &&
 		intf.ipType != negotiatedIP &&
-		strings.Index(iName, "/") != -1 &&
+		strings.Contains(iName, "/") &&
 		r.managed != "" {
 
 		intf.ipType = bridgedIP
@@ -2634,7 +2634,7 @@ func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
 }
 
 func isSimpleName(n string) bool {
-	return n != "" && strings.IndexAny(n, ".:/@") == -1
+	return n != "" && !strings.ContainsAny(n, ".:/@")
 }
 
 func (c *spoc) getIp(a *ast.Attribute, v6 bool, ctx string) netaddr.IP {

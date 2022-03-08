@@ -296,7 +296,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 			p.namedValueList(name, l)
 		}
 	} else if l := n.ComplexValue; l != nil {
-		if name == "virtual" || strings.Index(name, ":") != -1 {
+		if name == "virtual" || strings.Contains(name, ":") {
 			val, comment := getAttrList(l)
 			p.print(name + val + comment)
 		} else {
