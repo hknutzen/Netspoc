@@ -457,7 +457,6 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 		p = t[zonePair{dstZone, srcZone}]
 		if p != nil {
 			src, dst = dst, src
-			srcZone, dstZone = dstZone, srcZone
 
 			// 'src' -> 'dst, 'dst' -> 'src', 'src,dst' unchanged.
 			switch isIntf {
