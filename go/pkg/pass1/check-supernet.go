@@ -342,11 +342,12 @@ func (c *spoc) checkSupernetSrcRule(
 
 	// Check if reverse rule would be created and would need additional rules.
 	stateful := false
+PRT:
 	for _, prt := range rule.prt {
 		switch prt.proto {
 		case "tcp", "udp", "ip":
 			stateful = true
-			break
+			break PRT
 		}
 	}
 	if outIntf != nil && r.model.stateless && !rule.oneway && stateful {
