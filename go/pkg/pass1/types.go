@@ -14,15 +14,6 @@ func (a *stringList) push(e string) {
 	*a = append(*a, e)
 }
 
-type autoExt struct {
-	selector string
-	managed  bool
-}
-
-type aggExt struct {
-	net netaddr.IPPrefix
-}
-
 type userInfo struct {
 	elements groupObjList
 	used     bool
@@ -412,7 +403,6 @@ type owner struct {
 	usedObj
 	admins              stringList
 	attr                attrStore
-	extendedBy          []*owner
 	hideFromOuterOwners bool
 	name                string
 	onlyWatch           bool
