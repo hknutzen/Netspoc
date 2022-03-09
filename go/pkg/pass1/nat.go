@@ -830,13 +830,13 @@ func (c *spoc) checkMultinatErrors(
 
 	// Collect pairs of multi NAT tags and interfaces
 	// - at border of NAT domain where both tags are active and
-	// - interface has at least one those tags set in bind_nat.
-	type pair struct {
+	// - interface has at least one those tags active in bind_nat.
+	type key struct {
 		tag1   string
 		tag2   string
 		natNet *network
 	}
-	pair2errors := make(map[pair]intfList)
+	pair2errors := make(map[key]intfList)
 	for _, d := range doms {
 		natSet := d.natSet
 		for tag1 := range natSet {
@@ -852,8 +852,8 @@ func (c *spoc) checkMultinatErrors(
 					for _, intf := range l {
 						for _, t := range intf.bindNat {
 							if t == tag1 || t == tag2 {
-								key := pair{tag1, tag2, n}
-								pair2errors[key] = append(pair2errors[key], intf)
+								k := key{tag1, tag2, n}
+								pair2errors[k] = append(pair2errors[k], intf)
 								break
 							}
 						}
@@ -894,7 +894,6 @@ func (c *spoc) checkMultinatErrors(
 	for _, m := range errors {
 		c.err(m)
 	}
-
 }
 
 //############################################################################
