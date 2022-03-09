@@ -2249,7 +2249,7 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
-=TITLE=Must not apply same NAT tag twice
+=TITLE=Groupd NAT tags with multiple NAT domains
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
