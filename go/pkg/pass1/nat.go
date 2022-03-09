@@ -862,17 +862,9 @@ func (c *spoc) checkMultinatErrors(
 			}
 		}
 	}
-	pairs := make([]pair, 0, len(pair2errors))
-	for p := range pair2errors {
-		pairs = append(pairs, p)
-	}
-	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].tag1 < pairs[j].tag1 ||
-			pairs[i].tag1 == pairs[j].tag1 && pairs[i].tag2 < pairs[j].tag2
-	})
-	for _, p := range pairs {
+	var errors stringList
+	for p, l := range pair2errors {
 		tag1, tag2 := p.tag1, p.tag2
-		l := pair2errors[p]
 
 		// If some interfaces have both NAT tags in bind_nat,
 		// show only those interfaces for more concise error message.
@@ -894,9 +886,15 @@ func (c *spoc) checkMultinatErrors(
 		if hasBoth != nil {
 			l = hasBoth
 		}
-		c.err("Grouped NAT tags '%s, %s' of %s must not both be active at\n%s",
-			tag1, tag2, p.natNet, l.nameList())
+		errors.push(fmt.Sprintf(
+			"Grouped NAT tags '%s, %s' of %s must not both be active at\n%s",
+			tag1, tag2, p.natNet, l.nameList()))
 	}
+	sort.Strings(errors)
+	for _, m := range errors {
+		c.err(m)
+	}
+
 }
 
 //############################################################################
