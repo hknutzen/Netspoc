@@ -829,7 +829,7 @@ func (c *spoc) checkMultinatErrors(
 	multi map[string][]natTagMap, doms []*natDomain) {
 
 	// Collect pairs of multi NAT tags and interfaces
-	// - at border of NAT domain where poth tags are active and
+	// - at border of NAT domain where both tags are active and
 	// - interface has at least one those tags set in bind_nat.
 	type pair struct {
 		tag1   string
