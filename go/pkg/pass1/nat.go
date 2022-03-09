@@ -866,7 +866,7 @@ func (c *spoc) checkMultinatErrors(
 	for p, l := range pair2errors {
 		tag1, tag2 := p.tag1, p.tag2
 
-		// If some interfaces have both NAT tags in bind_nat,
+		// If some interfaces use both NAT tags in bind_nat,
 		// show only those interfaces for more concise error message.
 		var hasBoth intfList
 		for _, intf := range l {
