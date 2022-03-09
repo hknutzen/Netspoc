@@ -828,39 +828,74 @@ func (c *spoc) distributeNatTagsToNatDomains(
 func (c *spoc) checkMultinatErrors(
 	multi map[string][]natTagMap, doms []*natDomain) {
 
+	// Collect pairs of multi NAT tags and interfaces
+	// - at border of NAT domain where poth tags are active and
+	// - interface has at least one those tags set in bind_nat.
+	type pair struct {
+		tag1   string
+		tag2   string
+		natNet *network
+	}
+	pair2errors := make(map[pair]intfList)
 	for _, d := range doms {
-		seen := make(map[string]bool)
 		natSet := d.natSet
-		var errors stringList
-		for tag := range natSet {
-			for _, m := range multi[tag] {
-				for tag2, natNet := range m {
-					if tag2 == tag {
+		for tag1 := range natSet {
+			for _, m := range multi[tag1] {
+				for tag2, n := range m {
+					if tag2 <= tag1 {
 						continue
 					}
 					if !natSet[tag2] {
 						continue
 					}
-					var pair string
-					if tag2 > tag {
-						pair = tag + ", " + tag2
-					} else {
-						pair = tag2 + ", " + tag
+					l := getNatDomainBorders(d)
+					for _, intf := range l {
+						for _, t := range intf.bindNat {
+							if t == tag1 || t == tag2 {
+								key := pair{tag1, tag2, n}
+								pair2errors[key] = append(pair2errors[key], intf)
+								break
+							}
+						}
 					}
-					if seen[pair] {
-						continue
-					}
-					seen[pair] = true
-					errors.push(fmt.Sprintf("Grouped NAT tags '%s' of %s"+
-						" must not both be active at\n", pair, natNet) +
-						getNatDomainBorders(d).nameList())
 				}
 			}
 		}
-		sort.Strings(errors)
-		for _, m := range errors {
-			c.err(m)
+	}
+	pairs := make([]pair, 0, len(pair2errors))
+	for p := range pair2errors {
+		pairs = append(pairs, p)
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].tag1 < pairs[j].tag1 ||
+			pairs[i].tag1 == pairs[j].tag1 && pairs[i].tag2 < pairs[j].tag2
+	})
+	for _, p := range pairs {
+		tag1, tag2 := p.tag1, p.tag2
+		l := pair2errors[p]
+
+		// If some interfaces have both NAT tags in bind_nat,
+		// show only those interfaces for more concise error message.
+		var hasBoth intfList
+		for _, intf := range l {
+			var seen1, seen2 bool
+			for _, t := range intf.bindNat {
+				if t == tag1 {
+					seen1 = true
+				}
+				if t == tag2 {
+					seen2 = true
+				}
+			}
+			if seen1 && seen2 {
+				hasBoth.push(intf)
+			}
 		}
+		if hasBoth != nil {
+			l = hasBoth
+		}
+		c.err("Grouped NAT tags '%s, %s' of %s must not both be active at\n%s",
+			tag1, tag2, p.natNet, l.nameList())
 	}
 }
 
