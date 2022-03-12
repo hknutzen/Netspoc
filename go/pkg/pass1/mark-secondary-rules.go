@@ -24,37 +24,36 @@ import ()
 
 // Mark security zone zone and additionally mark all security zones
 // which are connected with zone by secondary packet filters.
-func markSecondary(zone *zone, mark int) {
-	zone.secondaryMark = mark
+func markSecondary(z *zone, mark int) {
+	z.secondaryMark = mark
 
-	//	debug("%d %s", mark, zone.name);
-	for _, inIntf := range zone.interfaces {
+	//	debug("%d %s", mark, z.name);
+	for _, inIntf := range z.interfaces {
 		if inIntf.mainIntf != nil {
 			continue
 		}
-		router := inIntf.router
-		if m := router.managed; m != "" {
+		r := inIntf.router
+		if m := r.managed; m != "" {
 			if m != "secondary" && m != "local" {
 				continue
 			}
 		}
-		zone.hasSecondary = true
-		if router.secondaryMark != 0 {
+		z.hasSecondary = true
+		if r.secondaryMark != 0 {
 			continue
 		}
-		router.secondaryMark = mark
-		for _, outIntf := range router.interfaces {
+		r.secondaryMark = mark
+		for _, outIntf := range r.interfaces {
 			if outIntf == inIntf {
 				continue
 			}
 			if outIntf.mainIntf != nil {
 				continue
 			}
-			nextZone := outIntf.zone
-			if nextZone.secondaryMark != 0 {
-				continue
+			next := outIntf.zone
+			if next.secondaryMark == 0 {
+				markSecondary(next, mark)
 			}
-			markSecondary(nextZone, mark)
 		}
 	}
 }
@@ -62,33 +61,32 @@ func markSecondary(zone *zone, mark int) {
 // Mark security zone zone with mark and
 // additionally mark all security zones
 // which are connected with zone by non-primary packet filters.
-func markPrimary(zone *zone, mark int) {
-	zone.primaryMark = mark
-	for _, inIntf := range zone.interfaces {
+func markPrimary(z *zone, mark int) {
+	z.primaryMark = mark
+	for _, inIntf := range z.interfaces {
 		if inIntf.mainIntf != nil {
 			continue
 		}
-		router := inIntf.router
-		if router.managed == "primary" {
+		r := inIntf.router
+		if r.managed == "primary" {
 			continue
 		}
-		zone.hasNonPrimary = true
-		if router.primaryMark != 0 {
+		z.hasNonPrimary = true
+		if r.primaryMark != 0 {
 			continue
 		}
-		router.primaryMark = mark
-		for _, outIntf := range router.interfaces {
+		r.primaryMark = mark
+		for _, outIntf := range r.interfaces {
 			if outIntf == inIntf {
 				continue
 			}
 			if outIntf.mainIntf != nil {
 				continue
 			}
-			nextZone := outIntf.zone
-			if nextZone.primaryMark != 0 {
-				continue
+			next := outIntf.zone
+			if next.primaryMark == 0 {
+				markPrimary(next, mark)
 			}
-			markPrimary(nextZone, mark)
 		}
 	}
 }
@@ -316,13 +314,13 @@ func (c *spoc) markSecondaryRules() {
 
 	secondaryMark := 1
 	primaryMark := 1
-	for _, zone := range c.allZones {
-		if zone.secondaryMark == 0 {
-			markSecondary(zone, secondaryMark)
+	for _, z := range c.allZones {
+		if z.secondaryMark == 0 {
+			markSecondary(z, secondaryMark)
 			secondaryMark++
 		}
-		if zone.primaryMark == 0 {
-			markPrimary(zone, primaryMark)
+		if z.primaryMark == 0 {
+			markPrimary(z, primaryMark)
 			primaryMark++
 		}
 	}

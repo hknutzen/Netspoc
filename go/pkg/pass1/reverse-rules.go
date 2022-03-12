@@ -59,7 +59,7 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 
 			// Local function called by path_walk.
 			// It uses free variable hasStatelessRouter.
-			markReverseRule := func(r *groupedRule, inIntf, outIntf *routerIntf) {
+			markReverseRule := func(_ *groupedRule, inIntf, outIntf *routerIntf) {
 
 				// Destination of current rule is current router.
 				// Outgoing packets from a router itself are never filtered.
@@ -67,14 +67,14 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 				if outIntf == nil {
 					return
 				}
-				router := outIntf.router
+				r := outIntf.router
 
 				// It doesn't matter if a semi Managed device is stateless
 				// because no code is generated.
-				if router.managed == "" {
+				if r.managed == "" {
 					return
 				}
-				model := router.model
+				model := r.model
 
 				if model.stateless ||
 					// Source of current rule is current router.

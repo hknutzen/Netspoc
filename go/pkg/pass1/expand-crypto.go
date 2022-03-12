@@ -27,12 +27,12 @@ func (obj *network) nonSecondaryInterfaces() intfList {
 
 func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 	if managed != "" {
-		zone := intf.zone
-		if len(zone.nonSecondaryInterfaces()) != 1 {
+		z := intf.zone
+		if len(z.nonSecondaryInterfaces()) != 1 {
 			c.err("Exactly one security zone must be located behind"+
 				" managed %s of crypto router", intf)
 		}
-		return zone.networks
+		return z.networks
 	} else {
 		net := intf.network
 		if len(net.nonSecondaryInterfaces()) != 1 {
@@ -46,17 +46,13 @@ func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 func (c *spoc) verifyAsaVpnAttributes(
 	name string, attributes map[string]string) {
 
-	if attributes == nil {
-		return
-	}
 	sorted := make([]string, 0, len(attributes))
 	for key := range attributes {
 		sorted = append(sorted, key)
 	}
 	sort.Strings(sorted)
 	for _, key := range sorted {
-		_, found := asaVpnAttributes[key]
-		if !found {
+		if _, found := asaVpnAttributes[key]; !found {
 			c.err("Invalid radius_attribute '%s' at %s", key, name)
 		}
 		value := attributes[key]
@@ -93,7 +89,7 @@ func getRadiusAttr(attr string, s *subnet, r *router) string {
 }
 
 // Attribute 'authentication-server-group' must only be used
-// together with 'ldpa_id' and must then be available at network.
+// together with 'ldap_id' and must then be available at network.
 func (c *spoc) verifyAuthServer(s *subnet, r *router) {
 	attr := "authentication-server-group"
 	if _, found := s.radiusAttributes[attr]; found {
@@ -375,10 +371,9 @@ func (c *spoc) expandCrypto() {
 
 			// Add only non hidden peer networks.
 			for _, net := range encrypted {
-				if getNatNetwork(net, natMap).hidden {
-					continue
+				if !getNatNetwork(net, natMap).hidden {
+					hub.peerNetworks = append(hub.peerNetworks, net)
 				}
-				hub.peerNetworks = append(hub.peerNetworks, net)
 			}
 
 			if managed != "" {
@@ -417,13 +412,13 @@ func (c *spoc) expandCrypto() {
 	// coming into different hardware at current device.
 	// ASA_VPN can't distinguish different hosts with same ID
 	// coming into different hardware interfaces.
-	for _, router := range managedCryptoHubs {
-		cryptoType := router.model.crypto
+	for _, r := range managedCryptoHubs {
+		cryptoType := r.model.crypto
 		if cryptoType != "ASA_VPN" {
 			continue
 		}
 		var idRulesIntfs intfList
-		for _, intf := range router.interfaces {
+		for _, intf := range r.interfaces {
 			if intf.idRules != nil {
 				idRulesIntfs = append(idRulesIntfs, intf)
 			}
@@ -438,7 +433,7 @@ func (c *spoc) expandCrypto() {
 				src1 := idIntf.src
 				if src2, found := id2src[id]; found {
 					c.err("Duplicate ID-host %s from %s and %s at %s",
-						id, src1.network, src2.getNetwork(), router)
+						id, src1.network, src2.getNetwork(), r)
 				} else {
 					id2src[id] = src1
 				}

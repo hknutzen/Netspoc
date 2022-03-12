@@ -83,7 +83,7 @@ LIST:
 //              Optimization: a default route I.routeInZone[network00] = H
 //              is stored for those border interfaces, that reach networks in
 //              zone via a single hop.
-func (c *spoc) setRoutesInZone(zone *zone) {
+func (c *spoc) setRoutesInZone(z *zone) {
 
 	// Check if zone needs static routing at all.
 	needRoutes := false
@@ -91,7 +91,7 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 	borderNetworks := make(netMap)
 	hopInterfaces := make(map[*routerIntf]bool)
 	// Collect networks at zones interfaces as border networks.
-	for _, in := range zone.interfaces {
+	for _, in := range z.interfaces {
 		if in.mainIntf != nil {
 			continue
 		}

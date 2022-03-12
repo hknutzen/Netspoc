@@ -1146,13 +1146,13 @@ func printCiscoAcls(fh *os.File, r *router) {
 					// networks of this zone match attribute filterOnly.
 					intfOk := 0
 					for _, intf := range hw.interfaces {
-						zone := intf.zone
-						if len(zone.cluster) > 1 {
+						z := intf.zone
+						if len(z.cluster) > 1 {
 							break
 						}
 
 						// Ignore real interface of virtual interface.
-						interfaces := zone.nonSecondaryIntfs()
+						interfaces := z.nonSecondaryIntfs()
 
 						// Multiple interfaces belonging to one redundancy
 						// group can't be used to cross the zone.
