@@ -5,26 +5,6 @@ import (
 	"strings"
 )
 
-func (obj *zone) nonSecondaryInterfaces() intfList {
-	var result intfList
-	for _, intf := range obj.interfaces {
-		if intf.mainIntf == nil {
-			result = append(result, intf)
-		}
-	}
-	return result
-}
-
-func (obj *network) nonSecondaryInterfaces() intfList {
-	var result intfList
-	for _, intf := range obj.interfaces {
-		if intf.mainIntf == nil {
-			result = append(result, intf)
-		}
-	}
-	return result
-}
-
 func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 	if managed != "" {
 		z := intf.zone
