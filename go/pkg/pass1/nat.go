@@ -301,9 +301,6 @@ func (c *spoc) findNatDomains() []*natDomain {
 			if intf == inIntf {
 				continue
 			}
-			if intf.mainIntf != nil {
-				continue
-			}
 
 			//debug("IN %s", intf)
 			natTags := intf.bindNat
@@ -314,9 +311,6 @@ func (c *spoc) findNatDomains() []*natDomain {
 
 				// Don't process interface where we reached this router.
 				if outIntf == intf {
-					continue
-				}
-				if outIntf.mainIntf != nil {
 					continue
 				}
 				//debug("OUT %s", outIntf)

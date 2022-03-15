@@ -47,17 +47,16 @@ func (obj *routerIntf) getPathNode() pathStore {
 		// If this is a secondary interface, we can't use it to enter
 		// the router, because it has an active pathrestriction attached.
 		// But it doesn't matter if we use the main interface instead.
-		main := obj.mainIntf
-		if main == nil {
-			main = obj
+		if main := obj.mainIntf; main != nil {
+			obj = main
 		}
 
 		// Special handling needed if src or dst is interface
 		// which has pathrestriction attached.
-		if main.pathRestrict != nil {
-			return main
+		if obj.pathRestrict != nil {
+			return obj
 		} else {
-			return main.router
+			return obj.router
 		}
 	} else {
 
@@ -1161,11 +1160,11 @@ func (c *spoc) pathWalk(
 	// Hence we can't use the router but use interface object for
 	// interface with pathrestriction.
 	fromStore, toStore := rule.srcPath, rule.dstPath
-
-	/*	debug(rule.print());
-		debug(" start: %s, %s at %s",fromStore, toStore, where)
+	/*
+		debug(rule.print())
+		debug(" start: %s, %s at %s", fromStore, toStore, where)
 		fun2 := fun
-		fun = func(rule *Rule, i, o *routerIntf) {
+		fun = func(rule *groupedRule, i, o *routerIntf) {
 			debug(" Walk: %s, %s", i, o)
 			fun2(rule, i, o)
 		}
@@ -1292,7 +1291,10 @@ func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 
 			//debug("%s: %s", n, in)
 			for _, intf := range n.interfaces {
-				if intf == in || intf.zone != nil || intf.origMain != nil {
+				if m := intf.origMain; m != nil {
+					intf = m
+				}
+				if intf == in || intf.zone != nil {
 					continue
 				}
 				r := intf.router
@@ -1305,7 +1307,10 @@ func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 
 				//debug("%s: %s", r, intf)
 				for _, out := range r.interfaces {
-					if !(out == intf || out.origMain != nil) {
+					if m := out.origMain; m != nil {
+						out = m
+					}
+					if out != intf {
 						reachFromBorder(out.network, out, result)
 					}
 				}

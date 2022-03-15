@@ -34,9 +34,7 @@ func (c *spoc) splitSemiManagedRouters() {
 		// Count interfaces without pathrestriction or bind_nat.
 		count := 0
 		for _, intf := range r.interfaces {
-			if intf.mainIntf == nil &&
-				intf.pathRestrict == nil &&
-				intf.bindNat == nil {
+			if intf.pathRestrict == nil && intf.bindNat == nil {
 				count++
 			}
 		}
@@ -53,8 +51,7 @@ func (c *spoc) splitSemiManagedRouters() {
 		// Move each interface with pathrestriction or bind_nat and
 		// corresponding secondary interface to new router.
 		for i, intf := range r.interfaces {
-			if intf.pathRestrict == nil && intf.bindNat == nil ||
-				intf.mainIntf != nil {
+			if intf.pathRestrict == nil && intf.bindNat == nil {
 				continue
 			}
 
@@ -100,23 +97,6 @@ func (c *spoc) splitSemiManagedRouters() {
 
 		// Original router is no longer semiManged.
 		r.semiManaged = false
-
-		// Move secondary interfaces, modify original list.
-		l := r.interfaces
-		j := 0
-		for _, intf := range l {
-			if m := intf.mainIntf; m != nil {
-				nr := m.router
-				if nr != r {
-					intf.router = nr
-					nr.interfaces.push(intf)
-					continue
-				}
-			}
-			l[j] = intf
-			j++
-		}
-		r.interfaces = l[:j]
 	}
 	c.allRouters = append(c.allRouters, splitRouters...)
 }

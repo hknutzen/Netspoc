@@ -1223,7 +1223,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				name, r.model.name)
 		}
 
-		for _, intf := range r.interfaces {
+		for _, intf := range withSecondary(r.interfaces) {
 			// Inherit attribute 'routing' to interfaces.
 			if routingDefault != nil {
 				if intf.routing == nil {
@@ -1460,6 +1460,14 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			c.moveLockedIntf(intf)
 		}
 	}
+}
+
+func withSecondary(l intfList) intfList {
+	result := l
+	for _, intf := range l {
+		result = append(result, intf.secondaryIntfs...)
+	}
+	return result
 }
 
 func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
@@ -1782,7 +1790,6 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.hardware = hw
 		for _, s := range secondaryList {
 			s.hardware = hw
-			hw.interfaces.push(s)
 		}
 
 		// Interface of managed router must not have individual owner,
@@ -1839,6 +1846,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 	}
 
+	intf.secondaryIntfs = secondaryList
 	for _, s := range secondaryList {
 		s.mainIntf = intf
 		s.bindNat = intf.bindNat
@@ -1905,9 +1913,9 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				intf.disabled = true
 			}
 		} else {
+			n.interfaces.push(intf)
 			for _, intf := range append(intfList{intf}, secondaryList...) {
 				intf.network = n
-				n.interfaces.push(intf)
 				if intf.ipType != shortIP && !(ipGiven && intf.ip.IsZero()) {
 					c.checkInterfaceIp(intf, n)
 				}
@@ -1929,9 +1937,9 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 	}
 
+	// Link interface with router and vice versa.
+	r.interfaces.push(intf)
 	for _, intf := range append(intfList{intf}, secondaryList...) {
-		// Link interface with router and vice versa.
-		r.interfaces.push(intf)
 		intf.router = r
 		intf.ipV6 = r.ipV6
 		name := intf.name
@@ -3474,7 +3482,7 @@ func (c *spoc) checkNoInAcl(r *router) {
 		hw.noInAcl = true
 
 		// Assure max number of main interfaces at no_in_acl-hardware == 1.
-		if nonSecondaryIntfCount(hw.interfaces) != 1 {
+		if len(hw.interfaces) != 1 {
 			c.err("Only one logical interface allowed at hardware '%s' of %s\n"+
 				" because of attribute 'no_in_acl'", hw.name, r)
 		}
@@ -3573,10 +3581,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 		}
 
 		for _, intf2 := range hw.interfaces {
-			if intf2 != intf &&
-				intf2.ipType != tunnelIP &&
-				intf2.mainIntf == nil {
-
+			if intf2 != intf && intf2.ipType != tunnelIP {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break

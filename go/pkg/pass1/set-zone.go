@@ -94,6 +94,9 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 		r := intf.router
 		if r.managed != "" || r.semiManaged {
 			intf.zone = z
+			for _, s := range intf.secondaryIntfs {
+				s.zone = z
+			}
 			z.interfaces.push(intf)
 		} else if !r.activePath {
 			r.activePath = true
@@ -153,7 +156,7 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 	// Find zone interfaces connected to semi-managed routers...
 	for _, intf := range z.interfaces {
-		if intf == in || intf.mainIntf != nil {
+		if intf == in {
 			continue
 		}
 		r := intf.router
@@ -165,7 +168,7 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 		// Process adjacent zones...
 		for _, out := range r.interfaces {
-			if out == intf || out.mainIntf != nil {
+			if out == intf {
 				continue
 			}
 			next := out.zone
@@ -222,9 +225,6 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 
 		// Process network interfaces to fill above variables.
 		for _, intf := range n.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 			r := intf.router
 			hw := intf.hardware
 
@@ -233,7 +233,7 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 				c.err("Crosslink %s must not be connected to unmanged %s", n, r)
 				continue
 			}
-			if nonSecondaryIntfCount(hw.interfaces) != 1 {
+			if len(hw.interfaces) != 1 {
 				c.err("Crosslink %s must be the only network"+
 					" connected to hardware '%s' of %s", n, hw.name, r)
 			}
@@ -516,7 +516,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	}
 
 	for _, intf := range obj.intfList() {
-		if intf == in || intf.mainIntf != nil {
+		if intf == in {
 			continue
 		}
 
@@ -548,16 +548,6 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		}
 	}
 	return nil
-}
-
-func nonSecondaryIntfCount(l []*routerIntf) int {
-	count := 0
-	for _, intf := range l {
-		if intf.mainIntf == nil {
-			count++
-		}
-	}
-	return count
 }
 
 //##############################################################################

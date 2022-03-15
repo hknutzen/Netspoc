@@ -109,8 +109,8 @@ ipv6 access-list e0_in
  30 permit tcp any any
  40 deny ip any ::a02:202/128
  50 deny ip any ::a01:102/128
- 60 deny ip any ::a01:103/128
- 70 deny ip any ::a09:902/128
+ 60 deny ip any ::a09:902/128
+ 70 deny ip any ::a01:103/128
  80 permit ip any any
 --
 ipv6 access-list e1_in

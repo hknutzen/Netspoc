@@ -3021,8 +3021,8 @@ router:r1 = {
 }
 service:s1 = {
  user = interface:u1.n1,
-        interface:u1.n1.2,
         interface:r1.n1,
+        interface:u1.n1.2,
         ;
  permit src = user;
         dst = network:n2;

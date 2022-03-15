@@ -1112,9 +1112,9 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
- deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
+ deny ip any host 10.1.2.2
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
  deny ip any any
 =END=
@@ -1143,9 +1143,9 @@ ip access-list extended VLAN77_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
- deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
+ deny ip any host 10.1.2.2
  permit ip 10.9.9.0 0.0.0.255 10.0.0.0 0.127.255.255
  deny ip any any
 --r2
@@ -1153,10 +1153,10 @@ ip access-list extended VLAN1_in
  deny ip any host 10.7.7.2
  deny ip any host 10.1.1.1
  deny ip any host 10.1.2.1
- deny ip any host 10.1.2.2
  deny ip any host 10.1.3.1
  deny ip any host 10.1.4.1
  deny ip any host 10.128.1.1
+ deny ip any host 10.1.2.2
  permit ip any any
 --r2
 ip access-list extended VLAN2_out

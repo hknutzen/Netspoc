@@ -365,6 +365,7 @@ type routerIntf struct {
 	realIntf        *routerIntf
 	redundancyId    string
 	redundancyIntfs intfList
+	secondaryIntfs  intfList
 	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList

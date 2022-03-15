@@ -220,9 +220,6 @@ func markUnconnectedPair(n1, n2 *network) {
 			if intf == in {
 				continue
 			}
-			if intf.mainIntf != nil {
-				continue
-			}
 			var next netPathObj
 			if isRouter {
 				if r.managed != "" || r.semiManaged {
@@ -271,9 +268,6 @@ func markUnconnectedObj(n *network) {
 		result := false
 		for _, intf := range obj.intfList() {
 			if intf == in {
-				continue
-			}
-			if intf.mainIntf != nil {
 				continue
 			}
 			var next netPathObj
@@ -799,7 +793,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		if !isRouterUsed(r) {
 			return
 		}
-		for _, intf := range getIntf(r) {
+		for _, intf := range withSecondary(getIntf(r)) {
 			if !isUsed[intf.name] {
 				continue
 			}
@@ -823,9 +817,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 			// Mark networks referenced by interfaces
 			// marked by markAndSubstElements.
-			if isUsed[intf.name] {
-				isUsed[intf.network.name] = true
-			}
+			isUsed[intf.network.name] = true
 		}
 	}
 	for _, r := range c.allRouters {

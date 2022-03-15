@@ -277,7 +277,7 @@ func (c *spoc) expandGroup1(
 									" with %s having ip/mask\n"+
 									" in %s", x, ctx)
 							}
-							for _, intf := range x.zone.interfaces {
+							for _, intf := range withSecondary(x.zone.interfaces) {
 								r := intf.router
 								if (r.managed != "" || r.routingOnly) && check(intf) {
 									result.push(intf)
@@ -286,7 +286,7 @@ func (c *spoc) expandGroup1(
 						} else if managed {
 
 							// Find managed interfaces of non aggregate network.
-							for _, intf := range x.interfaces {
+							for _, intf := range withSecondary(x.interfaces) {
 								r := intf.router
 								if (r.managed != "" || r.routingOnly) && check(intf) {
 									result.push(intf)
@@ -295,7 +295,7 @@ func (c *spoc) expandGroup1(
 						} else {
 
 							// Find all interfaces of non aggregate network.
-							for _, intf := range x.interfaces {
+							for _, intf := range withSecondary(x.interfaces) {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -356,7 +356,7 @@ func (c *spoc) expandGroup1(
 					}
 					if selector == "all" {
 						for _, r := range routers {
-							for _, intf := range r.interfaces {
+							for _, intf := range withSecondary(r.interfaces) {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -390,7 +390,7 @@ func (c *spoc) expandGroup1(
 				if r != nil {
 					if !r.disabled {
 						if selector == "all" {
-							for _, intf := range getIntf(r) {
+							for _, intf := range withSecondary(getIntf(r)) {
 								if check(intf) {
 									result.push(intf)
 								}

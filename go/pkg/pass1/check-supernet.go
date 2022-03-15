@@ -402,9 +402,6 @@ PRT:
 					if zoneEq(zone, dstZone) {
 						continue
 					}
-					if intf.mainIntf != nil {
-						continue
-					}
 					c.checkSupernetInZone(rule, "src", outIntf, zone, info, true)
 				}
 			}
@@ -500,9 +497,6 @@ func (c *spoc) checkSupernetDstRule(
 			return
 		}
 		if zoneEq(zone, inZone) {
-			return
-		}
-		if intf.mainIntf != nil {
 			return
 		}
 		c.checkSupernetInZone(rule, "dst", inIntf, zone, info, false)

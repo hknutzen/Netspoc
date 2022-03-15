@@ -29,9 +29,6 @@ func markSecondary(z *zone, mark int) {
 
 	//	debug("%d %s", mark, z.name);
 	for _, inIntf := range z.interfaces {
-		if inIntf.mainIntf != nil {
-			continue
-		}
 		r := inIntf.router
 		if m := r.managed; m != "" {
 			if m != "secondary" && m != "local" {
@@ -45,9 +42,6 @@ func markSecondary(z *zone, mark int) {
 		r.secondaryMark = mark
 		for _, outIntf := range r.interfaces {
 			if outIntf == inIntf {
-				continue
-			}
-			if outIntf.mainIntf != nil {
 				continue
 			}
 			next := outIntf.zone
@@ -64,9 +58,6 @@ func markSecondary(z *zone, mark int) {
 func markPrimary(z *zone, mark int) {
 	z.primaryMark = mark
 	for _, inIntf := range z.interfaces {
-		if inIntf.mainIntf != nil {
-			continue
-		}
 		r := inIntf.router
 		if r.managed == "primary" {
 			continue
@@ -78,9 +69,6 @@ func markPrimary(z *zone, mark int) {
 		r.primaryMark = mark
 		for _, outIntf := range r.interfaces {
 			if outIntf == inIntf {
-				continue
-			}
-			if outIntf.mainIntf != nil {
 				continue
 			}
 			next := outIntf.zone

@@ -108,7 +108,7 @@ func (c *spoc) checkIPAddr(n *network) {
 	var shortIntf intfList
 	var bridgedIntf intfList
 	var routeIntf *routerIntf
-	for _, intf := range n.interfaces {
+	for _, intf := range withSecondary(n.interfaces) {
 		switch intf.ipType {
 		case shortIP:
 			// Ignore short interface from split crypto router.

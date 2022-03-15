@@ -1146,9 +1146,9 @@ ipv6 access-list VLAN77_in
  deny ipv6 any host ::a07:702
  deny ipv6 any host ::a01:101
  deny ipv6 any host ::a01:201
- deny ipv6 any host ::a01:202
  deny ipv6 any host ::a01:301
  deny ipv6 any host ::a01:401
+ deny ipv6 any host ::a01:202
  permit ipv6 ::a09:900/120 ::a00:0/105
  deny ipv6 any any
 =END=
@@ -1178,9 +1178,9 @@ ipv6 access-list VLAN77_in
  deny ipv6 any host ::a07:702
  deny ipv6 any host ::a01:101
  deny ipv6 any host ::a01:201
- deny ipv6 any host ::a01:202
  deny ipv6 any host ::a01:301
  deny ipv6 any host ::a01:401
+ deny ipv6 any host ::a01:202
  permit ipv6 ::a09:900/120 ::a00:0/105
  deny ipv6 any any
 --ipv6/r2
@@ -1188,10 +1188,10 @@ ipv6 access-list VLAN1_in
  deny ipv6 any host ::a07:702
  deny ipv6 any host ::a01:101
  deny ipv6 any host ::a01:201
- deny ipv6 any host ::a01:202
  deny ipv6 any host ::a01:301
  deny ipv6 any host ::a01:401
  deny ipv6 any host ::a80:101
+ deny ipv6 any host ::a01:202
  permit ipv6 any any
 --ipv6/r2
 ipv6 access-list VLAN2_out

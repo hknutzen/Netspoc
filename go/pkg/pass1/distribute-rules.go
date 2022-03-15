@@ -325,9 +325,6 @@ func (c *spoc) distributeGeneralPermit() {
 		ru := newRule(net00List, net00List, generalPermit)
 		needProtect := r.needProtect
 		for _, in := range r.interfaces {
-			if in.mainIntf != nil {
-				continue
-			}
 			if in.loopback {
 				continue
 			}
@@ -370,9 +367,6 @@ func (c *spoc) distributeGeneralPermit() {
 						continue
 					}
 					if out.loopback {
-						continue
-					}
-					if out.mainIntf != nil {
 						continue
 					}
 

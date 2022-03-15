@@ -110,9 +110,6 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 		if objIntf.loop != nil {
 			continue
 		}
-		if objIntf.mainIntf != nil {
-			continue
-		}
 
 		// Get adjacent object/node.
 		var nextObject pathObj
@@ -134,7 +131,6 @@ func setpathObj(obj pathObj, toZone1 *routerIntf,
 
 		if foundLoop == nil {
 			objIntf.toZone1 = obj
-
 		} else {
 			objIntf.loop = foundLoop
 

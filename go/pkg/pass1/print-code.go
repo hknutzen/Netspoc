@@ -30,16 +30,6 @@ func getIntf(r *router) []*routerIntf {
 	}
 }
 
-func (z *zone) nonSecondaryIntfs() intfList {
-	var result intfList
-	for _, intf := range z.interfaces {
-		if intf.mainIntf == nil {
-			result.push(intf)
-		}
-	}
-	return result
-}
-
 var permitAnyRule, permitAny6Rule *groupedRule
 
 func getPermitAnyRule(ipv6 bool) *groupedRule {
@@ -1151,12 +1141,9 @@ func printCiscoAcls(fh *os.File, r *router) {
 							break
 						}
 
-						// Ignore real interface of virtual interface.
-						interfaces := z.nonSecondaryIntfs()
-
 						// Multiple interfaces belonging to one redundancy
 						// group can't be used to cross the zone.
-						if len(interfaces) > 1 && !isRedundanyGroup(interfaces) {
+						if len(z.interfaces) > 1 && !isRedundanyGroup(z.interfaces) {
 							break
 						}
 						intfOk++
@@ -1813,7 +1800,7 @@ func printRouterIntf(fh *os.File, r *router) {
 		secondary := false
 
 	INTF:
-		for _, intf := range hw.interfaces {
+		for _, intf := range withSecondary(hw.interfaces) {
 			var addrCmd string
 			if intf.redundant {
 				continue
@@ -1902,7 +1889,7 @@ func getNeedProtect(r *router) []*routerIntf {
 	if !r.needProtect {
 		return nil
 	}
-	for _, i := range r.interfaces {
+	for _, i := range withSecondary(r.interfaces) {
 		if !i.ip.IsZero() {
 			l.push(i)
 		}
@@ -1944,7 +1931,7 @@ func (c *spoc) setupStdAddr() {
 	// Interfaces
 	for _, r := range c.allRouters {
 		v6 := r.ipV6
-		for _, intf := range r.interfaces {
+		for _, intf := range withSecondary(r.interfaces) {
 			switch intf.ipType {
 			case hasIP:
 				intf.stdAddr =

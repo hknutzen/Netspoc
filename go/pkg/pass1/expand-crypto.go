@@ -28,14 +28,14 @@ func (obj *network) nonSecondaryInterfaces() intfList {
 func (c *spoc) cryptoBehind(intf *routerIntf, managed string) netList {
 	if managed != "" {
 		z := intf.zone
-		if len(z.nonSecondaryInterfaces()) != 1 {
+		if len(z.interfaces) != 1 {
 			c.err("Exactly one security zone must be located behind"+
 				" managed %s of crypto router", intf)
 		}
 		return z.networks
 	} else {
 		net := intf.network
-		if len(net.nonSecondaryInterfaces()) != 1 {
+		if len(net.interfaces) != 1 {
 			c.err("Exactly one network must be located behind"+
 				" unmanaged %s of crypto router", intf)
 		}
@@ -252,7 +252,7 @@ func (c *spoc) expandCrypto() {
 
 			// Analyze cleartext networks behind spoke router.
 			for _, intf := range router.interfaces {
-				if intf == spoke || intf.mainIntf != nil {
+				if intf == spoke {
 					continue
 				}
 				net := intf.network

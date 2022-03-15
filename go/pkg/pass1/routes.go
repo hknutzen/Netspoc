@@ -92,16 +92,13 @@ func (c *spoc) setRoutesInZone(z *zone) {
 	hopInterfaces := make(map[*routerIntf]bool)
 	// Collect networks at zones interfaces as border networks.
 	for _, in := range z.interfaces {
-		if in.mainIntf != nil {
-			continue
-		}
 		n := in.network
 		if borderNetworks[n] {
 			continue
 		}
 		// Collect non border interfaces of the networks as next hop interfaces.
 		for _, out := range n.interfaces {
-			if out.zone == nil && out.mainIntf == nil {
+			if out.zone == nil {
 				hopInterfaces[out] = true
 			}
 		}
@@ -135,9 +132,6 @@ func (c *spoc) setRoutesInZone(z *zone) {
 
 		// Process every interface.
 		for _, intf := range r.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 
 			// Found hop interface. Add its entries on the fly and skip.
 			if hopInterfaces[intf] {
@@ -159,7 +153,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 
 			// Recursively proceed with adjacent routers.
 			for _, out := range n.interfaces {
-				if out != intf && out.mainIntf == nil {
+				if out != intf {
 					setCluster(out.router, out, cl)
 				}
 			}
@@ -235,9 +229,6 @@ func (c *spoc) setRoutesInZone(z *zone) {
 
 		// Collect border and hop interfaces of current border network.
 		for _, intf := range border.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 			if intf.zone == nil {
 				hopIntf.push(intf)
 			} else if intf.routing == nil {
@@ -661,9 +652,6 @@ func (c *spoc) addRoutingOnlyNetworks(r *router) {
 		directly[intf.network] = true
 	}
 	for _, intf := range r.interfaces {
-		if intf.mainIntf != nil {
-			continue
-		}
 		if intf.routing != nil {
 			continue
 		}
