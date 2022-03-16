@@ -930,8 +930,8 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 
 		// Take higher bits from NAT IP, lower bits from
 		// original IP.
-		subNat.ipp = netaddr.IPPrefixFrom(
-			mergeIP(n.ipp.IP(), nat),
+		subNat.ipp = netip.PrefixFrom(
+			mergeIP(n.ipp.Addr(), nat),
 			n.ipp.Bits(),
 		)
 	}

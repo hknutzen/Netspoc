@@ -2318,6 +2318,64 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
+=TITLE=Groupd NAT tags with multiple NAT domains
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ nat:n1a = { ip = ::a08:100/120; }
+ nat:n1b = { ip = ::a09:100/120; }
+}
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; nat:n4 = { ip = ::a09:400/120; } }
+network:n5 = { ip = ::a01:500/120; nat:n5 = { ip = ::a09:500/120; } }
+network:n6 = { ip = ::a01:600/120; }
+network:n7 = { ip = ::a01:700/120; }
+network:n8 = { ip = ::a01:800/120;
+ nat:n1a = { ip = ::a08:800/120; }
+ nat:n1b = { ip = ::a09:800/120; }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n1b; }
+}
+router:r3 = {
+ interface:n2;
+ interface:n4 = { bind_nat = n1b; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n5 = { bind_nat = n1a; }
+}
+router:r5 = {
+ interface:n4;
+ interface:n6 = { bind_nat = n4, n5; }
+}
+router:r6 = {
+ interface:n5;
+ interface:n6 = { bind_nat = n4, n5; }
+}
+router:r7 = {
+ interface:n6 = { bind_nat = n1a; }
+ interface:n7;
+}
+router:r8 = {
+ interface:n7 = { bind_nat = n1b; }
+ interface:n8;
+}
+=ERROR=
+Error: Grouped NAT tags 'n1a, n1b' of network:n1 must not both be active at
+ - interface:r3.n4
+ - interface:r4.n5
+ - interface:r7.n6
+=END=
+
+############################################################
 =TITLE=Must not apply same NAT tag twice
 =PARAMS=--ipv6
 =INPUT=

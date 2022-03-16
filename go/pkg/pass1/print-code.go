@@ -71,11 +71,8 @@ func printRoutes(fh *os.File, r *router) {
 	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[int]map[netip.Addr]*network)
-	type hopInfo struct {
-		intf *routerIntf
-		hop  *routerIntf
-	}
-	net2hopInfo := make(map[*network]hopInfo)
+	net2hop := make(map[*network]*routerIntf)
+	hop2intf := make(map[*routerIntf]*routerIntf)
 
 	for _, intf := range r.interfaces {
 
@@ -165,27 +162,19 @@ func printRoutes(fh *os.File, r *router) {
 				continue
 			}
 
-			ip2net := invPrefixAref[combinedInvPrefix]
-
-			if ip2net == nil {
-				ip2net = make(map[netip.Addr]*network)
-				invPrefixAref[combinedInvPrefix] = ip2net
-			} else if ip2net[ip] != nil {
+			nextIP2net := prefix2ip2net[combinedPrefix]
+			if nextIP2net == nil {
+				nextIP2net = make(map[netip.Addr]*network)
+				prefix2ip2net[combinedPrefix] = nextIP2net
+			} else if nextIP2net[ip] != nil {
 				// Combined network already exists.
 				continue
 			}
 
 			// Add combined route.
 			combined := &network{ipp: comb}
-			ip2net[ip] = combined
-
-			ip2net = prefix2ip2net[combinedPrefix]
-			if ip2net == nil {
-				ip2net = make(map[netip.Addr]*network)
-				prefix2ip2net[combinedPrefix] = ip2net
-			}
-			ip2net[ip] = combined
-			net2hopInfo[combined] = hopLeft
+			nextIP2net[ip] = combined
+			net2hop[combined] = hopLeft
 
 			// Left and right part are no longer used.
 			delete(ip2net, ip)
@@ -311,67 +300,58 @@ func printRoutes(fh *os.File, r *router) {
 	}
 	nxosPrefix := ""
 
-	for _, intf := range r.interfaces {
-		hop2nets := intf2hop2netInfos[intf]
-		hops := make(intfList, 0, len(hop2nets))
-		for k, _ := range hop2nets {
-			hops.push(k)
+	for _, hop := range hops {
+		intf := hop2intf[hop]
+
+		// For unnumbered and negotiated interfaces use interface name
+		// as next hop.
+		var hopAddr string
+		if intf.ipType != hasIP {
+			hopAddr = intf.hardware.name
+		} else {
+			hopAddr = hop.ip.String()
 		}
-		sort.Slice(hops, func(i, j int) bool {
-			return hops[i].name < hops[j].name
-		})
-		for _, hop := range hops {
-			intf := hop2intf[hop]
 
-			// For unnumbered and negotiated interfaces use interface name
-			// as next hop.
-			var hopAddr string
-			if intf.ipType != hasIP {
-				hopAddr = intf.hardware.name
-			} else {
-				hopAddr = hop.ip.String()
-			}
-
-			for _, netinfo := range hop2nets[hop] {
-				switch model.routing {
-				case "IOS":
-					var adr string
-					ip := "ip"
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.Prefix)
-						ip += "v6"
-					} else {
-						adr = iosRouteCode(netinfo.Prefix)
-					}
-					fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
-				case "NX-OS":
-					if vrf != "" && nxosPrefix == "" {
-
-						// Print "vrf context" only once
-						// and indent "ip route" commands.
-						fmt.Fprintln(fh, "vrf context", vrf)
-						nxosPrefix = " "
-					}
-					adr := fullPrefixCode(netinfo.Prefix)
-					ip := "ip"
-					if ipv6 {
-						ip += "v6"
-					}
-					fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
-				case "ASA":
-					var adr string
-					ip := ""
-					if ipv6 {
-						adr = fullPrefixCode(netinfo.Prefix)
-						ip = "ipv6 "
-					} else {
-						adr = iosRouteCode(netinfo.Prefix)
-					}
-					fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
-				case "iproute":
-					adr := prefixCode(netinfo.Prefix)
-					fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
+		for _, netinfo := range hop2netInfos[hop] {
+			switch model.routing {
+			case "IOS":
+				var adr string
+				ip := "ip"
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.Prefix)
+					ip += "v6"
+				} else {
+					adr = iosRouteCode(netinfo.Prefix)
 				}
+				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
+			case "NX-OS":
+				if vrf != "" && nxosPrefix == "" {
+
+					// Print "vrf context" only once
+					// and indent "ip route" commands.
+					fmt.Fprintln(fh, "vrf context", vrf)
+					nxosPrefix = " "
+				}
+				adr := fullPrefixCode(netinfo.Prefix)
+				ip := "ip"
+				if ipv6 {
+					ip += "v6"
+				}
+				fmt.Fprintln(fh, nxosPrefix+ip, "route", adr, hopAddr)
+			case "ASA":
+				var adr string
+				ip := ""
+				if ipv6 {
+					adr = fullPrefixCode(netinfo.Prefix)
+					ip = "ipv6 "
+				} else {
+					adr = iosRouteCode(netinfo.Prefix)
+				}
+				fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
+			case "iproute":
+				adr := prefixCode(netinfo.Prefix)
+				fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
+
 			}
 		}
 	}
@@ -454,7 +434,7 @@ NET:
 		ipp := n.address(m)
 		for _, agg := range merge {
 			ipp2 := agg.ipp
-			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.IP()) {
+			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.Addr()) {
 				continue NET
 			}
 		}

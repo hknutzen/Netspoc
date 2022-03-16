@@ -159,15 +159,15 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 }
 
 func updateSubnetRelation0(z *zone) {
-	prefixIPMap := make(map[uint8]map[netaddr.IP]*network)
+	prefixIPMap := make(map[int]map[netip.Addr]*network)
 	add := func(n *network) {
 		ipp := n.ipp
 		ipMap := prefixIPMap[ipp.Bits()]
 		if ipMap == nil {
-			ipMap = make(map[netaddr.IP]*network)
+			ipMap = make(map[netip.Addr]*network)
 			prefixIPMap[ipp.Bits()] = ipMap
 		}
-		ipMap[ipp.IP()] = n
+		ipMap[ipp.Addr()] = n
 	}
 	for _, n := range z.networks {
 		add(n)

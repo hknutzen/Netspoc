@@ -292,47 +292,45 @@ type router struct {
 	routerAttributes
 	pathStoreData
 	pathObjData
-	name                    string
-	deviceName              string
-	managed                 string
-	semiManaged             bool
-	managementInstance      bool
-	backupInstance          *router
-	backupOf                *router
-	adminIP                 []string
-	model                   *model
-	log                     map[string]string
-	logDefault              string
-	logDeny                 bool
-	localMark               int
-	origIntfs               intfList
-	crosslinkIntfs          intfList
-	disabled                bool
-	extendedKeys            map[string]string
-	filterOnly              []netip.Prefix
-	mergeTunnelSpecified    []netip.Prefix
-	generalPermit           []*proto
-	natDomains              []*natDomain
-	natTags                 map[*natDomain]stringList
-	natSet                  natSet // Only used if aclUseRealIp
-	natMap                  natMap // Only used if aclUseRealIp
-	needProtect             bool
-	noGroupCode             bool
-	noInAcl                 *routerIntf
-	noSecondaryOpt          map[*network]bool
-	hardware                []*hardware
-	origHardware            []*hardware
-	origRouter              *router
-	policyDistributionPoint *host
-	primaryMark             int
-	radiusAttributes        map[string]string
-	routingOnly             bool
-	secondaryMark           int
-	trustPoint              string
-	ipvMembers              []*router
-	vrfMembers              []*router
-	aclList                 aclList
-	vrf                     string
+	name                 string
+	deviceName           string
+	managed              string
+	semiManaged          bool
+	managementInstance   bool
+	backupInstance       *router
+	backupOf             *router
+	adminIP              []string
+	model                *model
+	log                  map[string]string
+	logDefault           string
+	logDeny              bool
+	localMark            int
+	origIntfs            intfList
+	crosslinkIntfs       intfList
+	disabled             bool
+	extendedKeys         map[string]string
+	filterOnly           []netip.Prefix
+	mergeTunnelSpecified []netip.Prefix
+	natDomains           []*natDomain
+	natTags              map[*natDomain]stringList
+	natSet               natSet // Only used if aclUseRealIp
+	natMap               natMap // Only used if aclUseRealIp
+	needProtect          bool
+	noGroupCode          bool
+	noInAcl              *routerIntf
+	noSecondaryOpt       map[*network]bool
+	hardware             []*hardware
+	origHardware         []*hardware
+	origRouter           *router
+	primaryMark          int
+	radiusAttributes     map[string]string
+	routingOnly          bool
+	secondaryMark        int
+	trustPoint           string
+	ipvMembers           []*router
+	vrfMembers           []*router
+	aclList              aclList
+	vrf                  string
 }
 
 func (x router) String() string { return x.name }

@@ -1759,7 +1759,7 @@ group-policy VPN-group-u1@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u1@domain.x nopassword
 username u1@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-u1@domain.x
  vpn-group-policy VPN-group-u1@domain.x
@@ -1774,7 +1774,7 @@ group-policy VPN-group-u2@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u2@domain.x nopassword
 username u2@domain.x attributes
- vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10b/120
  service-type remote-access
  vpn-filter value vpn-filter-u2@domain.x
  vpn-group-policy VPN-group-u2@domain.x
@@ -1793,7 +1793,7 @@ group-policy VPN-group-u3@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u3@domain.x nopassword
 username u3@domain.x attributes
- vpn-framed-ip-address ::a63:10c ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10c/120
  service-type remote-access
  vpn-filter value vpn-filter-u3@domain.x
  vpn-group-policy VPN-group-u3@domain.x
@@ -1808,7 +1808,7 @@ group-policy VPN-group-u4@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u4@domain.x nopassword
 username u4@domain.x attributes
- vpn-framed-ip-address ::a63:1fe ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:1fe/120
  service-type remote-access
  vpn-filter value vpn-filter-u4@domain.x
  vpn-group-policy VPN-group-u4@domain.x

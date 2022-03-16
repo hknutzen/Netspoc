@@ -124,6 +124,10 @@ func (c *spoc) convertHosts() {
 				l, err := splitIpRange(host.ipRange)
 				if err != nil {
 					c.err("%v in %s", err, name)
+					// Take first IP of range to prevent inherited errors.
+					l = []netip.Prefix{
+						netip.PrefixFrom(host.ipRange.from, getHostPrefix(ipv6))}
+
 				}
 				if id != "" {
 					if len(l) > 1 {

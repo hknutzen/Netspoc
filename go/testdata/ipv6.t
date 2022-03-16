@@ -47,7 +47,7 @@ service:test1 = {
 }
 =END=
 =ERROR=
-Error: IP range doesn't fit into /64 network
+Error: IP range doesn't fit into /64 network in host:h1
 =END=
 #=OUTPUT=
 #-- ipv6/r1
