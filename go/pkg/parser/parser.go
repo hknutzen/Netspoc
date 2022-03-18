@@ -181,12 +181,11 @@ func (p *parser) selector() (string, int) {
 func (p *parser) intfRef(typ, name string) ast.Element {
 	a := new(ast.IntfRef)
 	a.Type = typ
-	i := strings.Index(name, ".")
-	if i == -1 {
+	r, net, found := strings.Cut(name, ".")
+	if !found {
 		p.syntaxErr("Interface name expected")
 	}
-	a.Router = name[:i]
-	net := name[i+1:]
+	a.Router = r
 	p.next()
 	var ext string
 	if net == "[" {
@@ -194,10 +193,9 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 		ext, end = p.selector()
 		p.setPostCmtAt(end, a)
 	} else {
-		i := strings.Index(net, ".")
-		if i != -1 {
-			ext = net[i+1:]
-			net = net[:i]
+		if p1, p2, found := strings.Cut(net, "."); found {
+			net = p1
+			ext = p2
 		}
 	}
 	a.Network = net   // If Network is "[",
@@ -248,12 +246,10 @@ func (p *parser) intfAuto(typ string) ast.Element {
 
 func (p *parser) typedName() (string, string) {
 	tok := p.tok
-	i := strings.Index(tok, ":")
-	if i == -1 {
+	typ, name, found := strings.Cut(tok, ":")
+	if !found {
 		p.syntaxErr("Typed name expected")
 	}
-	typ := tok[:i]
-	name := tok[i+1:]
 	return typ, name
 }
 
@@ -476,9 +472,8 @@ func (p *parser) attribute() *ast.Attribute {
 }
 
 func (p *parser) attributeNoToplevel() *ast.Attribute {
-	if i := strings.Index(p.tok, ":"); i != -1 {
-		typ := p.tok[:i]
-		if _, found := globalType[typ]; found {
+	if typ, _, found := strings.Cut(p.tok, ":"); found {
+		if _, found2 := globalType[typ]; found2 {
 			p.syntaxErr("Expected '}'")
 		}
 	}

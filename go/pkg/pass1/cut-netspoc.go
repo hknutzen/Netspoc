@@ -330,9 +330,7 @@ func (c *spoc) markAndSubstElements(
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
 		name := obj.String()
-		i := strings.Index(name, ":")
-		typ := name[:i]
-		name = name[i+1:]
+		typ, name, _ := strings.Cut(name, ":")
 		switch x := obj.(type) {
 		case *host, *area:
 			a := new(ast.NamedRef)
@@ -363,12 +361,10 @@ func (c *spoc) markAndSubstElements(
 				result = a
 			}
 		case *routerIntf:
-			i := strings.Index(name, ".")
-			router := name[:i]
-			net := name[i+1:]
+			r, net, _ := strings.Cut(name, ".")
 			a := new(ast.IntfRef)
 			a.Type = typ
-			a.Router = router
+			a.Router = r
 			if i := strings.Index(net, "."); i >= 0 {
 				a.Extension = net[i+1:]
 				net = net[:i]

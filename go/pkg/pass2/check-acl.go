@@ -108,10 +108,8 @@ func parsePackets(lines []string) []*packet {
 		case "tcp", "udp":
 			ext = checkNum(ext, 65536)
 		case "icmp":
-			i := strings.Index(ext, "/")
-			if i != -1 {
-				typ := ext[:i]
-				code := ext[i+1:]
+			typ, code, found := strings.Cut(ext, "/")
+			if found {
 				typ = checkNum(typ, 256)
 				code = checkNum(code, 256)
 				if typ == "" || code == "" {

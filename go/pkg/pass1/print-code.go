@@ -1066,9 +1066,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 	for _, acl := range r.aclList {
 		acl.addDeny = true
 		name := acl.name
-		i := strings.Index(name, "_")
-		inHw := name[:i]
-		outHw := name[i+1:]
+		inHw, outHw, _ := strings.Cut(name, "_")
 		printAclPlaceholder(fh, r, name)
 		if outHw == "self" {
 			// Add call to chain in INPUT chain.

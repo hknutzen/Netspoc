@@ -115,12 +115,8 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		result := ""
 		if ru.log != "" {
 			for _, log := range strings.Split(ru.log, " ") {
-				var k, v string
-				if i := strings.Index(log, ":"); i != -1 {
-					k = log[:i]
-					v = log[i+1:]
-				} else {
-					k = log
+				k, v, found := strings.Cut(log, ":")
+				if !found {
 					v = "yes"
 				}
 				result += fmt.Sprintf("<log-%s>%s</log-%s>\n", k, v, k)

@@ -1151,8 +1151,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		var bName string
 	BRIDGED:
 		for _, a := range v.Interfaces {
-			idx := strings.Index(a.Name, "/")
-			if idx == -1 {
+			other, _, found := strings.Cut(a.Name, "/")
+			if !found {
 				continue
 			}
 			for _, a2 := range a.ComplexValue {
@@ -1165,7 +1165,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			// One router must not bridge parts of different networks.
 			// This would complicate check for interface without IP address
 			// as hop for static routing in checkIPAddr.
-			other := a.Name[:idx]
 			if l3Name != "" {
 				if l3Name != other {
 					c.err("Must not bridge parts of different networks at %s:\n%s",
@@ -1325,8 +1324,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			// Used in findAutoInterfaces.
 			if intf.ipType == bridgedIP {
 				layer3Name := intf.name[len("interface:"):]
-				idx := strings.Index(layer3Name, "/")
-				layer3Name = layer3Name[:idx]
+				layer3Name, _, _ = strings.Cut(layer3Name, "/")
 				intf.layer3Intf = s.routerIntf[layer3Name]
 			}
 		}
@@ -2090,8 +2088,8 @@ func (c *spoc) hasUser(el ast.Element, ctx string) bool {
 }
 
 func splitTypedName(s string) (string, string) {
-	i := strings.Index(s, ":")
-	return s[:i], s[i+1:]
+	typ, name, _ := strings.Cut(s, ":")
+	return typ, name
 }
 
 // Make ID unique by appending name of enclosing network.
@@ -2229,9 +2227,7 @@ func (c *spoc) getEmailList(a *ast.Attribute, ctx string) []string {
 		case emailRegex.MatchString(m):
 		case m == "guest":
 		case a.Name == "watchers":
-			if i := strings.Index(m, "@"); i != -1 {
-				loc := m[:i]
-				dom := m[i+1:]
+			if loc, dom, found := strings.Cut(m, "@"); found {
 				if loc == "[all]" && isDomain(dom) {
 					break
 				}
@@ -2634,8 +2630,8 @@ func isIdHostname(id string) bool {
 
 func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
 	id := c.getSingleValue(a, ctx)
-	i := strings.Index(id, "@")
-	if !(i > 0 && isDomain(id[:i]) && isDomain(id[i+1:])) {
+	p1, p2, found := strings.Cut(id, "@")
+	if !(found && isDomain(p1) && isDomain(p2)) {
 		c.err("Invalid '%s' in %s: %s", a.Name, ctx, id)
 	}
 	return id
@@ -2844,12 +2840,12 @@ func getRouter(name string, s *symbolTable, v6 bool) *router {
 
 func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	v := c.getSingleValue(a, ctx)
-	i := strings.Index(v, ":")
-	if i == -1 {
+	typ, name, found := strings.Cut(v, ":")
+	if !found {
 		c.err("Typed name expected in '%s' of %s", a.Name, ctx)
 		return "", ""
 	}
-	return v[:i], v[i+1:]
+	return typ, name
 }
 
 func (c *spoc) getRealOwnerRef(
