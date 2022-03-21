@@ -139,7 +139,7 @@ func (c *spoc) propagateOwners() {
 		}
 
 		// Interface of managed router is not allowed to have individual owner.
-		for _, intf := range getIntf(r) {
+		for _, intf := range withSecondary(getIntf(r)) {
 			intf.owner = o
 		}
 	}
