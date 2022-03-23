@@ -238,6 +238,75 @@ Warning: IP of interface:r1.n2 overlaps with subnet network:n1 in nat_domain:[ne
 =END=
 
 ############################################################
+=TITLE=NAT to subnet
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ nat:m = { ip = 10.1.2.16/28; dynamic; subnet_of = network:n2; }
+}
+router:r1 = {
+ interface:n1 = { ip = 10.1.1.1; hardware = n1;}
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = m; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+network:n3 = { ip = 10.1.3.0/24; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- r2
+! n2_in
+access-list n2_in extended permit tcp 10.1.2.16 255.255.255.240 10.1.3.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=subnet_of at inherited NAT
+=INPUT=
+area:n1-2 = {
+ nat:m = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+ inclusive_border = interface:r1.n3;
+}
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; bind_nat = m; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- r2
+! n3_in
+access-list n3_in extended permit tcp 10.1.3.16 255.255.255.240 10.1.4.0 255.255.255.0 eq 80
+access-list n3_in extended deny ip any4 any4
+access-group n3_in in interface n3
+=END=
+
+############################################################
 =TITLE=Check rule with aggregate to hidden NAT
 =INPUT=
 network:Test =  {
@@ -433,7 +502,7 @@ Warning: network:n2sub is subnet of network:n2
 =END=
 
 ############################################################
-=TITLE=Inherit subnet_of from inherited NAT
+=TITLE=Copy subnet_of from network to inherited NAT
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -1687,12 +1756,14 @@ Warning: Useless identity nat:n of network:n1
 ############################################################
 =TITLE=Inherit static NAT from area and zone
 =INPUT=
+network:n0 = { ip = 192.0.0.0/8; }
 any:a1 = { link = network:n1; nat:a1 = { ip = 11.0.0.0/8; } }
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
+ interface:n0 = { ip = 192.0.0.1; hardware = n0; }
  interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
  interface:n2 = { ip = 172.17.2.1; hardware = n2; bind_nat = a1; }
 }
@@ -1702,7 +1773,10 @@ router:r2 = {
  interface:n2a;
 }
 network:n2a = { ip = 172.17.2.64/26; subnet_of = network:n2; }
-area:a2 = { border = interface:r1.n2; nat:a2 = { ip = 192.168.0.0/16; } }
+area:a2 = {
+ border = interface:r1.n2;
+ nat:a2 = { ip = 192.168.0.0/16; subnet_of = network:n0; }
+}
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -1722,6 +1796,55 @@ ip access-list extended n1_in
 --
 ip access-list extended n2_in
  permit tcp 172.17.2.0 0.0.0.255 11.1.1.0 0.0.0.255 established
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Inherit dynamic NAT to networks in subnet_of relation
+=INPUT=
+network:n0 = { ip = 192.168.0.0/16; }
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; bind_nat = a2; }
+ interface:n0 = { ip = 192.168.0.1; hardware = n0; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n0 = { ip = 192.168.0.2; hardware = n0; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+router:r0 = {
+ interface:n2a;
+ interface:n2;
+}
+network:n2a = { ip = 10.1.2.64/26; subnet_of = network:n2; }
+area:a2 = {
+ border = interface:r2.n2;
+ nat:a2 = { ip = 192.168.1.8/29; dynamic; subnet_of = network:n0; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2a; prt = tcp 81;
+}
+=END=
+=OUTPUT=
+-- r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 192.168.1.8 0.0.0.7 range 80 81
+ deny ip any any
+--
+ip access-list extended n0_in
+ permit tcp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 established
  deny ip any any
 =END=
 

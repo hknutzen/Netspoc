@@ -911,10 +911,13 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 	subNat.name = n.name
 	subNat.descr = "nat:" + tag + " of " + n.name
 
-	// Copy attribute subnetOf, to suppress warning.
-	// Copy also if undefined, to overwrite value in
-	// original definition.
-	subNat.subnetOf = n.subnetOf
+	// Always keep attribute subnetOf of inherited NAT with dynmic NAT,
+	// because it would override existing subnet relation of networks.
+	// Otherwies take attribute subnetOf of original network if available.
+	// Else keep attribute subnetOf of inherited NAT.
+	if s := n.subnetOf; s != nil && !(subNat.subnetOf != nil && subNat.dynamic) {
+		subNat.subnetOf = s
+	}
 
 	// For static NAT
 	// - merge IP from NAT network and subnet,
