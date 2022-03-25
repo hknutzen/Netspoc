@@ -1,5 +1,49 @@
 
 ############################################################
+=TITLE=All interfaces at router at network with virtual and secondary interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {
+  ip = 10.1.1.3, 10.1.1.4;
+  hardware = n1;
+  virtual = { ip = 10.1.1.1; }
+ }
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; virtual = { ip = 10.1.2.1; } }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; virtual = { ip = 10.1.1.1; } }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; virtual = { ip = 10.1.2.1; } }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+service:s1 = {
+ user = interface:[interface:[managed & network:n1].[all]].[all];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.4 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.3 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.3 eq 22
+ deny ip any any
+--r2
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.2 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.2 eq 22
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Auto interface of network
 =TEMPL=topo
 network:a = { ip = 10.0.0.0/24; }

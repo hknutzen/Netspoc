@@ -254,7 +254,7 @@ func (c *spoc) expandGroup1(
 				if managed && r.managed == "" && !r.routingOnly {
 					// This router has no managed interfaces.
 				} else if selector == "all" {
-					for _, intf := range getIntf(r) {
+					for _, intf := range withSecondary(getIntf(r)) {
 						if check(intf) {
 							result.push(intf)
 						}
