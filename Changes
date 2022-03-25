@@ -1,5 +1,14 @@
 {{$NEXT}}
 
+ - Attribute "subnet_of" at NAT definition is inherited now
+   to enclosed networks.
+ - A warning is shown on useless use of attribute "subnet_of".
+ - Added new parameter "rule_count" in methods add_to_rule,
+   remove_from_rule, delete_rule of Netspoc-API.
+   Specifies the number of expected rules of this service.
+   Job is aborted if expected and real number differ.
+   This is only checked if parameter is given and value is not 0.
+
 6.041     2022-02-28 14:08:05+01:00 Europe/Berlin
 
  - Better error message on unenforceable rule.
