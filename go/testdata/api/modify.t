@@ -2907,6 +2907,115 @@ Error: Invalid rule_num 9, have 1 rules in service:s1
 =END=
 
 ############################################################
+=TITLE=Check rule count in add_to_rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add_to_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 1,
+        "rule_count" : 2,
+        "prt": "tcp 90"
+    }
+}
+=ERROR=
+Error: rule_count 2 doesn't match, have 1 rules in service:s1
+=END=
+
+############################################################
+=TITLE=Check rule count in delete_rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "delete_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 1,
+        "rule_count" : 2
+    }
+}
+=ERROR=
+Error: rule_count 2 doesn't match, have 1 rules in service:s1
+=END=
+
+############################################################
+=TITLE=Ignore rule count value 0
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add_to_rule",
+    "params": {
+        "service": "s1",
+        "rule_num": 1,
+        "rule_count" : 0,
+        "prt": "tcp 90"
+    }
+}
+=OUTPUT=
+@@ topology
+  user = network:n1;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp 80;
++        prt = tcp 80,
++              tcp 90,
++              ;
+ }
+=END=
+
+############################################################
 =TITLE=Change nothing in rule
 =INPUT=
 -- topology

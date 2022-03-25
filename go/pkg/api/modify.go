@@ -501,11 +501,12 @@ func (s *state) removeFromUser(j *job) error {
 
 func (s *state) addToRule(j *job) error {
 	var p struct {
-		Service string
-		RuleNum int `json:"rule_num"`
-		Src     string
-		Dst     string
-		Prt     string
+		Service   string
+		RuleNum   int `json:"rule_num"`
+		RuleCount int `json:"rule_count"`
+		Src       string
+		Dst       string
+		Prt       string
 	}
 	getParams(j, &p)
 	parse := func(elements string) (add []ast.Element, err error) {
@@ -525,7 +526,7 @@ func (s *state) addToRule(j *job) error {
 	service := "service:" + p.Service
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
-		rule, err := getRule(sv, p.RuleNum)
+		rule, err := getRule(sv, p.RuleNum, p.RuleCount)
 		if err != nil {
 			return err
 		}
@@ -545,17 +546,18 @@ func (s *state) addToRule(j *job) error {
 
 func (s *state) removeFromRule(j *job) error {
 	var p struct {
-		Service string
-		RuleNum int `json:"rule_num"`
-		Src     string
-		Dst     string
-		Prt     string
+		Service   string
+		RuleNum   int `json:"rule_num"`
+		RuleCount int `json:"rule_count"`
+		Src       string
+		Dst       string
+		Prt       string
 	}
 	getParams(j, &p)
 	service := "service:" + p.Service
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
-		rule, err := getRule(sv, p.RuleNum)
+		rule, err := getRule(sv, p.RuleNum, p.RuleCount)
 		if err != nil {
 			return err
 		}
@@ -602,8 +604,9 @@ func (s *state) addRule(j *job) error {
 
 func (s *state) deleteRule(j *job) error {
 	var p struct {
-		Service string
-		RuleNum int `json:"rule_num"`
+		Service   string
+		RuleNum   int `json:"rule_num"`
+		RuleCount int `json:"rule_count"`
 	}
 	getParams(j, &p)
 	service := "service:" + p.Service
@@ -611,7 +614,7 @@ func (s *state) deleteRule(j *job) error {
 	return s.ModifyObj(service, func(toplevel ast.Toplevel) error {
 		sv := toplevel.(*ast.Service)
 		var idx int
-		idx, err = getRuleIdx(sv, p.RuleNum)
+		idx, err = getRuleIdx(sv, p.RuleNum, p.RuleCount)
 		if err == nil {
 			sv.Rules = append(sv.Rules[:idx], sv.Rules[idx+1:]...)
 		}
@@ -700,17 +703,21 @@ func getParams(j *job, p interface{}) {
 	json.Unmarshal(j.Params, p)
 }
 
-func getRule(sv *ast.Service, num int) (*ast.Rule, error) {
-	idx, err := getRuleIdx(sv, num)
+func getRule(sv *ast.Service, num, count int) (*ast.Rule, error) {
+	idx, err := getRuleIdx(sv, num, count)
 	if err != nil {
 		return nil, err
 	}
 	return sv.Rules[idx], nil
 }
 
-func getRuleIdx(sv *ast.Service, num int) (int, error) {
+func getRuleIdx(sv *ast.Service, num, count int) (int, error) {
 	idx := num - 1
 	n := len(sv.Rules)
+	if count > 0 && n != count {
+		return 0, fmt.Errorf("rule_count %d doesn't match, have %d rules in %s",
+			count, n, sv.Name)
+	}
 	if idx < 0 || idx >= n {
 		return 0, fmt.Errorf("Invalid rule_num %d, have %d rules in %s",
 			idx+1, n, sv.Name)
