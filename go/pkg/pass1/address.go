@@ -9,7 +9,7 @@ import (
 func mergeIP(ip netip.Addr, nat *network) netip.Addr {
 	bytes := ip.AsSlice()
 	mask := make([]byte, len(bytes))
-	for i, _ := range mask {
+	for i := range mask {
 		mask[i] = 0xff
 	}
 	m, _ := netip.AddrFromSlice(mask)

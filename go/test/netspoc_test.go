@@ -3,7 +3,6 @@ package netspoc_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -181,7 +180,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			stdin.Close()
 
 			if out, err := cmd.CombinedOutput(); err != nil {
-				t.Fatal(fmt.Sprintf("executing =SETUP=: %v\n%s", err, out))
+				t.Fatalf("executing =SETUP=: %v\n%s", err, out)
 			}
 		}
 
@@ -216,7 +215,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	}
 
 	// Normalize stderr.
-	re := regexp.MustCompile(workDir+`/code\.tmp\d{6,12}`)
+	re := regexp.MustCompile(workDir + `/code\.tmp\d{6,12}`)
 	if inDir != "" {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
 	}

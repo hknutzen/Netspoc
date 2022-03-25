@@ -29,7 +29,7 @@ func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
 		bitStart = 0
 	} else {
 		lb, hb = lo.AsSlice(), hi.AsSlice()
-		if bytes.Compare(lb[:8], hb[:8]) != 0 {
+		if !bytes.Equal(lb[:8], hb[:8]) {
 			return result, fmt.Errorf(
 				"IP range doesn't fit into /64 network")
 		}
