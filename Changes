@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.042     2022-03-28 10:06:57+02:00 Europe/Berlin
+
  - Attribute "subnet_of" at NAT definition is inherited now
    to enclosed networks.
  - A warning is shown on useless use of attribute "subnet_of".
