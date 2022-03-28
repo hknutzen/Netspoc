@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 	"sort"
 )
 
@@ -188,9 +188,9 @@ func getMulticastObjects(info *mcastProto, ipV6 bool) []someObj {
 	if m.networks == nil {
 		l := make([]*network, len(m.ips))
 		for i, s := range m.ips {
-			ip := netaddr.MustParseIP(s)
+			ip := netip.MustParseAddr(s)
 			l[i] =
-				&network{ipp: netaddr.IPPrefixFrom(ip, getHostPrefix(ipV6))}
+				&network{ipp: netip.PrefixFrom(ip, getHostPrefix(ipV6))}
 		}
 		m.networks = l
 	}
@@ -325,9 +325,6 @@ func (c *spoc) distributeGeneralPermit() {
 		ru := newRule(net00List, net00List, generalPermit)
 		needProtect := r.needProtect
 		for _, in := range r.interfaces {
-			if in.mainIntf != nil {
-				continue
-			}
 			if in.loopback {
 				continue
 			}
@@ -370,9 +367,6 @@ func (c *spoc) distributeGeneralPermit() {
 						continue
 					}
 					if out.loopback {
-						continue
-					}
-					if out.mainIntf != nil {
 						continue
 					}
 

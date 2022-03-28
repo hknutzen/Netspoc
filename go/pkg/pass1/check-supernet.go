@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 // Two zones are zoneEq, if
@@ -25,9 +25,9 @@ func zoneEq(z1, z2 pathObj) bool {
 }
 
 // Print abbreviated list of names in messages.
-func shortNameList(list []someObj) string {
+func shortNameList(l []someObj) string {
 	names := make(stringList, 0, 4)
-	for _, obj := range list {
+	for _, obj := range l {
 		if len(names) == 3 {
 			names.push("...")
 			break
@@ -87,7 +87,7 @@ type checkInfo struct {
 //   - subnet of element of netMap.
 // Result: List of found networks or aggregates.
 func findZoneNetworks(
-	z *zone, isAgg bool, ipp netaddr.IPPrefix, natMap natMap,
+	z *zone, isAgg bool, ipp netip.Prefix, natMap natMap,
 	netMap map[*network]bool) netList {
 
 	// Check if argument or some supernet of argument is member of netMap.
@@ -127,14 +127,14 @@ func findZoneNetworks(
 		if natNet.hidden {
 			continue
 		}
-		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.IP()) ||
-			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.IP()) {
+		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.Addr()) ||
+			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
 
 			result = append(result, net)
 		}
 	}
 	if z.ipPrefix2net == nil {
-		z.ipPrefix2net = make(map[netaddr.IPPrefix]netList)
+		z.ipPrefix2net = make(map[netip.Prefix]netList)
 	}
 	z.ipPrefix2net[ipp] = result
 	return result
@@ -261,9 +261,9 @@ func isFilteredAt(r *router, supernet *network, objList []someObj) bool {
 }
 
 // Returns zone for most objects, but router for interfaces of managed router.
-func (x *zone) getZone() pathObj {
-	return x
-}
+func (x *zone) getZone() pathObj    { return x }
+func (x *network) getZone() pathObj { return x.zone }
+func (x *subnet) getZone() pathObj  { return x.network.zone }
 func (x *router) getZone() pathObj {
 	if x.managed == "" {
 		return x.interfaces[0].network.zone
@@ -277,12 +277,6 @@ func (x *routerIntf) getZone() pathObj {
 	} else {
 		return x.router
 	}
-}
-func (x *network) getZone() pathObj {
-	return x.zone
-}
-func (x *subnet) getZone() pathObj {
-	return x.network.zone
 }
 
 // If such rule is defined
@@ -306,7 +300,7 @@ func (x *subnet) getZone() pathObj {
 func (c *spoc) checkSupernetSrcRule(
 	rule *groupedRule, inIntf, outIntf *routerIntf, info checkInfo) {
 
-	// Ignore semi_managed router.
+	// Ignore semi-managed router.
 	r := inIntf.router
 	if r.managed == "" {
 		return
@@ -342,11 +336,12 @@ func (c *spoc) checkSupernetSrcRule(
 
 	// Check if reverse rule would be created and would need additional rules.
 	stateful := false
+PRT:
 	for _, prt := range rule.prt {
 		switch prt.proto {
 		case "tcp", "udp", "ip":
 			stateful = true
-			break
+			break PRT
 		}
 	}
 	if outIntf != nil && r.model.stateless && !rule.oneway && stateful {
@@ -354,7 +349,7 @@ func (c *spoc) checkSupernetSrcRule(
 
 		// Reverse rule wouldn't allow too much traffic, if a non
 		// secondary stateful device filters between current device and dst.
-		// This is true if out_zone and dst_zone have different
+		// This is true if outZone and dstZone have different
 		// statefulMark.
 		//
 		// src is supernet (not an interface) by definition and hence
@@ -389,7 +384,7 @@ func (c *spoc) checkSupernetSrcRule(
 			} else {
 				// Standard incoming ACL at all interfaces.
 
-				// Find security zones at all interfaces except the in_intf.
+				// Find security zones at all interfaces except the inIntf.
 				for _, intf := range r.interfaces {
 					if intf == inIntf {
 						continue
@@ -405,9 +400,6 @@ func (c *spoc) checkSupernetSrcRule(
 						continue
 					}
 					if zoneEq(zone, dstZone) {
-						continue
-					}
-					if intf.mainIntf != nil {
 						continue
 					}
 					c.checkSupernetInZone(rule, "src", outIntf, zone, info, true)
@@ -447,7 +439,7 @@ func (c *spoc) checkSupernetDstRule(
 		return
 	}
 
-	// Ignore semi_managed router.
+	// Ignore semi-managed router.
 	r := inIntf.router
 	if r.managed == "" {
 		return
@@ -505,9 +497,6 @@ func (c *spoc) checkSupernetDstRule(
 			return
 		}
 		if zoneEq(zone, inZone) {
-			return
-		}
-		if intf.mainIntf != nil {
 			return
 		}
 		c.checkSupernetInZone(rule, "dst", inIntf, zone, info, false)
@@ -666,10 +655,10 @@ func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
 	var matching []someObj
 	for _, src := range list {
 		net2 := src.address(natMap)
-		if net2.Bits() >= net1.Bits() && net1.Contains(net2.IP()) {
+		if net2.Bits() >= net1.Bits() && net1.Contains(net2.Addr()) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
-		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.IP()) {
+		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.Addr()) {
 			// Element is supernet of obj.
 			x, ok := src.(*network)
 			if ok && x.isAggregate {
@@ -1009,7 +998,6 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 			}
 		}
 	}
-	// c.progress("Transient check is ready");
 }
 
 // Handling of supernet rules created by genReverseRules.
@@ -1020,9 +1008,9 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 //
 // src--r1:stateful--dst1=supernet1--r2:stateless--dst2=supernet2
 //
-// gen_reverse_rule will create one additional rule
+// genReverseRules will create one additional rule
 // supernet2-->src, but not a rule supernet1-->src, because r1 is stateful.
-// check_supernet_src_rule would complain, that supernet1-->src is missing.
+// checkSupernetSrcRule would complain, that supernet1-->src is missing.
 // But that doesn't matter, because r1 would permit answer packets
 // from supernet2 anyway, because it's stateful.
 // Hence we can skip checkSupernetSrcRule for this situation.
@@ -1034,8 +1022,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 //             zone2---\
 // src=supernet1--r1:stateless--dst
 //
-// gen_reverse_rules will create one additional rule dst-->supernet1.
-// check_supernet_dst_rule would complain about a missing rule
+// genReverseRules will create one additional rule dst-->supernet1.
+// checkSupernetDstRule would complain about a missing rule
 // dst-->zone2.
 // To prevent this situation, checkSupernetSrcRule checks for a rule
 // zone2 --> dst
@@ -1046,9 +1034,9 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 //               zone3---\
 // src1=supernet1--r1:stateless--src2=supernet2--r2:stateful--dst
 //
-// gen_reverse_rules will create one additional rule
+// genReverseRules will create one additional rule
 // dst-->supernet1, but not dst-->supernet2 because second router is stateful.
-// check_supernet_dst_rule would complain about missing rules
+// checkSupernetDstRule would complain about missing rules
 // dst-->supernet2 and dst-->supernet3.
 // But answer packets back from dst have been filtered by r2 already,
 // hence it doesn't hurt if the rules at r1 are a bit too relaxed,
@@ -1062,26 +1050,26 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 func markStateful(z *zone, mark int) {
 	z.statefulMark = mark
 	for _, inIntf := range z.interfaces {
-		router := inIntf.router
-		managed := router.managed
-		if managed != "" && !router.model.stateless &&
+		r := inIntf.router
+		managed := r.managed
+		if managed != "" && !r.model.stateless &&
 			managed != "secondary" && managed != "local" {
 			continue
 		}
-		if router.activePath {
+		if r.activePath {
 			continue
 		}
-		router.activePath = true
-		defer func() { router.activePath = false }()
-		for _, outIntf := range router.interfaces {
+		r.activePath = true
+		defer func() { r.activePath = false }()
+		for _, outIntf := range r.interfaces {
 			if outIntf == inIntf {
 				continue
 			}
-			nextZone := outIntf.zone
-			if nextZone.statefulMark != 0 {
+			next := outIntf.zone
+			if next.statefulMark != 0 {
 				continue
 			}
-			markStateful(nextZone, mark)
+			markStateful(next, mark)
 		}
 	}
 }

@@ -46,17 +46,20 @@ service:test1 = {
  prt = tcp 22;
 }
 =END=
-=OUTPUT=
--- ipv6/r1
-ipv6 access-list n1_in
- permit tcp 1000::ffff:ffff:ffff:ff00/120 host 1000::1 eq 22
- permit tcp 1000:0:0:1::/64 host 1000::1 eq 22
- permit tcp 1000:0:0:2::/63 host 1000::1 eq 22
- permit tcp 1000:0:0:4::/62 host 1000::1 eq 22
- permit tcp 1000:0:0:8::/63 host 1000::1 eq 22
- permit tcp host 1000:0:0:a:: host 1000::1 eq 22
- deny ipv6 any any
+=ERROR=
+Error: IP range doesn't fit into /64 network in host:h1
 =END=
+#=OUTPUT=
+#-- ipv6/r1
+#ipv6 access-list n1_in
+# permit tcp 1000::ffff:ffff:ffff:ff00/120 host 1000::1 eq 22
+# permit tcp 1000:0:0:1::/64 host 1000::1 eq 22
+# permit tcp 1000:0:0:2::/63 host 1000::1 eq 22
+# permit tcp 1000:0:0:4::/62 host 1000::1 eq 22
+# permit tcp 1000:0:0:8::/63 host 1000::1 eq 22
+# permit tcp host 1000:0:0:a:: host 1000::1 eq 22
+# deny ipv6 any any
+#=END=
 =OPTIONS=--ipv6
 
 ############################################################

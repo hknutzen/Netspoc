@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 	"sort"
 	"strings"
 )
@@ -25,7 +25,7 @@ func (c *spoc) checkSubnetOf() {
 				n.subnetOf = nil
 				return
 			}
-			if !sn.ipp.Contains(n.ipp.IP()) {
+			if !sn.ipp.Contains(n.ipp.Addr()) {
 				c.err("%s is subnet_of %s but its IP doesn't match that's IP/mask",
 					ctx, sn)
 			}
@@ -99,7 +99,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 }
 
 func (c *spoc) checkIPAddr(n *network) {
-	ip2name := make(map[netaddr.IP]string)
+	ip2name := make(map[netip.Addr]string)
 	redundant := make(map[string]bool)
 
 	// 1. Check for duplicate interface addresses.
@@ -108,7 +108,7 @@ func (c *spoc) checkIPAddr(n *network) {
 	var shortIntf intfList
 	var bridgedIntf intfList
 	var routeIntf *routerIntf
-	for _, intf := range n.interfaces {
+	for _, intf := range withSecondary(n.interfaces) {
 		switch intf.ipType {
 		case shortIP:
 			// Ignore short interface from split crypto router.
@@ -152,9 +152,9 @@ func (c *spoc) checkIPAddr(n *network) {
 		}
 	}
 
-	range2name := make(map[netaddr.IPRange]string)
+	range2name := make(map[ipRange]string)
 	for _, h := range n.hosts {
-		if !h.ip.IsZero() {
+		if h.ip.IsValid() {
 			continue
 		}
 		rg := h.ipRange
@@ -164,7 +164,7 @@ func (c *spoc) checkIPAddr(n *network) {
 			range2name[rg] = h.name
 		}
 
-		subnets := h.ipRange.Prefixes()
+		subnets, _ := splitIpRange(h.ipRange)
 		if len(subnets) == 1 {
 			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.
@@ -172,14 +172,14 @@ func (c *spoc) checkIPAddr(n *network) {
 			}
 		}
 		for ip, other := range ip2name {
-			if rg.Contains(ip) {
+			if rg.contains(ip) {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
 		}
 	}
 
 	for _, h := range n.hosts {
-		if !h.ip.IsZero() {
+		if h.ip.IsValid() {
 			if other, found := ip2name[h.ip]; found {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			} else {

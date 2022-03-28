@@ -186,6 +186,30 @@ Error: Must not use attribute 'vip' at interface:r1.V of managed router
 =END=
 
 ############################################################
+=TITLE=Inherit owner from router to interface and secondary interface
+=INPUT=
+owner:y = { admins = y@a.b; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ owner = y;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1, 10.1.2.2;
+  secondary:other = { ip = 10.1.2.99; }
+  hardware = n2;
+ }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = interface:r1.n2.2, interface:r1.n2.other; prt = icmp;
+}
+=WARNING=NONE
+=OPTIONS=--check_service_unknown_owner=warn
+
+############################################################
 =TITLE=Owner at router with managed = routing_only
 =INPUT=
 owner:y = { admins = y@a.b; }

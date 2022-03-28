@@ -247,6 +247,77 @@ Warning: IP of interface:r1.n2 overlaps with subnet network:n1 in nat_domain:[ne
 =END=
 
 ############################################################
+=TITLE=NAT to subnet
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ nat:m = { ip = ::a01:210/124; dynamic; subnet_of = network:n2; }
+}
+router:r1 = {
+ interface:n1 = { ip = ::a01:101; hardware = n1;}
+ interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = m; }
+}
+network:n2 = { ip = ::a01:200/120; }
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+network:n3 = { ip = ::a01:300/120; }
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- ipv6/r2
+! n2_in
+access-list n2_in extended permit tcp ::a01:210/124 ::a01:300/120 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=subnet_of at inherited NAT
+=PARAMS=--ipv6
+=INPUT=
+area:n1-2 = {
+ nat:m = { ip = ::a01:310/124; dynamic; subnet_of = network:n3; }
+ inclusive_border = interface:r1.n3;
+}
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; bind_nat = m; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+-- ipv6/r2
+! n3_in
+access-list n3_in extended permit tcp ::a01:310/124 ::a01:400/120 eq 80
+access-list n3_in extended deny ip any6 any6
+access-group n3_in in interface n3
+=END=
+
+############################################################
 =TITLE=Check rule with aggregate to hidden NAT
 =PARAMS=--ipv6
 =INPUT=
@@ -449,7 +520,7 @@ Warning: network:n2sub is subnet of network:n2
 =END=
 
 ############################################################
-=TITLE=Inherit subnet_of from inherited NAT
+=TITLE=Copy subnet_of from network to inherited NAT
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -1741,12 +1812,14 @@ Warning: Useless identity nat:n of network:n1
 =TITLE=Inherit static NAT from area and zone
 =PARAMS=--ipv6
 =INPUT=
+network:n0 = { ip = f000::c000:0/104; }
 any:a1 = { link = network:n1; nat:a1 = { ip = ::b00:0/104; } }
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
  managed;
  model = IOS;
  routing = manual;
+ interface:n0 = { ip = f000::c000:1; hardware = n0; }
  interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = a2; }
  interface:n2 = { ip = f000::ac11:201; hardware = n2; bind_nat = a1; }
 }
@@ -1756,7 +1829,10 @@ router:r2 = {
  interface:n2a;
 }
 network:n2a = { ip = f000::ac11:240/122; subnet_of = network:n2; }
-area:a2 = { border = interface:r1.n2; nat:a2 = { ip = f000::c0a8:0/112; } }
+area:a2 = {
+ border = interface:r1.n2;
+ nat:a2 = { ip = f000::c0a8:0/112; subnet_of = network:n0; }
+}
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
@@ -1776,6 +1852,56 @@ ipv6 access-list n1_in
 --
 ipv6 access-list n2_in
  permit tcp f000::ac11:200/120 ::b01:100/120 established
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Inherit dynamic NAT to networks in subnet_of relation
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = f000::c0a8:0/112; }
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; bind_nat = a2; }
+ interface:n0 = { ip = f000::c0a8:1; hardware = n0; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n0 = { ip = f000::c0a8:2; hardware = n0; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+network:n2 = { ip = ::a01:200/120; }
+router:r0 = {
+ interface:n2a;
+ interface:n2;
+}
+network:n2a = { ip = ::a01:240/122; subnet_of = network:n2; }
+area:a2 = {
+ border = interface:r2.n2;
+ nat:a2 = { ip = f000::c0a8:108/125; dynamic; subnet_of = network:n0; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = network:n2a; prt = tcp 81;
+}
+=END=
+=OUTPUT=
+-- ipv6/r1
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 f000::c0a8:108/125 range 80 81
+ deny ipv6 any any
+--
+ipv6 access-list n0_in
+ permit tcp ::a01:200/120 ::a01:100/120 established
  deny ipv6 any any
 =END=
 
@@ -2315,6 +2441,64 @@ network:b = {ip = ::a09:900/120;}
 Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
  - interface:r12.b
  - interface:r22.b
+=END=
+
+############################################################
+=TITLE=Groupd NAT tags with multiple NAT domains
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ nat:n1a = { ip = ::a08:100/120; }
+ nat:n1b = { ip = ::a09:100/120; }
+}
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; nat:n4 = { ip = ::a09:400/120; } }
+network:n5 = { ip = ::a01:500/120; nat:n5 = { ip = ::a09:500/120; } }
+network:n6 = { ip = ::a01:600/120; }
+network:n7 = { ip = ::a01:700/120; }
+network:n8 = { ip = ::a01:800/120;
+ nat:n1a = { ip = ::a08:800/120; }
+ nat:n1b = { ip = ::a09:800/120; }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = n1a; }
+}
+router:r2 = {
+ interface:n1;
+ interface:n3 = { bind_nat = n1b; }
+}
+router:r3 = {
+ interface:n2;
+ interface:n4 = { bind_nat = n1b; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n5 = { bind_nat = n1a; }
+}
+router:r5 = {
+ interface:n4;
+ interface:n6 = { bind_nat = n4, n5; }
+}
+router:r6 = {
+ interface:n5;
+ interface:n6 = { bind_nat = n4, n5; }
+}
+router:r7 = {
+ interface:n6 = { bind_nat = n1a; }
+ interface:n7;
+}
+router:r8 = {
+ interface:n7 = { bind_nat = n1b; }
+ interface:n8;
+}
+=ERROR=
+Error: Grouped NAT tags 'n1a, n1b' of network:n1 must not both be active at
+ - interface:r3.n4
+ - interface:r4.n5
+ - interface:r7.n6
 =END=
 
 ############################################################
@@ -4178,5 +4362,63 @@ router:r2 = {
 }
 =END=
 =WARNING=NONE
+
+############################################################
+=TITLE=Useless subnet_of
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ nat:h1 = { hidden; }
+ subnet_of = network:n2;
+}
+network:n2 = {
+ ip = ::a01:0/117;
+ nat:h2 = { hidden; }
+}
+router:r1 = {
+ interface:n1 = { bind_nat = h2; }
+ interface:n2 = { bind_nat = h1; }
+}
+=END=
+=WARNING=
+Warning: Useless 'subnet_of = network:n2' at network:n1
+=END=
+
+############################################################
+=TITLE=Network is subnet of different networks
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:0/117; }
+network:n2 = {
+ ip = ::a01:100/120;
+ nat:h2 = { hidden; }
+ subnet_of = network:n1;
+}
+network:n3 = {
+ ip = ::a01:110/124;
+ subnet_of = network:n1;
+}
+network:n4 = {
+ ip = ::a01:120/124;
+ subnet_of = network:n2;
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:1; bind_nat = h2; hardware = n1; }
+ interface:n2 = { ip = ::a01:101; hardware = n2; }
+ interface:n3 = { ip = ::a01:111; bind_nat = h2; hardware = n3; }
+ interface:n4 = { ip = ::a01:121; bind_nat = h2; hardware = n4; }
+}
+=END=
+=WARNING=
+Warning: network:n3 is subnet of network:n2
+ in nat_domain:[network:n2].
+ If desired, declare attribute 'subnet_of'
+Warning: network:n4 is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
 
 ############################################################

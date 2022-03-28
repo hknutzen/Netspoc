@@ -15,16 +15,6 @@ var (
 	version = "devel"
 )
 
-const (
-	abortM = iota
-	errM
-	warnM
-	infoM
-	progressM
-	diagM
-	checkErrM
-)
-
 type spoc struct {
 	toStderr        func(string)
 	errCount        int
@@ -74,7 +64,6 @@ func handleBailout(f, cleanup func()) {
 		cleanup()
 	}()
 	f()
-	return
 }
 
 func (c *spoc) toStderrf(format string, args ...interface{}) {

@@ -1329,7 +1329,7 @@ tunnel-group-map default-group VPN-single
 ! vpn-filter-@domain.y
 access-list vpn-filter-@domain.y extended permit ip ::a63:240/122 any6
 access-list vpn-filter-@domain.y extended deny ip any6 any6
-ip local pool pool-@domain.y ::a63:240-::a63:27f mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0
+ipv6 local pool pool-@domain.y ::a63:240/122 64
 crypto ca certificate map ca-map-@domain.y 10
  subject-name attr ea co @domain.y
 tunnel-group VPN-tunnel-@domain.y type remote-access
@@ -1356,7 +1356,7 @@ group-policy VPN-group-bar@domain.x attributes
  banner value Willkommen zu Hause
 username bar@domain.x nopassword
 username bar@domain.x attributes
- vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10b/120
  service-type remote-access
  vpn-filter value vpn-filter-bar@domain.x
  vpn-group-policy VPN-group-bar@domain.x
@@ -1370,7 +1370,7 @@ group-policy VPN-group-baz@domain.x attributes
  banner value Willkommen
 username baz@domain.x nopassword
 username baz@domain.x attributes
- vpn-framed-ip-address ::a63:10c ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10c/120
  service-type remote-access
  vpn-filter value vpn-filter-baz@domain.x
  vpn-group-policy VPN-group-baz@domain.x
@@ -1383,7 +1383,7 @@ access-list split-tunnel-1 standard permit ::a00:400/120
 ! vpn-filter-domain.x
 access-list vpn-filter-domain.x extended permit ip ::a63:200/122 any6
 access-list vpn-filter-domain.x extended deny ip any6 any6
-ip local pool pool-domain.x ::a63:200-::a63:23f mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0
+ipv6 local pool pool-domain.x ::a63:200/122 64
 crypto ca certificate map ca-map-domain.x 10
  subject-name attr ou co domain.x
 tunnel-group VPN-tunnel-domain.x type remote-access
@@ -1423,7 +1423,7 @@ group-policy VPN-group-foo@domain.x attributes
  split-tunnel-policy tunnelspecified
 username foo@domain.x nopassword
 username foo@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
  vpn-group-policy VPN-group-foo@domain.x
@@ -1441,7 +1441,7 @@ group-policy VPN-group-unused@domain.x attributes
  split-tunnel-policy tunnelspecified
 username unused@domain.x nopassword
 username unused@domain.x attributes
- vpn-framed-ip-address ::a63:1fe ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:1fe/120
  service-type remote-access
  vpn-filter value vpn-filter-unused@domain.x
  vpn-group-policy VPN-group-unused@domain.x
@@ -1449,7 +1449,7 @@ username unused@domain.x attributes
 ! vpn-filter-zzz
 access-list vpn-filter-zzz extended permit ip ::a63:280/122 any6
 access-list vpn-filter-zzz extended deny ip any6 any6
-ip local pool pool-zzz ::a63:280-::a63:2bf mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0
+ipv6 local pool pool-zzz ::a63:280/122 64
 crypto ca certificate map ca-map-zzz 10
  subject-name attr ou co zzz
  extended-key-usage co 1.3.6.1.4.1.311.20.2.2
@@ -1578,7 +1578,7 @@ group-policy VPN-group-bar@domain.x attributes
  banner value Willkommen zu Hause
 username bar@domain.x nopassword
 username bar@domain.x attributes
- vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10b/120
  service-type remote-access
  vpn-filter value vpn-filter-bar@domain.x
  vpn-group-policy VPN-group-bar@domain.x
@@ -1592,7 +1592,7 @@ group-policy VPN-group-baz@domain.x attributes
  banner value Willkommen
 username baz@domain.x nopassword
 username baz@domain.x attributes
- vpn-framed-ip-address ::a63:10c ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10c/120
  service-type remote-access
  vpn-filter value vpn-filter-baz@domain.x
  vpn-group-policy VPN-group-baz@domain.x
@@ -1610,7 +1610,7 @@ group-policy VPN-group-foo@domain.x attributes
  split-tunnel-policy tunnelspecified
 username foo@domain.x nopassword
 username foo@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
  vpn-group-policy VPN-group-foo@domain.x
@@ -1759,7 +1759,7 @@ group-policy VPN-group-u1@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u1@domain.x nopassword
 username u1@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-u1@domain.x
  vpn-group-policy VPN-group-u1@domain.x
@@ -1774,7 +1774,7 @@ group-policy VPN-group-u2@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u2@domain.x nopassword
 username u2@domain.x attributes
- vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10b/120
  service-type remote-access
  vpn-filter value vpn-filter-u2@domain.x
  vpn-group-policy VPN-group-u2@domain.x
@@ -1793,7 +1793,7 @@ group-policy VPN-group-u3@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u3@domain.x nopassword
 username u3@domain.x attributes
- vpn-framed-ip-address ::a63:10c ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10c/120
  service-type remote-access
  vpn-filter value vpn-filter-u3@domain.x
  vpn-group-policy VPN-group-u3@domain.x
@@ -1808,7 +1808,7 @@ group-policy VPN-group-u4@domain.x attributes
  split-tunnel-policy tunnelspecified
 username u4@domain.x nopassword
 username u4@domain.x attributes
- vpn-framed-ip-address ::a63:1fe ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:1fe/120
  service-type remote-access
  vpn-filter value vpn-filter-u4@domain.x
  vpn-group-policy VPN-group-u4@domain.x
@@ -1974,7 +1974,7 @@ service:test2 = {
 ! vpn-filter-1
 access-list vpn-filter-1 extended permit ip ::a63:108/125 any6
 access-list vpn-filter-1 extended deny ip any6 any6
-ip local pool pool-1 ::a63:108-::a63:10f mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:fff8
+ipv6 local pool pool-1 ::a63:108/125 8
 crypto ca certificate map ca-map-cert1 10
  subject-name attr cn co cert1
 tunnel-group VPN-tunnel-cert1 type remote-access
@@ -1994,7 +1994,7 @@ group-policy VPN-group-1 attributes
 ! vpn-filter-2
 access-list vpn-filter-2 extended permit ip ::a63:200/122 any6
 access-list vpn-filter-2 extended deny ip any6 any6
-ip local pool pool-2 ::a63:200-::a63:23f mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0
+ipv6 local pool pool-2 ::a63:200/122 64
 crypto ca certificate map ca-map-cert2 10
  subject-name attr ou co cert2
 tunnel-group VPN-tunnel-cert2 type remote-access
@@ -2015,7 +2015,7 @@ group-policy VPN-group-2 attributes
 ! vpn-filter-3
 access-list vpn-filter-3 extended permit ip ::a63:280/122 any6
 access-list vpn-filter-3 extended deny ip any6 any6
-ip local pool pool-3 ::a63:280-::a63:2bf mask ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffc0
+ipv6 local pool pool-3 ::a63:280/122 64
 group-policy VPN-group-3 internal
 group-policy VPN-group-3 attributes
  address-pools value pool-3
@@ -2191,7 +2191,7 @@ access-list vpn-filter-foo@domain.x extended permit ip host ::a63:10a any6
 access-list vpn-filter-foo@domain.x extended deny ip any6 any6
 username foo@domain.x nopassword
 username foo@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
 --
@@ -2203,7 +2203,7 @@ group-policy VPN-group-1 attributes
  banner value Willkommen zu Hause
 username long-first-name.long-second-name@long-domain.xyz nopassword
 username long-first-name.long-second-name@long-domain.xyz attributes
- vpn-framed-ip-address ::a63:10b ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10b/120
  service-type remote-access
  vpn-filter value vpn-filter-1
  vpn-group-policy VPN-group-1
@@ -2316,7 +2316,7 @@ access-list vpn-filter-foo@domain.x extended permit ip host ::a63:10a any6
 access-list vpn-filter-foo@domain.x extended deny ip any6 any6
 username foo@domain.x nopassword
 username foo@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
 --
@@ -2418,7 +2418,7 @@ group-policy VPN-group-foo@domain.x attributes
  split-tunnel-policy tunnelspecified
 username foo@domain.x nopassword
 username foo@domain.x attributes
- vpn-framed-ip-address ::a63:10a ffff:ffff:ffff:ffff:ffff:ffff:ffff:ff00
+ vpn-framed-ipv6-address ::a63:10a/120
  service-type remote-access
  vpn-filter value vpn-filter-foo@domain.x
  vpn-group-policy VPN-group-foo@domain.x

@@ -7,7 +7,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"inet.af/netaddr"
+	"net/netip"
 	"path"
 	"regexp"
 	"sort"
@@ -296,7 +296,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 	case "icmp", "icmpv6":
 		c.addICMPTypeCode(nums, p, v6, ctx)
 	case "proto":
-		c.addProtoNr(nums, p, v6, ctx)
+		c.addProtoNr(nums, p, ctx)
 	default:
 		c.err("Unknown protocol in %s", ctx)
 		p.proto = "ip"
@@ -365,10 +365,11 @@ func (c *spoc) getPort(s, ctx string) int {
 	num, err := strconv.Atoi(s)
 	if err != nil {
 		c.err("Expected number in %s: %s", ctx, s)
-		return 0
+		return -1
 	}
 	if num <= 0 {
 		c.err("Expected port number > 0 in %s", ctx)
+		return -1
 	} else if num >= 65536 {
 		c.err("Expected port number < 65536 in %s", ctx)
 	}
@@ -407,7 +408,7 @@ func (c *spoc) addICMPTypeCode(nums []string, p *proto, v6 bool, ctx string) {
 	}
 }
 
-func (c *spoc) addProtoNr(nums []string, p *proto, v6 bool, ctx string) {
+func (c *spoc) addProtoNr(nums []string, p *proto, ctx string) {
 	if len(nums) != 1 {
 		c.err("Expected single protocol number in %s", ctx)
 		return
@@ -761,7 +762,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 	} else if n.ipType == bridgedIP {
 		for _, h := range n.hosts {
-			if !h.ipRange.From().IsZero() {
+			if h.ipRange.from.IsValid() {
 				c.err("Bridged %s must not have %s with range (not implemented)",
 					name, h.name)
 			}
@@ -774,19 +775,19 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		}
 	} else if !ipGiven {
 		c.err("Missing IP address for %s", name)
-	} else if ipp := n.ipp; !ipp.IsZero() {
+	} else if ipp := n.ipp; ipp.IsValid() {
 		for _, h := range n.hosts {
 
 			// Check compatibility of host IP and network IP/mask.
-			if !h.ip.IsZero() {
+			if h.ip.IsValid() {
 				if !ipp.Contains(h.ip) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
-			if !h.ipRange.From().IsZero() {
+			if h.ipRange.from.IsValid() {
 				// Check range.
-				if !(ipp.Contains(h.ipRange.From()) &&
-					ipp.Contains(h.ipRange.To())) {
+				if !(ipp.Contains(h.ipRange.from) &&
+					ipp.Contains(h.ipRange.to)) {
 
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
 				}
@@ -919,14 +920,14 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			h.ldapId = ""
 		}
 	} else if h.ldapId != "" {
-		if h.ipRange.From().IsZero() {
+		if !h.ipRange.from.IsValid() {
 			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
 	} else if h.radiusAttributes != nil {
 		c.warn("Ignoring 'radius_attributes' at %s", name)
 	}
-	if h.nat != nil && !h.ipRange.From().IsZero() {
+	if h.nat != nil && h.ipRange.from.IsValid() {
 		// Before changing this,
 		// add consistency tests in convert_hosts.
 		c.err("No NAT supported for %s with 'range'", name)
@@ -968,7 +969,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	if !hasLink {
 		c.err("Attribute 'link' must be defined for %s", name)
 	}
-	if ag.ipp.IsZero() {
+	if !ag.ipp.IsValid() {
 		ag.ipp = getNetwork00(v6).ipp
 	}
 	if ag.ipp.Bits() != 0 {
@@ -1150,8 +1151,8 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		var bName string
 	BRIDGED:
 		for _, a := range v.Interfaces {
-			idx := strings.Index(a.Name, "/")
-			if idx == -1 {
+			other, _, found := strings.Cut(a.Name, "/")
+			if !found {
 				continue
 			}
 			for _, a2 := range a.ComplexValue {
@@ -1164,7 +1165,6 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			// One router must not bridge parts of different networks.
 			// This would complicate check for interface without IP address
 			// as hop for static routing in checkIPAddr.
-			other := a.Name[:idx]
 			if l3Name != "" {
 				if l3Name != other {
 					c.err("Must not bridge parts of different networks at %s:\n%s",
@@ -1222,7 +1222,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 				name, r.model.name)
 		}
 
-		for _, intf := range r.interfaces {
+		for _, intf := range withSecondary(r.interfaces) {
 			// Inherit attribute 'routing' to interfaces.
 			if routingDefault != nil {
 				if intf.routing == nil {
@@ -1324,8 +1324,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			// Used in findAutoInterfaces.
 			if intf.ipType == bridgedIP {
 				layer3Name := intf.name[len("interface:"):]
-				idx := strings.Index(layer3Name, "/")
-				layer3Name = layer3Name[:idx]
+				layer3Name, _, _ = strings.Cut(layer3Name, "/")
 				intf.layer3Intf = s.routerIntf[layer3Name]
 			}
 		}
@@ -1461,6 +1460,14 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	}
 }
 
+func withSecondary(l intfList) intfList {
+	result := l
+	for _, intf := range l {
+		result = append(result, intf.secondaryIntfs...)
+	}
+	return result
+}
+
 func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	hwMap map[string]*hardware, l3Name string, r *router) {
 
@@ -1564,7 +1571,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 						c.err("Unexpected attribute in %s: %s", sCtx, a2.Name)
 					}
 				}
-				if intf.ip.IsZero() {
+				if !intf.ip.IsValid() {
 					c.err("Missing IP in %s", sCtx)
 					intf.ipType = shortIP
 				}
@@ -1609,7 +1616,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 	if !ipGiven &&
 		intf.ipType != unnumberedIP &&
 		intf.ipType != negotiatedIP &&
-		strings.Index(iName, "/") != -1 &&
+		strings.Contains(iName, "/") &&
 		r.managed != "" {
 
 		intf.ipType = bridgedIP
@@ -1643,7 +1650,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case bridgedIP:
 			c.err("No virtual IP supported for bridged %s", name)
 		default:
-			if !intf.ip.IsZero() {
+			if intf.ip.IsValid() {
 
 				// Move main IP to secondary.
 				secondary := new(routerIntf)
@@ -1781,7 +1788,6 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.hardware = hw
 		for _, s := range secondaryList {
 			s.hardware = hw
-			hw.interfaces.push(s)
 		}
 
 		// Interface of managed router must not have individual owner,
@@ -1838,6 +1844,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 	}
 
+	intf.secondaryIntfs = secondaryList
 	for _, s := range secondaryList {
 		s.mainIntf = intf
 		s.bindNat = intf.bindNat
@@ -1875,7 +1882,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		if n == nil {
 			n = new(network)
 			n.name = fullName
-			n.ipp = netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6))
+			n.ipp = netip.PrefixFrom(intf.ip, getHostPrefix(v6))
 
 			// Mark as automatically created.
 			n.loopback = true
@@ -1904,10 +1911,10 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 				intf.disabled = true
 			}
 		} else {
+			n.interfaces.push(intf)
 			for _, intf := range append(intfList{intf}, secondaryList...) {
 				intf.network = n
-				n.interfaces.push(intf)
-				if intf.ipType != shortIP && !(ipGiven && intf.ip.IsZero()) {
+				if intf.ipType != shortIP && (!ipGiven || intf.ip.IsValid()) {
 					c.checkInterfaceIp(intf, n)
 				}
 			}
@@ -1916,21 +1923,21 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		// Non loopback interface must use simple NAT with single IP
 		// and without any NAT attributes.
 		if len(nat) != 0 {
-			intf.nat = make(map[string]netaddr.IP)
+			intf.nat = make(map[string]netip.Addr)
 			for tag, info := range nat {
 				// Reject all non IP NAT attributes.
 				if info.hidden || info.identity || info.dynamic {
 					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
-					intf.nat[tag] = info.ipp.IP()
+					intf.nat[tag] = info.ipp.Addr()
 				}
 			}
 		}
 	}
 
+	// Link interface with router and vice versa.
+	r.interfaces.push(intf)
 	for _, intf := range append(intfList{intf}, secondaryList...) {
-		// Link interface with router and vice versa.
-		r.interfaces.push(intf)
 		intf.router = r
 		intf.ipV6 = r.ipV6
 		name := intf.name
@@ -2081,8 +2088,8 @@ func (c *spoc) hasUser(el ast.Element, ctx string) bool {
 }
 
 func splitTypedName(s string) (string, string) {
-	i := strings.Index(s, ":")
-	return s[:i], s[i+1:]
+	typ, name, _ := strings.Cut(s, ":")
+	return typ, name
 }
 
 // Make ID unique by appending name of enclosing network.
@@ -2220,9 +2227,7 @@ func (c *spoc) getEmailList(a *ast.Attribute, ctx string) []string {
 		case emailRegex.MatchString(m):
 		case m == "guest":
 		case a.Name == "watchers":
-			if i := strings.Index(m, "@"); i != -1 {
-				loc := m[:i]
-				dom := m[i+1:]
+			if loc, dom, found := strings.Cut(m, "@"); found {
 				if loc == "[all]" && isDomain(dom) {
 					break
 				}
@@ -2597,7 +2602,7 @@ func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
 			c.err("Unexpected attribute in %s: %s", vCtx, a2.Name)
 		}
 	}
-	if virtual.ip.IsZero() {
+	if !virtual.ip.IsValid() {
 		c.err("Missing IP in %s", vCtx)
 		return nil
 	}
@@ -2625,23 +2630,23 @@ func isIdHostname(id string) bool {
 
 func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
 	id := c.getSingleValue(a, ctx)
-	i := strings.Index(id, "@")
-	if !(i > 0 && isDomain(id[:i]) && isDomain(id[i+1:])) {
+	p1, p2, found := strings.Cut(id, "@")
+	if !(found && isDomain(p1) && isDomain(p2)) {
 		c.err("Invalid '%s' in %s: %s", a.Name, ctx, id)
 	}
 	return id
 }
 
 func isSimpleName(n string) bool {
-	return n != "" && strings.IndexAny(n, ".:/@") == -1
+	return n != "" && !strings.ContainsAny(n, ".:/@")
 }
 
-func (c *spoc) getIp(a *ast.Attribute, v6 bool, ctx string) netaddr.IP {
+func (c *spoc) getIp(a *ast.Attribute, v6 bool, ctx string) netip.Addr {
 	return c.convIP(c.getSingleValue(a, ctx), v6, a.Name, ctx)
 }
 
-func (c *spoc) getIpList(a *ast.Attribute, v6 bool, ctx string) []netaddr.IP {
-	var result []netaddr.IP
+func (c *spoc) getIpList(a *ast.Attribute, v6 bool, ctx string) []netip.Addr {
+	var result []netip.Addr
 	for _, v := range c.getValueList(a, ctx) {
 		result = append(result, c.convIP(v, v6, a.Name, ctx))
 	}
@@ -2649,36 +2654,33 @@ func (c *spoc) getIpList(a *ast.Attribute, v6 bool, ctx string) []netaddr.IP {
 }
 
 func (c *spoc) getIpRange(
-	a *ast.Attribute, v6 bool, ctx string) netaddr.IPRange {
+	a *ast.Attribute, v6 bool, ctx string) ipRange {
 
 	v := c.getSingleValue(a, ctx)
 	l := strings.Split(v, " - ")
-	var result netaddr.IPRange
+	var rg ipRange
 	if len(l) != 2 {
 		c.err("Expected IP range in %s", ctx)
 	} else {
-		result = netaddr.IPRangeFrom(
+		rg = ipRange{
 			c.convIP(l[0], v6, a.Name, ctx),
 			c.convIP(l[1], v6, a.Name, ctx),
-		)
-		if !result.Valid() {
-			c.err("Invalid IP range in %s", ctx)
 		}
 	}
-	return result
+	return rg
 }
 
 func (c *spoc) getIpPrefix(
-	a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
+	a *ast.Attribute, v6 bool, ctx string) netip.Prefix {
 
 	v := c.getSingleValue(a, ctx)
 	return c.convIpPrefix(v, v6, a.Name, ctx)
 }
 
 func (c *spoc) getIpPrefixList(
-	a *ast.Attribute, v6 bool, ctx string) []netaddr.IPPrefix {
+	a *ast.Attribute, v6 bool, ctx string) []netip.Prefix {
 
-	var result []netaddr.IPPrefix
+	var result []netip.Prefix
 	for _, v := range c.getValueList(a, ctx) {
 		result = append(result, c.convIpPrefix(v, v6, a.Name, ctx))
 	}
@@ -2686,20 +2688,20 @@ func (c *spoc) getIpPrefixList(
 }
 
 func (c *spoc) convIpPrefix(
-	s string, v6 bool, name, ctx string) netaddr.IPPrefix {
+	s string, v6 bool, name, ctx string) netip.Prefix {
 
-	n, err := netaddr.ParseIPPrefix(s)
+	n, err := netip.ParsePrefix(s)
 	if err != nil {
 		c.err("Invalid CIDR address: %s in '%s' of %s", s, name, ctx)
 	} else if n.Masked() != n {
 		c.err("IP and mask of %s don't match in '%s' of %s", s, name, ctx)
 	}
-	c.checkVxIP(n.IP(), v6, name, ctx)
+	c.checkVxIP(n.Addr(), v6, name, ctx)
 	return n
 }
 
-func (c *spoc) convIP(s string, v6 bool, name, ctx string) netaddr.IP {
-	ip, err := netaddr.ParseIP(s)
+func (c *spoc) convIP(s string, v6 bool, name, ctx string) netip.Addr {
+	ip, err := netip.ParseAddr(s)
 	if err != nil {
 		c.err("Invalid IP address in '%s' of %s", name, ctx)
 		return ip
@@ -2708,7 +2710,7 @@ func (c *spoc) convIP(s string, v6 bool, name, ctx string) netaddr.IP {
 	return ip
 }
 
-func (c *spoc) checkVxIP(ip netaddr.IP, v6 bool, name, ctx string) {
+func (c *spoc) checkVxIP(ip netip.Addr, v6 bool, name, ctx string) {
 	if v6 {
 		if ip.Is4() {
 			c.err("IPv6 address expected in '%s' of %s", name, ctx)
@@ -2838,12 +2840,12 @@ func getRouter(name string, s *symbolTable, v6 bool) *router {
 
 func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	v := c.getSingleValue(a, ctx)
-	i := strings.Index(v, ":")
-	if i == -1 {
+	typ, name, found := strings.Cut(v, ":")
+	if !found {
 		c.err("Typed name expected in '%s' of %s", a.Name, ctx)
 		return "", ""
 	}
-	return v[:i], v[i+1:]
+	return typ, name
 }
 
 func (c *spoc) getRealOwnerRef(
@@ -3026,7 +3028,23 @@ func (c *spoc) expandProtocols(
 			result.push(p)
 		}
 	}
-	return result
+	// Ignore duplicates
+	seen := make(map[*proto]bool)
+	j := 0
+	for _, p := range result {
+		pm := p
+		if p2 := p.main; p2 != nil && p.modifiers == nil {
+			pm = p2
+		}
+		if seen[pm] {
+			c.warn("Ignoring duplicate '%s' in %s", pm.name, ctx)
+		} else {
+			result[j] = p
+			j++
+			seen[pm] = true
+		}
+	}
+	return result[:j]
 }
 
 func (c *spoc) expandProtocolgroup(
@@ -3128,10 +3146,7 @@ func (c *spoc) getGeneralPermit(
 	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
 
 	l := c.getProtocolList(a, s, v6, ctx)
-	// Ignore duplicates.
-	seen := make(map[*proto]bool)
-	j := 0
-	for _, p := range l {
+	for i, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
 		// genReverseRules doesn't handle generally permitted protocols.
@@ -3147,6 +3162,7 @@ func (c *spoc) getGeneralPermit(
 		name := p.name
 		if p2 := p.main; p2 != nil {
 			p = p2
+			l[i] = p
 		}
 		if srcRange ||
 			p.ports[0] != 0 && !(p.ports[0] == 1 && p.ports[1] == 65535) {
@@ -3155,15 +3171,8 @@ func (c *spoc) getGeneralPermit(
 		if reason != nil {
 			c.err("Must not use '%s' with %s in general_permit of %s",
 				name, strings.Join(reason, " or "), ctx)
-		} else if seen[p] {
-			c.warn("Ignoring duplicate '%s' in general_permit of %s", p.name, ctx)
-		} else {
-			l[j] = p
-			j++
-			seen[p] = true
 		}
 	}
-	l = l[:j]
 	// Sort protocols by name, so we can compare value lists of
 	// attribute general_permit for redundancy during inheritance.
 	sort.Slice(l, func(i, j int) bool { return l[i].name < l[j].name })
@@ -3288,9 +3297,9 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
 	s *symbolTable, ctx string) natTagMap {
 
 	return c.addXNat(a, m, v6, s, ctx,
-		func(a *ast.Attribute, v6 bool, ctx string) netaddr.IPPrefix {
+		func(a *ast.Attribute, v6 bool, ctx string) netip.Prefix {
 			ip := c.getSingleValue(a, ctx)
-			return netaddr.IPPrefixFrom(
+			return netip.PrefixFrom(
 				c.convIP(ip, v6, a.Name, ctx),
 				getHostPrefix(v6),
 			)
@@ -3299,7 +3308,7 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
 
 func (c *spoc) addXNat(
 	a *ast.Attribute, m natTagMap, v6 bool, s *symbolTable, ctx string,
-	getIpX func(*ast.Attribute, bool, string) netaddr.IPPrefix,
+	getIpX func(*ast.Attribute, bool, string) netip.Prefix,
 ) natTagMap {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
@@ -3337,7 +3346,7 @@ func (c *spoc) addXNat(
 		nat.dynamic = true
 
 		// Provide an unusable address.
-		nat.ipp = netaddr.IPPrefixFrom(getZeroIp(v6), getHostPrefix(v6))
+		nat.ipp = netip.PrefixFrom(getZeroIp(v6), getHostPrefix(v6))
 	} else if nat.identity {
 		for _, a2 := range l {
 			if a2.Name != "identity" {
@@ -3346,7 +3355,7 @@ func (c *spoc) addXNat(
 			}
 		}
 		nat.dynamic = true
-	} else if nat.ipp.IsZero() {
+	} else if !nat.ipp.IsValid() {
 		c.err("Missing IP address in %s", natCtx)
 	}
 
@@ -3363,14 +3372,14 @@ func (c *spoc) addXNat(
 	return m
 }
 
-func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
-	ctx string) map[string]netaddr.IP {
+func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netip.Addr, v6 bool,
+	ctx string) map[string]netip.Addr {
 
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
 	tag := a.Name[len("nat:"):]
-	var ip netaddr.IP
+	var ip netip.Addr
 	natCtx := a.Name + " of " + ctx
 	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
@@ -3382,7 +3391,7 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netaddr.IP, v6 bool,
 		}
 	}
 	if m == nil {
-		m = make(map[string]netaddr.IP)
+		m = make(map[string]netip.Addr)
 	}
 	m[tag] = ip
 	return m
@@ -3407,7 +3416,7 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 
 	ipp := n.ipp
 	// Network has invalid IP address. Error was already shown.
-	if ipp.IsZero() {
+	if !ipp.IsValid() {
 		return
 	}
 
@@ -3426,10 +3435,10 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 		// Check network and broadcast address only for IPv4,
 		// but not for /31 IPv4 (see RFC 3021).
 		if n.ipp.Bits() != 31 {
-			if ip == n.ipp.IP() {
+			if ip == n.ipp.Addr() {
 				c.err("%s has address of its network", intf)
 			}
-			if ip == n.ipp.Range().To() {
+			if ip == lastIP(n.ipp) {
 				c.err("%s has broadcast address", intf)
 			}
 		}
@@ -3466,7 +3475,7 @@ func (c *spoc) checkNoInAcl(r *router) {
 		hw.noInAcl = true
 
 		// Assure max number of main interfaces at no_in_acl-hardware == 1.
-		if nonSecondaryIntfCount(hw.interfaces) != 1 {
+		if len(hw.interfaces) != 1 {
 			c.err("Only one logical interface allowed at hardware '%s' of %s\n"+
 				" because of attribute 'no_in_acl'", hw.name, r)
 		}
@@ -3565,10 +3574,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 		}
 
 		for _, intf2 := range hw.interfaces {
-			if intf2 != intf &&
-				intf2.ipType != tunnelIP &&
-				intf2.mainIntf == nil {
-
+			if intf2 != intf && intf2.ipType != tunnelIP {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)
 				break
@@ -3660,7 +3666,7 @@ func (c *spoc) linkTunnels(s *symbolTable) {
 				r.origIntfs.push(hub)
 			}
 
-			if realSpoke.ip.IsZero() {
+			if !realSpoke.ip.IsValid() {
 				if !(model.doAuth || model.canDynCrypto) {
 					c.err(
 						"%s can't establish crypto tunnel to %s with unknown IP",
@@ -3685,7 +3691,7 @@ func (c *spoc) linkVirtualInterfaces() {
 	// Collect virtual interfaces with same IP at same network.
 	type key1 struct {
 		n  *network
-		ip netaddr.IP
+		ip netip.Addr
 	}
 	netIP2virtual := make(map[key1]intfList)
 

@@ -58,20 +58,31 @@ Error: IP range of host:r1 doesn't match IP/mask of network:n1
 =END=
 
 ############################################################
-=TITLE=Invalid range
+=TITLE=Expect IP range
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
  ip = ::a01:100/124;
- host:r1 = { range = ::a01:109-::a01:103; }
  host:r2 = { range = ::a01:101-::a01:103-::a01:105; }
  host:r3 = { range = ::a01:102; }
 }
 =END=
 =ERROR=
-Error: Invalid IP range in host:r1
 Error: Expected IP range in host:r2
 Error: Expected IP range in host:r3
+=END=
+
+############################################################
+=TITLE=Invalid IP range
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/124;
+ host:r1 = { range = ::a01:109-::a01:103; }
+}
+=END=
+=ERROR=
+Error: Invalid IP range in host:r1
 =END=
 
 ############################################################

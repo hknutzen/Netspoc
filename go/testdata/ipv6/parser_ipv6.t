@@ -1497,6 +1497,19 @@ Warning: dst of rule in service:s3 is empty
 =END=
 
 ############################################################
+=TITLE=Empty list of elements after 'prt'
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = ;
+}
+=ERROR=
+Error: List of values expected in 'prt' of service:s1
+=END=
+
+############################################################
 =TITLE=Empty list in automatic group
 =PARAMS=--ipv6
 =INPUT=

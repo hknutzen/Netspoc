@@ -106,8 +106,8 @@ ip access-list e0_in
  30 permit tcp any any
  40 deny ip any 10.2.2.2/32
  50 deny ip any 10.1.1.2/32
- 60 deny ip any 10.1.1.3/32
- 70 deny ip any 10.9.9.2/32
+ 60 deny ip any 10.9.9.2/32
+ 70 deny ip any 10.1.1.3/32
  80 permit ip any any
 --
 ip access-list e1_in

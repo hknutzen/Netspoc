@@ -1,9 +1,8 @@
 package pass1
 
 import (
+	"net/netip"
 	"sort"
-
-	"inet.af/netaddr"
 )
 
 //##############################################################################
@@ -38,7 +37,7 @@ func (c *spoc) setZones() {
 		name := "any:[" + n.name + "]"
 		z := &zone{
 			name:               name,
-			ipPrefix2aggregate: make(map[netaddr.IPPrefix]*network),
+			ipPrefix2aggregate: make(map[netip.Prefix]*network),
 		}
 		z.ipV6 = n.ipV6
 		c.allZones = append(c.allZones, z)
@@ -94,6 +93,9 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 		r := intf.router
 		if r.managed != "" || r.semiManaged {
 			intf.zone = z
+			for _, s := range intf.secondaryIntfs {
+				s.zone = z
+			}
 			z.interfaces.push(intf)
 		} else if !r.activePath {
 			r.activePath = true
@@ -153,7 +155,7 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 	// Find zone interfaces connected to semi-managed routers...
 	for _, intf := range z.interfaces {
-		if intf == in || intf.mainIntf != nil {
+		if intf == in {
 			continue
 		}
 		r := intf.router
@@ -165,7 +167,7 @@ func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 		// Process adjacent zones...
 		for _, out := range r.interfaces {
-			if out == intf || out.mainIntf != nil {
+			if out == intf {
 				continue
 			}
 			next := out.zone
@@ -222,9 +224,6 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 
 		// Process network interfaces to fill above variables.
 		for _, intf := range n.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 			r := intf.router
 			hw := intf.hardware
 
@@ -233,7 +232,7 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 				c.err("Crosslink %s must not be connected to unmanged %s", n, r)
 				continue
 			}
-			if nonSecondaryIntfCount(hw.interfaces) != 1 {
+			if len(hw.interfaces) != 1 {
 				c.err("Crosslink %s must be the only network"+
 					" connected to hardware '%s' of %s", n, hw.name, r)
 			}
@@ -258,7 +257,7 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 
 		// Apply attribute 'crosslink' to the networks weakest interfaces.
 		weakest := 99
-		for i, _ := range strength2intf {
+		for i := range strength2intf {
 			if i < weakest {
 				weakest = i
 			}
@@ -324,7 +323,7 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 	}
 
 	// Process all needProtect crosslinked routers.
-	for r, _ := range crosslinkRouters {
+	for r := range crosslinkRouters {
 		if seen[r] {
 			continue
 		}
@@ -341,7 +340,8 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		var crosslinkIntfs intfList
 		for _, r2 := range cluster {
 			if crosslinkRouters[r2] {
-				crosslinkIntfs = append(crosslinkIntfs, r2.interfaces...)
+				crosslinkIntfs =
+					append(crosslinkIntfs, withSecondary(r2.interfaces)...)
 			}
 		}
 
@@ -516,7 +516,7 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	}
 
 	for _, intf := range obj.intfList() {
-		if intf == in || intf.mainIntf != nil {
+		if intf == in {
 			continue
 		}
 
@@ -548,16 +548,6 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 		}
 	}
 	return nil
-}
-
-func nonSecondaryIntfCount(l []*routerIntf) int {
-	count := 0
-	for _, intf := range l {
-		if intf.mainIntf == nil {
-			count++
-		}
-	}
-	return count
 }
 
 //##############################################################################
@@ -609,7 +599,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 		// Find ascending list of areas containing current object.
 		containing := make([]*area, 0, len(m))
-		for a, _ := range m {
+		for a := range m {
 			containing = append(containing, a)
 		}
 		sortBySize(containing)
@@ -922,10 +912,13 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 	subNat.name = n.name
 	subNat.descr = "nat:" + tag + " of " + n.name
 
-	// Copy attribute subnetOf, to suppress warning.
-	// Copy also if undefined, to overwrite value in
-	// original definition.
-	subNat.subnetOf = n.subnetOf
+	// Always keep attribute subnetOf of inherited NAT with dynmic NAT,
+	// because it would override existing subnet relation of networks.
+	// Otherwies take attribute subnetOf of original network if available.
+	// Else keep attribute subnetOf of inherited NAT.
+	if s := n.subnetOf; s != nil && !(subNat.subnetOf != nil && subNat.dynamic) {
+		subNat.subnetOf = s
+	}
 
 	// For static NAT
 	// - merge IP from NAT network and subnet,
@@ -941,8 +934,8 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 
 		// Take higher bits from NAT IP, lower bits from
 		// original IP.
-		subNat.ipp = netaddr.IPPrefixFrom(
-			mergeIP(n.ipp.IP(), nat),
+		subNat.ipp = netip.PrefixFrom(
+			mergeIP(n.ipp.Addr(), nat),
 			n.ipp.Bits(),
 		)
 	}

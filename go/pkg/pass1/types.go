@@ -3,7 +3,7 @@ package pass1
 import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 type stringerList []fmt.Stringer
@@ -12,15 +12,6 @@ type stringList []string
 
 func (a *stringList) push(e string) {
 	*a = append(*a, e)
-}
-
-type autoExt struct {
-	selector string
-	managed  bool
-}
-
-type aggExt struct {
-	net netaddr.IPPrefix
 }
 
 type userInfo struct {
@@ -69,7 +60,7 @@ type someObj interface {
 	withAttr
 	String() string
 	getUp() someObj
-	address(m natMap) netaddr.IPPrefix
+	address(m natMap) netip.Prefix
 	getPathNode() pathStore
 	getZone() pathObj
 }
@@ -164,7 +155,7 @@ type network struct {
 	identity             bool
 	interfaces           intfList
 	invisible            bool
-	ipp                  netaddr.IPPrefix
+	ipp                  netip.Prefix
 	ipType               int
 	isAggregate          bool
 	isLayer3             bool
@@ -178,6 +169,7 @@ type network struct {
 	partition            string
 	radiusAttributes     map[string]string
 	subnetOf             *network
+	subnetOfUsed         bool
 	subnets              []*subnet
 	unstableNat          map[*natDomain]netList
 	up                   *network
@@ -201,7 +193,7 @@ func (a *netList) push(e *network) {
 
 type netObj struct {
 	ipObj
-	nat     map[string]netaddr.IP
+	nat     map[string]netip.Addr
 	network *network
 	up      someObj
 }
@@ -216,15 +208,24 @@ type subnet struct {
 	id               string
 	ldapId           string
 	neighbor         *subnet
-	ipp              netaddr.IPPrefix
+	ipp              netip.Prefix
 	radiusAttributes map[string]string
+}
+
+type ipRange struct {
+	from netip.Addr
+	to   netip.Addr
+}
+
+func (r ipRange) contains(ip netip.Addr) bool {
+	return r.from.Compare(ip) <= 0 && r.to.Compare(ip) >= 0
 }
 
 type host struct {
 	netObj
 	id               string
-	ip               netaddr.IP
-	ipRange          netaddr.IPRange
+	ip               netip.Addr
+	ipRange          ipRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet
@@ -279,7 +280,6 @@ type aclInfo struct {
 	filterAnySrc bool
 	isStdACL     bool
 	isCryptoACL  bool
-	needProtect  []netaddr.IPPrefix
 	subAclList   aclList
 }
 
@@ -309,8 +309,8 @@ type router struct {
 	crosslinkIntfs       intfList
 	disabled             bool
 	extendedKeys         map[string]string
-	filterOnly           []netaddr.IPPrefix
-	mergeTunnelSpecified []netaddr.IPPrefix
+	filterOnly           []netip.Prefix
+	mergeTunnelSpecified []netip.Prefix
 	natDomains           []*natDomain
 	natTags              map[*natDomain]stringList
 	natSet               natSet // Only used if aclUseRealIp
@@ -353,7 +353,7 @@ type routerIntf struct {
 	hub             []*crypto
 	spoke           *crypto
 	id              string
-	ip              netaddr.IP
+	ip              netip.Addr
 	ipType          int
 	isHub           bool
 	isLayer3        bool
@@ -374,6 +374,7 @@ type routerIntf struct {
 	realIntf        *routerIntf
 	redundancyId    string
 	redundancyIntfs intfList
+	secondaryIntfs  intfList
 	redundancyType  *mcastProto
 	redundant       bool
 	reroutePermit   netList
@@ -411,7 +412,6 @@ type owner struct {
 	usedObj
 	admins              stringList
 	attr                attrStore
-	extendedBy          []*owner
 	hideFromOuterOwners bool
 	name                string
 	onlyWatch           bool
@@ -499,8 +499,8 @@ type zone struct {
 	hasSecondary         bool
 	hasNonPrimary        bool
 	inArea               *area
-	ipPrefix2aggregate   map[netaddr.IPPrefix]*network
-	ipPrefix2net         map[netaddr.IPPrefix]netList
+	ipPrefix2aggregate   map[netip.Prefix]*network
+	ipPrefix2net         map[netip.Prefix]netList
 	natDomain            *natDomain
 	noCheckSupernetRules bool
 	partition            string

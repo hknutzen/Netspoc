@@ -20,14 +20,7 @@ type proto struct {
 type name2Proto map[string]*proto
 
 func createPrtObj(descr string) *proto {
-	var protocol string
-	detail := ""
-	if i := strings.Index(descr, " "); i == -1 {
-		protocol = descr
-	} else {
-		protocol = descr[:i]
-		detail = descr[i+1:]
-	}
+	protocol, detail, _ := strings.Cut(descr, " ")
 	prt := proto{name: descr, protocol: protocol}
 	switch protocol {
 	case "tcp", "udp":

@@ -143,7 +143,7 @@ func (c *spoc) setPolicyDistributionIP() {
 
 		// Ready, if exactly one management interface was found.
 		if len(foundMap) == 1 {
-			for intf, _ := range foundMap {
+			for intf := range foundMap {
 				result.push(intf)
 			}
 		} else if r.managed != "" || r.routingOnly {
@@ -189,7 +189,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			}
 		}
 		for _, intf := range append(l, o...) {
-			r.adminIP = append(r.adminIP, intf.address(natMap).IP().String())
+			r.adminIP = append(r.adminIP, intf.address(natMap).Addr().String())
 		}
 	}
 	var unreachable stringerList

@@ -52,10 +52,10 @@ func (c *spoc) createDirs(dir, path string) {
 
 func (c *spoc) writeJson(path string, data interface{}) {
 	fd, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	defer fd.Close()
 	if err != nil {
 		c.abort("Can't %v", err)
 	}
+	defer fd.Close()
 	enc := json.NewEncoder(fd)
 	enc.SetEscapeHTML(false)
 	enc.Encode(data)
@@ -66,13 +66,13 @@ func (c *spoc) exportJson(dir, path string, data interface{}) {
 }
 
 func printNetworkIp(n *network) string {
-	pIP := n.ipp.IP().String()
+	pIP := n.ipp.Addr().String()
 	var pMask string
+	bits := n.ipp.Bits()
 	if n.ipV6 {
-		size := n.ipp.Bits()
-		pMask = strconv.Itoa(int(size))
+		pMask = strconv.Itoa(bits)
 	} else {
-		pMask = net.IP(n.ipp.IPNet().Mask).String()
+		pMask = net.IP(net.CIDRMask(bits, 32)).String()
 	}
 	return pIP + "/" + pMask
 }
@@ -97,7 +97,7 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 			// Don't print mask for loopback network. It needs to have
 			// exactly the same address as the corresponding loopback interface.
 			if n.loopback {
-				return n.ipp.IP().String()
+				return n.ipp.Addr().String()
 			}
 
 			return printNetworkIp(n)
@@ -122,12 +122,12 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 				// Dynamic NAT, take whole network.
 				return printNetworkIp(n)
 			}
-			if ip := h.ip; !ip.IsZero() {
+			if ip := h.ip; ip.IsValid() {
 				return mergeIP(ip, n).String()
 			}
-			r := h.ipRange
-			return mergeIP(r.From(), n).String() + "-" +
-				mergeIP(r.To(), n).String()
+			rg := h.ipRange
+			return mergeIP(rg.from, n).String() + "-" +
+				mergeIP(rg.to, n).String()
 		}
 		n := x.network
 		ip = getIp(x, n)
@@ -204,7 +204,7 @@ func ownersForObjects(l srvObjList) stringList {
 		}
 	}
 	result := make(stringList, 0, len(names))
-	for name, _ := range names {
+	for name := range names {
 		result.push(name)
 	}
 	sort.Strings(result)
@@ -229,7 +229,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 		}
 	}
 	result := make(stringList, 0, len(names))
-	for name, _ := range names {
+	for name := range names {
 		result.push(name)
 	}
 	sort.Strings(result)
@@ -604,7 +604,7 @@ func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 			users = nil
 		}
 		var objects srvObjList
-		for ob, _ := range objMap {
+		for ob := range objMap {
 			objects.push(ob)
 		}
 
@@ -680,7 +680,7 @@ func (c *spoc) setupPartOwners() xOwner {
 			continue
 		}
 		var owners []*owner
-		for ow, _ := range pMap[n] {
+		for ow := range pMap[n] {
 			owners = append(owners, ow)
 		}
 		if ow := n.owner; ow != nil {
@@ -701,7 +701,7 @@ func (c *spoc) setupPartOwners() xOwner {
 	pInfo := make(xOwner)
 	for ob, m := range pMap {
 		s := make([]*owner, 0, len(m))
-		for ow, _ := range m {
+		for ow := range m {
 			s = append(s, ow)
 		}
 		pInfo[ob] = s
@@ -758,7 +758,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
 		var l []*owner
-		for ow, _ := range m {
+		for ow := range m {
 			l = append(l, ow)
 		}
 		sort.Slice(l, func(i, j int) bool {
@@ -796,11 +796,10 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Collect outer owners for all objects inside zone.
 	for _, z := range c.allZones {
-		var zoneOwners []*owner
 
 		// watchingOwners holds list of owners, that have been
 		// inherited from areas.
-		zoneOwners = z.watchingOwners
+		zoneOwners := z.watchingOwners
 
 		process := func(n *network) {
 			outerOwners := make(map[*owner]bool)
@@ -830,13 +829,13 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 			for _, obj := range n.interfaces {
 				ow := obj.owner
 				outerForObj := make(map[*owner]bool)
-				router := obj.router
-				if router.managed != "" || router.routingOnly {
+				r := obj.router
+				if r.managed != "" || r.routingOnly {
 					if masterOwner != nil {
 						outerForObj[masterOwner] = true
 					}
 				} else {
-					for ow, _ := range outerOwners {
+					for ow := range outerOwners {
 						outerForObj[ow] = true
 					}
 				}
@@ -845,7 +844,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 			for _, obj := range n.hosts {
 				ow := obj.owner
 				outerForObj := make(map[*owner]bool)
-				for ow, _ := range outerOwners {
+				for ow := range outerOwners {
 					outerForObj[ow] = true
 				}
 				setOuterOwners(obj, ow, outerForObj)
@@ -926,17 +925,17 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
 	}
-	for ownerName, _ := range symTable.owner {
+	for ownerName := range symTable.owner {
 		natList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
 			// Build union of all natSets of found NAT domains.
 			var natSets []natSet
-			for d, _ := range doms {
+			for d := range doms {
 				natSets = append(natSets, d.natSet)
 			}
 			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-			for tag, _ := range combined {
+			for tag := range combined {
 				natList.push(tag)
 			}
 		}
@@ -1061,29 +1060,29 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		networks := addSubnetworks(z.networks)
 
 		for _, n := range networks {
-			add := func(owner string, ownNet bool) {
-				addNetworksInfo(owner, zoneName, exportNetwork(n, owner, ownNet))
+			add := func(ow string, ownNet bool) {
+				addNetworksInfo(ow, zoneName, exportNetwork(n, ow, ownNet))
 			}
-			if owner := ownerForObject(n); owner != "" {
-				add(owner, true)
+			if ow := ownerForObject(n); ow != "" {
+				add(ow, true)
 			}
-			for _, owner := range xOwnersForObject(n, oInfo) {
-				add(owner, true)
+			for _, ow := range xOwnersForObject(n, oInfo) {
+				add(ow, true)
 			}
-			for _, owner := range xOwnersForObject(n, pInfo) {
+			for _, ow := range xOwnersForObject(n, pInfo) {
 				// Show only own or part_owned networks in foreign zone.
-				add(owner, false)
+				add(ow, false)
 			}
 		}
 	}
 
-	for owner, _ := range symTable.owner {
-		assets := result[owner]
+	for ow := range symTable.owner {
+		assets := result[ow]
 		if assets == nil {
 			assets = jsonMap{}
 		}
-		c.createDirs(dir, "owner/"+owner)
-		c.exportJson(dir, "owner/"+owner+"/assets", assets)
+		c.createDirs(dir, "owner/"+ow)
+		c.exportJson(dir, "owner/"+ow+"/assets", assets)
 	}
 }
 
@@ -1095,7 +1094,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 // we need to lookup, if an object should be visible by this owner.
 func getVisibleOwner(pInfo, oInfo xOwner) map[srvObj]map[string]bool {
 	visibleOwner := make(map[srvObj]map[string]bool)
-	for ob, _ := range allObjects {
+	for ob := range allObjects {
 		m := make(map[string]bool)
 		visibleOwner[ob] = m
 		m[ownerForObject(ob)] = true
@@ -1146,14 +1145,14 @@ func (c *spoc) exportUsersAndServiceLists(
 	owner2type2sMap := make(map[string]map[string]map[*exportedSvc]bool)
 	for _, s := range l {
 		addChk := func(l stringList, typ string, chk func(o string) bool) {
-			for _, owner := range l {
-				if !chk(owner) {
+			for _, ow := range l {
+				if !chk(ow) {
 					continue
 				}
-				if owner2type2sMap[owner] == nil {
-					owner2type2sMap[owner] = make(map[string]map[*exportedSvc]bool)
+				if owner2type2sMap[ow] == nil {
+					owner2type2sMap[ow] = make(map[string]map[*exportedSvc]bool)
 				}
-				type2sMap := owner2type2sMap[owner]
+				type2sMap := owner2type2sMap[ow]
 				if type2sMap[typ] == nil {
 					type2sMap[typ] = make(map[*exportedSvc]bool)
 				}
@@ -1163,8 +1162,8 @@ func (c *spoc) exportUsersAndServiceLists(
 		add := func(l stringList, typ string) {
 			addChk(l, typ, func(o string) bool { return true })
 		}
-		if owner := s.subOwner; owner != "" {
-			add(stringList{owner}, "owner")
+		if ow := s.subOwner; ow != "" {
+			add(stringList{ow}, "owner")
 		}
 		add(s.owners, "owner")
 		add(s.partOwners, "owner")
@@ -1176,16 +1175,16 @@ func (c *spoc) exportUsersAndServiceLists(
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
 		if visible := s.visible; visible != "" {
-			for owner, _ := range symTable.owner {
-				type2sMap := owner2type2sMap[owner]
+			for ow := range symTable.owner {
+				type2sMap := owner2type2sMap[ow]
 				if type2sMap["owner"][s] {
 					continue
 				}
 				if type2sMap["user"][s] {
 					continue
 				}
-				if visible == "*" || strings.HasPrefix(owner, visible) {
-					add(stringList{owner}, "visible")
+				if visible == "*" || strings.HasPrefix(ow, visible) {
+					add(stringList{ow}, "visible")
 				}
 			}
 		}
@@ -1193,18 +1192,18 @@ func (c *spoc) exportUsersAndServiceLists(
 
 	visibleOwner := getVisibleOwner(pInfo, oInfo)
 	var names stringList
-	for name, _ := range symTable.owner {
+	for name := range symTable.owner {
 		names.push(name)
 	}
 	sort.Strings(names)
-	for _, owner := range names {
-		type2sMap := owner2type2sMap[owner]
+	for _, ow := range names {
+		type2sMap := owner2type2sMap[ow]
 		type2snames := make(map[string]stringList)
 		service2users := make(map[string]stringList)
 		for _, typ := range []string{"owner", "user", "visible"} {
 			sNames := make(stringList, 0)
 		SVC:
-			for s, _ := range type2sMap[typ] {
+			for s := range type2sMap[typ] {
 				sName := strings.TrimPrefix(s.name, "service:")
 				sNames.push(sName)
 				var users srvObjList
@@ -1215,7 +1214,7 @@ func (c *spoc) exportUsersAndServiceLists(
 					users = s.user
 				case "user":
 					for _, user := range s.user {
-						if visibleOwner[user][owner] {
+						if visibleOwner[user][ow] {
 							users.push(user)
 						}
 					}
@@ -1238,9 +1237,9 @@ func (c *spoc) exportUsersAndServiceLists(
 			sort.Strings(sNames)
 			type2snames[typ] = sNames
 		}
-		c.createDirs(dir, "owner/"+owner)
-		c.exportJson(dir, "owner/"+owner+"/service_lists", type2snames)
-		c.exportJson(dir, "owner/"+owner+"/users", service2users)
+		c.createDirs(dir, "owner/"+ow)
+		c.exportJson(dir, "owner/"+ow+"/service_lists", type2snames)
+		c.exportJson(dir, "owner/"+ow+"/users", service2users)
 	}
 }
 
@@ -1278,7 +1277,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 func (c *spoc) exportObjects(dir string) {
 	c.progress("Export objects")
 	result := make(jsonMap)
-	for obj, _ := range allObjects {
+	for obj := range allObjects {
 		descr := make(jsonMap)
 
 		// Add key 'ip' and optionally key 'nat'.
@@ -1381,8 +1380,8 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for email, oMap := range email2owners {
 		l := strings.SplitN(email, "@", 2)
 		if len(l) == 2 && l[0] != "[all]" {
-			for owner, _ := range domain2owners[l[1]] {
-				delete(oMap, owner)
+			for ow := range domain2owners[l[1]] {
+				delete(oMap, ow)
 			}
 		}
 	}
@@ -1393,7 +1392,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 
 		// Sort owner names for output.
 		l := make(stringList, 0, len(m))
-		for o, _ := range m {
+		for o := range m {
 			l.push(o)
 		}
 		sort.Strings(l)

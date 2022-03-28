@@ -2,20 +2,22 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"inet.af/netaddr"
 	"net"
+	"net/netip"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"unicode"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 )
 
 func getIntf(r *router) []*routerIntf {
@@ -26,16 +28,6 @@ func getIntf(r *router) []*routerIntf {
 	} else {
 		return r.interfaces
 	}
-}
-
-func (z *zone) nonSecondaryIntfs() intfList {
-	var result intfList
-	for _, intf := range z.interfaces {
-		if intf.mainIntf == nil {
-			result.push(intf)
-		}
-	}
-	return result
 }
 
 var permitAnyRule, permitAny6Rule *groupedRule
@@ -66,8 +58,9 @@ func printHeader(fh *os.File, r *router, what string) {
 	fmt.Fprintln(fh, commentChar, "[", what, "]")
 }
 
-func iosRouteCode(n netaddr.IPPrefix) string {
-	return n.IP().String() + " " + net.IP(n.IPNet().Mask).String()
+func iosRouteCode(n netip.Prefix) string {
+	return n.Addr().String() + " " + net.IP(net.CIDRMask(n.Bits(), 32)).String()
+
 }
 
 func printRoutes(fh *os.File, r *router) {
@@ -77,7 +70,7 @@ func printRoutes(fh *os.File, r *router) {
 	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
 	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
-	prefix2ip2net := make(map[uint8]map[netaddr.IP]*network)
+	prefix2ip2net := make(map[int]map[netip.Addr]*network)
 	net2hop := make(map[*network]*routerIntf)
 	hop2intf := make(map[*routerIntf]*routerIntf)
 
@@ -108,10 +101,10 @@ func printRoutes(fh *os.File, r *router) {
 			// Implicitly overwrite duplicate networks.
 			m := prefix2ip2net[prefixlen]
 			if m == nil {
-				m = make(map[netaddr.IP]*network)
+				m = make(map[netip.Addr]*network)
 				prefix2ip2net[prefixlen] = m
 			}
-			m[natNet.ipp.IP()] = natNet
+			m[natNet.ipp.Addr()] = natNet
 
 			// This is unambiguous, because only a single static
 			// route is allowed for each network.
@@ -126,7 +119,8 @@ func printRoutes(fh *os.File, r *router) {
 
 	// Combine adjacent networks, if both use same hop and
 	// if combined network doesn't already exist.
-	var bitstrLen uint8
+	// Prepare invPrefixAref.
+	var bitstrLen int
 	if ipv6 {
 		bitstrLen = 128
 	} else {
@@ -150,13 +144,12 @@ func printRoutes(fh *os.File, r *router) {
 			// Only analyze left part of two adjacent networks.
 			part, _ := ip.Prefix(partPrefix)
 			comb, _ := ip.Prefix(combinedPrefix)
-			if part.IP() != comb.IP() {
+			if part.Addr() != comb.Addr() {
 				continue
 			}
 
 			// Calculate IP of right part.
-			rg := left.ipp.Range()
-			nextIP := rg.To().Next()
+			nextIP := lastIP(left.ipp).Next()
 
 			// Find corresponding right part.
 			right := ip2net[nextIP]
@@ -171,10 +164,10 @@ func printRoutes(fh *os.File, r *router) {
 
 			nextIP2net := prefix2ip2net[combinedPrefix]
 			if nextIP2net == nil {
-				nextIP2net = make(map[netaddr.IP]*network)
+				nextIP2net = make(map[netip.Addr]*network)
 				prefix2ip2net[combinedPrefix] = nextIP2net
 			} else if nextIP2net[ip] != nil {
-				// Combined route already exists.
+				// Combined network already exists.
 				continue
 			}
 
@@ -191,15 +184,15 @@ func printRoutes(fh *os.File, r *router) {
 
 	// Find and remove duplicate and redundant routes.
 	// Go from small to larger networks.
-	prefixes := make([]uint8, 0, len(prefix2ip2net))
-	for k, _ := range prefix2ip2net {
+	prefixes := make([]int, 0, len(prefix2ip2net))
+	for k := range prefix2ip2net {
 		prefixes = append(prefixes, k)
 	}
 	sort.Slice(prefixes, func(i, j int) bool {
 		return prefixes[i] > prefixes[j]
 	})
 	type netInfo struct {
-		netaddr.IPPrefix
+		netip.Prefix
 		noOpt bool
 	}
 	hop2netInfos := make(map[*routerIntf][]netInfo)
@@ -207,8 +200,8 @@ func printRoutes(fh *os.File, r *router) {
 		prefix := prefixes[0]
 		prefixes = prefixes[1:]
 		ip2net := prefix2ip2net[prefix]
-		ips := make([]netaddr.IP, 0, len(ip2net))
-		for k, _ := range ip2net {
+		ips := make([]netip.Addr, 0, len(ip2net))
+		for k := range ip2net {
 			ips = append(ips, k)
 		}
 		sort.Slice(ips, func(i, j int) bool {
@@ -226,7 +219,7 @@ func printRoutes(fh *os.File, r *router) {
 				// Compare current mask with masks of larger networks.
 				for _, p := range prefixes {
 					net, _ := ip.Prefix(p)
-					big := prefix2ip2net[p][net.IP()]
+					big := prefix2ip2net[p][net.Addr()]
 					if big == nil {
 						continue
 					}
@@ -249,7 +242,7 @@ func printRoutes(fh *os.File, r *router) {
 				}
 			}
 			info := netInfo{
-				netaddr.IPPrefixFrom(ip, prefix),
+				netip.PrefixFrom(ip, prefix),
 				noOpt,
 			}
 			hop2netInfos[hop] = append(hop2netInfos[hop], info)
@@ -258,7 +251,7 @@ func printRoutes(fh *os.File, r *router) {
 
 	// Get sorted list of hops for deterministic output.
 	hops := make(intfList, 0, len(hop2netInfos))
-	for k, _ := range hop2netInfos {
+	for k := range hop2netInfos {
 		hops.push(k)
 	}
 	sort.Slice(hops, func(i, j int) bool {
@@ -325,10 +318,10 @@ func printRoutes(fh *os.File, r *router) {
 				var adr string
 				ip := "ip"
 				if ipv6 {
-					adr = fullPrefixCode(netinfo.IPPrefix)
+					adr = fullPrefixCode(netinfo.Prefix)
 					ip += "v6"
 				} else {
-					adr = iosRouteCode(netinfo.IPPrefix)
+					adr = iosRouteCode(netinfo.Prefix)
 				}
 				fmt.Fprintln(fh, ip, "route", iosVrf+adr, hopAddr)
 			case "NX-OS":
@@ -339,7 +332,7 @@ func printRoutes(fh *os.File, r *router) {
 					fmt.Fprintln(fh, "vrf context", vrf)
 					nxosPrefix = " "
 				}
-				adr := fullPrefixCode(netinfo.IPPrefix)
+				adr := fullPrefixCode(netinfo.Prefix)
 				ip := "ip"
 				if ipv6 {
 					ip += "v6"
@@ -349,15 +342,16 @@ func printRoutes(fh *os.File, r *router) {
 				var adr string
 				ip := ""
 				if ipv6 {
-					adr = fullPrefixCode(netinfo.IPPrefix)
+					adr = fullPrefixCode(netinfo.Prefix)
 					ip = "ipv6 "
 				} else {
-					adr = iosRouteCode(netinfo.IPPrefix)
+					adr = iosRouteCode(netinfo.Prefix)
 				}
 				fmt.Fprintln(fh, ip+"route", intf.hardware.name, adr, hopAddr)
 			case "iproute":
-				adr := prefixCode(netinfo.IPPrefix)
+				adr := prefixCode(netinfo.Prefix)
 				fmt.Fprintln(fh, "ip route add", adr, "via", hopAddr)
+
 			}
 		}
 	}
@@ -413,7 +407,7 @@ func getSplitTunnelNets(intf *routerIntf) netList {
 
 	// Sort for better readability of ACL.
 	sort.Slice(result, func(i, j int) bool {
-		return result[i].ipp.IP().Less(result[j].ipp.IP())
+		return result[i].ipp.Addr().Less(result[j].ipp.Addr())
 	})
 	return result
 }
@@ -440,7 +434,7 @@ NET:
 		ipp := n.address(m)
 		for _, agg := range merge {
 			ipp2 := agg.ipp
-			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.IP()) {
+			if ipp.Bits() >= ipp2.Bits() && ipp2.Contains(ipp.Addr()) {
 				continue NET
 			}
 		}
@@ -492,7 +486,7 @@ func printTunnelGroupRa(
 
 	// Select attributes for tunnel-group general-attributes.
 	keys := make(stringList, 0, len(attributes))
-	for k, _ := range attributes {
+	for k := range attributes {
 		if spec := asaVpnAttributes[k]; spec == tgGeneral {
 			keys.push(k)
 		}
@@ -621,7 +615,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		fmt.Fprintln(fh, "group-policy", name, "internal")
 		fmt.Fprintln(fh, "group-policy", name, "attributes")
 		keys := make(stringList, 0, len(attributes))
-		for k, _ := range attributes {
+		for k := range attributes {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -698,7 +692,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 		if hash := intf.idRules; hash != nil {
 			keys := make(stringList, 0, len(hash))
-			for k, _ := range hash {
+			for k := range hash {
 				keys.push(k)
 			}
 			sort.Strings(keys)
@@ -789,7 +783,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				r.aclList.push(info)
 				printAclPlaceholder(fh, r, filterName)
 
-				ip := src.ipp.IP().String()
+				ip := src.ipp.Addr().String()
 				network := src.getNetwork()
 				if src.ipp.IsSingleIP() {
 
@@ -801,7 +795,6 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					extendedKey[domain] = attributes["check-extended-key-usage"]
 					delete(attributes, "check-extended-key-usage")
 
-					mask := net.IP(network.ipp.IPNet().Mask).String()
 					groupPolicyName := ""
 					if len(attributes) > 0 {
 						groupPolicyName = "VPN-group-" + idName
@@ -809,7 +802,13 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					}
 					fmt.Fprintln(fh, "username", id, "nopassword")
 					fmt.Fprintln(fh, "username", id, "attributes")
-					fmt.Fprintln(fh, " vpn-framed-ip-address", ip, mask)
+					if ipv6 {
+						fmt.Fprintf(fh, " vpn-framed-ipv6-address %s/%d\n",
+							ip, network.ipp.Bits())
+					} else {
+						mask := net.IP(net.CIDRMask(network.ipp.Bits(), 32)).String()
+						fmt.Fprintln(fh, " vpn-framed-ip-address", ip, mask)
+					}
 					fmt.Fprintln(fh, " service-type remote-access")
 					fmt.Fprintln(fh, " vpn-filter value", filterName)
 					if groupPolicyName != "" {
@@ -818,10 +817,16 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 					fmt.Fprintln(fh)
 				} else {
 					name := "pool-" + idName
-					mask := net.IP(src.ipp.IPNet().Mask).String()
-
-					max := src.ipp.Range().To().String()
-					fmt.Fprintln(fh, "ip local pool", name, ip+"-"+max, "mask", mask)
+					if ipv6 {
+						count := 1 << (128 - src.ipp.Bits())
+						fmt.Fprintf(fh, "ipv6 local pool %s %s/%d %d\n",
+							name, ip, src.ipp.Bits(), count)
+					} else {
+						max := lastIP(src.ipp).String()
+						mask := net.IP(net.CIDRMask(src.ipp.Bits(), 32)).String()
+						fmt.Fprintf(fh, "ip local pool %s %s-%s mask %s\n",
+							name, ip, max, mask)
+					}
 					attributes["address-pools"] = name
 					attributes["vpn-filter"] = filterName
 					groupPolicyName := "VPN-group-" + idName
@@ -917,7 +922,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	// Generate certificate-group-map for anyconnect/ikev2 clients.
 	if len(certGroupMap) > 0 || len(singleCertMap) > 0 {
 		keys := make(stringList, 0, len(singleCertMap))
-		for k, _ := range singleCertMap {
+		for k := range singleCertMap {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -933,7 +938,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 		}
 		fmt.Fprintln(fh, "webvpn")
 		keys = make(stringList, 0, len(certGroupMap))
-		for k, _ := range certGroupMap {
+		for k := range certGroupMap {
 			keys.push(k)
 		}
 		sort.Strings(keys)
@@ -946,7 +951,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 
 	// Generate ldap attribute-maps and aaa-server referencing each map.
 	keys := make(stringList, 0, len(ldapMap))
-	for k, _ := range ldapMap {
+	for k := range ldapMap {
 		keys.push(k)
 	}
 	sort.Strings(keys)
@@ -1061,9 +1066,7 @@ func printIptablesAcls(fh *os.File, r *router) {
 	for _, acl := range r.aclList {
 		acl.addDeny = true
 		name := acl.name
-		i := strings.Index(name, "_")
-		inHw := name[:i]
-		outHw := name[i+1:]
+		inHw, outHw, _ := strings.Cut(name, "_")
 		printAclPlaceholder(fh, r, name)
 		if outHw == "self" {
 			// Add call to chain in INPUT chain.
@@ -1144,17 +1147,14 @@ func printCiscoAcls(fh *os.File, r *router) {
 					// networks of this zone match attribute filterOnly.
 					intfOk := 0
 					for _, intf := range hw.interfaces {
-						zone := intf.zone
-						if len(zone.cluster) > 1 {
+						z := intf.zone
+						if len(z.cluster) > 1 {
 							break
 						}
 
-						// Ignore real interface of virtual interface.
-						interfaces := zone.nonSecondaryIntfs()
-
 						// Multiple interfaces belonging to one redundancy
 						// group can't be used to cross the zone.
-						if len(interfaces) > 1 && !isRedundanyGroup(interfaces) {
+						if len(z.interfaces) > 1 && !isRedundanyGroup(z.interfaces) {
 							break
 						}
 						intfOk++
@@ -1811,7 +1811,7 @@ func printRouterIntf(fh *os.File, r *router) {
 		secondary := false
 
 	INTF:
-		for _, intf := range hw.interfaces {
+		for _, intf := range withSecondary(hw.interfaces) {
 			var addrCmd string
 			if intf.redundant {
 				continue
@@ -1830,13 +1830,14 @@ func printRouterIntf(fh *os.File, r *router) {
 					} else {
 						addrCmd = "ip"
 					}
-					addrCmd += " address " + netaddr.IPPrefixFrom(
+					addrCmd += " address " + netip.PrefixFrom(
 						intf.ip,
 						intf.network.ipp.Bits(),
 					).String()
 				} else {
 					addr := intf.ip.String()
-					mask := net.IP(intf.network.ipp.IPNet().Mask).String()
+					mask :=
+						net.IP(net.CIDRMask(intf.network.ipp.Bits(), 32)).String()
 					addrCmd = "ip address " + addr + " " + mask
 				}
 				if secondary {
@@ -1873,15 +1874,15 @@ func printRouterIntf(fh *os.File, r *router) {
 	fmt.Fprintln(fh)
 }
 
-func prefixCode(n netaddr.IPPrefix) string {
+func prefixCode(n netip.Prefix) string {
 	if n.IsSingleIP() {
-		return n.IP().String()
+		return n.Addr().String()
 	}
 	return n.String()
 
 }
 
-func fullPrefixCode(n netaddr.IPPrefix) string {
+func fullPrefixCode(n netip.Prefix) string {
 	return n.String()
 }
 
@@ -1900,8 +1901,8 @@ func getNeedProtect(r *router) []*routerIntf {
 	if !r.needProtect {
 		return nil
 	}
-	for _, i := range r.interfaces {
-		if !i.ip.IsZero() {
+	for _, i := range withSecondary(r.interfaces) {
+		if i.ip.IsValid() {
 			l.push(i)
 		}
 	}
@@ -1942,11 +1943,11 @@ func (c *spoc) setupStdAddr() {
 	// Interfaces
 	for _, r := range c.allRouters {
 		v6 := r.ipV6
-		for _, intf := range r.interfaces {
+		for _, intf := range withSecondary(r.interfaces) {
 			switch intf.ipType {
 			case hasIP:
 				intf.stdAddr =
-					netaddr.IPPrefixFrom(intf.ip, getHostPrefix(v6)).String()
+					netip.PrefixFrom(intf.ip, getHostPrefix(v6)).String()
 			case negotiatedIP:
 				intf.stdAddr = intf.network.stdAddr
 			}
@@ -2178,7 +2179,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			//   grouped rules and we need to control optimization
 			//   for sinlge rules.
 			addrList := make(stringList, 0, len(optAddr))
-			for n, _ := range optAddr {
+			for n := range optAddr {
 				a := getAddr(n, natMap)
 				addrList.push(a)
 			}
@@ -2186,7 +2187,7 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 			jACL.OptNetworks = addrList
 
 			addrList = make(stringList, 0, len(noOptAddrs))
-			for o, _ := range noOptAddrs {
+			for o := range noOptAddrs {
 				a := getAddr(o, natMap)
 				addrList.push(a)
 			}
@@ -2246,12 +2247,12 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 		// In this case the previous run of netspoc must have failed,
 		// since .prev is removed on successfull completion.
 
-		tmpDir, err := os.MkdirTemp(path.Dir(dir), "code.tmp*")
+		tmpDir, err := os.MkdirTemp(path.Dir(path.Clean(dir)), "code.tmp*")
 		if err != nil {
 			c.abort("Can't %v", err)
 		}
 		defer func() { os.RemoveAll(tmpDir) }()
-		tmpCode = tmpDir + "/code"
+		tmpCode = filepath.Join(tmpDir, "code")
 		if err := os.Rename(dir, tmpCode); err != nil {
 			c.abort("Can't %v", err)
 		}
@@ -2275,7 +2276,7 @@ func (c *spoc) checkOutputDir(dir, prev string, devices []*router) {
 		}
 	}
 	if needV6 {
-		v6dir := dir + "/ipv6"
+		v6dir := path.Join(dir, "ipv6")
 		if !fileop.IsDir(v6dir) {
 			err := os.Mkdir(v6dir, 0777)
 			if err != nil {
@@ -2341,7 +2342,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	}
 
 	// File for router config without ACLs.
-	configFile := dir + "/" + path + ".config"
+	configFile := filepath.Join(dir, path+".config")
 	fd, err := os.OpenFile(configFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		c.abort("Can't %v", err)
@@ -2406,7 +2407,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 	// Print ACLs in machine independent format into separate file.
 	// Collect ACLs from VRF parts.
-	aclFile := dir + "/" + path + ".rules"
+	aclFile := filepath.Join(dir, path+".rules")
 	c.printAcls(aclFile, vrfMembers)
 	return path
 }

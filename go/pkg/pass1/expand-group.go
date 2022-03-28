@@ -2,7 +2,7 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"inet.af/netaddr"
+	"net/netip"
 	"strings"
 )
 
@@ -254,7 +254,7 @@ func (c *spoc) expandGroup1(
 				if managed && r.managed == "" && !r.routingOnly {
 					// This router has no managed interfaces.
 				} else if selector == "all" {
-					for _, intf := range getIntf(r) {
+					for _, intf := range withSecondary(getIntf(r)) {
 						if check(intf) {
 							result.push(intf)
 						}
@@ -277,7 +277,7 @@ func (c *spoc) expandGroup1(
 									" with %s having ip/mask\n"+
 									" in %s", x, ctx)
 							}
-							for _, intf := range x.zone.interfaces {
+							for _, intf := range withSecondary(x.zone.interfaces) {
 								r := intf.router
 								if (r.managed != "" || r.routingOnly) && check(intf) {
 									result.push(intf)
@@ -286,7 +286,7 @@ func (c *spoc) expandGroup1(
 						} else if managed {
 
 							// Find managed interfaces of non aggregate network.
-							for _, intf := range x.interfaces {
+							for _, intf := range withSecondary(x.interfaces) {
 								r := intf.router
 								if (r.managed != "" || r.routingOnly) && check(intf) {
 									result.push(intf)
@@ -295,7 +295,7 @@ func (c *spoc) expandGroup1(
 						} else {
 
 							// Find all interfaces of non aggregate network.
-							for _, intf := range x.interfaces {
+							for _, intf := range withSecondary(x.interfaces) {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -356,7 +356,7 @@ func (c *spoc) expandGroup1(
 					}
 					if selector == "all" {
 						for _, r := range routers {
-							for _, intf := range r.interfaces {
+							for _, intf := range withSecondary(r.interfaces) {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -390,7 +390,7 @@ func (c *spoc) expandGroup1(
 				if r != nil {
 					if !r.disabled {
 						if selector == "all" {
-							for _, intf := range getIntf(r) {
+							for _, intf := range withSecondary(getIntf(r)) {
 								if check(intf) {
 									result.push(intf)
 								}
@@ -421,7 +421,7 @@ func (c *spoc) expandGroup1(
 			subObjects := c.expandGroup1(x.GetElements(),
 				x.GetType()+":[..] of "+ctx, ipv6, false, false)
 
-			getAggregates := func(obj groupObj, ipp netaddr.IPPrefix) netList {
+			getAggregates := func(obj groupObj, ipp netip.Prefix) netList {
 				var zones []*zone
 				switch x := obj.(type) {
 				case *area:
@@ -551,17 +551,17 @@ func (c *spoc) expandGroup1(
 				}
 			case "any":
 				x := x.(*ast.AggAuto)
-				var ipp netaddr.IPPrefix
+				var ipp netip.Prefix
 				if tok := x.Net; tok != "" {
 					var err error
-					ipp, err = netaddr.ParseIPPrefix(tok)
+					ipp, err = netip.ParsePrefix(tok)
 					if err != nil {
 						c.err("Invalid CIDR address: %s in any:[ip = ...] of %s",
 							tok, ctx)
-					} else if ipp.IP() != ipp.Masked().IP() {
+					} else if ipp.Addr() != ipp.Masked().Addr() {
 						c.err("IP and mask don't match in any:[ip = ...] of %s", ctx)
 					}
-					c.checkVxIP(ipp.IP(), ipv6, "any:[..]", ctx)
+					c.checkVxIP(ipp.Addr(), ipv6, "any:[..]", ctx)
 				} else {
 					ipp = getNetwork00(ipv6).ipp
 				}

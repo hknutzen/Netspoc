@@ -142,7 +142,8 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// - CVS and RCS directories
 		// - CVS working files
 		// - Editor backup files: emacs: *~
-		IgnoreFiles: regexp.MustCompile("^(CVS|RCS|\\.#.*|.*~)$"),
+		// - hidden files starting with "." are ignored by anyway
+		IgnoreFiles: regexp.MustCompile(`^(CVS|RCS|.*~)$`),
 		// Use IPv4 version as default
 		IPV6: false,
 
@@ -187,9 +188,6 @@ func parseArgs(fs *flag.FlagSet) (string, string, bool) {
 	// If outDir is missing, no code is generated.
 	outDir := fs.Arg(1)
 
-	// Strip trailing slash for nicer messages.
-	strings.TrimSuffix(mainFile, "/")
-	strings.TrimSuffix(outDir, "/")
 	return mainFile, outDir, false
 }
 

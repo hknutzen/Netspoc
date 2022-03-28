@@ -20,7 +20,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 	}
 	n2gU := make(map[string]*groupUse)
 	countGroup := func(n *ipNet) {
-		if n.IPPrefix.IsZero() {
+		if !n.Prefix.IsValid() {
 			gU := n2gU[n.name]
 			gU.count++
 		}
@@ -53,7 +53,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 	var getAddress func(n *ipNet) string
 	getAddress = func(n *ipNet) string {
 		// Object group.
-		if n.IPPrefix.IsZero() {
+		if !n.Prefix.IsValid() {
 			gU := n2gU[n.name]
 			g := gU.g
 			if gU.count > 1 {
@@ -73,7 +73,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		}
 		var name string
 		if n.IsSingleIP() {
-			name = "IP_" + n.IP().String()
+			name = "IP_" + n.Addr().String()
 		} else {
 			name = "NET_" + strings.Replace(n.String(), "/", "_", 1)
 		}
@@ -115,12 +115,8 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		result := ""
 		if ru.log != "" {
 			for _, log := range strings.Split(ru.log, " ") {
-				var k, v string
-				if i := strings.Index(log, ":"); i != -1 {
-					k = log[:i]
-					v = log[i+1:]
-				} else {
-					k = log
+				k, v, found := strings.Cut(log, ":")
+				if !found {
 					v = "yes"
 				}
 				result += fmt.Sprintf("<log-%s>%s</log-%s>\n", k, v, k)
@@ -166,10 +162,10 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 			l = append(l, n)
 		}
 		sort.Slice(l, func(i, j int) bool {
-			if l[i].IP() == l[j].IP() {
+			if l[i].Addr() == l[j].Addr() {
 				return l[i].Bits() > l[j].Bits()
 			}
-			return l[i].IP().Less(l[j].IP())
+			return l[i].Addr().Less(l[j].Addr())
 		})
 		fmt.Fprintln(fd, "<address>")
 		for _, n := range l {

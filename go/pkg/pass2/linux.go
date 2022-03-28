@@ -2,7 +2,7 @@ package pass2
 
 import (
 	"fmt"
-	"inet.af/netaddr"
+	"net/netip"
 	"os"
 	"sort"
 	"strconv"
@@ -98,8 +98,8 @@ type netBintree struct {
 // A node with value of sub-tree S is discarded,
 // if some parent node already has sub-tree S.
 func addBintree(tree *netBintree, node *netBintree) *netBintree {
-	treeIP, prefix := tree.IP(), tree.Bits()
-	nodeIP, nodePref := node.IP(), node.Bits()
+	treeIP, prefix := tree.Addr(), tree.Bits()
+	nodeIP, nodePref := node.Addr(), node.Bits()
 	var result *netBintree
 	//fmt.Fprintf(os.Stderr, "add %s/%d %s/%d\n", treeIP, prefix, nodeIP, nodePref)
 
@@ -122,7 +122,7 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 		} else {
 			var hilo **netBintree
 			upNet, _ := nodeIP.Prefix(prefix + 1)
-			if upNet.IP() == treeIP {
+			if upNet.Addr() == treeIP {
 				hilo = &tree.lo
 			} else {
 				hilo = &tree.hi
@@ -138,17 +138,17 @@ func addBintree(tree *netBintree, node *netBintree) *netBintree {
 	} else {
 
 		// Create common root for tree and node.
-		var root netaddr.IPPrefix
+		var root netip.Prefix
 		for {
 			prefix--
 			root, _ = nodeIP.Prefix(prefix)
 			trNet, _ := treeIP.Prefix(prefix)
-			if root.IP() == trNet.IP() {
+			if root.Addr() == trNet.Addr() {
 				break
 			}
 		}
-		//fmt.Fprintf(os.Stderr, "root %s/%d\n", root.IP(), root.Bits())
-		result = &netBintree{ipNet: ipNet{IPPrefix: root}}
+		//fmt.Fprintf(os.Stderr, "root %s/%d\n", root.Addr(), root.Bits())
+		result = &netBintree{ipNet: ipNet{Prefix: root}}
 		if nodeIP.Less(treeIP) {
 			result.lo, result.hi = node, tree
 		} else {
@@ -214,7 +214,7 @@ func genAddrBintree(
 	// I.e. large networks coming first.
 	sort.Slice(nodes, func(i, j int) bool {
 		if nodes[i].Bits() == nodes[j].Bits() {
-			return !nodes[i].IP().Less(nodes[j].IP())
+			return !nodes[i].Addr().Less(nodes[j].Addr())
 		}
 		return nodes[i].Bits() < nodes[j].Bits()
 	})
@@ -988,8 +988,8 @@ func findChains(aclInfo *aclInfo, routerData *routerData) {
 // Given an IP and mask, return its address
 // as "x.x.x.x/x" or "x.x.x.x" if prefix == 32 (128 for IPv6).
 func prefixCode(ipNet *ipNet) string {
-	if ipNet.IPPrefix.IsSingleIP() {
-		return ipNet.IP().String()
+	if ipNet.Prefix.IsSingleIP() {
+		return ipNet.Addr().String()
 	}
 	return ipNet.String()
 }

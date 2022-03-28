@@ -83,7 +83,7 @@ LIST:
 //              Optimization: a default route I.routeInZone[network00] = H
 //              is stored for those border interfaces, that reach networks in
 //              zone via a single hop.
-func (c *spoc) setRoutesInZone(zone *zone) {
+func (c *spoc) setRoutesInZone(z *zone) {
 
 	// Check if zone needs static routing at all.
 	needRoutes := false
@@ -91,17 +91,14 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 	borderNetworks := make(netMap)
 	hopInterfaces := make(map[*routerIntf]bool)
 	// Collect networks at zones interfaces as border networks.
-	for _, in := range zone.interfaces {
-		if in.mainIntf != nil {
-			continue
-		}
+	for _, in := range z.interfaces {
 		n := in.network
 		if borderNetworks[n] {
 			continue
 		}
 		// Collect non border interfaces of the networks as next hop interfaces.
 		for _, out := range n.interfaces {
-			if out.zone == nil && out.mainIntf == nil {
+			if out.zone == nil {
 				hopInterfaces[out] = true
 			}
 		}
@@ -135,9 +132,6 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 
 		// Process every interface.
 		for _, intf := range r.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 
 			// Found hop interface. Add its entries on the fly and skip.
 			if hopInterfaces[intf] {
@@ -159,7 +153,7 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 
 			// Recursively proceed with adjacent routers.
 			for _, out := range n.interfaces {
-				if out != intf && out.mainIntf == nil {
+				if out != intf {
 					setCluster(out.router, out, cl)
 				}
 			}
@@ -167,7 +161,7 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 	}
 
 	// Identify network cluster for every hop interface.
-	for intf, _ := range hopInterfaces {
+	for intf := range hopInterfaces {
 		// Hop interface was processed before.
 		if hop2cluster[intf] != nil {
 			continue
@@ -194,14 +188,14 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 
 		// Optimization: add networks of directly attached cluster.
 		cl := hop2cluster[hop]
-		for n, _ := range *cl {
+		for n := range *cl {
 			nMap[n] = true
 		}
 		// Add preliminary result to stop deep recursion.
 		hop2netMap[hop] = nMap
 
 		// Proceed depth first search with adjacent border networks.
-		for border, _ := range cluster2borders[cl] {
+		for border := range cluster2borders[cl] {
 			if border == inBorder {
 				continue
 			}
@@ -219,7 +213,7 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 
 				// Create hop2netMap entry for reachable hops and add networks
 				setNetworksBehind(outHop, border)
-				for n, _ := range hop2netMap[outHop] {
+				for n := range hop2netMap[outHop] {
 					nMap[n] = true
 				}
 			}
@@ -229,15 +223,12 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 
 	// For all border interfaces, store reachable networks and
 	// corresponding hop interface. Process every border network.
-	for border, _ := range borderNetworks {
+	for border := range borderNetworks {
 		var borderIntf intfList
 		var hopIntf intfList
 
 		// Collect border and hop interfaces of current border network.
 		for _, intf := range border.interfaces {
-			if intf.mainIntf != nil {
-				continue
-			}
 			if intf.zone == nil {
 				hopIntf.push(intf)
 			} else if intf.routing == nil {
@@ -273,7 +264,7 @@ func (c *spoc) setRoutesInZone(zone *zone) {
 			// In border interface of current border network, store
 			// reachable networks and hops
 			for _, intf := range borderIntf {
-				for n, _ := range hop2netMap[h] {
+				for n := range hop2netMap[h] {
 
 					// Border will be found accidently, if clusters form a
 					// loop inside zone.
@@ -353,7 +344,7 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 		in.routes = rMap
 	}
 	natMap := in.natMap
-	for n, _ := range dstNetMap {
+	for n := range dstNetMap {
 		natNet := getNatNetwork(n, natMap)
 		// debug("%s -> %s: %s", in, hop, n)
 		rMap[natNet] = append(rMap[natNet], hop)
@@ -387,7 +378,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 	}
 
 	// For every dst network, get the hop that can be used to get there.
-	for n, _ := range dstNetMap {
+	for n := range dstNetMap {
 		if n == intfNet {
 			continue
 		}
@@ -457,7 +448,6 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 		p = t[zonePair{dstZone, srcZone}]
 		if p != nil {
 			src, dst = dst, src
-			srcZone, dstZone = dstZone, srcZone
 
 			// 'src' -> 'dst, 'dst' -> 'src', 'src,dst' unchanged.
 			switch isIntf {
@@ -491,7 +481,7 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 
 	// Store src and dst networks of grouped rule within pseudo rule.
 	add := func(to, from netMap) {
-		for net, _ := range from {
+		for net := range from {
 			to[net] = true
 		}
 	}
@@ -662,9 +652,6 @@ func (c *spoc) addRoutingOnlyNetworks(r *router) {
 		directly[intf.network] = true
 	}
 	for _, intf := range r.interfaces {
-		if intf.mainIntf != nil {
-			continue
-		}
 		if intf.routing != nil {
 			continue
 		}

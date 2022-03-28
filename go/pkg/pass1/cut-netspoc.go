@@ -220,9 +220,6 @@ func markUnconnectedPair(n1, n2 *network) {
 			if intf == in {
 				continue
 			}
-			if intf.mainIntf != nil {
-				continue
-			}
 			var next netPathObj
 			if isRouter {
 				if r.managed != "" || r.semiManaged {
@@ -233,7 +230,11 @@ func markUnconnectedPair(n1, n2 *network) {
 				next = intf.router
 			}
 			if mark(next, intf) {
-				isUsed[obj.String()] = true
+				if isRouter {
+					setRouterUsed(obj.(*router))
+				} else {
+					isUsed[obj.String()] = true
+				}
 				isUsed[intf.name] = true
 				//debug("Marked %s + %s", obj, intf)
 				result = true
@@ -267,9 +268,6 @@ func markUnconnectedObj(n *network) {
 		result := false
 		for _, intf := range obj.intfList() {
 			if intf == in {
-				continue
-			}
-			if intf.mainIntf != nil {
 				continue
 			}
 			var next netPathObj
@@ -332,9 +330,7 @@ func (c *spoc) markAndSubstElements(
 	toAST := func(obj groupObj) ast.Element {
 		var result ast.Element
 		name := obj.String()
-		i := strings.Index(name, ":")
-		typ := name[:i]
-		name = name[i+1:]
+		typ, name, _ := strings.Cut(name, ":")
 		switch x := obj.(type) {
 		case *host, *area:
 			a := new(ast.NamedRef)
@@ -365,12 +361,10 @@ func (c *spoc) markAndSubstElements(
 				result = a
 			}
 		case *routerIntf:
-			i := strings.Index(name, ".")
-			router := name[:i]
-			net := name[i+1:]
+			r, net, _ := strings.Cut(name, ".")
 			a := new(ast.IntfRef)
 			a.Type = typ
-			a.Router = router
+			a.Router = r
 			if i := strings.Index(net, "."); i >= 0 {
 				a.Extension = net[i+1:]
 				net = net[:i]
@@ -795,7 +789,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 		if !isRouterUsed(r) {
 			return
 		}
-		for _, intf := range getIntf(r) {
+		for _, intf := range withSecondary(getIntf(r)) {
 			if !isUsed[intf.name] {
 				continue
 			}
@@ -819,9 +813,7 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 
 			// Mark networks referenced by interfaces
 			// marked by markAndSubstElements.
-			if isUsed[intf.name] {
-				isUsed[intf.network.name] = true
-			}
+			isUsed[intf.network.name] = true
 		}
 	}
 	for _, r := range c.allRouters {

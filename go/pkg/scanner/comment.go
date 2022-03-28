@@ -24,7 +24,7 @@ READ:
 			pos--
 		default:
 			// Check to be ignored character.
-			if strings.IndexRune(ign, c) != -1 {
+			if strings.ContainsRune(ign, c) {
 				pos--
 				continue READ
 			}
@@ -69,7 +69,7 @@ func normalizeComments(cmt string, ign string) string {
 			line = line[idx:] // Ignore leading whitespace
 			result += line + "\n"
 			empty = false
-		} else if strings.IndexAny(line, ign) == -1 && !empty {
+		} else if !strings.ContainsAny(line, ign) && !empty {
 			// Found empty line, separating blocks of comment lines.
 			// Line with ignored characters isn't empty.
 			empty = true
@@ -107,7 +107,7 @@ READ:
 			return " " + string(s.src[start:pos])
 		default:
 			// Check to be ignored character.
-			if strings.IndexRune(ign, c) == -1 {
+			if !strings.ContainsRune(ign, c) {
 				break READ
 			}
 			pos++

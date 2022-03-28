@@ -89,7 +89,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
-	"inet.af/netaddr"
+	"net/netip"
 	"os"
 	"strings"
 )
@@ -99,7 +99,7 @@ func printAddress(obj groupObj, nm natMap) string {
 	netAddr := func(n *network) string {
 		return prefixCode(n.ipp)
 	}
-	dynamicAddr := func(m map[string]netaddr.IP, n *network) string {
+	dynamicAddr := func(m map[string]netip.Addr, n *network) string {
 		tag := n.natTag
 		if ip, found := m[tag]; found {
 
@@ -116,7 +116,7 @@ func printAddress(obj groupObj, nm natMap) string {
 
 	// Take higher bits from network NAT, lower bits from original IP.
 	// This works with and without NAT.
-	natAddr := func(ip netaddr.IP, n *network) string {
+	natAddr := func(ip netip.Addr, n *network) string {
 		return mergeIP(ip, n).String()
 	}
 
@@ -135,10 +135,10 @@ func printAddress(obj groupObj, nm natMap) string {
 		if n.dynamic {
 			return dynamicAddr(x.nat, n)
 		}
-		if ip := x.ip; !ip.IsZero() {
+		if ip := x.ip; ip.IsValid() {
 			return natAddr(ip, n)
 		}
-		return natAddr(x.ipRange.From(), n) + "-" + natAddr(x.ipRange.To(), n)
+		return natAddr(x.ipRange.from, n) + "-" + natAddr(x.ipRange.to, n)
 	case *routerIntf:
 		n := getNatNetwork(x.network, nm)
 		if n.dynamic {
@@ -207,8 +207,6 @@ func (c *spoc) printGroup(path, group, natNet string,
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
 		}
-	} else {
-		// Use empty NAT map.
 	}
 
 	// Prepare finding unused objects by marking used objects.

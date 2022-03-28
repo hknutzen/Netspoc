@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 )
 
 //#############################################################################
@@ -263,7 +263,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			// Must not split aggregate set of zone cluster.
 			// Otherwise we would get wrong result for interface[user].[all].
 			var cluster *zone
-			var ipp netaddr.IPPrefix
+			var ipp netip.Prefix
 			clusterIdx := 0
 			for i, elt := range user {
 				if n, ok := elt.(*network); ok {

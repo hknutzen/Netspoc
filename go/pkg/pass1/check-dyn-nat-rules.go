@@ -1,7 +1,7 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"net/netip"
 	"sort"
 )
 
@@ -197,7 +197,7 @@ func (c *spoc) checkDynamicNatRules(
 			}
 
 			// Map is set, if object has static NAT in network with dyn. NAT.
-			var objNat map[string]netaddr.IP
+			var objNat map[string]netip.Addr
 			switch x := obj.(type) {
 			case *subnet:
 				objNat = x.nat

@@ -83,7 +83,7 @@ network:U = { ip = ::a01:100/120; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; }
+ interface:U = { ip = ::a01:101, ::a01:102; hardware = e0; }
  interface:N = { ip = ::a02:201; hardware = e1; }
 }
 network:N = { ip = ::a02:200/120; }
@@ -97,6 +97,7 @@ service:test = {
 ipv6 access-list e0_in
  deny ipv6 any host ::a01:101
  deny ipv6 any host ::a02:201
+ deny ipv6 any host ::a01:102
  permit tcp ::a01:100/120 any eq 80
  deny ipv6 any any
 =END=
@@ -243,14 +244,14 @@ network:U = { ip = ::a01:100/120; }
 router:R1 = {
  managed;
  model = IOS;
- interface:U = { ip = ::a01:101; hardware = e0; }
+ interface:U = { ip = ::a01:101, ::a01:102; hardware = e0; }
  interface:C = { ip = ::a09:901; hardware = e1; }
 }
 network:C = { ip = ::a09:900/125; crosslink; }
 router:R2 = {
  managed;
  model = IOS;
- interface:C = { ip = ::a09:902; hardware = e2; }
+ interface:C = { ip = ::a09:902, ::a09:903; hardware = e2; }
  interface:N = { ip = ::a02:201; hardware = e3; }
 }
 network:N = { ip = ::a02:200/120; }
@@ -266,8 +267,10 @@ service:test = {
 ipv6 access-list e0_in
  deny ipv6 any host ::a01:101
  deny ipv6 any host ::a09:901
+ deny ipv6 any host ::a01:102
  deny ipv6 any host ::a09:902
  deny ipv6 any host ::a02:201
+ deny ipv6 any host ::a09:903
  permit tcp ::a01:100/120 any eq 80
  deny ipv6 any any
 =END=

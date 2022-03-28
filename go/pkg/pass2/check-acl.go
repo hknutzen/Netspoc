@@ -108,10 +108,8 @@ func parsePackets(lines []string) []*packet {
 		case "tcp", "udp":
 			ext = checkNum(ext, 65536)
 		case "icmp":
-			i := strings.Index(ext, "/")
-			if i != -1 {
-				typ := ext[:i]
-				code := ext[i+1:]
+			typ, code, found := strings.Cut(ext, "/")
+			if found {
 				typ = checkNum(typ, 256)
 				code = checkNum(code, 256)
 				if typ == "" || code == "" {
@@ -192,8 +190,8 @@ func checkACL(path, acl string, packets []*packet) int {
 		} else {
 			action = "deny  "
 		}
-		ip1 := p.src.IP().String()
-		ip2 := p.dst.IP().String()
+		ip1 := p.src.Addr().String()
+		ip2 := p.dst.Addr().String()
 		prt := p.prt.name
 		fmt.Printf("%s %s %s %s\n", action, ip1, ip2, prt)
 	}

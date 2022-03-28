@@ -107,6 +107,7 @@ go/pkg/pass1/mark-disabled.go
 go/pkg/pass1/mark-managed-local.go
 go/pkg/pass1/mark-secondary-rules.go
 go/pkg/pass1/nat.go
+go/pkg/pass1/netip.go
 go/pkg/pass1/normalize-services.go
 go/pkg/pass1/order-protocols.go
 go/pkg/pass1/path-walk.go
@@ -137,6 +138,7 @@ go/pkg/rename/rename-netspoc.go
 go/pkg/scanner/comment.go
 go/pkg/scanner/scanner.go
 go/pkg/transposeservice/transpose-service.go
+go/staticcheck.conf
 go/test/capture/capture.go
 go/test/netspoc_test.go
 go/test/tstdata/testdata.go

@@ -124,7 +124,7 @@ Usage of PROGRAM:
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
       --debug_pass2 string
-      --ignore_files regexp                         (default ^(CVS|RCS|\.#.*|.*~)$)
+      --ignore_files regexp                         (default ^(CVS|RCS|.*~)$)
   -6, --ipv6
   -m, --max_errors int                              (default 10)
   -q, --quiet
@@ -180,6 +180,15 @@ network:n1 = { ip = 10.1.1.0/24; }
 Error: Can't mkdir code.tmp: permission denied
 Aborted
 =END=
+
+############################################################
+=TITLE=Must strip slash from out/ for path.Dir to work correctly
+=SETUP=
+mkdir out
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=PARAMS=out/
+=WARNING=NONE
 
 ############################################################
 =TITLE=Can't move out directory

@@ -1,7 +1,10 @@
 package pass1
 
 import (
-	"inet.af/netaddr"
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"net/netip"
 	"strings"
 )
 
@@ -9,6 +12,68 @@ import (
 // Convert hosts to subnets.
 // Mark subnet relation of subnets.
 //###################################################################
+
+// Convert an IP range to a set of covering netip.Prefix.
+func splitIpRange(rg ipRange) ([]netip.Prefix, error) {
+	lo, hi := rg.from, rg.to
+	var lb, hb []byte
+	var l, h uint64
+	var result []netip.Prefix
+	var allOnes uint64
+	var bitStart int
+	if lo.Is4() {
+		lb, hb = lo.AsSlice(), hi.AsSlice()
+		l = uint64(binary.BigEndian.Uint32(lb))
+		h = uint64(binary.BigEndian.Uint32(hb))
+		allOnes = 0xffffffff
+		bitStart = 0
+	} else {
+		lb, hb = lo.AsSlice(), hi.AsSlice()
+		if !bytes.Equal(lb[:8], hb[:8]) {
+			return result, fmt.Errorf(
+				"IP range doesn't fit into /64 network")
+		}
+		l, h = binary.BigEndian.Uint64(lb[8:]), binary.BigEndian.Uint64(hb[8:])
+		allOnes = 0xffffffffffffffff
+		bitStart = 64
+	}
+	if l > h {
+		return result, fmt.Errorf("Invalid IP range")
+	}
+	addNet := func(i uint64, bits int) {
+		var b []byte
+		if len(lb) == 4 {
+			b = make([]byte, 4)
+			binary.BigEndian.PutUint32(b, uint32(i))
+		} else {
+			b = make([]byte, 16)
+			copy(b, lb)
+			binary.BigEndian.PutUint64(b[8:], i)
+		}
+		ip, _ := netip.AddrFromSlice(b)
+		result = append(result, netip.PrefixFrom(ip, bits))
+	}
+
+IP:
+	for l <= h {
+		// 255.255.255.255, 127.255.255.255, ..., 0.0.0.3, 0.0.0.1, 0.0.0.0
+		invMask := allOnes
+		bits := bitStart
+		for {
+			if l&invMask == 0 {
+				end := l | invMask
+				if end <= h {
+					addNet(l, bits)
+					l = end + 1
+					continue IP
+				}
+			}
+			invMask >>= 1
+			bits++
+		}
+	}
+	return result, nil
+}
 
 func (c *spoc) checkHostCompatibility(obj, other *netObj) {
 	// This simple test is only valid as long as IP range has no NAT.
@@ -29,23 +94,23 @@ func (c *spoc) convertHosts() {
 			continue
 		}
 		ipv6 := n.ipV6
-		var bitstrLen uint8
+		var bitstrLen int
 		if ipv6 {
 			bitstrLen = 128
 		} else {
 			bitstrLen = 32
 		}
-		subnetAref := make([]map[netaddr.IP]*subnet, bitstrLen)
+		subnetAref := make([]map[netip.Addr]*subnet, bitstrLen)
 
 		// Converts hosts and ranges to subnets.
 		// Eliminate duplicate subnets.
 		for _, host := range n.hosts {
-			var nets []netaddr.IPPrefix
+			var nets []netip.Prefix
 			name := host.name
 			id := host.id
-			if !host.ip.IsZero() {
-				nets = []netaddr.IPPrefix{
-					netaddr.IPPrefixFrom(host.ip, getHostPrefix(ipv6))}
+			if host.ip.IsValid() {
+				nets = []netip.Prefix{
+					netip.PrefixFrom(host.ip, getHostPrefix(ipv6))}
 				if id != "" {
 					switch strings.Index(id, "@") {
 					case 0:
@@ -56,7 +121,14 @@ func (c *spoc) convertHosts() {
 				}
 			} else {
 				// Convert range.
-				l := host.ipRange.Prefixes()
+				l, err := splitIpRange(host.ipRange)
+				if err != nil {
+					c.err("%v in %s", err, name)
+					// Take first IP of range to prevent inherited errors.
+					l = []netip.Prefix{
+						netip.PrefixFrom(host.ipRange.from, getHostPrefix(ipv6))}
+
+				}
 				if id != "" {
 					if len(l) > 1 {
 						c.err("Range of %s with ID must expand to exactly one subnet",
@@ -75,11 +147,11 @@ func (c *spoc) convertHosts() {
 				subnetSize := bitstrLen - ipp.Bits()
 				ip2subnet := subnetAref[subnetSize]
 				if ip2subnet == nil {
-					ip2subnet = make(map[netaddr.IP]*subnet)
+					ip2subnet = make(map[netip.Addr]*subnet)
 					subnetAref[subnetSize] = ip2subnet
 				}
 
-				if other := ip2subnet[ipp.IP()]; other != nil {
+				if other := ip2subnet[ipp.Addr()]; other != nil {
 					c.checkHostCompatibility(&host.netObj, &other.netObj)
 					host.subnets = append(host.subnets, other)
 				} else {
@@ -93,7 +165,7 @@ func (c *spoc) convertHosts() {
 					s.ldapId = host.ldapId
 					s.radiusAttributes = host.radiusAttributes
 
-					ip2subnet[ipp.IP()] = s
+					ip2subnet[ipp.Addr()] = s
 					host.subnets = append(host.subnets, s)
 					n.subnets = append(n.subnets, s)
 				}
@@ -107,8 +179,8 @@ func (c *spoc) convertHosts() {
 			for ip, subnet := range ip2subnet {
 				// Search for enclosing subnet.
 				for j := i + 1; j < len(subnetAref); j++ {
-					net, _ := ip.Prefix(bitstrLen - uint8(j))
-					ip = net.IP()
+					net, _ := ip.Prefix(bitstrLen - j)
+					ip = net.Addr()
 					if up := subnetAref[j][ip]; up != nil {
 						subnet.up = up
 						c.checkHostCompatibility(&subnet.netObj, &up.netObj)
@@ -131,10 +203,10 @@ func (c *spoc) convertHosts() {
 			if ip2subnet == nil {
 				continue
 			}
-			size := bitstrLen - uint8(i)
+			size := bitstrLen - i
 
 			// Identify next supernet.
-			upSubnetSize := uint8(i + 1)
+			upSubnetSize := i + 1
 			upSize := bitstrLen - upSubnetSize
 
 			// left subnet  10.0.0.16/30
@@ -159,16 +231,15 @@ func (c *spoc) convertHosts() {
 				// where lowest network bit is zero.
 				net, _ := ip.Prefix(size)
 				upNet, _ := ip.Prefix(upSize)
-				if net.IP() != upNet.IP() {
+				if net.Addr() != upNet.Addr() {
 					continue
 				}
 
 				// Calculate IP of right part.
-				rg := s.ipp.Range()
-				nextIp := rg.To().Next()
+				nextIP := lastIP(s.ipp).Next()
 
 				// Find corresponding right part
-				neighbor := ip2subnet[nextIp]
+				neighbor := ip2subnet[nextIP]
 				if neighbor == nil {
 					continue
 				}
@@ -182,7 +253,7 @@ func (c *spoc) convertHosts() {
 					// Larger subnet is whole network.
 					up = n
 				} else {
-					if upSubnetSize < uint8(len(subnetAref)) {
+					if upSubnetSize < len(subnetAref) {
 						if upSub, ok := subnetAref[upSubnetSize][ip]; ok {
 							up = upSub
 						}
@@ -197,7 +268,7 @@ func (c *spoc) convertHosts() {
 						u.up = s.up
 						upIP2subnet := subnetAref[upSubnetSize]
 						if upIP2subnet == nil {
-							upIP2subnet = make(map[netaddr.IP]*subnet)
+							upIP2subnet = make(map[netip.Addr]*subnet)
 							subnetAref[upSubnetSize] = upIP2subnet
 						}
 						upIP2subnet[ip] = u
