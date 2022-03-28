@@ -79,7 +79,7 @@ network:U = { ip = 10.1.1.0/24; }
 router:R = {
  managed;
  model = IOS;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:U = { ip = 10.1.1.1, 10.1.1.2; hardware = e0; }
  interface:N = { ip = 10.2.2.1; hardware = e1; }
 }
 network:N = { ip = 10.2.2.0/24; }
@@ -93,6 +93,7 @@ service:test = {
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
  deny ip any host 10.2.2.1
+ deny ip any host 10.1.1.2
  permit tcp 10.1.1.0 0.0.0.255 any eq 80
  deny ip any any
 =END=
@@ -234,14 +235,14 @@ network:U = { ip = 10.1.1.0/24; }
 router:R1 = {
  managed;
  model = IOS;
- interface:U = { ip = 10.1.1.1; hardware = e0; }
+ interface:U = { ip = 10.1.1.1, 10.1.1.2; hardware = e0; }
  interface:C = { ip = 10.9.9.1; hardware = e1; }
 }
 network:C = { ip = 10.9.9.0/29; crosslink; }
 router:R2 = {
  managed;
  model = IOS;
- interface:C = { ip = 10.9.9.2; hardware = e2; }
+ interface:C = { ip = 10.9.9.2, 10.9.9.3; hardware = e2; }
  interface:N = { ip = 10.2.2.1; hardware = e3; }
 }
 network:N = { ip = 10.2.2.0/24; }
@@ -257,8 +258,10 @@ service:test = {
 ip access-list extended e0_in
  deny ip any host 10.1.1.1
  deny ip any host 10.9.9.1
+ deny ip any host 10.1.1.2
  deny ip any host 10.9.9.2
  deny ip any host 10.2.2.1
+ deny ip any host 10.9.9.3
  permit tcp 10.1.1.0 0.0.0.255 any eq 80
  deny ip any any
 =END=

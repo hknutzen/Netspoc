@@ -340,7 +340,8 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		var crosslinkIntfs intfList
 		for _, r2 := range cluster {
 			if crosslinkRouters[r2] {
-				crosslinkIntfs = append(crosslinkIntfs, r2.interfaces...)
+				crosslinkIntfs =
+					append(crosslinkIntfs, withSecondary(r2.interfaces)...)
 			}
 		}
 

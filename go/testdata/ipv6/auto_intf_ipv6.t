@@ -1,5 +1,50 @@
 
 ############################################################
+=TITLE=All interfaces at router at network with virtual and secondary interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = {
+  ip = ::a01:103, ::a01:104;
+  hardware = n1;
+  virtual = { ip = ::a01:101; }
+ }
+ interface:n2 = { ip = ::a01:203; hardware = n2; virtual = { ip = ::a01:201; } }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:102; hardware = n1; virtual = { ip = ::a01:101; } }
+ interface:n2 = { ip = ::a01:202; hardware = n2; virtual = { ip = ::a01:201; } }
+}
+network:n2 = { ip = ::a01:200/120; }
+
+service:s1 = {
+ user = interface:[interface:[managed & network:n1].[all]].[all];
+ permit src = network:n1; dst = user; prt = tcp 22;
+}
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:101 eq 22
+ permit tcp ::a01:100/120 host ::a01:104 eq 22
+ permit tcp ::a01:100/120 host ::a01:103 eq 22
+ permit tcp ::a01:100/120 host ::a01:201 eq 22
+ permit tcp ::a01:100/120 host ::a01:203 eq 22
+ deny ipv6 any any
+--ipv6/r2
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:101 eq 22
+ permit tcp ::a01:100/120 host ::a01:102 eq 22
+ permit tcp ::a01:100/120 host ::a01:201 eq 22
+ permit tcp ::a01:100/120 host ::a01:202 eq 22
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Auto interface of network
 =TEMPL=topo
 network:a = { ip = ::a00:0/120; }
