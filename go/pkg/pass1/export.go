@@ -826,7 +826,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 			if netOwner != nil {
 				outerOwners[netOwner] = true
 			}
-			for _, obj := range n.interfaces {
+			for _, obj := range withSecondary(n.interfaces) {
 				ow := obj.owner
 				outerForObj := make(map[*owner]bool)
 				r := obj.router
@@ -991,7 +991,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		for _, h := range net.hosts {
 			childs.push(h)
 		}
-		for _, i := range net.interfaces {
+		for _, i := range withSecondary(net.interfaces) {
 			childs.push(i)
 		}
 
