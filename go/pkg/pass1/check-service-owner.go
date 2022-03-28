@@ -62,7 +62,7 @@ func (c *spoc) propagateOwners() {
 		for _, host := range n.hosts {
 			inheritOwner(host)
 		}
-		for _, intf := range n.interfaces {
+		for _, intf := range withSecondary(n.interfaces) {
 			r := intf.router
 			if !(r.managed != "" || r.routingOnly) {
 				inheritOwner(intf)
