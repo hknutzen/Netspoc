@@ -16,10 +16,12 @@ any:[ip=10.1.0.0/16 & network:n1]	owner:o1
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 network:n1 = { ip = 10.1.1.0/25; subnet_of = network:n2; }
-network:n2 = { ip = 10.1.1.0/24; owner = o1; nat:n2 = { ip = 10.1.12.0/24; } }
+network:n2 = { ip = 10.1.1.0/24; owner = o1; }
 router:r1 = {
- interface:n1 = { bind_nat = n2; }
- interface:n2;
+ managed = routing_only;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.1.129; hardware = n2; }
 }
 =OUTPUT=
 network:n1	owner:o1
