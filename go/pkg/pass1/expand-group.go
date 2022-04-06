@@ -656,16 +656,23 @@ func (c *spoc) expandGroup1(
 				// in same visible context.
 				*elPtr = elements
 				result = append(result, elements...)
-			} else {
-
-				// Substitute aggregate by aggregate set of zone cluster.
-				if n, ok := obj.(*network); ok && n.isAggregate {
+			} else if n, ok := obj.(*network); ok {
+				if n.isAggregate {
+					// Substitute aggregate by aggregate set of zone cluster.
+					// Needed if zones of cluster are reached by different paths.
 					for _, z := range n.zone.cluster {
 						result.push(z.ipPrefix2aggregate[n.ipp])
 					}
 				} else {
 					result.push(obj)
+					// Add zones of zone cluster that have subnets of n.
+					for _, z := range n.hasSubnetInCluster {
+						c.duplicateAggregateToZone(n, z, true)
+						result.push(z.ipPrefix2aggregate[n.ipp])
+					}
 				}
+			} else {
+				result.push(obj)
 			}
 		}
 	}

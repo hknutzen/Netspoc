@@ -974,6 +974,56 @@ ipv6 access-list n3_in
 =END=
 
 ############################################################
+=TITLE=Test1
+=PARAMS=--ipv6
+=INPUT=
+any:10_1_0-23 = { link = network:n1; ip = ::a01:0/119; }
+network:n0 = { ip = ::a01:0/120; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+router:u = {
+ interface:n0;
+ interface:n1;
+ interface:n2;
+ interface:n3;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+}
+pathrestriction:p0 = interface:u.n0, interface:r2.n3;
+pathrestriction:p1 = interface:u.n1, interface:r1.n2;
+service:s1 = {
+ user = any:10_1_0-23;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=END=
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n2_in
+ deny ipv6 any host ::a01:401
+ permit tcp ::a01:0/119 ::a01:400/120 eq 80
+ deny ipv6 any any
+--ipv6/r2
+ipv6 access-list n3_in
+ deny ipv6 any host ::a01:402
+ permit tcp ::a01:0/119 ::a01:400/120 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Pathrestriction at both borders of loop
 =PARAMS=--ipv6
 =INPUT=

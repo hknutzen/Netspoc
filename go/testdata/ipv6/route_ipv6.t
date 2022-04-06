@@ -428,6 +428,194 @@ ip route add ::a01:100/120 via ::a09:202
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
+=TITLE=Must not optimize route to supernet in other part of zone cluster
+=TEMPL=topo
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+network:n6 = { ip = ::a01:580/121; subnet_of = network:n5; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = ::a01:203; hardware = n2; }
+ interface:n4 = { ip = ::a01:403; hardware = n4; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n4;
+}
+router:r5 = {
+ interface:n3;
+ interface:n5;
+}
+router:r6 = {
+ interface:n4;
+ interface:n6;
+}
+pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
+pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
+=PARAMS=--ipv6
+=INPUT=
+# Would create ambiguous route vor n5 if added as maxRoutingNet for n6.
+[[topo]]
+service:s1 = {
+ user = network:n5, network:n6;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:500/120 ::a01:202
+ipv6 route n2 ::a01:580/121 ::a01:203
+=OPTIONS=--check_redundant_rules=0
+
+############################################################
+=TITLE=Add route for subnet with different path than supernet
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n5;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:500/120 ::a01:202
+ipv6 route n2 ::a01:580/121 ::a01:203
+--ipv6/r3
+! n2_in
+access-list n2_in extended permit tcp ::a01:100/120 ::a01:500/120 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Add route for subnet with different path
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+any:00 = { link = network:n3; }
+service:s1 = {
+ user = network:[any:00];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:300/120 ::a01:202
+ipv6 route n2 ::a01:500/120 ::a01:202
+ipv6 route n2 ::a01:580/121 ::a01:203
+ipv6 route n2 ::a01:400/120 ::a01:203
+--ipv6/r2
+! n2_in
+object-group network v6g0
+ network-object ::a01:300/120
+ network-object ::a01:500/120
+access-list n2_in extended permit tcp ::a01:100/120 object-group v6g0 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+--ipv6/r3
+! n2_in
+object-group network v6g0
+ network-object ::a01:400/120
+ network-object ::a01:580/121
+access-list n2_in extended permit tcp ::a01:100/120 object-group v6g0 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+=OPTIONS=--auto_default_route=0
+
+############################################################
+=TITLE=Add routes for all subnets of aggregate having IP of supernet
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = any:[ip = ::a01:500/120 & network:n6];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:500/120 ::a01:202
+ipv6 route n2 ::a01:580/121 ::a01:203
+=END=
+
+############################################################
+=TITLE=Add routes for all subnets of aggregate
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/121; }
+network:n6 = { ip = ::a01:580/121; }
+any:n5 = { ip = ::a01:500/120; link = network:n5; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = ::a01:203; hardware = n2; }
+ interface:n4 = { ip = ::a01:403; hardware = n4; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n4;
+}
+router:r5 = {
+ interface:n3;
+ interface:n5;
+}
+router:r6 = {
+ interface:n4;
+ interface:n6;
+}
+pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
+pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
+service:s1 = {
+ user = any:n5;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::a01:500/121 ::a01:202
+ipv6 route n2 ::a01:580/121 ::a01:203
+=END=
+
+############################################################
 =TITLE=Check NAT when finding largest supernet for route.
 =PARAMS=--ipv6
 =INPUT=

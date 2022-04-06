@@ -416,6 +416,189 @@ ip route add 10.1.1.0/24 via 10.9.2.2
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
+=TITLE=Must not optimize route to supernet in other part of zone cluster
+=TEMPL=topo
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.5.128/25; subnet_of = network:n5; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n4;
+}
+router:r5 = {
+ interface:n3;
+ interface:n5;
+}
+router:r6 = {
+ interface:n4;
+ interface:n6;
+}
+pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
+pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
+=INPUT=
+# Would create ambiguous route vor n5 if added as maxRoutingNet for n6.
+[[topo]]
+service:s1 = {
+ user = network:n5, network:n6;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.5.0 255.255.255.0 10.1.2.2
+route n2 10.1.5.128 255.255.255.128 10.1.2.3
+=OPTIONS=--check_redundant_rules=0
+
+############################################################
+=TITLE=Add route for subnet with different path than supernet
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n5;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.5.0 255.255.255.0 10.1.2.2
+route n2 10.1.5.128 255.255.255.128 10.1.2.3
+--r3
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.5.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=END=
+
+############################################################
+=TITLE=Add route for subnet with different path
+=INPUT=
+[[topo]]
+any:00 = { link = network:n3; }
+service:s1 = {
+ user = network:[any:00];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.3.0 255.255.255.0 10.1.2.2
+route n2 10.1.5.0 255.255.255.0 10.1.2.2
+route n2 10.1.5.128 255.255.255.128 10.1.2.3
+route n2 10.1.4.0 255.255.255.0 10.1.2.3
+--r2
+! n2_in
+object-group network g0
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.5.0 255.255.255.0
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--r3
+! n2_in
+object-group network g0
+ network-object 10.1.4.0 255.255.255.0
+ network-object 10.1.5.128 255.255.255.128
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 object-group g0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+=OPTIONS=--auto_default_route=0
+
+############################################################
+=TITLE=Add routes for all subnets of aggregate having IP of supernet
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = any:[ip = 10.1.5.0/24 & network:n6];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.5.0 255.255.255.0 10.1.2.2
+route n2 10.1.5.128 255.255.255.128 10.1.2.3
+=END=
+
+############################################################
+=TITLE=Add routes for all subnets of aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/25; }
+network:n6 = { ip = 10.1.5.128/25; }
+any:n5 = { ip = 10.1.5.0/24; link = network:n5; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+router:r3 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.3; hardware = n2; }
+ interface:n4 = { ip = 10.1.4.3; hardware = n4; }
+}
+router:r4 = {
+ interface:n3;
+ interface:n4;
+}
+router:r5 = {
+ interface:n3;
+ interface:n5;
+}
+router:r6 = {
+ interface:n4;
+ interface:n6;
+}
+pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
+pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
+service:s1 = {
+ user = any:n5;
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 10.1.5.0 255.255.255.128 10.1.2.2
+route n2 10.1.5.128 255.255.255.128 10.1.2.3
+=END=
+
+############################################################
 =TITLE=Check NAT when finding largest supernet for route.
 =INPUT=
 network:src = { ip = 10.1.1.0/24; }
