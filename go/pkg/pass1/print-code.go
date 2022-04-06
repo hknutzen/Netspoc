@@ -549,19 +549,20 @@ var asaVpnAttributes = map[string]int{
 	"trust-point":              ownAttr,
 
 	// group-policy attributes
-	"anyconnect-custom_perapp": groupPolicy,
-	"banner":                   groupPolicy,
-	"dns-server":               groupPolicy,
-	"default-domain":           groupPolicy,
-	"group-lock":               groupPolicy,
-	"split-dns":                groupPolicy,
-	"wins-server":              groupPolicy,
-	"vpn-access-hours":         groupPolicy,
-	"vpn-idle-timeout":         groupPolicy,
-	"vpn-session-timeout":      groupPolicy,
-	"vpn-simultaneous-logins":  groupPolicy,
-	"vlan":                     groupPolicy,
-	"split-tunnel-policy":      groupPolicy,
+	"anyconnect-custom_dynamic-split-exclude-domains": groupPolicy,
+	"anyconnect-custom_perapp":                        groupPolicy,
+	"banner":                                          groupPolicy,
+	"dns-server":                                      groupPolicy,
+	"default-domain":                                  groupPolicy,
+	"group-lock":                                      groupPolicy,
+	"split-dns":                                       groupPolicy,
+	"wins-server":                                     groupPolicy,
+	"vpn-access-hours":                                groupPolicy,
+	"vpn-idle-timeout":                                groupPolicy,
+	"vpn-session-timeout":                             groupPolicy,
+	"vpn-simultaneous-logins":                         groupPolicy,
+	"vlan":                                            groupPolicy,
+	"split-tunnel-policy":                             groupPolicy,
 
 	// tunnel-group general-attributes
 	"authentication-server-group":                 tgGeneral,
@@ -572,16 +573,17 @@ var asaVpnAttributes = map[string]int{
 }
 
 var asaVpnAttrNeedValue = map[string]bool{
-	"anyconnect-custom_perapp":  true,
-	"banner":                    true,
-	"dns-server":                true,
-	"default-domain":            true,
-	"group-lock":                true,
-	"split-dns":                 true,
-	"wins-server":               true,
-	"address-pools":             true,
-	"split-tunnel-network-list": true,
-	"vpn-filter":                true,
+	"anyconnect-custom_dynamic-split-exclude-domains": true,
+	"anyconnect-custom_perapp":                        true,
+	"banner":                                          true,
+	"dns-server":                                      true,
+	"default-domain":                                  true,
+	"group-lock":                                      true,
+	"split-dns":                                       true,
+	"wins-server":                                     true,
+	"address-pools":                                   true,
+	"split-tunnel-network-list":                       true,
+	"vpn-filter":                                      true,
 }
 
 func (c *spoc) printAsavpn(fh *os.File, r *router) {

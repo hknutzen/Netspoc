@@ -1170,7 +1170,10 @@ network:customers1 = {
  }
  host:id:baz@domain.x = {
   ip = 10.99.1.12;
-  radius_attributes = { anyconnect-custom_perapp = SomeName; }
+  radius_attributes = { anyconnect-custom_perapp = SomeName;
+                        anyconnect-custom_dynamic-split-exclude-domains =
+                        a.dom b.dom c.sub.dom;
+  }
  }
  host:id:unused@domain.x = {
   ip = 10.99.1.254;
@@ -1316,6 +1319,7 @@ access-list vpn-filter-baz@domain.x extended permit ip host 10.99.1.12 any4
 access-list vpn-filter-baz@domain.x extended deny ip any4 any4
 group-policy VPN-group-baz@domain.x internal
 group-policy VPN-group-baz@domain.x attributes
+ anyconnect-custom dynamic-split-exclude-domains value a.dom b.dom c.sub.dom
  anyconnect-custom perapp value SomeName
  banner value Willkommen
 username baz@domain.x nopassword
@@ -1534,6 +1538,7 @@ access-list vpn-filter-baz@domain.x extended permit ip host 10.99.1.12 any4
 access-list vpn-filter-baz@domain.x extended deny ip any4 any4
 group-policy VPN-group-baz@domain.x internal
 group-policy VPN-group-baz@domain.x attributes
+ anyconnect-custom dynamic-split-exclude-domains value a.dom b.dom c.sub.dom
  anyconnect-custom perapp value SomeName
  banner value Willkommen
 username baz@domain.x nopassword
