@@ -1,5 +1,22 @@
 {{$NEXT}}
 
+6.043     2022-04-07 15:05:24+02:00 Europe/Berlin
+
+ - New radius-attribute
+   "anyconnect-custom_dynamic-split-exclude-domains = dom ..."
+   generates "anyconnect-custom dynamic-split-exclude-domains value dom ..."
+   in group-policy attributes.
+ - If a network N with IP/prefix inside a zone cluster with pathrestrictions
+   has subnets in the same zone cluster, but inside a different zone
+   and N is used in a rule,
+   this rule is extended with aggregates any:[ip = IP/prefix & ...]
+   for each zone with some subnet of N.
+   This is needed to get access-lists and static routes
+   generated for all subnets of N in zone cluster.
+ - Fixed subnet relation in zone if it is different from zone cluster.
+ - Fixed owner of secondary interface at managed router.
+ - Fixed missing secondary interfaces in export.
+
 6.042     2022-03-28 10:06:57+02:00 Europe/Berlin
 
  - Attribute "subnet_of" at NAT definition is inherited now
