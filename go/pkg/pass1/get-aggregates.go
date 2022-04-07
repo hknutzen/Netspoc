@@ -177,6 +177,41 @@ func propagateOwnerToAggregates(agg *network) {
 	}
 }
 
+func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
+	if z.ipPrefix2aggregate[agg.ipp] != nil {
+		return
+	}
+
+	// debug("Dupl. %s to %s", agg, to z)
+
+	// Create new aggregate object for every zone inside the cluster
+	agg2 := new(network)
+	agg2.name = agg.name
+	agg2.isAggregate = true
+	agg2.ipp = agg.ipp
+	agg2.invisible = agg.invisible
+	agg2.owner = agg.owner
+	agg2.attr = agg.attr
+
+	// Create copy of NAT map for zones in cluster.
+	// If same map is used, NAT tags inherited from area would be
+	// added multiple times for each cluster element.
+	if nat := agg.nat; nat != nil {
+		cpy := make(map[string]*network, len(nat))
+		for tag, n := range nat {
+			cpy[tag] = n
+		}
+		agg2.nat = cpy
+	}
+
+	// Link new aggregate object and cluster
+	if implicit {
+		c.linkImplicitAggregateToZone(agg2, z, agg.ipp)
+	} else {
+		c.linkAggregateToZone(agg2, z, agg.ipp)
+	}
+}
+
 //#############################################################################
 // Purpose  : Create an aggregate object for every zone inside the zones cluster
 //            containing the aggregates link-network.
@@ -189,42 +224,10 @@ func propagateOwnerToAggregates(agg *network) {
 //            e.g. a network with ip/mask 0/0. ??
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	cluster := agg.zone.cluster
-	ipp := agg.ipp
 
 	// Process every zone of the zone cluster
 	for _, z := range cluster {
-		if z.ipPrefix2aggregate[ipp] != nil {
-			continue
-		}
-
-		// debug("Dupl. %s to %s", agg, to z)
-
-		// Create new aggregate object for every zone inside the cluster
-		agg2 := new(network)
-		agg2.name = agg.name
-		agg2.isAggregate = true
-		agg2.ipp = agg.ipp
-		agg2.invisible = agg.invisible
-		agg2.owner = agg.owner
-		agg2.attr = agg.attr
-
-		// Create copy of NAT map for zones in cluster.
-		// If same map is used, NAT tags inherited from area would be
-		// added multiple times for each cluster element.
-		if nat := agg.nat; nat != nil {
-			cpy := make(map[string]*network, len(nat))
-			for tag, n := range nat {
-				cpy[tag] = n
-			}
-			agg2.nat = cpy
-		}
-
-		// Link new aggregate object and cluster
-		if implicit {
-			c.linkImplicitAggregateToZone(agg2, z, ipp)
-		} else {
-			c.linkAggregateToZone(agg2, z, ipp)
-		}
+		c.duplicateAggregateToZone(agg, z, implicit)
 	}
 	if implicit {
 		propagateOwnerToAggregates(agg)

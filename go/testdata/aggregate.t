@@ -2122,6 +2122,18 @@ Warning: This supernet rule would permit unexpected access:
  Either replace network:n1 by smaller networks that are not supernet
  or add above-mentioned networks to src of rule.
 Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=network:n4; prt=ip; of service:s1
+ Generated ACL at interface:r2.n3 would permit access from additional networks:
+ - network:n3
+ Either replace network:n1 by smaller networks that are not supernet
+ or add above-mentioned networks to src of rule.
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n4; dst=network:n1; prt=ip; of service:s1
+ Generated ACL at interface:r2.n4 would permit access to additional networks:
+ - network:n3
+ Either replace network:n1 by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule.
+Warning: This supernet rule would permit unexpected access:
   permit src=network:n4; dst=network:n1; prt=ip; of service:s1
  Generated ACL at interface:r2.n4 would permit access to additional networks:
  - network:n3

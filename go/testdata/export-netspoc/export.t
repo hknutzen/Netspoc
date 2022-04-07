@@ -2458,6 +2458,130 @@ service:s1 = {
 =END=
 
 ############################################################
+=TITLE=Managed interface with secondary addresses
+=INPUT=
+owner:all = { admins = all@example.com; }
+owner:nms = { admins = nms@example.com; }
+network:n1 = { ip = 10.1.1.0/24; owner = all; }
+network:n2 = { ip = 10.1.2.0/24; owner = all; }
+router:r1 = {
+ managed;
+ model = IOS;
+ owner = nms;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {
+  ip = 10.1.2.1, 10.1.2.2, 10.1.2.3;
+  secondary:backup = { ip = 10.1.2.4; }
+  hardware = n2;
+ }
+}
+router:r2 = {
+ interface:n2 = {
+  ip = 10.1.2.5, 10.1.2.6;
+  secondary:backup = { ip = 10.1.2.7; }
+ }
+}
+service:s1 = {
+ user = interface:[network:n2].[all];
+ permit src = network:n1; dst = user; prt = icmp 8;
+}
+=END=
+=OUTPUT=
+--objects
+{
+ "interface:r1.n1": {
+  "ip": "10.1.1.1",
+  "owner": "nms"
+ },
+ "interface:r1.n2": {
+  "ip": "10.1.2.1",
+  "owner": "nms"
+ },
+ "interface:r1.n2.2": {
+  "ip": "10.1.2.2",
+  "owner": "nms"
+ },
+ "interface:r1.n2.3": {
+  "ip": "10.1.2.3",
+  "owner": "nms"
+ },
+ "interface:r1.n2.backup": {
+  "ip": "10.1.2.4",
+  "owner": "nms"
+ },
+ "interface:r2.n2": {
+  "ip": "10.1.2.5",
+  "owner": "all"
+ },
+ "interface:r2.n2.2": {
+  "ip": "10.1.2.6",
+  "owner": "all"
+ },
+ "interface:r2.n2.backup": {
+  "ip": "10.1.2.7",
+  "owner": "all"
+ },
+ "network:n1": {
+  "ip": "10.1.1.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n1]"
+ },
+ "network:n2": {
+  "ip": "10.1.2.0/255.255.255.0",
+  "owner": "all",
+  "zone": "any:[network:n2]"
+ }
+}
+--owner/all/assets
+{
+ "anys": {
+  "any:[network:n1]": {
+   "networks": {
+    "network:n1": [
+     "interface:r1.n1"
+    ]
+   }
+  },
+  "any:[network:n2]": {
+   "networks": {
+    "network:n2": [
+     "interface:r1.n2",
+     "interface:r1.n2.2",
+     "interface:r1.n2.3",
+     "interface:r1.n2.backup",
+     "interface:r2.n2",
+     "interface:r2.n2.2",
+     "interface:r2.n2.backup"
+    ]
+   }
+  }
+ }
+}
+--owner/all/users
+{
+ "s1": [
+  "interface:r1.n2",
+  "interface:r1.n2.2",
+  "interface:r1.n2.3",
+  "interface:r1.n2.backup",
+  "interface:r2.n2",
+  "interface:r2.n2.2",
+  "interface:r2.n2.backup"
+
+ ]
+}
+--owner/nms/users
+{
+ "s1": [
+  "interface:r1.n2",
+  "interface:r1.n2.2",
+  "interface:r1.n2.3",
+  "interface:r1.n2.backup"
+ ]
+}
+=END=
+
+############################################################
 =TITLE=Host range
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { range = 10.1.1.10-10.1.1.17; } }

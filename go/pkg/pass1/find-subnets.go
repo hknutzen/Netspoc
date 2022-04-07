@@ -161,6 +161,7 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 func updateSubnetRelation0(z *zone) {
 	prefixIPMap := make(map[int]map[netip.Addr]*network)
 	add := func(n *network) {
+		n.up = nil // reset previous value of .up relation
 		ipp := n.ipp
 		ipMap := prefixIPMap[ipp.Bits()]
 		if ipMap == nil {

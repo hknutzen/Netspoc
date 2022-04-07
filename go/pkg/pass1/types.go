@@ -171,6 +171,7 @@ type network struct {
 	subnetOf             *network
 	subnetOfUsed         bool
 	subnets              []*subnet
+	hasSubnetInCluster   []*zone
 	unstableNat          map[*natDomain]netList
 	up                   *network
 	zone                 *zone

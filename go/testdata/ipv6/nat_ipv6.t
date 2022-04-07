@@ -4370,6 +4370,7 @@ router:r2 = {
 network:n1 = {
  ip = ::a01:100/120;
  nat:h1 = { hidden; }
+ nat:h2 = { identity; }
  subnet_of = network:n2;
 }
 network:n2 = {

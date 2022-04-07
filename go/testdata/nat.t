@@ -4241,6 +4241,7 @@ router:r2 = {
 network:n1 = {
  ip = 10.1.1.0/24;
  nat:h1 = { hidden; }
+ nat:h2 = { identity; }
  subnet_of = network:n2;
 }
 network:n2 = {

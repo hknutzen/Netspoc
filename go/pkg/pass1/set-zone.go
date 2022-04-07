@@ -21,6 +21,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.findSubnetsInZoneCluster()
 	c.inheritAttributes()
 	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
+	c.markSubnetsInZoneCluster()
 	c.updateSubnetRelation()
 	return objInArea // For use in cut-netspoc
 }
@@ -1008,4 +1009,33 @@ func (c *spoc) checkReroutePermit() {
 			}
 		}
 	}
+}
+
+func (c *spoc) markSubnetsInZoneCluster() {
+	for _, z := range c.allZones {
+		if len(z.cluster) == 1 {
+			continue
+		}
+		for _, n := range z.networks {
+			for big := n.up; big != nil; big = big.up {
+				if !big.isAggregate {
+					if big.zone == n.zone {
+						break
+					}
+					addZone(&big.hasSubnetInCluster, z)
+				}
+			}
+		}
+	}
+}
+
+// Add new zone to list.  List is typically short, because we have
+// only a few subnets in zone cluster, so need to use a map for lookup.
+func addZone(l *[]*zone, z *zone) {
+	for _, z2 := range *l {
+		if z2 == z {
+			return
+		}
+	}
+	*l = append(*l, z)
 }
