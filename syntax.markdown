@@ -294,7 +294,6 @@ here `<object set>` must expand to networks.
          [ disabled;                  ]
          [ multi_owner;               ]
          [ unknown_owner;             ]
-         [ sub_owner = <name>;        ]
          [ has_unenforceable;         ]
          [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
