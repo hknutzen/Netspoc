@@ -948,7 +948,7 @@ func (c *spoc) exportNatSet(dir string,
 
 //###################################################################
 // Export hosts, networks and zones (represented by aggregate 0/0) for
-// each owner and sub_owner.
+// each owner.
 //###################################################################
 
 // Parameter 'networks' only contains toplevel networks.
@@ -1125,7 +1125,6 @@ func (c *spoc) exportServices(dir string, list []*exportedSvc) {
 			}
 		}
 		add("description", s.description)
-		add("sub_owner", s.subOwner)
 		add("disable_at", s.disableAt)
 		if s.disabled {
 			details["disabled"] = 1

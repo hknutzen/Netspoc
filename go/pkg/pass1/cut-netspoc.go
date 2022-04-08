@@ -1020,10 +1020,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 			case "pathrestriction":
 				top = name2pathrestriction[typedName]
 			}
-		case *ast.Service:
-			if !keepOwner {
-				removeAttr(&x.Attributes, "sub_owner")
-			}
 		}
 		active = append(active, top)
 	}

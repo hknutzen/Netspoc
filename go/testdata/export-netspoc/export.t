@@ -772,7 +772,8 @@ service:s3 = {
 =TITLE=Aggregates and networks in zone cluster
 # Checks deterministic values of attribute zone of aggregates.
 =INPUT=
-network:n1 = { ip = 10.1.54.0/24;}
+owner:o = { admins = o@b.c; }
+network:n1 = { ip = 10.1.54.0/24; owner = o; }
 router:asa = {
  model = ASA;
  managed;
@@ -813,9 +814,7 @@ pathrestriction:r1 =
 pathrestriction:r2 =
  interface:r2.t2, interface:r2.c2
 ;
-owner:o = { admins = o@b.c; }
 service:test = {
- sub_owner = o;
  user = any:[ip=10.140.0.0/16 & network:t1],
     any:[ip=10.140.0.0/16 & network:t2],
  ;
@@ -837,8 +836,12 @@ service:test = {
   "is_supernet": 1,
   "zone": "any:[network:t2]"
  },
+ "interface:asa.n1": {
+  "ip": "10.1.54.163"
+ },
  "network:n1": {
   "ip": "10.1.54.0/255.255.255.0",
+  "owner": "o",
   "zone": "any:[network:n1]"
  }
 }

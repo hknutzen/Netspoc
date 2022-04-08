@@ -33,11 +33,9 @@ var globalType = map[string]bool{
 }
 
 // NAT is applied with bind_nat.
-// Owner is optionally referenced as sub_owner.
 // Interface definition uses network name.
 var alias = map[string]string{
 	"nat":     "bind_nat",
-	"owner":   "sub_owner",
 	"network": "interface",
 }
 

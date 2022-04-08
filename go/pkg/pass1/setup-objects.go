@@ -1961,8 +1961,6 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 	}
 	for _, a := range v.Attributes {
 		switch a.Name {
-		case "sub_owner":
-			sv.subOwner = c.getRealOwnerRef(a, s, name)
 		case "identical_body":
 			sv.identicalBody =
 				c.tryServiceRefList(a, s, "attribute 'identical_body' of "+name)
