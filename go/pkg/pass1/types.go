@@ -363,7 +363,6 @@ type routerIntf struct {
 	loop            *loop
 	loopback        bool
 	loopEntryZone   map[pathStore]pathStore
-	loopZoneBorder  bool
 	mainIntf        *routerIntf
 	natMap          natMap
 	noCheck         bool

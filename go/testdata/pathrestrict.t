@@ -483,6 +483,58 @@ Warning: Ignoring pathrestriction:p having elements from different loops:
 =END=
 
 ############################################################
+=TITLE=Pathrestriction located in different loops (3)
+# Ignored pathrestriction at unmanaged router at zone in loop
+# was not handled correctly, leading to panic.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+router:r0 = {
+ interface:n1 = { ip = 10.1.1.3; }
+ interface:n3 = { ip = 10.1.3.3; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+}
+
+pathrestriction:p = interface:r1.n1, interface:r0.n3;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: Ignoring pathrestriction:p having elements from different loops:
+ - interface:r1.n1
+ - interface:r0.n3
+=END=
+
+############################################################
 =TITLE=Pathrestriction at non-loop node
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

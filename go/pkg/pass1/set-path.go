@@ -395,15 +395,6 @@ func (c *spoc) checkPathrestrictions() {
 			continue
 		}
 
-		// Mark pathrestricted interface at border of loop, where loop
-		// node is a zone.
-		// This needs special handling during pathMark and pathWalk.
-		for _, intf := range p.elements {
-			if intf.loop == nil && intf.zone.loop != nil {
-				intf.loopZoneBorder = true
-			}
-		}
-
 		if pathrestrictionHasNoEffect(p) {
 			c.warn("Useless %s.\n All interfaces are unmanaged and located "+
 				"inside the same security zone", p.name)

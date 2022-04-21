@@ -621,7 +621,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 				*obj = x.router
 			} else {
 				*borderIntf = x
-				if x.loopZoneBorder {
+				if x.zone.loop != nil {
 					*obj = x.zone
 				} else {
 					*obj = x.router
@@ -782,7 +782,7 @@ func connectClusterPath(
 		// Path starts at border of current loop at zone node.
 		// Pathrestriction must not be activated, hence use zone as
 		// startStore.
-		if fromStoreIntf.loopZoneBorder {
+		if fromStoreIntf.loop == nil && fromStoreIntf.zone.loop != nil {
 			startStore = fromStoreIntf.zone
 			startAtZone = true
 		} else {
@@ -806,7 +806,7 @@ func connectClusterPath(
 
 	// Set endStore with same logic that is used for startStore.
 	if toOut == nil && toStoreIsIntf {
-		if toStoreIntf.loopZoneBorder {
+		if toStoreIntf.loop == nil && toStoreIntf.zone.loop != nil {
 			endStore = toStoreIntf.zone
 
 			// Path ends at interface of zone at border of loop.
