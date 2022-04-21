@@ -17,7 +17,6 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.checkAreaSubsetRelations(objInArea)
 	c.processAggregates()
 	c.checkReroutePermit()
-	c.checkAttrNoCheckSupernetRules()
 	c.findSubnetsInZoneCluster()
 	c.inheritAttributes()
 	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
@@ -702,6 +701,7 @@ func (c *spoc) processAggregates() {
 			if agg.noCheckSupernetRules {
 				for _, z2 := range cluster {
 					z2.noCheckSupernetRules = true
+					c.checkAttrNoCheckSupernetRules(z2)
 				}
 			}
 		}
@@ -713,6 +713,22 @@ func (c *spoc) processAggregates() {
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggInCluster {
 		c.duplicateAggregateToCluster(agg, false)
+	}
+}
+
+func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
+	var errList netList
+	// z.networks currently contains all networks of zone,
+	// subnets are discared later in findSubnetsInZone.
+	for _, n := range z.networks {
+		if len(n.hosts) > 0 {
+			errList.push(n)
+		}
+	}
+	if errList != nil {
+		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+			" with networks having host definitions:\n%s",
+			z, errList.nameList())
 	}
 }
 
@@ -973,26 +989,6 @@ func (c *spoc) cleanupAfterInheritance() {
 		}
 		if len(m) == 0 {
 			n.nat = nil
-		}
-	}
-}
-
-func (c *spoc) checkAttrNoCheckSupernetRules() {
-	for _, z := range c.allZones {
-		if z.noCheckSupernetRules {
-			var errList netList
-			// z.networks currently contains all networks of zone,
-			// subnets are discared later in findSubnetsInZone.
-			for _, n := range z.networks {
-				if len(n.hosts) > 0 {
-					errList.push(n)
-				}
-			}
-			if errList != nil {
-				c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
-					" with networks having host definitions:\n%s",
-					z, errList.nameList())
-			}
 		}
 	}
 }
