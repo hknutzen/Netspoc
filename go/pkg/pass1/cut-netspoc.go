@@ -31,7 +31,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzengooglemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -875,11 +875,6 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	}
 	for _, r := range c.allRouters {
 		markRouter(r)
-	}
-	if keepOwner {
-		for _, sv := range c.ascendingServices {
-			markOwner(sv.subOwner)
-		}
 	}
 
 	// Source of pathrestrictions can't be used literally,

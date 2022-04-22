@@ -256,15 +256,6 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				}
 			}
 
-			// Check for redundant service owner.
-			// Allow dedicated service owner, if we have multiple owners
-			// from objects of rule.
-			if subOwner := svc.subOwner; subOwner != nil {
-				if len(ownerSeen) == 1 && ownerSeen[subOwner] {
-					c.warn("Useless %s at %s", subOwner, svc)
-				}
-			}
-
 			// Check for multiple owners.
 			hasMulti := !info.isCoupling && len(svc.owners) > 1
 			if svc.multiOwner {

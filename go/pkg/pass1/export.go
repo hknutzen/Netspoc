@@ -388,7 +388,6 @@ type exportedSvc struct {
 	owners       []string
 	partOwners   []string
 	partUowners  []string
-	subOwner     string
 	uowners      []string
 	visible      string
 }
@@ -562,9 +561,6 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 				user:        userList,
 				objMap:      objMap,
 				jsonRules:   jsonRules,
-			}
-			if sv.subOwner != nil {
-				newService.subOwner = sv.subOwner.name[len("owner:"):]
 			}
 			if rulesKey != "" {
 				splitParts[rulesKey] = newService
@@ -1160,9 +1156,6 @@ func (c *spoc) exportUsersAndServiceLists(
 		}
 		add := func(l stringList, typ string) {
 			addChk(l, typ, func(o string) bool { return true })
-		}
-		if ow := s.subOwner; ow != "" {
-			add(stringList{ow}, "owner")
 		}
 		add(s.owners, "owner")
 		add(s.partOwners, "owner")

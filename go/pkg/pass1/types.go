@@ -621,7 +621,6 @@ type service struct {
 	seenEnforceable            bool
 	seenUnenforceable          bool
 	unenforceableMap           map[objPair]bool
-	subOwner                   *owner
 	unknownOwner               bool
 	user                       []ast.Element
 	expandedUser               groupObjList
