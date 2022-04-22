@@ -1005,17 +1005,19 @@ ip access-list extended n3_in
 =END=
 
 ############################################################
-=TITLE=Test1
+=TITLE=Add aggregates and networks from all zones of cluster
 =INPUT=
-any:10_1_0-23 = { link = network:n1; ip = 10.1.0.0/23; }
-network:n0 = { ip = 10.1.0.0/24; }
-network:n1 = { ip = 10.1.1.0/24; }
+any:10_1_0-24 = { link = network:n1; ip = 10.1.0.0/24; }
+network:big = { ip = 10.1.0.0/23; has_subnets; }
+network:n0 = { ip = 10.1.0.0/25; }
+network:n1 = { ip = 10.1.0.128/25; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
-router:u = {
+router:u1 = {
  interface:n0;
  interface:n1;
+ interface:big;
  interface:n2;
  interface:n3;
 }
@@ -1033,23 +1035,30 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
-pathrestriction:p0 = interface:u.n0, interface:r2.n3;
-pathrestriction:p1 = interface:u.n1, interface:r1.n2;
+pathrestriction:p0 = interface:u1.n0, interface:r2.n3;
+pathrestriction:p1 = interface:u1.n1, interface:r1.n2;
+pathrestriction:p2 = interface:u1.big, interface:u1.n2;
 service:s1 = {
- user = any:10_1_0-23;
+ user = any:10_1_0-24;
  permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s2 = {
+ user = network:big;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
 =END=
 =OUTPUT=
 --r1
 ip access-list extended n2_in
  deny ip any host 10.1.4.1
- permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 80
+ permit tcp 10.1.0.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 80
+ permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 81
  deny ip any any
 --r2
 ip access-list extended n3_in
  deny ip any host 10.1.4.2
- permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 80
+ permit tcp 10.1.0.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 80
+ permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 81
  deny ip any any
 =END=
 
