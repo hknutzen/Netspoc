@@ -1009,17 +1009,22 @@ ip access-list extended n3_in
 =INPUT=
 any:10_1_0-24 = { link = network:n1; ip = 10.1.0.0/24; }
 network:big = { ip = 10.1.0.0/23; has_subnets; }
-network:n0 = { ip = 10.1.0.0/25; }
-network:n1 = { ip = 10.1.0.128/25; }
+network:n0a = { ip = 10.1.0.0/25; }
+network:n0b = { ip = 10.1.0.128/25; }
+network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
 router:u1 = {
- interface:n0;
- interface:n1;
+ interface:n0a;
+ interface:n0b;
  interface:big;
  interface:n2;
  interface:n3;
+}
+router:u2 = {
+ interface:n0a;
+ interface:n1;
 }
 router:r1 = {
  managed;
@@ -1035,8 +1040,8 @@ router:r2 = {
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
  interface:n4 = { ip = 10.1.4.2; hardware = n4; }
 }
-pathrestriction:p0 = interface:u1.n0, interface:r2.n3;
-pathrestriction:p1 = interface:u1.n1, interface:r1.n2;
+pathrestriction:p0 = interface:u1.n0a, interface:r2.n3;
+pathrestriction:p1 = interface:u1.n0b, interface:r1.n2;
 pathrestriction:p2 = interface:u1.big, interface:u1.n2;
 service:s1 = {
  user = any:10_1_0-24;
