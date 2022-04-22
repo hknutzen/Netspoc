@@ -1026,7 +1026,7 @@ func (c *spoc) markSubnetsInZoneCluster() {
 }
 
 // Add new zone to list.  List is typically short, because we have
-// only a few subnets in zone cluster, so need to use a map for lookup.
+// only a few subnets in zone cluster, so no need to use a map for lookup.
 func addZone(l *[]*zone, z *zone) {
 	for _, z2 := range *l {
 		if z2 == z {
