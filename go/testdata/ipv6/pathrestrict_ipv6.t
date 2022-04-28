@@ -495,6 +495,59 @@ Warning: Ignoring pathrestriction:p having elements from different loops:
 =END=
 
 ############################################################
+=TITLE=Pathrestriction located in different loops (3)
+# Ignored pathrestriction at unmanaged router at zone in loop
+# was not handled correctly, leading to panic.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+
+router:r0 = {
+ interface:n1 = { ip = ::a01:103; }
+ interface:n3 = { ip = ::a01:303; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+router:r3 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+router:r4 = {
+ managed;
+ model = IOS;
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+}
+
+pathrestriction:p = interface:r1.n1, interface:r0.n3;
+
+service:s1 = {
+ user = network:n2;
+ permit src = user; dst = network:n4; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: Ignoring pathrestriction:p having elements from different loops:
+ - interface:r1.n1
+ - interface:r0.n3
+=END=
+
+############################################################
 =TITLE=Pathrestriction at non-loop node
 =PARAMS=--ipv6
 =INPUT=
@@ -974,20 +1027,27 @@ ipv6 access-list n3_in
 =END=
 
 ############################################################
-=TITLE=Test1
+=TITLE=Add aggregates and networks from all zones of cluster
 =PARAMS=--ipv6
 =INPUT=
-any:10_1_0-23 = { link = network:n1; ip = ::a01:0/119; }
-network:n0 = { ip = ::a01:0/120; }
+any:10_1_0-24 = { link = network:n1; ip = ::a01:0/120; }
+network:big = { ip = ::a01:0/119; has_subnets; }
+network:n0a = { ip = ::a01:0/121; }
+network:n0b = { ip = ::a01:80/121; }
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 network:n4 = { ip = ::a01:400/120; }
-router:u = {
- interface:n0;
- interface:n1;
+router:u1 = {
+ interface:n0a;
+ interface:n0b;
+ interface:big;
  interface:n2;
  interface:n3;
+}
+router:u2 = {
+ interface:n0a;
+ interface:n1;
 }
 router:r1 = {
  managed;
@@ -1003,23 +1063,30 @@ router:r2 = {
  interface:n3 = { ip = ::a01:302; hardware = n3; }
  interface:n4 = { ip = ::a01:402; hardware = n4; }
 }
-pathrestriction:p0 = interface:u.n0, interface:r2.n3;
-pathrestriction:p1 = interface:u.n1, interface:r1.n2;
+pathrestriction:p0 = interface:u1.n0a, interface:r2.n3;
+pathrestriction:p1 = interface:u1.n0b, interface:r1.n2;
+pathrestriction:p2 = interface:u1.big, interface:u1.n2;
 service:s1 = {
- user = any:10_1_0-23;
+ user = any:10_1_0-24;
  permit src = user; dst = network:n4; prt = tcp 80;
+}
+service:s2 = {
+ user = network:big;
+ permit src = user; dst = network:n4; prt = tcp 81;
 }
 =END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n2_in
  deny ipv6 any host ::a01:401
- permit tcp ::a01:0/119 ::a01:400/120 eq 80
+ permit tcp ::a01:0/120 ::a01:400/120 eq 80
+ permit tcp ::a01:0/119 ::a01:400/120 eq 81
  deny ipv6 any any
 --ipv6/r2
 ipv6 access-list n3_in
  deny ipv6 any host ::a01:402
- permit tcp ::a01:0/119 ::a01:400/120 eq 80
+ permit tcp ::a01:0/120 ::a01:400/120 eq 80
+ permit tcp ::a01:0/119 ::a01:400/120 eq 81
  deny ipv6 any any
 =END=
 

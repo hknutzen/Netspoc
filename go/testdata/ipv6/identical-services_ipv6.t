@@ -410,6 +410,25 @@ service:s2 = {
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
+=TITLE=Equal rules, but different attribute disable_at
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ disable_at = 2999-01-02;
+ user = host:h10;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ disable_at = 2999-12-06;
+ user = host:h11;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
 =TITLE=Equal rules with different IP in automatic group.
 =PARAMS=--ipv6
 =INPUT=

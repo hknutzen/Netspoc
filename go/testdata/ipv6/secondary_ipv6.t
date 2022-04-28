@@ -125,8 +125,8 @@ ipv6 access-list n5_in
 =TITLE=Secondary optimization to largest safe network
 =PARAMS=--ipv6
 =INPUT=
-network:all_10 = { ip = ::a00:0/104; has_subnets; }
-network:super = { ip = ::a01:0/112; has_subnets; }
+network:all_10 = { ip = ::a00:0/104; }
+network:super = { ip = ::a01:0/112; subnet_of = network:all_10; }
 any:10_1_0-1 = { ip = ::a01:0/113; link = network:super; }
 router:u1 = {
  interface:all_10;
@@ -140,13 +140,18 @@ router:r1 = {
  interface:sub = { ip = ::a01:2f1; hardware = Ethernet2; }
  interface:trans = { ip = ::a03:111; hardware = Ethernet3; }
 }
-network:trans = { ip = ::a03:110/126; }
+network:trans = { ip = ::a03:110/126; subnet_of = network:all_10; }
 router:r2 = {
  managed = secondary;
  model = IOS, FW;
  interface:trans = { ip = ::a03:112; hardware = Ethernet5; }
  interface:dst = { ip = ::a09:901; hardware = Ethernet4; }
- interface:loop = { ip = ::a00:1; hardware = Loopback1; loopback; }
+ interface:loop = {
+  ip = ::a00:1;
+  hardware = Loopback1;
+  loopback;
+  subnet_of = network:all_10;
+ }
 }
 network:dst = {
  ip = ::a09:900/120;
@@ -157,7 +162,7 @@ router:u2 = {
  interface:dst = { ip = ::a09:902; }
  interface:dst_super;
 }
-network:dst_super = { ip = ::a09:0/112; }
+network:dst_super = { ip = ::a09:0/112; subnet_of = network:all_10; }
 service:test = {
  user = network:sub;
  permit src = user;
