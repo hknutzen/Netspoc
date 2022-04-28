@@ -147,7 +147,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 		case *ast.Network, *ast.Router:
 		default:
 			if !isSimpleName(name) {
-				c.err("Invalid identifier in definition of '%s.%s'", typ, name)
+				c.err("Invalid identifier in definition of '%s:%s'", typ, name)
 			}
 		}
 		switch x := a.(type) {

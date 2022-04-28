@@ -487,7 +487,7 @@ Error: Invalid identifier in definition of 'router:r1/bridged-part'
 area:a1@vrf123 = {}
 =END=
 =ERROR=
-Error: Invalid identifier in definition of 'area.a1@vrf123'
+Error: Invalid identifier in definition of 'area:a1@vrf123'
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a1@vrf123
 =END=
 
@@ -751,7 +751,7 @@ Aborted
 group:a@b = ;
 =END=
 =ERROR=
-Error: Invalid identifier in definition of 'group.a@b'
+Error: Invalid identifier in definition of 'group:a@b'
 =END=
 
 ############################################################
