@@ -423,14 +423,14 @@ func getServicePath(name string) string {
 		// Ignore error, is recognized later, when file can't be written.
 		os.Mkdir(file, 0777)
 	}
-	s0 := strings.ToUpper(name[0:1])
-	c0 := s0[0]
-	if 'A' <= c0 && c0 <= 'Z' || '0' <= c0 && c0 <= '9' {
-		file = path.Join(file, s0)
-	} else {
-		file = path.Join(file, "other")
+	if len(name) > 0 {
+		s0 := strings.ToUpper(name[0:1])
+		c0 := s0[0]
+		if 'A' <= c0 && c0 <= 'Z' || '0' <= c0 && c0 <= '9' {
+			return path.Join(file, s0)
+		}
 	}
-	return file
+	return path.Join(file, "other")
 }
 
 type jsonRule struct {

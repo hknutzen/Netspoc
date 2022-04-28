@@ -2099,6 +2099,32 @@ Error: Unknown protocol in 'udp6' of service:s1
 =END=
 
 ############################################################
+=TITLE=Add service, missing name
+=INPUT=[[input]]
+=JOB=
+{ "method": "create_service",
+  "params": {
+      "user": "network:n1",
+      "rules": [ {
+          "action": "permit",
+          "src": "user",
+          "dst": "network:n2",
+          "prt": "tcp 8888" }]
+  }
+}
+=ERROR=
+Error: Invalid identifier in definition of 'service:'
+=OUTPUT=
+@@ rule/other
++service: = {
++ user = network:n1;
++ permit src = user;
++        dst = network:n2;
++        prt = tcp 8888;
++}
+=END=
+
+############################################################
 =TITLE=Add service, insert sorted
 =INPUT=
 -- topology
