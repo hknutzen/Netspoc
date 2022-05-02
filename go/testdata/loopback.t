@@ -176,7 +176,7 @@ router:r1 = {
 ############################################################
 =TITLE=Show warning for loopback subnet not at border of zone
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
+network:n1 = { ip = 10.1.1.0/24; has_subnets; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  model = IOS;
