@@ -162,6 +162,41 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=Suppress warning for loopback subnet at border of zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; has_subnets; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:lo = { ip = 10.1.1.2; hardware = lo; loopback; }
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Show warning for loopback subnet not at border of zone
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:lo = { ip = 10.1.1.2; hardware = lo; loopback; }
+}
+=WARNING=
+Warning: interface:r2.lo is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Loopback is subnet
 =INPUT=
 network:n = {
