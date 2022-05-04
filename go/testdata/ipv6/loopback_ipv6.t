@@ -172,6 +172,43 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
+=TITLE=Suppress warning for loopback subnet at border of zone
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; has_subnets; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:lo = { ip = ::a01:102; hardware = lo; loopback; }
+}
+=WARNING=NONE
+
+############################################################
+=TITLE=Show warning for loopback subnet not at border of zone
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; has_subnets; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:lo = { ip = ::a01:102; hardware = lo; loopback; }
+}
+=WARNING=
+Warning: interface:r2.lo is subnet of network:n1
+ in nat_domain:[network:n1].
+ If desired, declare attribute 'subnet_of'
+=END=
+
+############################################################
 =TITLE=Loopback is subnet
 =PARAMS=--ipv6
 =INPUT=
