@@ -530,7 +530,7 @@ func (p *printer) toplevel(n ast.Toplevel) {
 
 func isSimpleNet(t ast.Toplevel) bool {
 	if n, ok := t.(*ast.Network); ok {
-		if n.Hosts == nil && n.Description == nil {
+		if len(n.Hosts) == 0 && n.Description == nil {
 			for _, a := range n.Attributes {
 				switch a.Name {
 				case "ip", "owner", "crosslink", "unnumbered":

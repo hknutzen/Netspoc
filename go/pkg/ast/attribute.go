@@ -38,6 +38,15 @@ func (n *TopStruct) GetAttr(name string) *Attribute {
 	return nil
 }
 
+func (obj *Attribute) GetAttr(name string) *Attribute {
+	for _, a := range obj.ComplexValue {
+		if a.Name == name {
+			return a
+		}
+	}
+	return nil
+}
+
 func (obj *Attribute) Remove(name string) {
 	if obj.ValueList != nil {
 		cp := make([]*Value, 0, len(obj.ValueList))

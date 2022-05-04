@@ -26,7 +26,9 @@ remove-from-netspoc.
 If a service gets empty "user","src" or "dst" after removal of OBJECT,
 the definition of this service is removed as well.
 
-If a group is removed, the definition of this group is removed as well.
+If the to be removed object is a host or an unmanaged interface with
+attribute 'loopback' or 'vip', the definition of this object is
+removed as well.
 
 The following types can be used in OBJECTS:
 B<network host interface any group area>.
@@ -34,6 +36,10 @@ B<network host interface any group area>.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-d> file
+
+Delete definition of host, interface.
 
 =item B<-f> file
 
@@ -107,27 +113,30 @@ func setupObjects(m map[string]bool, objects []string) error {
 	return nil
 }
 
-func process(s *astset.State, remove map[string]bool) {
-	// To be deleted empty services.
-	var del []string
-
+func process(s *astset.State, remove map[string]bool, delDef bool) {
+	var emptySvc []string
+	retain := make(map[string]bool)
 	// Remove elements from element lists.
 	s.Modify(func(n ast.Toplevel) bool {
 		changed := false
-		var traverse func(l []ast.Element) []ast.Element
-		traverse = func(l []ast.Element) []ast.Element {
+		var traverse func([]ast.Element, bool) []ast.Element
+		traverse = func(l []ast.Element, compl bool) []ast.Element {
 			j := 0
 		OUTER:
 			for _, el := range l {
 				switch x := el.(type) {
 				case ast.NamedElem:
-					name := x.GetType() + ":" + x.GetName()
+					typ := x.GetType()
+					name := typ + ":" + x.GetName()
 					if remove[name] {
-						changed = true
-						continue
+						if !compl || typ == "host" || typ == "interface" {
+							changed = true
+							continue
+						}
+						retain[name] = true
 					}
 				case ast.AutoElem:
-					l2 := traverse(x.GetElements())
+					l2 := traverse(x.GetElements(), compl)
 					if len(l2) == 0 {
 						changed = true
 						continue
@@ -138,11 +147,30 @@ func process(s *astset.State, remove map[string]bool) {
 					// element becomes empty.
 					for _, obj := range x.Elements {
 						if _, ok := obj.(*ast.Complement); !ok {
-							l2 := traverse([]ast.Element{obj})
+							l2 := traverse([]ast.Element{obj}, compl)
 							if len(l2) == 0 {
 								changed = true
 								continue OUTER
 							}
+						}
+					}
+					j2 := 0
+					for _, obj := range x.Elements {
+						if c, ok := obj.(*ast.Complement); ok {
+							l2 := traverse([]ast.Element{c.Element}, !compl)
+							if len(l2) == 0 {
+								changed = true
+								continue
+							}
+						}
+						x.Elements[j2] = obj
+						j2++
+					}
+					x.Elements = x.Elements[:j2]
+					if len(x.Elements) == 1 {
+						obj := x.Elements[0]
+						if _, ok := obj.(*ast.Complement); !ok {
+							el = obj
 						}
 					}
 				}
@@ -153,7 +181,7 @@ func process(s *astset.State, remove map[string]bool) {
 		}
 		empty := false
 		change := func(l *[]ast.Element) {
-			l2 := traverse(*l)
+			l2 := traverse(*l, false)
 			if len(l2) == 0 {
 				empty = true
 			}
@@ -172,21 +200,34 @@ func process(s *astset.State, remove map[string]bool) {
 				change(&r.Dst.Elements)
 			}
 			if empty {
-				del = append(del, x.Name)
+				emptySvc = append(emptySvc, x.Name)
 			}
 		}
 		return changed
 	})
 
-	// Delete definition of removed group.
+	// Delete definition of removed group, host, unmanaged loopback interface.
 	// Silently ignore error, if definition isn't found.
 	for name := range remove {
-		if strings.HasPrefix(name, "group:") {
+		if retain[name] {
+			continue
+		}
+		typ, _, _ := strings.Cut(name, ":")
+		switch typ {
+		case "group":
 			s.DeleteToplevel(name)
+		case "host":
+			if delDef {
+				s.DeleteHost(name)
+			}
+		case "interface":
+			if delDef {
+				s.DeleteUnmanagedLoopbackInterface(name)
+			}
 		}
 	}
 	// Delete definition of empty service.
-	for _, name := range del {
+	for _, name := range emptySvc {
 		s.RemoveServiceFromOverlaps(name)
 		s.DeleteToplevel(name)
 	}
@@ -218,6 +259,8 @@ func Main() int {
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read OBJECTS from file")
+	delDef := fs.BoolP("delete", "d", false,
+		"Delete definition of host, interface")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -259,7 +302,7 @@ func Main() int {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 1
 	}
-	process(s, remove)
+	process(s, remove, *delDef)
 	s.Print()
 	return 0
 }

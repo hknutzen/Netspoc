@@ -161,6 +161,66 @@ func (s *State) DeleteToplevel(name string) error {
 	return fmt.Errorf("Can't find %s", name)
 }
 
+func (s *State) DeleteHost(name string) error {
+	netName := ""
+	if strings.HasPrefix(name, "host:id:") {
+		// ID host is extended by network name: host:id:a.b@c.d.net_name
+		parts := strings.Split(name, ".")
+		netName = "network:" + parts[len(parts)-1]
+		name = strings.Join(parts[:len(parts)-1], ".")
+	}
+	found := s.Modify(func(toplevel ast.Toplevel) bool {
+		modified := false
+		if n, ok := toplevel.(*ast.Network); ok {
+			if netName != "" && netName != n.Name {
+				return false
+			}
+			j := 0
+			for _, a := range n.Hosts {
+				if a.Name == name {
+					modified = true
+				} else {
+					n.Hosts[j] = a
+					j++
+				}
+			}
+			n.Hosts = n.Hosts[:j]
+		}
+		return modified
+	})
+	if found {
+		return nil
+	}
+	return fmt.Errorf("Can't find %s", name)
+}
+
+func (s *State) DeleteUnmanagedLoopbackInterface(name string) {
+	name = name[len("interface:"):]
+	rName, iName, _ := strings.Cut(name, ".")
+	iName = "interface:" + iName
+	rName = "router:" + rName
+	s.Modify(func(toplevel ast.Toplevel) bool {
+		modified := false
+		if r, ok := toplevel.(*ast.Router); ok {
+			if r.Name != rName || r.GetAttr("managed") != nil {
+				return false
+			}
+			j := 0
+			for _, a := range r.Interfaces {
+				if a.Name == iName &&
+					(a.GetAttr("loopback") != nil || a.GetAttr("vip") != nil) {
+					modified = true
+				} else {
+					r.Interfaces[j] = a
+					j++
+				}
+			}
+			r.Interfaces = r.Interfaces[:j]
+		}
+		return modified
+	})
+}
+
 func (s *State) RemoveServiceFromOverlaps(name string) {
 	s.Modify(func(toplevel ast.Toplevel) bool {
 		if n, ok := toplevel.(*ast.Service); ok {

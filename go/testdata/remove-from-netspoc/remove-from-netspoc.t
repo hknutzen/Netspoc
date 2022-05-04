@@ -5,6 +5,7 @@
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR OBJECT ...
+  -d, --delete        Delete definition of host, interface
   -f, --file string   Read OBJECTS from file
   -q, --quiet         Don't show changed files
 =END=
@@ -14,6 +15,7 @@ Usage: PROGRAM [options] FILE|DIR OBJECT ...
 =INPUT=NONE
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR OBJECT ...
+  -d, --delete        Delete definition of host, interface
   -f, --file string   Read OBJECTS from file
   -q, --quiet         Don't show changed files
 =END=
@@ -147,14 +149,140 @@ group:abc =
 =PARAMS=interface:r1@vrf.[auto] interface:r2.[all]
 
 ############################################################
-=TITLE=Don't remove in intersection
+=TITLE=Don't remove group in complement, don't remove definition
 =INPUT=
-group:abc = group:g &! host:xyz;
+group:abc = group:g &! group:xyz;
+group:xyz = host:xyz;
+=OUTPUT=
+group:abc = group:g &! group:xyz;
+group:xyz = host:xyz;
+=PARAMS=group:xyz
+
+############################################################
+=TITLE=Don't remove network in complement
+=INPUT=
+group:abc = network:[area:g14] &! network:n;
+=OUTPUT=
+group:abc = network:[area:g14] &! network:n;
+=OPTIONS=-d
+=PARAMS=network:n
+
+############################################################
+=TITLE=But network in group is removed even if group is used in complement
+=INPUT=
+group:abc = network:[area:g14] &! group:g;
+group:g = network:x;
+=OUTPUT=
+group:abc =
+ network:[area:g14]
+ &! group:g
+ ,
+;
+group:g =
+;
+=OPTIONS=-d
+=PARAMS=network:x
+
+############################################################
+=TITLE=Remove host definition
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h12 = { ip = 10.1.1.12; }
+}
+=OPTIONS=-d
+=PARAMS=host:h11 host:h10
+
+############################################################
+=TITLE=Remove host, also in complement, remove definition
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+group:abc = host:[network:n1] &! host:h10;
+group:g = host:h12, host:h12;
+=OUTPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h11 = { ip = 10.1.1.11; }
+}
+group:abc =
+ host:[network:n1],
+;
+group:g =
+;
+=OPTIONS=-d
+=PARAMS=host:h10 host:h12
+
+############################################################
+=TITLE=Remove id host in correct network
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:id:a@b.c = { ip = 10.1.1.10; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:id:a@b.c = { ip = 10.1.2.10; }
+}
+group:g = host:id:a@b.c.n1, host:id:a@b.c.n2;
+=OUTPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:id:a@b.c = { ip = 10.1.2.10; }
+}
+group:g =
+ host:id:a@b.c.n2,
+;
+=OPTIONS=-d
+=PARAMS=host:id:a@b.c.n1
+
+############################################################
+=TITLE=Remove interface, remove definition of unmanaged loopback interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:lo = { ip = 10.1.1.1; loopback; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1;
+ interface:lo = { ip = 10.1.1.1; loopback; hardware = lo; }
+}
+group:abc = group:g &! interface:r1.lo;
+group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo;
 =END=
 =OUTPUT=
-group:abc = group:g &! host:xyz;
-=END=
-=PARAMS=host:xyz
+network:n1 = { ip = 10.1.1.0/24; }
+router:r1 = {
+ interface:n1;
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1;
+ interface:lo = { ip = 10.1.1.1; loopback; hardware = lo; }
+}
+group:abc =
+ group:g,
+;
+group:g =
+;
+=OPTIONS=-d
+=PARAMS=interface:r1.lo interface:r1.n1 interface:r2.lo
 
 ############################################################
 =TITLE=Remove intersection if non complement element becomes empty (1)
