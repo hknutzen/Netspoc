@@ -184,7 +184,7 @@ group:g =
 =PARAMS=network:x
 
 ############################################################
-=TITLE=Remove host definition
+=TITLE=Remove host definition, ignore unknown host
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -198,7 +198,7 @@ network:n1 = {
  host:h12 = { ip = 10.1.1.12; }
 }
 =OPTIONS=-d
-=PARAMS=host:h11 host:h10
+=PARAMS=host:h11 host:h10 host:h13
 
 ############################################################
 =TITLE=Remove host, also in complement, remove definition
