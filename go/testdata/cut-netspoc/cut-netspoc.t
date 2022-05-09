@@ -1849,41 +1849,6 @@ service:test = {
 =END=
 
 ############################################################
-=TITLE=Cleanup sub_owner
-=INPUT=
-owner:o1 = { admins = a@example.com; }
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-service:test = {
-    sub_owner = o1;
-    user = network:n1;
-    permit src = user; dst = network:n2; prt = tcp;
-}
-=END=
-=OUTPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-service:test = {
- user = network:n1;
- permit src = user;
-        dst = network:n2;
-        prt = tcp;
-}
-=END=
-
-############################################################
 =TITLE=Cleanup policy_distribution_point
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h10 = { ip = 10.1.1.10; } }

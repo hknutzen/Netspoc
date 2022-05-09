@@ -182,11 +182,8 @@ router:trahza01 = {
  interface:sub1;
 }
 # Must not use super as supernet, because it has sub2 as subnet in other zone.
-network:super = {
- has_subnets;
- ip = f000::c0a8:0/112;
-}
-network:sub1 = { ip = f000::c0a8:100/120;}
+network:super = { ip = f000::c0a8:0/112; }
+network:sub1 = { ip = f000::c0a8:100/120; subnet_of = network:super; }
 # Must not use aggregate as supernet.
 any:a1 = { ip = f000::c0a8:0/117; link = network:sub2; }
 router:r3 = {
@@ -195,7 +192,7 @@ router:r3 = {
  interface:t1 = {ip = ::a01:803; hardware = t1;}
  interface:sub2 = { ip = f000::c0a8:801; hardware = sub2; }
 }
-network:sub2 = { ip = f000::c0a8:800/120; }
+network:sub2 = { ip = f000::c0a8:800/120; subnet_of = network:super; }
 service:s1 = {
  user = network:n1;
  permit src = user; dst = network:sub1; prt = tcp 49;

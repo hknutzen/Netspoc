@@ -363,7 +363,6 @@ type routerIntf struct {
 	loop            *loop
 	loopback        bool
 	loopEntryZone   map[pathStore]pathStore
-	loopZoneBorder  bool
 	mainIntf        *routerIntf
 	natMap          natMap
 	noCheck         bool
@@ -622,7 +621,6 @@ type service struct {
 	seenEnforceable            bool
 	seenUnenforceable          bool
 	unenforceableMap           map[objPair]bool
-	subOwner                   *owner
 	unknownOwner               bool
 	user                       []ast.Element
 	expandedUser               groupObjList

@@ -408,12 +408,12 @@ Warning: This supernet rule would permit unexpected access:
 =TEMPL=input
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; has_subnets; }
-network:n3a = { ip = ::a01:304/126; }
-network:n3b = { ip = ::a01:310/124; }
-network:n3c = { ip = ::a01:324/126; }
-network:n3d = { ip = ::a01:340/123; }
-network:n3e = { ip = ::a01:360/123; }
+network:n3 = { ip = ::a01:300/120; }
+network:n3a = { ip = ::a01:304/126; subnet_of = network:n3; }
+network:n3b = { ip = ::a01:310/124; subnet_of = network:n3; }
+network:n3c = { ip = ::a01:324/126; subnet_of = network:n3; }
+network:n3d = { ip = ::a01:340/123; subnet_of = network:n3; }
+network:n3e = { ip = ::a01:360/123; subnet_of = network:n3; }
 router:r1 = {
  managed;
  model = ASA;
@@ -476,9 +476,9 @@ Warning: This supernet rule would permit unexpected access:
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; has_subnets; }
-network:n3a = { ip = ::a01:304/126; }
-network:n3b = { ip = ::a01:308/126; }
+network:n3 = { ip = ::a01:300/120; }
+network:n3a = { ip = ::a01:304/126; subnet_of = network:n3; }
+network:n3b = { ip = ::a01:308/126; subnet_of = network:n3; }
 router:r1 = {
  managed;
  model = ASA;
@@ -2390,8 +2390,10 @@ Warning: Missing transient supernet rules
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; has_subnets; }
-network:n3 = { ip = ::a01:300/123; nat:n3 = { ip = ::a01:220/123; } }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/123;
+ nat:n3 = { ip = ::a01:220/123; subnet_of = network:n2; }
+}
 router:r1 = {
  managed;
  model = IOS, FW;

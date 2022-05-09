@@ -17,7 +17,6 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.checkAreaSubsetRelations(objInArea)
 	c.processAggregates()
 	c.checkReroutePermit()
-	c.checkAttrNoCheckSupernetRules()
 	c.findSubnetsInZoneCluster()
 	c.inheritAttributes()
 	c.sortedSpoc(func(c *spoc) { c.propagateOwners() })
@@ -702,6 +701,7 @@ func (c *spoc) processAggregates() {
 			if agg.noCheckSupernetRules {
 				for _, z2 := range cluster {
 					z2.noCheckSupernetRules = true
+					c.checkAttrNoCheckSupernetRules(z2)
 				}
 			}
 		}
@@ -713,6 +713,22 @@ func (c *spoc) processAggregates() {
 	// Add aggregate to all zones in zone cluster.
 	for _, agg := range aggInCluster {
 		c.duplicateAggregateToCluster(agg, false)
+	}
+}
+
+func (c *spoc) checkAttrNoCheckSupernetRules(z *zone) {
+	var errList netList
+	// z.networks currently contains all networks of zone,
+	// subnets are discared later in findSubnetsInZone.
+	for _, n := range z.networks {
+		if len(n.hosts) > 0 {
+			errList.push(n)
+		}
+	}
+	if errList != nil {
+		c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
+			" with networks having host definitions:\n%s",
+			z, errList.nameList())
 	}
 }
 
@@ -977,26 +993,6 @@ func (c *spoc) cleanupAfterInheritance() {
 	}
 }
 
-func (c *spoc) checkAttrNoCheckSupernetRules() {
-	for _, z := range c.allZones {
-		if z.noCheckSupernetRules {
-			var errList netList
-			// z.networks currently contains all networks of zone,
-			// subnets are discared later in findSubnetsInZone.
-			for _, n := range z.networks {
-				if len(n.hosts) > 0 {
-					errList.push(n)
-				}
-			}
-			if errList != nil {
-				c.err("Must not use attribute 'no_check_supernet_rules' at %s\n"+
-					" with networks having host definitions:\n%s",
-					z, errList.nameList())
-			}
-		}
-	}
-}
-
 // Reroute permit is not allowed between different security zones.
 func (c *spoc) checkReroutePermit() {
 	for _, z := range c.allZones {
@@ -1030,7 +1026,7 @@ func (c *spoc) markSubnetsInZoneCluster() {
 }
 
 // Add new zone to list.  List is typically short, because we have
-// only a few subnets in zone cluster, so need to use a map for lookup.
+// only a few subnets in zone cluster, so no need to use a map for lookup.
 func addZone(l *[]*zone, z *zone) {
 	for _, z2 := range *l {
 		if z2 == z {

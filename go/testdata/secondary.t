@@ -123,8 +123,8 @@ ip access-list extended n5_in
 ############################################################
 =TITLE=Secondary optimization to largest safe network
 =INPUT=
-network:all_10 = { ip = 10.0.0.0/8; has_subnets; }
-network:super = { ip = 10.1.0.0/16; has_subnets; }
+network:all_10 = { ip = 10.0.0.0/8; }
+network:super = { ip = 10.1.0.0/16; subnet_of = network:all_10; }
 any:10_1_0-1 = { ip = 10.1.0.0/17; link = network:super; }
 router:u1 = {
  interface:all_10;
@@ -138,13 +138,18 @@ router:r1 = {
  interface:sub = { ip = 10.1.2.241; hardware = Ethernet2; }
  interface:trans = { ip = 10.3.1.17; hardware = Ethernet3; }
 }
-network:trans = { ip = 10.3.1.16/30; }
+network:trans = { ip = 10.3.1.16/30; subnet_of = network:all_10; }
 router:r2 = {
  managed = secondary;
  model = IOS, FW;
  interface:trans = { ip = 10.3.1.18; hardware = Ethernet5; }
  interface:dst = { ip = 10.9.9.1; hardware = Ethernet4; }
- interface:loop = { ip = 10.0.0.1; hardware = Loopback1; loopback; }
+ interface:loop = {
+  ip = 10.0.0.1;
+  hardware = Loopback1;
+  loopback;
+  subnet_of = network:all_10;
+ }
 }
 network:dst = {
  ip = 10.9.9.0/24;
@@ -155,7 +160,7 @@ router:u2 = {
  interface:dst = { ip = 10.9.9.2; }
  interface:dst_super;
 }
-network:dst_super = { ip = 10.9.0.0/16; }
+network:dst_super = { ip = 10.9.0.0/16; subnet_of = network:all_10; }
 service:test = {
  user = network:sub;
  permit src = user;

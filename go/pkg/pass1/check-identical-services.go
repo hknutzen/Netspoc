@@ -207,6 +207,9 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			s.rules = sorted
 		}
 		svcEq := func(s1, s2 *service) bool {
+			if s1.disableAt != s2.disableAt {
+				return false
+			}
 			l1 := s1.rules
 			l2 := s2.rules
 			for i, r1 := range l1 {

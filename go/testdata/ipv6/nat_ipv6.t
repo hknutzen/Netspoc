@@ -419,11 +419,14 @@ Error: host:h43 is hidden by nat:n4 in rule
 network:n1 = {
  ip = ::a01:100/120;
  nat:n1 = { hidden; }
- has_subnets;
  host:h65 = { ip = ::a01:141; }
  host:h66 = { ip = ::a01:142; }
 }
-network:n1sub = { ip = ::a01:140/122; nat:n1sub = { ip = ::a01:240/122; } }
+network:n1sub = {
+ ip = ::a01:140/122;
+ subnet_of = network:n1;
+ nat:n1sub = { ip = ::a01:240/122; }
+}
 router:r1 = {
  managed;
  model = ASA;
@@ -1508,7 +1511,7 @@ router:r1 = {
  interface:t1 = { ip = ::a09:101; hardware = t1; }
  interface:X = { ip = ::a02:102; hardware = X; bind_nat = d; }
 }
-network:X = { ip = ::a02:100/120; }
+network:X = { ip = ::a02:100/120; subnet_of = network:n; }
 service:s1 = {
  user = network:X;
 # NAT to ::b00:0/104

@@ -550,7 +550,7 @@ Warning: Inconsistent owner definition for host:h1 and host:h5
 =END=
 
 ############################################################
-=TITLE=Useless sub_owner, multi_owner, unknown_owner
+=TITLE=Useless multi_owner, unknown_owner
 =PARAMS=--ipv6
 =INPUT=
 owner:o2 = { admins = a2@b.c; }
@@ -565,13 +565,11 @@ network:n2 = { ip = ::a01:200/120; owner = o2; }
 service:s1 = {
  unknown_owner;
  multi_owner;
- sub_owner = o2;
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
 =END=
 =WARNING=
-Warning: Useless owner:o2 at service:s1
 Warning: Useless use of attribute 'multi_owner' at service:s1
 Warning: Useless use of attribute 'unknown_owner' at service:s1
 =END=

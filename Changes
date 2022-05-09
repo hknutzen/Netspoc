@@ -1,3 +1,13 @@
+6.044     2022-05-09 08:57:41+02:00 Europe/Berlin
+
+ - Added new option '-d' / '--delete' to command 'remove-from-netspoc'.
+   This also removes definition of given objects, if object is host or
+   unmanaged loopback/vip interface.
+ - Attribute "has_subnets" has been restricted to:
+   - the internet, i.e. network with prefix length 0,
+   - networks in same zone,
+   - loopback interfaces at border of zone, where supernet is located.
+
 6.043     2022-04-07 15:05:24+02:00 Europe/Berlin
 
  - New radius-attribute

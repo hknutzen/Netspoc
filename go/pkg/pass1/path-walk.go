@@ -621,7 +621,7 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 				*obj = x.router
 			} else {
 				*borderIntf = x
-				if x.loopZoneBorder {
+				if x.zone.loop != nil {
 					*obj = x.zone
 				} else {
 					*obj = x.router
@@ -752,79 +752,56 @@ func connectClusterPath(
 	fromStore, toStore pathStore,
 ) bool {
 
-	// Find objects to store path information inside loop.
+	// Find object to store path information inside loop.
 	// Path may differ depending on whether loop entering and exiting
 	// interfaces are pathrestricted or not. Storing path information
 	// in different objects respects this.
-	var startStore, endStore pathStore
+	setup := func(
+		s pathStore, obj pathObj, borderIntf **routerIntf) (pathStore, bool) {
 
-	// Don't set fromIn if we are about to enter a loop at zone,
-	// because pathrestriction at fromIn must not be activated.
-	fromStoreIntf, fromStoreIsIntf := fromStore.(*routerIntf)
-	if fromStoreIsIntf {
-		if fromIn == fromStoreIntf {
-			fromIn = nil
+		var store pathStore
+		// Clear borderIntf if we are about to enter/exit a loop at zone,
+		// because pathrestriction at borderIntf must not be activated.
+		storeIntf, storeIsIntf := s.(*routerIntf)
+		if storeIsIntf {
+			if *borderIntf == storeIntf {
+				*borderIntf = nil
+			}
 		}
-	}
-	toStoreIntf, toStoreIsIntf := toStore.(*routerIntf)
-	if toStoreIsIntf {
-		if toOut == toStoreIntf {
-			toOut = nil
-		}
-	}
-
-	// Path starts at pathrestricted interface inside or at border of
-	// current loop.
-	// Set flag, if path starts at interface of zone at border of loop.
-	startAtZone := false
-	if fromIn == nil && fromStoreIsIntf {
-
-		// Path starts at border of current loop at zone node.
-		// Pathrestriction must not be activated, hence use zone as
-		// startStore.
-		if fromStoreIntf.loopZoneBorder {
-			startStore = fromStoreIntf.zone
-			startAtZone = true
+		// Path starts/ends at pathrestricted interface inside or at
+		// border of current loop.
+		// Set flag, if path starts at interface of zone at border of loop.
+		atZone := false
+		if *borderIntf == nil && storeIsIntf {
+			// Path starts/ends at border of current loop at zone node.
+			// Pathrestriction must not be activated, hence use zone as
+			// store.
+			if storeIntf.loop == nil && storeIntf.zone.loop != nil {
+				store = storeIntf.zone
+				atZone = true
+			} else {
+				// Path starts/ends inside or at border of current loop at
+				// router node.
+				store = storeIntf
+			}
+		} else if *borderIntf != nil && (*borderIntf).pathRestrict != nil {
+			// Loop is entered/exited at pathrestricted interface.
+			store = *borderIntf
 		} else {
-			// Path starts inside or at border of current loop at router node.
-			startStore = fromStoreIntf
+			// Loop starts/ends or is entered/exited at obj; no
+			// pathrestriction is effective.
+			switch x := obj.(type) {
+			case *router:
+				store = x
+			case *zone:
+				store = x
+			}
 		}
-	} else if fromIn != nil && fromIn.pathRestrict != nil {
-
-		// Loop is entered at pathrestricted interface.
-		startStore = fromIn
-	} else {
-
-		// Loop starts or is entered at from node; no pathrestriction is effective.
-		switch x := from.(type) {
-		case *router:
-			startStore = x
-		case *zone:
-			startStore = x
-		}
+		return store, atZone
 	}
 
-	// Set endStore with same logic that is used for startStore.
-	if toOut == nil && toStoreIsIntf {
-		if toStoreIntf.loopZoneBorder {
-			endStore = toStoreIntf.zone
-
-			// Path ends at interface of zone at border of loop.
-			// Continue path to router of interface outside of loop.
-			toOut = toStoreIntf
-		} else {
-			endStore = toStore
-		}
-	} else if toOut != nil && toOut.pathRestrict != nil {
-		endStore = toOut
-	} else {
-		switch x := to.(type) {
-		case *router:
-			endStore = x
-		case *zone:
-			endStore = x
-		}
-	}
+	startStore, startAtZone := setup(fromStore, from, &fromIn)
+	endStore, endAtZone := setup(toStore, to, &toOut)
 
 	success := clusterPathMark(startStore, endStore)
 
@@ -837,6 +814,11 @@ func connectClusterPath(
 			store = fromIn
 		} else {
 			store = fromStore
+		}
+		if endAtZone {
+			// Path ends at interface of zone at border of loop.
+			// Continue path to router of interface outside of loop.
+			toOut = toStore.(*routerIntf)
 		}
 		if fromIn != nil || startAtZone {
 			store.setPath(toStore, toOut)

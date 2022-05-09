@@ -592,12 +592,15 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 			if !natSubnet.isLayer3 {
 				subnet.subnetOfUsed = true
-
-				// Take original bignet, because currently
-				// there's no method to specify a natted network
-				// as value of subnet_of.
 				if printType := conf.Conf.CheckSubnets; printType != "" &&
-					natSubnet.subnetOf != bignet && !bignet.hasSubnets {
+					// Take original bignet, because currently
+					// there's no method to specify a natted network
+					// as value of subnet_of.
+					natSubnet.subnetOf != bignet &&
+					!(bignet.hasSubnets &&
+						(bignet.ipp.Bits() == 0 ||
+							zoneEq(bignet.zone, subnet.zone) ||
+							isLoopbackAtZoneBorder(subnet, bignet))) {
 
 					// Prevent multiple error messages in
 					// different NAT domains.
@@ -721,6 +724,18 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 			}
 		}
 	}
+}
+
+func isLoopbackAtZoneBorder(sub, big *network) bool {
+	if sub.loopback {
+		z := big.zone
+		for _, intf := range sub.interfaces[0].router.interfaces {
+			if z2 := intf.zone; z2 != nil && zoneEq(z, z2) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (c *spoc) findUselessSubnetOf() {
