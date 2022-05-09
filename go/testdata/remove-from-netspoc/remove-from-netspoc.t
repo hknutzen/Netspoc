@@ -5,7 +5,7 @@
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR OBJECT ...
-  -d, --delete        Delete definition of host, interface
+  -d, --delete        Also delete definition if OBJECT is host or interface
   -f, --file string   Read OBJECTS from file
   -q, --quiet         Don't show changed files
 =END=
@@ -15,7 +15,7 @@ Usage: PROGRAM [options] FILE|DIR OBJECT ...
 =INPUT=NONE
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR OBJECT ...
-  -d, --delete        Delete definition of host, interface
+  -d, --delete        Also delete definition if OBJECT is host or interface
   -f, --file string   Read OBJECTS from file
   -q, --quiet         Don't show changed files
 =END=
@@ -337,6 +337,26 @@ group:abc =
 ;
 =END=
 =PARAMS=area:a area:d
+
+############################################################
+=TITLE=Don't remove in automatic group of complement
+=INPUT=
+group:abc = network:[area:a] &! network:[group:g];
+=OUTPUT=
+group:abc = network:[area:a] &! network:[group:g];
+=PARAMS=group:g
+
+############################################################
+=TITLE=Remove in complement of complement
+=INPUT=
+group:abc = network:[area:a] &! network:[group:g &! group:h];
+=OUTPUT=
+group:abc =
+ network:[area:a]
+ &! network:[group:g]
+ ,
+;
+=PARAMS=group:h
 
 ############################################################
 =TITLE=network after intersection

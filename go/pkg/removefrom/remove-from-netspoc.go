@@ -260,7 +260,7 @@ func Main() int {
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read OBJECTS from file")
 	delDef := fs.BoolP("delete", "d", false,
-		"Delete definition of host, interface")
+		"Also delete definition if OBJECT is host or interface")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
