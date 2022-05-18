@@ -48,7 +48,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -69,16 +69,17 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
-	"os"
-	"strings"
 )
 
 var addTo map[string][]ast.Element
@@ -159,26 +160,6 @@ func processFile(l []ast.Toplevel) int {
 	return changes
 }
 
-func processInput(input *filetree.Context) error {
-	source := []byte(input.Data)
-	path := input.Path
-	astFile, err := parser.ParseFile(source, path, parser.ParseComments)
-	if err != nil {
-		return err
-	}
-	count := processFile(astFile.Nodes)
-	if count == 0 {
-		return nil
-	}
-
-	info.Msg("%d changes in %s", count, path)
-	for _, n := range astFile.Nodes {
-		n.Order()
-	}
-	copy := printer.File(astFile)
-	return fileop.Overwrite(path, copy)
-}
-
 func setupPairs(pairs []string) error {
 	for len(pairs) > 0 {
 		old := pairs[0]
@@ -203,24 +184,24 @@ func readPairs(path string) error {
 	return setupPairs(pairs)
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR PAIR ...\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR PAIR ...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
 	fromFile := fs.StringP("file", "f", "", "Read pairs from file")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -237,13 +218,13 @@ func Main() int {
 	addTo = make(map[string][]ast.Element)
 	if *fromFile != "" {
 		if err := readPairs(*fromFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
 		if err := setupPairs(args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
@@ -253,8 +234,29 @@ func Main() int {
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.
-	if err := filetree.Walk(path, processInput); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+	err := filetree.Walk(path, func(input *filetree.Context) error {
+		source := []byte(input.Data)
+		path := input.Path
+		astFile, err := parser.ParseFile(source, path, parser.ParseComments)
+		if err != nil {
+			return err
+		}
+		count := processFile(astFile.Nodes)
+		if count == 0 {
+			return nil
+		}
+
+		if !conf.Conf.Quiet {
+			fmt.Fprintf(d.Stderr, "%d changes in %s\n", count, path)
+		}
+		for _, n := range astFile.Nodes {
+			n.Order()
+		}
+		copy := printer.File(astFile)
+		return fileop.Overwrite(path, copy)
+	})
+	if err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
 	return 0

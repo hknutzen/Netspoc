@@ -48,7 +48,7 @@ Prints the manual page && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -70,12 +70,14 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/spf13/pflag"
-	"os"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/spf13/pflag"
 )
 
 func prtInfo(srcRange, prt *proto) string {
@@ -117,7 +119,9 @@ func prtInfo(srcRange, prt *proto) string {
 }
 
 func (c *spoc) printService(
-	path string, srvNames []string, natNet string, showName bool) {
+	stdout io.Writer,
+	path string,
+	srvNames []string, natNet string, showName bool) {
 
 	c.readNetspoc(path)
 	c.markDisabled()
@@ -224,20 +228,20 @@ func (c *spoc) printService(
 			srcInfo := objInfo(r.src)
 			dstInfo := objInfo(r.dst)
 			prtInfo := prtInfo(r.srcRange, r.prt)
-			fmt.Printf("%s:%s %s %s %s\n",
+			fmt.Fprintf(stdout, "%s:%s %s %s %s\n",
 				name, action, srcInfo, dstInfo, prtInfo)
 		}
 	}
 }
 
-func PrintServiceMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func PrintServiceMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR [SERVICE-NAME ...]\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR [SERVICE-NAME ...]\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
@@ -247,11 +251,11 @@ func PrintServiceMain() int {
 	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
 	name := fs.BoolP("name", "n", false, "Show name, not IP of elements")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -270,7 +274,7 @@ func PrintServiceMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	return toplevelSpoc(func(c *spoc) {
-		c.printService(path, names, *nat, *name)
+	return toplevelSpoc(d, func(c *spoc) {
+		c.printService(d.Stdout, path, names, *nat, *name)
 	})
 }

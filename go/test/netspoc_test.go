@@ -16,6 +16,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 	"github.com/hknutzen/Netspoc/go/pkg/removefrom"
@@ -38,7 +39,7 @@ const (
 type test struct {
 	dir   string
 	typ   int
-	run   func() int
+	run   func(d oslink.Data) int
 	check func(*testing.T, string, string)
 }
 
@@ -102,9 +103,6 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	// Run each test inside a fresh working directory,
 	// where different subdirectories are created.
 	workDir := t.TempDir()
-	prevDir, _ := os.Getwd()
-	defer func() { os.Chdir(prevDir) }()
-	os.Chdir(workDir)
 
 	// Prepare output directory.
 	var outDir string
@@ -116,13 +114,13 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 	runProg := func(input string) (int, string, string, string) {
 
-		// Initialize os.Args, add default options.
-		os.Args = []string{"PROGRAM", "-q"}
+		// Initialize args, add default options.
+		args := []string{"PROGRAM", "-q"}
 
 		// Add more options.
 		if d.Options != "" {
 			options := strings.Fields(d.Options)
-			os.Args = append(os.Args, options...)
+			args = append(args, options...)
 		}
 
 		// Prepare file for option '-f file'
@@ -131,7 +129,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			if err := os.WriteFile(name, []byte(d.FOption), 0644); err != nil {
 				t.Fatal(err)
 			}
-			os.Args = append(os.Args, "-f", name)
+			args = append(args, "-f", name)
 		}
 
 		var inDir string
@@ -139,11 +137,11 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			// Prepare input directory.
 			inDir = path.Join(workDir, "netspoc")
 			tstdata.PrepareInDir(inDir, input)
-			os.Args = append(os.Args, inDir)
+			args = append(args, inDir)
 
 			// Add location of output directory.
 			if outDir != "" {
-				os.Args = append(os.Args, outDir)
+				args = append(args, outDir)
 			}
 		}
 
@@ -153,15 +151,15 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			if err := os.WriteFile(name, []byte(d.Job), 0644); err != nil {
 				t.Fatal(err)
 			}
-			os.Args = append(os.Args, name)
+			args = append(args, name)
 		}
 
 		// Add other params to command line.
 		if d.Params != "" {
-			os.Args = append(os.Args, strings.Fields(d.Params)...)
+			args = append(args, strings.Fields(d.Params)...)
 		}
 		if d.Param != "" {
-			os.Args = append(os.Args, d.Param)
+			args = append(args, d.Param)
 		}
 
 		// Execute shell commands to setup error cases in working directory.
@@ -176,6 +174,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			io.WriteString(stdin, "cd '"+workDir+"'\n")
 			io.WriteString(stdin, d.Setup)
 			stdin.Close()
 
@@ -184,22 +183,18 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 			}
 		}
 
-		if d.ShowDiag {
-			os.Setenv("SHOW_DIAG", "1")
-		} else {
-			os.Unsetenv("SHOW_DIAG")
-		}
-
 		// Call main function.
-		var status int
-		var stdout string
-		stderr := capture.Capture(&os.Stderr, func() {
-			stdout = capture.Capture(&os.Stdout, func() {
-				status = capture.CatchPanic(tc.run)
+		var stdout, stderr strings.Builder
+		status := capture.CatchPanic(&stderr, func() int {
+			return tc.run(oslink.Data{
+				Args:     args,
+				Stdout:   &stdout,
+				Stderr:   &stderr,
+				ShowDiag: d.ShowDiag,
 			})
 		})
 
-		return status, stdout, stderr, inDir
+		return status, stdout.String(), stderr.String(), inDir
 	}
 
 	// Run program once.
@@ -218,6 +213,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	re := regexp.MustCompile(workDir + `/code\.tmp\d{6,12}`)
 	if inDir != "" {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
+		stderr = strings.ReplaceAll(stderr, inDir, "netspoc")
 	}
 	if outDir != "" {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "out/")
@@ -448,58 +444,65 @@ func jsonEq(t *testing.T, expected string, got []byte) {
 // Run modify-netspoc-api and netspoc sequentially.
 // Show diff on stdout.
 // Arguments: PROGRAM -q netspoc job
-func modifyRun() int {
-	// Make copy for diff.
-	err := exec.Command("cp", "-r", "netspoc", "unchanged").Run()
+func modifyRun(d oslink.Data) int {
+	var err error
+	var workDir string
+	if len(d.Args) >= 3 {
+		netspoc := d.Args[2]
+		workDir = path.Dir(netspoc)
+		unchanged := path.Join(workDir, "unchanged")
+		// Make copy for diff.
+		err = exec.Command("cp", "-r", netspoc, unchanged).Run()
+	}
 
-	status := api.Main()
-	if err == nil {
+	status := api.Main(d)
+	if err == nil && workDir != "" {
 		cmd := exec.Command("sh", "-c",
-			"diff -u -r -N unchanged netspoc"+
+			"cd '"+workDir+"';"+
+				"diff -u -r -N unchanged netspoc"+
 				"| sed "+
 				" -e 's/^ $//'"+
 				" -e '/^@@ .*/d'"+
 				" -e 's|^diff -u -r -N unchanged/[^ ]\\+ netspoc/|@@ |'"+
 				" -e '/^--- /d'"+
 				" -e '/^+++ /d'")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = d.Stdout
+		cmd.Stderr = d.Stderr
 		cmd.Run()
 	}
 	if status == 0 {
-		os.Args = os.Args[:3]
-		status = pass1.SpocMain()
+		d.Args = d.Args[:3]
+		status = pass1.SpocMain(d)
 	}
 	return status
 }
 
 // Run Netspoc pass1 + check-acl sequentially.
 // Arguments: PROGRAM -q [-6] [-f file] input code router acl <packet>
-func checkACLRun() int {
-	args := os.Args
+func checkACLRun(d oslink.Data) int {
 	// Args: PROGRAM -q [-6] input code
 	var p1Args []string
 	// Args: PROGRAM [-f file] code/router acl <packet>
 	var chArgs []string
-	p1Args = append(p1Args, args[0:2]...) // PROGRAM -q
-	chArgs = append(chArgs, args[0])      // PROGRAM
+	p1Args = append(p1Args, d.Args[0:2]...) // PROGRAM -q
+	chArgs = append(chArgs, d.Args[0])      // PROGRAM
 	a := 0
-	if args[2] == "-6" {
-		p1Args = append(p1Args, args[2])
+	if d.Args[2] == "-6" {
+		p1Args = append(p1Args, d.Args[2])
 		a = 1
 	}
-	if args[2+a] == "-f" {
-		chArgs = append(chArgs, args[2+a:4+a]...) // -f file
+	if d.Args[2+a] == "-f" {
+		chArgs = append(chArgs, d.Args[2+a:4+a]...) // -f file
 		a += 2
 	}
-	p1Args = append(p1Args, args[2+a:4+a]...)                // input code
-	chArgs = append(chArgs, path.Join(args[3+a], args[4+a])) // code/router
-	chArgs = append(chArgs, args[5+a:]...)
-	os.Args = p1Args
-	status := pass1.SpocMain()
+	p1Args = append(p1Args, d.Args[2+a:4+a]...)                  // input code
+	chArgs = append(chArgs, path.Join(d.Args[3+a], d.Args[4+a])) // code/router
+	chArgs = append(chArgs, d.Args[5+a:]...)
+	d.Args = p1Args
+	status := pass1.SpocMain(d)
 	if status != 0 {
 		return status
 	}
-	os.Args = chArgs
-	return pass2.CheckACLMain()
+	d.Args = chArgs
+	return pass2.CheckACLMain(d)
 }

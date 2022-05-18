@@ -4,7 +4,7 @@ package api
 Process jobs of Netspoc-API
 
 COPYRIGHT AND DISCLAIMER
-(c) 2021 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc-API
 
@@ -23,42 +23,43 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
-	"github.com/spf13/pflag"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
+	"github.com/spf13/pflag"
 )
 
 type state struct {
 	*astset.State
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR JOB ...\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR JOB ...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -75,6 +76,10 @@ func Main() int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
 
+	showErr := func(format string, args ...interface{}) {
+		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
+	}
+
 	s := new(state)
 	var err error
 	s.State, err = astset.Read(netspocPath)
@@ -89,10 +94,12 @@ func Main() int {
 			return 1
 		}
 	}
-	for _, file := range s.Changed() {
-		info.Msg("Changed %s", file)
-	}
 	s.Print()
+	if !conf.Conf.Quiet {
+		for _, file := range s.Changed() {
+			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
+		}
+	}
 	return 0
 }
 
@@ -723,8 +730,4 @@ func getRuleIdx(sv *ast.Service, num, count int) (int, error) {
 			idx+1, n, sv.Name)
 	}
 	return idx, nil
-}
-
-func showErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
 }

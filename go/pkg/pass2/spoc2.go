@@ -3,7 +3,7 @@ package pass2
 /*
 Pass 2 of Netspoc - A Network Security Policy Compiler
 
-(C) 2021 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(C) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -26,7 +26,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"net/netip"
@@ -422,15 +421,14 @@ func tryPrev(devicePath, dir, prev string) bool {
 	}
 
 	// File was found and hardlink was created successfully.
-	diag.Msg("Reused .prev/" + devicePath)
 	return true
 }
 
-func File(devicePath, dir, prev string) int {
+func File(devicePath, dir, prev string) bool {
 	if tryPrev(devicePath, dir, prev) {
-		return 1
+		return true
 	}
 	file := dir + "/" + devicePath
 	printRouter(file)
-	return 0
+	return false
 }

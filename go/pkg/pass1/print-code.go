@@ -2416,10 +2416,16 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	var reused int32 = 0
+	pass2Code := func(r *router) {
+		path := c.printRouter(r, dir)
+		if pass2.File(path, dir, prev) {
+			atomic.AddInt32(&reused, 1)
+			c.diag("Reused .prev/" + path)
+		}
+	}
 	if conf.Conf.ConcurrencyPass2 <= 1 {
 		for _, r := range devices {
-			path := c.printRouter(r, dir)
-			reused += int32(pass2.File(path, dir, prev))
+			pass2Code(r)
 		}
 	} else {
 		concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
@@ -2429,8 +2435,7 @@ func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 			wg.Add(1)
 			go func(r *router) {
 				defer wg.Done()
-				path := c.printRouter(r, dir)
-				atomic.AddInt32(&reused, int32(pass2.File(path, dir, prev)))
+				pass2Code(r)
 				<-concurrentGoroutines
 			}(r)
 		}

@@ -31,7 +31,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -52,11 +52,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 )
@@ -488,7 +489,10 @@ func (c *spoc) collectGroups(toplevel []ast.Toplevel) map[string]*ast.TopList {
 	return m
 }
 
-func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
+func (c *spoc) cutNetspoc(
+	stdout io.Writer,
+	path string, names []string, keepOwner bool) {
+
 	toplevel := c.parseFiles(path)
 	if len(names) > 0 {
 		var copy []ast.Toplevel
@@ -1021,28 +1025,28 @@ func (c *spoc) cutNetspoc(path string, names []string, keepOwner bool) {
 	f := new(ast.File)
 	f.Nodes = active
 	out := printer.File(f)
-	os.Stdout.Write(out)
+	stdout.Write(out)
 }
 
-func CutNetspocMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func CutNetspocMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR [service:name ...]\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR [service:name ...]\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
 	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
 	keepOwner := fs.BoolP("owner", "o", false, "Keep referenced owners")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -1066,7 +1070,7 @@ func CutNetspocMain() int {
 	// Initialize global variables.
 	isUsed = make(map[string]bool)
 
-	return toplevelSpoc(func(c *spoc) {
-		c.cutNetspoc(path, services, *keepOwner)
+	return toplevelSpoc(d, func(c *spoc) {
+		c.cutNetspoc(d.Stdout, path, services, *keepOwner)
 	})
 }

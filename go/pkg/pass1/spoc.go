@@ -2,12 +2,13 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"os"
 	"path"
 	"sort"
 	"time"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 )
 
 var (
@@ -21,6 +22,7 @@ type spoc struct {
 	initialErrCount int
 	messages        stringList
 	aborted         bool
+	showDiag        bool
 	// State of compiler
 	userObj               userInfo
 	allNetworks           netList
@@ -38,9 +40,10 @@ type spoc struct {
 	networkAutoInterfaces map[networkAutoIntfKey]*autoIntf
 }
 
-func initSpoc() *spoc {
+func initSpoc(d oslink.Data) *spoc {
 	c := &spoc{
-		toStderr:              func(s string) { fmt.Fprintln(os.Stderr, s) },
+		toStderr:              func(s string) { fmt.Fprintln(d.Stderr, s) },
+		showDiag:              d.ShowDiag,
 		routerAutoInterfaces:  make(map[*router]*autoIntf),
 		networkAutoInterfaces: make(map[networkAutoIntfKey]*autoIntf),
 	}
@@ -125,7 +128,7 @@ func (c *spoc) progress(msg string) {
 }
 
 func (c *spoc) diag(format string, args ...interface{}) {
-	if os.Getenv("SHOW_DIAG") != "" {
+	if c.showDiag {
 		c.toStderrf("DIAG: "+format, args...)
 	}
 }
@@ -165,17 +168,17 @@ func (c *spoc) sortedSpoc(f func(*spoc)) {
 		})
 }
 
-func toplevelSpoc(f func(*spoc)) (errCount int) {
-	c := initSpoc()
+func toplevelSpoc(d oslink.Data, f func(*spoc)) (errCount int) {
+	c := initSpoc(d)
 	handleBailout(
 		func() { f(c) },
 		func() { errCount = c.errCount })
 	return
 }
 
-func SpocMain() (errCount int) {
-	return toplevelSpoc(func(c *spoc) {
-		inDir, outDir, abort := conf.GetArgs()
+func SpocMain(d oslink.Data) int {
+	return toplevelSpoc(d, func(c *spoc) {
+		inDir, outDir, abort := conf.GetArgs(d)
 		if abort {
 			c.toStderr("Aborted")
 			c.errCount++

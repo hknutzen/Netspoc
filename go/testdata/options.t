@@ -105,7 +105,7 @@ Aborted
 =OPTIONS=--help
 =INPUT= #
 =ERROR=
-Usage of PROGRAM:
+Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --auto_default_route                          (default true)
       --check_duplicate_rules tristate              (default warn)
       --check_fully_redundant_rules tristate
@@ -246,11 +246,10 @@ panic: Can't open out/r1: is a directory
 
 ############################################################
 =TITLE=Can't read input directory
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
 =SETUP=
-mkdir netspoc
 chmod u-rx netspoc
-=INPUT=NONE
-=PARAMS=netspoc
 =ERROR=
 panic: open netspoc: permission denied
 =END=

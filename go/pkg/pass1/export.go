@@ -30,9 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/spf13/pflag"
 	"net"
 	"os"
 	"os/exec"
@@ -40,6 +37,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/spf13/pflag"
 )
 
 func (c *spoc) createDirs(dir, path string) {
@@ -1435,24 +1437,24 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.progress("Ready")
 }
 
-func ExportMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func ExportMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] netspoc-data out-directory\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] netspoc-data out-directory\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
 	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -1475,7 +1477,7 @@ func ExportMain() int {
 	// Initialize global variable.
 	allObjects = make(map[srvObj]bool)
 
-	return toplevelSpoc(func(c *spoc) {
+	return toplevelSpoc(d, func(c *spoc) {
 		c.exportNetspoc(path, out)
 	})
 }

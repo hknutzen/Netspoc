@@ -63,7 +63,7 @@ Prints a brief help message && exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 This program uses modules of Netspoc, a Network Security Policy Compiler.
 http://hknutzen.github.com/Netspoc
@@ -85,13 +85,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"io"
+	"net/netip"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
-	"net/netip"
-	"os"
-	"strings"
 )
 
 // Print IP address of obj in context of natMap.
@@ -180,7 +182,9 @@ func (c *spoc) tryExpand(parsed []ast.Element, ipv6 bool) groupObjList {
 	}
 }
 
-func (c *spoc) printGroup(path, group, natNet string,
+func (c *spoc) printGroup(
+	stdout io.Writer,
+	path, group, natNet string,
 	showIP, showName, showOwner, showAdmins, showUnused bool) {
 
 	if !(showIP || showName) {
@@ -291,18 +295,18 @@ func (c *spoc) printGroup(path, group, natNet string,
 				result.push(admins)
 			}
 		}
-		fmt.Println(strings.Join(result, "\t"))
+		fmt.Fprintln(stdout, strings.Join(result, "\t"))
 	}
 }
 
-func PrintGroupMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func PrintGroupMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR 'group:name,...'\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR 'group:name,...'\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
@@ -318,11 +322,11 @@ func PrintGroupMain() int {
 	owner := fs.BoolP("owner", "o", false, "Show owner of elements")
 	admins := fs.BoolP("admins", "a", false,
 		"Show admins of elements as comma separated list")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -340,7 +344,8 @@ func PrintGroupMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	return toplevelSpoc(func(c *spoc) {
-		c.printGroup(path, group, *nat, *ip, *name, *owner, *admins, *unused)
+	return toplevelSpoc(d, func(c *spoc) {
+		c.printGroup(
+			d.Stdout, path, group, *nat, *ip, *name, *owner, *admins, *unused)
 	})
 }

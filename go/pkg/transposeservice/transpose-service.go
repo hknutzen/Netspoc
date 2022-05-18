@@ -33,6 +33,7 @@ Prints a brief help message and exits.
 =head1 COPYRIGHT AND DISCLAIMER
 
 (c) 2021 by Dominik Kunkel <netspoc@drachionix.eu>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -53,13 +54,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
 )
 
@@ -86,7 +86,9 @@ func (s *state) transposeService(name string) error {
 				}
 				// If source and destination are user no transformation needed
 				if len(srcelements) == 1 && len(dstelements) == 1 &&
-					srcelements[0].GetType() == "user" && dstelements[0].GetType() == "user" {
+					srcelements[0].GetType() == "user" &&
+					dstelements[0].GetType() == "user" {
+
 					err = fmt.Errorf("Can't transpose service: src and dst are user.")
 					return false
 				}
@@ -121,23 +123,23 @@ func (s *state) transposeService(name string) error {
 	}
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR [service:]NAME\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR [service:]NAME\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -161,7 +163,7 @@ func Main() int {
 	var err error
 	s.State, err = astset.Read(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while reading netspoc files: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error while reading netspoc files: %s\n", err)
 		return 1
 	}
 
@@ -171,13 +173,14 @@ func Main() int {
 	}
 	err = s.transposeService(name)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
-
-	for _, file := range s.Changed() {
-		info.Msg("Changed %s", file)
-	}
 	s.Print()
+	if !conf.Conf.Quiet {
+		for _, file := range s.Changed() {
+			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
+		}
+	}
 	return 0
 }
