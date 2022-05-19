@@ -73,17 +73,12 @@ import (
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 )
-
-var addTo map[string][]ast.Element
-var changes int
 
 func checkName(name string) error {
 	l, err := parser.ParseUnion([]byte(name))
@@ -101,7 +96,7 @@ func checkName(name string) error {
 }
 
 // Fill addTo with old => new pairs.
-func setupAddTo(old, new string) error {
+func setupAddTo(addTo map[string][]ast.Element, old, new string) error {
 	if err := checkName(old); err != nil {
 		return err
 	}
@@ -113,54 +108,55 @@ func setupAddTo(old, new string) error {
 	return nil
 }
 
-func addToElement(n ast.Element) []ast.Element {
-	switch obj := n.(type) {
-	case ast.NamedElem:
-		name := n.GetType() + ":" + obj.GetName()
-		return addTo[name]
-	case *ast.SimpleAuto:
-		elementList(&obj.Elements)
-	case *ast.AggAuto:
-		elementList(&obj.Elements)
-	case *ast.IntfAuto:
-		elementList(&obj.Elements)
-	}
-	return nil
-}
-
-func elementList(l *([]ast.Element)) {
-	var add []ast.Element
-	for _, n := range *l {
-		add = append(add, addToElement(n)...)
-	}
-	changes += len(add)
-	*l = append(*l, add...)
-}
-
-func toplevel(n ast.Toplevel) {
-	switch x := n.(type) {
-	case *ast.TopList:
-		if strings.HasPrefix(x.Name, "group:") {
-			elementList(&x.Elements)
+func process(s *astset.State, addTo map[string][]ast.Element) {
+	// Add elements to element lists.
+	s.Modify(func(n ast.Toplevel) bool {
+		changed := false
+		var change func(*[]ast.Element)
+		addToElement := func(n ast.Element) []ast.Element {
+			switch obj := n.(type) {
+			case ast.NamedElem:
+				name := n.GetType() + ":" + obj.GetName()
+				if add := addTo[name]; add != nil {
+					changed = true
+					return add
+				}
+			case *ast.SimpleAuto:
+				change(&obj.Elements)
+			case *ast.AggAuto:
+				change(&obj.Elements)
+			case *ast.IntfAuto:
+				change(&obj.Elements)
+			}
+			return nil
 		}
-	case *ast.Service:
-		elementList(&x.User.Elements)
-		for _, r := range x.Rules {
-			elementList(&r.Src.Elements)
-			elementList(&r.Dst.Elements)
+		change = func(l *[]ast.Element) {
+			var add []ast.Element
+			for _, n := range *l {
+				add = append(add, addToElement(n)...)
+			}
+			*l = append(*l, add...)
 		}
-	}
+		switch x := n.(type) {
+		case *ast.TopList:
+			if strings.HasPrefix(x.Name, "group:") {
+				change(&x.Elements)
+			}
+		case *ast.Service:
+			change(&x.User.Elements)
+			for _, r := range x.Rules {
+				change(&r.Src.Elements)
+				change(&r.Dst.Elements)
+			}
+		}
+		if changed {
+			n.Order()
+		}
+		return changed
+	})
 }
 
-func processFile(l []ast.Toplevel) int {
-	changes = 0
-	for _, n := range l {
-		toplevel(n)
-	}
-	return changes
-}
-
-func setupPairs(pairs []string) error {
+func setupPairs(addTo map[string][]ast.Element, pairs []string) error {
 	for len(pairs) > 0 {
 		old := pairs[0]
 		if len(pairs) == 1 {
@@ -168,20 +164,20 @@ func setupPairs(pairs []string) error {
 		}
 		new := pairs[1]
 		pairs = pairs[2:]
-		if err := setupAddTo(old, new); err != nil {
+		if err := setupAddTo(addTo, old, new); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func readPairs(path string) error {
+func readPairs(addTo map[string][]ast.Element, path string) error {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}
 	pairs := strings.Fields(string(bytes))
-	return setupPairs(pairs)
+	return setupPairs(addTo, pairs)
 }
 
 func Main(d oslink.Data) int {
@@ -195,7 +191,7 @@ func Main(d oslink.Data) int {
 	}
 
 	// Command line flags
-	quiet := fs.BoolP("quiet", "q", false, "Don't show number of changes")
+	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read pairs from file")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
@@ -215,15 +211,15 @@ func Main(d oslink.Data) int {
 	path := args[0]
 
 	// Initialize search/add pairs.
-	addTo = make(map[string][]ast.Element)
+	addTo := make(map[string][]ast.Element)
 	if *fromFile != "" {
-		if err := readPairs(*fromFile); err != nil {
+		if err := readPairs(addTo, *fromFile); err != nil {
 			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
-		if err := setupPairs(args[1:]); err != nil {
+		if err := setupPairs(addTo, args[1:]); err != nil {
 			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
@@ -233,31 +229,17 @@ func Main(d oslink.Data) int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Do substitution.
-	err := filetree.Walk(path, func(input *filetree.Context) error {
-		source := []byte(input.Data)
-		path := input.Path
-		astFile, err := parser.ParseFile(source, path, parser.ParseComments)
-		if err != nil {
-			return err
-		}
-		count := processFile(astFile.Nodes)
-		if count == 0 {
-			return nil
-		}
-
-		if !conf.Conf.Quiet {
-			fmt.Fprintf(d.Stderr, "%d changes in %s\n", count, path)
-		}
-		for _, n := range astFile.Nodes {
-			n.Order()
-		}
-		copy := printer.File(astFile)
-		return fileop.Overwrite(path, copy)
-	})
+	s, err := astset.Read(path)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	process(s, addTo)
+	if !conf.Conf.Quiet {
+		for _, file := range s.Changed() {
+			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
+		}
+	}
+	s.Print()
 	return 0
 }
