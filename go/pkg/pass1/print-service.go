@@ -134,7 +134,7 @@ func (c *spoc) printService(
 	var natMap natMap
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
-		if net := symTable.network[natNet]; net != nil {
+		if net := c.symTable.network[natNet]; net != nil {
 			natMap = net.zone.natDomain.natMap
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
@@ -148,7 +148,7 @@ func (c *spoc) printService(
 	nameMap := make(map[string]bool)
 	for _, name := range srvNames {
 		name = strings.TrimPrefix(name, "service:")
-		if _, found := symTable.service[name]; !found {
+		if _, found := c.symTable.service[name]; !found {
 			c.abort("Unknown service:%s", name)
 		}
 		nameMap[name] = true
@@ -273,8 +273,8 @@ func PrintServiceMain(d oslink.Data) int {
 		fmt.Sprintf("--quiet=%v", *quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	return toplevelSpoc(d, func(c *spoc) {
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
+	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.printService(d.Stdout, path, names, *nat, *name)
 	})
 }

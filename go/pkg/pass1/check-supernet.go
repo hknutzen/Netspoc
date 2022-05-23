@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"net/netip"
 )
 
@@ -213,7 +212,7 @@ func (c *spoc) checkSupernetInZone1(
 		objects[i] = n
 	}
 	c.warnOrErr(
-		conf.Conf.CheckSupernetRules,
+		c.conf.CheckSupernetRules,
 		"This %ssupernet rule would permit unexpected access:\n"+
 			"  %s\n"+
 			" Generated ACL at %s would permit access"+
@@ -892,7 +891,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 		return
 	}
 
-	printType := conf.Conf.CheckTransientSupernetRules
+	printType := c.conf.CheckTransientSupernetRules
 
 	// Search rules having supernet as dst.
 	for _, rule1 := range rules {
@@ -1075,7 +1074,7 @@ func markStateful(z *zone, mark int) {
 }
 
 func (c *spoc) checkSupernetRules(p ruleList) {
-	if conf.Conf.CheckSupernetRules != "" {
+	if c.conf.CheckSupernetRules != "" {
 		c.progress("Checking supernet rules")
 		statefulMark := 1
 		for _, z := range c.allZones {
@@ -1089,7 +1088,7 @@ func (c *spoc) checkSupernetRules(p ruleList) {
 		// diag.Progress("Checking for missing dst in supernet rules");
 		c.checkMissingSupernetRules(p, "dst", (*spoc).checkSupernetDstRule)
 	}
-	if conf.Conf.CheckTransientSupernetRules != "" {
+	if c.conf.CheckTransientSupernetRules != "" {
 		c.checkTransientSupernetRules(p)
 	}
 }

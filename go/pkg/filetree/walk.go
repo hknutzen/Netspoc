@@ -1,12 +1,14 @@
 package filetree
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 )
+
+const ignore = "CVS"
 
 type Context struct {
 	Path string
@@ -26,27 +28,23 @@ func processFile(fname string, v6 bool, fn parser) error {
 	return fn(input)
 }
 
-func Walk(fname string, fn parser) error {
-	v6 := conf.Conf.IPV6
-	ipvDir := "ipv6"
-	if v6 {
-		ipvDir = "ipv4"
-	}
-	ignore := conf.Conf.IgnoreFiles
-
+func Walk(fname string, v6 bool, fn parser) error {
 	var walk func(string, bool, bool) error
 	walk = func(fname string, v6, toplevel bool) error {
 		if !toplevel {
 			base := path.Base(fname)
 
 			// Skip hidden and ignored file.
-			if base[0] == '.' || ignore.MatchString(base) {
+			if base[0] == '.' || base == ignore {
 				return nil
 			}
 
 			// Handle ipv6 / ipv4 subdirectory or file.
-			if base == ipvDir {
-				v6 = base == "ipv6"
+			switch base {
+			case "ipv4":
+				v6 = false
+			case "ipv6":
+				v6 = true
 			}
 		}
 		if !fileop.IsDir(fname) {

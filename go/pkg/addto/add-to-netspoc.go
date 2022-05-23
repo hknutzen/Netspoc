@@ -225,17 +225,17 @@ func Main(d oslink.Data) int {
 		}
 	}
 
-	// Initialize config, especially "ignoreFiles'.
+	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	s, err := astset.Read(path)
+	s, err := astset.Read(path, cnf.IPV6)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
 	process(s, addTo)
-	if !conf.Conf.Quiet {
+	if !cnf.Quiet {
 		for _, file := range s.Changed() {
 			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
 		}

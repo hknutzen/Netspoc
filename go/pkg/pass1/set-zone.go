@@ -368,7 +368,7 @@ type bLookup map[*routerIntf]borderType
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		sortedAreas = append(sortedAreas, a)
 	}
 	sort.Slice(sortedAreas, func(i, j int) bool {
@@ -571,7 +571,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 
 	// Fill global list of areas.
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		if !a.disabled {
 			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
@@ -667,8 +667,8 @@ func (c *spoc) processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
-	aggList := make(netList, 0, len(symTable.aggregate))
-	for _, agg := range symTable.aggregate {
+	aggList := make(netList, 0, len(c.symTable.aggregate))
+	for _, agg := range c.symTable.aggregate {
 		n := agg.link
 		if n == nil || n.disabled {
 			agg.disabled = true

@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"sort"
 	"strings"
 )
@@ -100,7 +99,7 @@ func (c *spoc) propagateOwners() {
 	}
 
 	// Check owner with attribute showAll.
-	for _, o := range symTable.owner {
+	for _, o := range c.symTable.owner {
 		if !o.showAll {
 			continue
 		}
@@ -306,7 +305,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 					}
 				}
 			} else if hasMulti {
-				if printType := conf.Conf.CheckServiceMultiOwner; printType != "" {
+				if printType := c.conf.CheckServiceMultiOwner; printType != "" {
 					var names stringList
 					ok := true
 					seen := make(map[string]bool)
@@ -345,7 +344,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 						}
 					}
 				}
-			} else if hasUnknown && conf.Conf.CheckServiceUnknownOwner != "" {
+			} else if hasUnknown && c.conf.CheckServiceUnknownOwner != "" {
 				for obj := range objects {
 					if obj.getOwner() == nil &&
 						getAttr(obj, unknownOwnerAttr) != okVal {
@@ -360,7 +359,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 		// Show objects with unknown owner.
 		for obj, names := range unknown2services {
 			sort.Strings(names)
-			c.warnOrErr(conf.Conf.CheckServiceUnknownOwner,
+			c.warnOrErr(c.conf.CheckServiceUnknownOwner,
 				"Unknown owner for %s in %s",
 				obj, strings.Join(names, ", "))
 		}

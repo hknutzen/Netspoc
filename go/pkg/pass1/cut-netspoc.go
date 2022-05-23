@@ -140,7 +140,7 @@ func setIntfUsed(intf *routerIntf) {
 
 var origNat = make(map[*network]natTagMap)
 
-func saveOrigNat() {
+func (c *spoc) saveOrigNat() {
 	copyNat := func(n *network) {
 		if nat := n.nat; nat != nil {
 			cpy := make(natTagMap)
@@ -150,10 +150,10 @@ func saveOrigNat() {
 			origNat[n] = cpy
 		}
 	}
-	for _, n := range symTable.network {
+	for _, n := range c.symTable.network {
 		copyNat(n)
 	}
-	for _, agg := range symTable.aggregate {
+	for _, agg := range c.symTable.aggregate {
 		copyNat(agg)
 	}
 }
@@ -529,7 +529,7 @@ func (c *spoc) cutNetspoc(
 		}
 	}
 	c.markDisabled()
-	saveOrigNat()
+	c.saveOrigNat()
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()
@@ -672,7 +672,7 @@ func (c *spoc) cutNetspoc(
 	for _, top := range toplevel {
 		if aTop, ok := top.(*ast.Area); ok {
 			name := aTop.Name[len("area:"):]
-			a := symTable.area[name]
+			a := c.symTable.area[name]
 			if isUsed[a.name] {
 				// Change anchor to some used network
 				if anchor := a.anchor; anchor != nil {
@@ -831,18 +831,18 @@ func (c *spoc) cutNetspoc(
 			isUsed[o.name] = true
 		}
 	}
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		if isUsed[a.name] {
 			markOwner(a.owner)
 
 		}
 	}
-	for _, p := range symTable.protocol {
+	for _, p := range c.symTable.protocol {
 		if p.isUsed {
 			isUsed[p.name] = true
 		}
 	}
-	for _, p := range symTable.protocolgroup {
+	for _, p := range c.symTable.protocolgroup {
 		if p.isUsed {
 			isUsed[p.name] = true
 		}
@@ -1065,12 +1065,12 @@ func CutNetspocMain(d oslink.Data) int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Initialize global variables.
 	isUsed = make(map[string]bool)
 
-	return toplevelSpoc(d, func(c *spoc) {
+	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.cutNetspoc(d.Stdout, path, services, *keepOwner)
 	})
 }

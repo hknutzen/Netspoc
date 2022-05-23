@@ -4,15 +4,11 @@
 -- config
 # comment
 check_unused_groups = 1;
-# empty line follows
-ignore_files = ^foo$;
 max_errors = 2;
-# Option 'verbose' gets overwritten by default option '--quiet'
+# Option gets overwritten by default option '--quiet'
 # when running tests.
 quiet = 0;
 time_stamps = 0;
--- foo
-SOME INVALID DATA
 -- bar
 group:g = network:n1;
 network:n1 = { ip = 10.1.1.0/24; }

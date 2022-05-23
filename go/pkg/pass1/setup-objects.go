@@ -16,14 +16,13 @@ import (
 	"time"
 )
 
-var symTable *symbolTable
-
 func (c *spoc) readNetspoc(path string) {
 	toplevel := c.parseFiles(path)
 	c.setupTopology(toplevel)
 }
 
 func (c *spoc) showReadStatistics() {
+	symTable := c.symTable
 	r := len(symTable.router) + len(symTable.router6)
 	n := len(symTable.network)
 	h := len(symTable.host)
@@ -52,7 +51,7 @@ func (c *spoc) parseFiles(dir string) []ast.Toplevel {
 		result = append(result, aF.Nodes...)
 		return nil
 	}
-	err := filetree.Walk(dir, process)
+	err := filetree.Walk(dir, c.conf.IPV6, process)
 	if err != nil {
 		c.abort("%v", err)
 	}
@@ -61,14 +60,13 @@ func (c *spoc) parseFiles(dir string) []ast.Toplevel {
 
 func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.checkDuplicate(toplevel)
-	sym := createSymbolTable()
-	c.initStdProtocols(sym)
-	symTable = sym
-	c.setupObjects(toplevel, sym)
-	c.setAscendingServices(sym)
+	c.symTable = createSymbolTable()
+	c.initStdProtocols()
+	c.setupObjects(toplevel)
+	c.setAscendingServices()
 	c.splitSemiManagedRouters()
 	c.stopOnErr()
-	c.linkTunnels(sym)
+	c.linkTunnels()
 	c.linkVirtualInterfaces()
 }
 
@@ -132,7 +130,8 @@ func createSymbolTable() *symbolTable {
 	return s
 }
 
-func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
+func (c *spoc) setupObjects(l []ast.Toplevel) {
+	s := c.symTable
 	var ipsec []*ast.TopStruct
 	var crypto []*ast.TopStruct
 	var networks []*ast.Network
@@ -152,7 +151,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 		}
 		switch x := a.(type) {
 		case *ast.Protocol:
-			c.setupProtocol(x, s)
+			c.setupProtocol(x)
 		case *ast.Protocolgroup:
 			l := make(stringList, 0, len(x.ValueList))
 			for _, v := range x.ValueList {
@@ -184,9 +183,9 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 		case *ast.TopStruct:
 			switch typ {
 			case "owner":
-				c.setupOwner(x, s)
+				c.setupOwner(x)
 			case "isakmp":
-				c.setupIsakmp(x, s)
+				c.setupIsakmp(x)
 			case "ipsec":
 				ipsec = append(ipsec, x)
 			case "crypto":
@@ -206,32 +205,33 @@ func (c *spoc) setupObjects(l []ast.Toplevel, s *symbolTable) {
 		}
 	}
 	for _, a := range ipsec {
-		c.setupIpsec(a, s)
+		c.setupIpsec(a)
 	}
 	for _, a := range crypto {
-		c.setupCrypto(a, s)
+		c.setupCrypto(a)
 	}
 	for _, a := range networks {
-		c.setupNetwork(a, s)
+		c.setupNetwork(a)
 	}
 	for _, a := range aggregates {
-		c.setupAggregate(a, s)
+		c.setupAggregate(a)
 	}
 	for _, a := range routers {
-		c.setupRouter(a, s)
+		c.setupRouter(a)
 	}
 	for _, a := range areas {
-		c.setupArea(a, s)
+		c.setupArea(a)
 	}
 	for _, a := range pathrestrictions {
-		c.setupPathrestriction(a, s)
+		c.setupPathrestriction(a)
 	}
 	for _, a := range services {
-		c.setupService(a, s)
+		c.setupService(a)
 	}
 }
 
-func (c *spoc) setAscendingServices(s *symbolTable) {
+func (c *spoc) setAscendingServices() {
+	s := c.symTable
 	names := make(stringList, 0, len(s.service))
 	for name := range s.service {
 		names.push(name)
@@ -242,24 +242,24 @@ func (c *spoc) setAscendingServices(s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupProtocol(a *ast.Protocol, s *symbolTable) {
+func (c *spoc) setupProtocol(a *ast.Protocol) {
 	name := a.Name
 	v := a.Value
 	l := strings.Split(v, ", ")
 	def := l[0]
 	mod := l[1:]
-	pSimp, pSrc := c.getSimpleProtocolAndSrcPort(def, s, a.IPV6, name)
+	pSimp, pSrc := c.getSimpleProtocolAndSrcPort(def, a.IPV6, name)
 	p := *pSimp
 	p.name = name
 	// Link named protocol with corresponding unnamed protocol.
 	p.main = pSimp
 	pName := name[len("protocol:"):]
 	c.addProtocolModifiers(mod, &p, pSrc)
-	s.protocol[pName] = &p
+	c.symTable.protocol[pName] = &p
 }
 
-func (c *spoc) getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string) *proto {
-	p, pSrc := c.getSimpleProtocolAndSrcPort(def, s, v6, ctx)
+func (c *spoc) getSimpleProtocol(def string, v6 bool, ctx string) *proto {
+	p, pSrc := c.getSimpleProtocolAndSrcPort(def, v6, ctx)
 	if pSrc != nil {
 		c.err("Must not use source port in %s.\n"+
 			" Source port is only valid in named protocol", ctx)
@@ -269,7 +269,7 @@ func (c *spoc) getSimpleProtocol(def string, s *symbolTable, v6 bool, ctx string
 
 // Return protocol and optional protocol representing source port.
 func (c *spoc) getSimpleProtocolAndSrcPort(
-	def string, s *symbolTable, v6 bool, ctx string) (*proto, *proto) {
+	def string, v6 bool, ctx string) (*proto, *proto) {
 
 	var srcP *proto
 
@@ -291,7 +291,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 			cp := *p
 			srcP = &cp
 			srcP.ports = src
-			srcP = cacheUnnamedProtocol(srcP, s)
+			srcP = c.cacheUnnamedProtocol(srcP)
 		}
 	case "icmp", "icmpv6":
 		c.addICMPTypeCode(nums, p, v6, ctx)
@@ -301,7 +301,7 @@ func (c *spoc) getSimpleProtocolAndSrcPort(
 		c.err("Unknown protocol in %s", ctx)
 		p.proto = "ip"
 	}
-	p = cacheUnnamedProtocol(p, s)
+	p = c.cacheUnnamedProtocol(p)
 	return p, srcP
 }
 
@@ -470,12 +470,12 @@ func (c *spoc) addProtocolModifiers(l []string, p *proto, srcP *proto) {
 	p.modifiers = m
 }
 
-func (c *spoc) setupOwner(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupOwner(v *ast.TopStruct) {
 	name := v.Name
 	o := new(owner)
 	o.name = name
 	oName := name[len("owner:"):]
-	s.owner[oName] = o
+	c.symTable.owner[oName] = o
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "admins":
@@ -536,12 +536,12 @@ var isakmpAttr = map[string]attrDescr{
 	},
 }
 
-func (c *spoc) setupIsakmp(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupIsakmp(v *ast.TopStruct) {
 	name := v.Name
 	is := new(isakmp)
 	is.name = name
 	isName := name[len("isakmp:"):]
-	s.isakmp[isName] = is
+	c.symTable.isakmp[isName] = is
 	hasLifetime := false
 	ikeVersion := ""
 	for _, a := range v.Attributes {
@@ -626,16 +626,16 @@ var ipsecAttr = map[string]attrDescr{
 	},
 }
 
-func (c *spoc) setupIpsec(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupIpsec(v *ast.TopStruct) {
 	name := v.Name
 	is := new(ipsec)
 	is.name = name
 	isName := name[len("ipsec:"):]
-	s.ipsec[isName] = is
+	c.symTable.ipsec[isName] = is
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "key_exchange":
-			is.isakmp = c.getIsakmpRef(a, s, name)
+			is.isakmp = c.getIsakmpRef(a, name)
 		case "esp_encryption":
 			is.espEncryption = c.getAttr(a, ipsecAttr, name)
 		case "esp_authentication":
@@ -659,12 +659,12 @@ func (c *spoc) setupIpsec(v *ast.TopStruct, s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupCrypto(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupCrypto(v *ast.TopStruct) {
 	name := v.Name
 	cr := new(crypto)
 	cr.name = name
 	crName := name[len("crypto:"):]
-	s.crypto[crName] = cr
+	c.symTable.crypto[crName] = cr
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "bind_nat":
@@ -672,7 +672,7 @@ func (c *spoc) setupCrypto(v *ast.TopStruct, s *symbolTable) {
 		case "detailed_crypto_acl":
 			cr.detailedCryptoAcl = c.getFlag(a, name)
 		case "type":
-			cr.ipsec = c.getIpsecRef(a, s, name)
+			cr.ipsec = c.getIpsecRef(a, name)
 		default:
 			c.err("Unexpected attribute in %s: %s", name, a.Name)
 		}
@@ -683,10 +683,10 @@ func (c *spoc) setupCrypto(v *ast.TopStruct, s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
+func (c *spoc) setupNetwork(v *ast.Network) {
 	name := v.Name
 	netName := name[len("network:"):]
-	n := s.network[netName]
+	n := c.symTable.network[netName]
 	n.name = name
 	n.ipV6 = v.IPV6
 	i := strings.Index(netName, "/")
@@ -715,9 +715,9 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 		case "crosslink":
 			n.crosslink = c.getFlag(a, name)
 		case "subnet_of":
-			n.subnetOf = c.tryNetworkRef(a, s, n.ipV6, name)
+			n.subnetOf = c.tryNetworkRef(a, n.ipV6, name)
 		case "owner":
-			n.owner = c.getRealOwnerRef(a, s, name)
+			n.owner = c.getRealOwnerRef(a, name)
 		case "cert_id":
 			n.certId = c.getSingleValue(a, name)
 		case "ldap_append":
@@ -728,7 +728,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 			n.partition = c.getIdentifier(a, name)
 		default:
 			if c.addAttr(a, &n.attr, name) {
-			} else if nat := c.addNetNat(a, n.nat, v.IPV6, s, name); nat != nil {
+			} else if nat := c.addNetNat(a, n.nat, v.IPV6, name); nat != nil {
 				n.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -737,7 +737,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 	}
 	c.checkDuplAttr(v.Attributes, name)
 	for _, a := range v.Hosts {
-		h := c.setupHost(a, s, n)
+		h := c.setupHost(a, n)
 		if h.ldapId != "" {
 			h.ldapId += ldapAppend
 		}
@@ -862,7 +862,7 @@ func (c *spoc) setupNetwork(v *ast.Network, s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
+func (c *spoc) setupHost(v *ast.Attribute, n *network) *host {
 	name := v.Name
 	v6 := n.ipV6
 	h := new(host)
@@ -883,7 +883,7 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 		}
 	}
 	h.name = name
-	s.host[hName] = h
+	c.symTable.host[hName] = h
 	h.network = n
 	n.hosts = append(n.hosts, h)
 
@@ -898,7 +898,7 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 			h.ipRange = c.getIpRange(a, v6, name)
 			ipGiven++
 		case "owner":
-			h.owner = c.getRealOwnerRef(a, s, name)
+			h.owner = c.getRealOwnerRef(a, name)
 		case "ldap_id":
 			h.ldapId = c.getSingleValue(a, name)
 		case "radius_attributes":
@@ -935,7 +935,7 @@ func (c *spoc) setupHost(v *ast.Attribute, s *symbolTable, n *network) *host {
 	return h
 }
 
-func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
+func (c *spoc) setupAggregate(v *ast.TopStruct) {
 	name := v.Name
 	v6 := v.IPV6
 	ag := new(network)
@@ -943,7 +943,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	ag.isAggregate = true
 	ag.ipV6 = v6
 	agName := name[len("any:"):]
-	s.aggregate[agName] = ag
+	c.symTable.aggregate[agName] = ag
 	hasLink := false
 	for _, a := range v.Attributes {
 		switch a.Name {
@@ -951,14 +951,14 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 			ag.ipp = c.getIpPrefix(a, v.IPV6, name)
 		case "link":
 			hasLink = true
-			ag.link = c.getNetworkRef(a, s, v6, name)
+			ag.link = c.getNetworkRef(a, v6, name)
 		case "no_check_supernet_rules":
 			ag.noCheckSupernetRules = c.getFlag(a, name)
 		case "owner":
-			ag.owner = c.getRealOwnerRef(a, s, name)
+			ag.owner = c.getRealOwnerRef(a, name)
 		default:
 			if c.addAttr(a, &ag.attr, name) {
-			} else if nat := c.addNetNat(a, ag.nat, v.IPV6, s, name); nat != nil {
+			} else if nat := c.addNetNat(a, ag.nat, v.IPV6, name); nat != nil {
 				ag.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -987,22 +987,22 @@ func (c *spoc) setupAggregate(v *ast.TopStruct, s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
+func (c *spoc) setupArea(v *ast.Area) {
 	name := v.Name
 	v6 := v.IPV6
 	ar := new(area)
 	ar.name = name
 	ar.ipV6 = v6
 	arName := name[len("area:"):]
-	s.area[arName] = ar
+	c.symTable.area[arName] = ar
 	for _, a := range v.Attributes {
 		switch a.Name {
 		case "anchor":
-			ar.anchor = c.getNetworkRef(a, s, v.IPV6, name)
+			ar.anchor = c.getNetworkRef(a, v.IPV6, name)
 		case "router_attributes":
-			ar.routerAttributes = c.getRouterAttributes(a, s, ar)
+			ar.routerAttributes = c.getRouterAttributes(a, ar)
 		case "owner":
-			o := c.tryOwnerRef(a, s, name)
+			o := c.tryOwnerRef(a, name)
 			if o != nil && o.onlyWatch {
 				ar.watchingOwner = o
 			} else {
@@ -1010,7 +1010,7 @@ func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 			}
 		default:
 			if c.addAttr(a, &ar.attr, name) {
-			} else if nat := c.addNetNat(a, ar.nat, v.IPV6, s, name); nat != nil {
+			} else if nat := c.addNetNat(a, ar.nat, v.IPV6, name); nat != nil {
 				ar.nat = nat
 			} else {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -1054,7 +1054,7 @@ func (c *spoc) setupArea(v *ast.Area, s *symbolTable) {
 	}
 }
 
-func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
+func (c *spoc) setupPathrestriction(v *ast.TopList) {
 	name := v.Name
 	l := c.expandGroup(v.Elements, name, v.IPV6, false)
 	elements := make(intfList, 0, len(l))
@@ -1082,11 +1082,11 @@ func (c *spoc) setupPathrestriction(v *ast.TopList, s *symbolTable) {
 	c.addPathrestriction(name, elements)
 }
 
-func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
+func (c *spoc) setupRouter(v *ast.Router) {
 	name := v.Name
 	rName := name[len("router:"):]
 	v6 := v.IPV6
-	r := getRouter(rName, s, v6)
+	r := c.getRouter(rName, v6)
 	c.allRouters = append(c.allRouters, r)
 	i := strings.Index(rName, "@")
 	if i != -1 {
@@ -1121,17 +1121,17 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
-			r.owner = c.getRealOwnerRef(a, s, name)
+			r.owner = c.getRealOwnerRef(a, name)
 		case "radius_attributes":
 			r.radiusAttributes = c.getRadiusAttributes(a, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = c.tryHostRef(a, s, v6, name)
+			r.policyDistributionPoint = c.tryHostRef(a, v6, name)
 		case "general_permit":
-			r.generalPermit = c.getGeneralPermit(a, s, v6, name)
+			r.generalPermit = c.getGeneralPermit(a, v6, name)
 		case "management_instance":
 			r.managementInstance = c.getFlag(a, name)
 		case "backup_of":
-			r.backupOf = c.tryRouterRef(a, s, v6, name)
+			r.backupOf = c.tryRouterRef(a, v6, name)
 		default:
 			if !c.addLog(a, r) {
 				c.err("Unexpected attribute in %s: %s", name, a.Name)
@@ -1196,7 +1196,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 	// to the same hardware object.
 	hwMap := make(map[string]*hardware)
 	for _, a := range v.Interfaces {
-		c.setupInterface(a, s, hwMap, l3Name, r)
+		c.setupInterface(a, hwMap, l3Name, r)
 	}
 
 	if managed := r.managed; managed != "" {
@@ -1273,7 +1273,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 		if m := r.log; m != nil {
 			if r.model.logModifiers != nil {
 				for name, modList := range m {
-					s.knownLog[name] = true
+					c.symTable.knownLog[name] = true
 					m[name] = c.transformLog("log:"+name, modList, r)
 				}
 			} else {
@@ -1325,7 +1325,7 @@ func (c *spoc) setupRouter(v *ast.Router, s *symbolTable) {
 			if intf.ipType == bridgedIP {
 				layer3Name := intf.name[len("interface:"):]
 				layer3Name, _, _ = strings.Cut(layer3Name, "/")
-				intf.layer3Intf = s.routerIntf[layer3Name]
+				intf.layer3Intf = c.symTable.routerIntf[layer3Name]
 			}
 		}
 
@@ -1468,7 +1468,7 @@ func withSecondary(l intfList) intfList {
 	return result
 }
 
-func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
+func (c *spoc) setupInterface(v *ast.Attribute,
 	hwMap map[string]*hardware, l3Name string, r *router) {
 
 	rName := r.name[len("router:"):]
@@ -1517,7 +1517,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case "hardware":
 			hwName = c.getSingleValue(a, name)
 		case "owner":
-			intf.owner = c.getRealOwnerRef(a, s, name)
+			intf.owner = c.getRealOwnerRef(a, name)
 		case "unnumbered":
 			c.getFlag(a, name)
 			intf.ipType = unnumberedIP
@@ -1535,11 +1535,11 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case "dhcp_client":
 			intf.dhcpClient = c.getFlag(a, name)
 		case "subnet_of":
-			subnetOf = c.tryNetworkRef(a, s, v6, name)
+			subnetOf = c.tryNetworkRef(a, v6, name)
 		case "hub":
-			intf.hub = c.getCryptoRefList(a, s, name)
+			intf.hub = c.getCryptoRefList(a, name)
 		case "spoke":
-			intf.spoke = c.getCryptoRef(a, s, name)
+			intf.spoke = c.getCryptoRef(a, name)
 		case "id":
 			intf.id = c.getUserID(a, name)
 		case "virtual":
@@ -1549,13 +1549,13 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		case "routing":
 			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
-			intf.reroutePermit = c.tryNetworkRefList(a, s, v6, name)
+			intf.reroutePermit = c.tryNetworkRefList(a, v6, name)
 		case "disabled":
 			intf.disabled = c.getFlag(a, name)
 		case "no_check":
 			intf.noCheck = c.getFlag(a, name)
 		default:
-			if m := c.addIntfNat(a, nat, v6, s, name); m != nil {
+			if m := c.addIntfNat(a, nat, v6, name); m != nil {
 				nat = m
 			} else if strings.HasPrefix(a.Name, "secondary:") {
 				name2 := a.Name[len("secondary:"):]
@@ -1877,7 +1877,7 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		}
 		var n *network
 		if intf.redundant {
-			n = s.network[shortName]
+			n = c.symTable.network[shortName]
 		}
 		if n == nil {
 			n = new(network)
@@ -1894,14 +1894,14 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 			n.nat = nat
 
 			if intf.redundant {
-				s.network[shortName] = n
+				c.symTable.network[shortName] = n
 			}
 		}
 		intf.network = n
 		n.interfaces.push(intf)
 	} else {
 		// Link interface with network.
-		n := s.network[nName]
+		n := c.symTable.network[nName]
 		if n == nil {
 			msg := "Referencing undefined network:%s from %s"
 			if intf.disabled {
@@ -1942,18 +1942,18 @@ func (c *spoc) setupInterface(v *ast.Attribute, s *symbolTable,
 		intf.ipV6 = r.ipV6
 		name := intf.name
 		iName := name[len("interface:"):]
-		if _, found := s.routerIntf[iName]; found {
+		if _, found := c.symTable.routerIntf[iName]; found {
 			c.err("Duplicate definition of %s in %s", name, r)
 		}
-		s.routerIntf[iName] = intf
+		c.symTable.routerIntf[iName] = intf
 	}
 }
 
-func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
+func (c *spoc) setupService(v *ast.Service) {
 	name := v.Name
 	v6 := v.IPV6
 	sName := name[len("service:"):]
-	sv := s.service[sName]
+	sv := c.symTable.service[sName]
 	sv.name = name
 	sv.ipV6 = v6
 	if d := v.Description; d != nil {
@@ -1963,9 +1963,9 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 		switch a.Name {
 		case "identical_body":
 			sv.identicalBody =
-				c.tryServiceRefList(a, s, "attribute 'identical_body' of "+name)
+				c.tryServiceRefList(a, "attribute 'identical_body' of "+name)
 		case "overlaps":
-			sv.overlaps = c.tryServiceRefList(a, s, "attribute 'overlaps' of "+name)
+			sv.overlaps = c.tryServiceRefList(a, "attribute 'overlaps' of "+name)
 		case "multi_owner":
 			sv.multiOwner = c.getFlag(a, name)
 		case "unknown_owner":
@@ -2013,10 +2013,10 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 			ru.hasUser = "dst"
 		}
 		ru.prt =
-			c.expandProtocolsCheckV4V6(c.getValueList(v2.Prt, name), s, v6, name)
+			c.expandProtocolsCheckV4V6(c.getValueList(v2.Prt, name), v6, name)
 		if a2 := v2.Log; a2 != nil {
 			l := c.getValueList(a2, name)
-			l = c.checkLog(l, s, name)
+			l = c.checkLog(l, name)
 			ru.log = strings.Join(l, " ")
 		}
 		sv.rules = append(sv.rules, ru)
@@ -2030,14 +2030,14 @@ func (c *spoc) setupService(v *ast.Service, s *symbolTable) {
 // - Sort tags,
 // - remove duplicate elements and
 // - remove unknown tags, not defined at any router.
-func (c *spoc) checkLog(l stringList, s *symbolTable, ctx string) stringList {
+func (c *spoc) checkLog(l stringList, ctx string) stringList {
 	var valid stringList
 	prev := ""
 	sort.Strings(l)
 	for _, tag := range l {
 		if tag == prev {
 			c.warn("Duplicate '%s' in log of %s", tag, ctx)
-		} else if !s.knownLog[tag] {
+		} else if !c.symTable.knownLog[tag] {
 			c.warn("Ignoring unknown '%s' in log of %s", tag, ctx)
 		} else {
 			prev = tag
@@ -2735,20 +2735,17 @@ func (c *spoc) dateIsReached(s, ctx string) bool {
 	return time.Now().After(date)
 }
 
-func (c *spoc) getNetworkRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
-
-	return c.lookupNetworkRef(a, s, v6, ctx, false)
+func (c *spoc) getNetworkRef(a *ast.Attribute, v6 bool, ctx string) *network {
+	return c.lookupNetworkRef(a, v6, ctx, false)
 }
 
-func (c *spoc) tryNetworkRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *network {
+func (c *spoc) tryNetworkRef(a *ast.Attribute, v6 bool, ctx string) *network {
 
-	return c.lookupNetworkRef(a, s, v6, ctx, true)
+	return c.lookupNetworkRef(a, v6, ctx, true)
 }
 
 func (c *spoc) lookupNetworkRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string,
+	a *ast.Attribute, v6 bool, ctx string,
 	warn bool) *network {
 
 	typ, name := c.getTypedName(a, ctx)
@@ -2760,7 +2757,7 @@ func (c *spoc) lookupNetworkRef(
 		c.err("Must only use network name in %s", ctx2)
 		return nil
 	}
-	n := s.network[name]
+	n := c.symTable.network[name]
 	if n == nil {
 		f := c.err
 		if warn {
@@ -2774,7 +2771,7 @@ func (c *spoc) lookupNetworkRef(
 }
 
 func (c *spoc) tryNetworkRefList(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) netList {
+	a *ast.Attribute, v6 bool, ctx string) netList {
 
 	l := c.getValueList(a, ctx)
 	result := make(netList, 0, len(l))
@@ -2783,7 +2780,7 @@ func (c *spoc) tryNetworkRefList(
 		name := strings.TrimPrefix(v, "network:")
 		if len(name) == len(v) {
 			c.err("Expected type 'network:' in %s", ctx2)
-		} else if n, found := s.network[name]; found {
+		} else if n, found := c.symTable.network[name]; found {
 			c.checkV4V6CrossRef(n, v6, ctx2)
 			result = append(result, n)
 		} else {
@@ -2794,7 +2791,7 @@ func (c *spoc) tryNetworkRefList(
 }
 
 func (c *spoc) tryHostRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *host {
+	a *ast.Attribute, v6 bool, ctx string) *host {
 
 	typ, name := c.getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
@@ -2802,7 +2799,7 @@ func (c *spoc) tryHostRef(
 		c.err("Expected type 'host:' in %s", ctx2)
 		return nil
 	}
-	h := s.host[name]
+	h := c.symTable.host[name]
 	if h == nil {
 		c.warn("Ignoring undefined host:%s in %s", name, ctx2)
 		return nil
@@ -2811,8 +2808,7 @@ func (c *spoc) tryHostRef(
 	return h
 }
 
-func (c *spoc) tryRouterRef(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) *router {
+func (c *spoc) tryRouterRef(a *ast.Attribute, v6 bool, ctx string) *router {
 
 	typ, name := c.getTypedName(a, ctx)
 	ctx2 := "'" + a.Name + "' of " + ctx
@@ -2820,7 +2816,7 @@ func (c *spoc) tryRouterRef(
 		c.err("Expected type 'router:' in %s", ctx2)
 		return nil
 	}
-	r := getRouter(name, s, v6)
+	r := c.getRouter(name, v6)
 	if r == nil {
 		c.warn("Ignoring undefined router:%s in %s", name, ctx2)
 		return nil
@@ -2828,11 +2824,11 @@ func (c *spoc) tryRouterRef(
 	return r
 }
 
-func getRouter(name string, s *symbolTable, v6 bool) *router {
+func (c *spoc) getRouter(name string, v6 bool) *router {
 	if v6 {
-		return s.router6[name]
+		return c.symTable.router6[name]
 	} else {
-		return s.router[name]
+		return c.symTable.router[name]
 	}
 }
 
@@ -2846,10 +2842,8 @@ func (c *spoc) getTypedName(a *ast.Attribute, ctx string) (string, string) {
 	return typ, name
 }
 
-func (c *spoc) getRealOwnerRef(
-	a *ast.Attribute, s *symbolTable, ctx string) *owner {
-
-	o := c.tryOwnerRef(a, s, ctx)
+func (c *spoc) getRealOwnerRef(a *ast.Attribute, ctx string) *owner {
+	o := c.tryOwnerRef(a, ctx)
 	if o != nil {
 		if o.admins == nil {
 			c.err("Missing attribute 'admins' in %s of %s", o, ctx)
@@ -2864,11 +2858,10 @@ func (c *spoc) getRealOwnerRef(
 	return o
 }
 
-func (c *spoc) tryOwnerRef(
-	a *ast.Attribute, s *symbolTable, ctx string) *owner {
+func (c *spoc) tryOwnerRef(a *ast.Attribute, ctx string) *owner {
 
 	name := c.getSingleValue(a, ctx)
-	o := s.owner[name]
+	o := c.symTable.owner[name]
 	if o == nil {
 		c.warn("Ignoring undefined owner:%s of %s", name, ctx)
 	} else {
@@ -2877,45 +2870,40 @@ func (c *spoc) tryOwnerRef(
 	return o
 }
 
-func (c *spoc) getIsakmpRef(
-	a *ast.Attribute, s *symbolTable, ctx string) *isakmp {
+func (c *spoc) getIsakmpRef(a *ast.Attribute, ctx string) *isakmp {
 
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "isakmp" {
 		c.err("Expected type 'isakmp:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
-	is := s.isakmp[name]
+	is := c.symTable.isakmp[name]
 	if is == nil {
 		c.err("Can't resolve reference to isakmp:%s in %s", name, ctx)
 	}
 	return is
 }
 
-func (c *spoc) getIpsecRef(
-	a *ast.Attribute, s *symbolTable, ctx string) *ipsec {
-
+func (c *spoc) getIpsecRef(a *ast.Attribute, ctx string) *ipsec {
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "ipsec" {
 		c.err("Expected type 'ipsec:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
-	is := s.ipsec[name]
+	is := c.symTable.ipsec[name]
 	if is == nil {
 		c.err("Can't resolve reference to ipsec:%s in %s", name, ctx)
 	}
 	return is
 }
 
-func (c *spoc) getCryptoRef(
-	a *ast.Attribute, s *symbolTable, ctx string) *crypto {
-
+func (c *spoc) getCryptoRef(a *ast.Attribute, ctx string) *crypto {
 	typ, name := c.getTypedName(a, ctx)
 	if typ != "crypto" {
 		c.err("Expected type 'crypto:' in '%s' of %s", a.Name, ctx)
 		return nil
 	}
-	cr := s.crypto[name]
+	cr := c.symTable.crypto[name]
 	if cr == nil {
 		c.err("Can't resolve reference to crypto:%s in '%s' of %s",
 			name, a.Name, ctx)
@@ -2923,9 +2911,7 @@ func (c *spoc) getCryptoRef(
 	return cr
 }
 
-func (c *spoc) getCryptoRefList(
-	a *ast.Attribute, s *symbolTable, ctx string) []*crypto {
-
+func (c *spoc) getCryptoRefList(a *ast.Attribute, ctx string) []*crypto {
 	l := c.getValueList(a, ctx)
 	result := make([]*crypto, 0, len(l))
 	ctx2 := "'" + a.Name + "' of " + ctx
@@ -2933,7 +2919,7 @@ func (c *spoc) getCryptoRefList(
 		name := strings.TrimPrefix(v, "crypto:")
 		if len(name) == len(v) {
 			c.err("Expected type 'crypto:' in %s", ctx2)
-		} else if cr, found := s.crypto[name]; found {
+		} else if cr, found := c.symTable.crypto[name]; found {
 			result = append(result, cr)
 		} else {
 			c.err("Can't resolve reference to crypto:%s in %s", name, ctx2)
@@ -2942,16 +2928,14 @@ func (c *spoc) getCryptoRefList(
 	return result
 }
 
-func (c *spoc) tryServiceRefList(
-	a *ast.Attribute, s *symbolTable, ctx string) []*service {
-
+func (c *spoc) tryServiceRefList(a *ast.Attribute, ctx string) []*service {
 	l := c.getValueList(a, ctx)
 	result := make([]*service, 0, len(l))
 	for _, v := range l {
 		name := strings.TrimPrefix(v, "service:")
 		if len(name) == len(v) {
 			c.err("Expected type 'service:' in %s", ctx)
-		} else if s, found := s.service[name]; found {
+		} else if s, found := c.symTable.service[name]; found {
 			result = append(result, s)
 		} else {
 			c.warn("Unknown '%s' in %s", v, ctx)
@@ -2960,8 +2944,8 @@ func (c *spoc) tryServiceRefList(
 	return result
 }
 
-func (c *spoc) getProtocolRef(name string, s *symbolTable, ctx string) *proto {
-	p := s.protocol[name]
+func (c *spoc) getProtocolRef(name string, ctx string) *proto {
+	p := c.symTable.protocol[name]
 	if p == nil {
 		c.err("Can't resolve reference to protocol:%s in %s", name, ctx)
 	} else {
@@ -2971,17 +2955,17 @@ func (c *spoc) getProtocolRef(name string, s *symbolTable, ctx string) *proto {
 }
 
 func (c *spoc) getProtocolList(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
+	a *ast.Attribute, v6 bool, ctx string) protoList {
 
 	l := c.getValueList(a, ctx)
 	ctx2 := a.Name + " of " + ctx
-	return c.expandProtocolsCheckV4V6(l, s, v6, ctx2)
+	return c.expandProtocolsCheckV4V6(l, v6, ctx2)
 }
 
 func (c *spoc) expandProtocolsCheckV4V6(
-	l stringList, s *symbolTable, v6 bool, ctx string) protoList {
+	l stringList, v6 bool, ctx string) protoList {
 
-	pl := c.expandProtocols(l, s, v6, ctx)
+	pl := c.expandProtocols(l, v6, ctx)
 	for _, p := range pl {
 		switch p.proto {
 		case "icmpv6":
@@ -3007,22 +2991,21 @@ func (c *spoc) expandProtocolsCheckV4V6(
 	return pl
 }
 
-func (c *spoc) expandProtocols(
-	l stringList, s *symbolTable, v6 bool, ctx string) protoList {
+func (c *spoc) expandProtocols(l stringList, v6 bool, ctx string) protoList {
 
 	var result protoList
 	for _, v := range l {
 		if strings.HasPrefix(v, "protocol:") {
 			name := v[len("protocol:"):]
-			if p := c.getProtocolRef(name, s, ctx); p != nil {
+			if p := c.getProtocolRef(name, ctx); p != nil {
 				result.push(p)
 			}
 		} else if strings.HasPrefix(v, "protocolgroup:") {
 			name := v[len("protocolgroup:"):]
-			result = append(result, c.expandProtocolgroup(name, s, v6, ctx)...)
+			result = append(result, c.expandProtocolgroup(name, v6, ctx)...)
 		} else {
 			ctx2 := "'" + v + "' of " + ctx
-			p := c.getSimpleProtocol(v, s, v6, ctx2)
+			p := c.getSimpleProtocol(v, v6, ctx2)
 			result.push(p)
 		}
 	}
@@ -3046,9 +3029,9 @@ func (c *spoc) expandProtocols(
 }
 
 func (c *spoc) expandProtocolgroup(
-	name string, s *symbolTable, v6 bool, ctx string) protoList {
+	name string, v6 bool, ctx string) protoList {
 
-	g, found := s.protocolgroup[name]
+	g, found := c.symTable.protocolgroup[name]
 	if !found {
 		c.err("Can't resolve reference to protocolgroup:%s in %s", name, ctx)
 		return nil
@@ -3059,19 +3042,19 @@ func (c *spoc) expandProtocolgroup(
 		g.isUsed = true
 		g.recursive = true
 		ctx2 := "protocolgroup:" + name
-		g.elements = c.expandProtocols(g.list, s, v6, ctx2)
+		g.elements = c.expandProtocols(g.list, v6, ctx2)
 		g.recursive = false
 	}
 	return g.elements
 }
 
-func cacheUnnamedProtocol(p *proto, s *symbolTable) *proto {
+func (c *spoc) cacheUnnamedProtocol(p *proto) *proto {
 	name := genProtocolName(p)
-	if cached, found := s.unnamedProto[name]; found {
+	if cached, found := c.symTable.unnamedProto[name]; found {
 		return cached
 	}
 	p.name = name
-	s.unnamedProto[name] = p
+	c.symTable.unnamedProto[name] = p
 	return p
 }
 
@@ -3118,7 +3101,7 @@ func (c *spoc) getRadiusAttributes(a *ast.Attribute, ctx string) map[string]stri
 }
 
 func (c *spoc) getRouterAttributes(
-	a *ast.Attribute, s *symbolTable, ar *area) routerAttributes {
+	a *ast.Attribute, ar *area) routerAttributes {
 
 	ctx := ar.name
 	var r routerAttributes
@@ -3128,11 +3111,11 @@ func (c *spoc) getRouterAttributes(
 	for _, a2 := range l {
 		switch a2.Name {
 		case "owner":
-			r.owner = c.getRealOwnerRef(a2, s, name)
+			r.owner = c.getRealOwnerRef(a2, name)
 		case "policy_distribution_point":
-			r.policyDistributionPoint = c.tryHostRef(a2, s, ar.ipV6, name)
+			r.policyDistributionPoint = c.tryHostRef(a2, ar.ipV6, name)
 		case "general_permit":
-			r.generalPermit = c.getGeneralPermit(a2, s, ar.ipV6, name)
+			r.generalPermit = c.getGeneralPermit(a2, ar.ipV6, name)
 		default:
 			c.err("Unexpected attribute in %s: %s", name, a2.Name)
 		}
@@ -3141,9 +3124,9 @@ func (c *spoc) getRouterAttributes(
 }
 
 func (c *spoc) getGeneralPermit(
-	a *ast.Attribute, s *symbolTable, v6 bool, ctx string) protoList {
+	a *ast.Attribute, v6 bool, ctx string) protoList {
 
-	l := c.getProtocolList(a, s, v6, ctx)
+	l := c.getProtocolList(a, v6, ctx)
 	for i, p := range l {
 		// Check for protocols not valid for general_permit.
 		// Don't allow port ranges. This wouldn't work, because
@@ -3286,15 +3269,15 @@ func (c *spoc) addAttr(a *ast.Attribute, attr *attrStore, ctx string) bool {
 	return true
 }
 
-func (c *spoc) addNetNat(a *ast.Attribute, m natTagMap, v6 bool,
-	s *symbolTable, ctx string) natTagMap {
+func (c *spoc) addNetNat(
+	a *ast.Attribute, m natTagMap, v6 bool, ctx string) natTagMap {
 
-	return c.addXNat(a, m, v6, s, ctx, c.getIpPrefix)
+	return c.addXNat(a, m, v6, ctx, c.getIpPrefix)
 }
-func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
-	s *symbolTable, ctx string) natTagMap {
+func (c *spoc) addIntfNat(
+	a *ast.Attribute, m natTagMap, v6 bool, ctx string) natTagMap {
 
-	return c.addXNat(a, m, v6, s, ctx,
+	return c.addXNat(a, m, v6, ctx,
 		func(a *ast.Attribute, v6 bool, ctx string) netip.Prefix {
 			ip := c.getSingleValue(a, ctx)
 			return netip.PrefixFrom(
@@ -3305,7 +3288,7 @@ func (c *spoc) addIntfNat(a *ast.Attribute, m natTagMap, v6 bool,
 }
 
 func (c *spoc) addXNat(
-	a *ast.Attribute, m natTagMap, v6 bool, s *symbolTable, ctx string,
+	a *ast.Attribute, m natTagMap, v6 bool, ctx string,
 	getIpX func(*ast.Attribute, bool, string) netip.Prefix,
 ) natTagMap {
 
@@ -3327,7 +3310,7 @@ func (c *spoc) addXNat(
 		case "dynamic":
 			nat.dynamic = c.getFlag(a2, natCtx)
 		case "subnet_of":
-			nat.subnetOf = c.tryNetworkRef(a2, s, v6, natCtx)
+			nat.subnetOf = c.tryNetworkRef(a2, v6, natCtx)
 		default:
 			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
@@ -3591,10 +3574,10 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 }
 
 // Link tunnel networks with tunnel hubs.
-func (c *spoc) linkTunnels(s *symbolTable) {
+func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
-	sorted := make([]*crypto, 0, len(symTable.crypto))
-	for _, c := range symTable.crypto {
+	sorted := make([]*crypto, 0, len(c.symTable.crypto))
+	for _, c := range c.symTable.crypto {
 		sorted = append(sorted, c)
 	}
 	sort.Slice(sorted, func(i, j int) bool {

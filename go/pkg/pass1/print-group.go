@@ -206,7 +206,7 @@ func (c *spoc) printGroup(
 	var natMap natMap
 	if natNet != "" {
 		natNet = strings.TrimPrefix(natNet, "network:")
-		if net := symTable.network[natNet]; net != nil {
+		if net := c.symTable.network[natNet]; net != nil {
 			natMap = net.zone.natDomain.natMap
 		} else {
 			c.abort("Unknown network:%s of option '--nat'", natNet)
@@ -250,8 +250,8 @@ func (c *spoc) printGroup(
 	// Expand group definition.
 	// We don't know if this expands to IPv4 or IPv6 addresses,
 	// so we try both IPv4 and IPv6.
-	ipVx := conf.Conf.IPV6
-	conf.Conf.MaxErrors = 9999
+	ipVx := c.conf.IPV6
+	c.conf.MaxErrors = 9999
 	elements := c.tryExpand(parsed, ipVx)
 
 	if showUnused {
@@ -343,8 +343,8 @@ func PrintGroupMain(d oslink.Data) int {
 		fmt.Sprintf("--quiet=%v", *quiet),
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
-	return toplevelSpoc(d, func(c *spoc) {
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
+	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.printGroup(
 			d.Stdout, path, group, *nat, *ip, *name, *owner, *admins, *unused)
 	})

@@ -13,27 +13,27 @@ func cond(t bool, s1, s2 string) string {
 	return s2
 }
 
-func expandTypedName(typ, name string) ipVxGroupObj {
+func (c *spoc) expandTypedName(typ, name string) ipVxGroupObj {
 	var obj ipVxGroupObj
 	switch typ {
 	case "host":
-		if x := symTable.host[name]; x != nil {
+		if x := c.symTable.host[name]; x != nil {
 			obj = x
 		}
 	case "network":
-		if x := symTable.network[name]; x != nil {
+		if x := c.symTable.network[name]; x != nil {
 			obj = x
 		}
 	case "any":
-		if x := symTable.aggregate[name]; x != nil {
+		if x := c.symTable.aggregate[name]; x != nil {
 			obj = x
 		}
 	case "group":
-		if x := symTable.group[name]; x != nil {
+		if x := c.symTable.group[name]; x != nil {
 			obj = x
 		}
 	case "area":
-		if x := symTable.area[name]; x != nil {
+		if x := c.symTable.area[name]; x != nil {
 			obj = x
 		}
 	}
@@ -386,7 +386,7 @@ func (c *spoc) expandGroup1(
 			if x.Network == "[" {
 				// interface:name.[xxx]
 				selector := x.Extension
-				r := getRouter(x.Router, symTable, ipv6)
+				r := c.getRouter(x.Router, ipv6)
 				if r != nil {
 					if !r.disabled {
 						if selector == "all" {
@@ -409,7 +409,7 @@ func (c *spoc) expandGroup1(
 				if e := x.Extension; e != "" {
 					name += "." + e
 				}
-				if intf, found := symTable.routerIntf[name]; found {
+				if intf, found := c.symTable.routerIntf[name]; found {
 					if !intf.disabled {
 						result.push(intf)
 					}
@@ -597,7 +597,7 @@ func (c *spoc) expandGroup1(
 			// An object named simply 'type:name'.
 			typ := x.Type
 			name := x.Name
-			obj := expandTypedName(typ, name)
+			obj := c.expandTypedName(typ, name)
 			if obj == nil {
 				c.err("Can't resolve %s:%s in %s", typ, name, ctx)
 				continue

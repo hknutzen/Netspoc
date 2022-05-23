@@ -1,12 +1,12 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 )
 
 // Copy raw configuration files of devices into outDir for devices
@@ -27,7 +27,7 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	}
 	for _, file := range files {
 		base := file.Name()
-		ignore := conf.Conf.IgnoreFiles
+		ignore := c.conf.IgnoreFiles
 		if base[0] == '.' || ignore.MatchString(base) || base == ignoreDir {
 			continue
 		}
@@ -55,7 +55,7 @@ func (c *spoc) copyRaw(inPath, outDir string) {
 		return
 	}
 	outV6 := filepath.Join(outDir, "ipv6")
-	if conf.Conf.IPV6 {
+	if c.conf.IPV6 {
 		c.copyRaw1(rawDir, outV6, "ipv4")
 		subDir := filepath.Join(rawDir, "ipv4")
 		if fileop.IsDir(subDir) {

@@ -74,7 +74,7 @@ func Main(d oslink.Data) int {
 
 	// Initialize Conf, especially attribute IgnoreFiles.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
 
 	showErr := func(format string, args ...interface{}) {
 		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
@@ -82,7 +82,7 @@ func Main(d oslink.Data) int {
 
 	s := new(state)
 	var err error
-	s.State, err = astset.Read(netspocPath)
+	s.State, err = astset.Read(netspocPath, cnf.IPV6)
 	if err != nil {
 		// Text of this error message is checked in cvs-worker1 of Netspoc-API.
 		showErr("While reading netspoc files: %s", err)
@@ -95,7 +95,7 @@ func Main(d oslink.Data) int {
 		}
 	}
 	s.Print()
-	if !conf.Conf.Quiet {
+	if !cnf.Quiet {
 		for _, file := range s.Changed() {
 			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
 		}

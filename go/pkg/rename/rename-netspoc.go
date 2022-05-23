@@ -320,10 +320,10 @@ func Main(d oslink.Data) int {
 	}
 	// Initialize Conf, especially attribute IgnoreFiles.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Do substitution.
-	err := filetree.Walk(path, func(input *filetree.Context) error {
+	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		astFile, err := parser.ParseFile(source, path, parser.ParseComments)
@@ -335,7 +335,7 @@ func Main(d oslink.Data) int {
 			return nil
 		}
 
-		if !conf.Conf.Quiet {
+		if !cnf.Quiet {
 			fmt.Fprintf(d.Stderr, "%d changes in %s\n", count, path)
 		}
 		copy := printer.File(astFile)

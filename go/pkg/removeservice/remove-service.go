@@ -123,10 +123,10 @@ func Main(d oslink.Data) int {
 		fmt.Sprintf("--quiet=%v", *quiet),
 		"--max_errors=9999",
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	var err error
-	s.State, err = astset.Read(path)
+	s.State, err = astset.Read(path, cnf.IPV6)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error while reading netspoc files: %s\n", err)
 		return 1
@@ -145,7 +145,7 @@ func Main(d oslink.Data) int {
 		}
 	}
 	s.Print()
-	if !conf.Conf.Quiet {
+	if !cnf.Quiet {
 		for _, file := range s.Changed() {
 			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
 		}

@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
@@ -63,11 +62,11 @@ func iosRouteCode(n netip.Prefix) string {
 
 }
 
-func printRoutes(fh *os.File, r *router) {
+func (c *spoc) printRoutes(fh *os.File, r *router) {
 	ipv6 := r.ipV6
 	model := r.model
 	vrf := r.vrf
-	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
+	doAutoDefaultRoute := c.conf.AutoDefaultRoute
 	zeroNet := getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[int]map[netip.Addr]*network)
@@ -2309,7 +2308,7 @@ func (c *spoc) getDevices() []*router {
 
 func (c *spoc) printPanOS(fd *os.File, l []*router) {
 	r := l[0]
-	mgmt := getRouter(r.deviceName, symTable, r.ipV6)
+	mgmt := c.getRouter(r.deviceName, r.ipV6)
 	hostnames := mgmt.deviceName
 	ipList := mgmt.interfaces[0].ip.String()
 	if backup := mgmt.backupInstance; backup != nil {
@@ -2392,7 +2391,7 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		}
 
 		for _, vrouter := range vrfMembers {
-			printRoutes(fd, vrouter)
+			c.printRoutes(fd, vrouter)
 			if vrouter.managed == "" {
 				continue
 			}
@@ -2423,12 +2422,12 @@ func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 			c.diag("Reused .prev/" + path)
 		}
 	}
-	if conf.Conf.ConcurrencyPass2 <= 1 {
+	if c.conf.ConcurrencyPass2 <= 1 {
 		for _, r := range devices {
 			pass2Code(r)
 		}
 	} else {
-		concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
+		concurrentGoroutines := make(chan struct{}, c.conf.ConcurrencyPass2)
 		var wg sync.WaitGroup
 		for _, r := range devices {
 			concurrentGoroutines <- struct{}{}

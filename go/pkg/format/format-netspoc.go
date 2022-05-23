@@ -43,10 +43,10 @@ func Main(d oslink.Data) int {
 	path := args[0]
 	// Initialize Conf, especially attribute IgnoreFiles.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Process each file.
-	err := filetree.Walk(path, func(input *filetree.Context) error {
+	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		aF, err := parser.ParseFile(source, path, parser.ParseComments)
@@ -61,7 +61,7 @@ func Main(d oslink.Data) int {
 		if bytes.Equal(source, copy) {
 			return nil
 		}
-		if !conf.Conf.Quiet {
+		if !cnf.Quiet {
 			fmt.Fprintf(d.Stderr, "Changed %s\n", path)
 		}
 		return fileop.Overwrite(path, copy)

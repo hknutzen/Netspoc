@@ -199,8 +199,8 @@ func (c *spoc) expandCrypto() {
 	id2intf := make(map[string]intfList)
 	hasTunnel := make(map[*network]bool)
 
-	sorted := make([]*crypto, 0, len(symTable.crypto))
-	for _, cr := range symTable.crypto {
+	sorted := make([]*crypto, 0, len(c.symTable.crypto))
+	for _, cr := range c.symTable.crypto {
 		sorted = append(sorted, cr)
 	}
 	sort.Slice(sorted, func(i, j int) bool {

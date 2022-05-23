@@ -726,7 +726,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Find master owner.
 	var masterOwner *owner
-	for _, ow := range symTable.owner {
+	for _, ow := range c.symTable.owner {
 		if ow.showAll {
 			masterOwner = ow
 			c.progress("Found master " + ow.name)
@@ -859,7 +859,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	// Intersection of all outer owners of one owner is allowed to take
 	// role of corresponding inner owner.
 	eInfo := make(map[*owner][]*owner)
-	for _, ow := range symTable.owner {
+	for _, ow := range c.symTable.owner {
 		outerOwners := owner2outerOwners[ow]
 		if masterOwner != nil {
 			if outerOwners == nil {
@@ -923,7 +923,7 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
 	}
-	for ownerName := range symTable.owner {
+	for ownerName := range c.symTable.owner {
 		natList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
@@ -1074,7 +1074,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		}
 	}
 
-	for ow := range symTable.owner {
+	for ow := range c.symTable.owner {
 		assets := result[ow]
 		if assets == nil {
 			assets = jsonMap{}
@@ -1169,7 +1169,7 @@ func (c *spoc) exportUsersAndServiceLists(
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
 		if visible := s.visible; visible != "" {
-			for ow := range symTable.owner {
+			for ow := range c.symTable.owner {
 				type2sMap := owner2type2sMap[ow]
 				if type2sMap["owner"][s] {
 					continue
@@ -1186,7 +1186,7 @@ func (c *spoc) exportUsersAndServiceLists(
 
 	visibleOwner := getVisibleOwner(pInfo, oInfo)
 	var names stringList
-	for name := range symTable.owner {
+	for name := range c.symTable.owner {
 		names.push(name)
 	}
 	sort.Strings(names)
@@ -1320,7 +1320,7 @@ func (c *spoc) exportZone2Areas(dir string) {
 func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	c.progress("Export owners")
 	email2owners := make(map[string]map[string]bool)
-	for name, ow := range symTable.owner {
+	for name, ow := range c.symTable.owner {
 		var eOwners stringList
 		add := func(l []string) {
 			for _, email := range l {
@@ -1472,12 +1472,12 @@ func ExportMain(d oslink.Data) int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Initialize global variable.
 	allObjects = make(map[srvObj]bool)
 
-	return toplevelSpoc(d, func(c *spoc) {
+	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.exportNetspoc(path, out)
 	})
 }

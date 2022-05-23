@@ -1,9 +1,5 @@
 package pass1
 
-import (
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-)
-
 //#############################################################################
 // Find IP of each device, reachable from policy distribution point.
 //#############################################################################
@@ -15,7 +11,7 @@ import (
 func (c *spoc) setPolicyDistributionIP() {
 	c.progress("Setting policy distribution IP")
 
-	needAll := conf.Conf.CheckPolicyDistributionPoint
+	needAll := c.conf.CheckPolicyDistributionPoint
 	var pdpRouters []*router
 	seen := make(map[*router]bool)
 	var missing stringList

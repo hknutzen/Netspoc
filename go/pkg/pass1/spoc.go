@@ -17,6 +17,8 @@ var (
 )
 
 type spoc struct {
+	conf            *conf.Config
+	startTime       time.Time
 	toStderr        func(string)
 	errCount        int
 	initialErrCount int
@@ -24,6 +26,7 @@ type spoc struct {
 	aborted         bool
 	showDiag        bool
 	// State of compiler
+	symTable              *symbolTable
 	userObj               userInfo
 	allNetworks           netList
 	allRouters            []*router
@@ -40,8 +43,10 @@ type spoc struct {
 	networkAutoInterfaces map[networkAutoIntfKey]*autoIntf
 }
 
-func initSpoc(d oslink.Data) *spoc {
+func initSpoc(d oslink.Data, cnf *conf.Config) *spoc {
 	c := &spoc{
+		conf:                  cnf,
+		startTime:             time.Now(),
 		toStderr:              func(s string) { fmt.Fprintln(d.Stderr, s) },
 		showDiag:              d.ShowDiag,
 		routerAutoInterfaces:  make(map[*router]*autoIntf),
@@ -91,7 +96,7 @@ func (c *spoc) err(format string, args ...interface{}) {
 	msg := fmt.Sprintf("Error: "+format, args...)
 	c.errCount++
 	c.toStderr(msg)
-	if c.errCount >= conf.Conf.MaxErrors {
+	if c.errCount >= c.conf.MaxErrors {
 		c.toStderrf("Aborted after %d errors", c.errCount)
 		c.terminate()
 	}
@@ -112,16 +117,16 @@ func (c *spoc) warnOrErr(
 }
 
 func (c *spoc) info(format string, args ...interface{}) {
-	if !conf.Conf.Quiet {
+	if !c.conf.Quiet {
 		c.toStderrf(format, args...)
 	}
 }
 
 func (c *spoc) progress(msg string) {
-	if !conf.Conf.Quiet {
-		if conf.Conf.TimeStamps {
+	if !c.conf.Quiet {
+		if c.conf.TimeStamps {
 			msg =
-				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)
+				fmt.Sprintf("%.0fs %s", time.Since(c.startTime).Seconds(), msg)
 		}
 		c.toStderr(msg)
 	}
@@ -168,8 +173,10 @@ func (c *spoc) sortedSpoc(f func(*spoc)) {
 		})
 }
 
-func toplevelSpoc(d oslink.Data, f func(*spoc)) (errCount int) {
-	c := initSpoc(d)
+func toplevelSpoc(
+	d oslink.Data, conf *conf.Config, f func(*spoc)) (errCount int) {
+
+	c := initSpoc(d, conf)
 	handleBailout(
 		func() { f(c) },
 		func() { errCount = c.errCount })
@@ -177,14 +184,13 @@ func toplevelSpoc(d oslink.Data, f func(*spoc)) (errCount int) {
 }
 
 func SpocMain(d oslink.Data) int {
-	return toplevelSpoc(d, func(c *spoc) {
-		inDir, outDir, abort := conf.GetArgs(d)
-		if abort {
-			c.toStderr("Aborted")
-			c.errCount++
-			c.terminate()
-		}
-		if device := conf.Conf.DebugPass2; device != "" {
+	inDir, outDir, cnf, abort := conf.GetArgs(d)
+	if abort {
+		fmt.Fprintln(d.Stderr, "Aborted")
+		return 1
+	}
+	return toplevelSpoc(d, cnf, func(c *spoc) {
+		if device := c.conf.DebugPass2; device != "" {
 			pass2.File(device, outDir, path.Join(outDir, ".prev"))
 			return
 		}

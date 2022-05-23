@@ -29,7 +29,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/octago/sflags"
@@ -248,14 +247,7 @@ func addConfigFromFile(inDir string, fs *flag.FlagSet) error {
 	return parseFile(path, fs)
 }
 
-func setStartTime() {
-	StartTime = time.Now()
-}
-
-var Conf *Config
-var StartTime time.Time
-
-func GetArgs(d oslink.Data) (string, string, bool) {
+func GetArgs(d oslink.Data) (string, string, *Config, bool) {
 	fs := flag.NewFlagSet(d.Args[0], flag.ContinueOnError)
 
 	// Setup custom usage function.
@@ -265,14 +257,14 @@ func GetArgs(d oslink.Data) (string, string, bool) {
 			d.Args[0], fs.FlagUsages())
 	}
 
-	Conf = defaultOptions(fs)
+	cnf := defaultOptions(fs)
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == flag.ErrHelp {
-			return "", "", true
+			return "", "", nil, true
 		}
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
-		return "", "", true
+		return "", "", nil, true
 	}
 	// Read names of input file/directory and output directory from
 	// passed command line arguments.
@@ -281,7 +273,7 @@ func GetArgs(d oslink.Data) (string, string, bool) {
 		fmt.Fprintf(d.Stderr, "Error: Expected 1 or 2 args, but got %d\n",
 			fs.NArg())
 		fs.Usage()
-		return "", "", true
+		return "", "", nil, true
 	}
 	// outDir is used to store compilation results.
 	// For each managed router with name X a corresponding file X
@@ -291,18 +283,17 @@ func GetArgs(d oslink.Data) (string, string, bool) {
 
 	if err := addConfigFromFile(inPath, fs); err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-		return "", "", true
+		return "", "", nil, true
 	}
-	setStartTime()
-	return inPath, outDir, false
+	return inPath, outDir, cnf, false
 }
 
-func ConfigFromArgsAndFile(args []string, path string) {
+func ConfigFromArgsAndFile(args []string, path string) *Config {
 	fs := flag.NewFlagSet("", flag.ExitOnError)
-	Conf = defaultOptions(fs)
+	cnf := defaultOptions(fs)
 	// No check for error needed, because arguments are fixed.
 	fs.Parse(args)
 	// Ignore errors, only pass1 needs to check them.
 	addConfigFromFile(path, fs)
-	setStartTime()
+	return cnf
 }

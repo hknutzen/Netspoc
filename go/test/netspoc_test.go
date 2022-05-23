@@ -87,6 +87,7 @@ func runTestFiles(t *testing.T, tc test) {
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
+					//t.Parallel()
 					runTest(t, tc, descr)
 				})
 			}

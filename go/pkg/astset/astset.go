@@ -20,11 +20,11 @@ type State struct {
 	changed  map[string]bool
 }
 
-func Read(netspocBase string) (*State, error) {
+func Read(netspocBase string, v6 bool) (*State, error) {
 	s := new(State)
 	s.changed = make(map[string]bool)
 	s.base = netspocBase
-	err := filetree.Walk(netspocBase, func(input *filetree.Context) error {
+	err := filetree.Walk(netspocBase, v6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		aF, err := parser.ParseFile(source, path, parser.ParseComments)

@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"sort"
 	"strings"
 )
@@ -27,7 +26,7 @@ func (c *spoc) collectUnenforceable(rule *groupedRule) {
 	if sv.unenforceableMap == nil {
 		sv.unenforceableMap = make(map[objPair]bool)
 	}
-	if conf.Conf.CheckUnenforceable == "" {
+	if c.conf.CheckUnenforceable == "" {
 		return
 	}
 	for _, src := range rule.src {
@@ -66,7 +65,7 @@ func (c *spoc) showUnenforceable() {
 
 			// Don't warn on empty service without any expanded rules.
 			if sv.seenUnenforceable {
-				c.warnOrErr(conf.Conf.CheckUnenforceable,
+				c.warnOrErr(c.conf.CheckUnenforceable,
 					"No firewalls found between all source/destination pairs of %s",
 					sv)
 			}
@@ -77,7 +76,7 @@ func (c *spoc) showUnenforceable() {
 				list.push(fmt.Sprintf("src=%s; dst=%s", src, dst))
 			}
 			sort.Strings(list)
-			c.warnOrErr(conf.Conf.CheckUnenforceable,
+			c.warnOrErr(c.conf.CheckUnenforceable,
 				"Some source/destination pairs of %s don't affect any firewall:\n"+
 					" %s",
 				sv, strings.Join(list, "\n "))
