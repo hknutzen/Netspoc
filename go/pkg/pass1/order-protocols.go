@@ -47,37 +47,6 @@ func (c *spoc) initStdProtocols() {
 
 	prt.Bootps = define("udp 67")
 	prt.Bootpc = define("udp 68")
-
-	permitAnyRule = &groupedRule{
-		src: []someObj{network00},
-		dst: []someObj{network00},
-		serviceRule: &serviceRule{
-			prt: []*proto{prt.IP},
-		},
-	}
-	permitAny6Rule = &groupedRule{
-		src: []someObj{network00v6},
-		dst: []someObj{network00v6},
-		serviceRule: &serviceRule{
-			prt: []*proto{prt.IP},
-		},
-	}
-	denyAnyRule = &groupedRule{
-		src: []someObj{network00},
-		dst: []someObj{network00},
-		serviceRule: &serviceRule{
-			deny: true,
-			prt:  []*proto{prt.IP},
-		},
-	}
-	denyAny6Rule = &groupedRule{
-		src: []someObj{network00v6},
-		dst: []someObj{network00v6},
-		serviceRule: &serviceRule{
-			deny: true,
-			prt:  []*proto{prt.IP},
-		},
-	}
 }
 
 // Order protocols. We need this to simplify optimization.

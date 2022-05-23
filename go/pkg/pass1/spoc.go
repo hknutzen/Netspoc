@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"fmt"
+	"net/netip"
 	"path"
 	"sort"
 	"time"
@@ -38,6 +39,8 @@ type spoc struct {
 	pathrestrictions      []*pathRestriction
 	virtualInterfaces     intfList
 	prt                   *stdProto
+	network00             *network
+	network00v6           *network
 	border2obj2auto       map[*routerIntf]map[netOrRouter]intfList
 	routerAutoInterfaces  map[*router]*autoIntf
 	networkAutoInterfaces map[networkAutoIntfKey]*autoIntf
@@ -51,6 +54,20 @@ func initSpoc(d oslink.Data, cnf *conf.Config) *spoc {
 		showDiag:              d.ShowDiag,
 		routerAutoInterfaces:  make(map[*router]*autoIntf),
 		networkAutoInterfaces: make(map[networkAutoIntfKey]*autoIntf),
+		network00: &network{
+			ipObj:          ipObj{name: "network:0/0"},
+			ipp:            netip.PrefixFrom(getZeroIp(false), 0),
+			withStdAddr:    withStdAddr{stdAddr: "0.0.0.0/0"},
+			isAggregate:    true,
+			hasOtherSubnet: true,
+		},
+		network00v6: &network{
+			ipObj:          ipObj{name: "network:0/0"},
+			ipp:            netip.PrefixFrom(getZeroIp(true), 0),
+			withStdAddr:    withStdAddr{stdAddr: "::/0"},
+			isAggregate:    true,
+			hasOtherSubnet: true,
+		},
 	}
 	return c
 }

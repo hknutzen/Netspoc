@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
@@ -61,7 +62,7 @@ var tests = []test{
 	{"check-acl", outDirStdoutT, checkACLRun, stdoutCheck},
 }
 
-var count int
+var count int32
 
 func TestNetspoc(t *testing.T) {
 	os.Unsetenv("LANG")
@@ -69,6 +70,7 @@ func TestNetspoc(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc // capture range variable
 		t.Run(tc.dir, func(t *testing.T) {
+			t.Parallel()
 			runTestFiles(t, tc)
 		})
 	}
@@ -80,6 +82,7 @@ func runTestFiles(t *testing.T, tc test) {
 	for _, file := range dataFiles {
 		file := file // capture range variable
 		t.Run(path.Base(file), func(t *testing.T) {
+			t.Parallel()
 			l, err := tstdata.ParseFile(file)
 			if err != nil {
 				t.Fatal(err)
@@ -87,7 +90,7 @@ func runTestFiles(t *testing.T, tc test) {
 			for _, descr := range l {
 				descr := descr // capture range variable
 				t.Run(descr.Title, func(t *testing.T) {
-					//t.Parallel()
+					t.Parallel()
 					runTest(t, tc, descr)
 				})
 			}
@@ -421,7 +424,7 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 }
 
 func countEq(t *testing.T, expected, got string) {
-	count++
+	atomic.AddInt32(&count, 1)
 	assert.Equal(t, expected, got)
 }
 

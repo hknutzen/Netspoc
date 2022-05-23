@@ -566,9 +566,11 @@ ip access-list extended n3_in
  deny ip any host 10.1.3.1
  permit ip any any
 --
-ip access-list extended n3_out
- permit ip any any
+interface n3
+ ip address 10.1.3.1 255.255.255.0
+ ip access-group n3_in in
 =END=
+# Don't generate outgoing ACL with single line "permit ip any any"
 
 ############################################################
 =TITLE=Loop with no_in_acl and in_zone eq no_in_zone

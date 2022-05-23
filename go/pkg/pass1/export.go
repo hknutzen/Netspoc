@@ -178,8 +178,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 }
 
 // Zone with network 0/0 doesn't have an aggregate 0/0.
-func getZoneName(z *zone) string {
-	ipp := getNetwork00(z.ipV6).ipp
+func (c *spoc) getZoneName(z *zone) string {
+	ipp := c.getNetwork00(z.ipV6).ipp
 	if any := z.ipPrefix2aggregate[ipp]; any != nil {
 		return any.name
 	} else {
@@ -573,10 +573,9 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	return result
 }
 
-// All objects referenced in rules and in networks and hosts of owners.
-var allObjects map[srvObj]bool
+func (c *spoc) setupServiceInfo(
+	services []*exportedSvc, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
 
-func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 	c.progress("Setup service info")
 
 	for _, s := range services {
@@ -965,7 +964,9 @@ func addSubnetworks(networks netList) netList {
 	}
 }
 
-func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
+func (c *spoc) exportAssets(
+	dir string, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
+
 	c.progress("Export assets")
 	result := make(jsonMap)
 
@@ -1054,7 +1055,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 			continue
 		}
 
-		zoneName := getZoneName(z)
+		zoneName := c.getZoneName(z)
 		networks := addSubnetworks(z.networks)
 
 		for _, n := range networks {
@@ -1090,7 +1091,9 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 
 // When creating user and service lists for each owner,
 // we need to lookup, if an object should be visible by this owner.
-func getVisibleOwner(pInfo, oInfo xOwner) map[srvObj]map[string]bool {
+func getVisibleOwner(
+	allObjects map[srvObj]bool, pInfo, oInfo xOwner) map[srvObj]map[string]bool {
+
 	visibleOwner := make(map[srvObj]map[string]bool)
 	for ob := range allObjects {
 		m := make(map[string]bool)
@@ -1134,8 +1137,8 @@ func (c *spoc) exportServices(dir string, list []*exportedSvc) {
 	c.exportJson(dir, "services", sInfo)
 }
 
-func (c *spoc) exportUsersAndServiceLists(
-	dir string, l []*exportedSvc, pInfo, oInfo xOwner) {
+func (c *spoc) exportUsersAndServiceLists(dir string,
+	l []*exportedSvc, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
 
 	c.progress("Export users and service lists")
 
@@ -1184,7 +1187,7 @@ func (c *spoc) exportUsersAndServiceLists(
 		}
 	}
 
-	visibleOwner := getVisibleOwner(pInfo, oInfo)
+	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
 	var names stringList
 	for name := range c.symTable.owner {
 		names.push(name)
@@ -1241,7 +1244,7 @@ func (c *spoc) exportUsersAndServiceLists(
 // Export all objects referenced by rules, users and assets.
 //###################################################################
 
-func zoneAndSubnet(obj srvObj, desc jsonMap) {
+func (c *spoc) zoneAndSubnet(obj srvObj, desc jsonMap) {
 
 	// Change loopback interface to equivalent loopback network.
 	// Network gets zone attribute added, which is needed in IP search
@@ -1259,7 +1262,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 	z := n.zone
 	// Get deterministic zone for aggregates and networks in zone cluster.
 	z = z.cluster[0]
-	desc["zone"] = getZoneName(z)
+	desc["zone"] = c.getZoneName(z)
 
 	// Netspoc-Web only needs info about subnets in other zone.
 	// Attribute name is different for historic reasons.
@@ -1268,7 +1271,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 	}
 }
 
-func (c *spoc) exportObjects(dir string) {
+func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 	c.progress("Export objects")
 	result := make(jsonMap)
 	for obj := range allObjects {
@@ -1280,7 +1283,7 @@ func (c *spoc) exportObjects(dir string) {
 		// Change loopback interface to loopback netwok, but leave name unchanged.
 		// Add key 'zone' for network and aggregate.
 		// Optionally add key 'is_supernet' for network and aggregate.
-		zoneAndSubnet(obj, descr)
+		c.zoneAndSubnet(obj, descr)
 
 		if o := ownerForObject(obj); o != "" {
 			descr["owner"] = o
@@ -1307,7 +1310,7 @@ func (c *spoc) exportZone2Areas(dir string) {
 			a = a.inArea
 		}
 		if l != nil {
-			result[getZoneName(z)] = l
+			result[c.getZoneName(z)] = l
 		}
 	}
 	c.exportJson(dir, "zone2areas", result)
@@ -1410,6 +1413,8 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 }
 
 func (c *spoc) exportNetspoc(inDir, outDir string) {
+	// All objects referenced in rules and in networks and hosts of owners.
+	allObjects := make(map[srvObj]bool)
 	c.readNetspoc(inDir)
 	c.markDisabled()
 	c.setZone()
@@ -1421,16 +1426,16 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := c.setupPartOwners()
 	masterOwner, oInfo, eInfo := c.setupOuterOwners()
-	c.setupServiceInfo(expSvcList, pInfo, oInfo)
+	c.setupServiceInfo(expSvcList, allObjects, pInfo, oInfo)
 
 	// Export data
 	c.createDirs(outDir, "")
 	c.exportOwners(outDir, eInfo)
 	c.exportMasterOwner(outDir, masterOwner)
-	c.exportAssets(outDir, pInfo, oInfo)
+	c.exportAssets(outDir, allObjects, pInfo, oInfo)
 	c.exportServices(outDir, expSvcList)
-	c.exportUsersAndServiceLists(outDir, expSvcList, pInfo, oInfo)
-	c.exportObjects(outDir)
+	c.exportUsersAndServiceLists(outDir, expSvcList, allObjects, pInfo, oInfo)
+	c.exportObjects(outDir, allObjects)
 	c.exportZone2Areas(outDir)
 	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
 	c.copyPolicyFile(inDir, outDir)
@@ -1473,9 +1478,6 @@ func ExportMain(d oslink.Data) int {
 		"--max_errors=9999",
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
-
-	// Initialize global variable.
-	allObjects = make(map[srvObj]bool)
 
 	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.exportNetspoc(path, out)

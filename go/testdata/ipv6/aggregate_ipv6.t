@@ -583,9 +583,11 @@ ipv6 access-list n3_in
  deny ipv6 any host ::a01:301
  permit ipv6 any any
 --
-ipv6 access-list n3_out
- permit ipv6 any any
+interface n3
+ ipv6 address ::a01:301/120
+ ipv6 traffic-filter n3_in in
 =END=
+# Don't generate outgoing ACL with single line "permit ip any any"
 
 ############################################################
 =TITLE=Loop with no_in_acl and in_zone eq no_in_zone

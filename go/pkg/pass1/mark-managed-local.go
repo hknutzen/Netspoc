@@ -116,8 +116,8 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 // A network is marked by adding the number of the corresponding
 // managed=local cluster as key to a map in attribute filterAt.
 func (c *spoc) markManagedLocal() {
-	network00.filterAt = make(map[int]bool)
-	network00v6.filterAt = make(map[int]bool)
+	c.network00.filterAt = make(map[int]bool)
+	c.network00v6.filterAt = make(map[int]bool)
 
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
@@ -163,7 +163,7 @@ func (c *spoc) markManagedLocal() {
 
 		// Rules from general_permit should be applied to all devices
 		// with 'managed=local'.
-		network00.filterAt[mark] = true
-		network00v6.filterAt[mark] = true
+		c.network00.filterAt[mark] = true
+		c.network00v6.filterAt[mark] = true
 	}
 }

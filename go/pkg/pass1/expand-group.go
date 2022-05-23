@@ -483,7 +483,7 @@ func (c *spoc) expandGroup1(
 						result = append(result, x.networks...)
 					}
 				default:
-					list := getAggregates(obj, getNetwork00(ipv6).ipp)
+					list := getAggregates(obj, c.getNetwork00(ipv6).ipp)
 					if len(list) > 0 {
 						for _, agg := range list {
 
@@ -563,7 +563,7 @@ func (c *spoc) expandGroup1(
 					}
 					c.checkVxIP(ipp.Addr(), ipv6, "any:[..]", ctx)
 				} else {
-					ipp = getNetwork00(ipv6).ipp
+					ipp = c.getNetwork00(ipv6).ipp
 				}
 
 				// Ignore duplicate aggregates resulting

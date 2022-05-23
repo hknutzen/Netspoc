@@ -970,7 +970,7 @@ func (c *spoc) setupAggregate(v *ast.TopStruct) {
 		c.err("Attribute 'link' must be defined for %s", name)
 	}
 	if !ag.ipp.IsValid() {
-		ag.ipp = getNetwork00(v6).ipp
+		ag.ipp = c.getNetwork00(v6).ipp
 	}
 	if ag.ipp.Bits() != 0 {
 		for _, a := range v.Attributes {
@@ -2536,6 +2536,10 @@ var routingInfo = map[string]*mcastProto{
 	"manual": &mcastProto{name: "manual"},
 }
 
+func init() {
+	addMcastNetworks(routingInfo)
+}
+
 func (c *spoc) getRouting(a *ast.Attribute, ctx string) *mcastProto {
 	v := c.getSingleValue(a, ctx)
 	r := routingInfo[v]
@@ -2568,6 +2572,29 @@ var xxrpInfo = map[string]*mcastProto{
 			v4: multicast{ips: []string{"224.0.0.102"}},
 			v6: multicast{ips: []string{"ff02::66"}}},
 	},
+}
+
+func init() {
+	addMcastNetworks(xxrpInfo)
+}
+
+func addMcastNetworks(info map[string]*mcastProto) {
+	for _, mp := range info {
+		process := func(m *multicast, v6 bool) {
+			l := make([]*network, len(m.ips))
+			for i, s := range m.ips {
+				ip := netip.MustParseAddr(s)
+				ipp := netip.PrefixFrom(ip, getHostPrefix(v6))
+				l[i] = &network{
+					ipp:         ipp,
+					withStdAddr: withStdAddr{stdAddr: ipp.String()},
+				}
+			}
+			m.networks = l
+		}
+		process(&mp.v4, false)
+		process(&mp.v6, true)
+	}
 }
 
 func (c *spoc) getVirtual(a *ast.Attribute, v6 bool, ctx string) *routerIntf {
