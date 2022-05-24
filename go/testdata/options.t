@@ -124,7 +124,6 @@ Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
       --debug_pass2 string
-      --ignore_files regexp                         (default ^(CVS|RCS|.*~)$)
   -6, --ipv6
   -m, --max_errors int                              (default 10)
   -q, --quiet

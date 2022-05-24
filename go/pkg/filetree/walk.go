@@ -8,7 +8,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 )
 
-const ignore = "CVS"
+const Ignore = "CVS"
 
 type Context struct {
 	Path string
@@ -35,7 +35,7 @@ func Walk(fname string, v6 bool, fn parser) error {
 			base := path.Base(fname)
 
 			// Skip hidden and ignored file.
-			if base[0] == '.' || base == ignore {
+			if base[0] == '.' || base == Ignore {
 				return nil
 			}
 

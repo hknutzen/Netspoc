@@ -27,7 +27,6 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -76,7 +75,6 @@ type Config struct {
 	AutoDefaultRoute             bool
 	ConcurrencyPass1             int
 	ConcurrencyPass2             int
-	IgnoreFiles                  *regexp.Regexp
 	IPV6                         bool `flag:"ipv6 6"`
 	MaxErrors                    int  `flag:"max_errors m"`
 	Quiet                        bool `flag:"quiet q"`
@@ -138,12 +136,6 @@ func defaultOptions(fs *flag.FlagSet) *Config {
 		// which have no default route to the internet.
 		AutoDefaultRoute: true,
 
-		// Ignore these names when reading directories:
-		// - CVS and RCS directories
-		// - CVS working files
-		// - Editor backup files: emacs: *~
-		// - hidden files starting with "." are ignored by anyway
-		IgnoreFiles: regexp.MustCompile(`^(CVS|RCS|.*~)$`),
 		// Use IPv4 version as default
 		IPV6: false,
 

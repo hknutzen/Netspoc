@@ -41,7 +41,7 @@ func Main(d oslink.Data) int {
 		return 1
 	}
 	path := args[0]
-	// Initialize Conf, especially attribute IgnoreFiles.
+	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 

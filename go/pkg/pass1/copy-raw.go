@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 )
 
 // Copy raw configuration files of devices into outDir for devices
@@ -27,8 +28,7 @@ func (c *spoc) copyRaw1(rawDir, outDir, ignoreDir string) {
 	}
 	for _, file := range files {
 		base := file.Name()
-		ignore := c.conf.IgnoreFiles
-		if base[0] == '.' || ignore.MatchString(base) || base == ignoreDir {
+		if base[0] == '.' || base == filetree.Ignore || base == ignoreDir {
 			continue
 		}
 		rawPath := filepath.Join(rawDir, base)
