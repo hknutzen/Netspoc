@@ -6,12 +6,9 @@ import (
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
 	"github.com/spf13/pflag"
 )
 
@@ -88,127 +85,127 @@ func setupSubst(subst map[string]map[string]string, old, new string) error {
 	return nil
 }
 
-func processFile(l []ast.Toplevel, subst map[string]map[string]string) int {
-	changes := 0
-	substitute := func(typ, name string) string {
-		if replace, ok := subst[typ][name]; ok {
-			changes++
-			return replace
-		}
-		if typ == "network" || typ == "interface" {
-			// Ignore right part of bridged network.
-			parts := strings.SplitN(name, "/", 2)
-			if len(parts) == 2 {
-				if replace, ok := subst[typ][parts[0]]; ok {
-					changes++
-					return replace + "/" + parts[1]
+func process(s *astset.State, subst map[string]map[string]string) {
+	s.Modify(func(n ast.Toplevel) bool {
+		changed := false
+		substitute := func(typ, name string) string {
+			if replace, ok := subst[typ][name]; ok {
+				changed = true
+				return replace
+			}
+			if typ == "network" || typ == "interface" {
+				// Ignore right part of bridged network.
+				parts := strings.SplitN(name, "/", 2)
+				if len(parts) == 2 {
+					if replace, ok := subst[typ][parts[0]]; ok {
+						changed = true
+						return replace + "/" + parts[1]
+					}
 				}
 			}
+			return name
 		}
-		return name
-	}
 
-	var elementList func([]ast.Element)
-	var element func(n ast.Element)
-	element = func(n ast.Element) {
-		typ := n.GetType()
-		if typ == "interface" {
-			if intf, ok := n.(*ast.IntfRef); ok {
-				intf.Router = substitute("router", intf.Router)
-				intf.Network = substitute("network", intf.Network)
-				return
+		var elementList func([]ast.Element)
+		var element func(n ast.Element)
+		element = func(n ast.Element) {
+			typ := n.GetType()
+			if typ == "interface" {
+				if intf, ok := n.(*ast.IntfRef); ok {
+					intf.Router = substitute("router", intf.Router)
+					intf.Network = substitute("network", intf.Network)
+					return
+				}
+			}
+			switch obj := n.(type) {
+			case *ast.NamedRef:
+				name := obj.Name
+				if typ == "host" && strings.HasPrefix(name, "id:") {
+					// ID host is extended by network name: host:id:a.b@c.d.net_name
+					parts := strings.Split(name, ".")
+					network := parts[len(parts)-1]
+					host := strings.Join(parts[:len(parts)-1], ".")
+					if replace, ok := subst["host"][host]; ok {
+						host = replace
+					}
+					if replace, ok := subst["network"][network]; ok {
+						network = replace
+					}
+					name = host + "." + network
+					if name != obj.Name {
+						obj.Name = name
+						changed = true
+					}
+				} else {
+					obj.Name = substitute(typ, name)
+				}
+			case *ast.SimpleAuto:
+				elementList(obj.Elements)
+			case *ast.AggAuto:
+				elementList(obj.Elements)
+			case *ast.IntfAuto:
+				elementList(obj.Elements)
+			case *ast.Intersection:
+				elementList(obj.Elements)
+			case *ast.Complement:
+				element(obj.Element)
 			}
 		}
-		switch obj := n.(type) {
-		case *ast.NamedRef:
-			name := obj.Name
-			if typ == "host" && strings.HasPrefix(name, "id:") {
-				// ID host is extended by network name: host:id:a.b@c.d.net_name
-				parts := strings.Split(name, ".")
-				network := parts[len(parts)-1]
-				host := strings.Join(parts[:len(parts)-1], ".")
-				if replace, ok := subst["host"][host]; ok {
-					host = replace
-				}
-				if replace, ok := subst["network"][network]; ok {
-					network = replace
-				}
-				name = host + "." + network
-				if name != obj.Name {
-					obj.Name = name
-					changes++
+
+		elementList = func(l []ast.Element) {
+			for _, n := range l {
+				element(n)
+			}
+		}
+
+		substTypedName := func(v string) string {
+			parts := strings.SplitN(v, ":", 2)
+			if len(parts) == 2 {
+				typ, name := parts[0], parts[1]
+				replace := substitute(typ, name)
+				return typ + ":" + replace
+			}
+			return v
+		}
+
+		value := func(n *ast.Value) {
+			n.Value = substTypedName(n.Value)
+		}
+
+		valueList := func(l []*ast.Value) {
+			for _, n := range l {
+				value(n)
+			}
+		}
+
+		var attributeList func(l []*ast.Attribute)
+		attribute := func(n *ast.Attribute) {
+			if m := subst[n.Name]; m != nil {
+				for _, v := range n.ValueList {
+					if replace, ok := m[v.Value]; ok {
+						v.Value = replace
+						changed = true
+					}
 				}
 			} else {
-				obj.Name = substitute(typ, name)
+				n.Name = substTypedName(n.Name)
 			}
-		case *ast.SimpleAuto:
-			elementList(obj.Elements)
-		case *ast.AggAuto:
-			elementList(obj.Elements)
-		case *ast.IntfAuto:
-			elementList(obj.Elements)
-		case *ast.Intersection:
-			elementList(obj.Elements)
-		case *ast.Complement:
-			element(obj.Element)
+			valueList(n.ValueList)
+			attributeList(n.ComplexValue)
 		}
-	}
 
-	elementList = func(l []ast.Element) {
-		for _, n := range l {
-			element(n)
-		}
-	}
-
-	substTypedName := func(v string) string {
-		parts := strings.SplitN(v, ":", 2)
-		if len(parts) == 2 {
-			typ, name := parts[0], parts[1]
-			replace := substitute(typ, name)
-			return typ + ":" + replace
-		}
-		return v
-	}
-
-	value := func(n *ast.Value) {
-		n.Value = substTypedName(n.Value)
-	}
-
-	valueList := func(l []*ast.Value) {
-		for _, n := range l {
-			value(n)
-		}
-	}
-
-	var attributeList func(l []*ast.Attribute)
-	attribute := func(n *ast.Attribute) {
-		if m := subst[n.Name]; m != nil {
-			for _, v := range n.ValueList {
-				if replace, ok := m[v.Value]; ok {
-					v.Value = replace
-					changes++
-				}
+		attributeList = func(l []*ast.Attribute) {
+			for _, n := range l {
+				attribute(n)
 			}
-		} else {
-			n.Name = substTypedName(n.Name)
 		}
-		valueList(n.ValueList)
-		attributeList(n.ComplexValue)
-	}
 
-	attributeList = func(l []*ast.Attribute) {
-		for _, n := range l {
-			attribute(n)
+		namedUnion := func(n *ast.NamedUnion) {
+			if n != nil {
+				elementList(n.Elements)
+			}
 		}
-	}
 
-	namedUnion := func(n *ast.NamedUnion) {
-		if n != nil {
-			elementList(n.Elements)
-		}
-	}
-
-	toplevel := func(n ast.Toplevel) {
 		n.SetName(substTypedName(n.GetName()))
 		switch x := n.(type) {
 		case *ast.TopList:
@@ -242,12 +239,11 @@ func processFile(l []ast.Toplevel, subst map[string]map[string]string) int {
 			namedUnion(x.Border)
 			namedUnion(x.InclusiveBorder)
 		}
-	}
-
-	for _, n := range l {
-		toplevel(n)
-	}
-	return changes
+		if changed {
+			n.Order()
+		}
+		return changed
+	})
 }
 
 func setupPairs(subst map[string]map[string]string, pattern []string) error {
@@ -322,28 +318,13 @@ func Main(d oslink.Data) int {
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Do substitution.
-	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
-		source := []byte(input.Data)
-		path := input.Path
-		astFile, err := parser.ParseFile(source, path, parser.ParseComments)
-		if err != nil {
-			return err
-		}
-		count := processFile(astFile.Nodes, subst)
-		if count == 0 {
-			return nil
-		}
-
-		if !cnf.Quiet {
-			fmt.Fprintf(d.Stderr, "%d changes in %s\n", count, path)
-		}
-		copy := printer.File(astFile)
-		return fileop.Overwrite(path, copy)
-	})
+	s, err := astset.Read(path, cnf.IPV6)
 	if err != nil {
 		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	process(s, subst)
+	s.ShowChanged(d.Stderr, cnf.Quiet)
+	s.Print()
 	return 0
 }
