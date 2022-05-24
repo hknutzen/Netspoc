@@ -2,6 +2,7 @@ package astset
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -56,6 +57,14 @@ func (s *State) Print() {
 			if err != nil {
 				panic(err)
 			}
+		}
+	}
+}
+
+func (s *State) ShowChanged(stderr io.Writer, quiet bool) {
+	if !quiet {
+		for _, file := range s.Changed() {
+			fmt.Fprintf(stderr, "Changed %s\n", file)
 		}
 	}
 }

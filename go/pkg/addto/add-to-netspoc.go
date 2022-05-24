@@ -235,11 +235,7 @@ func Main(d oslink.Data) int {
 		return 1
 	}
 	process(s, addTo)
-	if !cnf.Quiet {
-		for _, file := range s.Changed() {
-			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
-		}
-	}
+	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
 	return 0
 }

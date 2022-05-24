@@ -94,12 +94,8 @@ func Main(d oslink.Data) int {
 			return 1
 		}
 	}
+	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
-	if !cnf.Quiet {
-		for _, file := range s.Changed() {
-			fmt.Fprintf(d.Stderr, "Changed %s\n", file)
-		}
-	}
 	return 0
 }
 
