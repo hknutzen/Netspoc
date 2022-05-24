@@ -11,6 +11,8 @@ quiet = 0;
 time_stamps = 0;
 -- CVS/foo
 SOME INVALID DATA
+-- .hidden
+MORE INVALID DATA
 -- bar
 group:g = network:n1;
 network:n1 = { ip = 10.1.1.0/24; }
