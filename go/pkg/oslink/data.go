@@ -16,7 +16,7 @@ func Get() Data {
 	return Data{
 		Args:     os.Args,
 		Stdout:   os.Stdout,
-		Stderr:   os.Stdin,
+		Stderr:   os.Stderr,
 		ShowDiag: os.Getenv("SHOW_DIAG") != "",
 	}
 }
