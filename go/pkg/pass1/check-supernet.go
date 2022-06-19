@@ -129,7 +129,7 @@ func findZoneNetworks(
 		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.Addr()) ||
 			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
 
-			result = append(result, net)
+			result.push(net)
 		}
 	}
 	if z.ipPrefix2net == nil {
