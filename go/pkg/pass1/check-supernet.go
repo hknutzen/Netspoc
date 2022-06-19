@@ -79,7 +79,7 @@ type checkInfo struct {
 // or find networks in zone with address in subnet or supernet relation
 // to ip/mask.
 // Leave out
-// - invible aggregates, only used intermediately in automatic groups,
+// - invisible aggregates, only used intermediately in automatic groups,
 // - small networks which are subnet of a matching network,
 // - objects that are
 //   - element of netMap or
@@ -189,7 +189,7 @@ func (c *spoc) checkSupernetInZone1(
 		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, net0)
 	} else if net0.isAggregate {
 
-		// If aggregate has networks, show both, networks and aggreagte.
+		// If aggregate has networks, show both, networks and aggregate.
 		aggNets := net0.networks
 		if len(aggNets) > 0 {
 			networks = aggNets
