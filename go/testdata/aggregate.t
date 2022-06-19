@@ -1438,6 +1438,80 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Ignore aggregate if all its networks are added
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+any:n3_10_1 = { ip = 10.1.0.0/16; link = network:n3; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n3; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = any:[ip = 10.1.0.0/16 & network:n2],
+        network:n4, network:n5,
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=One network is missing from aggregate
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+any:n3_10_1 = { ip = 10.1.0.0/16; link = network:n3; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.3.3.1; hardware = n3; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = any:[ip = 10.1.0.0/16 & network:n2],
+        network:n4,
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+=END=
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[ip=10.1.0.0/16 & network:n2]; prt=tcp 3000; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n5
+ Either replace any:[ip=10.1.0.0/16 & network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:n3_10_1 to dst of rule.
+=END=
+
+############################################################
 =TITLE=Missing destination networks in loop
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

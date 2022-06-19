@@ -87,7 +87,7 @@ type checkInfo struct {
 // Result: List of found networks or aggregates.
 func findZoneNetworks(
 	z *zone, isAgg bool, ipp netip.Prefix, natMap natMap,
-	netMap map[*network]bool) netList {
+	netMap map[*network]bool) (*network, netList) {
 
 	// Check if argument or some supernet of argument is member of netMap.
 	inNetMap := func(netOrAgg *network) bool {
@@ -101,42 +101,55 @@ func findZoneNetworks(
 			}
 		}
 	}
-	aggregate := z.ipPrefix2aggregate[ipp]
-	if aggregate != nil && !aggregate.invisible {
-		if inNetMap(aggregate) {
-			return nil
+	agg := z.ipPrefix2aggregate[ipp]
+	if agg != nil && !agg.invisible {
+		if inNetMap(agg) {
+			return nil, nil
 		}
-		return netList{aggregate}
+		// If aggregate has networks, add those that are not member of netMap.
+		if aggNets := agg.networks; len(aggNets) > 0 {
+			var l netList
+			for _, net := range aggNets {
+				if !inNetMap(net) {
+					l.push(net)
+				}
+			}
+			if len(l) == 0 {
+				return nil, nil
+			} else {
+				return agg, l
+			}
+		} else {
+			return agg, nil
+		}
 	}
 
 	// Use cached result.
-	if net, found := z.ipPrefix2net[ipp]; found {
-		return net
-	}
+	l, found := z.ipPrefix2net[ipp];
 
-	// Real networks in zone without aggregates and without subnets.
-	var result netList
+	// Cheack real networks in zone without aggregates and without subnets.
+	if !found {
+		bits := ipp.Bits()
+		for _, net := range z.networks {
+			if inNetMap(net) {
+				continue
+			}
+			natNet := getNatNetwork(net, natMap)
+			if natNet.hidden {
+				continue
+			}
+			if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.Addr()) ||
+				isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
 
-	bits := ipp.Bits()
-	for _, net := range z.networks {
-		if inNetMap(net) {
-			continue
+				l.push(net)
+			}
 		}
-		natNet := getNatNetwork(net, natMap)
-		if natNet.hidden {
-			continue
+		if z.ipPrefix2net == nil {
+			z.ipPrefix2net = make(map[netip.Prefix]netList)
 		}
-		if natNet.ipp.Bits() >= bits && ipp.Contains(natNet.ipp.Addr()) ||
-			isAgg && natNet.ipp.Bits() < bits && natNet.ipp.Contains(ipp.Addr()) {
-
-			result.push(net)
-		}
+		z.ipPrefix2net[ipp] = l
 	}
-	if z.ipPrefix2net == nil {
-		z.ipPrefix2net = make(map[netip.Prefix]netList)
-	}
-	z.ipPrefix2net[ipp] = result
-	return result
+	return nil, l
 }
 
 // rule: the rule to be checked
@@ -173,27 +186,24 @@ func (c *spoc) checkSupernetInZone1(
 	}
 	ipp := natSuper.ipp
 	netMap := info.zone2netMap[z]
-	networks :=
+	agg, networks :=
 		findZoneNetworks(z, supernet.isAggregate, ipp, natMap, netMap)
 
-	if len(networks) == 0 {
+	if agg == nil && networks == nil {
 		return
 	}
 
 	orAgg := ""
-	net0 := networks[0]
-
-	if len(networks) > 2 {
-
-		// Show also aggregate, if multiple networks are found.
-		orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, net0)
-	} else if net0.isAggregate {
-
-		// If aggregate has networks, show both, networks and aggregate.
-		aggNets := net0.networks
-		if len(aggNets) > 0 {
-			networks = aggNets
-			orAgg = net0.name
+	if agg == nil {
+		if  len(networks) > 2 {
+			// Show also aggregate, if multiple networks are found.
+			orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, networks[0])
+		}
+	} else {
+		if networks == nil {
+			networks = netList{agg}
+		} else {
+			orAgg = agg.name
 		}
 	}
 	if orAgg != "" {
