@@ -1,8 +1,3 @@
-Define type netOrRouter interface{}  more restrictive.
-
-Is attribute .invisible really needed?
-
-Is c.virtualInterfaces really needed?
 
 NAT:
 Combine attributes 'hidden' and 'dynamic' to new attribute 'natType'
