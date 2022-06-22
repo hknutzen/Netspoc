@@ -1680,7 +1680,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		intf.redundant = virtual.redundant
 		intf.redundancyType = virtual.redundancyType
 		intf.redundancyId = virtual.redundancyId
-		c.virtualInterfaces.push(intf)
 	} else if !ipGiven && intf.ipType == hasIP {
 		intf.ipType = shortIP
 	}
@@ -3695,80 +3694,80 @@ func (c *spoc) linkTunnels() {
 //   - connected to the same network
 //   - emploing the same redundancy type
 func (c *spoc) linkVirtualInterfaces() {
+	process := func(n *network) {
+		// Collect virtual interfaces with same IP in current network.
+		ip2virtual := make(map[netip.Addr]intfList)
 
-	// Collect virtual interfaces with same IP at same network.
-	type key1 struct {
-		n  *network
-		ip netip.Addr
-	}
-	netIP2virtual := make(map[key1]intfList)
+		// Look up virtual interface of a group inside the same network and
+		// using the same ID and type.
+		type key2 struct {
+			id  string
+			typ *mcastProto
+		}
+		idType2virtual := make(map[key2]*routerIntf)
+		for _, v1 := range n.interfaces {
+			if !v1.redundant { continue }
+			ip := v1.ip
+			t1 := v1.redundancyType
+			id1 := v1.redundancyId
+			l := ip2virtual[ip]
+			if l != nil {
+				v2 := l[0]
+				t2 := v2.redundancyType
+				if t1 != t2 {
+					c.err("Must use identical redundancy protocol at\n"+
+						" - %s\n"+
+						" - %s", v2, v1)
+				}
+				id2 := v2.redundancyId
+				if id1 != id2 {
+					c.err("Must use identical ID at\n"+
+						" - %s\n"+
+						" - %s", v2, v1)
+				}
+			} else if id1 != "" {
+				// Check for identical ID used at unrelated virtual
+				// interfaces inside current network.
+				k2 := key2{id1, t1}
+				if v2 := idType2virtual[k2]; v2 != nil {
+					c.err("Must use different ID at unrelated\n"+
+						" - %s\n"+
+						" - %s", v2, v1)
+				} else {
+					idType2virtual[k2] = v1
+				}
+			}
+			l.push(v1)
+			ip2virtual[ip] = l
+		}
+		for _, l := range ip2virtual {
+			for _, intf := range l {
+				intf.redundancyIntfs = l
+			}
+		}
 
-	// Look up virtual interface of a group inside the same network and
-	// using the same ID and type.
-	type key2 struct {
-		n   *network
-		id  string
-		typ *mcastProto
-	}
-	netIdType2virtual := make(map[key2]*routerIntf)
-	for _, v1 := range c.virtualInterfaces {
-		ip := v1.ip
-		n := v1.network
-		t1 := v1.redundancyType
-		id1 := v1.redundancyId
-		k1 := key1{n, ip}
-		l := netIP2virtual[k1]
-		if l != nil {
-			v2 := l[0]
-			t2 := v2.redundancyType
-			if t1 != t2 {
-				c.err("Must use identical redundancy protocol at\n"+
-					" - %s\n"+
-					" - %s", v2, v1)
+		// Automatically add pathrestriction to each group of virtual
+		// interfaces, where at least one interface is managed.
+		// Pathrestriction would be useless if all devices are unmanaged.
+		for _, l := range ip2virtual {
+			if len(l) < 2 {
+				continue
 			}
-			id2 := v2.redundancyId
-			if id1 != id2 {
-				c.err("Must use identical ID at\n"+
-					" - %s\n"+
-					" - %s", v2, v1)
-			}
-		} else if id1 != "" {
-			// Check for identical ID used at unrelated virtual interfaces
-			// inside the same network.
-			k2 := key2{n, id1, t1}
-			if v2 := netIdType2virtual[k2]; v2 != nil {
-				c.err("Must use different ID at unrelated\n"+
-					" - %s\n"+
-					" - %s", v2, v1)
-			} else {
-				netIdType2virtual[k2] = v1
-			}
-		}
-		l.push(v1)
-		netIP2virtual[k1] = l
-	}
-	for _, l := range netIP2virtual {
-		for _, intf := range l {
-			intf.redundancyIntfs = l
-		}
-	}
-
-	// Automatically add pathrestriction to each group of virtual
-	// interfaces, where at least one interface is managed.
-	// Pathrestriction would be useless if all devices are unmanaged.
-	for _, l := range netIP2virtual {
-		if len(l) < 2 {
-			continue
-		}
-		for _, intf := range l {
-			r := intf.router
-			if r.managed != "" || r.routingOnly {
-				name := "auto-virtual:" + intf.ip.String()
-				c.addPathrestriction(name, l)
-				break
+			for _, intf := range l {
+				r := intf.router
+				if r.managed != "" || r.routingOnly {
+					name := "auto-virtual:" + intf.ip.String()
+					c.addPathrestriction(name, l)
+					break
+				}
 			}
 		}
 	}
+	c.sortedSpoc(func(c *spoc) {
+		for _, n := range c.symTable.network {
+			process(n)
+		}
+	})
 }
 
 func (c *spoc) addPathrestriction(name string, l intfList) {

@@ -270,11 +270,4 @@ func (c *spoc) markDisabled() {
 			c.allNetworks.push(n)
 		}
 	}
-	var vl intfList
-	for _, intf := range c.virtualInterfaces {
-		if !intf.disabled {
-			vl.push(intf)
-		}
-	}
-	c.virtualInterfaces = vl
 }

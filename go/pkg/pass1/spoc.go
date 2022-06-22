@@ -37,7 +37,6 @@ type spoc struct {
 	ascendingServices     []*service
 	ascendingAreas        []*area
 	pathrestrictions      []*pathRestriction
-	virtualInterfaces     intfList
 	prt                   *stdProto
 	network00             *network
 	network00v6           *network
