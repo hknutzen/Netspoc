@@ -3615,7 +3615,6 @@ func (c *spoc) linkTunnels() {
 			c.warn("No hub has been defined for %s", cr.name)
 			continue
 		}
-		//realSpokes = [ grep { ! $_.disabled } realSpokes ]
 		tunnels := cr.tunnels
 		if len(tunnels) == 0 {
 			c.warn("No spokes have been defined for %s", cr.name)
@@ -3654,7 +3653,7 @@ func (c *spoc) linkTunnels() {
 			hub := new(routerIntf)
 			hub.name = "interface:" + rName + "." + netName
 			hub.ipType = tunnelIP
-			// Attention: shared hardware between router and orig_router.
+			// Attention: shared hardware between router and origRouter.
 			hub.hardware = hw
 			hub.isHub = true
 			hub.realIntf = realHub
@@ -3668,7 +3667,7 @@ func (c *spoc) linkTunnels() {
 			hw.interfaces.push(hub)
 			spokeNet.interfaces.push(hub)
 
-			// We need hub also be available in orig_interfaces.
+			// We need hub also be available in origIntfs.
 			if r.origIntfs != nil {
 				r.origIntfs.push(hub)
 			}
@@ -3763,11 +3762,9 @@ func (c *spoc) linkVirtualInterfaces() {
 			}
 		}
 	}
-	c.sortedSpoc(func(c *spoc) {
-		for _, n := range c.symTable.network {
-			process(n)
-		}
-	})
+	for _, n := range c.symTable.network {
+		process(n)
+	}
 }
 
 func (c *spoc) addPathrestriction(name string, l intfList) {
