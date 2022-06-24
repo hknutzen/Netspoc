@@ -1,6 +1,0 @@
-
-NAT:
-Combine attributes 'hidden' and 'dynamic' to new attribute 'natType'
-with integer values staticNAT, dynamicNAT, hiddenNAT.
-Move NAT-Network to new type, only used in NAT.
-This type inherits type network.
