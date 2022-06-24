@@ -1481,6 +1481,82 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
+=TITLE=Ignore aggregate if all its networks are added
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a03:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+any:n3_10_1 = { ip = ::a01:0/112; link = network:n3; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a03:301; hardware = n3; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = any:[ip = ::a01:0/112 & network:n2],
+        network:n4, network:n5,
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+=END=
+=WARNING=NONE
+
+############################################################
+=TITLE=One network is missing from aggregate
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a03:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+any:n3_10_1 = { ip = ::a01:0/112; link = network:n3; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+ interface:n3 = { ip = ::a03:301; hardware = n3; }
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = any:[ip = ::a01:0/112 & network:n2],
+        network:n4,
+        ;
+ permit src = network:n1;
+        dst = user;
+        prt = tcp 3000;
+}
+=END=
+=WARNING=
+Warning: This supernet rule would permit unexpected access:
+  permit src=network:n1; dst=any:[ip=::a01:0/112 & network:n2]; prt=tcp 3000; of service:s1
+ Generated ACL at interface:r1.n1 would permit access to additional networks:
+ - network:n5
+ Either replace any:[ip=::a01:0/112 & network:n2] by smaller networks that are not supernet
+ or add above-mentioned networks to dst of rule
+ or add any:n3_10_1 to dst of rule.
+=END=
+
+############################################################
 =TITLE=Missing destination networks in loop
 =PARAMS=--ipv6
 =INPUT=
