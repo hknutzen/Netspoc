@@ -125,7 +125,7 @@ func findZoneNetworks(
 	}
 
 	// Use cached result.
-	l, found := z.ipPrefix2net[ipp];
+	l, found := z.ipPrefix2net[ipp]
 
 	// Cheack real networks in zone without aggregates and without subnets.
 	if !found {
@@ -195,7 +195,7 @@ func (c *spoc) checkSupernetInZone1(
 
 	orAgg := ""
 	if agg == nil {
-		if  len(networks) > 2 {
+		if len(networks) > 2 {
 			// Show also aggregate, if multiple networks are found.
 			orAgg = fmt.Sprintf("any:[ ip=%s & %s ]", ipp, networks[0])
 		}
@@ -307,10 +307,10 @@ func (x *routerIntf) getZone() pathObj {
 //  permit dst supernet1
 // which would accidentally permit traffic to supernet:[zone4] as well.
 func (c *spoc) checkSupernetSrcRule(
-	rule *groupedRule, inIntf, outIntf *routerIntf, info checkInfo) {
+	rule *groupedRule, in, out *routerIntf, info checkInfo) {
 
 	// Ignore semi-managed router.
-	r := inIntf.router
+	r := in.router
 	if r.managed == "" {
 		return
 	}
@@ -325,13 +325,13 @@ func (c *spoc) checkSupernetSrcRule(
 	}
 
 	dstZone := rule.dstPath.getZone()
-	inZone := inIntf.zone
+	inZone := in.zone
 
 	// Check case II, outgoing ACL, (A)
 	if noAclIntf := r.noInAcl; noAclIntf != nil {
 		noAclZone := noAclIntf.zone
 
-		if noAclIntf == outIntf {
+		if noAclIntf == out {
 			// a) dst behind Y
 		} else if zoneEq(inZone, noAclZone) {
 			// b), 1. zone X == zone Y
@@ -353,8 +353,8 @@ PRT:
 			break PRT
 		}
 	}
-	if outIntf != nil && r.model.stateless && !rule.oneway && stateful {
-		outZone := outIntf.zone
+	if out != nil && r.model.stateless && !rule.oneway && stateful {
+		outZone := out.zone
 
 		// Reverse rule wouldn't allow too much traffic, if a non
 		// secondary stateful device filters between current device and dst.
@@ -393,9 +393,9 @@ PRT:
 			} else {
 				// Standard incoming ACL at all interfaces.
 
-				// Find security zones at all interfaces except the inIntf.
+				// Find security zones at all interfaces except the incoming.
 				for _, intf := range r.interfaces {
-					if intf == inIntf {
+					if intf == in {
 						continue
 					}
 					if intf.loopback {
@@ -411,7 +411,7 @@ PRT:
 					if zoneEq(zone, dstZone) {
 						continue
 					}
-					c.checkSupernetInZone(rule, "src", outIntf, zone, info, true)
+					c.checkSupernetInZone(rule, "src", out, zone, info, true)
 				}
 			}
 		}
@@ -423,7 +423,7 @@ PRT:
 	}
 
 	// Check if rule "supernet2 -> dst" is defined.
-	c.checkSupernetInZone(rule, "src", inIntf, inZone, info, false)
+	c.checkSupernetInZone(rule, "src", in, inZone, info, false)
 }
 
 // If such rule is defined
@@ -441,15 +441,15 @@ PRT:
 //  permit src supernet3
 //  permit src supernet4
 func (c *spoc) checkSupernetDstRule(
-	rule *groupedRule, inIntf, outIntf *routerIntf, info checkInfo) {
+	rule *groupedRule, in, out *routerIntf, info checkInfo) {
 
 	// Source is interface of current router.
-	if inIntf == nil {
+	if in == nil {
 		return
 	}
 
 	// Ignore semi-managed router.
-	r := inIntf.router
+	r := in.router
 	if r.managed == "" {
 		return
 	}
@@ -477,7 +477,7 @@ func (c *spoc) checkSupernetDstRule(
 			// zone X == zone Y
 		} else {
 			// zone X != zone Y
-			c.checkSupernetInZone(rule, "dst", inIntf, noAclZone, info, false)
+			c.checkSupernetInZone(rule, "dst", in, noAclZone, info, false)
 		}
 		return
 	}
@@ -486,11 +486,11 @@ func (c *spoc) checkSupernetDstRule(
 	// to dst or src.
 	// For devices which have rules for each pair of incoming and outgoing
 	// interfaces we only need to check the direct path to dst.
-	inZone := inIntf.zone
+	inZone := in.zone
 	check := func(intf *routerIntf) {
 
 		// Check each intermediate zone only once at outgoing interface.
-		if intf == inIntf {
+		if intf == in {
 			return
 		}
 		if intf.loopback {
@@ -498,20 +498,20 @@ func (c *spoc) checkSupernetDstRule(
 		}
 
 		// Don't check interface where src or dst is attached.
-		zone := intf.zone
-		if zoneEq(zone, srcZone) {
+		z := intf.zone
+		if zoneEq(z, srcZone) {
 			return
 		}
-		if zoneEq(zone, dstZone) {
+		if zoneEq(z, dstZone) {
 			return
 		}
-		if zoneEq(zone, inZone) {
+		if zoneEq(z, inZone) {
 			return
 		}
-		c.checkSupernetInZone(rule, "dst", inIntf, zone, info, false)
+		c.checkSupernetInZone(rule, "dst", in, z, info, false)
 	}
 	if r.model.hasIoACL {
-		check(outIntf)
+		check(out)
 	} else {
 		for _, intf := range r.interfaces {
 			check(intf)
@@ -554,11 +554,10 @@ func (c *spoc) checkMissingSupernetRules(
 		zone2netMap := make(map[*zone]map[*network]bool)
 		for _, obj := range list {
 			if x, ok := obj.(*network); ok {
-				zone := x.zone
-				netMap := zone2netMap[zone]
+				netMap := zone2netMap[x.zone]
 				if netMap == nil {
 					netMap = make(map[*network]bool)
-					zone2netMap[zone] = netMap
+					zone2netMap[x.zone] = netMap
 				}
 				netMap[x] = true
 			}
@@ -578,8 +577,8 @@ func (c *spoc) checkMissingSupernetRules(
 				checkRule.dstPath = supernet.zone
 			}
 			for _, gi := range groupInfo {
-				otherZone := gi.path.getZone()
-				if zoneEq(supernet.zone, otherZone) {
+				z2 := gi.path.getZone()
+				if zoneEq(supernet.zone, z2) {
 					continue
 				}
 				if what == "src" {
@@ -654,23 +653,22 @@ func matchPrtList(prtList1, prtList2 []*proto) bool {
 	return false
 }
 
-// Find those elements of list, with an IP address matching obj.
+// Find those elements of l, with an IP address matching obj.
 // If element is aggregate that is supernet of obj,
 // than return all matching networks inside that aggregate.
-func getIpMatching(obj *network, list []someObj, natMap natMap) []someObj {
+func getIpMatching(obj *network, l []someObj, natMap natMap) []someObj {
 	natObj := getNatNetwork(obj, natMap)
 	net1 := natObj.ipp
 
 	var matching []someObj
-	for _, src := range list {
+	for _, src := range l {
 		net2 := src.address(natMap)
 		if net2.Bits() >= net1.Bits() && net1.Contains(net2.Addr()) {
 			// Element is subnet of obj.
 			matching = append(matching, src)
 		} else if net2.Bits() < net1.Bits() && net2.Contains(net1.Addr()) {
 			// Element is supernet of obj.
-			x, ok := src.(*network)
-			if ok && x.isAggregate {
+			if x, ok := src.(*network); ok && x.isAggregate {
 				// Convert networks to someObj
 				objList := make([]someObj, len(x.networks))
 				for i, net := range x.networks {
@@ -779,10 +777,10 @@ func (c *spoc) pathsReachZone(z *zone, srcList, dstList []someObj) bool {
 	toList := collect(dstList)
 
 	zoneReached := false
-	checkZone := func(rule *groupedRule, inIntf, outIntf *routerIntf) {
+	checkZone := func(rule *groupedRule, in, out *routerIntf) {
 
 		// Packets traverse zone.
-		if inIntf != nil && outIntf != nil && inIntf.zone == z {
+		if in != nil && out != nil && in.zone == z {
 			zoneReached = true
 		}
 	}
@@ -839,8 +837,7 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 		if rule.noCheckSupernetRules {
 			continue
 		}
-		srcList := rule.src
-		for _, obj := range srcList {
+		for _, obj := range rule.src {
 			net, ok := obj.(*network)
 			if !ok || !net.hasOtherSubnet {
 				continue
@@ -848,10 +845,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 
 			// Ignore the internet. If the internet is used as src and dst
 			// then the implicit transient rule is assumed to be ok.
-			if !net.isAggregate {
-				if net.ipp.Bits() == 0 {
-					continue
-				}
+			if !net.isAggregate && net.ipp.Bits() == 0 {
+				continue
 			}
 
 			z := net.zone
@@ -870,14 +865,14 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					if !ok {
 						continue
 					}
-					router := intf.router
-					if router.managed == "" {
-						continue
-					}
 					if intf.zone != z {
 						continue
 					}
-					if len(router.interfaces) >= 2 {
+					r := intf.router
+					if r.managed == "" {
+						continue
+					}
+					if len(r.interfaces) >= 2 {
 						continue
 					}
 
@@ -1058,8 +1053,8 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 // semiManaged devices.
 func markStateful(z *zone, mark int) {
 	z.statefulMark = mark
-	for _, inIntf := range z.interfaces {
-		r := inIntf.router
+	for _, in := range z.interfaces {
+		r := in.router
 		managed := r.managed
 		if managed != "" && !r.model.stateless &&
 			managed != "secondary" && managed != "local" {
@@ -1070,11 +1065,11 @@ func markStateful(z *zone, mark int) {
 		}
 		r.activePath = true
 		defer func() { r.activePath = false }()
-		for _, outIntf := range r.interfaces {
-			if outIntf == inIntf {
+		for _, out := range r.interfaces {
+			if out == in {
 				continue
 			}
-			next := outIntf.zone
+			next := out.zone
 			if next.statefulMark != 0 {
 				continue
 			}
