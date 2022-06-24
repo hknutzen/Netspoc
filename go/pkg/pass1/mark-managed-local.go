@@ -74,9 +74,9 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					for _, n := range z.networks {
 						net0 := n.address(nm)
 						ip := net0.Addr()
-						prefix := net0.Bits()
+						bits := net0.Bits()
 						for j, net := range filterOnly {
-							if prefix >= net.Bits() && net.Contains(ip) {
+							if bits >= net.Bits() && net.Contains(ip) {
 								matched[filterOnly[j]] = true
 								continue NETWORK
 							}
@@ -130,9 +130,9 @@ func (c *spoc) markManagedLocal() {
 					continue
 				}
 				ip := natNetwork.ipp.Addr()
-				prefix := natNetwork.ipp.Bits()
+				bits := natNetwork.ipp.Bits()
 				for _, net := range cluster.filterOnly {
-					if prefix >= net.Bits() && net.Contains(ip) {
+					if bits >= net.Bits() && net.Contains(ip) {
 
 						// Mark network and enclosing aggregates.
 						obj := n
