@@ -54,8 +54,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 	for _, n := range c.allNetworks {
 		// Group bridged networks by prefix of name.
 		if n.ipType == bridgedIP {
-			i := strings.Index(n.name, "/")
-			prefix := n.name[:i]
+			prefix, _, _ := strings.Cut(n.name, "/")
 			prefix2net[prefix] = append(prefix2net[prefix], n)
 		} else if n.ipType == unnumberedIP {
 			l := n.interfaces
