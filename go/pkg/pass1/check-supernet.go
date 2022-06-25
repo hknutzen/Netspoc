@@ -865,11 +865,11 @@ func (c *spoc) checkTransientSupernetRules(rules ruleList) {
 					if !ok {
 						continue
 					}
-					if intf.zone != z {
-						continue
-					}
 					r := intf.router
 					if r.managed == "" {
+						continue
+					}
+					if intf.zone != z {
 						continue
 					}
 					if len(r.interfaces) >= 2 {
