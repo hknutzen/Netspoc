@@ -122,6 +122,7 @@ var handler = map[string]func(*state, *job) error{
 	"remove_from_rule": (*state).removeFromRule,
 	"add_rule":         (*state).addRule,
 	"delete_rule":      (*state).deleteRule,
+	"create_interface": (*state).createInterface,
 }
 
 func (s *state) doJobFile(path string) error {
@@ -467,6 +468,35 @@ func (s *state) createService(j *job) error {
 		"file":       getServicePath(p.Name),
 	})
 	return s.createToplevel(&job{Params: params})
+}
+
+func (s *state) createInterface(j *job) error {
+	var p struct {
+		Router string
+		Name   string
+		IP     string
+		Owner  string
+		VIP    bool
+	}
+	getParams(j, &p)
+	if !p.VIP {
+		return fmt.Errorf("Cannot create non-VIP Interface.")
+	}
+	router := "router:" + p.Router
+	return s.ModifyObj(router, func(toplevel ast.Toplevel) error {
+		rt := toplevel.(*ast.Router)
+		intf := new(ast.Attribute)
+		intf.Name = "interface:" + p.Name
+		ip := ast.CreateAttr1("ip", p.IP)
+		vip := &ast.Attribute{Name: "vip"}
+		intf.ComplexValue = []*ast.Attribute{ip, vip}
+		if p.Owner != "" {
+			o := ast.CreateAttr1("owner", p.Owner)
+			intf.ComplexValue = append(intf.ComplexValue, o)
+		}
+		rt.Interfaces = append(rt.Interfaces, intf)
+		return nil
+	})
 }
 
 func (s *state) addToUser(j *job) error {
