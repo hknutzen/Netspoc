@@ -480,7 +480,13 @@ func (s *state) createInterface(j *job) error {
 	}
 	getParams(j, &p)
 	if !p.VIP {
-		return fmt.Errorf("Cannot create non-VIP Interface.")
+		return fmt.Errorf("Cannot create non-VIP Interface")
+	}
+	if p.Name == "" {
+		return fmt.Errorf("Interfacename missing")
+	}
+	if p.IP == "" {
+		return fmt.Errorf("IP Address missing")
 	}
 	router := "router:" + p.Router
 	return s.ModifyObj(router, func(toplevel ast.Toplevel) error {

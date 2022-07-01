@@ -3500,6 +3500,39 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Add VIP Interface without owner
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=JOB=
+{
+    "method": "create_interface",
+    "params": {
+        "router": "r1",
+        "name": "VIP_interface",
+        "ip": "10.1.3.3",
+        "vip": true
+    }
+}
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  model = ASA;
+- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
++ interface:n1            = { ip = 10.1.1.1; hardware = n1; }
++ interface:n2            = { ip = 10.1.2.1; hardware = n2; }
++ interface:VIP_interface = { ip = 10.1.3.3; vip; }
+ }
+=END=
+
+############################################################
 =TITLE=Add non-VIP Interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3525,7 +3558,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Cannot create non-VIP Interface.
+Error: Cannot create non-VIP Interface
 =END=
 
 ############################################################
@@ -3556,6 +3589,64 @@ router:r1 = {
 }
 =ERROR=
 Error: Can't find router:r2
+=END=
+
+############################################################
+=TITLE=Add Interface without name
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+owner:a = {
+ admins = a@example.com;
+}
+
+router:r1 = {
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=JOB=
+{
+    "method": "create_interface",
+    "params": {
+        "router": "r1",
+        "ip": "10.1.3.3",
+        "owner": "a",
+        "vip": true
+    }
+}
+=ERROR=
+Error: Interfacename missing
+=END=
+
+############################################################
+=TITLE=Add Interface without IP Address
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+owner:a = {
+ admins = a@example.com;
+}
+
+router:r1 = {
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+=JOB=
+{
+    "method": "create_interface",
+    "params": {
+        "router": "r1",
+        "name": "VIP_interface",
+        "owner": "a",
+        "vip": true
+    }
+}
+=ERROR=
+Error: IP Address missing
 =END=
 
 ############################################################
