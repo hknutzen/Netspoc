@@ -3,6 +3,7 @@ package pass1
 import (
 	"net/netip"
 	"sort"
+	"strings"
 )
 
 //##############################################################################
@@ -34,9 +35,8 @@ func (c *spoc) setZones() {
 		}
 
 		// Create zone.
-		name := "any:[" + n.name + "]"
 		z := &zone{
-			name:               name,
+			name:               "any:[" + n.name + "]",
 			ipPrefix2aggregate: make(map[netip.Prefix]*network),
 		}
 		z.ipV6 = n.ipV6
@@ -47,8 +47,11 @@ func (c *spoc) setZones() {
 
 		// Change name from tunnel network to real network for better
 		// error messages and for use in cut-netspoc.
-		if n.ipType == tunnelIP && len(z.networks) > 1 {
-			z.name = "any:[" + z.networks[1].name + "]"
+		if len(z.networks) > 0 &&
+			(n.ipType == tunnelIP ||
+				n.ipType == unnumberedIP &&
+					strings.HasSuffix(n.name, "(split Network)")) {
+			z.name = "any:[" + z.networks[0].name + "]"
 		}
 	}
 }

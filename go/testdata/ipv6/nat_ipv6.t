@@ -4074,7 +4074,9 @@ router:r3 = {
  interface:t2;
  interface:t3 = { bind_nat = n1; }
 }
-router:r4 = {
+# Use name 'r0' to get network:t3(split Network) get processed first.
+# Check if name of zone and nat_domain is changed to network:n3 later.
+router:r0 = {
  interface:t3 = { bind_nat = n3; }
  interface:n3;
  interface:n4;
@@ -4086,7 +4088,7 @@ service:s1 = {
 =END=
 =WARNING=
 Warning: network:n2-sub2 is subnet of network:n2
- in nat_domain:[network:n1].
+ in nat_domain:[network:n3].
  If desired, declare attribute 'subnet_of'
 =END=
 
