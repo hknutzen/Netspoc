@@ -2113,15 +2113,7 @@ Error: Unknown protocol in 'udp6' of service:s1
   }
 }
 =ERROR=
-Error: Invalid identifier in definition of 'service:'
-=OUTPUT=
-@@ rule/other
-+service: = {
-+ user = network:n1;
-+ permit src = user;
-+        dst = network:n2;
-+        prt = tcp 8888;
-+}
+Error: Typed name expected at line 1 of command line, near "--HERE-->service:"
 =END=
 
 ############################################################
@@ -3595,16 +3587,9 @@ Error: Can't find router:r2
 =TITLE=Add Interface without name
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-
-owner:a = {
- admins = a@example.com;
-}
 
 router:r1 = {
- model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =JOB=
 {
@@ -3612,16 +3597,22 @@ router:r1 = {
     "params": {
         "router": "r1",
         "ip": "10.1.3.3",
-        "owner": "a",
         "vip": true
     }
 }
 =ERROR=
-Error: Interfacename missing
+Error: Typed name expected at line 5 of INPUT, near " --HERE-->interface:"
+Aborted
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
++ interface:   = { ip = 10.1.3.3; vip; }
+ }
 =END=
 
 ############################################################
-=TITLE=Add Interface without IP Address
+=TITLE=Add Interface without IP address
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 
@@ -3645,6 +3636,14 @@ router:r1 = {
 }
 =ERROR=
 Error: List of values expected in 'ip' of interface:r1.VIP_interface
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  model = ASA;
+- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
++ interface:n1            = { ip = 10.1.1.1; hardware = n1; }
++ interface:VIP_interface = { ip = ; vip; owner = a; }
+ }
 =END=
 
 ############################################################

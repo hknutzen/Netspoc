@@ -482,9 +482,6 @@ func (s *state) createInterface(j *job) error {
 	if !p.VIP {
 		return fmt.Errorf("Cannot create non-VIP Interface")
 	}
-	if p.Name == "" {
-		return fmt.Errorf("Interfacename missing")
-	}
 	router := "router:" + p.Router
 	return s.ModifyObj(router, func(toplevel ast.Toplevel) error {
 		rt := toplevel.(*ast.Router)

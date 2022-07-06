@@ -314,6 +314,19 @@ Error: Short definition of interface:R.N not allowed
 =END=
 
 ############################################################
+=TITLE=Empty list of IP addresses
+=PARAMS=--ipv6
+=INPUT=
+router:R = {
+ interface:N = { ip = ; }
+}
+network:N = { ip = ::a01:100/120; }
+=END=
+=ERROR=
+Error: List of values expected in 'ip' of interface:R.N
+=END=
+
+############################################################
 =TITLE=Secondary interface without IP
 =PARAMS=--ipv6
 =INPUT=
@@ -680,12 +693,12 @@ Error: Can't resolve network:n1@vrf: in user of service:s1
 group:g1 = interface:;
 =END=
 =ERROR=
-Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:"
+Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:"
 Aborted
 =END=
 
 ############################################################
-=TITLE=Bad interface name
+=TITLE=Interface name without dot
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r;
@@ -696,17 +709,27 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Interface name with empty network part
+=PARAMS=--ipv6
+=INPUT=
+group:g1 = interface:r.;
+=END=
+=ERROR=
+Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:r."
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid interface names
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
- user = network:n1, interface:r1., interface:r1.n1@vrf2, interface:r.n.123.nn;
+ user = network:n1, interface:r1.n1@vrf2, interface:r.n.123.nn;
  permit src = user; dst = user; prt = ip;
 }
 network:n1 = { ip = ::a01:100/120; }
 =END=
 =ERROR=
-Error: Can't resolve interface:r1. in user of service:s1
 Error: Can't resolve interface:r1.n1@vrf2 in user of service:s1
 Error: Can't resolve interface:r.n.123.nn in user of service:s1
 =END=
