@@ -294,6 +294,18 @@ Error: Short definition of interface:R.N not allowed
 =END=
 
 ############################################################
+=TITLE=Empty list of IP addresses
+=INPUT=
+router:R = {
+ interface:N = { ip = ; }
+}
+network:N = { ip = 10.1.1.0/24; }
+=END=
+=ERROR=
+Error: List of values expected in 'ip' of interface:R.N
+=END=
+
+############################################################
 =TITLE=Secondary interface without IP
 =INPUT=
 router:R = {

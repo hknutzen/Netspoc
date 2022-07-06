@@ -3624,7 +3624,6 @@ Error: Interfacename missing
 =TITLE=Add Interface without IP Address
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
 
 owner:a = {
  admins = a@example.com;
@@ -3633,7 +3632,6 @@ owner:a = {
 router:r1 = {
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =JOB=
 {
@@ -3646,7 +3644,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: IP Address missing
+Error: List of values expected in 'ip' of interface:r1.VIP_interface
 =END=
 
 ############################################################

@@ -1497,22 +1497,22 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		switch a.Name {
 		case "ip":
 			ipGiven = true
-			ipList := c.getIpList(a, v6, name)
-			intf.ip = ipList[0]
-			ipList = ipList[1:]
+			if ipList := c.getIpList(a, v6, name); ipList != nil {
+				intf.ip = ipList[0]
 
-			// Build interface objects for secondary IP addresses.
-			// These objects are named interface:router.name.2, ...
-			counter := 2
-			for _, ip := range ipList {
-				suffix := "." + strconv.Itoa(counter)
-				name := name + suffix
-				intf := new(routerIntf)
-				intf.name = name
-				intf.ipV6 = v6
-				intf.ip = ip
-				secondaryList.push(intf)
-				counter++
+				// Build interface objects for secondary IP addresses.
+				// These objects are named interface:router.name.2, ...
+				counter := 2
+				for _, ip := range ipList[1:] {
+					suffix := "." + strconv.Itoa(counter)
+					name := name + suffix
+					intf := new(routerIntf)
+					intf.name = name
+					intf.ipV6 = v6
+					intf.ip = ip
+					secondaryList.push(intf)
+					counter++
+				}
 			}
 		case "hardware":
 			hwName = c.getSingleValue(a, name)
