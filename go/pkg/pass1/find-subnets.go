@@ -153,6 +153,14 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 		// Collect subnet relation.
 		sub.up = big
 
+		// Propagate subnet relation of aggregate to cluster.
+		if sub.isAggregate && len(z0.cluster) > 1 {
+			for _, z := range z0.cluster {
+				sub2 := z.ipPrefix2aggregate[sub.ipp]
+				sub2.up = big
+			}
+		}
+
 		c.checkSubnets(big, sub, "")
 	})
 }
