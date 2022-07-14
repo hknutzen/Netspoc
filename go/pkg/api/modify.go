@@ -448,6 +448,7 @@ func (s *state) createService(j *job) error {
 	var p struct {
 		Name        string
 		Description string
+		Attributes  [][2]string
 		User        string
 		Rules       []jsonRule
 	}
@@ -457,12 +458,19 @@ func (s *state) createService(j *job) error {
 		rules += fmt.Sprintf("%s src=%s; dst=%s; prt=%s; ",
 			ru.Action, ru.Src, ru.Dst, ru.Prt)
 	}
-	descr := ""
+	top := ""
 	if p.Description != "" {
-		descr = "description = " + p.Description + "\n"
+		top = "description = " + p.Description + "\n"
+	}
+	for _, a := range p.Attributes {
+		top += a[0]
+		if v := a[1]; v != "" {
+			top += "=" + v
+		}
+		top += ";"
 	}
 	def := fmt.Sprintf("service:%s = { %s user = %s; %s }",
-		p.Name, descr, p.User, rules)
+		p.Name, top, p.User, rules)
 	params, _ := json.Marshal(jsonMap{
 		"definition": def,
 		"file":       getServicePath(p.Name),
