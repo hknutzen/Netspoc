@@ -1962,9 +1962,9 @@ func (c *spoc) setupService(v *ast.Service) {
 		switch a.Name {
 		case "identical_body":
 			sv.identicalBody =
-				c.tryServiceRefList(a, "attribute 'identical_body' of "+name)
+				c.tryServiceRefList(a, name)
 		case "overlaps":
-			sv.overlaps = c.tryServiceRefList(a, "attribute 'overlaps' of "+name)
+			sv.overlaps = c.tryServiceRefList(a, name)
 		case "multi_owner":
 			sv.multiOwner = c.getFlag(a, name)
 		case "unknown_owner":
@@ -2957,14 +2957,15 @@ func (c *spoc) getCryptoRefList(a *ast.Attribute, ctx string) []*crypto {
 func (c *spoc) tryServiceRefList(a *ast.Attribute, ctx string) []*service {
 	l := c.getValueList(a, ctx)
 	result := make([]*service, 0, len(l))
+	ctx2 := "attribute '" + a.Name + "' of " + ctx
 	for _, v := range l {
 		name := strings.TrimPrefix(v, "service:")
 		if len(name) == len(v) {
-			c.err("Expected type 'service:' in %s", ctx)
+			c.err("Expected type 'service:' in %s", ctx2)
 		} else if s, found := c.symTable.service[name]; found {
 			result = append(result, s)
 		} else {
-			c.warn("Unknown '%s' in %s", v, ctx)
+			c.warn("Unknown '%s' in %s", v, ctx2)
 		}
 	}
 	return result
