@@ -295,6 +295,7 @@ here `<object set>` must expand to networks.
          [ multi_owner;               ]
          [ unknown_owner;             ]
          [ has_unenforceable;         ]
+         [ identical_body = service:<name>(, service:<name>)*; ]
          [ overlaps = service:<name>(, service:<name>)*; ]
          user = [ foreach ] <object set>;
          <rule> *
