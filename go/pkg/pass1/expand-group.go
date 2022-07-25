@@ -186,10 +186,8 @@ func (c *spoc) expandIntersection(
 				a = x.Element
 			}
 			switch x := a.(type) {
-			case *ast.User:
-				info += "user"
-			case ast.NamedElem:
-				info += a.GetType() + ":" + x.GetName()
+			case *ast.User, ast.NamedElem:
+				info += a.String()
 			case *ast.SimpleAuto, *ast.AggAuto:
 				info += a.GetType() + ":[..]"
 			case *ast.IntfAuto:
