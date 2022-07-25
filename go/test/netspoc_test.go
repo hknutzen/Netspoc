@@ -152,8 +152,9 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		// Prepare job file as param.
 		if d.Job != "" {
+			job := strings.ReplaceAll(d.Job, "\n", " ")
 			name := path.Join(workDir, "job")
-			if err := os.WriteFile(name, []byte(d.Job), 0644); err != nil {
+			if err := os.WriteFile(name, []byte(job), 0644); err != nil {
 				t.Fatal(err)
 			}
 			args = append(args, name)
