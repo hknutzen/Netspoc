@@ -27,7 +27,8 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/assert/cmp"
 )
 
 const (
@@ -425,7 +426,7 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 
 func countEq(t *testing.T, expected, got string) {
 	atomic.AddInt32(&count, 1)
-	assert.Equal(t, expected, got)
+	assert.Check(t, cmp.Equal(expected, got))
 }
 
 func jsonEq(t *testing.T, expected string, got []byte) {

@@ -8,7 +8,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestOsLink(t *testing.T) {
