@@ -38,6 +38,12 @@ type Toplevel interface {
 	SetIPV6()
 }
 
+type ToplevelWithAttr interface {
+	Toplevel
+	GetAttr(string) *Attribute
+	RemoveAttr(string)
+}
+
 // ----------------------------------------------------------------------------
 
 type Base struct {

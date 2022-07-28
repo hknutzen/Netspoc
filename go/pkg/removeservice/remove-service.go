@@ -137,7 +137,6 @@ func Main(d oslink.Data) int {
 		if !strings.HasPrefix(srv, "service:") {
 			name = "service:" + srv
 		}
-		s.RemoveServiceFromOverlaps(name)
 		err = s.DeleteToplevel(name)
 		if err != nil {
 			fmt.Fprintf(d.Stderr, "Error: %s\n", err)

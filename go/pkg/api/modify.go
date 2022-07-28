@@ -106,6 +106,9 @@ type job struct {
 }
 
 var handler = map[string]func(*state, *job) error{
+	"add":              (*state).patch,
+	"delete":           (*state).patch,
+	"replace":          (*state).patch,
 	"create_toplevel":  (*state).createToplevel,
 	"delete_toplevel":  (*state).deleteToplevel,
 	"create_host":      (*state).createHost,
@@ -348,7 +351,6 @@ func (s *state) deleteService(j *job) error {
 	}
 	getParams(j, &p)
 	name := "service:" + p.Name
-	s.RemoveServiceFromOverlaps(name)
 	return s.DeleteToplevel(name)
 }
 

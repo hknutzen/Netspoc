@@ -229,7 +229,6 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 	}
 	// Delete definition of empty service.
 	for _, name := range emptySvc {
-		s.RemoveServiceFromOverlaps(name)
 		s.DeleteToplevel(name)
 	}
 }
