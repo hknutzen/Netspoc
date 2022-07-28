@@ -52,9 +52,9 @@ group:G =
  network:Test,
  network:Test,
  interface:r.Test, # comment
- host:Toast,
- host:Toast,
  host:id:h@dom.top.Test,
+ host:Toast,
+ host:Toast,
  host:x,
  host:y,
 ;

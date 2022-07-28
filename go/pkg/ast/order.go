@@ -60,7 +60,7 @@ func sortElem(l []Element) {
 		n1, i1 := getNameIP(l[i])
 		n2, i2 := getNameIP(l[j])
 		if i1 == i2 {
-			return n1 < n2
+			return strings.ToLower(n1) < strings.ToLower(n2)
 		}
 		return i1 < i2
 	})
@@ -205,7 +205,7 @@ func (a *NamedUnion) Order() {
 func (a *Attribute) Order() {
 	vals := a.ValueList
 	sort.Slice(vals, func(i, j int) bool {
-		return vals[i].Value < vals[j].Value
+		return strings.ToLower(vals[i].Value) < strings.ToLower(vals[j].Value)
 	})
 }
 
@@ -218,11 +218,15 @@ func (a *Rule) Order() {
 	}
 }
 
-func (a *Service) Order() {
+func (a *TopStruct) Order() {
 	for _, attr := range a.Attributes {
 		attr.Order()
 	}
+}
+
+func (a *Service) Order() {
 	sortAttr(a.Attributes)
+	a.TopStruct.Order()
 	a.User.Order()
 	for _, r := range a.Rules {
 		r.Order()

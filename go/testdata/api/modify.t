@@ -1271,8 +1271,8 @@ network:n1 = {
 =OUTPUT=
 @@ owner
 +owner:a = {
-+ admins = b@example.com,
-+          a@example.com,
++ admins = a@example.com,
++          b@example.com,
 +          ;
 + watchers = c@example.com,
 +            d@example.com,

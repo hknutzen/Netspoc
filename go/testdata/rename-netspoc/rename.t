@@ -294,8 +294,8 @@ router:r@vrf = {
  interface:n = { ip = 10.9.1.2; }
 }
 group:G =
- interface:RR.n,
  interface:r@vrf.n,
+ interface:RR.n,
 ;
 =END=
 =PARAMS=router:R router:RR router:R@vrf router:r@vrf
