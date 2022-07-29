@@ -1,5 +1,16 @@
 {{$NEXT}}
 
+6.045     2022-07-29 10:21:38+02:00 Europe/Berlin
+
+ - Command 'format-netspoc' now sorts lists case insensitively.
+   Value lists of attributes are sorted also now.
+ - Added new generic methods to Netspoc-API: add, delete, replace
+   Parameters are
+   - path: specifies the to be changed item; a comma separated list of names.
+   - value: the new value, given either as JSON object or in Netspoc syntax.
+   - ok_if_exists: suppresses error message if an added toplevel object
+     already exists.
+
 6.044     2022-05-09 08:57:41+02:00 Europe/Berlin
 
  - Added new option '-d' / '--delete' to command 'remove-from-netspoc'.
