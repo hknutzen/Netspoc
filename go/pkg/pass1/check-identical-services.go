@@ -2,12 +2,11 @@ package pass1
 
 import (
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"sort"
 )
 
 func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
-	printType := conf.Conf.CheckIdenticalServices
+	printType := c.conf.CheckIdenticalServices
 	if printType == "" {
 		return
 	}

@@ -3,7 +3,9 @@
 //
 package ast
 
-import ()
+import (
+	"strings"
+)
 
 // ----------------------------------------------------------------------------
 // Interfaces
@@ -22,6 +24,7 @@ type Node interface {
 type Element interface {
 	Node
 	GetType() string
+	String() string
 }
 
 type Toplevel interface {
@@ -33,6 +36,12 @@ type Toplevel interface {
 	SetFileName(string)
 	GetIPV6() bool
 	SetIPV6()
+}
+
+type ToplevelWithAttr interface {
+	Toplevel
+	GetAttr(string) *Attribute
+	RemoveAttr(string)
 }
 
 // ----------------------------------------------------------------------------
@@ -52,6 +61,7 @@ type User struct {
 }
 
 func (a *User) GetType() string { return "user" }
+func (a *User) String() string  { return "user" }
 
 type TypedElt struct {
 	Base
@@ -71,6 +81,7 @@ type NamedRef struct {
 }
 
 func (a *NamedRef) GetName() string { return a.Name }
+func (a *NamedRef) String() string  { return a.GetType() + ":" + a.GetName() }
 
 type IntfRef struct {
 	TypedElt
@@ -88,6 +99,7 @@ func (a *IntfRef) GetName() string {
 	}
 	return n
 }
+func (a *IntfRef) String() string { return a.GetType() + ":" + a.GetName() }
 
 type SimpleAuto struct {
 	TypedElt
@@ -96,15 +108,36 @@ type SimpleAuto struct {
 
 func (a *SimpleAuto) GetElements() []Element  { return a.Elements }
 func (a *SimpleAuto) SetElements(l []Element) { a.Elements = l }
+func (a *SimpleAuto) String() string {
+	return a.GetType() + ":[" + joinElements(a.Elements, ",") + "]"
+}
 
 type AggAuto struct {
 	SimpleAuto
 	Net string
 }
+
+func (a *AggAuto) String() string {
+	var ext string
+	if a.Net != "" {
+		ext = a.Net + "&"
+	}
+	return a.GetType() + ":[" + ext + joinElements(a.Elements, ",") + "]"
+}
+
 type IntfAuto struct {
 	SimpleAuto
 	Managed  bool
 	Selector string
+}
+
+func (a *IntfAuto) String() string {
+	var ext string
+	if a.Managed {
+		ext = "managed&"
+	}
+	return a.GetType() +
+		":[" + ext + joinElements(a.Elements, ",") + "].[" + a.Selector + "]"
 }
 
 type AutoElem interface {
@@ -119,6 +152,7 @@ type Complement struct {
 }
 
 func (a *Complement) GetType() string { return "" }
+func (a *Complement) String() string  { return "!" + a.Element.String() }
 
 type Intersection struct {
 	Base
@@ -126,6 +160,21 @@ type Intersection struct {
 }
 
 func (a *Intersection) GetType() string { return a.Elements[0].GetType() }
+func (a *Intersection) String() string {
+	return joinElements(a.Elements, "&")
+}
+
+func joinElements(l []Element, sep string) string {
+	var buf strings.Builder
+	s := len(l)
+	for i, el := range l {
+		buf.WriteString(el.String())
+		if i != s-1 {
+			buf.WriteString(sep)
+		}
+	}
+	return buf.String()
+}
 
 type Description struct {
 	Base

@@ -4,15 +4,15 @@
 -- config
 # comment
 check_unused_groups = 1;
-# empty line follows
-ignore_files = ^foo$;
 max_errors = 2;
-# Option 'verbose' gets overwritten by default option '--quiet'
+# Option gets overwritten by default option '--quiet'
 # when running tests.
 quiet = 0;
 time_stamps = 0;
--- foo
+-- CVS/foo
 SOME INVALID DATA
+-- .hidden
+MORE INVALID DATA
 -- bar
 group:g = network:n1;
 network:n1 = { ip = 10.1.1.0/24; }
@@ -105,7 +105,7 @@ Aborted
 =OPTIONS=--help
 =INPUT= #
 =ERROR=
-Usage of PROGRAM:
+Usage: PROGRAM [options] IN-DIR|IN-FILE [CODE-DIR]
       --auto_default_route                          (default true)
       --check_duplicate_rules tristate              (default warn)
       --check_fully_redundant_rules tristate
@@ -124,7 +124,6 @@ Usage of PROGRAM:
       --concurrency_pass1 int                       (default 1)
       --concurrency_pass2 int                       (default 1)
       --debug_pass2 string
-      --ignore_files regexp                         (default ^(CVS|RCS|.*~)$)
   -6, --ipv6
   -m, --max_errors int                              (default 10)
   -q, --quiet
@@ -246,11 +245,10 @@ panic: Can't open out/r1: is a directory
 
 ############################################################
 =TITLE=Can't read input directory
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
 =SETUP=
-mkdir netspoc
 chmod u-rx netspoc
-=INPUT=NONE
-=PARAMS=netspoc
 =ERROR=
 panic: open netspoc: permission denied
 =END=

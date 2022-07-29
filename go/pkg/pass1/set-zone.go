@@ -3,6 +3,7 @@ package pass1
 import (
 	"net/netip"
 	"sort"
+	"strings"
 )
 
 //##############################################################################
@@ -34,9 +35,8 @@ func (c *spoc) setZones() {
 		}
 
 		// Create zone.
-		name := "any:[" + n.name + "]"
 		z := &zone{
-			name:               name,
+			name:               "any:[" + n.name + "]",
 			ipPrefix2aggregate: make(map[netip.Prefix]*network),
 		}
 		z.ipV6 = n.ipV6
@@ -47,8 +47,11 @@ func (c *spoc) setZones() {
 
 		// Change name from tunnel network to real network for better
 		// error messages and for use in cut-netspoc.
-		if n.ipType == tunnelIP && len(z.networks) > 1 {
-			z.name = "any:[" + z.networks[1].name + "]"
+		if len(z.networks) > 0 &&
+			(n.ipType == tunnelIP ||
+				n.ipType == unnumberedIP &&
+					strings.HasSuffix(n.name, "(split Network)")) {
+			z.name = "any:[" + z.networks[0].name + "]"
 		}
 	}
 }
@@ -368,7 +371,7 @@ type bLookup map[*routerIntf]borderType
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		sortedAreas = append(sortedAreas, a)
 	}
 	sort.Slice(sortedAreas, func(i, j int) bool {
@@ -571,7 +574,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 
 	// Fill global list of areas.
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		if !a.disabled {
 			c.ascendingAreas = append(c.ascendingAreas, a)
 		}
@@ -667,8 +670,8 @@ func (c *spoc) processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
-	aggList := make(netList, 0, len(symTable.aggregate))
-	for _, agg := range symTable.aggregate {
+	aggList := make(netList, 0, len(c.symTable.aggregate))
+	for _, agg := range c.symTable.aggregate {
 		n := agg.link
 		if n == nil || n.disabled {
 			agg.disabled = true

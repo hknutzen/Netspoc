@@ -74,9 +74,9 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 					for _, n := range z.networks {
 						net0 := n.address(nm)
 						ip := net0.Addr()
-						prefix := net0.Bits()
+						bits := net0.Bits()
 						for j, net := range filterOnly {
-							if prefix >= net.Bits() && net.Contains(ip) {
+							if bits >= net.Bits() && net.Contains(ip) {
 								matched[filterOnly[j]] = true
 								continue NETWORK
 							}
@@ -116,8 +116,8 @@ func (c *spoc) getManagedLocalClusters() []clusterInfo {
 // A network is marked by adding the number of the corresponding
 // managed=local cluster as key to a map in attribute filterAt.
 func (c *spoc) markManagedLocal() {
-	network00.filterAt = make(map[int]bool)
-	network00v6.filterAt = make(map[int]bool)
+	c.network00.filterAt = make(map[int]bool)
+	c.network00v6.filterAt = make(map[int]bool)
 
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
@@ -130,9 +130,9 @@ func (c *spoc) markManagedLocal() {
 					continue
 				}
 				ip := natNetwork.ipp.Addr()
-				prefix := natNetwork.ipp.Bits()
+				bits := natNetwork.ipp.Bits()
 				for _, net := range cluster.filterOnly {
-					if prefix >= net.Bits() && net.Contains(ip) {
+					if bits >= net.Bits() && net.Contains(ip) {
 
 						// Mark network and enclosing aggregates.
 						obj := n
@@ -163,7 +163,7 @@ func (c *spoc) markManagedLocal() {
 
 		// Rules from general_permit should be applied to all devices
 		// with 'managed=local'.
-		network00.filterAt[mark] = true
-		network00v6.filterAt[mark] = true
+		c.network00.filterAt[mark] = true
+		c.network00v6.filterAt[mark] = true
 	}
 }

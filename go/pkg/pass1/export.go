@@ -30,9 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/spf13/pflag"
 	"net"
 	"os"
 	"os/exec"
@@ -40,6 +37,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/spf13/pflag"
 )
 
 func (c *spoc) createDirs(dir, path string) {
@@ -176,8 +178,8 @@ func ipNatForObject(obj srvObj, dst jsonMap) {
 }
 
 // Zone with network 0/0 doesn't have an aggregate 0/0.
-func getZoneName(z *zone) string {
-	ipp := getNetwork00(z.ipV6).ipp
+func (c *spoc) getZoneName(z *zone) string {
+	ipp := c.getNetwork00(z.ipV6).ipp
 	if any := z.ipPrefix2aggregate[ipp]; any != nil {
 		return any.name
 	} else {
@@ -571,10 +573,9 @@ func (c *spoc) normalizeServicesForExport() []*exportedSvc {
 	return result
 }
 
-// All objects referenced in rules and in networks and hosts of owners.
-var allObjects map[srvObj]bool
+func (c *spoc) setupServiceInfo(
+	services []*exportedSvc, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
 
-func (c *spoc) setupServiceInfo(services []*exportedSvc, pInfo, oInfo xOwner) {
 	c.progress("Setup service info")
 
 	for _, s := range services {
@@ -724,7 +725,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Find master owner.
 	var masterOwner *owner
-	for _, ow := range symTable.owner {
+	for _, ow := range c.symTable.owner {
 		if ow.showAll {
 			masterOwner = ow
 			c.progress("Found master " + ow.name)
@@ -857,7 +858,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	// Intersection of all outer owners of one owner is allowed to take
 	// role of corresponding inner owner.
 	eInfo := make(map[*owner][]*owner)
-	for _, ow := range symTable.owner {
+	for _, ow := range c.symTable.owner {
 		outerOwners := owner2outerOwners[ow]
 		if masterOwner != nil {
 			if outerOwners == nil {
@@ -921,7 +922,7 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, pInfo))
 		add(xOwnersForObject(n, oInfo))
 	}
-	for ownerName := range symTable.owner {
+	for ownerName := range c.symTable.owner {
 		natList := make(stringList, 0)
 		if doms := owner2domains[ownerName]; doms != nil {
 
@@ -963,7 +964,9 @@ func addSubnetworks(networks netList) netList {
 	}
 }
 
-func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
+func (c *spoc) exportAssets(
+	dir string, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
+
 	c.progress("Export assets")
 	result := make(jsonMap)
 
@@ -1052,7 +1055,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 			continue
 		}
 
-		zoneName := getZoneName(z)
+		zoneName := c.getZoneName(z)
 		networks := addSubnetworks(z.networks)
 
 		for _, n := range networks {
@@ -1072,7 +1075,7 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 		}
 	}
 
-	for ow := range symTable.owner {
+	for ow := range c.symTable.owner {
 		assets := result[ow]
 		if assets == nil {
 			assets = jsonMap{}
@@ -1088,7 +1091,9 @@ func (c *spoc) exportAssets(dir string, pInfo, oInfo xOwner) {
 
 // When creating user and service lists for each owner,
 // we need to lookup, if an object should be visible by this owner.
-func getVisibleOwner(pInfo, oInfo xOwner) map[srvObj]map[string]bool {
+func getVisibleOwner(
+	allObjects map[srvObj]bool, pInfo, oInfo xOwner) map[srvObj]map[string]bool {
+
 	visibleOwner := make(map[srvObj]map[string]bool)
 	for ob := range allObjects {
 		m := make(map[string]bool)
@@ -1132,8 +1137,8 @@ func (c *spoc) exportServices(dir string, list []*exportedSvc) {
 	c.exportJson(dir, "services", sInfo)
 }
 
-func (c *spoc) exportUsersAndServiceLists(
-	dir string, l []*exportedSvc, pInfo, oInfo xOwner) {
+func (c *spoc) exportUsersAndServiceLists(dir string,
+	l []*exportedSvc, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
 
 	c.progress("Export users and service lists")
 
@@ -1167,7 +1172,7 @@ func (c *spoc) exportUsersAndServiceLists(
 		addChk(s.partUowners, "user", chkUser)
 		addChk(s.outerUowners, "user", chkUser)
 		if visible := s.visible; visible != "" {
-			for ow := range symTable.owner {
+			for ow := range c.symTable.owner {
 				type2sMap := owner2type2sMap[ow]
 				if type2sMap["owner"][s] {
 					continue
@@ -1182,9 +1187,9 @@ func (c *spoc) exportUsersAndServiceLists(
 		}
 	}
 
-	visibleOwner := getVisibleOwner(pInfo, oInfo)
+	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
 	var names stringList
-	for name := range symTable.owner {
+	for name := range c.symTable.owner {
 		names.push(name)
 	}
 	sort.Strings(names)
@@ -1239,7 +1244,7 @@ func (c *spoc) exportUsersAndServiceLists(
 // Export all objects referenced by rules, users and assets.
 //###################################################################
 
-func zoneAndSubnet(obj srvObj, desc jsonMap) {
+func (c *spoc) zoneAndSubnet(obj srvObj, desc jsonMap) {
 
 	// Change loopback interface to equivalent loopback network.
 	// Network gets zone attribute added, which is needed in IP search
@@ -1257,7 +1262,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 	z := n.zone
 	// Get deterministic zone for aggregates and networks in zone cluster.
 	z = z.cluster[0]
-	desc["zone"] = getZoneName(z)
+	desc["zone"] = c.getZoneName(z)
 
 	// Netspoc-Web only needs info about subnets in other zone.
 	// Attribute name is different for historic reasons.
@@ -1266,7 +1271,7 @@ func zoneAndSubnet(obj srvObj, desc jsonMap) {
 	}
 }
 
-func (c *spoc) exportObjects(dir string) {
+func (c *spoc) exportObjects(dir string, allObjects map[srvObj]bool) {
 	c.progress("Export objects")
 	result := make(jsonMap)
 	for obj := range allObjects {
@@ -1278,7 +1283,7 @@ func (c *spoc) exportObjects(dir string) {
 		// Change loopback interface to loopback netwok, but leave name unchanged.
 		// Add key 'zone' for network and aggregate.
 		// Optionally add key 'is_supernet' for network and aggregate.
-		zoneAndSubnet(obj, descr)
+		c.zoneAndSubnet(obj, descr)
 
 		if o := ownerForObject(obj); o != "" {
 			descr["owner"] = o
@@ -1305,7 +1310,7 @@ func (c *spoc) exportZone2Areas(dir string) {
 			a = a.inArea
 		}
 		if l != nil {
-			result[getZoneName(z)] = l
+			result[c.getZoneName(z)] = l
 		}
 	}
 	c.exportJson(dir, "zone2areas", result)
@@ -1318,7 +1323,7 @@ func (c *spoc) exportZone2Areas(dir string) {
 func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	c.progress("Export owners")
 	email2owners := make(map[string]map[string]bool)
-	for name, ow := range symTable.owner {
+	for name, ow := range c.symTable.owner {
 		var eOwners stringList
 		add := func(l []string) {
 			for _, email := range l {
@@ -1408,6 +1413,8 @@ func (c *spoc) copyPolicyFile(inPath, outDir string) {
 }
 
 func (c *spoc) exportNetspoc(inDir, outDir string) {
+	// All objects referenced in rules and in networks and hosts of owners.
+	allObjects := make(map[srvObj]bool)
 	c.readNetspoc(inDir)
 	c.markDisabled()
 	c.setZone()
@@ -1419,40 +1426,40 @@ func (c *spoc) exportNetspoc(inDir, outDir string) {
 	c.findSubnetsInNatDomain(natDomains)
 	pInfo := c.setupPartOwners()
 	masterOwner, oInfo, eInfo := c.setupOuterOwners()
-	c.setupServiceInfo(expSvcList, pInfo, oInfo)
+	c.setupServiceInfo(expSvcList, allObjects, pInfo, oInfo)
 
 	// Export data
 	c.createDirs(outDir, "")
 	c.exportOwners(outDir, eInfo)
 	c.exportMasterOwner(outDir, masterOwner)
-	c.exportAssets(outDir, pInfo, oInfo)
+	c.exportAssets(outDir, allObjects, pInfo, oInfo)
 	c.exportServices(outDir, expSvcList)
-	c.exportUsersAndServiceLists(outDir, expSvcList, pInfo, oInfo)
-	c.exportObjects(outDir)
+	c.exportUsersAndServiceLists(outDir, expSvcList, allObjects, pInfo, oInfo)
+	c.exportObjects(outDir, allObjects)
 	c.exportZone2Areas(outDir)
 	c.exportNatSet(outDir, multiNAT, natTag2natType, pInfo, oInfo)
 	c.copyPolicyFile(inDir, outDir)
 	c.progress("Ready")
 }
 
-func ExportMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func ExportMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] netspoc-data out-directory\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] netspoc-data out-directory\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't print progress messages")
 	ipv6 := fs.BoolP("ipv6", "6", false, "Expect IPv6 definitions")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -1470,12 +1477,9 @@ func ExportMain() int {
 		fmt.Sprintf("--ipv6=%v", *ipv6),
 		"--max_errors=9999",
 	}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	// Initialize global variable.
-	allObjects = make(map[srvObj]bool)
-
-	return toplevelSpoc(func(c *spoc) {
+	return toplevelSpoc(d, cnf, func(c *spoc) {
 		c.exportNetspoc(path, out)
 	})
 }

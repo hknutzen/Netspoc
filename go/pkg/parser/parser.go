@@ -182,7 +182,7 @@ func (p *parser) intfRef(typ, name string) ast.Element {
 	a := new(ast.IntfRef)
 	a.Type = typ
 	r, net, found := strings.Cut(name, ".")
-	if !found {
+	if !found || r == "" || net == "" {
 		p.syntaxErr("Interface name expected")
 	}
 	a.Router = r
@@ -247,7 +247,7 @@ func (p *parser) intfAuto(typ string) ast.Element {
 func (p *parser) typedName() (string, string) {
 	tok := p.tok
 	typ, name, found := strings.Cut(tok, ":")
-	if !found {
+	if !found || typ == "" || name == "" {
 		p.syntaxErr("Typed name expected")
 	}
 	return typ, name
@@ -590,29 +590,33 @@ func (p *parser) service() ast.Toplevel {
 	return a
 }
 
-func (p *parser) network() ast.Toplevel {
-	a := new(ast.Network)
-	a.TopStruct = p.topStructHead()
+func (p *parser) topStructWithChilds(
+	prefix string) (ast.TopStruct, []*ast.Attribute, []*ast.Attribute) {
+
+	top := p.topStructHead()
+	var attr, childs []*ast.Attribute
 	for !p.check("}") {
-		if strings.HasPrefix(p.tok, "host:") {
-			a.Hosts = append(a.Hosts, p.attribute())
+		if strings.HasPrefix(p.tok, prefix) {
+			if len(p.tok) == len(prefix) {
+				p.syntaxErr("Typed name expected")
+			}
+			childs = append(childs, p.attribute())
 		} else {
-			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
+			attr = append(attr, p.attributeNoToplevel())
 		}
 	}
+	return top, attr, childs
+}
+
+func (p *parser) network() ast.Toplevel {
+	a := new(ast.Network)
+	a.TopStruct, a.Attributes, a.Hosts = p.topStructWithChilds("host:")
 	return a
 }
 
 func (p *parser) router() ast.Toplevel {
 	a := new(ast.Router)
-	a.TopStruct = p.topStructHead()
-	for !p.check("}") {
-		if strings.HasPrefix(p.tok, "interface:") {
-			a.Interfaces = append(a.Interfaces, p.attribute())
-		} else {
-			a.Attributes = append(a.Attributes, p.attributeNoToplevel())
-		}
-	}
+	a.TopStruct, a.Attributes, a.Interfaces = p.topStructWithChilds("interface:")
 	return a
 }
 
@@ -722,6 +726,30 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 			p.syntaxErr(`Unexpected content after ";"`)
 		}
 		l = list
+	})
+	return
+}
+
+func ParseAttribute(src []byte) (a *ast.Attribute, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		p.init(src, "command line", 0)
+		a = p.attribute()
+		if p.pos != len(src) {
+			p.syntaxErr(`Unexpected content after attribute`)
+		}
+	})
+	return
+}
+
+func ParseRule(src []byte) (r *ast.Rule, err error) {
+	err = handlePanic(func() {
+		p := new(parser)
+		p.init(src, "command line", 0)
+		r = p.rule()
+		if p.pos != len(src) {
+			p.syntaxErr(`Unexpected content after rule`)
+		}
 	})
 	return
 }

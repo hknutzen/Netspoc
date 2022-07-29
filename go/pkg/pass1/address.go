@@ -42,25 +42,11 @@ func getZeroIp(ipv6 bool) netip.Addr {
 	}
 }
 
-var network00 = &network{
-	ipObj:          ipObj{name: "network:0/0"},
-	ipp:            netip.PrefixFrom(getZeroIp(false), 0),
-	isAggregate:    true,
-	hasOtherSubnet: true,
-}
-
-var network00v6 = &network{
-	ipObj:          ipObj{name: "network:0/0"},
-	ipp:            netip.PrefixFrom(getZeroIp(true), 0),
-	isAggregate:    true,
-	hasOtherSubnet: true,
-}
-
-func getNetwork00(ipv6 bool) *network {
+func (c *spoc) getNetwork00(ipv6 bool) *network {
 	if ipv6 {
-		return network00v6
+		return c.network00v6
 	} else {
-		return network00
+		return c.network00
 	}
 }
 

@@ -4,7 +4,7 @@ package api
 Process jobs of Netspoc-API
 
 COPYRIGHT AND DISCLAIMER
-(c) 2021 by Heinz Knutzen <heinz.knutzen@googlemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc-API
 
@@ -23,42 +23,43 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/astset"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
-	"github.com/hknutzen/Netspoc/go/pkg/printer"
-	"github.com/spf13/pflag"
 	"io/ioutil"
 	"net"
 	"os"
 	"path"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/astset"
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"github.com/hknutzen/Netspoc/go/pkg/printer"
+	"github.com/spf13/pflag"
 )
 
 type state struct {
 	*astset.State
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR JOB ...\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR JOB ...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -71,13 +72,17 @@ func Main() int {
 	}
 	netspocPath := args[0]
 
-	// Initialize Conf, especially attribute IgnoreFiles.
+	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, netspocPath)
+
+	showErr := func(format string, args ...interface{}) {
+		fmt.Fprintf(d.Stderr, "Error: "+format+"\n", args...)
+	}
 
 	s := new(state)
 	var err error
-	s.State, err = astset.Read(netspocPath)
+	s.State, err = astset.Read(netspocPath, cnf.IPV6)
 	if err != nil {
 		// Text of this error message is checked in cvs-worker1 of Netspoc-API.
 		showErr("While reading netspoc files: %s", err)
@@ -89,9 +94,7 @@ func Main() int {
 			return 1
 		}
 	}
-	for _, file := range s.Changed() {
-		info.Msg("Changed %s", file)
-	}
+	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
 	return 0
 }
@@ -103,6 +106,9 @@ type job struct {
 }
 
 var handler = map[string]func(*state, *job) error{
+	"add":              (*state).patch,
+	"delete":           (*state).patch,
+	"replace":          (*state).patch,
 	"create_toplevel":  (*state).createToplevel,
 	"delete_toplevel":  (*state).deleteToplevel,
 	"create_host":      (*state).createHost,
@@ -119,6 +125,7 @@ var handler = map[string]func(*state, *job) error{
 	"remove_from_rule": (*state).removeFromRule,
 	"add_rule":         (*state).addRule,
 	"delete_rule":      (*state).deleteRule,
+	"create_interface": (*state).createInterface,
 }
 
 func (s *state) doJobFile(path string) error {
@@ -344,7 +351,6 @@ func (s *state) deleteService(j *job) error {
 	}
 	getParams(j, &p)
 	name := "service:" + p.Name
-	s.RemoveServiceFromOverlaps(name)
 	return s.DeleteToplevel(name)
 }
 
@@ -464,6 +470,35 @@ func (s *state) createService(j *job) error {
 		"file":       getServicePath(p.Name),
 	})
 	return s.createToplevel(&job{Params: params})
+}
+
+func (s *state) createInterface(j *job) error {
+	var p struct {
+		Router string
+		Name   string
+		IP     string
+		Owner  string
+		VIP    bool
+	}
+	getParams(j, &p)
+	if !p.VIP {
+		return fmt.Errorf("Cannot create non-VIP Interface")
+	}
+	router := "router:" + p.Router
+	return s.ModifyObj(router, func(toplevel ast.Toplevel) error {
+		rt := toplevel.(*ast.Router)
+		intf := new(ast.Attribute)
+		intf.Name = "interface:" + p.Name
+		ip := ast.CreateAttr1("ip", p.IP)
+		vip := &ast.Attribute{Name: "vip"}
+		intf.ComplexValue = []*ast.Attribute{ip, vip}
+		if p.Owner != "" {
+			o := ast.CreateAttr1("owner", p.Owner)
+			intf.ComplexValue = append(intf.ComplexValue, o)
+		}
+		rt.Interfaces = append(rt.Interfaces, intf)
+		return nil
+	})
 }
 
 func (s *state) addToUser(j *job) error {
@@ -723,8 +758,4 @@ func getRuleIdx(sv *ast.Service, num, count int) (int, error) {
 			idx+1, n, sv.Name)
 	}
 	return idx, nil
-}
-
-func showErr(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
 }

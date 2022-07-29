@@ -17,12 +17,12 @@ type stdProto struct {
 	TCPEsta *proto
 }
 
-func (c *spoc) initStdProtocols(sym *symbolTable) {
+func (c *spoc) initStdProtocols() {
 	define := func(s string) *proto {
-		return c.getSimpleProtocol(s, sym, false, s)
+		return c.getSimpleProtocol(s, false, s)
 	}
 	defineX := func(s string) *proto {
-		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, sym, false, s)
+		pSimp, pSrc := c.getSimpleProtocolAndSrcPort(s, false, s)
 		p := *pSimp
 		p.name = s
 		// Link complex protocol with corresponding simple protocol.
@@ -47,37 +47,6 @@ func (c *spoc) initStdProtocols(sym *symbolTable) {
 
 	prt.Bootps = define("udp 67")
 	prt.Bootpc = define("udp 68")
-
-	permitAnyRule = &groupedRule{
-		src: []someObj{network00},
-		dst: []someObj{network00},
-		serviceRule: &serviceRule{
-			prt: []*proto{prt.IP},
-		},
-	}
-	permitAny6Rule = &groupedRule{
-		src: []someObj{network00v6},
-		dst: []someObj{network00v6},
-		serviceRule: &serviceRule{
-			prt: []*proto{prt.IP},
-		},
-	}
-	denyAnyRule = &groupedRule{
-		src: []someObj{network00},
-		dst: []someObj{network00},
-		serviceRule: &serviceRule{
-			deny: true,
-			prt:  []*proto{prt.IP},
-		},
-	}
-	denyAny6Rule = &groupedRule{
-		src: []someObj{network00v6},
-		dst: []someObj{network00v6},
-		serviceRule: &serviceRule{
-			deny: true,
-			prt:  []*proto{prt.IP},
-		},
-	}
 }
 
 // Order protocols. We need this to simplify optimization.
@@ -85,7 +54,7 @@ func (c *spoc) orderProtocols() {
 	c.progress("Arranging protocols")
 
 	var tcp, udp, icmp, icmpv6, proto protoList
-	for _, p := range symTable.unnamedProto {
+	for _, p := range c.symTable.unnamedProto {
 		switch p.proto {
 		case "tcp":
 			tcp.push(p)

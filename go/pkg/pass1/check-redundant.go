@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"sort"
 	"strings"
 )
@@ -212,7 +211,7 @@ func (c *spoc) collectDuplicateRules(
 		return
 	}
 
-	if conf.Conf.CheckDuplicateRules != "" {
+	if c.conf.CheckDuplicateRules != "" {
 		ri.duplicate = append(ri.duplicate, [2]*expandedRule{rule, other})
 	}
 }
@@ -231,7 +230,7 @@ func (c *spoc) showDuplicateRules(ri *redundInfo) {
 		for _, rule := range rules {
 			msg += "\n  " + rule.print()
 		}
-		c.warnOrErr(conf.Conf.CheckDuplicateRules, msg)
+		c.warnOrErr(c.conf.CheckDuplicateRules, msg)
 	}
 }
 
@@ -259,7 +258,7 @@ func (c *spoc) collectRedundantRules(
 }
 
 func (c *spoc) showRedundantRules(ri *redundInfo) {
-	action := conf.Conf.CheckRedundantRules
+	action := c.conf.CheckRedundantRules
 	if action == "" {
 		return
 	}
@@ -284,7 +283,7 @@ func (c *spoc) showRedundantRules(ri *redundInfo) {
 }
 
 func (c *spoc) showFullyRedundantRules(ri *redundInfo) {
-	action := conf.Conf.CheckFullyRedundantRules
+	action := c.conf.CheckFullyRedundantRules
 	if action == "" {
 		return
 	}

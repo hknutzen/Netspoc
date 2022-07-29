@@ -119,10 +119,10 @@ router:r = {
 =OUTPUT=
 network:Toast = { ip = 10.1.1.0/24; }
 group:G =
+ network:Toast,
  interface:r.Toast,
  interface:r.Toast.virtual,
  host:id:h@dom.top.Toast,
- network:Toast,
 ;
 network:sub = {
  ip = 10.1.1.32/28;
@@ -151,9 +151,14 @@ router:r = {
 
 ############################################################
 =TITLE=Rename verbosely
-=INPUT=[[input]]
+=INPUT=
+-- a
+group:a = network:Test;
+-- b
+group:b = network:Test;
 =WARNING=
-13 changes in INPUT
+Changed a
+Changed b
 =END=
 =OPTIONS=--quiet=0
 =PARAMS=network:Test network:Toast
@@ -183,9 +188,9 @@ router:asa = {
  interface:Toast   = { hardware = device; }
 }
 group:G =
- interface:r.Toast,
  network:Toast/a,
  network:Toast/b,
+ interface:r.Toast,
  interface:r.Toast/b,
 ;
 =END=
@@ -202,9 +207,9 @@ group:G =
 =END=
 =OUTPUT=
 group:G =
+ host:id:a.b.c.Test,
  host:id:xx@yy.zz.Test,
  host:id:xx@yy.zz.top,
- host:id:a.b.c.Test,
 ;
 =END=
 =PARAMS=host:id:h@dom.top host:id:xx@yy.zz host:id:dom.top host:id:a.b.c
@@ -237,9 +242,9 @@ group:G = interface:r.Test,
 =OUTPUT=
 network:1_2_3_0_Test = { ip = 10.9.1.0/24; }
 group:G =
+ network:1_2_3_0_Test,
  interface:r.1_2_3_0_Test,
  host:id:h@dom.top.1_2_3_0_Test,
- network:1_2_3_0_Test,
 ;
 =END=
 =PARAMS=network:Test network:1_2_3_0_Test
@@ -289,8 +294,8 @@ router:r@vrf = {
  interface:n = { ip = 10.9.1.2; }
 }
 group:G =
- interface:RR.n,
  interface:r@vrf.n,
+ interface:RR.n,
 ;
 =END=
 =PARAMS=router:R router:RR router:R@vrf router:r@vrf
@@ -306,11 +311,11 @@ group:g =
 =END=
 =OUTPUT=
 group:g =
- any:[ip = 10.99.0.0/16 & network:NN],
- interface:[managed & network:NN].[all],
  group:g2
  &! host:[network:NN]
  ,
+ any:[ip = 10.99.0.0/16 & network:NN],
+ interface:[managed & network:NN].[all],
 ;
 =END=
 =PARAMS=network:n1 network:NN
@@ -399,11 +404,11 @@ service:s1 = {
 =END=
 =OUTPUT=
 service:x1 = {
- unknown_owner;
  identical_body = service:x3;
  overlaps = service:s2,
             service:x3,
             ;
+ unknown_owner;
  user = network:n1;
  permit src = user;
         dst = network:n2;

@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"regexp"
 )
 
@@ -12,7 +11,7 @@ type bgSpoc struct {
 }
 
 func (c *spoc) startInBackground(f func(*spoc)) bgSpoc {
-	if conf.Conf.ConcurrencyPass1 <= 1 {
+	if c.conf.ConcurrencyPass1 <= 1 {
 		f(c)
 		return bgSpoc{}
 	}
@@ -22,7 +21,7 @@ func (c *spoc) startInBackground(f func(*spoc)) bgSpoc {
 	go handleBailout(
 		func() {
 			f(c2)
-			if conf.Conf.TimeStamps {
+			if c.conf.TimeStamps {
 				c2.progress("Finished background job")
 			}
 		},
@@ -38,7 +37,7 @@ func (c *spoc) collectMessages(c2 bgSpoc) {
 		return
 	}
 	<-ch
-	if conf.Conf.TimeStamps {
+	if c.conf.TimeStamps {
 		c.progress("Output of background job:")
 		re := regexp.MustCompile(`^\d+s `)
 		for i, msg := range c2.messages {

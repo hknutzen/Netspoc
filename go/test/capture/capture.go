@@ -32,10 +32,10 @@ func Capture(std **os.File, f func()) string {
 	return <-out
 }
 
-func CatchPanic(f func() int) (status int) {
+func CatchPanic(stderr io.Writer, f func() int) (status int) {
 	defer func() {
 		if e := recover(); e != nil {
-			fmt.Fprintf(os.Stderr, "panic: %v\n", e)
+			fmt.Fprintf(stderr, "panic: %v\n", e)
 			status = 1
 		}
 	}()

@@ -575,39 +575,26 @@ func (c *spoc) linkPathrestrictions() {
 	c.pathrestrictions = c.pathrestrictions[:j]
 }
 
-/* checkVirtualInterfaces assures interfaces with identical virtual IP
-/* are located inside the same loop.*/
+// checkVirtualInterfaces assures interfaces with identical virtual IP
+// are located inside the same loop.
+// Loops inside a security zone are not known and will not be checked.
 func (c *spoc) checkVirtualInterfaces() {
-	var seen = make(map[*routerIntf]bool)
+	for _, pr := range c.pathrestrictions {
+		intf := pr.elements[0]
 
-	for _, intf := range c.virtualInterfaces {
-		// Ignore single virtual interface.
+		// Ignore pathrestriction at other than virtual interface and at
+		// single virtual interface.
 		if len(intf.redundancyIntfs) <= 1 {
 			continue
 		}
 
-		// Loops inside a security zone are not known and can not be checked
-		if intf.router.managed == "" && !intf.router.semiManaged {
-			continue
-		}
-
-		// Check whether all virtual interfaces are part of a loop.
-		if intf.router.loop == nil {
-			c.warn("%s must be located inside cyclic sub-graph", intf)
-			continue
-		}
-
-		if seen[intf] {
-			continue
-		}
-		for _, redundancyIntf := range intf.redundancyIntfs {
-			seen[redundancyIntf] = true
-		}
-
-		// Check whether all virtual interfaces are part of same loop.
-		referenceLoop := intf.redundancyIntfs[0].loop
-		for _, virtIntf := range intf.redundancyIntfs[1:] {
-			if referenceLoop != virtIntf.loop {
+		// Check whether all virtual interfaces are part of a loop and
+		// whether the are part of same loop.
+		referenceLoop := intf.loop
+		for _, virtIntf := range intf.redundancyIntfs {
+			if virtIntf.loop == nil {
+				c.warn("%s must be located inside cyclic sub-graph", virtIntf)
+			} else if referenceLoop != virtIntf.loop {
 				c.err("Virtual interfaces\n%s\n must all be part of the "+
 					"same cyclic sub-graph", intf.redundancyIntfs.nameList())
 				break

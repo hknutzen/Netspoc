@@ -2,6 +2,7 @@ package astset
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
@@ -20,11 +21,11 @@ type State struct {
 	changed  map[string]bool
 }
 
-func Read(netspocBase string) (*State, error) {
+func Read(netspocBase string, v6 bool) (*State, error) {
 	s := new(State)
 	s.changed = make(map[string]bool)
 	s.base = netspocBase
-	err := filetree.Walk(netspocBase, func(input *filetree.Context) error {
+	err := filetree.Walk(netspocBase, v6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
 		aF, err := parser.ParseFile(source, path, parser.ParseComments)
@@ -60,6 +61,14 @@ func (s *State) Print() {
 	}
 }
 
+func (s *State) ShowChanged(stderr io.Writer, quiet bool) {
+	if !quiet {
+		for _, file := range s.Changed() {
+			fmt.Fprintf(stderr, "Changed %s\n", file)
+		}
+	}
+}
+
 func (s *State) getFileIndex(file string) int {
 	file = path.Clean(file)
 	file = path.Join(s.base, file)
@@ -83,12 +92,12 @@ func (s *State) getFileIndex(file string) int {
 	return idx
 }
 
-func (s *State) Modify(f func(ast.Toplevel) bool) bool {
+func (s *State) Replace(f func(*ast.Toplevel) bool) bool {
 	someModified := false
 	for i, aF := range s.astFiles {
 		modified := false
-		for _, n := range aF.Nodes {
-			if f(n) {
+		for i := range aF.Nodes {
+			if f(&aF.Nodes[i]) {
 				modified = true
 			}
 		}
@@ -98,6 +107,12 @@ func (s *State) Modify(f func(ast.Toplevel) bool) bool {
 		}
 	}
 	return someModified
+}
+
+func (s *State) Modify(f func(ast.Toplevel) bool) bool {
+	return s.Replace(func(ptr *ast.Toplevel) bool {
+		return f(*ptr)
+	})
 }
 
 func (s *State) ModifyObj(name string, f func(ast.Toplevel) error) error {
@@ -115,6 +130,36 @@ func (s *State) ModifyObj(name string, f func(ast.Toplevel) error) error {
 		return fmt.Errorf("Can't find %s", name)
 	}
 	return err
+}
+
+func (s *State) AddTopLevel(n ast.Toplevel) {
+	// Netspoc config is given in single file, add new node to this file.
+	if len(s.files) == 1 && s.files[0] == s.base {
+		s.CreateToplevel(s.base, n)
+	}
+	file := "API"
+	if typ, name, found := strings.Cut(n.GetName(), ":"); found {
+		switch typ {
+		case "owner":
+			file = "owner"
+		case "service":
+			file = "rule"
+			if !fileop.IsDir(file) {
+				// Ignore error, is recognized later, when file can't be written.
+				os.Mkdir(file, 0777)
+			}
+			if len(name) > 0 {
+				s0 := strings.ToUpper(name[0:1])
+				c0 := s0[0]
+				if 'A' <= c0 && c0 <= 'Z' || '0' <= c0 && c0 <= '9' {
+					file = path.Join(file, s0)
+					break
+				}
+			}
+			file = path.Join(file, "other")
+		}
+	}
+	s.CreateToplevel(file, n)
 }
 
 func (s *State) CreateToplevel(file string, n ast.Toplevel) {
@@ -142,6 +187,14 @@ func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 }
 
 func (s *State) DeleteToplevel(name string) error {
+	typ, _, _ := strings.Cut(name, ":")
+	switch typ {
+	case "service":
+		s.RemoveFromToplevelAttr("service:", "overlaps", name)
+		s.RemoveFromToplevelAttr("service:", "identical_body", name)
+	case "network":
+		s.RemoveFromToplevelAttr("network:", "subnet_of", name)
+	}
 	found := false
 	for i, aF := range s.astFiles {
 		cp := make([]ast.Toplevel, 0, len(aF.Nodes))
@@ -221,17 +274,20 @@ func (s *State) DeleteUnmanagedLoopbackInterface(name string) {
 	})
 }
 
-func (s *State) RemoveServiceFromOverlaps(name string) {
-	s.Modify(func(toplevel ast.Toplevel) bool {
-		if n, ok := toplevel.(*ast.Service); ok {
-			if overlaps := n.GetAttr("overlaps"); overlaps != nil {
-				oLen := len(overlaps.ValueList)
-				overlaps.Remove(name)
-				nLen := len(overlaps.ValueList)
-				if nLen == 0 {
-					n.RemoveAttr("overlaps")
+func (s *State) RemoveFromToplevelAttr(typ, attr, name string) {
+	s.Modify(func(top ast.Toplevel) bool {
+		if n, ok := top.(ast.ToplevelWithAttr); ok &&
+			strings.HasPrefix(top.GetName(), typ) {
+
+			if a := n.GetAttr(attr); a != nil {
+				if oLen := len(a.ValueList); oLen > 0 {
+					a.Remove(name)
+					nLen := len(a.ValueList)
+					if nLen == 0 {
+						n.RemoveAttr(attr)
+					}
+					return nLen < oLen
 				}
-				return nLen < oLen
 			}
 		}
 		return false

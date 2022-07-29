@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"net/netip"
 	"sort"
 )
@@ -153,6 +152,14 @@ func (c *spoc) findSubnetsInZoneCluster0(z0 *zone) {
 
 		// Collect subnet relation.
 		sub.up = big
+
+		// Propagate subnet relation of aggregate to cluster.
+		if sub.isAggregate && len(z0.cluster) > 1 {
+			for _, z := range z0.cluster {
+				sub2 := z.ipPrefix2aggregate[sub.ipp]
+				sub2.up = big
+			}
+		}
 
 		c.checkSubnets(big, sub, "")
 	})
@@ -592,7 +599,7 @@ func (c *spoc) findSubnetsInNatDomain0(domains []*natDomain, networks netList) {
 
 			if !natSubnet.isLayer3 {
 				subnet.subnetOfUsed = true
-				if printType := conf.Conf.CheckSubnets; printType != "" &&
+				if printType := c.conf.CheckSubnets; printType != "" &&
 					// Take original bignet, because currently
 					// there's no method to specify a natted network
 					// as value of subnet_of.

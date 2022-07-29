@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"unicode"
 
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
@@ -30,23 +29,37 @@ func getIntf(r *router) []*routerIntf {
 	}
 }
 
-var permitAnyRule, permitAny6Rule *groupedRule
-
-func getPermitAnyRule(ipv6 bool) *groupedRule {
-	if ipv6 {
-		return permitAny6Rule
-	} else {
-		return permitAnyRule
+func (c *spoc) getPermitAnyRule(ipv6 bool) *groupedRule {
+	return &groupedRule{
+		src: []someObj{c.getNetwork00(ipv6)},
+		dst: []someObj{c.getNetwork00(ipv6)},
+		serviceRule: &serviceRule{
+			prt: []*proto{c.prt.IP},
+		},
 	}
 }
 
-var denyAnyRule, denyAny6Rule *groupedRule
+func isPermitAnyRule(ru *groupedRule) bool {
+	isNet00 := func(l []someObj) bool {
+		if len(l) == 1 {
+			obj := l[0]
+			n, ok := obj.(*network)
+			return ok && n.ipp.Bits() == 0
+		}
+		return false
+	}
+	return len(ru.prt) == 1 && ru.prt[0].proto == "ip" &&
+		isNet00(ru.src) && isNet00(ru.dst)
+}
 
-func getDenyAnyRule(ipv6 bool) *groupedRule {
-	if ipv6 {
-		return denyAny6Rule
-	} else {
-		return denyAnyRule
+func (c *spoc) getDenyAnyRule(ipv6 bool) *groupedRule {
+	return &groupedRule{
+		src: []someObj{c.getNetwork00(ipv6)},
+		dst: []someObj{c.getNetwork00(ipv6)},
+		serviceRule: &serviceRule{
+			deny: true,
+			prt:  []*proto{c.prt.IP},
+		},
 	}
 }
 
@@ -63,12 +76,12 @@ func iosRouteCode(n netip.Prefix) string {
 
 }
 
-func printRoutes(fh *os.File, r *router) {
+func (c *spoc) printRoutes(fh *os.File, r *router) {
 	ipv6 := r.ipV6
 	model := r.model
 	vrf := r.vrf
-	doAutoDefaultRoute := conf.Conf.AutoDefaultRoute
-	zeroNet := getNetwork00(ipv6).ipp
+	doAutoDefaultRoute := c.conf.AutoDefaultRoute
+	zeroNet := c.getNetwork00(ipv6).ipp
 	asaCrypto := model.crypto == "ASA"
 	prefix2ip2net := make(map[int]map[netip.Addr]*network)
 	net2hop := make(map[*network]*routerIntf)
@@ -680,7 +693,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 	ldapMap := make(map[string][]ldapEntry)
 	network2tg := make(map[*network]string)
 	aclCounter := 1
-	denyAny := getDenyAnyRule(ipv6)
+	denyAny := c.getDenyAnyRule(ipv6)
 	for _, intf := range r.interfaces {
 		if intf.ipType != tunnelIP {
 			continue
@@ -744,7 +757,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 							}
 							rule = newRule(
 								objects,
-								[]someObj{getNetwork00(ipv6)},
+								[]someObj{c.getNetwork00(ipv6)},
 								[]*proto{c.prt.IP},
 							)
 						} else {
@@ -772,7 +785,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 				idIntf.rules = nil
 				rule := newRule(
 					[]someObj{src},
-					[]someObj{getNetwork00(ipv6)},
+					[]someObj{c.getNetwork00(ipv6)},
 					[]*proto{c.prt.IP},
 				)
 				filterName := "vpn-filter-" + idName
@@ -887,7 +900,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 			}
 			rules := []*groupedRule{newRule(
 				objects,
-				[]someObj{getNetwork00(ipv6)},
+				[]someObj{c.getNetwork00(ipv6)},
 				[]*proto{c.prt.IP},
 			)}
 			idName := genIdName(id)
@@ -1082,12 +1095,11 @@ func printIptablesAcls(fh *os.File, r *router) {
 	}
 }
 
-func printCiscoAcls(fh *os.File, r *router) {
+func (c *spoc) printCiscoAcls(fh *os.File, r *router) {
 	model := r.model
 	filter := model.filter
 	managedLocal := r.managed == "local"
 	ipv6 := r.ipV6
-	permitAny := getPermitAnyRule(ipv6)
 
 	getNatMap := func(r *router, m natMap) natMap {
 		if model.aclUseRealIP {
@@ -1122,8 +1134,8 @@ func printCiscoAcls(fh *os.File, r *router) {
 
 				// Don't generate single 'permit ip any any'.
 				if !model.needACL &&
-					len(rules) == 1 && rules[0] == permitAny &&
-					len(intfRules) == 1 && intfRules[0] == permitAny {
+					len(rules) == 1 && isPermitAnyRule(rules[0]) &&
+					len(intfRules) == 1 && isPermitAnyRule(intfRules[0]) {
 					continue
 				}
 				info.natMap = natMap
@@ -1190,7 +1202,7 @@ func printCiscoAcls(fh *os.File, r *router) {
 				}
 				rules := hw.outRules
 				hw.outRules = nil
-				if len(rules) == 1 && rules[0] == permitAny {
+				if len(rules) == 1 && isPermitAnyRule(rules[0]) {
 					continue
 				}
 				info.rules = rules
@@ -1224,14 +1236,14 @@ func printCiscoAcls(fh *os.File, r *router) {
 	}
 }
 
-func generateAcls(fh *os.File, r *router) {
+func (c *spoc) generateAcls(fh *os.File, r *router) {
 	printHeader(fh, r, "ACL")
 
 	switch r.model.filter {
 	case "iptables":
 		printIptablesAcls(fh, r)
 	default:
-		printCiscoAcls(fh, r)
+		c.printCiscoAcls(fh, r)
 	}
 }
 
@@ -1304,7 +1316,7 @@ func (c *spoc) printEzvpn(fh *os.File, r *router) {
 
 	// Crypto ACL controls which traffic needs to be encrypted.
 	cryptoRules := c.genCryptoRules(tunnelIntf.peer.peerNetworks,
-		[]*network{getNetwork00(r.ipV6)})
+		[]*network{c.getNetwork00(r.ipV6)})
 	acls := &aclInfo{
 		name:        cryptoAclName,
 		rules:       cryptoRules,
@@ -1362,7 +1374,7 @@ func (c *spoc) printCryptoAcl(fh *os.File, intf *routerIntf, suffix string, cryp
 	if crypto.detailedCryptoAcl {
 		local = getSplitTunnelNets(hub)
 	} else {
-		local = []*network{getNetwork00(r.ipV6)}
+		local = []*network{c.getNetwork00(r.ipV6)}
 	}
 	remote := hub.peerNetworks
 	if !isHub {
@@ -1926,22 +1938,6 @@ func (c *spoc) setupStdAddr() {
 			s.stdAddr = s.ipp.String()
 		}
 	}
-	// network00
-	for _, n := range []*network{network00, network00v6} {
-		addNet(n)
-	}
-	// Multicast networks
-	addMcast := func(info map[string]*mcastProto) {
-		for _, mp := range info {
-			for _, m := range []*multicast{&mp.v4, &mp.v6} {
-				for _, n := range m.networks {
-					addNet(n)
-				}
-			}
-		}
-	}
-	addMcast(routingInfo)
-	addMcast(xxrpInfo)
 	// Interfaces
 	for _, r := range c.allRouters {
 		v6 := r.ipV6
@@ -2309,7 +2305,7 @@ func (c *spoc) getDevices() []*router {
 
 func (c *spoc) printPanOS(fd *os.File, l []*router) {
 	r := l[0]
-	mgmt := getRouter(r.deviceName, symTable, r.ipV6)
+	mgmt := c.getRouter(r.deviceName, r.ipV6)
 	hostnames := mgmt.deviceName
 	ipList := mgmt.interfaces[0].ip.String()
 	if backup := mgmt.backupInstance; backup != nil {
@@ -2392,13 +2388,13 @@ func (c *spoc) printRouter(r *router, dir string) string {
 		}
 
 		for _, vrouter := range vrfMembers {
-			printRoutes(fd, vrouter)
+			c.printRoutes(fd, vrouter)
 			if vrouter.managed == "" {
 				continue
 			}
 			c.printCrypto(fd, vrouter)
 			printAclPrefix(fd, vrouter)
-			generateAcls(fd, vrouter)
+			c.generateAcls(fd, vrouter)
 			printAclSuffix(fd, vrouter)
 			printRouterIntf(fd, vrouter)
 		}
@@ -2416,21 +2412,26 @@ func (c *spoc) printRouter(r *router, dir string) string {
 
 func (c *spoc) printConcurrent(devices []*router, dir, prev string) {
 	var reused int32 = 0
-	if conf.Conf.ConcurrencyPass2 <= 1 {
+	pass2Code := func(r *router) {
+		path := c.printRouter(r, dir)
+		if pass2.File(path, dir, prev) {
+			atomic.AddInt32(&reused, 1)
+			c.diag("Reused .prev/" + path)
+		}
+	}
+	if c.conf.ConcurrencyPass2 <= 1 {
 		for _, r := range devices {
-			path := c.printRouter(r, dir)
-			reused += int32(pass2.File(path, dir, prev))
+			pass2Code(r)
 		}
 	} else {
-		concurrentGoroutines := make(chan struct{}, conf.Conf.ConcurrencyPass2)
+		concurrentGoroutines := make(chan struct{}, c.conf.ConcurrencyPass2)
 		var wg sync.WaitGroup
 		for _, r := range devices {
 			concurrentGoroutines <- struct{}{}
 			wg.Add(1)
 			go func(r *router) {
 				defer wg.Done()
-				path := c.printRouter(r, dir)
-				atomic.AddInt32(&reused, int32(pass2.File(path, dir, prev)))
+				pass2Code(r)
 				<-concurrentGoroutines
 			}(r)
 		}

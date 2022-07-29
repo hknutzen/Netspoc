@@ -42,7 +42,7 @@ func (c *spoc) checkSubnetOf() {
 			checkNat(nat)
 		}
 	}
-	for _, ar := range symTable.area {
+	for _, ar := range c.symTable.area {
 		if nat := ar.nat; nat != nil {
 			checkNat(nat)
 		}
@@ -54,8 +54,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 	for _, n := range c.allNetworks {
 		// Group bridged networks by prefix of name.
 		if n.ipType == bridgedIP {
-			i := strings.Index(n.name, "/")
-			prefix := n.name[:i]
+			prefix, _, _ := strings.Cut(n.name, "/")
 			prefix2net[prefix] = append(prefix2net[prefix], n)
 		} else if n.ipType == unnumberedIP {
 			l := n.interfaces
@@ -198,7 +197,7 @@ func (c *spoc) checkIPAddr(n *network) {
 // Each router having a bridged interface
 // must connect at least two bridged networks of the same group.
 func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
-	if n, found := symTable.network[prefix[len("network:"):]]; found {
+	if n, found := c.symTable.network[prefix[len("network:"):]]; found {
 		c.err(
 			"Must not define %s together with bridged networks of same name",
 			n)

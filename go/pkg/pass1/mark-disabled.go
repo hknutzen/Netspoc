@@ -111,7 +111,7 @@ func (c *spoc) markDisabled() {
 	}
 
 	// Disable area, where all interfaces or anchor are disabled.
-	for _, a := range symTable.area {
+	for _, a := range c.symTable.area {
 		if anchor := a.anchor; anchor != nil {
 			if anchor.disabled {
 				a.disabled = true
@@ -175,7 +175,7 @@ func (c *spoc) markDisabled() {
 	for _, l := range sameDevice {
 		r1 := l[0]
 		if r1.model.needManagementInstance {
-			mr := getRouter(r1.deviceName, symTable, r1.ipV6)
+			mr := c.getRouter(r1.deviceName, r1.ipV6)
 			if mr == nil {
 				c.err("Must define unmanaged router:%s\n"+
 					" with attribute 'management_instance'\n"+
@@ -250,16 +250,16 @@ func (c *spoc) markDisabled() {
 	}
 
 	// Find networks not connected to any router.
-	for _, n := range symTable.network {
+	for _, n := range c.symTable.network {
 		if n.disabled {
 			continue
 		}
 		if seen[n] {
 			continue
 		}
-		if len(symTable.network) > 1 ||
-			len(symTable.router) > 0 ||
-			len(symTable.router6) > 0 {
+		if len(c.symTable.network) > 1 ||
+			len(c.symTable.router) > 0 ||
+			len(c.symTable.router6) > 0 {
 
 			c.err("%s isn't connected to any router", n)
 			n.disabled = true
@@ -270,11 +270,4 @@ func (c *spoc) markDisabled() {
 			c.allNetworks.push(n)
 		}
 	}
-	var vl intfList
-	for _, intf := range c.virtualInterfaces {
-		if !intf.disabled {
-			vl.push(intf)
-		}
-	}
-	c.virtualInterfaces = vl
 }

@@ -2,13 +2,15 @@ package pass2
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/diag"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
-	"github.com/spf13/pflag"
+	"io"
 	"net"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/spf13/pflag"
 )
 
 type packet struct {
@@ -17,24 +19,23 @@ type packet struct {
 	prt string
 }
 
-func CheckACLMain() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func CheckACLMain(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [-f file] code/router acl ['ip1 ip2 tcp|udp port']...\n",
-			os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [-f file] code/router acl ['ip1 ip2 tcp|udp port']...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	fromFile := fs.StringP("file", "f", "", "Read packet descriptions from file")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		diag.Err("%s", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -43,9 +44,9 @@ func CheckACLMain() int {
 	var packets []*packet
 	if *fromFile != "" {
 		var err error
-		packets, err = readPackets(*fromFile)
+		packets, err = readPackets(d.Stderr, *fromFile)
 		if err != nil {
-			diag.Err("%s", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
@@ -61,29 +62,48 @@ func CheckACLMain() int {
 		path += ".rules"
 	}
 	if !fileop.IsRegular(path) {
-		diag.Err("Can't find file %s", path)
+		fmt.Fprintf(d.Stderr, "Error: Can't find file %s\n", path)
 		return 1
 	}
 
 	acl := args[1]
 
-	packets = append(packets, parsePackets(args[2:])...)
+	packets = append(packets, parsePackets(d.Stderr, args[2:])...)
 
 	// Check, which packets match ACL.
-	return checkACL(path, acl, packets)
+	return checkACL(d, path, acl, packets)
 }
 
-func readPackets(path string) ([]*packet, error) {
+func readPackets(stderr io.Writer, path string) ([]*packet, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("Can't %s", err)
 	}
 	lines := strings.Split(string(data), "\n")
-	return parsePackets(lines), nil
+	return parsePackets(stderr, lines), nil
 }
 
-func parsePackets(lines []string) []*packet {
+func parsePackets(stderr io.Writer, lines []string) []*packet {
 	var result []*packet
+	warn := func(format string, args ...interface{}) {
+		fmt.Fprintf(stderr, "Warning: "+format+"\n", args...)
+	}
+	checkIP := func(s string) string {
+		ip := net.ParseIP(s)
+		if ip == nil {
+			warn("Ignored packet with invalid IP address: %s", s)
+			return ""
+		}
+		return ip.String()
+	}
+	checkNum := func(s string, max int) string {
+		num, err := strconv.Atoi(s)
+		if err != nil || num < 0 || num >= max {
+			warn("Ignored packet with invalid protocol number: %s", s)
+			return ""
+		}
+		return strconv.Itoa(num)
+	}
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -92,7 +112,7 @@ func parsePackets(lines []string) []*packet {
 		line = strings.ToLower(line)
 		fields := strings.Fields(line)
 		if len(fields) != 4 {
-			diag.Warn("Ignored packet, must have exactly 4 words: %s", line)
+			warn("Ignored packet, must have exactly 4 words: %s", line)
 			continue
 		}
 		ip1 := fields[0]
@@ -117,13 +137,13 @@ func parsePackets(lines []string) []*packet {
 				}
 				ext = typ + "/" + code
 			} else {
-				diag.Warn("Ignored icmp packet with invalid type/code: %s", line)
+				warn("Ignored icmp packet with invalid type/code: %s", line)
 				continue
 			}
 		case "proto":
 			ext = checkNum(ext, 256)
 		default:
-			diag.Warn("Ignored packet with unexpected protocol: %s", line)
+			warn("Ignored packet with unexpected protocol: %s", line)
 			continue
 		}
 		if ext == "" {
@@ -135,28 +155,12 @@ func parsePackets(lines []string) []*packet {
 	return result
 }
 
-func checkIP(s string) string {
-	ip := net.ParseIP(s)
-	if ip == nil {
-		diag.Warn("Ignored packet with invalid IP address: %s", s)
-		return ""
-	}
-	return ip.String()
-}
-
-func checkNum(s string, max int) string {
-	num, err := strconv.Atoi(s)
-	if err != nil || num < 0 || num >= max {
-		diag.Warn("Ignored packet with invalid protocol number: %s", s)
-		return ""
-	}
-	return strconv.Itoa(num)
-}
-
 // Print each packet to STDOUT.
 // Packet, that matches ACL is prefixed with "permit".
 // Other packet is prefixed with "deny  ".
-func checkACL(path, acl string, packets []*packet) int {
+func checkACL(d oslink.Data,
+	path, acl string, packets []*packet) int {
+
 	rData := readJSON(path)
 	var aInfo *aclInfo
 	for _, a := range rData.acls {
@@ -166,7 +170,7 @@ func checkACL(path, acl string, packets []*packet) int {
 		}
 	}
 	if aInfo == nil {
-		diag.Err("Unknown ACL: %s", acl)
+		fmt.Fprintf(d.Stderr, "Error: Unknown ACL: %s\n", acl)
 		return 1
 	}
 	// Remember number of original rules.
@@ -193,7 +197,7 @@ func checkACL(path, acl string, packets []*packet) int {
 		ip1 := p.src.Addr().String()
 		ip2 := p.dst.Addr().String()
 		prt := p.prt.name
-		fmt.Printf("%s %s %s %s\n", action, ip1, ip2, prt)
+		fmt.Fprintf(d.Stdout, "%s %s %s %s\n", action, ip1, ip2, prt)
 	}
 	return 0
 }

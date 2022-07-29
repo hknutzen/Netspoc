@@ -57,7 +57,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2022 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -78,14 +78,15 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
-	"os"
-	"strings"
 )
 
 func checkName(name string) error {
@@ -228,12 +229,7 @@ func process(s *astset.State, remove map[string]bool, delDef bool) {
 	}
 	// Delete definition of empty service.
 	for _, name := range emptySvc {
-		s.RemoveServiceFromOverlaps(name)
 		s.DeleteToplevel(name)
-	}
-
-	for _, file := range s.Changed() {
-		info.Msg("Changed %s", file)
 	}
 }
 
@@ -246,14 +242,14 @@ func readObjects(m map[string]bool, path string) error {
 	return setupObjects(m, objects)
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR OBJECT ...\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR OBJECT ...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
@@ -261,11 +257,11 @@ func Main() int {
 	fromFile := fs.StringP("file", "f", "", "Read OBJECTS from file")
 	delDef := fs.BoolP("delete", "d", false,
 		"Also delete definition if OBJECT is host or interface")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -282,27 +278,28 @@ func Main() int {
 	remove := make(map[string]bool)
 	if *fromFile != "" {
 		if err := readObjects(remove, *fromFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 	if len(args) > 1 {
 		if err := setupObjects(remove, args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 	}
 
-	// Initialize config, especially "ignoreFiles'.
+	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
-	s, err := astset.Read(path)
+	s, err := astset.Read(path, cnf.IPV6)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
 	process(s, remove, *delDef)
+	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
 	return 0
 }

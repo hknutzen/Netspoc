@@ -244,7 +244,7 @@ func (c *spoc) setRoutesInZone(z *zone) {
 				// Spare reachable network specification.
 				// debug("Default hop intf->{name} ",
 				//        join(',', map {$_->{name}} hop_intf));
-				intf.routeInZone[network00] = hopIntf[0]
+				intf.routeInZone[c.network00] = hopIntf[0]
 			}
 			// Proceed with next border network.
 			continue
@@ -300,9 +300,9 @@ func (c *spoc) setRoutesInZone(z *zone) {
 	}
 }
 
-func getHopInZone(in *routerIntf, n *network) *routerIntf {
+func (c *spoc) getHopInZone(in *routerIntf, n *network) *routerIntf {
 	routeInZone := in.routeInZone
-	h := routeInZone[network00]
+	h := routeInZone[c.network00]
 	if h == nil {
 		h = routeInZone[n]
 	}
@@ -323,7 +323,7 @@ func getHopInZone(in *routerIntf, n *network) *routerIntf {
 // Comment    : dstNetworks are converted to natNets, before storing as
 //              routing information, because NAT addresses are used in
 //              static routes.
-func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
+func (c *spoc) addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 
 	// Interface with manual or dynamic routing.
 	if in.routing != nil {
@@ -335,7 +335,7 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 	if in.network == out.network {
 		hop = out
 	} else {
-		hop = getHopInZone(in, out.network)
+		hop = c.getHopInZone(in, out.network)
 	}
 	// Add hop interface and routing information to in.routes
 	rMap := in.routes
@@ -362,7 +362,7 @@ func addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 // Comment    : dst networks are converted to natNet, before storing as
 //              routing information, because NAT addresses are used in
 //              static routes.
-func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
+func (c *spoc) addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 
 	// Interface with manual or dynamic routing.
 	if intf.routing != nil {
@@ -383,7 +383,7 @@ func addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 			continue
 		}
 		natNet := getNatNetwork(n, natMap)
-		h := getHopInZone(intf, n)
+		h := c.getHopInZone(intf, n)
 
 		// Store the used hop and routes within the interface object.
 		// debug("%s -> %s: %s", intf, h, natNet)
@@ -413,7 +413,7 @@ const (
 // Parameters : rule - to be added grouped rule.
 //              isIntf - marker: which of src and/or dst is an interface.
 //              tree - the routing tree.
-func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
+func (c *spoc) generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 
 	src, dst := rule.src, rule.dst
 	srcZone, dstZone := rule.srcPath.(*zone), rule.dstPath.(*zone)
@@ -427,7 +427,7 @@ func generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
 			intf := from[0].(*routerIntf)
 			intf = getMainInterface(intf)
 			nMap := getRouteNetworks(to)
-			addEndRoutes(intf, nMap)
+			c.addEndRoutes(intf, nMap)
 		}
 		// Detect next hop interfaces if src/dst are zone border interfaces.
 		switch isIntf {
@@ -533,7 +533,7 @@ func (c *spoc) generateRoutingTree() routingTree {
 
 			if _, ok := ru.dstPath.(*zone); ok {
 				// Common case, process directly.
-				generateRoutingTree1(ru, noIntf, t)
+				c.generateRoutingTree1(ru, noIntf, t)
 			} else {
 				// Split group of destination interfaces, one for each zone.
 				for _, ob := range ru.dst {
@@ -541,7 +541,7 @@ func (c *spoc) generateRoutingTree() routingTree {
 					cp := *ru
 					cp.dst = []someObj{ob}
 					cp.dstPath = intf.zone
-					generateRoutingTree1(&cp, dstIntf, t)
+					c.generateRoutingTree1(&cp, dstIntf, t)
 				}
 			}
 		} else if _, ok := ru.dstPath.(*zone); ok {
@@ -550,7 +550,7 @@ func (c *spoc) generateRoutingTree() routingTree {
 				cp := *ru
 				cp.src = []someObj{ob}
 				cp.srcPath = intf.zone
-				generateRoutingTree1(&cp, srcIntf, t)
+				c.generateRoutingTree1(&cp, srcIntf, t)
 			}
 		} else {
 			for _, srcOb := range ru.src {
@@ -562,7 +562,7 @@ func (c *spoc) generateRoutingTree() routingTree {
 					cp.dst = []someObj{dstOb}
 					cp.srcPath = srcIntf.zone
 					cp.dstPath = dstIntf.zone
-					generateRoutingTree1(&cp, bothIntf, t)
+					c.generateRoutingTree1(&cp, bothIntf, t)
 				}
 			}
 		}
@@ -601,11 +601,11 @@ func (c *spoc) generateRoutingInfo(t routingTree) {
 						continue I2N
 					}
 				}
-				addPathRoutes(intf2, intf, netMap)
+				c.addPathRoutes(intf2, intf, netMap)
 			}
 
 			// For src/dst networks, generate routes for zone interface only.
-			addEndRoutes(intf, nets)
+			c.addEndRoutes(intf, nets)
 		}
 
 		// Traverse path from src to dst and
@@ -616,8 +616,8 @@ func (c *spoc) generateRoutingInfo(t routingTree) {
 			if in != nil && out != nil {
 				// Packets traverse the zone.
 				// debug("%s => %s", in, out)
-				addPathRoutes(in, out, p.dstNetworks)
-				addPathRoutes(out, in, p.srcNetworks)
+				c.addPathRoutes(in, out, p.dstNetworks)
+				c.addPathRoutes(out, in, p.srcNetworks)
 			} else if in == nil {
 				// Zone contains rule source.
 				add(out, p.srcIntf2nets, p.srcNetworks)
@@ -666,7 +666,7 @@ func (c *spoc) addRoutingOnlyNetworks(r *router) {
 					nMap[n] = true
 				}
 			}
-			addEndRoutes(intf, nMap)
+			c.addEndRoutes(intf, nMap)
 			// Process other zones of cluster
 			for _, z2 := range z.cluster {
 				if z2 == z {
@@ -678,7 +678,7 @@ func (c *spoc) addRoutingOnlyNetworks(r *router) {
 							func(_ *groupedRule, in, out *routerIntf) {
 								// debug("walk %s: %s %s", n, in, out)
 								if in == intf {
-									addPathRoutes(in, out, netMap{n: true})
+									c.addPathRoutes(in, out, netMap{n: true})
 								}
 							}, "Zone")
 					}
@@ -787,7 +787,7 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 			}
 		} else if realNet.zone == peerNet.zone {
 			// Peer network is located in directly connected zone.
-			hop = getHopInZone(realIntf, peerNet)
+			hop = c.getHopInZone(realIntf, peerNet)
 		} else {
 			// Find path to peer network to determine available hops.
 			var hops intfList
@@ -797,7 +797,7 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 					if hopNet == realNet {
 						hops.push(outIntf)
 					} else {
-						h := getHopInZone(realIntf, hopNet)
+						h := c.getHopInZone(realIntf, hopNet)
 						hops.push(h)
 					}
 				}

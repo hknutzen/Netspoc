@@ -36,7 +36,7 @@ Prints a brief help message and exits.
 
 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Heinz Knutzen <heinz.knutzengooglemail.com>
+(c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
 
@@ -57,13 +57,14 @@ with this program; if !, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/info"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/spf13/pflag"
-	"os"
-	"strings"
 )
 
 type state struct {
@@ -74,24 +75,24 @@ type state struct {
 	changed  bool
 }
 
-func Main() int {
-	fs := pflag.NewFlagSet(os.Args[0], pflag.ContinueOnError)
+func Main(d oslink.Data) int {
+	fs := pflag.NewFlagSet(d.Args[0], pflag.ContinueOnError)
 
 	// Setup custom usage function.
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr,
-			"Usage: %s [options] FILE|DIR GROUP-NAME ...\n", os.Args[0])
-		fs.PrintDefaults()
+		fmt.Fprintf(d.Stderr,
+			"Usage: %s [options] FILE|DIR GROUP-NAME ...\n%s",
+			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
 	fromFile := fs.StringP("file", "f", "", "Read GROUP-NAMES from file")
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
 		}
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		fs.Usage()
 		return 1
 	}
@@ -109,36 +110,37 @@ func Main() int {
 	if *fromFile != "" {
 		l, err := readNames(*fromFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 		names = append(names, l...)
 	}
 	if len(args) > 1 {
 		if err := checkNames(args[1:]); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 			return 1
 		}
 		names = append(names, args[1:]...)
 	}
 
-	// Initialize config, especially "ignoreFiles'.
+	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
-	conf.ConfigFromArgsAndFile(dummyArgs, path)
+	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 
 	// Change files.
 	s := new(state)
 	var err error
-	s.State, err = astset.Read(path)
+	s.State, err = astset.Read(path, cnf.IPV6)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
 	err = s.process(names)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
 		return 1
 	}
+	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
 	return 0
 }
@@ -209,9 +211,6 @@ func (s *state) process(names []string) error {
 		}
 	}
 
-	for _, file := range s.Changed() {
-		info.Msg("Changed %s", file)
-	}
 	return nil
 }
 

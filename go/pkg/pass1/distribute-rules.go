@@ -1,7 +1,6 @@
 package pass1
 
 import (
-	"net/netip"
 	"sort"
 )
 
@@ -185,15 +184,6 @@ func getMulticastObjects(info *mcastProto, ipV6 bool) []someObj {
 	} else {
 		m = &info.v4
 	}
-	if m.networks == nil {
-		l := make([]*network, len(m.ips))
-		for i, s := range m.ips {
-			ip := netip.MustParseAddr(s)
-			l[i] =
-				&network{ipp: netip.PrefixFrom(ip, getHostPrefix(ipV6))}
-		}
-		m.networks = l
-	}
 	result := make([]someObj, len(m.networks))
 	for i, n := range m.networks {
 		result[i] = n
@@ -211,7 +201,7 @@ func (c *spoc) addRouterAcls() {
 			// Some managed devices are connected by a crosslink network.
 			// Permit any traffic at the internal crosslink interface.
 			if hw.crosslink {
-				permitAny := []*groupedRule{getPermitAnyRule(ipv6)}
+				permitAny := []*groupedRule{c.getPermitAnyRule(ipv6)}
 
 				// We can savely change rules at hardware interface
 				// because it has been checked that no other logical
@@ -249,7 +239,7 @@ func (c *spoc) addRouterAcls() {
 						objList[i] = n
 					}
 					rule := newRule(
-						[]someObj{getNetwork00(ipv6)},
+						[]someObj{c.getNetwork00(ipv6)},
 						objList,
 						[]*proto{c.prt.IP},
 					)
@@ -299,14 +289,14 @@ func (c *spoc) addRouterAcls() {
 
 				// Handle DHCP requests.
 				if intf.dhcpServer {
-					netList := []someObj{getNetwork00(ipv6)}
+					netList := []someObj{c.getNetwork00(ipv6)}
 					prtList := []*proto{c.prt.Bootps}
 					hw.intfRules.push(newRule(netList, netList, prtList))
 				}
 
 				// Handle DHCP answer.
 				if intf.dhcpClient {
-					netList := []someObj{getNetwork00(ipv6)}
+					netList := []someObj{c.getNetwork00(ipv6)}
 					prtList := []*proto{c.prt.Bootpc}
 					hw.intfRules.push(newRule(netList, netList, prtList))
 				}
@@ -321,7 +311,7 @@ func (c *spoc) distributeGeneralPermit() {
 		if len(generalPermit) == 0 {
 			continue
 		}
-		net00List := []someObj{getNetwork00(r.ipV6)}
+		net00List := []someObj{c.getNetwork00(r.ipV6)}
 		ru := newRule(net00List, net00List, generalPermit)
 		needProtect := r.needProtect
 		for _, in := range r.interfaces {

@@ -6,7 +6,7 @@
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR PAIR ...
   -f, --file string   Read pairs from file
-  -q, --quiet         Don't show number of changes
+  -q, --quiet         Don't show changed files
 =END=
 
 ############################################################
@@ -15,7 +15,7 @@ Usage: PROGRAM [options] FILE|DIR PAIR ...
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR PAIR ...
   -f, --file string   Read pairs from file
-  -q, --quiet         Don't show number of changes
+  -q, --quiet         Don't show changed files
 =END=
 
 ############################################################
@@ -52,9 +52,9 @@ group:G =
  network:Test,
  network:Test,
  interface:r.Test, # comment
- host:Toast,
- host:Toast,
  host:id:h@dom.top.Test,
+ host:Toast,
+ host:Toast,
  host:x,
  host:y,
 ;

@@ -2,12 +2,14 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/pass2"
-	"os"
+	"net/netip"
 	"path"
 	"sort"
 	"time"
+
+	"github.com/hknutzen/Netspoc/go/pkg/conf"
+	"github.com/hknutzen/Netspoc/go/pkg/oslink"
+	"github.com/hknutzen/Netspoc/go/pkg/pass2"
 )
 
 var (
@@ -16,12 +18,16 @@ var (
 )
 
 type spoc struct {
+	conf            *conf.Config
+	startTime       time.Time
 	toStderr        func(string)
 	errCount        int
 	initialErrCount int
 	messages        stringList
 	aborted         bool
+	showDiag        bool
 	// State of compiler
+	symTable              *symbolTable
 	userObj               userInfo
 	allNetworks           netList
 	allRouters            []*router
@@ -31,18 +37,36 @@ type spoc struct {
 	ascendingServices     []*service
 	ascendingAreas        []*area
 	pathrestrictions      []*pathRestriction
-	virtualInterfaces     intfList
 	prt                   *stdProto
+	network00             *network
+	network00v6           *network
 	border2obj2auto       map[*routerIntf]map[netOrRouter]intfList
 	routerAutoInterfaces  map[*router]*autoIntf
 	networkAutoInterfaces map[networkAutoIntfKey]*autoIntf
 }
 
-func initSpoc() *spoc {
+func initSpoc(d oslink.Data, cnf *conf.Config) *spoc {
 	c := &spoc{
-		toStderr:              func(s string) { fmt.Fprintln(os.Stderr, s) },
+		conf:                  cnf,
+		startTime:             time.Now(),
+		toStderr:              func(s string) { fmt.Fprintln(d.Stderr, s) },
+		showDiag:              d.ShowDiag,
 		routerAutoInterfaces:  make(map[*router]*autoIntf),
 		networkAutoInterfaces: make(map[networkAutoIntfKey]*autoIntf),
+		network00: &network{
+			ipObj:          ipObj{name: "network:0/0"},
+			ipp:            netip.PrefixFrom(getZeroIp(false), 0),
+			withStdAddr:    withStdAddr{stdAddr: "0.0.0.0/0"},
+			isAggregate:    true,
+			hasOtherSubnet: true,
+		},
+		network00v6: &network{
+			ipObj:          ipObj{name: "network:0/0"},
+			ipp:            netip.PrefixFrom(getZeroIp(true), 0),
+			withStdAddr:    withStdAddr{stdAddr: "::/0"},
+			isAggregate:    true,
+			hasOtherSubnet: true,
+		},
 	}
 	return c
 }
@@ -88,7 +112,7 @@ func (c *spoc) err(format string, args ...interface{}) {
 	msg := fmt.Sprintf("Error: "+format, args...)
 	c.errCount++
 	c.toStderr(msg)
-	if c.errCount >= conf.Conf.MaxErrors {
+	if c.errCount >= c.conf.MaxErrors {
 		c.toStderrf("Aborted after %d errors", c.errCount)
 		c.terminate()
 	}
@@ -109,23 +133,23 @@ func (c *spoc) warnOrErr(
 }
 
 func (c *spoc) info(format string, args ...interface{}) {
-	if !conf.Conf.Quiet {
+	if !c.conf.Quiet {
 		c.toStderrf(format, args...)
 	}
 }
 
 func (c *spoc) progress(msg string) {
-	if !conf.Conf.Quiet {
-		if conf.Conf.TimeStamps {
+	if !c.conf.Quiet {
+		if c.conf.TimeStamps {
 			msg =
-				fmt.Sprintf("%.0fs %s", time.Since(conf.StartTime).Seconds(), msg)
+				fmt.Sprintf("%.0fs %s", time.Since(c.startTime).Seconds(), msg)
 		}
 		c.toStderr(msg)
 	}
 }
 
 func (c *spoc) diag(format string, args ...interface{}) {
-	if os.Getenv("SHOW_DIAG") != "" {
+	if c.showDiag {
 		c.toStderrf("DIAG: "+format, args...)
 	}
 }
@@ -165,23 +189,24 @@ func (c *spoc) sortedSpoc(f func(*spoc)) {
 		})
 }
 
-func toplevelSpoc(f func(*spoc)) (errCount int) {
-	c := initSpoc()
+func toplevelSpoc(
+	d oslink.Data, conf *conf.Config, f func(*spoc)) (errCount int) {
+
+	c := initSpoc(d, conf)
 	handleBailout(
 		func() { f(c) },
 		func() { errCount = c.errCount })
 	return
 }
 
-func SpocMain() (errCount int) {
-	return toplevelSpoc(func(c *spoc) {
-		inDir, outDir, abort := conf.GetArgs()
-		if abort {
-			c.toStderr("Aborted")
-			c.errCount++
-			c.terminate()
-		}
-		if device := conf.Conf.DebugPass2; device != "" {
+func SpocMain(d oslink.Data) int {
+	inDir, outDir, cnf, abort := conf.GetArgs(d)
+	if abort {
+		fmt.Fprintln(d.Stderr, "Aborted")
+		return 1
+	}
+	return toplevelSpoc(d, cnf, func(c *spoc) {
+		if device := c.conf.DebugPass2; device != "" {
 			pass2.File(device, outDir, path.Join(outDir, ".prev"))
 			return
 		}
