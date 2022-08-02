@@ -14,7 +14,7 @@ import (
 type change struct {
 	method     string
 	okIfExists bool
-	val        json.RawMessage
+	val        interface{}
 }
 
 func (s *state) patch(j *job) error {
@@ -24,13 +24,13 @@ func (s *state) patch(j *job) error {
 		OkIfExists bool `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
-	c := change{val: p.Value, okIfExists: p.OkIfExists}
-	switch j.Method {
-	case "delete", "add", "replace":
-		c.method = j.Method
-	default:
-		return fmt.Errorf("Invalid method '%s'", j.Method)
+	val, err := decode(p.Value)
+	if err != nil {
+		return err
 	}
+	c := change{val: val, okIfExists: p.OkIfExists}
+	c.method = j.Method
+
 	if len(p.Path) == 0 {
 		return fmt.Errorf("Invalid empty path")
 	}
@@ -91,7 +91,7 @@ func (s *state) patch(j *job) error {
 		}
 		return patchAttributes(&ts.Attributes, names, c)
 	}
-	err := process()
+	err = process()
 	if err == nil {
 		top.Order()
 		// Mark object as modified.
@@ -112,7 +112,7 @@ func patchRules(l *[]*ast.Rule, names []string, c change) error {
 			return fmt.Errorf("Number expected after '/' in '%s'", name)
 		}
 		if c != len(*l) {
-			return fmt.Errorf("rule count %d doesn't match, have %d rules",
+			return fmt.Errorf("rule count %d doesn't match, having %d rules",
 				c, len(*l))
 		}
 		name = ruleNum
@@ -159,15 +159,7 @@ func newRule(l *[]*ast.Rule, c change) error {
 	if c.method != "add" {
 		return fmt.Errorf("Rule number must be given for '%s'", c.method)
 	}
-	v, err := decode(c.val)
-	if err != nil {
-		return err
-	}
-	def, err := getRuleDef(v)
-	if err != nil {
-		return err
-	}
-	rule, err := parser.ParseRule([]byte(def))
+	rule, err := getRuleDef(c.val)
 	if err != nil {
 		return err
 	}
@@ -215,45 +207,333 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 	return newAttribute(l, name, c)
 }
 
+func patchValue(a *ast.Attribute, names []string, c change) error {
+	if c.method == "replace" ||
+		c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
+
+		return setAttrValue(a, c.val)
+	}
+	if a.ComplexValue != nil {
+		if c.method == "add" {
+			return fmt.Errorf("Can't add to complex value of '%s'", a.Name)
+		}
+		return fmt.Errorf("Can't delete from complex value of '%s'", a.Name)
+	}
+	l, err := getValueList(c.val)
+	if err != nil {
+		return err
+	}
+	if c.method == "add" {
+		a.ValueList = append(a.ValueList, l...)
+		return nil
+	}
+	var cmp func(v1, v2 string) bool
+	switch a.Name {
+	default:
+		cmp = func(v1, v2 string) bool { return v1 == v2 }
+	case "prt", "general_permit":
+		cmp = func(v1, v2 string) bool {
+			// "icmp 3 / 13" and "icmp 3/13" should be recognized as equal.
+			return strings.ReplaceAll(v1, " ", "") ==
+				strings.ReplaceAll(v2, " ", "")
+		}
+	}
+VAL:
+	for _, v2 := range l {
+		val2 := v2.Value
+		for i, v := range a.ValueList {
+			val := v.Value
+			if cmp(val, val2) {
+				// delete found element
+				a.ValueList = append(a.ValueList[:i], a.ValueList[i+1:]...)
+				continue VAL
+			}
+		}
+		return fmt.Errorf("Can't find value '%s'", val2)
+	}
+	return nil
+}
+
+func getValueList(val interface{}) ([]*ast.Value, error) {
+	a := &ast.Attribute{}
+	if err := setAttrValue(a, val); err != nil {
+		return nil, err
+	}
+	if a.ComplexValue != nil {
+		return nil, fmt.Errorf("Expecting value list, not complex value")
+	}
+	return a.ValueList, nil
+}
+
 func newAttribute(l *[]*ast.Attribute, name string, c change) error {
 	if c.method != "add" {
 		return fmt.Errorf("Can't find attribute '%s'", name)
 	}
 	a := &ast.Attribute{Name: name}
-	if err := setAttrValue(a, c); err != nil {
+	if err := setAttrValue(a, c.val); err != nil {
 		return err
 	}
 	*l = append(*l, a)
 	return nil
 }
 
-func patchElemList(l *[]ast.Element, names []string, c change) error {
-	v, err := decode(c.val)
+func (s *state) addToplevel(name string, c change) error {
+	if c.method != "add" {
+		return fmt.Errorf("Can't %s unknown toplevel node '%s'", c.method, name)
+	}
+	a, err := s.getToplevel(name, c)
 	if err != nil {
 		return err
 	}
-	val := ""
-	switch x := v.(type) {
-	case nil:
-		return fmt.Errorf("Missing value to change in elements")
-	case string:
-		val = x
-	case []interface{}:
-		for _, v := range x {
-			if val != "" {
-				val += ","
-			}
-			if s, ok := v.(string); ok {
-				val += s
-			} else {
-				return fmt.Errorf("Unexpected type in JSON array: %T", v)
-			}
+	s.AddTopLevel(a)
+	return nil
+}
+
+func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
+	var t ast.Toplevel
+	var err error
+	typ, _, _ := strings.Cut(name, ":")
+	switch typ {
+	case "service":
+		t, err = getService(name, c.val)
+	case "group", "pathrestriction":
+		g := new(ast.TopList)
+		g.Name = name
+		err = patchElemList(&g.Elements, nil, c)
+		t = g
+	default:
+		var ts *ast.TopStruct
+		ts, err = getTopStruct(name, c.val)
+		switch typ {
+		case "network":
+			n := new(ast.Network)
+			n.Name = name
+			l := removeAttrFrom(ts, "host:")
+			n.TopStruct = *ts
+			n.Hosts = l
+			t = n
+		case "router":
+			r := new(ast.Router)
+			r.Name = name
+			l := removeAttrFrom(ts, "interface:")
+			r.TopStruct = *ts
+			r.Interfaces = l
+			t = r
+		default:
+			t = ts
 		}
 	}
-	if len(names) != 0 {
-		return fmt.Errorf("Can't descend into value '%s'", val)
+	if err != nil {
+		return nil, err
 	}
-	elements, err := parser.ParseUnion([]byte(val))
+	t.Order()
+	return t, nil
+}
+
+func removeAttrFrom(ts *ast.TopStruct, prefix string) []*ast.Attribute {
+	var removed []*ast.Attribute
+	j := 0
+	for _, a := range ts.Attributes {
+		if strings.HasPrefix(a.Name, prefix) {
+			removed = append(removed, a)
+		} else {
+			ts.Attributes[j] = a
+			j++
+		}
+	}
+	ts.Attributes = ts.Attributes[:j]
+	return removed
+}
+
+func (s *state) patchToplevel(n ast.Toplevel, c change) error {
+	if c.method == "delete" && c.val == nil {
+		return s.DeleteToplevel(n.GetName())
+	}
+	if x, ok := n.(*ast.TopList); ok {
+		err := patchElemList(&x.Elements, nil, c)
+		x.Order()
+		return err
+	}
+	if c.method == "replace" {
+		a, err := s.getToplevel(n.GetName(), c)
+		if err != nil {
+			return err
+		}
+		s.Replace(func(ptr *ast.Toplevel) bool {
+			if *ptr == n {
+				*ptr = a
+				return true
+			}
+			return false
+		})
+		return nil
+	}
+	if c.okIfExists {
+		return nil
+	}
+	return fmt.Errorf("Can't redefine '%s'", n.GetName())
+}
+
+func getService(name string, v interface{}) (ast.Toplevel, error) {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf(
+			"Expecting JSON object when reading '%s' but got: %T", name, v)
+	}
+
+	user, found := m["user"]
+	if !found {
+		return nil, fmt.Errorf("Missing key 'user' in '%s'", name)
+	}
+	delete(m, "user")
+	rules, found := m["rules"]
+	if !found {
+		return nil, fmt.Errorf("Missing key 'rules' in '%s'", name)
+	}
+	delete(m, "rules")
+	s := new(ast.Service)
+	t, err := getTopStruct(name, m)
+	if err != nil {
+		return nil, err
+	}
+	s.TopStruct = *t
+	s.User, err = getNamedUnion("user", user)
+	if err != nil {
+		return nil, err
+	}
+	l, ok := rules.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf(
+			"Expecting JSON array after 'rules' but got: %T", rules)
+	}
+	for _, v := range l {
+		rule, err := getRuleDef(v)
+		if err != nil {
+			return nil, err
+		}
+		s.Rules = append(s.Rules, rule)
+	}
+	return s, nil
+}
+
+func getRuleDef(v interface{}) (*ast.Rule, error) {
+	obj, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("Unexpected type when reading rule: %T", v)
+	}
+	expected := 4
+	if _, found := obj["log"]; found {
+		expected++
+	}
+	if len(obj) != expected {
+		return nil, fmt.Errorf(
+			`Rule needs keys "action", "src", "dst", "prt" and optional "log"`)
+	}
+	rule := new(ast.Rule)
+	for key, val := range obj {
+		var err error
+		switch key {
+		case "action":
+			s, _ := val.(string)
+			switch s {
+			case "permit":
+			case "deny":
+				rule.Deny = true
+			default:
+				err = fmt.Errorf("Expected 'permit' or 'deny' in '%s'", key)
+			}
+		case "src":
+			rule.Src, err = getNamedUnion(key, val)
+		case "dst":
+			rule.Dst, err = getNamedUnion(key, val)
+		case "prt":
+			rule.Prt, err = getAttribute(key, val)
+		case "log":
+			rule.Log, err = getAttribute(key, val)
+		default:
+			err = fmt.Errorf("Unexpected key '%s' in rule", key)
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return rule, nil
+}
+
+func getTopStruct(name string, v interface{}) (*ast.TopStruct, error) {
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf(
+			"Expecting JSON object when reading '%s' but got: %T", name, v)
+	}
+	t := new(ast.TopStruct)
+	t.Name = name
+	if val, found := m["description"]; found {
+		delete(m, "description")
+		d, ok := val.(string)
+		if !ok {
+			return nil, fmt.Errorf("Expecting string as description")
+		}
+		t.Description = &ast.Description{Text: d}
+	}
+	a, err := getAttribute(name, m)
+	if err != nil {
+		return nil, err
+	}
+	t.Attributes = a.ComplexValue
+	return t, nil
+}
+
+func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
+	a := &ast.Attribute{Name: name}
+	switch x := v.(type) {
+	case nil:
+	case string:
+		a.ValueList = []*ast.Value{&ast.Value{Value: x}}
+	case []interface{}:
+		for _, v := range x {
+			s, ok := v.(string)
+			if !ok {
+				return nil, fmt.Errorf("Unexpected type in JSON array: %T", v)
+			}
+			a.ValueList = append(a.ValueList, &ast.Value{Value: s})
+		}
+	case map[string]interface{}:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var l []*ast.Attribute
+		for _, k := range keys {
+			attr, err := getAttribute(k, x[k])
+			if err != nil {
+				return nil, err
+			}
+			l = append(l, attr)
+		}
+		a.ComplexValue = l
+	default:
+		return nil, fmt.Errorf("Unexpected type in JSON value: %T", v)
+	}
+	return a, nil
+}
+
+func setAttrValue(a *ast.Attribute, val interface{}) error {
+	a2, err := getAttribute(a.Name, val)
+	if err != nil {
+		return err
+	}
+	a.ValueList = a2.ValueList
+	a.ComplexValue = a2.ComplexValue
+	return nil
+}
+
+func patchElemList(l *[]ast.Element, names []string, c change) error {
+	if len(names) != 0 {
+		return fmt.Errorf("Can't descend into element list")
+	}
+	elements, err := getElementList(c.val)
 	if err != nil {
 		return err
 	}
@@ -275,275 +555,60 @@ ELEM:
 				continue ELEM
 			}
 		}
-		return fmt.Errorf("Can't find element '%s'", val)
+		return fmt.Errorf("Can't find element '%s'", v1)
 	}
 	return nil
 }
 
-func (s *state) addToplevel(name string, c change) error {
-	if c.method != "add" {
-		return fmt.Errorf("Can't %s unknown toplevel node '%s'", c.method, name)
-	}
-	a, err := s.getToplevelDef(name, c)
+func getNamedUnion(name string, val interface{}) (*ast.NamedUnion, error) {
+	l, err := getElementList(val)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.AddTopLevel(a)
-	return nil
+	return &ast.NamedUnion{Name: name, Elements: l}, nil
 }
 
-func (s *state) getToplevelDef(name string, c change) (ast.Toplevel, error) {
-	var definition string
-	var err error
-	v, err := decode(c.val)
-	if err != nil {
-		return nil, err
-	}
-	if strings.HasPrefix(name, "service:") {
-		definition, err = getServiceDef(name, v)
-	} else {
-		definition, err = getAttrDef(name, v)
-	}
-	if err != nil {
-		return nil, err
-	}
-	a, err := parser.ParseToplevel([]byte(definition))
-	if err != nil {
-		return nil, err
-	}
-	a.Order()
-	return a, nil
-}
-
-func (s *state) patchToplevel(n ast.Toplevel, c change) error {
-	if c.method == "delete" && c.val == nil {
-		return s.DeleteToplevel(n.GetName())
-	}
-	if x, ok := n.(*ast.TopList); ok {
-		err := patchElemList(&x.Elements, nil, c)
-		x.Order()
-		return err
-	}
-	if c.method == "replace" {
-		a, err := s.getToplevelDef(n.GetName(), c)
+func getElementList(val interface{}) ([]ast.Element, error) {
+	var elements []ast.Element
+	addOneElement := func(val string) error {
+		l, err := parser.ParseUnion([]byte(val))
 		if err != nil {
 			return err
 		}
-		s.Replace(func(ptr *ast.Toplevel) bool {
-			if *ptr == n {
-				*ptr = a
-				return true
-			}
-			return false
-		})
+		if len(l) != 1 {
+			return fmt.Errorf("Expecting exactly on element in string")
+		}
+		elements = append(elements, l...)
 		return nil
 	}
-	if c.okIfExists {
-		return nil
-	}
-	return fmt.Errorf("Can't redefine '%s'", n.GetName())
-}
-
-func getServiceDef(name string, v interface{}) (string, error) {
-	switch x := v.(type) {
-	default:
-		return "", fmt.Errorf(
-			"Expecting JSON object in definition of %s but got: %T", name, v)
-	case string:
-		return name + "=" + x, nil
-	case map[string]interface{}:
-		user, found := x["user"]
-		if !found {
-			return "", fmt.Errorf("Missing key 'user' in '%s'", name)
-		}
-		delete(x, "user")
-		rules, found := x["rules"]
-		if !found {
-			return "", fmt.Errorf("Missing key 'rules' in '%s'", name)
-		}
-		delete(x, "rules")
-		l, ok := rules.([]interface{})
-		if !ok {
-			return "", fmt.Errorf(
-				"Expecting JSON array after 'rules' but got: %T", rules)
-		}
-		serviceDef, err := getAttrDef(name, x)
-		if err != nil {
-			return "", err
-		}
-		userDef, err := getAttrDef("user", user)
-		if err != nil {
-			return "", err
-		}
-		rulesDef := ""
-		for _, v := range l {
-			rule, err := getRuleDef(v)
-			if err != nil {
-				return "", err
-			}
-			rulesDef += rule
-		}
-		return serviceDef[:len(serviceDef)-1] + userDef + rulesDef + "}", nil
-	}
-}
-
-func getRuleDef(v interface{}) (string, error) {
-	if s, ok := v.(string); ok {
-		return s, nil
-	}
-	buf := ""
-	obj, ok := v.(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("Unexpected type when reading rule: %T", v)
-	}
-	for _, key := range []string{"action", "src", "dst", "prt"} {
-		val, found := obj[key]
-		if !found {
-			return "", fmt.Errorf(
-				"Missing key %s in JSON object of rule", key)
-		}
-		delete(obj, key)
-		attr, err := getAttrDef(key, val)
-		if err != nil {
-			return "", err
-		}
-		switch key {
-		case "action":
-			switch attr {
-			case "action=permit;":
-				buf += "permit "
-			case "action=deny;":
-				buf += "deny "
-			default:
-				return "", fmt.Errorf("Expected 'permit' or 'deny' in '%s'", attr)
-			}
-		default:
-			buf += attr
-		}
-	}
-	for key, val := range obj {
-		attr, err := getAttrDef(key, val)
-		if err != nil {
-			return "", err
-		}
-		buf += attr
-	}
-	return buf, nil
-}
-
-func getAttrDef(name string, v interface{}) (string, error) {
-	if name == "description" {
-		s, ok := v.(string)
-		if !ok {
-			return "", fmt.Errorf("Expecting string after description")
-		}
-		return name + "=" + s + "\n", nil
-	}
-	buf := name
-TYPE:
-	switch x := v.(type) {
+	switch x := val.(type) {
 	case nil:
-		buf += ";"
+		return nil, fmt.Errorf("Missing value for element")
 	case string:
-		x = strings.TrimSpace(x)
-		buf += "=" + x
-		if len(x) > 0 {
-			switch x[len(x)-1] {
-			case ';', '}':
-				break TYPE
-			}
+		err := addOneElement(x)
+		if err != nil {
+			return nil, err
 		}
-		buf += ";"
 	case []interface{}:
-		buf += "="
 		for _, v := range x {
-			s, ok := v.(string)
-			if !ok {
-				return "", fmt.Errorf("Unexpected type in JSON array: %T", v)
-			}
-			buf += s + ","
-		}
-		buf += ";"
-	case map[string]interface{}:
-		keys := make([]string, 0, len(x))
-		for k := range x {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		buf += "={"
-		for _, k := range keys {
-			attr, err := getAttrDef(k, x[k])
-			if err != nil {
-				return "", err
-			}
-			buf += attr
-		}
-		buf += "}"
-	default:
-		return "", fmt.Errorf("Unexpected type in JSON value: %T", v)
-	}
-	return buf, nil
-}
-
-func setAttrValue(a *ast.Attribute, c change) error {
-	v, err := decode(c.val)
-	if err != nil {
-		return err
-	}
-	def, err := getAttrDef(a.Name, v)
-	if err != nil {
-		return err
-	}
-	a2, err := parser.ParseAttribute([]byte(def))
-	if err != nil {
-		return err
-	}
-	a.ValueList = a2.ValueList
-	a.ComplexValue = a2.ComplexValue
-	return nil
-}
-
-func patchValue(a *ast.Attribute, names []string, c change) error {
-	if c.method == "replace" ||
-		c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
-
-		return setAttrValue(a, c)
-	}
-	if a.ComplexValue != nil {
-		if c.method == "add" {
-			return fmt.Errorf("Can't add to complex value of '%s'", a.Name)
-		}
-		return fmt.Errorf("Can't delete from complex value of '%s'", a.Name)
-	}
-	a2 := &ast.Attribute{Name: a.Name}
-	if err := setAttrValue(a2, c); err != nil {
-		return err
-	}
-	if a2.ComplexValue != nil {
-		return fmt.Errorf("Can't %s complex value to value list of '%s'",
-			c.method, a.Name)
-	}
-	if c.method == "add" {
-		a.ValueList = append(a.ValueList, a2.ValueList...)
-		return nil
-	}
-VAL:
-	for _, v2 := range a2.ValueList {
-		val := v2.Value
-		for i, v := range a.ValueList {
-			if v.Value == val {
-				// delete found element
-				a.ValueList = append(a.ValueList[:i], a.ValueList[i+1:]...)
-				continue VAL
+			if s, ok := v.(string); ok {
+				err := addOneElement(s)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, fmt.Errorf("Unexpected type in JSON array: %T", v)
 			}
 		}
-		return fmt.Errorf("Can't find value '%s'", val)
 	}
-	return nil
+	return elements, nil
 }
 
 func decode(val json.RawMessage) (interface{}, error) {
 	var v interface{}
+	if len(val) == 0 {
+		return v, nil
+	}
 	if err := json.Unmarshal(val, &v); err != nil {
 		return nil, err
 	}

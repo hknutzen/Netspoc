@@ -37,16 +37,14 @@ owner:o = {
     "method": "add",
     "params": {
         "path": "owner:o,watchers",
-        "value": "w@example.com,   v@example.com ; "
+        "value": "w@example.com,   v@example.com "
     }
 }
 =OUTPUT=
 @@ INPUT
  owner:o = {
   admins = a@example.com;
-+ watchers = v@example.com,
-+            w@example.com,
-+            ;
++ watchers = w@example.com,   v@example.com ;
  }
 =END=
 
@@ -480,7 +478,7 @@ service:s1 = {
     "method": "add",
     "params": {
         "path": "service:s1,user",
-        "value": "host:h4, host:h6"
+        "value": ["host:h4", "host:h6"]
     }
 }
 =OUTPUT=
@@ -497,7 +495,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Add rule
+=TITLE=Add rule as string
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -523,15 +521,8 @@ service:s1 = {
         "value": "permit src=network:n2; dst=user; prt=tcp 514;"
     }
 }
-=OUTPUT=
-@@ INPUT
-  permit src = user;
-         dst = network:n2;
-         prt = tcp 80;
-+ permit src = network:n2;
-+        dst = user;
-+        prt = tcp 514;
- }
+=ERROR=
+Error: Unexpected type when reading rule: string
 =END=
 
 ############################################################
@@ -705,7 +696,9 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
     "method": "add",
     "params": {
         "path": "owner:o",
-        "value": "{ admins = a@example.com; watchers = w@example.com; }"
+        "value": {
+            "admins": "a@example.com", "watchers": "w@example.com"
+        }
     }
 }
 =OUTPUT=
@@ -730,7 +723,7 @@ network:n1 = {
     "method": "add",
     "params": {
         "path": "group:g1",
-        "value": "host:h11, host:h10, host:h12;"
+        "value": ["host:h11", "host:h10", "host:h12"]
     }
 }
 =WARNING=
@@ -766,21 +759,34 @@ router:r1 = {
     "method": "add",
     "params": {
         "path": "service:multi",
-        "value" : "{
-user = network:n2;
-permit src = user;
-       dst = host:[network:n1] &! host:h4, interface:r1.n1;
-       prt = udp, tcp;
-permit src = user;
-       dst = host:h4;
-       prt = tcp 90,    tcp 80-85;
-deny src = user;
-     dst = network:n1;
-     prt = tcp 22;
-deny src = host:h5;
-     dst = user;
-     prt = udp, icmp 4;
-}"
+        "value" : {
+            "user": "network:n2",
+            "rules" : [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
+                "prt": ["udp", "tcp"]
+            },
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "host:h4",
+                "prt": ["tcp 90", "tcp 80-85"]
+            },
+            {
+                "action": "deny",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 22"
+            },
+            {
+                "action": "deny",
+                "src": "host:h5",
+                "dst": "user",
+                "prt": ["udp", "icmp 4"]
+            }]
+        }
 }}
 =OUTPUT=
 @@ rule/M
@@ -797,7 +803,7 @@ deny src = host:h5;
 +              ;
 + permit src = user;
 +        dst = host:h4;
-+        prt = tcp 80 - 85,
++        prt = tcp 80-85,
 +              tcp 90,
 +              ;
 + deny   src = user;
@@ -812,7 +818,7 @@ deny src = host:h5;
 =END=
 
 ############################################################
-=TITLE=Add service, complex user, value as JSON
+=TITLE=Add service, complex user
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
@@ -835,7 +841,7 @@ router:r1 = {
         "path": "service:complex",
         "value": {
             "description": "This one\n",
-            "user": "host:[network:n1] &! host:h4, interface:r1.n1",
+            "user": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
             "rules": [{
                 "action": "permit",
                 "src": "user",

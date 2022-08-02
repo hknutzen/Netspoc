@@ -382,7 +382,7 @@ service:s1 = {
     "method": "add",
     "params": {
         "path": "group:g1",
-        "value": "interface:r1.[all] &! interface:r1.n1, host:h_10_1_1_4"
+        "value": ["interface:r1.[all] &! interface:r1.n1", "host:h_10_1_1_4"]
     }
 }
 =OUTPUT=
@@ -733,7 +733,7 @@ network:a = { ip = 10.1.1.0/24; }
 -network:a = { ip = 10.1.1.0/24; }
 +network:a = {
 + ip = 10.1.1.0/24;
-+ host:range = { range = 10.1.1.16 - 10.1.1.31; }
++ host:range = { range = 10.1.1.16-10.1.1.31; }
 +}
 =END=
 
@@ -1656,7 +1656,14 @@ owner:a = { admins = a@example.com; }
     }
 }
 =ERROR=
-Error: Expected ';' at line 1 of command line, near "b --HERE-->example.com"
+Error: Expected ';' at line 2 of owner, near "b --HERE-->example.com"
+Aborted
+=OUTPUT=
+@@ owner
+-owner:a = { admins = a@example.com; }
++owner:a = {
++ admins = b example.com;
++}
 =END=
 
 ############################################################
@@ -1687,14 +1694,14 @@ router:r1 = {
             {
                 "action": "permit",
                 "src": "user",
-                "dst": "host:[network:n1] &! host:h4, interface:r1.n1",
-                "prt": "udp, tcp"
+                "dst": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
+                "prt": ["udp", "tcp"]
             },
             {
                 "action": "permit",
                 "src": "user",
                 "dst": "host:h4",
-                "prt": "tcp 90,    tcp 80-85"
+                "prt": ["tcp 90", "  tcp  80-85"]
             },
             {
                 "action": "deny",
@@ -1727,7 +1734,7 @@ router:r1 = {
 +              ;
 + permit src = user;
 +        dst = host:h4;
-+        prt = tcp 80 - 85,
++        prt =   tcp  80-85,
 +              tcp 90,
 +              ;
 + deny   src = user;
@@ -1735,9 +1742,7 @@ router:r1 = {
 +        prt = tcp 22;
 + deny   src = host:h5;
 +        dst = user;
-+        prt = icmp 4,
-+              udp,
-+              ;
++        prt = udp, icmp 4;
 +}
 =END=
 
@@ -1765,7 +1770,7 @@ router:r1 = {
         "path": "service:complex",
         "value": {
             "description": "This one",
-            "user": "host:[network:n1] &! host:h4, interface:r1.n1",
+            "user": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
             "rules": [
                 {
                     "action": "permit",
@@ -1827,7 +1832,7 @@ service:b = {
         "path": "service:with-attributes",
         "value": {
             "description": "Looks-like-a-value;",
-            "overlaps": "service:a, service:b",
+            "overlaps": ["service:a", "service:b"],
             "has_unenforceable": null,
             "disable_at": "2099-11-22",
             "user": "host:h3",
@@ -1835,7 +1840,7 @@ service:b = {
                 {
                     "action": "permit",
                     "src": "user",
-                    "dst": "network:n1, network:n2",
+                    "dst": ["network:n1", "network:n2"],
                     "prt": "tcp 80"
                 }
             ]
@@ -1955,7 +1960,10 @@ router:r1 = {
                 "method": "add",
                 "params": {
                     "path": "service:s1",
-                    "value": "{user=;}"
+                    "value": {
+                        "user": [],
+                        "rules": []
+                    }
                 }
             },
             {
@@ -2012,7 +2020,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Expected 'permit' or 'deny' in 'action=allow;'
+Error: Expected 'permit' or 'deny' in 'action'
 =END=
 
 ############################################################
@@ -2036,7 +2044,7 @@ Error: Expected 'permit' or 'deny' in 'action=allow;'
     }
 }
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
+Error: Typed name expected at line 1 of command line, near "--HERE-->_user_"
 =END=
 
 ############################################################
@@ -2060,7 +2068,7 @@ Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
     }
 }
 =ERROR=
-Error: Unknown element type at line 1 of command line, near "dst=--HERE-->net:n2"
+Error: Unknown element type at line 1 of command line, near "--HERE-->net:n2"
 =END=
 
 ############################################################
@@ -2140,7 +2148,8 @@ Error: Unknown protocol in 'udp6' of service:s1
   }
 }
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "--HERE-->service:"
+Error: Typed name expected at line 1 of rule/other, near "--HERE-->service:"
+Aborted
 =END=
 
 ############################################################
@@ -2277,7 +2286,7 @@ Warning: Ignoring unknown 'high' in log of service:t1
 =OUTPUT=
 @@ rule/T
 +service:t1 = {
-+ description = abc def
++ description = abc def # ghi
 +
 + disable_at = 2099-02-03;
 + has_unenforceable;
@@ -2533,7 +2542,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: Can't find element 'host:[network:n1, network:n2]'
+Error: Can't find element 'host:[network:n1,network:n2]'
 =END=
 
 ############################################################
@@ -2831,7 +2840,7 @@ service:s1 = {
   "method": "delete",
   "params": {
     "value": [
-        "icmp 3  / 13",
+        "icmp 3/13",
         "tcp 443",
         "tcp 9300-9302",
         "udp 161 - 162",
@@ -3004,7 +3013,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 2 doesn't match, have 1 rules
+Error: rule count 2 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3035,7 +3044,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 2 doesn't match, have 1 rules
+Error: rule count 2 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3067,7 +3076,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 0 doesn't match, have 1 rules
+Error: rule count 0 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3139,8 +3148,8 @@ service:s1 = {
                     "value": {
                         "action": "permit",
                         "src": "user",
-                        "dst": "host:h5, interface:r1.n2",
-                        "prt": "udp 123, icmp"
+                        "dst": ["host:h5", "interface:r1.n2"],
+                        "prt": ["udp 123", "icmp"]
                     }
                 }
             },
@@ -3219,9 +3228,7 @@ service:s1 = {
          prt = tcp 22;
 + deny   src = host:h5;
 +        dst = user;
-+        prt = icmp 4,
-+              udp,
-+              ;
++        prt = udp, icmp 4;
   permit src = user;
          dst = host:h3;
          prt = tcp;
@@ -3262,7 +3269,7 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Expected 'permit' or 'deny' in 'action=allow;'
+Error: Expected 'permit' or 'deny' in 'action'
 =END=
 
 ############################################################
@@ -3300,7 +3307,7 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "src=--HERE-->n1"
+Error: Typed name expected at line 1 of command line, near "--HERE-->n1"
 =END=
 
 ############################################################
@@ -3338,7 +3345,7 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "dst=--HERE-->invalid"
+Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
@@ -3387,7 +3394,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "add",
     "params": {
         "path": "network:n2",
-        "value": "{ ip = 10.1.2.0/24; }"
+        "value": { "ip": "10.1.2.0/24" }
     }
 }
 =ERROR=
@@ -3396,6 +3403,7 @@ panic: Can't open API: is a directory
 
 ############################################################
 =TITLE=Unexpected content after definition
+=TODO=
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3436,7 +3444,7 @@ router:r2 = {
     "method": "add",
     "params": {
         "path": "pathrestriction:p",
-        "value": "interface:r1.n1, interface:r1.n2;"
+        "value": ["interface:r1.n1", "interface:r1.n2"]
     }
 }
 =OUTPUT=
