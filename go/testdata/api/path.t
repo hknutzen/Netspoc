@@ -176,7 +176,34 @@ Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 @@ INPUT
  network:n1 = {
   ip = 10.1.1.0/24;
-+ host:h1;
++ host:h1 = 10.1.1.10;
+ }
+=END=
+
+############################################################
+=TITLE=Replace host with invalid string value
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,host:h1",
+        "value": "10.1.1.99"
+    }
+}
+=ERROR=
+Error: Structured value expected in 'host:h1'
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+=OUTPUT=
+@@ INPUT
+ network:n1 = {
+  ip = 10.1.1.0/24;
+- host:h1 = { ip = 10.1.1.10; }
++ host:h1 = 10.1.1.99;
  }
 =END=
 

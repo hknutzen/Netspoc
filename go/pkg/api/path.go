@@ -140,7 +140,7 @@ func patchRules(l *[]*ast.Rule, names []string, c change) error {
 	}
 	name = names[0]
 	if c.val == nil {
-		return fmt.Errorf("Must not delete '%s' from rule", name)
+		return fmt.Errorf("Missing value to modify in '%s' of rule", name)
 	}
 	switch name {
 	case "src":
@@ -208,7 +208,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 }
 
 func patchValue(a *ast.Attribute, names []string, c change) error {
-	if c.method == "replace" ||
+	if c.method == "set" ||
 		c.method == "add" && len(a.ComplexValue) == 0 && len(a.ValueList) == 0 {
 
 		return setAttrValue(a, c.val)
@@ -266,9 +266,10 @@ func getValueList(val interface{}) ([]*ast.Value, error) {
 }
 
 func newAttribute(l *[]*ast.Attribute, name string, c change) error {
-	if c.method != "add" {
+	if c.method == "delete" {
 		return fmt.Errorf("Can't find attribute '%s'", name)
 	}
+	// "add" and "set" behave identical on new attribute.
 	a := &ast.Attribute{Name: name}
 	if err := setAttrValue(a, c.val); err != nil {
 		return err
@@ -278,9 +279,10 @@ func newAttribute(l *[]*ast.Attribute, name string, c change) error {
 }
 
 func (s *state) addToplevel(name string, c change) error {
-	if c.method != "add" {
+	if c.method == "delete" {
 		return fmt.Errorf("Can't %s unknown toplevel node '%s'", c.method, name)
 	}
+	// "add" and "set" behave identical on new toplevel node.
 	a, err := s.getToplevel(name, c)
 	if err != nil {
 		return err
@@ -354,7 +356,7 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 		x.Order()
 		return err
 	}
-	if c.method == "replace" {
+	if c.method == "set" {
 		a, err := s.getToplevel(n.GetName(), c)
 		if err != nil {
 			return err
@@ -371,7 +373,7 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	if c.okIfExists {
 		return nil
 	}
-	return fmt.Errorf("Can't redefine '%s'", n.GetName())
+	return fmt.Errorf("'%s' already exists", n.GetName())
 }
 
 func getService(name string, v interface{}) (ast.Toplevel, error) {
@@ -383,12 +385,12 @@ func getService(name string, v interface{}) (ast.Toplevel, error) {
 
 	user, found := m["user"]
 	if !found {
-		return nil, fmt.Errorf("Missing key 'user' in '%s'", name)
+		return nil, fmt.Errorf("Missing attribute 'user' in '%s'", name)
 	}
 	delete(m, "user")
 	rules, found := m["rules"]
 	if !found {
-		return nil, fmt.Errorf("Missing key 'rules' in '%s'", name)
+		return nil, fmt.Errorf("Missing attribute 'rules' in '%s'", name)
 	}
 	delete(m, "rules")
 	s := new(ast.Service)
