@@ -1016,12 +1016,17 @@ network:n1 = {
  host:invalid = {}
  host:h10 = { ip = 10.1.1.10; }
  host:r98-100 = { range = 10.1.1.98-10.1.1.100; }
+ host:h11 = { ip = 10.1.1.11; nat:n = { ip = 10.9.9.99; } }
 }
 =OUTPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
  host:invalid = { }
  host:h10     = { ip = 10.1.1.10; }
+ host:h11 = {
+  ip = 10.1.1.11;
+  nat:n = { ip = 10.9.9.99; }
+ }
  host:r98-102 = { range = 10.1.1.98 - 10.1.1.102; }
  host:r98-100 = { range = 10.1.1.98 - 10.1.1.100; }
  host:h99     = { ip = 10.1.1.99; }
@@ -1037,21 +1042,29 @@ network:n1 = {
  :host:h1 = { a = { b = { c = d; e = f,g;} h;}}
  :h:o:s:t:h2=; # c1
  host:h1 = { ip = 10.1.1.10; }
- host:h1 =; # Silently ignore superflous '='
+ host:h1 =;
+ host:h1 = 10.1.1.11;
 }
-router:r1 = { managed = ; }
+router:r1 = { managed = ;
+ interface:i = 10.1.1.1, 10.1.1.2;
+}
 =OUTPUT=
 network:n1 = {
  x;
  :y = { :ip:; ip2 = { ip3 = 4; } }
  :host:h1 = { a = { b = { c = d; e = f, g; } h; } }
  :h:o:s:t:h2 = ; # c1
- host:h1; # Silently ignore superflous '='
+ host:h1 = ;
+ host:h1 = 10.1.1.11;
  host:h1 = { ip = 10.1.1.10; }
 }
 
 router:r1 = {
  managed = ;
+ interface:i =
+  10.1.1.1,
+  10.1.1.2,
+ ;
 }
 =END=
 

@@ -445,7 +445,9 @@ func (p *printer) indentedAttributeList(
 	max, noIndent := getMaxAndNoIndent(l, simple)
 	for _, a := range l {
 		p.preComment(a)
-		if noIndent[a] {
+		if a.ComplexValue == nil {
+			p.attribute(a)
+		} else if noIndent[a] {
 			p.complexValue(a.Name, a.ComplexValue)
 		} else {
 			p.indentedAttribute(a, max)
