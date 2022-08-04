@@ -142,6 +142,9 @@ func (s *State) AddTopLevel(n ast.Toplevel) {
 		switch typ {
 		case "owner":
 			file = "owner"
+			if strings.HasPrefix(name, "DA_TOKEN_") {
+				file += "-token"
+			}
 		case "service":
 			file = "rule"
 			if !fileop.IsDir(file) {
