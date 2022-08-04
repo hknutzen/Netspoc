@@ -83,10 +83,37 @@ Error: Unknown method ''
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
+    "method": "add",
     "params": "foo"
 }
 =ERROR=
 Error: In "params" of JSON file job: json: cannot unmarshal string into Go value of type map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Invalid value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "value": x }
+}
+=ERROR=
+Error: In JSON file job: invalid character 'x' looking for beginning of value
+=END=
+
+############################################################
+=TITLE=Invalid empty path
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "" }
+}
+=ERROR=
+Error: Invalid empty path
 =END=
 
 ############################################################

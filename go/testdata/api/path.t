@@ -419,27 +419,50 @@ network:n1 = {
  host:h12 = { ip = 10.1.1.12; }
 }
 
+network:n2a = { ip = 10.1.2.0/25; }
+network:n2b = { ip = 10.1.2.128/25; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1  = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2a = { ip = 10.1.2.1; hardware = n2a; }
+}
+
+router:u = {
+ interface:n2a = { ip = 10.1.2.126; }
+ interface:n2b;
+}
+
 group:g1 =
+ interface:[managed & network:n2a].[auto],
  host:h10,
- host:h11,
- host:h12,
+ host:[network:n1] &! host:h10,
+ any:[ip=10.1.2.0/24 & network:n2b],
 ;
 =JOB=
 {
     "method": "delete",
     "params": {
         "path": "group:g1",
-        "value": "host:h11"
+        "value": [
+            "host:h10",
+            "host:[network:n1] &! host:h10",
+            "any:[ ip=10.1.2.0/24 & network:n2b ]",
+            "interface:[managed&network:n2a].[auto]"
+        ]
     }
 }
 =WARNING=
 Warning: unused group:g1
 =OUTPUT=
 @@ INPUT
+ }
  group:g1 =
-  host:h10,
-- host:h11,
-  host:h12,
+- interface:[managed & network:n2a].[auto],
+- host:h10,
+- host:[network:n1] &! host:h10,
+- any:[ip=10.1.2.0/24 & network:n2b],
  ;
 =END=
 
@@ -891,4 +914,78 @@ router:r1 = {
 +        dst = network:n2;
 +        prt = tcp 80;
 +}
+=END=
+
+############################################################
+=TITLE=Add router and network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+owner:o1 = {
+ admins = o1@example.com;
+}
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [{
+            "method": "add",
+            "params": {
+                "path": "router:r1",
+                "value": {
+                    "model": "ASA",
+                    "managed": null,
+                    "interface:n1": { "ip": "10.1.1.1", "hardware": "n1" },
+                    "interface:n2": { "ip": "10.1.2.1", "hardware": "n2" }
+
+                }
+            }
+        },
+        {
+            "method": "add",
+            "params": {
+                "path": "network:n2",
+                "value": {
+                    "ip": "10.1.2.0/24",
+                    "owner": "o1"
+                }
+            }
+        }]
+    }
+}
+=OUTPUT=
+@@ API
++router:r1 = {
++ managed;
++ model = ASA;
++ interface:n1 = { hardware = n1; ip = 10.1.1.1; }
++ interface:n2 = { hardware = n2; ip = 10.1.2.1; }
++}
++
++network:n2 = { ip = 10.1.2.0/24; owner = o1; }
+=END=
+
+############################################################
+=TITLE=set owner of network
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,owner",
+        "value": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+  admins = a1@example.com;
+ }
+-network:n1 = { ip = 10.1.1.0/24; }
++network:n1 = { ip = 10.1.1.0/24; owner = o1; }
 =END=
