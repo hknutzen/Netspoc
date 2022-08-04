@@ -410,9 +410,6 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 		}
 		val, comment := getAttrList(l)
 		p.print(name + val + comment)
-	} else {
-		// Short attribute without values.
-		p.print(n.Name + ";" + n.PostComment())
 	}
 }
 
@@ -565,14 +562,6 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 		val, comment := getAttrList(a.Attributes)
 		p.print(name + val + comment)
 	}
-}
-
-func Element(el ast.Element) string {
-	p := new(printer)
-	p.element("", el, "")
-	result := string(p.output)
-	result = strings.ReplaceAll(result, "\n", "")
-	return strings.ReplaceAll(result, " ", "")
 }
 
 func File(aF *ast.File) []byte {
