@@ -25,14 +25,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"os"
 	"path"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
-	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
@@ -335,15 +333,6 @@ func (s *state) deleteOwner(j *job) error {
 	return s.DeleteToplevel(name)
 }
 
-func (s *state) deleteService(j *job) error {
-	var p struct {
-		Name string
-	}
-	getParams(j, &p)
-	name := "service:" + p.Name
-	return s.DeleteToplevel(name)
-}
-
 type jsonMap map[string]interface{}
 
 func getOwnerPath(name string) string {
@@ -413,22 +402,6 @@ func (s *state) addToGroup(j *job) error {
 	})
 }
 
-func getServicePath(name string) string {
-	file := "rule"
-	if !fileop.IsDir(file) {
-		// Ignore error, is recognized later, when file can't be written.
-		os.Mkdir(file, 0777)
-	}
-	if len(name) > 0 {
-		s0 := strings.ToUpper(name[0:1])
-		c0 := s0[0]
-		if 'A' <= c0 && c0 <= 'Z' || '0' <= c0 && c0 <= '9' {
-			return path.Join(file, s0)
-		}
-	}
-	return path.Join(file, "other")
-}
-
 type jsonRule struct {
 	Action string
 	Src    string
@@ -438,26 +411,4 @@ type jsonRule struct {
 
 func getParams(j *job, p interface{}) {
 	json.Unmarshal(j.Params, p)
-}
-
-func getRule(sv *ast.Service, num, count int) (*ast.Rule, error) {
-	idx, err := getRuleIdx(sv, num, count)
-	if err != nil {
-		return nil, err
-	}
-	return sv.Rules[idx], nil
-}
-
-func getRuleIdx(sv *ast.Service, num, count int) (int, error) {
-	idx := num - 1
-	n := len(sv.Rules)
-	if count > 0 && n != count {
-		return 0, fmt.Errorf("rule_count %d doesn't match, have %d rules in %s",
-			count, n, sv.Name)
-	}
-	if idx < 0 || idx >= n {
-		return 0, fmt.Errorf("Invalid rule_num %d, have %d rules in %s",
-			idx+1, n, sv.Name)
-	}
-	return idx, nil
 }
