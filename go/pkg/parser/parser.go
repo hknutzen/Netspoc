@@ -730,30 +730,6 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 	return
 }
 
-func ParseAttribute(src []byte) (a *ast.Attribute, err error) {
-	err = handlePanic(func() {
-		p := new(parser)
-		p.init(src, "command line", 0)
-		a = p.attribute()
-		if p.pos != len(src) {
-			p.syntaxErr(`Unexpected content after attribute`)
-		}
-	})
-	return
-}
-
-func ParseRule(src []byte) (r *ast.Rule, err error) {
-	err = handlePanic(func() {
-		p := new(parser)
-		p.init(src, "command line", 0)
-		r = p.rule()
-		if p.pos != len(src) {
-			p.syntaxErr(`Unexpected content after rule`)
-		}
-	})
-	return
-}
-
 func ParseToplevel(src []byte) (n ast.Toplevel, err error) {
 	err = handlePanic(func() {
 		p := new(parser)
