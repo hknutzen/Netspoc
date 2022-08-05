@@ -966,6 +966,54 @@ owner:o1 = {
 =END=
 
 ############################################################
+=TITLE=Delete router and network referenced in subnet_of
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+ interface:n2 = { hardware = n2; ip = 10.1.2.1; }
+}
+
+network:n2 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
+
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [{
+            "method": "delete",
+            "params": {
+                "path": "router:r1"
+            }
+        },
+        {
+            "method": "delete",
+            "params": {
+                "path": "network:n1"
+            }
+        }]
+    }
+}
+=OUTPUT=
+@@ INPUT
+-network:n1 = { ip = 10.1.1.0/24; }
+-
+-router:r1 = {
+- managed;
+- model = ASA;
+- interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+- interface:n2 = { hardware = n2; ip = 10.1.2.1; }
+-}
+-
+-network:n2 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
+-
++network:n2 = { ip = 10.1.1.128/25; }
+=END=
+
+############################################################
 =TITLE=set owner of network
 =INPUT=
 -- topology
