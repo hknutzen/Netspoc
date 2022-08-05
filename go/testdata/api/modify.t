@@ -100,6 +100,23 @@ Error: While reading netspoc files: Typed name expected at line 1 of INPUT, near
 =END=
 
 ############################################################
+=TITLE=Add to unknown group
+=INPUT=
+#
+=JOB=
+{
+    "method": "add_to_group",
+    "params": {
+        "name": "g1",
+        "object": "host:h1"
+    }
+}
+
+=ERROR=
+Error: Can't find group:g1
+=END=
+
+############################################################
 =TITLE=Add invalid element to group
 =INPUT=
 group:g1 = ;

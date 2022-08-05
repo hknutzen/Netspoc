@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -20,15 +19,11 @@ type change struct {
 func (s *state) patch(j *job) error {
 	var p struct {
 		Path       string
-		Value      json.RawMessage
+		Value      interface{}
 		OkIfExists bool `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
-	val, err := decode(p.Value)
-	if err != nil {
-		return err
-	}
-	c := change{val: val, okIfExists: p.OkIfExists}
+	c := change{val: p.Value, okIfExists: p.OkIfExists}
 	c.method = j.Method
 
 	if len(p.Path) == 0 {
@@ -85,7 +80,7 @@ func (s *state) patch(j *job) error {
 		}
 		return patchAttributes(&ts.Attributes, names, c)
 	}
-	err = process()
+	err := process()
 	if err == nil {
 		top.Order()
 		s.SetModified(topName)
@@ -143,9 +138,17 @@ func patchRules(l *[]*ast.Rule, names []string, c change) error {
 	case "prt":
 		return patchAttributes(&[]*ast.Attribute{rule.Prt}, names, c)
 	case "log":
-		return patchAttributes(&[]*ast.Attribute{rule.Log}, names, c)
+		if rule.Log != nil {
+			return patchAttributes(&[]*ast.Attribute{rule.Log}, names, c)
+		}
+		var l []*ast.Attribute
+		err := patchAttributes(&l, names, c)
+		if err == nil {
+			rule.Log = l[0]
+		}
+		return err
 	}
-	return fmt.Errorf("Rule has no attribute '%s'", name)
+	return fmt.Errorf("Invalid attribute in rule: '%s'", name)
 }
 
 func newRule(l *[]*ast.Rule, c change) error {
@@ -597,15 +600,4 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 		}
 	}
 	return elements, nil
-}
-
-func decode(val json.RawMessage) (interface{}, error) {
-	var v interface{}
-	if len(val) == 0 {
-		return v, nil
-	}
-	if err := json.Unmarshal(val, &v); err != nil {
-		return nil, err
-	}
-	return v, nil
 }

@@ -2961,6 +2961,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
+ log:a = errors;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
@@ -2993,6 +2994,13 @@ service:s1 = {
                 "params": {
                     "path": "service:s1,rules,1,dst",
                     "value": "host:h4"
+                }
+            },
+            {
+                "method": "add",
+                "params": {
+                    "path": "service:s1,rules,1,log",
+                    "value": "a"
                 }
             },
             {
@@ -3029,10 +3037,84 @@ service:s1 = {
 +              udp 80,
                ;
 -        prt = tcp 85- 90, tcp 91;
++        log = a;
 + permit src = user;
 +        dst = host:h5;
 +        prt = tcp 91;
  }
+=END=
+
+############################################################
+=TITLE=Modify attribute log of rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ log:b = debugging;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+        log = a;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules,1,log",
+        "value": "b"
+    }
+}
+=OUTPUT=
+@@ topology
+  permit src = user;
+         dst = network:n2;
+         prt = tcp 80;
+-        log = a;
++        log = b;
+ }
+=END=
+
+############################################################
+=TITLE=Change unknown attribute of rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1,rules,1,foo",
+        "value": "bar"
+    }
+}
+=ERROR=
+Error: Invalid attribute in rule: 'foo'
 =END=
 
 ############################################################
