@@ -37,14 +37,8 @@ func (s *state) patch(j *job) error {
 	names := strings.Split(p.Path, ",")
 	// Find toplevel node
 	topName := names[0]
-	var top ast.Toplevel
-	s.Modify(func(toplevel ast.Toplevel) bool {
-		if toplevel.GetName() == topName {
-			top = toplevel
-		}
-		return false
-	})
 	names = names[1:]
+	top := s.FindToplevel(topName)
 	if top == nil {
 		if len(names) == 0 {
 			return s.addToplevel(topName, c)
@@ -94,8 +88,7 @@ func (s *state) patch(j *job) error {
 	err = process()
 	if err == nil {
 		top.Order()
-		// Mark object as modified.
-		s.ModifyObj(topName, func(toplevel ast.Toplevel) error { return nil })
+		s.SetModified(topName)
 	}
 	return err
 }

@@ -115,13 +115,11 @@ func (s *State) Modify(f func(ast.Toplevel) bool) bool {
 	})
 }
 
-func (s *State) ModifyObj(name string, f func(ast.Toplevel) error) error {
+func (s *State) ModifyObj(name string, f func(ast.Toplevel)) error {
 	var err error
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
 		if name == toplevel.GetName() {
-			if err2 := f(toplevel); err2 != nil {
-				err = err2
-			}
+			f(toplevel)
 			return true
 		}
 		return false
@@ -130,6 +128,21 @@ func (s *State) ModifyObj(name string, f func(ast.Toplevel) error) error {
 		return fmt.Errorf("Can't find %s", name)
 	}
 	return err
+}
+
+func (s *State) FindToplevel(name string) ast.Toplevel {
+	var result ast.Toplevel
+	s.Modify(func(t ast.Toplevel) bool {
+		if name == t.GetName() {
+			result = t
+		}
+		return false
+	})
+	return result
+}
+
+func (s *State) SetModified(name string) {
+	s.Modify(func(t ast.Toplevel) bool { return name == t.GetName() })
 }
 
 func (s *State) AddTopLevel(n ast.Toplevel) {

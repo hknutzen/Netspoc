@@ -373,11 +373,10 @@ func (s *state) modifyOwner(j *job) error {
 	}
 	getParams(j, &p)
 	owner := "owner:" + p.Name
-	return s.ModifyObj(owner, func(toplevel ast.Toplevel) error {
+	return s.ModifyObj(owner, func(toplevel ast.Toplevel) {
 		n := toplevel.(*ast.TopStruct)
 		n.ChangeAttr("admins", p.Admins)
 		n.ChangeAttr("watchers", p.Watchers)
-		return nil
 	})
 }
 
@@ -392,13 +391,12 @@ func (s *state) addToGroup(j *job) error {
 		return err
 	}
 	group := "group:" + p.Name
-	return s.ModifyObj(group, func(toplevel ast.Toplevel) error {
+	return s.ModifyObj(group, func(toplevel ast.Toplevel) {
 		n := toplevel.(*ast.TopList)
 		n.Elements = append(n.Elements, add...)
 
 		// Sort list of objects.
 		n.Order()
-		return nil
 	})
 }
 
