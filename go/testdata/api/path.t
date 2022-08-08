@@ -891,8 +891,8 @@ router:r1 = {
             },
             {
                 "action": "permit",
-                "src": "user",
-                "dst": "host:h4",
+                "src": ["user"],
+                "dst": ["host:h4"],
                 "prt": ["tcp 90", "tcp 80-85"]
             },
             {
