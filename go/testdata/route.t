@@ -460,7 +460,7 @@ router:r6 = {
 pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
 pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
 =INPUT=
-# Would create ambiguous route vor n5 if added as maxRoutingNet for n6.
+# Would create ambiguous route for n5 if added as maxRoutingNet for n6.
 [[topo]]
 service:s1 = {
  user = network:n5, network:n6;
