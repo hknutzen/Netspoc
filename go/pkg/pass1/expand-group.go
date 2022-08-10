@@ -654,20 +654,11 @@ func (c *spoc) expandGroup1(
 				// in same visible context.
 				*elPtr = elements
 				result = append(result, elements...)
-			} else if n, ok := obj.(*network); ok {
-				if n.isAggregate {
-					// Substitute aggregate by aggregate set of zone cluster.
-					// Needed if zones of cluster are reached by different paths.
-					for _, z := range n.zone.cluster {
-						result.push(z.ipPrefix2aggregate[n.ipp])
-					}
-				} else {
-					result.push(obj)
-					// Add zones of zone cluster that have subnets of n.
-					for _, z := range n.hasSubnetInCluster {
-						c.duplicateAggregateToZone(n, z, true)
-						result.push(z.ipPrefix2aggregate[n.ipp])
-					}
+			} else if n, ok := obj.(*network); ok && n.isAggregate {
+				// Substitute aggregate by aggregate set of zone cluster.
+				// Needed if zones of cluster are reached by different paths.
+				for _, z := range n.zone.cluster {
+					result.push(z.ipPrefix2aggregate[n.ipp])
 				}
 			} else {
 				result.push(obj)
@@ -707,6 +698,11 @@ func (c *spoc) expandGroupInRule(
 	list := c.expandGroup(l, ctx, ipv6, false)
 
 	// Ignore unusable objects.
+	//
+	// Add subnets of network in other parts of zone cluster.
+	// Path of subnet may be modified by pathrestriction.
+	// Hence we must traverse also paths of subnets.
+	var addedSubnets netList
 	j := 0
 	for _, obj := range list {
 		var ignore string
@@ -720,6 +716,8 @@ func (c *spoc) expandGroupInRule(
 				if x.hasIdHosts {
 					ignore = x.name + " with software clients"
 				}
+			} else {
+				addedSubnets = append(addedSubnets, x.subnetsInCluster...)
 			}
 		case *routerIntf:
 			switch x.ipType {
@@ -741,5 +739,18 @@ func (c *spoc) expandGroupInRule(
 		}
 	}
 	list = list[:j]
+	seen := make(map[groupObj]bool, len(list))
+	for _, o := range list {
+		seen[o] = true
+	}
+SUBNET:
+	for _, n := range addedSubnets {
+		for up := n; up != nil; up = up.up {
+			if seen[up] {
+				continue SUBNET
+			}
+		}
+		list.push(n)
+	}
 	return list
 }

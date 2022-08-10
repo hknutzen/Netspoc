@@ -1057,7 +1057,8 @@ service:s2 = {
 ip access-list extended n2_in
  deny ip any host 10.1.4.1
  permit tcp 10.1.0.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 80
- permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 81
+ permit tcp 10.1.0.0 0.0.0.127 10.1.4.0 0.0.0.255 eq 81
+ permit tcp 10.1.1.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 81
  deny ip any any
 --r2
 ip access-list extended n3_in

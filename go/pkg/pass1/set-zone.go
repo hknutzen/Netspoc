@@ -1010,9 +1010,32 @@ func (c *spoc) checkReroutePermit() {
 	}
 }
 
+// Collect subnets in attribute .subnetsInCluster
+// - to supernet in zone cluster
+// - where subnet is located in same zone cluster, but in other zone and
+// - where zone cluster has interior pathrestriction,
+//   i.e. pathrestriction between zones of cluster.
+// In this case subnet and supernet may be reached by different paths.
+//
+// ToDo: This should be called after linkPathrestrictions has been called.
+//       Currently subnet relation has then been changed already
+//       from cluster to zone.
 func (c *spoc) markSubnetsInZoneCluster() {
+	hasInteriorPR := make(map[*zone]bool)
+PR:
+	for _, p := range c.pathrestrictions {
+		for _, intf := range p.elements {
+			if intf.router.semiManaged && intf.zone != nil {
+				hasInteriorPR[intf.zone.cluster[0]] = true
+				break PR
+			}
+		}
+	}
 	for _, z := range c.allZones {
-		if len(z.cluster) == 1 {
+		if len(z.cluster) < 2 {
+			continue
+		}
+		if !hasInteriorPR[z.cluster[0]] {
 			continue
 		}
 		for _, n := range z.networks {
@@ -1021,20 +1044,9 @@ func (c *spoc) markSubnetsInZoneCluster() {
 					if big.zone == n.zone {
 						break
 					}
-					addZone(&big.hasSubnetInCluster, z)
+					big.subnetsInCluster.push(n)
 				}
 			}
 		}
 	}
-}
-
-// Add new zone to list.  List is typically short, because we have
-// only a few subnets in zone cluster, so no need to use a map for lookup.
-func addZone(l *[]*zone, z *zone) {
-	for _, z2 := range *l {
-		if z2 == z {
-			return
-		}
-	}
-	*l = append(*l, z)
 }

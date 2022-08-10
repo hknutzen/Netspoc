@@ -473,7 +473,7 @@ pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
 pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
 =PARAMS=--ipv6
 =INPUT=
-# Would create ambiguous route vor n5 if added as maxRoutingNet for n6.
+# Would create ambiguous route for n5 if added as maxRoutingNet for n6.
 [[topo]]
 service:s1 = {
  user = network:n5, network:n6;
@@ -500,9 +500,14 @@ service:s1 = {
 ! [ Routing ]
 ipv6 route n2 ::a01:500/120 ::a01:202
 ipv6 route n2 ::a01:580/121 ::a01:203
---ipv6/r3
+--ipv6/r2
 ! n2_in
 access-list n2_in extended permit tcp ::a01:100/120 ::a01:500/120 eq 80
+access-list n2_in extended deny ip any6 any6
+access-group n2_in in interface n2
+--ipv6/r3
+! n2_in
+access-list n2_in extended permit tcp ::a01:100/120 ::a01:580/121 eq 80
 access-list n2_in extended deny ip any6 any6
 access-group n2_in in interface n2
 =END=
