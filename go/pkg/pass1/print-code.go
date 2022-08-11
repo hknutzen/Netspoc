@@ -2132,11 +2132,9 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 										noOptAddrs[obj] = true
 										continue
 									}
-									max := o.maxSecondaryNet
-									if max == nil {
+									if subst = o.maxSecondaryNet; subst == nil {
 										continue
 									}
-									subst = max
 								}
 								optAddr[subst] = true
 							}
