@@ -11,7 +11,6 @@ import ()
 //#############################################################################
 
 func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
-	var extraRules []*groupedRule
 	type pair struct {
 		srcPath pathStore
 		dstPath pathStore
@@ -140,11 +139,11 @@ func (c *spoc) genReverseRules1(rules []*groupedRule) []*groupedRule {
 				newRule.srcRange = srcRange
 			}
 
-			// Don't modify rules while we are iterating over it.
-			extraRules = append(extraRules, newRule)
+			// This will not affect current iteration over rules.
+			rules = append(rules, newRule)
 		}
 	}
-	return append(rules, extraRules...)
+	return rules
 }
 
 func (c *spoc) genReverseRules() {
