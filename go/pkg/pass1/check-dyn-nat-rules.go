@@ -133,8 +133,12 @@ func (c *spoc) checkDynamicNatRules(
 		return pairs
 	}
 
-	checkDynNatPath := func(pathRule *groupedRule, reversed bool,
-		fromList []someObj, fromZone *zone, toObj someObj, toZone *zone) {
+	checkDynNatPath := func(ru *groupedRule, reversed bool,
+		fromList []someObj, fromStore pathStore,
+		toObj someObj, toStore pathStore) {
+
+		fromZone := getZone(fromList, fromStore)
+		toZone := getZone([]someObj{toObj}, toStore)
 
 		toCheck := natPathToCheck[zonePair{fromZone, toZone}]
 		if toCheck == nil {
@@ -142,7 +146,7 @@ func (c *spoc) checkDynamicNatRules(
 			if len(dynNat) == 0 {
 				return
 			}
-			pairs := getPathPairs(pathRule, reversed, fromZone, toZone)
+			pairs := getPathPairs(ru, reversed, fromZone, toZone)
 		TAG:
 			for tag, n := range dynNat {
 				for _, pair := range pairs {
@@ -163,7 +167,7 @@ func (c *spoc) checkDynamicNatRules(
 		// Check with Nat set at destination object.
 		dstNatMap := toZone.natDomain.natMap
 
-		pairs := getPathPairs(pathRule, reversed, fromZone, toZone)
+		pairs := getPathPairs(ru, reversed, fromZone, toZone)
 		for _, obj := range fromList {
 			n := obj.getNetwork()
 			natMap := n.nat
@@ -185,7 +189,7 @@ func (c *spoc) checkDynamicNatRules(
 			staticSeen := false
 
 			showRule := func() string {
-				rule := *pathRule
+				rule := *ru
 				if reversed {
 					rule.src = []someObj{toObj}
 					rule.dst = []someObj{obj}
@@ -304,7 +308,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 					}
 				}
-				c.pathWalk(pathRule, check, "Router")
+				c.pathWalk(ru, check, "Router")
 			}()
 
 			if hiddenSeen {
@@ -368,46 +372,10 @@ func (c *spoc) checkDynamicNatRules(
 		}
 	}
 
-	process := func(list ruleList) {
-		for _, rule := range list {
-			if srcZone, ok := rule.srcPath.(*zone); ok {
-				if dstZone, ok := rule.dstPath.(*zone); ok {
-					checkDynNatPath(rule, false,
-						rule.src, srcZone, rule.dst[0], dstZone)
-					checkDynNatPath(rule, true,
-						rule.dst, dstZone, rule.src[0], srcZone)
-				} else {
-					// Interface or Router
-					for _, obj := range rule.dst {
-						dstIntf := obj.(*routerIntf)
-						dstZone := dstIntf.zone
-						checkDynNatPath(rule, false,
-							rule.src, srcZone, dstIntf, dstZone)
-						checkDynNatPath(rule, true,
-							[]someObj{dstIntf}, dstZone, rule.src[0], srcZone)
-					}
-				}
-			} else {
-				for _, obj := range rule.src {
-					srcIntf := obj.(*routerIntf)
-					srcZone := srcIntf.zone
-					if dstZone, ok := rule.dstPath.(*zone); ok {
-						checkDynNatPath(rule, false,
-							[]someObj{srcIntf}, srcZone, rule.dst[0], dstZone)
-						checkDynNatPath(rule, true,
-							rule.dst, dstZone, srcIntf, srcZone)
-					} else {
-						for _, obj := range rule.dst {
-							dstIntf := obj.(*routerIntf)
-							dstZone := dstIntf.zone
-							checkDynNatPath(rule, false,
-								[]someObj{srcIntf}, srcZone, dstIntf, dstZone)
-							checkDynNatPath(rule, true,
-								[]someObj{dstIntf}, dstZone, srcIntf, srcZone)
-						}
-					}
-				}
-			}
+	process := func(l ruleList) {
+		for _, ru := range l {
+			checkDynNatPath(ru, false, ru.src, ru.srcPath, ru.dst[0], ru.dstPath)
+			checkDynNatPath(ru, true, ru.dst, ru.dstPath, ru.src[0], ru.srcPath)
 		}
 	}
 	process(c.allPathRules.deny)

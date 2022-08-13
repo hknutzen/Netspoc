@@ -30,16 +30,16 @@ service:s1 = {
 --ipv6/r1
 ipv6 access-list n1_in
  permit tcp ::a01:100/120 host ::a01:101 eq 22
+ permit tcp ::a01:100/120 host ::a01:201 eq 22
  permit tcp ::a01:100/120 host ::a01:104 eq 22
  permit tcp ::a01:100/120 host ::a01:103 eq 22
- permit tcp ::a01:100/120 host ::a01:201 eq 22
  permit tcp ::a01:100/120 host ::a01:203 eq 22
  deny ipv6 any any
 --ipv6/r2
 ipv6 access-list n1_in
  permit tcp ::a01:100/120 host ::a01:101 eq 22
- permit tcp ::a01:100/120 host ::a01:102 eq 22
  permit tcp ::a01:100/120 host ::a01:201 eq 22
+ permit tcp ::a01:100/120 host ::a01:102 eq 22
  permit tcp ::a01:100/120 host ::a01:202 eq 22
  deny ipv6 any any
 =END=
@@ -92,8 +92,8 @@ ipv6 access-list e1_in
  permit tcp ::a00:0/120 host ::a01:101 eq 22
  permit tcp host ::a01:301 host ::a00:1 eq 23
  permit tcp ::a00:0/120 host ::a01:102 eq 22
- permit tcp ::a00:0/120 host ::a01:301 eq 22
  permit tcp ::a00:0/120 host ::a01:201 eq 22
+ permit tcp ::a00:0/120 host ::a01:301 eq 22
  deny ipv6 any any
 --
 ipv6 access-list e0_in

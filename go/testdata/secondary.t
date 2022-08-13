@@ -425,9 +425,8 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Multiple interfaces of standard router as destination
+=TITLE=Multiple interfaces of standard router as destination (1)
 # interface:r2.n2 must not be optimized
-# Optimization of interface:r2.n3 is not implemented.
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
 router:r1 = {
@@ -452,17 +451,14 @@ service:n1 = {
 =OUTPUT=
 --r1
 ! n1_in
-object-group network g0
- network-object host 10.1.2.2
- network-object host 10.1.3.2
-access-list n1_in extended permit tcp host 10.1.1.4 object-group g0 eq 80
+access-list n1_in extended permit tcp host 10.1.1.4 host 10.1.2.2 eq 80
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 10.1.3.0 255.255.255.0
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Multiple interfaces of standard router as destination
-# Optimization of multiple interfaces is not implemented.
+=TITLE=Multiple interfaces of standard router as destination (2)
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.4; } }
 router:r1 = {
@@ -490,9 +486,9 @@ service:n1 = {
 --r1
 ! n1_in
 object-group network g0
- network-object host 10.1.3.2
- network-object host 10.1.4.2
-access-list n1_in extended permit tcp host 10.1.1.4 object-group g0 eq 80
+ network-object 10.1.3.0 255.255.255.0
+ network-object 10.1.4.0 255.255.255.0
+access-list n1_in extended permit ip 10.1.1.0 255.255.255.0 object-group g0
 access-list n1_in extended deny ip any4 any4
 access-group n1_in in interface n1
 =END=

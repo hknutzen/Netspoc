@@ -434,9 +434,8 @@ access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Multiple interfaces of standard router as destination
+=TITLE=Multiple interfaces of standard router as destination (1)
 # interface:r2.n2 must not be optimized
-# Optimization of interface:r2.n3 is not implemented.
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:104; } }
@@ -462,17 +461,14 @@ service:n1 = {
 =OUTPUT=
 --ipv6/r1
 ! n1_in
-object-group network v6g0
- network-object host ::a01:202
- network-object host ::a01:302
-access-list n1_in extended permit tcp host ::a01:104 object-group v6g0 eq 80
+access-list n1_in extended permit tcp host ::a01:104 host ::a01:202 eq 80
+access-list n1_in extended permit ip ::a01:100/120 ::a01:300/120
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=
 
 ############################################################
-=TITLE=Multiple interfaces of standard router as destination
-# Optimization of multiple interfaces is not implemented.
+=TITLE=Multiple interfaces of standard router as destination (2)
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; host:h1 = { ip = ::a01:104; } }
@@ -501,9 +497,9 @@ service:n1 = {
 --ipv6/r1
 ! n1_in
 object-group network v6g0
- network-object host ::a01:302
- network-object host ::a01:402
-access-list n1_in extended permit tcp host ::a01:104 object-group v6g0 eq 80
+ network-object ::a01:300/120
+ network-object ::a01:400/120
+access-list n1_in extended permit ip ::a01:100/120 object-group v6g0
 access-list n1_in extended deny ip any6 any6
 access-group n1_in in interface n1
 =END=

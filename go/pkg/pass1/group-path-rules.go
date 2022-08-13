@@ -122,12 +122,15 @@ type groupWithPath struct {
 	group []someObj
 }
 
+// Collect elements into groups of elements from identical zone.
+// Put multiple interfaces of managed router always into different
+// groups, even if router is itentical.
 func splitRuleGroup(group []someObj) []groupWithPath {
 	// Check if group has elements from different zones and must be split.
 	path0 := group[0].getPathNode()
 	different := false
 	for _, el := range group[1:] {
-		if path0 != el.getPathNode() {
+		if _, ok := el.(*routerIntf); ok || path0 != el.getPathNode() {
 			different = true
 			break
 		}
@@ -136,19 +139,25 @@ func splitRuleGroup(group []someObj) []groupWithPath {
 		// Use unchanged group, add path info.
 		return []groupWithPath{{path0, group}}
 	}
-	var pathList []pathStore
 	path2group := make(map[pathStore][]someObj)
+	var result []groupWithPath
 	for _, el := range group {
 		path := el.getPathNode()
+		if _, ok := el.(*routerIntf); ok {
+			result = append(result, groupWithPath{path, []someObj{el}})
+			continue
+		}
 		if path2group[path] == nil {
-			pathList = append(pathList, path)
+			result = append(result, groupWithPath{path, nil})
 		}
 		path2group[path] = append(path2group[path], el)
 	}
-	result := make([]groupWithPath, len(pathList))
-	for i, path := range pathList {
-		part := path2group[path]
-		result[i] = groupWithPath{path, part}
+	for i, pair := range result {
+		// Add elements of zones.
+		// Ignore already inserted interface of managed router.
+		if pair.group == nil {
+			result[i].group = path2group[pair.path]
+		}
 	}
 	return result
 }
