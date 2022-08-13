@@ -400,13 +400,6 @@ func (s *state) addToGroup(j *job) error {
 	})
 }
 
-type jsonRule struct {
-	Action string
-	Src    string
-	Dst    string
-	Prt    string
-}
-
 func getParams(j *job, p interface{}) {
 	json.Unmarshal(j.Params, p)
 }
