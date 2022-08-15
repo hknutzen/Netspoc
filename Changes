@@ -1,5 +1,15 @@
 {{$NEXT}}
 
+6.046     2022-08-15 15:22:05+02:00 Europe/Berlin
+
+ - Fixed missing error message "No valid path" for rules from/to zone
+   cluster with subnets and pathrestrictions.
+ - Better parallel execution in command "netspoc".
+ - Changes in Netspoc-API:
+   - Method "replace" is aclled "set" now.
+   - New value in "value" must be given as JSON;
+     Netspoc syntax is no longer accepted.
+
 6.045     2022-07-29 10:21:38+02:00 Europe/Berlin
 
  - Command 'format-netspoc' now sorts lists case insensitively.
