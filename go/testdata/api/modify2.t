@@ -1328,7 +1328,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object network:n2
+Error: Can't modify unknown toplevel object 'network:n2'
 =END=
 
 ############################################################
@@ -1691,7 +1691,7 @@ network:a = { ip = 10.1.1.0/24; } # Comment
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object network:a exit;
+Error: Can't modify unknown toplevel object 'network:a exit;'
 =END=
 
 ############################################################
@@ -2467,6 +2467,88 @@ Error: Can't delete unknown toplevel node 'service:s1'
 =END=
 
 ############################################################
+=TITLE=Add to attribute 'overlaps'
+=INPUT=
+--topology
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h3 = { ip = 10.1.1.3; }
+ host:h4 = { ip = 10.1.1.4; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- rule/A
+service:a = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+-- rule/B
+service:b = {
+ overlaps = service:a;
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+--rule/C
+service:c = {
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 90;
+}
+=JOB=
+{
+   "method": "multi_job",
+   "params": {
+       "jobs": [
+       {
+           "method" : "set",
+           "params": {
+               "path": "service:c,rules,1,prt",
+               "value": "tcp"
+           }
+       },
+       {
+           "method" : "add",
+           "params": {
+               "path": "service:b,overlaps",
+               "value": "service:c"
+           }
+       }]
+   }
+}
+=OUTPUT=
+@@ rule/B
+ service:b = {
+- overlaps = service:a;
++
++ overlaps = service:a,
++            service:c,
++            ;
++
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+@@ rule/C
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp 90;
++        prt = tcp;
+ }
+=END=
+
+############################################################
 =TITLE=Add to user
 =INPUT=
 -- topology
@@ -2524,7 +2606,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object service:s1
+Error: Can't modify unknown toplevel object 'service:s1'
 =END=
 
 ############################################################
@@ -3960,7 +4042,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object router:r2
+Error: Can't modify unknown toplevel object 'router:r2'
 =END=
 
 ############################################################

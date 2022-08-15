@@ -38,7 +38,7 @@ func (s *state) patch(j *job) error {
 		if len(names) == 0 {
 			return s.addToplevel(topName, c)
 		}
-		return fmt.Errorf("Can't modify unknown toplevel object %s", topName)
+		return fmt.Errorf("Can't modify unknown toplevel object '%s'", topName)
 	}
 	process := func() error {
 		if len(names) == 0 {
@@ -186,7 +186,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 		if a.Name == name {
 			if len(names) != 0 {
 				if len(a.ComplexValue) == 0 {
-					return fmt.Errorf("Can't descend into %s", a.Name)
+					return fmt.Errorf("Can't descend into value of '%s'", a.Name)
 				}
 				return patchAttributes(&a.ComplexValue, names, c)
 			}
@@ -197,7 +197,7 @@ func patchAttributes(l *[]*ast.Attribute, names []string, c change) error {
 				*l = append((*l)[:i], (*l)[i+1:]...)
 				return nil
 			}
-			return fmt.Errorf("Missing value to %s at %s", c.method, a.Name)
+			return fmt.Errorf("Missing value to %s at '%s'", c.method, a.Name)
 		}
 	}
 	return newAttribute(l, name, c)
@@ -263,7 +263,7 @@ func getValueList(val interface{}) ([]*ast.Value, error) {
 
 func newAttribute(l *[]*ast.Attribute, name string, c change) error {
 	if c.method == "delete" {
-		return fmt.Errorf("Can't find attribute '%s'", name)
+		return fmt.Errorf("Can't delete unknown attribute '%s'", name)
 	}
 	// "add" and "set" behave identical on new attribute.
 	a := &ast.Attribute{Name: name}

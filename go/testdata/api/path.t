@@ -227,6 +227,103 @@ Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 =END=
 
 ############################################################
+=TITLE=Descend into string value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip,mask",
+        "value": "25"
+    }
+}
+=ERROR=
+Error: Can't descend into value of 'ip'
+=END=
+
+############################################################
+=TITLE=Missing replacement value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,ip"
+    }
+}
+=ERROR=
+Error: Missing value to set at 'ip'
+=END=
+
+############################################################
+=TITLE=Add complex value to list value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip",
+        "value": { "foo": "bar" }
+    }
+}
+=ERROR=
+Error: Expecting value list, not complex value
+=END=
+
+############################################################
+=TITLE=Add number to list value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip",
+        "value": 123456
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON value: float64
+=END=
+
+############################################################
+=TITLE=Delete unknown attribute
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "network:n1,range"
+    }
+}
+=ERROR=
+Error: Can't delete unknown attribute 'range'
+=END=
+
+############################################################
+=TITLE=Delete host by value
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "network:n1,host:h1",
+        "value": "host:h2"
+    }
+}
+=ERROR=
+Error: Can't delete from complex value of 'host:h1'
+=END=
+
+############################################################
 =TITLE=Replace host with invalid string value
 =INPUT=
 network:n1 = {
