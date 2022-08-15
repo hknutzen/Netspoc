@@ -224,20 +224,22 @@ func SpocMain(d oslink.Data) int {
 		pRules, dRules := c.convertHostsInRules(sRules)
 		c.groupPathRules(pRules, dRules)
 
-		c2 := c.startInBackground(func(c *spoc) {
-			c.checkDynamicNatRules(NATDomains, NATTag2natType)
-			c.checkServiceOwner(sRules)
-			c.checkIdenticalServices(sRules)
-			c.checkUnused()
-			c.checkRedundantRules()
-		})
-		c.findSubnetsInNatDomain(NATDomains)
-		c.checkUnstableNatRules()
-		c.markManagedLocal()
-		c.checkSupernetRules(pRules)
-		c.removeSimpleDuplicateRules()
-		c.collectMessages(c2)
+		c.startWithBackground(
+			func(c *spoc) {
+				c.findSubnetsInNatDomain(NATDomains)
+				c.checkUnstableNatRules()
+				c.markManagedLocal()
+				c.checkSupernetRules(pRules)
+			},
+			func(c *spoc) {
+				c.checkDynamicNatRules(NATDomains, NATTag2natType)
+				c.checkServiceOwner(sRules)
+				c.checkIdenticalServices(sRules)
+				c.checkUnused()
+				c.checkRedundantRules()
+			})
 
+		c.removeSimpleDuplicateRules()
 		c.combineSubnetsInRules()
 		c.setPolicyDistributionIP()
 		c.expandCrypto()
