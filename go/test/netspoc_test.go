@@ -68,16 +68,16 @@ var count int32
 func TestNetspoc(t *testing.T) {
 	os.Unsetenv("LANG")
 	count = 0
-	t.Run("toplevel", func(t *testing.T) {
-		for _, tc := range tests {
-			tc := tc // capture range variable
-			t.Run(tc.dir, func(t *testing.T) {
-				t.Parallel()
-				runTestFiles(t, tc)
-			})
-		}
+	for _, tc := range tests {
+		tc := tc // capture range variable
+		t.Run(tc.dir, func(t *testing.T) {
+			t.Parallel()
+			runTestFiles(t, tc)
+		})
+	}
+	t.Cleanup(func() {
+		t.Logf("Checked %d assertions", count)
 	})
-	t.Logf("Checked %d assertions", count)
 }
 
 func runTestFiles(t *testing.T, tc test) {
