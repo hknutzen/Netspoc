@@ -17,54 +17,18 @@ func getZoneClusterBorders(z *zone) intfList {
 	return result
 }
 
-// Check path for at least one managed device R that is filtering
-// original or static NAT address of network n.
-func pathHasFullFilter(n *network, pairs intfPairs) bool {
-	hasNATPrimary := false
-	hasFull := false
-	hasStandard := false
-	for _, pair := range pairs {
-		r := pair[0].router
-		inLoop := pair[0].loop != nil && pair[1].loop != nil
-		natNet := getNatNetwork(n, pair[0].natMap)
-		if natNet.dynamic || inLoop {
-			if r.managed == "primary" {
-				hasNATPrimary = true
-			}
-			continue
-		}
-		switch r.managed {
-		case "primary", "full":
-			hasFull = true
-		case "standard":
-			hasStandard = true
-		}
+// Collect interfaces on path:
+// managed, with pathrestriction or with bind_nat.
+func (c *spoc) getPathPairs(r *groupedRule, s, d *zone) intfPairs {
+	rule := *r
+	rule.srcPath = s
+	rule.dstPath = d
+	var pairs intfPairs
+	collect := func(_ *groupedRule, in, out *routerIntf) {
+		pairs.push(intfPair{in, out})
 	}
-	if hasNATPrimary {
-		return hasFull
-	} else {
-		return hasStandard || hasFull
-	}
-}
-
-// Disable secondary optimization for networks with active dynamic NAT
-// at border routers of zone cluster of these networks.
-// This is neccessary because we would accidently permit traffic for
-// the whole network where only a single host should be permitted.
-func disableSecondOptForDynHostNet(n *network, p intfPairs) {
-	if pathHasFullFilter(n, p) {
-		return
-	}
-	z := n.zone
-	for _, intf := range getZoneClusterBorders(z) {
-		r := intf.router
-		nMap := r.noSecondaryOpt
-		if nMap == nil {
-			nMap = make(netMap)
-			r.noSecondaryOpt = nMap
-		}
-		nMap[n] = true
-	}
+	c.pathWalk(&rule, collect, "Router")
+	return pairs
 }
 
 // 1. Check for invalid rules accessing hidden objects.
@@ -73,7 +37,7 @@ func disableSecondOptForDynHostNet(n *network, p intfPairs) {
 func (c *spoc) checkDynamicNatRules(
 	natDoms []*natDomain, natTag2natType map[string]string) {
 
-	c.progress("Checking and marking rules with hidden or dynamic NAT")
+	c.progress("Checking rules with hidden or dynamic NAT")
 
 	// 1. Collect hidden or dynamic NAT tags that are defined inside zone.
 	//    Remember one network for each tag.
@@ -112,22 +76,13 @@ func (c *spoc) checkDynamicNatRules(
 	}
 	seen := make(map[objAndZone]bool)
 
-	getPathPairs := func(r *groupedRule, rev bool, s, d *zone) intfPairs {
+	getCachedPathPairs := func(r *groupedRule, rev bool, s, d *zone) intfPairs {
 		if rev {
 			s, d = d, s
 		}
 		pairs := cache[zonePair{s, d}]
 		if len(pairs) == 0 {
-			rule := *r
-			rule.srcPath = s
-			rule.dstPath = d
-
-			// Collect interfaces on path:
-			// managed, with pathrestriction or with bind_nat.
-			collect := func(r *groupedRule, inIntf, outIntf *routerIntf) {
-				pairs.push(intfPair{inIntf, outIntf})
-			}
-			c.pathWalk(&rule, collect, "Router")
+			pairs = c.getPathPairs(r, s, d)
 			cache[zonePair{s, d}] = pairs
 		}
 		return pairs
@@ -146,7 +101,7 @@ func (c *spoc) checkDynamicNatRules(
 			if len(dynNat) == 0 {
 				return
 			}
-			pairs := getPathPairs(ru, reversed, fromZone, toZone)
+			pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
 		TAG:
 			for tag, n := range dynNat {
 				for _, pair := range pairs {
@@ -167,7 +122,7 @@ func (c *spoc) checkDynamicNatRules(
 		// Check with Nat set at destination object.
 		dstNatMap := toZone.natDomain.natMap
 
-		pairs := getPathPairs(ru, reversed, fromZone, toZone)
+		pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
 		for _, obj := range fromList {
 			n := obj.getNetwork()
 			natMap := n.nat
@@ -231,8 +186,6 @@ func (c *spoc) checkDynamicNatRules(
 					}
 					return
 				}
-
-				disableSecondOptForDynHostNet(n, pairs)
 
 				// Ignore network.
 				if obj == n {

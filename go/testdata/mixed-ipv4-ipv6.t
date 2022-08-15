@@ -387,7 +387,7 @@ Read: 2 routers, 4 networks, 1 hosts, 2 services
 Grouped rule count: 4
 0s Finding subnets in 2 NAT domains
 0s Checking rules for unstable subnet relation
-0s Checking and marking rules with hidden or dynamic NAT
+0s Checking rules with hidden or dynamic NAT
 0s Checking supernet rules
 0s Checking transient supernet rules
 0s Output of background job:

@@ -1923,6 +1923,62 @@ func getNeedProtect(r *router) []*routerIntf {
 	return l
 }
 
+// Check path for at least one managed device R that is filtering
+// original or static NAT address of network n.
+func pathHasFullFilter(n *network, pairs intfPairs) bool {
+	hasNATPrimary := false
+	hasFull := false
+	hasStandard := false
+	for _, pair := range pairs {
+		r := pair[0].router
+		inLoop := pair[0].loop != nil && pair[1].loop != nil
+		natNet := getNatNetwork(n, pair[0].natMap)
+		if natNet.dynamic || inLoop {
+			if r.managed == "primary" {
+				hasNATPrimary = true
+			}
+			continue
+		}
+		switch r.managed {
+		case "primary", "full":
+			hasFull = true
+		case "standard":
+			hasStandard = true
+		}
+	}
+	if hasNATPrimary {
+		return hasFull
+	} else {
+		return hasStandard || hasFull
+	}
+}
+
+// Disable secondary optimization for network with dynamic NAT if
+// current router is border of zone cluster of this network. This is
+// neccessary because we would accidently permit traffic for the whole
+// network where only a single host or interface should be permitted.
+func (c *spoc) disableSecondOptForDynHostNet(
+	ru *groupedRule, reversed bool, n *network, dstZone *zone, r *router) bool {
+
+	natNet := getNatNetwork(n, dstZone.natDomain.natMap)
+	if natNet.dynamic {
+		z := n.zone
+		for _, intf := range r.interfaces {
+			if zoneEq(intf.zone, z) {
+				sZone, dZone := z, dstZone
+				if reversed {
+					sZone, dZone = dZone, sZone
+				}
+				pairs := c.getPathPairs(ru, sZone, dZone)
+				if !pathHasFullFilter(n, pairs) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Precompute string representation of IP addresses when NAT is not active.
 func (c *spoc) setupStdAddr() {
 	addNet := func(n *network) {
@@ -2052,10 +2108,13 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 						standardFilter && rule.somePrimary {
 						for _, isSrc := range []bool{true, false} {
 							var objList []someObj
+							var otherZone *zone
 							if isSrc {
 								objList = rule.src
+								otherZone = getZone(rule.dst, rule.dstPath)
 							} else {
 								objList = rule.dst
+								otherZone = getZone(rule.src, rule.srcPath)
 							}
 							for _, obj := range objList {
 
@@ -2105,11 +2164,11 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 									if net.hasOtherSubnet {
 										continue
 									}
-									if noOpt := r.noSecondaryOpt; noOpt != nil {
-										if noOpt[net] {
-											noOptAddrs[obj] = true
-											continue
-										}
+									if c.disableSecondOptForDynHostNet(
+										rule, !isSrc, net, otherZone, r) {
+
+										noOptAddrs[obj] = true
+										continue
 									}
 									subst = net
 									if max := subst.maxSecondaryNet; max != nil {
