@@ -387,10 +387,11 @@ Read: 2 routers, 4 networks, 1 hosts, 2 services
 Grouped rule count: 4
 0s Finding subnets in 2 NAT domains
 0s Checking rules for unstable subnet relation
-0s Checking rules with hidden or dynamic NAT
 0s Checking supernet rules
 0s Checking transient supernet rules
+0s Removing simple duplicate rules
 0s Output of background job:
+ 0s Checking rules with hidden or dynamic NAT
  0s Checking service owner
  0s Checking for services with identical body
 Warning: unused group:v4
@@ -398,7 +399,6 @@ Warning: unused group:v6
  0s Checking for redundant rules
 Expanded rule count: 4; duplicate: 1; redundant: 1
  0s Finished background job
-0s Removing simple duplicate rules
 0s Combining adjacent subnets
 0s Setting policy distribution IP
 0s Expanding crypto rules
