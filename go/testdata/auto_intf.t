@@ -29,16 +29,16 @@ service:s1 = {
 --r1
 ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.4 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.3 eq 22
- permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.3 eq 22
  deny ip any any
 --r2
 ip access-list extended n1_in
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 22
- permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.2 eq 22
  permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.2 eq 22
  deny ip any any
 =END=
@@ -90,8 +90,8 @@ ip access-list extended e1_in
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.1 eq 22
  permit tcp host 10.1.3.1 host 10.0.0.1 eq 23
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.1.2 eq 22
- permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
  permit tcp 10.0.0.0 0.0.0.255 host 10.1.2.1 eq 22
+ permit tcp 10.0.0.0 0.0.0.255 host 10.1.3.1 eq 22
  deny ip any any
 --
 ip access-list extended e0_in

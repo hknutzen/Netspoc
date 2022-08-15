@@ -307,6 +307,64 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
+=TITLE=Inherit NAT to subnet in other part of zone cluster
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; nat:h1 = { hidden; } }
+network:n7 = { ip = 10.1.7.0/24; nat:h1 = { hidden; } }
+network:n7s = { ip = 10.1.7.64/26; subnet_of = network:n7; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = h1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r3 = {
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n5; }
+ interface:n7 = { ip = 10.1.7.1; hardware = n7; }
+}
+router:r4 = {
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+ interface:n6 = { ip = 10.1.6.1; hardware = n6; }
+ interface:n7s = { ip = 10.1.7.65; hardware = n7s; }
+}
+
+pathrestriction:p1 = interface:r1.n3, interface:r4.n5;
+pathrestriction:p2 = interface:r2.n4, interface:r3.n5;
+
+service:s1 = {
+ user = network:n6, network:n7;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n7s;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
+=ERROR=
+Error: network:n6 is hidden by nat:h1 in rule
+ permit src=network:n6; dst=network:n2; prt=tcp 80; of service:s1
+Error: network:n7s is hidden by nat:h1 in rule
+ permit src=network:n7s; dst=network:n2; prt=tcp 80; of service:s1
+Error: network:n7 is hidden by nat:h1 in rule
+ permit src=network:n7; dst=network:n2; prt=tcp 80; of service:s1
+=END=
+
+############################################################
 =TITLE=Check rule with aggregate to hidden NAT
 =INPUT=
 network:Test =  {

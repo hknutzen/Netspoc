@@ -83,10 +83,37 @@ Error: Unknown method ''
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
+    "method": "add",
     "params": "foo"
 }
 =ERROR=
 Error: In "params" of JSON file job: json: cannot unmarshal string into Go value of type map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Invalid value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "value": x }
+}
+=ERROR=
+Error: In JSON file job: invalid character 'x' looking for beginning of value
+=END=
+
+############################################################
+=TITLE=Invalid empty path
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": { "path": "" }
+}
+=ERROR=
+Error: Invalid empty path
 =END=
 
 ############################################################
@@ -382,7 +409,7 @@ service:s1 = {
     "method": "add",
     "params": {
         "path": "group:g1",
-        "value": "interface:r1.[all] &! interface:r1.n1, host:h_10_1_1_4"
+        "value": ["interface:r1.[all] &! interface:r1.n1", "host:h_10_1_1_4"]
     }
 }
 =OUTPUT=
@@ -497,7 +524,7 @@ owner:a = {
     }
 }
 =ERROR=
-Error: Can't redefine 'owner:a'
+Error: 'owner:a' already exists
 =OUTPUT=NONE
 
 ############################################################
@@ -558,7 +585,7 @@ owner:a = {
  admins = a@example.com; } # Comment
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "owner:a",
         "value": {
@@ -592,7 +619,7 @@ owner:a = {
  admins   = a@example.com; }
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "owner:a",
         "value": {
@@ -648,7 +675,7 @@ network:n1 = { ip = 10.1.1.0/24; owner = a; }
 owner:a = { admins = a@example.com; }
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "owner:a",
         "value": {
@@ -676,7 +703,7 @@ owner:a = {
 }
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "owner:a,admins",
         "value": [ "c@example.com" ]
@@ -733,7 +760,7 @@ network:a = { ip = 10.1.1.0/24; }
 -network:a = { ip = 10.1.1.0/24; }
 +network:a = {
 + ip = 10.1.1.0/24;
-+ host:range = { range = 10.1.1.16 - 10.1.1.31; }
++ host:range = { range = 10.1.1.16-10.1.1.31; }
 +}
 =END=
 
@@ -1312,7 +1339,7 @@ Error: Can't modify unknown toplevel object network:n2
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "host:h1,owner",
         "value": "o1"
@@ -1324,7 +1351,6 @@ Error: Can't find 'host:h1'
 
 ############################################################
 =TITLE=Remove owner at host
-=TODO=
 =INPUT=
 -- topology
 owner:o1 = {
@@ -1338,10 +1364,9 @@ network:n1 = {
 }
 =JOB=
 {
-    "method": "modify_host",
+    "method": "delete",
     "params": {
-        "name": "h1",
-        "owner": ""
+        "path": "network:n1,host:h1,owner"
     }
 }
 =OUTPUT=
@@ -1356,7 +1381,6 @@ network:n1 = {
 
 ############################################################
 =TITLE=Add owner to host
-=TODO=
 =INPUT=
 -- topology
 owner:o1 = {
@@ -1370,10 +1394,42 @@ network:n1 = {
 }
 =JOB=
 {
-    "method": "modify_host",
+    "method": "add",
     "params": {
-        "name": "h2",
-        "owner": "o1"
+        "path": "network:n1,host:h2,owner",
+        "value": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+ network:n1 = {
+  ip = 10.1.1.0/24;
+  host:h1 = { ip = 10.1.1.1; owner = o1; }
+- host:h2 = { ip = 10.1.1.2; }
++ host:h2 = { ip = 10.1.1.2; owner = o1; }
+ }
+=END=
+
+############################################################
+=TITLE=Replace missing owner at host
+# "set" acts like "add" on new attribute.
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.1; owner = o1; }
+ host:h2 = { ip = 10.1.1.2; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,host:h2,owner",
+        "value": "o1"
     }
 }
 =OUTPUT=
@@ -1388,7 +1444,6 @@ network:n1 = {
 
 ############################################################
 =TITLE=Change owner of host, add and delete owner
-=TODO=
 =INPUT=
 -- topology
 network:n1 = {
@@ -1396,7 +1451,7 @@ network:n1 = {
  host:h1 = {
   ip = 10.1.1.1;
   owner = o1;
- } host:h2 = { ip = 10.1.1.2; owner = o1; }
+ } host:h2 = { ip = 10.1.1.2; }
 }
 -- owner
 owner:o1 = { admins = a1@example.com; }
@@ -1406,30 +1461,30 @@ owner:o1 = { admins = a1@example.com; }
     "params": {
         "jobs": [
             {
-                "method": "create_owner",
+                "method": "add",
                 "params": {
-                    "name": "o2",
-                    "admins": [ "a2@example.com" ]
+                    "path": "owner:o2",
+                    "value": { "admins": [ "a2@example.com" ] }
                 }
             },
             {
-                "method": "delete_owner",
+                "method": "delete",
                 "params": {
-                    "name": "o1"
+                    "path": "owner:o1"
                 }
             },
             {
-                "method": "modify_host",
+                "method": "set",
                 "params": {
-                    "name": "h1",
-                    "owner": "o2"
+                    "path": "network:n1,host:h1,owner",
+                    "value": "o2"
                 }
             },
             {
-                "method": "modify_host",
+                "method": "set",
                 "params": {
-                    "name": "h2",
-                    "owner": "o2"
+                    "path": "network:n1,host:h2,owner",
+                    "value": "o2"
                 }
             }
         ]
@@ -1447,7 +1502,7 @@ owner:o1 = { admins = a1@example.com; }
 - host:h1 = {
 -  ip = 10.1.1.1;
 -  owner = o1;
-- } host:h2 = { ip = 10.1.1.2; owner = o1; }
+- } host:h2 = { ip = 10.1.1.2; }
 + host:h1 = { ip = 10.1.1.1; owner = o2; }
 + host:h2 = { ip = 10.1.1.2; owner = o2; }
  }
@@ -1455,7 +1510,6 @@ owner:o1 = { admins = a1@example.com; }
 
 ############################################################
 =TITLE=Change owner at second of multiple ID-hosts
-=TODO=
 =INPUT=
 -- topology
 ipsec:aes256SHA = {
@@ -1582,23 +1636,23 @@ owner:DA_TOKEN_o2 = { admins = a2@example.com; }
     "params": {
         "jobs": [
             {
-                "method": "modify_host",
+                "method": "set",
                 "params": {
-                    "name": "id:a2@example.com.n2",
-                    "owner": "DA_TOKEN_o3"
+                    "path": "network:n2,host:id:a2@example.com,owner",
+                    "value": "DA_TOKEN_o3"
                 }
             },
             {
-                "method": "create_owner",
+                "method": "add",
                 "params": {
-                    "name": "DA_TOKEN_o3",
-                    "admins": [ "a3@example.com" ]
+                    "path": "owner:DA_TOKEN_o3",
+                    "value": { "admins": [ "a3@example.com" ] }
                 }
             },
             {
-                "method": "delete_owner",
+                "method": "delete",
                 "params": {
-                    "name": "DA_TOKEN_o2"
+                    "path": "owner:DA_TOKEN_o2"
                 }
             }
         ]
@@ -1625,19 +1679,19 @@ owner:DA_TOKEN_o2 = { admins = a2@example.com; }
 
 ############################################################
 =TITLE=Job with malicous network name
-=TODO=
 =INPUT=
 -- topology
 network:a = { ip = 10.1.1.0/24; } # Comment
 =JOB=
 {
-    "method": "create_host",
+    "method": "add",
     "params": {
-        "network": "a exit; "
+        "path": "network:a exit;,host:h",
+        "value": { "ip": "10.1.1.10" }
     }
 }
 =ERROR=
-Error: Can't find 'network:a exit; '
+Error: Can't modify unknown toplevel object network:a exit;
 =END=
 
 ############################################################
@@ -1649,14 +1703,21 @@ network:a = { ip = 10.1.1.0/24; }
 owner:a = { admins = a@example.com; }
 =JOB=
 {
-    "method": "replace",
+    "method": "set",
     "params": {
         "path": "owner:a,admins",
         "value": ["b example.com"]
     }
 }
 =ERROR=
-Error: Expected ';' at line 1 of command line, near "b --HERE-->example.com"
+Error: Expected ';' at line 2 of owner, near "b --HERE-->example.com"
+Aborted
+=OUTPUT=
+@@ owner
+-owner:a = { admins = a@example.com; }
++owner:a = {
++ admins = b example.com;
++}
 =END=
 
 ############################################################
@@ -1687,14 +1748,14 @@ router:r1 = {
             {
                 "action": "permit",
                 "src": "user",
-                "dst": "host:[network:n1] &! host:h4, interface:r1.n1",
-                "prt": "udp, tcp"
+                "dst": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
+                "prt": ["udp", "tcp"]
             },
             {
                 "action": "permit",
                 "src": "user",
                 "dst": "host:h4",
-                "prt": "tcp 90,    tcp 80-85"
+                "prt": ["tcp 90", "  tcp  80-85"]
             },
             {
                 "action": "deny",
@@ -1727,7 +1788,7 @@ router:r1 = {
 +              ;
 + permit src = user;
 +        dst = host:h4;
-+        prt = tcp 80 - 85,
++        prt =   tcp  80-85,
 +              tcp 90,
 +              ;
 + deny   src = user;
@@ -1735,9 +1796,7 @@ router:r1 = {
 +        prt = tcp 22;
 + deny   src = host:h5;
 +        dst = user;
-+        prt = icmp 4,
-+              udp,
-+              ;
++        prt = udp, icmp 4;
 +}
 =END=
 
@@ -1765,7 +1824,7 @@ router:r1 = {
         "path": "service:complex",
         "value": {
             "description": "This one",
-            "user": "host:[network:n1] &! host:h4, interface:r1.n1",
+            "user": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
             "rules": [
                 {
                     "action": "permit",
@@ -1827,7 +1886,7 @@ service:b = {
         "path": "service:with-attributes",
         "value": {
             "description": "Looks-like-a-value;",
-            "overlaps": "service:a, service:b",
+            "overlaps": ["service:a", "service:b"],
             "has_unenforceable": null,
             "disable_at": "2099-11-22",
             "user": "host:h3",
@@ -1835,7 +1894,7 @@ service:b = {
                 {
                     "action": "permit",
                     "src": "user",
-                    "dst": "network:n1, network:n2",
+                    "dst": ["network:n1", "network:n2"],
                     "prt": "tcp 80"
                 }
             ]
@@ -1863,25 +1922,6 @@ service:b = {
 =END=
 
 ############################################################
-=TITLE=Add service without any rule
-=TEMPL=input
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=INPUT=
-[[input]]
-=JOB=
-{
-    "method": "create_service",
-    "params": {
-        "name": "s1",
-        "user": "network:n1"
-    }
-}
-=ERROR=
-Error: Must not define service:s1 without any rules
-=END=
-
-############################################################
 =TITLE=Add service with missing user
 =TEMPL=input
 -- topology
@@ -1905,7 +1945,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Missing key 'user' in 'service:s1'
+Error: Missing attribute 'user' in 'service:s1'
 =END=
 
 ############################################################
@@ -1926,7 +1966,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Missing key 'rules' in 'service:s1'
+Error: Missing attribute 'rules' in 'service:s1'
 =END=
 
 ############################################################
@@ -1955,7 +1995,10 @@ router:r1 = {
                 "method": "add",
                 "params": {
                     "path": "service:s1",
-                    "value": "{user=;}"
+                    "value": {
+                        "user": [],
+                        "rules": []
+                    }
                 }
             },
             {
@@ -2012,7 +2055,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Expected 'permit' or 'deny' in 'action=allow;'
+Error: Expected 'permit' or 'deny' in 'action'
 =END=
 
 ############################################################
@@ -2036,7 +2079,7 @@ Error: Expected 'permit' or 'deny' in 'action=allow;'
     }
 }
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
+Error: Typed name expected at line 1 of command line, near "--HERE-->_user_"
 =END=
 
 ############################################################
@@ -2060,7 +2103,7 @@ Error: Typed name expected at line 1 of command line, near "src=--HERE-->_user_"
     }
 }
 =ERROR=
-Error: Unknown element type at line 1 of command line, near "dst=--HERE-->net:n2"
+Error: Unknown element type at line 1 of command line, near "--HERE-->net:n2"
 =END=
 
 ############################################################
@@ -2140,7 +2183,8 @@ Error: Unknown protocol in 'udp6' of service:s1
   }
 }
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "--HERE-->service:"
+Error: Typed name expected at line 1 of rule/other, near "--HERE-->service:"
+Aborted
 =END=
 
 ############################################################
@@ -2277,7 +2321,7 @@ Warning: Ignoring unknown 'high' in log of service:t1
 =OUTPUT=
 @@ rule/T
 +service:t1 = {
-+ description = abc def
++ description = abc def # ghi
 +
 + disable_at = 2099-02-03;
 + has_unenforceable;
@@ -2533,7 +2577,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: Can't find element 'host:[network:n1, network:n2]'
+Error: Can't find element 'host:[network:n1,network:n2]'
 =END=
 
 ############################################################
@@ -2582,7 +2626,55 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Replace in user
+=TITLE=Replace user
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24;
+ host:h4 = { ip = 10.1.1.4; }
+ host:h5 = { ip = 10.1.1.5; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- service
+service:s1 = {
+ user = host:h5;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [
+            {
+                "method": "set",
+                "params": {
+                    "path": "service:s1,user",
+                    "value": "host:h4"
+                }
+            }
+        ]
+    }
+}
+=OUTPUT=
+@@ service
+ service:s1 = {
+- user = host:h5;
++ user = host:h4;
+  permit src = user;
+         dst = network:n2;
+         prt = tcp 80;
+=END=
+
+############################################################
+=TITLE=Replace in user with multi_job
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
@@ -2831,7 +2923,7 @@ service:s1 = {
   "method": "delete",
   "params": {
     "value": [
-        "icmp 3  / 13",
+        "icmp 3/13",
         "tcp 443",
         "tcp 9300-9302",
         "udp 161 - 162",
@@ -2869,6 +2961,7 @@ network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
+ log:a = errors;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
@@ -2901,6 +2994,13 @@ service:s1 = {
                 "params": {
                     "path": "service:s1,rules,1,dst",
                     "value": "host:h4"
+                }
+            },
+            {
+                "method": "add",
+                "params": {
+                    "path": "service:s1,rules,1,log",
+                    "value": "a"
                 }
             },
             {
@@ -2937,10 +3037,84 @@ service:s1 = {
 +              udp 80,
                ;
 -        prt = tcp 85- 90, tcp 91;
++        log = a;
 + permit src = user;
 +        dst = host:h5;
 +        prt = tcp 91;
  }
+=END=
+
+############################################################
+=TITLE=Modify attribute log of rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ log:b = debugging;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+        log = a;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules,1,log",
+        "value": "b"
+    }
+}
+=OUTPUT=
+@@ topology
+  permit src = user;
+         dst = network:n2;
+         prt = tcp 80;
+-        log = a;
++        log = b;
+ }
+=END=
+
+############################################################
+=TITLE=Change unknown attribute of rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1,rules,1,foo",
+        "value": "bar"
+    }
+}
+=ERROR=
+Error: Invalid attribute in rule: 'foo'
 =END=
 
 ############################################################
@@ -3004,7 +3178,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 2 doesn't match, have 1 rules
+Error: rule count 2 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3035,7 +3209,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 2 doesn't match, have 1 rules
+Error: rule count 2 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3067,7 +3241,7 @@ service:s1 = {
     }
 }
 =ERROR=
-Error: rule count 0 doesn't match, have 1 rules
+Error: rule count 0 doesn't match, having 1 rules
 =END=
 
 ############################################################
@@ -3139,8 +3313,8 @@ service:s1 = {
                     "value": {
                         "action": "permit",
                         "src": "user",
-                        "dst": "host:h5, interface:r1.n2",
-                        "prt": "udp 123, icmp"
+                        "dst": ["host:h5", "interface:r1.n2"],
+                        "prt": ["udp 123", "icmp"]
                     }
                 }
             },
@@ -3219,9 +3393,7 @@ service:s1 = {
          prt = tcp 22;
 + deny   src = host:h5;
 +        dst = user;
-+        prt = icmp 4,
-+              udp,
-+              ;
++        prt = udp, icmp 4;
   permit src = user;
          dst = host:h3;
          prt = tcp;
@@ -3262,7 +3434,7 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Expected 'permit' or 'deny' in 'action=allow;'
+Error: Expected 'permit' or 'deny' in 'action'
 =END=
 
 ############################################################
@@ -3300,7 +3472,7 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "src=--HERE-->n1"
+Error: Typed name expected at line 1 of command line, near "--HERE-->n1"
 =END=
 
 ############################################################
@@ -3338,7 +3510,151 @@ service:s1 = {
 }
 
 =ERROR=
-Error: Typed name expected at line 1 of command line, near "dst=--HERE-->invalid"
+Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
+=END=
+
+############################################################
+=TITLE=Can't replace rules
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules"
+    }
+}
+
+=ERROR=
+Error: Rule number must be given for 'set'
+=END=
+
+############################################################
+=TITLE=Can't replace single rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules,1"
+    }
+}
+
+=ERROR=
+Error: Attribute of rule must be given for 'set'
+=END=
+
+############################################################
+=TITLE=Missing value to modify in rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = {
+ ip = 10.1.2.0/24;
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules,1,dst"
+    }
+}
+
+=ERROR=
+Error: Missing value to modify in 'dst' of rule
+=END=
+
+############################################################
+=TITLE=Replace dst of rule
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h2a = { ip = 10.1.2.10; }
+ host:h2b = { ip = 10.1.2.11; }
+}
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "service:s1,rules,1,dst",
+        "value": ["host:h2a", "host:h2b"]
+    }
+}
+
+=OUTPUT=
+@@ topology
+ service:s1 = {
+  user = network:n1;
+  permit src = user;
+-        dst = network:n2;
++        dst = host:h2a,
++              host:h2b,
++              ;
+         prt = tcp 80;
+ }
 =END=
 
 ############################################################
@@ -3387,7 +3703,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "add",
     "params": {
         "path": "network:n2",
-        "value": "{ ip = 10.1.2.0/24; }"
+        "value": { "ip": "10.1.2.0/24" }
     }
 }
 =ERROR=
@@ -3396,6 +3712,7 @@ panic: Can't open API: is a directory
 
 ############################################################
 =TITLE=Unexpected content after definition
+=TODO=
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -3436,7 +3753,7 @@ router:r2 = {
     "method": "add",
     "params": {
         "path": "pathrestriction:p",
-        "value": "interface:r1.n1, interface:r1.n2;"
+        "value": ["interface:r1.n1", "interface:r1.n2"]
     }
 }
 =OUTPUT=

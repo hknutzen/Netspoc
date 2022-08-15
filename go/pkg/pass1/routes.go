@@ -391,6 +391,32 @@ func (c *spoc) addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 	}
 }
 
+// Find zone of src/dst elements of rule.
+// If pathStore is *router or *routerIntf, l is known to have exactly
+// one element.
+func getZone(l []someObj, s pathStore) *zone {
+	switch x := s.(type) {
+	case *zone:
+		return x
+	default:
+		return l[0].(*routerIntf).zone
+	}
+}
+
+//############################################################################
+// Purpose : Generate the routing tree, holding pseudo rules that represent
+//           the whole grouped rule set. As the pseudo rules are
+//           generated to determine routes, ports are omitted, and rules
+//           refering to the same src and dst zones are summarized.
+func (c *spoc) generateRoutingTree() routingTree {
+	t := make(routingTree)
+
+	for _, ru := range c.allPathRules.permit {
+		c.generateRoutingTree1(ru, t)
+	}
+	return t
+}
+
 type pseudoRule struct {
 	groupedRule
 	srcNetworks  netMap
@@ -401,22 +427,17 @@ type pseudoRule struct {
 type zonePair [2]*zone
 type routingTree map[zonePair]*pseudoRule
 
-const (
-	noIntf = iota
-	srcIntf
-	dstIntf
-	bothIntf
-)
-
 //#############################################################################
 // Purpose    : Add information from single grouped rule to routing tree.
-// Parameters : rule - to be added grouped rule.
-//              isIntf - marker: which of src and/or dst is an interface.
-//              tree - the routing tree.
-func (c *spoc) generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree) {
+func (c *spoc) generateRoutingTree1(rule *groupedRule, t routingTree) {
 
+	// Special handling needed for rules having interface of managed
+	// router as src or dst.
 	src, dst := rule.src, rule.dst
-	srcZone, dstZone := rule.srcPath.(*zone), rule.dstPath.(*zone)
+	srcPath, dstPath := rule.srcPath, rule.dstPath
+	srcZone := getZone(src, srcPath)
+	dstZone := getZone(dst, dstPath)
+	isIntf := func(s pathStore) bool { _, ok := s.(*zone); return !ok }
 
 	// Check, whether
 	// - source interface is located in security zone of destination or
@@ -430,13 +451,10 @@ func (c *spoc) generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree
 			c.addEndRoutes(intf, nMap)
 		}
 		// Detect next hop interfaces if src/dst are zone border interfaces.
-		switch isIntf {
-		case srcIntf:
+		if isIntf(srcPath) {
 			addRoutes(src, dst)
-		case dstIntf:
-			addRoutes(dst, src)
-		case bothIntf:
-			addRoutes(src, dst)
+		}
+		if isIntf(dstPath) {
 			addRoutes(dst, src)
 		}
 		return
@@ -448,14 +466,7 @@ func (c *spoc) generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree
 		p = t[zonePair{dstZone, srcZone}]
 		if p != nil {
 			src, dst = dst, src
-
-			// 'src' -> 'dst, 'dst' -> 'src', 'src,dst' unchanged.
-			switch isIntf {
-			case srcIntf:
-				isIntf = dstIntf
-			case dstIntf:
-				isIntf = srcIntf
-			}
+			srcPath, dstPath = dstPath, srcPath
 		} else {
 
 			// Generate new pseudo rule otherwise.
@@ -505,69 +516,12 @@ func (c *spoc) generateRoutingTree1(rule *groupedRule, isIntf int, t routingTree
 			add(m, nets)
 		}
 	}
-	switch isIntf {
-	case srcIntf:
+	if isIntf(srcPath) {
 		addI2N(&p.srcIntf2nets, src, dstNetworks)
-	case dstIntf:
-		addI2N(&p.dstIntf2nets, dst, srcNetworks)
-	case bothIntf:
-		addI2N(&p.srcIntf2nets, src, dstNetworks)
+	}
+	if isIntf(dstPath) {
 		addI2N(&p.dstIntf2nets, dst, srcNetworks)
 	}
-}
-
-//############################################################################
-// Purpose : Generate the routing tree, holding pseudo rules that represent
-//           the whole grouped rule set. As the pseudo rules are
-//           generated to determine routes, ports are omitted, and rules
-//           refering to the same src and dst zones are summarized.
-func (c *spoc) generateRoutingTree() routingTree {
-	t := make(routingTree)
-
-	// Special handling needed for rules grouped not at zone pairs but
-	// grouped at routers.
-	for _, ru := range c.allPathRules.permit {
-
-		// debug(rule.print())
-		if _, ok := ru.srcPath.(*zone); ok {
-
-			if _, ok := ru.dstPath.(*zone); ok {
-				// Common case, process directly.
-				c.generateRoutingTree1(ru, noIntf, t)
-			} else {
-				// Split group of destination interfaces, one for each zone.
-				for _, ob := range ru.dst {
-					intf := ob.(*routerIntf)
-					cp := *ru
-					cp.dst = []someObj{ob}
-					cp.dstPath = intf.zone
-					c.generateRoutingTree1(&cp, dstIntf, t)
-				}
-			}
-		} else if _, ok := ru.dstPath.(*zone); ok {
-			for _, ob := range ru.src {
-				intf := ob.(*routerIntf)
-				cp := *ru
-				cp.src = []someObj{ob}
-				cp.srcPath = intf.zone
-				c.generateRoutingTree1(&cp, srcIntf, t)
-			}
-		} else {
-			for _, srcOb := range ru.src {
-				srcIntf := srcOb.(*routerIntf)
-				for _, dstOb := range ru.dst {
-					dstIntf := dstOb.(*routerIntf)
-					cp := *ru
-					cp.src = []someObj{srcOb}
-					cp.dst = []someObj{dstOb}
-					cp.srcPath = srcIntf.zone
-					cp.dstPath = dstIntf.zone
-					c.generateRoutingTree1(&cp, bothIntf, t)
-				}
-			}
-		}
-	}
-	return t
 }
 
 //#############################################################################

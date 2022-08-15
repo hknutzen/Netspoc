@@ -1106,7 +1106,7 @@ func distributeNatMapsToInterfaces(doms []*natDomain) {
 				if r.managed != "" || r.routingOnly {
 					if r.model.aclUseRealIP {
 
-						// Set natSet of router inside NAT domain.
+						// Set natMap of router inside NAT domain.
 						if r.natMap == nil {
 							r.natMap = m
 						}

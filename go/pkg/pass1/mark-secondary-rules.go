@@ -79,46 +79,6 @@ func markPrimary(z *zone, mark int) {
 	}
 }
 
-// Find zone of src/dst elements of rule.
-// Return nil, if zone of elements can't be determined.
-func getZone(path pathStore, list []someObj) *zone {
-	var result *zone
-	switch x := path.(type) {
-	case *zone:
-		result = x
-	case *routerIntf:
-		result = x.zone
-	case *router:
-		// src/dst may contain interfaces of different zones with
-		// different values of secondaryMark/primaryMark.
-		//
-		// If router is "managed = secondary", choose zone of arbitrary
-		// interface, because all zones have identical mark and
-		// for all zones hasSecondary and hasNonPrimary is set.
-		//
-		// Loopback interface can be ignored, it has unique mark.
-		if x.managed == "secondary" {
-			result = x.interfaces[0].zone
-			break
-		}
-		var l *zone
-		for _, obj := range list {
-			intf := obj.(*routerIntf)
-			if intf.loopback {
-				l = intf.zone
-			} else if result == nil {
-				result = intf.zone
-			} else if result != intf.zone {
-				return nil
-			}
-		}
-		if result == nil {
-			result = l
-		}
-	}
-	return result
-}
-
 type conflictKey = struct {
 	isSrc     bool
 	isPrimary bool
@@ -318,14 +278,8 @@ func (c *spoc) markSecondaryRules() {
 	// Collect conflicting optimizeable rules and supernet rules.
 	conflict := make(map[conflictKey]*conflictInfo)
 	for _, rule := range c.allPathRules.permit {
-		srcZone := getZone(rule.srcPath, rule.src)
-		if srcZone == nil {
-			continue
-		}
-		dstZone := getZone(rule.dstPath, rule.dst)
-		if dstZone == nil {
-			continue
-		}
+		srcZone := getZone(rule.src, rule.srcPath)
+		dstZone := getZone(rule.dst, rule.dstPath)
 		if srcZone.secondaryMark != dstZone.secondaryMark {
 			rule.someNonSecondary = true
 			collectConflict(rule, srcZone, dstZone, conflict, false)

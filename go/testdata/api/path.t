@@ -1,5 +1,51 @@
 
 ############################################################
+=TITLE=Invalid rule number
+=INPUT=
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+ permit src = network:n2;
+        dst = user;
+        prt = tcp 514;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "service:s1,rules,n"
+    }
+}
+=ERROR=
+Error: Number expected in 'n'
+=END=
+
+############################################################
+=TITLE=Invalid rule count
+=INPUT=
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+ permit src = network:n2;
+        dst = user;
+        prt = tcp 514;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "service:s1,rules,1/n"
+    }
+}
+=ERROR=
+Error: Number expected after '/' in '1/n'
+=END=
+
+############################################################
 =TITLE=Add new attribute
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; owner = o; }
@@ -37,16 +83,14 @@ owner:o = {
     "method": "add",
     "params": {
         "path": "owner:o,watchers",
-        "value": "w@example.com,   v@example.com ; "
+        "value": "w@example.com,   v@example.com "
     }
 }
 =OUTPUT=
 @@ INPUT
  owner:o = {
   admins = a@example.com;
-+ watchers = v@example.com,
-+            w@example.com,
-+            ;
++ watchers = w@example.com,   v@example.com ;
  }
 =END=
 
@@ -178,7 +222,34 @@ Error: host:h1 needs exactly one of attributes 'ip' and 'range'
 @@ INPUT
  network:n1 = {
   ip = 10.1.1.0/24;
-+ host:h1;
++ host:h1 = 10.1.1.10;
+ }
+=END=
+
+############################################################
+=TITLE=Replace host with invalid string value
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; }
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,host:h1",
+        "value": "10.1.1.99"
+    }
+}
+=ERROR=
+Error: Structured value expected in 'host:h1'
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+=OUTPUT=
+@@ INPUT
+ network:n1 = {
+  ip = 10.1.1.0/24;
+- host:h1 = { ip = 10.1.1.10; }
++ host:h1 = 10.1.1.99;
  }
 =END=
 
@@ -394,27 +465,50 @@ network:n1 = {
  host:h12 = { ip = 10.1.1.12; }
 }
 
+network:n2a = { ip = 10.1.2.0/25; }
+network:n2b = { ip = 10.1.2.128/25; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1  = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2a = { ip = 10.1.2.1; hardware = n2a; }
+}
+
+router:u = {
+ interface:n2a = { ip = 10.1.2.126; }
+ interface:n2b;
+}
+
 group:g1 =
+ interface:[managed & network:n2a].[auto],
  host:h10,
- host:h11,
- host:h12,
+ host:[network:n1] &! host:h10,
+ any:[ip=10.1.2.0/24 & network:n2b],
 ;
 =JOB=
 {
     "method": "delete",
     "params": {
         "path": "group:g1",
-        "value": "host:h11"
+        "value": [
+            "host:h10",
+            "host:[network:n1] &! host:h10",
+            "any:[ ip=10.1.2.0/24 & network:n2b ]",
+            "interface:[managed&network:n2a].[auto]"
+        ]
     }
 }
 =WARNING=
 Warning: unused group:g1
 =OUTPUT=
 @@ INPUT
+ }
  group:g1 =
-  host:h10,
-- host:h11,
-  host:h12,
+- interface:[managed & network:n2a].[auto],
+- host:h10,
+- host:[network:n1] &! host:h10,
+- any:[ip=10.1.2.0/24 & network:n2b],
  ;
 =END=
 
@@ -452,6 +546,31 @@ group:g1 =
 =END=
 
 ############################################################
+=TITLE=Must not descend into group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+group:g1 =
+ host:h10,
+ host:h11,
+ host:h12,
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,host:h12"
+    }
+}
+=ERROR=
+Error: Can't descend into element list
+=END=
+
+############################################################
 =TITLE=Add to user
 =INPUT=
 -- topology
@@ -480,7 +599,7 @@ service:s1 = {
     "method": "add",
     "params": {
         "path": "service:s1,user",
-        "value": "host:h4, host:h6"
+        "value": ["host:h4", "host:h6"]
     }
 }
 =OUTPUT=
@@ -497,7 +616,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Add rule
+=TITLE=Add rule as string
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -523,15 +642,8 @@ service:s1 = {
         "value": "permit src=network:n2; dst=user; prt=tcp 514;"
     }
 }
-=OUTPUT=
-@@ INPUT
-  permit src = user;
-         dst = network:n2;
-         prt = tcp 80;
-+ permit src = network:n2;
-+        dst = user;
-+        prt = tcp 514;
- }
+=ERROR=
+Error: Unexpected type when reading rule: string
 =END=
 
 ############################################################
@@ -705,7 +817,9 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
     "method": "add",
     "params": {
         "path": "owner:o",
-        "value": "{ admins = a@example.com; watchers = w@example.com; }"
+        "value": {
+            "admins": "a@example.com", "watchers": "w@example.com"
+        }
     }
 }
 =OUTPUT=
@@ -730,7 +844,7 @@ network:n1 = {
     "method": "add",
     "params": {
         "path": "group:g1",
-        "value": "host:h11, host:h10, host:h12;"
+        "value": ["host:h11", "host:h10", "host:h12"]
     }
 }
 =WARNING=
@@ -766,21 +880,34 @@ router:r1 = {
     "method": "add",
     "params": {
         "path": "service:multi",
-        "value" : "{
-user = network:n2;
-permit src = user;
-       dst = host:[network:n1] &! host:h4, interface:r1.n1;
-       prt = udp, tcp;
-permit src = user;
-       dst = host:h4;
-       prt = tcp 90,    tcp 80-85;
-deny src = user;
-     dst = network:n1;
-     prt = tcp 22;
-deny src = host:h5;
-     dst = user;
-     prt = udp, icmp 4;
-}"
+        "value" : {
+            "user": "network:n2",
+            "rules" : [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
+                "prt": ["udp", "tcp"]
+            },
+            {
+                "action": "permit",
+                "src": ["user"],
+                "dst": ["host:h4"],
+                "prt": ["tcp 90", "tcp 80-85"]
+            },
+            {
+                "action": "deny",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 22"
+            },
+            {
+                "action": "deny",
+                "src": "host:h5",
+                "dst": "user",
+                "prt": ["udp", "icmp 4"]
+            }]
+        }
 }}
 =OUTPUT=
 @@ rule/M
@@ -797,7 +924,7 @@ deny src = host:h5;
 +              ;
 + permit src = user;
 +        dst = host:h4;
-+        prt = tcp 80 - 85,
++        prt = tcp 80-85,
 +              tcp 90,
 +              ;
 + deny   src = user;
@@ -812,7 +939,7 @@ deny src = host:h5;
 =END=
 
 ############################################################
-=TITLE=Add service, complex user, value as JSON
+=TITLE=Add service, complex user
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24;
@@ -835,7 +962,7 @@ router:r1 = {
         "path": "service:complex",
         "value": {
             "description": "This one\n",
-            "user": "host:[network:n1] &! host:h4, interface:r1.n1",
+            "user": ["host:[network:n1] &! host:h4", "interface:r1.n1"],
             "rules": [{
                 "action": "permit",
                 "src": "user",
@@ -858,4 +985,293 @@ router:r1 = {
 +        dst = network:n2;
 +        prt = tcp 80;
 +}
+=END=
+
+############################################################
+=TITLE=Add router and network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+owner:o1 = {
+ admins = o1@example.com;
+}
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [{
+            "method": "add",
+            "params": {
+                "path": "router:r1",
+                "value": {
+                    "model": "ASA",
+                    "managed": null,
+                    "interface:n1": { "ip": "10.1.1.1", "hardware": "n1" },
+                    "interface:n2": { "ip": "10.1.2.1", "hardware": "n2" }
+
+                }
+            }
+        },
+        {
+            "method": "add",
+            "params": {
+                "path": "network:n2",
+                "value": {
+                    "ip": "10.1.2.0/24",
+                    "owner": "o1"
+                }
+            }
+        }]
+    }
+}
+=OUTPUT=
+@@ API
++router:r1 = {
++ managed;
++ model = ASA;
++ interface:n1 = { hardware = n1; ip = 10.1.1.1; }
++ interface:n2 = { hardware = n2; ip = 10.1.2.1; }
++}
++
++network:n2 = { ip = 10.1.2.0/24; owner = o1; }
+=END=
+
+############################################################
+=TITLE=Delete router and network referenced in subnet_of
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+ interface:n2 = { hardware = n2; ip = 10.1.1.129; }
+}
+
+network:n2 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
+
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [{
+            "method": "delete",
+            "params": {
+                "path": "router:r1"
+            }
+        },
+        {
+            "method": "delete",
+            "params": {
+                "path": "network:n1"
+            }
+        }]
+    }
+}
+=OUTPUT=
+@@ INPUT
+-network:n1 = { ip = 10.1.1.0/24; }
+-
+-router:r1 = {
+- managed;
+- model = ASA;
+- interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+- interface:n2 = { hardware = n2; ip = 10.1.1.129; }
+-}
+-
+-network:n2 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
+-
++network:n2 = { ip = 10.1.1.128/25; }
+=END=
+
+############################################################
+=TITLE=set owner of network
+=INPUT=
+-- topology
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,owner",
+        "value": "o1"
+    }
+}
+=OUTPUT=
+@@ topology
+  admins = a1@example.com;
+ }
+-network:n1 = { ip = 10.1.1.0/24; }
++network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+=END=
+
+############################################################
+=TITLE=Set attribute of router
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+ interface:n2 = { hardware = n2; ip = 10.1.2.1; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+=JOB=
+{
+
+    "method": "set",
+    "params": {
+        "path": "router:r1,owner",
+        "value": "o1"
+    }
+}
+=WARNING=
+Warning: Ignoring undefined owner:o1 of router:r1
+=OUTPUT=
+@@ INPUT
+ router:r1 = {
+  managed;
+  model = ASA;
++ owner = o1;
+  interface:n1 = { hardware = n1; ip = 10.1.1.1; }
+  interface:n2 = { hardware = n2; ip = 10.1.2.1; }
+ }
+=END=
+
+############################################################
+=TITLE=Change border of area
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+area:a2 = {
+ border = interface:asa1.n2;
+}
+=JOB=
+{
+
+    "method": "add",
+    "params": {
+        "path": "area:a2,border",
+        "value": "interface:asa2.n2"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ }
+ area:a2 = {
+- border = interface:asa1.n2;
++ border = interface:asa1.n2,
++          interface:asa2.n2,
++          ;
+ }
+=END=
+
+############################################################
+=TITLE=Change inclusive_border of area
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+area:a2 = {
+ inclusive_border = interface:asa1.n1, interface:asa2.n3;
+}
+=JOB=
+{
+
+    "method": "delete",
+    "params": {
+        "path": "area:a2,inclusive_border",
+        "value": "interface:asa2.n3"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ }
+ area:a2 = {
+- inclusive_border = interface:asa1.n1, interface:asa2.n3;
++ inclusive_border = interface:asa1.n1;
+ }
+=END=
+
+############################################################
+=TITLE=Change attribute of area
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+
+router:asa2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+
+area:a2 = {
+ inclusive_border = interface:asa1.n1;
+}
+=JOB=
+{
+
+    "method": "set",
+    "params": {
+        "path": "area:a2,router_attributes",
+        "value": { "owner": "o1" }
+    }
+}
+=WARNING=
+Warning: Ignoring undefined owner:o1 of router_attributes of area:a2
+=OUTPUT=
+@@ INPUT
+ }
+ area:a2 = {
++ router_attributes = {
++  owner = o1;
++ }
+  inclusive_border = interface:asa1.n1;
+ }
 =END=

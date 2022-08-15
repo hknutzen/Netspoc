@@ -1080,7 +1080,8 @@ service:s2 = {
 ipv6 access-list n2_in
  deny ipv6 any host ::a01:401
  permit tcp ::a01:0/120 ::a01:400/120 eq 80
- permit tcp ::a01:0/119 ::a01:400/120 eq 81
+ permit tcp ::a01:0/121 ::a01:400/120 eq 81
+ permit tcp ::a01:100/120 ::a01:400/120 eq 81
  deny ipv6 any any
 --ipv6/r2
 ipv6 access-list n3_in

@@ -5,37 +5,32 @@ import (
 )
 
 type spocWait chan struct{}
-type bgSpoc struct {
-	*spoc
-	ch spocWait
-}
 
-func (c *spoc) startInBackground(f func(*spoc)) bgSpoc {
+// Start two functions concurrently if concurrency is enabled.
+// Otherwise start first and second function sequentially.
+func (c *spoc) startWithBackground(fg func(*spoc), bg func(*spoc)) {
 	if c.conf.ConcurrencyPass1 <= 1 {
-		f(c)
-		return bgSpoc{}
+		fg(c)
+		bg(c)
+		return
 	}
+	// Start background job.
 	// Channel is used to signal that background job has finished.
 	ch := make(spocWait)
 	c2 := c.bufferedSpoc()
 	go handleBailout(
 		func() {
-			f(c2)
+			bg(c2)
 			if c.conf.TimeStamps {
 				c2.progress("Finished background job")
 			}
 		},
 		func() { close(ch) })
-	return bgSpoc{spoc: c2, ch: ch}
-}
 
-// Wait until background job has finished, i.e. channel is closed,
-// then forward messages of background job to main job.
-func (c *spoc) collectMessages(c2 bgSpoc) {
-	ch := c2.ch
-	if ch == nil {
-		return
-	}
+	// Start foreground job
+	fg(c)
+	// Wait until background job has finished, i.e. channel is closed,
+	// then forward messages of background job to main job.
 	<-ch
 	if c.conf.TimeStamps {
 		c.progress("Output of background job:")
@@ -46,5 +41,5 @@ func (c *spoc) collectMessages(c2 bgSpoc) {
 			}
 		}
 	}
-	c.sendBuf(c2.spoc)
+	c.sendBuf(c2)
 }

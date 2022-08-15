@@ -460,7 +460,7 @@ router:r6 = {
 pathrestriction:p1 = interface:r2.n3, interface:r4.n3;
 pathrestriction:p2 = interface:r3.n4, interface:r4.n4;
 =INPUT=
-# Would create ambiguous route vor n5 if added as maxRoutingNet for n6.
+# Would create ambiguous route for n5 if added as maxRoutingNet for n6.
 [[topo]]
 service:s1 = {
  user = network:n5, network:n6;
@@ -486,9 +486,14 @@ service:s1 = {
 ! [ Routing ]
 route n2 10.1.5.0 255.255.255.0 10.1.2.2
 route n2 10.1.5.128 255.255.255.128 10.1.2.3
---r3
+--r2
 ! n2_in
 access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.5.0 255.255.255.0 eq 80
+access-list n2_in extended deny ip any4 any4
+access-group n2_in in interface n2
+--r3
+! n2_in
+access-list n2_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.5.128 255.255.255.128 eq 80
 access-list n2_in extended deny ip any4 any4
 access-group n2_in in interface n2
 =END=
