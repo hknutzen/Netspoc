@@ -178,7 +178,7 @@ Error: Missing value for element
 =END=
 
 ############################################################
-=TITLE=Add multiple elements as string
+=TITLE=Must not add multiple elements as string (1)
 =INPUT=
 group:g1 = ;
 =JOB=
@@ -187,6 +187,23 @@ group:g1 = ;
     "params": {
         "path": "group:g1",
         "value": "host:h1, host:h2"
+    }
+}
+
+=ERROR=
+Error: Expecting exactly on element in string
+=END=
+
+############################################################
+=TITLE=Must not add multiple elements as string (2)
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": ["host:h3", "host:h1, host:h2"]
     }
 }
 
@@ -598,6 +615,27 @@ owner:a = {
 }
 =WARNING=NONE
 =OUTPUT=NONE
+
+############################################################
+=TITLE=Replace existing owner with invalid value
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+-- owner
+owner:a = {
+ admins = a@example.com;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "owner:a",
+        "value": { "admins": 42 }
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON value: float64
+=END=
 
 ############################################################
 =TITLE=Delete still referenced owner
@@ -1973,12 +2011,36 @@ service:b = {
 =END=
 
 ############################################################
-=TITLE=Add service with missing user
-=TEMPL=input
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
+=TITLE=Add service with invalid attribute value
 =INPUT=
-[[input]]
+#
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:with-attributes",
+        "value": {
+            "overlaps": ["service:a", "service:b", {"service": "c"}],
+            "user": "host:h3",
+            "rules": [
+                {
+                    "action": "permit",
+                    "src": "user",
+                    "dst": "network:n1",
+                    "prt": "tcp 80"
+                }
+            ]
+        }
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON array: map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Add service with missing user
+=INPUT=
+#
 =JOB=
 {
     "method": "add",
@@ -2000,12 +2062,34 @@ Error: Missing attribute 'user' in 'service:s1'
 =END=
 
 ############################################################
-=TITLE=Add service without rule
-=TEMPL=input
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
+=TITLE=Add service with invalid user
 =INPUT=
-[[input]]
+#
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": 42,
+            "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 80"
+            }]
+        }
+    }
+}
+=ERROR=
+Error: Unexpected type in element list: float64
+=END=
+
+############################################################
+=TITLE=Add service without rule
+=INPUT=
+#
 =JOB=
 {
     "method": "add",

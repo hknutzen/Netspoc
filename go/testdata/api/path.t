@@ -1336,6 +1336,26 @@ network:n1 = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=Invalid attribute value adding owner to network
+=INPUT=
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,owner",
+        "value": ["o1", ["o2", "o3"]]
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON array: []interface {}
+=END=
+
+############################################################
 =TITLE=Set attribute of router
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
