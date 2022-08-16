@@ -144,6 +144,57 @@ Error: Expected ';' at line 1 of command line, near "host:h1 --HERE-->+"
 =END=
 
 ############################################################
+=TITLE=Only string expected in element list
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": [ null ]
+    }
+}
+
+=ERROR=
+Error: Unexpected type in JSON array: <nil>
+=END=
+
+############################################################
+=TITLE=Missing value for element to add
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": null
+    }
+}
+
+=ERROR=
+Error: Missing value for element
+=END=
+
+############################################################
+=TITLE=Add multiple elements as string
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": "host:h1, host:h2"
+    }
+}
+
+=ERROR=
+Error: Expecting exactly on element in string
+=END=
+
+############################################################
 =TITLE=Add invalid element to src of rule
 =INPUT=
 service:s1 = {
