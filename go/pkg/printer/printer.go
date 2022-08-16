@@ -275,11 +275,11 @@ func (p *printer) namedValueList(name string, l []*ast.Value) {
 	}
 }
 
-func (p *printer) complexValue(name string, l []*ast.Attribute) {
-	pre := name + " = {"
+func (p *printer) complexValue(n *ast.Attribute) {
+	pre := n.Name + " = {"
 	p.print(pre)
 	p.indent++
-	for _, a := range l {
+	for _, a := range n.ComplexValue {
 		p.attribute(a)
 	}
 	p.indent--
@@ -300,7 +300,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 			val, comment := getAttrList(l)
 			p.print(name + val + comment)
 		} else {
-			p.complexValue(name, l)
+			p.complexValue(n)
 		}
 	} else {
 		// Short attribute without values.
@@ -445,7 +445,7 @@ func (p *printer) indentedAttributeList(
 		if a.ComplexValue == nil {
 			p.attribute(a)
 		} else if noIndent[a] {
-			p.complexValue(a.Name, a.ComplexValue)
+			p.complexValue(a)
 		} else {
 			p.indentedAttribute(a, max)
 		}
