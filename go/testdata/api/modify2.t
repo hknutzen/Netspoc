@@ -4004,14 +4004,14 @@ router:r1 = {
     }
 }
 =OUTPUT=
-@@ API
-+network:n3 = { ip = 10.1.3.0/24; }
 @@ INPUT
   model = ASA;
   interface:n1 = { ip = 10.1.1.1; hardware = n1; }
   interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 + interface:n3 = { ip = 10.1.3.1; owner = a; }
  }
++
++network:n3 = { ip = 10.1.3.0/24; }
 =END=
 
 ############################################################

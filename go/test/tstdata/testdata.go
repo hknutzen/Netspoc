@@ -399,48 +399,48 @@ func (s *state) getLine() string {
 	return string(s.rest[:idx+1])
 }
 
-// Fill input directory with file(s).
+// Create input file or directory with file(s).
 // Parts of input are marked by single lines of dashes
 // followed by a filename.
-// If no markers are given, a single file named INPUT is used.
-func PrepareInDir(inDir, input string) {
+// If no markers are given, a single file named INPUT is created.
+func PrepareInDir(workDir, input string) string {
 	if input == "NONE" {
 		input = ""
 	}
 	re := regexp.MustCompile(`(?ms)^-+[ ]*\S+[ ]*\n`)
 	il := re.FindAllStringIndex(input, -1)
 
-	write := func(pName, data string) {
-		if path.IsAbs(pName) {
-			log.Fatalf("Unexpected absolute path '%s'", pName)
+	write := func(file, data string) {
+		dir := path.Dir(file)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Fatalf("Can't create directory for '%s': %v", file, err)
 		}
-		dir, file := path.Split(pName)
-		fullDir := path.Join(inDir, dir)
-		if err := os.MkdirAll(fullDir, 0755); err != nil {
-			log.Fatal(err)
-		}
-		fullPath := path.Join(fullDir, file)
-		if err := os.WriteFile(fullPath, []byte(data), 0644); err != nil {
+		if err := os.WriteFile(file, []byte(data), 0644); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	// No filename
 	if il == nil {
-		write("INPUT", input)
-	} else if il[0][0] != 0 {
-		log.Fatal("Missing file marker in first line")
-	} else {
-		for i, p := range il {
-			marker := input[p[0] : p[1]-1] // without trailing "\n"
-			pName := strings.Trim(marker, "- ")
-			start := p[1]
-			end := len(input)
-			if i+1 < len(il) {
-				end = il[i+1][0]
-			}
-			data := input[start:end]
-			write(pName, data)
-		}
+		file := path.Join(workDir, "INPUT")
+		write(file, input)
+		return file
 	}
+	if il[0][0] != 0 {
+		log.Fatal("Missing file marker in first line")
+	}
+	inDir := path.Join(workDir, "netspoc")
+	for i, p := range il {
+		marker := input[p[0] : p[1]-1] // without trailing "\n"
+		pName := strings.Trim(marker, "- ")
+		file := path.Join(inDir, pName)
+		start := p[1]
+		end := len(input)
+		if i+1 < len(il) {
+			end = il[i+1][0]
+		}
+		data := input[start:end]
+		write(file, data)
+	}
+	return inDir
 }

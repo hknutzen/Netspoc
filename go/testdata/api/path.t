@@ -908,6 +908,7 @@ service:s1 = {
 ############################################################
 =TITLE=Create owner
 =INPUT=
+-- topo
 network:n1 = { ip = 10.1.1.0/24; owner = o; }
 =JOB=
 {
@@ -930,6 +931,7 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
 ############################################################
 =TITLE=Create group
 =INPUT=
+-- topo
 network:n1 = {
  ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
@@ -1087,8 +1089,9 @@ router:r1 = {
 ############################################################
 =TITLE=Add router and network
 =INPUT=
+-- topo
 network:n1 = { ip = 10.1.1.0/24; }
-
+-- owner
 owner:o1 = {
  admins = o1@example.com;
 }
