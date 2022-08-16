@@ -302,6 +302,9 @@ func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
 	default:
 		var ts *ast.TopStruct
 		ts, err = getTopStruct(name, c.val)
+		if err != nil {
+			return nil, err
+		}
 		switch typ {
 		case "network":
 			n := new(ast.Network)
