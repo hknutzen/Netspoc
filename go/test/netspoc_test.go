@@ -410,7 +410,7 @@ func readChangedFiles(t *testing.T, dir string) string {
 		}
 		return string(data)
 	}
-	var got string
+	var got bytes.Buffer
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -420,12 +420,10 @@ func readChangedFiles(t *testing.T, dir string) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !(len(files) == 1 && file.Name() == "INPUT") {
-			got += "-- " + file.Name() + "\n"
-		}
-		got += string(data)
+		got.WriteString("-- " + file.Name() + "\n")
+		got.Write(data)
 	}
-	return got
+	return got.String()
 }
 
 func stdoutCheck(t *testing.T, expected, stdout string) {
