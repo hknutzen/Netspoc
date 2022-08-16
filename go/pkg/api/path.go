@@ -601,6 +601,8 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 				return nil, fmt.Errorf("Unexpected type in JSON array: %T", v)
 			}
 		}
+	default:
+		return nil, fmt.Errorf("Unexpected type in element list: %T", val)
 	}
 	return elements, nil
 }
