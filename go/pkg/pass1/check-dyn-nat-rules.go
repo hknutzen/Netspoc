@@ -5,18 +5,6 @@ import (
 	"sort"
 )
 
-func getZoneClusterBorders(z *zone) intfList {
-	var result intfList
-	for _, z := range z.cluster {
-		for _, intf := range z.interfaces {
-			if intf.router.managed != "" {
-				result.push(intf)
-			}
-		}
-	}
-	return result
-}
-
 // Collect interfaces on path:
 // managed, with pathrestriction or with bind_nat.
 func (c *spoc) getPathPairs(r *groupedRule, s, d *zone) intfPairs {

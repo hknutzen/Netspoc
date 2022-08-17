@@ -1,5 +1,131 @@
 
 ############################################################
+=TITLE=Invalid value for new network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n2",
+        "value": []
+    }
+}
+=ERROR=
+Error: Expecting JSON object when reading 'network:n2' but got: []interface {}
+=END=
+
+############################################################
+=TITLE=Invalid value for description
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n2",
+        "value": { "description" : {} }
+    }
+}
+=ERROR=
+Error: Expecting string as description
+=END=
+
+############################################################
+=TITLE=Invalid value in list
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "owner:o1",
+        "value": { "admins" : [{"x": "y"}] }
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON array: map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Invalid value for new service
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": "body"
+    }
+}
+=ERROR=
+Error: Expecting JSON object when reading 'service:s1' but got: string
+=END=
+
+############################################################
+=TITLE=Invalid value for rules of new service
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": "network:n1",
+            "rules": "bad string"
+        }
+    }
+}
+=ERROR=
+Error: Expecting JSON array after 'rules' but got: string
+=END=
+
+############################################################
+=TITLE=Missing attributes in rule of new service
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": "network:n1",
+            "rules": [{}]
+        }
+    }
+}
+=ERROR=
+Error: Rule needs keys "action", "src", "dst", "prt" and optional "log"
+=END=
+
+############################################################
+=TITLE=invalid attribute in rule of new service
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": "network:n1",
+            "rules": [{
+                "action": "permit",
+                "src": "network:n2",
+                "dst": "user",
+                "x": "y"
+            }]
+        }
+    }
+}
+=ERROR=
+Error: Unexpected key 'x' in rule
+=END=
+
+############################################################
 =TITLE=Invalid rule number
 =INPUT=
 service:s1 = {
@@ -224,6 +350,103 @@ Error: host:h1 needs exactly one of attributes 'ip' and 'range'
   ip = 10.1.1.0/24;
 + host:h1 = 10.1.1.10;
  }
+=END=
+
+############################################################
+=TITLE=Descend into string value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip,mask",
+        "value": "25"
+    }
+}
+=ERROR=
+Error: Can't descend into value of 'ip'
+=END=
+
+############################################################
+=TITLE=Missing replacement value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,ip"
+    }
+}
+=ERROR=
+Error: Missing value to set at 'ip'
+=END=
+
+############################################################
+=TITLE=Add complex value to list value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip",
+        "value": { "foo": "bar" }
+    }
+}
+=ERROR=
+Error: Expecting value list, not complex value
+=END=
+
+############################################################
+=TITLE=Add number to list value
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,ip",
+        "value": 123456
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON value: float64
+=END=
+
+############################################################
+=TITLE=Delete unknown attribute
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "network:n1,range"
+    }
+}
+=ERROR=
+Error: Can't delete unknown attribute 'range'
+=END=
+
+############################################################
+=TITLE=Delete host by value
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h1 = { ip = 10.1.1.10; }
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "network:n1,host:h1",
+        "value": "host:h2"
+    }
+}
+=ERROR=
+Error: Can't delete from complex value of 'host:h1'
 =END=
 
 ############################################################
@@ -811,6 +1034,7 @@ service:s1 = {
 ############################################################
 =TITLE=Create owner
 =INPUT=
+-- topo
 network:n1 = { ip = 10.1.1.0/24; owner = o; }
 =JOB=
 {
@@ -833,6 +1057,7 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
 ############################################################
 =TITLE=Create group
 =INPUT=
+-- topo
 network:n1 = {
  ip = 10.1.1.0/24;
  host:h10 = { ip = 10.1.1.10; }
@@ -990,8 +1215,9 @@ router:r1 = {
 ############################################################
 =TITLE=Add router and network
 =INPUT=
+-- topo
 network:n1 = { ip = 10.1.1.0/24; }
-
+-- owner
 owner:o1 = {
  admins = o1@example.com;
 }
@@ -1107,6 +1333,26 @@ network:n1 = { ip = 10.1.1.0/24; }
  }
 -network:n1 = { ip = 10.1.1.0/24; }
 +network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+=END=
+
+############################################################
+=TITLE=Invalid attribute value adding owner to network
+=INPUT=
+owner:o1 = {
+ admins = a1@example.com;
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,owner",
+        "value": ["o1", ["o2", "o3"]]
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON array: []interface {}
 =END=
 
 ############################################################

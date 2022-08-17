@@ -246,6 +246,7 @@ panic: Can't open out/r1: is a directory
 ############################################################
 =TITLE=Can't read input directory
 =INPUT=
+-- topo
 network:n1 = { ip = 10.1.1.0/24; }
 =SETUP=
 chmod u-rx netspoc

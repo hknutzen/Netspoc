@@ -70,7 +70,6 @@ func (s *State) ShowChanged(stderr io.Writer, quiet bool) {
 }
 
 func (s *State) getFileIndex(file string) int {
-	file = path.Clean(file)
 	file = path.Join(s.base, file)
 	idx := -1
 	for i, f := range s.files {
@@ -148,7 +147,8 @@ func (s *State) SetModified(name string) {
 func (s *State) AddTopLevel(n ast.Toplevel) {
 	// Netspoc config is given in single file, add new node to this file.
 	if len(s.files) == 1 && s.files[0] == s.base {
-		s.CreateToplevel(s.base, n)
+		s.CreateToplevel("", n)
+		return
 	}
 	file := "API"
 	if typ, name, found := strings.Cut(n.GetName(), ":"); found {

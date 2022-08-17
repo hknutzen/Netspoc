@@ -144,6 +144,74 @@ Error: Expected ';' at line 1 of command line, near "host:h1 --HERE-->+"
 =END=
 
 ############################################################
+=TITLE=Only string expected in element list
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": [ null ]
+    }
+}
+
+=ERROR=
+Error: Unexpected type in JSON array: <nil>
+=END=
+
+############################################################
+=TITLE=Missing value for element to add
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": null
+    }
+}
+
+=ERROR=
+Error: Missing value for element
+=END=
+
+############################################################
+=TITLE=Must not add multiple elements as string (1)
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": "host:h1, host:h2"
+    }
+}
+
+=ERROR=
+Error: Expecting exactly on element in string
+=END=
+
+############################################################
+=TITLE=Must not add multiple elements as string (2)
+=INPUT=
+group:g1 = ;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": ["host:h3", "host:h1, host:h2"]
+    }
+}
+
+=ERROR=
+Error: Expecting exactly on element in string
+=END=
+
+############################################################
 =TITLE=Add invalid element to src of rule
 =INPUT=
 service:s1 = {
@@ -547,6 +615,27 @@ owner:a = {
 }
 =WARNING=NONE
 =OUTPUT=NONE
+
+############################################################
+=TITLE=Replace existing owner with invalid value
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; owner = a; }
+-- owner
+owner:a = {
+ admins = a@example.com;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "owner:a",
+        "value": { "admins": 42 }
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON value: float64
+=END=
 
 ############################################################
 =TITLE=Delete still referenced owner
@@ -1328,7 +1417,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object network:n2
+Error: Can't modify unknown toplevel object 'network:n2'
 =END=
 
 ############################################################
@@ -1691,7 +1780,7 @@ network:a = { ip = 10.1.1.0/24; } # Comment
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object network:a exit;
+Error: Can't modify unknown toplevel object 'network:a exit;'
 =END=
 
 ############################################################
@@ -1922,12 +2011,36 @@ service:b = {
 =END=
 
 ############################################################
-=TITLE=Add service with missing user
-=TEMPL=input
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
+=TITLE=Add service with invalid attribute value
 =INPUT=
-[[input]]
+#
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:with-attributes",
+        "value": {
+            "overlaps": ["service:a", "service:b", {"service": "c"}],
+            "user": "host:h3",
+            "rules": [
+                {
+                    "action": "permit",
+                    "src": "user",
+                    "dst": "network:n1",
+                    "prt": "tcp 80"
+                }
+            ]
+        }
+    }
+}
+=ERROR=
+Error: Unexpected type in JSON array: map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Add service with missing user
+=INPUT=
+#
 =JOB=
 {
     "method": "add",
@@ -1949,12 +2062,34 @@ Error: Missing attribute 'user' in 'service:s1'
 =END=
 
 ############################################################
-=TITLE=Add service without rule
-=TEMPL=input
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
+=TITLE=Add service with invalid user
 =INPUT=
-[[input]]
+#
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": 42,
+            "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n1",
+                "prt": "tcp 80"
+            }]
+        }
+    }
+}
+=ERROR=
+Error: Unexpected type in element list: float64
+=END=
+
+############################################################
+=TITLE=Add service without rule
+=INPUT=
+#
 =JOB=
 {
     "method": "add",
@@ -2467,6 +2602,88 @@ Error: Can't delete unknown toplevel node 'service:s1'
 =END=
 
 ############################################################
+=TITLE=Add to attribute 'overlaps'
+=INPUT=
+--topology
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h3 = { ip = 10.1.1.3; }
+ host:h4 = { ip = 10.1.1.4; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+-- rule/A
+service:a = {
+ user = network:n1;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+-- rule/B
+service:b = {
+ overlaps = service:a;
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 80;
+}
+--rule/C
+service:c = {
+ user = host:h3;
+ permit src = user;
+        dst = network:n2;
+        prt = tcp 90;
+}
+=JOB=
+{
+   "method": "multi_job",
+   "params": {
+       "jobs": [
+       {
+           "method" : "set",
+           "params": {
+               "path": "service:c,rules,1,prt",
+               "value": "tcp"
+           }
+       },
+       {
+           "method" : "add",
+           "params": {
+               "path": "service:b,overlaps",
+               "value": "service:c"
+           }
+       }]
+   }
+}
+=OUTPUT=
+@@ rule/B
+ service:b = {
+- overlaps = service:a;
++
++ overlaps = service:a,
++            service:c,
++            ;
++
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+@@ rule/C
+  user = host:h3;
+  permit src = user;
+         dst = network:n2;
+-        prt = tcp 90;
++        prt = tcp;
+ }
+=END=
+
+############################################################
 =TITLE=Add to user
 =INPUT=
 -- topology
@@ -2524,7 +2741,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object service:s1
+Error: Can't modify unknown toplevel object 'service:s1'
 =END=
 
 ############################################################
@@ -3922,14 +4139,14 @@ router:r1 = {
     }
 }
 =OUTPUT=
-@@ API
-+network:n3 = { ip = 10.1.3.0/24; }
 @@ INPUT
   model = ASA;
   interface:n1 = { ip = 10.1.1.1; hardware = n1; }
   interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 + interface:n3 = { ip = 10.1.3.1; owner = a; }
  }
++
++network:n3 = { ip = 10.1.3.0/24; }
 =END=
 
 ############################################################
@@ -3960,7 +4177,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object router:r2
+Error: Can't modify unknown toplevel object 'router:r2'
 =END=
 
 ############################################################

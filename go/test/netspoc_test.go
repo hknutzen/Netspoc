@@ -16,6 +16,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/addto"
 	"github.com/hknutzen/Netspoc/go/pkg/api"
 	"github.com/hknutzen/Netspoc/go/pkg/expand"
+	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/format"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
@@ -75,7 +76,9 @@ func TestNetspoc(t *testing.T) {
 			runTestFiles(t, tc)
 		})
 	}
-	t.Logf("Checked %d assertions", count)
+	t.Cleanup(func() {
+		t.Logf("Checked %d assertions", count)
+	})
 }
 
 func runTestFiles(t *testing.T, tc test) {
@@ -139,9 +142,8 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 
 		var inDir string
 		if input != "NONE" || outDir != "" {
-			// Prepare input directory.
-			inDir = path.Join(workDir, "netspoc")
-			tstdata.PrepareInDir(inDir, input)
+			// Prepare input file or directory.
+			inDir = tstdata.PrepareInDir(workDir, input)
 			args = append(args, inDir)
 
 			// Add location of output directory.
@@ -219,7 +221,7 @@ func runTest(t *testing.T, tc test, d *tstdata.Descr) {
 	re := regexp.MustCompile(workDir + `/code\.tmp\d{6,12}`)
 	if inDir != "" {
 		stderr = strings.ReplaceAll(stderr, inDir+"/", "")
-		stderr = strings.ReplaceAll(stderr, inDir, "netspoc")
+		stderr = strings.ReplaceAll(stderr, inDir, path.Base(inDir))
 	}
 	if outDir != "" {
 		stderr = strings.ReplaceAll(stderr, outDir+"/", "out/")
@@ -401,7 +403,14 @@ func formatCheck(t *testing.T, expected, dir string) {
 }
 
 func readChangedFiles(t *testing.T, dir string) string {
-	var got string
+	if !fileop.IsDir(dir) {
+		data, err := os.ReadFile(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	var got bytes.Buffer
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -411,12 +420,10 @@ func readChangedFiles(t *testing.T, dir string) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !(len(files) == 1 && file.Name() == "INPUT") {
-			got += "-- " + file.Name() + "\n"
-		}
-		got += string(data)
+		got.WriteString("-- " + file.Name() + "\n")
+		got.Write(data)
 	}
-	return got
+	return got.String()
 }
 
 func stdoutCheck(t *testing.T, expected, stdout string) {
@@ -453,9 +460,10 @@ func jsonEq(t *testing.T, expected string, got []byte) {
 func modifyRun(d oslink.Data) int {
 	var err error
 	var workDir string
+	var base string
 	if len(d.Args) >= 3 {
 		netspoc := d.Args[2]
-		workDir = path.Dir(netspoc)
+		workDir, base = path.Split(netspoc)
 		unchanged := path.Join(workDir, "unchanged")
 		// Make copy for diff.
 		err = exec.Command("cp", "-r", netspoc, unchanged).Run()
@@ -465,13 +473,14 @@ func modifyRun(d oslink.Data) int {
 	if err == nil && workDir != "" {
 		cmd := exec.Command("sh", "-c",
 			"cd '"+workDir+"';"+
-				"diff -u -r -N unchanged netspoc"+
+				"diff -u -r -N unchanged "+base+
 				"| sed "+
 				" -e 's/^ $//'"+
 				" -e '/^@@ .*/d'"+
-				" -e 's|^diff -u -r -N unchanged/[^ ]\\+ netspoc/|@@ |'"+
+				" -e '/^diff -u -r -N/d'"+
 				" -e '/^--- /d'"+
-				" -e '/^+++ /d'")
+				` -e 's/^+++ \([^ \t]\+\).*$/@@ \1/'`+
+				" -e 's|^@@ "+base+"/|@@ |'")
 		cmd.Stdout = d.Stdout
 		cmd.Stderr = d.Stderr
 		cmd.Run()

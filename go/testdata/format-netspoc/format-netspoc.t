@@ -1168,6 +1168,25 @@ router:u2 = {
 =END=
 
 ############################################################
+=TITLE=Short interface with comment
+=INPUT=
+router:u1 = {
+ # i1
+ interface:n2;
+ # i2
+ interface:n1;
+}
+=END=
+=OUTPUT=
+router:u1 = {
+ # i1
+ interface:n2;
+ # i2
+ interface:n1;
+}
+=END=
+
+############################################################
 =TITLE=Aggregate
 =INPUT=
 any:a1 = { ip = 10.1.0.0/16; link = network:n1; nat:n1 = { ip  = 10.9.0.0/16; } owner = o1;
