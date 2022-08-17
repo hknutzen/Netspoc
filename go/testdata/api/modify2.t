@@ -252,6 +252,79 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
+=TITLE=Add to unknown group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": "host:h1"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
++
++group:g1 =
++ host:h1,
++;
+=END=
+
+############################################################
+=TITLE=Define new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1",
+        "value": "host:h1"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
++
++group:g1 =
++ host:h1,
++;
+=END=
+
+############################################################
+=TITLE=Overwrite definition of group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+group:g1 =
+ network:n1,
+;
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1",
+        "value": "host:h1"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ group:g1 =
+- network:n1,
++ host:h1,
+ ;
+=END=
+
+############################################################
 =TITLE=Add to multi block group (1)
 =TEMPL=input
 -- topology
@@ -3872,24 +3945,6 @@ service:s1 = {
 +              ;
          prt = tcp 80;
  }
-=END=
-
-############################################################
-=TITLE=Invalid absolute path
-=TODO=
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
-        "file": "/etc/passwd"
-    }
-}
-=ERROR=
-Error: Invalid absolute filename: /etc/passwd
 =END=
 
 ############################################################

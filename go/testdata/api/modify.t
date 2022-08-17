@@ -1,108 +1,8 @@
 
 ############################################################
-=TITLE=Option '-h'
-=INPUT=NONE
-=PARAMS=-h
-=ERROR=
-Usage: PROGRAM [options] FILE|DIR JOB ...
-  -q, --quiet   Don't show changed files
-=END=
-
-############################################################
-=TITLE=No parameters
-=INPUT=NONE
-=ERROR=
-Usage: PROGRAM [options] FILE|DIR JOB ...
-  -q, --quiet   Don't show changed files
-=END=
-
-############################################################
-=TITLE=Unknown option
-=INPUT=NONE
-=PARAMS=--abc
-=ERROR=
-Error: unknown flag: --abc
-=END=
-
-############################################################
-=TITLE=Invalid JSON in job
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-=ERROR=
-Error: In JSON file job: unexpected end of JSON input
-=END=
-
-############################################################
-=TITLE=Unknown job file
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=PARAM=foo
-=ERROR=
-Error: Can't open foo: no such file or directory
-=END=
-
-############################################################
-=TITLE=Invalid empty job
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{}
-=ERROR=
-Error: Missing "params" in JSON file job
-=END=
-
-############################################################
-=TITLE=Invalid job without params
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "add_to_group"
-}
-=ERROR=
-Error: Missing "params" in JSON file job
-=END=
-
-############################################################
-=TITLE=Invalid job without method
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "params": {}
-}
-=ERROR=
-Error: Unknown method ''
-=END=
-
-############################################################
-=TITLE=Invalid params
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "params": "foo"
-}
-=ERROR=
-Error: In "params" of JSON file job: json: cannot unmarshal string into Go value of type map[string]interface {}
-=END=
-
-############################################################
-=TITLE=Invalid netspoc data
-=INPUT=
-foo
-=JOB=
-{}
-=ERROR=
-Error: While reading netspoc files: Typed name expected at line 1 of INPUT, near "--HERE-->foo"
-=END=
-
-############################################################
 =TITLE=Add to unknown group
 =INPUT=
-#
+network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
     "method": "add_to_group",
@@ -359,7 +259,7 @@ service:s1 = {
     "method": "add_to_group",
     "params": {
         "name": "g1",
-        "object": "interface:r1.[all] &! interface:r1.n1, host:h_10_1_1_4"
+        "object": "interface:r1.[all] &! interface:r1.n1"
     }
 }
 =OUTPUT=
@@ -369,7 +269,6 @@ service:s1 = {
 + interface:r1.[all]
 + &! interface:r1.n1
 + ,
-+ host:h_10_1_1_4,
 + host:h_10_1_1_5, # Comment
 +;
 =END=
@@ -474,16 +373,7 @@ owner:a = {
     }
 }
 =ERROR=
-Error: Duplicate definition of owner:a in owner
-=OUTPUT=
-@@ owner
- owner:a = {
-  admins = a@example.com;
- }
-+
-+owner:a = {
-+ admins = a@example.com;
-+}
+Error: 'owner:a' already exists
 =END=
 
 ############################################################
@@ -1196,20 +1086,6 @@ Error: Duplicate definition of host:name_10_1_1_4 in topology
 =END=
 
 ############################################################
-=TITLE=multi_job without jobs
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "multi_job",
-    "params": {
-        "jobs": []
-    }
-}
-=OUTPUT=NONE
-
-############################################################
 =TITLE=multi_job: add host and owner
 =INPUT=
 -- topology
@@ -1305,39 +1181,6 @@ owner:a = {
 + host:name_10_1_1_4 = { ip = 10.1.1.4; owner = a; }
   host:name_10_1_1_5 = { ip = 10.1.1.5; owner = a; }
  }
-=END=
-
-############################################################
-=TITLE=multi_job: second job fails
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "multi_job",
-    "params": {
-        "jobs": [
-            {
-                "method": "create_host",
-                "params": {
-                    "network": "n1",
-                    "name": "name_10_1_1_4",
-                    "ip": "10.1.1.4"
-                }
-            },
-            {
-                "method": "create_host",
-                "params": {
-                    "network": "n2",
-                    "name": "name_10_1_2_4",
-                    "ip": "10.1.2.4"
-                }
-            }
-        ]
-    }
-}
-=ERROR=
-Error: Can't find 'network:n2'
 =END=
 
 ############################################################
@@ -1652,199 +1495,6 @@ owner:DA_TOKEN_o2 = { admins = a2@example.com; }
 - host:id:a2@example.com = { ip = 10.1.2.2; owner = DA_TOKEN_o2; }
 + host:id:a2@example.com = { ip = 10.1.2.2; owner = DA_TOKEN_o3; }
  }
-=END=
-
-############################################################
-=TITLE=Job with malicous network name
-=INPUT=
--- topology
-network:a = { ip = 10.1.1.0/24; } # Comment
-=JOB=
-{
-    "method": "create_host",
-    "params": {
-        "network": "a exit; "
-    }
-}
-=ERROR=
-Error: Can't find 'network:a exit; '
-=END=
-
-############################################################
-=TITLE=Job with whitespace in email address
-=INPUT=
--- topology
-network:a = { ip = 10.1.1.0/24; }
--- owner
-owner:a = { admins = a@example.com; }
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "admins": ["b example.com"],
-        "name": "a"
-    }
-}
-=ERROR=
-Error: Expected ';' at line 2 of owner, near "b --HERE-->example.com"
-Aborted
-=OUTPUT=
-@@ owner
--owner:a = { admins = a@example.com; }
-+owner:a = {
-+ admins = b example.com;
-+}
-=END=
-
-############################################################
-=TITLE=Invalid absolute path
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
-        "file": "/etc/passwd"
-    }
-}
-=ERROR=
-Error: Invalid absolute filename: /etc/passwd
-=END=
-
-############################################################
-=TITLE=Invalid relative path
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
-        "file": "../passwd"
-    }
-}
-=ERROR=
-Error: Invalid filename ../passwd
-=END=
-
-############################################################
-=TITLE=Can't create directory
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
-        "file": "topology/n2"
-    }
-}
-=ERROR=
-panic: mkdir topology: not a directory
-=END=
-
-############################################################
-=TITLE=Unexpected content after definition
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; } host:h2",
-        "file": "topology"
-    }
-}
-=ERROR=
-Error: Unexpected content after definition at line 1 of command line, near "10.1.2.0/24; } --HERE-->host:h2"
-=END=
-
-############################################################
-=TITLE=Add pathrestriction
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-
-router:r2 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; }
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
-}
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "pathrestriction:p = interface:r1.n1, interface:r1.n2;",
-
-        "file": "topology"
-    }
-}
-=OUTPUT=
-@@ topology
-  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
-  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- }
-+
-+pathrestriction:p =
-+ interface:r1.n1,
-+ interface:r1.n2,
-+;
-=END=
-
-############################################################
-=TITLE=Delete pathrestriction
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-
-router:r2 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; }
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
-}
-pathrestriction:p =
- interface:r1.n1,
- interface:r1.n2,
-;
-=JOB=
-{
-    "method": "delete_toplevel",
-    "params": {
-        "name": "pathrestriction:p"
-    }
-}
-=OUTPUT=
-@@ topology
-  interface:n1 = { ip = 10.1.1.2; hardware = n1; }
-  interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- }
--pathrestriction:p =
-- interface:r1.n1,
-- interface:r1.n2,
--;
 =END=
 
 ############################################################
