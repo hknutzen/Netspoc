@@ -31,7 +31,6 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
 )
 
@@ -327,25 +326,11 @@ func (s *state) addToGroup(j *job) error {
 		Object string
 	}
 	getParams(j, &p)
-	add, err := parser.ParseUnion([]byte(p.Object))
-	if err != nil {
-		return err
-	}
-	group := "group:" + p.Name
-	return s.ModifyObj(group, func(toplevel ast.Toplevel) {
-		n := toplevel.(*ast.TopList)
-		n.Elements = append(n.Elements, add...)
-
-		// Sort list of objects.
-		n.Order()
+	params, _ := json.Marshal(jsonMap{
+		"path":  "group:" + p.Name + ",elements",
+		"value": p.Object,
 	})
-	/*
-		params, _ := json.Marshal(jsonMap{
-			"path":  "group:" + p.Name,
-			"value": p.Object,
-		})
-		return s.patch(&job{Method: "add", Params: params})
-	*/
+	return s.patch(&job{Method: "add", Params: params})
 }
 
 func getParams(j *job, p interface{}) {
