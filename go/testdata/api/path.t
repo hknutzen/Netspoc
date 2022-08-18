@@ -646,6 +646,35 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Create group
+=INPUT=
+-- topo
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": ["host:h11", "host:h10", "host:h12"] }
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ API
++group:g1 =
++ host:h10,
++ host:h11,
++ host:h12,
++;
+=END=
+
+############################################################
 =TITLE=Add to group
 =INPUT=
 network:n1 = {
@@ -663,7 +692,7 @@ group:g1 =
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h11"
     }
 }
@@ -713,7 +742,7 @@ group:g1 =
 {
     "method": "delete",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": [
             "host:h10",
             "host:[network:n1] &! host:h10",
@@ -769,7 +798,7 @@ group:g1 =
 =END=
 
 ############################################################
-=TITLE=Must not descend into group
+=TITLE=Missing elements in path
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -790,7 +819,139 @@ group:g1 =
     }
 }
 =ERROR=
+Error: Expected attribute 'elements'
+=END=
+
+############################################################
+=TITLE=Must not descend into group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+group:g1 =
+ host:h10,
+ host:h11,
+ host:h12,
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,elements,host:h12"
+    }
+}
+=ERROR=
 Error: Can't descend into element list
+=END=
+
+############################################################
+=TITLE=Add description to group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+group:g1 =
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1,description",
+        "value": "This group"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+  host:h10 = { ip = 10.1.1.10; }
+  host:h11 = { ip = 10.1.1.11; }
+ }
++
+ group:g1 =
++ description = This group
++
+  host:h10,
+  host:h11,
+ ;
+=END=
+
+############################################################
+=TITLE=Remove description from group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+group:g1 =
+ description = This group
+
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,description"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+  host:h10 = { ip = 10.1.1.10; }
+  host:h11 = { ip = 10.1.1.11; }
+ }
+-group:g1 =
+- description = This group
++group:g1 =
+  host:h10,
+  host:h11,
+ ;
+=END=
+
+############################################################
+=TITLE=Replace description at group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+
+group:g1 =
+ description = This group
+
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1,description",
+        "value": "That group"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ }
+ group:g1 =
+- description = This group
++ description = That group
+  host:h10,
+  host:h11,
 =END=
 
 ############################################################
@@ -1052,35 +1213,6 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
 + admins = a@example.com;
 + watchers = w@example.com;
 +}
-=END=
-
-############################################################
-=TITLE=Create group
-=INPUT=
--- topo
-network:n1 = {
- ip = 10.1.1.0/24;
- host:h10 = { ip = 10.1.1.10; }
- host:h11 = { ip = 10.1.1.11; }
- host:h12 = { ip = 10.1.1.12; }
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "group:g1",
-        "value": ["host:h11", "host:h10", "host:h12"]
-    }
-}
-=WARNING=
-Warning: unused group:g1
-=OUTPUT=
-@@ API
-+group:g1 =
-+ host:h10,
-+ host:h11,
-+ host:h12,
-+;
 =END=
 
 ############################################################

@@ -13,7 +13,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 }
 
 =ERROR=
-Error: Can't find group:g1
+Error: Can't modify unknown toplevel object 'group:g1'
 =END=
 
 ############################################################

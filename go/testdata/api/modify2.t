@@ -134,7 +134,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h1 + host:h2"
     }
 }
@@ -151,7 +151,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": [ null ]
     }
 }
@@ -168,7 +168,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": null
     }
 }
@@ -185,7 +185,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h1, host:h2"
     }
 }
@@ -202,7 +202,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": ["host:h3", "host:h1, host:h2"]
     }
 }
@@ -259,19 +259,12 @@ network:n1 = { ip = 10.1.1.0/24; }
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h1"
     }
 }
-=WARNING=
-Warning: unused group:g1
-=OUTPUT=
-@@ INPUT
- network:n1 = { ip = 10.1.1.0/24; }
-+
-+group:g1 =
-+ host:h1,
-+;
+=ERROR=
+Error: Can't modify unknown toplevel object 'group:g1'
 =END=
 
 ############################################################
@@ -283,7 +276,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "set",
     "params": {
         "path": "group:g1",
-        "value": "host:h1"
+        "value": { "elements": "host:h1" }
     }
 }
 =WARNING=
@@ -310,7 +303,7 @@ group:g1 =
     "method": "set",
     "params": {
         "path": "group:g1",
-        "value": "host:h1"
+        "value": { "elements": "host:h1" }
     }
 }
 =WARNING=
@@ -371,7 +364,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_2_7"
     }
 }
@@ -395,7 +388,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_2_5"
     }
 }
@@ -419,7 +412,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_1_5"
     }
 }
@@ -467,7 +460,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "network:n2"
     }
 }
@@ -509,7 +502,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_1_4"
     }
 }
@@ -549,7 +542,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": ["interface:r1.[all] &! interface:r1.n1", "host:h_10_1_1_4"]
     }
 }
@@ -566,7 +559,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Group having description ending with semicolon
+=TITLE=Add to group having description ending with semicolon
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -595,7 +588,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "network:n2"
     }
 }
@@ -635,7 +628,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h4"
     }
 }
@@ -4051,7 +4044,7 @@ router:r2 = {
     "method": "add",
     "params": {
         "path": "pathrestriction:p",
-        "value": ["interface:r1.n1", "interface:r1.n2"]
+        "value": { "elements": ["interface:r1.n1", "interface:r1.n2"] }
     }
 }
 =OUTPUT=
