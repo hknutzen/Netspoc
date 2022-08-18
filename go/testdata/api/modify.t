@@ -588,6 +588,24 @@ network:a = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################
+=TITLE=Add host to unknown network
+=INPUT=
+-- topology
+network:a = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "create_host",
+    "params": {
+        "network": "n2",
+        "name": "name_10_1_1_4",
+        "ip": "10.1.1.4"
+    }
+}
+=ERROR=
+Error: Can't find 'network:n2'
+=END=
+
+############################################################
 =TITLE=Add host with IP range
 =INPUT=
 -- topology
