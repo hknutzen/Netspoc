@@ -2111,6 +2111,32 @@ Error: Unexpected type in JSON array: map[string]interface {}
 =END=
 
 ############################################################
+=TITLE=Can't create directory
+=INPUT=
+-- rule
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": "network:n1",
+            "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n2",
+                "prt": "tcp 80"
+            }]
+        }
+    }
+}
+=ERROR=
+panic: mkdir rule: not a directory
+=END=
+
+############################################################
 =TITLE=Add service with missing user
 =INPUT=
 #
