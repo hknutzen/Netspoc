@@ -397,172 +397,6 @@ owner:a = {
 =WARNING=NONE
 =OUTPUT=NONE
 
-############################################################
-=TITLE=Delete still referenced owner
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
--- owner
-owner:a = {
- admins = a@example.com; #}
-} # end
-# next line
-=JOB=
-{
-    "method": "delete_owner",
-    "params": {
-        "name": "a"
-    }
-}
-=WARNING=
-Warning: Ignoring file 'owner' without any content
-Warning: Ignoring undefined owner:a of network:n1
-=OUTPUT=
-@@ owner
--owner:a = {
-- admins = a@example.com; #}
--} # end
- # next line
-=END=
-
-############################################################
-=TITLE=Modify owner: change admins, add watchers
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-owner:a = {
- admins = a@example.com; } # Comment
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "name": "a",
-        "admins": [ "b@example.com", "a@example.com" ],
-        "watchers": [ "c@example.com", "d@example.com" ]
-    }
-}
-=OUTPUT=
-@@ topology
- network:n1 = { ip = 10.1.1.0/24; owner = a; }
-+
- owner:a = {
-- admins = a@example.com; } # Comment
-+ admins = a@example.com,
-+          b@example.com,
-+          ;
-+ watchers = c@example.com,
-+            d@example.com,
-+            ;
-+}
-=END=
-
-############################################################
-=TITLE=Modify owner with swapped admins and watchers
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-owner:a = {
- watchers = b@example.com;
- admins   = a@example.com; }
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "name": "a",
-        "admins": [ "b@example.com" ],
-        "watchers": [ "c@example.com" ]
-    }
-}
-=OUTPUT=
-@@ topology
- network:n1 = { ip = 10.1.1.0/24; owner = a; }
-+
- owner:a = {
-- watchers = b@example.com;
-- admins   = a@example.com; }
-+ watchers = c@example.com;
-+ admins = b@example.com;
-+}
-=END=
-
-############################################################
-=TITLE=Modify owner: leave admins untouched, remove watchers
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-owner:a = {
- watchers = b@example.com;
- admins   = a@example.com;
-}
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "name": "a",
-        "watchers": []
-    }
-}
-=OUTPUT=
-@@ topology
- network:n1 = { ip = 10.1.1.0/24; owner = a; }
-+
- owner:a = {
-- watchers = b@example.com;
-- admins   = a@example.com;
-+ admins = a@example.com;
- }
-=END=
-
-############################################################
-=TITLE=Modify owner, defined in one line
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-owner:a = { admins = a@example.com; }
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "name": "a",
-        "admins": [ "c@example.com" ]
-    }
-}
-=OUTPUT=
-@@ topology
- network:n1 = { ip = 10.1.1.0/24; owner = a; }
--owner:a = { admins = a@example.com; }
-+
-+owner:a = {
-+ admins = c@example.com;
-+}
-=END=
-
-############################################################
-=TITLE=Modify owner: multiple attributes in one line
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; owner = a; }
-owner:a = {
- admins = a@example.com; watchers = b@example.com;
-}
-=JOB=
-{
-    "method": "modify_owner",
-    "params": {
-        "name": "a",
-        "admins": [ "c@example.com" ]
-    }
-}
-=OUTPUT=
-@@ topology
- network:n1 = { ip = 10.1.1.0/24; owner = a; }
-+
- owner:a = {
-- admins = a@example.com; watchers = b@example.com;
-+ admins = c@example.com;
-+ watchers = b@example.com;
- }
-=END=
 
 ############################################################
 =TITLE=Add host to known network
@@ -1306,9 +1140,9 @@ owner:o1 = { admins = a1@example.com; }
                 }
             },
             {
-                "method": "delete_owner",
+                "method": "delete",
                 "params": {
-                    "name": "o1"
+                    "path": "owner:o1"
                 }
             },
             {
@@ -1488,9 +1322,9 @@ owner:DA_TOKEN_o2 = { admins = a2@example.com; }
                 }
             },
             {
-                "method": "delete_owner",
+                "method": "delete",
                 "params": {
-                    "name": "DA_TOKEN_o2"
+                    "path": "owner:DA_TOKEN_o2"
                 }
             }
         ]

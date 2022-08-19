@@ -107,8 +107,6 @@ var handler = map[string]func(*state, *job) error{
 	"create_host":  (*state).createHost,
 	"modify_host":  (*state).modifyHost,
 	"create_owner": (*state).createOwner,
-	"modify_owner": (*state).modifyOwner,
-	"delete_owner": (*state).deleteOwner,
 	"add_to_group": (*state).addToGroup,
 }
 
@@ -274,15 +272,6 @@ func (s *state) modifyHost(j *job) error {
 	return nil
 }
 
-func (s *state) deleteOwner(j *job) error {
-	var p struct {
-		Name string
-	}
-	getParams(j, &p)
-	params, _ := json.Marshal(jsonMap{"path": "owner:" + p.Name})
-	return s.patch(&job{Method: "delete", Params: params})
-}
-
 type jsonMap map[string]interface{}
 
 func (s *state) createOwner(j *job) error {
@@ -303,21 +292,6 @@ func (s *state) createOwner(j *job) error {
 		"ok_if_exists": p.OkIfExists != 0,
 	})
 	return s.patch(&job{Method: "add", Params: params})
-}
-
-func (s *state) modifyOwner(j *job) error {
-	var p struct {
-		Name     string
-		Admins   []string
-		Watchers []string
-	}
-	getParams(j, &p)
-	owner := "owner:" + p.Name
-	return s.ModifyObj(owner, func(toplevel ast.Toplevel) {
-		n := toplevel.(*ast.TopStruct)
-		n.ChangeAttr("admins", p.Admins)
-		n.ChangeAttr("watchers", p.Watchers)
-	})
 }
 
 func (s *state) addToGroup(j *job) error {
