@@ -426,7 +426,7 @@ func getTopList(name string, v interface{}) (ast.Toplevel, error) {
 	}
 	if len(ts.Attributes) > 0 {
 		return nil, fmt.Errorf("Unexpected attribute '%s' in '%s'",
-			ts.Attributes[0], name)
+			ts.Attributes[0].Name, name)
 	}
 	tl := new(ast.TopList)
 	tl.Name = name
