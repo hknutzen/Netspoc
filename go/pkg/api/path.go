@@ -329,17 +329,22 @@ func (s *state) addToplevel(name string, c change) error {
 }
 
 func (s *state) getToplevel(name string, c change) (ast.Toplevel, error) {
+	m, ok := c.val.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf(
+			"Expecting JSON object when reading '%s' but got: %T", name, c.val)
+	}
 	var t ast.Toplevel
 	var err error
 	typ, _, _ := strings.Cut(name, ":")
 	switch typ {
 	case "service":
-		t, err = getService(name, c.val)
+		t, err = getService(name, m)
 	case "group", "pathrestriction":
-		t, err = getTopList(name, c.val)
+		t, err = getTopList(name, m)
 	default:
 		var ts *ast.TopStruct
-		ts, err = getTopStruct(name, c.val)
+		ts, err = getTopStruct(name, m)
 		if err != nil {
 			return nil, err
 		}
@@ -408,13 +413,7 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	return fmt.Errorf("'%s' already exists", n.GetName())
 }
 
-func getTopList(name string, v interface{}) (ast.Toplevel, error) {
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf(
-			"Expecting JSON object when reading '%s' but got: %T", name, v)
-	}
-
+func getTopList(name string, m map[string]interface{}) (ast.Toplevel, error) {
 	elements, found := m["elements"]
 	if !found {
 		return nil, fmt.Errorf("Missing attribute 'elements' in '%s'", name)
@@ -438,13 +437,7 @@ func getTopList(name string, v interface{}) (ast.Toplevel, error) {
 	return tl, nil
 }
 
-func getService(name string, v interface{}) (ast.Toplevel, error) {
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf(
-			"Expecting JSON object when reading '%s' but got: %T", name, v)
-	}
-
+func getService(name string, m map[string]interface{}) (ast.Toplevel, error) {
 	user, found := m["user"]
 	if !found {
 		return nil, fmt.Errorf("Missing attribute 'user' in '%s'", name)
@@ -524,12 +517,9 @@ func getRuleDef(v interface{}) (*ast.Rule, error) {
 	return rule, nil
 }
 
-func getTopStruct(name string, v interface{}) (*ast.TopStruct, error) {
-	m, ok := v.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf(
-			"Expecting JSON object when reading '%s' but got: %T", name, v)
-	}
+func getTopStruct(
+	name string, m map[string]interface{}) (*ast.TopStruct, error) {
+
 	t := new(ast.TopStruct)
 	t.Name = name
 	if val, found := m["description"]; found {
