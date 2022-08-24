@@ -1015,6 +1015,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 network:n3 = { ip = 10.1.3.0/24; }
 network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+network:n6 = { ip = 10.1.6.0/24; }
 router:u1 = {
  interface:n0a;
  interface:n0b;
@@ -1038,11 +1040,19 @@ router:r2 = {
  model = IOS;
  routing = manual;
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
- interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.1; hardware = n4; }
 }
-pathrestriction:p0 = interface:u1.n0a, interface:r2.n3;
-pathrestriction:p1 = interface:u1.n0b, interface:r1.n2;
-pathrestriction:p2 = interface:u1.big, interface:u1.n2;
+router:u4 = {
+ interface:n4;
+ interface:n5;
+ interface:n6;
+}
+# Unrelated pathrestriction must not terminate analysis early.
+pathrestriction:p0 = interface:r1.n4, interface:u4.n6;
+
+pathrestriction:p1 = interface:u1.n0a, interface:r2.n3;
+pathrestriction:p2 = interface:u1.n0b, interface:r1.n2;
+pathrestriction:p3 = interface:u1.big, interface:u1.n2;
 service:s1 = {
  user = any:10_1_0-24;
  permit src = user; dst = network:n4; prt = tcp 80;
@@ -1062,7 +1072,6 @@ ip access-list extended n2_in
  deny ip any any
 --r2
 ip access-list extended n3_in
- deny ip any host 10.1.4.2
  permit tcp 10.1.0.0 0.0.0.255 10.1.4.0 0.0.0.255 eq 80
  permit tcp 10.1.0.0 0.0.1.255 10.1.4.0 0.0.0.255 eq 81
  deny ip any any

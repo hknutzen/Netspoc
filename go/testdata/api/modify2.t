@@ -134,7 +134,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h1 + host:h2"
     }
 }
@@ -151,7 +151,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": [ null ]
     }
 }
@@ -168,7 +168,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": null
     }
 }
@@ -185,7 +185,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h1, host:h2"
     }
 }
@@ -202,7 +202,7 @@ group:g1 = ;
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": ["host:h3", "host:h1, host:h2"]
     }
 }
@@ -252,6 +252,72 @@ Error: Typed name expected at line 1 of command line, near "--HERE-->invalid"
 =END=
 
 ############################################################
+=TITLE=Add to unknown group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1,elements",
+        "value": "host:h1"
+    }
+}
+=ERROR=
+Error: Can't modify unknown toplevel object 'group:g1'
+=END=
+
+############################################################
+=TITLE=Define new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": "host:h1" }
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
++
++group:g1 =
++ host:h1,
++;
+=END=
+
+############################################################
+=TITLE=Overwrite definition of group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+group:g1 =
+ network:n1,
+;
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": "host:h1" }
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ network:n1 = { ip = 10.1.1.0/24; }
+ group:g1 =
+- network:n1,
++ host:h1,
+ ;
+=END=
+
+############################################################
 =TITLE=Add to multi block group (1)
 =TEMPL=input
 -- topology
@@ -298,7 +364,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_2_7"
     }
 }
@@ -322,7 +388,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_2_5"
     }
 }
@@ -346,7 +412,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_1_5"
     }
 }
@@ -394,7 +460,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "network:n2"
     }
 }
@@ -436,7 +502,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h_10_1_1_4"
     }
 }
@@ -476,7 +542,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": ["interface:r1.[all] &! interface:r1.n1", "host:h_10_1_1_4"]
     }
 }
@@ -493,7 +559,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Group having description ending with semicolon
+=TITLE=Add to group having description ending with semicolon
 =INPUT=
 -- topology
 network:n1 = { ip = 10.1.1.0/24; }
@@ -522,7 +588,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "network:n2"
     }
 }
@@ -562,7 +628,7 @@ service:s1 = {
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h4"
     }
 }
@@ -2035,6 +2101,32 @@ service:b = {
 }
 =ERROR=
 Error: Unexpected type in JSON array: map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Can't create directory
+=INPUT=
+-- rule
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "service:s1",
+        "value": {
+            "user": "network:n1",
+            "rules": [
+            {
+                "action": "permit",
+                "src": "user",
+                "dst": "network:n2",
+                "prt": "tcp 80"
+            }]
+        }
+    }
+}
+=ERROR=
+panic: mkdir rule: not a directory
 =END=
 
 ############################################################
@@ -3875,24 +3967,6 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Invalid absolute path
-=TODO=
-=INPUT=
--- topology
-network:n1 = { ip = 10.1.1.0/24; }
-=JOB=
-{
-    "method": "create_toplevel",
-    "params": {
-        "definition": "network:n2 = { ip = 10.1.2.0/24; }",
-        "file": "/etc/passwd"
-    }
-}
-=ERROR=
-Error: Invalid absolute filename: /etc/passwd
-=END=
-
-############################################################
 =TITLE=Invalid relative path
 =TODO=
 =INPUT=
@@ -3970,7 +4044,7 @@ router:r2 = {
     "method": "add",
     "params": {
         "path": "pathrestriction:p",
-        "value": ["interface:r1.n1", "interface:r1.n2"]
+        "value": { "elements": ["interface:r1.n1", "interface:r1.n2"] }
     }
 }
 =OUTPUT=

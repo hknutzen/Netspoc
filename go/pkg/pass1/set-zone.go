@@ -1022,12 +1022,10 @@ func (c *spoc) checkReroutePermit() {
 //       from cluster to zone.
 func (c *spoc) markSubnetsInZoneCluster() {
 	hasInteriorPR := make(map[*zone]bool)
-PR:
 	for _, p := range c.pathrestrictions {
 		for _, intf := range p.elements {
 			if intf.router.semiManaged && intf.zone != nil {
 				hasInteriorPR[intf.zone.cluster[0]] = true
-				break PR
 			}
 		}
 	}

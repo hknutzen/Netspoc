@@ -646,6 +646,124 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Create group
+=INPUT=
+-- topo
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": ["host:h11", "host:h10", "host:h12"],
+                   "description": "First group"
+                 }
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ API
++group:g1 =
++ description = First group
++
++ host:h10,
++ host:h11,
++ host:h12,
++;
+=END=
+
+############################################################
+=TITLE=Invalid value for new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": ["elements", ["host:h11", "host:h10", "host:h12"] ]
+    }
+}
+=ERROR=
+Error: Expecting JSON object when reading 'group:g1' but got: []interface {}
+=END=
+
+############################################################
+=TITLE=Missing elements for new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": {}
+    }
+}
+=ERROR=
+Error: Missing attribute 'elements' in 'group:g1'
+=END=
+
+############################################################
+=TITLE=Invalid description for new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": ["network:n1"],
+                   "description": null
+                 }
+    }
+}
+=ERROR=
+Error: Expecting string as description
+=END=
+
+############################################################
+=TITLE=Invalid attribute for new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": ["network:n1"],
+                   "foo": "bar"
+                 }
+    }
+}
+=ERROR=
+Error: Unexpected attribute 'foo' in 'group:g1'
+=END=
+
+############################################################
+=TITLE=Invalid element for new group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1",
+        "value": { "elements": ["n1"]
+                 }
+    }
+}
+=ERROR=
+Error: Typed name expected at line 1 of command line, near "--HERE-->n1"
+=END=
+
+############################################################
 =TITLE=Add to group
 =INPUT=
 network:n1 = {
@@ -663,7 +781,7 @@ group:g1 =
 {
     "method": "add",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": "host:h11"
     }
 }
@@ -713,7 +831,7 @@ group:g1 =
 {
     "method": "delete",
     "params": {
-        "path": "group:g1",
+        "path": "group:g1,elements",
         "value": [
             "host:h10",
             "host:[network:n1] &! host:h10",
@@ -769,7 +887,7 @@ group:g1 =
 =END=
 
 ############################################################
-=TITLE=Must not descend into group
+=TITLE=Missing elements in path
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
@@ -790,7 +908,139 @@ group:g1 =
     }
 }
 =ERROR=
+Error: Expected attribute 'elements'
+=END=
+
+############################################################
+=TITLE=Must not descend into group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+ host:h12 = { ip = 10.1.1.12; }
+}
+group:g1 =
+ host:h10,
+ host:h11,
+ host:h12,
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,elements,host:h12"
+    }
+}
+=ERROR=
 Error: Can't descend into element list
+=END=
+
+############################################################
+=TITLE=Add description to group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+group:g1 =
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "group:g1,description",
+        "value": "This group"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+  host:h10 = { ip = 10.1.1.10; }
+  host:h11 = { ip = 10.1.1.11; }
+ }
++
+ group:g1 =
++ description = This group
++
+  host:h10,
+  host:h11,
+ ;
+=END=
+
+############################################################
+=TITLE=Remove description from group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+group:g1 =
+ description = This group
+
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,description"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+  host:h10 = { ip = 10.1.1.10; }
+  host:h11 = { ip = 10.1.1.11; }
+ }
+-group:g1 =
+- description = This group
++group:g1 =
+  host:h10,
+  host:h11,
+ ;
+=END=
+
+############################################################
+=TITLE=Replace description at group
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h11 = { ip = 10.1.1.11; }
+}
+
+group:g1 =
+ description = This group
+
+ host:h10,
+ host:h11,
+;
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "group:g1,description",
+        "value": "That group"
+    }
+}
+=WARNING=
+Warning: unused group:g1
+=OUTPUT=
+@@ INPUT
+ }
+ group:g1 =
+- description = This group
++ description = That group
+  host:h10,
+  host:h11,
 =END=
 
 ############################################################
@@ -1055,35 +1305,6 @@ network:n1 = { ip = 10.1.1.0/24; owner = o; }
 =END=
 
 ############################################################
-=TITLE=Create group
-=INPUT=
--- topo
-network:n1 = {
- ip = 10.1.1.0/24;
- host:h10 = { ip = 10.1.1.10; }
- host:h11 = { ip = 10.1.1.11; }
- host:h12 = { ip = 10.1.1.12; }
-}
-=JOB=
-{
-    "method": "add",
-    "params": {
-        "path": "group:g1",
-        "value": ["host:h11", "host:h10", "host:h12"]
-    }
-}
-=WARNING=
-Warning: unused group:g1
-=OUTPUT=
-@@ API
-+group:g1 =
-+ host:h10,
-+ host:h11,
-+ host:h12,
-+;
-=END=
-
-############################################################
 =TITLE=Add service, create rule/ directory
 =INPUT=
 -- topology
@@ -1311,7 +1532,7 @@ network:n2 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
 =END=
 
 ############################################################
-=TITLE=set owner of network
+=TITLE=Set owner of network
 =INPUT=
 -- topology
 owner:o1 = {
@@ -1333,6 +1554,132 @@ network:n1 = { ip = 10.1.1.0/24; }
  }
 -network:n1 = { ip = 10.1.1.0/24; }
 +network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+=END=
+
+############################################################
+=TITLE=Set description of network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,description",
+        "value": "Network in Europe"
+    }
+}
+=OUTPUT=
+@@ INPUT
+-network:n1 = { ip = 10.1.1.0/24; }
++network:n1 = {
++ description = Network in Europe
++
++ ip = 10.1.1.0/24;
++}
+=END=
+
+############################################################
+=TITLE=Change description of network
+=INPUT=
+network:n1 = {
+ description = Network in Europe
+
+ ip = 10.1.1.0/24;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,description",
+        "value": "In Africa"
+    }
+}
+=OUTPUT=
+@@ INPUT
+ network:n1 = {
+- description = Network in Europe
++ description = In Africa
+  ip = 10.1.1.0/24;
+ }
+=END=
+
+############################################################
+=TITLE=Change description of network
+=INPUT=
+network:n1 = {
+ description = Network in Europe
+
+ ip = 10.1.1.0/24;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,description",
+        "value": ["In Africa", "In Asia"]
+    }
+}
+=ERROR=
+Error: Expecting string as description
+=END=
+
+############################################################
+=TITLE=Add to existing description of network
+=INPUT=
+network:n1 = {
+ description = Network in Europe
+
+ ip = 10.1.1.0/24;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "network:n1,description",
+        "value": "and Africa"
+    }
+}
+=ERROR=
+Error: Can't add to description
+=END=
+
+############################################################
+=TITLE=Descend into description
+=INPUT=
+network:n1 = {
+ description = Network in Europe
+
+ ip = 10.1.1.0/24;
+}
+=JOB=
+{
+    "method": "set",
+    "params": {
+        "path": "network:n1,description,Europe",
+        "value": "Africa"
+    }
+}
+=ERROR=
+Error: Can't descend into value of 'description'
+=END=
+
+############################################################
+=TITLE=Remove description of network
+=INPUT=
+network:n1 = {description = Network in Europe
+ ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "network:n1,description"
+    }
+}
+=OUTPUT=
+@@ INPUT
+-network:n1 = {description = Network in Europe
+- ip = 10.1.1.0/24; }
++network:n1 = { ip = 10.1.1.0/24; }
 =END=
 
 ############################################################

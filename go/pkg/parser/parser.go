@@ -729,15 +729,3 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 	})
 	return
 }
-
-func ParseToplevel(src []byte) (n ast.Toplevel, err error) {
-	err = handlePanic(func() {
-		p := new(parser)
-		p.init(src, "command line", 0)
-		n = p.toplevel()
-		if p.pos != len(src) {
-			p.syntaxErr(`Unexpected content after definition`)
-		}
-	})
-	return
-}

@@ -98,32 +98,3 @@ func (obj *TopStruct) RemoveAttr(name string) {
 	}
 	obj.Attributes = cp
 }
-
-func (obj *TopStruct) ReplaceAttr(attr *Attribute) {
-	for i, a := range obj.Attributes {
-		if a.Name == attr.Name {
-			obj.Attributes[i] = attr
-			return
-		}
-	}
-	obj.Attributes = append(obj.Attributes, attr)
-}
-
-func (obj *TopStruct) ChangeAttr(name string, l []string) {
-	if l == nil {
-		return
-	} else if len(l) == 0 {
-		obj.RemoveAttr(name)
-		return
-	}
-
-	attr := new(Attribute)
-	attr.Name = name
-	sort.Strings(l)
-	for _, part := range l {
-		v := new(Value)
-		v.Value = part
-		attr.ValueList = append(attr.ValueList, v)
-	}
-	obj.ReplaceAttr(attr)
-}

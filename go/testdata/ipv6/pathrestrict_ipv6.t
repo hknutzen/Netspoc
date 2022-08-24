@@ -1038,6 +1038,8 @@ network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+network:n6 = { ip = ::a01:600/120; }
 router:u1 = {
  interface:n0a;
  interface:n0b;
@@ -1061,11 +1063,19 @@ router:r2 = {
  model = IOS;
  routing = manual;
  interface:n3 = { ip = ::a01:302; hardware = n3; }
- interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n5 = { ip = ::a01:501; hardware = n4; }
 }
-pathrestriction:p0 = interface:u1.n0a, interface:r2.n3;
-pathrestriction:p1 = interface:u1.n0b, interface:r1.n2;
-pathrestriction:p2 = interface:u1.big, interface:u1.n2;
+router:u4 = {
+ interface:n4;
+ interface:n5;
+ interface:n6;
+}
+# Unrelated pathrestriction must not terminate analysis early.
+pathrestriction:p0 = interface:r1.n4, interface:u4.n6;
+
+pathrestriction:p1 = interface:u1.n0a, interface:r2.n3;
+pathrestriction:p2 = interface:u1.n0b, interface:r1.n2;
+pathrestriction:p3 = interface:u1.big, interface:u1.n2;
 service:s1 = {
  user = any:10_1_0-24;
  permit src = user; dst = network:n4; prt = tcp 80;
@@ -1085,7 +1095,6 @@ ipv6 access-list n2_in
  deny ipv6 any any
 --ipv6/r2
 ipv6 access-list n3_in
- deny ipv6 any host ::a01:402
  permit tcp ::a01:0/120 ::a01:400/120 eq 80
  permit tcp ::a01:0/119 ::a01:400/120 eq 81
  deny ipv6 any any

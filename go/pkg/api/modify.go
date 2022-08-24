@@ -25,14 +25,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"path"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/astset"
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
 	"github.com/spf13/pflag"
 )
 
@@ -103,17 +101,13 @@ type job struct {
 }
 
 var handler = map[string]func(*state, *job) error{
-	"add":             (*state).patch,
-	"delete":          (*state).patch,
-	"set":             (*state).patch,
-	"create_toplevel": (*state).createToplevel,
-	"delete_toplevel": (*state).deleteToplevel,
-	"create_host":     (*state).createHost,
-	"modify_host":     (*state).modifyHost,
-	"create_owner":    (*state).createOwner,
-	"modify_owner":    (*state).modifyOwner,
-	"delete_owner":    (*state).deleteOwner,
-	"add_to_group":    (*state).addToGroup,
+	"add":          (*state).patch,
+	"delete":       (*state).patch,
+	"set":          (*state).patch,
+	"create_host":  (*state).createHost,
+	"modify_host":  (*state).modifyHost,
+	"create_owner": (*state).createOwner,
+	"add_to_group": (*state).addToGroup,
 }
 
 func (s *state) doJobFile(path string) error {
@@ -278,70 +272,7 @@ func (s *state) modifyHost(j *job) error {
 	return nil
 }
 
-func (s *state) createToplevel(j *job) error {
-	var p struct {
-		Definition string
-		File       string
-		OkIfExists bool `json:"ok_if_exists"`
-	}
-	getParams(j, &p)
-	obj, err := parser.ParseToplevel([]byte(p.Definition))
-	if err != nil {
-		return err
-	}
-	file := path.Clean(p.File)
-	if path.IsAbs(file) {
-		return fmt.Errorf("Invalid absolute filename: %s", file)
-	}
-	// Prevent dangerous filenames, especially starting with "../".
-	if file == "" || file[0] == '.' {
-		return fmt.Errorf("Invalid filename %s", file)
-	}
-	// Do nothing if node already exists.
-	if p.OkIfExists {
-		name := obj.GetName()
-		found := false
-		s.Modify(func(n ast.Toplevel) bool {
-			if name == n.GetName() {
-				found = true
-			}
-			return false
-		})
-		if found {
-			return nil
-		}
-	}
-	obj.Order()
-	s.CreateToplevel(file, obj)
-	return nil
-}
-
-func (s *state) deleteToplevel(j *job) error {
-	var p struct {
-		Name string
-	}
-	getParams(j, &p)
-	return s.DeleteToplevel(p.Name)
-}
-
-func (s *state) deleteOwner(j *job) error {
-	var p struct {
-		Name string
-	}
-	getParams(j, &p)
-	name := "owner:" + p.Name
-	return s.DeleteToplevel(name)
-}
-
 type jsonMap map[string]interface{}
-
-func getOwnerPath(name string) string {
-	file := "owner"
-	if strings.HasPrefix(name, "DA_TOKEN_") {
-		file += "-token"
-	}
-	return file
-}
 
 func (s *state) createOwner(j *job) error {
 	var p struct {
@@ -351,33 +282,16 @@ func (s *state) createOwner(j *job) error {
 		OkIfExists int `json:"ok_if_exists"`
 	}
 	getParams(j, &p)
-	watchers := ""
+	value := jsonMap{"admins": p.Admins}
 	if p.Watchers != nil {
-		watchers = fmt.Sprintf("watchers = %s;", strings.Join(p.Watchers, ", "))
+		value["watchers"] = p.Watchers
 	}
-	def := fmt.Sprintf("owner:%s = { admins = %s; %s}",
-		p.Name, strings.Join(p.Admins, ", "), watchers)
 	params, _ := json.Marshal(jsonMap{
-		"definition":   def,
-		"file":         getOwnerPath(p.Name),
+		"path":         "owner:" + p.Name,
+		"value":        value,
 		"ok_if_exists": p.OkIfExists != 0,
 	})
-	return s.createToplevel(&job{Params: params})
-}
-
-func (s *state) modifyOwner(j *job) error {
-	var p struct {
-		Name     string
-		Admins   []string
-		Watchers []string
-	}
-	getParams(j, &p)
-	owner := "owner:" + p.Name
-	return s.ModifyObj(owner, func(toplevel ast.Toplevel) {
-		n := toplevel.(*ast.TopStruct)
-		n.ChangeAttr("admins", p.Admins)
-		n.ChangeAttr("watchers", p.Watchers)
-	})
+	return s.patch(&job{Method: "add", Params: params})
 }
 
 func (s *state) addToGroup(j *job) error {
@@ -386,18 +300,11 @@ func (s *state) addToGroup(j *job) error {
 		Object string
 	}
 	getParams(j, &p)
-	add, err := parser.ParseUnion([]byte(p.Object))
-	if err != nil {
-		return err
-	}
-	group := "group:" + p.Name
-	return s.ModifyObj(group, func(toplevel ast.Toplevel) {
-		n := toplevel.(*ast.TopList)
-		n.Elements = append(n.Elements, add...)
-
-		// Sort list of objects.
-		n.Order()
+	params, _ := json.Marshal(jsonMap{
+		"path":  "group:" + p.Name + ",elements",
+		"value": p.Object,
 	})
+	return s.patch(&job{Method: "add", Params: params})
 }
 
 func getParams(j *job, p interface{}) {

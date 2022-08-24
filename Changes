@@ -1,3 +1,17 @@
+6.048     2022-08-24 17:42:10+02:00 Europe/Berlin
+
+ - Fixed missing ACL for subnets in other part of zone cluster.
+   Accidentally, only the first zone cluster with subnets in other
+   part was marked.
+ - Changes in Netspoc-API:
+   - Elements of group and pathrestriction are no longer given directly,
+     but as value of attribute 'elements'.
+   - Removed API methods:
+     - create_toplevel
+     - delete_toplevel
+     - modify_owner
+     - delete_owner
+
 6.047     2022-08-17 09:49:08+02:00 Europe/Berlin
 
  - Fixed bug that duplicated comment lines located before a short
