@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"net/netip"
+
+	"go4.org/netipx"
 )
 
 type stringerList []fmt.Stringer
@@ -213,20 +215,11 @@ type subnet struct {
 	radiusAttributes map[string]string
 }
 
-type ipRange struct {
-	from netip.Addr
-	to   netip.Addr
-}
-
-func (r ipRange) contains(ip netip.Addr) bool {
-	return r.from.Compare(ip) <= 0 && r.to.Compare(ip) >= 0
-}
-
 type host struct {
 	netObj
 	id               string
 	ip               netip.Addr
-	ipRange          ipRange
+	ipRange          netipx.IPRange
 	ldapId           string
 	radiusAttributes map[string]string
 	subnets          []*subnet

@@ -12,4 +12,5 @@ require (
 require (
 	github.com/google/go-cmp v0.5.8 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
+	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d // indirect
 )

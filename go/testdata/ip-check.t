@@ -63,8 +63,8 @@ network:n1 = {
 }
 =END=
 =ERROR=
-Error: Expected IP range in host:r2
-Error: Expected IP range in host:r3
+Error: Invalid IP range in host:r2
+Error: Invalid IP range in host:r3
 =END=
 
 ############################################################

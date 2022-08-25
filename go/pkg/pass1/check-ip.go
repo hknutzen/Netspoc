@@ -4,6 +4,8 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+
+	"go4.org/netipx"
 )
 
 func (c *spoc) checkIPAddresses() {
@@ -151,7 +153,7 @@ func (c *spoc) checkIPAddr(n *network) {
 		}
 	}
 
-	range2name := make(map[ipRange]string)
+	range2name := make(map[netipx.IPRange]string)
 	for _, h := range n.hosts {
 		if h.ip.IsValid() {
 			continue
@@ -163,7 +165,7 @@ func (c *spoc) checkIPAddr(n *network) {
 			range2name[rg] = h.name
 		}
 
-		subnets, _ := splitIpRange(h.ipRange)
+		subnets := h.ipRange.Prefixes()
 		if len(subnets) == 1 {
 			if !subnets[0].IsSingleIP() {
 				// It is ok for subnet range to overlap with interface IP.
@@ -171,7 +173,7 @@ func (c *spoc) checkIPAddr(n *network) {
 			}
 		}
 		for ip, other := range ip2name {
-			if rg.contains(ip) {
+			if rg.Contains(ip) {
 				c.err("Duplicate IP address for %s and %s", other, h)
 			}
 		}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/netip"
 	"sort"
+
+	"go4.org/netipx"
 )
 
 func natName(n *network) string {
@@ -100,13 +102,8 @@ INTF:
 			if ipp.Contains(ip) {
 				err(host)
 			}
-		} else {
-			rg := host.ipRange
-			ip1 := ipp.Addr()
-			ip2 := lastIP(ipp)
-			if rg.contains(ip1) || rg.contains(ip2) {
-				err(host)
-			}
+		} else if host.ipRange.Overlaps(netipx.RangeOfPrefix(ipp)) {
+			err(host)
 		}
 	}
 }
