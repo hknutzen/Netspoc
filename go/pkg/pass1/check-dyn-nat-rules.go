@@ -193,24 +193,17 @@ func (c *spoc) checkDynamicNatRules(
 				pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
 				for _, pair := range pairs {
 					inIntf, outIntf := pair[0], pair[1]
-					var r *router
-					if inIntf != nil {
-						r = inIntf.router
-					} else {
-						r = outIntf.router
-					}
+					r := inIntf.router
 					if r.managed == "" {
 						continue
 					}
 
 					// Only check at border router.
-					// intf would have value 'nil' if obj is
-					// interface of current router and src/dst of rule.
 					intf := inIntf
 					if reversed {
 						intf = outIntf
 					}
-					if intf != nil && !zoneEq(n.zone, intf.zone) {
+					if !zoneEq(n.zone, intf.zone) {
 						continue
 					}
 
