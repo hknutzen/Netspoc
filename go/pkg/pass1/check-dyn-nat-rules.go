@@ -110,7 +110,6 @@ func (c *spoc) checkDynamicNatRules(
 		// Check with Nat set at destination object.
 		dstNatMap := toZone.natDomain.natMap
 
-		pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
 		for _, obj := range fromList {
 			n := obj.getNetwork()
 			natMap := n.nat
@@ -191,7 +190,9 @@ func (c *spoc) checkDynamicNatRules(
 				//    of that object. Hence the whole network would
 				//    accidentally be permitted.
 				// 2. Check later to be added reverse rule as well.
-				check := func(rule *groupedRule, inIntf, outIntf *routerIntf) {
+				pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
+				for _, pair := range pairs {
+					inIntf, outIntf := pair[0], pair[1]
 					var r *router
 					if inIntf != nil {
 						r = inIntf.router
@@ -199,7 +200,7 @@ func (c *spoc) checkDynamicNatRules(
 						r = outIntf.router
 					}
 					if r.managed == "" {
-						return
+						continue
 					}
 
 					// Only check at border router.
@@ -210,7 +211,7 @@ func (c *spoc) checkDynamicNatRules(
 						intf = outIntf
 					}
 					if intf != nil && !zoneEq(n.zone, intf.zone) {
-						return
+						continue
 					}
 
 					checkCommon := func(natIntf *routerIntf, reversed2 bool) {
@@ -241,7 +242,7 @@ func (c *spoc) checkDynamicNatRules(
 						// even if it can reach whole network, because
 						// it only sends answer back for correctly
 						// established connection.
-						for _, prt := range rule.prt {
+						for _, prt := range ru.prt {
 							if prt.proto == "udp" || prt.proto == "ip" {
 								checkCommon(outIntf, true)
 								break
@@ -249,7 +250,6 @@ func (c *spoc) checkDynamicNatRules(
 						}
 					}
 				}
-				c.pathWalk(ru, check, "Router")
 			}()
 
 			if hiddenSeen {
@@ -278,6 +278,7 @@ func (c *spoc) checkDynamicNatRules(
 					continue
 				}
 				var natInterfaces intfList
+				pairs := getCachedPathPairs(ru, reversed, fromZone, toZone)
 				for _, pair := range pairs {
 					for _, intf := range pair {
 						natNet := getNatNetwork(n, intf.natMap)
