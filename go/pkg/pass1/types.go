@@ -312,7 +312,6 @@ type router struct {
 	needProtect          bool
 	noGroupCode          bool
 	noInAcl              *routerIntf
-	noSecondaryOpt       map[*network]bool
 	hardware             []*hardware
 	origHardware         []*hardware
 	origRouter           *router
