@@ -28,8 +28,7 @@ import (
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
 
-	"gotest.tools/v3/assert"
-	"gotest.tools/v3/assert/cmp"
+	"github.com/google/go-cmp/cmp"
 )
 
 const (
@@ -434,7 +433,10 @@ func stdoutCheck(t *testing.T, expected, stdout string) {
 
 func countEq(t *testing.T, expected, got string) {
 	atomic.AddInt32(&count, 1)
-	assert.Check(t, cmp.Equal(expected, got))
+	if d := cmp.Diff(expected, got); d != "" {
+		t.Error(d)
+	}
+	//assert.Check(t, cmp.Equal(expected, got))
 }
 
 func jsonEq(t *testing.T, expected string, got []byte) {
