@@ -207,22 +207,31 @@ Error: Unnumbered network:n2 must not be referenced from attribute 'subnet_of'
 =INPUT=
 network:n1 = {
  ip = ::a01:100/124;
- subnet_of = network:n2;
-}
-router:r1 = {
-  interface:n1;
- interface:n2 = { ip = ::a01:101; }
+ subnet_of = network:n3;
 }
 network:n2 = {
+ ip = ::a01:120/124;
+ subnet_of = network:n3;
+}
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = ::a01:101; }
+}
+network:n3 = {
  ip = ::a01:100/120;
  host:h1 = { ip = ::a01:10a; }
  host:h2 = { range = ::a01:10b-::a01:111; }
+ host:h3 = { range = ::a01:11e-::a01:132; }
+ host:h4 = { range = ::a01:123-::a01:12d; }
 }
 =END=
 =WARNING=
-Warning: IP of interface:r1.n2 overlaps with subnet network:n1
+Warning: IP of interface:r1.n3 overlaps with subnet network:n1
 Warning: IP of host:h1 overlaps with subnet network:n1
 Warning: IP of host:h2 overlaps with subnet network:n1
+Warning: IP of host:h3 overlaps with subnet network:n2
+Warning: IP of host:h4 overlaps with subnet network:n2
 =END=
 
 ############################################################

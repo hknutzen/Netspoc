@@ -318,6 +318,65 @@ access-group n3_in in interface n3
 =END=
 
 ############################################################
+=TITLE=Inherit NAT to subnet in other part of zone cluster
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+network:n6 = { ip = ::a01:600/120; nat:h1 = { hidden; } }
+network:n7 = { ip = ::a01:700/120; nat:h1 = { hidden; } }
+network:n7s = { ip = ::a01:740/122; subnet_of = network:n7; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = h1; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+router:r3 = {
+ interface:n3 = { ip = ::a01:302; hardware = n3; }
+ interface:n5 = { ip = ::a01:501; hardware = n5; }
+ interface:n7 = { ip = ::a01:701; hardware = n7; }
+}
+router:r4 = {
+ interface:n4 = { ip = ::a01:402; hardware = n4; }
+ interface:n5 = { ip = ::a01:502; hardware = n5; }
+ interface:n6 = { ip = ::a01:601; hardware = n6; }
+ interface:n7s = { ip = ::a01:741; hardware = n7s; }
+}
+
+pathrestriction:p1 = interface:r1.n3, interface:r4.n5;
+pathrestriction:p2 = interface:r2.n4, interface:r3.n5;
+
+service:s1 = {
+ user = network:n6, network:n7;
+ permit src = user; dst = network:n2; prt = tcp 80;
+}
+service:s2 = {
+ user = network:n7s;
+ permit src = user; dst = network:n1; prt = tcp 81;
+}
+=ERROR=
+Error: network:n6 is hidden by nat:h1 in rule
+ permit src=network:n6; dst=network:n2; prt=tcp 80; of service:s1
+Error: network:n7s is hidden by nat:h1 in rule
+ permit src=network:n7s; dst=network:n2; prt=tcp 80; of service:s1
+Error: network:n7 is hidden by nat:h1 in rule
+ permit src=network:n7; dst=network:n2; prt=tcp 80; of service:s1
+=END=
+
+############################################################
 =TITLE=Check rule with aggregate to hidden NAT
 =PARAMS=--ipv6
 =INPUT=
