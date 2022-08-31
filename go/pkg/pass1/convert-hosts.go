@@ -3,6 +3,8 @@ package pass1
 import (
 	"net/netip"
 	"strings"
+
+	"go4.org/netipx"
 )
 
 //###################################################################
@@ -164,7 +166,7 @@ func (c *spoc) convertHosts() {
 				}
 
 				// Calculate IP of right part.
-				nextIP := lastIP(s.ipp).Next()
+				nextIP := netipx.RangeOfPrefix(s.ipp).To().Next()
 
 				// Find corresponding right part
 				neighbor := ip2subnet[nextIP]

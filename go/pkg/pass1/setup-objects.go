@@ -3445,7 +3445,7 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 			if ip == n.ipp.Addr() {
 				c.err("%s has address of its network", intf)
 			}
-			if ip == lastIP(n.ipp) {
+			if ip == netipx.RangeOfPrefix(n.ipp).To() {
 				c.err("%s has broadcast address", intf)
 			}
 		}
