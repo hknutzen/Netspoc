@@ -44,7 +44,7 @@ func Main(d oslink.Data) int {
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(d.Stderr,
-			"Usage: %s [options] FILE|DIR JOB ...\n%s",
+			"Usage: %s [options] FILE|DIR JOB \n%s",
 			d.Args[0], fs.FlagUsages())
 	}
 
@@ -61,11 +61,12 @@ func Main(d oslink.Data) int {
 
 	// Argument processing
 	args := fs.Args()
-	if len(args) == 0 {
+	if len(args) != 2 {
 		fs.Usage()
 		return 1
 	}
 	netspocPath := args[0]
+	jobPath := args[1]
 
 	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
@@ -83,11 +84,9 @@ func Main(d oslink.Data) int {
 		showErr("While reading netspoc files: %s", err)
 		return 1
 	}
-	for _, path := range args[1:] {
-		if err := s.doJobFile(path); err != nil {
-			showErr("%s", err)
-			return 1
-		}
+	if err := s.doJobFile(jobPath); err != nil {
+		showErr("%s", err)
+		return 1
 	}
 	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()
@@ -115,22 +114,22 @@ func (s *state) doJobFile(path string) error {
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}
+	return s.doJob(data)
+}
+
+func (s *state) doJob(data json.RawMessage) error {
 	j := new(job)
 	if err := json.Unmarshal(data, j); err != nil {
-		return fmt.Errorf("In JSON file %s: %s", path, err)
+		return fmt.Errorf("In JSON input: %s", err)
 	}
-	// Check once if j.Params is correct JSON.
+	// Check once if j.Params is given and has expected JSON type.
 	if len(j.Params) == 0 {
-		return fmt.Errorf("Missing \"params\" in JSON file %s", path)
+		return fmt.Errorf("Missing \"params\" in JSON input")
 	}
 	var dummy map[string]interface{}
 	if err := json.Unmarshal(j.Params, &dummy); err != nil {
-		return fmt.Errorf("In \"params\" of JSON file %s: %s", path, err)
+		return fmt.Errorf("In \"params\" of JSON input: %s", err)
 	}
-	return s.doJob(j)
-}
-
-func (s *state) doJob(j *job) error {
 	m := j.Method
 	if m == "multi_job" {
 		return s.multiJob(j)
@@ -144,11 +143,11 @@ func (s *state) doJob(j *job) error {
 
 func (s *state) multiJob(j *job) error {
 	var p struct {
-		Jobs []*job
+		Jobs []json.RawMessage
 	}
 	getParams(j, &p)
-	for _, sub := range p.Jobs {
-		if err := s.doJob(sub); err != nil {
+	for _, raw := range p.Jobs {
+		if err := s.doJob(raw); err != nil {
 			return err
 		}
 	}
@@ -308,5 +307,6 @@ func (s *state) addToGroup(j *job) error {
 }
 
 func getParams(j *job, p interface{}) {
+	// Ignore error and handle params with wrong type like missing params.
 	json.Unmarshal(j.Params, p)
 }

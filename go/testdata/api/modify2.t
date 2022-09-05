@@ -4,7 +4,7 @@
 =INPUT=NONE
 =PARAMS=-h
 =ERROR=
-Usage: PROGRAM [options] FILE|DIR JOB ...
+Usage: PROGRAM [options] FILE|DIR JOB
   -q, --quiet   Don't show changed files
 =END=
 
@@ -12,7 +12,7 @@ Usage: PROGRAM [options] FILE|DIR JOB ...
 =TITLE=No parameters
 =INPUT=NONE
 =ERROR=
-Usage: PROGRAM [options] FILE|DIR JOB ...
+Usage: PROGRAM [options] FILE|DIR JOB
   -q, --quiet   Don't show changed files
 =END=
 
@@ -31,7 +31,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {
 =ERROR=
-Error: In JSON file job: unexpected end of JSON input
+Error: In JSON input: unexpected end of JSON input
 =END=
 
 ############################################################
@@ -50,7 +50,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
 {}
 =ERROR=
-Error: Missing "params" in JSON file job
+Error: Missing "params" in JSON input
 =END=
 
 ############################################################
@@ -62,7 +62,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "method": "add"
 }
 =ERROR=
-Error: Missing "params" in JSON file job
+Error: Missing "params" in JSON input
 =END=
 
 ############################################################
@@ -87,7 +87,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "params": "foo"
 }
 =ERROR=
-Error: In "params" of JSON file job: json: cannot unmarshal string into Go value of type map[string]interface {}
+Error: In "params" of JSON input: json: cannot unmarshal string into Go value of type map[string]interface {}
 =END=
 
 ############################################################
@@ -100,7 +100,7 @@ network:n1 = { ip = 10.1.1.0/24; }
     "params": { "value": x }
 }
 =ERROR=
-Error: In JSON file job: invalid character 'x' looking for beginning of value
+Error: In JSON input: invalid character 'x' looking for beginning of value
 =END=
 
 ############################################################
