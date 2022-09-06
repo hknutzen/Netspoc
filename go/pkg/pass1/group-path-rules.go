@@ -177,12 +177,6 @@ func splitRulesByPath(rules ruleList) ruleList {
 				rule.src = sInfo.group
 				rule.dst = dInfo.group
 				newRules.push(rule)
-
-				// Mark paths in advance, to prevent concurrent write in
-				// background goroutines.
-				if _, found := fromStore.getPath1()[rule.dstPath]; !found {
-					pathMark(rule.srcPath, rule.dstPath)
-				}
 			}
 		}
 	}
