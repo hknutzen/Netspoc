@@ -168,10 +168,11 @@ func splitRulesByPath(rules ruleList) ruleList {
 		sGroupInfo := splitRuleGroup(sRule.src)
 		dGroupInfo := splitRuleGroup(sRule.dst)
 		for _, sInfo := range sGroupInfo {
+			fromStore := sInfo.path
 			for _, dInfo := range dGroupInfo {
 				rule := new(groupedRule)
 				rule.serviceRule = sRule.serviceRule
-				rule.srcPath = sInfo.path
+				rule.srcPath = fromStore
 				rule.dstPath = dInfo.path
 				rule.src = sInfo.group
 				rule.dst = dInfo.group
@@ -179,7 +180,9 @@ func splitRulesByPath(rules ruleList) ruleList {
 
 				// Mark paths in advance, to prevent concurrent write in
 				// background goroutines.
-				pathMark(rule.srcPath, rule.dstPath)
+				if _, found := fromStore.getPath1()[rule.dstPath]; !found {
+					pathMark(rule.srcPath, rule.dstPath)
+				}
 			}
 		}
 	}
