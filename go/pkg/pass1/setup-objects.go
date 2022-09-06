@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"go4.org/netipx"
 )
 
 func (c *spoc) readNetspoc(path string) {
@@ -762,7 +764,7 @@ func (c *spoc) setupNetwork(v *ast.Network) {
 		}
 	} else if n.ipType == bridgedIP {
 		for _, h := range n.hosts {
-			if h.ipRange.from.IsValid() {
+			if h.ipRange.From().IsValid() {
 				c.err("Bridged %s must not have %s with range (not implemented)",
 					name, h.name)
 			}
@@ -784,10 +786,10 @@ func (c *spoc) setupNetwork(v *ast.Network) {
 					c.err("IP of %s doesn't match IP/mask of %s", h, name)
 				}
 			}
-			if h.ipRange.from.IsValid() {
+			if h.ipRange.IsValid() {
 				// Check range.
-				if !(ipp.Contains(h.ipRange.from) &&
-					ipp.Contains(h.ipRange.to)) {
+				if !(ipp.Contains(h.ipRange.From()) &&
+					ipp.Contains(h.ipRange.To())) {
 
 					c.err("IP range of %s doesn't match IP/mask of %s", h, name)
 				}
@@ -920,14 +922,14 @@ func (c *spoc) setupHost(v *ast.Attribute, n *network) *host {
 			h.ldapId = ""
 		}
 	} else if h.ldapId != "" {
-		if !h.ipRange.from.IsValid() {
+		if !h.ipRange.From().IsValid() {
 			c.err("Attribute 'ldap_Id' must only be used together with"+
 				" IP range at %s", name)
 		}
 	} else if h.radiusAttributes != nil {
 		c.warn("Ignoring 'radius_attributes' at %s", name)
 	}
-	if h.nat != nil && h.ipRange.from.IsValid() {
+	if h.nat != nil && h.ipRange.From().IsValid() {
 		// Before changing this,
 		// add consistency tests in convert_hosts.
 		c.err("No NAT supported for %s with 'range'", name)
@@ -2678,19 +2680,16 @@ func (c *spoc) getIpList(a *ast.Attribute, v6 bool, ctx string) []netip.Addr {
 }
 
 func (c *spoc) getIpRange(
-	a *ast.Attribute, v6 bool, ctx string) ipRange {
+	a *ast.Attribute, v6 bool, ctx string) netipx.IPRange {
 
 	v := c.getSingleValue(a, ctx)
-	l := strings.Split(v, " - ")
-	var rg ipRange
-	if len(l) != 2 {
-		c.err("Expected IP range in %s", ctx)
-	} else {
-		rg = ipRange{
-			c.convIP(l[0], v6, a.Name, ctx),
-			c.convIP(l[1], v6, a.Name, ctx),
-		}
+	v = strings.Replace(v, " - ", "-", 1)
+	rg, err := netipx.ParseIPRange(v)
+	if err != nil {
+		c.err("Invalid IP range in %s", ctx)
+		return rg
 	}
+	c.checkVxIP(rg.From(), v6, a.Name, ctx)
 	return rg
 }
 
@@ -3446,7 +3445,7 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 			if ip == n.ipp.Addr() {
 				c.err("%s has address of its network", intf)
 			}
-			if ip == lastIP(n.ipp) {
+			if ip == netipx.RangeOfPrefix(n.ipp).To() {
 				c.err("%s has broadcast address", intf)
 			}
 		}

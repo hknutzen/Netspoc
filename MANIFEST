@@ -106,7 +106,6 @@ go/pkg/pass1/mark-disabled.go
 go/pkg/pass1/mark-managed-local.go
 go/pkg/pass1/mark-secondary-rules.go
 go/pkg/pass1/nat.go
-go/pkg/pass1/netip.go
 go/pkg/pass1/normalize-services.go
 go/pkg/pass1/order-protocols.go
 go/pkg/pass1/path-walk.go

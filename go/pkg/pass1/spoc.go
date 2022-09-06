@@ -229,10 +229,10 @@ func SpocMain(d oslink.Data) int {
 				c.findSubnetsInNatDomain(NATDomains)
 				c.checkUnstableNatRules()
 				c.markManagedLocal()
+				c.checkDynamicNatRules(NATDomains, NATTag2natType)
 				c.checkSupernetRules(pRules)
 			},
 			func(c *spoc) {
-				c.checkDynamicNatRules(NATDomains, NATTag2natType)
 				c.checkServiceOwner(sRules)
 				c.checkIdenticalServices(sRules)
 				c.checkUnused()

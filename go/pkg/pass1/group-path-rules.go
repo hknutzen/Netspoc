@@ -84,33 +84,19 @@ func (c *spoc) showUnenforceable() {
 	}
 }
 
-func (c *spoc) removeUnenforceableRules(rules ruleList) ruleList {
-	changed := false
-	for i, rule := range rules {
-		srcZone := rule.srcPath.getZone()
-		dstZone := rule.dstPath.getZone()
-		if zoneEq(srcZone, dstZone) {
-			c.collectUnenforceable(rule)
-			rules[i] = nil
-			changed = true
-		} else {
+func (c *spoc) isUnenforceableRule(rule *groupedRule) bool {
+	srcZone := rule.srcPath.getZone()
+	dstZone := rule.dstPath.getZone()
+	if zoneEq(srcZone, dstZone) {
+		c.collectUnenforceable(rule)
+		return true
+	}
 
-			// At least one rule of service is enforceable.
-			// This is used to decide, if a service is fully unenforceable.
-			rule.rule.service.seenEnforceable = true
-		}
-	}
-	if changed {
-		j := 0
-		for _, r := range rules {
-			if r != nil {
-				rules[j] = r
-				j++
-			}
-		}
-		rules = rules[:j]
-	}
-	return rules
+	// At least one rule of service is enforceable.
+	// This is used to decide, if a service is fully unenforceable.
+	rule.rule.service.seenEnforceable = true
+
+	return false
 }
 
 //#######################################################################
@@ -162,7 +148,7 @@ func splitRuleGroup(group []someObj) []groupWithPath {
 	return result
 }
 
-func splitRulesByPath(rules ruleList) ruleList {
+func (c *spoc) splitRulesByPath(rules ruleList) ruleList {
 	var newRules ruleList
 	for _, sRule := range rules {
 		sGroupInfo := splitRuleGroup(sRule.src)
@@ -175,11 +161,10 @@ func splitRulesByPath(rules ruleList) ruleList {
 				rule.dstPath = dInfo.path
 				rule.src = sInfo.group
 				rule.dst = dInfo.group
+				if c.isUnenforceableRule(rule) {
+					continue
+				}
 				newRules.push(rule)
-
-				// Mark paths in advance, to prevent concurrent write in
-				// background goroutines.
-				pathMark(rule.srcPath, rule.dstPath)
 			}
 		}
 	}
@@ -191,13 +176,8 @@ func (c *spoc) groupPathRules(p, d ruleList) {
 
 	// Split grouped rules such, that all elements of src and dst
 	// have identical srcPath/dstPath.
-	process := func(sRules ruleList) ruleList {
-		gRules := splitRulesByPath(sRules)
-		gRules = c.removeUnenforceableRules(gRules)
-		return gRules
-	}
-	c.allPathRules.permit = process(p)
-	c.allPathRules.deny = process(d)
+	c.allPathRules.permit = c.splitRulesByPath(p)
+	c.allPathRules.deny = c.splitRulesByPath(d)
 	count := len(c.allPathRules.permit) + len(c.allPathRules.deny)
 	c.info("Grouped rule count: %d", count)
 

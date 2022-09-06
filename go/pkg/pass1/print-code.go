@@ -17,6 +17,8 @@ import (
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
 	"github.com/hknutzen/Netspoc/go/pkg/pass2"
+
+	"go4.org/netipx"
 )
 
 func getIntf(r *router) []*routerIntf {
@@ -162,7 +164,7 @@ func (c *spoc) printRoutes(fh *os.File, r *router) {
 			}
 
 			// Calculate IP of right part.
-			nextIP := lastIP(left.ipp).Next()
+			nextIP := netipx.RangeOfPrefix(left.ipp).To().Next()
 
 			// Find corresponding right part.
 			right := ip2net[nextIP]
@@ -837,7 +839,7 @@ func (c *spoc) printAsavpn(fh *os.File, r *router) {
 						fmt.Fprintf(fh, "ipv6 local pool %s %s/%d %d\n",
 							name, ip, src.ipp.Bits(), count)
 					} else {
-						max := lastIP(src.ipp).String()
+						max := netipx.RangeOfPrefix(src.ipp).To().String()
 						mask := net.IP(net.CIDRMask(src.ipp.Bits(), 32)).String()
 						fmt.Fprintf(fh, "ip local pool %s %s-%s mask %s\n",
 							name, ip, max, mask)

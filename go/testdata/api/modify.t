@@ -1,5 +1,75 @@
 
 ############################################################
+=TITLE=Missing job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+null
+=ERROR=
+Error: Missing "params" in JSON input
+=END=
+
+############################################################
+=TITLE=Missing method in job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{ "params": {} }
+=ERROR=
+Error: Unknown method ''
+=END=
+
+############################################################
+=TITLE=Unknown method in job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{ "method": "foo", "params": {} }
+=ERROR=
+Error: Unknown method 'foo'
+=END=
+
+############################################################
+=TITLE=Invalid params in job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{ "params": 42 }
+=ERROR=
+Error: In "params" of JSON input: json: cannot unmarshal number into Go value of type map[string]interface {}
+=END=
+
+############################################################
+=TITLE=Ignore invalid value in jobs of multi_job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": 42
+    }
+}
+=OUTPUT=NONE
+
+############################################################
+=TITLE=Missing job in multi_job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": [null]
+    }
+}
+=ERROR=
+Error: Missing "params" in JSON input
+=END=
+
+############################################################
 =TITLE=Add to unknown group
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

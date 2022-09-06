@@ -4,11 +4,11 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
 	"github.com/hknutzen/Netspoc/go/pkg/pass1"
 	"github.com/hknutzen/Netspoc/go/test/capture"
 	"github.com/hknutzen/Netspoc/go/test/tstdata"
-	"gotest.tools/v3/assert"
 )
 
 func TestOsLink(t *testing.T) {
@@ -92,8 +92,12 @@ DIAG: Removed duplicate permit src=host:h1; dst=network:n1; prt=tcp 22; of servi
 					descr.run(oslink.Get())
 				})
 			})
-			assert.Equal(t, descr.stdout, stdout)
-			assert.Equal(t, descr.stderr, stderr)
+			if d := cmp.Diff(descr.stdout, stdout); d != "" {
+				t.Error(d)
+			}
+			if d := cmp.Diff(descr.stderr, stderr); d != "" {
+				t.Error(d)
+			}
 		})
 	}
 }

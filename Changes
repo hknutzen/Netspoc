@@ -1,3 +1,10 @@
+6.049     2022-09-06 17:12:38+02:00 Europe/Berlin
+
+ - Reverted optimized parallel execution from version 6.046,
+   causing rare occurrences of
+   "fatal error: concurrent map read and map write".
+ - Netspoc-API gives better error message on invalid job now.
+
 6.048     2022-08-24 17:42:10+02:00 Europe/Berlin
 
  - Fixed missing ACL for subnets in other part of zone cluster.

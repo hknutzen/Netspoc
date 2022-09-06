@@ -63,8 +63,8 @@ network:n1 = {
 }
 =END=
 =ERROR=
-Error: Expected IP range in host:r2
-Error: Expected IP range in host:r3
+Error: Invalid IP range in host:r2
+Error: Invalid IP range in host:r3
 =END=
 
 ############################################################
@@ -195,22 +195,31 @@ Error: Unnumbered network:n2 must not be referenced from attribute 'subnet_of'
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/28;
- subnet_of = network:n2;
-}
-router:r1 = {
-  interface:n1;
- interface:n2 = { ip = 10.1.1.1; }
+ subnet_of = network:n3;
 }
 network:n2 = {
+ ip = 10.1.1.32/28;
+ subnet_of = network:n3;
+}
+router:r1 = {
+ interface:n1;
+ interface:n2;
+ interface:n3 = { ip = 10.1.1.1; }
+}
+network:n3 = {
  ip = 10.1.1.0/24;
  host:h1 = { ip = 10.1.1.10; }
  host:h2 = { range = 10.1.1.11-10.1.1.17; }
+ host:h3 = { range = 10.1.1.30-10.1.1.50; }
+ host:h4 = { range = 10.1.1.35-10.1.1.45; }
 }
 =END=
 =WARNING=
-Warning: IP of interface:r1.n2 overlaps with subnet network:n1
+Warning: IP of interface:r1.n3 overlaps with subnet network:n1
 Warning: IP of host:h1 overlaps with subnet network:n1
 Warning: IP of host:h2 overlaps with subnet network:n1
+Warning: IP of host:h3 overlaps with subnet network:n2
+Warning: IP of host:h4 overlaps with subnet network:n2
 =END=
 
 ############################################################
