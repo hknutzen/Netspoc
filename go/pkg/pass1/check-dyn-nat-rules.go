@@ -82,6 +82,9 @@ func (c *spoc) checkDynamicNatRules(
 
 		fromZone := getZone(fromList, fromStore)
 		toZone := getZone([]someObj{toObj}, toStore)
+		if fromZone == toZone {
+			return
+		}
 
 		toCheck := natPathToCheck[zonePair{fromZone, toZone}]
 		if toCheck == nil {
