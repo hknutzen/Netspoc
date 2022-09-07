@@ -200,13 +200,7 @@ func optimizeRules1(rules ciscoRules, aclInfo *aclInfo) ciscoRules {
 	}
 
 	if changed {
-		newRules := make(ciscoRules, 0)
-		for _, rule := range rules {
-			if !rule.deleted {
-				newRules.push(rule)
-			}
-		}
-		rules = newRules
+		removeDeletedRules(&rules)
 	}
 	return rules
 }
@@ -279,18 +273,21 @@ func joinRanges1(rules ciscoRules, prt2obj name2Proto) ciscoRules {
 	}
 
 	if changed {
-
-		// Change slice in place.
-		j := 0
-		for _, rule := range rules {
-			if !rule.deleted {
-				rules[j] = rule
-				j++
-			}
-		}
-		rules = rules[:j]
+		removeDeletedRules(&rules)
 	}
 	return rules
+}
+
+// Change slice in place.
+func removeDeletedRules(l *ciscoRules) {
+	j := 0
+	for _, rule := range *l {
+		if !rule.deleted {
+			(*l)[j] = rule
+			j++
+		}
+	}
+	*l = (*l)[:j]
 }
 
 func joinRanges(aclInfo *aclInfo) {
@@ -648,7 +645,8 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 			return group.ref
 		}
 
-		var newRules ciscoRules
+		// Change slice in place.
+		j := 0
 		for _, rule := range rules {
 			if rule.deleted {
 				continue
@@ -661,9 +659,10 @@ func findObjectgroups(aclInfo *aclInfo, routerData *routerData) {
 					rule.src = group
 				}
 			}
-			newRules.push(rule)
+			rules[j] = rule
+			j++
 		}
-		rules = newRules
+		rules = rules[:j]
 	}
 	aclInfo.rules = rules
 }
