@@ -2,6 +2,7 @@ package pass2
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"os"
 	"sort"
 	"strings"
@@ -157,10 +158,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</rules></security></rulebase>")
 	}
 	printAddresses := func() {
-		l := make([]*ipNet, 0, len(ip2addr))
-		for n := range ip2addr {
-			l = append(l, n)
-		}
+		l := maps.Keys(ip2addr)
 		sort.Slice(l, func(i, j int) bool {
 			if l[i].Addr() == l[j].Addr() {
 				return l[i].Bits() > l[j].Bits()
@@ -193,10 +191,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		fmt.Fprintln(fd, "</address-group>")
 	}
 	printServices := func() {
-		l := make([]srcRgPrt, 0, len(protoMap))
-		for _, p := range protoMap {
-			l = append(l, p)
-		}
+		l := maps.Values(protoMap)
 		sort.Slice(l, func(i, j int) bool {
 			return l[i].prt.protocol < l[j].prt.protocol ||
 				l[i].prt.protocol == l[j].prt.protocol &&

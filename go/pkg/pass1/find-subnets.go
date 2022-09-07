@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 
@@ -19,11 +20,7 @@ func natName(n *network) string {
 func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
 	work func(sub, big *network)) {
 
-	prefixList := make([]int, 0, len(prefixIPMap))
-	for p := range prefixIPMap {
-		prefixList = append(prefixList, p)
-	}
-
+	prefixList := maps.Keys(prefixIPMap)
 	sort.Slice(prefixList, func(i, j int) bool {
 		// Go from smaller to larger networks, i.e big prefix value first.
 		return prefixList[i] > prefixList[j]
@@ -38,10 +35,7 @@ func processSubnetRelation(prefixIPMap map[int]map[netip.Addr]*network,
 
 		// Sort IP addresses to get deterministic warnings and ACLs.
 		ipMap := prefixIPMap[prefix]
-		ipList := make([]netip.Addr, len(ipMap))
-		for ip := range ipMap {
-			ipList = append(ipList, ip)
-		}
+		ipList := maps.Keys(ipMap)
 		sort.Slice(ipList, func(i, j int) bool {
 			return ipList[i].Less(ipList[j])
 		})
@@ -809,10 +803,7 @@ func (c *spoc) findSubnetsInNatDomain(domains []*natDomain) {
 		part := dom2Part[n.zone.natDomain]
 		part2Nets[part] = append(part2Nets[part], n)
 	}
-	partList := make([]int, 0, len(part2Doms))
-	for part := range part2Doms {
-		partList = append(partList, part)
-	}
+	partList := maps.Keys(part2Doms)
 	sort.Ints(partList)
 
 	// Sorts error messages before output.

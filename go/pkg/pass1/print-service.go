@@ -70,6 +70,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"io"
 	"sort"
 	"strconv"
@@ -214,10 +215,7 @@ func (c *spoc) printService(
 		return prefixCode(obj.address(natMap))
 	}
 
-	names := make(stringList, 0, len(s2rules))
-	for name := range s2rules {
-		names.push(name)
-	}
+	names := maps.Keys(s2rules)
 	sort.Strings(names)
 	for _, name := range names {
 		for _, r := range s2rules[name] {

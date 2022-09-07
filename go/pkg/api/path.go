@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -553,10 +554,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 			a.ValueList = append(a.ValueList, &ast.Value{Value: s})
 		}
 	case map[string]interface{}:
-		keys := make([]string, 0, len(x))
-		for k := range x {
-			keys = append(keys, k)
-		}
+		keys := maps.Keys(x)
 		sort.Strings(keys)
 		var l []*ast.Attribute
 		for _, k := range keys {

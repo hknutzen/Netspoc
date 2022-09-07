@@ -3,10 +3,7 @@ package pass1
 import (
 	"bytes"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"path"
 	"regexp"
@@ -14,6 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
 
 	"go4.org/netipx"
 )
@@ -234,10 +236,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel) {
 
 func (c *spoc) setAscendingServices() {
 	s := c.symTable
-	names := make(stringList, 0, len(s.service))
-	for name := range s.service {
-		names.push(name)
-	}
+	names := maps.Keys(s.service)
 	sort.Strings(names)
 	for _, name := range names {
 		c.ascendingServices = append(c.ascendingServices, s.service[name])
@@ -3602,14 +3601,11 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 // Link tunnel networks with tunnel hubs.
 func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
-	sorted := make([]*crypto, 0, len(c.symTable.crypto))
-	for _, c := range c.symTable.crypto {
-		sorted = append(sorted, c)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].name < sorted[j].name
+	l := maps.Values(c.symTable.crypto)
+	sort.Slice(l, func(i, j int) bool {
+		return l[i].name < l[j].name
 	})
-	for _, cr := range sorted {
+	for _, cr := range l {
 		realHub := cr.hub
 		if realHub == nil || realHub.disabled {
 			c.warn("No hub has been defined for %s", cr.name)

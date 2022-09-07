@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 	"strings"
@@ -72,10 +73,7 @@ func (c *spoc) checkIPAddressesAndBridges() {
 
 	// Check address conflicts for collected parts of bridged networks.
 	// Sort prefix names for deterministic error messages.
-	prefixes := make(stringList, 0, len(prefix2net))
-	for p := range prefix2net {
-		prefixes.push(p)
-	}
+	prefixes := maps.Keys(prefix2net)
 	sort.Strings(prefixes)
 	for _, prefix := range prefixes {
 		l := prefix2net[prefix]

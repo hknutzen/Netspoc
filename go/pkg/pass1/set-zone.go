@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 	"strings"
@@ -601,10 +602,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 		}
 
 		// Find ascending list of areas containing current object.
-		containing := make([]*area, 0, len(m))
-		for a := range m {
-			containing = append(containing, a)
-		}
+		containing := maps.Keys(m)
 		sortBySize(containing)
 
 		// Take the smallest area.

@@ -30,6 +30,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"net"
 	"os"
 	"os/exec"
@@ -205,10 +206,7 @@ func ownersForObjects(l srvObjList) stringList {
 			names[name] = true
 		}
 	}
-	result := make(stringList, 0, len(names))
-	for name := range names {
-		result.push(name)
-	}
+	result := maps.Keys(names)
 	sort.Strings(result)
 	return result
 }
@@ -230,10 +228,7 @@ func xOwnersForObjects(l srvObjList, x xOwner) stringList {
 			names[name] = true
 		}
 	}
-	result := make(stringList, 0, len(names))
-	for name := range names {
-		result.push(name)
-	}
+	result := maps.Keys(names)
 	sort.Strings(result)
 	return result
 }
@@ -697,11 +692,7 @@ func (c *spoc) setupPartOwners() xOwner {
 	// Substitute map by slice.
 	pInfo := make(xOwner)
 	for ob, m := range pMap {
-		s := make([]*owner, 0, len(m))
-		for ow := range m {
-			s = append(s, ow)
-		}
-		pInfo[ob] = s
+		pInfo[ob] = maps.Keys(m)
 	}
 	return pInfo
 }
@@ -1388,10 +1379,7 @@ func (c *spoc) exportOwners(outDir string, eInfo map[*owner][]*owner) {
 	for e, m := range email2owners {
 
 		// Sort owner names for output.
-		l := make(stringList, 0, len(m))
-		for o := range m {
-			l.push(o)
-		}
+		l := maps.Keys(m)
 		sort.Strings(l)
 		email2oList[e] = l
 	}
