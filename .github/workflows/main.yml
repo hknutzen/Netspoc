@@ -19,7 +19,7 @@ jobs:
       - name: Calc coverage
         run: >
           go test
-          -coverpkg $(go list ../...|grep /pkg/|paste -sd,)
+          -coverpkg ../pkg/...
           -covermode=count
           -coverprofile=coverage.out
         working-directory: go/test
