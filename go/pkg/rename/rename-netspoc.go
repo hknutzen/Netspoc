@@ -308,11 +308,9 @@ func Main(d oslink.Data) int {
 			return 1
 		}
 	}
-	if len(args) > 1 {
-		if err := setupPairs(subst, args[1:]); err != nil {
-			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-			return 1
-		}
+	if err := setupPairs(subst, args[1:]); err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+		return 1
 	}
 	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}

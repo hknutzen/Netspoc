@@ -115,13 +115,11 @@ func Main(d oslink.Data) int {
 		}
 		names = append(names, l...)
 	}
-	if len(args) > 1 {
-		if err := checkNames(args[1:]); err != nil {
-			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-			return 1
-		}
-		names = append(names, args[1:]...)
+	if err := checkNames(args[1:]); err != nil {
+		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+		return 1
 	}
+	names = append(names, args[1:]...)
 
 	// Initialize config.
 	dummyArgs := []string{fmt.Sprintf("--quiet=%v", *quiet)}
