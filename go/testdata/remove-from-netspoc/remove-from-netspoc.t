@@ -260,10 +260,10 @@ router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo = { ip = 10.1.1.1; loopback; hardware = lo; }
+ interface:lo2 = { ip = 10.1.1.1; loopback; hardware = lo2; }
 }
 group:abc = group:g &! interface:r1.lo;
-group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo;
+group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo2;
 =END=
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -274,7 +274,7 @@ router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo = { ip = 10.1.1.1; loopback; hardware = lo; }
+ interface:lo2 = { ip = 10.1.1.1; loopback; hardware = lo2; }
 }
 group:abc =
  group:g,
@@ -282,7 +282,7 @@ group:abc =
 group:g =
 ;
 =OPTIONS=-d
-=PARAMS=interface:r1.lo interface:r1.n1 interface:r2.lo
+=PARAMS=interface:r1.lo interface:r1.n1 interface:r2.lo2
 
 ############################################################
 =TITLE=Remove intersection if non complement element becomes empty (1)
