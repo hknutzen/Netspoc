@@ -79,6 +79,14 @@ Aborted
 =PARAM=network:n1; INVALID
 
 ############################################################
+=TITLE=Trailing comma at input
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=OUTPUT=
+10.1.1.0/24	network:n1
+=PARAM=network:n1,
+
+############################################################
 =TEMPL=topo
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
 network:n2 = { ip = 10.1.2.0/24; }
