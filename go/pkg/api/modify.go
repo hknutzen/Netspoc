@@ -23,8 +23,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -110,7 +110,7 @@ var handler = map[string]func(*state, *job) error{
 }
 
 func (s *state) doJobFile(path string) error {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Can't %s", err)
 	}
