@@ -26,7 +26,7 @@ func CheckACLMain(d oslink.Data) int {
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(d.Stderr,
-			"Usage: %s [-f file] code/router acl ['ip1 ip2 tcp|udp port']...\n%s",
+			"Usage: %s [-f file] code/router ACL-NAME ['ip1 ip2 tcp|udp port']...\n%s",
 			d.Args[0], fs.FlagUsages())
 	}
 

@@ -20,7 +20,7 @@ service:s1 = {
 =INPUT=[[input]]
 =PARAMS=r1 n1_in -h
 =ERROR=
-Usage: PROGRAM [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
+Usage: PROGRAM [-f file] code/router ACL-NAME ['ip1 ip2 tcp|udp port']...
   -f, --file string   Read packet descriptions from file
 =END=
 
@@ -93,7 +93,7 @@ deny   10.1.1.11 10.0.0.0 tcp 85
 =INPUT=[[input]]
 =PARAMS= r1 n1_in
 =ERROR=
-Usage: PROGRAM [-f file] code/router acl ['ip1 ip2 tcp|udp port']...
+Usage: PROGRAM [-f file] code/router ACL-NAME ['ip1 ip2 tcp|udp port']...
   -f, --file string   Read packet descriptions from file
 =END=
 
