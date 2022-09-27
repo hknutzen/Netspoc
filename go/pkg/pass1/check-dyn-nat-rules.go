@@ -283,7 +283,7 @@ func (c *spoc) checkDynamicNatRules(
 						}
 					}
 				}
-				natInterfaces.delDupl()
+				delDupl(&natInterfaces)
 				sort.Slice(natInterfaces, func(i, j int) bool {
 					return natInterfaces[i].name < natInterfaces[j].name
 				})

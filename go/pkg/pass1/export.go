@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"net"
 	"os"
 	"os/exec"
@@ -697,16 +698,17 @@ func (c *spoc) setupPartOwners() xOwner {
 	return pInfo
 }
 
-// 1. Store outer owners for hosts, interfaces and networks in oInfo.
-//    For network, collect owners from enclosing networks and zone,
-//    that are different from networks owner.
-//    For host, collect owners of enclosing networks and zone,
-//    that are different from hosts owner.
-// 2. For each owner, store list of other owners of enclosing objects,
-//    that are allowed to watch that owner in eInfo.
-//    An outer owner is allowed to select the role of an inner owner,
-//    if all assets of the inner owner are located inside of assets
-//    that are owned by the outer owner.
+//  1. Store outer owners for hosts, interfaces and networks in oInfo.
+//     For network, collect owners from enclosing networks and zone,
+//     that are different from networks owner.
+//     For host, collect owners of enclosing networks and zone,
+//     that are different from hosts owner.
+//  2. For each owner, store list of other owners of enclosing objects,
+//     that are allowed to watch that owner in eInfo.
+//     An outer owner is allowed to select the role of an inner owner,
+//     if all assets of the inner owner are located inside of assets
+//     that are owned by the outer owner.
+//
 // Attribute hideFromOuterOwners is given at inner owner and hides
 // from outer owners.
 // Attribute showHiddenOwners at outer owner cancels effect of
@@ -866,22 +868,22 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 	return masterName, oInfo, eInfo
 }
 
-//#####################################################################
 // Export NAT-set
-// - Relate each network to its owner and part_owners.
-// - Build a nat_set for each owner by combining nat_sets of
-//   NAT domains of all own networks.
+//   - Relate each network to its owner and part_owners.
+//   - Build a nat_set for each owner by combining nat_sets of
+//     NAT domains of all own networks.
+//
 // If owner has exactly one NAT domain, use corresponding nat_set
 // to determine IP address of other networks.
 // Otherwise multiple nat-sets need to be combined.
 // Analyze each network X with multiple NAT tags.
-// - If all nat-sets map to the same IP, use this mapping.
-// - If some nat-sets map to different IPs, use original IP.
-// - If some nat-sets map to the same IP and all other nat-sets
-//   map to 'hidden' then ignore hidden in combined nat-set.
+//   - If all nat-sets map to the same IP, use this mapping.
+//   - If some nat-sets map to different IPs, use original IP.
+//   - If some nat-sets map to the same IP and all other nat-sets
+//     map to 'hidden' then ignore hidden in combined nat-set.
+//
 // This way, a real NAT tag will not be disabled,
 // if it is combined with a hidden NAT tag from same multi-NAT.
-//#####################################################################
 func (c *spoc) exportNatSet(dir string,
 	natTag2multinatDef map[string][]natTagMap, natTag2natType map[string]string,
 	pInfo, oInfo xOwner) {
@@ -1210,17 +1212,12 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 
 				// Sort result and remove duplicate aggregates from zone
 				// clusters.
-				uNames := make(stringList, 0, len(users))
-				seen := make(map[string]bool)
-				for _, user := range users {
-					name := user.String()
-					if !seen[name] {
-						seen[name] = true
-						uNames.push(name)
-					}
+				uNames := make(stringList, len(users))
+				for i, user := range users {
+					uNames[i] = user.String()
 				}
 				sort.Strings(uNames)
-				service2users[sName] = uNames
+				service2users[sName] = slices.Compact(uNames)
 			}
 			sort.Strings(sNames)
 			type2snames[typ] = sNames
