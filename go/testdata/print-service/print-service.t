@@ -5,8 +5,9 @@
 =PARAMS=-h
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
+  -i, --ip           Show only IP address of elements
   -6, --ipv6         Expect IPv6 definitions
-  -n, --name         Show name, not IP of elements
+  -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -q, --quiet        Don't print progress messages
 =END=
@@ -16,8 +17,9 @@ Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
 =INPUT=NONE
 =ERROR=
 Usage: PROGRAM [options] FILE|DIR [SERVICE-NAME ...]
+  -i, --ip           Show only IP address of elements
   -6, --ipv6         Expect IPv6 definitions
-  -n, --name         Show name, not IP of elements
+  -n, --name         Show only name of elements
       --nat string   Use network:name as reference when resolving IP address
   -q, --quiet        Don't print progress messages
 =END=
@@ -156,6 +158,15 @@ s2:permit 10.1.2.0/24 10.1.3.0/24 tcp
 s2:permit network:n2 network:n3 tcp
 =END=
 =OPTIONS=--name
+=PARAMS=service:s2
+
+############################################################
+=TITLE=Select services, show names and IPs of objects
+=INPUT=[[input]]
+=OUTPUT=
+s2:permit 10.1.2.0/24 network:n2 10.1.3.0/24 network:n3 tcp
+=END=
+=OPTIONS=--name --ip
 =PARAMS=service:s2
 
 ############################################################
