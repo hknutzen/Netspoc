@@ -181,6 +181,8 @@ func (c *spoc) markDisabled() {
 					" with attribute 'management_instance'\n"+
 					" for %s",
 					r1.deviceName, r1)
+			} else if !mr.managementInstance {
+				c.err("Must add attribute 'management_instance' at %s", mr)
 			} else if mr.backupOf != nil {
 				c.err("Must define unmanaged router:%s\n"+
 					" - with attribute 'management_instance'\n"+
