@@ -3451,11 +3451,12 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 	}
 }
 
-//############################################################################
-// Purpose  : Moves attribute 'no_in_acl' from interface to hardware because
-//            ACLs operate on hardware, not on logic. Marks hardware needing
-//            outgoing ACLs.
-// Comments : Not more than 1 'no_in_acl' interface per router allowed.
+// checkNoInAcl moves attribute 'no_in_acl'
+// from interface to hardware	because ACLs operate on hardware, not on logic.
+//
+//	Marks hardware needing outgoing ACLs.
+//
+// Comment: Not more than one 'no_in_acl' interface per router allowed.
 func (c *spoc) checkNoInAcl(r *router) {
 	count := 0
 	hasCrypto := false
@@ -3527,7 +3528,7 @@ func (c *spoc) checkNoInAcl(r *router) {
 			r)
 	}
 
-	// Mark other hardware with attribute 'need_out_acl'.
+	// Mark other hardware with attribute 'needOutAcl'.
 	for _, hw := range r.hardware {
 		if !hw.noInAcl {
 			hw.needOutAcl = true
