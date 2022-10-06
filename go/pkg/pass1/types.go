@@ -435,7 +435,6 @@ type hardware struct {
 	crosslink  bool
 	loopback   bool
 	name       string
-	bindNat    []string
 	natMap     natMap
 	needOutAcl bool
 	noInAcl    bool

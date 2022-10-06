@@ -463,6 +463,23 @@ service:s2 = {
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
+=TITLE=Equal rules with different selector in automatic group.
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = host:h10;
+ permit src = user; dst = interface:[network:n2].[all]; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h11;
+ permit src = user; dst = interface:[network:n2].[auto]; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
 =TITLE=Equal rules with textual different elements in automatic group.
 =PARAMS=--ipv6
 =INPUT=

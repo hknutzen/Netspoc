@@ -671,10 +671,10 @@ router:r = {
 }
 =END=
 =ERROR=
-Error: All logical interfaces with 'hardware = n1' at router:r
- must use identical NAT binding
-Error: All logical interfaces with 'hardware = n1' at router:r
- must use identical NAT binding
+Error: interface:r.n1a and interface:r.n1b using identical 'hardware = n1'
+ must also use identical NAT binding
+Error: interface:r.n1a and interface:r.n1c using identical 'hardware = n1'
+ must also use identical NAT binding
 =END=
 
 ############################################################

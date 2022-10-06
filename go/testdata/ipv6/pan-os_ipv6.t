@@ -13,7 +13,7 @@ Error: Must use VRF ('@...' in name) at router:r1 of model PAN-OS
 =END=
 
 ############################################################
-=TITLE=Need management_instance
+=TITLE=Need router with management_instance
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
@@ -31,6 +31,28 @@ router:r1@vsys3 = {
 Error: Must define unmanaged router:r1
  with attribute 'management_instance'
  for router:r1@vsys2
+=END=
+
+############################################################
+=TITLE=Missing attribute management_instance
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+router:r1 = {
+ interface:n1 = { ip = ::a01:101; }
+}
+router:r1@vsys2 = {
+ model = PAN-OS;
+ managed;
+ interface:n1 = { ip = ::a01:102; hardware = n1a; }
+}
+router:r1@vsys3 = {
+ model = PAN-OS;
+ managed;
+ interface:n1 = { ip = ::a01:103; hardware = n1b; }
+}
+=ERROR=
+Error: Must add attribute 'management_instance' at router:r1
 =END=
 
 ############################################################

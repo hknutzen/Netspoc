@@ -1199,6 +1199,19 @@ func (c *spoc) setupRouter(v *ast.Router) {
 	for _, a := range v.Interfaces {
 		c.setupInterface(a, hwMap, l3Name, r)
 	}
+	for _, hw := range hwMap {
+		l := hw.interfaces
+		intf := l[0]
+		for _, other := range l[1:] {
+			// All logical interfaces of one hardware interface
+			// need to use the same NAT binding,
+			// because NAT operates on hardware, not on logic.
+			if !bindNatEq(intf.bindNat, other.bindNat) {
+				c.err("%s and %s using identical 'hardware = %s'\n"+
+					" must also use identical NAT binding", intf, other, hw.name)
+			}
+		}
+	}
 
 	if managed := r.managed; managed != "" {
 		if r.model == nil {
@@ -1761,20 +1774,11 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			hwName = "unknown"
 		}
 
-		var hw *hardware
-		if hw = hwMap[hwName]; hw != nil {
-			// All logical interfaces of one hardware interface
-			// need to use the same NAT binding,
-			// because NAT operates on hardware, not on logic.
-			if !bindNatEq(intf.bindNat, hw.bindNat) {
-				c.err("All logical interfaces with 'hardware = %s' at %s\n"+
-					" must use identical NAT binding", hwName, r)
-			}
-		} else {
+		hw := hwMap[hwName]
+		if hw == nil {
 			hw = &hardware{name: hwName, loopback: true}
 			hwMap[hwName] = hw
 			r.hardware = append(r.hardware, hw)
-			hw.bindNat = intf.bindNat
 		}
 		// Hardware keeps attribute .loopback only if all
 		// interfaces have attribute .loopback.
