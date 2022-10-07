@@ -1,13 +1,14 @@
 ############################################################
 =TITLE=Need VRF
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Must use VRF ('@...' in name) at router:r1 of model NSX
@@ -15,14 +16,15 @@ Error: Must use VRF ('@...' in name) at router:r1 of model NSX
 
 ############################################################
 =TITLE=Need tier specified by extension
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1@vrf = {
  model = NSX;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
@@ -30,14 +32,15 @@ Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
 
 ############################################################
 =TITLE=Invalid extension
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1@vrf = {
  model = NSX, T1;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: Unknown extension in 'model' of router:r1@vrf: T1
@@ -46,20 +49,21 @@ Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
 
 ############################################################
 =TITLE=Need management_instance
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
 }
 router:r1@v2 = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = 10.1.1.3; hardware = IN; }
- interface:n2 = { ip = 10.1.2.3; hardware = OUT; }
+ interface:n1 = { ip = ::a01:103; hardware = IN; }
+ interface:n2 = { ip = ::a01:203; hardware = OUT; }
 }
 =ERROR=
 Error: Must define unmanaged router:r1
@@ -69,19 +73,20 @@ Error: Must define unmanaged router:r1
 
 ############################################################
 =TITLE=management_instance has wrong model
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = PAN-OS;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:202; hardware = OUT; }
 }
 =ERROR=
 Error: router:r1@v1 and router:r1 must have identical model
@@ -89,25 +94,26 @@ Error: router:r1@v1 and router:r1 must have identical model
 
 ############################################################
 =TITLE=backup_of has wrong model
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r2 = {
  model = PAN-OS;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = 10.1.1.99; }
+ interface:n1 = { ip = ::a01:163; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 =ERROR=
 Error: router:r1 and router:r2 must have identical model
@@ -115,21 +121,22 @@ Error: router:r1 and router:r2 must have identical model
 
 ############################################################
 =TITLE=Multiple interfaces with same hardware
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
- interface:n3 = { ip = 10.1.3.1; hardware = IN; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
+ interface:n3 = { ip = ::a01:301; hardware = IN; }
 }
 =ERROR=
 Error: Different interfaces must not share same hardware 'IN' at router:r1@v1 of model NSX
@@ -137,26 +144,27 @@ Error: Different interfaces must not share same hardware 'IN' at router:r1@v1 of
 
 ############################################################
 =TITLE=Wrong number of interfaces
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
 }
 router:r1@v2 = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = 10.1.1.3; hardware = IN; }
- interface:n2 = { ip = 10.1.2.3; hardware = OUT; }
- interface:n3 = { ip = 10.1.3.3; hardware = DMZ; }
+ interface:n1 = { ip = ::a01:103; hardware = IN; }
+ interface:n2 = { ip = ::a01:203; hardware = OUT; }
+ interface:n3 = { ip = ::a01:303; hardware = DMZ; }
 }
 =ERROR=
 Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN and OUT
@@ -165,19 +173,20 @@ Error: router:r1@v2 of model NSX must have exactly 2 interfaces with hardware IN
 
 ############################################################
 =TITLE=Wrong hardware of interfaces
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = I; }
- interface:n2 = { ip = 10.1.2.3; hardware = O; }
+ interface:n1 = { ip = ::a01:102; hardware = I; }
+ interface:n2 = { ip = ::a01:203; hardware = O; }
 }
 =ERROR=
 Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN and OUT
@@ -185,38 +194,39 @@ Error: router:r1@v1 of model NSX must have exactly 2 interfaces with hardware IN
 
 ############################################################
 =TITLE=Simple rules, use backup_of
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24;
- host:h10 = { ip = 10.1.1.10; }
- host:h20 = { ip = 10.1.1.20; }
+network:n1 = { ip = ::a01:100/120;
+ host:h10 = { ip = ::a01:10a; }
+ host:h20 = { ip = ::a01:114; }
 }
-network:n2 = { ip = 10.1.2.0/24;
- host:h30 = { ip = 10.1.2.30; }
- host:h40 = { ip = 10.1.2.40; }
+network:n2 = { ip = ::a01:200/120;
+ host:h30 = { ip = ::a01:21e; }
+ host:h40 = { ip = ::a01:228; }
 }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n3 = { ip = ::a01:300/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r2 = {
  model = NSX;
  management_instance;
  backup_of = router:r1;
- interface:n1 = { ip = 10.1.1.9; }
+ interface:n1 = { ip = ::a01:109; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 router:r1@v2 = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = 10.1.1.3; hardware = IN; }
- interface:n3 = { ip = 10.1.3.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:103; hardware = IN; }
+ interface:n3 = { ip = ::a01:301; hardware = OUT; }
 }
 service:s1 = {
  user = host:h10, host:h20;
@@ -239,37 +249,37 @@ service:s4 = {
  permit src = user; dst = network:n3; prt = tcp 81;
 }
 =OUTPUT=
---r1
+--ipv6/r1
 Generated by Netspoc, version devel
 --
 [ BEGIN r1, r2 ]
 [ Model = NSX ]
-[ IP = 10.1.1.1, 10.1.1.9 ]
+[ IP = ::a01:101, ::a01:109 ]
 --
 [
  {
   "expression": [
    {
     "ip_addresses": [
-     "10.1.1.10",
-     "10.1.1.20"
+     "::a01:10a",
+     "::a01:114"
     ],
     "resource_type": "IPAddressExpression"
    }
   ],
-  "path": "/infra/domains/default/groups/Netspoc-g0"
+  "path": "/infra/domains/default/groups/Netspoc-v6g0"
  },
  {
   "expression": [
    {
     "ip_addresses": [
-     "10.1.2.30",
-     "10.1.2.40"
+     "::a01:21e",
+     "::a01:228"
     ],
     "resource_type": "IPAddressExpression"
    }
   ],
-  "path": "/infra/domains/default/groups/Netspoc-g1"
+  "path": "/infra/domains/default/groups/Netspoc-v6g1"
  },
  {
   "display_name": "Netspoc-tcp",
@@ -383,13 +393,13 @@ Generated by Netspoc, version devel
      "Netspoc-tcp 22"
     ],
     "source_groups": [
-     "Netspoc-g0"
+     "Netspoc-v6g0"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.2.30"
+     "::a01:21e"
     ],
     "direction": "OUT",
     "id": "Netspoc-2",
@@ -401,7 +411,7 @@ Generated by Netspoc, version devel
      "Netspoc-tcp"
     ],
     "source_groups": [
-     "Netspoc-g0"
+     "Netspoc-v6g0"
     ]
    },
    {
@@ -425,7 +435,7 @@ Generated by Netspoc, version devel
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "IN",
     "id": "Netspoc-4",
@@ -437,7 +447,7 @@ Generated by Netspoc, version devel
      "Netspoc-tcp 81"
     ],
     "source_groups": [
-     "Netspoc-g1"
+     "Netspoc-v6g1"
     ]
    },
    {
@@ -469,7 +479,7 @@ Generated by Netspoc, version devel
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-6",
@@ -481,13 +491,13 @@ Generated by Netspoc, version devel
      "Netspoc-udp 123:123"
     ],
     "source_groups": [
-     "10.1.1.10"
+     "::a01:10a"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-7",
@@ -499,13 +509,13 @@ Generated by Netspoc, version devel
      "Netspoc-tcp 80"
     ],
     "source_groups": [
-     "10.1.1.10"
+     "::a01:10a"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-8",
@@ -517,13 +527,13 @@ Generated by Netspoc, version devel
      "Netspoc-tcp 8080"
     ],
     "source_groups": [
-     "10.1.1.10"
+     "::a01:10a"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-9",
@@ -535,13 +545,13 @@ Generated by Netspoc, version devel
      "Netspoc-udp 123:1-65535"
     ],
     "source_groups": [
-     "10.1.1.20"
+     "::a01:114"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.3.0/24"
+     "::a01:300/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-10",
@@ -553,7 +563,7 @@ Generated by Netspoc, version devel
      "Netspoc-tcp 81"
     ],
     "source_groups": [
-     "Netspoc-g1"
+     "Netspoc-v6g1"
     ]
    },
    {
@@ -599,32 +609,33 @@ Generated by Netspoc, version devel
 
 ############################################################
 =TITLE=Expand group that is used only once
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24;
- host:h10 = { ip = 10.1.1.10; }
- host:h20 = { ip = 10.1.1.20; }
+network:n1 = { ip = ::a01:100/120;
+ host:h10 = { ip = ::a01:10a; }
+ host:h20 = { ip = ::a01:114; }
 }
-network:n2 = { ip = 10.1.2.0/24;
- host:h30 = { ip = 10.1.2.30; }
- host:h40 = { ip = 10.1.2.40; }
+network:n2 = { ip = ::a01:200/120;
+ host:h30 = { ip = ::a01:21e; }
+ host:h40 = { ip = ::a01:228; }
 }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 service:s1 = {
  user = host:h10, host:h20;
  permit src = user; dst = host:h30, host:h40; prt = tcp 80;
 }
 =OUTPUT=
---r1
+--ipv6/r1
 [
  {
   "display_name": "Netspoc-tcp 80",
@@ -648,8 +659,8 @@ service:s1 = {
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.2.30",
-     "10.1.2.40"
+     "::a01:21e",
+     "::a01:228"
     ],
     "direction": "OUT",
     "id": "Netspoc-1",
@@ -661,8 +672,8 @@ service:s1 = {
      "Netspoc-tcp 80"
     ],
     "source_groups": [
-     "10.1.1.10",
-     "10.1.1.20"
+     "::a01:10a",
+     "::a01:114"
     ]
    },
    {
@@ -708,22 +719,23 @@ service:s1 = {
 
 ############################################################
 =TITLE=Without rules
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-1;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 =OUTPUT=
---r1
+--ipv6/r1
 [
  {
   "display_name": "Netspoc-v1",
@@ -774,26 +786,27 @@ router:r1@v1 = {
 
 ############################################################
 =TITLE=ICMP and numeric protocol
+=PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
 router:r1 = {
  model = NSX;
  management_instance;
- interface:n1 = { ip = 10.1.1.1; }
+ interface:n1 = { ip = ::a01:101; }
 }
 router:r1@v1 = {
  model = NSX, Tier-0;
  managed;
- interface:n1 = { ip = 10.1.1.2; hardware = IN; }
- interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
+ interface:n1 = { ip = ::a01:102; hardware = IN; }
+ interface:n2 = { ip = ::a01:201; hardware = OUT; }
 }
 service:s1 = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = icmp 8, icmp 5/0, proto 52;
+ permit src = user; dst = network:n2; prt = icmpv6 8, icmpv6 5/0, proto 52;
 }
 =OUTPUT=
---r1
+--ipv6/r1
 [
  {
   "display_name": "Netspoc-icmp 5/0",
@@ -802,7 +815,7 @@ service:s1 = {
    {
     "icmp_code": 0,
     "icmp_type": 5,
-    "protocol": "ICMPv4",
+    "protocol": "ICMPv6",
     "resource_type": "IcmpTypeServiceEntry"
    }
   ]
@@ -813,7 +826,7 @@ service:s1 = {
   "service_entries": [
    {
     "icmp_type": 8,
-    "protocol": "ICMPv4",
+    "protocol": "ICMPv6",
     "resource_type": "IcmpTypeServiceEntry"
    }
   ]
@@ -837,7 +850,7 @@ service:s1 = {
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.2.0/24"
+     "::a01:200/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-1",
@@ -849,13 +862,13 @@ service:s1 = {
      "Netspoc-icmp 8"
     ],
     "source_groups": [
-     "10.1.1.0/24"
+     "::a01:100/120"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.2.0/24"
+     "::a01:200/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-2",
@@ -867,13 +880,13 @@ service:s1 = {
      "Netspoc-icmp 5/0"
     ],
     "source_groups": [
-     "10.1.1.0/24"
+     "::a01:100/120"
     ]
    },
    {
     "action": "ALLOW",
     "destination_groups": [
-     "10.1.2.0/24"
+     "::a01:200/120"
     ],
     "direction": "OUT",
     "id": "Netspoc-3",
@@ -885,7 +898,7 @@ service:s1 = {
      "Netspoc-proto 52"
     ],
     "source_groups": [
-     "10.1.1.0/24"
+     "::a01:100/120"
     ]
    },
    {

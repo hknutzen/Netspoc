@@ -197,6 +197,14 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				}
 			case "icmp":
 				svcEntry["resource_type"] = "IcmpTypeServiceEntry"
+				var icmpProto string
+				if rData.ipv6 {
+					icmpProto = "ICMPv6"
+				} else {
+					icmpProto = "ICMPv4"
+				}
+				svcEntry["protocol"] = icmpProto
+
 				if typ := p.icmpType; typ != -1 {
 					svcEntry["icmp_type"] = typ
 					if code := p.icmpCode; code != -1 {
