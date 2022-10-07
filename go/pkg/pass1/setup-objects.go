@@ -1199,19 +1199,6 @@ func (c *spoc) setupRouter(v *ast.Router) {
 	for _, a := range v.Interfaces {
 		c.setupInterface(a, hwMap, l3Name, r)
 	}
-	for _, hw := range hwMap {
-		l := hw.interfaces
-		intf := l[0]
-		for _, other := range l[1:] {
-			// All logical interfaces of one hardware interface
-			// need to use the same NAT binding,
-			// because NAT operates on hardware, not on logic.
-			if !bindNatEq(intf.bindNat, other.bindNat) {
-				c.err("%s and %s using identical 'hardware = %s'\n"+
-					" must also use identical NAT binding", intf, other, hw.name)
-			}
-		}
-	}
 
 	if managed := r.managed; managed != "" {
 		if r.model == nil {
@@ -1229,11 +1216,39 @@ func (c *spoc) setupRouter(v *ast.Router) {
 		}
 
 		if r.vrf != "" && !r.model.canVRF {
-			c.err("Must not use VRF at %s of model %s", name, r.model.name)
+			c.err("Must not use VRF at %s of model %s", name, r.model.class)
 		}
 		if r.vrf == "" && r.model.needVRF {
 			c.err("Must use VRF ('@...' in name) at %s of model %s",
-				name, r.model.name)
+				name, r.model.class)
+		}
+		if r.model.filter == "NSX" {
+			if len(hwMap) != 2 || hwMap["IN"] == nil || hwMap["OUT"] == nil {
+				c.err("%s of model %s must have exactly 2 interfaces"+
+					" with hardware IN and OUT", r, r.model.class)
+			}
+			if r.model.tier == "" {
+				c.err("Must add extension 'Tier-0' or 'Tier-1' at %s of model %s",
+					r, r.model.class)
+			}
+		}
+		for _, hw := range hwMap {
+			l := hw.interfaces
+			if r.model.noSharedHardware && len(l) > 1 {
+				c.err("Different interfaces must not share same hardware '%s'"+
+					" at %s of model %s", hw.name, name, r.model.class)
+			}
+
+			// All logical interfaces of one hardware interface need to
+			// use the same NAT binding, because NAT operates on
+			// hardware, not on logic.
+			intf := l[0]
+			for _, other := range l[1:] {
+				if !bindNatEq(intf.bindNat, other.bindNat) {
+					c.err("%s and %s using identical 'hardware = %s'\n"+
+						" must also use identical NAT binding", intf, other, hw.name)
+				}
+			}
 		}
 
 		for _, intf := range withSecondary(r.interfaces) {
@@ -2443,6 +2458,16 @@ var routerInfo = map[string]*model{
 		needVRF:                true,
 		noACLself:              true,
 	},
+	"NSX": {
+		routing:                "",
+		filter:                 "NSX",
+		canObjectgroup:         true,
+		canVRF:                 true,
+		needManagementInstance: true,
+		needVRF:                true,
+		noACLself:              true,
+		noSharedHardware:       true,
+	},
 	"Linux": {
 		routing:     "iproute",
 		filter:      "iptables",
@@ -2452,11 +2477,11 @@ var routerInfo = map[string]*model{
 }
 
 func init() {
-	for name := range routerInfo {
+	for name, info := range routerInfo {
 		// Is changed for model with extension. Used in error messages.
-		routerInfo[name].name = name
+		info.name = name
 		// Is left unchanged with extensions. Used in header of generated files.
-		routerInfo[name].class = name
+		info.class = name
 	}
 }
 
@@ -2495,6 +2520,15 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 					info.cryptoInContext = true
 				case "EZVPN":
 					info.crypto = "ASA_EZVPN"
+				default:
+					goto FAIL
+				}
+			case "NSX":
+				switch att {
+				case "Tier-0":
+					info.tier = "0"
+				case "Tier-1":
+					info.tier = "1"
 				default:
 					goto FAIL
 				}

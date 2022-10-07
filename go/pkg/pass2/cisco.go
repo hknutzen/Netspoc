@@ -297,10 +297,11 @@ func joinRanges(aclInfo *aclInfo) {
 }
 
 // Place those rules first in Cisco ACL that have
-// - attribute 'log'
-//   because larger rule must not be placed before them,
-// - protocols ESP or AH
-//   for performance reasons.
+//   - attribute 'log'
+//     because larger rule must not be placed before them,
+//   - protocols ESP or AH
+//     for performance reasons.
+//
 // Crypto rules need to have a fixed order,
 // Protocols ESP and AH are be placed first in Cisco ACL
 // for performance reasons.
@@ -440,13 +441,17 @@ func addLocalDenyRules(aclInfo *aclInfo, routerData *routerData) {
 }
 
 /*
- Purpose    : Adjacent IP/mask objects are combined to larger objects.
-              It is assumed, that no duplicate or redundant IP/mask objects
-              are given.
- Parameters : r - rules
-              isDst - Take IP/mask objects from dst of rule
-              ipNet2obj - map of all known IP/mask objects
- Result     : Returns rules with combined IP/mask objects.
+Purpose    : Adjacent IP/mask objects are combined to larger objects.
+
+	It is assumed, that no duplicate or redundant IP/mask objects
+	are given.
+
+Parameters : r - rules
+
+	isDst - Take IP/mask objects from dst of rule
+	ipNet2obj - map of all known IP/mask objects
+
+Result     : Returns rules with combined IP/mask objects.
 */
 func combineAdjacentIPMask(rules []*ciscoRule, isDst bool, ipNet2obj name2ipNet) []*ciscoRule {
 
@@ -766,11 +771,11 @@ func checkFinalPermit(aclInfo *aclInfo) bool {
 }
 
 // Add 'deny|permit ip any any' at end of ACL.
-func addFinalPermitDenyRule(aclInfo *aclInfo, addDeny, addPermit bool) {
-	if addDeny || addPermit {
+func addFinalPermitDenyRule(aclInfo *aclInfo) {
+	if aclInfo.addDeny || aclInfo.addPermit {
 		aclInfo.rules.push(
 			&ciscoRule{
-				deny: addDeny,
+				deny: aclInfo.addDeny,
 				src:  aclInfo.network00,
 				dst:  aclInfo.network00,
 				prt:  aclInfo.prtIP,
@@ -786,16 +791,14 @@ func finalizeCiscoACL(aclInfo *aclInfo, routerData *routerData) {
 	joinRanges(aclInfo)
 	moveRules(aclInfo)
 	hasFinalPermit := checkFinalPermit(aclInfo)
-	addPermit := aclInfo.addPermit
-	addDeny := aclInfo.addDeny
-	addProtectRules(aclInfo, hasFinalPermit || addPermit)
+	addProtectRules(aclInfo, hasFinalPermit || aclInfo.addPermit)
 	if !aclInfo.isCryptoACL {
 		findObjectgroups(aclInfo, routerData)
 	}
-	if len(aclInfo.filterOnly) > 0 && !addPermit {
+	if len(aclInfo.filterOnly) > 0 && !aclInfo.addPermit {
 		addLocalDenyRules(aclInfo, routerData)
 	} else if !hasFinalPermit {
-		addFinalPermitDenyRule(aclInfo, addDeny, addPermit)
+		addFinalPermitDenyRule(aclInfo)
 	}
 }
 

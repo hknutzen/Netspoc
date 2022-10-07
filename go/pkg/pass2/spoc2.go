@@ -188,6 +188,7 @@ type aclInfo struct {
 	network00                                        *ipNet
 	prtIP                                            *proto
 	objectGroups                                     []*objGroup
+	tier                                             string
 	vrf                                              string
 }
 
@@ -225,6 +226,7 @@ func convertACLs(
 		isCryptoACL:  jACL.IsCryptoACL,
 		addPermit:    jACL.AddPermit,
 		addDeny:      jACL.AddDeny,
+		tier:         jACL.Tier,
 		vrf:          jACL.VRF,
 		intfRules:    intfRules,
 		intfRuHasLog: hasLog1,
@@ -387,9 +389,12 @@ func printRouter(file string) {
 		panicf("Can't %v", err)
 	}
 	defer fd.Close()
-	if routerData.model == "PAN-OS" {
+	switch routerData.model {
+	case "PAN-OS":
 		printCombinedPanOS(fd, config, routerData)
-	} else {
+	case "NSX":
+		printCombinedNSX(fd, config, routerData)
+	default:
 		printCombinedOther(fd, config, routerData)
 	}
 }
