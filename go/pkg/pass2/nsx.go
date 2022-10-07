@@ -13,6 +13,7 @@ import (
 type jsonMap map[string]interface{}
 
 func printNSXRules(fd *os.File, rData *routerData) {
+	ruleNum := 1
 
 	// Remove redundant rules and find object-groups.
 	prepareACLs(rData)
@@ -116,7 +117,6 @@ func printNSXRules(fd *os.File, rData *routerData) {
 			acls := pm[vrf]
 			scope := fmt.Sprintf("/infra/tier-%ss/%s", acls[0].tier, vrf)
 			var nsxRules []jsonMap
-			count := 1
 			for _, acl := range acls {
 				hardware := strings.TrimSuffix(acl.name, "_in")
 				direction := "IN"
@@ -124,12 +124,11 @@ func printNSXRules(fd *os.File, rData *routerData) {
 					direction = "OUT"
 				}
 				for _, rule := range acl.rules {
-					rName := fmt.Sprintf("r%d", count)
-					count++
+					rName := fmt.Sprintf("Netspoc-%d", ruleNum)
+					ruleNum++
 					nsxRule := jsonMap{
 						"resource_type":      "Rule",
 						"id":                 rName,
-						"display_name":       rName,
 						"action":             getAction(rule),
 						"source_groups":      getAddress(rule.src),
 						"destination_groups": getAddress(rule.dst),
