@@ -271,9 +271,9 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=subnet_of at inherited NAT
-=INPUT=
+=TEMPL=input
 area:n1-2 = {
- nat:m = { ip = 10.1.3.16/28; dynamic; subnet_of = network:n3; }
+ nat:m = { ip = {{.}}; dynamic; subnet_of = network:n3; }
  inclusive_border = interface:r1.n3;
 }
 network:n1 = { ip = 10.1.1.0/24; }
@@ -297,13 +297,20 @@ service:s1 = {
  user = network:n1, network:n2;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
+=INPUT=[[input 10.1.3.16/28]]
 =OUTPUT=
 -- r2
 ! n3_in
 access-list n3_in extended permit tcp 10.1.3.16 255.255.255.240 10.1.4.0 255.255.255.0 eq 80
 access-list n3_in extended deny ip any4 any4
 access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Declared subnet of NAT network in area doesn't match
+=INPUT=[[input 10.11.3.16/28]]
+=ERROR=
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's IP/mask
 =END=
 
 ############################################################
