@@ -427,6 +427,7 @@ network:n4 = {
  host:h43 = { ip = 10.1.4.3; }
  host:h44 = { ip = 10.1.4.4; }
 }
+network:n5 = { ip = 10.1.5.0/24; nat:n4 = { hidden; } }
 
 router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
@@ -441,7 +442,8 @@ router:r2 = {
 }
 router:r3 = {
  interface:n3 = { ip = 10.1.3.2; bind_nat = n4; }
- interface:n4 = { ip = 10.1.4.1; }
+ interface:n4;
+ interface:n5;
 }
 service:s1 = {
  user = host:h13;
@@ -453,7 +455,7 @@ service:s2 = {
 }
 service:s3 = {
  user = host:h14;
- permit src = user; dst = host:h44; prt = tcp 84;
+ permit src = user; dst = host:h44, network:n5; prt = tcp 84;
 }
 =END=
 # Only first error is shown.
@@ -462,6 +464,8 @@ Error: host:h13 is hidden by nat:n1 in rule
  permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
 Error: host:h43 is hidden by nat:n4 in rule
  permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
+Error: network:n5 is hidden by nat:n4 in rule
+ permit src=host:h14; dst=network:n5; prt=tcp 84; of service:s3
 =END=
 
 ############################################################
