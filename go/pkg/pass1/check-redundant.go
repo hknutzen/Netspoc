@@ -100,10 +100,8 @@ func getOrigPrt(rule *expandedRule) *proto {
 				return oPrt
 			}
 		default:
-			if mainPrt := oPrt.main; mainPrt != nil {
-				if mainPrt == prt {
-					return oPrt
-				}
+			if oPrt.main == prt {
+				return oPrt
 			}
 		}
 	}
