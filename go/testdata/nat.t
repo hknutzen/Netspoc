@@ -458,7 +458,7 @@ Error: host:h43 is hidden by nat:n4 in rule
 =END=
 
 ############################################################
-=TITLE=NAT network is undeclared subnet
+=TITLE=Show NAT domain if host overlaps with network in other zone
 =INPUT=
 network:n1 = {
  ip = 10.1.1.0/24;
