@@ -79,10 +79,10 @@ func isSubRange(p *proto, o *proto) bool {
 
 func getOrigPrt(rule *expandedRule) *proto {
 	prt := rule.prt
-	proto := prt.proto
+	protocol := prt.proto
 	oRule := rule.rule
 	for _, oPrt := range oRule.prt {
-		if proto != oPrt.proto {
+		if protocol != oPrt.proto {
 			continue
 		}
 		switch oPrt.proto {
@@ -91,13 +91,14 @@ func getOrigPrt(rule *expandedRule) *proto {
 				continue
 			}
 			srcRange := rule.srcRange
-			if (srcRange == nil) !=
-				(oPrt.modifiers == nil || oPrt.modifiers.srcRange == nil) {
-				continue
-			} else if srcRange == nil {
-				return oPrt
-			} else if isSubRange(srcRange, oPrt.modifiers.srcRange) {
-				return oPrt
+			var oSrcRange *proto
+			if m := oPrt.modifiers; m != nil {
+				oSrcRange = m.srcRange
+			}
+			if (srcRange == nil) == (oSrcRange == nil) {
+				if srcRange == nil || isSubRange(srcRange, oSrcRange) {
+					return oPrt
+				}
 			}
 		default:
 			if oPrt.main == prt {
