@@ -281,10 +281,9 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=subnet_of at inherited NAT
-=PARAMS=--ipv6
-=INPUT=
+=TEMPL=input
 area:n1-2 = {
- nat:m = { ip = ::a01:310/124; dynamic; subnet_of = network:n3; }
+ nat:m = { ip = {{.}}; dynamic; subnet_of = network:n3; }
  inclusive_border = interface:r1.n3;
 }
 network:n1 = { ip = ::a01:100/120; }
@@ -308,13 +307,22 @@ service:s1 = {
  user = network:n1, network:n2;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
+=PARAMS=--ipv6
+=INPUT=[[input ::a01:310/124]]
 =OUTPUT=
 -- ipv6/r2
 ! n3_in
 access-list n3_in extended permit tcp ::a01:310/124 ::a01:400/120 eq 80
 access-list n3_in extended deny ip any6 any6
 access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Declared subnet of NAT network in area doesn't match
+=PARAMS=--ipv6
+=INPUT=[[input ::a0b:310/124]]
+=ERROR=
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's IP/mask
 =END=
 
 ############################################################
@@ -472,7 +480,7 @@ Error: host:h43 is hidden by nat:n4 in rule
 =END=
 
 ############################################################
-=TITLE=NAT network is undeclared subnet
+=TITLE=Show NAT domain if host overlaps with network in other zone
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
