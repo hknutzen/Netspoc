@@ -656,6 +656,16 @@ Aborted
 =END=
 
 ############################################################
+=TITLE=Interface name with empty router part
+=INPUT=
+group:g1 = interface:.n;
+=END=
+=ERROR=
+Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:.n"
+Aborted
+=END=
+
+############################################################
 =TITLE=Interface name with empty network part
 =INPUT=
 group:g1 = interface:r.;
