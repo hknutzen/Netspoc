@@ -320,20 +320,22 @@ owner:a1 = { admins = a1@b.c; show_all; }
 area:a1 = { owner = a1; border = interface:asa1.n1; }
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
+network:n3 = { ip = ::a01:300/120; owner = a1; }
+network:n4 = { ip = ::a01:400/120; }
 router:asa1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:n2 = { ip = ::a01:201; hardware = n2; }
  interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
 }
 =END=
 =ERROR=
 Error: owner:a1 has attribute 'show_all', but doesn't own whole topology.
  Missing:
  - network:n2
- - network:n3
+ - network:n4
 =END=
 
 ############################################################
