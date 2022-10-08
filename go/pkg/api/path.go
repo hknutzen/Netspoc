@@ -391,7 +391,7 @@ func removeAttrFrom(ts *ast.TopStruct, prefix string) []*ast.Attribute {
 }
 
 func (s *state) patchToplevel(n ast.Toplevel, c change) error {
-	if c.method == "delete" && c.val == nil {
+	if c.method == "delete" {
 		return s.DeleteToplevel(n.GetName())
 	}
 	if c.method == "set" {
