@@ -228,7 +228,7 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 				continue
 			}
 			seen[r] = true
-			count := 1
+			single := true
 			if l3 := in.layer3Intf; l3 != nil {
 				if !n1.ipp.Contains(l3.ip) {
 					c.err("%s's IP doesn't match IP/mask of bridged networks",
@@ -238,10 +238,10 @@ func (c *spoc) checkBridgedNetworks(prefix string, l netList) {
 			for _, out := range r.interfaces {
 				if out != in && out.ipType == bridgedIP {
 					next.push(out.network)
-					count++
+					single = false
 				}
 			}
-			if count == 1 {
+			if single {
 				c.err("%s can't bridge a single network", r)
 			}
 		}
