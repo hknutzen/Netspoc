@@ -179,10 +179,10 @@ func (c *spoc) collectDuplicateRules(
 	// Mark duplicate rules in both services.
 
 	// But count each rule only once. For duplicate rules, this can
-	// only occur for rule other, because all identical rules are
-	// compared with other. But we need to mark rule as well, because
-	// it must only be counted once, if it is both duplicate and
-	// redundandant.
+	// only occur for rule 'other', because all identical rules are
+	// compared with 'other'. But we need to mark 'rule' as well,
+	// because it must only be counted once, if it is both duplicate
+	// and redundandant.
 	rule.redundant = true
 	sv.duplicateCount++
 	osv := other.rule.service
