@@ -18,30 +18,10 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	// Remove redundant rules and find object-groups.
 	prepareACLs(rData)
 
-	// Build mapping from object-group name to object-group + use count.
-	// Used to replace group by its elements if only used once.
-	type groupUse struct {
-		g     *objGroup
-		count int
-	}
-	n2gU := make(map[string]*groupUse)
-	countGroup := func(n *ipNet) {
-		if !n.Prefix.IsValid() {
-			gU := n2gU[n.name]
-			gU.count++
-		}
-	}
 	for _, acl := range rData.acls {
 		joinRanges(acl)
 		findObjectgroups(acl, rData)
 		addFinalPermitDenyRule(acl)
-		for _, g := range acl.objectGroups {
-			n2gU[g.name] = &groupUse{g: g}
-		}
-		for _, rule := range acl.rules {
-			countGroup(rule.src)
-			countGroup(rule.dst)
-		}
 	}
 
 	// Print JSON.
@@ -57,15 +37,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	getAddress = func(n *ipNet) []string {
 		// Object group.
 		if !n.Prefix.IsValid() {
-			gU := n2gU[n.name]
-			if gU.count > 1 {
-				return single("Netspoc-" + n.name)
-			}
-			var result []string
-			for _, e := range gU.g.elements {
-				result = append(result, getAddress(e)...)
-			}
-			return result
+			return single("Netspoc-" + n.name)
 		}
 		if n.Bits() == 0 {
 			return single("ANY")
@@ -188,21 +160,19 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		var result []jsonMap
 		for _, acl := range rData.acls {
 			for _, g := range acl.objectGroups {
-				if n2gU[g.name].count > 1 {
-					var l []string
-					for _, n := range g.elements {
-						l = append(l, getAddress(n)...)
-					}
-					path := "/infra/domains/default/groups/" + "Netspoc-" + g.name
-					addresses := jsonMap{
-						"resource_type": "IPAddressExpression",
-						"ip_addresses":  l,
-					}
-					result = append(result, jsonMap{
-						"path":       path,
-						"expression": []jsonMap{addresses},
-					})
+				var l []string
+				for _, n := range g.elements {
+					l = append(l, getAddress(n)...)
 				}
+				path := "/infra/domains/default/groups/" + "Netspoc-" + g.name
+				addresses := jsonMap{
+					"resource_type": "IPAddressExpression",
+					"ip_addresses":  l,
+				}
+				result = append(result, jsonMap{
+					"path":       path,
+					"expression": []jsonMap{addresses},
+				})
 			}
 		}
 		return result
