@@ -112,8 +112,8 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				// - 20 for plain ACCEPT rules
 				// - 30 for final DROP rule
 				//
-				// This may change if additional rules are prepended or
-				// appended by raw file.
+				// For additional rules from raw file, intermediate
+				// sequence numbers like 5, 15, 25, 35 should be used.
 				seqNum := 20
 				isDeny := acl.rules[0].deny
 				if isDeny {
