@@ -1280,24 +1280,28 @@ pathrestriction:p1 =
 =INPUT=
 protocol:all_ip = # IGNORE
  ip;
-protocol:http =
-tcp 80;
-protocol:BGP = tcp 179, no_check_supernet_rules;
 protocol:all_icmp =
  description = icmp with any typ and code
  icmp;
+protocol:http = tcp 80;
+protocol:BGP =
+ description = routing protocol
+tcp 179, no_check_supernet_rules;
 =END=
 =OUTPUT=
 protocol:all_ip = ip;
 
-protocol:http = tcp 80;
-
-protocol:BGP = tcp 179, no_check_supernet_rules;
-
 protocol:all_icmp =
  description = icmp with any typ and code
 
  icmp;
+
+protocol:http = tcp 80;
+
+protocol:BGP =
+ description = routing protocol
+
+ tcp 179, no_check_supernet_rules;
 =END=
 
 ############################################################
