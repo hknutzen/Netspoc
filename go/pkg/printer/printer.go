@@ -155,7 +155,7 @@ func (p *printer) description(n ast.Toplevel) {
 }
 
 func (p *printer) topListHead(n ast.Toplevel) {
-	p.print(n.GetName() + " =" + n.PostComment())
+	p.print(n.GetName() + " =")
 	p.description(n)
 }
 
@@ -165,18 +165,17 @@ func (p *printer) topElementList(n *ast.TopList) {
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	trailing := n.PostComment()
 	proto := n.Value + ";"
 	// Print name and value on different lines, if protocol has
 	// description or trailing comment.
-	if n.GetDescription() != nil || trailing != "" {
-		p.print(n.Name + " =" + trailing)
+	if n.GetDescription() != nil {
+		p.print(n.Name + " =")
 		p.description(n)
 		p.indent++
 		p.print(proto)
 		p.indent--
 	} else {
-		p.print(n.Name + " = " + proto + trailing)
+		p.print(n.Name + " = " + proto)
 	}
 }
 
