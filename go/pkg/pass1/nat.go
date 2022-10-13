@@ -2,6 +2,7 @@ package pass1
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
 	"sort"
 	"strings"
 )
@@ -35,11 +36,12 @@ is a maximal area of the topology (a set of connected networks) where
 a common set of NAT tags (NAT set) is effective at every network.
 */
 
-//############################################################################
-// Comment: Check for equal type of NAT definitions.
-//          This is used for more efficient check of dynamic NAT rules,
-//          so we need to check only once for each pair of src / dst zone.
-// Returns: A map, mapping NAT tag to its type: static, dynamic or hidden.
+// getLookupMapForNatType checks for equal type of NAT definitions.
+//
+//	This is used for more efficient check of dynamic NAT rules,
+//	so we need to check only once for each pair of src / dst zone.
+//
+// Returns a map, mapping NAT tag to its type: static, dynamic or hidden.
 func (c *spoc) getLookupMapForNatType() map[string]string {
 	natTag2network := make(map[string]*network)
 	natType := make(map[string]string)
@@ -78,11 +80,10 @@ func (c *spoc) getLookupMapForNatType() map[string]string {
 	return natType
 }
 
-//############################################################################
-// Purpose: Check for
-//          1. unused NAT definitions,
-//          2. useless bind_nat, referencing unknown NAT definition.
-//             Remove useless tags from bind_nat.
+// checkNatDefinitions checks for
+//  1. unused NAT definitions,
+//  2. useless bind_nat, referencing unknown NAT definition.
+//     Remove useless tags from bind_nat.
 func (c *spoc) checkNatDefinitions(natType map[string]string) {
 	natUsed := make(map[string]bool)
 	for _, n := range c.allNetworks {
@@ -119,9 +120,9 @@ func (c *spoc) checkNatDefinitions(natType map[string]string) {
 // - if nat:t1 was active previously
 // - and nat:t2 is activated at I with "bind_nat = t2".
 // This transition is invalid
-// - if a network:n1 exists having NAT definitions for both t1 and t2
-// - and some other network:n2 exists having a NAT definition for t1,
-//   but not for t2.
+//   - if a network:n1 exists having NAT definitions for both t1 and t2
+//   - and some other network:n2 exists having a NAT definition for t1,
+//     but not for t2.
 func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMap {
 	result := make(map[string]natTagMap)
 	for _, list := range multi {
@@ -161,19 +162,21 @@ func markInvalidNatTransitions(multi map[string][]natTagMap) map[string]natTagMa
 	return result
 }
 
-//#############################################################################
 // Returns   : Map with NAT tags occurring in multi NAT definitions
-//             (several NAT definitions grouped at one network) as keys
-//             and arrays of NAT maps containing the key NAT tag as values.
+//
+//	(several NAT definitions grouped at one network) as keys
+//	and arrays of NAT maps containing the key NAT tag as values.
+//
 // Comments: Also checks consistency of multi NAT tags at one network. If
-//           non hidden NAT tags are grouped at one network, the same NAT
-//           tags must be used as group in all other occurrences to avoid
-//           ambiguities: Suppose tags A and B are both defined at network n1,
-//           but only A is defined at network n2. An occurence of
-//           bind_nat = A activates NAT:A. A successive bind_nat = B activates
-//           NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
-//           active at a time. As NAT:A can not be active (n2) and inactive
-//           (n1) in the same NAT domain, this restriction is needed.
+//
+//	non hidden NAT tags are grouped at one network, the same NAT
+//	tags must be used as group in all other occurrences to avoid
+//	ambiguities: Suppose tags A and B are both defined at network n1,
+//	but only A is defined at network n2. An occurence of
+//	bind_nat = A activates NAT:A. A successive bind_nat = B activates
+//	NAT:B, but implicitly disables NAT:A, as for n1 only one NAT can be
+//	active at a time. As NAT:A can not be active (n2) and inactive
+//	(n1) in the same NAT domain, this restriction is needed.
 func (c *spoc) generateMultinatDefLookup(natType map[string]string) map[string][]natTagMap {
 	multi := make(map[string][]natTagMap)
 
@@ -261,15 +264,17 @@ func bindNatEq(l1, l2 stringList) bool {
 	return true
 }
 
-//#############################################################################
-// Purpose : Divide topology into NAT domains.
-//           Networks and NAT domain limiting routers keep references
-//           to their domains.
+// findNatDomains divides topology into NAT domains.
+//
+//	Networks and NAT domain limiting routers keep references
+//	to their domains.
+//
 // Results : domain has lists of its zones and limiting routers,
-//           routers that are domain limiting, contain references to the
-//           limited domains and store NAT tags bound to domains border
-//           interfaces.
-//           Returns nil on error.
+//
+//	routers that are domain limiting, contain references to the
+//	limited domains and store NAT tags bound to domains border
+//	interfaces.
+//	Returns nil on error.
 func (c *spoc) findNatDomains() []*natDomain {
 
 	type key struct {
@@ -415,8 +420,7 @@ func (c *spoc) findNatDomains() []*natDomain {
 	return result
 }
 
-//#############################################################################
-// Purpose : Show interfaces, where bind_nat for NAT tag is missing.
+// errMissingBindNat shows interfaces, where bind_nat for NAT tag is missing.
 func (c *spoc) errMissingBindNat(
 	inRouter *router, d *natDomain, tag string, multinatMaps []natTagMap) {
 
@@ -605,24 +609,14 @@ func (c *spoc) errMissingBindNat(
 		}
 	}
 
-	sortByNameUniq := func(l intfList) intfList {
-		seen := make(map[*routerIntf]bool)
-		j := 0
-		for _, intf := range l {
-			if !seen[intf] {
-				seen[intf] = true
-				l[j] = intf
-				j++
-			}
-		}
-		l = l[:j]
+	sortByName := func(l intfList) intfList {
 		sort.Slice(l, func(i, j int) bool {
 			return l[i].name < l[j].name
 		})
 		return l
 	}
-	natIntf = sortByNameUniq(natIntf)
-	missingIntf = sortByNameUniq(missingIntf)
+	natIntf = slices.Compact(sortByName(natIntf))
+	missingIntf = slices.Compact(sortByName(missingIntf))
 	c.err("Incomplete 'bind_nat = %s' at\n"+
 		natIntf.nameList()+"\n"+
 		" Possibly 'bind_nat = %s' is missing at these interfaces:\n"+
@@ -644,14 +638,16 @@ func getNatDomainBorders(d *natDomain) intfList {
 	return result
 }
 
-//#############################################################################
-// Purpose:   Show errors for invalid transitions of grouped NAT tags.
+// checkForProperNatTransition shows errors for invalid transitions of
+// grouped NAT tags.
+//
 // Parameter: tag: NAT tag that is distributed during domain traversal.
-//            tag2: NAT tag that implicitly deactivates tag.
-//            nat: NAT map of network with both tag and tag2 defined.
-//            invalid: Map from NAT tags t1, t2 to network,
-//                where transition from t1 to t2 is invalid.
-//            r: router where NAT transition occurs at.
+//
+//	tag2: NAT tag that implicitly deactivates tag.
+//	nat: NAT map of network with both tag and tag2 defined.
+//	invalid: Map from NAT tags t1, t2 to network,
+//	    where transition from t1 to t2 is invalid.
+//	r: router where NAT transition occurs at.
 func (c *spoc) checkForProperNatTransition(
 	tag, tag2 string, nat natTagMap, invalid map[string]natTagMap, r *router) {
 
@@ -684,20 +680,22 @@ func (c *spoc) checkForProperNatTransition(
 	}
 }
 
-//#############################################################################
-// Purpose:    Performs a depth first traversal to distribute specified
-//             NAT tag to reachable domains where NAT tag is active;
-//             checks whether NAT declarations are applied correctly.
-// Parameters: inRouter: Router domain was entered from.
-//             d: Domain the depth first traversal proceeds from.
-//             tag: NAT tag that is to be distributed.
-//             multinatMaps: List of multi NAT maps containing nat_tag.
-//             invalid: Map with pairs of NAT tags as keys,
-//                 where transition from first to second tag is invalid.
-// Results:    All domains, where NAT tag is active contain 'tag' in their
-//             natSet.
-// Returns:    false on success,
-//             true on error, if same NAT tag is reached twice.
+// distributeNat1 performs a depth first traversal
+// to distribute specified NAT tag to reachable domains where NAT tag
+// is active; checks whether NAT declarations are applied correctly.
+//
+// Parameters:
+//   - inRouter: Router domain was entered from.
+//   - d: Domain the depth first traversal proceeds from.
+//   - tag: NAT tag that is to be distributed.
+//   - multinatMaps: List of multi NAT maps containing nat_tag.
+//   - invalid: Map with pairs of NAT tags as keys,
+//     where transition from first to second tag is invalid.
+//
+// Results:
+// All domains, where NAT tag is active contain 'tag' in their	natSet.
+// Returns:
+// false on success,	true on error, if same NAT tag is reached twice.
 func (c *spoc) distributeNat1(
 	inRouter *router, d *natDomain, tag string,
 	multinatMaps []natTagMap, invalid map[string]natTagMap) bool {
@@ -772,16 +770,18 @@ ROUTER:
 	return false
 }
 
-//#############################################################################
-// Purpose:    Calls distribute_nat1 to distribute specified NAT tag
-//             to reachable domains where NAT tag is active. Generate
-//             error message, if called function returns an error value.
-// Parameters: in: router the depth first traversal starts at.
-//             d: Domain the depth first traversal starts at.
-//             tag: NAT tag that is to be distributed.
-//             multinatMaps: List of multi NAT maps containing nat_tag.
-//             invalid: Map with pairs of NAT tags as keys,
-//                 where transition from first to second tag is invalid.
+// distributeNat calls distribute_nat1
+// to distribute specified NAT tag to reachable domains where NAT tag is active.
+// Shows an	error message, if called function returns an error value.
+//
+// Parameters:
+//   - in: router the depth first traversal starts at.
+//   - d: Domain the depth first traversal starts at.
+//   - tag: NAT tag that is to be distributed.
+//   - multinatMaps: List of multi NAT maps containing nat_tag.
+//   - invalid: Map with pairs of NAT tags as keys,
+//     where transition from first to second tag is invalid.
+//
 // Returns:    true if NAT errors have occured.
 func (c *spoc) distributeNat(
 	in *router, d *natDomain, tag string,
@@ -794,8 +794,8 @@ func (c *spoc) distributeNat(
 	return false
 }
 
-//#############################################################################
-// Purpose: Distribute NAT tags to domains they are active in.
+// distributeNatTagsToNatDomains distributes
+// NAT tags to domains they are active in.
 // Returns: true if NAT errors have occured.
 func (c *spoc) distributeNatTagsToNatDomains(
 	multi map[string][]natTagMap, doms []*natDomain) bool {
@@ -816,9 +816,9 @@ func (c *spoc) distributeNatTagsToNatDomains(
 	return natErrors
 }
 
-//############################################################################
-// Purpose: For networks with multiple NAT definitions, at most one NAT
-//          definition must be active in a domain. Show error otherwise.
+// For networks with multiple NAT definitions,
+// at most one NAT definition must be active in a domain.
+// Show error otherwise.
 func (c *spoc) checkMultinatErrors(
 	multi map[string][]natTagMap, doms []*natDomain) {
 
@@ -890,9 +890,8 @@ func (c *spoc) checkMultinatErrors(
 	}
 }
 
-//############################################################################
-// Purpose:   Network which has translation with tag 'tag' must not be located
-//            in domain where this tag is active.
+// Network which has translation with tag 'tag'
+// must not be located in domain where this tag is active.
 func (c *spoc) checkNatNetworkLocation(doms []*natDomain) {
 	for _, d := range doms {
 		natSet := d.natSet
@@ -969,10 +968,9 @@ func (c *spoc) CheckUselessBindNat(doms []*natDomain) {
 	}
 }
 
-//############################################################################
-// Purpose: Check compatibility of host/interface and network NAT.
-// Comment: A NAT definition for a single host/interface is only allowed,
-//          if network has a dynamic NAT definition.
+// checkNatCompatibility checks compatibility of host/interface and network NAT.
+// A NAT definition for a single host/interface is only allowed,
+// if network has a dynamic NAT definition.
 func (c *spoc) checkNatCompatibility() {
 	for _, n := range c.allNetworks {
 		check := func(obj netObj) {
@@ -1009,12 +1007,13 @@ func (c *spoc) checkNatCompatibility() {
 	}
 }
 
-//############################################################################
-// Purpose: Find interface with dynamic NAT which is bound at the same
-//          device. This is invalid for device with "need_protect".
-// Comment: "need_protect" devices use NetSPoC generated ACLs to manage access
-//          to their interfaces. To ensure safety, the devices interfaces
-//          need to have a fixed address.
+// checkInterfacesWithDynamicNat finds interface with dynamic NAT
+// which is bound at the same	device.
+// This is invalid for device with "need_protect".
+//
+// "need_protect" devices
+// use NetSPoC generated ACLs to manage access to their interfaces.
+// To ensure safety, the devices interfaces need to have a fixed address.
 func (c *spoc) checkInterfacesWithDynamicNat() {
 	for _, n := range c.allNetworks {
 		for tag, info := range n.nat {
@@ -1090,11 +1089,13 @@ func (c *spoc) convertNatSetToNatMap(doms []*natDomain) {
 	}
 }
 
-//############################################################################
-// Result : natMap is stored at logical and hardware interfaces of
-//          managed and semi managed routers.
-// Comment: Neccessary at semi managed routers to calculate .up relation
-//          between subnets.
+// Result:
+// natMap is stored
+// at logical and hardware interfaces of managed and semi managed routers.
+//
+// Comment:
+// Neccessary at semi managed routers
+// to calculate .up relation between subnets.
 func distributeNatMapsToInterfaces(doms []*natDomain) {
 	for _, d := range doms {
 		m := d.natMap
@@ -1120,9 +1121,8 @@ func distributeNatMapsToInterfaces(doms []*natDomain) {
 	}
 }
 
-//############################################################################
-// Purpose : Determine NAT domains and generate NAT set
-//           for every NAT domain.
+// distributeNatInfo determines NAT domains
+// and generates NAT set for every NAT domain.
 func (c *spoc) distributeNatInfo() (
 	[]*natDomain, map[string]string, map[string][]natTagMap) {
 

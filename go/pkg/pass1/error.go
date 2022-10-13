@@ -13,7 +13,7 @@ func (l intfList) nameList() string {
 	for _, intf := range l {
 		names.push(intf.name)
 	}
-	return " - " + strings.Join(names, "\n - ")
+	return names.nameList()
 }
 
 func (l netList) nameList() string {
@@ -21,7 +21,7 @@ func (l netList) nameList() string {
 	for _, intf := range l {
 		names.push(intf.name)
 	}
-	return " - " + strings.Join(names, "\n - ")
+	return names.nameList()
 }
 
 func (l stringerList) nameList() string {
@@ -29,7 +29,7 @@ func (l stringerList) nameList() string {
 	for _, x := range l {
 		names.push(x.String())
 	}
-	return " - " + strings.Join(names, "\n - ")
+	return names.nameList()
 }
 
 func (l stringList) nameList() string {

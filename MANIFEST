@@ -126,6 +126,7 @@ go/pkg/pass1/types.go
 go/pkg/pass2/check-acl.go
 go/pkg/pass2/cisco.go
 go/pkg/pass2/linux.go
+go/pkg/pass2/nsx.go
 go/pkg/pass2/pan-os.go
 go/pkg/pass2/protocol.go
 go/pkg/pass2/spoc2.go
@@ -198,6 +199,7 @@ go/testdata/ipv6/log_ipv6.t
 go/testdata/ipv6/loopback_ipv6.t
 go/testdata/ipv6/makefile
 go/testdata/ipv6/nat_ipv6.t
+go/testdata/ipv6/nsx_ipv6.t
 go/testdata/ipv6/optimize-subnet_ipv6.t
 go/testdata/ipv6/overlaps_ipv6.t
 go/testdata/ipv6/owner_ipv6.t
@@ -230,6 +232,7 @@ go/testdata/log.t
 go/testdata/loopback.t
 go/testdata/mixed-ipv4-ipv6.t
 go/testdata/nat.t
+go/testdata/nsx.t
 go/testdata/optimize-subnet.t
 go/testdata/options.t
 go/testdata/overlaps.t

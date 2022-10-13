@@ -255,7 +255,9 @@ type model struct {
 	stateless              bool
 	statelessSelf          bool
 	statelessICMP          bool
+	tier                   string
 	usePrefix              bool
+	noSharedHardware       bool
 	vrfShareHardware       bool
 }
 
@@ -435,7 +437,6 @@ type hardware struct {
 	crosslink  bool
 	loopback   bool
 	name       string
-	bindNat    []string
 	natMap     natMap
 	needOutAcl bool
 	noInAcl    bool

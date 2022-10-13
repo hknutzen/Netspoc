@@ -3,10 +3,7 @@ package pass1
 import (
 	"bytes"
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
-	"github.com/hknutzen/Netspoc/go/pkg/filetree"
-	"github.com/hknutzen/Netspoc/go/pkg/jcode"
-	"github.com/hknutzen/Netspoc/go/pkg/parser"
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"path"
 	"regexp"
@@ -14,6 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
+	"github.com/hknutzen/Netspoc/go/pkg/filetree"
+	"github.com/hknutzen/Netspoc/go/pkg/jcode"
+	"github.com/hknutzen/Netspoc/go/pkg/parser"
 
 	"go4.org/netipx"
 )
@@ -234,10 +236,7 @@ func (c *spoc) setupObjects(l []ast.Toplevel) {
 
 func (c *spoc) setAscendingServices() {
 	s := c.symTable
-	names := make(stringList, 0, len(s.service))
-	for name := range s.service {
-		names.push(name)
-	}
+	names := maps.Keys(s.service)
 	sort.Strings(names)
 	for _, name := range names {
 		c.ascendingServices = append(c.ascendingServices, s.service[name])
@@ -1217,11 +1216,39 @@ func (c *spoc) setupRouter(v *ast.Router) {
 		}
 
 		if r.vrf != "" && !r.model.canVRF {
-			c.err("Must not use VRF at %s of model %s", name, r.model.name)
+			c.err("Must not use VRF at %s of model %s", name, r.model.class)
 		}
 		if r.vrf == "" && r.model.needVRF {
 			c.err("Must use VRF ('@...' in name) at %s of model %s",
-				name, r.model.name)
+				name, r.model.class)
+		}
+		if r.model.filter == "NSX" {
+			if len(hwMap) != 2 || hwMap["IN"] == nil || hwMap["OUT"] == nil {
+				c.err("%s of model %s must have exactly 2 interfaces"+
+					" with hardware IN and OUT", r, r.model.class)
+			}
+			if r.model.tier == "" {
+				c.err("Must add extension 'Tier-0' or 'Tier-1' at %s of model %s",
+					r, r.model.class)
+			}
+		}
+		for _, hw := range hwMap {
+			l := hw.interfaces
+			if r.model.noSharedHardware && len(l) > 1 {
+				c.err("Different interfaces must not share same hardware '%s'"+
+					" at %s of model %s", hw.name, name, r.model.class)
+			}
+
+			// All logical interfaces of one hardware interface need to
+			// use the same NAT binding, because NAT operates on
+			// hardware, not on logic.
+			intf := l[0]
+			for _, other := range l[1:] {
+				if !bindNatEq(intf.bindNat, other.bindNat) {
+					c.err("%s and %s using identical 'hardware = %s'\n"+
+						" must also use identical NAT binding", intf, other, hw.name)
+				}
+			}
 		}
 
 		for _, intf := range withSecondary(r.interfaces) {
@@ -1762,20 +1789,11 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			hwName = "unknown"
 		}
 
-		var hw *hardware
-		if hw = hwMap[hwName]; hw != nil {
-			// All logical interfaces of one hardware interface
-			// need to use the same NAT binding,
-			// because NAT operates on hardware, not on logic.
-			if !bindNatEq(intf.bindNat, hw.bindNat) {
-				c.err("All logical interfaces with 'hardware = %s' at %s\n"+
-					" must use identical NAT binding", hwName, r)
-			}
-		} else {
+		hw := hwMap[hwName]
+		if hw == nil {
 			hw = &hardware{name: hwName, loopback: true}
 			hwMap[hwName] = hw
 			r.hardware = append(r.hardware, hw)
-			hw.bindNat = intf.bindNat
 		}
 		// Hardware keeps attribute .loopback only if all
 		// interfaces have attribute .loopback.
@@ -2440,6 +2458,16 @@ var routerInfo = map[string]*model{
 		needVRF:                true,
 		noACLself:              true,
 	},
+	"NSX": {
+		routing:                "",
+		filter:                 "NSX",
+		canObjectgroup:         true,
+		canVRF:                 true,
+		needManagementInstance: true,
+		needVRF:                true,
+		noACLself:              true,
+		noSharedHardware:       true,
+	},
 	"Linux": {
 		routing:     "iproute",
 		filter:      "iptables",
@@ -2449,11 +2477,11 @@ var routerInfo = map[string]*model{
 }
 
 func init() {
-	for name := range routerInfo {
+	for name, info := range routerInfo {
 		// Is changed for model with extension. Used in error messages.
-		routerInfo[name].name = name
+		info.name = name
 		// Is left unchanged with extensions. Used in header of generated files.
-		routerInfo[name].class = name
+		info.class = name
 	}
 }
 
@@ -2492,6 +2520,15 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 					info.cryptoInContext = true
 				case "EZVPN":
 					info.crypto = "ASA_EZVPN"
+				default:
+					goto FAIL
+				}
+			case "NSX":
+				switch att {
+				case "Tier-0":
+					info.tier = "0"
+				case "Tier-1":
+					info.tier = "1"
 				default:
 					goto FAIL
 				}
@@ -3452,11 +3489,12 @@ func (c *spoc) checkInterfaceIp(intf *routerIntf, n *network) {
 	}
 }
 
-//############################################################################
-// Purpose  : Moves attribute 'no_in_acl' from interface to hardware because
-//            ACLs operate on hardware, not on logic. Marks hardware needing
-//            outgoing ACLs.
-// Comments : Not more than 1 'no_in_acl' interface per router allowed.
+// checkNoInAcl moves attribute 'no_in_acl'
+// from interface to hardware	because ACLs operate on hardware, not on logic.
+//
+//	Marks hardware needing outgoing ACLs.
+//
+// Comment: Not more than one 'no_in_acl' interface per router allowed.
 func (c *spoc) checkNoInAcl(r *router) {
 	count := 0
 	hasCrypto := false
@@ -3528,7 +3566,7 @@ func (c *spoc) checkNoInAcl(r *router) {
 			r)
 	}
 
-	// Mark other hardware with attribute 'need_out_acl'.
+	// Mark other hardware with attribute 'needOutAcl'.
 	for _, hw := range r.hardware {
 		if !hw.noInAcl {
 			hw.needOutAcl = true
@@ -3602,14 +3640,11 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 // Link tunnel networks with tunnel hubs.
 func (c *spoc) linkTunnels() {
 	// Sorting needed for deterministic error messages.
-	sorted := make([]*crypto, 0, len(c.symTable.crypto))
-	for _, c := range c.symTable.crypto {
-		sorted = append(sorted, c)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].name < sorted[j].name
+	l := maps.Values(c.symTable.crypto)
+	sort.Slice(l, func(i, j int) bool {
+		return l[i].name < l[j].name
 	})
-	for _, cr := range sorted {
+	for _, cr := range l {
 		realHub := cr.hub
 		if realHub == nil || realHub.disabled {
 			c.warn("No hub has been defined for %s", cr.name)

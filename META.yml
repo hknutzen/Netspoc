@@ -12,7 +12,7 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: '1.4'
 name: Netspoc
-version: '6.049'
+version: '6.050'
 x_generated_by_perl: v5.32.1
 x_serialization_backend: 'YAML::Tiny version 1.73'
 x_spdx_expression: GPL-2.0-only

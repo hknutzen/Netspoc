@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -390,7 +391,7 @@ func removeAttrFrom(ts *ast.TopStruct, prefix string) []*ast.Attribute {
 }
 
 func (s *state) patchToplevel(n ast.Toplevel, c change) error {
-	if c.method == "delete" && c.val == nil {
+	if c.method == "delete" {
 		return s.DeleteToplevel(n.GetName())
 	}
 	if c.method == "set" {
@@ -553,10 +554,7 @@ func getAttribute(name string, v interface{}) (*ast.Attribute, error) {
 			a.ValueList = append(a.ValueList, &ast.Value{Value: s})
 		}
 	case map[string]interface{}:
-		keys := make([]string, 0, len(x))
-		for k := range x {
-			keys = append(keys, k)
-		}
+		keys := maps.Keys(x)
 		sort.Strings(keys)
 		var l []*ast.Attribute
 		for _, k := range keys {

@@ -281,10 +281,9 @@ access-group n2_in in interface n2
 
 ############################################################
 =TITLE=subnet_of at inherited NAT
-=PARAMS=--ipv6
-=INPUT=
+=TEMPL=input
 area:n1-2 = {
- nat:m = { ip = ::a01:310/124; dynamic; subnet_of = network:n3; }
+ nat:m = { ip = {{.}}; dynamic; subnet_of = network:n3; }
  inclusive_border = interface:r1.n3;
 }
 network:n1 = { ip = ::a01:100/120; }
@@ -308,13 +307,22 @@ service:s1 = {
  user = network:n1, network:n2;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
+=PARAMS=--ipv6
+=INPUT=[[input ::a01:310/124]]
 =OUTPUT=
 -- ipv6/r2
 ! n3_in
 access-list n3_in extended permit tcp ::a01:310/124 ::a01:400/120 eq 80
 access-list n3_in extended deny ip any6 any6
 access-group n3_in in interface n3
+=END=
+
+############################################################
+=TITLE=Declared subnet of NAT network in area doesn't match
+=PARAMS=--ipv6
+=INPUT=[[input ::a0b:310/124]]
+=ERROR=
+Error: nat:m of area:n1-2 is subnet_of network:n3 but its IP doesn't match that's IP/mask
 =END=
 
 ############################################################
@@ -434,6 +442,7 @@ network:n4 = {
  host:h43 = { ip = ::a01:403; }
  host:h44 = { ip = ::a01:404; }
 }
+network:n5 = { ip = ::a01:500/120; nat:n4 = { hidden; } }
 
 router:r1 = {
  interface:n1 = { ip = ::a01:101; }
@@ -448,7 +457,8 @@ router:r2 = {
 }
 router:r3 = {
  interface:n3 = { ip = ::a01:302; bind_nat = n4; }
- interface:n4 = { ip = ::a01:401; }
+ interface:n4;
+ interface:n5;
 }
 service:s1 = {
  user = host:h13;
@@ -460,7 +470,7 @@ service:s2 = {
 }
 service:s3 = {
  user = host:h14;
- permit src = user; dst = host:h44; prt = tcp 84;
+ permit src = user; dst = host:h44, network:n5; prt = tcp 84;
 }
 =END=
 # Only first error is shown.
@@ -469,10 +479,12 @@ Error: host:h13 is hidden by nat:n1 in rule
  permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
 Error: host:h43 is hidden by nat:n4 in rule
  permit src=host:h13; dst=host:h43; prt=tcp 82; of service:s1
+Error: network:n5 is hidden by nat:n4 in rule
+ permit src=host:h14; dst=network:n5; prt=tcp 84; of service:s3
 =END=
 
 ############################################################
-=TITLE=NAT network is undeclared subnet
+=TITLE=Show NAT domain if host overlaps with network in other zone
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -671,10 +683,10 @@ router:r = {
 }
 =END=
 =ERROR=
-Error: All logical interfaces with 'hardware = n1' at router:r
- must use identical NAT binding
-Error: All logical interfaces with 'hardware = n1' at router:r
- must use identical NAT binding
+Error: interface:r.n1a and interface:r.n1b using identical 'hardware = n1'
+ must also use identical NAT binding
+Error: interface:r.n1a and interface:r.n1c using identical 'hardware = n1'
+ must also use identical NAT binding
 =END=
 
 ############################################################

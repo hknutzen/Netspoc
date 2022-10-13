@@ -626,10 +626,21 @@ Aborted
 =TITLE=Typed name expected
 =PARAMS=--ipv6
 =INPUT=
-group:g1 = host;
+group:g1 = host:;
 =END=
 =ERROR=
-Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->host"
+Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->host:"
+Aborted
+=END=
+
+############################################################
+=TITLE=Missing type
+=PARAMS=--ipv6
+=INPUT=
+group:g1 = :n1;
+=END=
+=ERROR=
+Error: Typed name expected at line 1 of INPUT, near "group:g1 = --HERE-->:n1"
 Aborted
 =END=
 
@@ -705,6 +716,17 @@ group:g1 = interface:r;
 =END=
 =ERROR=
 Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:r"
+Aborted
+=END=
+
+############################################################
+=TITLE=Interface name with empty router part
+=PARAMS=--ipv6
+=INPUT=
+group:g1 = interface:.n;
+=END=
+=ERROR=
+Error: Interface name expected at line 1 of INPUT, near "group:g1 = --HERE-->interface:.n"
 Aborted
 =END=
 

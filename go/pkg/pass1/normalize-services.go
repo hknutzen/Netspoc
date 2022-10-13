@@ -206,7 +206,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 	ctx := s.name
 	user := c.expandGroup(s.user, "user of "+ctx, ipv6, false)
 	s.expandedUser = user
-	ruleCount := 0
+	hasRules := false
 
 	for _, uRule := range s.rules {
 		deny := uRule.action == "deny"
@@ -227,7 +227,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			for _, srcDstList := range srcDstListPairs {
 				srcList, dstList := srcDstList[0], srcDstList[1]
 				if srcList != nil || dstList != nil {
-					ruleCount++
+					hasRules = true
 				}
 				if srcList == nil || dstList == nil || s.disabled {
 					continue
@@ -283,7 +283,7 @@ func (c *spoc) normalizeServiceRules(s *service, sRules *serviceRules) {
 			process(user)
 		}
 	}
-	if ruleCount == 0 && len(user) == 0 {
+	if !hasRules && len(user) == 0 {
 		c.warn("Must not define %s with empty users and empty rules", ctx)
 	}
 }

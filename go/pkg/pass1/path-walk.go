@@ -29,11 +29,10 @@ func findZone1(store pathStore) *zone {
 	}
 }
 
-//#############################################################################
-// Purpose   : Provide path node objects for objects specified as src or dst.
-// Parameter : Source or destination object.
-// Returns   : Zone or router of the given object or
-//             the object itself, if it is a pathrestricted interface.
+// Purpose  : Provide path node objects for objects specified as src or dst.
+// Parameter: Source or destination object.
+// Returns:
+// Zone or router of the given object or the object itself, if it is a pathrestricted interface.
 func (obj *network) getPathNode() pathStore {
 	return obj.zone
 }
@@ -101,18 +100,19 @@ func (a *intfPairs) push(e intfPair) {
 	*a = append(*a, e)
 }
 
-// Remove duplicates from slice; change in place.
-func (a *intfList) delDupl() {
-	seen := make(map[*routerIntf]bool)
+// delDupl replaces multiple equal elements with a single copy.
+// delDupl modifies the contents of the slice s; it does not create a new slice.
+func delDupl[S ~[]E, E comparable](s *S) {
+	seen := make(map[E]bool)
 	j := 0
-	for _, e := range *a {
+	for _, e := range *s {
 		if !seen[e] {
 			seen[e] = true
-			(*a)[j] = e
+			(*s)[j] = e
 			j++
 		}
 	}
-	*a = (*a)[:j]
+	*s = (*s)[:j]
 }
 
 func calcNext(from pathObj) func(intf *routerIntf) pathObj {
@@ -124,14 +124,17 @@ func calcNext(from pathObj) func(intf *routerIntf) pathObj {
 	}
 }
 
-//#############################################################################
-// Purpose    : Recursively find path through a loop or loop cluster for a
-//              given pair (start, end) of loop nodes, collect path information.
-// Parameters : obj - current (or start) loop node (zone or router).
-//              inIntf - interface current loop node was entered from.
-//              end - loop node that is to be reached.
-//              lPath - collect tuples and last interfaces of path.
-//              navi - lookup hash to reduce search space, holds loops to enter.
+// clusterPathMark1 recursively finds
+// path through a loop or loop cluster
+// for a	given pair (start, end) of loop nodes and collects path information.
+//
+// Parameters :
+//   - obj - current (or start) loop node (zone or router).
+//   - inIntf - interface current loop node was entered from.
+//   - end - loop node that is to be reached.
+//   - lPath - collect tuples and last interfaces of path.
+//   - navi - lookup hash to reduce search space, holds loops to enter.
+//
 // Returns   :  true, if path is found
 func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 	lPath *loopPath, navi navigation) bool {
@@ -230,18 +233,23 @@ func clusterPathMark1(obj pathObj, inIntf *routerIntf, end pathObj,
 	return success
 }
 
-//#############################################################################
-// Purpose    : Optimize navigation inside a cluster of loops: For a pair
-//              (from,to) of loop nodes, identify order of loops passed
-//              on the path from from to to. Store information as lookup
-//              hash at node from to reduce search space when finding paths
-//              from from to to.
+// clusterNavigation optimizes navigation inside a cluster of loops.
+// For a pair (from,to) of loop nodes,
+// identify order of loops passed on the path from from to to.
+// Store information as lookup map at node 'from'
+// to reduce search space when finding paths	from 'from' to 'to'.
+//
 // Parameters : from, to - loop nodes pair.
-// Returns    : Hash with order/navigation information: keys = loops,
-//              values = loops that may be entered next from key loop.
-// Results    : from node holds navigation hash suggesting for every loop
-//              of the cluster those loops, that are allowed to be entered when
-//              traversing the path to to.
+// Returns:
+// Hash with order/navigation information.
+//   - keys = loops,
+//   - values = loops that may be entered next from key loop.
+//
+// Results:
+// 'from' node holds navigation map
+// suggesting for every loop
+// of the cluster those loops,
+// that are allowed to be entered when	traversing the path to 'to'.
 func clusterNavigation(from, to pathObj) navigation {
 	// debug("Navi: from->{name}, to->{name}");
 
@@ -310,19 +318,22 @@ func clusterNavigation(from, to pathObj) navigation {
 	return navi
 }
 
-//#############################################################################
-// Purpose    : Adapt path starting/ending at zone, such that the original
-//              start/end-interface is reached.
-//              First step:
-//              Remove paths, that traverse router of start/end interface,
-//              but don't terminate at that router. This would lead to
-//              invalid paths entering the same router two times.
-//              Second step:
-//              Adjust start/end of paths from zone to router.
-// Parameters : start, end: start and/or end interface of orginal path
-//              lPath: Describes path inside loop.
-// Returns    : nothing
-// Results    : Changes attributes of lPath.
+// fixupZonePath adapts path starting/ending at zone,
+// such that the original start/end-interface is reached.
+//
+//	First step:
+//	Remove paths, that traverse router of start/end interface,
+//	but don't terminate at that router. This would lead to
+//	invalid paths entering the same router two times.
+//	Second step:
+//	Adjust start/end of paths from zone to router.
+//
+// Parameters:
+//   - start, end: start and/or end interface of orginal path
+//   - lPath: Describes path inside loop.
+//
+// Returns: nothing
+// Results: Changes attributes of lPath.
 func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 	tuples := &lPath.routerTuples
 	delIn := make(map[*routerIntf]bool)
@@ -488,17 +499,21 @@ func fixupZonePath(start, end *routerIntf, lPath *loopPath) {
 	change(end, 1)
 }
 
-//#############################################################################
-// Purpose    : Mark path starting/ending at pathrestricted interface
-//              by first marking path from/to related zone and afterwards
-//              fixing found path.
-// Parameters : startStore: start node or interface
-//              endStore: end node or interface
-//              startIntf: set if path starts at pathrestricted interface
-//              endIntf: set if path ends at pathrestricted interface
-// Returns    : True if path was found, false otherwise.
-// Results    : Sets attributes loopEnter, loopLeave, *PathTuples}
-//              for found path.
+// intfClusterPathMark marks path
+// starting/ending at pathrestricted interface
+//
+//	by first marking path from/to related zone and afterwards
+//	fixing found path.
+//
+// Parameters:
+//   - startStore: start node or interface
+//   - endStore: end node or interface
+//   - startIntf: set if path starts at pathrestricted interface
+//   - endIntf: set if path ends at pathrestricted interface
+//
+// Returns: True if path was found, false otherwise.
+// Results:
+// Sets attributes loopEnter, loopLeave, PathTuples for found path.
 func intfClusterPathMark(
 	startStore, endStore pathStore,
 	startIntf, endIntf *routerIntf,
@@ -579,20 +594,25 @@ func intfClusterPathMark(
 	return true
 }
 
-//#############################################################################
-// Purpose    : Collect path information through a loop for a pair of
-//              loop nodes (zone or router).
-//              Store it at the object where loop paths begins.
-// Parameters : startStore - source loop node or interface, if source
-//                             is a pathrestricted interface of loop.
-//              endStore - destination loop node or interface, if destination
-//                           is a pathrestricted interface of loop.
-// Returns    : True if a valid path was found, false otherwise.
-// Results    : Loop entering interface holds reference to where loop path
-//              information is stored.
-//              (Starting or ending at pathrestricted interface may lead
-//               to different paths than for a simple node).
-//              Referenced object holds loop path description.
+// clusterPathMark collects path information
+// through a loop for a pair of loop nodes (zone or router).
+//
+//	Store it at the object where loop paths begins.
+//
+// Parameters :
+//   - startStore - source loop node or interface, if source
+//     is a pathrestricted interface of loop.
+//   - endStore - destination loop node or interface, if destination
+//     is a pathrestricted interface of loop.
+//
+// Returns: True if a valid path was found, false otherwise.
+// Results:
+// Loop entering interface
+// holds reference to where loop path information is stored.
+//
+//	(Starting or ending at pathrestricted interface may lead
+//	 to different paths than for a simple node).
+//	Referenced object holds loop path description.
 func clusterPathMark(startStore, endStore pathStore) bool {
 
 	// Path from startStore to endStore has been marked already.
@@ -717,26 +737,11 @@ func clusterPathMark(startStore, endStore pathStore) bool {
 
 		// Only store complete result.
 		if success {
-
-			// Remove duplicates from path tuples.
-			adapt := func(orig *intfPairs) {
-				var tuples intfPairs
-				seen := make(map[intfPair]bool)
-				for _, tuple := range *orig {
-					if seen[tuple] {
-						continue
-					}
-					seen[tuple] = true
-					tuples.push(tuple)
-					//debug("Tuple: %s, %s", tuple[0], tuple[1]);
-				}
-				*orig = tuples
-			}
-			adapt(&lPath.routerTuples)
-			adapt(&lPath.zoneTuples)
+			delDupl(&lPath.routerTuples)
+			delDupl(&lPath.zoneTuples)
 
 			// Remove duplicates, which occur from nested loops.
-			lPath.leave.delDupl()
+			delDupl(&lPath.leave)
 
 			// Add loop path information to start node or interface.
 			startStore.setLoopPath(endStore, lPath)
@@ -866,16 +871,17 @@ func removePath(fromStore, toStore pathStore) {
 	}
 }
 
-//#############################################################################
-// Purpose   : Find and mark path from source to destination.
-// Parameter : fromStore - Object, where path starts.
-//             toStore   - Objects, where path ends
-//             Typically both are of type zone or router.
-//             For details see description of sub pathWalk.
-// Returns   : True if valid path is found, False otherwise.
-// Results   : The next interface towards toStore is stored in attribute
-//             - .path1 of fromStore and
-//             - .path of subsequent interfaces on path.
+// pathMark finds and marks path from source to destination.
+// Parameter:
+//   - fromStore - Object, where path starts.
+//   - toStore   - Objects, where path ends
+//     Typically both are of type zone or router.
+//     For details see description of sub pathWalk.
+//
+// Returns: True if valid path is found, False otherwise.
+// Results: The next interface towards toStore is stored in attribute
+//   - .path1 of fromStore and
+//   - .path of subsequent interfaces on path.
 func pathMark(fromStore, toStore pathStore) bool {
 
 	// debug("pathMark %s --> %s", fromStore, toStore)
@@ -1118,14 +1124,15 @@ func (c *spoc) showErrNoValidPath(srcPath, dstPath pathStore, context string) {
 		srcPath, dstPath, context)
 }
 
-//#############################################################################
-// Purpose    : For a given rule, visit every node on path from rules source
-//              to its destination. At every second node (every router or
-//              every zone node) call given function.
-// Parameters : rule - rule object.
-//              fun - function to be called.
-//              where - 'Router' or 'Zone', specifies where the function gets
-//              called, default is 'Router'.
+// pathWalk visits every node
+// on path from rules source to its destination for a given rule.
+// At every second node (every router or every zone node) call given function.
+//
+// Parameters:
+//   - rule - rule object.
+//   - fun - function to be called.
+//   - where - 'Router' or 'Zone', specifies where the function gets
+//     called, default is 'Router'.
 func (c *spoc) pathWalk(
 	rule *groupedRule,
 	fun func(r *groupedRule, i, o *routerIntf),
@@ -1301,16 +1308,8 @@ func (c *spoc) setAutoIntfFromBorder(border *routerIntf) {
 	result := make(map[netOrRouter]intfList)
 	reachFromBorder(border.network, border, result)
 	for key, l := range result {
-		seen := make(map[*routerIntf]bool)
-		j := 0
-		for _, intf := range l {
-			if !seen[intf] {
-				seen[intf] = true
-				l[j] = intf
-				j++
-			}
-		}
-		result[key] = l[:j]
+		delDupl(&l)
+		result[key] = l
 	}
 	c.border2obj2auto[border] = result
 }
@@ -1414,7 +1413,7 @@ func (c *spoc) findAutoInterfaces(
 				srcName, dstName))
 		return nil
 	}
-	result.delDupl()
+	delDupl(&result)
 
 	// Remove tunnel interfaces, change slice in place.
 	j := 0
@@ -1441,7 +1440,7 @@ func (c *spoc) findAutoInterfaces(
 		}
 	}
 	if bridgedSeen {
-		result.delDupl()
+		delDupl(&result)
 	}
 
 	//debug("%s = \n"+result.nameList(), srcName)

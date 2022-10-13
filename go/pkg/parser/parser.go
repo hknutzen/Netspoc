@@ -336,7 +336,7 @@ func (p *parser) union(stopToken string) ([]ast.Element, int) {
 	var union []ast.Element
 	var end int
 	for {
-		if end = p.checkPos(stopToken); end >= 0 {
+		if end = p.checkPos(stopToken); end != -1 {
 			break
 		}
 		union = append(union, p.intersection())

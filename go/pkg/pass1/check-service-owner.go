@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"golang.org/x/exp/slices"
 	"sort"
 	"strings"
 )
@@ -308,22 +309,18 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 				if printType := c.conf.CheckServiceMultiOwner; printType != "" {
 					var names stringList
 					ok := true
-					seen := make(map[string]bool)
 					for obj := range objects {
 						if obj.getOwner() != nil {
 							if getAttr(obj, multiOwnerAttr) != okVal {
 								ok = false
 							}
 							name := obj.getOwner().name[len("owner:"):]
-							if !seen[name] {
-								names.push(name)
-								seen[name] = true
-							}
+							names.push(name)
 						}
 					}
-
 					if !ok {
 						sort.Strings(names)
+						names = slices.Compact(names)
 						c.warnOrErr(printType,
 							"%s has multiple owners:\n %s",
 							svc, strings.Join(names, ", "))

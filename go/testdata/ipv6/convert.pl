@@ -89,6 +89,11 @@ sub adjust_testfile {
             $line =~ s/icmp/icmp6/;
         }
 
+        # Convert ICMPv4 to ICMPv6 in JSON output for NSX.
+        $line =~ s/"ICMPv4"/"ICMPv6"/;
+        # Convert name of ICMP protocol for NSX.
+        $line =~ s/([\/"]Netspoc-icmp)/$1v6/;
+
         # Convert prefixes.
         # Several backslashes can occur in one line, examine one at a time.
         my @matchcount = $line =~ /\/\d+/;
@@ -247,7 +252,10 @@ sub adjust_testfile {
         $line =~ s/(file ')/${1}ipv6\//;
 
         # Convert group names
-        $line =~ s/([ >"])g(\d+)([\s<"])/$1v6g$2$3/g;
+        $line =~ s/([ >"]|Netspoc-)(g\d+[\s<"])/$1v6$2/g;
+
+        # Convert rule names
+        $line =~ s/(")(r\d+")/$1v6$2/g;
 
         # Add =PARAMS= with --ipv6 option before =INPUT=
         $line =~ s/^(=INPUT=.*)/=PARAMS=--ipv6\n$1/;

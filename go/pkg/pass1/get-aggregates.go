@@ -1,6 +1,7 @@
 package pass1
 
 import (
+	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 )
@@ -198,9 +199,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 	// added multiple times for each cluster element.
 	if nat := agg.nat; nat != nil {
 		cpy := make(map[string]*network, len(nat))
-		for tag, n := range nat {
-			cpy[tag] = n
-		}
+		maps.Copy(cpy, nat)
 		agg2.nat = cpy
 	}
 

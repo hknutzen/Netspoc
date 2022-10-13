@@ -79,10 +79,10 @@ func isSubRange(p *proto, o *proto) bool {
 
 func getOrigPrt(rule *expandedRule) *proto {
 	prt := rule.prt
-	proto := prt.proto
+	protocol := prt.proto
 	oRule := rule.rule
 	for _, oPrt := range oRule.prt {
-		if proto != oPrt.proto {
+		if protocol != oPrt.proto {
 			continue
 		}
 		switch oPrt.proto {
@@ -91,19 +91,18 @@ func getOrigPrt(rule *expandedRule) *proto {
 				continue
 			}
 			srcRange := rule.srcRange
-			if (srcRange == nil) !=
-				(oPrt.modifiers == nil || oPrt.modifiers.srcRange == nil) {
-				continue
-			} else if srcRange == nil {
-				return oPrt
-			} else if isSubRange(srcRange, oPrt.modifiers.srcRange) {
-				return oPrt
+			var oSrcRange *proto
+			if m := oPrt.modifiers; m != nil {
+				oSrcRange = m.srcRange
 			}
-		default:
-			if mainPrt := oPrt.main; mainPrt != nil {
-				if mainPrt == prt {
+			if (srcRange == nil) == (oSrcRange == nil) {
+				if srcRange == nil || isSubRange(srcRange, oSrcRange) {
 					return oPrt
 				}
+			}
+		default:
+			if oPrt.main == prt {
+				return oPrt
 			}
 		}
 	}
@@ -180,10 +179,10 @@ func (c *spoc) collectDuplicateRules(
 	// Mark duplicate rules in both services.
 
 	// But count each rule only once. For duplicate rules, this can
-	// only occur for rule other, because all identical rules are
-	// compared with other. But we need to mark rule as well, because
-	// it must only be counted once, if it is both duplicate and
-	// redundandant.
+	// only occur for rule 'other', because all identical rules are
+	// compared with 'other'. But we need to mark 'rule' as well,
+	// because it must only be counted once, if it is both duplicate
+	// and redundandant.
 	rule.redundant = true
 	sv.duplicateCount++
 	osv := other.rule.service

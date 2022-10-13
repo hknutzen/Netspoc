@@ -155,7 +155,7 @@ func (p *printer) description(n ast.Toplevel) {
 }
 
 func (p *printer) topListHead(n ast.Toplevel) {
-	p.print(n.GetName() + " =" + n.PostComment())
+	p.print(n.GetName() + " =")
 	p.description(n)
 }
 
@@ -165,18 +165,17 @@ func (p *printer) topElementList(n *ast.TopList) {
 }
 
 func (p *printer) topProtocol(n *ast.Protocol) {
-	trailing := n.PostComment()
 	proto := n.Value + ";"
 	// Print name and value on different lines, if protocol has
 	// description or trailing comment.
-	if n.GetDescription() != nil || trailing != "" {
-		p.print(n.Name + " =" + trailing)
+	if n.GetDescription() != nil {
+		p.print(n.Name + " =")
 		p.description(n)
 		p.indent++
 		p.print(proto)
 		p.indent--
 	} else {
-		p.print(n.Name + " = " + proto + trailing)
+		p.print(n.Name + " = " + proto)
 	}
 }
 
@@ -297,8 +296,7 @@ func (p *printer) attribute(n *ast.Attribute) {
 		}
 	} else if l := n.ComplexValue; l != nil {
 		if name == "virtual" || strings.Contains(name, ":") {
-			val, comment := getAttrList(l)
-			p.print(name + val + comment)
+			p.shortAttributeList(name, l)
 		} else {
 			p.complexValue(n)
 		}
@@ -314,6 +312,11 @@ func (p *printer) attributeList(l []*ast.Attribute) {
 		p.attribute(a)
 	}
 	p.indent--
+}
+
+func (p *printer) shortAttributeList(name string, l []*ast.Attribute) {
+	val, comment := getAttrList(l)
+	p.print(name + val + comment)
 }
 
 func (p *printer) rule(n *ast.Rule) {
@@ -408,8 +411,7 @@ func (p *printer) indentedAttribute(n *ast.Attribute, max int) {
 	if len := utfLen(name); len < max {
 		name += strings.Repeat(" ", max-len)
 	}
-	val, comment := getAttrList(n.ComplexValue)
-	p.print(name + val + comment)
+	p.shortAttributeList(name, n.ComplexValue)
 }
 
 func getMaxAndNoIndent(
@@ -558,8 +560,7 @@ func (p *printer) simpleNetList(l []*ast.Network) {
 			name += strings.Repeat(" ", max-len)
 		}
 		p.preComment(a)
-		val, comment := getAttrList(a.Attributes)
-		p.print(name + val + comment)
+		p.shortAttributeList(name, a.Attributes)
 	}
 }
 

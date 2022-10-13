@@ -70,6 +70,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
+	"golang.org/x/exp/maps"
 	"io"
 	"sort"
 	"strconv"
@@ -121,7 +122,7 @@ func prtInfo(srcRange, prt *proto) string {
 func (c *spoc) printService(
 	stdout io.Writer,
 	path string,
-	srvNames []string, natNet string, showName bool) {
+	srvNames []string, natNet string, showName bool, showIP bool) {
 
 	c.readNetspoc(path)
 	c.markDisabled()
@@ -129,6 +130,11 @@ func (c *spoc) printService(
 	c.setPath()
 	c.distributeNatInfo()
 	c.stopOnErr()
+
+	if !(showIP || showName) {
+		showIP = true
+		showName = false
+	}
 
 	// Find network for resolving NAT addresses or use empty map.
 	var natMap natMap
@@ -208,16 +214,17 @@ func (c *spoc) printService(
 	collect(permitRules)
 
 	objInfo := func(obj someObj) string {
-		if showName {
-			return obj.String()
+		var result stringList
+		if showIP {
+			result.push(prefixCode(obj.address(natMap)))
 		}
-		return prefixCode(obj.address(natMap))
+		if showName {
+			result.push(obj.String())
+		}
+		return strings.Join(result, " ")
 	}
 
-	names := make(stringList, 0, len(s2rules))
-	for name := range s2rules {
-		names.push(name)
-	}
+	names := maps.Keys(s2rules)
 	sort.Strings(names)
 	for _, name := range names {
 		for _, r := range s2rules[name] {
@@ -250,7 +257,8 @@ func PrintServiceMain(d oslink.Data) int {
 
 	nat := fs.String("nat", "",
 		"Use network:name as reference when resolving IP address")
-	name := fs.BoolP("name", "n", false, "Show name, not IP of elements")
+	name := fs.BoolP("name", "n", false, "Show only name of elements")
+	ip := fs.BoolP("ip", "i", false, "Show only IP address of elements")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -275,6 +283,6 @@ func PrintServiceMain(d oslink.Data) int {
 	}
 	cnf := conf.ConfigFromArgsAndFile(dummyArgs, path)
 	return toplevelSpoc(d, cnf, func(c *spoc) {
-		c.printService(d.Stdout, path, names, *nat, *name)
+		c.printService(d.Stdout, path, names, *nat, *name, *ip)
 	})
 }

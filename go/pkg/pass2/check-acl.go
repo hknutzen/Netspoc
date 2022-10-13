@@ -2,6 +2,7 @@ package pass2
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"net"
 	"os"
@@ -25,7 +26,7 @@ func CheckACLMain(d oslink.Data) int {
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(d.Stderr,
-			"Usage: %s [-f file] code/router acl ['ip1 ip2 tcp|udp port']...\n%s",
+			"Usage: %s [-f file] code/router ACL-NAME ['ip1 ip2 tcp|udp port']...\n%s",
 			d.Args[0], fs.FlagUsages())
 	}
 
@@ -180,13 +181,13 @@ func checkACL(d oslink.Data,
 	// Set relation between original and added rules.
 	setupPrtRelation(aInfo.prt2obj)
 	setupIPNetRelation(aInfo.ipNet2obj)
-	// Remember original rules because aInfo gets changed,
+	// Remember added original rules because aInfo gets changed
 	// during optimization.
-	orig := aInfo.rules
+	orig := slices.Clone(aInfo.rules[sz:])
 	// Optimize rules; marks duplicate and redundant rules as '.deleted'.
 	optimizeRules(aInfo)
 	// Check added rules.
-	for _, p := range orig[sz:] {
+	for _, p := range orig {
 		var action string
 		if p.deleted {
 			// Packet was redundant to original rule and hence can pass.

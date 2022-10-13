@@ -174,6 +174,7 @@ func (c *spoc) markDisabled() {
 	}
 	for _, l := range sameDevice {
 		r1 := l[0]
+		m1 := r1.model.class
 		if r1.model.needManagementInstance {
 			mr := c.getRouter(r1.deviceName, r1.ipV6)
 			if mr == nil {
@@ -181,21 +182,31 @@ func (c *spoc) markDisabled() {
 					" with attribute 'management_instance'\n"+
 					" for %s",
 					r1.deviceName, r1)
+			} else if !mr.managementInstance {
+				c.err("Must add attribute 'management_instance' at %s", mr)
 			} else if mr.backupOf != nil {
 				c.err("Must define unmanaged router:%s\n"+
 					" - with attribute 'management_instance'\n"+
 					" - but without attribute 'backup_of'\n"+
 					" for %s",
 					r1.deviceName, r1)
+			} else if mm := mr.model; mm != nil {
+				if m1 != mm.class {
+					c.err("%s and %s must have identical model", r1, mr)
+				}
+				if br := mr.backupInstance; br != nil {
+					if bm := br.model; bm != nil && mm.name != bm.class {
+						c.err("%s and %s must have identical model", mr, br)
+					}
+				}
 			}
 		}
 
 		if len(l) == 1 {
 			continue
 		}
-		m1 := r1.model.name
 		for _, r := range l[1:] {
-			if m1 != r.model.name {
+			if m1 != r.model.class {
 				c.err("All instances of router:%s must have identical model",
 					l[0].deviceName)
 				break

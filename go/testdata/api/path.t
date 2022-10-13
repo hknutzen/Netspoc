@@ -854,6 +854,28 @@ Warning: unused group:g1
 =END=
 
 ############################################################
+=TITLE=Delete unknown automatic aggregate from group
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+group:g1 =
+ any:[network:n1],
+;
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "group:g1,elements",
+        "value": [
+            "any:[ ip = 10.1.0.0/16 & network:n1 ]"
+        ]
+    }
+}
+=ERROR=
+Error: Can't find element 'any:[10.1.0.0/16&network:n1]'
+=END=
+
+############################################################
 =TITLE=Delete group
 =INPUT=
 network:n1 = {

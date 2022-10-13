@@ -294,7 +294,7 @@ Warning: service:s3 is fully redundant
 =OPTIONS=--check_fully_redundant_rules=warn
 
 ############################################################
-=TITLE=Fully redundant rule: multi redundant and duplicate
+=TITLE=Fully redundant rule: multi redundant and duplicate (1)
 =PARAMS=--ipv6
 =INPUT=
 any:n1 = { link = network:n1; }
@@ -331,6 +331,48 @@ service:s3 = {
 =END=
 =WARNING=
 Warning: service:s1 is fully redundant
+=END=
+=OPTIONS=--check_fully_redundant_rules=warn
+
+############################################################
+=TITLE=Fully redundant rule: multi redundant and duplicate (2)
+=PARAMS=--ipv6
+=INPUT=
+any:n1 = { link = network:n1; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:R1 = {
+ managed;
+ model = ASA;
+ log:a = errors;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+service:s1 = {
+ overlaps = service:s3;
+ user = network:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 90;
+}
+service:s2 = {
+ overlaps = service:s1, service:s3;
+ user = network:n1;
+ # duplicate
+ permit src = user; dst = network:n2; prt = tcp 80;
+ # redundant
+ permit src = user; dst = network:n2; prt = tcp 81;
+ # redundant with log
+ permit src = user; dst = network:n2; prt = tcp 82; log = a;
+}
+service:s3 = {
+ user = any:n1;
+ permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2; prt = tcp 81;
+ permit src = user; dst = network:n2; prt = tcp 82; log = a;
+}
+=END=
+=WARNING=
+Warning: service:s2 is fully redundant
 =END=
 =OPTIONS=--check_fully_redundant_rules=warn
 
