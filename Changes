@@ -1,5 +1,17 @@
 {{$NEXT}}
 
+6.050     2022-10-13 16:13:31+02:00 Europe/Berlin
+
+ - Added new option '-i' / '--ip' to command 'print-service'.
+   If given together with option '-n' / '--name', it shows IP address
+   together with name for source and destination of each rule.
+   Output format is:
+   name:action src-ip src-name dst-ip dst-name protocol.
+ - Fixed generated IPv6 code for PAN-OS:
+   IPv6 rules use separate name space now to prevent name clashes between
+   IPv4 and IPv6 rules.
+   It is supported now to generate IPv4 and IPv6 rules for the same VSYS.
+
 6.049     2022-09-06 17:12:38+02:00 Europe/Berlin
 
  - Reverted optimized parallel execution from version 6.046,
