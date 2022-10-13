@@ -32,8 +32,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		}
 	}
 	single := func(s string) []string { return []string{s} }
-	var getAddress func(n *ipNet) []string
-	getAddress = func(n *ipNet) []string {
+	getAddress := func(n *ipNet) []string {
 		// Object group.
 		if !n.Prefix.IsValid() {
 			return single("Netspoc-" + n.name)
@@ -49,7 +48,6 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	type srcRgPrt struct {
 		srcRg *proto
 		prt   *proto
-		name  string
 	}
 	protoMap := make(map[string]srcRgPrt)
 	getService := func(ru *ciscoRule) string {
