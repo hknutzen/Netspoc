@@ -135,6 +135,10 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 			for _, rule := range acl.rules {
 				name := fmt.Sprintf("r%d", count)
 				count++
+				// Prevent name clash between IPv4 and IPv6 rules
+				if rData.ipv6 {
+					name = "v6" + name
+				}
 				action := getAction(rule)
 				source := getAddress(rule.src)
 				destination := getAddress(rule.dst)

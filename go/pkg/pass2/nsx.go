@@ -71,6 +71,10 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		} else {
 			name = prt.name
 		}
+		// Prevent name clash between IPv4 and IPv6 version of icmp protocol.
+		if rData.ipv6 && proto == "icmp" {
+			name = strings.Replace(name, "icmp", "icmpv6", 1)
+		}
 		name = "Netspoc-" + name
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
 		return name
@@ -130,6 +134,10 @@ func printNSXRules(fd *os.File, rData *routerData) {
 					}
 					rName := fmt.Sprintf("r%d", ruleNum)
 					ruleNum++
+					// Prevent name clash between IPv4 and IPv6 rules
+					if rData.ipv6 {
+						rName = "v6" + rName
+					}
 					nsxRule := jsonMap{
 						"resource_type":      "Rule",
 						"id":                 rName,
