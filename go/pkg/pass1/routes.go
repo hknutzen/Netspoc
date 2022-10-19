@@ -5,8 +5,11 @@ import (
 	"sort"
 )
 
-//############################################################################
-// Purpose  : Generate and store routing information for all managed interfaces.
+/*
+############################################################################
+findActiveRoutes generates and stores routing information for all
+managed interfaces.
+*/
 func (c *spoc) findActiveRoutes() {
 	c.progress("Finding routes")
 
@@ -35,16 +38,17 @@ func (c *spoc) findActiveRoutes() {
 
 type netMap map[*network]bool
 
-//#############################################################################
-// Get networks for routing.
-// Add largest supernet inside the zone, if available.
-// This is needed, because we use the supernet in
-// secondary optimization too.
-// Moreover this reduces the number of routing entries.
-// It isn't sufficient to solely use the supernet because network and supernet
-// can have different next hops at end of path.
-// For an aggregate, take all matching networks inside the zone.
-// These are supernets by design.
+/*
+#############################################################################
+Get networks for routing.
+Add largest supernet inside the zone, if available.
+This is needed, because we use the supernet in secondary optimization too.
+Moreover this reduces the number of routing entries.
+It isn't sufficient to solely use the supernet because network and supernet
+can have different next hops at end of path.
+For an aggregate, take all matching networks inside the zone.
+These are supernets by design.
+*/
 func getRouteNetworks(l []someObj) netMap {
 	m := make(netMap)
 LIST:
@@ -72,17 +76,26 @@ LIST:
 	return m
 }
 
-//#############################################################################
-// Purpose    : Provide routing information inside a security zone.
-// Parameters : zone - a zone object.
-// Results    : Every zone border interface I contains a map
-//              routeInZone, keeping the zones networks N reachable from I as
-//              keys and the next hop interface H towards N as values.
-// Comments   : A cluster is a maximal set of connected networks of the security
-//              zone surrounded by hop interfaces. Clusters can be empty.
-//              Optimization: a default route I.routeInZone[network00] = H
-//              is stored for those border interfaces, that reach networks in
-//              zone via a single hop.
+/*
+#############################################################################
+setRoutesInZone provides routing information inside a security zone.
+
+Parameters:
+- z - a zone object.
+
+Results:
+Every zone border interface I contains a map routeInZone, keeping the
+zones networks N reachable from I as keys and the next hop interface H
+towards N as values.
+
+Comments:
+A cluster is a maximal set of connected networks of the security
+zone surrounded by hop interfaces. Clusters can be empty.
+
+Optimization:
+A default route I.routeInZone[network00] = H is stored for those
+border interfaces, that reach networks in zone via a single hop.
+*/
 func (c *spoc) setRoutesInZone(z *zone) {
 
 	// Check if zone needs static routing at all.
@@ -309,20 +322,26 @@ func (c *spoc) getHopInZone(in *routerIntf, n *network) *routerIntf {
 	return h
 }
 
-//#############################################################################
-// Purpose    : Gather rule specific routing information at zone border
-//              interfaces: For a pair (inIntf,outIntf) of zone border
-//              interfaces that lies on a path from src to dst, the next hop
-//              interfaces H to reach outIntf from in_intf are determined
-//              and stored.
-// Parameters : inIntf - interface zone is entered from.
-//              outIntf - interface zone is left at.
-//              dstNetMap - destination networks of associated pseudo rule.
-// Results    : inIntf holds routing information that dstNetworks are
-//              reachable via next hop interface H.
-// Comment    : dstNetworks are converted to natNets, before storing as
-//              routing information, because NAT addresses are used in
-//              static routes.
+/*
+#############################################################################
+addPathRoutes gathers rule specific routing information at zone border
+interfaces: For a pair (in,out) of zone border
+interfaces that lies on a path from src to dst, the next hop
+interfaces H to reach out from in are determined and stored.
+
+Parameters:
+- in - interface zone is entered from.
+- out - interface zone is left at.
+- dstNetMap - destination networks of associated pseudo rule.
+
+Results:
+in holds routing information that dstNetworks are
+reachable via next hop interface H.
+
+Comment:
+dstNetworks are converted to natNets, before storing as routing
+information, because NAT addresses are used in static routes.
+*/
 func (c *spoc) addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 
 	// Interface with manual or dynamic routing.
@@ -351,17 +370,24 @@ func (c *spoc) addPathRoutes(in, out *routerIntf, dstNetMap netMap) {
 	}
 }
 
-//############################################################################
-// Purpose    : Generate routing information for a single interface at zone
-//              border. Store next hop interface to every destination network
-//              inside zone within the given interface object.
-// Parameters : interface - border interface of a zone.
-//              dstNetMap - destination networks inside the same zone.
-// Results    : interface holds routing entries about which hops to use to
-//              reach the networks specified in dst_networks.
-// Comment    : dst networks are converted to natNet, before storing as
-//              routing information, because NAT addresses are used in
-//              static routes.
+/*
+##############################################################################
+addEndRoutes generates routing information for a single interface at
+zone border. Store next hop interface to every destination network
+inside zone within the given interface object.
+
+Parameters:
+- intf - border interface of a zone.
+- dstNetMap - destination networks inside the same zone.
+
+Results:
+Interface holds routing entries about which hops to use to
+reach the destination networks.
+
+Comment:
+dst networks are converted to natNet, before storing as routing
+information, because NAT addresses are used in static routes.
+*/
 func (c *spoc) addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 
 	// Interface with manual or dynamic routing.
@@ -377,7 +403,7 @@ func (c *spoc) addEndRoutes(intf *routerIntf, dstNetMap netMap) {
 		intf.routes = rMap
 	}
 
-	// For every dst network, get the hop that can be used to get there.
+	// For every dst network, get the hop that is used to reach it.
 	for n := range dstNetMap {
 		if n == intfNet {
 			continue
@@ -403,11 +429,14 @@ func getZone(l []someObj, s pathStore) *zone {
 	}
 }
 
-//############################################################################
-// Purpose : Generate the routing tree, holding pseudo rules that represent
-//           the whole grouped rule set. As the pseudo rules are
-//           generated to determine routes, ports are omitted, and rules
-//           refering to the same src and dst zones are summarized.
+/*
+############################################################################
+generateRoutingTree generates the routing tree,
+holding pseudo rules that represent the whole grouped rule set.
+As the pseudo rules are generated to determine routes,
+ports are omitted, and rules referring to the same src and dst zones
+are summarized.
+*/
 func (c *spoc) generateRoutingTree() routingTree {
 	t := make(routingTree)
 
@@ -427,8 +456,10 @@ type pseudoRule struct {
 type zonePair [2]*zone
 type routingTree map[zonePair]*pseudoRule
 
-//#############################################################################
-// Purpose    : Add information from single grouped rule to routing tree.
+/*
+#############################################################################
+generateRoutingTree1 adds information from single grouped rule to routing tree.
+*/
 func (c *spoc) generateRoutingTree1(rule *groupedRule, t routingTree) {
 
 	// Special handling needed for rules having interface of managed
@@ -503,34 +534,39 @@ func (c *spoc) generateRoutingTree1(rule *groupedRule, t routingTree) {
 
 	// If src/dst is interface of managed routers, add this info to
 	// pseudo rule.
-	addI2N := func(i2n *map[*routerIntf]netMap, ob []someObj, nets netMap) {
+	addI2N := func(i2n map[*routerIntf]netMap, ob []someObj, nets netMap) {
 		intf := ob[0].(*routerIntf)
 		r := intf.router
 		if r.managed != "" || r.routingOnly {
 			intf = getMainInterface(intf)
-			m := (*i2n)[intf]
+			m := i2n[intf]
 			if m == nil {
 				m = make(netMap)
-				(*i2n)[intf] = m
+				i2n[intf] = m
 			}
 			add(m, nets)
 		}
 	}
 	if isIntf(srcPath) {
-		addI2N(&p.srcIntf2nets, src, dstNetworks)
+		addI2N(p.srcIntf2nets, src, dstNetworks)
 	}
 	if isIntf(dstPath) {
-		addI2N(&p.dstIntf2nets, dst, srcNetworks)
+		addI2N(p.dstIntf2nets, dst, srcNetworks)
 	}
 }
 
-//#############################################################################
-// Purpose    : Generate routing information for every (source,destination)
-//              pair of the ruleset and store it in the affected interfaces.
-// Parameters : routing_tree - a pseudo rule set.
-// Results    : Every interface object holds next hop routing information
-//              for the rules of original ruleset requiring a path passing the
-//              interface.
+/*
+#############################################################################
+generateRoutingInfo generates routing information for every
+(source,destination) pair of the ruleset and store it in the affected interfaces.
+
+Parameters:
+- t - a pseudo rule set.
+
+Results:
+Every interface object holds next hop routing information for the
+rules of original ruleset requiring a path passing the interface.
+*/
 func (c *spoc) generateRoutingInfo(t routingTree) {
 
 	// Process every pseudo rule.
@@ -804,6 +840,7 @@ func (c *spoc) adjustVPNRoutes(r *router) {
 		}
 	}
 }
+
 func (c *spoc) checkDuplicateRoutes(r *router) {
 	if r.origRouter != nil {
 		return
