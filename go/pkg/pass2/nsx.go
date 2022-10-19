@@ -3,11 +3,12 @@ package pass2
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 type jsonMap map[string]interface{}
@@ -235,14 +236,18 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	}
 
 	fmt.Fprintln(fd)
-	s2 := getPolicies(rData.acls)
-	s1 := getGroups()
-	s1 = append(s1, getServices()...)
-	s1 = append(s1, s2...)
+	p := getPolicies(rData.acls)
+	g := getGroups()
+	s := getServices()
+	result := jsonMap{
+		"groups":   g,
+		"services": s,
+		"policies": p,
+	}
 	enc := json.NewEncoder(fd)
 	enc.SetIndent("", " ")
 	enc.SetEscapeHTML(false)
-	enc.Encode(s1)
+	enc.Encode(result)
 	fmt.Fprintln(fd)
 }
 
