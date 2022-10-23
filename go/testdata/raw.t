@@ -23,19 +23,31 @@ router:r2 = {
 }
 -- raw/aaa/b
 !!!
+-- raw/r0
+access-list n2_in extended permit udp any4 any4 eq 123
 -- raw/r1
 ! manual route
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
--- raw/x
-access-list n2_in extended permit udp any4 any4 eq 123
 =WARNING=
 Warning: Ignoring path raw/aaa
-Warning: Found unused file raw/x
+Warning: Found unused file raw/r0
 =OUTPUT=
 --r1.raw
 ! manual route
 ip route 10.1.2.0 255.255.255.0 10.1.1.1
 =END=
+
+############################################################
+=TITLE=Ignore hidden file and file named CVS
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+-- raw/.hidden
+abc
+-- raw/CVS
+xyz
+=WITH_OUTDIR=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Ignore file with name "raw"
