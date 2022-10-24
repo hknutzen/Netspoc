@@ -132,6 +132,32 @@ Error: Duplicate IP address for interface:r1.n1 and host:h3
 =END=
 
 ############################################################
+=TITLE=Non virtual interface has IP of virtual interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r0 = {
+ interface:n1 = { ip = 10.1.1.1; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.2; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.3; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+=ERROR=
+Error: Duplicate IP address for interface:r0.n1 and interface:r1.n1.virtual
+Error: Duplicate IP address for interface:r0.n1 and interface:r2.n1.virtual
+=END=
+
+############################################################
 =TITLE=Overlapping ranges used in rule
 =INPUT=
 network:n1 = {
