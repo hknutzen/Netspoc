@@ -430,9 +430,10 @@ network:n4 = {
 network:n5 = { ip = 10.1.5.0/24; nat:n4 = { hidden; } }
 
 router:r1 = {
- interface:n1 = { ip = 10.1.1.1; }
- interface:n2 = { ip = 10.1.2.1; bind_nat = n1;
- }
+ managed = routing_only; # Kill mutation test.
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
  managed;
