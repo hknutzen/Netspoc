@@ -277,9 +277,8 @@ func (s *State) DeleteUnmanagedLoopbackInterface(name string) {
 
 func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 	s.Modify(func(top ast.Toplevel) bool {
-		if n, ok := top.(ast.ToplevelWithAttr); ok &&
-			strings.HasPrefix(top.GetName(), typ) {
-
+		if strings.HasPrefix(top.GetName(), typ) {
+			n := top.(ast.ToplevelWithAttr)
 			if a := n.GetAttr(attr); a != nil {
 				if oLen := len(a.ValueList); oLen > 0 {
 					a.Remove(name)
