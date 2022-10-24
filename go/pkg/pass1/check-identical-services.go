@@ -1,8 +1,9 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"sort"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 )
 
 func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
@@ -214,7 +215,6 @@ func (c *spoc) checkIdenticalServices(sRules *serviceRules) {
 			for i, r1 := range l1 {
 				r2 := l2[i]
 				if !(r1.action == r2.action &&
-					r1.hasUser == r2.hasUser &&
 					elementsEq(r1.src, r2.src) &&
 					elementsEq(r1.dst, r2.dst) &&
 					prtEq(r1.prt, r2.prt) &&
