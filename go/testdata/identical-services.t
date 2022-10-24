@@ -212,6 +212,26 @@ Warning: These services have identical rule definitions.
 =OPTIONS=--check_identical_services=warn
 
 ############################################################
+=TITLE=Different action
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = network:n2;
+ deny   src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 90;
+}
+service:s2 = {
+ user = interface:r1.n1;
+ permit src = user;
+        dst = host:h10, host:h11;
+        prt = tcp 90;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
 =TITLE=Many elements are equal, but not all.
 =INPUT=
 [[topo]]
@@ -420,6 +440,22 @@ service:s1 = {
 service:s2 = {
  user = host:h11;
  permit src = user; dst = any:[ip=10.1.0.0/16 & network:n2]; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
+
+############################################################
+=TITLE=Equal rules with equal IP but different objects in automatic group.
+=INPUT=
+[[topo]]
+service:s1 = {
+ user = host:h10;
+ permit src = user; dst = any:[ip=10.0.0.0/8 & interface:r1.n2]; prt = tcp 80;
+}
+service:s2 = {
+ user = host:h11;
+ permit src = user; dst = any:[ip=10.0.0.0/8 & network:n2]; prt = tcp 80;
 }
 =END=
 =WARNING=NONE
@@ -849,3 +885,55 @@ service:s2 = {
 =END=
 =WARNING=NONE
 =OPTIONS=--check_identical_services=warn --check_duplicate_rules=0
+
+############################################################
+=TITLE=Equal rules, but slightly different interfaces
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10;}
+ host:h11 = { ip = 10.1.1.11;}
+ host:h12 = { ip = 10.1.1.12;}
+ host:h13 = { ip = 10.1.1.13;} }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24;
+ host:h30 = { ip = 10.1.3.30;}
+ host:h33 = { ip = 10.1.3.33;} }
+router:r1 = {
+ model = ASA;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1, 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:u = {
+ interface:n2 = { ip = 10.1.2.9; }
+}
+# Add two unchanged elements in front of dst list and two protocols,
+# because hashing is done on first two elements and last two protocols.
+service:s1 = {
+ user = host:h10;
+ permit src = user;
+        dst = host:h30, host:h33, interface:r1.n1;
+        prt = tcp 80, tcp 90;
+}
+service:s2 = {
+ user = host:h11;
+ permit src = user;
+        dst = host:h30, host:h33, interface:r1.n2;
+        prt = tcp 80, tcp 90;
+}
+service:s3 = {
+ user = host:h12;
+ permit src = user;
+        dst = host:h30, host:h33, interface:r1.n2.2;
+        prt = tcp 80, tcp 90;
+}
+service:s4 = {
+ user = host:h13;
+ permit src = user;
+        dst = host:h30, host:h33, interface:u.n2;
+        prt = tcp 80, tcp 90;
+}
+=END=
+=WARNING=NONE
+=OPTIONS=--check_identical_services=warn
