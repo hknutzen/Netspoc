@@ -290,8 +290,8 @@ func elemEq(e1, e2 ast.Element) bool {
 		}
 	case *ast.IntfRef:
 		if b, ok := e2.(*ast.IntfRef); ok {
-			result = a.Type == b.Type &&
-				a.Router == b.Router && a.Network == b.Network &&
+			result = a.Router == b.Router &&
+				a.Network == b.Network &&
 				a.Extension == b.Extension
 		}
 	case *ast.SimpleAuto:
