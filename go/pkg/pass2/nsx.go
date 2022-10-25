@@ -152,12 +152,9 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				}
 			}
 			policyName := "Netspoc-" + vrf
-			path := "/infra/domains/default/gateway-policies/" + policyName
 			result = append(result, jsonMap{
 				"resource_type": "GatewayPolicy",
-				"path":          path,
 				"id":            policyName,
-				"display_name":  policyName,
 				"rules":         nsxRules,
 			})
 		}
@@ -171,13 +168,13 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				for _, n := range g.elements {
 					l = append(l, getAddress(n)...)
 				}
-				path := "/infra/domains/default/groups/" + "Netspoc-" + g.name
+				groupName := "Netspoc-" + g.name
 				addresses := jsonMap{
 					"resource_type": "IPAddressExpression",
 					"ip_addresses":  l,
 				}
 				result = append(result, jsonMap{
-					"path":       path,
+					"id":         groupName,
 					"expression": []jsonMap{addresses},
 				})
 			}
@@ -225,10 +222,8 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				svcEntry["resource_type"] = "IpProtocolServiceEntry"
 				svcEntry["protocol_number"], _ = strconv.Atoi(proto)
 			}
-			path := "/infra/services/" + name
 			result = append(result, jsonMap{
-				"display_name":    name,
-				"path":            path,
+				"id":              name,
 				"service_entries": []jsonMap{svcEntry},
 			})
 		}
