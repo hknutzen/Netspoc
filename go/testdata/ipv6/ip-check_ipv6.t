@@ -140,6 +140,33 @@ Error: Duplicate IP address for interface:r1.n1 and host:h3
 =END=
 
 ############################################################
+=TITLE=Non virtual interface has IP of virtual interfaces
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+
+router:r0 = {
+ interface:n1 = { ip = ::a01:101; }
+}
+router:r1 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+=ERROR=
+Error: Duplicate IP address for interface:r0.n1 and interface:r1.n1.virtual
+Error: Duplicate IP address for interface:r0.n1 and interface:r2.n1.virtual
+=END=
+
+############################################################
 =TITLE=Overlapping ranges used in rule
 =PARAMS=--ipv6
 =INPUT=

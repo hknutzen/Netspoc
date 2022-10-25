@@ -1302,6 +1302,7 @@ service:test3 = {
 }
 =PARAMS=--ipv6
 =INPUT=[[input]]
+=SUBST=/type = ipsec:aes256SHA;/type = ipsec:aes256SHA;detailed_crypto_acl;/
 =OUTPUT=
 --ipv6/asavpn
 ! [ Routing ]
@@ -2598,7 +2599,7 @@ Error: Two static routes for network:internet
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip for crypto tunnel of ASA
+=TITLE=Use real ip in ACL but NAT IP in crypto ACL
 =PARAMS=--ipv6
 =INPUT=
 ipsec:aes256SHA = {
@@ -2664,6 +2665,18 @@ service:test = {
 =END=
 =OUTPUT=
 -- ipv6/asavpn
+! crypto-::101:101
+access-list crypto-::101:101 extended permit ip f000::c0a8:200/120 ::a63:100/120
+crypto map crypto-outside 1 set peer ::101:101
+crypto map crypto-outside 1 match address crypto-::101:101
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group ::101:101 type ipsec-l2l
+tunnel-group ::101:101 ipsec-attributes
+ peer-id-validate nocheck
+crypto map crypto-outside interface outside
+--
 ! outside_in
 access-list outside_in extended permit tcp ::a63:100/120 ::a01:100/120 eq 80
 access-list outside_in extended deny ip any6 any6
@@ -3343,7 +3356,7 @@ Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'rou
 =END=
 
 ############################################################
-=TITLE=Unexpected dynamic crypto spoke
+=TITLE=detailed_crypto_acl
 =PARAMS=--ipv6
 =INPUT=
 crypto:psk-detailed = {
