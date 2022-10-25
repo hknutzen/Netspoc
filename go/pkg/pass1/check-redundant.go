@@ -46,57 +46,58 @@ func (r *groupedRule) print() string {
 	return e.print()
 }
 
-func (r *expandedRule) print() string {
+func (ru *expandedRule) print() string {
 	extra := ""
-	if r.log != "" {
-		extra += " log=" + r.log + ";"
+	if ru.log != "" {
+		extra += " log=" + ru.log + ";"
 	}
-	if r.stateless {
+	if ru.stateless {
 		extra += " stateless"
 	}
-	origPrt := r.prt
-	if oRule := r.rule; oRule != nil {
+	origPrt := ru.prt
+	if oRule := ru.rule; oRule != nil {
 		s := oRule.service
 		extra += " of " + s.name
-		origPrt = getOrigPrt(r)
+		origPrt = getOrigPrt(ru)
 	}
 	var action string
-	if r.deny {
+	if ru.deny {
 		action = "deny"
 	} else {
 		action = "permit"
 	}
 	pName := origPrt.name
+	if srcRange := ru.srcRange; srcRange != nil {
+		if !strings.HasPrefix(pName, "protocol:") {
+			proto, ports, _ := strings.Cut(pName, " ")
+			_, sPorts, _ := strings.Cut(srcRange.name, " ")
+			pName = fmt.Sprintf("%s %s:%s", proto, sPorts, ports)
+		}
+	}
 	return fmt.Sprintf("%s src=%s; dst=%s; prt=%s;%s",
-		action, r.src.String(), r.dst.String(), pName, extra)
+		action, ru.src.String(), ru.dst.String(), pName, extra)
 }
 
-func isSubRange(p *proto, o *proto) bool {
-	l1, h1 := p.ports[0], p.ports[1]
-	l2, h2 := o.ports[0], o.ports[1]
-	return l2 <= l1 && h1 <= h2
-}
-
-func getOrigPrt(rule *expandedRule) *proto {
-	prt := rule.prt
+func getOrigPrt(ru *expandedRule) *proto {
+	prt := ru.prt
 	protocol := prt.proto
-	oRule := rule.rule
+	oRule := ru.rule
 	for _, oPrt := range oRule.prt {
 		if protocol != oPrt.proto {
 			continue
 		}
 		switch oPrt.proto {
 		case "tcp", "udp":
-			if !isSubRange(prt, oPrt) {
+			if prt.ports != oPrt.ports {
 				continue
 			}
-			srcRange := rule.srcRange
+			srcRange := ru.srcRange
 			var oSrcRange *proto
 			if m := oPrt.modifiers; m != nil {
 				oSrcRange = m.srcRange
 			}
 			if (srcRange == nil) == (oSrcRange == nil) {
-				if srcRange == nil || isSubRange(srcRange, oSrcRange) {
+				if srcRange == nil || srcRange.ports == oSrcRange.ports {
 					return oPrt
 				}
 			}
