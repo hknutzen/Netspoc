@@ -36,7 +36,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	getAddress := func(n *ipNet) []string {
 		// Object group.
 		if !n.Prefix.IsValid() {
-			return single("Netspoc-" + n.name)
+			return single("/infra/domains/default/groups/Netspoc-" + n.name)
 		}
 		if n.Bits() == 0 {
 			return single("ANY")
@@ -76,7 +76,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		}
 		name = "Netspoc-" + name
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
-		return name
+		return "/infra/services/" + name
 	}
 	getPolicies := func(l []*aclInfo) []jsonMap {
 		var result []jsonMap
