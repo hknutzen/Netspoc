@@ -700,6 +700,7 @@ network:n1 = { ip = 10.1.1.0/24;
  host:x2 = { ip = 10.1.1.2; owner = x2; }
  host:x3 = { ip = 10.1.1.3; owner = x3; }
  host:x4 = { ip = 10.1.1.4; owner = x4; }
+ host:x5 = { ip = 10.1.1.4; }
 }
 network:n2 = { ip = 10.1.2.0/24;
  host:DA_1 = { ip = 10.1.2.1; owner = DA_1; }
@@ -725,6 +726,14 @@ service:s3 = {
  user = host:DA_1, host:DA_2, host:x3;
  permit src = user; dst = host:x1; prt = tcp 80;
 }
+service:s4 = {
+ user = host:x1, host:x2, host:x3;
+ permit src = user; dst = host:x5; prt = tcp 80;
+}
+service:s5 = {
+ user = host:DA_1, host:DA_2, host:DA_3;
+ permit src = user; dst = host:x5; prt = tcp 81;
+}
 =END=
 =OUTPUT=
 --owner/x1/service_lists
@@ -734,7 +743,8 @@ service:s3 = {
   "s3"
  ],
  "user": [
-  "s1"
+  "s1",
+  "s4"
  ],
  "visible": []
 }
@@ -743,7 +753,8 @@ service:s3 = {
  "owner": [],
  "user": [],
  "visible": [
-  "s1"
+  "s1",
+  "s4"
  ]
 }
 --owner/DA_1/service_lists
@@ -753,9 +764,10 @@ service:s3 = {
  ],
  "user": [
   "s2",
-  "s3"
+  "s3",
+  "s5"
  ],
- "visible": []
+ "visible": ["s4"]
 }
 --owner/DA_4/service_lists
 {
@@ -763,7 +775,9 @@ service:s3 = {
  "user": [],
  "visible": [
   "s1",
-  "s2"
+  "s2",
+  "s4",
+  "s5"
  ]
 }
 =END=
@@ -3235,7 +3249,7 @@ service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = tcp 80-90, protocol:ntp, icmp 0, icmp 3/13, proto 54;
+        prt = udp 1-10, tcp 80-90, protocol:ntp, icmp 0, icmp 3/13, proto 54;
 }
 service:s2 = {
  user = network:n2;
@@ -3265,7 +3279,8 @@ service:s2 = {
      "icmp 0",
      "icmp 3/13",
      "tcp 80-90",
-     "udp 123:123"
+     "udp 123:123",
+     "udp 1-10"
     ],
     "src": []
    }
