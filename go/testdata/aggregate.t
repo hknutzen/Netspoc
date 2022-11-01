@@ -2425,6 +2425,72 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
+=TITLE=Missing transient rule, s1.dst has subnets, s2.dst does match
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip=10.1.2.0/23 & network:n2]; prt = udp 123;
+}
+service:s2 = {
+ user = any:[ip=10.0.0.0/8 & network:n2];
+ permit src = user; dst = network:n3; prt = udp;
+}
+=END=
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[ip=10.1.2.0/23 & network:n2], any:[ip=10.0.0.0/8 & network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - network:n3
+=END=
+
+############################################################
+=TITLE=No missing transient rule: supernet doesn't match
+=INPUT=
+network:n1 = { ip = 10.1.0.0/22; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n4 = { ip = 10.1.4.2; hardware = n4; }
+ interface:n5 = { ip = 10.1.5.2; hardware = n5; }
+}
+service:s1 = {
+ user = any:[ip=10.1.0.0/21 & network:n1];
+ permit src = user; dst = any:[network:n4]; prt = udp 123;
+}
+service:s2 = {
+ user = any:[ip = 10.1.4.0/23 & network:n4];
+ permit src = user; dst = network:n5; prt = udp;
+}
+=END=
+=WARNING=NONE
+
+############################################################
 =TITLE=No missing transient rule, s1.dst has subnets, but s2.dst doesn't match
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
