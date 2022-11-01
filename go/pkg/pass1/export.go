@@ -30,8 +30,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"net"
 	"os"
 	"os/exec"
@@ -39,6 +37,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
@@ -652,7 +653,7 @@ func (c *spoc) setupPartOwners() xOwner {
 		netOwner := n.owner
 		for _, h := range n.hosts {
 			ow := h.owner
-			if ow != nil && ow != netOwner {
+			if ow != netOwner {
 				add(n, ow)
 			}
 		}
@@ -660,7 +661,7 @@ func (c *spoc) setupPartOwners() xOwner {
 			r := intf.router
 			if r.managed == "" && !r.routingOnly {
 				ow := intf.owner
-				if ow != nil && ow != netOwner {
+				if ow != netOwner {
 					add(n, ow)
 				}
 			}
