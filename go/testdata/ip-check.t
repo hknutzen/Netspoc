@@ -102,6 +102,11 @@ service:s1 = {
  user = host:r1;
  permit src = user; dst = network:n2; prt = ip;
 }
+# Show warning only once
+service:s2 = {
+ user = host:r1;
+ permit src = user; dst = interface:r2.t1; prt = tcp 22;
+}
 =END=
 =WARNING=
 Warning: Use network:n1 instead of host:r1
