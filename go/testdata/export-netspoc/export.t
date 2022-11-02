@@ -573,6 +573,61 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
 =END=
 
 ############################################################
+=TITLE=Intersection of outer owners
+=INPUT=
+owner:a12 = { admins = a12@b.c; }
+owner:a1  = { admins = a1@b.c; }
+owner:n2  = { admins = n2@b.c; }
+owner:a3  = { admins = a3@b.c; }
+owner:o12 = { admins = o12@b.c; }
+owner:o3  = { admins = o3@b.c; }
+area:a12  = { owner = a12; border = interface:r2.n2; }
+area:a1   = { owner = a1; border = interface:r1.n1; }
+area:a3   = { owner = a3; border = interface:r2.n3; }
+network:n1 = { ip = 10.1.1.0/24;
+ host:h11 = { ip = 10.1.1.11; owner = o12; }
+}
+network:n2 = {
+ owner = n2;
+ ip = 10.1.2.0/24;
+ host:h21 = { ip = 10.1.2.21; owner = o12; }
+ host:h33 = { ip = 10.1.2.30; owner = o3; }
+}
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3 = { ip = 10.1.3.30; owner = o3; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+=OUTPUT=
+--owner/o12/extended_by
+[
+ {
+  "name": "a12"
+ }
+]
+--owner/o3/extended_by
+[]
+--owner/n2/extended_by
+[
+ {
+  "name": "a12"
+ }
+]
+=END=
+
+############################################################
 =TITLE=Services of nested objects visible for outer owners
 =INPUT=
 owner:all = { admins = all@example.com; }
