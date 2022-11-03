@@ -161,3 +161,26 @@ ip access-list extended e0_in
 =END=
 
 ############################################################
+=TITLE=Reverse rule for model with statelessSelf
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit udp 10.1.1.0 0.0.0.255 eq 68 host 10.1.1.1
+ deny ip any any
+=END=
+
+############################################################
