@@ -52,7 +52,7 @@ ip access-list extended e1_in
 [[topo]]
 service:test = {
  user = network:x;
- permit src = user; dst = network:y; prt = udp 389;
+ permit src = user; dst = network:y; prt = udp 389, udp 1024-65535;
 }
 =END=
 =OUTPUT=
@@ -60,11 +60,13 @@ service:test = {
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
  permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 389
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 gt 1023
  deny ip any any
 --
 ip access-list extended e1_in
  deny ip any host 10.1.1.1
  permit udp 10.2.2.0 0.0.0.255 eq 389 10.1.1.0 0.0.0.255
+ permit udp 10.2.2.0 0.0.0.255 gt 1023 10.1.1.0 0.0.0.255
  deny ip any any
 =END=
 
