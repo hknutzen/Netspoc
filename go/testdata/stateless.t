@@ -184,3 +184,25 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=Generate no reverse rule for model without statelessSelf
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = Linux;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
+=END=
+
+############################################################
