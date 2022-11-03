@@ -279,8 +279,8 @@ any:a6 = { ip = ::a01:600/120; link = network:n6; overlaps = enable; }
 any:a8 = { link = network:n8; overlaps = enable; }
 # n1: restrict, enable, ok
 # n2: restrict, enable
-# n3: restrict, ok
-# n4: restrict, ok, restrict
+# n3: restrict, enable, ok
+# n4: restrict, enable, ok, restrict
 # n5: restrict
 # n6: restrict, enable
 # n7: restrict, network:ok
@@ -318,7 +318,6 @@ service:s6 = {
 }
 # ok -> restrict: is like ok -> ok
 service:s7 = {
- overlaps = service:s8;
  user = network:n1;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
@@ -345,17 +344,16 @@ service:s12 = {
  user = network:n3;
  permit src = user; dst = network:n7; prt = tcp;
 }
-# ok -> network:restrict: no warning
+# network:restrict -> ok: no warning
 service:s13 = {
- overlaps = service:s14;
- user = network:n3;
- permit src = user; dst = network:n8; prt = tcp 80;
+ user = network:n8;
+ permit src = user; dst = network:n3; prt = tcp 80;
 }
 service:s14 = {
- user = network:n3;
- permit src = user; dst = network:n8; prt = tcp;
+ user = network:n8;
+ permit src = user; dst = network:n3; prt = tcp;
 }
-# network:restrict -> resrict: can't suppress warning
+# network:restrict -> restrict: can't suppress warning
 service:s15 = {
  overlaps = service:s16;
  user = network:n8;
