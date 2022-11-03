@@ -2,9 +2,10 @@ package pass1
 
 import (
 	"fmt"
-	"golang.org/x/exp/slices"
 	"sort"
 	"strings"
+
+	"golang.org/x/exp/slices"
 )
 
 /*#############################################################################
@@ -824,7 +825,7 @@ func (c *spoc) checkMultinatErrors(
 
 	// Collect pairs of multi NAT tags and interfaces
 	// - at border of NAT domain where both tags are active and
-	// - interface has at least one those tags active in bind_nat.
+	// - interface has at least one of those tags active in bind_nat.
 	type key struct {
 		tag1   string
 		tag2   string
