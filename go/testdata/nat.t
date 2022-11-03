@@ -2445,6 +2445,44 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
+=TITLE=Show interfaces preferred where both NAT tags are bound
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+router:r1 = {
+ interface:n0 = { bind_nat = a1, a2; }
+ interface:a;
+}
+network:a = {
+ ip = 10.1.1.0/24;
+ nat:a1 = { ip = 10.2.1.0/24; }
+ nat:a2 = { ip = 10.2.2.0/24; }
+}
+router:r11 = {
+ interface:a;
+ interface:t1 = { bind_nat = a1; }
+}
+network:t1 = {ip = 10.3.3.0/30;}
+router:r12 = {
+ interface:t1;
+ interface:b = { bind_nat = a2; }
+}
+router:r21 = {
+ interface:a;
+ interface:t2 = { bind_nat = a2; }
+}
+network:t2 = {ip = 10.3.3.4/30;}
+router:r22 = {
+ interface:t2;
+ interface:b = { bind_nat = a1; }
+}
+network:b = {ip = 10.9.9.0/24;}
+=END=
+=ERROR=
+Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
+ - interface:r1.n0
+=END=
+
+############################################################
 =TITLE=Groupd NAT tags with multiple NAT domains
 =INPUT=
 network:n1 = {
