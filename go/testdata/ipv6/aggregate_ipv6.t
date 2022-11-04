@@ -3512,6 +3512,7 @@ access-group n3_in in interface n3
 network:n1 = { ip = ::a01:100/120; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
 router:r1 = {
  managed;
  model = IOS;
@@ -3523,22 +3524,42 @@ router:r2 = {
  model = IOS;
  interface:n2 = { ip = ::a01:202; hardware = n2; }
  interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
 }
 service:ping-local = {
  user = foreach any:[network:n3];
  permit src = network:[user]; dst = interface:[user].[all]; prt = icmpv6 8;
 }
+service:NTP-local = {
+ user = foreach any:[ip = ::a01:200/119 & network:n3];
+ permit src = network:[user]; dst = interface:[any:[user]].[all]; prt = udp 123;
+}
 =END=
 =WARNING=
+Warning: Some source/destination pairs of service:NTP-local don't affect any firewall:
+ src=network:n2; dst=interface:r2.n2
+ src=network:n2; dst=interface:r2.n3
+ src=network:n2; dst=interface:r2.n4
+ src=network:n3; dst=interface:r2.n2
+ src=network:n3; dst=interface:r2.n3
+ src=network:n3; dst=interface:r2.n4
 Warning: Some source/destination pairs of service:ping-local don't affect any firewall:
  src=network:n2; dst=interface:r2.n2
  src=network:n2; dst=interface:r2.n3
+ src=network:n2; dst=interface:r2.n4
  src=network:n3; dst=interface:r2.n2
  src=network:n3; dst=interface:r2.n3
+ src=network:n3; dst=interface:r2.n4
+ src=network:n4; dst=interface:r2.n2
+ src=network:n4; dst=interface:r2.n3
+ src=network:n4; dst=interface:r2.n4
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n2_in
+ permit udp ::a01:200/120 host ::a01:201 eq 123
+ permit udp ::a01:300/120 host ::a01:201 eq 123
  permit icmp ::a01:200/120 host ::a01:201 8
  permit icmp ::a01:300/120 host ::a01:201 8
+ permit icmp ::a01:400/120 host ::a01:201 8
  deny ipv6 any any
 =END=
