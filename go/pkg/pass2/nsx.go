@@ -74,6 +74,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		if rData.ipv6 && proto == "icmp" {
 			name = strings.Replace(name, "icmp", "icmpv6", 1)
 		}
+		name = strings.Replace(name, " ", "_", 1)
 		name = "Netspoc-" + name
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
 		return "/infra/services/" + name
