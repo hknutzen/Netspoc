@@ -3101,127 +3101,50 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Disabled user, disabled in rule, disabled service
+=TITLE=Disabled service
 =INPUT=
 owner:all = { admins = all@example.com; }
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s1 = {
- user = network:n2;
- permit src = user; dst = network:n1; prt = tcp 81;
-}
-service:s2 = {
- user = host:h2, interface:r1.n2;
- permit src = user; dst = network:n1; prt = tcp 82;
-}
-service:s3 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 83;
-}
-service:s4 = {
  disabled;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 84;
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
-service:s5 = {
+service:s2 = {
  disable_at = 3000-12-31;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 85;
+ permit src = user; dst = network:n2; prt = tcp 81;
 }
-service:s6 = {
+service:s3 = {
  disable_at = 1999-12-31;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 86;
+ permit src = user; dst = network:n2; prt = tcp 82;
 }
 =END=
 =OUTPUT=
 --owner/all/users
 {
- "s1": [],
- "s2": [],
+ "s1": [
+  "network:n1"
+ ],
+ "s2": [
+  "network:n1"
+ ],
  "s3": [
-  "network:n1"
- ],
- "s4": [
-  "network:n1"
- ],
- "s5": [
-  "network:n1"
- ],
- "s6": [
   "network:n1"
  ]
 }
 --services
 {
  "s1": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "network:n1"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 81"
-    ],
-    "src": []
-   }
-  ]
- },
- "s2": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "network:n1"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 82"
-    ],
-    "src": []
-   }
-  ]
- },
- "s3": {
-  "details": {
-   "owner": [
-    ":unknown"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [],
-    "has_user": "src",
-    "prt": [
-     "tcp 83"
-    ],
-    "src": []
-   }
-  ]
- },
- "s4": {
   "details": {
    "disabled": 1,
    "owner": [
@@ -3232,17 +3155,17 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 84"
+     "tcp 80"
     ],
     "src": []
    }
   ]
  },
- "s5": {
+ "s2": {
   "details": {
    "disable_at": "3000-12-31",
    "owner": [
@@ -3253,17 +3176,17 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 85"
+     "tcp 81"
     ],
     "src": []
    }
   ]
  },
- "s6": {
+ "s3": {
   "details": {
    "disable_at": "1999-12-31",
    "disabled": 1,
@@ -3275,11 +3198,11 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 86"
+     "tcp 82"
     ],
     "src": []
    }

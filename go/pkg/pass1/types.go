@@ -2,8 +2,9 @@ package pass1
 
 import (
 	"fmt"
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"net/netip"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 
 	"go4.org/netipx"
 )
@@ -71,16 +72,6 @@ type withStdAddr struct {
 	stdAddr string
 }
 
-type disabledObj struct {
-	disabled bool
-}
-
-func (x *disabledObj) isDisabled() bool { return x.disabled }
-
-type withDisabled interface {
-	isDisabled() bool
-}
-
 type ownedObj struct {
 	owner *owner
 }
@@ -118,7 +109,6 @@ const (
 )
 
 type ipObj struct {
-	disabledObj
 	ipVxObj
 	ownedObj
 	name string
@@ -303,7 +293,6 @@ type router struct {
 	localMark            int
 	origIntfs            intfList
 	crosslinkIntfs       intfList
-	disabled             bool
 	extendedKeys         map[string]string
 	filterOnly           []netip.Prefix
 	mergeTunnelSpecified []netip.Prefix
@@ -515,7 +504,6 @@ type routerAttributes struct {
 }
 
 type area struct {
-	disabledObj
 	natObj
 	ownedObj
 	ipVxObj

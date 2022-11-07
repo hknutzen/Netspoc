@@ -511,7 +511,6 @@ func (c *spoc) cutNetspoc(
 			isUsed[sv.name] = true
 		}
 	}
-	c.markDisabled()
 	origNat := make(map[*network]natTagMap)
 	c.saveOrigNat(origNat)
 	c.setZone()

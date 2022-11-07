@@ -66,25 +66,6 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 =END=
 
 ############################################################
-=TITLE=Ignore disabled interface as border
-# Error message should mention 'disabled'.
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:asa1 = {
-  managed;
-  model = ASA;
-  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-  interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
-}
-
-area:a = { inclusive_border = interface:asa1.n2; }
-=END=
-=ERROR=
-Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
-=END=
-
-############################################################
 =TITLE=No automatic interface as border
 =INPUT=
 [[topo]]
@@ -405,25 +386,6 @@ Warning: Ignoring area:a1 in src of rule in service:s1
 =END=
 
 ############################################################
-=TITLE=Ignore area with disabled anchor
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
-}
-area:all = { anchor = network:n2; }
-service:s1 = {
- user = network:[area:all];
- permit src = user; dst = network:n1; prt = tcp 80;
-}
-=END=
-=WARNING=NONE
-
-############################################################
 =TITLE=Check for useless inheritance of policy_distribution_point
 =INPUT=
 area:all = {
@@ -457,7 +419,10 @@ area:a1 = {
 }
 =END=
 =ERROR=
-Error: network:n2 isn't connected to any router
+Error: IPv4 topology has unconnected parts:
+ - any:[network:n1]
+ - any:[network:n2]
+ Use partition attribute, if intended.
 =END=
 
 

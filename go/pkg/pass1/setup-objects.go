@@ -3,7 +3,6 @@ package pass1
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"path"
 	"regexp"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
@@ -72,6 +73,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.stopOnErr()
 	c.linkTunnels()
 	c.linkVirtualInterfaces()
+	c.collectRoutersAndNetworks()
 }
 
 type symbolTable struct {
@@ -1579,8 +1581,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
 			intf.reroutePermit = c.tryNetworkRefList(a, v6, name)
-		case "disabled":
-			intf.disabled = c.getFlag(a, name)
 		case "no_check":
 			intf.noCheck = c.getFlag(a, name)
 		default:
@@ -1611,12 +1611,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		}
 	}
 
-	// Would interfere with split crypto router.
-	if intf.disabled && (intf.hub != nil || intf.spoke != nil) {
-		c.warn("Ignoring attribute 'disabled' at %s of crypto router", name)
-		intf.disabled = false
-	}
-
 	if l3Name == v.Name {
 		intf.loopback = true
 		intf.isLayer3 = true
@@ -1629,8 +1623,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		}
 		if !ipGiven {
 			c.err("Layer3 %s must have IP address", intf)
-			// Prevent further errors.
-			intf.disabled = true
 		}
 		if secondaryList != nil || virtual != nil {
 			c.err("Layer3 %s must not have secondary or virtual IP", intf)
@@ -1868,7 +1860,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		s.mainIntf = intf
 		s.bindNat = intf.bindNat
 		s.routing = intf.routing
-		s.disabled = intf.disabled
 	}
 
 	// Automatically create a network for loopback interface.
@@ -1922,13 +1913,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		// Link interface with network.
 		n := c.symTable.network[nName]
 		if n == nil {
-			msg := "Referencing undefined network:%s from %s"
-			if intf.disabled {
-				c.warn(msg, nName, name)
-			} else {
-				c.err(msg, nName, name)
-				intf.disabled = true
-			}
+			c.err("Referencing undefined network:%s from %s", nName, name)
 		} else {
 			n.interfaces.push(intf)
 			for _, intf := range append(intfList{intf}, secondaryList...) {
@@ -3646,7 +3631,7 @@ func (c *spoc) linkTunnels() {
 	})
 	for _, cr := range l {
 		realHub := cr.hub
-		if realHub == nil || realHub.disabled {
+		if realHub == nil {
 			c.warn("No hub has been defined for %s", cr.name)
 			continue
 		}

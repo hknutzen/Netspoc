@@ -327,13 +327,13 @@ router:r2 = {
  model = IOS, FW;
  interface:a = {ip = 10.1.1.2; virtual = {ip = 10.1.1.9;} hardware = E4;}
  interface:b1 = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = E5;}
- interface:t = { ip = 10.0.0.1; hardware = t1; {{.}} }
+ interface:t = { ip = 10.0.0.1; hardware = t1; }
 }
 network:t = { ip = 10.0.0.0/30; }
 router:r3 = {
  managed;
  model = IOS, FW;
- interface:t = { ip = 10.0.0.2; hardware = t1; {{.}} }
+ interface:t = { ip = 10.0.0.2; hardware = t1; }
  interface:a = {ip = 10.1.1.3; virtual = {ip = 10.1.1.9;} hardware = E6;}
  interface:b2 = {ip = 10.3.3.3; virtual = {ip = 10.3.3.9;} hardware = E7;}
 }
@@ -347,7 +347,7 @@ network:b1 = { ip = 10.2.2.0/24; }
 network:b2 = { ip = 10.3.3.0/24; }
 =END=
 =INPUT=
-[[topo ""]]
+[[topo]]
 router:g = {
  managed;
  model = ASA;
@@ -388,22 +388,10 @@ Error: Pathrestriction ambiguously affects generation of static routes
 =END=
 
 ############################################################
-=TITLE=Non matching virtual interface groups
-=INPUT=[[topo disabled;]]
-=ERROR=
-Error: Virtual interfaces
- - interface:r1.a.virtual
- - interface:r2.a.virtual
- - interface:r3.a.virtual
- - interface:r4.a.virtual
- must all be part of the same cyclic sub-graph
-=END=
-
-############################################################
 =TITLE=
 Conceal non matching virtual interface groups with interconnect if no routing required
 =INPUT=
-[[topo ""]]
+[[topo]]
 
 service:test1 = {
  user = network:a;
