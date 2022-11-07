@@ -171,6 +171,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				}
 				groupName := "Netspoc-" + g.name
 				addresses := jsonMap{
+					"id":            "id",
 					"resource_type": "IPAddressExpression",
 					"ip_addresses":  l,
 				}
@@ -190,7 +191,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 			pair := protoMap[name]
 			p := pair.prt
 			proto := p.protocol
-			svcEntry := jsonMap{}
+			svcEntry := jsonMap{"id": "id"}
 			switch proto {
 			case "tcp", "udp":
 				svcEntry["resource_type"] = "L4PortSetServiceEntry"
