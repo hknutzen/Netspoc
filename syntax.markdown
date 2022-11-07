@@ -157,7 +157,6 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ bind_nat = <name>(, <name>)*;        ]
          [ dhcp_client;                         ]
          [ dhcp_server;                         ]
-         [ disabled;                            ]
          [ hardware = <external name>;          ]
          [ loopback;                            ]
          [ no_in_acl;                           ]

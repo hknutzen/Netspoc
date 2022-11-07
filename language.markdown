@@ -864,15 +864,6 @@ from the policy distribution point. This IP address is added as a
 comment to each generated device configuration. It is later used to
 reach the device when deploying the configuration by Netspoc-Approve.
 
-## Disabling part of the topology {#disabling}
-
-An interface can be explicitly marked as disabled.  This implicitly
-marks all network objects as disabled, that are located *behind*
-this interface. We are defining *behind an interface* as that
-part of the topology which is seen when looking from the router to
-that interface. All occurrences of disabled network resources in groups and
-rules are silently discarded.
-
 ## Disable generation of object-groups
 
 Netspoc generates optimized code using object-groups for devices of
