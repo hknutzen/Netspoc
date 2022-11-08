@@ -433,6 +433,45 @@ ip access-list extended E8_in
 =OPTIONS=--auto_default_route=0
 
 ############################################################
+=TITLE=Non matching virtual interface groups
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24;}
+network:n2 = { ip = 10.2.2.0/24; }
+network:n3 = { ip = 10.3.3.0/24; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 10.1.1.1; virtual = {ip = 10.1.1.9;} hardware = n1;}
+ interface:n2 = {ip = 10.2.2.1; virtual = {ip = 10.2.2.9;} hardware = n2;}
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 10.1.1.2; virtual = {ip = 10.1.1.9;} hardware = n1;}
+ interface:n2 = {ip = 10.2.2.2; virtual = {ip = 10.2.2.9;} hardware = n2;}
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 10.1.1.3; virtual = {ip = 10.1.1.9;} hardware = n1;}
+ interface:n3 = {ip = 10.3.3.3; virtual = {ip = 10.3.3.9;} hardware = n3;}
+}
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = 10.1.1.4; virtual = {ip = 10.1.1.9;} hardware = n1;}
+ interface:n3 = {ip = 10.3.3.4; virtual = {ip = 10.3.3.9;} hardware = n3;}
+}
+=ERROR=
+Error: Virtual interfaces
+ - interface:r1.n1.virtual
+ - interface:r2.n1.virtual
+ - interface:r3.n1.virtual
+ - interface:r4.n1.virtual
+ must all be part of the same cyclic sub-graph
+=END=
+
+############################################################
 =TITLE=Follow implicit pathrestriction at unmanaged virtual interface
 # Doppelte ACL-Zeile für virtuelle IP vermeiden an
 # - Crosslink-Interface zu unmanaged Gerät
