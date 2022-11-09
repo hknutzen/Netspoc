@@ -1025,7 +1025,7 @@ func (c *spoc) markSubnetsInZoneCluster() {
 	hasInteriorPR := make(map[*zone]bool)
 	for _, p := range c.pathrestrictions {
 		for _, intf := range p.elements {
-			if intf.router.semiManaged && intf.zone != nil {
+			if intf.router.semiManaged {
 				hasInteriorPR[intf.zone.cluster[0]] = true
 			}
 		}
