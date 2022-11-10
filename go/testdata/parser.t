@@ -540,11 +540,13 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 ############################################################
 =TITLE=Structured value expected
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:h = 10.1.1.10; }
+network:n1 = { ip = 10.1.1.0/24; host:h1 = 10.1.1.10; host:h2; }
 =END=
 =ERROR=
-Error: Structured value expected in 'host:h'
-Error: host:h needs exactly one of attributes 'ip' and 'range'
+Error: Structured value expected in 'host:h1'
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Structured value expected in 'host:h2'
+Error: host:h2 needs exactly one of attributes 'ip' and 'range'
 =END=
 
 ############################################################
@@ -778,14 +780,18 @@ Error: Expected type 'crypto:' in 'spoke' of interface:r.n
 ############################################################
 =TITLE=Bad VPN id
 =INPUT=
-router:r = {
- interface:n1 = { id = a.b.c; }
-}
 network:n1 = { unnumbered; }
+router:r1 = { interface:n1 = { id = a.b.c; } }
+router:r2 = { interface:n1 = { id = x@a:b:c; } }
+router:r3 = { interface:n1 = { id = x..y@a.b.c; } }
 =END=
 =ERROR=
-Error: Invalid 'id' in interface:r.n1: a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r.n1
+Error: Invalid 'id' in interface:r1.n1: a.b.c
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
+Error: Invalid 'id' in interface:r2.n1: x@a:b:c
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r2.n1
+Error: Invalid 'id' in interface:r3.n1: x..y@a.b.c
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r3.n1
 =END=
 
 ############################################################

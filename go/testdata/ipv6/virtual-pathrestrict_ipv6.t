@@ -441,6 +441,46 @@ ipv6 access-list E8_in
 =OPTIONS=--auto_default_route=0
 
 ############################################################
+=TITLE=Non matching virtual interface groups
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120;}
+network:n2 = { ip = ::a02:200/120; }
+network:n3 = { ip = ::a03:300/120; }
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = ::a01:101; virtual = {ip = ::a01:109;} hardware = n1;}
+ interface:n2 = {ip = ::a02:201; virtual = {ip = ::a02:209;} hardware = n2;}
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = ::a01:102; virtual = {ip = ::a01:109;} hardware = n1;}
+ interface:n2 = {ip = ::a02:202; virtual = {ip = ::a02:209;} hardware = n2;}
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = ::a01:103; virtual = {ip = ::a01:109;} hardware = n1;}
+ interface:n3 = {ip = ::a03:303; virtual = {ip = ::a03:309;} hardware = n3;}
+}
+router:r4 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = {ip = ::a01:104; virtual = {ip = ::a01:109;} hardware = n1;}
+ interface:n3 = {ip = ::a03:304; virtual = {ip = ::a03:309;} hardware = n3;}
+}
+=ERROR=
+Error: Virtual interfaces
+ - interface:r1.n1.virtual
+ - interface:r2.n1.virtual
+ - interface:r3.n1.virtual
+ - interface:r4.n1.virtual
+ must all be part of the same cyclic sub-graph
+=END=
+
+############################################################
 =TITLE=Follow implicit pathrestriction at unmanaged virtual interface
 # Doppelte ACL-Zeile für virtuelle IP vermeiden an
 # - Crosslink-Interface zu unmanaged Gerät

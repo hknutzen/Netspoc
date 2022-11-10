@@ -22,14 +22,24 @@ router:asa2 = {
 =TITLE=Must not define anchor together with border
 =INPUT=
 [[topo]]
-area:a = {
+area:a1 = {
+ anchor = network:n1;
+ border = interface:asa2.n2;
+}
+area:a2 = {
+ anchor = network:n1;
+ inclusive_border = interface:asa2.n3;
+}
+area:a3 = {
  anchor = network:n1;
  border = interface:asa2.n2;
  inclusive_border = interface:asa2.n3;
 }
 =END=
 =ERROR=
-Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a1
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a2
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a3
 =END=
 
 ############################################################

@@ -4003,18 +4003,24 @@ Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
 =END=
 
 ############################################################
-=TITLE=Only NAT IP at non loopback interface
+=TITLE=Only NAT IP allowed at non loopback interface
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; nat:N = { hidden; } }
+ interface:n1 = { ip = ::a01:101; nat:N = { hidden; } }
+}
+router:r2 = {
+ interface:n1 = { ip = ::a01:101; nat:N = { identity; } }
+}
+router:r3 = {
+ interface:n1 = { ip = ::a01:101; nat:N = { ip = ::909:909; dynamic; } }
 }
 =END=
 =ERROR=
 Error: Only 'ip' allowed in nat:N of interface:r1.n1
+Error: Only 'ip' allowed in nat:N of interface:r2.n1
+Error: Only 'ip' allowed in nat:N of interface:r3.n1
 =END=
 
 ############################################################

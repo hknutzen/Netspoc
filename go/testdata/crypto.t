@@ -3266,6 +3266,22 @@ crypto map crypto-outside interface outside
 =END=
 
 ############################################################
+=TITLE=Generate individual routes even if no 0.0.0.0/0
+# No IPv6
+=INPUT=[[input]]
+=SUBST=,0.0.0.0/0,1.0.0.0/8,
+# Use individual routes to VPN peers, even if all have same next hop
+# and even if no route to 0.0.0.0/0 is added.
+=OUTPUT=
+--asavpn
+! [ Routing ]
+route outside 10.99.2.0 255.255.255.0 192.168.0.1
+route outside 10.99.3.0 255.255.255.0 192.168.0.1
+route outside 192.168.22.0 255.255.255.0 192.168.0.1
+route outside 1.0.0.0 255.0.0.0 192.168.0.1
+=END=
+
+############################################################
 =TITLE=Must not reuse crypto id
 =INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
