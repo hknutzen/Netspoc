@@ -579,7 +579,7 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=Must not optimize even if aggregate is not on path of oter rule.
+=TITLE=Must not optimize even if aggregate is not on path of other rule.
 =INPUT=
 network:n1  = { ip = 10.2.1.0/27; }
 network:n2  = { ip = 10.2.2.0/27; }
