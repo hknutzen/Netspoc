@@ -1131,7 +1131,7 @@ network:n = {
 }
 =END=
 =ERROR=
-Error: Unexpected attribute in nat:n of host:h: dynamic
+Error: Expecting exactly one attribute 'ip' in nat:n of host:h
 =END=
 
 ############################################################

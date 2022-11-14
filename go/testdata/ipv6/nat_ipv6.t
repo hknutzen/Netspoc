@@ -793,6 +793,25 @@ Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT def
 =END=
 
 ############################################################
+=TITLE=Missing IP in NAT of host
+=PARAMS=--ipv6
+=INPUT=
+network:n1 =  {
+ ip = ::a01:100/120;
+ nat:x = { ip = ::a08:800/120; }
+ host:h1 = { ip = ::a01:10a; nat:x = {} }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+network:n2 = { ip = ::a01:200/120; }
+=END=
+=ERROR=
+Error: Expecting exactly one attribute 'ip' in nat:x of host:h1
+=END=
+
+############################################################
 =TITLE=Must not define NAT for host range.
 =PARAMS=--ipv6
 =INPUT=

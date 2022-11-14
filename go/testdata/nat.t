@@ -765,6 +765,24 @@ Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT def
 =END=
 
 ############################################################
+=TITLE=Missing IP in NAT of host
+=INPUT=
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; }
+ host:h1 = { ip = 10.1.1.10; nat:x = {} }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+=END=
+=ERROR=
+Error: Expecting exactly one attribute 'ip' in nat:x of host:h1
+=END=
+
+############################################################
 =TITLE=Must not define NAT for host range.
 =INPUT=
 network:n1 =  {

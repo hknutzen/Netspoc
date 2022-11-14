@@ -3399,22 +3399,17 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netip.Addr, v6 bool,
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	tag := a.Name[len("nat:"):]
-	var ip netip.Addr
-	natCtx := a.Name + " of " + ctx
-	l := c.getComplexValue(a, ctx)
-	for _, a2 := range l {
-		switch a2.Name {
-		case "ip":
-			ip = c.getIp(a2, v6, natCtx)
-		default:
-			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
-		}
-	}
 	if m == nil {
 		m = make(map[string]netip.Addr)
 	}
-	m[tag] = ip
+	tag := a.Name[len("nat:"):]
+	natCtx := a.Name + " of " + ctx
+	l := c.getComplexValue(a, ctx)
+	if len(l) != 1 || l[0].Name != "ip" {
+		c.err("Expecting exactly one attribute 'ip' in %s", natCtx)
+		return m
+	}
+	m[tag] = c.getIp(l[0], v6, natCtx)
 	return m
 }
 
