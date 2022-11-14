@@ -56,9 +56,8 @@ router:r = {
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Error: Hidden NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'dynamic' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'identity' in nat:n of network:n1
+Error: Hidden NAT must not use other attributes in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################
@@ -75,8 +74,7 @@ router:r = {
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Error: Identity NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Identity NAT must not use attribute 'dynamic' in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################

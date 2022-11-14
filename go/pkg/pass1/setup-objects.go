@@ -3346,15 +3346,28 @@ func (c *spoc) addXNat(
 	tag := a.Name[len("nat:"):]
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
+	ipGiven := false
 	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "ip":
+			ipGiven = true
 			nat.ipp = getIpX(a2, v6, natCtx)
 		case "hidden":
 			nat.hidden = c.getFlag(a2, natCtx)
+			if len(l) != 1 {
+				c.err("Hidden NAT must not use other attributes in %s", natCtx)
+			}
+			// This simplifies error checks for overlapping addresses.
+			nat.dynamic = true
+			// Provide an unusable address.
+			nat.ipp = netip.PrefixFrom(getZeroIp(v6), getHostPrefix(v6))
 		case "identity":
 			nat.identity = c.getFlag(a2, natCtx)
+			if len(l) != 1 {
+				c.err("Identity NAT must not use other attributes in %s", natCtx)
+			}
+			nat.dynamic = true
 		case "dynamic":
 			nat.dynamic = c.getFlag(a2, natCtx)
 		case "subnet_of":
@@ -3363,28 +3376,7 @@ func (c *spoc) addXNat(
 			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
 	}
-	if nat.hidden {
-		for _, a2 := range l {
-			if a2.Name != "hidden" {
-				c.err("Hidden NAT must not use attribute '%s' in %s",
-					a2.Name, natCtx)
-			}
-		}
-
-		// This simplifies error checks for overlapping addresses.
-		nat.dynamic = true
-
-		// Provide an unusable address.
-		nat.ipp = netip.PrefixFrom(getZeroIp(v6), getHostPrefix(v6))
-	} else if nat.identity {
-		for _, a2 := range l {
-			if a2.Name != "identity" {
-				c.err("Identity NAT must not use attribute '%s' in %s",
-					a2.Name, natCtx)
-			}
-		}
-		nat.dynamic = true
-	} else if !nat.ipp.IsValid() {
+	if !nat.identity && !nat.hidden && !ipGiven {
 		c.err("Missing IP address in %s", natCtx)
 	}
 
