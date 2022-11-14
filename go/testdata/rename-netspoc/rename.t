@@ -468,10 +468,15 @@ interface:net = { bind_nat = ick,
  ticks, tick;}
 }
 network:net = { owner = foo; ip = 10.1.1.0/24;
-nat:ticks = { ip = 10.7.1.0/24; } nat:ick = { hidden; }
-nat:tick = { dynamic; }
+ nat:ticks = { ip = 10.7.1.0/24; }
+ nat:ick = { hidden; }
+ nat:tick = { dynamic; }
  host:abc = { ip = 10.1.1.10; }
 }
+group:g =
+ host:abc,
+ network:net,
+;
 =END=
 =OUTPUT=
 router:r = {
@@ -490,6 +495,10 @@ network:xxxx = {
  nat:t1 = { dynamic; }
  host:a1 = { ip = 10.1.1.10; }
 }
+group:g =
+ network:xxxx,
+ host:a1,
+;
 =END=
 =FOPTION=
 host:abc host:a1
