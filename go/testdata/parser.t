@@ -18,6 +18,16 @@ Warning: Ignoring file 'empty' without any content
 =END=
 
 ############################################################
+=TITLE=Token with non letter or digit UTF8 character
+=INPUT=
+# EQUAL TO OR GREATER-THAN
+network:⋝3 = { ip = 10.1.1.0/24; }
+=ERROR=
+Error: Typed name expected at line 2 of INPUT, near "--HERE-->network:⋝3"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP address
 =INPUT=
 network:n1 = { ip = 10.1.1.0o/24; }
