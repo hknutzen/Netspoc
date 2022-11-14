@@ -290,6 +290,17 @@ Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.c
 =END=
 
 ############################################################
+=TITLE=Wildcard address with invalid domain
+=PARAMS=--ipv6
+=INPUT=
+owner:o1 = { admins = abc@example.com; watchers = [all]@...; }
+network:n1 = { ip = ::a01:100/120; owner = o1; }
+=END=
+=ERROR=
+Error: Invalid email address (ASCII only) in watchers of owner:o1: [all]@...
+=END=
+
+############################################################
 =TITLE=Owner with attribute only_watch only usable at area
 =PARAMS=--ipv6
 =INPUT=
