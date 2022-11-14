@@ -6,11 +6,15 @@ network:n1 = { ip = 999.1.1.0/24; }
 network:n2 = { ip = 10.888.1.0/24; }
 network:n3 = { ip = 10.1.777.0/24; }
 network:n4 = { ip = 10.1.1.666/32; }
+network:n5 = { ip = 10.1.one.six/32; }
+network:n6 = { ip = ip-address/32; }
 router:r1 = {
  interface:n1;
  interface:n2;
  interface:n3;
  interface:n4;
+ interface:n5;
+ interface:n6;
 }
 =END=
 =ERROR=
@@ -18,6 +22,8 @@ Error: Invalid CIDR address: 999.1.1.0/24 in 'ip' of network:n1
 Error: Invalid CIDR address: 10.888.1.0/24 in 'ip' of network:n2
 Error: Invalid CIDR address: 10.1.777.0/24 in 'ip' of network:n3
 Error: Invalid CIDR address: 10.1.1.666/32 in 'ip' of network:n4
+Error: Invalid CIDR address: 10.1.one.six/32 in 'ip' of network:n5
+Error: Invalid CIDR address: ip-address/32 in 'ip' of network:n6
 =END=
 
 ############################################################
