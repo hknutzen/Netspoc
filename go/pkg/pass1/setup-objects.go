@@ -1930,7 +1930,8 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			intf.nat = make(map[string]netip.Addr)
 			for tag, info := range nat {
 				// Reject all non IP NAT attributes.
-				if info.hidden || info.identity || info.dynamic {
+				// 'hidden' and 'identity' always set 'dynamic'.
+				if info.dynamic {
 					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
 					intf.nat[tag] = info.ipp.Addr()
