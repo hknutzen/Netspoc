@@ -106,7 +106,7 @@ func (c *spoc) setPolicyDistributionIP() {
 			switch prt.proto {
 			case "tcp", "udp":
 				p1, p2 := prt.ports[0], prt.ports[1]
-				if p1 <= 22 && 22 <= p2 || p1 <= 23 && 23 <= p2 {
+				if p1 <= 22 && 22 <= p2 {
 					foundPrt = true
 					break PRT
 				}
