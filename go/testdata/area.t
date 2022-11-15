@@ -116,11 +116,11 @@ area:a2 = {
 area:a3 = { border = interface:asa2.n3; }
 service:pdp1 = {
  user = interface:[managed & area:all].[auto];
- permit src = host:h1; dst = user; prt = tcp 22;
+ permit src = host:h1; dst = user; prt = tcp;
 }
 service:pdp3 = {
  user = interface:[managed & area:a2].[auto];
- permit src = host:h3; dst = user; prt = tcp 22;
+ permit src = host:h3; dst = user; prt = ip;
 }
 =END=
 =OUTPUT=
