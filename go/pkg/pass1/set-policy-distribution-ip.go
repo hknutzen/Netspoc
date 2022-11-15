@@ -46,7 +46,7 @@ func (c *spoc) setPolicyDistributionIP() {
 				}
 				continue
 			}
-		} else if !r.managementInstance || r.backupInstance != nil {
+		} else if !r.managementInstance {
 			continue
 		}
 		if r.policyDistributionPoint != nil {

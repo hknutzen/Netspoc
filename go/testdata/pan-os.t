@@ -291,9 +291,16 @@ router:r1 = {
  management_instance;
  interface:n1 = { ip = 10.1.1.1; }
 }
+router:r2 = {
+ model = PAN-OS;
+ management_instance;
+ backup_of = router:r1;
+ interface:n1 = { ip = 10.1.1.2; }
+}
 =ERROR=
-Error: Missing attribute 'policy_distribution_point' for 1 devices:
+Error: Missing attribute 'policy_distribution_point' for 2 devices:
  - router:r1
+ - router:r2
 =END=
 =OPTIONS=--check_policy_distribution_point=1
 
@@ -309,9 +316,17 @@ router:r1 = {
  policy_distribution_point = host:netspoc;
  interface:n1 = { ip = 10.1.1.1; }
 }
+router:r2 = {
+ model = PAN-OS;
+ management_instance;
+ backup_of = router:r1;
+ policy_distribution_point = host:netspoc;
+ interface:n1 = { ip = 10.1.1.2; }
+}
 =WARNING=
-Warning: Missing rules to reach 1 devices from policy_distribution_point:
+Warning: Missing rules to reach 2 devices from policy_distribution_point:
  - router:r1
+ - router:r2
 =END=
 
 ############################################################
