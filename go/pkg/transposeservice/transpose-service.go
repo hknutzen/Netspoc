@@ -53,6 +53,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -68,59 +69,85 @@ type state struct {
 }
 
 func (s *state) transposeService(name string) error {
-	var err error
+	var errMsg string
 	found := s.Modify(func(toplevel ast.Toplevel) bool {
-		if n, ok := toplevel.(*ast.Service); ok {
-			if name == n.GetName() {
-				if n.Foreach {
-					err = fmt.Errorf("Can't transpose service: foreach present.")
-					return false
-				}
-				srcelements := n.Rules[0].Src.Elements
-				dstelements := n.Rules[0].Dst.Elements
-				userelements := n.User.Elements
-				if len(n.Rules) > 1 {
-					err = fmt.Errorf("Can't transpose service: multiple rules present.")
-					return false
-
-				}
-				// If source and destination are user no transformation needed
-				if len(srcelements) == 1 && len(dstelements) == 1 &&
-					srcelements[0].GetType() == "user" &&
-					dstelements[0].GetType() == "user" {
-
-					err = fmt.Errorf("Can't transpose service: src and dst are user.")
-					return false
-				}
-				if len(srcelements) == 1 {
-					if srcelements[0].GetType() == "user" {
-						n.Rules[0].Src.Elements = userelements
-						n.Rules[0].Dst.Elements = srcelements
-						n.User.Elements = dstelements
-						return true
-					}
-				}
-				if len(dstelements) == 1 {
-					if dstelements[0].GetType() == "user" {
-						n.Rules[0].Src.Elements = dstelements
-						n.Rules[0].Dst.Elements = userelements
-						n.User.Elements = srcelements
-						return true
-					}
-				}
-			}
+		n, ok := toplevel.(*ast.Service)
+		if !ok || n.GetName() != name {
+			return false
 		}
-		return false
+		if n.Foreach {
+			errMsg = "Can't transpose service: foreach present."
+			return false
+		}
+		if len(n.Rules) > 1 {
+			errMsg = "Can't transpose service: multiple rules present."
+			return false
+		}
+		srcElements := n.Rules[0].Src.Elements
+		dstElements := n.Rules[0].Dst.Elements
+		userElements := n.User.Elements
+		srcIsUser := len(srcElements) == 1 && srcElements[0].GetType() == "user"
+		dstIsUser := len(dstElements) == 1 && dstElements[0].GetType() == "user"
+		if srcIsUser && dstIsUser {
+			errMsg = "Can't transpose service: Both src and dst reference user."
+			return false
+		}
+		if !(srcIsUser || dstIsUser) {
+			errMsg = "Can't transpose service:" +
+				" None of src and dst directly reference user."
+			return false
+		}
+		if srcIsUser {
+			if hasUserInElements(dstElements) {
+				errMsg = "Can't transpose service: dst references nested user."
+				return false
+			}
+			n.Rules[0].Src.Elements = userElements
+			n.Rules[0].Dst.Elements = srcElements
+			n.User.Elements = dstElements
+		} else {
+			if hasUserInElements(srcElements) {
+				errMsg = "Can't transpose service: src references nested user."
+				return false
+			}
+			n.Rules[0].Src.Elements = dstElements
+			n.Rules[0].Dst.Elements = userElements
+			n.User.Elements = srcElements
+		}
+		return true
 	})
-	if err == nil {
-		err = fmt.Errorf("Can't find service %s", name)
-	}
 
 	if found {
 		return nil
-	} else {
-		return err
 	}
+	if errMsg == "" {
+		errMsg = "Can't find service " + name
+	}
+	return errors.New(errMsg)
+}
+
+func hasUserInElements(l []ast.Element) bool {
+	var hasUser func(el ast.Element) bool
+	hasUser = func(el ast.Element) bool {
+		switch x := el.(type) {
+		case *ast.User:
+			return true
+		case ast.AutoElem:
+			return hasUserInElements(x.GetElements())
+		case *ast.Intersection:
+			return hasUserInElements(x.Elements)
+		case *ast.Complement:
+			return hasUser(x.Element)
+		default:
+			return false
+		}
+	}
+	for _, el := range l {
+		if hasUser(el) {
+			return true
+		}
+	}
+	return false
 }
 
 func Main(d oslink.Data) int {
