@@ -166,7 +166,7 @@ network:n1 = {
  host:h1 = { ip = 10.1.1.13; }
  host:h2 = { ip = 10.1.1.14; }
 }
-group:g1 = 
+group:g1 =
  host:h1,
  host:h2,
  ;
@@ -186,8 +186,9 @@ service:usernetwork = {
 =ERROR=
 Error: Can't transpose service: foreach present.
 =END=
+
 ############################################################
-=TITLE=Cannot transpose if 
+=TITLE=Cannot transpose if src and dst is user
 =PARAMS=usernetwork
 =INPUT=
 network:n1 = {
