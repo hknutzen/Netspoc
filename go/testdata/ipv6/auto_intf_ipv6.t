@@ -45,6 +45,128 @@ ipv6 access-list n1_in
 =END=
 
 ############################################################
+=TITLE=All interfaces of aggregate in zone cluster
+# Must not add
+# - interface of unmanaged router with bind_nat,
+# - managed interface of unnumbered network.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:n1 = { ip = ::a09:900/120; } }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:un = { unnumbered; }
+any:n2-3 = { link = network:n2; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = ::a01:202; }
+ interface:n3 = { bind_nat = n1; }
+ interface:un = { bind_nat = n1; }
+}
+router:r3 = {
+ model = IOS;
+ managed;
+ interface:un = { unnumbered; hardware = un; }
+}
+service:s = {
+ user = interface:[any:n2-3].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:201 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Ignore managed interface of unnumbered network
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:un = { unnumbered; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered; hardware = un; }
+}
+service:s = {
+ user = interface:[managed & network:un, network:n1].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:101 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Ignore interfaces of unnumbered network
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:un = { unnumbered; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:un = { unnumbered; hardware = un; }
+}
+router:r2 = {
+ interface:un = { unnumbered; }
+}
+service:s = {
+ user = interface:[network:un, network:n1].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:101 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Add managed interfaces of network at routing_only
+# Must add interface of router with routing_only.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed = routing_only;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+service:s = {
+ user = interface:[managed & network:n2].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit tcp ::a01:100/120 host ::a01:201 eq 80
+ permit tcp ::a01:100/120 host ::a01:202 eq 80
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=Auto interface of network
 =TEMPL=topo
 network:a = { ip = ::a00:0/120; }
