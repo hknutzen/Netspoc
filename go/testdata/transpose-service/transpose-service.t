@@ -46,7 +46,6 @@ Error: Can't find service service:service
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -61,7 +60,6 @@ service:s1 = {
 }
 =OUTPUT=
 service:s1 = {
- description = testservice
  user = host:u1,
         host:u2,
         ;
@@ -80,7 +78,6 @@ service:s1 = {
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:u1,
         host:u2,
         ;
@@ -94,7 +91,6 @@ service:s1 = {
 }
 =OUTPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -113,7 +109,6 @@ service:s1 = {
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -143,8 +138,6 @@ Error: Can't transpose service: multiple rules present.
 =PARAMS=usernetwork
 =INPUT=
 service:usernetwork = {
- description = testservice
-
  user = host:server1,
         host:server2,
         ;
@@ -172,8 +165,6 @@ group:g1 =
  ;
 
 service:usernetwork = {
- description = testservice
-
  user = foreach
 	group:g1,
 	;
@@ -195,8 +186,6 @@ network:n1 = {
  ip = 10.1.1.0/24;
 }
 service:usernetwork = {
- description = testservice
-
  user = network:n1;
  permit src = user;
         dst = user;
