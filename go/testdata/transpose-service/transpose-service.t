@@ -156,6 +156,20 @@ Error: Can't transpose service: Both src and dst reference user.
 =END=
 
 ############################################################
+=TITLE=Cannot transpose if src and dst is nested user
+=PARAMS=useruser
+=INPUT=
+service:useruser = {
+ user = network:n1;
+ permit src = any:[user];
+        dst = interface:[user].[all];
+        prt = tcp 80;
+}
+=ERROR=
+Error: Can't transpose service: None of src and dst directly reference user.
+=END=
+
+############################################################
 =TITLE=Cannot transpose: dst references nested user
 =PARAMS=s1
 =INPUT=
@@ -175,7 +189,7 @@ Error: Can't transpose service: dst references nested user.
 =INPUT=
 service:s1 = {
  user = group:g1;
- permit src = network:[user &! host:h3];
+ permit src = network:[! host:h3 & user];
         dst = user;
         prt = tcp 6514,
               udp 20514,
