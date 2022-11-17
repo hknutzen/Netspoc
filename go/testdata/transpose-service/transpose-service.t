@@ -128,6 +128,17 @@ Error: Can't transpose service: multiple rules present.
 =END=
 
 ############################################################
+=TITLE=Cannot transpose without rule
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ user = network:n1;
+}
+=ERROR=
+Error: Can't transpose service: no rule present.
+=END=
+
+############################################################
 =TITLE=Cannot transpose if foreach is activated
 =PARAMS=s1
 =INPUT=
@@ -152,21 +163,21 @@ service:useruser = {
         prt = tcp 80;
 }
 =ERROR=
-Error: Can't transpose service: Both src and dst reference user.
+Error: Can't transpose service: both src and dst reference user.
 =END=
 
 ############################################################
 =TITLE=Cannot transpose if src and dst is nested user
-=PARAMS=useruser
+=PARAMS=s1
 =INPUT=
-service:useruser = {
+service:s1 = {
  user = network:n1;
  permit src = any:[user];
         dst = interface:[user].[all];
         prt = tcp 80;
 }
 =ERROR=
-Error: Can't transpose service: None of src and dst directly reference user.
+Error: Can't transpose service: none of src and dst directly reference user.
 =END=
 
 ############################################################

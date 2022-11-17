@@ -83,18 +83,22 @@ func (s *state) transposeService(name string) error {
 			errMsg = "Can't transpose service: multiple rules present."
 			return false
 		}
+		if len(n.Rules) == 0 {
+			errMsg = "Can't transpose service: no rule present."
+			return false
+		}
 		srcElements := n.Rules[0].Src.Elements
 		dstElements := n.Rules[0].Dst.Elements
 		userElements := n.User.Elements
 		srcIsUser := len(srcElements) == 1 && srcElements[0].GetType() == "user"
 		dstIsUser := len(dstElements) == 1 && dstElements[0].GetType() == "user"
 		if srcIsUser && dstIsUser {
-			errMsg = "Can't transpose service: Both src and dst reference user."
+			errMsg = "Can't transpose service: both src and dst reference user."
 			return false
 		}
 		if !(srcIsUser || dstIsUser) {
 			errMsg = "Can't transpose service:" +
-				" None of src and dst directly reference user."
+				" none of src and dst directly reference user."
 			return false
 		}
 		if srcIsUser {
