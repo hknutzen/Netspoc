@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net"
 	"net/netip"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"unicode"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
@@ -1590,7 +1591,7 @@ func (c *spoc) printDynamicCryptoMap(
 // and tail.
 func ciscoCryptoWithDash(s, prefix string) string {
 	tail := strings.TrimPrefix(s, prefix)
-	if tail == "" || tail == s {
+	if tail == "" || tail == s || strings.HasPrefix(tail, "-") {
 		return s
 	}
 	return prefix + "-" + tail
@@ -1676,9 +1677,13 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 		}
 
 		encryption := isakmp.encryption
-		rest := strings.TrimPrefix(encryption, "aes")
-		if len(rest) != len(encryption) && len(rest) > 0 {
-			encryption = "aes " + rest
+		if i := strings.LastIndex(encryption, "-"); i >= 0 {
+			encryption = encryption[:i] + " " + encryption[i+1:]
+		} else {
+			rest := strings.TrimPrefix(encryption, "aes")
+			if len(rest) != len(encryption) && len(rest) > 0 {
+				encryption = "aes " + rest
+			}
 		}
 		fmt.Fprintln(fh, " encryption "+encryption)
 		fmt.Fprintln(fh, " hash "+isakmp.hash)
@@ -1737,7 +1742,9 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			} else {
 				esp = ciscoCryptoWithDash(esp, "aes")
 				if cryptoType == "IOS" {
-					esp = strings.Replace(esp, "-", " ", 1)
+					if i := strings.LastIndex(esp, "-"); i >= 0 {
+						esp = esp[:i] + " " + esp[i+1:]
+					}
 				}
 				transform += esp
 			}

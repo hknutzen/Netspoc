@@ -523,7 +523,10 @@ var isakmpAttr = map[string]attrDescr{
 		values: []string{"preshare", "rsasig"},
 	},
 	"encryption": {
-		values: []string{"aes", "aes192", "aes256", "des", "3des"},
+		values: []string{
+			"aes", "aes192", "aes256", "des", "3des",
+			"aes-gcm", "aes-gcm-192", "aes-gcm-256",
+		},
 	},
 	"hash": {
 		values: []string{"md5", "sha", "sha256", "sha384", "sha512"},
@@ -616,7 +619,11 @@ func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string)
 
 var ipsecAttr = map[string]attrDescr{
 	"esp_encryption": {
-		values: []string{"none", "aes", "aes192", "aes256", "des", "3des"},
+		values: []string{
+			"none", "3des", "aes", "aes192", "aes256", "des",
+			"aes-gcm", "aes-gcm-192", "aes-gcm-256",
+			"aes-gmac", "aes-gmac-192", "aes-gmac-256",
+		},
 	},
 	"esp_authentication": {
 		values: []string{"none", "md5", "sha", "sha256", "sha384", "sha512"},

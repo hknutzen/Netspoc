@@ -4448,3 +4448,92 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
+=TITLE=ASA crypto with aes-gcm-256
+=INPUT=
+ipsec:aes-gcm-256 = {
+ key_exchange = isakmp:aes-gcm-256-sha-256;
+ esp_encryption = aes-gcm-256;
+ # not given: esp_authentication; becomes "null"
+ pfs_group = 21;
+ lifetime = 1 hour;
+}
+isakmp:aes-gcm-256-sha-256 = {
+ ike_version = 2;
+ authentication = rsasig;
+ encryption = aes-gcm-256;
+ hash = sha256;
+ group = 14;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+crypto:sts = {
+ type = ipsec:aes-gcm-256;
+}
+
+network:intern = {
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = 10.1.1.101;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = 192.168.0.101;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = 192.168.0.0/24; }
+router:extern = {
+ interface:dmz = { ip = 192.168.0.1; }
+ interface:internet;
+}
+network:internet = { ip = 0.0.0.0/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = 172.16.1.2;
+  id = cert@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1 = {
+  ip = 10.99.1.1;
+ }
+}
+network:lan1 = { ip = 10.99.1.0/24; }
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80;
+}
+=OUTPUT=
+--asavpn
+no sysopt connection permit-vpn
+crypto ipsec ikev2 ipsec-proposal Trans1
+ protocol esp encryption aes-gcm-256
+--
+! crypto-172.16.1.2
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-172.16.1.2
+crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans1
+crypto map crypto-outside 1 set pfs group21
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 172.16.1.2 type ipsec-l2l
+tunnel-group 172.16.1.2 ipsec-attributes
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 172.16.1.2
+crypto map crypto-outside interface outside
+--
+! outside_in
+access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
+=END=
+
+############################################################
