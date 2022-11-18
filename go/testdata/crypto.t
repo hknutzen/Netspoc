@@ -4449,7 +4449,7 @@ access-group outside_in in interface outside
 
 ############################################################
 =TITLE=ASA crypto with aes-gcm-256
-=INPUT=
+=TEMPL=input
 ipsec:aes-gcm-256 = {
  key_exchange = isakmp:aes-gcm-256-sha-256;
  esp_encryption = aes-gcm-256;
@@ -4508,6 +4508,8 @@ service:test = {
  user = network:lan1;
  permit src = user; dst = host:netspoc; prt = tcp 80;
 }
+=INPUT=
+[[input]]
 =OUTPUT=
 --asavpn
 no sysopt connection permit-vpn
@@ -4534,6 +4536,47 @@ crypto map crypto-outside interface outside
 access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
 access-list outside_in extended deny ip any4 any4
 access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=IOS crypto with aes-gcm-256
+=INPUT=
+[[input]]
+=SUBST=/ASA/IOS/
+=OUTPUT=
+--asavpn
+! [ Crypto ]
+--
+crypto isakmp policy 1
+ encryption aes-gcm 256
+ hash sha256
+ group 14
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes-gcm 256
+ip access-list extended crypto-172.16.1.2
+ permit ip any 10.99.1.0 0.0.0.255
+ip access-list extended crypto-filter-172.16.1.2
+ permit tcp 10.99.1.0 0.0.0.255 host 10.1.1.111 eq 80
+ deny ip any any
+crypto map crypto-outside 1 ipsec-isakmp
+ set peer 172.16.1.2
+ match address crypto-172.16.1.2
+ set ip access-group crypto-filter-172.16.1.2 in
+ set transform-set Trans1
+ set pfs group21
+--
+ip access-list extended outside_in
+ permit 50 host 172.16.1.2 host 192.168.0.101
+ permit udp host 172.16.1.2 eq 500 host 192.168.0.101 eq 500
+ deny ip any any
+--
+interface inside
+ ip address 10.1.1.101 255.255.255.0
+ ip access-group inside_in in
+interface outside
+ ip address 192.168.0.101 255.255.255.0
+ crypto map crypto-outside
+ ip access-group outside_in in
 =END=
 
 ############################################################
