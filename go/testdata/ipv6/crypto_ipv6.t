@@ -4604,9 +4604,10 @@ router:extern = {
 }
 network:internet = { ip = ::/0; has_subnets; }
 router:vpn1 = {
+ radius_attributes = { check-subject-name = cn; }
  interface:internet = {
   ip = f000::ac10:102;
-  id = cert@example.com;
+  id = f000::ac10:102;
   spoke = crypto:sts;
  }
  interface:lan1 = {
@@ -4639,9 +4640,9 @@ tunnel-group f000::ac10:102 type ipsec-l2l
 tunnel-group f000::ac10:102 ipsec-attributes
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
-crypto ca certificate map cert@example.com 10
- subject-name attr ea eq cert@example.com
-tunnel-group-map cert@example.com 10 f000::ac10:102
+crypto ca certificate map f000::ac10:102 10
+ subject-name attr cn eq f000::ac10:102
+tunnel-group-map f000::ac10:102 10 f000::ac10:102
 crypto map crypto-outside interface outside
 --
 ! outside_in

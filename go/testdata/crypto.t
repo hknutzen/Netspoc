@@ -4497,7 +4497,7 @@ network:internet = { ip = 0.0.0.0/0; has_subnets; }
 router:vpn1 = {
  interface:internet = {
   ip = 172.16.1.2;
-  id = cert@example.com;
+  id = 172.16.1.2;
   spoke = crypto:sts;
  }
  interface:lan1 = {
@@ -4529,9 +4529,9 @@ tunnel-group 172.16.1.2 type ipsec-l2l
 tunnel-group 172.16.1.2 ipsec-attributes
  ikev2 local-authentication certificate ASDM_TrustPoint3
  ikev2 remote-authentication certificate
-crypto ca certificate map cert@example.com 10
- subject-name attr ea eq cert@example.com
-tunnel-group-map cert@example.com 10 172.16.1.2
+crypto ca certificate map 172.16.1.2 10
+ subject-name attr cn eq 172.16.1.2
+tunnel-group-map 172.16.1.2 10 172.16.1.2
 crypto map crypto-outside interface outside
 --
 ! outside_in

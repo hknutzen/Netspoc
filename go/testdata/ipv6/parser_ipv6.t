@@ -19,6 +19,17 @@ Warning: Ignoring file 'ipv6/empty' without any content
 =END=
 
 ############################################################
+=TITLE=Token with non letter or digit UTF8 character
+=PARAMS=--ipv6
+=INPUT=
+# EQUAL TO OR GREATER-THAN
+network:⋝3 = { ip = ::a01:100/120; }
+=ERROR=
+Error: Typed name expected at line 2 of INPUT, near "--HERE-->network:⋝3"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP address
 =PARAMS=--ipv6
 =INPUT=
@@ -839,24 +850,6 @@ router:r = {
 }
 =ERROR=
 Error: Expected type 'crypto:' in 'spoke' of interface:r.n
-=END=
-
-############################################################
-=TITLE=Bad VPN id
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { unnumbered; }
-router:r1 = { interface:n1 = { id = a.b.c; } }
-router:r2 = { interface:n1 = { id = x@a:b:c; } }
-router:r3 = { interface:n1 = { id = x..y@a.b.c; } }
-=END=
-=ERROR=
-Error: Invalid 'id' in interface:r1.n1: a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
-Error: Invalid 'id' in interface:r2.n1: x@a:b:c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r2.n1
-Error: Invalid 'id' in interface:r3.n1: x..y@a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r3.n1
 =END=
 
 ############################################################

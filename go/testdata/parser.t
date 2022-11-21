@@ -788,23 +788,6 @@ Error: Expected type 'crypto:' in 'spoke' of interface:r.n
 =END=
 
 ############################################################
-=TITLE=Bad VPN id
-=INPUT=
-network:n1 = { unnumbered; }
-router:r1 = { interface:n1 = { id = a.b.c; } }
-router:r2 = { interface:n1 = { id = x@a:b:c; } }
-router:r3 = { interface:n1 = { id = x..y@a.b.c; } }
-=END=
-=ERROR=
-Error: Invalid 'id' in interface:r1.n1: a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
-Error: Invalid 'id' in interface:r2.n1: x@a:b:c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r2.n1
-Error: Invalid 'id' in interface:r3.n1: x..y@a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r3.n1
-=END=
-
-############################################################
 =TITLE=Ignore cert_id
 =INPUT=
 network:n = { ip = 10.1.1.0/24; cert_id = a.b.c; }

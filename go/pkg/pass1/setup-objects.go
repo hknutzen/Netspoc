@@ -1579,7 +1579,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		case "spoke":
 			intf.spoke = c.getCryptoRef(a, name)
 		case "id":
-			intf.id = c.getUserID(a, name)
+			intf.id = c.getSingleValue(a, name)
 		case "virtual":
 			virtual = c.getVirtual(a, v6, name)
 		case "bind_nat":
@@ -2682,15 +2682,6 @@ func isIdHostname(id string) bool {
 	i := strings.Index(id, "@")
 	// Leading "@" is ok.
 	return (i <= 0 || isDomain(id[:i])) && isDomain(id[i+1:])
-}
-
-func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
-	id := c.getSingleValue(a, ctx)
-	p1, p2, found := strings.Cut(id, "@")
-	if !(found && isDomain(p1) && isDomain(p2)) {
-		c.err("Invalid '%s' in %s: %s", a.Name, ctx, id)
-	}
-	return id
 }
 
 func isSimpleName(n string) bool {
