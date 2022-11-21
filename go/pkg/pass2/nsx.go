@@ -3,11 +3,12 @@ package pass2
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 type jsonMap map[string]interface{}
@@ -35,7 +36,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	getAddress := func(n *ipNet) []string {
 		// Object group.
 		if !n.Prefix.IsValid() {
-			return single("Netspoc-" + n.name)
+			return single("/infra/domains/default/groups/Netspoc-" + n.name)
 		}
 		if n.Bits() == 0 {
 			return single("ANY")
@@ -73,9 +74,10 @@ func printNSXRules(fd *os.File, rData *routerData) {
 		if rData.ipv6 && proto == "icmp" {
 			name = strings.Replace(name, "icmp", "icmpv6", 1)
 		}
+		name = strings.Replace(name, " ", "_", 1)
 		name = "Netspoc-" + name
 		protoMap[name] = srcRgPrt{prt: prt, srcRg: srcRange}
-		return name
+		return "/infra/services/" + name
 	}
 	getPolicies := func(l []*aclInfo) []jsonMap {
 		var result []jsonMap
@@ -151,12 +153,9 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				}
 			}
 			policyName := "Netspoc-" + vrf
-			path := "/infra/domains/default/gateway-policies/" + policyName
 			result = append(result, jsonMap{
 				"resource_type": "GatewayPolicy",
-				"path":          path,
 				"id":            policyName,
-				"display_name":  policyName,
 				"rules":         nsxRules,
 			})
 		}
@@ -170,13 +169,14 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				for _, n := range g.elements {
 					l = append(l, getAddress(n)...)
 				}
-				path := "/infra/domains/default/groups/" + "Netspoc-" + g.name
+				groupName := "Netspoc-" + g.name
 				addresses := jsonMap{
+					"id":            "id",
 					"resource_type": "IPAddressExpression",
 					"ip_addresses":  l,
 				}
 				result = append(result, jsonMap{
-					"path":       path,
+					"id":         groupName,
 					"expression": []jsonMap{addresses},
 				})
 			}
@@ -191,7 +191,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 			pair := protoMap[name]
 			p := pair.prt
 			proto := p.protocol
-			svcEntry := jsonMap{}
+			svcEntry := jsonMap{"id": "id"}
 			switch proto {
 			case "tcp", "udp":
 				svcEntry["resource_type"] = "L4PortSetServiceEntry"
@@ -224,10 +224,8 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				svcEntry["resource_type"] = "IpProtocolServiceEntry"
 				svcEntry["protocol_number"], _ = strconv.Atoi(proto)
 			}
-			path := "/infra/services/" + name
 			result = append(result, jsonMap{
-				"display_name":    name,
-				"path":            path,
+				"id":              name,
 				"service_entries": []jsonMap{svcEntry},
 			})
 		}
@@ -235,14 +233,18 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	}
 
 	fmt.Fprintln(fd)
-	s2 := getPolicies(rData.acls)
-	s1 := getGroups()
-	s1 = append(s1, getServices()...)
-	s1 = append(s1, s2...)
+	p := getPolicies(rData.acls)
+	g := getGroups()
+	s := getServices()
+	result := jsonMap{
+		"groups":   g,
+		"services": s,
+		"policies": p,
+	}
 	enc := json.NewEncoder(fd)
 	enc.SetIndent("", " ")
 	enc.SetEscapeHTML(false)
-	enc.Encode(s1)
+	enc.Encode(result)
 	fmt.Fprintln(fd)
 }
 

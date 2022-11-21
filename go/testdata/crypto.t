@@ -1252,6 +1252,7 @@ service:test3 = {
  permit src = user; dst = group:g2; prt = tcp 82;
 }
 =INPUT=[[input]]
+=SUBST=/type = ipsec:aes256SHA;/type = ipsec:aes256SHA;detailed_crypto_acl;/
 =OUTPUT=
 --asavpn
 ! [ Routing ]
@@ -2531,7 +2532,7 @@ Error: Two static routes for network:internet
 =END=
 
 ############################################################
-=TITLE=acl_use_real_ip for crypto tunnel of ASA
+=TITLE=Use real ip in ACL but NAT IP in crypto ACL
 =INPUT=
 ipsec:aes256SHA = {
  key_exchange = isakmp:aes256SHA;
@@ -2596,6 +2597,18 @@ service:test = {
 =END=
 =OUTPUT=
 -- asavpn
+! crypto-1.1.1.1
+access-list crypto-1.1.1.1 extended permit ip 192.168.2.0 255.255.255.0 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 set peer 1.1.1.1
+crypto map crypto-outside 1 match address crypto-1.1.1.1
+crypto map crypto-outside 1 set ikev1 transform-set Trans1
+crypto map crypto-outside 1 set pfs group2
+crypto map crypto-outside 1 set security-association lifetime seconds 3600 kilobytes 100000
+tunnel-group 1.1.1.1 type ipsec-l2l
+tunnel-group 1.1.1.1 ipsec-attributes
+ peer-id-validate nocheck
+crypto map crypto-outside interface outside
+--
 ! outside_in
 access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 10.1.1.0 255.255.255.0 eq 80
 access-list outside_in extended deny ip any4 any4
@@ -3253,6 +3266,22 @@ crypto map crypto-outside interface outside
 =END=
 
 ############################################################
+=TITLE=Generate individual routes even if no 0.0.0.0/0
+# No IPv6
+=INPUT=[[input]]
+=SUBST=,0.0.0.0/0,1.0.0.0/8,
+# Use individual routes to VPN peers, even if all have same next hop
+# and even if no route to 0.0.0.0/0 is added.
+=OUTPUT=
+--asavpn
+! [ Routing ]
+route outside 10.99.2.0 255.255.255.0 192.168.0.1
+route outside 10.99.3.0 255.255.255.0 192.168.0.1
+route outside 192.168.22.0 255.255.255.0 192.168.0.1
+route outside 1.0.0.0 255.0.0.0 192.168.0.1
+=END=
+
+############################################################
 =TITLE=Must not reuse crypto id
 =INPUT=[[input]]
 =SUBST=/vpn2@/vpn1@/
@@ -3263,7 +3292,7 @@ Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'rou
 =END=
 
 ############################################################
-=TITLE=Unexpected dynamic crypto spoke
+=TITLE=detailed_crypto_acl
 =INPUT=
 crypto:psk-detailed = {
  type = ipsec:aes256_sha256_ikev2_psk;
@@ -4396,6 +4425,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev2 ipsec-proposal Trans1
  protocol ah sha256
  protocol esp encryption null
+ protocol esp integrity null
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
@@ -4419,24 +4449,42 @@ access-group outside_in in interface outside
 =END=
 
 ############################################################
-=TITLE=Must not disable crypto
-=INPUT=
-[[crypto_vpn]]
-network:intern = { ip = 10.1.1.0/24;}
+=TITLE=ASA crypto with aes-gcm-256
+=TEMPL=input
+ipsec:aes-gcm-256 = {
+ key_exchange = isakmp:aes-gcm-256-sha-256;
+ esp_encryption = aes-gcm-256;
+ # not given: esp_authentication; becomes "null"
+ pfs_group = 21;
+ lifetime = 1 hour;
+}
+isakmp:aes-gcm-256-sha-256 = {
+ ike_version = 2;
+ authentication = rsasig;
+ encryption = aes-gcm-256;
+ hash = sha256;
+ group = 14;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+crypto:sts = {
+ type = ipsec:aes-gcm-256;
+}
+
+network:intern = {
+ ip = 10.1.1.0/24;
+ host:netspoc = { ip = 10.1.1.111; }
+}
 router:asavpn = {
- model = ASA, VPN;
+ model = ASA;
  managed;
- general_permit = icmp 3;
- radius_attributes = {
-  trust-point = ASDM_TrustPoint1;
- }
  interface:intern = {
   ip = 10.1.1.101;
   hardware = inside;
  }
- interface:dmz = { disabled;
+ interface:dmz = {
   ip = 192.168.0.101;
-  hub = crypto:vpn;
+  hub = crypto:sts;
   hardware = outside;
  }
 }
@@ -4446,28 +4494,91 @@ router:extern = {
  interface:internet;
 }
 network:internet = { ip = 0.0.0.0/0; has_subnets; }
-router:softclients = {
- interface:internet = { spoke = crypto:vpn;  disabled; }
- interface:customers1;
-}
-network:customers1 = {
- ip = 10.99.1.0/24;
- radius_attributes = {
-  banner = Willkommen;
+router:vpn1 = {
+ interface:internet = {
+  ip = 172.16.1.2;
+  id = 172.16.1.2;
+  spoke = crypto:sts;
  }
- host:id:foo@domain.x = {
-  ip = 10.99.1.10;
-  radius_attributes = { split-tunnel-policy = tunnelspecified; }
+ interface:lan1 = {
+  ip = 10.99.1.1;
  }
 }
-service:test1 = {
- user = host:id:foo@domain.x.customers1;
- permit src = user; dst = network:intern; prt = tcp 80;
+network:lan1 = { ip = 10.99.1.0/24; }
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80;
 }
+=INPUT=
+[[input]]
+=OUTPUT=
+--asavpn
+no sysopt connection permit-vpn
+crypto ipsec ikev2 ipsec-proposal Trans1
+ protocol esp encryption aes-gcm-256
+ protocol esp integrity null
+--
+! crypto-172.16.1.2
+access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
+crypto map crypto-outside 1 set peer 172.16.1.2
+crypto map crypto-outside 1 match address crypto-172.16.1.2
+crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans1
+crypto map crypto-outside 1 set pfs group21
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group 172.16.1.2 type ipsec-l2l
+tunnel-group 172.16.1.2 ipsec-attributes
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+crypto ca certificate map 172.16.1.2 10
+ subject-name attr cn eq 172.16.1.2
+tunnel-group-map 172.16.1.2 10 172.16.1.2
+crypto map crypto-outside interface outside
+--
+! outside_in
+access-list outside_in extended permit tcp 10.99.1.0 255.255.255.0 host 10.1.1.111 eq 80
+access-list outside_in extended deny ip any4 any4
+access-group outside_in in interface outside
 =END=
-=WARNING=
-Warning: Ignoring attribute 'disabled' at interface:asavpn.dmz of crypto router
-Warning: Ignoring attribute 'disabled' at interface:softclients.internet of crypto router
+
+############################################################
+=TITLE=IOS crypto with aes-gcm-256
+=INPUT=
+[[input]]
+=SUBST=/ASA/IOS/
+=OUTPUT=
+--asavpn
+! [ Crypto ]
+--
+crypto isakmp policy 1
+ encryption aes-gcm 256
+ hash sha256
+ group 14
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes-gcm 256
+ip access-list extended crypto-172.16.1.2
+ permit ip any 10.99.1.0 0.0.0.255
+ip access-list extended crypto-filter-172.16.1.2
+ permit tcp 10.99.1.0 0.0.0.255 host 10.1.1.111 eq 80
+ deny ip any any
+crypto map crypto-outside 1 ipsec-isakmp
+ set peer 172.16.1.2
+ match address crypto-172.16.1.2
+ set ip access-group crypto-filter-172.16.1.2 in
+ set transform-set Trans1
+ set pfs group21
+--
+ip access-list extended outside_in
+ permit 50 host 172.16.1.2 host 192.168.0.101
+ permit udp host 172.16.1.2 eq 500 host 192.168.0.101 eq 500
+ deny ip any any
+--
+interface inside
+ ip address 10.1.1.101 255.255.255.0
+ ip access-group inside_in in
+interface outside
+ ip address 192.168.0.101 255.255.255.0
+ crypto map crypto-outside
+ ip access-group outside_in in
 =END=
 
 ############################################################

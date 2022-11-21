@@ -6,7 +6,7 @@ network:n1 = { ip = 10.1.1.0/24; }
 router:r = {
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:l = {
-  ip = 10.1.1.2; loopback; no_in_acl; dhcp_server; routing = OSPF; disabled;
+  ip = 10.1.1.2; loopback; no_in_acl; dhcp_server; routing = OSPF;
  }
 }
 =END=
@@ -98,7 +98,10 @@ router:r = {
 network:l = { ip = 10.1.1.2/32; }
 =END=
 =ERROR=
-Error: network:l isn't connected to any router
+Error: IPv4 topology has unconnected parts:
+ - any:[interface:r.l]
+ - any:[network:l]
+ Use partition attribute, if intended.
 =END=
 
 ############################################################

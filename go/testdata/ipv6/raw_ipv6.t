@@ -24,19 +24,32 @@ router:r2 = {
 }
 -- raw/aaa/b
 !!!
+-- raw/r0
+access-list n2_in extended permit udp any6 any6 eq 123
 -- raw/r1
 ! manual route
 ipv6 route ::a01:200/120 ::a01:101
--- raw/x
-access-list n2_in extended permit udp any6 any6 eq 123
 =WARNING=
 Warning: Ignoring path raw/aaa
-Warning: Found unused file raw/x
+Warning: Found unused file raw/r0
 =OUTPUT=
 --ipv6/r1.raw
 ! manual route
 ipv6 route ::a01:200/120 ::a01:101
 =END=
+
+############################################################
+=TITLE=Ignore hidden file and file named CVS
+=PARAMS=--ipv6
+=INPUT=
+-- topology
+network:n1 = { ip = ::a01:100/120; }
+-- raw/.hidden
+abc
+-- raw/CVS
+xyz
+=WITH_OUTDIR=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Ignore file with name "raw"

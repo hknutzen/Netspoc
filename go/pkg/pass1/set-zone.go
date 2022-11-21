@@ -1,14 +1,14 @@
 package pass1
 
 import (
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
-//##############################################################################
-// Purpose  : Create zones and areas.
+// setZone create zones and areas.
 func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	c.progress("Preparing security zones and areas")
 	c.setZones()
@@ -27,8 +27,7 @@ func (c *spoc) setZone() map[pathObj]map[*area]bool {
 	return objInArea // For use in cut-netspoc
 }
 
-//#############################################################################
-// Purpose  : Create new zone for every network without a zone.
+// setZones creates new zone for every network without a zone.
 func (c *spoc) setZones() {
 	for _, n := range c.allNetworks {
 		if n.zone != nil {
@@ -57,12 +56,14 @@ func (c *spoc) setZones() {
 	}
 }
 
-//##############################################################################
-// Purpose  : Collects all elements (networks, unmanaged routers, interfaces)
-//            of a zone and references the zone in its elements.
-//            Sets zone attribute.
-// Comments : Unnumbered and tunnel networks are not referenced in zones,
-//            as they are no valid src or dst.
+/*
+##############################################################################
+setZone1 collects all elements (networks, unmanaged routers, interfaces)
+of a zone and references the zone in its elements.
+Sets zone attribute.
+Comment: Unnumbered and tunnel networks are not referenced in zones,
+as they are no valid src or dst.
+*/
 func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 	// Network was processed already (= loop was found).
@@ -107,7 +108,7 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 
 			// Recursively add adjacent networks.
 			for _, out := range r.interfaces {
-				if out != intf && !out.disabled {
+				if out != intf {
 					c.setZone1(out.network, z, out)
 				}
 			}
@@ -115,12 +116,12 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	}
 }
 
-//#############################################################################
-// Purpose  : Clusters zones connected by semiManaged routers. All
-//            zones of a cluster are stored in attribute cluster of
-//            the zones.
-//            Attribute cluster is also set if the cluster has only
-//            one element.
+/*
+#############################################################################
+clusterZones clusters zones connected by semiManaged routers. All
+zones of a cluster are stored in attribute cluster of the zones.
+Attribute cluster is also set if the cluster has only one element.
+*/
 func (c *spoc) clusterZones() {
 
 	// Process remaining unclustered zones.
@@ -142,12 +143,14 @@ func (c *spoc) clusterZones() {
 	}
 }
 
-//#############################################################################
-// Purpose  : Collect zones connected by semiManaged devices into a cluster.
-// Comments : Tunnel zone is not included in zone cluster, because
-//            - it is useless in rules and
-//            - we would get inconsistent owner since zone of tunnel
-//              doesn't inherit from area.
+/*
+#############################################################################
+getZoneCluster collects zones connected by semiManaged devices into a cluster.
+Comments : Tunnel zone is not included in zone cluster, because
+  - it is useless in rules and
+  - we would get inconsistent owner since zone of tunnel
+    doesn't inherit from area.
+*/
 func getZoneCluster(z *zone, in *routerIntf, collected *[]*zone) {
 
 	// Reference zone in cluster list and vice versa.
@@ -201,20 +204,23 @@ var crosslinkStrength = map[string]int{
 	"local":     7,
 }
 
-//#############################################################################
-// A crosslink network combines two or more routers to one virtual router.
-// Purpose  : Assures proper usage of crosslink networks and applies the
-//            crosslink attribute to the networks weakest interfaces (no
-//            filtering needed at these interfaces).
-// Returns  : Map storing crosslinked routers with attribute needProtect set.
-// Comments : Function uses hardware attributes from func checkNoInAcl.
+/*
+#############################################################################
+A crosslink network combines two or more routers to one virtual router.
+Purpose  : Assures proper usage of crosslink networks and applies the
+crosslink attribute to the networks weakest interfaces (no
+filtering needed at these interfaces).
+
+Returns  : Map storing crosslinked routers with attribute needProtect set.
+Comments : Function uses hardware attributes from func checkNoInAcl.
+*/
 func (c *spoc) checkCrosslink() map[*router]bool {
 	// Collect crosslinked routers with attribute needProtect.
 	crosslinkRouters := make(map[*router]bool)
 
 	// Process all crosslink networks
 	for _, n := range c.allNetworks {
-		if !n.crosslink || n.disabled {
+		if !n.crosslink {
 			continue
 		}
 
@@ -296,11 +302,13 @@ func (c *spoc) checkCrosslink() map[*router]bool {
 	return crosslinkRouters
 }
 
-//#############################################################################
-// Purpose   : Find clusters of routers connected directly or indirectly by
-//             crosslink networks and having at least one device with
-//             attribute needProtect.
-// Parameter : Map with crosslinked routers having attribute needProtect set.
+/*
+#############################################################################
+clusterCrosslinkRouters finds clusters of routers connected directly or
+indirectly by crosslink networks and having at least one device with
+attribute needProtect.
+Parameter : Map with crosslinked routers having attribute needProtect set.
+*/
 func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 	var cluster []*router
 	seen := make(map[*router]bool)
@@ -312,7 +320,7 @@ func clusterCrosslinkRouters(crosslinkRouters map[*router]bool) {
 		cluster = append(cluster, r)
 		for _, inIntf := range r.interfaces {
 			n := inIntf.network
-			if n.crosslink && !n.disabled {
+			if n.crosslink {
 				for _, outIntf := range n.interfaces {
 					if outIntf == inIntf {
 						continue
@@ -367,8 +375,7 @@ const (
 type borderType int
 type bLookup map[*routerIntf]borderType
 
-//##############################################################################s
-// Purpose  : Set up areas, assure proper border definitions.
+// setAreas sets up areas, assure proper border definitions.
 func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	objInArea := make(map[pathObj]map[*area]bool)
 	var sortedAreas []*area
@@ -379,13 +386,7 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 		return sortedAreas[i].name < sortedAreas[j].name
 	})
 	for _, a := range sortedAreas {
-		if a.disabled {
-			continue
-		}
 		if n := a.anchor; n != nil {
-			if n.disabled {
-				continue
-			}
 			c.setArea(n.zone, a, nil, nil, objInArea)
 		} else {
 
@@ -460,9 +461,11 @@ func (c *spoc) setAreas() map[pathObj]map[*area]bool {
 	return objInArea
 }
 
-//##############################################################################
-// Purpose  : Collect zones and routers of an area.
-// Returns  : false, or true if error was found.
+/*
+##############################################################################
+setArea collects zones and routers of an area.
+Returns false, or true if error was found.
+*/
 func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	lookup bLookup, objInArea map[pathObj]map[*area]bool) bool {
 	errPath := setArea1(obj, a, in, lookup, objInArea)
@@ -482,11 +485,13 @@ func (c *spoc) setArea(obj pathObj, a *area, in *routerIntf,
 	return true
 }
 
-//##############################################################################
-// Purpose  : Collect zones and managed routers of an area and set a
-//            reference to the area in its zones and routers.
-//            Keep track of area borders found during area traversal.
-// Returns  : nil or list of interfaces, if invalid path was found.
+/*
+##############################################################################
+setArea1 collects zones and managed routers of an area and set a
+reference to the area in its zones and routers.
+Keep track of area borders found during area traversal.
+Returns  : nil or list of interfaces, if invalid path was found.
+*/
 func setArea1(obj pathObj, a *area, in *routerIntf,
 	lookup bLookup, objInArea map[pathObj]map[*area]bool) intfList {
 
@@ -554,9 +559,11 @@ func setArea1(obj pathObj, a *area, in *routerIntf,
 	return nil
 }
 
-//##############################################################################
-// Purpose : Check subset relation between areas, assure that no duplicate or
-//           overlapping areas exist
+/*
+##############################################################################
+checkAreaSubsetRelations checks subset relation between areas, assure
+that no duplicate or overlapping areas exist
+*/
 func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 	size := func(a *area) int {
@@ -576,9 +583,7 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 
 	// Fill global list of areas.
 	for _, a := range c.symTable.area {
-		if !a.disabled {
-			c.ascendingAreas = append(c.ascendingAreas, a)
-		}
+		c.ascendingAreas = append(c.ascendingAreas, a)
 	}
 	sortBySize(c.ascendingAreas)
 
@@ -656,25 +661,23 @@ func (c *spoc) checkAreaSubsetRelations(objInArea map[pathObj]map[*area]bool) {
 	}
 }
 
-//#############################################################################
-// Purpose  : Process all explicitly defined aggregates. Check proper usage of
-//            aggregates. For every aggregate, link aggregates to all
-//            zones inside the zone cluster containing the aggregates link
-//            network and set aggregate and zone properties. Add aggregate
-//            to global variable allNetworks.
-// Comments : Has to be called after zones have been set up. But before
-//            findSubnetsInZone calculates .up and .networks relation.
+/*
+#############################################################################
+processAggregates processes all explicitly defined aggregates.
+Checks proper usage of aggregates. For every aggregate, link aggregates to all
+zones inside the zone cluster containing the aggregates link
+network and set aggregate and zone properties. Add aggregate
+to global variable allNetworks.
+
+Comments : Has to be called after zones have been set up. But before
+findSubnetsInZone calculates .up and .networks relation.
+*/
 func (c *spoc) processAggregates() {
 
 	// Collect all aggregates inside zone clusters.
 	var aggInCluster netList
 	aggList := make(netList, 0, len(c.symTable.aggregate))
 	for _, agg := range c.symTable.aggregate {
-		n := agg.link
-		if n == nil || n.disabled {
-			agg.disabled = true
-			continue
-		}
 		aggList.push(agg)
 	}
 	sort.Slice(aggList, func(i, j int) bool {
@@ -773,8 +776,8 @@ func (o *owner) isNil() bool              { return o == nil }
 func (o *owner) equal(o2 routerAttr) bool { return o == o2 }
 func (o *owner) toRouter(r *router)       { r.owner = o }
 
-//##############################################################################
-// Purpose : Distribute area attributes to zones and managed routers.
+// inheritAttributesFromArea distributes area attributes to zones and
+// managed routers.
 func (c *spoc) inheritAttributesFromArea() {
 
 	// Areas can be nested. Proceed from small to larger ones.
@@ -796,7 +799,6 @@ func (c *spoc) inheritAttributesFromArea() {
 	}
 }
 
-//##############################################################################
 // Inherit routerAttributes from area to managed routers of area.
 func (c *spoc) inheritRouterAttributes(
 	a *area,
@@ -960,8 +962,7 @@ func (c *spoc) adaptNAT(n *network, tag string, nat *network) *network {
 	return &subNat
 }
 
-//##############################################################################
-// Purpose : Check if nat definitions are equal.
+// natEqual checks if nat definitions are equal.
 func natEqual(nat1, nat2 *network) bool {
 	return nat1.ipp == nat2.ipp &&
 		nat1.dynamic == nat2.dynamic &&
@@ -969,10 +970,10 @@ func natEqual(nat1, nat2 *network) bool {
 		nat1.identity == nat2.identity
 }
 
-// 1. Remove NAT entries from aggregates.
-//    These are only used during NAT inheritance.
-// 2. Remove identity NAT entries.
-//    These are only needed during NAT inheritance.
+//  1. Remove NAT entries from aggregates.
+//     These are only used during NAT inheritance.
+//  2. Remove identity NAT entries.
+//     These are only needed during NAT inheritance.
 func (c *spoc) cleanupAfterInheritance() {
 	for _, n := range c.allNetworks {
 		m := n.nat
@@ -1009,20 +1010,22 @@ func (c *spoc) checkReroutePermit() {
 }
 
 // Collect subnets in attribute .subnetsInCluster
-// - to supernet in zone cluster
-// - where subnet is located in same zone cluster, but in other zone and
-// - where zone cluster has interior pathrestriction,
-//   i.e. pathrestriction between zones of cluster.
+//   - to supernet in zone cluster
+//   - where subnet is located in same zone cluster, but in other zone and
+//   - where zone cluster has interior pathrestriction,
+//     i.e. pathrestriction between zones of cluster.
+//
 // In this case subnet and supernet may be reached by different paths.
 //
 // ToDo: This should be called after linkPathrestrictions has been called.
-//       Currently subnet relation has then been changed already
-//       from cluster to zone.
+//
+//	Currently subnet relation has then been changed already
+//	from cluster to zone.
 func (c *spoc) markSubnetsInZoneCluster() {
 	hasInteriorPR := make(map[*zone]bool)
 	for _, p := range c.pathrestrictions {
 		for _, intf := range p.elements {
-			if intf.router.semiManaged && intf.zone != nil {
+			if intf.router.semiManaged {
 				hasInteriorPR[intf.zone.cluster[0]] = true
 			}
 		}

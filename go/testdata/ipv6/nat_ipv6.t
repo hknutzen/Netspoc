@@ -58,9 +58,8 @@ router:r = {
 network:n2 = { ip = ::a01:200/120; }
 =END=
 =ERROR=
-Error: Hidden NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'dynamic' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'identity' in nat:n of network:n1
+Error: Hidden NAT must not use other attributes in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################
@@ -78,8 +77,7 @@ router:r = {
 network:n2 = { ip = ::a01:200/120; }
 =END=
 =ERROR=
-Error: Identity NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Identity NAT must not use attribute 'dynamic' in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################
@@ -445,9 +443,10 @@ network:n4 = {
 network:n5 = { ip = ::a01:500/120; nat:n4 = { hidden; } }
 
 router:r1 = {
- interface:n1 = { ip = ::a01:101; }
- interface:n2 = { ip = ::a01:201; bind_nat = n1;
- }
+ managed = routing_only; # Kill mutation test.
+ model = IOS;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
  managed;
@@ -791,6 +790,25 @@ network:n2 = { ip = ::a01:200/120; }
 =WARNING=
 Warning: Ignoring nat:x at host:h1 because network:n1 has static NAT definition
 Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT definition
+=END=
+
+############################################################
+=TITLE=Missing IP in NAT of host
+=PARAMS=--ipv6
+=INPUT=
+network:n1 =  {
+ ip = ::a01:100/120;
+ nat:x = { ip = ::a08:800/120; }
+ host:h1 = { ip = ::a01:10a; nat:x = {} }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+network:n2 = { ip = ::a01:200/120; }
+=END=
+=ERROR=
+Error: Expecting exactly one attribute 'ip' in nat:x of host:h1
 =END=
 
 ############################################################
@@ -2518,6 +2536,45 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
+=TITLE=Show interfaces preferred where both NAT tags are bound
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = ::a01:0/120; }
+router:r1 = {
+ interface:n0 = { bind_nat = a1, a2; }
+ interface:a;
+}
+network:a = {
+ ip = ::a01:100/120;
+ nat:a1 = { ip = ::a02:100/120; }
+ nat:a2 = { ip = ::a02:200/120; }
+}
+router:r11 = {
+ interface:a;
+ interface:t1 = { bind_nat = a1; }
+}
+network:t1 = {ip = ::a03:300/126;}
+router:r12 = {
+ interface:t1;
+ interface:b = { bind_nat = a2; }
+}
+router:r21 = {
+ interface:a;
+ interface:t2 = { bind_nat = a2; }
+}
+network:t2 = {ip = ::a03:304/126;}
+router:r22 = {
+ interface:t2;
+ interface:b = { bind_nat = a1; }
+}
+network:b = {ip = ::a09:900/120;}
+=END=
+=ERROR=
+Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
+ - interface:r1.n0
+=END=
+
+############################################################
 =TITLE=Groupd NAT tags with multiple NAT domains
 =PARAMS=--ipv6
 =INPUT=
@@ -3963,18 +4020,24 @@ Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
 =END=
 
 ############################################################
-=TITLE=Only NAT IP at non loopback interface
+=TITLE=Only NAT IP allowed at non loopback interface
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; }
 router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = ::a01:101; hardware = n1; nat:N = { hidden; } }
+ interface:n1 = { ip = ::a01:101; nat:N = { hidden; } }
+}
+router:r2 = {
+ interface:n1 = { ip = ::a01:101; nat:N = { identity; } }
+}
+router:r3 = {
+ interface:n1 = { ip = ::a01:101; nat:N = { ip = ::909:909; dynamic; } }
 }
 =END=
 =ERROR=
 Error: Only 'ip' allowed in nat:N of interface:r1.n1
+Error: Only 'ip' allowed in nat:N of interface:r2.n1
+Error: Only 'ip' allowed in nat:N of interface:r3.n1
 =END=
 
 ############################################################

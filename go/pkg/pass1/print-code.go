@@ -2,7 +2,6 @@ package pass1
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net"
 	"net/netip"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"unicode"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/fileop"
 	"github.com/hknutzen/Netspoc/go/pkg/jcode"
@@ -1471,8 +1472,12 @@ func printCaAndTunnelGroupMap(fh *os.File, id, tgName string) {
 
 	// Activate tunnel-group with tunnel-group-map.
 	// Use id as ca-map name.
+	subjectName := "ea"
+	if strings.Index(id, "@") == -1 {
+		subjectName = "cn"
+	}
 	fmt.Fprintln(fh, "crypto ca certificate map", id, "10")
-	fmt.Fprintln(fh, " subject-name attr ea eq", id)
+	fmt.Fprintln(fh, " subject-name attr", subjectName, "eq", id)
 	fmt.Fprintln(fh, "tunnel-group-map", id, "10", tgName)
 }
 
@@ -1590,7 +1595,7 @@ func (c *spoc) printDynamicCryptoMap(
 // and tail.
 func ciscoCryptoWithDash(s, prefix string) string {
 	tail := strings.TrimPrefix(s, prefix)
-	if tail == "" || tail == s {
+	if tail == "" || tail == s || strings.HasPrefix(tail, "-") {
 		return s
 	}
 	return prefix + "-" + tail
@@ -1676,9 +1681,13 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 		}
 
 		encryption := isakmp.encryption
-		rest := strings.TrimPrefix(encryption, "aes")
-		if len(rest) != len(encryption) && len(rest) > 0 {
-			encryption = "aes " + rest
+		if i := strings.LastIndex(encryption, "-"); i >= 0 {
+			encryption = encryption[:i] + " " + encryption[i+1:]
+		} else {
+			rest := strings.TrimPrefix(encryption, "aes")
+			if len(rest) != len(encryption) && len(rest) > 0 {
+				encryption = "aes " + rest
+			}
 		}
 		fmt.Fprintln(fh, " encryption "+encryption)
 		fmt.Fprintln(fh, " hash "+isakmp.hash)
@@ -1717,14 +1726,16 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 				espEncr = "aes-256"
 			}
 			fmt.Fprintln(fh, " protocol esp encryption "+espEncr)
-			if espAh := ipsec.espAuthentication; espAh != "" {
-				if espAh == "sha" {
-					espAh = "sha-1"
-				} else {
-					espAh = ciscoCryptoWithDash(espAh, "sha")
-				}
-				fmt.Fprintln(fh, " protocol esp integrity "+espAh)
+			espAh := ipsec.espAuthentication
+			switch espAh {
+			case "":
+				espAh = "null"
+			case "sha":
+				espAh = "sha-1"
+			default:
+				espAh = ciscoCryptoWithDash(espAh, "sha")
 			}
+			fmt.Fprintln(fh, " protocol esp integrity "+espAh)
 		} else {
 			// IKEv1 syntax of ASA is identical to IOS.
 			transform := ""
@@ -1737,7 +1748,9 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 			} else {
 				esp = ciscoCryptoWithDash(esp, "aes")
 				if cryptoType == "IOS" {
-					esp = strings.Replace(esp, "-", " ", 1)
+					if i := strings.LastIndex(esp, "-"); i >= 0 {
+						esp = esp[:i] + " " + esp[i+1:]
+					}
 				}
 				transform += esp
 			}

@@ -1,12 +1,12 @@
 package pass1
 
 import (
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
 	"strings"
 
 	"go4.org/netipx"
+	"golang.org/x/exp/maps"
 )
 
 func (c *spoc) checkIPAddresses() {

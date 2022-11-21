@@ -214,7 +214,6 @@ func SpocMain(d oslink.Data) int {
 		c.readNetspoc(inDir)
 		c.showReadStatistics()
 		c.orderProtocols()
-		c.markDisabled()
 		c.checkIPAddresses()
 		c.setZone()
 		c.setPath()

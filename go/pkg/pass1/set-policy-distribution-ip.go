@@ -1,5 +1,7 @@
 package pass1
 
+import "golang.org/x/exp/maps"
+
 //#############################################################################
 // Find IP of each device, reachable from policy distribution point.
 //#############################################################################
@@ -44,7 +46,7 @@ func (c *spoc) setPolicyDistributionIP() {
 				}
 				continue
 			}
-		} else if !r.managementInstance || r.backupInstance != nil {
+		} else if !r.managementInstance {
 			continue
 		}
 		if r.policyDistributionPoint != nil {
@@ -102,9 +104,12 @@ func (c *spoc) setPolicyDistributionIP() {
 	PRT:
 		for _, prt := range rule.prt {
 			switch prt.proto {
-			case "tcp", "udp":
+			case "ip":
+				foundPrt = true
+				break PRT
+			case "tcp":
 				p1, p2 := prt.ports[0], prt.ports[1]
-				if p1 <= 22 && 22 <= p2 || p1 <= 23 && 23 <= p2 {
+				if p1 <= 22 && 22 <= p2 {
 					foundPrt = true
 					break PRT
 				}
@@ -139,9 +144,7 @@ func (c *spoc) setPolicyDistributionIP() {
 
 		// Ready, if exactly one management interface was found.
 		if len(foundMap) == 1 {
-			for intf := range foundMap {
-				result.push(intf)
-			}
+			result = maps.Keys(foundMap)
 		} else if r.managed != "" || r.routingOnly {
 
 			// debug("%s: %d", router->{name}, len(intfMap));

@@ -1,7 +1,6 @@
 // Package scanner implements a scanner for source text of Netspoc
 // policy language.  It takes a []byte as source which can then be
 // tokenized through repeated calls to the Scan method.
-//
 package scanner
 
 import (
@@ -14,13 +13,11 @@ import (
 
 // An AbortHandler must be provided to Scanner.Init. If a syntax error is
 // encountered, the handler is called after error message has been shown.
-//
 type AbortHandler func(e error)
 
 // A Scanner holds the scanner's internal state while processing
 // a given text. It can be allocated as part of another data
 // structure but must be initialized via Init before use.
-//
 type Scanner struct {
 	// immutable state
 	src   []byte // source
@@ -35,7 +32,6 @@ type Scanner struct {
 
 // Read the next Unicode char into s.ch.
 // s.ch < 0 means end-of-file.
-//
 func (s *Scanner) next() {
 	if s.rdOffset < len(s.src) {
 		s.offset = s.rdOffset
@@ -46,7 +42,7 @@ func (s *Scanner) next() {
 		case r >= utf8.RuneSelf:
 			// not ASCII
 			r, w = utf8.DecodeRune(s.src[s.rdOffset:])
-			if r == utf8.RuneError && w == 1 {
+			if r == utf8.RuneError {
 				s.syntaxErr("illegal UTF-8 encoding")
 			}
 		}
@@ -66,7 +62,6 @@ func (s *Scanner) next() {
 //
 // Note that Init may call abort if there is an error in the first character
 // of the file.
-//
 func (s *Scanner) Init(src []byte, fname string, ah AbortHandler) {
 	s.src = src
 	s.fname = fname
@@ -212,7 +207,6 @@ func (s *Scanner) scan(check func(rune) bool) (int, bool, string) {
 
 // Token scans the next token and returns the token position and the
 // token literal string. The source end is indicated by "".
-//
 func (s *Scanner) Token() (int, bool, string) {
 	pos, isSep, tok := s.scan(isTokenChar)
 	// Token may end with '['.

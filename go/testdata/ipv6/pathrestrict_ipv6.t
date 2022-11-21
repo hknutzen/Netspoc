@@ -1147,35 +1147,6 @@ Error: No valid path
 =END=
 
 ############################################################
-=TITLE=Pathrestriction at disabled interface
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-network:n3 = { ip = ::a01:300/120; }
-router:r1 = {
- model = IOS;
- managed;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; }
-}
-router:r2 = {
- model = IOS;
- managed;
- interface:n1 = { ip = ::a01:102; hardware = n1; }
- interface:n2 = { ip = ::a01:202; hardware = n2; }
- interface:n3 = { ip = ::a01:301; hardware = n3; disabled; }
-}
-pathrestriction:p1 =
- interface:r1.n2,
- interface:r2.n3,
-;
-=END=
-=WARNING=
-Warning: Ignoring pathrestriction:p1 with only interface:r1.n2
-=END=
-
-############################################################
 =TITLE=Show 'no valid path' for both services
 =PARAMS=--ipv6
 =INPUT=

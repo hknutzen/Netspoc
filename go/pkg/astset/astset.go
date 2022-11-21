@@ -191,10 +191,10 @@ func (s *State) DeleteToplevel(name string) error {
 	typ, _, _ := strings.Cut(name, ":")
 	switch typ {
 	case "service":
-		s.RemoveFromToplevelAttr("service:", "overlaps", name)
-		s.RemoveFromToplevelAttr("service:", "identical_body", name)
+		s.removeFromToplevelAttr("service:", "overlaps", name)
+		s.removeFromToplevelAttr("service:", "identical_body", name)
 	case "network":
-		s.RemoveFromToplevelAttr("network:", "subnet_of", name)
+		s.removeFromToplevelAttr("network:", "subnet_of", name)
 	}
 	found := false
 	for i, aF := range s.astFiles {
@@ -275,11 +275,10 @@ func (s *State) DeleteUnmanagedLoopbackInterface(name string) {
 	})
 }
 
-func (s *State) RemoveFromToplevelAttr(typ, attr, name string) {
+func (s *State) removeFromToplevelAttr(typ, attr, name string) {
 	s.Modify(func(top ast.Toplevel) bool {
-		if n, ok := top.(ast.ToplevelWithAttr); ok &&
-			strings.HasPrefix(top.GetName(), typ) {
-
+		if strings.HasPrefix(top.GetName(), typ) {
+			n := top.(ast.ToplevelWithAttr)
 			if a := n.GetAttr(attr); a != nil {
 				if oLen := len(a.ValueList); oLen > 0 {
 					a.Remove(name)

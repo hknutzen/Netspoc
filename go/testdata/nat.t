@@ -56,9 +56,8 @@ router:r = {
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Error: Hidden NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'dynamic' in nat:n of network:n1
-Error: Hidden NAT must not use attribute 'identity' in nat:n of network:n1
+Error: Hidden NAT must not use other attributes in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################
@@ -75,8 +74,7 @@ router:r = {
 network:n2 = { ip = 10.1.2.0/24; }
 =END=
 =ERROR=
-Error: Identity NAT must not use attribute 'ip' in nat:n of network:n1
-Error: Identity NAT must not use attribute 'dynamic' in nat:n of network:n1
+Error: Identity NAT must not use other attributes in nat:n of network:n1
 =END=
 
 ############################################################
@@ -430,9 +428,10 @@ network:n4 = {
 network:n5 = { ip = 10.1.5.0/24; nat:n4 = { hidden; } }
 
 router:r1 = {
- interface:n1 = { ip = 10.1.1.1; }
- interface:n2 = { ip = 10.1.2.1; bind_nat = n1;
- }
+ managed = routing_only; # Kill mutation test.
+ model = IOS;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; bind_nat = n1; }
 }
 router:r2 = {
  managed;
@@ -763,6 +762,24 @@ network:n2 = { ip = 10.1.2.0/24; }
 =WARNING=
 Warning: Ignoring nat:x at host:h1 because network:n1 has static NAT definition
 Warning: Ignoring nat:x at interface:r1.n1 because network:n1 has static NAT definition
+=END=
+
+############################################################
+=TITLE=Missing IP in NAT of host
+=INPUT=
+network:n1 =  {
+ ip = 10.1.1.0/24;
+ nat:x = { ip = 10.8.8.0/24; }
+ host:h1 = { ip = 10.1.1.10; nat:x = {} }
+}
+router:r1 = {
+ interface:n1;
+ interface:n2 = { bind_nat = x; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+=END=
+=ERROR=
+Error: Expecting exactly one attribute 'ip' in nat:x of host:h1
 =END=
 
 ############################################################
@@ -2444,6 +2461,44 @@ Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
 =END=
 
 ############################################################
+=TITLE=Show interfaces preferred where both NAT tags are bound
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+router:r1 = {
+ interface:n0 = { bind_nat = a1, a2; }
+ interface:a;
+}
+network:a = {
+ ip = 10.1.1.0/24;
+ nat:a1 = { ip = 10.2.1.0/24; }
+ nat:a2 = { ip = 10.2.2.0/24; }
+}
+router:r11 = {
+ interface:a;
+ interface:t1 = { bind_nat = a1; }
+}
+network:t1 = {ip = 10.3.3.0/30;}
+router:r12 = {
+ interface:t1;
+ interface:b = { bind_nat = a2; }
+}
+router:r21 = {
+ interface:a;
+ interface:t2 = { bind_nat = a2; }
+}
+network:t2 = {ip = 10.3.3.4/30;}
+router:r22 = {
+ interface:t2;
+ interface:b = { bind_nat = a1; }
+}
+network:b = {ip = 10.9.9.0/24;}
+=END=
+=ERROR=
+Error: Grouped NAT tags 'a1, a2' of network:a must not both be active at
+ - interface:r1.n0
+=END=
+
+############################################################
 =TITLE=Groupd NAT tags with multiple NAT domains
 =INPUT=
 network:n1 = {
@@ -3849,17 +3904,23 @@ Error: Grouped NAT tags 'N, N2' of interface:r1.lo must not both be active at
 =END=
 
 ############################################################
-=TITLE=Only NAT IP at non loopback interface
+=TITLE=Only NAT IP allowed at non loopback interface
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- managed;
- model = IOS;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; nat:N = { hidden; } }
+ interface:n1 = { ip = 10.1.1.1; nat:N = { hidden; } }
+}
+router:r2 = {
+ interface:n1 = { ip = 10.1.1.1; nat:N = { identity; } }
+}
+router:r3 = {
+ interface:n1 = { ip = 10.1.1.1; nat:N = { ip = 9.9.9.9; dynamic; } }
 }
 =END=
 =ERROR=
 Error: Only 'ip' allowed in nat:N of interface:r1.n1
+Error: Only 'ip' allowed in nat:N of interface:r2.n1
+Error: Only 'ip' allowed in nat:N of interface:r3.n1
 =END=
 
 ############################################################

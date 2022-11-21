@@ -70,11 +70,12 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/conf"
 	"github.com/hknutzen/Netspoc/go/pkg/oslink"
@@ -125,7 +126,6 @@ func (c *spoc) printService(
 	srvNames []string, natNet string, showName bool, showIP bool) {
 
 	c.readNetspoc(path)
-	c.markDisabled()
 	c.setZone()
 	c.setPath()
 	c.distributeNatInfo()

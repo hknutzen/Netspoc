@@ -7,7 +7,7 @@ network:n1 = { ip = ::a01:100/120; }
 router:r = {
  interface:n1 = { ip = ::a01:101; hardware = n1; }
  interface:l = {
-  ip = ::a01:102; loopback; no_in_acl; dhcp_server; routing = OSPF; disabled;
+  ip = ::a01:102; loopback; no_in_acl; dhcp_server; routing = OSPF;
  }
 }
 =END=
@@ -105,7 +105,10 @@ router:r = {
 network:l = { ip = ::a01:102/128; }
 =END=
 =ERROR=
-Error: network:l isn't connected to any router
+Error: IPv6 topology has unconnected parts:
+ - any:[interface:r.l]
+ - any:[network:l]
+ Use partition attribute, if intended.
 =END=
 
 ############################################################

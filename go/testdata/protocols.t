@@ -473,6 +473,36 @@ ip access-list extended n2_in
 =END=
 
 ############################################################
+=TITLE=Must not apply dst_net to managed or loopback interface
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = {ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = {ip = 10.1.2.1; hardware = n2; }
+}
+router:u = {
+ interface:n2;
+ interface:lo = {ip = 10.9.9.9; loopback; }
+}
+protocol:Ping_Netz = icmp 8, src_net, dst_net;
+service:s1 = {
+ user = interface:u.lo, interface:r1.n2;
+ permit src = network:n1; dst = user; prt = protocol:Ping_Netz;
+}
+=END=
+=OUTPUT=
+--r1
+ip access-list extended n1_in
+ permit icmp 10.1.1.0 0.0.0.255 host 10.1.2.1 8
+ permit icmp 10.1.1.0 0.0.0.255 host 10.9.9.9 8
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=src_net with complex protocol
 =INPUT=
 network:n1 = {

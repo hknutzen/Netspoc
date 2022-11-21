@@ -592,7 +592,7 @@ access-group n2_in in interface n2
 =END=
 
 ############################################################
-=TITLE=Must not optimize even if aggregate is not on path of oter rule.
+=TITLE=Must not optimize even if aggregate is not on path of other rule.
 =PARAMS=--ipv6
 =INPUT=
 network:n1  = { ip = ::a02:100/123; }

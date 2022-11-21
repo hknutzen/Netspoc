@@ -46,7 +46,6 @@ Error: Can't find service service:service
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -57,11 +56,9 @@ service:s1 = {
         prt = tcp 6514,
               udp 20514,
               ;
-
 }
 =OUTPUT=
 service:s1 = {
- description = testservice
  user = host:u1,
         host:u2,
         ;
@@ -76,11 +73,10 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Transpose service 2
+=TITLE=Transpose service again
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:u1,
         host:u2,
         ;
@@ -94,7 +90,6 @@ service:s1 = {
 }
 =OUTPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -113,7 +108,6 @@ service:s1 = {
 =PARAMS=s1
 =INPUT=
 service:s1 = {
- description = testservice
  user = host:server1,
         host:server2,
         ;
@@ -121,16 +115,12 @@ service:s1 = {
         dst = host:u1,
               host:u2,
               ;
-        prt = tcp 6514,
-              udp 20514,
-              ;
+        prt = tcp 80;
  permit src = user;
         dst = host:u3,
               host:u4,
               ;
-        prt = tcp 6514,
-              udp 20514,
-              ;
+        prt = tcp 90;
 
 }
 =ERROR=
@@ -138,71 +128,84 @@ Error: Can't transpose service: multiple rules present.
 =END=
 
 ############################################################
-=TITLE=Cannot transpose if all networks from user present in rule
-=TODO= Missing functionality
-=PARAMS=usernetwork
+=TITLE=Cannot transpose without rule
+=PARAMS=s1
 =INPUT=
-service:usernetwork = {
- description = testservice
+service:s1 = {
+ user = network:n1;
+}
+=ERROR=
+Error: Can't transpose service: no rule present.
+=END=
 
- user = host:server1,
-        host:server2,
-        ;
+############################################################
+=TITLE=Cannot transpose if foreach is activated
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ user = foreach group:g1;
  permit src = user;
         dst = network:[user];
+        prt = tcp 80;
+}
+=ERROR=
+Error: Can't transpose service: foreach present.
+=END=
+
+############################################################
+=TITLE=Cannot transpose if src and dst is user
+=PARAMS=useruser
+=INPUT=
+service:useruser = {
+ user = network:n1;
+ permit src = user;
+        dst = user;
+        prt = tcp 80;
+}
+=ERROR=
+Error: Can't transpose service: both src and dst reference user.
+=END=
+
+############################################################
+=TITLE=Cannot transpose if src and dst is nested user
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ user = network:n1;
+ permit src = any:[user];
+        dst = interface:[user].[all];
+        prt = tcp 80;
+}
+=ERROR=
+Error: Can't transpose service: none of src and dst directly reference user.
+=END=
+
+############################################################
+=TITLE=Cannot transpose: dst references nested user
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ user = host:h1, host:h2;
+ permit src = user;
+        dst = network:[user];
+        prt = tcp 80;
+}
+=ERROR=
+Error: Can't transpose service: dst references nested user.
+=END=
+
+############################################################
+=TITLE=Cannot transpose: src references nested user
+=PARAMS=s1
+=INPUT=
+service:s1 = {
+ user = group:g1;
+ permit src = network:[! host:h3 & user];
+        dst = user;
         prt = tcp 6514,
               udp 20514,
               ;
 }
 =ERROR=
-Error: Can't transpose service: network with user present.
-=END=
-############################################################
-=TITLE=Cannot transpose if foreach is activated
-=PARAMS=usernetwork
-=INPUT=
-network:n1 = {
- ip = 10.1.1.0/24;
- host:h1 = { ip = 10.1.1.13; }
- host:h2 = { ip = 10.1.1.14; }
-}
-group:g1 = 
- host:h1,
- host:h2,
- ;
-
-service:usernetwork = {
- description = testservice
-
- user = foreach
-	group:g1,
-	;
- permit src = user;
-        dst = network:[user];
-        prt = tcp 6514,
-              udp 5565,
-              ;
-}
-=ERROR=
-Error: Can't transpose service: foreach present.
-=END=
-############################################################
-=TITLE=Cannot transpose if 
-=PARAMS=usernetwork
-=INPUT=
-network:n1 = {
- ip = 10.1.1.0/24;
-}
-service:usernetwork = {
- description = testservice
-
- user = network:n1;
- permit src = user;
-        dst = user;
-        prt = tcp 6514,
-              udp 5565,
-              ;
-}
-=ERROR=
-Error: Can't transpose service: src and dst are user.
+Error: Can't transpose service: src references nested user.
 =END=

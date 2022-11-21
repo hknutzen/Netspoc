@@ -573,6 +573,61 @@ network:n3 = { ip = 10.3.3.0/24; owner = y; }
 =END=
 
 ############################################################
+=TITLE=Intersection of outer owners
+=INPUT=
+owner:a12 = { admins = a12@b.c; }
+owner:a1  = { admins = a1@b.c; }
+owner:n2  = { admins = n2@b.c; }
+owner:a3  = { admins = a3@b.c; }
+owner:o12 = { admins = o12@b.c; }
+owner:o3  = { admins = o3@b.c; }
+area:a12  = { owner = a12; border = interface:r2.n2; }
+area:a1   = { owner = a1; border = interface:r1.n1; }
+area:a3   = { owner = a3; border = interface:r2.n3; }
+network:n1 = { ip = 10.1.1.0/24;
+ host:h11 = { ip = 10.1.1.11; owner = o12; }
+}
+network:n2 = {
+ owner = n2;
+ ip = 10.1.2.0/24;
+ host:h21 = { ip = 10.1.2.21; owner = o12; }
+ host:h33 = { ip = 10.1.2.30; owner = o3; }
+}
+network:n3 = { ip = 10.1.3.0/24;
+ host:h3 = { ip = 10.1.3.30; owner = o3; }
+}
+router:r1 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+=OUTPUT=
+--owner/o12/extended_by
+[
+ {
+  "name": "a12"
+ }
+]
+--owner/o3/extended_by
+[]
+--owner/n2/extended_by
+[
+ {
+  "name": "a12"
+ }
+]
+=END=
+
+############################################################
 =TITLE=Services of nested objects visible for outer owners
 =INPUT=
 owner:all = { admins = all@example.com; }
@@ -700,6 +755,7 @@ network:n1 = { ip = 10.1.1.0/24;
  host:x2 = { ip = 10.1.1.2; owner = x2; }
  host:x3 = { ip = 10.1.1.3; owner = x3; }
  host:x4 = { ip = 10.1.1.4; owner = x4; }
+ host:x5 = { ip = 10.1.1.4; }
 }
 network:n2 = { ip = 10.1.2.0/24;
  host:DA_1 = { ip = 10.1.2.1; owner = DA_1; }
@@ -725,6 +781,14 @@ service:s3 = {
  user = host:DA_1, host:DA_2, host:x3;
  permit src = user; dst = host:x1; prt = tcp 80;
 }
+service:s4 = {
+ user = host:x1, host:x2, host:x3;
+ permit src = user; dst = host:x5; prt = tcp 80;
+}
+service:s5 = {
+ user = host:DA_1, host:DA_2, host:DA_3;
+ permit src = user; dst = host:x5; prt = tcp 81;
+}
 =END=
 =OUTPUT=
 --owner/x1/service_lists
@@ -734,7 +798,8 @@ service:s3 = {
   "s3"
  ],
  "user": [
-  "s1"
+  "s1",
+  "s4"
  ],
  "visible": []
 }
@@ -743,7 +808,8 @@ service:s3 = {
  "owner": [],
  "user": [],
  "visible": [
-  "s1"
+  "s1",
+  "s4"
  ]
 }
 --owner/DA_1/service_lists
@@ -753,9 +819,10 @@ service:s3 = {
  ],
  "user": [
   "s2",
-  "s3"
+  "s3",
+  "s5"
  ],
- "visible": []
+ "visible": ["s4"]
 }
 --owner/DA_4/service_lists
 {
@@ -763,7 +830,9 @@ service:s3 = {
  "user": [],
  "visible": [
   "s1",
-  "s2"
+  "s2",
+  "s4",
+  "s5"
  ]
 }
 =END=
@@ -3032,127 +3101,50 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Disabled user, disabled in rule, disabled service
+=TITLE=Disabled service
 =INPUT=
 owner:all = { admins = all@example.com; }
 area:all = { anchor = network:n1; owner = all; }
 network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; host:h2 = { ip = 10.1.2.10; } }
-network:n3 = { ip = 10.1.3.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = IOS;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; disabled; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 service:s1 = {
- user = network:n2;
- permit src = user; dst = network:n1; prt = tcp 81;
-}
-service:s2 = {
- user = host:h2, interface:r1.n2;
- permit src = user; dst = network:n1; prt = tcp 82;
-}
-service:s3 = {
- user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 83;
-}
-service:s4 = {
  disabled;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 84;
+ permit src = user; dst = network:n2; prt = tcp 80;
 }
-service:s5 = {
+service:s2 = {
  disable_at = 3000-12-31;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 85;
+ permit src = user; dst = network:n2; prt = tcp 81;
 }
-service:s6 = {
+service:s3 = {
  disable_at = 1999-12-31;
  user = network:n1;
- permit src = user; dst = network:n3; prt = tcp 86;
+ permit src = user; dst = network:n2; prt = tcp 82;
 }
 =END=
 =OUTPUT=
 --owner/all/users
 {
- "s1": [],
- "s2": [],
+ "s1": [
+  "network:n1"
+ ],
+ "s2": [
+  "network:n1"
+ ],
  "s3": [
-  "network:n1"
- ],
- "s4": [
-  "network:n1"
- ],
- "s5": [
-  "network:n1"
- ],
- "s6": [
   "network:n1"
  ]
 }
 --services
 {
  "s1": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "network:n1"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 81"
-    ],
-    "src": []
-   }
-  ]
- },
- "s2": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "network:n1"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 82"
-    ],
-    "src": []
-   }
-  ]
- },
- "s3": {
-  "details": {
-   "owner": [
-    ":unknown"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [],
-    "has_user": "src",
-    "prt": [
-     "tcp 83"
-    ],
-    "src": []
-   }
-  ]
- },
- "s4": {
   "details": {
    "disabled": 1,
    "owner": [
@@ -3163,17 +3155,17 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 84"
+     "tcp 80"
     ],
     "src": []
    }
   ]
  },
- "s5": {
+ "s2": {
   "details": {
    "disable_at": "3000-12-31",
    "owner": [
@@ -3184,17 +3176,17 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 85"
+     "tcp 81"
     ],
     "src": []
    }
   ]
  },
- "s6": {
+ "s3": {
   "details": {
    "disable_at": "1999-12-31",
    "disabled": 1,
@@ -3206,11 +3198,11 @@ service:s6 = {
    {
     "action": "permit",
     "dst": [
-     "network:n3"
+     "network:n2"
     ],
     "has_user": "src",
     "prt": [
-     "tcp 86"
+     "tcp 82"
     ],
     "src": []
    }
@@ -3235,7 +3227,7 @@ service:s1 = {
  user = network:n1;
  permit src = user;
         dst = network:n2;
-        prt = tcp 80-90, protocol:ntp, icmp 0, icmp 3/13, proto 54;
+        prt = udp 1-10, tcp 80-90, protocol:ntp, icmp 0, icmp 3/13, proto 54;
 }
 service:s2 = {
  user = network:n2;
@@ -3265,7 +3257,8 @@ service:s2 = {
      "icmp 0",
      "icmp 3/13",
      "tcp 80-90",
-     "udp 123:123"
+     "udp 123:123",
+     "udp 1-10"
     ],
     "src": []
    }

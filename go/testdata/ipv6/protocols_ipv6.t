@@ -498,6 +498,37 @@ ipv6 access-list n2_in
 =END=
 
 ############################################################
+=TITLE=Must not apply dst_net to managed or loopback interface
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+router:r1 = {
+ model = IOS;
+ managed;
+ routing = manual;
+ interface:n1 = {ip = ::a01:101; hardware = n1; }
+ interface:n2 = {ip = ::a01:201; hardware = n2; }
+}
+router:u = {
+ interface:n2;
+ interface:lo = {ip = ::a09:909; loopback; }
+}
+protocol:Ping_Netz = icmpv6 8, src_net, dst_net;
+service:s1 = {
+ user = interface:u.lo, interface:r1.n2;
+ permit src = network:n1; dst = user; prt = protocol:Ping_Netz;
+}
+=END=
+=OUTPUT=
+--ipv6/r1
+ipv6 access-list n1_in
+ permit icmp ::a01:100/120 host ::a01:201 8
+ permit icmp ::a01:100/120 host ::a09:909 8
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=src_net with complex protocol
 =PARAMS=--ipv6
 =INPUT=

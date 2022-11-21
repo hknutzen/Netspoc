@@ -1,7 +1,5 @@
 package pass1
 
-import ()
-
 //#############################################################################
 // Generate reverse rules for stateless packet filters:
 // For each rule with protocol tcp, udp or ip we need a reverse rule

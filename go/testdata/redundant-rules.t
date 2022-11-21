@@ -626,12 +626,13 @@ service:s1 = {
 =WARNING=NONE
 
 ############################################################
-=TITLE=Relation between src and dst ranges
+=TITLE=Relation between UDP src and dst ranges
 # p1 < p2 and p1 < p3
 =INPUT=
 protocol:p1 = udp 123:123;
 protocol:p2 = udp 100-65535:123;
 protocol:p3 = udp 123:1-1000;
+protocol:p4 = udp 90-126:1-65535;
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
   model = IOS, FW;
@@ -642,7 +643,9 @@ router:r1 = {
 network:n2 = { ip = 10.1.2.0/24; }
 service:t1 = {
   user = network:n1;
-  permit src = user; dst = network:n2; prt = protocol:p1, protocol:p2, protocol:p3;
+  permit src = user;
+         dst = network:n2;
+         prt = protocol:p1, protocol:p2, protocol:p3, protocol:p4;
 }
 service:t2 = {
   user = network:n1;
@@ -653,9 +656,15 @@ service:t2 = {
 =WARNING=
 Warning: Redundant rules in service:t1 compared to service:t1:
   permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
-< permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:t1
-  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
 < permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
+  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
+< permit src=network:n1; dst=network:n2; prt=protocol:p4; of service:t1
+  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:t1
+< permit src=network:n1; dst=network:n2; prt=udp 100-126:123; of service:t1
+  permit src=network:n1; dst=network:n2; prt=protocol:p3; of service:t1
+< permit src=network:n1; dst=network:n2; prt=protocol:p4; of service:t1
+  permit src=network:n1; dst=network:n2; prt=udp 100-126:123; of service:t1
+< permit src=network:n1; dst=network:n2; prt=protocol:p4; of service:t1
 Warning: Redundant rules in service:t2 compared to service:t2:
   permit src=network:n2; dst=network:n1; prt=protocol:p1; of service:t2
 < permit src=network:n2; dst=network:n1; prt=udp 123; of service:t2
@@ -663,14 +672,53 @@ Warning: Redundant rules in service:t2 compared to service:t2:
 -- r1
 ip access-list extended n1_in
  deny ip any host 10.1.2.1
- permit udp 10.1.1.0 0.0.0.255 range 100 1000 10.1.2.0 0.0.0.255 eq 123
+ permit udp 10.1.1.0 0.0.0.255 range 127 1000 10.1.2.0 0.0.0.255 eq 123
  permit udp 10.1.1.0 0.0.0.255 gt 1000 10.1.2.0 0.0.0.255 eq 123
- permit udp 10.1.1.0 0.0.0.255 eq 123 10.1.2.0 0.0.0.255 lt 1001
+ permit udp 10.1.1.0 0.0.0.255 range 90 126 10.1.2.0 0.0.0.255
  deny ip any any
 --
 ip access-list extended n2_in
  deny ip any host 10.1.1.1
  permit udp 10.1.2.0 0.0.0.255 10.1.1.0 0.0.0.255 eq 123
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Relation between overlapping TCP ranges
+# p1 < p2 and p1 < p3
+=INPUT=
+protocol:p1 = tcp 85-89;
+protocol:p2 = tcp 80-90;
+protocol:p3 = tcp 84-94; # split into 84-90,91-94
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+  model = IOS, FW;
+  managed;
+  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:s1 = {
+  user = network:n1;
+  permit src = user;
+         dst = network:n2;
+         prt = protocol:p1, protocol:p2, protocol:p3;
+}
+=END=
+# Adjacent src ranges are not joined currently.
+=WARNING=
+Warning: Redundant rules in service:s1 compared to service:s1:
+  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:s1
+< permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:s1
+  permit src=network:n1; dst=network:n2; prt=protocol:p1; of service:s1
+< permit src=network:n1; dst=network:n2; prt=tcp 84-90; of service:s1
+  permit src=network:n1; dst=network:n2; prt=tcp 84-90; of service:s1
+< permit src=network:n1; dst=network:n2; prt=protocol:p2; of service:s1
+=OUTPUT=
+-- r1
+ip access-list extended n1_in
+ deny ip any host 10.1.2.1
+ permit tcp 10.1.1.0 0.0.0.255 10.1.2.0 0.0.0.255 range 80 94
  deny ip any any
 =END=
 

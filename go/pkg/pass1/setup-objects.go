@@ -3,7 +3,6 @@ package pass1
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"path"
 	"regexp"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/filetree"
@@ -72,6 +73,7 @@ func (c *spoc) setupTopology(toplevel []ast.Toplevel) {
 	c.stopOnErr()
 	c.linkTunnels()
 	c.linkVirtualInterfaces()
+	c.collectRoutersAndNetworks()
 }
 
 type symbolTable struct {
@@ -521,7 +523,10 @@ var isakmpAttr = map[string]attrDescr{
 		values: []string{"preshare", "rsasig"},
 	},
 	"encryption": {
-		values: []string{"aes", "aes192", "aes256", "des", "3des"},
+		values: []string{
+			"aes", "aes192", "aes256", "des", "3des",
+			"aes-gcm", "aes-gcm-192", "aes-gcm-256",
+		},
 	},
 	"hash": {
 		values: []string{"md5", "sha", "sha256", "sha384", "sha512"},
@@ -614,7 +619,11 @@ func (c *spoc) getAttr(a *ast.Attribute, descr map[string]attrDescr, ctx string)
 
 var ipsecAttr = map[string]attrDescr{
 	"esp_encryption": {
-		values: []string{"none", "aes", "aes192", "aes256", "des", "3des"},
+		values: []string{
+			"none", "3des", "aes", "aes192", "aes256", "des",
+			"aes-gcm", "aes-gcm-192", "aes-gcm-256",
+			"aes-gmac", "aes-gmac-192", "aes-gmac-256",
+		},
 	},
 	"esp_authentication": {
 		values: []string{"none", "md5", "sha", "sha256", "sha384", "sha512"},
@@ -1570,7 +1579,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		case "spoke":
 			intf.spoke = c.getCryptoRef(a, name)
 		case "id":
-			intf.id = c.getUserID(a, name)
+			intf.id = c.getSingleValue(a, name)
 		case "virtual":
 			virtual = c.getVirtual(a, v6, name)
 		case "bind_nat":
@@ -1579,8 +1588,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			intf.routing = c.getRouting(a, name)
 		case "reroute_permit":
 			intf.reroutePermit = c.tryNetworkRefList(a, v6, name)
-		case "disabled":
-			intf.disabled = c.getFlag(a, name)
 		case "no_check":
 			intf.noCheck = c.getFlag(a, name)
 		default:
@@ -1611,12 +1618,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		}
 	}
 
-	// Would interfere with split crypto router.
-	if intf.disabled && (intf.hub != nil || intf.spoke != nil) {
-		c.warn("Ignoring attribute 'disabled' at %s of crypto router", name)
-		intf.disabled = false
-	}
-
 	if l3Name == v.Name {
 		intf.loopback = true
 		intf.isLayer3 = true
@@ -1629,8 +1630,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		}
 		if !ipGiven {
 			c.err("Layer3 %s must have IP address", intf)
-			// Prevent further errors.
-			intf.disabled = true
 		}
 		if secondaryList != nil || virtual != nil {
 			c.err("Layer3 %s must not have secondary or virtual IP", intf)
@@ -1868,7 +1867,6 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		s.mainIntf = intf
 		s.bindNat = intf.bindNat
 		s.routing = intf.routing
-		s.disabled = intf.disabled
 	}
 
 	// Automatically create a network for loopback interface.
@@ -1922,13 +1920,7 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 		// Link interface with network.
 		n := c.symTable.network[nName]
 		if n == nil {
-			msg := "Referencing undefined network:%s from %s"
-			if intf.disabled {
-				c.warn(msg, nName, name)
-			} else {
-				c.err(msg, nName, name)
-				intf.disabled = true
-			}
+			c.err("Referencing undefined network:%s from %s", nName, name)
 		} else {
 			n.interfaces.push(intf)
 			for _, intf := range append(intfList{intf}, secondaryList...) {
@@ -1945,7 +1937,8 @@ func (c *spoc) setupInterface(v *ast.Attribute,
 			intf.nat = make(map[string]netip.Addr)
 			for tag, info := range nat {
 				// Reject all non IP NAT attributes.
-				if info.hidden || info.identity || info.dynamic {
+				// 'hidden' and 'identity' always set 'dynamic'.
+				if info.dynamic {
 					c.err("Only 'ip' allowed in nat:%s of %s", tag, intf)
 				} else {
 					intf.nat[tag] = info.ipp.Addr()
@@ -2691,15 +2684,6 @@ func isIdHostname(id string) bool {
 	return (i <= 0 || isDomain(id[:i])) && isDomain(id[i+1:])
 }
 
-func (c *spoc) getUserID(a *ast.Attribute, ctx string) string {
-	id := c.getSingleValue(a, ctx)
-	p1, p2, found := strings.Cut(id, "@")
-	if !(found && isDomain(p1) && isDomain(p2)) {
-		c.err("Invalid '%s' in %s: %s", a.Name, ctx, id)
-	}
-	return id
-}
-
 func isSimpleName(n string) bool {
 	return n != "" && !strings.ContainsAny(n, ".:/@")
 }
@@ -3361,15 +3345,28 @@ func (c *spoc) addXNat(
 	tag := a.Name[len("nat:"):]
 	nat := new(network)
 	natCtx := a.Name + " of " + ctx
+	ipGiven := false
 	l := c.getComplexValue(a, ctx)
 	for _, a2 := range l {
 		switch a2.Name {
 		case "ip":
+			ipGiven = true
 			nat.ipp = getIpX(a2, v6, natCtx)
 		case "hidden":
 			nat.hidden = c.getFlag(a2, natCtx)
+			if len(l) != 1 {
+				c.err("Hidden NAT must not use other attributes in %s", natCtx)
+			}
+			// This simplifies error checks for overlapping addresses.
+			nat.dynamic = true
+			// Provide an unusable address.
+			nat.ipp = netip.PrefixFrom(getZeroIp(v6), getHostPrefix(v6))
 		case "identity":
 			nat.identity = c.getFlag(a2, natCtx)
+			if len(l) != 1 {
+				c.err("Identity NAT must not use other attributes in %s", natCtx)
+			}
+			nat.dynamic = true
 		case "dynamic":
 			nat.dynamic = c.getFlag(a2, natCtx)
 		case "subnet_of":
@@ -3378,28 +3375,7 @@ func (c *spoc) addXNat(
 			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
 		}
 	}
-	if nat.hidden {
-		for _, a2 := range l {
-			if a2.Name != "hidden" {
-				c.err("Hidden NAT must not use attribute '%s' in %s",
-					a2.Name, natCtx)
-			}
-		}
-
-		// This simplifies error checks for overlapping addresses.
-		nat.dynamic = true
-
-		// Provide an unusable address.
-		nat.ipp = netip.PrefixFrom(getZeroIp(v6), getHostPrefix(v6))
-	} else if nat.identity {
-		for _, a2 := range l {
-			if a2.Name != "identity" {
-				c.err("Identity NAT must not use attribute '%s' in %s",
-					a2.Name, natCtx)
-			}
-		}
-		nat.dynamic = true
-	} else if !nat.ipp.IsValid() {
+	if !nat.identity && !nat.hidden && !ipGiven {
 		c.err("Missing IP address in %s", natCtx)
 	}
 
@@ -3422,22 +3398,17 @@ func (c *spoc) addIPNat(a *ast.Attribute, m map[string]netip.Addr, v6 bool,
 	if !strings.HasPrefix(a.Name, "nat:") {
 		return nil
 	}
-	tag := a.Name[len("nat:"):]
-	var ip netip.Addr
-	natCtx := a.Name + " of " + ctx
-	l := c.getComplexValue(a, ctx)
-	for _, a2 := range l {
-		switch a2.Name {
-		case "ip":
-			ip = c.getIp(a2, v6, natCtx)
-		default:
-			c.err("Unexpected attribute in %s: %s", natCtx, a2.Name)
-		}
-	}
 	if m == nil {
 		m = make(map[string]netip.Addr)
 	}
-	m[tag] = ip
+	tag := a.Name[len("nat:"):]
+	natCtx := a.Name + " of " + ctx
+	l := c.getComplexValue(a, ctx)
+	if len(l) != 1 || l[0].Name != "ip" {
+		c.err("Expecting exactly one attribute 'ip' in %s", natCtx)
+		return m
+	}
+	m[tag] = c.getIp(l[0], v6, natCtx)
 	return m
 }
 
@@ -3646,7 +3617,7 @@ func (c *spoc) linkTunnels() {
 	})
 	for _, cr := range l {
 		realHub := cr.hub
-		if realHub == nil || realHub.disabled {
+		if realHub == nil {
 			c.warn("No hub has been defined for %s", cr.name)
 			continue
 		}

@@ -19,6 +19,17 @@ Warning: Ignoring file 'ipv6/empty' without any content
 =END=
 
 ############################################################
+=TITLE=Token with non letter or digit UTF8 character
+=PARAMS=--ipv6
+=INPUT=
+# EQUAL TO OR GREATER-THAN
+network:⋝3 = { ip = ::a01:100/120; }
+=ERROR=
+Error: Typed name expected at line 2 of INPUT, near "--HERE-->network:⋝3"
+Aborted
+=END=
+
+############################################################
 =TITLE=Invalid IP address
 =PARAMS=--ipv6
 =INPUT=
@@ -583,11 +594,13 @@ Error: Invalid CIDR address:  in 'ip' of network:n1
 =TITLE=Structured value expected
 =PARAMS=--ipv6
 =INPUT=
-network:n1 = { ip = ::a01:100/120; host:h = ::a01:10a; }
+network:n1 = { ip = ::a01:100/120; host:h1 = ::a01:10a; host:h2; }
 =END=
 =ERROR=
-Error: Structured value expected in 'host:h'
-Error: host:h needs exactly one of attributes 'ip' and 'range'
+Error: Structured value expected in 'host:h1'
+Error: host:h1 needs exactly one of attributes 'ip' and 'range'
+Error: Structured value expected in 'host:h2'
+Error: host:h2 needs exactly one of attributes 'ip' and 'range'
 =END=
 
 ############################################################
@@ -837,20 +850,6 @@ router:r = {
 }
 =ERROR=
 Error: Expected type 'crypto:' in 'spoke' of interface:r.n
-=END=
-
-############################################################
-=TITLE=Bad VPN id
-=PARAMS=--ipv6
-=INPUT=
-router:r = {
- interface:n1 = { id = a.b.c; }
-}
-network:n1 = { unnumbered; }
-=END=
-=ERROR=
-Error: Invalid 'id' in interface:r.n1: a.b.c
-Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r.n1
 =END=
 
 ############################################################
@@ -1125,7 +1124,7 @@ network:n = {
 }
 =END=
 =ERROR=
-Error: Unexpected attribute in nat:n of host:h: dynamic
+Error: Expecting exactly one attribute 'ip' in nat:n of host:h
 =END=
 
 ############################################################

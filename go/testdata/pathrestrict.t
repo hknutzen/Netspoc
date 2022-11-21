@@ -1123,34 +1123,6 @@ Error: No valid path
 =END=
 
 ############################################################
-=TITLE=Pathrestriction at disabled interface
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; }
-network:n2 = { ip = 10.1.2.0/24; }
-network:n3 = { ip = 10.1.3.0/24; }
-router:r1 = {
- model = IOS;
- managed;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-router:r2 = {
- model = IOS;
- managed;
- interface:n1 = { ip = 10.1.1.2; hardware = n1; }
- interface:n2 = { ip = 10.1.2.2; hardware = n2; }
- interface:n3 = { ip = 10.1.3.1; hardware = n3; disabled; }
-}
-pathrestriction:p1 =
- interface:r1.n2,
- interface:r2.n3,
-;
-=END=
-=WARNING=
-Warning: Ignoring pathrestriction:p1 with only interface:r1.n2
-=END=
-
-############################################################
 =TITLE=Show 'no valid path' for both services
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }

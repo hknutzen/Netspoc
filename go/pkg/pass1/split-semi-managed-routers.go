@@ -1,7 +1,5 @@
 package pass1
 
-import ()
-
 // If a pathrestriction or a bind_nat is added to an unmanged router,
 // it is marked as semiManaged. As a consequence, a new zone would be
 // created at each interface of this router.

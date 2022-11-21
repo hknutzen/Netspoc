@@ -54,7 +54,7 @@ ipv6 access-list e1_in
 [[topo]]
 service:test = {
  user = network:x;
- permit src = user; dst = network:y; prt = udp 389;
+ permit src = user; dst = network:y; prt = udp 389, udp 1024-65535;
 }
 =END=
 =OUTPUT=
@@ -62,11 +62,13 @@ service:test = {
 ipv6 access-list e0_in
  deny ipv6 any host ::a02:202
  permit udp ::a01:100/120 ::a02:200/120 eq 389
+ permit udp ::a01:100/120 ::a02:200/120 gt 1023
  deny ipv6 any any
 --
 ipv6 access-list e1_in
  deny ipv6 any host ::a01:101
  permit udp ::a02:200/120 eq 389 ::a01:100/120
+ permit udp ::a02:200/120 gt 1023 ::a01:100/120
  deny ipv6 any any
 =END=
 
@@ -164,6 +166,53 @@ ipv6 access-list e0_in
  deny ipv6 any host ::a02:202
  permit tcp ::a01:100/120 ::a02:200/120 gt 1023
  deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Reverse rule for model with statelessSelf
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1 = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--ipv6/r1
+! [ ACL ]
+ipv6 access-list n1_in
+ permit udp ::a01:100/120 eq 68 host ::a01:101
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Generate no reverse rule for model without statelessSelf
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1 = {
+ model = Linux;
+ managed;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--ipv6/r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
 =END=
 
 ############################################################

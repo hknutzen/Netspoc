@@ -275,6 +275,16 @@ Error: Invalid email address (ASCII only) in watchers of owner:o1: abc.example.c
 =END=
 
 ############################################################
+=TITLE=Wildcard address with invalid domain
+=INPUT=
+owner:o1 = { admins = abc@example.com; watchers = [all]@...; }
+network:n1 = { ip = 10.1.1.0/24; owner = o1; }
+=END=
+=ERROR=
+Error: Invalid email address (ASCII only) in watchers of owner:o1: [all]@...
+=END=
+
+############################################################
 =TITLE=Owner with attribute only_watch only usable at area
 =INPUT=
 owner:x = { admins = a@a.b; watchers = x@a.b; only_watch; }
@@ -592,24 +602,51 @@ Warning: Unknown owner for network:n2 in service:s1, service:s2
 ############################################################
 =TITLE=Restrict attribute 'unknown_owner'
 =INPUT=
+owner:o2 = { admins = a2@example.com; }
 network:n1 = { ip = 10.1.1.0/24; }
-router:asa1 = {
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
  managed;
  model = ASA;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
 }
-network:n2 = { ip = 10.1.2.0/24; }
-any:n2 = { link = network:n2; unknown_owner = restrict; }
+area:a23 = { inclusive_border = interface:r1.n1; unknown_owner = restrict; }
 service:s1 = {
  unknown_owner;
  user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
+ permit src = user; dst = network:n2, network:n3; prt = tcp 80;
 }
 =END=
 =WARNING=
 Warning: Attribute 'unknown_owner' is blocked at service:s1
 =END=
+=OPTIONS=--check_service_unknown_owner=warn
+
+############################################################
+=TITLE=Ignore useless 'unknown_owner = restrict'
+=INPUT=
+owner:o2 = { admins = a2@example.com; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; owner = o2; }
+network:n3 = { ip = 10.1.3.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+any:a2 = { link = network:n2; unknown_owner = restrict; }
+service:s1 = {
+ unknown_owner;
+ user = network:n1;
+ permit src = user; dst = network:n2, network:n3; prt = tcp 80;
+}
+=END=
+=WARNING=NONE
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################

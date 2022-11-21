@@ -90,6 +90,7 @@ go/pkg/pass1/check-service-owner.go
 go/pkg/pass1/check-supernet.go
 go/pkg/pass1/check-unstable-nat-rules.go
 go/pkg/pass1/check-unused-groups.go
+go/pkg/pass1/collect-routers-and-networks.go
 go/pkg/pass1/convert-hosts.go
 go/pkg/pass1/copy-raw.go
 go/pkg/pass1/cut-netspoc.go
@@ -102,7 +103,6 @@ go/pkg/pass1/find-subnets.go
 go/pkg/pass1/get-aggregates.go
 go/pkg/pass1/get-attr.go
 go/pkg/pass1/group-path-rules.go
-go/pkg/pass1/mark-disabled.go
 go/pkg/pass1/mark-managed-local.go
 go/pkg/pass1/mark-secondary-rules.go
 go/pkg/pass1/nat.go
@@ -146,9 +146,12 @@ go/testdata/add-to-netspoc/add-to-netspoc.t
 go/testdata/adjacent-net.t
 go/testdata/aggregate.t
 go/testdata/any-multicast-interface.t
+go/testdata/api/group.t
 go/testdata/api/modify.t
-go/testdata/api/modify2.t
+go/testdata/api/owner.t
 go/testdata/api/path.t
+go/testdata/api/service.t
+go/testdata/api/topology.t
 go/testdata/area.t
 go/testdata/auto_intf.t
 go/testdata/bridged.t

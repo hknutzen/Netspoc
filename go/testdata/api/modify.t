@@ -1,5 +1,59 @@
 
 ############################################################
+=TITLE=Option '-h'
+=INPUT=NONE
+=PARAMS=-h
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR JOB
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=No parameters
+=INPUT=NONE
+=ERROR=
+Usage: PROGRAM [options] FILE|DIR JOB
+  -q, --quiet   Don't show changed files
+=END=
+
+############################################################
+=TITLE=Unknown option
+=INPUT=NONE
+=PARAMS=--abc
+=ERROR=
+Error: unknown flag: --abc
+=END=
+
+############################################################
+=TITLE=Invalid netspoc data
+=INPUT=
+foo
+=JOB=
+{}
+=ERROR=
+Error: While reading netspoc files: Typed name expected at line 1 of INPUT, near "--HERE-->foo"
+=END=
+
+############################################################
+=TITLE=Invalid JSON in job
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+=ERROR=
+Error: In JSON input: unexpected end of JSON input
+=END=
+
+############################################################
+=TITLE=Unknown job file
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=PARAM=foo
+=ERROR=
+Error: Can't open foo: no such file or directory
+=END=
+
+############################################################
 =TITLE=Missing job
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -10,11 +64,35 @@ Error: Missing "params" in JSON input
 =END=
 
 ############################################################
-=TITLE=Missing method in job
+=TITLE=Invalid empty job
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 =JOB=
-{ "params": {} }
+{}
+=ERROR=
+Error: Missing "params" in JSON input
+=END=
+
+############################################################
+=TITLE=Invalid job without params
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add"
+}
+=ERROR=
+Error: Missing "params" in JSON input
+=END=
+
+############################################################
+=TITLE=Invalid job without method
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "params": {}
+}
 =ERROR=
 Error: Unknown method ''
 =END=
@@ -38,6 +116,33 @@ network:n1 = { ip = 10.1.1.0/24; }
 =ERROR=
 Error: In "params" of JSON input: json: cannot unmarshal number into Go value of type map[string]interface {}
 =END=
+
+############################################################
+=TITLE=Invalid params with valid method
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "add",
+    "params": "foo"
+}
+=ERROR=
+Error: In "params" of JSON input: json: cannot unmarshal string into Go value of type map[string]interface {}
+=END=
+
+############################################################
+=TITLE=multi_job without jobs
+=INPUT=
+-- topology
+network:n1 = { ip = 10.1.1.0/24; }
+=JOB=
+{
+    "method": "multi_job",
+    "params": {
+        "jobs": []
+    }
+}
+=OUTPUT=NONE
 
 ############################################################
 =TITLE=Ignore invalid value in jobs of multi_job

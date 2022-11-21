@@ -1,9 +1,10 @@
 package pass1
 
 import (
-	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"net/netip"
 	"strings"
+
+	"github.com/hknutzen/Netspoc/go/pkg/ast"
 )
 
 func cond(t bool, s1, s2 string) string {
@@ -386,16 +387,14 @@ func (c *spoc) expandGroup1(
 				selector := x.Extension
 				r := c.getRouter(x.Router, ipv6)
 				if r != nil {
-					if !r.disabled {
-						if selector == "all" {
-							for _, intf := range withSecondary(getIntf(r)) {
-								if check(intf) {
-									result.push(intf)
-								}
+					if selector == "all" {
+						for _, intf := range withSecondary(getIntf(r)) {
+							if check(intf) {
+								result.push(intf)
 							}
-						} else if a := c.getRouterAutoIntf(r); a != nil {
-							result.push(a)
 						}
+					} else if a := c.getRouterAutoIntf(r); a != nil {
+						result.push(a)
 					}
 				} else {
 					c.err("Can't resolve %s:%s.[%s] in %s",
@@ -408,9 +407,7 @@ func (c *spoc) expandGroup1(
 					name += "." + e
 				}
 				if intf, found := c.symTable.routerIntf[name]; found {
-					if !intf.disabled {
-						result.push(intf)
-					}
+					result.push(intf)
 				} else {
 					c.err("Can't resolve %s:%s in %s", x.Type, name, ctx)
 				}
@@ -601,9 +598,6 @@ func (c *spoc) expandGroup1(
 				continue
 			}
 			c.checkV4V6CrossRef(obj, ipv6, ctx)
-			if x, ok := obj.(withDisabled); ok && x.isDisabled() {
-				continue
-			}
 
 			// Split a group into its members.
 			// There may be two different versions depending on 'visible'.
@@ -679,12 +673,12 @@ func (c *spoc) checkV4V6CrossRef(obj ipVxGroupObj, ipv6 bool, ctx string) {
 
 // Parameter showAll is set, if called from command "print-group".
 // This changes the result of
-// 1. network:[any|area|network:..]:
-//    For each resulting network, all subnets of this network in same
-//    zone are added.
-//    Crosslink networks are no longer suppressed.
-// 2. interface:[..].[all]:
-//    Unnumbered and bridged interfaces are no longer suppressed.
+//  1. network:[any|area|network:..]:
+//     For each resulting network, all subnets of this network in same
+//     zone are added.
+//     Crosslink networks are no longer suppressed.
+//  2. interface:[..].[all]:
+//     Unnumbered and bridged interfaces are no longer suppressed.
 func (c *spoc) expandGroup(
 	l []ast.Element, ctx string, ipv6, showAll bool) groupObjList {
 

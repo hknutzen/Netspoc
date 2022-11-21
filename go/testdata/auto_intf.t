@@ -44,6 +44,124 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
+=TITLE=All interfaces of aggregate in zone cluster
+# Must not add
+# - interface of unmanaged router with bind_nat,
+# - managed interface of unnumbered network.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; nat:n1 = { ip = 10.9.9.0/24; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:un = { unnumbered; }
+any:n2-3 = { link = network:n2; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.2; }
+ interface:n3 = { bind_nat = n1; }
+ interface:un = { bind_nat = n1; }
+}
+router:r3 = {
+ model = IOS;
+ managed;
+ interface:un = { unnumbered; hardware = un; }
+}
+service:s = {
+ user = interface:[any:n2-3].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 80
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Ignore managed interface of unnumbered network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:un = { unnumbered; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:un = { unnumbered; hardware = un; }
+}
+service:s = {
+ user = interface:[managed & network:un, network:n1].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 80
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Ignore interfaces of unnumbered network
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:un = { unnumbered; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:un = { unnumbered; hardware = un; }
+}
+router:r2 = {
+ interface:un = { unnumbered; }
+}
+service:s = {
+ user = interface:[network:un, network:n1].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.1.1 eq 80
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Add managed interfaces of network at routing_only
+# Must add interface of router with routing_only.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ model = IOS;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ model = IOS;
+ managed = routing_only;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+service:s = {
+ user = interface:[managed & network:n2].[all];
+ permit src = network:n1; dst = user; prt = tcp 80;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.1 eq 80
+ permit tcp 10.1.1.0 0.0.0.255 host 10.1.2.2 eq 80
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=Auto interface of network
 =TEMPL=topo
 network:a = { ip = 10.0.0.0/24; }

@@ -52,7 +52,7 @@ ip access-list extended e1_in
 [[topo]]
 service:test = {
  user = network:x;
- permit src = user; dst = network:y; prt = udp 389;
+ permit src = user; dst = network:y; prt = udp 389, udp 1024-65535;
 }
 =END=
 =OUTPUT=
@@ -60,11 +60,13 @@ service:test = {
 ip access-list extended e0_in
  deny ip any host 10.2.2.2
  permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 eq 389
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 gt 1023
  deny ip any any
 --
 ip access-list extended e1_in
  deny ip any host 10.1.1.1
  permit udp 10.2.2.0 0.0.0.255 eq 389 10.1.1.0 0.0.0.255
+ permit udp 10.2.2.0 0.0.0.255 gt 1023 10.1.1.0 0.0.0.255
  deny ip any any
 =END=
 
@@ -158,6 +160,51 @@ ip access-list extended e0_in
  deny ip any host 10.2.2.2
  permit tcp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 gt 1023
  deny ip any any
+=END=
+
+############################################################
+=TITLE=Reverse rule for model with statelessSelf
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = IOS, FW;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--r1
+! [ ACL ]
+ip access-list extended n1_in
+ permit udp 10.1.1.0 0.0.0.255 eq 68 host 10.1.1.1
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Generate no reverse rule for model without statelessSelf
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ model = Linux;
+ managed;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+
+service:s1 = {
+ user = interface:r1.n1;
+ permit src = user; dst = network:n1; prt = udp 68;
+}
+=OUTPUT=
+--r1
+# [ ACL ]
+:n1_self -
+-A INPUT -j n1_self -i n1
 =END=
 
 ############################################################

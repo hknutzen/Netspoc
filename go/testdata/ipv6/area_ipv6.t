@@ -23,14 +23,24 @@ router:asa2 = {
 =PARAMS=--ipv6
 =INPUT=
 [[topo]]
-area:a = {
+area:a1 = {
+ anchor = network:n1;
+ border = interface:asa2.n2;
+}
+area:a2 = {
+ anchor = network:n1;
+ inclusive_border = interface:asa2.n3;
+}
+area:a3 = {
  anchor = network:n1;
  border = interface:asa2.n2;
  inclusive_border = interface:asa2.n3;
 }
 =END=
 =ERROR=
-Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a1
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a2
+Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a3
 =END=
 
 ############################################################
@@ -67,26 +77,6 @@ area:a = { inclusive_border = network:n1; border = interface:asa1.n2; }
 =END=
 =ERROR=
 Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
-=END=
-
-############################################################
-=TITLE=Ignore disabled interface as border
-# Error message should mention 'disabled'.
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-router:asa1 = {
-  managed;
-  model = ASA;
-  interface:n1 = { ip = ::a01:101; hardware = n1; }
-  interface:n2 = { ip = ::a01:201; hardware = n2; disabled; }
-}
-
-area:a = { inclusive_border = interface:asa1.n2; }
-=END=
-=ERROR=
-Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
 =END=
 
 ############################################################
@@ -133,11 +123,11 @@ area:a2 = {
 area:a3 = { border = interface:asa2.n3; }
 service:pdp1 = {
  user = interface:[managed & area:all].[auto];
- permit src = host:h1; dst = user; prt = tcp 22;
+ permit src = host:h1; dst = user; prt = tcp;
 }
 service:pdp3 = {
  user = interface:[managed & area:a2].[auto];
- permit src = host:h3; dst = user; prt = tcp 22;
+ permit src = host:h3; dst = user; prt = ip;
 }
 =END=
 =OUTPUT=
@@ -426,26 +416,6 @@ Warning: Ignoring area:a1 in src of rule in service:s1
 =END=
 
 ############################################################
-=TITLE=Ignore area with disabled anchor
-=PARAMS=--ipv6
-=INPUT=
-network:n1 = { ip = ::a01:100/120; }
-network:n2 = { ip = ::a01:200/120; }
-router:r1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = ::a01:101; hardware = n1; }
- interface:n2 = { ip = ::a01:201; hardware = n2; disabled; }
-}
-area:all = { anchor = network:n2; }
-service:s1 = {
- user = network:[area:all];
- permit src = user; dst = network:n1; prt = tcp 80;
-}
-=END=
-=WARNING=NONE
-
-############################################################
 =TITLE=Check for useless inheritance of policy_distribution_point
 =PARAMS=--ipv6
 =INPUT=
@@ -481,7 +451,10 @@ area:a1 = {
 }
 =END=
 =ERROR=
-Error: network:n2 isn't connected to any router
+Error: IPv6 topology has unconnected parts:
+ - any:[network:n1]
+ - any:[network:n2]
+ Use partition attribute, if intended.
 =END=
 
 
