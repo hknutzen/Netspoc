@@ -4425,6 +4425,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev2 ipsec-proposal Trans1
  protocol ah sha256
  protocol esp encryption null
+ protocol esp integrity null
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0
@@ -4515,6 +4516,7 @@ service:test = {
 no sysopt connection permit-vpn
 crypto ipsec ikev2 ipsec-proposal Trans1
  protocol esp encryption aes-gcm-256
+ protocol esp integrity null
 --
 ! crypto-172.16.1.2
 access-list crypto-172.16.1.2 extended permit ip any4 10.99.1.0 255.255.255.0

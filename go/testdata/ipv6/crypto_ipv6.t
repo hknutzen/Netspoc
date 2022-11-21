@@ -4534,6 +4534,7 @@ no sysopt connection permit-vpn
 crypto ipsec ikev2 ipsec-proposal Trans1
  protocol ah sha256
  protocol esp encryption null
+ protocol esp integrity null
 --
 ! crypto-f000::ac10:102
 access-list crypto-f000::ac10:102 extended permit ip any6 ::a63:100/120
@@ -4554,6 +4555,141 @@ crypto map crypto-outside interface outside
 access-list outside_in extended permit tcp ::a63:100/120 host ::a01:16f eq 80
 access-list outside_in extended deny ip any6 any6
 access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=ASA crypto with aes-gcm-256
+=TEMPL=input
+ipsec:aes-gcm-256 = {
+ key_exchange = isakmp:aes-gcm-256-sha-256;
+ esp_encryption = aes-gcm-256;
+ # not given: esp_authentication; becomes "null"
+ pfs_group = 21;
+ lifetime = 1 hour;
+}
+isakmp:aes-gcm-256-sha-256 = {
+ ike_version = 2;
+ authentication = rsasig;
+ encryption = aes-gcm-256;
+ hash = sha256;
+ group = 14;
+ lifetime = 43200 sec;
+ trust_point = ASDM_TrustPoint3;
+}
+crypto:sts = {
+ type = ipsec:aes-gcm-256;
+}
+
+network:intern = {
+ ip = ::a01:100/120;
+ host:netspoc = { ip = ::a01:16f; }
+}
+router:asavpn = {
+ model = ASA;
+ managed;
+ interface:intern = {
+  ip = ::a01:165;
+  hardware = inside;
+ }
+ interface:dmz = {
+  ip = f000::c0a8:65;
+  hub = crypto:sts;
+  hardware = outside;
+ }
+}
+network:dmz = { ip = f000::c0a8:0/120; }
+router:extern = {
+ interface:dmz = { ip = f000::c0a8:1; }
+ interface:internet;
+}
+network:internet = { ip = ::/0; has_subnets; }
+router:vpn1 = {
+ interface:internet = {
+  ip = f000::ac10:102;
+  id = cert@example.com;
+  spoke = crypto:sts;
+ }
+ interface:lan1 = {
+  ip = ::a63:101;
+ }
+}
+network:lan1 = { ip = ::a63:100/120; }
+service:test = {
+ user = network:lan1;
+ permit src = user; dst = host:netspoc; prt = tcp 80;
+}
+=PARAMS=--ipv6
+=INPUT=
+[[input]]
+=OUTPUT=
+--ipv6/asavpn
+no sysopt connection permit-vpn
+crypto ipsec ikev2 ipsec-proposal Trans1
+ protocol esp encryption aes-gcm-256
+ protocol esp integrity null
+--
+! crypto-f000::ac10:102
+access-list crypto-f000::ac10:102 extended permit ip any6 ::a63:100/120
+crypto map crypto-outside 1 set peer f000::ac10:102
+crypto map crypto-outside 1 match address crypto-f000::ac10:102
+crypto map crypto-outside 1 set ikev2 ipsec-proposal Trans1
+crypto map crypto-outside 1 set pfs group21
+crypto map crypto-outside 1 set security-association lifetime seconds 3600
+tunnel-group f000::ac10:102 type ipsec-l2l
+tunnel-group f000::ac10:102 ipsec-attributes
+ ikev2 local-authentication certificate ASDM_TrustPoint3
+ ikev2 remote-authentication certificate
+crypto ca certificate map cert@example.com 10
+ subject-name attr ea eq cert@example.com
+tunnel-group-map cert@example.com 10 f000::ac10:102
+crypto map crypto-outside interface outside
+--
+! outside_in
+access-list outside_in extended permit tcp ::a63:100/120 host ::a01:16f eq 80
+access-list outside_in extended deny ip any6 any6
+access-group outside_in in interface outside
+=END=
+
+############################################################
+=TITLE=IOS crypto with aes-gcm-256
+=PARAMS=--ipv6
+=INPUT=
+[[input]]
+=SUBST=/ASA/IOS/
+=OUTPUT=
+--ipv6/asavpn
+! [ Crypto ]
+--
+crypto isakmp policy 1
+ encryption aes-gcm 256
+ hash sha256
+ group 14
+ lifetime 43200
+crypto ipsec transform-set Trans1 esp-aes-gcm 256
+ipv6 access-list crypto-f000::ac10:102
+ permit ipv6 any ::a63:100/120
+ipv6 access-list crypto-filter-f000::ac10:102
+ permit tcp ::a63:100/120 host ::a01:16f eq 80
+ deny ipv6 any any
+crypto map crypto-outside 1 ipsec-isakmp
+ set peer f000::ac10:102
+ match address crypto-f000::ac10:102
+ set ip access-group crypto-filter-f000::ac10:102 in
+ set transform-set Trans1
+ set pfs group21
+--
+ipv6 access-list outside_in
+ permit 50 host f000::ac10:102 host f000::c0a8:65
+ permit udp host f000::ac10:102 eq 500 host f000::c0a8:65 eq 500
+ deny ipv6 any any
+--
+interface inside
+ ipv6 address ::a01:165/120
+ ipv6 traffic-filter inside_in in
+interface outside
+ ipv6 address f000::c0a8:65/120
+ crypto map crypto-outside
+ ipv6 traffic-filter outside_in in
 =END=
 
 ############################################################

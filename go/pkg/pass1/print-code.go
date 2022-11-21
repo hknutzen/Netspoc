@@ -1722,14 +1722,16 @@ func (c *spoc) printCrypto(fh *os.File, r *router) {
 				espEncr = "aes-256"
 			}
 			fmt.Fprintln(fh, " protocol esp encryption "+espEncr)
-			if espAh := ipsec.espAuthentication; espAh != "" {
-				if espAh == "sha" {
-					espAh = "sha-1"
-				} else {
-					espAh = ciscoCryptoWithDash(espAh, "sha")
-				}
-				fmt.Fprintln(fh, " protocol esp integrity "+espAh)
+			espAh := ipsec.espAuthentication
+			switch espAh {
+			case "":
+				espAh = "null"
+			case "sha":
+				espAh = "sha-1"
+			default:
+				espAh = ciscoCryptoWithDash(espAh, "sha")
 			}
+			fmt.Fprintln(fh, " protocol esp integrity "+espAh)
 		} else {
 			// IKEv1 syntax of ASA is identical to IOS.
 			transform := ""
