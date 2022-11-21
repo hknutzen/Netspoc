@@ -4604,7 +4604,6 @@ router:extern = {
 }
 network:internet = { ip = ::/0; has_subnets; }
 router:vpn1 = {
- radius_attributes = { check-subject-name = cn; }
  interface:internet = {
   ip = f000::ac10:102;
   id = f000::ac10:102;
