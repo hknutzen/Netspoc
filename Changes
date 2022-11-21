@@ -1,5 +1,24 @@
 {{$NEXT}}
 
+6.051     2022-11-21 16:02:15+01:00 Europe/Berlin
+
+ - Added suport for "aes-gcm", "aes-gcm-192", "aes-gcm-256"
+   at attribute "encryption" of isakmp definition.
+ - Added support for
+   "aes-gcm", "aes-gcm-192", "aes-gcm-256",
+   "aes-gmac", "aes-gmac-192", "aes-gmac-256"
+   at attribute "esp_encryption" of ipsec definition.
+ - Added support for other value than email address
+   in attribute "id" of router definition.
+   In this case the generated "crypto ca certificate map"
+   no longer checks for email: "subject-name attr ea eq <id>"
+   but for common name: "subject-name attr cn eq <id>".
+   It is supported to use an IP address as "id".
+ - Changed handling of attribute "esp_authentication" of ipsec definition.
+   If this attribute is not given, a value of "null" is generated
+   in "protocol esp integrity" of ASA anyway.
+ - Removed attribute "disabled" at interface definition.
+
 6.050     2022-10-13 16:13:31+02:00 Europe/Berlin
 
  - Added new option '-i' / '--ip' to command 'print-service'.
