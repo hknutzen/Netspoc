@@ -4,7 +4,7 @@
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
@@ -25,7 +25,7 @@ router:r1@vrf = {
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
 }
 =ERROR=
-Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
+Error: Must add extension 'T0' or 'T1' at router:r1@vrf of model NSX
 =END=
 
 ############################################################
@@ -34,14 +34,14 @@ Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1@vrf = {
- model = NSX, T1;
+ model = NSX, Tier-1;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
 }
 =ERROR=
-Error: Unknown extension in 'model' of router:r1@vrf: T1
-Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
+Error: Unknown extension in 'model' of router:r1@vrf: Tier-1
+Error: Must add extension 'T0' or 'T1' at router:r1@vrf of model NSX
 =END=
 
 ############################################################
@@ -50,13 +50,13 @@ Error: Must add extension 'Tier-0' or 'Tier-1' at router:r1@vrf of model NSX
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
 }
 router:r1@v2 = {
- model = NSX, Tier-1;
+ model = NSX, T1;
  managed;
  interface:n1 = { ip = 10.1.1.3; hardware = IN; }
  interface:n2 = { ip = 10.1.2.3; hardware = OUT; }
@@ -78,7 +78,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-1;
+ model = NSX, T1;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.2; hardware = OUT; }
@@ -104,7 +104,7 @@ router:r2 = {
  interface:n1 = { ip = 10.1.1.99; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
@@ -125,7 +125,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
@@ -147,12 +147,12 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
 }
 router:r1@v2 = {
- model = NSX, Tier-1;
+ model = NSX, T1;
  managed;
  interface:n1 = { ip = 10.1.1.3; hardware = IN; }
  interface:n2 = { ip = 10.1.2.3; hardware = OUT; }
@@ -174,7 +174,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = I; }
  interface:n2 = { ip = 10.1.2.3; hardware = O; }
@@ -207,13 +207,13 @@ router:r2 = {
  interface:n1 = { ip = 10.1.1.9; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
 }
 router:r1@v2 = {
- model = NSX, Tier-1;
+ model = NSX, T1;
  managed;
  interface:n1 = { ip = 10.1.1.3; hardware = IN; }
  interface:n3 = { ip = 10.1.3.1; hardware = OUT; }
@@ -630,7 +630,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
@@ -764,7 +764,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-1;
+ model = NSX, T1;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
@@ -834,7 +834,7 @@ router:r1 = {
  interface:n1 = { ip = 10.1.1.1; }
 }
 router:r1@v1 = {
- model = NSX, Tier-0;
+ model = NSX, T0;
  managed;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
