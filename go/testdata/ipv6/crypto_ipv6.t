@@ -3373,6 +3373,16 @@ Error: Must not reuse 'id = vpn1@example.com' at different crypto spokes of 'rou
 =END=
 
 ############################################################
+=TITLE=id only valid with spoke
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { unnumbered; }
+router:r1 = { interface:n1 = { id = a.b.c; } }
+=WARNING=
+Warning: Ignoring attribute 'id' only valid with 'spoke' at interface:r1.n1
+=END=
+
+############################################################
 =TITLE=detailed_crypto_acl
 =PARAMS=--ipv6
 =INPUT=
