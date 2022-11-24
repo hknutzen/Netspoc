@@ -199,10 +199,15 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				if len(p.name) > len(proto) {
 					ports := p.name[len(proto)+1:]
 					svcEntry["destination_ports"] = single(ports)
+				} else {
+					svcEntry["destination_ports"] = []string{}
 				}
 				if s := pair.srcRg; s != nil {
 					ports := s.name[len(s.protocol)+1:]
 					svcEntry["source_ports"] = single(ports)
+				} else {
+					// For simpler compare with config read from NSX device.
+					svcEntry["source_ports"] = []string{}
 				}
 			case "icmp":
 				svcEntry["resource_type"] = "IcmpTypeServiceEntry"
