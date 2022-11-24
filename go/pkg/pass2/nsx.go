@@ -148,6 +148,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						"scope":              single(scope),
 						"direction":          direction,
 						"sequence_number":    seqNum,
+						"profiles":           single("ANY"),
 					}
 					nsxRules = append(nsxRules, nsxRule)
 				}
