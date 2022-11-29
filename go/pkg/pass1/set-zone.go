@@ -81,12 +81,14 @@ func (c *spoc) setZone1(n *network, z *zone, in *routerIntf) {
 	if n.hasIdHosts {
 		z.hasIdHosts = true
 	}
-	if n.partition != "" && z.partition != "" {
-		c.err("Only one partition name allowed in zone %s, but found:\n"+
-			" - %s\n - %s",
-			z, n.partition, z.partition)
+	if n.partition != "" {
+		if z.partition != "" {
+			c.err("Only one partition name allowed in zone %s, but found:\n"+
+				" - %s\n - %s",
+				z, n.partition, z.partition)
+		}
+		z.partition = n.partition
 	}
-	z.partition = n.partition
 
 	// Proceed with adjacent elements...
 	for _, intf := range n.interfaces {

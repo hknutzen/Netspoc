@@ -312,6 +312,33 @@ Error: IPv4 topology has unconnected parts:
 =END=
 
 ############################################################
+=TITLE=Intentionally unconnected with more than network in zone.
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; partition = part1; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; partition = part2; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
+ Source and destination objects are located in different topology partitions: part1, part2.
+=END=
+
+############################################################
 =TITLE=Rule from/to interface between unconnected partitions
 # zone1 is at network0,
 # interface is at other zone at border of loop.
