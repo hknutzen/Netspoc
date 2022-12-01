@@ -325,6 +325,34 @@ Error: IPv6 topology has unconnected parts:
 =END=
 
 ############################################################
+=TITLE=Intentionally unconnected with more than network in zone.
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; partition = part1; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; partition = part2; }
+network:n4 = { ip = ::a01:400/120; }
+router:r1 = {
+ interface:n1;
+ interface:n2;
+}
+router:r2 = {
+ interface:n3;
+ interface:n4;
+}
+service:s = {
+ user = network:n1;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: No valid path
+ from any:[network:n1]
+ to any:[network:n3]
+ for rule permit src=network:n1; dst=network:n3; prt=tcp 80; of service:s
+ Source and destination objects are located in different topology partitions: part1, part2.
+=END=
+
+############################################################
 =TITLE=Rule from/to interface between unconnected partitions
 # zone1 is at network0,
 # interface is at other zone at border of loop.
