@@ -133,10 +133,12 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						isDeny = rule.deny
 					}
 					rName := fmt.Sprintf("r%d", ruleNum)
+					ipV46 := "IPV4"
 					ruleNum++
-					// Prevent name clash between IPv4 and IPv6 rules
 					if rData.ipv6 {
+						// Prevent name clash between IPv4 and IPv6 rules
 						rName = "v6" + rName
+						ipV46 = "IPV6"
 					}
 					nsxRule := jsonMap{
 						"resource_type":      "Rule",
@@ -145,6 +147,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						"source_groups":      getAddress(rule.src),
 						"destination_groups": getAddress(rule.dst),
 						"services":           single(getService(rule)),
+						"ip_protocol":        ipV46,
 						"scope":              single(scope),
 						"direction":          direction,
 						"sequence_number":    seqNum,

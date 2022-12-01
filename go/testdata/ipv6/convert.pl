@@ -91,6 +91,8 @@ sub adjust_testfile {
 
         # Convert ICMPv4 to ICMPv6 in JSON output for NSX.
         $line =~ s/"ICMPv4"/"ICMPv6"/;
+        # Convert value of attribute 'ip_protocol' for NSX.
+        $line =~ s/IPV4/IPV6/;
         # Convert name of ICMP protocol for NSX.
         $line =~ s/([\/"]Netspoc-icmp)/$1v6/;
 
