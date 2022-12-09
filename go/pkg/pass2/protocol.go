@@ -26,8 +26,10 @@ func createPrtObj(descr string) *proto {
 	case "tcp", "udp":
 		// tcp, tcp 80, tcp 80-90, tcp established
 		var p1, p2 int
-		i := strings.Index(detail, "-")
-		if i == -1 {
+		if lo, hi, found := strings.Cut(detail, "-"); found {
+			p1, _ = strconv.Atoi(lo)
+			p2, _ = strconv.Atoi(hi)
+		} else {
 			switch detail {
 			case "established":
 				prt.established = true
@@ -38,9 +40,6 @@ func createPrtObj(descr string) *proto {
 				p1, _ = strconv.Atoi(detail)
 				p2 = p1
 			}
-		} else {
-			p1, _ = strconv.Atoi(detail[:i])
-			p2, _ = strconv.Atoi(detail[i+1:])
 		}
 		prt.ports = [2]int{p1, p2}
 	case "icmp":
@@ -48,12 +47,12 @@ func createPrtObj(descr string) *proto {
 		if detail == "" {
 			prt.icmpType = -1
 		} else {
-			if i := strings.Index(detail, "/"); i == -1 {
+			if typ, code, found := strings.Cut(detail, "/"); found {
+				prt.icmpType, _ = strconv.Atoi(typ)
+				prt.icmpCode, _ = strconv.Atoi(code)
+			} else {
 				prt.icmpType, _ = strconv.Atoi(detail)
 				prt.icmpCode = -1
-			} else {
-				prt.icmpType, _ = strconv.Atoi(detail[:i])
-				prt.icmpCode, _ = strconv.Atoi(detail[i+1:])
 			}
 		}
 	case "proto":
