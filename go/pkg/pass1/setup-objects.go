@@ -1237,7 +1237,7 @@ func (c *spoc) setupRouter(v *ast.Router) {
 					" with hardware IN and OUT", r, r.model.class)
 			}
 			if r.model.tier == "" {
-				c.err("Must add extension 'Tier-0' or 'Tier-1' at %s of model %s",
+				c.err("Must add extension 'T0' or 'T1' at %s of model %s",
 					r, r.model.class)
 			}
 		}
@@ -2518,9 +2518,9 @@ func (c *spoc) getModel(a *ast.Attribute, ctx string) *model {
 				}
 			case "NSX":
 				switch att {
-				case "Tier-0":
+				case "T0":
 					info.tier = "0"
-				case "Tier-1":
+				case "T1":
 					info.tier = "1"
 				default:
 					goto FAIL

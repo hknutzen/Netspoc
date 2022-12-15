@@ -1,3 +1,11 @@
+6.052     2022-12-15 12:08:51+01:00 Europe/Berlin
+
+ - NSX:
+   - Changed extension from Tier-0/1 to T0/T1.
+   - Set source_ports even if empty.
+   - Add "profiles": [ "ANY" ] to rules.
+   - Set attribute ip_protocol to IPV4 or IPV6.
+
 6.051     2022-11-21 16:02:15+01:00 Europe/Berlin
 
  - Added suport for "aes-gcm", "aes-gcm-192", "aes-gcm-256"

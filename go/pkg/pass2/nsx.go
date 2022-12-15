@@ -133,10 +133,12 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						isDeny = rule.deny
 					}
 					rName := fmt.Sprintf("r%d", ruleNum)
+					ipV46 := "IPV4"
 					ruleNum++
-					// Prevent name clash between IPv4 and IPv6 rules
 					if rData.ipv6 {
+						// Prevent name clash between IPv4 and IPv6 rules
 						rName = "v6" + rName
+						ipV46 = "IPV6"
 					}
 					nsxRule := jsonMap{
 						"resource_type":      "Rule",
@@ -145,9 +147,11 @@ func printNSXRules(fd *os.File, rData *routerData) {
 						"source_groups":      getAddress(rule.src),
 						"destination_groups": getAddress(rule.dst),
 						"services":           single(getService(rule)),
+						"ip_protocol":        ipV46,
 						"scope":              single(scope),
 						"direction":          direction,
 						"sequence_number":    seqNum,
+						"profiles":           single("ANY"),
 					}
 					nsxRules = append(nsxRules, nsxRule)
 				}
@@ -199,10 +203,15 @@ func printNSXRules(fd *os.File, rData *routerData) {
 				if len(p.name) > len(proto) {
 					ports := p.name[len(proto)+1:]
 					svcEntry["destination_ports"] = single(ports)
+				} else {
+					svcEntry["destination_ports"] = []string{}
 				}
 				if s := pair.srcRg; s != nil {
 					ports := s.name[len(s.protocol)+1:]
 					svcEntry["source_ports"] = single(ports)
+				} else {
+					// For simpler compare with config read from NSX device.
+					svcEntry["source_ports"] = []string{}
 				}
 			case "icmp":
 				svcEntry["resource_type"] = "IcmpTypeServiceEntry"
