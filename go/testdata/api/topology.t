@@ -1064,9 +1064,8 @@ owner:a = {
 }
 
 router:r1 = {
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n1;
+ interface:n2;
 }
 =JOB=
 {
@@ -1083,11 +1082,8 @@ router:r1 = {
 =OUTPUT=
 @@ INPUT
  router:r1 = {
-  model = ASA;
-- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-+ interface:n1            = { ip = 10.1.1.1; hardware = n1; }
-+ interface:n2            = { ip = 10.1.2.1; hardware = n2; }
+  interface:n1;
+  interface:n2;
 + interface:VIP_interface = { ip = 10.1.3.3; owner = a; vip; }
  }
 =END=
@@ -1099,9 +1095,8 @@ network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 
 router:r1 = {
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n1;
+ interface:n2;
 }
 =JOB=
 {
@@ -1117,11 +1112,8 @@ router:r1 = {
 =OUTPUT=
 @@ INPUT
  router:r1 = {
-  model = ASA;
-- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-+ interface:n1            = { ip = 10.1.1.1; hardware = n1; }
-+ interface:n2            = { ip = 10.1.2.1; hardware = n2; }
+  interface:n1;
+  interface:n2;
 + interface:VIP_interface = { ip = 10.1.3.3; vip; }
  }
 =END=
@@ -1137,9 +1129,8 @@ owner:a = {
 }
 
 router:r1 = {
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n1;
+ interface:n2;
 }
 =JOB=
 {
@@ -1170,9 +1161,9 @@ router:r1 = {
 }
 =OUTPUT=
 @@ INPUT
-  model = ASA;
-  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ router:r1 = {
+  interface:n1;
+  interface:n2;
 + interface:n3 = { ip = 10.1.3.1; owner = a; }
  }
 +
@@ -1190,9 +1181,8 @@ owner:a = {
 }
 
 router:r1 = {
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+ interface:n1;
+ interface:n2;
 }
 =JOB=
 {
@@ -1207,7 +1197,7 @@ router:r1 = {
     }
 }
 =ERROR=
-Error: Can't modify unknown toplevel object 'router:r2'
+Error: Can't modify unknown IPv4 'router:r2'
 =END=
 
 ############################################################
