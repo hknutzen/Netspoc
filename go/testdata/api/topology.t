@@ -1337,6 +1337,120 @@ Error: 'vip' interface:r1.VIP_interface must have IP address
 =END=
 
 ############################################################
+=TITLE=Add IPv6 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1",
+        "value": {
+            "interface:n2": null
+        },
+        "ipv6": true
+    }
+}
+=OUTPUT=
+@@ ipv6/API
++router:r1 = {
++ interface:n2;
++}
+=END=
+
+############################################################
+=TITLE=Add IPv4 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1",
+        "value": {
+            "interface:n1": null
+        }
+    }
+}
+=OUTPUT=
+@@ API
++router:r1 = {
++ interface:n1;
++}
+=END=
+
+############################################################
+=TITLE=Add IPv4 router when IPv6 is default
+=INPUT=
+-- config
+ipv6 = 1;
+-- ipv4/topo
+network:n1 = { ip = 10.1.1.0/24; }
+-- topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1",
+        "value": {
+            "interface:n1": null
+        },
+        "ipv6": false
+    }
+}
+=OUTPUT=
+@@ ipv4/API
++router:r1 = {
++ interface:n1;
++}
+=END=
+
+############################################################
+=TITLE=Add IPv6 router that already exists
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1",
+        "value": {
+            "interface:n2": null
+        },
+        "ipv6": true
+    }
+}
+=ERROR=
+Error: IPv6 'router:r1' already exists
+=END=
+
+############################################################
 =TITLE=Delete IPv6 router
 =INPUT=
 -- topo
