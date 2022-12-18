@@ -38,7 +38,12 @@ func (s *state) patch(j *job) error {
 	names = names[1:]
 	var top ast.Toplevel
 	isRouter := strings.HasPrefix(topName, "router:")
-	ipv6 := p.IPV6 != nil && *p.IPV6 || s.IPV6
+	var ipv6 bool
+	if p.IPV6 != nil {
+		ipv6 = *p.IPV6
+	} else {
+		ipv6 = s.IPV6
+	}
 	s.Modify(func(t ast.Toplevel) bool {
 		if t.GetName() == topName && (!isRouter || t.GetIPV6() == ipv6) {
 			top = t
@@ -51,10 +56,7 @@ func (s *state) patch(j *job) error {
 			return s.addToplevel(topName, ipv6, c)
 		}
 		if isRouter {
-			ipvx := "IPv4"
-			if ipv6 {
-				ipvx = "IPv6"
-			}
+			ipvx := getIPvX(ipv6)
 			return fmt.Errorf("Can't modify unknown %s '%s'", ipvx, topName)
 		}
 		return fmt.Errorf("Can't modify unknown toplevel object '%s'", topName)
@@ -429,7 +431,11 @@ func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	if c.okIfExists {
 		return nil
 	}
-	return fmt.Errorf("'%s' already exists", n.GetName())
+	ipvx := ""
+	if r, ok := n.(*ast.Router); ok {
+		ipvx = getIPvX(r.IPV6) + " "
+	}
+	return fmt.Errorf("%s'%s' already exists", ipvx, n.GetName())
 }
 
 func getTopList(name string, m map[string]interface{}) (ast.Toplevel, error) {
@@ -674,4 +680,11 @@ func getElementList(val interface{}) ([]ast.Element, error) {
 		return nil, fmt.Errorf("Unexpected type in element list: %T", val)
 	}
 	return elements, nil
+}
+
+func getIPvX(v6 bool) string {
+	if v6 {
+		return "IPv6"
+	}
+	return "IPv4"
 }
