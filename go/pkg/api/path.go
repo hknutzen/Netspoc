@@ -2,10 +2,11 @@ package api
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/parser"
@@ -22,6 +23,7 @@ func (s *state) patch(j *job) error {
 		Path       string
 		Value      interface{}
 		OkIfExists bool `json:"ok_if_exists"`
+		IPV6       *bool
 	}
 	getParams(j, &p)
 	c := change{val: p.Value, okIfExists: p.OkIfExists}
@@ -34,10 +36,26 @@ func (s *state) patch(j *job) error {
 	// Find toplevel node
 	topName := names[0]
 	names = names[1:]
-	top := s.FindToplevel(topName)
+	var top ast.Toplevel
+	isRouter := strings.HasPrefix(topName, "router:")
+	ipv6 := p.IPV6 != nil && *p.IPV6 || s.IPV6
+	s.Modify(func(t ast.Toplevel) bool {
+		if t.GetName() == topName && (!isRouter || t.GetIPV6() == ipv6) {
+			top = t
+			return true // Mark as modified.
+		}
+		return false
+	})
 	if top == nil {
 		if len(names) == 0 {
-			return s.addToplevel(topName, c)
+			return s.addToplevel(topName, ipv6, c)
+		}
+		if isRouter {
+			ipvx := "IPv4"
+			if ipv6 {
+				ipvx = "IPv6"
+			}
+			return fmt.Errorf("Can't modify unknown %s '%s'", ipvx, topName)
 		}
 		return fmt.Errorf("Can't modify unknown toplevel object '%s'", topName)
 	}
@@ -91,7 +109,6 @@ func (s *state) patch(j *job) error {
 	err := process()
 	if err == nil {
 		top.Order()
-		s.SetModified(topName)
 	}
 	return err
 }
@@ -316,7 +333,7 @@ func newAttribute(l *[]*ast.Attribute, name string, c change) error {
 	return nil
 }
 
-func (s *state) addToplevel(name string, c change) error {
+func (s *state) addToplevel(name string, ipv6 bool, c change) error {
 	if c.method == "delete" {
 		return fmt.Errorf("Can't %s unknown toplevel node '%s'", c.method, name)
 	}
@@ -325,7 +342,7 @@ func (s *state) addToplevel(name string, c change) error {
 	if err != nil {
 		return err
 	}
-	s.AddTopLevel(a)
+	s.AddTopLevel(a, ipv6)
 	return nil
 }
 
@@ -392,7 +409,8 @@ func removeAttrFrom(ts *ast.TopStruct, prefix string) []*ast.Attribute {
 
 func (s *state) patchToplevel(n ast.Toplevel, c change) error {
 	if c.method == "delete" {
-		return s.DeleteToplevel(n.GetName())
+		s.DeleteToplevelNode(n)
+		return nil
 	}
 	if c.method == "set" {
 		a, err := s.getToplevel(n.GetName(), c)

@@ -1,13 +1,13 @@
 // Package parser implements a parser for source files of Netspoc
 // policy language.  The output is an abstract syntax
 // tree (AST) representing the Netspoc source.
-//
 package parser
 
 import (
+	"strings"
+
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
 	"github.com/hknutzen/Netspoc/go/pkg/scanner"
-	"strings"
 )
 
 type Mode uint
@@ -20,6 +20,7 @@ const (
 type parser struct {
 	scanner       scanner.Scanner
 	fileName      string
+	ipv6          bool
 	parseComments bool
 
 	// Next token
@@ -28,11 +29,12 @@ type parser struct {
 	tok   string // token literal, one token look-ahead
 }
 
-func (p *parser) init(src []byte, fname string, mode Mode) {
+func (p *parser) init(src []byte, fname string, ipv6 bool, mode Mode) {
 	ah := func(e error) { p.abort(e) }
 
 	p.scanner.Init(src, fname, ah)
 	p.fileName = fname
+	p.ipv6 = ipv6
 	p.parseComments = mode&ParseComments != 0
 
 	p.next()
@@ -671,6 +673,9 @@ func (p *parser) toplevel() ast.Toplevel {
 	}
 	n := m(p)
 	n.SetFileName(p.fileName)
+	if p.ipv6 {
+		n.SetIPV6()
+	}
 	return n
 }
 
@@ -703,10 +708,12 @@ func handlePanic(f func()) (err error) {
 	return
 }
 
-func ParseFile(src []byte, fName string, mode Mode) (f *ast.File, err error) {
+func ParseFile(
+	src []byte, fName string, ipv6 bool, mode Mode) (f *ast.File, err error) {
+
 	err = handlePanic(func() {
 		p := new(parser)
-		p.init(src, fName, mode)
+		p.init(src, fName, ipv6, mode)
 		f = new(ast.File)
 		f.Nodes = p.file()
 		if p.parseComments {
@@ -720,7 +727,7 @@ func ParseUnion(src []byte) (l []ast.Element, err error) {
 	err = handlePanic(func() {
 		p := new(parser)
 		src = append(src, ';')
-		p.init(src, "command line", 0)
+		p.init(src, "command line", false, 0)
 		list, end := p.union(";")
 		if end != len(src) {
 			p.syntaxErr(`Unexpected content after ";"`)

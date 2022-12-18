@@ -37,9 +37,9 @@ func (c *spoc) showReadStatistics() {
 
 func (c *spoc) parseFiles(dir string) []ast.Toplevel {
 	var result []ast.Toplevel
-	process := func(input *filetree.Context) error {
+	err := filetree.Walk(dir, c.conf.IPV6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
-		aF, err := parser.ParseFile(source, input.Path, 0)
+		aF, err := parser.ParseFile(source, input.Path, input.IPV6, 0)
 		if err != nil {
 			return err
 		}
@@ -48,15 +48,9 @@ func (c *spoc) parseFiles(dir string) []ast.Toplevel {
 				c.warn("Ignoring file '%s' without any content", input.Path)
 			}
 		}
-		if input.IPV6 {
-			for _, n := range aF.Nodes {
-				n.SetIPV6()
-			}
-		}
 		result = append(result, aF.Nodes...)
 		return nil
-	}
-	err := filetree.Walk(dir, c.conf.IPV6, process)
+	})
 	if err != nil {
 		c.abort("%v", err)
 	}

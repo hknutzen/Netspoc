@@ -1119,6 +1119,76 @@ router:r1 = {
 =END=
 
 ############################################################
+=TITLE=Add VIP Interface to IPv6 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:VIP_interface",
+        "value": {
+            "ip": "1000::abcd:0003:0003",
+            "vip": null
+        },
+        "ipv6": true
+    }
+}
+=OUTPUT=
+@@ ipv6/topo
+ router:r1 = {
+  interface:n2;
++ interface:VIP_interface = { ip = 1000::abcd:0003:0003; vip; }
+ }
+=END=
+
+############################################################
+=TITLE=Add VIP Interface to IPv4 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "add",
+    "params": {
+        "path": "router:r1,interface:VIP_interface",
+        "value": {
+            "ip": "10.1.3.3",
+            "vip": null
+        },
+        "ipv6": false
+    }
+}
+=OUTPUT=
+@@ topo
+ router:r1 = {
+  interface:n1;
++ interface:VIP_interface = { ip = 10.1.3.3; vip; }
+ }
+=END=
+
+############################################################
 =TITLE=Add interface with network
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
@@ -1264,4 +1334,67 @@ Error: 'vip' interface:r1.VIP_interface must have IP address
 + interface:n1            = { ip = 10.1.1.1; hardware = n1; }
 + interface:VIP_interface = { owner = a; vip; }
  }
+=END=
+
+############################################################
+=TITLE=Delete IPv6 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1",
+        "ipv6": true
+    }
+}
+=OUTPUT=
+@@ ipv6/topo
+ network:n2 = { ip = 1000::abcd:0001:0/112; }
+-
+-router:r1 = {
+- interface:n2;
+-}
+=END=
+
+############################################################
+=TITLE=Delete IPv4 router
+=INPUT=
+-- topo
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1 = {
+ interface:n1;
+}
+-- ipv6/topo
+network:n2 = { ip = 1000::abcd:0001:0/112; }
+
+router:r1 = {
+ interface:n2;
+}
+=JOB=
+{
+    "method": "delete",
+    "params": {
+        "path": "router:r1"
+    }
+}
+=OUTPUT=
+@@ topo
+ network:n1 = { ip = 10.1.1.0/24; }
+-
+-router:r1 = {
+- interface:n1;
+-}
 =END=

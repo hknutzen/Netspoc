@@ -18,17 +18,20 @@ type State struct {
 	astFiles []*ast.File
 	base     string
 	files    []string
+	IPV6     bool
 	changed  map[string]bool
 }
 
 func Read(netspocBase string, v6 bool) (*State, error) {
-	s := new(State)
-	s.changed = make(map[string]bool)
-	s.base = netspocBase
+	s := &State{
+		base:    netspocBase,
+		IPV6:    v6,
+		changed: make(map[string]bool),
+	}
 	err := filetree.Walk(netspocBase, v6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, parser.ParseComments)
+		aF, err := parser.ParseFile(source, path, input.IPV6, parser.ParseComments)
 		if err != nil {
 			return err
 		}
@@ -125,11 +128,7 @@ func (s *State) FindToplevel(name string) ast.Toplevel {
 	return result
 }
 
-func (s *State) SetModified(name string) {
-	s.Modify(func(t ast.Toplevel) bool { return name == t.GetName() })
-}
-
-func (s *State) AddTopLevel(n ast.Toplevel) {
+func (s *State) AddTopLevel(n ast.Toplevel, ipv6 bool) {
 	// Netspoc config is given in single file, add new node to this file.
 	if len(s.files) == 1 && s.files[0] == s.base {
 		s.CreateToplevel("", n)
@@ -160,6 +159,13 @@ func (s *State) AddTopLevel(n ast.Toplevel) {
 			file = path.Join(file, "other")
 		}
 	}
+	if ipv6 != s.IPV6 {
+		if s.IPV6 {
+			file = path.Join("ipv4", file)
+		} else {
+			file = path.Join("ipv6", file)
+		}
+	}
 	s.CreateToplevel(file, n)
 }
 
@@ -188,19 +194,21 @@ func (s *State) CreateToplevel(file string, n ast.Toplevel) {
 }
 
 func (s *State) DeleteToplevel(name string) error {
-	typ, _, _ := strings.Cut(name, ":")
-	switch typ {
-	case "service":
-		s.removeFromToplevelAttr("service:", "overlaps", name)
-		s.removeFromToplevelAttr("service:", "identical_body", name)
-	case "network":
-		s.removeFromToplevelAttr("network:", "subnet_of", name)
+	n := s.FindToplevel(name)
+	if n == nil {
+		return fmt.Errorf("Can't find %s", name)
 	}
+	s.DeleteToplevelNode(n)
+	return nil
+}
+
+func (s *State) DeleteToplevelNode(n ast.Toplevel) {
+	s.removeToplevelRefs(n.GetName())
 	found := false
 	for i, aF := range s.astFiles {
 		cp := make([]ast.Toplevel, 0, len(aF.Nodes))
 		for _, toplevel := range aF.Nodes {
-			if name == toplevel.GetName() {
+			if toplevel == n {
 				found = true
 			} else {
 				cp = append(cp, toplevel)
@@ -209,10 +217,9 @@ func (s *State) DeleteToplevel(name string) error {
 		if found {
 			s.astFiles[i].Nodes = cp
 			s.changed[s.files[i]] = true
-			return nil
+			return
 		}
 	}
-	return fmt.Errorf("Can't find %s", name)
 }
 
 func (s *State) DeleteHost(name string) error {
@@ -273,6 +280,17 @@ func (s *State) DeleteUnmanagedLoopbackInterface(name string) {
 		}
 		return modified
 	})
+}
+
+func (s *State) removeToplevelRefs(name string) {
+	typ, _, _ := strings.Cut(name, ":")
+	switch typ {
+	case "service":
+		s.removeFromToplevelAttr("service:", "overlaps", name)
+		s.removeFromToplevelAttr("service:", "identical_body", name)
+	case "network":
+		s.removeFromToplevelAttr("network:", "subnet_of", name)
+	}
 }
 
 func (s *State) removeFromToplevelAttr(typ, attr, name string) {
