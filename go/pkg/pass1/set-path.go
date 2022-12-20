@@ -5,9 +5,12 @@ import (
 	"strings"
 )
 
-/* SetPath adds navigation information to the nodes of the graph to
+/*
+	SetPath adds navigation information to the nodes of the graph to
+
 /* enable fast path traversal; identifies loops and performs
-/* consistency checks on pathrestrictions and virtual interfaces.*/
+/* consistency checks on pathrestrictions and virtual interfaces.
+*/
 func (c *spoc) setPath() {
 	c.progress("Preparing fast path traversal")
 	c.findDistsAndLoops()
@@ -17,10 +20,13 @@ func (c *spoc) setPath() {
 	c.linkPathrestrictions()
 }
 
-/* findDistsAndLoops sets direction and distances to an arbitrary
+/*
+	findDistsAndLoops sets direction and distances to an arbitrary
+
 /* chosen start zone. Identifies loops inside the graph topology, tags
 /* nodes of a cycle with a common loop object and distance. Checks for
-/* multiple unconnected parts of topology.*/
+/* multiple unconnected parts of topology.
+*/
 func (c *spoc) findDistsAndLoops() {
 	if len(c.allZones) == 0 {
 		c.abort("topology seems to be empty")
@@ -60,7 +66,9 @@ func (c *spoc) findDistsAndLoops() {
 	c.checkProperPartitionUsage(unconnectedPartitions)
 }
 
-/* setPathObj prepares efficient topology traversal, finds a path from
+/*
+	setPathObj prepares efficient topology traversal, finds a path from
+
 /* every zone and router to zone1; stores the distance to zone1 in
 /* every object visited; identifies loops and adds loop marker
 /* references to loop nodes.
@@ -70,7 +78,8 @@ func (c *spoc) findDistsAndLoops() {
 /*  - distance: distance of loop exit node + 1.
 /* It is needed, as the nodes own distance values are later reset to
 /* the value of the cluster exit object. The intermediate value is
-/* required by cluster_navigation to work.*/
+/* required by cluster_navigation to work.
+*/
 func setpathObj(obj pathObj, toZone1 *routerIntf,
 	distToZone1 int) (int, *loop, []*router) {
 
@@ -285,12 +294,7 @@ func (c *spoc) errorOnUnnamedUnconnectedPartitions(
 			}
 		}
 		if len(unnamedUnconnectedPartitions) >= 1 {
-			var ipVersion string
-			if unconnectedPartitions[0].isIPv6() {
-				ipVersion = "IPv6"
-			} else {
-				ipVersion = "IPv4"
-			}
+			ipVersion := "IPv" + cond(unconnectedPartitions[0].isIPv6(), "6", "4")
 			var zone1Names stringList
 			for _, zone1 := range unnamedUnconnectedPartitions {
 				zone1Names.push(zone1.name)
@@ -302,9 +306,12 @@ func (c *spoc) errorOnUnnamedUnconnectedPartitions(
 	}
 }
 
-/* processLoops includes node objects and interfaces of nested loops
+/*
+	processLoops includes node objects and interfaces of nested loops
+
 /* in the containing loop; adds loop cluster exits; adjusts distances of
-/* loop nodes.*/
+/* loop nodes.
+*/
 func (c *spoc) processLoops() {
 	processObj := func(obj pathObj) {
 		lo := obj.getLoop()
@@ -351,10 +358,13 @@ func findOuterLoop(lo *loop) *loop {
 	}
 }
 
-/* setLoopClusterExit identifies clusters of directly connected loops
+/*
+	setLoopClusterExit identifies clusters of directly connected loops
+
 /* in cactus graphs. Finds exit node of loop cluster or single loop in
 /* direction to zone1; adds this exit node as marker to all loop
-/* objects of the cluster.*/
+/* objects of the cluster.
+*/
 func setLoopClusterExit(lo *loop) pathObj {
 
 	if lo.clusterExit != nil {
@@ -379,12 +389,15 @@ func setLoopClusterExit(lo *loop) pathObj {
 	return clusterExit
 }
 
-/* checkPathrestrictions removes pathrestrictions, that aren't proper
+/*
+	checkPathrestrictions removes pathrestrictions, that aren't proper
+
 /* and effective.
 /* Pathrestrictions have to fulfill following requirements:
- - Located inside or at the border of cycles.
- - At least 2 interfaces per pathrestriction.
- - Have an effect on ACL generation. */
+  - Located inside or at the border of cycles.
+  - At least 2 interfaces per pathrestriction.
+  - Have an effect on ACL generation.
+*/
 func (c *spoc) checkPathrestrictions() {
 
 	for _, p := range c.pathrestrictions {

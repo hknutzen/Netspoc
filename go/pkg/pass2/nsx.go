@@ -214,7 +214,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 					svcEntry["source_ports"] = []string{}
 				}
 			case "icmp":
-				svcEntry["resource_type"] = "IcmpTypeServiceEntry"
+				svcEntry["resource_type"] = "ICMPTypeServiceEntry"
 				var icmpProto string
 				if rData.ipv6 {
 					icmpProto = "ICMPv6"
@@ -230,7 +230,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 					}
 				}
 			default:
-				svcEntry["resource_type"] = "IpProtocolServiceEntry"
+				svcEntry["resource_type"] = "IPProtocolServiceEntry"
 				svcEntry["protocol_number"], _ = strconv.Atoi(proto)
 			}
 			result = append(result, jsonMap{

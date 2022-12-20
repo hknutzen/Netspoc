@@ -49,7 +49,7 @@ func Main(d oslink.Data) int {
 	err := filetree.Walk(path, cnf.IPV6, func(input *filetree.Context) error {
 		source := []byte(input.Data)
 		path := input.Path
-		aF, err := parser.ParseFile(source, path, parser.ParseComments)
+		aF, err := parser.ParseFile(source, path, input.IPV6, parser.ParseComments)
 		if err != nil {
 			return err
 		}

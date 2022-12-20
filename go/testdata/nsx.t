@@ -1055,7 +1055,7 @@ service:s1 = {
      "icmp_type": 5,
      "id": "id",
      "protocol": "ICMPv4",
-     "resource_type": "IcmpTypeServiceEntry"
+     "resource_type": "ICMPTypeServiceEntry"
     }
    ]
   },
@@ -1066,7 +1066,7 @@ service:s1 = {
      "icmp_type": 8,
      "id": "id",
      "protocol": "ICMPv4",
-     "resource_type": "IcmpTypeServiceEntry"
+     "resource_type": "ICMPTypeServiceEntry"
     }
    ]
   },
@@ -1076,7 +1076,7 @@ service:s1 = {
     {
      "id": "id",
      "protocol_number": 52,
-     "resource_type": "IpProtocolServiceEntry"
+     "resource_type": "IPProtocolServiceEntry"
     }
    ]
   }
