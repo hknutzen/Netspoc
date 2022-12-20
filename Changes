@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+6.053     2022-12-20 12:16:11+01:00 Europe/Berlin
+
+ - Fixed NSX: ICMPTypeServiceEntry
+
 6.052     2022-12-15 12:08:51+01:00 Europe/Berlin
 
  - NSX:
