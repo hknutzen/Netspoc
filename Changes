@@ -1,3 +1,8 @@
+6.054     2022-12-21 11:07:23+01:00 Europe/Berlin
+
+ - Fixed NSX and PAN-OS: Call local optimization to prevent duplicate
+   and redundant IP addresses in rules.
+
 6.053     2022-12-20 12:16:11+01:00 Europe/Berlin
 
  - Fixed NSX: ICMPTypeServiceEntry

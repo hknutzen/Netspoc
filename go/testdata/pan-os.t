@@ -919,3 +919,72 @@ service:s1 = {
 </service>
 </entry>
 =END=
+
+############################################################
+=TITLE=Optimize duplicate IP address
+=INPUT=
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = 10.1.1.1; }
+}
+
+network:n1 = { ip = 10.1.1.0/24; }
+
+router:r1@vsys1 = {
+ model = PAN-OS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; hardware = z1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = z2; }
+}
+
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:asa = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+ interface:n4 = { ip = 10.1.4.1; hardware = n4; }
+}
+
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+
+service:s1 = {
+ user = network:n2,
+        any:[ip = 10.0.0.0/8 & network:n3],
+        any:[ip = 10.1.0.0/16 & network:n4],
+        ;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=OUTPUT=
+--r1
+<entry name="vsys1">
+<rulebase><security><rules>
+<entry name="r1">
+<action>allow</action>
+<from><member>z2</member></from>
+<to><member>z1</member></to>
+<source><member>NET_10.0.0.0_8</member></source>
+<destination><member>NET_10.1.1.0_24</member></destination>
+<service><member>tcp 80</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET_10.0.0.0_8"><ip-netmask>10.0.0.0/8</ip-netmask></entry>
+<entry name="NET_10.1.1.0_24"><ip-netmask>10.1.1.0/24</ip-netmask></entry>
+</address>
+<service>
+<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
+</service>
+</entry>
+=END=
