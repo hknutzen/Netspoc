@@ -1096,3 +1096,226 @@ service:s1 = {
  ]
 }
 =END=
+
+############################################################
+=TITLE=Optimize duplicate IP address
+=PARAMS=--ipv6
+=INPUT=
+router:r1 = {
+ model = NSX;
+ management_instance;
+ interface:n1 = { ip = ::a01:101; }
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1@T0 = {
+ model = NSX, T0;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = ::a01:102; hardware = OUT; }
+ interface:n2 = { ip = ::a01:201; hardware = IN; }
+}
+
+network:n2 = { ip = ::a01:200/120; }
+
+router:T0-T1 = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+
+router:r1@T1 = {
+ model = NSX, T1;
+ managed;
+ routing = manual;
+ interface:n4 = { ip = ::a01:401; hardware = OUT; }
+ interface:n5 = { ip = ::a01:501; hardware = IN; }
+}
+
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+
+service:s1 = {
+ user = any:[network:n3],
+        any:[network:n5],
+        ;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+{
+ "groups": null,
+ "policies": [
+  {
+   "id": "Netspoc-T0",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a01:100/120"
+     ],
+     "direction": "OUT",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/T0"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "Netspoc-T1",
+   "resource_type": "GatewayPolicy",
+   "rules": [
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "IN",
+     "id": "v6r1",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "ALLOW",
+     "destination_groups": [
+      "::a01:100/120"
+     ],
+     "direction": "OUT",
+     "id": "v6r2",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-tcp_80"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    },
+    {
+     "action": "DROP",
+     "destination_groups": [
+      "ANY"
+     ],
+     "direction": "OUT",
+     "id": "v6r3",
+     "ip_protocol": "IPV6",
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-1s/T1"
+     ],
+     "sequence_number": 30,
+     "services": [
+      "ANY"
+     ],
+     "source_groups": [
+      "ANY"
+     ]
+    }
+   ]
+  }
+ ],
+ "services": [
+  {
+   "id": "Netspoc-tcp_80",
+   "service_entries": [
+    {
+     "destination_ports": [
+      "80"
+     ],
+     "id": "id",
+     "l4_protocol": "TCP",
+     "resource_type": "L4PortSetServiceEntry",
+     "source_ports": []
+    }
+   ]
+  }
+ ]
+}
+=END=

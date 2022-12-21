@@ -945,3 +945,73 @@ service:s1 = {
 </service>
 </entry>
 =END=
+
+############################################################
+=TITLE=Optimize duplicate IP address
+=PARAMS=--ipv6
+=INPUT=
+router:r1 = {
+ model = PAN-OS;
+ management_instance;
+ interface:n1 = { ip = ::a01:101; }
+}
+
+network:n1 = { ip = ::a01:100/120; }
+
+router:r1@vsys1 = {
+ model = PAN-OS;
+ managed;
+ routing = manual;
+ interface:n1 = { ip = ::a01:102; hardware = z1; }
+ interface:n2 = { ip = ::a01:201; hardware = z2; }
+}
+
+network:n2 = { ip = ::a01:200/120; }
+
+router:asa = {
+ model = ASA;
+ managed;
+ routing = manual;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+ interface:n4 = { ip = ::a01:401; hardware = n4; }
+}
+
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+
+service:s1 = {
+ user = network:n2,
+        any:[ip = ::a00:0/104 & network:n3],
+        any:[ip = ::a01:0/112 & network:n4],
+        ;
+ permit src = user;
+        dst = network:n1;
+        prt = tcp 80;
+}
+=OUTPUT=
+--ipv6/r1
+<entry name="vsys1">
+<rulebase><security><rules>
+<entry name="v6r1">
+<action>allow</action>
+<from><member>z2</member></from>
+<to><member>z1</member></to>
+<source><member>NET_::a00:0_104</member></source>
+<destination><member>NET_::a01:100_120</member></destination>
+<service><member>tcp 80</member></service>
+<application><member>any</member></application>
+<rule-type>interzone</rule-type>
+</entry>
+</rules></security></rulebase>
+<address-group>
+</address-group>
+<address>
+<entry name="NET_::a00:0_104"><ip-netmask>::a00:0/104</ip-netmask></entry>
+<entry name="NET_::a01:100_120"><ip-netmask>::a01:100/120</ip-netmask></entry>
+</address>
+<service>
+<entry name="tcp 80"><protocol><tcp><port>80</port></tcp></protocol></entry>
+</service>
+</entry>
+=END=
