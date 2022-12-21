@@ -2,10 +2,11 @@ package pass2
 
 import (
 	"fmt"
-	"golang.org/x/exp/maps"
 	"os"
 	"sort"
 	"strings"
+
+	"golang.org/x/exp/maps"
 )
 
 func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
@@ -27,6 +28,7 @@ func printPanOSRules(fd *os.File, vsys string, rData *routerData) {
 		}
 	}
 	for _, acl := range rData.acls {
+		optimizeRules(acl)
 		joinRanges(acl)
 		findObjectgroups(acl, rData)
 		for _, g := range acl.objectGroups {

@@ -19,6 +19,7 @@ func printNSXRules(fd *os.File, rData *routerData) {
 	prepareACLs(rData)
 
 	for _, acl := range rData.acls {
+		optimizeRules(acl)
 		joinRanges(acl)
 		findObjectgroups(acl, rData)
 		addFinalPermitDenyRule(acl)
