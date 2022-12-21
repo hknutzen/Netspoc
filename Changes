@@ -1,5 +1,7 @@
 {{$NEXT}}
 
+6.054     2022-12-21 11:07:23+01:00 Europe/Berlin
+
  - Fixed NSX and PAN-OS: Call local optimization to prevent duplicate
    and redundant IP addresses in rules.
 
