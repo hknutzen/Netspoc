@@ -649,6 +649,7 @@ service:s1 = {
 =END=
 =WARNING=
 Warning: Attribute 'unknown_owner' is blocked at service:s1
+Warning: Unknown owner for network:n3 in service:s1
 =END=
 =OPTIONS=--check_service_unknown_owner=warn
 
@@ -1040,6 +1041,8 @@ service:s1 = {
 =END=
 =WARNING=
 Warning: Attribute 'multi_owner' is blocked at service:s1
+Warning: service:s1 has multiple owners:
+ o1, o2
 =END=
 
 ############################################################
