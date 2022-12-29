@@ -1,15 +1,17 @@
 package pass1
 
 import (
-	"golang.org/x/exp/maps"
 	"net/netip"
 	"sort"
+
+	"golang.org/x/exp/maps"
 )
 
-//#############################################################################
-// Purpose  : Link aggregate and zone via references in both objects, set
-//            aggregate properties according to those of the linked zone.
-//            Store aggregates in networks (providing all srcs and dsts).
+// #############################################################################
+// linkAggregateToZone links aggregate and zone each to another.
+// It sets aggregate properties according to those of the linked zone.
+//
+//	It Stores aggregates in allNetworks.
 func (c *spoc) linkAggregateToZone(
 	agg *network, z *zone, ipp netip.Prefix) {
 
@@ -26,12 +28,11 @@ func (c *spoc) linkAggregateToZone(
 	c.allNetworks.push(agg)
 }
 
-//#############################################################################
+// #############################################################################
 // Update attributes .networks and .up for implicitly defined aggregates.
 // Remember:
 // .up is relation inside set of all networks and aggregates.
-// .networks is attribute of aggregates and networks,
-//           but value is list of networks.
+// .networks is attribute of aggregates and networks,	but value is list of networks.
 func (c *spoc) linkImplicitAggregateToZone(
 	agg *network, z *zone, ipp netip.Prefix) {
 
@@ -40,10 +41,7 @@ func (c *spoc) linkImplicitAggregateToZone(
 	// Collect all aggregates, networks and subnets of current zone.
 	// Get aggregates in deterministic order.
 	var objects netList
-	var keys []netip.Prefix
-	for k := range ipPrefix2aggregate {
-		keys = append(keys, k)
-	}
+	keys := maps.Keys(ipPrefix2aggregate)
 	sort.Slice(keys, func(i, j int) bool {
 		if cmp := keys[i].Addr().Compare(keys[j].Addr()); cmp != 0 {
 			return cmp == -1
@@ -211,7 +209,8 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 	}
 }
 
-//#############################################################################
+/*
+#############################################################################
 // Purpose  : Create an aggregate object for every zone inside the zones cluster
 //            containing the aggregates link-network.
 // Comments : From users point of view, an aggregate refers to networks of a zone
@@ -221,6 +220,7 @@ func (c *spoc) duplicateAggregateToZone(agg *network, z *zone, implicit bool) {
 //            networks matching the aggregates IP address.
 // TDOD     : Aggregate may be a non aggregate network,
 //            e.g. a network with ip/mask 0/0. ??
+*/
 func (c *spoc) duplicateAggregateToCluster(agg *network, implicit bool) {
 	cluster := agg.zone.cluster
 
