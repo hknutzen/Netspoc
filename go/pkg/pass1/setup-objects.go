@@ -3548,15 +3548,19 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 
 	// Use different and uniqe name for each split router.
 	name := "router:" + intf.name[len("interface:"):]
-	new := *orig
-	new.name = name
-	new.origRouter = orig
-	new.interfaces = intfList{intf}
-	intf.router = &new
-	c.allRouters = append(c.allRouters, &new)
+	cp := *orig
+	cp.name = name
+	cp.origRouter = orig
+	cp.interfaces = intfList{intf}
+	intf.router = &cp
+	c.allRouters = append(c.allRouters, &cp)
 
 	// Don't check fragment for reachability.
-	new.policyDistributionPoint = nil
+	cp.policyDistributionPoint = nil
+
+	// radiusAttributes are only needed at origRouter, where crypto
+	// tunnels are attached.
+	cp.radiusAttributes = nil
 
 	// Remove interface from old router.
 	// Retain original interfaces.
@@ -3578,15 +3582,6 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 					intf, intf2)
 				break
 			}
-		}
-
-		// Copy map, because it is changed per device later.
-		if m := orig.radiusAttributes; m != nil {
-			m2 := make(map[string]string)
-			for k, v := range m {
-				m2[k] = v
-			}
-			new.radiusAttributes = m2
 		}
 	}
 }
