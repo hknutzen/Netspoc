@@ -371,6 +371,47 @@ ip access-list extended n4_out
 =END=
 
 ############################################################
+=TITLE=Ignore redundant pathrestriction
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.2; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = 10.1.1.3; virtual = { ip = 10.1.1.1; } hardware = n1; }
+ interface:n3 = { ip = 10.1.3.1; hardware = n3; }
+}
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+pathrestriction:p1 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p2 =
+ interface:r1.n1.virtual,                          interface:r3.n2;
+pathrestriction:p3 =
+                          interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p4 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual;
+=WARNING=
+DIAG: Removed pathrestriction:p2; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p3; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p4; is subset of pathrestriction:p1
+DIAG: Removed auto-virtual:10.1.1.1; is subset of pathrestriction:p1
+=SHOW_DIAG=
+
+############################################################
 =TITLE=Pathrestriction located in different loops
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
