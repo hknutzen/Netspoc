@@ -748,10 +748,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 
 	// Create slice from map, sorted by name of owner.
 	sortedSlice := func(m map[*owner]bool) []*owner {
-		var l []*owner
-		for ow := range m {
-			l = append(l, ow)
-		}
+		l := maps.Keys(m)
 		sort.Slice(l, func(i, j int) bool {
 			return l[i].name < l[j].name
 		})
@@ -917,19 +914,15 @@ func (c *spoc) exportNatSet(dir string,
 		add(xOwnersForObject(n, oInfo))
 	}
 	for ownerName := range c.symTable.owner {
-		natList := make(stringList, 0)
-		if doms := owner2domains[ownerName]; doms != nil {
+		doms := owner2domains[ownerName]
 
-			// Build union of all natSets of found NAT domains.
-			var natSets []natSet
-			for d := range doms {
-				natSets = append(natSets, d.natSet)
-			}
-			combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
-			for tag := range combined {
-				natList.push(tag)
-			}
+		// Build union of all natSets of found NAT domains.
+		var natSets []natSet
+		for d := range doms {
+			natSets = append(natSets, d.natSet)
 		}
+		combined := combineNatSets(natSets, natTag2multinatDef, natTag2natType)
+		natList := maps.Keys(combined)
 		sort.Strings(natList)
 
 		c.createDirs(dir, "owner/"+ownerName)
@@ -1182,10 +1175,7 @@ func (c *spoc) exportUsersAndServiceLists(dir string,
 	}
 
 	visibleOwner := getVisibleOwner(allObjects, pInfo, oInfo)
-	var names stringList
-	for name := range c.symTable.owner {
-		names.push(name)
-	}
+	names := maps.Keys(c.symTable.owner)
 	sort.Strings(names)
 	for _, ow := range names {
 		type2sMap := owner2type2sMap[ow]
