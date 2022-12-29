@@ -3572,18 +3572,7 @@ func (c *spoc) moveLockedIntf(intf *routerIntf) {
 	}
 
 	if orig.managed != "" {
-		hw := intf.hardware
-		new.hardware = []*hardware{hw}
-		l := orig.hardware
-		orig.origHardware = l
-		orig.hardware = make([]*hardware, 0, len(l)-1)
-		for _, hw2 := range l {
-			if hw2 != hw {
-				orig.hardware = append(orig.hardware, hw2)
-			}
-		}
-
-		for _, intf2 := range hw.interfaces {
+		for _, intf2 := range intf.hardware.interfaces {
 			if intf2 != intf && intf2.ipType != tunnelIP {
 				c.err("Crypto %s must not share hardware with other %s",
 					intf, intf2)

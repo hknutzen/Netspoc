@@ -304,7 +304,6 @@ type router struct {
 	noGroupCode          bool
 	noInAcl              *routerIntf
 	hardware             []*hardware
-	origHardware         []*hardware
 	origRouter           *router
 	primaryMark          int
 	radiusAttributes     map[string]string

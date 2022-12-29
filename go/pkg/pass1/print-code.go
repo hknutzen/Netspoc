@@ -2431,7 +2431,6 @@ func (c *spoc) printRouter(r *router, dir string) string {
 	// Restore interfaces of split router.
 	if orig := r.origIntfs; orig != nil {
 		r.interfaces = orig
-		r.hardware = r.origHardware
 	}
 
 	// Collect VRF members.
