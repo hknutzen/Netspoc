@@ -1458,9 +1458,10 @@ router:r3 = {
 
 ############################################################
 =TITLE=Owner of aggregate at tunnel of unmanaged device
-# Must not take the undefined owner of tunnel.
+# Must not define and use zone of tunnel.
 =INPUT=
 owner:Extern_VPN = { admins = abc@d.com; }
+owner:v1 = { admins = v1@example.com; }
 isakmp:ikeaes256SHA = {
  authentication = preshare;
  encryption = aes256;
@@ -1494,10 +1495,13 @@ router:VPN1 = {
  interface:Internet = { ip = 1.1.1.1; spoke = crypto:vpn; }
  interface:v1;
 }
-network:v1 = { ip = 10.9.1.0/24; }
+network:v1 = { ip = 10.9.1.0/24; owner = v1; }
 router:VPN2 = {
- interface:Internet = { ip = 1.1.1.2; spoke = crypto:vpn; }
- interface:v2;
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:Internet = { ip = 1.1.1.2; spoke = crypto:vpn; hardware = Internet; }
+ interface:v2 = { ip = 10.9.2.1; hardware = v2; }
 }
 network:v2 = { ip = 10.9.2.0/24; }
 router:VPN3 = {
@@ -1505,18 +1509,23 @@ router:VPN3 = {
  interface:v3;
 }
 network:v3 = { ip = 10.9.3.0/24; }
-service:Test = {
- user = network:[any:[ip=10.9.0.0/21 & area:vpn]];
- permit src = network:n1; dst = user; prt = udp 53;
+service:s1 = {
+ user = network:n1;
+ permit src = user;
+        dst = network:[any:[ip=10.9.0.0/21 & area:vpn]];
+        prt = udp 53;
 }
-=END=
+service:s2 = {
+ user = network:n1;
+ permit src = user; dst = any:[ip=10.9.0.0/21 & area:vpn]; prt = tcp 80;
+}
 =OUTPUT=
 --objects
 {
  "any:[ip=10.9.0.0/21 & network:v1]": {
   "ip": "10.9.0.0/255.255.248.0",
   "is_supernet": 1,
-  "owner": "Extern_VPN",
+  "owner": "v1",
   "zone": "any:[network:v1]"
  },
  "any:[ip=10.9.0.0/21 & network:v2]": {
@@ -1533,11 +1542,10 @@ service:Test = {
  },
  "interface:VPN1.v1": {
   "ip": "short",
-  "owner": "Extern_VPN"
+  "owner": "v1"
  },
  "interface:VPN2.v2": {
-  "ip": "short",
-  "owner": "Extern_VPN"
+  "ip": "10.9.2.1"
  },
  "interface:VPN3.v3": {
   "ip": "short",
@@ -1549,7 +1557,7 @@ service:Test = {
  },
  "network:v1": {
   "ip": "10.9.1.0/255.255.255.0",
-  "owner": "Extern_VPN",
+  "owner": "v1",
   "zone": "any:[network:v1]"
  },
  "network:v2": {
@@ -1565,33 +1573,60 @@ service:Test = {
 }
 --services
 {
- "Test": {
+ "s1": {
   "details": {
    "owner": [
-    ":unknown"
+    "Extern_VPN",
+    "v1"
    ]
   },
   "rules": [
    {
     "action": "permit",
-    "dst": [],
-    "has_user": "dst",
+    "dst": [
+     "network:v1",
+     "network:v2",
+     "network:v3"
+    ],
+    "has_user": "src",
     "prt": [
      "udp 53"
     ],
-    "src": [
-     "network:n1"
-    ]
+    "src": []
+   }
+  ]
+ },
+ "s2": {
+  "details": {
+   "owner": [
+    "Extern_VPN",
+    "v1"
+   ]
+  },
+  "rules": [
+   {
+    "action": "permit",
+    "dst": [
+     "any:[ip=10.9.0.0/21 & network:v1]",
+     "any:[ip=10.9.0.0/21 & network:v2]",
+     "any:[ip=10.9.0.0/21 & network:v3]"
+    ],
+    "has_user": "src",
+    "prt": [
+     "tcp 80"
+    ],
+    "src": []
    }
   ]
  }
 }
 --owner/Extern_VPN/users
 {
- "Test": [
-  "network:v1",
-  "network:v2",
-  "network:v3"
+ "s1": [
+  "network:n1"
+ ],
+ "s2": [
+  "network:n1"
  ]
 }
 =END=
