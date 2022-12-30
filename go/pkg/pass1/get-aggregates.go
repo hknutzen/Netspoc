@@ -51,17 +51,9 @@ func (c *spoc) linkImplicitAggregateToZone(
 	for _, k := range keys {
 		objects.push(ipPrefix2aggregate[k])
 	}
-	var addSubnets func(n *network)
-	addSubnets = func(n *network) {
-		for _, s := range n.networks {
-			objects.push(s)
-			addSubnets(s)
-		}
-	}
-	for _, n := range z.networks {
+	processWithSubnetworks(z.networks, func(n *network) {
 		objects.push(n)
-		addSubnets(n)
-	}
+	})
 
 	// Find subnets of new aggregate.
 	for _, obj := range objects {
