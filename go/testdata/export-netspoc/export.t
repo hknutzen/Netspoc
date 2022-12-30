@@ -1256,6 +1256,13 @@ network:n4 = { ip = 10.1.4.0/24; }
   "name": "all"
  }
 ]
+--zone2areas
+{
+ "any:[network:n1]": ["a1", "a12", "a123", "all"],
+ "any:[network:n2]": ["a12", "a123", "all"],
+ "any:[network:n3]": ["a123", "all"],
+ "any:[network:n4]": ["all"]
+}
 =END=
 
 ############################################################
