@@ -246,8 +246,7 @@ func (c *spoc) checkServiceOwner(sRules *serviceRules) {
 
 			objects := info.objects
 			for obj := range objects {
-				o := obj.getOwner()
-				if o != nil {
+				if o := obj.getOwner(); o != nil {
 					if !ownerSeen[o] {
 						ownerSeen[o] = true
 						svc.owners = append(svc.owners, o)
