@@ -3544,6 +3544,19 @@ interface e3
 =END=
 
 ############################################################
+=TITLE=VPN ASA to EZVPN router with two local networks authenticated only
+# Protocol 50 is also used if only esp_authentication.
+=INPUT=[[input]]
+=SUBST=/esp_encryption = aes256;//
+=OUTPUT=
+--vpn
+ip access-list extended e1_in
+ permit 50 host 192.168.0.101 any
+ permit udp host 192.168.0.101 eq 500 any eq 500
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=VPN ASA to EZVPN ASA with two local networks
 =INPUT=[[input]]
 =SUBST=/IOS/ASA/
