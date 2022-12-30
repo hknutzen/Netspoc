@@ -838,9 +838,7 @@ func (c *spoc) setupOuterOwners() (string, xOwner, map[*owner][]*owner) {
 				setOuterOwners(obj, ow, outerForObj)
 			}
 		}
-		for _, n := range addSubnetworks(z.networks) {
-			process(n)
-		}
+		processWithSubnetworks(z.networks, process)
 		for _, n := range z.ipPrefix2aggregate {
 			process(n)
 		}
@@ -935,22 +933,6 @@ func (c *spoc) exportNatSet(dir string,
 // each owner.
 //###################################################################
 
-// Parameter 'networks' only contains toplevel networks.
-// Add subnets recursively.
-func addSubnetworks(networks netList) netList {
-	var result netList
-	for _, n := range networks {
-		if subList := n.networks; subList != nil {
-			result = append(result, addSubnetworks(subList)...)
-		}
-	}
-	if result != nil {
-		return append(result, networks...)
-	} else {
-		return networks
-	}
-}
-
 func (c *spoc) exportAssets(
 	dir string, allObjects map[srvObj]bool, pInfo, oInfo xOwner) {
 
@@ -1043,9 +1025,7 @@ func (c *spoc) exportAssets(
 		}
 
 		zoneName := c.getZoneName(z)
-		networks := addSubnetworks(z.networks)
-
-		for _, n := range networks {
+		processWithSubnetworks(z.networks, func(n *network) {
 			add := func(ow string, ownNet bool) {
 				addNetworksInfo(ow, zoneName, exportNetwork(n, ow, ownNet))
 			}
@@ -1059,7 +1039,7 @@ func (c *spoc) exportAssets(
 				// Show only own or part_owned networks in foreign zone.
 				add(ow, false)
 			}
-		}
+		})
 	}
 
 	for ow := range c.symTable.owner {

@@ -136,14 +136,7 @@ func propagateOwnerToAggregates(agg *network) {
 				}
 			}
 		}
-		var withSubnets func(netList)
-		withSubnets = func(l netList) {
-			for _, n := range l {
-				inherit(n)
-				withSubnets(n.networks)
-			}
-		}
-		withSubnets(z.networks)
+		processWithSubnetworks(z.networks, inherit)
 		for _, agg3 := range z.ipPrefix2aggregate {
 			inherit(agg3)
 		}
