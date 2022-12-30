@@ -762,6 +762,7 @@ network:n2 = { ip = 10.1.2.0/24;
  host:DA_2 = { ip = 10.1.2.2; owner = DA_2; }
  host:DA_3 = { ip = 10.1.2.3; owner = DA_3; }
  host:DA_4 = { ip = 10.1.2.4; owner = DA_4; }
+ host:DA_5 = { ip = 10.1.2.5; }
 }
 router:r = {
  model = ASA;
@@ -788,6 +789,10 @@ service:s4 = {
 service:s5 = {
  user = host:DA_1, host:DA_2, host:DA_3;
  permit src = user; dst = host:x5; prt = tcp 81;
+}
+service:s6 = {
+ user = host:DA_5;
+ permit src = user; dst = host:x5; prt = tcp 82;
 }
 =END=
 =OUTPUT=
