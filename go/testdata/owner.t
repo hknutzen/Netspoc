@@ -577,10 +577,10 @@ network:n2 = {
  host:h1 = { ip = 10.1.2.10; }
  host:h2 = { ip = 10.1.2.11; }
 }
+protocol:print = tcp 514, reversed;
 service:s1 = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = tcp 80;
- permit src = user; dst = host:h1; prt = tcp 81;
+ permit src = user; dst = network:n2; prt = tcp 80, protocol:print;
 }
 service:s2 = {
  user = network:n1;
@@ -593,10 +593,36 @@ service:s3 = {
 }
 =END=
 =WARNING=
-Warning: Unknown owner for host:h1 in service:s1, service:s2
+Warning: Unknown owner for host:h1 in service:s2
 Warning: Unknown owner for host:h2 in service:s3
 Warning: Unknown owner for network:n2 in service:s1, service:s2
 =END=
+=OPTIONS=--check_service_unknown_owner=warn
+
+############################################################
+=TITLE=Unknown owner in simple coupling rule
+=INPUT=
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+service:s1 = {
+ user = network:n1, host:h1, host:h2;
+ permit src = user; dst = user; prt = tcp 80;
+}
+=END=
+=WARNING=
+Warning: Unknown owner for host:h1 in service:s1
 =OPTIONS=--check_service_unknown_owner=warn
 
 ############################################################
@@ -807,7 +833,7 @@ Warning: service:s1 has multiple owners:
 =END=
 
 ############################################################
-=TITLE=multi_owner with mixed coupling rules
+=TITLE=Multiple owners with mixed coupling rules
 =INPUT=
 owner:o1 = { admins = a1@b.c; }
 owner:o2 = { admins = a2@b.c; }
@@ -834,6 +860,33 @@ service:s1 = {
 Warning: service:s1 has multiple owners:
  o1, o2, o3
 =END=
+
+############################################################
+=TITLE=Attribute multi_owner with mixed coupling rules
+=INPUT=
+owner:o1 = { admins = a1@b.c; }
+owner:o2 = { admins = a2@b.c; }
+owner:o3 = { admins = a3@b.c; }
+network:n1 = { ip = 10.1.1.0/24; owner = o3; }
+router:asa1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+network:n2 = {
+ ip = 10.1.2.0/24;
+ host:h1 = { ip = 10.1.2.10; owner = o1; }
+ host:h2 = { ip = 10.1.2.11; owner = o2; }
+}
+service:s1 = {
+ multi_owner;
+ user = network:n1;
+ permit src = user; dst = user; prt = tcp 80;
+ permit src = host:h1, host:h2; dst = user; prt = tcp 81;
+}
+=END=
+=WARNING=NONE
 
 ############################################################
 =TITLE=Useless multi_owner when user objects have single owner
@@ -941,33 +994,6 @@ network:n2 = {
 service:s1 = {
  multi_owner;
  user = network:n1;
- permit src = host:h1, host:h2; dst = user; prt = tcp 81;
-}
-=END=
-=WARNING=NONE
-
-############################################################
-=TITLE=multi_owner with mixed coupling rules
-=INPUT=
-owner:o1 = { admins = a1@b.c; }
-owner:o2 = { admins = a2@b.c; }
-owner:o3 = { admins = a3@b.c; }
-network:n1 = { ip = 10.1.1.0/24; owner = o3; }
-router:asa1 = {
- managed;
- model = ASA;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
- interface:n2 = { ip = 10.1.2.1; hardware = n2; }
-}
-network:n2 = {
- ip = 10.1.2.0/24;
- host:h1 = { ip = 10.1.2.10; owner = o1; }
- host:h2 = { ip = 10.1.2.11; owner = o2; }
-}
-service:s1 = {
- multi_owner;
- user = network:n1;
- permit src = user; dst = user; prt = tcp 80;
  permit src = host:h1, host:h2; dst = user; prt = tcp 81;
 }
 =END=
