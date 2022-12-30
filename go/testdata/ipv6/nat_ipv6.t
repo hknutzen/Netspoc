@@ -4452,14 +4452,12 @@ Error: Must not use any:[ip = ::a01:100/120 & ..] in user of service:s2
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { ip = ::a01:100/120; nat:a = { ip = f000::c0a8:101/128; dynamic; } }
-network:n1s = { ip = ::a01:100/122; subnet_of = network:n1; }
 network:n2 = { ip = ::a01:200/120; }
 network:n3 = { ip = ::a01:300/120; }
 
 router:r1 = {
- interface:n1;
- interface:n1s;
- interface:n2 = { ip = ::a01:201; }
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
 }
 router:r2 = {
  managed;
@@ -4475,6 +4473,38 @@ service:s1 = {
 =ERROR=
 Error: Must not use any:[ip = ::a01:100/122 & ..] in user of service:s1
  because it is subnet of network:n1 which is translated by nat:a
+=END=
+
+############################################################
+=TITLE=Implicit aggregate has address of subnet of network with NAT
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; nat:a = { ip = f000::c0a8:101/128; dynamic; } }
+network:n1s = { ip = ::a01:100/122; subnet_of = network:n1; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+
+router:r1 = {
+ managed = routing_only;
+ model = IOS;
+ interface:n1 = { ip = ::a01:180; hardware = n1; }
+ interface:n1s = { ip = ::a01:101; hardware = n2; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:302; hardware = n3; bind_nat = a; }
+}
+
+service:s1 = {
+ user = any:[ ip = ::a01:100/122 & network:n1 ];
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not use any:[ip = ::a01:100/122 & ..] in user of service:s1
+ because it has address of network:n1s which is translated by nat:a
 =END=
 
 ############################################################

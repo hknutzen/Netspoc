@@ -3629,6 +3629,20 @@ interface e3
 =END=
 
 ############################################################
+=TITLE=VPN ASA to EZVPN router with two local networks authenticated only
+# Protocol 50 is also used if only esp_authentication.
+=PARAMS=--ipv6
+=INPUT=[[input]]
+=SUBST=/esp_encryption = aes256;//
+=OUTPUT=
+--ipv6/vpn
+ipv6 access-list e1_in
+ permit 50 host f000::c0a8:65 any
+ permit udp host f000::c0a8:65 eq 500 any eq 500
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=VPN ASA to EZVPN ASA with two local networks
 =PARAMS=--ipv6
 =INPUT=[[input]]

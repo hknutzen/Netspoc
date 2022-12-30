@@ -381,6 +381,48 @@ ipv6 access-list n4_out
 =END=
 
 ############################################################
+=TITLE=Ignore redundant pathrestriction
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+router:r1 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:102; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = IOS;
+ routing = manual;
+ interface:n1 = { ip = ::a01:103; virtual = { ip = ::a01:101; } hardware = n1; }
+ interface:n3 = { ip = ::a01:301; hardware = n3; }
+}
+router:r3 = {
+ interface:n2;
+ interface:n3;
+ interface:n4;
+}
+pathrestriction:p1 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p2 =
+ interface:r1.n1.virtual,                          interface:r3.n2;
+pathrestriction:p3 =
+                          interface:r2.n1.virtual, interface:r3.n2;
+pathrestriction:p4 =
+ interface:r1.n1.virtual, interface:r2.n1.virtual;
+=WARNING=
+DIAG: Removed pathrestriction:p2; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p3; is subset of pathrestriction:p1
+DIAG: Removed pathrestriction:p4; is subset of pathrestriction:p1
+DIAG: Removed auto-virtual:::a01:101; is subset of pathrestriction:p1
+=SHOW_DIAG=
+
+############################################################
 =TITLE=Pathrestriction located in different loops
 =PARAMS=--ipv6
 =INPUT=
