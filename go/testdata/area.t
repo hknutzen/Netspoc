@@ -35,7 +35,6 @@ area:a3 = {
  border = interface:asa2.n2;
  inclusive_border = interface:asa2.n3;
 }
-=END=
 =ERROR=
 Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a1
 Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusive_border' for area:a2
@@ -47,7 +46,6 @@ Error: Attribute 'anchor' must not be defined together with 'border' or 'inclusi
 =INPUT=
 [[topo]]
 area:a = {}
-=END=
 =ERROR=
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
 =END=
@@ -60,7 +58,6 @@ area:a = {
  border = interface:asa1.n2, interface:asa2.n3;
  inclusive_border = interface:asa2.n3;
 }
-=END=
 =ERROR=
 Error: interface:asa2.n3 is used as 'border' and 'inclusive_border' in area:a
 =END=
@@ -70,7 +67,6 @@ Error: interface:asa2.n3 is used as 'border' and 'inclusive_border' in area:a
 =INPUT=
 [[topo]]
 area:a = { inclusive_border = network:n1; border = interface:asa1.n2; }
-=END=
 =ERROR=
 Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 =END=
@@ -81,7 +77,6 @@ Error: Unexpected 'network:n1' in 'inclusive_border' of area:a
 [[topo]]
 area:a = { inclusive_border = interface:asa1.[all] &! interface:asa1.n2; }
 area:b = { border = interface:asa2.[auto]; }
-=END=
 =ERROR=
 Error: Unexpected 'interface:asa2.[auto]' in 'border' of area:b
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:b
@@ -93,7 +88,6 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = { interface:n1; }
 area:a = { border = interface:r1.n1; }
-=END=
 =ERROR=
 Error: Must not reference unmanaged interface:r1.n1 in 'border' of area:a
 Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must be defined for area:a
@@ -122,7 +116,6 @@ service:pdp3 = {
  user = interface:[managed & area:a2].[auto];
  permit src = host:h3; dst = user; prt = ip;
 }
-=END=
 =OUTPUT=
 --asa1
 ! [ IP = 10.1.1.1 ]
@@ -150,7 +143,6 @@ service:pdp3 = {
  user = interface:[managed & area:a2].[auto];
  permit src = host:h3; dst = user; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: Missing attribute 'policy_distribution_point' for 1 devices:
  - router:asa1
@@ -170,7 +162,6 @@ router:asa3 = {
 }
 area:a2 = { border = interface:asa1.n2; }
 area:a2x = { border = interface:asa2.n2; }
-=END=
 =ERROR=
 Error: Overlapping area:a2 and area:a2x
  - both areas contain any:[network:n2],
@@ -185,7 +176,6 @@ Error: Overlapping area:a2 and area:a2x
 area:a1 = { border = interface:asa1.n1; }
 area:a2 = { border = interface:asa2.n2; }
 area:a2x = { border = interface:asa2.n2; }
-=END=
 =ERROR=
 Error: Duplicate area:a2 and area:a2x
 =END=
@@ -196,7 +186,6 @@ Error: Duplicate area:a2 and area:a2x
 [[topo]]
 area:a2 = { border = interface:asa1.n2; }
 area:a2r = { inclusive_border = interface:asa1.n1; }
-=END=
 =WARNING=NONE
 
 ############################################################
@@ -238,7 +227,6 @@ area:a1 = {
 area:a2 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
 }
-=END=
 =ERROR=
 Error: Overlapping area:a2 and area:a1
  - both areas contain router:asa1,
@@ -256,7 +244,6 @@ area:a1 = {
 area:a2 = {
  border = interface:asa1.n2, interface:asa1.n3;
 }
-=END=
 =ERROR=
 Error: Overlapping area:a1 and area:a2
  - both areas contain any:[network:n2],
@@ -272,7 +259,6 @@ area:a1 = { border = interface:asa1.n1; }
 area:a12 = { border = interface:asa2.n2; inclusive_border = interface:asa1.n3; }
 area:a123 = { border = interface:asa2.n2, interface:asa2.n3; }
 area:a245 = { border = interface:asa1.n2; inclusive_border = interface:asa2.n3; }
-=END=
 =ERROR=
 Error: Overlapping area:a123 and area:a245
  - both areas contain any:[network:n2],
@@ -287,7 +273,6 @@ Error: Overlapping area:a123 and area:a245
 area:a1 = {
  inclusive_border = interface:asa1.n1, interface:asa1.n2, interface:asa1.n3;
 }
-=END=
 =WARNING=
 Warning: area:a1 is empty
 =END=
@@ -303,7 +288,6 @@ area:a1 = {
 area:a2 = {
  border = interface:asa2.n2;
 }
-=END=
 =ERROR=
 Error: Inconsistent definition of area:a1 in loop.
  It is reached from outside via this path:
@@ -334,7 +318,6 @@ service:t = {
  user = network:[area:a2];
  permit src = user; dst = network:[area:a1]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- asa1
 ! n2_in
@@ -359,7 +342,6 @@ area:a1 = {
  inclusive_border = interface:asa1.n2, interface:asa1.n3;
  router_attributes = { general_permit = icmp; }
 }
-=END=
 =OUTPUT=
 -- asa1
 ! n1_in
@@ -378,7 +360,6 @@ access-group n2_in in interface n2
 [[topo]]
 area:a1 = {border = interface:asa1.n1,
                     interface:asa2.n2;}
-=END=
 =ERROR=
 Error: Unreachable border of area:a1:
  - interface:asa2.n2
@@ -390,7 +371,6 @@ Error: Unreachable border of area:a1:
 [[topo]]
 area:a1 = {border = interface:asa1.n1;}
 service:s1 = { user = area:a1; permit src = user; dst = network:n2; prt = tcp; }
-=END=
 =WARNING=
 Warning: Ignoring area:a1 in src of rule in service:s1
 =END=
@@ -409,7 +389,6 @@ router:r = {
   policy_distribution_point = host:h;
  interface:n = { ip = 10.1.1.2; hardware = e1; }
 }
-=END=
 =WARNING=
 Warning: Useless attribute 'policy_distribution_point' at router:r,
  it was already inherited from router_attributes of area:all
@@ -427,7 +406,6 @@ network:n2 = { ip = 10.11.11.0/24; }
 area:a1 = {
  anchor = network:n2;
 }
-=END=
 =ERROR=
 Error: IPv4 topology has unconnected parts:
  - any:[network:n1]

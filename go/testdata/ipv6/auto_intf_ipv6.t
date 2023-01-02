@@ -207,7 +207,6 @@ service:test2 = {
  user = interface:[network:b3].[auto];
  permit src = user; dst = interface:[network:a].[auto]; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list e1_in
@@ -248,7 +247,6 @@ service:test2 = {
  user = interface:u.[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -273,7 +271,6 @@ service:test2 = {
  user = interface:[managed & interface:u.b2, interface:r2.b2].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -292,7 +289,6 @@ service:s = {
  user = interface:[any:b].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -311,7 +307,6 @@ service:s = {
  user = interface:[any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -331,7 +326,6 @@ service:s = {
  user = interface:[managed & any:[network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -350,7 +344,6 @@ service:s = {
  user = interface:[any:[ip = ::a01:0/112 & network:b3]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =ERROR=
 Error: Must not use interface:[..].[all]
  with any:[ip=::a01:0/112 & network:b1] having ip/mask
@@ -366,7 +359,6 @@ service:s = {
  user = interface:[any:b].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =ERROR=
 Error: Must not use interface:[any:..].[auto] in user of service:s
 =END=
@@ -380,7 +372,6 @@ service:s = {
  user = interface:[network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -399,7 +390,6 @@ service:s = {
  user = interface:[managed & network:b1].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ ACL ]
@@ -437,7 +427,6 @@ service:s = {
  user = interface:[interface:[network:b1].[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =ERROR=
 Error: Can't use interface:[network:b1].[auto] inside interface:[..].[all] of user of service:s
 =END=
@@ -451,7 +440,6 @@ service:s = {
  user = interface:[interface:u.[auto]].[all];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ ACL ]
@@ -471,7 +459,6 @@ service:s = {
  user = interface:[interface:u.[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ ACL ]
@@ -490,7 +477,6 @@ service:s = {
  user = interface:[interface:[network:b1].[auto]].[auto];
  permit src = network:a; dst = user; prt = tcp 23;
 }
-=END=
 =ERROR=
 Error: Can't use interface:[network:b1].[auto] inside interface:[..].[auto] of user of service:s
 =END=
@@ -616,7 +602,6 @@ service:s1 = {
 	dst = interface:r2.[auto];
 	prt = udp 161;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 # [ ACL ]
@@ -650,7 +635,6 @@ service:s1 = {
 	dst = interface:r1.[auto];
 	prt = udp 161;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 # [ ACL ]
@@ -705,7 +689,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = interface:r3.[auto]; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! Vlan20_in
@@ -756,7 +739,6 @@ service:test = {
  user = interface:r1.[auto];
  permit src = network:n2; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! n2_in
@@ -798,7 +780,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = interface:r1.[auto]; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ipv6 access-list n1_in
@@ -836,7 +817,6 @@ service:s = {
  user = interface:r1.[auto];
  permit src = network:n3; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! n3_in
@@ -885,7 +865,6 @@ service:s1 = {
  user = interface:r3.[auto];
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ipv6 access-list n2_in
@@ -935,7 +914,6 @@ service:s = {
         dst = interface:r3.[auto], interface:r4.[auto];
         prt = tcp 22;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input]]
 =OUTPUT=
@@ -1018,7 +996,6 @@ ipv6 access-list n4_in
 =INPUT=
 [[input]]
 pathrestriction:r = interface:r1.n4, interface:r3.n3;
-=END=
 =OUTPUT=
 --ipv6/r1
 ! n1_in
@@ -1123,7 +1100,6 @@ service:s = {
  permit src = user; dst = interface:r1.[all]; prt = tcp 24;
  permit src = user; dst = interface:[interface:r1.n3].[all]; prt = tcp 25;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! n1_in
@@ -1234,7 +1210,6 @@ service:s = {
  user = interface:r2.[auto];
  permit src = network:n6; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r4
 object-group network v6g0
@@ -1270,7 +1245,6 @@ service:test = {
  user = interface:r1.[auto];
  permit src = network:a; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ IP = ::a00:1,::a01:101 ]
@@ -1319,7 +1293,6 @@ service:s1 = {
  permit src = user; dst = interface:r2.n3, interface:r2.n4; prt = tcp 22;
  permit src = user; dst = interface:r2.n5;                  prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r2
 ! [ IP = ::a01:302,::a01:401 ]
@@ -1384,7 +1357,6 @@ service:s = {
  user = interface:r1.[auto], interface:r2.[auto];
  permit src = network:n3; dst = user; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ IP = ::a01:203 ]
@@ -1416,7 +1388,6 @@ service:test = {
  user = interface:r.[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless delete of interface:r.x in user of service:test
 =END=
@@ -1444,7 +1415,6 @@ service:test = {
  user = interface:[network:x].[auto] &! interface:r.x;
  permit src = user; dst = network:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless delete of interface:r.x in user of service:test
 =END=
@@ -1458,7 +1428,6 @@ service:test = {
  user = interface:[network:x].[auto] &! interface:r.[auto];
  permit src = user; dst = network:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless delete of interface:r.[auto] in user of service:test
 =END=
@@ -1472,7 +1441,6 @@ service:test = {
  user = interface:[network:x].[auto] &! interface:[network:y].[auto];
  permit src = user; dst = network:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless delete of interface:[network:y].[auto] in user of service:test
 =END=
@@ -1486,7 +1454,6 @@ service:test = {
  user = interface:[network:x].[auto] &! interface:r.y;
  permit src = user; dst = network:y; prt = tcp 80;
 }
-=END=
 =WARNING=
 Warning: Useless delete of interface:r.y in user of service:test
 =END=
@@ -1593,7 +1560,6 @@ service:test = {
  user = interface:[host:h1].[auto] ;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Unexpected 'host:h1' in interface:[..].[auto] of user of service:test
 =END=
@@ -1612,7 +1578,6 @@ service:test = {
  user = interface:r99.[auto], interface:88.n1;
  permit src = user; dst = network:n1; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't resolve interface:r99.[auto] in user of service:test
 Error: Can't resolve interface:88.n1 in user of service:test
@@ -1635,7 +1600,6 @@ service:s = {
  ;
  permit src = network:n1; dst = user; prt = tcp 22;
 }
-=END=
 =ERROR=
 Error: Unexpected 'interface:r1.[auto]' in host:[..] of user of service:s
 Error: Unexpected 'interface:r1.[auto]' in network:[..] of user of service:s
