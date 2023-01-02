@@ -1991,6 +1991,7 @@ func (c *spoc) setupService(v *ast.Service) {
 	}
 	sv.foreach = v.Foreach
 	sv.user = v.User.Elements
+	userUserCount := 0
 	for _, v2 := range v.Rules {
 		ru := new(unexpRule)
 		ru.service = sv
@@ -2013,6 +2014,7 @@ func (c *spoc) setupService(v *ast.Service) {
 		}
 		if srcUser && dstUser {
 			ru.hasUser = "both"
+			userUserCount++
 		} else if srcUser {
 			ru.hasUser = "src"
 		} else {
@@ -2029,6 +2031,9 @@ func (c *spoc) setupService(v *ast.Service) {
 	}
 	if len(sv.rules) == 0 {
 		c.err("Must not define %s without any rules", name)
+	} else if userUserCount > 0 && len(sv.rules) != userUserCount {
+		c.err("Must not define %s having both user-user rule and normal rule",
+			name)
 	}
 }
 

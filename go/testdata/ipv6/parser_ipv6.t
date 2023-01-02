@@ -1156,6 +1156,20 @@ Error: Must not define service:s1 without any rules
 =END=
 
 ############################################################
+=TITLE=user-user rule together with normal rule
+=TODO= No IPv6
+=PARAMS=--ipv6
+=INPUT=
+service:s1 = {
+ user = network:n1, network:n2;
+ permit src = user; dst = user; prt = ip;
+ permit src = user; dst = network:n3; prt = tcp 80;
+}
+=ERROR=
+Error: Must not define service:s1 having both user-user rule and normal rule
+=END=
+
+############################################################
 =TITLE=Service without user
 =PARAMS=--ipv6
 =INPUT=

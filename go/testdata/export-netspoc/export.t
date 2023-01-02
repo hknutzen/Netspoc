@@ -3377,16 +3377,6 @@ service:s2 = {
  permit src = network:[user]; dst = user; prt = tcp 83;
 }
 service:s3 = {
- user = network:n1, network:n2, network:n3;
- permit src = user; dst = any:[user]; prt = tcp 84;
- permit src = user &! network:n1; dst = network:n1; prt = tcp 85;
-}
-service:s4 = {
- user = network:n1, network:n2, network:n3;
- permit src = user; dst = any:[user]; prt = tcp 86;
- permit src = network:n1; dst = user &! network:n1; prt = tcp 87;
-}
-service:s5 = {
  user = foreach interface:r1.n1, interface:r3.n3;
  permit src = any:[interface:[user].[all]];
         dst = any:[interface:[user].[all]];
@@ -3462,89 +3452,7 @@ service:s5 = {
    }
   ]
  },
- "s3(9S8D_GxA)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "any:[network:n1]",
-     "any:[network:n2]"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 84"
-    ],
-    "src": []
-   }
-  ]
- },
- "s3(POpjDd32)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "network:n1"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 85"
-    ],
-    "src": []
-   }
-  ]
- },
- "s4(8QEgcJW-)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [
-     "any:[network:n1]",
-     "any:[network:n2]"
-    ],
-    "has_user": "src",
-    "prt": [
-     "tcp 86"
-    ],
-    "src": []
-   }
-  ]
- },
- "s4(avp-zO-c)": {
-  "details": {
-   "owner": [
-    "all"
-   ]
-  },
-  "rules": [
-   {
-    "action": "permit",
-    "dst": [],
-    "has_user": "dst",
-    "prt": [
-     "tcp 87"
-    ],
-    "src": [
-     "network:n1"
-    ]
-   }
-  ]
- },
- "s5(Lg5S4o3m)": {
+ "s3(Lg5S4o3m)": {
   "details": {
    "owner": [
     "all"
@@ -3565,7 +3473,7 @@ service:s5 = {
    }
   ]
  },
- "s5(iIo0gt2o)": {
+ "s3(iIo0gt2o)": {
   "details": {
    "owner": [
     "all"
@@ -3599,29 +3507,11 @@ service:s5 = {
   "network:n2",
   "network:n3"
  ],
- "s3(9S8D_GxA)": [
-  "network:n1",
-  "network:n2",
-  "network:n3"
- ],
- "s3(POpjDd32)": [
-  "network:n2",
-  "network:n3"
- ],
- "s4(8QEgcJW-)": [
-  "network:n1",
-  "network:n2",
-  "network:n3"
- ],
- "s4(avp-zO-c)": [
-  "network:n2",
-  "network:n3"
- ],
- "s5(Lg5S4o3m)": [
+ "s3(Lg5S4o3m)": [
   "any:[network:n2]",
   "any:[network:n4]"
  ],
- "s5(iIo0gt2o)": [
+ "s3(iIo0gt2o)": [
   "any:[network:n1]",
   "any:[network:n2]"
  ]
