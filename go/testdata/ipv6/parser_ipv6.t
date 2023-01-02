@@ -419,6 +419,7 @@ Error: Missing IP in 'virtual' of interface:R.N
 
 ############################################################
 =TITLE=Typed name expected
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network = {
@@ -430,6 +431,7 @@ Aborted
 
 ############################################################
 =TITLE=Unknown global definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 networkX:n1 = {
@@ -457,6 +459,7 @@ Aborted
 
 ############################################################
 =TITLE=Missing '}' after owner definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o1 = {
@@ -485,6 +488,7 @@ Aborted
 
 ############################################################
 =TITLE=Invalid character in network name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1@vrf123 = {}
@@ -506,6 +510,7 @@ Error: Invalid identifier in definition of 'router:r1/bridged-part'
 
 ############################################################
 =TITLE=Invalid character in area name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 area:a1@vrf123 = {}
@@ -517,6 +522,7 @@ Error: At least one of attributes 'border', 'inclusive_border' or 'anchor' must 
 
 ############################################################
 =TITLE=Unexpected end of file
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1
@@ -528,6 +534,7 @@ Aborted
 
 ############################################################
 =TITLE=Identifier expected  at EOF
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { owner =
@@ -570,10 +577,10 @@ Error: Invalid identifier in 'partition' of network:n1: a/b
 
 ############################################################
 =TITLE=String expected
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o1 = { admins = ; }
-network:n1 = { ip = ::a01:100/120; }
 =END=
 =ERROR=
 Error: List of values expected in 'admins' of owner:o1
@@ -615,6 +622,7 @@ Error: No value expected for flag 'has_subnets' of network:n1
 
 ############################################################
 =TITLE=Comma expected in union of values (1)
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = host:h1 host:h2;
@@ -626,6 +634,7 @@ Aborted
 
 ############################################################
 =TITLE=Comma expected in list of values (2)
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 owner:o = { admins = a@b.c x@y.z; }
@@ -648,6 +657,7 @@ Aborted
 
 ############################################################
 =TITLE=Missing type
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = :n1;
@@ -712,6 +722,7 @@ Error: Can't resolve network:n1@vrf: in user of service:s1
 
 ############################################################
 =TITLE=Empty interface name
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:;
@@ -723,6 +734,7 @@ Aborted
 
 ############################################################
 =TITLE=Interface name without dot
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r;
@@ -734,6 +746,7 @@ Aborted
 
 ############################################################
 =TITLE=Interface name with empty router part
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:.n;
@@ -745,6 +758,7 @@ Aborted
 
 ############################################################
 =TITLE=Interface name with empty network part
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r.;
@@ -771,6 +785,7 @@ Error: Can't resolve interface:r.n.123.nn in user of service:s1
 
 ############################################################
 =TITLE=Missing [any|all]
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r1.[ ;
@@ -782,6 +797,7 @@ Aborted
 
 ############################################################
 =TITLE=Bad auto interface
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:r.[foo];
@@ -793,6 +809,7 @@ Aborted
 
 ############################################################
 =TITLE=Unexpected network name in interfaces of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:g1 = interface:[network:n1].n2;
@@ -804,6 +821,7 @@ Aborted
 
 ############################################################
 =TITLE=Bad group name in definition
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 group:a@b = ;
@@ -891,13 +909,13 @@ Error: Domain name expected in attribute 'cert_id' of network:n
 
 ############################################################
 =TITLE=Bad managed attribute
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 router:r = {
  managed xxx;
  interface:n;
 }
-network:n = { ip = ::a01:100/120; }
 =END=
 =ERROR=
 Error: Expected '=' at line 2 of INPUT, near "managed --HERE-->xxx"
@@ -990,6 +1008,7 @@ Aborted
 
 ############################################################
 =TITLE=Bad typed name as attribute of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { xy:z; }
@@ -1001,6 +1020,7 @@ Error: Missing IP address for network:n
 
 ############################################################
 =TITLE=Bad token as attribute of network
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { ; }
@@ -1012,6 +1032,7 @@ Aborted
 
 ############################################################
 =TITLE=Network and host without IP
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n = { host:h1 = {} }
@@ -1035,6 +1056,7 @@ Error: Unnumbered network:n must not have attribute 'ip'
 
 ############################################################
 =TITLE=NAT without IP
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { nat:n = { } }
@@ -1081,6 +1103,7 @@ Error: Invalid identifier 'a.1' in radius_attributes of network:n1
 
 ############################################################
 =TITLE=Bad radius attribute with comment character
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = { radius_attributes = { banner = Welcome #two; } }
@@ -1145,6 +1168,7 @@ Error: Unexpected attribute in nat:n of interface:r.n: xyz
 
 ############################################################
 =TITLE=Service without any rules
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
@@ -1171,6 +1195,7 @@ Error: Must not define service:s1 having both user-user rule and normal rule
 
 ############################################################
 =TITLE=Service without user
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
@@ -1278,10 +1303,10 @@ Error: Unexpected attribute in any:n: x:yz
 
 ############################################################
 =TITLE=Aggregate without attribute 'link'
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 any:n = { }
-network:n1 = { ip = ::a01:200/120; }
 =END=
 =ERROR=
 Error: Attribute 'link' must be defined for any:n
@@ -1319,12 +1344,12 @@ network:n = { ip = ::a01:100/120; }
 
 ############################################################
 =TITLE=Untyped name in anchor
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 area:n = {
  anchor = n;
 }
-network:n = { ip = ::a01:100/120; }
 =END=
 =ERROR=
 Error: Typed name expected in 'anchor' of area:n
@@ -1359,6 +1384,7 @@ Error: Unexpected attribute in area:n: x:yz
 
 ############################################################
 =TITLE=Unexpected token in crypto
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 crypto:c = { xyz; }
@@ -1444,6 +1470,7 @@ Error: The sub-expressions of union in 'dst' of service:s1 equally must
 
 ############################################################
 =TITLE=Invalid attribute syntax in service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
@@ -1459,9 +1486,9 @@ Aborted
 
 ############################################################
 =TITLE=Invalid attribute at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
-[[topo]]
 service:s1 = {
  xyz;
  user = network:n1;
@@ -1474,6 +1501,7 @@ Error: Unexpected attribute in service:s1: xyz
 
 ############################################################
 =TITLE=Invalid action in at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
@@ -1488,6 +1516,7 @@ Aborted
 
 ############################################################
 =TITLE=Invalid rule in at service
+=TODO= No IPv6
 =PARAMS=--ipv6
 =INPUT=
 service:s1 = {
