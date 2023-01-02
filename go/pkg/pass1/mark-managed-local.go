@@ -121,12 +121,6 @@ func (c *spoc) markManagedLocal() {
 
 	for _, cluster := range c.getManagedLocalClusters() {
 		mark := cluster.mark
-		var markNetworks func(netList)
-		markNetworks = func(list netList) {
-			for _, n := range list {
-				markNetworks(n.networks)
-			}
-		}
 		for _, zone := range c.allZones {
 			processWithSubnetworks(zone.networks, func(n *network) {
 				natNetwork := getNatNetwork(n, cluster.natMap)
