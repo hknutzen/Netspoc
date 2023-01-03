@@ -73,6 +73,52 @@ ipv6 access-list e1_in
 =END=
 
 ############################################################
+=TITLE=Reverse UDP any
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65535;
+}
+=END=
+=OUTPUT=
+--ipv6/r
+ipv6 access-list e0_in
+ deny ipv6 any host ::a02:202
+ permit udp ::a01:100/120 ::a02:200/120
+ deny ipv6 any any
+--
+ipv6 access-list e1_in
+ deny ipv6 any host ::a01:101
+ permit udp ::a02:200/120 ::a01:100/120
+ deny ipv6 any any
+=END=
+
+############################################################
+=TITLE=Recognize UDP non any
+=PARAMS=--ipv6
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65534;
+}
+=END=
+=OUTPUT=
+--ipv6/r
+ipv6 access-list e0_in
+ deny ipv6 any host ::a02:202
+ permit udp ::a01:100/120 ::a02:200/120 lt 65535
+ deny ipv6 any any
+--
+ipv6 access-list e1_in
+ deny ipv6 any host ::a01:101
+ permit udp ::a02:200/120 lt 65535 ::a01:100/120
+ deny ipv6 any any
+=END=
+
+############################################################
 =TITLE=UDP source port with unspecified destination port
 =PARAMS=--ipv6
 =INPUT=

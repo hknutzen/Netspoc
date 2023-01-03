@@ -52,7 +52,6 @@ service:test = {
  ;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -63,7 +62,6 @@ ipv6 route ::a01:200/120 ::a09:102
 ipv6 route ::a05:4/126 ::a09:103
 ipv6 route ::a01:380/121 ::a09:103
 ipv6 route ::a01:400/120 ::a09:103
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -91,12 +89,10 @@ service:test = {
  user = network:n2a, network:n2b;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
 ipv6 route ::a01:200/120 ::a09:102
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -120,7 +116,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't generate static routes for interface:asa.Trans because IP address is unknown for:
  - interface:u.Trans
@@ -153,7 +148,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Can't generate static routes for interface:r2.n2 because IP address is unknown for:
  - interface:r1.n2
@@ -184,7 +178,6 @@ service:test = {
  user = network:n1;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =ERROR=
 Error: Two static routes for network:n2
  at interface:r.t1 via interface:h2.t1 and interface:h1.t1
@@ -265,7 +258,6 @@ service:test = {
  user = network:N;
  permit src = user; dst = network:Kunde; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/asa
 ipv6 route outside ::a01:100/120 ::a09:902
@@ -299,7 +291,6 @@ service:s1 = {
  user = network:n1;
  permit src = user; dst = network:n3, network:n4; prt = udp 123;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -386,7 +377,6 @@ service:test = {
  user = network:n1{{.n4}};
  permit src = user; dst = network:n2; prt = icmpv6 8;
 }
-=END=
 =PARAMS=--ipv6
 =INPUT=[[input {n4: ""}]]
 =OUTPUT=
@@ -424,7 +414,6 @@ service:test2 = {
 ip route add ::/0 via ::a09:102
 ip route add ::a01:100/124 via ::a09:102
 ip route add ::a01:100/120 via ::a09:202
-=END=
 =OPTIONS=--check_redundant_rules=0
 
 ############################################################
@@ -666,7 +655,6 @@ service:test2 = {
  user = network:n3;
  permit src = interface:hop.t2; dst = user; prt = icmpv6 8;
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ! [ Routing ]
@@ -705,7 +693,6 @@ service:test = {
  user = network:n2, network:n3;
  permit src = network:n1; dst = user; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -749,7 +736,6 @@ service:s2 = {
  user = network:n3;
  permit src = user; dst = interface:r1.n2; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -781,7 +767,6 @@ service:ping_local = {
  user = foreach interface:r1.n1, interface:r1.n2;
  permit src = any:[user]; dst = user; prt = icmpv6 8;
 }
-=END=
 =OUTPUT=
 --ipv6/r1
 ! [ Routing ]
@@ -826,7 +811,6 @@ service:s2 = {
  user = interface:r1.n2.virtual;
  permit src = user; dst = network:n4; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ Routing ]
@@ -836,6 +820,44 @@ ipv6 route ::a01:400/120 ::a01:304
 ! [ Routing ]
 ipv6 route ::a01:100/120 ::a01:204
 ipv6 route ::a01:400/120 ::a01:304
+=END=
+
+############################################################
+=TITLE=Route from virtual interface
+# Must no accidently ignore route.
+=PARAMS=--ipv6
+=INPUT=
+network:n0 = { ip = ::a01:0/120; }
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n0 = { ip = ::a01:1; hardware = n0; }
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = ::a01:102; hardware = n1; virtual = { ip = ::a01:103; } }
+ interface:n2 = { ip = ::a01:201; hardware = n2; virtual = { ip = ::a01:203; } }
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = ::a01:104; hardware = n1; virtual = { ip = ::a01:103; } }
+ interface:n2 = { ip = ::a01:202; hardware = n2; virtual = { ip = ::a01:203; } }
+}
+
+service:s1 = {
+ user = interface:r1.n0;
+ permit src = user; dst = interface:r2.n1.virtual; prt = tcp 80;
+}
+=OUTPUT=
+-- ipv6/r2
+! [ Routing ]
+ipv6 route ::a01:0/120 ::a01:101
 =END=
 
 ############################################################
@@ -872,7 +894,6 @@ service:s2 = {
  user = interface:r3.n4;
  permit src = user; dst = network:n2; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r3
 ! [ Routing ]

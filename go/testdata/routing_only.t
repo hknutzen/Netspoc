@@ -22,7 +22,6 @@ service:test = {
  user = host:h3;
  permit src = user; dst = interface:r.[auto]; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --r
 ! [ IP = 10.1.2.1 ]
@@ -46,7 +45,6 @@ service:test = {
  user = host:h1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: No firewalls found between all source/destination pairs of service:test
 =END=
@@ -81,7 +79,6 @@ service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- r1
 ! [ Routing for router:r1@v1 ]
@@ -93,7 +90,6 @@ vrf context v1
 vrf context v2
  ip route 10.2.2.0/24 10.9.1.1
  ip route 10.1.1.0/24 10.9.2.2
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -127,7 +123,6 @@ router:asa = {
  interface:t3 = { ip = 10.9.3.1; hardware = t3; }
  interface:n3 = { ip = 10.1.3.2; hardware = n3; }
 }
-=END=
 =OUTPUT=
 --r
 ! [ Routing ]

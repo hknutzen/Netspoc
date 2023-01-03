@@ -23,7 +23,6 @@ service:test = {
  user = host:h3;
  permit src = user; dst = interface:r.[auto]; prt = tcp 22;
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ! [ IP = ::a01:201 ]
@@ -48,7 +47,6 @@ service:test = {
  user = host:h1;
  permit src = user; dst = network:n2; prt = tcp 22;
 }
-=END=
 =WARNING=
 Warning: No firewalls found between all source/destination pairs of service:test
 =END=
@@ -84,7 +82,6 @@ service:test = {
  user = network:m;
  permit src = user; dst = network:n; prt = tcp 80;
 }
-=END=
 =OUTPUT=
 -- ipv6/r1
 ! [ Routing for router:r1@v1 ]
@@ -96,7 +93,6 @@ vrf context v1
 vrf context v2
  ipv6 route ::a02:200/120 ::a09:101
  ipv6 route ::a01:100/120 ::a09:202
-=END=
 =OPTIONS=--auto_default_route=0
 
 ############################################################
@@ -131,7 +127,6 @@ router:asa = {
  interface:t3 = { ip = ::a09:301; hardware = t3; }
  interface:n3 = { ip = ::a01:302; hardware = n3; }
 }
-=END=
 =OUTPUT=
 --ipv6/r
 ! [ Routing ]
