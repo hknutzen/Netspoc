@@ -71,6 +71,50 @@ ip access-list extended e1_in
 =END=
 
 ############################################################
+=TITLE=Reverse UDP any
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65535;
+}
+=END=
+=OUTPUT=
+--r
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any host 10.1.1.1
+ permit udp 10.2.2.0 0.0.0.255 10.1.1.0 0.0.0.255
+ deny ip any any
+=END=
+
+############################################################
+=TITLE=Recognize UDP non any
+=INPUT=
+[[topo]]
+service:test = {
+ user = network:x;
+ permit src = user; dst = network:y; prt = udp 1-65534;
+}
+=END=
+=OUTPUT=
+--r
+ip access-list extended e0_in
+ deny ip any host 10.2.2.2
+ permit udp 10.1.1.0 0.0.0.255 10.2.2.0 0.0.0.255 lt 65535
+ deny ip any any
+--
+ip access-list extended e1_in
+ deny ip any host 10.1.1.1
+ permit udp 10.2.2.0 0.0.0.255 lt 65535 10.1.1.0 0.0.0.255
+ deny ip any any
+=END=
+
+############################################################
 =TITLE=UDP source port with unspecified destination port
 =INPUT=
 [[topo]]
