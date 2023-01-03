@@ -817,6 +817,43 @@ ip route 10.1.4.0 255.255.255.0 10.1.3.4
 =END=
 
 ############################################################
+=TITLE=Route from virtual interface
+# Must no accidently ignore route.
+=INPUT=
+network:n0 = { ip = 10.1.0.0/24; }
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+
+router:r1 = {
+ managed;
+ model = IOS, FW;
+ interface:n0 = { ip = 10.1.0.1; hardware = n0; }
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+router:r2 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; virtual = { ip = 10.1.1.3; } }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; virtual = { ip = 10.1.2.3; } }
+}
+router:r3 = {
+ managed;
+ model = IOS, FW;
+ interface:n1 = { ip = 10.1.1.4; hardware = n1; virtual = { ip = 10.1.1.3; } }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; virtual = { ip = 10.1.2.3; } }
+}
+
+service:s1 = {
+ user = interface:r1.n0;
+ permit src = user; dst = interface:r2.n1.virtual; prt = tcp 80;
+}
+=OUTPUT=
+-- r2
+! [ Routing ]
+ip route 10.1.0.0 255.255.255.0 10.1.1.1
+=END=
+
+############################################################
 =TITLE=Must not add routes for zone at start interface at zone
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
