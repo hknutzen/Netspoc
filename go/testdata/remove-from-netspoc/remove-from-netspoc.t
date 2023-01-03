@@ -253,15 +253,15 @@ group:g =
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- interface:n1;
- interface:lo1 = { ip = 10.1.1.1; loopback; }
+ interface:n1 = { ip = 10.1.1.1; }
+ interface:lo1 = { ip = 10.1.1.2; loopback; }
  interface:lo = { ip = 10.1.1.3; loopback; }
 }
 router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo2 = { ip = 10.1.1.2; loopback; hardware = lo2; }
+ interface:lo2 = { ip = 10.1.1.4; loopback; hardware = lo2; }
 }
 group:abc = group:g &! interface:r1.lo;
 group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo2;
@@ -269,14 +269,14 @@ group:g = interface:r1.n1, interface:r1.lo, interface:r2.lo2;
 =OUTPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 router:r1 = {
- interface:n1;
- interface:lo1 = { ip = 10.1.1.1; loopback; }
+ interface:n1  = { ip = 10.1.1.1; }
+ interface:lo1 = { ip = 10.1.1.2; loopback; }
 }
 router:r2 = {
  managed;
  model = IOS;
  interface:n1;
- interface:lo2 = { ip = 10.1.1.2; loopback; hardware = lo2; }
+ interface:lo2 = { ip = 10.1.1.4; loopback; hardware = lo2; }
 }
 group:abc =
  group:g,
