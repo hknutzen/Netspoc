@@ -59,6 +59,15 @@ ip access-list extended n2_in
  deny ip any host 10.1.3.1
  permit tcp 10.1.1.0 0.0.0.255 10.1.3.0 0.0.0.255 eq 80
  deny ip any any
+--
+interface n2
+ ip address 10.1.2.2 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n2_in in
+interface n3
+ ip address 10.1.3.1 255.255.255.0
+ ip vrf forwarding v2
+ ip access-group n3_in in
 =END=
 
 ############################################################
@@ -99,9 +108,29 @@ ip access-list e0_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
 --
+interface e0
+ ip address 10.2.2.1/24
+ vrf member v1
+ ip access-group e0_in in
+--
+interface e1
+ ip address 10.9.9.1/24
+ vrf member v1
+ ip access-group e1_in in
+--
 ip access-list e2_in
  10 permit tcp 10.2.2.0/24 addrgroup g0 established
  20 deny ip any any
+--
+interface e2
+ ip address 10.9.9.2/24
+ vrf member v2
+ ip access-group e2_in in
+--
+interface e3
+ ip address 10.1.1.1/24
+ vrf member v2
+ ip access-group e3_in in
 =END=
 
 ############################################################
