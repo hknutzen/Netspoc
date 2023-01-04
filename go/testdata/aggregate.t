@@ -2652,7 +2652,7 @@ service:s2 = {
 }
 service:s3 = {
  user = network:n4sub;
- permit src = user; dst = any:[ip=10.1.1.0/25 & network:n2]; prt = icmp 4/4, icmp 3;
+ permit src = user; dst = any:[ip=10.1.1.0/25 & network:n2]; prt = icmp 4/4, icmp 3/13;
 }
 service:s4 = {
  user = network:n4;
