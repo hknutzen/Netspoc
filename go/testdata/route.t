@@ -221,6 +221,37 @@ ip route 10.1.6.0 255.255.255.0 10.9.1.4
 =END=
 
 ############################################################
+=TITLE=Default route for ASA
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; }
+network:n4 = { ip = 10.1.4.0/24; }
+network:n5 = { ip = 10.1.5.0/24; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.2; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = 10.1.2.3; }
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = network:n3, network:n4, network:n5;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--r1
+! [ Routing ]
+route n2 0.0.0.0 0.0.0.0 10.1.2.3
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =INPUT=
 network:N = { ip = 10.1.1.0/24; }
