@@ -7,11 +7,11 @@ transpose-service - Transpose one service in netspoc files
 
 =head1 SYNOPSIS
 
-transpose-service [options] FILE|DIR [service:]NAME
+transpose-service [options] FILE|DIR [service:]NAME ...
 
 =head1 DESCRIPTION
 
-This program reads a netspoc configuration and one SERVICE name. It
+This program reads a netspoc configuration and one or more SERVICE name(s). It
 transposes the specified service in each file. Keyword user in src/dst is switched
 but functionality of the service is not changed. Filechanges are done in place,
 no backup files are created. But only changed files are touched.
@@ -19,6 +19,10 @@ no backup files are created. But only changed files are touched.
 =head1 OPTIONS
 
 =over 4
+
+=item B<-f> file
+
+Read services from file.
 
 =item B<-q>
 
@@ -32,7 +36,7 @@ Prints a brief help message and exits.
 
 =head1 COPYRIGHT AND DISCLAIMER
 
-(c) 2021 by Dominik Kunkel <netspoc@drachionix.eu>
+(c) 2023 by Dominik Kunkel <netspoc@drachionix.eu>
 (c) 2022 by Heinz Knutzen <heinz.knutzen@googlemail.com>
 
 http://hknutzen.github.com/Netspoc
@@ -55,6 +59,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hknutzen/Netspoc/go/pkg/ast"
@@ -66,6 +71,15 @@ import (
 
 type state struct {
 	*astset.State
+}
+
+func (s *state) readObjects(path string) ([]string, error) {
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("Can't %s", err)
+	}
+	objects := strings.Fields(string(bytes))
+	return objects, nil
 }
 
 func (s *state) transposeService(name string) error {
@@ -160,12 +174,13 @@ func Main(d oslink.Data) int {
 	// Setup custom usage function.
 	fs.Usage = func() {
 		fmt.Fprintf(d.Stderr,
-			"Usage: %s [options] FILE|DIR [service:]NAME\n%s",
+			"Usage: %s [options] FILE|DIR [service:]NAME ...\n%s",
 			d.Args[0], fs.FlagUsages())
 	}
 
 	// Command line flags
 	quiet := fs.BoolP("quiet", "q", false, "Don't show changed files")
+	fromFile := fs.StringP("file", "f", "", "Read SERVICES from file")
 	if err := fs.Parse(d.Args[1:]); err != nil {
 		if err == pflag.ErrHelp {
 			return 1
@@ -179,12 +194,20 @@ func Main(d oslink.Data) int {
 
 	// Argument processing
 	args := fs.Args()
-	if len(args) != 2 {
+	var services []string
+	if *fromFile != "" {
+		l, err := s.readObjects(*fromFile)
+		if err != nil {
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+			return 1
+		}
+		services = l
+	} else if len(args) == 0 {
 		fs.Usage()
 		return 1
 	}
 	path := args[0]
-	service := args[1]
+	services = append(services, args[1:]...)
 
 	dummyArgs := []string{
 		fmt.Sprintf("--quiet=%v", *quiet),
@@ -198,14 +221,16 @@ func Main(d oslink.Data) int {
 		return 1
 	}
 
-	name := service
-	if !strings.HasPrefix(service, "service:") {
-		name = "service:" + service
-	}
-	err = s.transposeService(name)
-	if err != nil {
-		fmt.Fprintf(d.Stderr, "Error: %s\n", err)
-		return 1
+	for _, service := range services {
+		name := service
+		if !strings.HasPrefix(service, "service:") {
+			name = "service:" + service
+		}
+		err = s.transposeService(name)
+		if err != nil {
+			fmt.Fprintf(d.Stderr, "Error: %s\n", err)
+			return 1
+		}
 	}
 	s.ShowChanged(d.Stderr, cnf.Quiet)
 	s.Print()

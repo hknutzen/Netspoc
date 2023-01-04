@@ -61,6 +61,15 @@ ipv6 access-list n2_in
  deny ipv6 any host ::a01:301
  permit tcp ::a01:100/120 ::a01:300/120 eq 80
  deny ipv6 any any
+--
+interface n2
+ ipv6 address ::a01:202/120
+ ip vrf forwarding v2
+ ipv6 traffic-filter n2_in in
+interface n3
+ ipv6 address ::a01:301/120
+ ip vrf forwarding v2
+ ipv6 traffic-filter n3_in in
 =END=
 
 ############################################################
@@ -102,9 +111,29 @@ ipv6 access-list e0_in
  10 permit tcp ::a02:200/120 addrgroup v6g0 established
  20 deny ip any any
 --
+interface e0
+ ipv6 address ::a02:201/120
+ vrf member v1
+ ipv6 traffic-filter e0_in in
+--
+interface e1
+ ipv6 address ::a09:901/120
+ vrf member v1
+ ipv6 traffic-filter e1_in in
+--
 ipv6 access-list e2_in
  10 permit tcp ::a02:200/120 addrgroup v6g0 established
  20 deny ip any any
+--
+interface e2
+ ipv6 address ::a09:902/120
+ vrf member v2
+ ipv6 traffic-filter e2_in in
+--
+interface e3
+ ipv6 address ::a01:101/120
+ vrf member v2
+ ipv6 traffic-filter e3_in in
 =END=
 
 ############################################################
