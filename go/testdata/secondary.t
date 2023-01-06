@@ -121,6 +121,50 @@ ip access-list extended n5_in
 =END=
 
 ############################################################
+=TITLE=Optimize duplicate rules from secondary optimization
+=INPUT=
+network:n1 = {
+ ip = 10.1.1.0/24;
+ host:h10 = { ip = 10.1.1.10; }
+ host:h12 = { ip = 10.1.1.12; }
+ host:h8-15 = { range = 10.1.1.8-10.1.1.15; }
+}
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.1.128/25; subnet_of = network:n1; }
+
+router:r1 = {
+ managed = secondary;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.1.129; hardware = n3; }
+}
+service:s1 = {
+ user = host:h8-15;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = host:h10, host:h12;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 81;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended permit ip 10.1.1.8 255.255.255.248 10.1.1.128 255.255.255.128
+access-list n1_in extended deny ip any4 any4
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Secondary optimization to largest safe network
 =INPUT=
 network:all_10 = { ip = 10.0.0.0/8; }
