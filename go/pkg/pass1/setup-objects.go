@@ -2421,6 +2421,7 @@ var routerInfo = map[string]*model{
 	"NSX": {
 		routing:                "",
 		filter:                 "NSX",
+		logModifiers:           map[string]string{"tag:": ":insert"},
 		canObjectgroup:         true,
 		canVRF:                 true,
 		needManagementInstance: true,

@@ -289,7 +289,7 @@ type router struct {
 	model                *model
 	log                  map[string]string
 	logDefault           string
-	logDeny              bool
+	logDeny              string
 	localMark            int
 	origIntfs            intfList
 	crosslinkIntfs       intfList

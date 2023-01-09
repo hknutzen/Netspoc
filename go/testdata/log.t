@@ -87,22 +87,6 @@ Error: Must not use multiple values for log:a in router:r1 of model ASA
 =END=
 
 ############################################################
-=TITLE=No log_default at ASA
-=INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
-router:r1 = {
- managed;
- model = ASA;
- log_default = alerts;
- interface:n1 = { ip = 10.1.1.1; hardware = n1; }
-}
-=END=
-=ERROR=
-Error: Must not use attribute 'log_default' at router:r1 of model ASA
-=END=
-
-
-############################################################
 =TITLE=Unknown log severity at IOS
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
@@ -473,19 +457,73 @@ ip access-list extended n1_in
 =END=
 
 ############################################################
-=TITLE=Unsupported log deny
+=TITLE=log_default at ASA
 =INPUT=
-network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
 router:r1 = {
  managed;
  model = ASA;
+ log_default = alerts;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:t = {
+ user = network:n1;
+ deny src = user; dst = network:n2; prt = tcp 22;
+ permit src = user; dst = network:n2; prt = tcp;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended deny tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 22 log 1
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 log 1
+access-list n1_in extended deny ip any4 any4 log 1
+access-group n1_in in interface n1
+=END=
+
+############################################################
+=TITLE=log_deny overwrites log_default
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = ASA;
+ log_default = warnings;
+ log_deny = critical;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+service:t = {
+ user = network:n1;
+ deny src = user; dst = network:n2; prt = tcp 22;
+ permit src = user; dst = network:n2; prt = tcp;
+}
+=OUTPUT=
+-- r1
+! n1_in
+access-list n1_in extended deny tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 eq 22 log 4
+access-list n1_in extended permit tcp 10.1.1.0 255.255.255.0 10.1.2.0 255.255.255.0 log 4
+access-list n1_in extended deny ip any4 any4 log 2
+access-group n1_in in interface n1
+=END=
+
+
+############################################################
+=TITLE=Unsupported log deny
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; }
+network:n2 = { ip = 10.1.2.0/24; }
+router:r1 = {
+ managed;
+ model = Linux;
  log_deny;
  interface:n1 = { ip = 10.1.1.1; hardware = n1; }
  interface:n2 = { ip = 10.1.2.1; hardware = n2; }
 }
 =ERROR=
-Error: Must not use attribute 'log_deny' at router:r1 of model ASA
+Error: Must not use attribute 'log_deny' at router:r1 of model Linux
 =END=
 
 ############################################################

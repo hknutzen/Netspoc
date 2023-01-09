@@ -227,6 +227,38 @@ ipv6 route ::a01:600/120 ::a09:104
 =END=
 
 ############################################################
+=TITLE=Default route for ASA
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = { ip = ::a01:100/120; }
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:300/120; }
+network:n4 = { ip = ::a01:400/120; }
+network:n5 = { ip = ::a01:500/120; }
+
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = ::a01:102; hardware = n1; }
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+}
+router:r2 = {
+ interface:n2 = { ip = ::a01:203; }
+ interface:n3;
+ interface:n4;
+ interface:n5;
+}
+service:s1 = {
+ user = network:n3, network:n4, network:n5;
+ permit src = network:n1; dst = user; prt = udp 123;
+}
+=OUTPUT=
+--ipv6/r1
+! [ Routing ]
+ipv6 route n2 ::/0 ::a01:203
+=END=
+
+############################################################
 =TITLE=Static route to network in unmanaged loop
 =PARAMS=--ipv6
 =INPUT=

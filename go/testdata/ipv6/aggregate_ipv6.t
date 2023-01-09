@@ -2725,7 +2725,7 @@ service:s2 = {
 }
 service:s3 = {
  user = network:n4sub;
- permit src = user; dst = any:[ip=::a01:100/121 & network:n2]; prt = icmpv6 4/4, icmpv6 3;
+ permit src = user; dst = any:[ip=::a01:100/121 & network:n2]; prt = icmpv6 4/4, icmpv6 3/13;
 }
 service:s4 = {
  user = network:n4;

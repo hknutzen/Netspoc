@@ -1,6 +1,6 @@
 
 ############################################################
-=TITLE=Protocol IP and deny rules
+=TITLE=Protocol IP and deny rules with prefix and suffix
 =PARAMS=--ipv6
 =INPUT=
 network:n1 = {
@@ -21,6 +21,30 @@ service:s1 = {
 =END=
 =OUTPUT=
 --ipv6/r1
+# [ BEGIN r1 ]
+--
+# [ Model = Linux ]
+--
+# [ PREFIX ]
+--
+#!/sbin/iptables-restore <<EOF
+*raw
+:PREROUTING ACCEPT
+:OUTPUT ACCEPT
+-A PREROUTING -i lo -j NOTRACK
+-A OUTPUT -o lo -j NOTRACK
+COMMIT
+*filter
+:INPUT DROP
+:FORWARD DROP
+:OUTPUT ACCEPT
+-A INPUT -j ACCEPT -m state --state ESTABLISHED,RELATED
+-A FORWARD -j ACCEPT -m state --state ESTABLISHED,RELATED
+-A INPUT -j ACCEPT -i lo
+:droplog -
+-A droplog -j LOG --log-level debug
+-A droplog -j DROP
+--
 # [ ACL ]
 :c1 -
 -A c1 -j droplog -s ::a01:10c
@@ -30,6 +54,12 @@ service:s1 = {
 -A n1_self -j c1 -s ::a01:108/125 -d ::a01:101
 -A n1_self -j ACCEPT -s ::a01:100/120 -d ::a01:101
 -A INPUT -j n1_self -i n1
+--
+# [ SUFFIX ]
+-A INPUT -j droplog
+-A FORWARD -j droplog
+COMMIT
+EOF
 =END=
 
 ############################################################

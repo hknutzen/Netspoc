@@ -2289,9 +2289,10 @@ func (c *spoc) printAcls(path string, vrfMembers []*router) {
 		}
 		result.FilterOnly = list
 	}
-	if r.logDeny {
-		result.LogDeny = "log"
+	if r.logDeny == "" {
+		r.logDeny = r.logDefault
 	}
+	result.LogDeny = r.logDeny
 	c.writeJson(path, result)
 }
 

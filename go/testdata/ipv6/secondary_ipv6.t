@@ -122,6 +122,51 @@ ipv6 access-list n5_in
 =END=
 
 ############################################################
+=TITLE=Optimize duplicate rules from secondary optimization
+=PARAMS=--ipv6
+=INPUT=
+network:n1 = {
+ ip = ::a01:100/120;
+ host:h10 = { ip = ::a01:10a; }
+ host:h12 = { ip = ::a01:10c; }
+ host:h8-15 = { range = ::a01:108-::a01:10f; }
+}
+network:n2 = { ip = ::a01:200/120; }
+network:n3 = { ip = ::a01:180/121; subnet_of = network:n1; }
+
+router:r1 = {
+ managed = secondary;
+ model = ASA;
+ interface:n1 = { ip = ::a01:101; hardware = n1; }
+ interface:n2 = { ip = ::a01:201; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = ::a01:202; hardware = n2; }
+ interface:n3 = { ip = ::a01:181; hardware = n3; }
+}
+service:s1 = {
+ user = host:h8-15;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 80;
+}
+service:s2 = {
+ user = host:h10, host:h12;
+ permit src = user;
+        dst = network:n3;
+        prt = tcp 81;
+}
+=OUTPUT=
+-- ipv6/r1
+! n1_in
+access-list n1_in extended permit ip ::a01:108/125 ::a01:180/121
+access-list n1_in extended deny ip any6 any6
+access-group n1_in in interface n1
+=END=
+
+############################################################
 =TITLE=Secondary optimization to largest safe network
 =PARAMS=--ipv6
 =INPUT=
