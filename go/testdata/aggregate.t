@@ -2243,6 +2243,43 @@ Warning: Missing transient supernet rules
 =END=
 
 ############################################################
+=TITLE=Missing transient rule with ICMP type
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+network:n2 = { ip = 10.1.2.0/24; }
+network:n3 = { ip = 10.1.3.0/24; host:h3 = { ip = 10.1.3.10; } }
+router:r1 = {
+ managed;
+ model = ASA;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+ interface:n2 = { ip = 10.1.2.1; hardware = n2; }
+}
+router:r2 = {
+ managed;
+ model = ASA;
+ interface:n2 = { ip = 10.1.2.2; hardware = n2; }
+ interface:n3 = { ip = 10.1.3.2; hardware = n3; }
+}
+service:s1 = {
+ user = network:n1;
+ permit src = user; dst = any:[network:n2]; prt = icmp 3;
+}
+service:s2 = {
+ user = any:[network:n2];
+ permit src = user; dst = host:h3; prt = icmp 3/13;
+}
+=END=
+=WARNING=
+Warning: Missing transient supernet rules
+ between src of service:s1 and dst of service:s2,
+ matching at any:[network:n2].
+ Add missing src elements to service:s2:
+ - network:n1
+ or add missing dst elements to service:s1:
+ - host:h3
+=END=
+
+############################################################
 =TITLE=Missing transient rule with source port
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
