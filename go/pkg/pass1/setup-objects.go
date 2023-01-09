@@ -1309,10 +1309,7 @@ func (c *spoc) setupRouter(v *ast.Router) {
 					m[name] = c.transformLog("log:"+name, modList, r)
 				}
 			} else {
-				var names stringList
-				for k := range m {
-					names.push(k)
-				}
+				names := maps.Keys(m)
 				sort.Strings(names)
 				name := names[0]
 				c.err("Must not use attribute 'log:%s' at %s of model %s",
