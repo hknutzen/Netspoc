@@ -116,19 +116,17 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
          [ <description> ]
          [ managed; | managed = <filter type>;        ]
          [ model = <model>;                           ]
-         [ management_instance; ]
-         [ backup_of = router:<name>; ]
-         [ filter_only = <ip-net>(, <ip-net>)*; ]
+         [ management_instance;                       ]
+         [ backup_of = router:<name>;                 ]
+         [ filter_only = <ip-net>(, <ip-net>)*;       ]
          [ routing = ( EIGRP | OSPF | RIPv2 | dynamic | manual ); ]
          [ policy_distribution_point = host:<name>;   ]
          [ general_permit = <protocol list>;          ]
-         [ log_default = <PAN-OS-modifier-list>;      ]
-         ( log:<name> [= (<ASA-modifier> |
-                          <IOS-modifier> |
-                          <PAN-OS-modifier-list>)]; )*
+         [ log_default [= <modifiers>];               ]
+         [ log_deny [= <modifiers>];                  ]
+         ( log:<name> [= <modifiers>]; )*
          [ no_group_code;    ]
          [ no_protect_self;  ]
-         [ log_deny;         ]
          [ owner = <name>;   ]
          <interface definition> *
          <short interface definition> *
@@ -139,12 +137,17 @@ but not whitespace, no delimiters `;,=` and no quotes `"'`.
     <filter type>  ::= primary | full | standard | secondary | local |
                        routing_only
     <model>        ::= Linux | ASA | IOS | IOS,FW | NX-OS | PAN-OS
+    <modifiers>    ::= <ASA-modifier> |
+                       <IOS-modifier> |
+                       <NSX-modifier> |
+                       <PAN-OS-modifier-list>
     <ASA-modifier> ::= alerts | critical | debugging | disable | emergencies |
                        errors | informational | notifications | warnings
-    <IOS-modifier> ::= log-input
+    <IOS-modifier>    ::= log-input
+    <NSX-modifier>    ::= tag:<name>
     <PAN-OS-modifier> ::= start | end | <PAN-OS-setting>
-    <PAN-OS-setting> ::= setting:<name>
-    <PAN-OS-modifier-list> =:= <PAN-OS-modifier>(, <PAN-OS-modifier>)*
+    <PAN-OS-setting>  ::= setting:<name>
+    <PAN-OS-modifier-list> ::= <PAN-OS-modifier>(, <PAN-OS-modifier>)*
 
 ## Interface definition
 

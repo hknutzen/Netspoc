@@ -662,8 +662,10 @@ Outgoing ACLs are supported for model NX-OS, IOS and ASA.
 
 ## Logging
 
-Logging can be changed individually for each combination of managed
-device and rule.
+Logging can be controlled by log attributes:
+1. `log_default`: Add logging to each rule of a device.
+2. `log_deny`: Add logging to each deny rule of a device.
+3. `log:<tag>`: Change logging individually for each combination of managed device and rule.
 
 Give one or more log definitions `log:<tag>` at devices, where
 logging should be enabled. With `<tag>` being some valid identifier.
@@ -672,15 +674,24 @@ Define attribute `log = <tag1>, ...;` at each rule that needs logging.
 A rule with logging for `<tag1>` is logged at each device, where a
 matching `log:<tag1>` is defined.
 
-Some devices allow extended log definition with a device specific modifier
-`log:<tag> = <modifier>`.
+For some devices these attributes accept one or more log modifiers as value that
+control the behaviour of logging.
 
-For model `ASA` we have modifiers `alerts | critical | debugging | disable |
+Model `ASA` allows a single modifier `alerts | critical | debugging | disable |
 emergencies | errors | informational | notifications | warnings`. The
 severity names correspond to well known UNIX log severities. The
 special name `disable` disables logging for a rule.
 
-Model `IOS` allows modifier `log-input`.
+Model `IOS` allows a single modifier `log-input`.
+
+Model `NSX` accepts a single modifier `tag:VALUE`.
+This uses the given value as label when logging.
+
+Model `PAN-OS` accepts one or more of these modifiers
+- `start` leading to `<log-start>yes</log-start>`
+- `end` leading to `<log-end>yes</log-start>`
+- `setting:SOME-VALUE` leading to `<log-setting>SOME-VALUE</log-setting>`
+Example: `start, end, setting:Panorama`.
 
 ## Routing
 
