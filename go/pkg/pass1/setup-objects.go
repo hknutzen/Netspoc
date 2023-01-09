@@ -1119,9 +1119,11 @@ func (c *spoc) setupRouter(v *ast.Router) {
 		case "no_protect_self":
 			noProtectSelf = c.getFlag(a, name)
 		case "log_deny":
-			r.logDeny = c.getFlag(a, name)
+			modList := c.getLogModifiers(a, name)
+			r.logDeny = c.transformLog(a.Name, modList, r)
 		case "log_default":
-			r.logDefault = c.getLogModifiers(a, name)
+			modList := c.getLogModifiers(a, name)
+			r.logDefault = c.transformLog(a.Name, modList, r)
 		case "routing":
 			routingDefault = c.getRouting(a, name)
 		case "owner":
@@ -1296,33 +1298,6 @@ func (c *spoc) setupRouter(v *ast.Router) {
 				"Ignoring attribute 'filter_only' at %s;"+
 					" only valid with 'managed = local'", name)
 			r.filterOnly = nil
-		}
-		if r.logDeny && !r.model.canLogDeny {
-			c.err("Must not use attribute 'log_deny' at %s of model %s",
-				name, r.model.name)
-		}
-
-		if m := r.log; m != nil {
-			if r.model.logModifiers != nil {
-				for name, modList := range m {
-					c.symTable.knownLog[name] = true
-					m[name] = c.transformLog("log:"+name, modList, r)
-				}
-			} else {
-				names := maps.Keys(m)
-				sort.Strings(names)
-				name := names[0]
-				c.err("Must not use attribute 'log:%s' at %s of model %s",
-					name, r.name, r.model.name)
-			}
-		}
-		if modList := r.logDefault; modList != "" {
-			if r.model.canLogDefault {
-				r.logDefault = c.transformLog("log_default", modList, r)
-			} else {
-				c.err("Must not use attribute 'log_default' at %s of model %s",
-					r.name, r.model.name)
-			}
 		}
 
 		if noProtectSelf && !r.model.needProtect {
@@ -2376,7 +2351,6 @@ var routerInfo = map[string]*model{
 		statelessICMP:    true,
 		inversedACLMask:  true,
 		canVRF:           true,
-		canLogDeny:       true,
 		logModifiers:     map[string]string{"": "log", "log-input": "log-input"},
 		hasOutACL:        true,
 		needProtect:      true,
@@ -2395,7 +2369,6 @@ var routerInfo = map[string]*model{
 		inversedACLMask:  true,
 		usePrefix:        true,
 		canVRF:           true,
-		canLogDeny:       true,
 		logModifiers:     map[string]string{"": "log"},
 		hasOutACL:        true,
 		needProtect:      true,
@@ -2437,12 +2410,10 @@ var routerInfo = map[string]*model{
 			"end":      "end",
 			"setting:": ":insert",
 		},
-		canLogDefault:          true,
 		canMultiLog:            true,
 		hasIoACL:               true,
 		canObjectgroup:         true,
 		canVRF:                 true,
-		canLogDeny:             true,
 		needManagementInstance: true,
 		needVRF:                true,
 		noACLself:              true,
@@ -3204,6 +3175,9 @@ func (c *spoc) getGeneralPermit(
 }
 
 func (c *spoc) getLogModifiers(a *ast.Attribute, ctx string) string {
+	if emptyAttr(a) {
+		return ""
+	}
 	return strings.Join(c.getValueList(a, ctx), " ")
 }
 
@@ -3211,23 +3185,26 @@ func (c *spoc) addLog(a *ast.Attribute, r *router) bool {
 	if !strings.HasPrefix(a.Name, "log:") {
 		return false
 	}
-	name := a.Name[len("log:"):]
-	modifiers := ""
-	if !emptyAttr(a) {
-		modifiers = c.getLogModifiers(a, r.name)
-	}
 	m := r.log
 	if m == nil {
 		m = make(map[string]string)
 		r.log = m
 	}
-	m[name] = modifiers
+	name := a.Name[len("log:"):]
+	c.symTable.knownLog[name] = true
+	modList := c.getLogModifiers(a, r.name)
+	m[name] = c.transformLog(a.Name, modList, r)
 	return true
 }
 
 // Check log modifiers and transform to log code.
 func (c *spoc) transformLog(name, modList string, r *router) string {
 	l := strings.Split(modList, " ")
+	if r.model.logModifiers == nil {
+		c.err("Must not use attribute '%s' at %s of model %s",
+			name, r.name, r.model.name)
+		return ""
+	}
 	if len(l) > 1 && !r.model.canMultiLog {
 		c.err("Must not use multiple values for %s in %s of model %s",
 			name, r.name, r.model.name)
