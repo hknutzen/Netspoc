@@ -822,7 +822,7 @@ service:s1 = {
 =END=
 
 ############################################################
-=TITLE=Without rules
+=TITLE=Without rules but log_deny with tag
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -834,6 +834,7 @@ router:r1 = {
 router:r1@v1 = {
  model = NSX, T1;
  managed;
+ log_deny = tag:r1@v1;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
 }
@@ -854,6 +855,7 @@ router:r1@v1 = {
      "direction": "OUT",
      "id": "r1",
      "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -867,7 +869,8 @@ router:r1@v1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "r1@v1"
     },
     {
      "action": "DROP",
@@ -877,6 +880,7 @@ router:r1@v1 = {
      "direction": "IN",
      "id": "r2",
      "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -890,7 +894,8 @@ router:r1@v1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "r1@v1"
     }
    ]
   }
@@ -900,7 +905,7 @@ router:r1@v1 = {
 =END=
 
 ############################################################
-=TITLE=ICMP and numeric protocol
+=TITLE=ICMP and numeric protocol with mixed logging
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; }
 network:n2 = { ip = 10.1.2.0/24; }
@@ -912,12 +917,16 @@ router:r1 = {
 router:r1@v1 = {
  model = NSX, T0;
  managed;
+ log_default;
+ log_deny = tag:T0;
+ log:x = tag:x;
  interface:n1 = { ip = 10.1.1.2; hardware = IN; }
  interface:n2 = { ip = 10.1.2.1; hardware = OUT; }
 }
 service:s1 = {
  user = network:n1;
- permit src = user; dst = network:n2; prt = icmp 8, icmp 5/0, proto 52;
+ permit src = user; dst = network:n2; prt = icmp 8, proto 52;
+ permit src = user; dst = network:n2; prt = icmp 5/0; log = x;
 }
 =OUTPUT=
 --r1
@@ -936,6 +945,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "r1",
      "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -959,29 +969,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "r2",
      "ip_protocol": "IPV4",
-     "profiles": [
-      "ANY"
-     ],
-     "resource_type": "Rule",
-     "scope": [
-      "/infra/tier-0s/v1"
-     ],
-     "sequence_number": 20,
-     "services": [
-      "/infra/services/Netspoc-icmp_5/0"
-     ],
-     "source_groups": [
-      "10.1.1.0/24"
-     ]
-    },
-    {
-     "action": "ALLOW",
-     "destination_groups": [
-      "10.1.2.0/24"
-     ],
-     "direction": "OUT",
-     "id": "r3",
-     "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -998,6 +986,31 @@ service:s1 = {
      ]
     },
     {
+     "action": "ALLOW",
+     "destination_groups": [
+      "10.1.2.0/24"
+     ],
+     "direction": "OUT",
+     "id": "r3",
+     "ip_protocol": "IPV4",
+     "logged": true,
+     "profiles": [
+      "ANY"
+     ],
+     "resource_type": "Rule",
+     "scope": [
+      "/infra/tier-0s/v1"
+     ],
+     "sequence_number": 20,
+     "services": [
+      "/infra/services/Netspoc-icmp_5/0"
+     ],
+     "source_groups": [
+      "10.1.1.0/24"
+     ],
+     "tag": "x"
+    },
+    {
      "action": "DROP",
      "destination_groups": [
       "ANY"
@@ -1005,6 +1018,7 @@ service:s1 = {
      "direction": "OUT",
      "id": "r4",
      "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -1018,7 +1032,8 @@ service:s1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "T0"
     },
     {
      "action": "DROP",
@@ -1028,6 +1043,7 @@ service:s1 = {
      "direction": "IN",
      "id": "r5",
      "ip_protocol": "IPV4",
+     "logged": true,
      "profiles": [
       "ANY"
      ],
@@ -1041,7 +1057,8 @@ service:s1 = {
      ],
      "source_groups": [
       "ANY"
-     ]
+     ],
+     "tag": "T0"
     }
    ]
   }

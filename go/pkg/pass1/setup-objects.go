@@ -2419,9 +2419,12 @@ var routerInfo = map[string]*model{
 		noACLself:              true,
 	},
 	"NSX": {
-		routing:                "",
-		filter:                 "NSX",
-		logModifiers:           map[string]string{"tag:": ":insert"},
+		routing: "",
+		filter:  "NSX",
+		logModifiers: map[string]string{
+			"":     "logged",
+			"tag:": ":insert",
+		},
 		canObjectgroup:         true,
 		canVRF:                 true,
 		needManagementInstance: true,
