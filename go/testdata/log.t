@@ -153,6 +153,22 @@ Error: Invalid 'log:a = bar' at router:r1@v1 of model PAN-OS
 =END=
 
 ############################################################
+=TITLE=Empty log value for PAN-OS
+=INPUT=
+network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
+router:r1@v1 = {
+ managed;
+ model = PAN-OS;
+ log:a;
+ interface:n1 = { ip = 10.1.1.1; hardware = n1; }
+}
+=END=
+=ERROR=
+Error: Invalid 'log:a = ' at router:r1@v1 of model PAN-OS
+ Expected: end|setting:|start
+=END=
+
+############################################################
 =TITLE=Missing value in "setting:" for PAN-OS
 =INPUT=
 network:n1 = { ip = 10.1.1.0/24; host:h1 = { ip = 10.1.1.10; } }
